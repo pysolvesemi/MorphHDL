@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+      - parameterized-verilog
   pull_request:
     branches:
       - main
+      - parameterized-verilog
   workflow_dispatch:
 
 permissions:
