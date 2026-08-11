@@ -1,0 +1,54 @@
+name: MorphHDL baseline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-baseline-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    name: Compile Scala ${{ matrix.scala_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Verify recorded upstream base
+        shell: bash
+        run: ./morphhdl/scripts/check-upstream-base.sh
+
+      - name: Compile production sources
+        shell: bash
+        run: sbt -batch ++${{ matrix.scala_version }} compile
+
+      - name: Compile test sources
+        shell: bash
+        run: sbt -batch ++${{ matrix.scala_version }} Test/compile
+
+      - name: Run concrete code-generation smoke test
+        if: matrix.scala_version == '2.12.18'
+        shell: bash
+        run: sbt -batch ++2.12.18 "tester/testOnly spinal.tester.scalatest.AttributeEmitTests"
