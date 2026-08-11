@@ -17,3 +17,5 @@ Fork-specific implementation should follow these rules:
 - Never update the recorded upstream commit without running the baseline gate.
 
 See `docs/morphhdl/upstream-sync.md` for the synchronization procedure.
+The parameterized-Verilog architecture contract starts at
+`docs/morphhdl/architecture/README.md`.
