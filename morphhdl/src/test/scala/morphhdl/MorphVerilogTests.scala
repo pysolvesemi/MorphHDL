@@ -193,6 +193,20 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("default shape accepts two differently bound instances of one symbolic module") {
+    withTemporaryDirectory { directory =>
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = multiBoundWitness("MultiBoundTop"),
+          parameterizedDesign = multiBoundDesign("MultiBoundTop")
+        )
+      }
+
+      assert(report.toplevelName == "MultiBoundTop")
+      assert(Files.isRegularFile(directory.resolve("MultiBoundTop.v")))
+    }
+  }
+
   test("removing an inherited phase fails closed before symbolic capture") {
     withTemporaryDirectory { directory =>
       var symbolicRuns = 0
@@ -358,7 +372,8 @@ class MorphVerilogTests extends AnyFunSuite {
         SpinalConfig(targetDirectory = directory.toString, genLineComments = true),
         SpinalConfig(targetDirectory = directory.toString, privateNamespace = true),
         SpinalConfig(targetDirectory = directory.toString, cutLongExpressions = false),
-        SpinalConfig(targetDirectory = directory.toString, emitFullComponentBindings = false)
+        SpinalConfig(targetDirectory = directory.toString, emitFullComponentBindings = false),
+        SpinalConfig(targetDirectory = directory.toString).dumpWave()
       )
 
       configs.foreach { config =>
@@ -587,6 +602,66 @@ class MorphVerilogTests extends AnyFunSuite {
       )
     )
     Design(requestedName, Vector(top, middle, leaf))
+  }
+
+  private def multiBoundWitness(requestedName: String): Component =
+    new Component {
+      setDefinitionName(requestedName)
+      val data_in_8 = in(Bits(8 bits))
+      val data_out_8 = out(Bits(8 bits))
+      val data_in_16 = in(Bits(16 bits))
+      val data_out_16 = out(Bits(16 bits))
+
+      class BoundLeaf(width: Int) extends Component {
+        setDefinitionName("MultiBoundLeaf")
+        val leaf_in = in(Bits(width bits))
+        val leaf_out = out(Bits(width bits))
+        leaf_out := leaf_in
+      }
+
+      val leaf8 = new BoundLeaf(8)
+      val leaf16 = new BoundLeaf(16)
+      leaf8.leaf_in := data_in_8
+      data_out_8 := leaf8.leaf_out
+      leaf16.leaf_in := data_in_16
+      data_out_16 := leaf16.leaf_out
+    }
+
+  private def multiBoundDesign(requestedName: String): Design = {
+    val childWidth = ParameterRef("WIDTH")
+    val child = ModuleDef(
+      name = "MultiBoundLeaf",
+      parameters = Vector(
+        IntegerParameter("WIDTH", 4, Vector(MinInclusive(1), MaxInclusive(32)))
+      ),
+      ports = Vector(
+        Port("leaf_in", Input, PackedBits(childWidth, Unsigned)),
+        Port("leaf_out", Output, PackedBits(childWidth, Unsigned))
+      ),
+      items = Vector(ContinuousAssign(Ref("leaf_out"), Ref("leaf_in")))
+    )
+    def instance(name: String, width: Int): ModuleItem.ModuleInstance =
+      ModuleItem.ModuleInstance(
+        name = name,
+        moduleName = child.name,
+        parameterBindings = Vector(ParameterBinding("WIDTH", IntExpr.Literal(width))),
+        portConnections = Vector(
+          PortConnection("leaf_in", Ref(s"data_in_$width")),
+          PortConnection("leaf_out", Ref(s"data_out_$width"))
+        )
+      )
+    val top = ModuleDef(
+      name = requestedName,
+      parameters = Vector.empty,
+      ports = Vector(
+        Port("data_in_8", Input, PackedBits(IntExpr.Literal(8), Unsigned)),
+        Port("data_out_8", Output, PackedBits(IntExpr.Literal(8), Unsigned)),
+        Port("data_in_16", Input, PackedBits(IntExpr.Literal(16), Unsigned)),
+        Port("data_out_16", Output, PackedBits(IntExpr.Literal(16), Unsigned))
+      ),
+      items = Vector(instance("leaf8", 8), instance("leaf16", 16))
+    )
+    Design(requestedName, Vector(top, child))
   }
 
   private def validDesign(name: String): Design = {

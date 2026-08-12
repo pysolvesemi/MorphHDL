@@ -29,7 +29,7 @@ object MorphVerilog {
   )
 
   private final case class ModuleShape(
-      name: String,
+      topName: Option[String],
       ports: Vector[PortShape],
       children: Vector[ChildShape]
   )
@@ -349,6 +349,9 @@ object MorphVerilog {
         if (!config.singleTopLevel) {
           errors += "singleTopLevel changes are not supported by the direct parameterized emitter"
         }
+        if (config.dumpWave != null) {
+          errors += "dumpWave is not supported by the direct parameterized emitter"
+        }
         val result = errors.result()
         if (result.isEmpty) Right(())
         else Left(MorphVerilogFailure(Configuration, result.mkString("; ")))
@@ -456,7 +459,7 @@ object MorphVerilog {
     }
 
   private def concreteModuleShape(top: Component): ModuleShape = {
-    def loop(component: Component): ModuleShape = {
+    def loop(component: Component, isTop: Boolean): ModuleShape = {
       val ports = component.getAllIo.toVector.map { port =>
         PortShape(
           name = port.getName(),
@@ -473,14 +476,14 @@ object MorphVerilog {
         )
       }.sortBy(_.name)
       val children = component.children.toVector
-        .map(loop)
+        .map(child => loop(child, isTop = false))
         .groupBy(identity)
         .map { case (shape, values) => ChildShape(shape, BigInt(values.size)) }
         .toVector
         .sortBy(child => renderModuleShape(child.shape))
-      ModuleShape(component.definitionName, ports, children)
+      ModuleShape(if (isTop) Some(component.definitionName) else None, ports, children)
     }
-    loop(top)
+    loop(top, isTop = true)
   }
 
   private def symbolicModuleShape(
@@ -493,7 +496,8 @@ object MorphVerilog {
         name: String,
         parameters: Map[String, morphhdl.paramrtl.IntExprFacts],
         localParameters: Map[String, morphhdl.paramrtl.IntExprFacts],
-        ancestors: Set[String]
+        ancestors: Set[String],
+        isTop: Boolean
     ): Either[String, ModuleShape] = {
       if (ancestors(name)) Left(s"symbolic default hierarchy contains a recursive module '$name'")
       else
@@ -512,7 +516,8 @@ object MorphVerilog {
                       instance.moduleName,
                       childContext._1,
                       childContext._2,
-                      ancestors + name
+                      ancestors + name,
+                      isTop = false
                     )
                   } yield shapes :+ ChildShape(child, count)
               }
@@ -522,13 +527,13 @@ object MorphVerilog {
                 .map { case (shape, values) => ChildShape(shape, values.map(_.count).sum) }
                 .toVector
                 .sortBy(child => renderModuleShape(child.shape))
-              ModuleShape(name, ports, grouped)
+              ModuleShape(if (isTop) Some(name) else None, ports, grouped)
             }
         }
     }
 
     val topFacts = design.moduleFacts(topName)
-    loop(topName, topFacts.parameterFacts, topFacts.localParameterFacts, Set.empty)
+    loop(topName, topFacts.parameterFacts, topFacts.localParameterFacts, Set.empty, isTop = true)
   }
 
   private def symbolicPortShapes(
@@ -659,7 +664,7 @@ object MorphVerilog {
       .mkString("[", ", ", "]")
 
   private def renderModuleShape(shape: ModuleShape): String =
-    s"${shape.name}{ports=${renderPortShapes(shape.ports)},children=${renderChildShapes(shape.children)}}"
+    s"${shape.topName.getOrElse("<instance>")}{ports=${renderPortShapes(shape.ports)},children=${renderChildShapes(shape.children)}}"
 
   private def renderModuleShapes(shape: ModuleShape): String = renderModuleShape(shape)
 
