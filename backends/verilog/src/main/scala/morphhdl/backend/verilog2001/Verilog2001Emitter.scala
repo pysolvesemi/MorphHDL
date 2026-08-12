@@ -11,7 +11,7 @@ import morphhdl.paramrtl.IntExpr.{
   ParameterRef,
   Subtract
 }
-import morphhdl.paramrtl.ModuleItem.ContinuousAssign
+import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, ModuleInstance}
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.Ref
 import morphhdl.paramrtl.Signedness.{Signed, Unsigned}
@@ -29,15 +29,16 @@ object Verilog2001Emitter {
     }
 
   private def render(validated: ValidatedDesign): String = {
-    val design = validated.value
-    val orderedModules = design.modules.sortBy(module => (if (module.name == design.top) 0 else 1, module.name))
-    orderedModules.map(module => renderModule(module, validated.moduleFacts(module.name))).mkString("\n\n") + "\n"
+    validated.orderedModules
+      .map(module => renderModule(module, validated.moduleFacts(module.name)))
+      .mkString("\n\n") + "\n"
   }
 
   private def renderModule(module: ModuleDef, facts: ValidatedModuleFacts): String = {
     val parameters = module.parameters.sortBy(_.name)
     val ports = module.ports.sortBy(_.name)
     val localParameters = facts.orderedLocalParameters
+    val instances = facts.orderedInstances
     val assignments = module.items.collect { case assignment: ContinuousAssign => assignment }.sortBy { assignment =>
       (assignment.target.name, renderRtlExpr(assignment.value))
     }
@@ -68,6 +69,14 @@ object Verilog2001Emitter {
       }
     }
 
+    if (instances.nonEmpty) {
+      lines += ""
+      instances.zipWithIndex.foreach { case (instance, index) =>
+        renderInstance(instance).foreach(lines += _)
+        if (index != instances.size - 1) lines += ""
+      }
+    }
+
     if (assignments.nonEmpty) {
       lines += ""
       assignments.foreach { assignment =>
@@ -78,6 +87,30 @@ object Verilog2001Emitter {
     lines += ""
     lines += "endmodule"
     lines.result().mkString("\n")
+  }
+
+  private def renderInstance(instance: ModuleInstance): Vector[String] = {
+    val parameterBindings = instance.parameterBindings.sortBy(_.parameterName)
+    val portConnections = instance.portConnections.sortBy(_.portName)
+    val lines = Vector.newBuilder[String]
+
+    if (parameterBindings.nonEmpty) {
+      lines += "  " + instance.moduleName + " #("
+      parameterBindings.zipWithIndex.foreach { case (binding, index) =>
+        val comma = if (index == parameterBindings.size - 1) "" else ","
+        lines += s"    .${binding.parameterName}(${renderIntExpr(binding.value)})$comma"
+      }
+      lines += s"  ) ${instance.name} ("
+    } else {
+      lines += s"  ${instance.moduleName} ${instance.name} ("
+    }
+
+    portConnections.zipWithIndex.foreach { case (connection, index) =>
+      val comma = if (index == portConnections.size - 1) "" else ","
+      lines += s"    .${connection.portName}(${renderRtlExpr(connection.actual)})$comma"
+    }
+    lines += "  );"
+    lines.result()
   }
 
   private def renderPort(port: Port): String = {

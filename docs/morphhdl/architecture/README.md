@@ -15,6 +15,8 @@ The contract is split into these documents:
   SpinalHDL checks and the no-silent-skip release gate.
 - [Increment 3 parameter expressions](../increment-3-parameter-expressions.md):
   bounded integer arithmetic, local-parameter ordering and executable gates.
+- [Increment 4 hierarchy](../increment-4-hierarchy.md): named instances,
+  child-parameter forwarding and exact hierarchy validation.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 

@@ -13,6 +13,7 @@ import morphhdl.paramrtl.IntExpr.{
   Subtract
 }
 import morphhdl.paramrtl._
+import morphhdl.paramrtl.ModuleItem.ModuleInstance
 
 object Verilog2001Capability {
   private val MinimumInteger = BigInt(Int.MinValue)
@@ -188,6 +189,20 @@ object Verilog2001Capability {
           path :+ "width",
           diagnostics
         )
+      }
+
+      module.items.collect { case instance: ModuleInstance => instance }.sortBy(_.name).foreach { instance =>
+        val path = modulePath :+ "instances" :+ instance.name
+        checkName(instance.name, path :+ "name", diagnostics)
+        instance.parameterBindings.sortBy(_.parameterName).foreach { binding =>
+          checkExpression(
+            binding.value,
+            facts.parameterFacts,
+            facts.localParameterFacts,
+            path :+ "parameterBindings" :+ binding.parameterName :+ "value",
+            diagnostics
+          )
+        }
       }
     }
 

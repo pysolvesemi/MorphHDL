@@ -51,6 +51,7 @@ fi
 generated_contracts=(
   parameterized_wire.v
   derived_width.v
+  parameter_forwarding.v
 )
 
 if (( using_reviewed_goldens == 0 )); then
@@ -83,6 +84,7 @@ done
 
 parameterized_wire_file="$generated_dir/parameterized_wire.v"
 derived_width_file="$generated_dir/derived_width.v"
+parameter_forwarding_file="$generated_dir/parameter_forwarding.v"
 
 python3 "$repo_root/morphhdl/scripts/check-validation-parity.py" "$parity_file"
 python3 "$repo_root/morphhdl/scripts/check-parameter-operators.py" "$operator_file"
@@ -90,6 +92,7 @@ python3 "$repo_root/morphhdl/scripts/check-parameter-operators.py" "$operator_fi
 design_files=(
   "$parameterized_wire_file"
   "$derived_width_file"
+  "$parameter_forwarding_file"
   "$examples_dir/lane_array.v"
 )
 
@@ -97,6 +100,7 @@ all_verilog_files=(
   "${design_files[@]}"
   "$examples_dir/parameterized_wire_tb.v"
   "$examples_dir/derived_width_tb.v"
+  "$examples_dir/parameter_forwarding_tb.v"
   "$examples_dir/lane_array_tb.v"
 )
 
@@ -130,6 +134,9 @@ require_property profile.abi flat
 require_property backend.canonical_ir ParamRTL
 require_property backend.initial_emitter direct-verilog
 require_property port.conditional_presence false
+require_property structure.module_instance true
+require_property structure.named_parameter_binding true
+require_property structure.named_port_binding true
 
 for file in "${all_verilog_files[@]}"; do
   if [[ ! -s "$file" ]]; then
@@ -195,6 +202,9 @@ expected_modules=(
   ParameterizedWireTb
   DerivedWidth
   DerivedWidthTb
+  ForwardingLeaf
+  ParameterForwarding
+  ParameterForwardingTb
   PixelLane
   LaneArray
   LaneArrayTb
@@ -218,8 +228,17 @@ if ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+TOTAL_WIDTH[[:space:]]*=
   exit 1
 fi
 
-if ! grep -Eq 'for[[:space:]]*\(' "${design_files[2]}" ||
-   ! grep -Eq '\+:[[:space:]]*DATA_WIDTH' "${design_files[2]}"; then
+if ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+TOTAL_WIDTH[[:space:]]*=[[:space:]]*LANES[[:space:]]*\*[[:space:]]*DATA_WIDTH' "${design_files[2]}" ||
+   ! grep -Eq '\.WIDTH[[:space:]]*\([[:space:]]*TOTAL_WIDTH[[:space:]]*\)' "${design_files[2]}" ||
+   ! grep -Eq '\)[[:space:]]+forwarded_inst[[:space:]]*\(' "${design_files[2]}" ||
+   ! grep -Eq '\.din[[:space:]]*\([[:space:]]*din[[:space:]]*\)' "${design_files[2]}" ||
+   ! grep -Eq '\.dout[[:space:]]*\([[:space:]]*dout[[:space:]]*\)' "${design_files[2]}"; then
+  echo "ParameterForwarding does not retain its named symbolic child bindings" >&2
+  exit 1
+fi
+
+if ! grep -Eq 'for[[:space:]]*\(' "${design_files[3]}" ||
+   ! grep -Eq '\+:[[:space:]]*DATA_WIDTH' "${design_files[3]}"; then
   echo "LaneArray does not exercise generate-for and indexed part-select" >&2
   exit 1
 fi
@@ -251,9 +270,11 @@ trap cleanup EXIT
 # path spelling while preserving the exact artifact bytes.
 cp "$parameterized_wire_file" "$tmp_dir/parameterized_wire.v"
 cp "$derived_width_file" "$tmp_dir/derived_width.v"
+cp "$parameter_forwarding_file" "$tmp_dir/parameter_forwarding.v"
 cp "$examples_dir/lane_array.v" "$tmp_dir/lane_array.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
+yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
 yosys_lane_array_file="$tmp_dir/lane_array.v"
 
 echo "Verilator: $(verilator --version)"
@@ -302,6 +323,35 @@ verilator --lint-only --language 1364-2001 -Wall \
 
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
+  --top-module ParameterForwarding \
+  "$parameter_forwarding_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ParameterForwarding \
+  -GDATA_WIDTH=1 -GLANES=1 \
+  "$parameter_forwarding_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ParameterForwarding \
+  -GDATA_WIDTH=5 -GLANES=3 \
+  "$parameter_forwarding_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ParameterForwarding \
+  -GLANES=3 \
+  "$parameter_forwarding_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ParameterForwarding \
+  -GDATA_WIDTH=5 \
+  "$parameter_forwarding_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
   --top-module LaneArray \
   "$examples_dir/lane_array.v"
 
@@ -324,6 +374,17 @@ derived_output="$(vvp "$tmp_dir/derived_width.vvp")"
 echo "$derived_output"
 if ! printf '%s\n' "$derived_output" | grep -q 'PASS: DerivedWidth'; then
   echo "DerivedWidth simulation did not report PASS" >&2
+  exit 1
+fi
+
+iverilog -g2001 -Wall -s ParameterForwardingTb \
+  -o "$tmp_dir/parameter_forwarding.vvp" \
+  "$parameter_forwarding_file" \
+  "$examples_dir/parameter_forwarding_tb.v"
+forwarding_output="$(vvp "$tmp_dir/parameter_forwarding.vvp")"
+echo "$forwarding_output"
+if ! printf '%s\n' "$forwarding_output" | grep -q 'PASS: ParameterForwarding'; then
+  echo "ParameterForwarding simulation did not report PASS" >&2
   exit 1
 fi
 
@@ -374,6 +435,43 @@ yosys_synthesize_and_check \
 yosys_synthesize_and_check \
   "$yosys_derived_width_file" DerivedWidth data-width-only 23 \
   "chparam -set DATA_WIDTH 5 DerivedWidth;"
+
+yosys_hierarchy_synthesize_and_check() {
+  local input_file="$1"
+  local module_name="$2"
+  local instance_name="$3"
+  local label="$4"
+  local expected_width="$5"
+  local parameter_command="$6"
+  local hierarchy_netlist="$tmp_dir/${module_name}-${label}-hierarchy.json"
+  local synthesized_netlist="$tmp_dir/${module_name}-${label}-synthesized.json"
+
+  yosys -q -p \
+    "read_verilog -noautowire $input_file; $parameter_command hierarchy -check -top $module_name; proc; check -assert; write_json $hierarchy_netlist; synth -top $module_name; check -assert; write_json $synthesized_netlist"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-instance-contract.py" \
+    "$hierarchy_netlist" "$module_name" "$instance_name" \
+    --binding "din:din:input:$expected_width" \
+    --binding "dout:dout:output:$expected_width"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$synthesized_netlist" "$module_name" \
+    --port "din:input:$expected_width" \
+    --port "dout:output:$expected_width"
+}
+
+yosys_hierarchy_synthesize_and_check \
+  "$yosys_parameter_forwarding_file" ParameterForwarding forwarded_inst default 32 ""
+yosys_hierarchy_synthesize_and_check \
+  "$yosys_parameter_forwarding_file" ParameterForwarding forwarded_inst minimum 1 \
+  "chparam -set DATA_WIDTH 1 -set LANES 1 ParameterForwarding;"
+yosys_hierarchy_synthesize_and_check \
+  "$yosys_parameter_forwarding_file" ParameterForwarding forwarded_inst awkward 15 \
+  "chparam -set DATA_WIDTH 5 -set LANES 3 ParameterForwarding;"
+yosys_hierarchy_synthesize_and_check \
+  "$yosys_parameter_forwarding_file" ParameterForwarding forwarded_inst lanes-only 24 \
+  "chparam -set LANES 3 ParameterForwarding;"
+yosys_hierarchy_synthesize_and_check \
+  "$yosys_parameter_forwarding_file" ParameterForwarding forwarded_inst data-width-only 20 \
+  "chparam -set DATA_WIDTH 5 ParameterForwarding;"
 
 yosys -q -p \
   "read_verilog -noautowire $yosys_lane_array_file; hierarchy -check -top LaneArray; proc; check -assert; synth -top LaneArray; check -assert"

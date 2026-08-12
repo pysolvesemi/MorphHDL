@@ -13,7 +13,7 @@ import morphhdl.paramrtl.IntExpr.{
   Subtract
 }
 import morphhdl.paramrtl.IntExpressionFailure.{DivisorMayBeZero, UnresolvedLocalParameter, UnresolvedParameter}
-import morphhdl.paramrtl.ModuleItem.ContinuousAssign
+import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, ModuleInstance}
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.Ref
 
@@ -38,12 +38,22 @@ object DiagnosticSet {
 final case class ValidatedModuleFacts private[morphhdl] (
     orderedLocalParameters: Vector[IntegerLocalParameter],
     parameterFacts: Map[String, IntExprFacts],
-    localParameterFacts: Map[String, IntExprFacts]
+    localParameterFacts: Map[String, IntExprFacts],
+    orderedInstances: Vector[ModuleItem.ModuleInstance] = Vector.empty,
+    instanceFacts: Map[String, ValidatedInstanceFacts] = Map.empty
+)
+
+final case class ValidatedInstanceFacts private[morphhdl] (
+    targetModule: ModuleDef,
+    parameterFacts: Map[String, IntExprFacts],
+    localParameterFacts: Map[String, IntExprFacts],
+    instantiatedPortTypes: Map[String, PackedBits]
 )
 
 final class ValidatedDesign private[morphhdl] (
     val value: Design,
-    private[morphhdl] val moduleFacts: Map[String, ValidatedModuleFacts]
+    private[morphhdl] val moduleFacts: Map[String, ValidatedModuleFacts],
+    private[morphhdl] val orderedModules: Vector[ModuleDef]
 )
 
 object ParamRtlValidator {
@@ -65,7 +75,8 @@ object ParamRtlValidator {
       diagnostics
     )
 
-    val moduleNames = modules.map(_.name).toSet
+    val moduleByName = firstByName(modules)(_.name)
+    val moduleNames = moduleByName.keySet
     if (!moduleNames.contains(design.top)) {
       diagnostics += Diagnostic(
         "PRTL-UNRESOLVED-TOP",
@@ -74,12 +85,43 @@ object ParamRtlValidator {
       )
     }
 
-    val facts = modules.map { module =>
+    val baseFacts = modules.map { module =>
       module.name -> validateModule(module, diagnostics)
     }.toMap
 
+    val moduleDependencies = moduleByName.map { case (name, module) =>
+      name -> module.items
+        .collect {
+          case instance: ModuleInstance if moduleNames.contains(instance.moduleName) =>
+            instance.moduleName
+        }
+        .distinct
+        .sorted
+    }
+    val moduleGraph = DependencyGraph.analyze(moduleDependencies)
+    moduleGraph.cycleGroups.foreach { names =>
+      diagnostics += Diagnostic(
+        "PRTL-MODULE-INSTANTIATION-CYCLE",
+        Vector("modules", names.head, "instances"),
+        s"Module-instantiation cycle members: ${names.mkString(", ")}"
+      )
+    }
+
+    val facts = modules.map { module =>
+      module.name -> validateHierarchy(
+        module,
+        baseFacts(module.name),
+        moduleByName,
+        baseFacts,
+        diagnostics
+      )
+    }.toMap
+
     val result = DiagnosticSet.from(diagnostics.result())
-    if (result.isEmpty) Right(new ValidatedDesign(design, facts)) else Left(result)
+    if (result.isEmpty) {
+      val orderedModules = moduleGraph.orderedNames.map(moduleByName)
+      Right(new ValidatedDesign(design, facts, orderedModules))
+    } else Left(result)
   }
 
   private def validateModule(
@@ -92,6 +134,7 @@ object ParamRtlValidator {
     val parameters = module.parameters.sortBy(_.name)
     val localParameters = module.localParameters.sortBy(_.name)
     val ports = module.ports.sortBy(_.name)
+    val instances = module.items.collect { case instance: ModuleInstance => instance }.sortBy(_.name)
 
     addDuplicateDiagnostics(
       parameters.map(_.name),
@@ -114,11 +157,19 @@ object ParamRtlValidator {
       "port",
       diagnostics
     )
+    addDuplicateDiagnostics(
+      instances.map(_.name),
+      modulePath :+ "instances",
+      "PRTL-DUPLICATE-INSTANCE",
+      "instance",
+      diagnostics
+    )
 
     val declarationKinds = Vector(
       "parameter" -> parameters.map(_.name).toSet,
       "local parameter" -> localParameters.map(_.name).toSet,
-      "port" -> ports.map(_.name).toSet
+      "port" -> ports.map(_.name).toSet,
+      "instance" -> instances.map(_.name).toSet
     )
     declarationKinds.combinations(2).foreach {
       case Vector((leftKind, leftNames), (rightKind, rightNames)) =>
@@ -170,6 +221,12 @@ object ParamRtlValidator {
       )
     }
 
+    instances.foreach { instance =>
+      val path = modulePath :+ "instances" :+ instance.name
+      checkIdentifier(instance.name, path :+ "name", "instance", diagnostics)
+      checkIdentifier(instance.moduleName, path :+ "moduleName", "referenced module", diagnostics)
+    }
+
     val dependencies = localParameterByName.map { case (name, localParameter) =>
       name -> IntExpressionAnalysis
         .localParameterReferences(localParameter.value)
@@ -178,7 +235,7 @@ object ParamRtlValidator {
         .sorted
     }
 
-    val localParameterGraph = analyzeLocalParameterGraph(dependencies)
+    val localParameterGraph = DependencyGraph.analyze(dependencies)
     val cycleGroups = localParameterGraph.cycleGroups
     cycleGroups.foreach { names =>
       diagnostics += Diagnostic(
@@ -215,8 +272,6 @@ object ParamRtlValidator {
         diagnostics
       )
     }
-
-    validateAssignments(module, ports, modulePath, diagnostics)
 
     ValidatedModuleFacts(
       orderedLocalParameters,
@@ -355,42 +410,220 @@ object ParamRtlValidator {
       }
   }
 
-  private def validateAssignments(
+  private def validateHierarchy(
       module: ModuleDef,
-      ports: Vector[Port],
-      modulePath: Vector[String],
+      baseFacts: ValidatedModuleFacts,
+      moduleByName: Map[String, ModuleDef],
+      allBaseFacts: Map[String, ValidatedModuleFacts],
       diagnostics: DiagnosticBuilder
-  ): Unit = {
+  ): ValidatedModuleFacts = {
+    val modulePath = Vector("modules", module.name)
+    val ports = module.ports.sortBy(_.name)
     val portByName = firstByName(ports)(_.name)
-    val driverCounts = scala.collection.mutable.Map[String, Int]().withDefaultValue(0)
+    val instances = module.items.collect { case instance: ModuleInstance => instance }.sortBy(_.name)
+    val driverCounts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
 
-    module.items.zipWithIndex.foreach { case (ContinuousAssign(target, value), index) =>
-      val path = modulePath :+ "items" :+ index.toString
-      val targetPort = resolvePort(target, portByName, path :+ "target", diagnostics)
-      val valuePort = value match {
-        case ref: Ref => resolvePort(ref, portByName, path :+ "value", diagnostics)
-      }
-
-      targetPort.foreach { port =>
-        driverCounts.update(port.name, driverCounts(port.name) + 1)
-        if (port.direction == Input) {
-          diagnostics += Diagnostic(
-            "PRTL-ILLEGAL-INPUT-DRIVER",
-            path :+ "target",
-            s"Continuous assignment cannot drive input port '${port.name}'"
-          )
+    module.items.zipWithIndex.foreach {
+      case (ContinuousAssign(target, value), index) =>
+        val path = modulePath :+ "items" :+ index.toString
+        val targetPort = resolvePort(target, portByName, path :+ "target", diagnostics)
+        val valuePort = value match {
+          case ref: Ref => resolvePort(ref, portByName, path :+ "value", diagnostics)
         }
+        targetPort.foreach { port =>
+          driverCounts.update(port.name, driverCounts(port.name) + 1)
+          if (port.direction == Input)
+            diagnostics += Diagnostic(
+              "PRTL-ILLEGAL-INPUT-DRIVER",
+              path :+ "target",
+              s"Continuous assignment cannot drive input port '${port.name}'"
+            )
+        }
+        for {
+          targetType <- targetPort.map(_.dataType)
+          valueType <- valuePort.map(_.dataType)
+          if !packedTypesEquivalent(targetType, valueType, module, baseFacts)
+        } diagnostics += Diagnostic(
+          "PRTL-TYPE-MISMATCH",
+          path,
+          s"Continuous assignment target type '$targetType' does not match value type '$valueType'"
+        )
+      case (_: ModuleInstance, _) =>
+    }
+
+    val instanceFactsBuilder = Map.newBuilder[String, ValidatedInstanceFacts]
+    instances.foreach { instance =>
+      val path = modulePath :+ "instances" :+ instance.name
+      val bindingPath = path :+ "parameterBindings"
+      val connectionPath = path :+ "portConnections"
+
+      addDuplicateDiagnostics(
+        instance.parameterBindings.map(_.parameterName),
+        bindingPath,
+        "PRTL-DUPLICATE-PARAMETER-BINDING",
+        "parameter binding",
+        diagnostics
+      )
+      addDuplicateDiagnostics(
+        instance.portConnections.map(_.portName),
+        connectionPath,
+        "PRTL-DUPLICATE-PORT-CONNECTION",
+        "port connection",
+        diagnostics
+      )
+
+      val parentParameters = baseFacts.parameterFacts
+      val parentLocals = baseFacts.localParameterFacts
+      val parentParameterNames = module.parameters.map(_.name).toSet
+      val parentLocalNames = module.localParameters.map(_.name).toSet
+      instance.parameterBindings.sortBy(_.parameterName).foreach { binding =>
+        validateExpressionReferences(
+          binding.value,
+          parentParameterNames,
+          parentLocalNames,
+          bindingPath :+ binding.parameterName :+ "value",
+          diagnostics
+        )
       }
 
-      for {
-        targetType <- targetPort.map(_.dataType)
-        valueType <- valuePort.map(_.dataType)
-        if targetType != valueType
-      } diagnostics += Diagnostic(
-        "PRTL-TYPE-MISMATCH",
-        path,
-        s"Continuous assignment target type '$targetType' does not match value type '$valueType'"
-      )
+      moduleByName.get(instance.moduleName) match {
+        case None =>
+          diagnostics += Diagnostic(
+            "PRTL-UNRESOLVED-INSTANCE-MODULE",
+            path :+ "moduleName",
+            s"Instance '${instance.name}' references unknown module '${instance.moduleName}'"
+          )
+        case Some(targetModule) =>
+          val targetBaseFacts = allBaseFacts(targetModule.name)
+          val targetParameters = targetModule.parameters.sortBy(_.name)
+          val targetParameterByName = firstByName(targetParameters)(_.name)
+          val bindingByName = firstByName(instance.parameterBindings.sortBy(_.parameterName))(_.parameterName)
+          val analyzedBindings = scala.collection.mutable.Map.empty[String, IntExprFacts]
+
+          instance.parameterBindings.sortBy(_.parameterName).foreach { binding =>
+            val currentPath = bindingPath :+ binding.parameterName
+            targetParameterByName.get(binding.parameterName) match {
+              case None =>
+                diagnostics += Diagnostic(
+                  "PRTL-UNRESOLVED-INSTANCE-PARAMETER",
+                  currentPath,
+                  s"Module '${targetModule.name}' has no public parameter '${binding.parameterName}'"
+                )
+              case Some(targetParameter) =>
+                analyzeExpression(
+                  binding.value,
+                  parentParameters,
+                  parentLocals,
+                  currentPath :+ "value",
+                  diagnostics
+                ).foreach { bindingFacts =>
+                  analyzedBindings.update(binding.parameterName, bindingFacts)
+                  if (!domainContained(bindingFacts.interval, targetParameter)) {
+                    diagnostics += Diagnostic(
+                      "PRTL-PARAMETER-BINDING-DOMAIN-NOT-PROVEN",
+                      currentPath :+ "value",
+                      s"Binding domain ${renderInterval(bindingFacts.interval)} is not proven within legal domain ${renderParameterDomain(
+                          targetParameter
+                        )} of '${targetModule.name}.${targetParameter.name}'"
+                    )
+                  }
+                }
+            }
+          }
+
+          val instantiatedParameters = targetParameters.map { parameter =>
+            parameter.name -> analyzedBindings.getOrElse(
+              parameter.name,
+              IntExprFacts(parameter.default, IntInterval.point(parameter.default))
+            )
+          }.toMap
+          var instantiatedLocals = Map.empty[String, IntExprFacts]
+          targetBaseFacts.orderedLocalParameters.foreach { localParameter =>
+            IntExpressionAnalysis
+              .analyze(localParameter.value, instantiatedParameters, instantiatedLocals)
+              .toOption
+              .foreach(facts => instantiatedLocals = instantiatedLocals.updated(localParameter.name, facts))
+          }
+
+          val parentLocalExpressions = expandLocalExpressions(baseFacts.orderedLocalParameters, Map.empty)
+          val expandedBindings = targetParameters.map { parameter =>
+            val raw = bindingByName.get(parameter.name).map(_.value).getOrElse(Literal(parameter.default))
+            parameter.name -> IntExpressionEquivalence.substitute(raw, Map.empty, parentLocalExpressions)
+          }.toMap
+          val targetLocalExpressions =
+            expandLocalExpressions(targetBaseFacts.orderedLocalParameters, expandedBindings)
+          val instantiatedPortTypes = targetModule.ports.map { port =>
+            val width = port.dataType.width match {
+              case ParameterRef(name)      => expandedBindings.getOrElse(name, port.dataType.width)
+              case LocalParameterRef(name) => targetLocalExpressions.getOrElse(name, port.dataType.width)
+              case other                   => substituteLocalDefinition(other, expandedBindings, targetLocalExpressions)
+            }
+            port.name -> port.dataType.copy(width = width)
+          }.toMap
+          val targetPortByName = firstByName(targetModule.ports.sortBy(_.name))(_.name)
+          val connectionByName = firstByName(instance.portConnections.sortBy(_.portName))(_.portName)
+
+          instance.portConnections.sortBy(_.portName).foreach { connection =>
+            val currentPath = connectionPath :+ connection.portName
+            targetPortByName.get(connection.portName) match {
+              case None =>
+                diagnostics += Diagnostic(
+                  "PRTL-UNRESOLVED-INSTANCE-PORT",
+                  currentPath,
+                  s"Module '${targetModule.name}' has no port '${connection.portName}'"
+                )
+              case Some(targetPort) =>
+                val actualPort = connection.actual match {
+                  case ref: Ref => resolvePort(ref, portByName, currentPath :+ "actual", diagnostics)
+                }
+                actualPort.foreach { parentPort =>
+                  if (targetPort.direction == Output) {
+                    driverCounts.update(parentPort.name, driverCounts(parentPort.name) + 1)
+                    if (parentPort.direction == Input)
+                      diagnostics += Diagnostic(
+                        "PRTL-ILLEGAL-INPUT-DRIVER",
+                        currentPath :+ "actual",
+                        s"Output port '${targetModule.name}.${targetPort.name}' cannot drive parent input '${parentPort.name}'"
+                      )
+                  }
+                  val expected = instantiatedPortTypes(targetPort.name)
+                  val instantiatedExpectedFacts = IntExpressionAnalysis
+                    .analyze(targetPort.dataType.width, instantiatedParameters, instantiatedLocals)
+                    .toOption
+                  if (
+                    !packedTypesEquivalent(
+                      parentPort.dataType,
+                      expected,
+                      module,
+                      baseFacts,
+                      instantiatedExpectedFacts
+                    )
+                  )
+                    diagnostics += Diagnostic(
+                      "PRTL-INSTANCE-PORT-TYPE-MISMATCH",
+                      currentPath,
+                      s"Parent port '${parentPort.name}' is not type-compatible with instantiated port '${targetModule.name}.${targetPort.name}'"
+                    )
+                }
+            }
+          }
+
+          targetModule.ports.sortBy(_.name).foreach { targetPort =>
+            if (!connectionByName.contains(targetPort.name))
+              diagnostics += Diagnostic(
+                "PRTL-MISSING-INSTANCE-PORT-CONNECTION",
+                connectionPath :+ targetPort.name,
+                s"Instance '${instance.name}' is missing required port '${targetPort.name}'"
+              )
+          }
+
+          instanceFactsBuilder += instance.name -> ValidatedInstanceFacts(
+            targetModule,
+            instantiatedParameters,
+            instantiatedLocals,
+            instantiatedPortTypes
+          )
+      }
     }
 
     ports.filter(_.direction == Output).foreach { port =>
@@ -405,101 +638,139 @@ object ParamRtlValidator {
           diagnostics += Diagnostic(
             "PRTL-MULTIPLE-DRIVERS",
             modulePath :+ "ports" :+ port.name,
-            s"Output port '${port.name}' has $count continuous drivers"
+            s"Output port '${port.name}' has $count drivers"
           )
         case _ =>
       }
     }
+
+    baseFacts.copy(
+      orderedInstances = instances,
+      instanceFacts = instanceFactsBuilder.result()
+    )
   }
 
-  private final case class LocalParameterGraph(
-      cycleGroups: Vector[Vector[String]],
-      orderedNames: Vector[String]
-  )
-
-  private def analyzeLocalParameterGraph(
-      dependencies: Map[String, Vector[String]]
-  ): LocalParameterGraph = {
-    val nodes = dependencies.keys.toVector.sorted
-    val visited = scala.collection.mutable.Set.empty[String]
-    val finishOrder = scala.collection.mutable.ArrayBuffer.empty[String]
-
-    nodes.foreach { start =>
-      if (!visited.contains(start)) {
-        val stack = scala.collection.mutable.ArrayBuffer((start, false))
-        while (stack.nonEmpty) {
-          val (node, expanded) = stack.remove(stack.length - 1)
-          if (expanded) {
-            finishOrder += node
-          } else if (!visited.contains(node)) {
-            visited += node
-            stack += ((node, true))
-            dependencies.getOrElse(node, Vector.empty).reverseIterator.foreach { dependency =>
-              if (!visited.contains(dependency)) stack += ((dependency, false))
+  private def packedTypesEquivalent(
+      left: PackedBits,
+      right: PackedBits,
+      parent: ModuleDef,
+      parentFacts: ValidatedModuleFacts,
+      rightFactsOverride: Option[IntExprFacts] = None
+  ): Boolean = {
+    if (left.signedness != right.signedness) false
+    else {
+      val locals = expandLocalExpressions(parentFacts.orderedLocalParameters, Map.empty)
+      val leftFacts = expressionFacts(left.width, parentFacts)
+      val rightFacts = rightFactsOverride.orElse(expressionFacts(right.width, parentFacts))
+      val equalFinitePoints = (leftFacts, rightFacts) match {
+        case (Some(a), Some(b)) =>
+          a.interval.lower.isDefined &&
+          a.interval.upper.isDefined &&
+          b.interval.lower.isDefined &&
+          b.interval.upper.isDefined &&
+          a.interval.lower == a.interval.upper &&
+          b.interval.lower == b.interval.upper &&
+          a.interval == b.interval
+        case _ => false
+      }
+      if (equalFinitePoints) true
+      else {
+        val leftWidth = left.width match {
+          case LocalParameterRef(name) => locals.getOrElse(name, left.width)
+          case other                   => substituteLocalDefinition(other, Map.empty, locals)
+        }
+        val rightWidth = rightFactsOverride match {
+          // Instance-side widths are already expanded in their source scope. Keep the
+          // shared DAG opaque so a deep local chain reaches iterative equality safely.
+          case Some(_) => right.width
+          case None =>
+            right.width match {
+              case LocalParameterRef(name) => locals.getOrElse(name, right.width)
+              case other                   => substituteLocalDefinition(other, Map.empty, locals)
             }
-          }
         }
+        IntExpressionEquivalence.equivalent(leftWidth, rightWidth)
       }
     }
+  }
 
-    val dependents = nodes.map { name =>
-      name -> scala.collection.mutable.ArrayBuffer.empty[String]
-    }.toMap
-    nodes.foreach { name =>
-      dependencies.getOrElse(name, Vector.empty).foreach { dependency =>
-        dependents(dependency) += name
-      }
+  private def expressionFacts(expression: IntExpr, facts: ValidatedModuleFacts): Option[IntExprFacts] =
+    expression match {
+      case Literal(value)          => Some(IntExprFacts(value, IntInterval.point(value)))
+      case ParameterRef(name)      => facts.parameterFacts.get(name)
+      case LocalParameterRef(name) => facts.localParameterFacts.get(name)
+      case other => IntExpressionAnalysis.analyze(other, facts.parameterFacts, facts.localParameterFacts).toOption
     }
 
-    val assigned = scala.collection.mutable.Set.empty[String]
-    val cycleGroupsBuilder = Vector.newBuilder[Vector[String]]
-    finishOrder.reverseIterator.foreach { start =>
-      if (!assigned.contains(start)) {
-        val members = scala.collection.mutable.ArrayBuffer.empty[String]
-        val stack = scala.collection.mutable.ArrayBuffer(start)
-        assigned += start
-        while (stack.nonEmpty) {
-          val node = stack.remove(stack.length - 1)
-          members += node
-          dependents(node).reverseIterator.foreach { dependent =>
-            if (!assigned.contains(dependent)) {
-              assigned += dependent
-              stack += dependent
-            }
-          }
-        }
-
-        val sortedMembers = members.sorted.toVector
-        val isCycle = sortedMembers.size > 1 || dependencies(sortedMembers.head).contains(sortedMembers.head)
-        if (isCycle) cycleGroupsBuilder += sortedMembers
-      }
+  /** Dependency-first expansion shares prior DAG nodes and never walks a local chain recursively. */
+  private def expandLocalExpressions(
+      ordered: Vector[IntegerLocalParameter],
+      parameters: Map[String, IntExpr]
+  ): Map[String, IntExpr] = {
+    var expanded = Map.empty[String, IntExpr]
+    ordered.foreach { localParameter =>
+      expanded = expanded.updated(
+        localParameter.name,
+        substituteLocalDefinition(localParameter.value, parameters, expanded)
+      )
     }
+    expanded
+  }
 
-    val cycleGroups = cycleGroupsBuilder.result().sortBy(_.head)
-    val cyclicNames = cycleGroups.iterator.flatten.toSet
-    val remainingDependencies = scala.collection.mutable.Map.empty[String, Int]
-    nodes.filterNot(cyclicNames.contains).foreach { name =>
-      remainingDependencies.update(name, dependencies.getOrElse(name, Vector.empty).size)
-    }
+  private def substituteLocalDefinition(
+      expression: IntExpr,
+      parameters: Map[String, IntExpr],
+      locals: Map[String, IntExpr]
+  ): IntExpr = expression match {
+    case value: Literal          => value
+    case ParameterRef(name)      => parameters.getOrElse(name, expression)
+    case LocalParameterRef(name) => locals.getOrElse(name, expression)
+    case Negate(value) =>
+      Negate(substituteLocalDefinition(value, parameters, locals))
+    case Add(left, right) =>
+      Add(
+        substituteLocalDefinition(left, parameters, locals),
+        substituteLocalDefinition(right, parameters, locals)
+      )
+    case Subtract(left, right) =>
+      Subtract(
+        substituteLocalDefinition(left, parameters, locals),
+        substituteLocalDefinition(right, parameters, locals)
+      )
+    case Multiply(left, right) =>
+      Multiply(
+        substituteLocalDefinition(left, parameters, locals),
+        substituteLocalDefinition(right, parameters, locals)
+      )
+    case Divide(left, right) =>
+      Divide(
+        substituteLocalDefinition(left, parameters, locals),
+        substituteLocalDefinition(right, parameters, locals)
+      )
+    case Modulo(left, right) =>
+      Modulo(
+        substituteLocalDefinition(left, parameters, locals),
+        substituteLocalDefinition(right, parameters, locals)
+      )
+  }
 
-    var ready = scala.collection.immutable.TreeSet.empty[String] ++
-      remainingDependencies.iterator.collect { case (name, count) if count == 0 => name }
-    val orderedNames = Vector.newBuilder[String]
-    while (ready.nonEmpty) {
-      val name = ready.head
-      ready -= name
-      orderedNames += name
+  private def domainContained(interval: IntInterval, parameter: IntegerParameter): Boolean = {
+    val (lower, upper) = parameterBounds(parameter)
+    lower.forall(required => interval.lower.exists(_ >= required)) &&
+    upper.forall(required => interval.upper.exists(_ <= required))
+  }
 
-      dependents(name).foreach { dependent =>
-        if (!cyclicNames.contains(dependent)) {
-          val updated = remainingDependencies(dependent) - 1
-          remainingDependencies.update(dependent, updated)
-          if (updated == 0) ready += dependent
-        }
-      }
-    }
+  private def renderParameterDomain(parameter: IntegerParameter): String = {
+    val (lower, upper) = parameterBounds(parameter)
+    renderInterval(IntInterval(lower, upper))
+  }
 
-    LocalParameterGraph(cycleGroups, orderedNames.result())
+  private def parameterBounds(parameter: IntegerParameter): (Option[BigInt], Option[BigInt]) = {
+    val minimums = parameter.constraints.collect { case MinInclusive(value) => value }
+    val maximums = parameter.constraints.collect { case MaxInclusive(value) => value }
+    val lower = if (minimums.isEmpty) None else Some(minimums.max)
+    val upper = if (maximums.isEmpty) None else Some(maximums.min)
+    lower -> upper
   }
 
   private def resolvePort(

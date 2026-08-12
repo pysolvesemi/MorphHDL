@@ -94,24 +94,22 @@ jobs:
             target/morphhdl/generated/run-2 \
             target/morphhdl/generated/artifact
           sbt -batch ++2.12.18 \
-            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.ParameterizedWireFixtureGenerator --output ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-1/parameterized_wire.v"
+            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.ContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-1"
           sbt -batch ++2.12.18 \
-            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.ParameterizedWireFixtureGenerator --output ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-2/parameterized_wire.v"
-          sbt -batch ++2.12.18 \
-            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.DerivedWidthFixtureGenerator --output ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-1/derived_width.v"
-          sbt -batch ++2.12.18 \
-            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.DerivedWidthFixtureGenerator --output ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-2/derived_width.v"
+            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.ContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-2"
           diff --recursive --brief \
             target/morphhdl/generated/run-1 \
             target/morphhdl/generated/run-2
-          cmp target/morphhdl/generated/run-1/parameterized_wire.v \
-            morphhdl/examples/contracts/parameterized_wire.v
-          cmp target/morphhdl/generated/run-1/derived_width.v \
-            morphhdl/examples/contracts/derived_width.v
-          cp target/morphhdl/generated/run-1/parameterized_wire.v \
-            target/morphhdl/generated/artifact/parameterized_wire.v
-          cp target/morphhdl/generated/run-1/derived_width.v \
-            target/morphhdl/generated/artifact/derived_width.v
+          for filename in \
+            parameterized_wire.v \
+            derived_width.v \
+            parameter_forwarding.v
+          do
+            cmp "target/morphhdl/generated/run-1/${filename}" \
+              "morphhdl/examples/contracts/${filename}"
+            cp "target/morphhdl/generated/run-1/${filename}" \
+              "target/morphhdl/generated/artifact/${filename}"
+          done
 
       - name: Upload generated contract RTL
         if: matrix.scala_version == '2.12.18'
