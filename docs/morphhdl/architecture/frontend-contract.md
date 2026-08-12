@@ -55,11 +55,33 @@ for (lane <- 0 until config.laneCount) {
 ```
 
 This syntax is valid only when the upper bound is `HdlInt`; the range yields a
-`GenIndex`. Increment 6 must prove that this spelling is safe. If Scala method
-resolution or symbolic body capture makes it unsound, the only permitted
-fallback is an explicit `generateFor(...)` combinator approved by an
-architecture review. It is never permitted to make the loop compile by adding
-an implicit `HdlInt => Int` conversion.
+`GenIndex`. Increment 6 proves this spelling on Scala 2.12.18 and 2.13.12 with
+an `Int.until(HdlInt)` extension. The standard `Int.until(Int)` remains the
+selected method for ordinary Scala ranges. No explicit `generateFor(...)`
+fallback and no `HdlInt => Int` conversion are used.
+
+The symbolic range deliberately exposes only `foreach`. It is not a Scala
+collection and has no `map`, `flatMap`, `withFilter`, iterator or indexing
+surface. Concrete mode executes the body once per witness index. Parameterized
+mode executes it exactly once, records one scoped `GenIndex` body and lowers it
+to the existing zero-based, unit-stride ParamRTL `GenerateFor`.
+
+Runtime `foreach` cannot portably recover a Scala lambda variable name on both
+supported compilers. Bare loops therefore derive deterministic labels and
+index names from their source file and line, independent of construction
+order. A reviewed output contract may name both explicitly:
+
+```scala
+for (lane <- (0 until config.laneCount).named(
+  label = "g_lane",
+  index = "lane"
+)) {
+  // one captured body
+}
+```
+
+The explicit names affect emitted identifiers only; they do not weaken index
+scope or permit general loop starts, strides or nesting.
 
 Structural conditions are explicit:
 
@@ -101,9 +123,22 @@ Every public parameter carries:
   other parameters;
 - source and logical-name metadata.
 
+Each declaration also carries an opaque identity token. Frontend module
+lowering accepts a symbolic reference only when that exact token is declared
+by the module; a separately constructed, same-named `HdlInt.param` is not an
+alias. Identity is checked per module, so independent modules may each declare
+their own parameter named `WIDTH`.
+
 The concrete witness is validation data, not a fallback. If symbolic capture
 cannot represent an operation, elaboration fails even when the default witness
 could execute it.
+
+Increment 6 implements the first bounded integer slice: public integer
+parameters with inclusive minimum/maximum constraints, integer literals,
+`HdlInt * HdlInt`, and `GenIndex * HdlInt` for indexed part-select offsets.
+Generate-index-dependent widths and child parameter bindings remain unsupported
+and fail before ParamRTL construction. If `HdlInt.param` omits `max`, its
+bounded default is `Int.MaxValue`.
 
 ## Required diagnostics
 
@@ -117,6 +152,24 @@ Parameterized elaboration must reject:
 - unsupported library calls receiving a symbolic value;
 - raw HDL fragments in strict mode;
 - any fallback that silently specializes to the default value.
+
+Generate-index values and expressions carry an opaque lexical scope token.
+Using one after its loop, combining different scopes, nesting symbolic loops or
+passing an index-derived expression to an unsupported consumer is a frontend
+error. Guarded frontend expressions retain that token until final item
+emission, so raw `GenerateIndexRef` values cannot bypass the scope check.
+Capture state is restored on every exit and is isolated per thread. An
+`HdlInt` loop requires an explicit concrete or parameterized frontend session,
+so a loop dispatched to another thread fails closed instead of falling back to
+its concrete witness.
+
+Scala `==`, `!=`, hashing and numeric conversion on a statically typed `HdlInt`
+or `GenIndex` fail closed. The values themselves reject forward comparisons at
+runtime; the inherited IDSL compiler plugin rejects reverse `==`, `!=`,
+`equals`, `eq` and `ne` calls before elaboration. In particular, both
+`lane == 0` and `BigInt(0) == lane` are rejected instead of silently
+specializing Scala control flow. Upcasting either value to `Any` is outside the
+supported frontend surface.
 
 Each error must report the parameter/expression, source location, unsupported
 consumer and a suggested static or parameter-aware replacement.

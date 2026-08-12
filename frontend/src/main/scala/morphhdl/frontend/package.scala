@@ -1,0 +1,15 @@
+package morphhdl
+
+package object frontend {
+  import scala.language.implicitConversions
+
+  implicit def intToHdlInt(value: Int)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): HdlInt = HdlInt.literal(BigInt(value))(file, line)
+
+  implicit final class HdlIntRangeStart(private val start: Int) extends AnyVal {
+    def until(end: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlRange =
+      HdlRange(start, end, SourceOrigin.capture)
+  }
+}

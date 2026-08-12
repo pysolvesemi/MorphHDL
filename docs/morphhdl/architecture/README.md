@@ -19,6 +19,9 @@ The contract is split into these documents:
   child-parameter forwarding and exact hierarchy validation.
 - [Increment 5 generate-for](../increment-5-generate-for.md): scoped generate
   indices, indexed part-selects and exact symbolic lane partitioning.
+- [Increment 6 symbolic frontend](../increment-6-symbolic-frontend.md):
+  dual-valued `HdlInt`, scoped `GenIndex` and native Scala generate-loop
+  capture.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -44,6 +47,8 @@ Runnable contract examples live under `morphhdl/examples/contracts`.
 7. Strict Verilog-2001 legalization is a separate, non-destructive backend
    pass.
 8. Aggregate intent is retained in ParamRTL even when the Verilog ABI is flat.
+9. Frontend capture state is lexical, exception-safe and isolated between
+   concurrent elaboration threads.
 
 Changing one of these invariants requires a reviewed architecture decision and
 an update to the executable contract tests.

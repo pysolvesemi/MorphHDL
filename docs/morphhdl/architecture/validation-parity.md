@@ -76,3 +76,10 @@ supported canonical generate loop partitions its packed output exactly once,
 without gaps or overlap, for every legal count and width. This is deliberately
 not a claim about conditional generate predicates, future processes or the
 still-pending concrete-witness phase-plan leg.
+
+Increment 6 moves the generate-for contract behind the public symbolic
+frontend. The same Scala source now has a bounded concrete execution and a
+single-body parameterized capture, and the reviewed `lane_array.v` is generated
+from that frontend-authored loop. This does not advance any inherited phase to
+implemented: `MorphVerilog` and the shared concrete-witness phase plan remain
+the next required validation leg.

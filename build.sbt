@@ -81,7 +81,7 @@ lazy val all = (project in file("."))
     publishLocal := {},
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(lib, core)
   )
-  .aggregate(sim, idslpayload, idslplugin, core, lib, tester, paramrtl, verilogBackend)
+  .aggregate(sim, idslpayload, idslplugin, core, lib, tester, paramrtl, frontend, verilogBackend)
 
 
 import sys.process._
@@ -131,8 +131,21 @@ lazy val paramrtl = (project in file("paramrtl"))
     publish / skip := true
   )
 
+lazy val frontend = (project in file("frontend"))
+  .dependsOn(paramrtl, core % "test->compile")
+  .settings(
+    defaultSettings,
+    name := "MorphHDL-frontend",
+    version := SpinalVersion.core,
+    scalacOptions += (idslplugin / Compile / packageBin / artifactPath).map { file =>
+      s"-Xplugin:${file.getAbsolutePath}"
+    }.value,
+    libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.3.0",
+    publish / skip := true
+  )
+
 lazy val verilogBackend = (project in file("backends/verilog"))
-  .dependsOn(paramrtl)
+  .dependsOn(paramrtl, frontend % "test->compile")
   .settings(
     defaultSettings,
     name := "MorphHDL-verilog",

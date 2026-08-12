@@ -11,11 +11,14 @@ These files are executable output contracts for the parameterized backend.
 - `parameter_forwarding.v` is owned by Increment 4. CI generates its one leaf
   and one parent definition together, checks a derived named child-parameter
   binding and proves the exact elaborated hierarchy before synthesis.
-- `lane_array.v` is owned by Increment 5. CI generates one `PixelLane` and one
-  `LaneArray` definition with a named generate-for loop, a scoped symbolic
-  index and parameterized indexed part-select bindings. Its pre-synthesis
-  structural gate resolves Yosys child types dynamically, so it does not
-  depend on implementation-specific `$paramod` names or generated-cell names.
+- `lane_array.v` is owned by Increments 5 and 6. Increment 5 established its
+  ParamRTL/backend contract; Increment 6 replaces the manually assembled loop
+  fixture with frontend-authored Scala using `0 until HdlInt`. CI still
+  generates one `PixelLane` and one `LaneArray` definition with a named
+  generate-for loop, a scoped symbolic index and parameterized indexed
+  part-select bindings. Its pre-synthesis structural gate resolves Yosys child
+  types dynamically, so it does not depend on implementation-specific
+  `$paramod` names or generated-cell names.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
   overrides. `DerivedWidthTb` checks widths 35, 4, 18, 27 and 23 in five
   simultaneous instances of the same emitted module. `ParameterForwardingTb`

@@ -19,3 +19,6 @@ Fork-specific implementation should follow these rules:
 See `docs/morphhdl/upstream-sync.md` for the synchronization procedure.
 The parameterized-Verilog architecture contract starts at
 `docs/morphhdl/architecture/README.md`.
+The bounded symbolic Scala frontend is isolated under `frontend`; it lowers to
+the target-neutral `paramrtl` module and does not change inherited concrete
+SpinalHDL entry points.

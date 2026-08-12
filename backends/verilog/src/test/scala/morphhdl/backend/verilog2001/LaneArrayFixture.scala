@@ -1,11 +1,8 @@
 package morphhdl.backend.verilog2001
 
-import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
-import morphhdl.paramrtl.IntExpr.{GenerateIndexRef, Multiply, ParameterRef}
-import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateFor, ModuleInstance}
+import morphhdl.frontend._
+import morphhdl.frontend.ParamRtlFrontend._
 import morphhdl.paramrtl.PortDirection.{Input, Output}
-import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
-import morphhdl.paramrtl.Signedness.Unsigned
 import morphhdl.paramrtl._
 
 object LaneArrayFixture {
@@ -45,68 +42,59 @@ object LaneArrayFixture {
       |""".stripMargin
 
   def design(reverseConstructionOrder: Boolean = false): Design = {
-    val dataWidth = IntegerParameter(
-      "DATA_WIDTH",
-      8,
-      Vector(MinInclusive(1), MaxInclusive(1024))
-    )
-    val lanes = IntegerParameter(
-      "LANES",
-      4,
-      Vector(MinInclusive(1), MaxInclusive(64))
-    )
-    val lanePacked = PackedBits(ParameterRef("DATA_WIDTH"), Unsigned)
-    val arrayPacked = PackedBits(Multiply(ParameterRef("LANES"), ParameterRef("DATA_WIDTH")), Unsigned)
-    val sliceOffset = Multiply(GenerateIndexRef("lane"), ParameterRef("DATA_WIDTH"))
-    val laneInstance = ModuleInstance(
-      name = "lane_inst",
-      moduleName = "PixelLane",
-      parameterBindings = Vector(ParameterBinding("DATA_WIDTH", ParameterRef("DATA_WIDTH"))),
-      portConnections = Vector(
-        PortConnection(
-          "data_in",
-          IndexedPartSelect(Ref("data_in"), sliceOffset, ParameterRef("DATA_WIDTH"))
-        ),
-        PortConnection(
-          "data_out",
-          IndexedPartSelect(Ref("data_out"), sliceOffset, ParameterRef("DATA_WIDTH"))
-        )
-      )
-    )
-    val leaf = ModuleDef(
+    val dataWidth = HdlInt.param("DATA_WIDTH", default = 8, min = 1, max = 1024)
+    val lanes = HdlInt.param("LANES", default = 4, min = 1, max = 64)
+    val lanePacked = packedBits(dataWidth)
+    val arrayPacked = packedBits(lanes * dataWidth)
+    val leafItems = captureItems {
+      emitContinuousAssign("data_out", ref("data_in"))
+    }
+    val leaf = moduleDef(
       name = "PixelLane",
-      parameters = Vector(dataWidth),
+      parameters = Vector(integerParameter(dataWidth)),
       ports = ordered(
         Vector(
-          Port("data_in", Input, lanePacked),
-          Port("data_out", Output, lanePacked)
+          port("data_in", Input, lanePacked),
+          port("data_out", Output, lanePacked)
         ),
         reverseConstructionOrder
       ),
-      items = Vector(ContinuousAssign(Ref("data_out"), Ref("data_in")))
+      items = leafItems
     )
-    val generate = GenerateFor(
-      label = "g_lane",
-      indexName = "lane",
-      count = ParameterRef("LANES"),
-      body = Vector(
-        laneInstance.copy(
-          parameterBindings = ordered(laneInstance.parameterBindings, reverseConstructionOrder),
-          portConnections = ordered(laneInstance.portConnections, reverseConstructionOrder)
+    val generatedItems = captureItems {
+      for (lane <- (0 until lanes).named(label = "g_lane", index = "lane")) {
+        val sliceOffset = lane * dataWidth
+        emitInstance(
+          name = "lane_inst",
+          moduleName = "PixelLane",
+          parameterBindings = ordered(
+            Vector(parameterBinding("DATA_WIDTH", dataWidth)),
+            reverseConstructionOrder
+          ),
+          portConnections = ordered(
+            Vector(
+              portConnection("data_in", indexedPartSelect("data_in", sliceOffset, dataWidth)),
+              portConnection("data_out", indexedPartSelect("data_out", sliceOffset, dataWidth))
+            ),
+            reverseConstructionOrder
+          )
         )
-      )
-    )
-    val top = ModuleDef(
+      }
+    }
+    val top = moduleDef(
       name = "LaneArray",
-      parameters = ordered(Vector(dataWidth, lanes), reverseConstructionOrder),
+      parameters = ordered(
+        Vector(integerParameter(dataWidth), integerParameter(lanes)),
+        reverseConstructionOrder
+      ),
       ports = ordered(
         Vector(
-          Port("data_in", Input, arrayPacked),
-          Port("data_out", Output, arrayPacked)
+          port("data_in", Input, arrayPacked),
+          port("data_out", Output, arrayPacked)
         ),
         reverseConstructionOrder
       ),
-      items = Vector(generate)
+      items = generatedItems
     )
 
     Design(
