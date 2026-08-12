@@ -25,6 +25,8 @@ jobs:
     timeout-minutes: 30
     container:
       image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
     strategy:
       fail-fast: false
       matrix:
@@ -35,8 +37,16 @@ jobs:
       - name: Check out sources
         uses: actions/checkout@v4
 
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
       - name: Test ParamRTL and Verilog-2001 backend
         shell: bash
         run: |
-          mill paramrtl[${{ matrix.scala_version }}].test
-          mill verilogBackend[${{ matrix.scala_version }}].test
+          /tmp/morphhdl-mill paramrtl[${{ matrix.scala_version }}].test
+          /tmp/morphhdl-mill verilogBackend[${{ matrix.scala_version }}].test
