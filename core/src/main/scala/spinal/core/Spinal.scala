@@ -344,6 +344,12 @@ class SpinalReport[T <: Component]() {
   var toplevelName: String = null
   var globalData : GlobalData = null
 
+  private[core] var _inheritedValidationPhaseIds = Vector.empty[String]
+  def inheritedValidationPhaseIds: Vector[String] = _inheritedValidationPhaseIds
+  private[core] var _expectedInheritedValidationPhaseIds = Vector.empty[String]
+  def expectedInheritedValidationPhaseIds: Vector[String] =
+    _expectedInheritedValidationPhaseIds
+
 
   val generatedSourcesPaths  = mutable.LinkedHashSet[String]()
   val blackboxesSourcesPaths = mutable.LinkedHashSet[String]()

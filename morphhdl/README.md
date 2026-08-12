@@ -22,3 +22,10 @@ The parameterized-Verilog architecture contract starts at
 The bounded symbolic Scala frontend is isolated under `frontend`; it lowers to
 the target-neutral `paramrtl` module and does not change inherited concrete
 SpinalHDL entry points.
+
+The supported Increment 7 orchestration API is under `morphhdl/src`. Its
+`MorphVerilog` entry point requires an explicit `MorphProgram` containing a
+re-entrant concrete Spinal witness and a re-entrant symbolic ParamRTL design.
+Every reachable module in their default flat interface and hierarchy must agree.
+Only the validated parameterized Verilog is published; concrete witness RTL is
+temporary validation data and is not exposed through the success report.

@@ -18,17 +18,6 @@ EXPECTED_HEADER = [
     "rationale",
 ]
 
-REQUIRED_CHECKS = {
-    "PhaseCheckIoBundle",
-    "PhaseCheckHierarchy",
-    "PhaseInferWidth",
-    "PhaseCheck_noLatchNoOverride",
-    "PhaseCheck_noRegisterAsLatch",
-    "PhaseCheckCombinationalLoops",
-    "PhaseCheckCrossClock",
-    "PhaseContext.checkGlobalData",
-}
-
 WITNESS_VALUES = {"required", "not-applicable"}
 DISPOSITION_VALUES = {"reuse", "adapt", "equivalent", "not-applicable"}
 STATUS_VALUES = {"planned", "partial", "implemented"}
@@ -49,6 +38,13 @@ def main():
         action="store_true",
         help="require every inherited check to be fully implemented",
     )
+    parser.add_argument(
+        "--live-phase-ids",
+        action="append",
+        default=[],
+        type=pathlib.Path,
+        help="compare manifest IDs and order with a live shared phase-plan inventory; may be repeated",
+    )
     args = parser.parse_args()
 
     if not args.manifest.is_file():
@@ -67,13 +63,36 @@ def main():
     if duplicates:
         return fail("duplicate check IDs: {}".format(", ".join(duplicates)))
 
-    missing = sorted(REQUIRED_CHECKS.difference(ids))
-    if missing:
-        return fail("required inherited checks are missing: {}".format(", ".join(missing)))
+    if not ids:
+        return fail("manifest contains no inherited checks")
 
-    unexpected = sorted(set(ids).difference(REQUIRED_CHECKS))
-    if unexpected:
-        return fail("unregistered inherited checks: {}".format(", ".join(unexpected)))
+    if not args.live_phase_ids:
+        return fail("validation parity gate requires at least one --live-phase-ids inventory")
+
+    for live_path in args.live_phase_ids:
+        if not live_path.is_file():
+            return fail("live phase-ID inventory does not exist: {}".format(live_path))
+        live_lines = live_path.read_text(encoding="utf-8").splitlines()
+        if not live_lines:
+            return fail("live phase-ID inventory is empty: {}".format(live_path))
+        if any(not value.strip() for value in live_lines):
+            return fail("live phase-ID inventory has an empty ID: {}".format(live_path))
+        live_ids = [value.strip() for value in live_lines]
+        live_duplicates = sorted(
+            {check_id for check_id in live_ids if live_ids.count(check_id) > 1}
+        )
+        if live_duplicates:
+            return fail(
+                "live phase-ID inventory {} has duplicates: {}".format(
+                    live_path, ", ".join(live_duplicates)
+                )
+            )
+        if live_ids != ids:
+            return fail(
+                "manifest IDs/order {} do not match live inventory {}".format(
+                    ids, live_ids
+                )
+            )
 
     for line_number, row in enumerate(rows, start=2):
         check_id = row["check_id"].strip()
