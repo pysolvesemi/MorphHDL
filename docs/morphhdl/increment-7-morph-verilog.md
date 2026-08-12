@@ -52,7 +52,8 @@ collects report information; `PhaseInferWidth` explicitly opts in despite not
 being a `PhaseCheck`. The global-data guard remains in its historic post-phase
 finalizer position and has explicit inventory metadata. `MorphVerilog`
 compares the built-in and observed inventories before starting symbolic
-capture, so removal, replacement, duplication or reordering fails closed.
+capture, so removal, an added duplicate baseline phase or reordering fails
+closed. A same-ID replacement is treated as the same validation contract.
 
 CI generates the inventory independently on Scala 2.12.18 and 2.13.12 and
 compares both ordered files with `validation-parity.tsv`. The previous
@@ -71,8 +72,8 @@ Generation executes in this order:
 5. Run `ParamRtlValidator` over all legal parameter values.
 6. Run strict Verilog-2001 capability verification.
 7. Require the default concrete and symbolic top names and every reachable
-   module's flat port schema and recursive child-module multiplicities to
-   match.
+   module instance's binding-aware flat port schema and recursive child-module
+   multiplicities to match.
 8. Render the symbolic design in memory.
 9. Delete temporary concrete RTL, then atomically replace the one public `.v`
    file.
@@ -95,8 +96,9 @@ continue to validate the concrete witness. The filename is checked before
 either factory runs, and mutable configuration collections are cloned so
 witness generation cannot mutate the caller's `SpinalConfig`. Output-affecting
 Spinal options that the direct parameterized emitter cannot honor (including
-headers, timescale changes, global prefixes, obfuscation and verbose logging)
-are rejected up front.
+headers, timescale changes, namespace and signal-name controls, line comments,
+assertion/ROM lowering, long-expression and component-binding controls, global
+prefixes, obfuscation and verbose logging) are rejected up front.
 
 ## Executable evidence
 

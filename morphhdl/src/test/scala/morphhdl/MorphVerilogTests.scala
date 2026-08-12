@@ -179,6 +179,20 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("recursive default shape follows parameter bindings through three hierarchy levels") {
+    withTemporaryDirectory { directory =>
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = forwardingWitness("ForwardingTop", width = 32),
+          parameterizedDesign = forwardingDesign("ForwardingTop")
+        )
+      }
+
+      assert(report.toplevelName == "ForwardingTop")
+      assert(Files.isRegularFile(directory.resolve("ForwardingTop.v")))
+    }
+  }
+
   test("removing an inherited phase fails closed before symbolic capture") {
     withTemporaryDirectory { directory =>
       var symbolicRuns = 0
@@ -338,6 +352,38 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("unsupported inherited output switches fail before factories") {
+    withTemporaryDirectory { directory =>
+      val configs = Vector(
+        SpinalConfig(targetDirectory = directory.toString, genLineComments = true),
+        SpinalConfig(targetDirectory = directory.toString, privateNamespace = true),
+        SpinalConfig(targetDirectory = directory.toString, cutLongExpressions = false),
+        SpinalConfig(targetDirectory = directory.toString, emitFullComponentBindings = false)
+      )
+
+      configs.foreach { config =>
+        var concreteRuns = 0
+        var symbolicRuns = 0
+        val result = MorphVerilog.tryGenerate(config) {
+          MorphProgram(
+            concreteWitness = {
+              concreteRuns += 1
+              witness("ParameterizedWire")
+            },
+            parameterizedDesign = {
+              symbolicRuns += 1
+              validDesign("ParameterizedWire")
+            }
+          )
+        }
+
+        assertStage(result, MorphVerilogStage.Configuration)
+        assert(concreteRuns == 0)
+        assert(symbolicRuns == 0)
+      }
+    }
+  }
+
   test("witness generation does not mutate the caller's mutable configuration") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
@@ -462,6 +508,85 @@ class MorphVerilogTests extends AnyFunSuite {
       )
     )
     Design(requestedName, Vector(top, child))
+  }
+
+  private def forwardingWitness(requestedName: String, width: Int): Component =
+    new Component {
+      setDefinitionName(requestedName)
+      val data_in = in(Bits(width bits))
+      val data_out = out(Bits(width bits))
+      val middle = new Component {
+        setDefinitionName("ForwardingMiddle")
+        val mid_in = in(Bits(width bits))
+        val mid_out = out(Bits(width bits))
+        val leaf = new Component {
+          setDefinitionName("ForwardingLeaf")
+          val leaf_in = in(Bits(width bits))
+          val leaf_out = out(Bits(width bits))
+          leaf_out := leaf_in
+        }
+        leaf.leaf_in := mid_in
+        mid_out := leaf.leaf_out
+      }
+      middle.mid_in := data_in
+      data_out := middle.mid_out
+    }
+
+  private def forwardingDesign(requestedName: String): Design = {
+    def parameter(name: String, default: BigInt): IntegerParameter =
+      IntegerParameter(name, default, Vector(MinInclusive(1), MaxInclusive(64)))
+
+    def packed(width: IntExpr): PackedBits = PackedBits(width, Unsigned)
+
+    val width = ParameterRef("WIDTH")
+    val leaf = ModuleDef(
+      name = "ForwardingLeaf",
+      parameters = Vector(parameter("WIDTH", 1)),
+      ports = Vector(
+        Port("leaf_in", Input, packed(width)),
+        Port("leaf_out", Output, packed(width))
+      ),
+      items = Vector(ContinuousAssign(Ref("leaf_out"), Ref("leaf_in")))
+    )
+    val middle = ModuleDef(
+      name = "ForwardingMiddle",
+      parameters = Vector(parameter("WIDTH", 2)),
+      ports = Vector(
+        Port("mid_in", Input, packed(width)),
+        Port("mid_out", Output, packed(width))
+      ),
+      items = Vector(
+        ModuleItem.ModuleInstance(
+          name = "leaf",
+          moduleName = leaf.name,
+          parameterBindings = Vector(ParameterBinding("WIDTH", width)),
+          portConnections = Vector(
+            PortConnection("leaf_in", Ref("mid_in")),
+            PortConnection("leaf_out", Ref("mid_out"))
+          )
+        )
+      )
+    )
+    val top = ModuleDef(
+      name = requestedName,
+      parameters = Vector(parameter("WIDTH", 32)),
+      ports = Vector(
+        Port("data_in", Input, packed(width)),
+        Port("data_out", Output, packed(width))
+      ),
+      items = Vector(
+        ModuleItem.ModuleInstance(
+          name = "middle",
+          moduleName = middle.name,
+          parameterBindings = Vector(ParameterBinding("WIDTH", width)),
+          portConnections = Vector(
+            PortConnection("mid_in", Ref("data_in")),
+            PortConnection("mid_out", Ref("data_out"))
+          )
+        )
+      )
+    )
+    Design(requestedName, Vector(top, middle, leaf))
   }
 
   private def validDesign(name: String): Design = {

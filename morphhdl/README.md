@@ -26,6 +26,7 @@ SpinalHDL entry points.
 The supported Increment 7 orchestration API is under `morphhdl/src`. Its
 `MorphVerilog` entry point requires an explicit `MorphProgram` containing a
 re-entrant concrete Spinal witness and a re-entrant symbolic ParamRTL design.
-Every reachable module in their default flat interface and hierarchy must agree.
+Every reachable module instance in their binding-aware default flat interface
+and hierarchy must agree.
 Only the validated parameterized Verilog is published; concrete witness RTL is
 temporary validation data and is not exposed through the success report.

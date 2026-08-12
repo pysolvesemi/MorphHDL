@@ -31,8 +31,10 @@ object MorphVerilog {
   private final case class ModuleShape(
       name: String,
       ports: Vector[PortShape],
-      children: Map[String, BigInt]
+      children: Vector[ChildShape]
   )
+
+  private final case class ChildShape(shape: ModuleShape, count: BigInt)
 
   def apply[T <: Component](program: => MorphProgram[T]): MorphVerilogReport =
     apply(SpinalConfig())(program)
@@ -224,8 +226,8 @@ object MorphVerilog {
               )
             )
           case Some(symbolicTop) =>
-            val concreteModules = concreteModuleShapes(concrete.toplevel)
-            symbolicModuleShapes(symbolicTop.name, symbolic) match {
+            val concreteModules = concreteModuleShape(concrete.toplevel)
+            symbolicModuleShape(symbolicTop.name, symbolic) match {
               case Left(detail) =>
                 Left(MorphVerilogFailure(DefaultShapeAgreement, detail))
               case Right(symbolicModules) if concreteModules != symbolicModules =>
@@ -292,6 +294,60 @@ object MorphVerilog {
         }
         if (config.obfuscateNames || config.obfuscate != spinal.core.ObfuscateConfig()) {
           errors += "name obfuscation is not supported by the direct parameterized emitter"
+        }
+        if (config.genLineComments) {
+          errors += "genLineComments is not supported by the direct parameterized emitter"
+        }
+        if (config.privateNamespace) {
+          errors += "privateNamespace is not supported by the direct parameterized emitter"
+        }
+        if (!config.cutLongExpressions) {
+          errors += "cutLongExpressions changes are not supported by the direct parameterized emitter"
+        }
+        if (!config.emitFullComponentBindings) {
+          errors += "emitFullComponentBindings changes are not supported by the direct parameterized emitter"
+        }
+        if (config.keepAll) {
+          errors += "keepAll is not supported by the direct parameterized emitter"
+        }
+        if (config.flags.nonEmpty) {
+          errors += "generation flags are not supported by the direct parameterized emitter"
+        }
+        if (
+          config.formalAsserts || config.noAssert || config.noAssertAtTimeZero ||
+          config.reportIncludeSourceLocation
+        ) {
+          errors += "assertion-output changes are not supported by the direct parameterized emitter"
+        }
+        if (config.anonymSignalPrefix != null || config.anonymSignalUniqueness) {
+          errors += "anonymous-signal naming changes are not supported by the direct parameterized emitter"
+        }
+        if (config.inlineRom || config.caseRom || config.romReuse) {
+          errors += "ROM emission changes are not supported by the direct parameterized emitter"
+        }
+        if (config.inlineConditionalExpression) {
+          errors += "inlineConditionalExpression is not supported by the direct parameterized emitter"
+        }
+        if (config.mergeAsyncProcess || !config.mergeSyncProcess || config.asyncResetCombSensitivity) {
+          errors += "process-emission changes are not supported by the direct parameterized emitter"
+        }
+        if (!config.nameWhenByFile) {
+          errors += "nameWhenByFile changes are not supported by the direct parameterized emitter"
+        }
+        if (config.noRandBoot || !config.randBootFixValue) {
+          errors += "random-boot emission changes are not supported by the direct parameterized emitter"
+        }
+        if (!config.fixToWithWrap || config.removePruned || config.allowOutOfRangeLiterals) {
+          errors += "legacy Verilog lowering changes are not supported by the direct parameterized emitter"
+        }
+        if (config.dontCareGenAsZero || config.normalizeComponentClockDomainName) {
+          errors += "signal-lowering changes are not supported by the direct parameterized emitter"
+        }
+        if (!config.enumPrefixEnable || config.enumGlobalEnable) {
+          errors += "enum naming changes are not supported by the direct parameterized emitter"
+        }
+        if (!config.singleTopLevel) {
+          errors += "singleTopLevel changes are not supported by the direct parameterized emitter"
         }
         val result = errors.result()
         if (result.isEmpty) Right(())
@@ -399,9 +455,8 @@ object MorphVerilog {
         Left(MorphVerilogFailure(Verilog2001Rendering, errorMessage(error), cause = Some(error)))
     }
 
-  private def concreteModuleShapes(top: Component): Vector[ModuleShape] = {
-    val shapes = Vector.newBuilder[ModuleShape]
-    top.walkComponents { component =>
+  private def concreteModuleShape(top: Component): ModuleShape = {
+    def loop(component: Component): ModuleShape = {
       val ports = component.getAllIo.toVector.map { port =>
         PortShape(
           name = port.getName(),
@@ -417,69 +472,77 @@ object MorphVerilog {
           }
         )
       }.sortBy(_.name)
-      val children = component.children
-        .groupBy(_.definitionName)
-        .map { case (name, values) => name -> BigInt(values.size) }
-        .toMap
-      shapes += ModuleShape(component.definitionName, ports, children)
+      val children = component.children.toVector
+        .map(loop)
+        .groupBy(identity)
+        .map { case (shape, values) => ChildShape(shape, BigInt(values.size)) }
+        .toVector
+        .sortBy(child => renderModuleShape(child.shape))
+      ModuleShape(component.definitionName, ports, children)
     }
-    val result = shapes.result()
-    val duplicates = result.groupBy(_.name).collect {
-      case (name, values) if values.map(shape => (shape.ports, shape.children)).distinct.size > 1 => name
-    }.toVector.sorted
-    if (duplicates.nonEmpty) {
-      throw new IllegalStateException(
-        s"concrete default hierarchy has conflicting schemas for ${duplicates.mkString(", ")}"
-      )
-    }
-    result.groupBy(_.name).map(_._2.head).toVector.sortBy(_.name)
+    loop(top)
   }
 
-  private def symbolicModuleShapes(
+  private def symbolicModuleShape(
       topName: String,
       design: ValidatedDesign
-  ): Either[String, Vector[ModuleShape]] = {
+  ): Either[String, ModuleShape] = {
     val modulesByName = design.value.modules.map(module => module.name -> module).toMap
 
     def loop(
-        pending: List[String],
-        visited: Set[String],
-        shapes: Vector[ModuleShape]
-    ): Either[String, Vector[ModuleShape]] = pending match {
-      case Nil => Right(shapes.sortBy(_.name))
-      case name :: tail if visited(name) => loop(tail, visited, shapes)
-      case name :: tail =>
+        name: String,
+        parameters: Map[String, morphhdl.paramrtl.IntExprFacts],
+        localParameters: Map[String, morphhdl.paramrtl.IntExprFacts],
+        ancestors: Set[String]
+    ): Either[String, ModuleShape] = {
+      if (ancestors(name)) Left(s"symbolic default hierarchy contains a recursive module '$name'")
+      else
         modulesByName.get(name) match {
           case None => Left(s"symbolic default hierarchy cannot resolve module '$name'")
           case Some(module) =>
             for {
-              ports <- symbolicPortShapes(name, design)
-              children <- symbolicChildCounts(name, design)
-              result <- loop(
-                children.keys.toList.sorted ++ tail,
-                visited + name,
-                shapes :+ ModuleShape(name, ports, children)
-              )
-            } yield result
+              ports <- symbolicPortShapes(module, parameters, localParameters)
+              childEntries <- symbolicChildren(module, parameters, localParameters)
+              childShapes <- childEntries.foldLeft[Either[String, Vector[ChildShape]]](Right(Vector.empty)) {
+                case (Left(detail), _) => Left(detail)
+                case (Right(shapes), (instance, count)) =>
+                  for {
+                    childContext <- instantiatedContext(instance, parameters, localParameters, design)
+                    child <- loop(
+                      instance.moduleName,
+                      childContext._1,
+                      childContext._2,
+                      ancestors + name
+                    )
+                  } yield shapes :+ ChildShape(child, count)
+              }
+            } yield {
+              val grouped = childShapes
+                .groupBy(_.shape)
+                .map { case (shape, values) => ChildShape(shape, values.map(_.count).sum) }
+                .toVector
+                .sortBy(child => renderModuleShape(child.shape))
+              ModuleShape(name, ports, grouped)
+            }
         }
     }
 
-    loop(List(topName), Set.empty, Vector.empty)
+    val topFacts = design.moduleFacts(topName)
+    loop(topName, topFacts.parameterFacts, topFacts.localParameterFacts, Set.empty)
   }
 
   private def symbolicPortShapes(
-      moduleName: String,
-      design: ValidatedDesign
+      module: morphhdl.paramrtl.ModuleDef,
+      parameters: Map[String, morphhdl.paramrtl.IntExprFacts],
+      localParameters: Map[String, morphhdl.paramrtl.IntExprFacts]
   ): Either[String, Vector[PortShape]] = {
-    val module = design.value.modules.find(_.name == moduleName).get
-    val facts = design.moduleFacts(moduleName)
     module.ports.foldLeft[Either[String, Vector[PortShape]]](Right(Vector.empty)) {
       case (Left(detail), _) => Left(detail)
       case (Right(shapes), port) =>
         IntExpressionAnalysis
-          .analyze(port.dataType.width, facts.parameterFacts, facts.localParameterFacts) match {
+          .analyze(port.dataType.width, parameters, localParameters) match {
           case Left(failure) =>
-            Left(s"cannot evaluate default width for '$moduleName.${port.name}': $failure")
+            Left(s"cannot evaluate default width for '${module.name}.${port.name}': $failure")
           case Right(widthFacts) =>
             val direction = port.direction match {
               case morphhdl.paramrtl.PortDirection.Input  => "input"
@@ -501,37 +564,28 @@ object MorphVerilog {
     }.map(_.sortBy(_.name))
   }
 
-  private def symbolicChildCounts(
-      moduleName: String,
-      design: ValidatedDesign
-  ): Either[String, Map[String, BigInt]] = {
-    val module = design.value.modules.find(_.name == moduleName).get
-    val facts = design.moduleFacts(moduleName)
-
-    def add(
-        counts: Map[String, BigInt],
-        childModule: String,
-        count: BigInt
-    ): Map[String, BigInt] =
-      counts.updated(childModule, counts.getOrElse(childModule, BigInt(0)) + count)
-
+  private def symbolicChildren(
+      module: morphhdl.paramrtl.ModuleDef,
+      parameters: Map[String, morphhdl.paramrtl.IntExprFacts],
+      localParameters: Map[String, morphhdl.paramrtl.IntExprFacts]
+  ): Either[String, Vector[(ModuleInstance, BigInt)]] = {
     def collect(
         items: Vector[morphhdl.paramrtl.ModuleItem],
         multiplier: BigInt,
-        counts: Map[String, BigInt]
-    ): Either[String, Map[String, BigInt]] =
-      items.foldLeft[Either[String, Map[String, BigInt]]](Right(counts)) {
+        entries: Vector[(ModuleInstance, BigInt)]
+    ): Either[String, Vector[(ModuleInstance, BigInt)]] =
+      items.foldLeft[Either[String, Vector[(ModuleInstance, BigInt)]]](Right(entries)) {
         case (Left(detail), _) => Left(detail)
         case (Right(current), instance: ModuleInstance) =>
-          Right(add(current, instance.moduleName, multiplier))
+          Right(current :+ (instance -> multiplier))
         case (Right(current), generate: GenerateFor) =>
           IntExpressionAnalysis
-            .analyze(generate.count, facts.parameterFacts, facts.localParameterFacts) match {
+            .analyze(generate.count, parameters, localParameters) match {
             case Left(failure) =>
-              Left(s"cannot evaluate default generate count '$moduleName.${generate.label}': $failure")
+              Left(s"cannot evaluate default generate count '${module.name}.${generate.label}': $failure")
             case Right(countFacts) if countFacts.defaultValue < 0 =>
               Left(
-                s"default generate count '$moduleName.${generate.label}' is negative: ${countFacts.defaultValue}"
+                s"default generate count '${module.name}.${generate.label}' is negative: ${countFacts.defaultValue}"
               )
             case Right(countFacts) =>
               collect(generate.body, multiplier * countFacts.defaultValue, current)
@@ -539,7 +593,59 @@ object MorphVerilog {
         case (Right(current), _) => Right(current)
       }
 
-    collect(module.items, BigInt(1), Map.empty)
+    collect(module.items, BigInt(1), Vector.empty).map(_.filter(_._2 > 0))
+  }
+
+  private def instantiatedContext(
+      instance: ModuleInstance,
+      parentParameters: Map[String, morphhdl.paramrtl.IntExprFacts],
+      parentLocals: Map[String, morphhdl.paramrtl.IntExprFacts],
+      design: ValidatedDesign
+  ): Either[
+    String,
+    (Map[String, morphhdl.paramrtl.IntExprFacts], Map[String, morphhdl.paramrtl.IntExprFacts])
+  ] = {
+    val target = design.value.modules.find(_.name == instance.moduleName).get
+    val bindings = instance.parameterBindings.map(binding => binding.parameterName -> binding.value).toMap
+    val parameters = target.parameters.foldLeft[Either[String, Map[String, morphhdl.paramrtl.IntExprFacts]]](
+      Right(Map.empty)
+    ) {
+      case (Left(detail), _) => Left(detail)
+      case (Right(current), parameter) =>
+        bindings.get(parameter.name) match {
+          case None =>
+            Right(
+              current.updated(
+                parameter.name,
+                morphhdl.paramrtl.IntExprFacts(
+                  parameter.default,
+                  morphhdl.paramrtl.IntInterval.point(parameter.default)
+                )
+              )
+            )
+          case Some(expression) =>
+            IntExpressionAnalysis.analyze(expression, parentParameters, parentLocals) match {
+              case Left(failure) =>
+                Left(
+                  s"cannot evaluate default binding '${instance.name}.${parameter.name}': $failure"
+                )
+              case Right(value) => Right(current.updated(parameter.name, value))
+            }
+        }
+    }
+    parameters.flatMap { parameterFacts =>
+      design.moduleFacts(target.name).orderedLocalParameters
+        .foldLeft[Either[String, Map[String, morphhdl.paramrtl.IntExprFacts]]](Right(Map.empty)) {
+          case (Left(detail), _) => Left(detail)
+          case (Right(current), local) =>
+            IntExpressionAnalysis.analyze(local.value, parameterFacts, current) match {
+              case Left(failure) =>
+                Left(s"cannot evaluate default local parameter '${target.name}.${local.name}': $failure")
+              case Right(value) => Right(current.updated(local.name, value))
+            }
+        }
+        .map(localFacts => parameterFacts -> localFacts)
+    }
   }
 
   private def renderPortShapes(shapes: Vector[PortShape]): String =
@@ -547,13 +653,15 @@ object MorphVerilog {
       .map(shape => s"${shape.name}:${shape.direction}:${shape.signedness}:${shape.width}")
       .mkString("[", ", ", "]")
 
-  private def renderChildCounts(counts: Map[String, BigInt]): String =
-    counts.toVector.sortBy(_._1).map { case (name, count) => s"$name=$count" }.mkString("[", ", ", "]")
+  private def renderChildShapes(children: Vector[ChildShape]): String =
+    children
+      .map(child => s"${child.count}*${renderModuleShape(child.shape)}")
+      .mkString("[", ", ", "]")
 
-  private def renderModuleShapes(shapes: Vector[ModuleShape]): String =
-    shapes.map { shape =>
-      s"${shape.name}{ports=${renderPortShapes(shape.ports)},children=${renderChildCounts(shape.children)}}"
-    }.mkString("[", ", ", "]")
+  private def renderModuleShape(shape: ModuleShape): String =
+    s"${shape.name}{ports=${renderPortShapes(shape.ports)},children=${renderChildShapes(shape.children)}}"
+
+  private def renderModuleShapes(shape: ModuleShape): String = renderModuleShape(shape)
 
   private def targetDirectory(configured: String): Path = {
     val expanded =

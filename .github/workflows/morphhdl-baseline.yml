@@ -122,17 +122,35 @@ jobs:
         shell: bash
         run: |
           mkdir -p \
+            target/morphhdl/generated/backend-run-1 \
+            target/morphhdl/generated/backend-run-2 \
+            target/morphhdl/generated/morph-run-1 \
+            target/morphhdl/generated/morph-run-2 \
             target/morphhdl/generated/run-1 \
             target/morphhdl/generated/run-2 \
             target/morphhdl/generated/artifact
           sbt -batch ++2.12.18 \
-            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.ContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-1"
+            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.ContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated/backend-run-1"
+          test ! -e target/morphhdl/generated/morph-run-1/parameterized_wire.v
           sbt -batch ++2.12.18 \
-            "morph/Test/runMain morphhdl.MorphContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-1"
+            "morph/Test/runMain morphhdl.MorphContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated/morph-run-1"
           sbt -batch ++2.12.18 \
-            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.ContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-2"
+            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.ContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated/backend-run-2"
+          test ! -e target/morphhdl/generated/morph-run-2/parameterized_wire.v
           sbt -batch ++2.12.18 \
-            "morph/Test/runMain morphhdl.MorphContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-2"
+            "morph/Test/runMain morphhdl.MorphContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated/morph-run-2"
+          test -f target/morphhdl/generated/morph-run-1/parameterized_wire.v
+          test -f target/morphhdl/generated/morph-run-2/parameterized_wire.v
+          for run in 1 2
+          do
+            cp "target/morphhdl/generated/morph-run-${run}/parameterized_wire.v" \
+              "target/morphhdl/generated/run-${run}/parameterized_wire.v"
+            for filename in derived_width.v parameter_forwarding.v lane_array.v
+            do
+              cp "target/morphhdl/generated/backend-run-${run}/${filename}" \
+                "target/morphhdl/generated/run-${run}/${filename}"
+            done
+          done
           diff --recursive --brief \
             target/morphhdl/generated/run-1 \
             target/morphhdl/generated/run-2

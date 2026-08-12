@@ -31,10 +31,11 @@ MorphVerilog(SpinalConfig(targetDirectory = "rtl")) {
 Both arguments are by-name factories. The concrete factory may be replayed by
 Spinal's source-location diagnostic pass, and the symbolic factory is invoked
 exactly once after concrete validation succeeds. Before emission,
-`MorphVerilog` also requires their default top name and every reachable
-module's flat port directions, signedness and widths and recursive child-module
-multiplicities to agree. This guards the bounded dual-factory association but
-is not a complete behavioral equivalence proof. A future frontend tranche may collapse this surface to
+`MorphVerilog` also requires their default top name and every reachable module
+instance's binding-aware flat port directions, signedness and widths and
+recursive child-module multiplicities to agree. This guards the bounded
+dual-factory association but is not a complete behavioral equivalence proof. A
+future frontend tranche may collapse this surface to
 `MorphVerilog { new DisplayController(...) }` only after one constructor can
 honestly supply both representations.
 
