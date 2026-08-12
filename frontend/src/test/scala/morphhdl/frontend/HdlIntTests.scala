@@ -2,7 +2,7 @@ package morphhdl.frontend
 
 import morphhdl.frontend.ParamRtlFrontend.integerParameter
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
-import morphhdl.paramrtl.IntExpr.{Literal, Multiply, ParameterRef}
+import morphhdl.paramrtl.IntExpr.{Add, Divide, Literal, Modulo, Multiply, Negate, ParameterRef, Subtract}
 import morphhdl.paramrtl.IntegerParameter
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -25,6 +25,70 @@ class HdlIntTests extends AnyFunSuite {
 
     assert(product.witness == 32)
     assert(product.expression == Multiply(ParameterRef("LANES"), ParameterRef("DATA_WIDTH")))
+  }
+
+  test("retains exact concrete witnesses and symbolic provenance for every integer operator") {
+    val left = HdlInt.param("LEFT", default = 17, min = -64, max = 64)
+    val right = HdlInt.param("RIGHT", default = 5, min = 1, max = 16)
+
+    val expressions = Vector(
+      left + right -> (BigInt(22), Add(ParameterRef("LEFT"), ParameterRef("RIGHT"))),
+      left - right -> (BigInt(12), Subtract(ParameterRef("LEFT"), ParameterRef("RIGHT"))),
+      left * right -> (BigInt(85), Multiply(ParameterRef("LEFT"), ParameterRef("RIGHT"))),
+      left / right -> (BigInt(3), Divide(ParameterRef("LEFT"), ParameterRef("RIGHT"))),
+      left % right -> (BigInt(2), Modulo(ParameterRef("LEFT"), ParameterRef("RIGHT"))),
+      -left -> (BigInt(-17), Negate(ParameterRef("LEFT")))
+    )
+
+    expressions.foreach { case (actual, (witness, expression)) =>
+      assert(actual.witness == witness)
+      assert(actual.expression == expression)
+      assert(actual.parameters == left.parameters ++ right.parameters || actual.parameters == left.parameters)
+    }
+  }
+
+  test("keeps Int operands in the symbolic domain on both sides") {
+    val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
+    val expressions: Vector[HdlInt] = Vector(
+      width + 3,
+      3 + width,
+      width - 3,
+      20 - width,
+      width * 3,
+      3 * width,
+      width / 2,
+      32 / width,
+      width % 3,
+      19 % width
+    )
+
+    assert(expressions.map(_.witness) == Vector[BigInt](11, 11, 5, 12, 24, 24, 4, 4, 2, 3))
+    assert(expressions.map(_.expression) == Vector(
+      Add(ParameterRef("WIDTH"), Literal(3)),
+      Add(Literal(3), ParameterRef("WIDTH")),
+      Subtract(ParameterRef("WIDTH"), Literal(3)),
+      Subtract(Literal(20), ParameterRef("WIDTH")),
+      Multiply(ParameterRef("WIDTH"), Literal(3)),
+      Multiply(Literal(3), ParameterRef("WIDTH")),
+      Divide(ParameterRef("WIDTH"), Literal(2)),
+      Divide(Literal(32), ParameterRef("WIDTH")),
+      Modulo(ParameterRef("WIDTH"), Literal(3)),
+      Modulo(Literal(19), ParameterRef("WIDTH"))
+    ))
+  }
+
+  test("rejects a zero concrete divisor witness at the operator source") {
+    val zero = HdlInt.param("ZERO", default = 0, min = 0, max = 1)
+    val divideLine = sourcecode.Line() + 1
+    val divide = intercept[FrontendException](HdlInt.literal(12) / zero)
+    val moduloLine = sourcecode.Line() + 1
+    val modulo = intercept[FrontendException](HdlInt.literal(12) % zero)
+
+    assert(divide.code == "MORPH-FRONTEND-DIVISOR-WITNESS-ZERO")
+    assert(divide.origin.line == divideLine)
+    assert(modulo.code == "MORPH-FRONTEND-DIVISOR-WITNESS-ZERO")
+    assert(modulo.origin.line == moduloLine)
+    assert(divide.suggestion.contains("full domain excludes zero"))
   }
 
   test("retains caller source origins on symbolic values") {

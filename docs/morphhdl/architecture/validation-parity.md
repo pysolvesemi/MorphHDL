@@ -113,3 +113,12 @@ behavioral equivalence proof between arbitrary dual factories. `PhaseCheckIoBund
 the parity manifest. Width and driver checks remain partial until their
 remaining symbolic algebras are implemented; register, loop and CDC checks
 remain planned for their corresponding runtime-RTL tranches.
+
+Increment 8 routes every current integer, local-parameter, hierarchy and
+generate-for contract fixture through that public orchestration path. The
+frontend now preserves the full implemented integer-expression AST and opaque
+local identities; ParamRTL still proves complete legal domains, dependency
+cycles, nonzero divisors, positive widths and target bounds. Strict external
+tools consume only the four-file `MorphVerilog` artifact. `PhaseInferWidth`
+remains partial because Boolean, comparison, conditional, `min`, `max` and
+`clog2` algebra is still planned.

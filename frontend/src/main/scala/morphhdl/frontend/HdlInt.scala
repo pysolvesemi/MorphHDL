@@ -1,27 +1,112 @@
 package morphhdl.frontend
 
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
-import morphhdl.paramrtl.IntExpr.{Literal, Multiply, ParameterRef}
-import morphhdl.paramrtl.{IntConstraint, IntExpr, IntegerParameter}
+import morphhdl.paramrtl.IntExpr.{
+  Add,
+  Divide,
+  Literal,
+  LocalParameterRef,
+  Modulo,
+  Multiply,
+  Negate,
+  ParameterRef,
+  Subtract
+}
+import morphhdl.paramrtl.{IntConstraint, IntExpr, IntegerLocalParameter, IntegerParameter}
 
 final class HdlInt private[frontend] (
     private[frontend] val witness: BigInt,
     private[frontend] val expression: IntExpr,
     private[frontend] val declaration: Option[ParameterToken],
     private[frontend] val parameters: Set[ParameterToken],
+    private[frontend] val localDeclaration: Option[LocalParameterToken],
+    private[frontend] val localParameters: Set[LocalParameterToken],
     private[frontend] val scope: Option[ScopeToken],
     private[frontend] val origin: SourceOrigin
 ) extends scala.math.ScalaNumber {
+  def +(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
+    binary(that, "integer addition", Add.apply)(_ + _)
+
+  def -(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
+    binary(that, "integer subtraction", Subtract.apply)(_ - _)
+
   def *(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt = {
-    requireUsable("integer multiplication")
-    that.requireUsable("integer multiplication")
+    binary(that, "integer multiplication", Multiply.apply)(_ * _)
+  }
+
+  def /(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt = {
     val resultOrigin = SourceOrigin.capture
-    val resultScope = HdlInt.mergeScopes(scope, that.scope, resultOrigin)
+    binaryAt(
+      that,
+      "integer division",
+      Divide.apply,
+      resultOrigin,
+      zeroDivisorRole = Some("division")
+    )(_ / _)
+  }
+
+  def %(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt = {
+    val resultOrigin = SourceOrigin.capture
+    binaryAt(
+      that,
+      "integer remainder",
+      Modulo.apply,
+      resultOrigin,
+      zeroDivisorRole = Some("remainder")
+    )(_ % _)
+  }
+
+  def unary_-(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt = {
+    requireUsable("integer negation")
+    val resultOrigin = SourceOrigin.capture
     new HdlInt(
-      witness * that.witness,
-      Multiply(expression, that.expression),
+      -witness,
+      Negate(expression),
+      declaration = None,
+      parameters = parameters,
+      localDeclaration = None,
+      localParameters = localParameters,
+      scope = scope,
+      origin = resultOrigin
+    )
+  }
+
+  private def binary(
+      that: HdlInt,
+      consumer: String,
+      operation: (IntExpr, IntExpr) => IntExpr
+  )(witnessOperation: (BigInt, BigInt) => BigInt)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): HdlInt =
+    binaryAt(that, consumer, operation, SourceOrigin.capture)(witnessOperation)
+
+  private def binaryAt(
+      that: HdlInt,
+      consumer: String,
+      operation: (IntExpr, IntExpr) => IntExpr,
+      resultOrigin: SourceOrigin,
+      zeroDivisorRole: Option[String] = None
+  )(witnessOperation: (BigInt, BigInt) => BigInt): HdlInt = {
+    requireUsable(consumer)
+    that.requireUsable(consumer)
+    val resultScope = HdlInt.mergeScopes(scope, that.scope, resultOrigin)
+    zeroDivisorRole.foreach { role =>
+      if (that.witness == 0) {
+        FrontendException.failAt(
+          "MORPH-FRONTEND-DIVISOR-WITNESS-ZERO",
+          s"integer $role has a zero concrete witness divisor",
+          resultOrigin
+        )
+      }
+    }
+    new HdlInt(
+      witnessOperation(witness, that.witness),
+      operation(expression, that.expression),
       declaration = None,
       parameters = parameters ++ that.parameters,
+      localDeclaration = None,
+      localParameters = localParameters ++ that.localParameters,
       scope = resultScope,
       origin = resultOrigin
     )
@@ -35,7 +120,7 @@ final class HdlInt private[frontend] (
     if (scope.nonEmpty) {
       FrontendException.failAt(
         "MORPH-FRONTEND-GENINDEX-CONSUMER-UNSUPPORTED",
-        s"$consumer cannot depend on a generate index in Increment 6",
+        s"$consumer cannot depend on a generate index in the current frontend surface",
         origin
       )
     }
@@ -85,6 +170,8 @@ object HdlInt {
       Literal(value),
       declaration = None,
       parameters = Set.empty,
+      localDeclaration = None,
+      localParameters = Set.empty,
       scope = None,
       origin = SourceOrigin.capture
     )
@@ -106,8 +193,33 @@ object HdlInt {
       ParameterRef(name),
       declaration = Some(token),
       parameters = Set(token),
+      localDeclaration = None,
+      localParameters = Set.empty,
       scope = None,
       origin = token.origin
+    )
+  }
+
+  private[frontend] def local(
+      name: String,
+      value: HdlInt,
+      origin: SourceOrigin
+  ): HdlInt = {
+    val token = new LocalParameterToken(
+      IntegerLocalParameter(name, value.expression),
+      parameters = value.parameters,
+      dependencies = value.localParameters,
+      origin = origin
+    )
+    new HdlInt(
+      value.witness,
+      LocalParameterRef(name),
+      declaration = None,
+      parameters = value.parameters,
+      localDeclaration = Some(token),
+      localParameters = value.localParameters + token,
+      scope = None,
+      origin = origin
     )
   }
 
@@ -116,6 +228,7 @@ object HdlInt {
       expression: IntExpr,
       scope: ScopeToken,
       parameters: Set[ParameterToken],
+      localParameters: Set[LocalParameterToken],
       origin: SourceOrigin
   ): HdlInt =
     new HdlInt(
@@ -123,6 +236,8 @@ object HdlInt {
       expression,
       declaration = None,
       parameters = parameters,
+      localDeclaration = None,
+      localParameters = localParameters,
       scope = Some(scope),
       origin = origin
     )

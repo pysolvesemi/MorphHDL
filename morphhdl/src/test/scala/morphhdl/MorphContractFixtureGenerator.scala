@@ -1,65 +1,61 @@
 package morphhdl
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Path, Paths}
 
-import spinal.core._
+import spinal.core.{Component, SpinalConfig}
 
-import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
-import morphhdl.paramrtl.IntExpr.ParameterRef
-import morphhdl.paramrtl.ModuleItem.ContinuousAssign
-import morphhdl.paramrtl.PortDirection.{Input, Output}
-import morphhdl.paramrtl.RtlExpr.Ref
-import morphhdl.paramrtl.Signedness.Unsigned
-import morphhdl.paramrtl._
-
-/** Public-entry-point source for the first reviewed MorphVerilog artifact. */
+/** CLI dispatch for the four public-entry-point contract fixtures. */
 object MorphContractFixtureGenerator {
+  private final case class Options(outputDirectory: Path, reverseConstructionOrder: Boolean)
+
+  private final case class Fixture(
+      filename: String,
+      program: Boolean => MorphProgram[Component]
+  )
+
+  private val fixtures = Vector(
+    Fixture("parameterized_wire.v", ParameterizedWireContractFixture.program),
+    Fixture("derived_width.v", DerivedWidthContractFixture.program),
+    Fixture("parameter_forwarding.v", ParameterForwardingContractFixture.program),
+    Fixture("lane_array.v", LaneArrayContractFixture.program)
+  )
+
   def main(args: Array[String]): Unit = {
-    val outputDirectory = args.toVector match {
-      case Vector("--output-dir", path) => Paths.get(path)
-      case _ =>
-        throw new IllegalArgumentException(
-          "Usage: MorphContractFixtureGenerator --output-dir <directory>"
-        )
-    }
-    Files.createDirectories(outputDirectory)
-    val config = SpinalConfig(targetDirectory = outputDirectory.toString)
-    config.netlistFileName = "parameterized_wire.v"
+    val options = parseOptions(args.toVector)
+    Files.createDirectories(options.outputDirectory)
 
-    MorphVerilog(config) {
-      MorphProgram(
-        concreteWitness = new Component {
-          setDefinitionName("ParameterizedWire")
-          val din = in(Bits(8 bits))
-          val dout = out(Bits(8 bits))
-          dout := din
-        },
-        parameterizedDesign = parameterizedWireDesign()
-      )
+    fixtures.foreach { fixture =>
+      val config = SpinalConfig(targetDirectory = options.outputDirectory.toString)
+      config.netlistFileName = fixture.filename
+      MorphVerilog(config)(fixture.program(options.reverseConstructionOrder))
     }
   }
 
-  private def parameterizedWireDesign(): Design = {
-    val packed = PackedBits(ParameterRef("WIDTH"), Unsigned)
-    Design(
-      top = "ParameterizedWire",
-      modules = Vector(
-        ModuleDef(
-          name = "ParameterizedWire",
-          parameters = Vector(
-            IntegerParameter(
-              "WIDTH",
-              default = 8,
-              constraints = Vector(MinInclusive(1), MaxInclusive(Int.MaxValue))
-            )
-          ),
-          ports = Vector(
-            Port("din", Input, packed),
-            Port("dout", Output, packed)
-          ),
-          items = Vector(ContinuousAssign(Ref("dout"), Ref("din")))
-        )
-      )
+  private def parseOptions(args: Vector[String]): Options = {
+    @annotation.tailrec
+    def loop(
+        remaining: Vector[String],
+        outputDirectory: Option[Path],
+        reverseConstructionOrder: Boolean
+    ): Options = remaining match {
+      case Vector() =>
+        outputDirectory match {
+          case Some(directory) => Options(directory, reverseConstructionOrder)
+          case None            => usage()
+        }
+      case "--output-dir" +: path +: tail if outputDirectory.isEmpty =>
+        loop(tail, Some(Paths.get(path)), reverseConstructionOrder)
+      case "--reverse-construction-order" +: tail if !reverseConstructionOrder =>
+        loop(tail, outputDirectory, reverseConstructionOrder = true)
+      case _ => usage()
+    }
+
+    loop(args, None, reverseConstructionOrder = false)
+  }
+
+  private def usage(): Nothing =
+    throw new IllegalArgumentException(
+      "Usage: MorphContractFixtureGenerator --output-dir <directory> " +
+        "[--reverse-construction-order]"
     )
-  }
 }
