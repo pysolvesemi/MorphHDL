@@ -4,6 +4,7 @@ import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
 import morphhdl.paramrtl.IntExpr.{
   Add,
   Divide,
+  GenerateIndexRef,
   Literal,
   LocalParameterRef,
   Modulo,
@@ -12,10 +13,16 @@ import morphhdl.paramrtl.IntExpr.{
   ParameterRef,
   Subtract
 }
-import morphhdl.paramrtl.IntExpressionFailure.{DivisorMayBeZero, UnresolvedLocalParameter, UnresolvedParameter}
-import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, ModuleInstance}
+import morphhdl.paramrtl.IntExpressionFailure.{
+  DivisorMayBeZero,
+  UnresolvedGenerateIndex,
+  UnresolvedLocalParameter,
+  UnresolvedParameter
+}
+import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateFor, ModuleInstance}
 import morphhdl.paramrtl.PortDirection.{Input, Output}
-import morphhdl.paramrtl.RtlExpr.Ref
+import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
+import morphhdl.paramrtl.Signedness.Unsigned
 
 final case class Diagnostic(code: String, path: Vector[String], message: String) {
   def pathString: String = path.mkString("/")
@@ -90,11 +97,8 @@ object ParamRtlValidator {
     }.toMap
 
     val moduleDependencies = moduleByName.map { case (name, module) =>
-      name -> module.items
-        .collect {
-          case instance: ModuleInstance if moduleNames.contains(instance.moduleName) =>
-            instance.moduleName
-        }
+      name -> collectInstances(module.items)
+        .collect { case instance if moduleNames.contains(instance.moduleName) => instance.moduleName }
         .distinct
         .sorted
     }
@@ -135,6 +139,7 @@ object ParamRtlValidator {
     val localParameters = module.localParameters.sortBy(_.name)
     val ports = module.ports.sortBy(_.name)
     val instances = module.items.collect { case instance: ModuleInstance => instance }.sortBy(_.name)
+    val generateFors = module.items.collect { case generate: GenerateFor => generate }.sortBy(_.label)
 
     addDuplicateDiagnostics(
       parameters.map(_.name),
@@ -164,12 +169,28 @@ object ParamRtlValidator {
       "instance",
       diagnostics
     )
+    addDuplicateDiagnostics(
+      generateFors.map(_.label),
+      modulePath :+ "generateFors",
+      "PRTL-DUPLICATE-GENERATE-LABEL",
+      "generate label",
+      diagnostics
+    )
+    addDuplicateDiagnostics(
+      generateFors.map(_.indexName),
+      modulePath :+ "generateIndices",
+      "PRTL-DUPLICATE-GENERATE-INDEX",
+      "generate index",
+      diagnostics
+    )
 
     val declarationKinds = Vector(
       "parameter" -> parameters.map(_.name).toSet,
       "local parameter" -> localParameters.map(_.name).toSet,
       "port" -> ports.map(_.name).toSet,
-      "instance" -> instances.map(_.name).toSet
+      "instance" -> instances.map(_.name).toSet,
+      "generate label" -> generateFors.map(_.label).toSet,
+      "generate index" -> generateFors.map(_.indexName).toSet
     )
     declarationKinds.combinations(2).foreach {
       case Vector((leftKind, leftNames), (rightKind, rightNames)) =>
@@ -227,6 +248,49 @@ object ParamRtlValidator {
       checkIdentifier(instance.moduleName, path :+ "moduleName", "referenced module", diagnostics)
     }
 
+    generateFors.foreach { generate =>
+      val path = modulePath :+ "generateFors" :+ generate.label
+      checkIdentifier(generate.label, path :+ "label", "generate label", diagnostics)
+      checkIdentifier(generate.indexName, path :+ "indexName", "generate index", diagnostics)
+      validateExpressionReferences(
+        generate.count,
+        parameterNames,
+        localParameterNames,
+        path :+ "count",
+        diagnostics,
+        Set.empty
+      )
+
+      val bodyInstances = generate.body.collect { case instance: ModuleInstance => instance }.sortBy(_.name)
+      addDuplicateDiagnostics(
+        bodyInstances.map(_.name),
+        path :+ "instances",
+        "PRTL-DUPLICATE-INSTANCE",
+        "instance",
+        diagnostics
+      )
+      bodyInstances.foreach { instance =>
+        val instancePath = path :+ "instances" :+ instance.name
+        checkIdentifier(instance.name, instancePath :+ "name", "instance", diagnostics)
+        checkIdentifier(instance.moduleName, instancePath :+ "moduleName", "referenced module", diagnostics)
+      }
+      generate.body.zipWithIndex.foreach {
+        case (_: ModuleInstance, _) =>
+        case (_: GenerateFor, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-NESTED-GENERATE-UNSUPPORTED",
+            path :+ "body" :+ index.toString,
+            "Nested generate-for loops are not supported by this IR tranche"
+          )
+        case (_, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-GENERATE-BODY-ITEM-UNSUPPORTED",
+            path :+ "body" :+ index.toString,
+            "Generate-for bodies currently support module instances only"
+          )
+      }
+    }
+
     val dependencies = localParameterByName.map { case (name, localParameter) =>
       name -> IntExpressionAnalysis
         .localParameterReferences(localParameter.value)
@@ -271,6 +335,24 @@ object ParamRtlValidator {
         modulePath :+ "ports" :+ port.name :+ "width",
         diagnostics
       )
+    }
+
+    generateFors.foreach { generate =>
+      val path = modulePath :+ "generateFors" :+ generate.label :+ "count"
+      analyzeExpression(
+        generate.count,
+        parameterFacts,
+        localParameterFacts,
+        path,
+        diagnostics
+      ).foreach { facts =>
+        if (!facts.interval.lower.exists(_ >= 1))
+          diagnostics += Diagnostic(
+            "PRTL-GENERATE-COUNT-NOT-PROVEN-POSITIVE",
+            path,
+            s"Generate count domain ${renderInterval(facts.interval)} is not proven positive"
+          )
+      }
     }
 
     ValidatedModuleFacts(
@@ -322,7 +404,8 @@ object ParamRtlValidator {
       parameters: Set[String],
       localParameters: Set[String],
       path: Vector[String],
-      diagnostics: DiagnosticBuilder
+      diagnostics: DiagnosticBuilder,
+      generateIndices: Set[String] = Set.empty
   ): Unit = expression match {
     case Literal(_) =>
     case ParameterRef(name) if !parameters.contains(name) =>
@@ -339,18 +422,25 @@ object ParamRtlValidator {
         s"Integer expression references unknown local parameter '$name'"
       )
     case LocalParameterRef(_) =>
+    case GenerateIndexRef(name) if !generateIndices.contains(name) =>
+      diagnostics += Diagnostic(
+        "PRTL-GENERATE-INDEX-OUT-OF-SCOPE",
+        path,
+        s"Generate index '$name' is not in scope for this integer expression"
+      )
+    case GenerateIndexRef(_) =>
     case Negate(value) =>
-      validateExpressionReferences(value, parameters, localParameters, path :+ "operand", diagnostics)
+      validateExpressionReferences(value, parameters, localParameters, path :+ "operand", diagnostics, generateIndices)
     case Add(left, right) =>
-      validateBinaryReferences(left, right, parameters, localParameters, path, diagnostics)
+      validateBinaryReferences(left, right, parameters, localParameters, path, diagnostics, generateIndices)
     case Subtract(left, right) =>
-      validateBinaryReferences(left, right, parameters, localParameters, path, diagnostics)
+      validateBinaryReferences(left, right, parameters, localParameters, path, diagnostics, generateIndices)
     case Multiply(left, right) =>
-      validateBinaryReferences(left, right, parameters, localParameters, path, diagnostics)
+      validateBinaryReferences(left, right, parameters, localParameters, path, diagnostics, generateIndices)
     case Divide(left, right) =>
-      validateBinaryReferences(left, right, parameters, localParameters, path, diagnostics)
+      validateBinaryReferences(left, right, parameters, localParameters, path, diagnostics, generateIndices)
     case Modulo(left, right) =>
-      validateBinaryReferences(left, right, parameters, localParameters, path, diagnostics)
+      validateBinaryReferences(left, right, parameters, localParameters, path, diagnostics, generateIndices)
   }
 
   private def validateBinaryReferences(
@@ -359,10 +449,11 @@ object ParamRtlValidator {
       parameters: Set[String],
       localParameters: Set[String],
       path: Vector[String],
-      diagnostics: DiagnosticBuilder
+      diagnostics: DiagnosticBuilder,
+      generateIndices: Set[String]
   ): Unit = {
-    validateExpressionReferences(left, parameters, localParameters, path :+ "left", diagnostics)
-    validateExpressionReferences(right, parameters, localParameters, path :+ "right", diagnostics)
+    validateExpressionReferences(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices)
+    validateExpressionReferences(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices)
   }
 
   private def analyzeExpression(
@@ -370,9 +461,10 @@ object ParamRtlValidator {
       parameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts],
       path: Vector[String],
-      diagnostics: DiagnosticBuilder
+      diagnostics: DiagnosticBuilder,
+      generateIndices: Map[String, IntExprFacts] = Map.empty
   ): Option[IntExprFacts] =
-    IntExpressionAnalysis.analyze(expression, parameters, localParameters) match {
+    IntExpressionAnalysis.analyze(expression, parameters, localParameters, generateIndices) match {
       case Right(facts) => Some(facts)
       case Left(DivisorMayBeZero(operator, interval)) =>
         diagnostics += Diagnostic(
@@ -381,7 +473,7 @@ object ParamRtlValidator {
           s"Divisor of '$operator' is not proven nonzero over legal domain ${renderInterval(interval)}"
         )
         None
-      case Left(_: UnresolvedParameter) | Left(_: UnresolvedLocalParameter) => None
+      case Left(_: UnresolvedParameter) | Left(_: UnresolvedLocalParameter) | Left(_: UnresolvedGenerateIndex) => None
     }
 
   private def validateWidth(
@@ -410,6 +502,19 @@ object ParamRtlValidator {
       }
   }
 
+  private final case class GenerateContext(
+      indexName: String,
+      count: IntExpr,
+      indexFacts: Option[IntExprFacts]
+  )
+
+  private final case class ActualFacts(
+      port: Port,
+      dataType: PackedBits,
+      indexed: Boolean,
+      canonicalSlice: Boolean
+  )
+
   private def validateHierarchy(
       module: ModuleDef,
       baseFacts: ValidatedModuleFacts,
@@ -421,39 +526,107 @@ object ParamRtlValidator {
     val ports = module.ports.sortBy(_.name)
     val portByName = firstByName(ports)(_.name)
     val instances = module.items.collect { case instance: ModuleInstance => instance }.sortBy(_.name)
+    val generateFors = module.items.collect { case generate: GenerateFor => generate }.sortBy(_.label)
     val driverCounts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
+    val instanceFactsBuilder = Map.newBuilder[String, ValidatedInstanceFacts]
+    val parentParameters = baseFacts.parameterFacts
+    val parentLocals = baseFacts.localParameterFacts
+    val parentParameterNames = module.parameters.map(_.name).toSet
+    val parentLocalNames = module.localParameters.map(_.name).toSet
+    val parentLocalExpressions = expandLocalExpressions(baseFacts.orderedLocalParameters, Map.empty)
 
-    module.items.zipWithIndex.foreach {
-      case (ContinuousAssign(target, value), index) =>
-        val path = modulePath :+ "items" :+ index.toString
-        val targetPort = resolvePort(target, portByName, path :+ "target", diagnostics)
-        val valuePort = value match {
-          case ref: Ref => resolvePort(ref, portByName, path :+ "value", diagnostics)
+    def expandParentExpression(expression: IntExpr): IntExpr =
+      substituteLocalDefinition(expression, Map.empty, parentLocalExpressions)
+
+    def resolveActual(
+        expression: RtlExpr,
+        path: Vector[String],
+        generateContext: Option[GenerateContext]
+    ): Option[ActualFacts] = expression match {
+      case ref: Ref =>
+        resolvePort(ref, portByName, path, diagnostics).map { port =>
+          ActualFacts(port, port.dataType, indexed = false, canonicalSlice = true)
         }
-        targetPort.foreach { port =>
-          driverCounts.update(port.name, driverCounts(port.name) + 1)
-          if (port.direction == Input)
-            diagnostics += Diagnostic(
-              "PRTL-ILLEGAL-INPUT-DRIVER",
-              path :+ "target",
-              s"Continuous assignment cannot drive input port '${port.name}'"
-            )
-        }
-        for {
-          targetType <- targetPort.map(_.dataType)
-          valueType <- valuePort.map(_.dataType)
-          if !packedTypesEquivalent(targetType, valueType, module, baseFacts)
-        } diagnostics += Diagnostic(
-          "PRTL-TYPE-MISMATCH",
-          path,
-          s"Continuous assignment target type '$targetType' does not match value type '$valueType'"
+      case IndexedPartSelect(base, offset, width) =>
+        val allowedIndices = generateContext.map(context => Set(context.indexName)).getOrElse(Set.empty)
+        val scopedIndexFacts = generateContext
+          .flatMap(context => context.indexFacts.map(context.indexName -> _))
+          .toMap
+        validateExpressionReferences(
+          offset,
+          parentParameterNames,
+          parentLocalNames,
+          path :+ "offset",
+          diagnostics,
+          allowedIndices
         )
-      case (_: ModuleInstance, _) =>
+        analyzeExpression(
+          offset,
+          parentParameters,
+          parentLocals,
+          path :+ "offset",
+          diagnostics,
+          scopedIndexFacts
+        )
+        validateExpressionReferences(
+          width,
+          parentParameterNames,
+          parentLocalNames,
+          path :+ "width",
+          diagnostics,
+          allowedIndices
+        )
+        validateWidth(width, parentParameters, parentLocals, path :+ "width", diagnostics)
+        if (containsGenerateIndex(width))
+          diagnostics += Diagnostic(
+            "PRTL-GENERATE-SLICE-WIDTH-VARIES",
+            path :+ "width",
+            "Indexed part-select width must be independent of the generate index"
+          )
+
+        val basePort = resolvePort(base, portByName, path :+ "base", diagnostics)
+        val canonical = generateContext match {
+          case None =>
+            diagnostics += Diagnostic(
+              "PRTL-INDEXED-PART-SELECT-REQUIRES-GENERATE",
+              path,
+              "Indexed part-selects are currently supported only inside generate-for bodies"
+            )
+            false
+          case Some(context) =>
+            val canonicalOffset = IntExpressionEquivalence.equivalent(
+              expandParentExpression(offset),
+              Multiply(GenerateIndexRef(context.indexName), expandParentExpression(width))
+            )
+            val completeBase = basePort.exists { port =>
+              IntExpressionEquivalence.equivalent(
+                expandParentExpression(port.dataType.width),
+                Multiply(expandParentExpression(context.count), expandParentExpression(width))
+              )
+            }
+            val result =
+              context.indexFacts.isDefined && !containsGenerateIndex(width) && canonicalOffset && completeBase
+            if (!result)
+              diagnostics += Diagnostic(
+                "PRTL-GENERATE-SLICE-NOT-CANONICAL",
+                path,
+                s"Generate slice must use offset '${context.indexName} * width' and partition a base width equal to count * width"
+              )
+            result
+        }
+
+        basePort.map { port =>
+          // IEEE 1364 part-select results are unsigned, even when the selected vector is signed.
+          ActualFacts(port, PackedBits(width, Unsigned), indexed = true, canonicalSlice = canonical)
+        }
     }
 
-    val instanceFactsBuilder = Map.newBuilder[String, ValidatedInstanceFacts]
-    instances.foreach { instance =>
-      val path = modulePath :+ "instances" :+ instance.name
+    def validateInstance(
+        instance: ModuleInstance,
+        path: Vector[String],
+        factsKey: String,
+        generateContext: Option[GenerateContext]
+    ): Unit = {
       val bindingPath = path :+ "parameterBindings"
       val connectionPath = path :+ "portConnections"
 
@@ -472,10 +645,6 @@ object ParamRtlValidator {
         diagnostics
       )
 
-      val parentParameters = baseFacts.parameterFacts
-      val parentLocals = baseFacts.localParameterFacts
-      val parentParameterNames = module.parameters.map(_.name).toSet
-      val parentLocalNames = module.localParameters.map(_.name).toSet
       instance.parameterBindings.sortBy(_.parameterName).foreach { binding =>
         validateExpressionReferences(
           binding.value,
@@ -518,7 +687,7 @@ object ParamRtlValidator {
                   diagnostics
                 ).foreach { bindingFacts =>
                   analyzedBindings.update(binding.parameterName, bindingFacts)
-                  if (!domainContained(bindingFacts.interval, targetParameter)) {
+                  if (!domainContained(bindingFacts.interval, targetParameter))
                     diagnostics += Diagnostic(
                       "PRTL-PARAMETER-BINDING-DOMAIN-NOT-PROVEN",
                       currentPath :+ "value",
@@ -526,7 +695,6 @@ object ParamRtlValidator {
                           targetParameter
                         )} of '${targetModule.name}.${targetParameter.name}'"
                     )
-                  }
                 }
             }
           }
@@ -545,7 +713,6 @@ object ParamRtlValidator {
               .foreach(facts => instantiatedLocals = instantiatedLocals.updated(localParameter.name, facts))
           }
 
-          val parentLocalExpressions = expandLocalExpressions(baseFacts.orderedLocalParameters, Map.empty)
           val expandedBindings = targetParameters.map { parameter =>
             val raw = bindingByName.get(parameter.name).map(_.value).getOrElse(Literal(parameter.default))
             parameter.name -> IntExpressionEquivalence.substitute(raw, Map.empty, parentLocalExpressions)
@@ -573,17 +740,26 @@ object ParamRtlValidator {
                   s"Module '${targetModule.name}' has no port '${connection.portName}'"
                 )
               case Some(targetPort) =>
-                val actualPort = connection.actual match {
-                  case ref: Ref => resolvePort(ref, portByName, currentPath :+ "actual", diagnostics)
-                }
-                actualPort.foreach { parentPort =>
+                resolveActual(connection.actual, currentPath :+ "actual", generateContext).foreach { actual =>
                   if (targetPort.direction == Output) {
-                    driverCounts.update(parentPort.name, driverCounts(parentPort.name) + 1)
-                    if (parentPort.direction == Input)
+                    generateContext match {
+                      case None if !actual.indexed =>
+                        driverCounts.update(actual.port.name, driverCounts(actual.port.name) + 1)
+                      case Some(_) if actual.indexed && actual.canonicalSlice =>
+                        driverCounts.update(actual.port.name, driverCounts(actual.port.name) + 1)
+                      case Some(_) if !actual.indexed =>
+                        diagnostics += Diagnostic(
+                          "PRTL-GENERATE-OUTPUT-NOT-CANONICAL",
+                          currentPath :+ "actual",
+                          "A generated child output must drive a canonical indexed part-select"
+                        )
+                      case _ =>
+                    }
+                    if (actual.port.direction == Input)
                       diagnostics += Diagnostic(
                         "PRTL-ILLEGAL-INPUT-DRIVER",
                         currentPath :+ "actual",
-                        s"Output port '${targetModule.name}.${targetPort.name}' cannot drive parent input '${parentPort.name}'"
+                        s"Output port '${targetModule.name}.${targetPort.name}' cannot drive parent input '${actual.port.name}'"
                       )
                   }
                   val expected = instantiatedPortTypes(targetPort.name)
@@ -592,7 +768,7 @@ object ParamRtlValidator {
                     .toOption
                   if (
                     !packedTypesEquivalent(
-                      parentPort.dataType,
+                      actual.dataType,
                       expected,
                       module,
                       baseFacts,
@@ -602,7 +778,7 @@ object ParamRtlValidator {
                     diagnostics += Diagnostic(
                       "PRTL-INSTANCE-PORT-TYPE-MISMATCH",
                       currentPath,
-                      s"Parent port '${parentPort.name}' is not type-compatible with instantiated port '${targetModule.name}.${targetPort.name}'"
+                      s"Parent expression on '${actual.port.name}' is not type-compatible with instantiated port '${targetModule.name}.${targetPort.name}'"
                     )
                 }
             }
@@ -617,12 +793,67 @@ object ParamRtlValidator {
               )
           }
 
-          instanceFactsBuilder += instance.name -> ValidatedInstanceFacts(
+          instanceFactsBuilder += factsKey -> ValidatedInstanceFacts(
             targetModule,
             instantiatedParameters,
             instantiatedLocals,
             instantiatedPortTypes
           )
+      }
+    }
+
+    module.items.zipWithIndex.foreach {
+      case (ContinuousAssign(target, value), index) =>
+        val path = modulePath :+ "items" :+ index.toString
+        val targetPort = resolvePort(target, portByName, path :+ "target", diagnostics)
+        val valueFacts = resolveActual(value, path :+ "value", None)
+        targetPort.foreach { port =>
+          driverCounts.update(port.name, driverCounts(port.name) + 1)
+          if (port.direction == Input)
+            diagnostics += Diagnostic(
+              "PRTL-ILLEGAL-INPUT-DRIVER",
+              path :+ "target",
+              s"Continuous assignment cannot drive input port '${port.name}'"
+            )
+        }
+        for {
+          targetType <- targetPort.map(_.dataType)
+          valueType <- valueFacts.map(_.dataType)
+          if !packedTypesEquivalent(targetType, valueType, module, baseFacts)
+        } diagnostics += Diagnostic(
+          "PRTL-TYPE-MISMATCH",
+          path,
+          s"Continuous assignment target type '$targetType' does not match value type '$valueType'"
+        )
+      case _ =>
+    }
+
+    instances.foreach { instance =>
+      validateInstance(instance, modulePath :+ "instances" :+ instance.name, instance.name, None)
+    }
+
+    generateFors.foreach { generate =>
+      val path = modulePath :+ "generateFors" :+ generate.label
+      val countFacts = IntExpressionAnalysis.analyze(generate.count, parentParameters, parentLocals).toOption
+      val context = GenerateContext(
+        generate.indexName,
+        generate.count,
+        countFacts
+          .filter(_.interval.lower.exists(_ >= 1))
+          .map { facts =>
+            IntExprFacts(
+              defaultValue = 0,
+              interval = IntInterval(lower = Some(0), upper = facts.interval.upper.map(_ - 1))
+            )
+          }
+      )
+      generate.body.collect { case instance: ModuleInstance => instance }.sortBy(_.name).foreach { instance =>
+        validateInstance(
+          instance,
+          path :+ "instances" :+ instance.name,
+          s"${generate.label}.${instance.name}",
+          Some(context)
+        )
       }
     }
 
@@ -725,6 +956,7 @@ object ParamRtlValidator {
     case value: Literal          => value
     case ParameterRef(name)      => parameters.getOrElse(name, expression)
     case LocalParameterRef(name) => locals.getOrElse(name, expression)
+    case value: GenerateIndexRef => value
     case Negate(value) =>
       Negate(substituteLocalDefinition(value, parameters, locals))
     case Add(left, right) =>
@@ -787,6 +1019,38 @@ object ParamRtlValidator {
         s"RTL reference '${reference.name}' does not resolve to a port"
       )
       None
+  }
+
+  /** Inc5 rejects nested generate blocks, so dependency discovery intentionally visits one body level. */
+  private def collectInstances(items: Vector[ModuleItem]): Vector[ModuleInstance] = {
+    val result = Vector.newBuilder[ModuleInstance]
+    items.foreach {
+      case instance: ModuleInstance => result += instance
+      case generate: GenerateFor =>
+        generate.body.foreach {
+          case instance: ModuleInstance => result += instance
+          case _                        =>
+        }
+      case _ =>
+    }
+    result.result()
+  }
+
+  private def containsGenerateIndex(expression: IntExpr): Boolean = {
+    val stack = scala.collection.mutable.ArrayBuffer(expression)
+    while (stack.nonEmpty) {
+      stack.remove(stack.length - 1) match {
+        case GenerateIndexRef(_)                                 => return true
+        case Literal(_) | ParameterRef(_) | LocalParameterRef(_) =>
+        case Negate(value)                                       => stack += value
+        case Add(left, right)                                    => stack += left; stack += right
+        case Subtract(left, right)                               => stack += left; stack += right
+        case Multiply(left, right)                               => stack += left; stack += right
+        case Divide(left, right)                                 => stack += left; stack += right
+        case Modulo(left, right)                                 => stack += left; stack += right
+      }
+    }
+    false
   }
 
   private def renderInterval(interval: IntInterval): String = {

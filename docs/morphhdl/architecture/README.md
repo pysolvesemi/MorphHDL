@@ -17,6 +17,8 @@ The contract is split into these documents:
   bounded integer arithmetic, local-parameter ordering and executable gates.
 - [Increment 4 hierarchy](../increment-4-hierarchy.md): named instances,
   child-parameter forwarding and exact hierarchy validation.
+- [Increment 5 generate-for](../increment-5-generate-for.md): scoped generate
+  indices, indexed part-selects and exact symbolic lane partitioning.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 

@@ -6,6 +6,7 @@ object IntExpr {
   final case class Literal(value: BigInt) extends IntExpr
   final case class ParameterRef(name: String) extends IntExpr
   final case class LocalParameterRef(name: String) extends IntExpr
+  final case class GenerateIndexRef(name: String) extends IntExpr
   final case class Negate(value: IntExpr) extends IntExpr
   final case class Add(left: IntExpr, right: IntExpr) extends IntExpr
   final case class Subtract(left: IntExpr, right: IntExpr) extends IntExpr
@@ -55,6 +56,7 @@ sealed trait RtlExpr extends Product with Serializable
 
 object RtlExpr {
   final case class Ref(name: String) extends RtlExpr
+  final case class IndexedPartSelect(base: Ref, offset: IntExpr, width: IntExpr) extends RtlExpr
 }
 
 sealed trait ModuleItem extends Product with Serializable
@@ -66,6 +68,12 @@ object ModuleItem {
       moduleName: String,
       parameterBindings: Vector[ParameterBinding] = Vector.empty,
       portConnections: Vector[PortConnection] = Vector.empty
+  ) extends ModuleItem
+  final case class GenerateFor(
+      label: String,
+      indexName: String,
+      count: IntExpr,
+      body: Vector[ModuleItem]
   ) extends ModuleItem
 }
 

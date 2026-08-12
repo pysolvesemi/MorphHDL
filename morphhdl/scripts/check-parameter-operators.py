@@ -20,6 +20,7 @@ REQUIRED_OPERATORS = {
     "literal",
     "public-reference",
     "local-reference",
+    "generate-index-reference",
     "add",
     "subtract",
     "multiply",

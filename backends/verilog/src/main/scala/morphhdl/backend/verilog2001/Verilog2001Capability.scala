@@ -4,6 +4,7 @@ import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
 import morphhdl.paramrtl.IntExpr.{
   Add,
   Divide,
+  GenerateIndexRef,
   Literal,
   LocalParameterRef,
   Modulo,
@@ -13,7 +14,8 @@ import morphhdl.paramrtl.IntExpr.{
   Subtract
 }
 import morphhdl.paramrtl._
-import morphhdl.paramrtl.ModuleItem.ModuleInstance
+import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateFor, ModuleInstance}
+import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 
 object Verilog2001Capability {
   private val MinimumInteger = BigInt(Int.MinValue)
@@ -193,21 +195,113 @@ object Verilog2001Capability {
 
       module.items.collect { case instance: ModuleInstance => instance }.sortBy(_.name).foreach { instance =>
         val path = modulePath :+ "instances" :+ instance.name
-        checkName(instance.name, path :+ "name", diagnostics)
-        instance.parameterBindings.sortBy(_.parameterName).foreach { binding =>
-          checkExpression(
-            binding.value,
-            facts.parameterFacts,
-            facts.localParameterFacts,
-            path :+ "parameterBindings" :+ binding.parameterName :+ "value",
+        checkInstance(instance, facts, path, Map.empty, diagnostics)
+      }
+
+      module.items.collect { case generate: GenerateFor => generate }.sortBy(_.label).foreach { generate =>
+        val path = modulePath :+ "generateFors" :+ generate.label
+        checkName(generate.label, path :+ "label", diagnostics)
+        checkName(generate.indexName, path :+ "indexName", diagnostics)
+        checkExpression(
+          generate.count,
+          facts.parameterFacts,
+          facts.localParameterFacts,
+          path :+ "count",
+          diagnostics
+        )
+
+        val generateIndices = IntExpressionAnalysis
+          .analyze(generate.count, facts.parameterFacts, facts.localParameterFacts)
+          .toOption
+          .map { countFacts =>
+            generate.indexName -> IntExprFacts(
+              BigInt(0),
+              IntInterval(Some(BigInt(0)), countFacts.interval.upper.map(_ - 1))
+            )
+          }
+          .toMap
+
+        generate.body.collect { case instance: ModuleInstance => instance }.sortBy(_.name).foreach { instance =>
+          checkInstance(
+            instance,
+            facts,
+            path :+ "instances" :+ instance.name,
+            generateIndices,
             diagnostics
           )
         }
+      }
+
+      module.items.collect { case assignment: ContinuousAssign => assignment }.zipWithIndex.foreach {
+        case (assignment, index) =>
+          checkRtlExpression(
+            assignment.value,
+            facts,
+            modulePath :+ "assignments" :+ index.toString :+ "value",
+            Map.empty,
+            diagnostics
+          )
       }
     }
 
     val result = DiagnosticSet.from(diagnostics.result())
     if (result.isEmpty) Right(design) else Left(result)
+  }
+
+  private def checkInstance(
+      instance: ModuleInstance,
+      facts: ValidatedModuleFacts,
+      path: Vector[String],
+      generateIndices: Map[String, IntExprFacts],
+      diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]]
+  ): Unit = {
+    checkName(instance.name, path :+ "name", diagnostics)
+    instance.parameterBindings.sortBy(_.parameterName).foreach { binding =>
+      checkExpression(
+        binding.value,
+        facts.parameterFacts,
+        facts.localParameterFacts,
+        path :+ "parameterBindings" :+ binding.parameterName :+ "value",
+        diagnostics,
+        generateIndices
+      )
+    }
+    instance.portConnections.sortBy(_.portName).foreach { connection =>
+      checkRtlExpression(
+        connection.actual,
+        facts,
+        path :+ "portConnections" :+ connection.portName :+ "actual",
+        generateIndices,
+        diagnostics
+      )
+    }
+  }
+
+  private def checkRtlExpression(
+      expression: RtlExpr,
+      facts: ValidatedModuleFacts,
+      path: Vector[String],
+      generateIndices: Map[String, IntExprFacts],
+      diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]]
+  ): Unit = expression match {
+    case Ref(_) =>
+    case IndexedPartSelect(_, offset, width) =>
+      checkExpression(
+        offset,
+        facts.parameterFacts,
+        facts.localParameterFacts,
+        path :+ "offset",
+        diagnostics,
+        generateIndices
+      )
+      checkExpression(
+        width,
+        facts.parameterFacts,
+        facts.localParameterFacts,
+        path :+ "width",
+        diagnostics,
+        generateIndices
+      )
   }
 
   private def checkName(
@@ -260,9 +354,10 @@ object Verilog2001Capability {
       parameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts],
       path: Vector[String],
-      diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]]
+      diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]],
+      generateIndices: Map[String, IntExprFacts] = Map.empty
   ): Unit = {
-    IntExpressionAnalysis.analyze(expression, parameters, localParameters).toOption.foreach { facts =>
+    IntExpressionAnalysis.analyze(expression, parameters, localParameters, generateIndices).toOption.foreach { facts =>
       val interval = facts.interval
       if (
         interval.lower.isEmpty ||
@@ -283,24 +378,24 @@ object Verilog2001Capability {
     }
 
     expression match {
-      case Literal(_) | ParameterRef(_) | LocalParameterRef(_) =>
+      case Literal(_) | ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_) =>
       case Negate(value) =>
-        checkExpression(value, parameters, localParameters, path :+ "operand", diagnostics)
+        checkExpression(value, parameters, localParameters, path :+ "operand", diagnostics, generateIndices)
       case Add(left, right) =>
-        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics)
-        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics)
+        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices)
+        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices)
       case Subtract(left, right) =>
-        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics)
-        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics)
+        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices)
+        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices)
       case Multiply(left, right) =>
-        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics)
-        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics)
+        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices)
+        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices)
       case Divide(left, right) =>
-        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics)
-        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics)
+        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices)
+        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices)
       case Modulo(left, right) =>
-        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics)
-        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics)
+        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices)
+        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices)
     }
   }
 }

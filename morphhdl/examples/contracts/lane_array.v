@@ -10,11 +10,11 @@ module PixelLane #(
 endmodule
 
 module LaneArray #(
-  parameter integer LANES = 4,
-  parameter integer DATA_WIDTH = 8
+  parameter integer DATA_WIDTH = 8,
+  parameter integer LANES = 4
 ) (
-  input  wire [LANES*DATA_WIDTH-1:0] data_in,
-  output wire [LANES*DATA_WIDTH-1:0] data_out
+  input  wire [(LANES * DATA_WIDTH)-1:0] data_in,
+  output wire [(LANES * DATA_WIDTH)-1:0] data_out
 );
 
   genvar lane;
@@ -23,8 +23,8 @@ module LaneArray #(
       PixelLane #(
         .DATA_WIDTH(DATA_WIDTH)
       ) lane_inst (
-        .data_in  (data_in[lane*DATA_WIDTH +: DATA_WIDTH]),
-        .data_out (data_out[lane*DATA_WIDTH +: DATA_WIDTH])
+        .data_in(data_in[lane * DATA_WIDTH +: DATA_WIDTH]),
+        .data_out(data_out[lane * DATA_WIDTH +: DATA_WIDTH])
       );
     end
   endgenerate

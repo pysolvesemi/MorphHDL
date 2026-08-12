@@ -354,6 +354,7 @@ class ParamExpressionValidatorTests extends AnyFunSuite {
       case Literal(value)          => value
       case ParameterRef(name)      => values(name)
       case LocalParameterRef(name) => values(name)
+      case GenerateIndexRef(name)  => values(name)
       case Negate(value)           => -evaluate(value, values)
       case Add(left, right)        => evaluate(left, values) + evaluate(right, values)
       case Subtract(left, right)   => evaluate(left, values) - evaluate(right, values)

@@ -103,7 +103,8 @@ jobs:
           for filename in \
             parameterized_wire.v \
             derived_width.v \
-            parameter_forwarding.v
+            parameter_forwarding.v \
+            lane_array.v
           do
             cmp "target/morphhdl/generated/run-1/${filename}" \
               "morphhdl/examples/contracts/${filename}"

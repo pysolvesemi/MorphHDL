@@ -68,3 +68,11 @@ module dependencies and named parameter/port bindings across the entire
 symbolic design, with dedicated symbolic test evidence. The status remains
 partial until the Morph frontend also executes the shared inherited hierarchy
 phase on its concrete witness; the new ParamRTL checks do not replace that leg.
+
+Increment 5 extends the partial hierarchy and width adaptations through a
+lexically scoped generate index and parameterized indexed part-selects. It also
+advances `PhaseCheck_noLatchNoOverride` to `partial`: ParamRTL proves that the
+supported canonical generate loop partitions its packed output exactly once,
+without gaps or overlap, for every legal count and width. This is deliberately
+not a claim about conditional generate predicates, future processes or the
+still-pending concrete-witness phase-plan leg.

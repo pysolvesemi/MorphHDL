@@ -6,6 +6,7 @@ import morphhdl.paramrtl.IntExpr.{
   Divide,
   Literal,
   LocalParameterRef,
+  GenerateIndexRef,
   Modulo,
   Multiply,
   Negate,
@@ -40,6 +41,7 @@ sealed trait IntExpressionFailure extends Product with Serializable
 object IntExpressionFailure {
   final case class UnresolvedParameter(name: String) extends IntExpressionFailure
   final case class UnresolvedLocalParameter(name: String) extends IntExpressionFailure
+  final case class UnresolvedGenerateIndex(name: String) extends IntExpressionFailure
   final case class DivisorMayBeZero(operator: String, interval: IntInterval) extends IntExpressionFailure
 }
 
@@ -60,7 +62,8 @@ private[morphhdl] object IntExpressionAnalysis {
   def analyze(
       expression: IntExpr,
       parameters: Map[String, IntExprFacts],
-      localParameters: Map[String, IntExprFacts]
+      localParameters: Map[String, IntExprFacts],
+      generateIndices: Map[String, IntExprFacts] = Map.empty
   ): Either[IntExpressionFailure, IntExprFacts] = expression match {
     case Literal(value) => Right(IntExprFacts(value, IntInterval.point(value)))
     case ParameterRef(name) =>
@@ -73,15 +76,20 @@ private[morphhdl] object IntExpressionAnalysis {
         case Some(facts) => Right(facts)
         case None        => Left(UnresolvedLocalParameter(name))
       }
+    case GenerateIndexRef(name) =>
+      generateIndices.get(name) match {
+        case Some(facts) => Right(facts)
+        case None        => Left(UnresolvedGenerateIndex(name))
+      }
     case Negate(value) =>
-      analyze(value, parameters, localParameters).map { facts =>
+      analyze(value, parameters, localParameters, generateIndices).map { facts =>
         IntExprFacts(
           -facts.defaultValue,
           IntInterval(facts.interval.upper.map(-_), facts.interval.lower.map(-_))
         )
       }
     case Add(left, right) =>
-      analyzeBinary(left, right, parameters, localParameters) { (leftFacts, rightFacts) =>
+      analyzeBinary(left, right, parameters, localParameters, generateIndices) { (leftFacts, rightFacts) =>
         IntExprFacts(
           leftFacts.defaultValue + rightFacts.defaultValue,
           IntInterval(
@@ -91,7 +99,7 @@ private[morphhdl] object IntExpressionAnalysis {
         )
       }
     case Subtract(left, right) =>
-      analyzeBinary(left, right, parameters, localParameters) { (leftFacts, rightFacts) =>
+      analyzeBinary(left, right, parameters, localParameters, generateIndices) { (leftFacts, rightFacts) =>
         IntExprFacts(
           leftFacts.defaultValue - rightFacts.defaultValue,
           IntInterval(
@@ -101,21 +109,21 @@ private[morphhdl] object IntExpressionAnalysis {
         )
       }
     case Multiply(left, right) =>
-      analyzeBinary(left, right, parameters, localParameters) { (leftFacts, rightFacts) =>
+      analyzeBinary(left, right, parameters, localParameters, generateIndices) { (leftFacts, rightFacts) =>
         IntExprFacts(
           leftFacts.defaultValue * rightFacts.defaultValue,
           multiply(leftFacts.interval, rightFacts.interval)
         )
       }
     case Divide(left, right) =>
-      analyzeDivisionLike(left, right, parameters, localParameters, "/") { (leftFacts, rightFacts) =>
+      analyzeDivisionLike(left, right, parameters, localParameters, generateIndices, "/") { (leftFacts, rightFacts) =>
         IntExprFacts(
           leftFacts.defaultValue / rightFacts.defaultValue,
           divide(leftFacts.interval, rightFacts.interval)
         )
       }
     case Modulo(left, right) =>
-      analyzeDivisionLike(left, right, parameters, localParameters, "%") { (leftFacts, rightFacts) =>
+      analyzeDivisionLike(left, right, parameters, localParameters, generateIndices, "%") { (leftFacts, rightFacts) =>
         IntExprFacts(
           leftFacts.defaultValue % rightFacts.defaultValue,
           modulo(leftFacts.interval, rightFacts.interval)
@@ -124,37 +132,38 @@ private[morphhdl] object IntExpressionAnalysis {
   }
 
   def parameterReferences(expression: IntExpr): Vector[String] = expression match {
-    case Literal(_) | LocalParameterRef(_) => Vector.empty
-    case ParameterRef(name)                => Vector(name)
-    case Negate(value)                     => parameterReferences(value)
-    case Add(left, right)                  => parameterReferences(left) ++ parameterReferences(right)
-    case Subtract(left, right)             => parameterReferences(left) ++ parameterReferences(right)
-    case Multiply(left, right)             => parameterReferences(left) ++ parameterReferences(right)
-    case Divide(left, right)               => parameterReferences(left) ++ parameterReferences(right)
-    case Modulo(left, right)               => parameterReferences(left) ++ parameterReferences(right)
+    case Literal(_) | LocalParameterRef(_) | GenerateIndexRef(_) => Vector.empty
+    case ParameterRef(name)                                      => Vector(name)
+    case Negate(value)                                           => parameterReferences(value)
+    case Add(left, right)      => parameterReferences(left) ++ parameterReferences(right)
+    case Subtract(left, right) => parameterReferences(left) ++ parameterReferences(right)
+    case Multiply(left, right) => parameterReferences(left) ++ parameterReferences(right)
+    case Divide(left, right)   => parameterReferences(left) ++ parameterReferences(right)
+    case Modulo(left, right)   => parameterReferences(left) ++ parameterReferences(right)
   }
 
   def localParameterReferences(expression: IntExpr): Vector[String] = expression match {
-    case Literal(_) | ParameterRef(_) => Vector.empty
-    case LocalParameterRef(name)      => Vector(name)
-    case Negate(value)                => localParameterReferences(value)
-    case Add(left, right)             => localParameterReferences(left) ++ localParameterReferences(right)
-    case Subtract(left, right)        => localParameterReferences(left) ++ localParameterReferences(right)
-    case Multiply(left, right)        => localParameterReferences(left) ++ localParameterReferences(right)
-    case Divide(left, right)          => localParameterReferences(left) ++ localParameterReferences(right)
-    case Modulo(left, right)          => localParameterReferences(left) ++ localParameterReferences(right)
+    case Literal(_) | ParameterRef(_) | GenerateIndexRef(_) => Vector.empty
+    case LocalParameterRef(name)                            => Vector(name)
+    case Negate(value)                                      => localParameterReferences(value)
+    case Add(left, right)      => localParameterReferences(left) ++ localParameterReferences(right)
+    case Subtract(left, right) => localParameterReferences(left) ++ localParameterReferences(right)
+    case Multiply(left, right) => localParameterReferences(left) ++ localParameterReferences(right)
+    case Divide(left, right)   => localParameterReferences(left) ++ localParameterReferences(right)
+    case Modulo(left, right)   => localParameterReferences(left) ++ localParameterReferences(right)
   }
 
   private def analyzeBinary(
       left: IntExpr,
       right: IntExpr,
       parameters: Map[String, IntExprFacts],
-      localParameters: Map[String, IntExprFacts]
+      localParameters: Map[String, IntExprFacts],
+      generateIndices: Map[String, IntExprFacts]
   )(
       combineFacts: (IntExprFacts, IntExprFacts) => IntExprFacts
   ): Either[IntExpressionFailure, IntExprFacts] =
-    analyze(left, parameters, localParameters).flatMap { leftFacts =>
-      analyze(right, parameters, localParameters).map { rightFacts =>
+    analyze(left, parameters, localParameters, generateIndices).flatMap { leftFacts =>
+      analyze(right, parameters, localParameters, generateIndices).map { rightFacts =>
         combineFacts(leftFacts, rightFacts)
       }
     }
@@ -164,12 +173,13 @@ private[morphhdl] object IntExpressionAnalysis {
       right: IntExpr,
       parameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts],
+      generateIndices: Map[String, IntExprFacts],
       operator: String
   )(
       combineFacts: (IntExprFacts, IntExprFacts) => IntExprFacts
   ): Either[IntExpressionFailure, IntExprFacts] =
-    analyze(left, parameters, localParameters).flatMap { leftFacts =>
-      analyze(right, parameters, localParameters).flatMap { rightFacts =>
+    analyze(left, parameters, localParameters, generateIndices).flatMap { leftFacts =>
+      analyze(right, parameters, localParameters, generateIndices).flatMap { rightFacts =>
         if (rightFacts.defaultValue == 0 || !rightFacts.interval.excludesZero)
           Left(DivisorMayBeZero(operator, rightFacts.interval))
         else Right(combineFacts(leftFacts, rightFacts))

@@ -79,8 +79,15 @@ structural template, not a collection of concretely elaborated iterations.
 
 Increment 4 implements the non-generate hierarchy tranche: named instances,
 named child-parameter expressions, named child-port bindings, recursive-module
-cycle rejection and deterministic dependency-first module order. Generate
-regions and their lexical index scopes remain planned separately.
+cycle rejection and deterministic dependency-first module order. Increment 5
+adds a bounded homogeneous `GenerateFor`: its count is a positive constant
+expression, its zero-based unit-stride `GenIndex` is visible only in the body,
+and indexed part-selects preserve symbolic offsets and widths. This tranche
+permits `GenIndex` only in indexed part-select offsets; index-dependent child
+parameter bindings and other body expressions fail closed. The initial driver
+proof accepts only a canonical complete, nonoverlapping partition of a packed
+output. Nested generate regions and conditional generate forms remain planned
+separately and fail closed.
 
 ## Required invariants
 
