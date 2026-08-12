@@ -22,6 +22,7 @@ class MainTransformer(val global: Global) extends PluginComponent with Transform
 
     private val morphFrontendSymbolicTypes = Set(
       "morphhdl.frontend.HdlInt",
+      "morphhdl.frontend.HdlBool",
       "morphhdl.frontend.GenIndex"
     )
 
@@ -50,8 +51,8 @@ class MainTransformer(val global: Global) extends PluginComponent with Transform
         global.globalError(
           tree.pos,
           "[MORPH-FRONTEND-SYMBOLIC-COMPARISON-UNSUPPORTED] " +
-            "a statically typed HdlInt or GenIndex cannot be the right operand of Scala equality; " +
-            "use a static condition or the future parameter-aware HdlBool API"
+            "a statically typed HdlInt, HdlBool or GenIndex cannot be the right operand of Scala equality; " +
+            "use a static condition or a supported parameter-aware operation"
         )
         case _ =>
       }

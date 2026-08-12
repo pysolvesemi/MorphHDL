@@ -35,6 +35,16 @@ private[frontend] object FrontendException {
       "Construct and consume the generate-index expression inside its loop body."
     case "MORPH-FRONTEND-NESTED-GENERATE-UNSUPPORTED" =>
       "Flatten the loops or emit one supported generate loop."
+    case "MORPH-FRONTEND-GENERATE-IF-OTHERWISE-MISSING" =>
+      "Complete every generateIf with exactly one otherwise branch in the same capture."
+    case "MORPH-FRONTEND-GENERATE-IF-OTHERWISE-DUPLICATE" =>
+      "Supply one otherwise branch for each generateIf."
+    case "MORPH-FRONTEND-GENERATE-IF-ESCAPED" =>
+      "Complete the generateIf in the same frontend capture where it was created."
+    case "MORPH-FRONTEND-GENERATE-IF-MULTIPLE" =>
+      "Use one top-level generateIf per module-item capture."
+    case "MORPH-FRONTEND-BOOLEAN-CONDITION-NULL" =>
+      "Pass an HdlBool literal, expression or public parameter to generateIf."
     case "MORPH-FRONTEND-GENERATE-START-UNSUPPORTED" =>
       "Rewrite the loop as `0 until count` and adjust the indexed offset."
     case "MORPH-FRONTEND-GENERATE-COUNT-NONPOSITIVE" =>
@@ -45,6 +55,18 @@ private[frontend] object FrontendException {
       "Use an identifier matching `[A-Za-z_][A-Za-z0-9_]*`."
     case "MORPH-FRONTEND-NOT-A-PUBLIC-PARAMETER" =>
       "Declare the value with HdlInt.param before using integerParameter."
+    case "MORPH-FRONTEND-NOT-A-BOOLEAN-PARAMETER" =>
+      "Declare the value with HdlBool.param before using booleanParameter."
+    case "MORPH-FRONTEND-BOOLEAN-PARAMETER-TOKEN-MISMATCH" =>
+      "Reuse the exact HdlBool.param value declared by this module."
+    case "MORPH-FRONTEND-BOOLEAN-PARAMETER-NOT-DECLARED" =>
+      "Declare the referenced HdlBool.param value with booleanParameter."
+    case "MORPH-FRONTEND-BOOLEAN-PARAMETER-NAME-DUPLICATE" =>
+      "Give every Boolean parameter in a module a unique name."
+    case "MORPH-FRONTEND-PARAMETER-KIND-COLLISION" =>
+      "Use distinct names for integer and Boolean public parameters."
+    case "MORPH-FRONTEND-PARAMETER-KIND-MISMATCH" =>
+      "Declare and use the parameter through one consistent symbolic type."
     case "MORPH-FRONTEND-NOT-A-LOCAL-PARAMETER" =>
       "Pass the exact HdlInt returned by localParam to integerLocalParameter."
     case "MORPH-FRONTEND-DIVISOR-WITNESS-ZERO" =>

@@ -208,6 +208,51 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("default shape selects only the false generate-if branch when its Boolean default is false") {
+    withTemporaryDirectory { directory =>
+      val topName = "FalseDefaultConditional"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = falseBranchWitness(topName),
+          parameterizedDesign = falseDefaultConditionalDesign(topName)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("inactive generate-if branches remain subject to whole-design validation") {
+    withTemporaryDirectory { directory =>
+      val topName = "InvalidInactiveConditional"
+      val result = MorphVerilog.tryGenerate(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = trueBranchWitness(topName),
+          parameterizedDesign = invalidInactiveConditionalDesign(topName)
+        )
+      }
+
+      assertStage(result, MorphVerilogStage.ParamRtlValidation)
+      assert(!Files.exists(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("default-selected generate-if branch hierarchy multiplicity must match the concrete witness") {
+    withTemporaryDirectory { directory =>
+      val topName = "ConditionalMultiplicityMismatch"
+      val result = MorphVerilog.tryGenerate(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = falseBranchWitness(topName, copies = 2),
+          parameterizedDesign = falseDefaultConditionalDesign(topName)
+        )
+      }
+
+      assertStage(result, MorphVerilogStage.DefaultShapeAgreement)
+      assert(!Files.exists(directory.resolve(s"$topName.v")))
+    }
+  }
+
   test("removing an inherited phase fails closed before symbolic capture") {
     withTemporaryDirectory { directory =>
       var symbolicRuns = 0
@@ -594,6 +639,134 @@ class MorphVerilogTests extends AnyFunSuite {
       child.leaf_in := data_in.resized
       data_out := child.leaf_out.resized
     }
+  }
+
+  private def falseBranchWitness(requestedName: String, copies: Int = 1): Component =
+    new Component {
+      setDefinitionName(requestedName)
+      val din = in(Bits(8 bits))
+      val dout = out(Bits(8 bits))
+      val selected = Vector.fill(copies) {
+        new Component {
+          setDefinitionName("FalseDefaultLeaf")
+          val false_in = in(Bits(8 bits))
+          val false_out = out(Bits(8 bits))
+          false_out := false_in
+        }
+      }
+      selected.foreach(_.false_in := din)
+      dout := selected.head.false_out
+    }
+
+  private def trueBranchWitness(requestedName: String): Component =
+    new Component {
+      setDefinitionName(requestedName)
+      val din = in(Bits(8 bits))
+      val dout = out(Bits(8 bits))
+      val selected = new Component {
+        setDefinitionName("TrueDefaultLeaf")
+        val true_in = in(Bits(8 bits))
+        val true_out = out(Bits(8 bits))
+        true_out := true_in
+      }
+      selected.true_in := din
+      dout := selected.true_out
+    }
+
+  private def falseDefaultConditionalDesign(requestedName: String): Design = {
+    val packed = PackedBits(IntExpr.Literal(8), Unsigned)
+    val enabledLeaf = ModuleDef(
+      name = "TrueDefaultLeaf",
+      parameters = Vector.empty,
+      ports = Vector(
+        Port("true_in", Input, packed),
+        Port("true_out", Output, packed)
+      ),
+      items = Vector(ContinuousAssign(Ref("true_out"), Ref("true_in")))
+    )
+    val disabledLeaf = ModuleDef(
+      name = "FalseDefaultLeaf",
+      parameters = Vector.empty,
+      ports = Vector(
+        Port("false_in", Input, packed),
+        Port("false_out", Output, packed)
+      ),
+      items = Vector(ContinuousAssign(Ref("false_out"), Ref("false_in")))
+    )
+    val top = ModuleDef(
+      name = requestedName,
+      parameters = Vector.empty,
+      ports = Vector(Port("din", Input, packed), Port("dout", Output, packed)),
+      items = Vector(
+        ModuleItem.GenerateIf(
+          morphhdl.paramrtl.BoolExpr.ParameterRef("ENABLE"),
+          GenerateBlock(
+            "g_enabled",
+            Vector(
+              ModuleItem.ModuleInstance(
+                "selected_inst",
+                enabledLeaf.name,
+                portConnections = Vector(
+                  PortConnection("true_in", Ref("din")),
+                  PortConnection("true_out", Ref("dout"))
+                )
+              )
+            )
+          ),
+          GenerateBlock(
+            "g_disabled",
+            Vector(
+              ModuleItem.ModuleInstance(
+                "selected_inst",
+                disabledLeaf.name,
+                portConnections = Vector(
+                  PortConnection("false_in", Ref("din")),
+                  PortConnection("false_out", Ref("dout"))
+                )
+              )
+            )
+          )
+        )
+      ),
+      booleanParameters = Vector(BooleanParameter("ENABLE", default = false))
+    )
+    Design(requestedName, Vector(top, enabledLeaf, disabledLeaf))
+  }
+
+  private def invalidInactiveConditionalDesign(requestedName: String): Design = {
+    val packed = PackedBits(IntExpr.Literal(8), Unsigned)
+    val enabledLeaf = ModuleDef(
+      name = "TrueDefaultLeaf",
+      parameters = Vector.empty,
+      ports = Vector(
+        Port("true_in", Input, packed),
+        Port("true_out", Output, packed)
+      ),
+      items = Vector(ContinuousAssign(Ref("true_out"), Ref("true_in")))
+    )
+    def selectedInstance(moduleName: String): ModuleItem.ModuleInstance =
+      ModuleItem.ModuleInstance(
+        "selected_inst",
+        moduleName,
+        portConnections = Vector(
+          PortConnection("true_in", Ref("din")),
+          PortConnection("true_out", Ref("dout"))
+        )
+      )
+    val top = ModuleDef(
+      name = requestedName,
+      parameters = Vector.empty,
+      ports = Vector(Port("din", Input, packed), Port("dout", Output, packed)),
+      items = Vector(
+        ModuleItem.GenerateIf(
+          morphhdl.paramrtl.BoolExpr.ParameterRef("ENABLE"),
+          GenerateBlock("g_enabled", Vector(selectedInstance(enabledLeaf.name))),
+          GenerateBlock("g_disabled", Vector(selectedInstance("MissingInactiveLeaf")))
+        )
+      ),
+      booleanParameters = Vector(BooleanParameter("ENABLE", default = true))
+    )
+    Design(requestedName, Vector(top, enabledLeaf))
   }
 
   private def hierarchicalDesign(requestedName: String, childWidth: Int): Design = {

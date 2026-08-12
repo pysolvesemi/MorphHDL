@@ -6,15 +6,15 @@ first parameterized-Verilog release, not implemented in Increment 1.
 | Area | Construct | v1 status | Rule |
 |---|---|---|---|
 | Parameters | Integer public parameters | v1 | Literal defaults and explicit constraints |
-| Parameters | Boolean parameters | v1 | Encoded as integer parameters in Verilog |
-| Parameters | Derived local parameters | v1 | Increment 8 captures identity-bearing integer locals; Boolean and conditional algebra remains |
+| Parameters | Boolean parameters | v1 | Increment 9 preserves typed public Boolean intent and legalizes it to integer `1`/`0` in Verilog |
+| Parameters | Derived local parameters | v1 | Increment 8 captures identity-bearing integer locals; Boolean locals remain planned |
 | Parameters | Enum/type/string parameters | Post-v1 | Static in v1 |
 | Shape | Parameter-dependent packed width | v1 | Width must be provably positive |
 | Shape | Parameter-dependent memory depth | v1 | Supported memory modes are bounded |
 | Shape | Parameter-dependent port presence/direction | Rejected | Use a static interface profile |
 | Structure | Child parameter forwarding | v1 | Named mappings only |
 | Structure | Homogeneous generate-for | v1 | Increments 5 and 6 implement zero-based unit stride, one frontend-captured body, scoped `GenIndex` and a canonical packed-slice partition |
-| Structure | Generate-if/case | v1 | Explicit structural combinators; still planned after Increment 8 |
+| Structure | Generate-if/case | v1 | Increment 9 implements one mandatory two-branch, non-nested generate-if; case remains planned |
 | Structure | Parameter-dependent Scala class selection | Static only | Not recoverable as HDL structure |
 | RTL | Combinational operations | v1 | Explicit width and signedness rules |
 | RTL | Registers and sync/async reset | v1 | Target-neutral process semantics |

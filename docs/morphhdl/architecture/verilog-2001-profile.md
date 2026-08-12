@@ -8,13 +8,15 @@ be accepted without enabling a SystemVerilog parser.
 | ParamRTL semantic construct | Verilog-2001 representation |
 |---|---|
 | Integer public parameter | `parameter integer` with a literal default |
+| Boolean public parameter | `parameter integer` with canonical default `1` or `0` |
 | Derived constant | `localparam` |
 | Named module instance | `Child #(.PARAM(expr)) instance (.port(signal))` |
 | Packed unsigned signal | `wire` or `reg [WIDTH-1:0]` |
 | Combinational process | `always @*` |
 | Clocked process | Edge-sensitive `always` |
 | Structural loop | Named `generate`/`for` with `genvar` |
-| Structural condition | Named `generate`/`if` or `case` |
+| Structural condition (implemented) | Named `generate`/`if` with explicit `== 1` Boolean references |
+| Structural case (reserved v1 mapping) | Named `generate`/`case` |
 | Logical record/vector port | Deterministically flattened scalar/packed ports |
 | `clog2` | Generated portable constant function or legalized expression |
 | Enum intent | Packed vector plus named local parameters |
@@ -22,6 +24,12 @@ be accepted without enabling a SystemVerilog parser.
 
 The emitter determines `wire` versus `reg` from driver semantics. Those words
 are backend spellings and are not encoded in ParamRTL.
+
+Boolean intent likewise remains typed in ParamRTL. Integer `1`/`0`
+declarations and `NAME == 1` predicates are backend legalization, not the
+canonical Boolean type. Increment 9 supports one named two-branch generate-if;
+generate-case and nested conditional structure remain outside the executable
+profile.
 
 ## Flat ABI
 

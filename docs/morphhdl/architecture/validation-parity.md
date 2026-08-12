@@ -122,3 +122,14 @@ cycles, nonzero divisors, positive widths and target bounds. Strict external
 tools consume only the four-file `MorphVerilog` artifact. `PhaseInferWidth`
 remains partial because Boolean, comparison, conditional, `min`, `max` and
 `clog2` algebra is still planned.
+
+Increment 9 extends the symbolic hierarchy and driver legs through typed
+Boolean parameters and one exact two-branch `GenerateIf`. ParamRTL validates
+both branches, including modules unreachable under the default witness, and
+requires unconditional-plus-true and unconditional-plus-false output coverage
+to each equal one. `MorphVerilog` selects only the default branch for concrete
+shape agreement after complete symbolic validation. `PhaseInferWidth` and
+`PhaseCheck_noLatchNoOverride` remain partial: integer comparisons,
+conditional values, multiple/nested predicates and runtime processes are still
+deferred. The external release-strength gates now consume the exact five-file
+`MorphVerilog` artifact, including `conditional_forwarding.v`.

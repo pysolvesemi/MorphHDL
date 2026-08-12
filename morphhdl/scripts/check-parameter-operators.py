@@ -29,6 +29,11 @@ REQUIRED_OPERATORS = {
     "negate",
     "divide",
     "modulo",
+    "boolean-literal",
+    "boolean-public-reference",
+    "boolean-not",
+    "boolean-and",
+    "boolean-or",
 }
 
 STATUS_VALUES = {"implemented", "deferred"}

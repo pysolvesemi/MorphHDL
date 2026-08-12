@@ -15,6 +15,16 @@ object IntExpr {
   final case class Modulo(left: IntExpr, right: IntExpr) extends IntExpr
 }
 
+sealed trait BoolExpr extends Product with Serializable
+
+object BoolExpr {
+  final case class Literal(value: Boolean) extends BoolExpr
+  final case class ParameterRef(name: String) extends BoolExpr
+  final case class Not(value: BoolExpr) extends BoolExpr
+  final case class And(left: BoolExpr, right: BoolExpr) extends BoolExpr
+  final case class Or(left: BoolExpr, right: BoolExpr) extends BoolExpr
+}
+
 sealed trait IntConstraint extends Product with Serializable
 
 object IntConstraint {
@@ -27,6 +37,8 @@ final case class IntegerParameter(
     default: BigInt,
     constraints: Vector[IntConstraint] = Vector.empty
 )
+
+final case class BooleanParameter(name: String, default: Boolean)
 
 final case class IntegerLocalParameter(name: String, value: IntExpr)
 
@@ -61,6 +73,8 @@ object RtlExpr {
 
 sealed trait ModuleItem extends Product with Serializable
 
+final case class GenerateBlock(label: String, body: Vector[ModuleItem])
+
 object ModuleItem {
   final case class ContinuousAssign(target: RtlExpr.Ref, value: RtlExpr) extends ModuleItem
   final case class ModuleInstance(
@@ -75,6 +89,11 @@ object ModuleItem {
       count: IntExpr,
       body: Vector[ModuleItem]
   ) extends ModuleItem
+  final case class GenerateIf(
+      condition: BoolExpr,
+      whenTrue: GenerateBlock,
+      whenFalse: GenerateBlock
+  ) extends ModuleItem
 }
 
 final case class ModuleDef(
@@ -82,7 +101,8 @@ final case class ModuleDef(
     parameters: Vector[IntegerParameter],
     ports: Vector[Port],
     items: Vector[ModuleItem],
-    localParameters: Vector[IntegerLocalParameter] = Vector.empty
+    localParameters: Vector[IntegerLocalParameter] = Vector.empty,
+    booleanParameters: Vector[BooleanParameter] = Vector.empty
 )
 
 final case class Design(top: String, modules: Vector[ModuleDef])

@@ -12,7 +12,14 @@ import morphhdl.paramrtl.IntExpr.{
   ParameterRef,
   Subtract
 }
-import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateFor, ModuleInstance}
+import morphhdl.paramrtl.BoolExpr.{
+  And => BoolAnd,
+  Literal => BoolLiteral,
+  Not => BoolNot,
+  Or => BoolOr,
+  ParameterRef => BoolParameterRef
+}
+import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateFor, GenerateIf, ModuleInstance}
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 import morphhdl.paramrtl.Signedness.{Signed, Unsigned}
@@ -39,22 +46,28 @@ object Verilog2001Emitter {
   }
 
   private def renderModule(module: ModuleDef, facts: ValidatedModuleFacts): String = {
-    val parameters = module.parameters.sortBy(_.name)
+    val integerParameters = module.parameters.sortBy(_.name)
+    val booleanParameters = module.booleanParameters.sortBy(_.name)
     val ports = module.ports.sortBy(_.name)
     val localParameters = facts.orderedLocalParameters
     val instances = facts.orderedInstances
     val generateFors = module.items.collect { case generate: GenerateFor => generate }.sortBy(_.label)
+    val generateIfs = module.items.collect { case generate: GenerateIf => generate }.sortBy(generateIfSortKey)
     val assignments = module.items.collect { case assignment: ContinuousAssign => assignment }.sortBy { assignment =>
       (assignment.target.name, renderRtlExpr(assignment.value))
     }
 
     val lines = Vector.newBuilder[String]
 
-    if (parameters.nonEmpty) {
+    val renderedParameters =
+      integerParameters.map(parameter => parameter.name -> parameter.default.toString) ++
+        booleanParameters.map(parameter => parameter.name -> (if (parameter.default) "1" else "0"))
+
+    if (renderedParameters.nonEmpty) {
       lines += s"module ${module.name} #("
-      parameters.zipWithIndex.foreach { case (parameter, index) =>
-        val comma = if (index == parameters.size - 1) "" else ","
-        lines += s"  parameter integer ${parameter.name} = ${parameter.default}$comma"
+      renderedParameters.sortBy(_._1).zipWithIndex.foreach { case ((name, default), index) =>
+        val comma = if (index == renderedParameters.size - 1) "" else ","
+        lines += s"  parameter integer $name = $default$comma"
       }
       lines += ") ("
     } else {
@@ -82,10 +95,12 @@ object Verilog2001Emitter {
       }
     }
 
-    if (generateFors.nonEmpty) {
+    if (generateFors.nonEmpty || generateIfs.nonEmpty) {
       lines += ""
-      generateFors.foreach { generate =>
-        lines += s"  genvar ${generate.indexName};"
+      if (generateFors.nonEmpty) {
+        generateFors.foreach { generate =>
+          lines += s"  genvar ${generate.indexName};"
+        }
       }
       lines += "  generate"
       generateFors.zipWithIndex.foreach { case (generate, generateIndex) =>
@@ -101,6 +116,14 @@ object Verilog2001Emitter {
         }
         lines += "    end"
       }
+      generateIfs.zipWithIndex.foreach { case (generate, generateIndex) =>
+        if (generateFors.nonEmpty || generateIndex != 0) lines += ""
+        lines += s"    if (${renderBoolExpr(generate.condition)}) begin : ${generate.whenTrue.label}"
+        renderGenerateBlockBody(generate.whenTrue, "      ").foreach(lines += _)
+        lines += s"    end else begin : ${generate.whenFalse.label}"
+        renderGenerateBlockBody(generate.whenFalse, "      ").foreach(lines += _)
+        lines += "    end"
+      }
       lines += "  endgenerate"
     }
 
@@ -114,6 +137,22 @@ object Verilog2001Emitter {
     lines += ""
     lines += "endmodule"
     lines.result().mkString("\n")
+  }
+
+  private def renderGenerateBlockBody(block: GenerateBlock, indent: String): Vector[String] = {
+    val instances = block.body.collect { case instance: ModuleInstance => instance }.sortBy(_.name)
+    val assignments = block.body.collect { case assignment: ContinuousAssign => assignment }.sortBy { assignment =>
+      (assignment.target.name, renderRtlExpr(assignment.value))
+    }
+    val lines = Vector.newBuilder[String]
+    instances.zipWithIndex.foreach { case (instance, index) =>
+      renderInstance(instance, indent).foreach(lines += _)
+      if (index != instances.size - 1 || assignments.nonEmpty) lines += ""
+    }
+    assignments.foreach { assignment =>
+      lines += s"${indent}assign ${assignment.target.name} = ${renderRtlExpr(assignment.value)};"
+    }
+    lines.result()
   }
 
   private def renderInstance(instance: ModuleInstance, indent: String): Vector[String] = {
@@ -205,4 +244,41 @@ object Verilog2001Emitter {
     case IndexedPartSelect(base, offset, width) =>
       s"${base.name}[${renderIntExpr(offset)} +: ${renderIntExpr(width)}]"
   }
+
+  private val BoolOrPrecedence = 10
+  private val BoolAndPrecedence = 20
+  private val BoolNotPrecedence = 30
+  private val BoolAtomicPrecedence = 40
+
+  private final case class RenderedBoolExpr(text: String, precedence: Int)
+
+  private def renderBoolExpr(expression: BoolExpr): String = renderBoolExprWithPrecedence(expression).text
+
+  private def renderBoolExprWithPrecedence(expression: BoolExpr): RenderedBoolExpr = expression match {
+    case BoolLiteral(value) => RenderedBoolExpr(if (value) "1'b1" else "1'b0", BoolAtomicPrecedence)
+    case BoolParameterRef(name) => RenderedBoolExpr(s"$name == 1", BoolAtomicPrecedence)
+    case BoolNot(value) =>
+      val rendered = renderBoolExprWithPrecedence(value)
+      val needsParentheses = rendered.precedence < BoolNotPrecedence || rendered.text.contains(" ")
+      val operand = if (needsParentheses) s"(${rendered.text})" else rendered.text
+      RenderedBoolExpr(s"!$operand", BoolNotPrecedence)
+    case BoolAnd(left, right) => renderBoolBinary(left, "&&", right, BoolAndPrecedence)
+    case BoolOr(left, right)  => renderBoolBinary(left, "||", right, BoolOrPrecedence)
+  }
+
+  private def renderBoolBinary(
+      left: BoolExpr,
+      operator: String,
+      right: BoolExpr,
+      precedence: Int
+  ): RenderedBoolExpr = {
+    val renderedLeft = renderBoolExprWithPrecedence(left)
+    val renderedRight = renderBoolExprWithPrecedence(right)
+    val leftText = if (renderedLeft.precedence < precedence) s"(${renderedLeft.text})" else renderedLeft.text
+    val rightText = if (renderedRight.precedence < precedence) s"(${renderedRight.text})" else renderedRight.text
+    RenderedBoolExpr(s"$leftText $operator $rightText", precedence)
+  }
+
+  private def generateIfSortKey(generate: GenerateIf): (String, String) =
+    generate.whenTrue.label -> generate.whenFalse.label
 }

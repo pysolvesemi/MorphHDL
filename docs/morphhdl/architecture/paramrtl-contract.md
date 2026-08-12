@@ -89,6 +89,15 @@ proof accepts only a canonical complete, nonoverlapping partition of a packed
 output. Nested generate regions and conditional generate forms remain planned
 separately and fail closed.
 
+Increment 9 adds a distinct `BooleanParameter` declaration, `BoolExpr`
+literals/references/negation/conjunction/disjunction and one non-nested
+`GenerateIf` per module. The conditional owns mandatory, explicitly labeled
+true and false blocks. Validation resolves every Boolean reference, validates
+the complete hierarchy and bindings in both blocks regardless of the default,
+and proves output drivers independently on each mutually exclusive path.
+Conditional public ports, multiple or nested generate regions, Boolean child
+bindings and `GenerateCase` remain unsupported.
+
 ## Required invariants
 
 - Every reference resolves within its lexical parameter, generate or module
