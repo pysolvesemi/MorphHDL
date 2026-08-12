@@ -13,12 +13,15 @@ The contract is split into these documents:
   flattening policy and validation requirements.
 - [Validation parity](validation-parity.md): preservation of inherited
   SpinalHDL checks and the no-silent-skip release gate.
+- [Increment 3 parameter expressions](../increment-3-parameter-expressions.md):
+  bounded integer arithmetic, local-parameter ordering and executable gates.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
 Machine-readable target capabilities are recorded in
-`morphhdl/contracts/verilog-2001.properties`. Runnable contract examples live
-under `morphhdl/examples/contracts`.
+`morphhdl/contracts/verilog-2001.properties`; the current parameter-expression
+operator tranche is recorded in `morphhdl/contracts/parameter-operators.tsv`.
+Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants
 

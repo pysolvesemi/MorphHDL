@@ -53,11 +53,12 @@ increment cannot conceal missing work. The final parameterized-Verilog release
 uses `--release`, which rejects every entry that is not `implemented`.
 It also rejects implemented entries without evidence on both validation legs.
 
-The Increment 2 inventory is an explicit baseline snapshot. Before the first
+The inherited-check inventory is an explicit baseline snapshot. Before the first
 release, the shared phase-plan factory must expose stable phase identifiers and
 CI must compare that live inventory with this manifest. That prevents a newly
 inherited upstream check from being omitted from both the code and the table.
 
-Increment 2 implements the first symbolic width and driver checks. It does not
-claim that `MorphVerilog` is connected to the inherited phase plan yet; that
-integration remains visible as planned work in the inventory.
+Increment 3 extends the partial `PhaseInferWidth` adaptation through bounded
+integer arithmetic and acyclic local-parameter dependencies. It does not claim
+the remaining v1 expression algebra or connection to the inherited phase plan;
+those gaps remain visible as partial or planned work in the inventory.

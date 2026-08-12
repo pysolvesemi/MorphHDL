@@ -3,10 +3,11 @@
 set -euo pipefail
 
 require_tools=0
-parameterized_wire_file=""
+generated_dir=""
+using_reviewed_goldens=0
 
 usage() {
-  echo "Usage: $0 [--require-tools] [--parameterized-wire <generated-file>]" >&2
+  echo "Usage: $0 [--require-tools] [--generated-dir <directory>]" >&2
 }
 
 while (( $# > 0 )); do
@@ -15,12 +16,12 @@ while (( $# > 0 )); do
       require_tools=1
       shift
       ;;
-    --parameterized-wire)
+    --generated-dir)
       if (( $# < 2 )); then
         usage
         exit 2
       fi
-      parameterized_wire_file="$2"
+      generated_dir="$2"
       shift 2
       ;;
     *)
@@ -34,34 +35,68 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(git -C "$script_dir" rev-parse --show-toplevel)"
 contract_file="$repo_root/morphhdl/contracts/verilog-2001.properties"
 parity_file="$repo_root/morphhdl/contracts/validation-parity.tsv"
+operator_file="$repo_root/morphhdl/contracts/parameter-operators.tsv"
 examples_dir="$repo_root/morphhdl/examples/contracts"
-golden_parameterized_wire="$examples_dir/parameterized_wire.v"
 
-if [[ -z "$parameterized_wire_file" ]]; then
-  parameterized_wire_file="$golden_parameterized_wire"
+if [[ -z "$generated_dir" ]]; then
+  generated_dir="$examples_dir"
+  using_reviewed_goldens=1
 fi
 
-if [[ ! -s "$parameterized_wire_file" ]]; then
-  echo "Missing or empty generated ParameterizedWire RTL: $parameterized_wire_file" >&2
+if [[ ! -d "$generated_dir" ]]; then
+  echo "Generated RTL directory does not exist: $generated_dir" >&2
   exit 1
 fi
 
-if ! cmp -s "$parameterized_wire_file" "$golden_parameterized_wire"; then
-  echo "Generated ParameterizedWire RTL differs from its reviewed golden file" >&2
-  diff -u "$golden_parameterized_wire" "$parameterized_wire_file" || true
-  exit 1
+generated_contracts=(
+  parameterized_wire.v
+  derived_width.v
+)
+
+if (( using_reviewed_goldens == 0 )); then
+  expected_artifact_files="$(printf '%s\n' "${generated_contracts[@]}" | sort)"
+  actual_artifact_files="$(
+    find "$generated_dir" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort
+  )"
+  if [[ "$actual_artifact_files" != "$expected_artifact_files" ]]; then
+    echo "Generated RTL directory has an unexpected file inventory" >&2
+    diff -u \
+      <(printf '%s\n' "$expected_artifact_files") \
+      <(printf '%s\n' "$actual_artifact_files") || true
+    exit 1
+  fi
 fi
+
+for filename in "${generated_contracts[@]}"; do
+  generated_file="$generated_dir/$filename"
+  golden_file="$examples_dir/$filename"
+  if [[ ! -s "$generated_file" ]]; then
+    echo "Missing or empty generated RTL: $generated_file" >&2
+    exit 1
+  fi
+  if ! cmp -s "$generated_file" "$golden_file"; then
+    echo "Generated RTL differs from its reviewed golden file: $filename" >&2
+    diff -u "$golden_file" "$generated_file" || true
+    exit 1
+  fi
+done
+
+parameterized_wire_file="$generated_dir/parameterized_wire.v"
+derived_width_file="$generated_dir/derived_width.v"
 
 python3 "$repo_root/morphhdl/scripts/check-validation-parity.py" "$parity_file"
+python3 "$repo_root/morphhdl/scripts/check-parameter-operators.py" "$operator_file"
 
 design_files=(
   "$parameterized_wire_file"
+  "$derived_width_file"
   "$examples_dir/lane_array.v"
 )
 
 all_verilog_files=(
   "${design_files[@]}"
   "$examples_dir/parameterized_wire_tb.v"
+  "$examples_dir/derived_width_tb.v"
   "$examples_dir/lane_array_tb.v"
 )
 
@@ -158,6 +193,8 @@ fi
 expected_modules=(
   ParameterizedWire
   ParameterizedWireTb
+  DerivedWidth
+  DerivedWidthTb
   PixelLane
   LaneArray
   LaneArrayTb
@@ -175,8 +212,14 @@ if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH' "${design_files[0]
   exit 1
 fi
 
-if ! grep -Eq 'for[[:space:]]*\(' "${design_files[1]}" ||
-   ! grep -Eq '\+:[[:space:]]*DATA_WIDTH' "${design_files[1]}"; then
+if ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+TOTAL_WIDTH[[:space:]]*=[[:space:]]*LANES[[:space:]]*\*[[:space:]]*DATA_WIDTH' "${design_files[1]}" ||
+   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+PADDED_WIDTH[[:space:]]*=[[:space:]]*TOTAL_WIDTH[[:space:]]*\+[[:space:]]*3' "${design_files[1]}"; then
+  echo "DerivedWidth does not retain its symbolic local-parameter expressions" >&2
+  exit 1
+fi
+
+if ! grep -Eq 'for[[:space:]]*\(' "${design_files[2]}" ||
+   ! grep -Eq '\+:[[:space:]]*DATA_WIDTH' "${design_files[2]}"; then
   echo "LaneArray does not exercise generate-for and indexed part-select" >&2
   exit 1
 fi
@@ -203,10 +246,59 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Yosys 0.33 and older do not consistently accept quoted filenames in `-p`
+# command strings. Stable temporary names avoid depending on user/repository
+# path spelling while preserving the exact artifact bytes.
+cp "$parameterized_wire_file" "$tmp_dir/parameterized_wire.v"
+cp "$derived_width_file" "$tmp_dir/derived_width.v"
+cp "$examples_dir/lane_array.v" "$tmp_dir/lane_array.v"
+yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
+yosys_derived_width_file="$tmp_dir/derived_width.v"
+yosys_lane_array_file="$tmp_dir/lane_array.v"
+
+echo "Verilator: $(verilator --version)"
+echo "Icarus: $(iverilog -V 2>/dev/null | head -n 1)"
+echo "Yosys: $(yosys -V)"
+
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
   --top-module ParameterizedWire \
   "$parameterized_wire_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ParameterizedWire \
+  -GWIDTH=13 \
+  "$parameterized_wire_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module DerivedWidth \
+  "$derived_width_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module DerivedWidth \
+  -GDATA_WIDTH=1 -GLANES=1 \
+  "$derived_width_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module DerivedWidth \
+  -GDATA_WIDTH=5 -GLANES=3 \
+  "$derived_width_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module DerivedWidth \
+  -GLANES=3 \
+  "$derived_width_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module DerivedWidth \
+  -GDATA_WIDTH=5 \
+  "$derived_width_file"
 
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
@@ -224,6 +316,17 @@ if ! printf '%s\n' "$wire_output" | grep -q 'PASS: ParameterizedWire'; then
   exit 1
 fi
 
+iverilog -g2001 -Wall -s DerivedWidthTb \
+  -o "$tmp_dir/derived_width.vvp" \
+  "$derived_width_file" \
+  "$examples_dir/derived_width_tb.v"
+derived_output="$(vvp "$tmp_dir/derived_width.vvp")"
+echo "$derived_output"
+if ! printf '%s\n' "$derived_output" | grep -q 'PASS: DerivedWidth'; then
+  echo "DerivedWidth simulation did not report PASS" >&2
+  exit 1
+fi
+
 iverilog -g2001 -Wall -s LaneArrayTb \
   -o "$tmp_dir/lane_array.vvp" \
   "$examples_dir/lane_array.v" \
@@ -235,17 +338,44 @@ if ! printf '%s\n' "$lane_output" | grep -q 'PASS: LaneArray'; then
   exit 1
 fi
 
-yosys -q -p \
-  "read_verilog $parameterized_wire_file; hierarchy -check -top ParameterizedWire; proc; check -assert; synth -top ParameterizedWire; check -assert; write_json $tmp_dir/parameterized_wire-default.json"
-python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
-  "$tmp_dir/parameterized_wire-default.json" 8
+yosys_synthesize_and_check() {
+  local input_file="$1"
+  local module_name="$2"
+  local label="$3"
+  local expected_width="$4"
+  local parameter_command="$5"
+  local netlist="$tmp_dir/${module_name}-${label}.json"
+
+  yosys -q -p \
+    "read_verilog -noautowire $input_file; $parameter_command hierarchy -check -top $module_name; proc; check -assert; synth -top $module_name; check -assert; write_json $netlist"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$netlist" "$module_name" \
+    --port "din:input:$expected_width" \
+    --port "dout:output:$expected_width"
+}
+
+yosys_synthesize_and_check \
+  "$yosys_parameterized_wire_file" ParameterizedWire default 8 ""
+yosys_synthesize_and_check \
+  "$yosys_parameterized_wire_file" ParameterizedWire width-13 13 \
+  "chparam -set WIDTH 13 ParameterizedWire;"
+
+yosys_synthesize_and_check \
+  "$yosys_derived_width_file" DerivedWidth default 35 ""
+yosys_synthesize_and_check \
+  "$yosys_derived_width_file" DerivedWidth minimum 4 \
+  "chparam -set DATA_WIDTH 1 -set LANES 1 DerivedWidth;"
+yosys_synthesize_and_check \
+  "$yosys_derived_width_file" DerivedWidth awkward 18 \
+  "chparam -set DATA_WIDTH 5 -set LANES 3 DerivedWidth;"
+yosys_synthesize_and_check \
+  "$yosys_derived_width_file" DerivedWidth lanes-only 27 \
+  "chparam -set LANES 3 DerivedWidth;"
+yosys_synthesize_and_check \
+  "$yosys_derived_width_file" DerivedWidth data-width-only 23 \
+  "chparam -set DATA_WIDTH 5 DerivedWidth;"
 
 yosys -q -p \
-  "read_verilog $parameterized_wire_file; chparam -set WIDTH 13 ParameterizedWire; hierarchy -check -top ParameterizedWire; proc; check -assert; synth -top ParameterizedWire; check -assert; write_json $tmp_dir/parameterized_wire-width-13.json"
-python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
-  "$tmp_dir/parameterized_wire-width-13.json" 13
-
-yosys -q -p \
-  "read_verilog $examples_dir/lane_array.v; hierarchy -check -top LaneArray; proc; check -assert; synth -top LaneArray; check -assert"
+  "read_verilog -noautowire $yosys_lane_array_file; hierarchy -check -top LaneArray; proc; check -assert; synth -top LaneArray; check -assert"
 
 echo "Strict Verilog-2001 contract checks passed"
