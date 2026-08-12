@@ -34,10 +34,10 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends iverilog verilator yosys
 
-      - name: Download generated ParameterizedWire RTL
+      - name: Download generated contract RTL
         uses: actions/download-artifact@v4
         with:
-          name: parameterized-wire-scala-2.12.18
+          name: morphhdl-verilog-contracts-scala-2.12.18
           path: target/morphhdl/generated
 
       - name: Validate architecture contracts
@@ -45,7 +45,7 @@ jobs:
         run: |
           ./morphhdl/scripts/check-contracts.sh \
             --require-tools \
-            --parameterized-wire target/morphhdl/generated/parameterized_wire.v
+            --generated-dir target/morphhdl/generated
 
   compile:
     name: Compile Scala ${{ matrix.scala_version }}
@@ -85,28 +85,40 @@ jobs:
             paramrtl/test \
             verilogBackend/test
 
-      - name: Generate deterministic ParameterizedWire RTL
+      - name: Generate deterministic contract RTL
         if: matrix.scala_version == '2.12.18'
         shell: bash
         run: |
-          mkdir -p target/morphhdl/generated/run-1 target/morphhdl/generated/run-2
+          mkdir -p \
+            target/morphhdl/generated/run-1 \
+            target/morphhdl/generated/run-2 \
+            target/morphhdl/generated/artifact
           sbt -batch ++2.12.18 \
             "verilogBackend/Test/runMain morphhdl.backend.verilog2001.ParameterizedWireFixtureGenerator --output ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-1/parameterized_wire.v"
           sbt -batch ++2.12.18 \
             "verilogBackend/Test/runMain morphhdl.backend.verilog2001.ParameterizedWireFixtureGenerator --output ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-2/parameterized_wire.v"
-          cmp target/morphhdl/generated/run-1/parameterized_wire.v \
-            target/morphhdl/generated/run-2/parameterized_wire.v
+          sbt -batch ++2.12.18 \
+            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.DerivedWidthFixtureGenerator --output ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-1/derived_width.v"
+          sbt -batch ++2.12.18 \
+            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.DerivedWidthFixtureGenerator --output ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-2/derived_width.v"
+          diff --recursive --brief \
+            target/morphhdl/generated/run-1 \
+            target/morphhdl/generated/run-2
           cmp target/morphhdl/generated/run-1/parameterized_wire.v \
             morphhdl/examples/contracts/parameterized_wire.v
+          cmp target/morphhdl/generated/run-1/derived_width.v \
+            morphhdl/examples/contracts/derived_width.v
           cp target/morphhdl/generated/run-1/parameterized_wire.v \
-            target/morphhdl/generated/parameterized_wire.v
+            target/morphhdl/generated/artifact/parameterized_wire.v
+          cp target/morphhdl/generated/run-1/derived_width.v \
+            target/morphhdl/generated/artifact/derived_width.v
 
-      - name: Upload generated ParameterizedWire RTL
+      - name: Upload generated contract RTL
         if: matrix.scala_version == '2.12.18'
         uses: actions/upload-artifact@v4
         with:
-          name: parameterized-wire-scala-2.12.18
-          path: target/morphhdl/generated/parameterized_wire.v
+          name: morphhdl-verilog-contracts-scala-2.12.18
+          path: target/morphhdl/generated/artifact
           if-no-files-found: error
 
       - name: Run concrete code-generation smoke test

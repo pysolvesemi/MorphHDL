@@ -5,6 +5,13 @@ sealed trait IntExpr extends Product with Serializable
 object IntExpr {
   final case class Literal(value: BigInt) extends IntExpr
   final case class ParameterRef(name: String) extends IntExpr
+  final case class LocalParameterRef(name: String) extends IntExpr
+  final case class Negate(value: IntExpr) extends IntExpr
+  final case class Add(left: IntExpr, right: IntExpr) extends IntExpr
+  final case class Subtract(left: IntExpr, right: IntExpr) extends IntExpr
+  final case class Multiply(left: IntExpr, right: IntExpr) extends IntExpr
+  final case class Divide(left: IntExpr, right: IntExpr) extends IntExpr
+  final case class Modulo(left: IntExpr, right: IntExpr) extends IntExpr
 }
 
 sealed trait IntConstraint extends Product with Serializable
@@ -19,6 +26,8 @@ final case class IntegerParameter(
     default: BigInt,
     constraints: Vector[IntConstraint] = Vector.empty
 )
+
+final case class IntegerLocalParameter(name: String, value: IntExpr)
 
 sealed trait Signedness extends Product with Serializable
 
@@ -54,7 +63,8 @@ final case class ModuleDef(
     name: String,
     parameters: Vector[IntegerParameter],
     ports: Vector[Port],
-    items: Vector[ModuleItem]
+    items: Vector[ModuleItem],
+    localParameters: Vector[IntegerLocalParameter] = Vector.empty
 )
 
 final case class Design(top: String, modules: Vector[ModuleDef])

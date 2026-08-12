@@ -23,6 +23,20 @@ algebra contains:
 - explicit signedness and arbitrary-precision constants;
 - constraints over parameter expressions.
 
+Their canonical meaning is signed, arbitrary-precision mathematical integer
+arithmetic, independent of a target language's implicit sizing rules. Integer
+division truncates toward zero; modulo follows the dividend's sign and obeys
+`a == (a / b) * b + (a % b)`. Validation analyzes the entire declared legal
+domain separately from the default value. A valid default is never accepted as
+proof that all legal overrides have positive widths, nonzero divisors or safe
+expression ranges.
+
+Local parameters form an acyclic dependency graph. Validation permits forward
+references in ParamRTL, rejects dependency cycles and produces a deterministic
+dependency-first order with lexical tie-breaking. Target capability passes then
+prove that every expression subtree can be represented by that target; for the
+Verilog-2001 backend, this currently means the signed 32-bit `integer` domain.
+
 A parameter expression is not an RTL value. If a design needs a parameter as
 runtime data, an explicit conversion node creates an RTL constant of a declared
 width and signedness.

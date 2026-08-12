@@ -1,7 +1,17 @@
 package morphhdl.backend.verilog2001
 
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
-import morphhdl.paramrtl.IntExpr.{Literal, ParameterRef}
+import morphhdl.paramrtl.IntExpr.{
+  Add,
+  Divide,
+  Literal,
+  LocalParameterRef,
+  Modulo,
+  Multiply,
+  Negate,
+  ParameterRef,
+  Subtract
+}
 import morphhdl.paramrtl._
 
 object Verilog2001Capability {
@@ -140,7 +150,8 @@ object Verilog2001Capability {
       val modulePath = Vector("modules", module.name)
       checkName(module.name, modulePath :+ "name", diagnostics)
 
-      module.parameters.sortBy(_.name).foreach { parameter =>
+      val parameters = module.parameters.sortBy(_.name)
+      parameters.foreach { parameter =>
         val path = modulePath :+ "parameters" :+ parameter.name
         checkName(parameter.name, path :+ "name", diagnostics)
         checkInteger(parameter.default, path :+ "default", diagnostics)
@@ -153,13 +164,30 @@ object Verilog2001Capability {
         checkIntegerDomain(parameter, path :+ "constraints", diagnostics)
       }
 
+      val facts = design.moduleFacts(module.name)
+
+      module.localParameters.sortBy(_.name).foreach { localParameter =>
+        val path = modulePath :+ "localParameters" :+ localParameter.name
+        checkName(localParameter.name, path :+ "name", diagnostics)
+        checkExpression(
+          localParameter.value,
+          facts.parameterFacts,
+          facts.localParameterFacts,
+          path :+ "value",
+          diagnostics
+        )
+      }
+
       module.ports.sortBy(_.name).foreach { port =>
         val path = modulePath :+ "ports" :+ port.name
         checkName(port.name, path :+ "name", diagnostics)
-        port.dataType.width match {
-          case Literal(value)  => checkInteger(value, path :+ "width", diagnostics)
-          case ParameterRef(_) =>
-        }
+        checkExpression(
+          port.dataType.width,
+          facts.parameterFacts,
+          facts.localParameterFacts,
+          path :+ "width",
+          diagnostics
+        )
       }
     }
 
@@ -209,6 +237,55 @@ object Verilog2001Capability {
         path,
         s"Legal domain of parameter '${parameter.name}' must be bounded within the signed 32-bit Verilog integer range"
       )
+    }
+  }
+
+  private def checkExpression(
+      expression: IntExpr,
+      parameters: Map[String, IntExprFacts],
+      localParameters: Map[String, IntExprFacts],
+      path: Vector[String],
+      diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]]
+  ): Unit = {
+    IntExpressionAnalysis.analyze(expression, parameters, localParameters).toOption.foreach { facts =>
+      val interval = facts.interval
+      if (
+        interval.lower.isEmpty ||
+        interval.upper.isEmpty ||
+        interval.lower.exists(_ < MinimumInteger) ||
+        interval.upper.exists(_ > MaximumInteger)
+      ) {
+        val renderedDomain = (interval.lower, interval.upper) match {
+          case (Some(lower), Some(upper)) => s"[$lower, $upper]"
+          case _                          => "unbounded"
+        }
+        diagnostics += Diagnostic(
+          "V2001-INTEGER-EXPRESSION-OUT-OF-RANGE",
+          path,
+          s"Integer expression domain $renderedDomain is outside the portable signed 32-bit Verilog integer range"
+        )
+      }
+    }
+
+    expression match {
+      case Literal(_) | ParameterRef(_) | LocalParameterRef(_) =>
+      case Negate(value) =>
+        checkExpression(value, parameters, localParameters, path :+ "operand", diagnostics)
+      case Add(left, right) =>
+        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics)
+        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics)
+      case Subtract(left, right) =>
+        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics)
+        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics)
+      case Multiply(left, right) =>
+        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics)
+        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics)
+      case Divide(left, right) =>
+        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics)
+        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics)
+      case Modulo(left, right) =>
+        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics)
+        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics)
     }
   }
 }

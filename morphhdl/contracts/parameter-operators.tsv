@@ -1,0 +1,10 @@
+operator	semantic_node	increment_status	production_behavior	diagnostic	evidence	rationale
+literal	Literal	implemented	validate-and-emit	-	morphhdl.paramrtl.ParamRtlValidatorTests	Arbitrary-precision IR literals are range-checked before Verilog-2001 emission.
+public-reference	ParameterRef	implemented	validate-and-emit	-	morphhdl.paramrtl.ParamRtlValidatorTests	Public parameter references resolve in module parameter scope.
+local-reference	LocalParameterRef	implemented	validate-and-emit	-	morphhdl.paramrtl.ParamExpressionValidatorTests	Local references resolve through an acyclic dependency graph.
+add	Add	implemented	validate-and-emit	-	morphhdl.paramrtl.ParamExpressionValidatorTests	Interval addition proves the complete legal result domain.
+subtract	Subtract	implemented	validate-and-emit	-	morphhdl.paramrtl.ParamExpressionValidatorTests	Interval subtraction proves the complete legal result domain.
+multiply	Multiply	implemented	validate-and-emit	-	morphhdl.paramrtl.ParamExpressionValidatorTests	All interval endpoint products bound the complete legal result domain.
+negate	Negate	implemented	validate-and-emit	-	morphhdl.paramrtl.ParamExpressionValidatorTests	Unary negation is range-checked before target lowering.
+divide	Divide	implemented	validate-and-emit	-	morphhdl.paramrtl.ParamExpressionValidatorTests	A nonzero-divisor proof and explicit signed truncation semantics guard every legal value.
+modulo	Modulo	implemented	validate-and-emit	-	morphhdl.paramrtl.ParamExpressionValidatorTests	A nonzero-divisor proof and explicit signed remainder semantics guard every legal value.
