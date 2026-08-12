@@ -13,27 +13,37 @@ SpinalVerilog(new DisplayController(DisplayConfig(laneCount = 4)))
 ```
 
 Parameterized Verilog uses a separate entry point and explicit public
-parameters in top-level glue:
+parameters in top-level glue. Increment 7 exposes the bounded entry point as
+two re-entrant factories because the current frontend cannot yet derive both a
+Spinal `Component` and ParamRTL from one constructor:
 
 ```scala
-case class DisplayConfig(
-  laneCount: HdlInt = 4,
-  dataWidth: HdlInt = 64
-)
-
-MorphVerilog {
-  new DisplayController(
-    DisplayConfig(
-      laneCount = HdlInt.param("LANES", default = 4, min = 1),
-      dataWidth = HdlInt.param("DATA_WIDTH", default = 64, min = 1)
+MorphVerilog(SpinalConfig(targetDirectory = "rtl")) {
+  MorphProgram(
+    concreteWitness = new DisplayController(DisplayConfig(laneCount = 4)),
+    parameterizedDesign = DisplayControllerParamRtl.design(
+      laneCount = HdlInt.param("LANES", default = 4, min = 1)
     )
   )
 }
 ```
 
+Both arguments are by-name factories. The concrete factory may be replayed by
+Spinal's source-location diagnostic pass, and the symbolic factory is invoked
+exactly once after concrete validation succeeds. Before emission,
+`MorphVerilog` also requires their default top name and every reachable module
+instance's binding-aware flat port directions, signedness and widths and
+recursive child-module multiplicities to agree. This guards the bounded
+dual-factory association but is not a complete behavioral equivalence proof. A
+future frontend tranche may collapse this surface to
+`MorphVerilog { new DisplayController(...) }` only after one constructor can
+honestly supply both representations.
+
 The names are part of the v1 source contract:
 
 - `MorphVerilog`: parameter-aware Verilog-2001 generation entry point.
+- `MorphProgram`: explicit concrete-witness and symbolic-design factories used
+  by the Increment 7 entry point.
 - `HdlInt`: dual-valued integer carrying a concrete witness and a symbolic
   parameter expression.
 - `HdlBool`: dual-valued Boolean parameter expression.

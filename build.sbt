@@ -81,7 +81,7 @@ lazy val all = (project in file("."))
     publishLocal := {},
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(lib, core)
   )
-  .aggregate(sim, idslpayload, idslplugin, core, lib, tester, paramrtl, frontend, verilogBackend)
+  .aggregate(sim, idslpayload, idslplugin, core, lib, tester, paramrtl, frontend, verilogBackend, morph)
 
 
 import sys.process._
@@ -185,6 +185,16 @@ lazy val core = (project in file("core"))
     }.taskValue
   )
   .dependsOn(sim)
+
+lazy val morph = (project in file("morphhdl"))
+  .dependsOn(core, frontend, verilogBackend)
+  .settings(
+    defaultSettingsWithPlugin,
+    name := "MorphHDL-orchestration",
+    version := SpinalVersion.core,
+    libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.3.0",
+    publish / skip := true
+  )
 
 lazy val lib = (project in file("lib"))
   .settings(

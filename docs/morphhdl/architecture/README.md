@@ -22,6 +22,9 @@ The contract is split into these documents:
 - [Increment 6 symbolic frontend](../increment-6-symbolic-frontend.md):
   dual-valued `HdlInt`, scoped `GenIndex` and native Scala generate-loop
   capture.
+- [Increment 7 MorphVerilog orchestration](../increment-7-morph-verilog.md):
+  the public dual-leg entry point, shared inherited Verilog phase plan and
+  live validation-inventory gate.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 

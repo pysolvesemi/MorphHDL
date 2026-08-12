@@ -44,19 +44,37 @@ separate legacy/symbolic test evidence for each inherited check. Run its
 development gate with:
 
 ```bash
+sbt -batch ++2.12.18 \
+  "core/Test/runMain spinal.core.internals.ValidationParityInventoryWriter --output target/morphhdl/validation-phase-ids.txt"
 python3 morphhdl/scripts/check-validation-parity.py \
-  morphhdl/contracts/validation-parity.tsv
+  morphhdl/contracts/validation-parity.tsv \
+  --live-phase-ids target/morphhdl/validation-phase-ids.txt
 ```
 
 The development gate permits explicit `planned` and `partial` entries so an
 increment cannot conceal missing work. The final parameterized-Verilog release
 uses `--release`, which rejects every entry that is not `implemented`.
 It also rejects implemented entries without evidence on both validation legs.
+Every invocation requires a live inventory; a hand-edited nonempty manifest is
+never accepted as a substitute for the shared plan.
 
 The inherited-check inventory is an explicit baseline snapshot. Before the first
 release, the shared phase-plan factory must expose stable phase identifiers and
 CI must compare that live inventory with this manifest. That prevents a newly
 inherited upstream check from being omitted from both the code and the table.
+
+Increment 7 implements that comparison. `SpinalVerilog` constructs its Verilog
+pipeline through one shared factory and reports both the built-in and observed
+ordered validation IDs. `MorphVerilog` rejects any removal, duplication or
+reordering introduced by a phase inserter. CI exports the live list on Scala
+2.12.18 and 2.13.12 and passes both files to:
+
+```bash
+python3 morphhdl/scripts/check-validation-parity.py \
+  morphhdl/contracts/validation-parity.tsv \
+  --live-phase-ids validation-phase-ids-2.12.txt \
+  --live-phase-ids validation-phase-ids-2.13.txt
+```
 
 Increment 3 extends the partial `PhaseInferWidth` adaptation through bounded
 integer arithmetic and acyclic local-parameter dependencies. It does not claim
@@ -83,3 +101,15 @@ single-body parameterized capture, and the reviewed `lane_array.v` is generated
 from that frontend-authored loop. This does not advance any inherited phase to
 implemented: `MorphVerilog` and the shared concrete-witness phase plan remain
 the next required validation leg.
+
+Increment 7 adds `MorphVerilog` and runs its concrete witness through the exact
+shared `SpinalVerilog` plan, including transformation hooks, memory blackboxers
+and phase inserters. ParamRTL validation and Verilog-2001 capability checking
+remain independent symbolic gates, and public output is atomically written only
+after both legs and default top-level name plus reachable flat-module and
+recursive-hierarchy agreement succeed. This bounded agreement is not a
+behavioral equivalence proof between arbitrary dual factories. `PhaseCheckIoBundle`,
+`PhaseCheckHierarchy` and `PhaseContext.checkGlobalData` are now implemented in
+the parity manifest. Width and driver checks remain partial until their
+remaining symbolic algebras are implemented; register, loop and CDC checks
+remain planned for their corresponding runtime-RTL tranches.

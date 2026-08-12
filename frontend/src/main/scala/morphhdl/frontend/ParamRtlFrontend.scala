@@ -10,6 +10,11 @@ import morphhdl.paramrtl._
   * MorphVerilog orchestration entry point.
   */
 private[morphhdl] object ParamRtlFrontend {
+  def concrete[A](body: => A)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): A = FrontendSession.concrete(body)
+
   def captureItems(body: => Unit)(implicit
       file: sourcecode.File,
       line: sourcecode.Line

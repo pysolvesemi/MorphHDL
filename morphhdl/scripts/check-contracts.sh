@@ -5,9 +5,10 @@ set -euo pipefail
 require_tools=0
 generated_dir=""
 using_reviewed_goldens=0
+live_phase_id_files=()
 
 usage() {
-  echo "Usage: $0 [--require-tools] [--generated-dir <directory>]" >&2
+  echo "Usage: $0 [--require-tools] [--generated-dir <directory>] [--live-phase-ids <file>]..." >&2
 }
 
 while (( $# > 0 )); do
@@ -22,6 +23,14 @@ while (( $# > 0 )); do
         exit 2
       fi
       generated_dir="$2"
+      shift 2
+      ;;
+    --live-phase-ids)
+      if (( $# < 2 )); then
+        usage
+        exit 2
+      fi
+      live_phase_id_files+=("$2")
       shift 2
       ;;
     *)
@@ -88,7 +97,11 @@ derived_width_file="$generated_dir/derived_width.v"
 parameter_forwarding_file="$generated_dir/parameter_forwarding.v"
 lane_array_file="$generated_dir/lane_array.v"
 
-python3 "$repo_root/morphhdl/scripts/check-validation-parity.py" "$parity_file"
+parity_args=("$parity_file")
+for live_phase_id_file in "${live_phase_id_files[@]}"; do
+  parity_args+=(--live-phase-ids "$live_phase_id_file")
+done
+python3 "$repo_root/morphhdl/scripts/check-validation-parity.py" "${parity_args[@]}"
 python3 "$repo_root/morphhdl/scripts/check-parameter-operators.py" "$operator_file"
 
 design_files=(

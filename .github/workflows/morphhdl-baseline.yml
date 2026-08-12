@@ -40,12 +40,26 @@ jobs:
           name: morphhdl-verilog-contracts-scala-2.12.18
           path: target/morphhdl/generated
 
+      - name: Download Scala 2.12 validation phase inventory
+        uses: actions/download-artifact@v4
+        with:
+          name: morphhdl-validation-phase-ids-scala-2.12.18
+          path: target/morphhdl/phase-inventory/2.12.18
+
+      - name: Download Scala 2.13 validation phase inventory
+        uses: actions/download-artifact@v4
+        with:
+          name: morphhdl-validation-phase-ids-scala-2.13.12
+          path: target/morphhdl/phase-inventory/2.13.12
+
       - name: Validate architecture contracts
         shell: bash
         run: |
           ./morphhdl/scripts/check-contracts.sh \
             --require-tools \
-            --generated-dir target/morphhdl/generated
+            --generated-dir target/morphhdl/generated \
+            --live-phase-ids target/morphhdl/phase-inventory/2.12.18/validation-phase-ids.txt \
+            --live-phase-ids target/morphhdl/phase-inventory/2.13.12/validation-phase-ids.txt
 
   compile:
     name: Compile Scala ${{ matrix.scala_version }}
@@ -78,27 +92,65 @@ jobs:
         shell: bash
         run: sbt -batch ++${{ matrix.scala_version }} Test/compile
 
-      - name: Test frontend, ParamRTL and Verilog-2001 backend
+      - name: Test frontend, ParamRTL, orchestration and Verilog-2001 backend
         shell: bash
         run: |
           sbt -batch ++${{ matrix.scala_version }} \
             idslplugin/test \
             paramrtl/test \
             frontend/test \
-            verilogBackend/test
+            verilogBackend/test \
+            morph/test \
+            "core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests"
+
+      - name: Export live inherited validation phase inventory
+        shell: bash
+        run: |
+          mkdir -p target/morphhdl/phase-inventory
+          sbt -batch ++${{ matrix.scala_version }} \
+            "core/Test/runMain spinal.core.internals.ValidationParityInventoryWriter --output ${GITHUB_WORKSPACE}/target/morphhdl/phase-inventory/validation-phase-ids.txt"
+
+      - name: Upload live inherited validation phase inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-validation-phase-ids-scala-${{ matrix.scala_version }}
+          path: target/morphhdl/phase-inventory/validation-phase-ids.txt
+          if-no-files-found: error
 
       - name: Generate deterministic contract RTL
         if: matrix.scala_version == '2.12.18'
         shell: bash
         run: |
           mkdir -p \
+            target/morphhdl/generated/backend-run-1 \
+            target/morphhdl/generated/backend-run-2 \
+            target/morphhdl/generated/morph-run-1 \
+            target/morphhdl/generated/morph-run-2 \
             target/morphhdl/generated/run-1 \
             target/morphhdl/generated/run-2 \
             target/morphhdl/generated/artifact
           sbt -batch ++2.12.18 \
-            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.ContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-1"
+            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.ContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated/backend-run-1"
+          test ! -e target/morphhdl/generated/morph-run-1/parameterized_wire.v
           sbt -batch ++2.12.18 \
-            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.ContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-2"
+            "morph/Test/runMain morphhdl.MorphContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated/morph-run-1"
+          sbt -batch ++2.12.18 \
+            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.ContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated/backend-run-2"
+          test ! -e target/morphhdl/generated/morph-run-2/parameterized_wire.v
+          sbt -batch ++2.12.18 \
+            "morph/Test/runMain morphhdl.MorphContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated/morph-run-2"
+          test -f target/morphhdl/generated/morph-run-1/parameterized_wire.v
+          test -f target/morphhdl/generated/morph-run-2/parameterized_wire.v
+          for run in 1 2
+          do
+            cp "target/morphhdl/generated/morph-run-${run}/parameterized_wire.v" \
+              "target/morphhdl/generated/run-${run}/parameterized_wire.v"
+            for filename in derived_width.v parameter_forwarding.v lane_array.v
+            do
+              cp "target/morphhdl/generated/backend-run-${run}/${filename}" \
+                "target/morphhdl/generated/run-${run}/${filename}"
+            done
+          done
           diff --recursive --brief \
             target/morphhdl/generated/run-1 \
             target/morphhdl/generated/run-2

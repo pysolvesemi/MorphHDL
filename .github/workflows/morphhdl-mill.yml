@@ -45,10 +45,11 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Test frontend, ParamRTL and Verilog-2001 backend
+      - name: Test frontend, ParamRTL, orchestration and Verilog-2001 backend
         shell: bash
         run: |
           /tmp/morphhdl-mill idslplugin[${{ matrix.scala_version }}].test
           /tmp/morphhdl-mill paramrtl[${{ matrix.scala_version }}].test
           /tmp/morphhdl-mill frontend[${{ matrix.scala_version }}].test
           /tmp/morphhdl-mill verilogBackend[${{ matrix.scala_version }}].test
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].test

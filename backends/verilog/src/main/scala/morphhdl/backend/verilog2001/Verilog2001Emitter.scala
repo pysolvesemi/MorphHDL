@@ -29,6 +29,9 @@ object Verilog2001Emitter {
         }
     }
 
+  private[morphhdl] def renderVerified(validated: ValidatedDesign): String =
+    render(validated)
+
   private def render(validated: ValidatedDesign): String = {
     validated.orderedModules
       .map(module => renderModule(module, validated.moduleFacts(module.name)))

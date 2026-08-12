@@ -3,8 +3,9 @@
 These files are executable output contracts for the parameterized backend.
 
 - `parameterized_wire.v` is owned by Increment 2. CI generates it twice from
-  ParamRTL, checks deterministic byte equality with this golden, and validates
-  the actual generated artifact with external tools.
+  ParamRTL through the public Increment 7 `MorphVerilog` orchestration, checks
+  deterministic byte equality with this golden, and validates the actual
+  generated artifact with external tools.
 - `derived_width.v` is owned by Increment 3. Its two public parameters feed an
   acyclic local-parameter expression graph and its packed port width remains
   symbolic in the single public module definition.
@@ -30,7 +31,11 @@ These files are executable output contracts for the parameterized backend.
 Run:
 
 ```bash
-./morphhdl/scripts/check-contracts.sh --require-tools
+sbt -batch ++2.12.18 \
+  "core/Test/runMain spinal.core.internals.ValidationParityInventoryWriter --output target/morphhdl/validation-phase-ids.txt"
+./morphhdl/scripts/check-contracts.sh \
+  --require-tools \
+  --live-phase-ids target/morphhdl/validation-phase-ids.txt
 ```
 
 The required mode needs Verilator, Icarus Verilog, `vvp` and Yosys. Without the
