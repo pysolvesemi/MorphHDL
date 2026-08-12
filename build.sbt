@@ -81,7 +81,7 @@ lazy val all = (project in file("."))
     publishLocal := {},
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(lib, core)
   )
-  .aggregate(sim, idslpayload, idslplugin, core, lib, tester)
+  .aggregate(sim, idslpayload, idslplugin, core, lib, tester, paramrtl, verilogBackend)
 
 
 import sys.process._
@@ -121,6 +121,23 @@ lazy val sim = (project in file("sim"))
     libraryDependencies += "org.slf4j" % "slf4j-simple" % "2.0.5",
     libraryDependencies += "com.github.oshi" % "oshi-core" % "6.4.0",
     version := SpinalVersion.sim
+  )
+
+lazy val paramrtl = (project in file("paramrtl"))
+  .settings(
+    defaultSettings,
+    name := "MorphHDL-paramrtl",
+    version := SpinalVersion.core,
+    publish / skip := true
+  )
+
+lazy val verilogBackend = (project in file("backends/verilog"))
+  .dependsOn(paramrtl)
+  .settings(
+    defaultSettings,
+    name := "MorphHDL-verilog",
+    version := SpinalVersion.core,
+    publish / skip := true
   )
 
 val defaultSettingsWithPlugin = defaultSettings ++ Seq(

@@ -4,13 +4,15 @@ This directory defines the normative architecture for true parameterized RTL
 generation. Increment 1 establishes the contract; later increments implement
 it without silently weakening its rules.
 
-The contract is split into four documents:
+The contract is split into these documents:
 
 - [Frontend and elaboration](frontend-contract.md): public Scala types, entry
   points, dual concrete/parameterized behavior and symbolic-escape rules.
 - [ParamRTL](paramrtl-contract.md): the target-neutral canonical semantic IR.
 - [Strict Verilog-2001](verilog-2001-profile.md): legal output constructs,
   flattening policy and validation requirements.
+- [Validation parity](validation-parity.md): preservation of inherited
+  SpinalHDL checks and the no-silent-skip release gate.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
