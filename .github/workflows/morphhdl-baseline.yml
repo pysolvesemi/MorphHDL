@@ -19,6 +19,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  contracts:
+    name: Strict Verilog-2001 contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+
+      - name: Install Verilog-2001 validation tools
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends iverilog yosys
+
+      - name: Validate architecture contracts
+        shell: bash
+        run: ./morphhdl/scripts/check-contracts.sh --require-tools
+
   compile:
     name: Compile Scala ${{ matrix.scala_version }}
     runs-on: ubuntu-latest

@@ -38,6 +38,8 @@ Run the read-only status check with remote comparison:
 7. Run the baseline workflow and all MorphHDL tests.
 8. Open a pull request to private `main`. Never force-push `main` to match
    upstream.
+9. After that pull request is merged, merge private `main` into
+   `parameterized-verilog` through a separate synchronization pull request.
 
 Example commands:
 
@@ -65,3 +67,6 @@ After the merge, update the manifest and verify it:
 - License files and inherited copyright notices must not be removed.
 - A synchronization is incomplete until concrete generation and MorphHDL CI
   both pass.
+
+The broader increment and final-merge policy is documented in
+`docs/morphhdl/branching.md`.

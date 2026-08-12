@@ -1,0 +1,40 @@
+# MorphHDL architecture contract
+
+This directory defines the normative architecture for true parameterized RTL
+generation. Increment 1 establishes the contract; later increments implement
+it without silently weakening its rules.
+
+The contract is split into four documents:
+
+- [Frontend and elaboration](frontend-contract.md): public Scala types, entry
+  points, dual concrete/parameterized behavior and symbolic-escape rules.
+- [ParamRTL](paramrtl-contract.md): the target-neutral canonical semantic IR.
+- [Strict Verilog-2001](verilog-2001-profile.md): legal output constructs,
+  flattening policy and validation requirements.
+- [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
+  scope required before the first parameterized-Verilog release.
+
+Machine-readable target capabilities are recorded in
+`morphhdl/contracts/verilog-2001.properties`. Runnable contract examples live
+under `morphhdl/examples/contracts`.
+
+## Architectural invariants
+
+1. Existing concrete `SpinalVerilog` and `SpinalVhdl` behavior remains
+   unchanged.
+2. Parameterized generation is explicit and opt-in through a MorphHDL entry
+   point.
+3. A symbolic value is never implicitly converted to a Scala `Int` or
+   `Boolean`.
+4. ParamRTL is the canonical semantic IR for both current Verilog and possible
+   future SystemVerilog targets.
+5. There is one module definition per logical component, never one definition
+   per parameter-value combination.
+6. Unsupported symbolic constructs fail with a source-located diagnostic;
+   they are not specialized using a default value.
+7. Strict Verilog-2001 legalization is a separate, non-destructive backend
+   pass.
+8. Aggregate intent is retained in ParamRTL even when the Verilog ABI is flat.
+
+Changing one of these invariants requires a reviewed architecture decision and
+an update to the executable contract tests.
