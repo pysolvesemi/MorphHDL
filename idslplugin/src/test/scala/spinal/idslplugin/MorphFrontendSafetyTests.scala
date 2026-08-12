@@ -15,6 +15,7 @@ class MorphFrontendSafetyTests extends AnyFunSuite {
     """
       |package morphhdl.frontend {
       |  final class HdlInt
+      |  final class HdlBool
       |  final class GenIndex
       |}
       |""".stripMargin
@@ -29,18 +30,20 @@ class MorphFrontendSafetyTests extends AnyFunSuite {
           |    val hdl = new morphhdl.frontend.HdlInt
           |    val alias: Alias = hdl
           |    val index = new morphhdl.frontend.GenIndex
+          |    val bool = new morphhdl.frontend.HdlBool
           |    val a = BigInt(4) == hdl
           |    val b = BigDecimal(4) != hdl
           |    val c = "lane".equals(index)
           |    val d = new Object eq index
           |    val e = new Object ne index
           |    val f = 0 == alias
+          |    val g = false == bool
           |  }
           |}
           |""".stripMargin
     )
 
-    assert(errors.size == 6, errors.mkString("\n"))
+    assert(errors.size == 7, errors.mkString("\n"))
     assert(errors.forall(_.contains("MORPH-FRONTEND-SYMBOLIC-COMPARISON-UNSUPPORTED")))
   }
 
@@ -53,9 +56,11 @@ class MorphFrontendSafetyTests extends AnyFunSuite {
           |  object Accepted {
           |    val hdl = new morphhdl.frontend.HdlInt
           |    val index = new morphhdl.frontend.GenIndex
+          |    val bool = new morphhdl.frontend.HdlBool
           |    val a = BigInt(4) == BigInt(4)
           |    val b = hdl == BigInt(4)
           |    val c = index != 0
+          |    val d = bool == false
           |  }
           |}
           |""".stripMargin

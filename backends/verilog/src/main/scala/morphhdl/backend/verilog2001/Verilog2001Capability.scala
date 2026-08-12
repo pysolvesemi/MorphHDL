@@ -1,6 +1,13 @@
 package morphhdl.backend.verilog2001
 
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
+import morphhdl.paramrtl.BoolExpr.{
+  And => BoolAnd,
+  Literal => BoolLiteral,
+  Not => BoolNot,
+  Or => BoolOr,
+  ParameterRef => BoolParameterRef
+}
 import morphhdl.paramrtl.IntExpr.{
   Add,
   Divide,
@@ -14,7 +21,7 @@ import morphhdl.paramrtl.IntExpr.{
   Subtract
 }
 import morphhdl.paramrtl._
-import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateFor, ModuleInstance}
+import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateFor, GenerateIf, ModuleInstance}
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 
 object Verilog2001Capability {
@@ -166,6 +173,13 @@ object Verilog2001Capability {
         }
         checkIntegerDomain(parameter, path :+ "constraints", diagnostics)
       }
+      module.booleanParameters.sortBy(_.name).foreach { parameter =>
+        checkName(
+          parameter.name,
+          modulePath :+ "booleanParameters" :+ parameter.name :+ "name",
+          diagnostics
+        )
+      }
 
       val facts = design.moduleFacts(module.name)
 
@@ -232,6 +246,18 @@ object Verilog2001Capability {
         }
       }
 
+      module.items.collect { case generate: GenerateIf => generate }.sortBy(generateIfSortKey).foreach { generate =>
+        val path = modulePath :+ "generateIfs" :+ generate.whenTrue.label
+        checkBooleanExpression(
+          generate.condition,
+          module.booleanParameters.map(parameter => parameter.name -> parameter).toMap,
+          path :+ "condition",
+          diagnostics
+        )
+        checkGenerateBlock(generate.whenTrue, facts, path :+ "whenTrue", diagnostics)
+        checkGenerateBlock(generate.whenFalse, facts, path :+ "whenFalse", diagnostics)
+      }
+
       module.items.collect { case assignment: ContinuousAssign => assignment }.zipWithIndex.foreach {
         case (assignment, index) =>
           checkRtlExpression(
@@ -246,6 +272,49 @@ object Verilog2001Capability {
 
     val result = DiagnosticSet.from(diagnostics.result())
     if (result.isEmpty) Right(design) else Left(result)
+  }
+
+  private def checkGenerateBlock(
+      block: GenerateBlock,
+      facts: ValidatedModuleFacts,
+      path: Vector[String],
+      diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]]
+  ): Unit = {
+    checkName(block.label, path :+ "label", diagnostics)
+    block.body.collect { case instance: ModuleInstance => instance }.sortBy(_.name).foreach { instance =>
+      checkInstance(instance, facts, path :+ "instances" :+ instance.name, Map.empty, diagnostics)
+    }
+    block.body.collect { case assignment: ContinuousAssign => assignment }.zipWithIndex.foreach {
+      case (assignment, index) =>
+        checkRtlExpression(
+          assignment.value,
+          facts,
+          path :+ "assignments" :+ index.toString :+ "value",
+          Map.empty,
+          diagnostics
+        )
+    }
+  }
+
+  private def checkBooleanExpression(
+      expression: BoolExpr,
+      parameters: Map[String, BooleanParameter],
+      path: Vector[String],
+      diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]]
+  ): Unit = expression match {
+    case BoolLiteral(_) =>
+    case BoolParameterRef(name) =>
+      if (!parameters.contains(name)) {
+        // ParamRTL reference validation owns the diagnostic. Do not cascade target failures.
+      }
+    case BoolNot(value) =>
+      checkBooleanExpression(value, parameters, path :+ "operand", diagnostics)
+    case BoolAnd(left, right) =>
+      checkBooleanExpression(left, parameters, path :+ "left", diagnostics)
+      checkBooleanExpression(right, parameters, path :+ "right", diagnostics)
+    case BoolOr(left, right) =>
+      checkBooleanExpression(left, parameters, path :+ "left", diagnostics)
+      checkBooleanExpression(right, parameters, path :+ "right", diagnostics)
   }
 
   private def checkInstance(
@@ -398,4 +467,7 @@ object Verilog2001Capability {
         checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices)
     }
   }
+
+  private def generateIfSortKey(generate: GenerateIf): (String, String) =
+    generate.whenTrue.label -> generate.whenFalse.label
 }

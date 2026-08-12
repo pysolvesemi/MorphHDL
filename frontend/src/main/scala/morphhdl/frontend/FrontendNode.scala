@@ -10,6 +10,7 @@ package morphhdl.frontend
 private[morphhdl] final class FrontendNode[A] private[frontend] (
     private[frontend] val raw: A,
     private[frontend] val parameters: Set[ParameterToken],
+    private[frontend] val booleanParameters: Set[BooleanParameterToken],
     private[frontend] val localParameters: Set[LocalParameterToken],
     private[frontend] val scopes: Set[ScopeToken],
     private[frontend] val localDeclaration: Option[LocalParameterToken],
@@ -23,10 +24,19 @@ private[frontend] object FrontendNode {
   def apply[A](
       raw: A,
       parameters: Set[ParameterToken] = Set.empty,
+      booleanParameters: Set[BooleanParameterToken] = Set.empty,
       localParameters: Set[LocalParameterToken] = Set.empty,
       scopes: Set[ScopeToken] = Set.empty,
       localDeclaration: Option[LocalParameterToken] = None,
       origin: SourceOrigin
   ): FrontendNode[A] =
-    new FrontendNode(raw, parameters, localParameters, scopes, localDeclaration, origin)
+    new FrontendNode(
+      raw,
+      parameters,
+      booleanParameters,
+      localParameters,
+      scopes,
+      localDeclaration,
+      origin
+    )
 }

@@ -16,6 +16,31 @@ private[morphhdl] object ParamRtlFrontend {
   ): FrontendNode[Vector[ModuleItem]] =
     FrontendSession.captureItems(body, SourceOrigin.capture)
 
+  def generateIf(condition: HdlBool)(whenTrue: => Unit)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): GenerateIfBuilder =
+    FrontendSession.startGenerateIf(condition, None, whenTrue, SourceOrigin.capture)
+
+  def generateIf(
+      condition: HdlBool,
+      whenTrueLabel: String,
+      whenFalseLabel: String
+  )(whenTrue: => Unit)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): GenerateIfBuilder = {
+    val origin = SourceOrigin.capture
+    HdlRange.requireIdentifier(whenTrueLabel, "generate-if true label", origin)
+    HdlRange.requireIdentifier(whenFalseLabel, "generate-if false label", origin)
+    FrontendSession.startGenerateIf(
+      condition,
+      Some(GenerateIfNames(whenTrueLabel, whenFalseLabel)),
+      whenTrue,
+      origin
+    )
+  }
+
   def integerParameter(value: HdlInt)(implicit
       file: sourcecode.File,
       line: sourcecode.Line
@@ -30,6 +55,23 @@ private[morphhdl] object ParamRtlFrontend {
     FrontendNode(
       token.declaration,
       parameters = Set(token),
+      origin = SourceOrigin.capture
+    )
+  }
+
+  def booleanParameter(value: HdlBool)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): FrontendNode[BooleanParameter] = {
+    val token = value.declaration.getOrElse {
+      FrontendException.fail(
+        "MORPH-FRONTEND-NOT-A-BOOLEAN-PARAMETER",
+        "only HdlBool.param values can declare public Boolean parameters"
+      )
+    }
+    FrontendNode(
+      token.declaration,
+      booleanParameters = Set(token),
       origin = SourceOrigin.capture
     )
   }
@@ -88,6 +130,7 @@ private[morphhdl] object ParamRtlFrontend {
     FrontendNode(
       Port(name, direction, dataType.raw),
       parameters = dataType.parameters,
+      booleanParameters = dataType.booleanParameters,
       localParameters = dataType.localParameters,
       scopes = dataType.scopes,
       origin = SourceOrigin.capture
@@ -136,6 +179,7 @@ private[morphhdl] object ParamRtlFrontend {
     FrontendNode(
       PortConnection(portName, actual.raw),
       parameters = actual.parameters,
+      booleanParameters = actual.booleanParameters,
       localParameters = actual.localParameters,
       scopes = actual.scopes,
       origin = SourceOrigin.capture
@@ -151,6 +195,7 @@ private[morphhdl] object ParamRtlFrontend {
       FrontendNode(
         ModuleItem.ContinuousAssign(Ref(target), value.raw),
         parameters = value.parameters,
+        booleanParameters = value.booleanParameters,
         localParameters = value.localParameters,
         origin = SourceOrigin.capture
       )
@@ -175,6 +220,8 @@ private[morphhdl] object ParamRtlFrontend {
         ),
         parameters = parameterBindings.flatMap(_.parameters).toSet ++
           portConnections.flatMap(_.parameters),
+        booleanParameters = parameterBindings.flatMap(_.booleanParameters).toSet ++
+          portConnections.flatMap(_.booleanParameters),
         localParameters = parameterBindings.flatMap(_.localParameters).toSet ++
           portConnections.flatMap(_.localParameters),
         origin = SourceOrigin.capture
@@ -187,10 +234,12 @@ private[morphhdl] object ParamRtlFrontend {
       parameters: Vector[FrontendNode[IntegerParameter]],
       ports: Vector[FrontendNode[Port]],
       items: FrontendNode[Vector[ModuleItem]],
-      localParameters: Vector[FrontendNode[IntegerLocalParameter]] = Vector.empty
+      localParameters: Vector[FrontendNode[IntegerLocalParameter]] = Vector.empty,
+      booleanParameters: Vector[FrontendNode[BooleanParameter]] = Vector.empty
   )(implicit file: sourcecode.File, line: sourcecode.Line): ModuleDef = {
     val origin = SourceOrigin.capture
     parameters.foreach(_.requireUsable(s"module '$name' parameter declaration"))
+    booleanParameters.foreach(_.requireUsable(s"module '$name' Boolean-parameter declaration"))
     localParameters.foreach(_.requireUsable(s"module '$name' local-parameter declaration"))
     ports.foreach(_.requireUsable(s"module '$name' port"))
     items.requireUsable(s"module '$name' items")
@@ -219,6 +268,43 @@ private[morphhdl] object ParamRtlFrontend {
           origin
         )
       }
+
+    val boolDeclarations = booleanParameters.map { node =>
+      node.booleanParameters.toVector match {
+        case Vector(token) if token.declaration == node.raw => token
+        case _ =>
+          FrontendException.failAt(
+            "MORPH-FRONTEND-NOT-A-BOOLEAN-PARAMETER",
+            s"module '$name' received a declaration not produced by booleanParameter",
+            node.origin
+          )
+      }
+    }
+    boolDeclarations
+      .groupBy(_.declaration.name)
+      .collect { case (parameterName, values) if values.size > 1 => parameterName }
+      .toVector
+      .sorted
+      .headOption
+      .foreach { duplicate =>
+        FrontendException.failAt(
+          "MORPH-FRONTEND-BOOLEAN-PARAMETER-NAME-DUPLICATE",
+          s"module '$name' declares Boolean parameter '$duplicate' more than once",
+          origin
+        )
+      }
+
+    val integerParameterNames = declarations.map(_.declaration.name).toSet
+    val booleanParameterNames = boolDeclarations.map(_.declaration.name).toSet
+    integerParameterNames.intersect(booleanParameterNames).toVector.sorted.headOption.foreach {
+      collision =>
+        val token = boolDeclarations.find(_.declaration.name == collision).get
+        FrontendException.failAt(
+          "MORPH-FRONTEND-PARAMETER-KIND-COLLISION",
+          s"module '$name' declares '$collision' as both integer and Boolean",
+          token.origin
+        )
+    }
 
     val localDeclarations = localParameters.map { node =>
       node.localDeclaration match {
@@ -262,7 +348,7 @@ private[morphhdl] object ParamRtlFrontend {
         )
       }
 
-    val publicNames = declarations.map(_.declaration.name).toSet
+    val publicNames = integerParameterNames ++ booleanParameterNames
     localDeclarations
       .filter(token => publicNames(token.declaration.name))
       .sortBy(token => (token.declaration.name, token.origin.file, token.origin.line))
@@ -277,6 +363,7 @@ private[morphhdl] object ParamRtlFrontend {
     LocalParameterToken.requireUnclaimed(localDeclarations)
 
     val declaredByName = declarations.map(token => token.declaration.name -> token).toMap
+    val boolDeclaredByName = boolDeclarations.map(token => token.declaration.name -> token).toMap
     val used = ports.flatMap(_.parameters).toSet ++ items.parameters ++
       localParameters.flatMap(_.parameters)
     used.toVector
@@ -292,11 +379,50 @@ private[morphhdl] object ParamRtlFrontend {
               token.origin
             )
           case None =>
+            if (boolDeclaredByName.contains(token.declaration.name)) {
+              FrontendException.failAt(
+                "MORPH-FRONTEND-PARAMETER-KIND-MISMATCH",
+                s"module '$name' uses '${token.declaration.name}' as integer but declares it as Boolean",
+                token.origin
+              )
+            } else {
+              FrontendException.failAt(
+                "MORPH-FRONTEND-PARAMETER-NOT-DECLARED",
+                s"module '$name' uses public parameter '${token.declaration.name}' without declaring it",
+                token.origin
+              )
+            }
+        }
+      }
+
+    val usedBooleans = ports.flatMap(_.booleanParameters).toSet ++
+      items.booleanParameters ++ localParameters.flatMap(_.booleanParameters)
+    usedBooleans.toVector
+      .sortBy(token => (token.declaration.name, token.origin.file, token.origin.line))
+      .foreach { token =>
+        boolDeclaredByName.get(token.declaration.name) match {
+          case Some(declared) if declared eq token =>
+          case Some(declared) =>
             FrontendException.failAt(
-              "MORPH-FRONTEND-PARAMETER-NOT-DECLARED",
-              s"module '$name' uses public parameter '${token.declaration.name}' without declaring it",
+              "MORPH-FRONTEND-BOOLEAN-PARAMETER-TOKEN-MISMATCH",
+              s"module '$name' declares Boolean '${declared.declaration.name}' from " +
+                s"${declared.origin.rendered} but uses a distinct declaration from ${token.origin.rendered}",
               token.origin
             )
+          case None =>
+            if (declaredByName.contains(token.declaration.name)) {
+              FrontendException.failAt(
+                "MORPH-FRONTEND-PARAMETER-KIND-MISMATCH",
+                s"module '$name' uses '${token.declaration.name}' as Boolean but declares it as integer",
+                token.origin
+              )
+            } else {
+              FrontendException.failAt(
+                "MORPH-FRONTEND-BOOLEAN-PARAMETER-NOT-DECLARED",
+                s"module '$name' uses Boolean parameter '${token.declaration.name}' without declaring it",
+                token.origin
+              )
+            }
         }
       }
 
@@ -336,7 +462,8 @@ private[morphhdl] object ParamRtlFrontend {
       parameters = parameters.map(_.raw),
       ports = ports.map(_.raw),
       items = items.raw,
-      localParameters = orderedLocalDeclarations.map(_.declaration)
+      localParameters = orderedLocalDeclarations.map(_.declaration),
+      booleanParameters = booleanParameters.map(_.raw)
     )
   }
 

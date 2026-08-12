@@ -96,16 +96,25 @@ scope or permit general loop starts, strides or nesting.
 Structural conditions are explicit:
 
 ```scala
-generateIf(config.enableFeature) {
+generateIf(config.enableFeature, "g_enabled", "g_disabled") {
   // parameterized structure
 } otherwise {
   // alternate structure
 }
 ```
 
-This is the planned v1 spelling, not an implemented Increment 8 API. Until the
-bounded `HdlBool`/`GenerateIf` tranche lands, parameter-dependent conditions
-fail closed rather than selecting the default witness branch.
+Increment 9 implements one top-level conditional per module-item capture. Both
+branches are mandatory, are captured exactly once in parameterized mode and
+are validated regardless of the default value. Concrete mode executes only the
+default-selected branch. Explicit labels provide stable contract names; an
+unlabeled overload derives deterministic names from source location.
+
+The `otherwise` builder must be completed exactly once in the lexical session
+that created it. Missing, duplicate, escaped, cross-thread or foreign-collector
+completion fails with a source-located diagnostic. Branch capture is
+transactional: a branch exception emits no partial `GenerateIf` and releases
+its names. Conditional/loop nesting and a second `GenerateIf` in the same
+capture are rejected in this tranche.
 
 An ordinary Scala `if`, `match`, collection size, recursion or class selection
 continues to execute during elaboration and therefore may depend only on static
@@ -166,6 +175,21 @@ order. Local handles are owned by one module-definition boundary and must be
 created afresh inside each re-entrant symbolic factory evaluation; reusing a
 captured handle, even for a second same-named module definition, fails closed.
 
+Increment 9 adds distinct public Boolean declarations and `HdlBool` literals,
+references, `!`, `&&` and `||`. The frontend preserves the exact Boolean AST,
+default witness and opaque declaration identities. The final defaulted
+`moduleDef` Boolean-parameter vector must discharge those exact identities;
+integer/Boolean name collisions, kind mismatches, undeclared tokens and
+same-named distinct tokens fail at their retained source origin. ParamRTL keeps
+the Boolean type; only the Verilog backend maps it to integer `1`/`0`.
+
+Boolean operators do not short-circuit symbolic validation: every referenced
+declaration remains part of the expression provenance even if a literal fixes
+the default result. `GenerateIf` validates both structural paths and proves
+each path's output-driver coverage separately. Boolean local parameters, child
+bindings, integer comparisons and conditional runtime values remain outside
+this bounded surface.
+
 A zero concrete divisor fails immediately instead of leaking a Scala arithmetic
 exception. A nonzero default does not prove the divisor safe: ParamRTL must
 prove zero absent from its complete legal interval. Generate-index-dependent
@@ -195,13 +219,13 @@ Capture state is restored on every exit and is isolated per thread. An
 so a loop dispatched to another thread fails closed instead of falling back to
 its concrete witness.
 
-Scala `==`, `!=`, hashing and numeric conversion on a statically typed `HdlInt`
-or `GenIndex` fail closed. The values themselves reject forward comparisons at
-runtime; the inherited IDSL compiler plugin rejects reverse `==`, `!=`,
-`equals`, `eq` and `ne` calls before elaboration. In particular, both
-`lane == 0` and `BigInt(0) == lane` are rejected instead of silently
-specializing Scala control flow. Upcasting either value to `Any` is outside the
-supported frontend surface.
+Scala `==`, `!=`, hashing and reverse conversion on a statically typed
+`HdlInt`, `HdlBool` or `GenIndex` fail closed. The values themselves reject
+forward comparisons at runtime; the inherited IDSL compiler plugin rejects
+reverse `==`, `!=`, `equals`, `eq` and `ne` calls before elaboration. In
+particular, both `lane == 0` and `BigInt(0) == lane`, or `true == enable`, are
+rejected instead of silently specializing Scala control flow. Upcasting a
+symbolic value to `Any` is outside the supported frontend surface.
 
 Each error must report the parameter/expression, source location, unsupported
 consumer and a suggested static or parameter-aware replacement.

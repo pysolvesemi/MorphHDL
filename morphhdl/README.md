@@ -37,3 +37,9 @@ negation, while the guarded package-local lowering facade owns identity-bearing
 local parameters. All four reviewed contract artifacts are now produced by
 their concrete and symbolic `MorphProgram` factories; no direct ParamRTL
 fixture output is substituted into the release-strength artifact.
+
+Increment 9 adds typed public Boolean parameters, dual-valued `HdlBool`
+expressions and one mandatory two-branch `GenerateIf` per module capture. Both
+branches are validated, while concrete default-shape agreement follows only
+the selected branch. The fifth `conditional_forwarding.v` artifact is produced
+through the same public orchestration and strict Verilog-2001 gates.

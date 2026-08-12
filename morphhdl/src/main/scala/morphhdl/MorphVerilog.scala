@@ -10,8 +10,15 @@ import spinal.core.{Component, SpinalConfig, SpinalReport, SpinalVerilog, System
 
 import morphhdl.backend.verilog2001.{Verilog2001Capability => V2001Capability, Verilog2001Emitter}
 import morphhdl.frontend.ParamRtlFrontend
-import morphhdl.paramrtl.ModuleItem.{GenerateFor, ModuleInstance}
-import morphhdl.paramrtl.{Design, DiagnosticSet, IntExpressionAnalysis, ParamRtlValidator, ValidatedDesign}
+import morphhdl.paramrtl.ModuleItem.{GenerateFor, GenerateIf, ModuleInstance}
+import morphhdl.paramrtl.{
+  BoolExpressionAnalysis,
+  Design,
+  DiagnosticSet,
+  IntExpressionAnalysis,
+  ParamRtlValidator,
+  ValidatedDesign
+}
 import morphhdl.MorphVerilogStage._
 
 object MorphVerilog {
@@ -574,6 +581,8 @@ object MorphVerilog {
       parameters: Map[String, morphhdl.paramrtl.IntExprFacts],
       localParameters: Map[String, morphhdl.paramrtl.IntExprFacts]
   ): Either[String, Vector[(ModuleInstance, BigInt)]] = {
+    val booleanParameters = module.booleanParameters.map(parameter => parameter.name -> parameter).toMap
+
     def collect(
         items: Vector[morphhdl.paramrtl.ModuleItem],
         multiplier: BigInt,
@@ -594,6 +603,16 @@ object MorphVerilog {
               )
             case Right(countFacts) =>
               collect(generate.body, multiplier * countFacts.defaultValue, current)
+          }
+        case (Right(current), generate: GenerateIf) =>
+          BoolExpressionAnalysis.evaluateDefault(generate.condition, booleanParameters) match {
+            case Left(failure) =>
+              Left(
+                s"cannot evaluate default generate condition " +
+                  s"'${module.name}.${generate.whenTrue.label}/${generate.whenFalse.label}': $failure"
+              )
+            case Right(true)  => collect(generate.whenTrue.body, multiplier, current)
+            case Right(false) => collect(generate.whenFalse.body, multiplier, current)
           }
         case (Right(current), _) => Right(current)
       }

@@ -28,13 +28,20 @@ The contract is split into these documents:
 - [Increment 8 integer frontend closure](../increment-8-integer-frontend.md):
   complete current `HdlInt` arithmetic, identity-bearing local parameters and
   all four reviewed fixtures through `MorphVerilog`.
+- [Increment 9 Boolean generate-if](../increment-9-boolean-generate-if.md):
+  typed `HdlBool` expressions, one exact two-branch conditional region and a
+  fifth reviewed fixture through `MorphVerilog`.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
-Machine-readable target capabilities are recorded in
-`morphhdl/contracts/verilog-2001.properties`; the current parameter-expression
-operator tranche and its separate frontend, validation and emission evidence
-are recorded in `morphhdl/contracts/parameter-operators.tsv`.
+Machine-readable target-profile capabilities are recorded in
+`morphhdl/contracts/verilog-2001.properties`. A `structure.*` capability means
+the bounded v1 target can represent it; separate `implementation.*` keys state
+what is executable now. Current parameter-expression implementation status and
+its separate frontend, validation and emission evidence are recorded in
+`morphhdl/contracts/parameter-operators.tsv`. Increment 9 therefore records
+generate-if as executable while generate-case remains deferred even though the
+target profile reserves a legal mapping for it.
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants

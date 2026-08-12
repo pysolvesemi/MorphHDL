@@ -1,6 +1,13 @@
 package morphhdl.paramrtl
 
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
+import morphhdl.paramrtl.BoolExpr.{
+  And => BoolAnd,
+  Literal => BoolLiteral,
+  Not => BoolNot,
+  Or => BoolOr,
+  ParameterRef => BoolParameterRef
+}
 import morphhdl.paramrtl.IntExpr.{
   Add,
   Divide,
@@ -19,7 +26,7 @@ import morphhdl.paramrtl.IntExpressionFailure.{
   UnresolvedLocalParameter,
   UnresolvedParameter
 }
-import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateFor, ModuleInstance}
+import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateFor, GenerateIf, ModuleInstance}
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 import morphhdl.paramrtl.Signedness.Unsigned
@@ -136,16 +143,26 @@ object ParamRtlValidator {
     checkIdentifier(module.name, modulePath :+ "name", "module", diagnostics)
 
     val parameters = module.parameters.sortBy(_.name)
+    val booleanParameters = module.booleanParameters.sortBy(_.name)
     val localParameters = module.localParameters.sortBy(_.name)
     val ports = module.ports.sortBy(_.name)
     val instances = module.items.collect { case instance: ModuleInstance => instance }.sortBy(_.name)
     val generateFors = module.items.collect { case generate: GenerateFor => generate }.sortBy(_.label)
+    val generateIfs = module.items.collect { case generate: GenerateIf => generate }.sortBy(generateIfSortKey)
+    val generateIfBlocks = generateIfs.flatMap(generateBlocks)
 
     addDuplicateDiagnostics(
       parameters.map(_.name),
       modulePath :+ "parameters",
       "PRTL-DUPLICATE-PARAMETER",
       "parameter",
+      diagnostics
+    )
+    addDuplicateDiagnostics(
+      booleanParameters.map(_.name),
+      modulePath :+ "booleanParameters",
+      "PRTL-DUPLICATE-BOOLEAN-PARAMETER",
+      "Boolean parameter",
       diagnostics
     )
     addDuplicateDiagnostics(
@@ -170,7 +187,7 @@ object ParamRtlValidator {
       diagnostics
     )
     addDuplicateDiagnostics(
-      generateFors.map(_.label),
+      generateFors.map(_.label) ++ generateIfBlocks.map(_.label),
       modulePath :+ "generateFors",
       "PRTL-DUPLICATE-GENERATE-LABEL",
       "generate label",
@@ -186,10 +203,11 @@ object ParamRtlValidator {
 
     val declarationKinds = Vector(
       "parameter" -> parameters.map(_.name).toSet,
+      "Boolean parameter" -> booleanParameters.map(_.name).toSet,
       "local parameter" -> localParameters.map(_.name).toSet,
       "port" -> ports.map(_.name).toSet,
       "instance" -> instances.map(_.name).toSet,
-      "generate label" -> generateFors.map(_.label).toSet,
+      "generate label" -> (generateFors.map(_.label) ++ generateIfBlocks.map(_.label)).toSet,
       "generate index" -> generateFors.map(_.indexName).toSet
     )
     declarationKinds.combinations(2).foreach {
@@ -210,14 +228,21 @@ object ParamRtlValidator {
       validateParameter(parameter, path, diagnostics)
     }
 
+    booleanParameters.foreach { parameter =>
+      val path = modulePath :+ "booleanParameters" :+ parameter.name
+      checkIdentifier(parameter.name, path :+ "name", "Boolean parameter", diagnostics)
+    }
+
     localParameters.foreach { localParameter =>
       val path = modulePath :+ "localParameters" :+ localParameter.name
       checkIdentifier(localParameter.name, path :+ "name", "local parameter", diagnostics)
     }
 
     val parameterByName = firstByName(parameters)(_.name)
+    val booleanParameterByName = firstByName(booleanParameters)(_.name)
     val localParameterByName = firstByName(localParameters)(_.name)
     val parameterNames = parameterByName.keySet
+    val booleanParameterNames = booleanParameterByName.keySet
     val localParameterNames = localParameterByName.keySet
 
     localParameters.foreach { localParameter =>
@@ -240,6 +265,20 @@ object ParamRtlValidator {
         path :+ "width",
         diagnostics
       )
+      IntExpressionAnalysis
+        .parameterReferences(port.dataType.width)
+        .toSet
+        .intersect(booleanParameterNames)
+        .toVector
+        .sorted
+        .headOption
+        .foreach { name =>
+          diagnostics += Diagnostic(
+            "PRTL-PUBLIC-PORT-CONDITIONALITY-UNSUPPORTED",
+            path :+ "width",
+            s"Public port '${port.name}' width cannot depend on Boolean parameter '$name'"
+          )
+        }
     }
 
     instances.foreach { instance =>
@@ -282,6 +321,12 @@ object ParamRtlValidator {
             path :+ "body" :+ index.toString,
             "Nested generate-for loops are not supported by this IR tranche"
           )
+        case (_: GenerateIf, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-NESTED-GENERATE-UNSUPPORTED",
+            path :+ "body" :+ index.toString,
+            "Generate-for bodies cannot contain generate-if constructs"
+          )
         case (_, index) =>
           diagnostics += Diagnostic(
             "PRTL-GENERATE-BODY-ITEM-UNSUPPORTED",
@@ -289,6 +334,62 @@ object ParamRtlValidator {
             "Generate-for bodies currently support module instances only"
           )
       }
+    }
+
+    if (generateIfs.size > 1) {
+      generateIfs.drop(1).foreach { generate =>
+        diagnostics += Diagnostic(
+          "PRTL-MULTIPLE-GENERATE-IF-UNSUPPORTED",
+          modulePath :+ "generateIfs" :+ generate.whenTrue.label,
+          "At most one top-level generate-if is supported per module"
+        )
+      }
+    }
+
+    generateIfs.foreach { generate =>
+      val path = modulePath :+ "generateIfs" :+ generate.whenTrue.label
+      validateBooleanExpression(
+        generate.condition,
+        booleanParameterByName,
+        path :+ "condition",
+        diagnostics
+      )
+
+      generateBlocks(generate).zipWithIndex.foreach { case (block, branchIndex) =>
+        val branchName = if (branchIndex == 0) "whenTrue" else "whenFalse"
+        val branchPath = path :+ branchName
+        checkIdentifier(block.label, branchPath :+ "label", "generate branch label", diagnostics)
+        val bodyInstances = block.body.collect { case instance: ModuleInstance => instance }.sortBy(_.name)
+        addDuplicateDiagnostics(
+          bodyInstances.map(_.name),
+          branchPath :+ "instances",
+          "PRTL-DUPLICATE-INSTANCE",
+          "instance",
+          diagnostics
+        )
+        bodyInstances.foreach { instance =>
+          val instancePath = branchPath :+ "instances" :+ instance.name
+          checkIdentifier(instance.name, instancePath :+ "name", "instance", diagnostics)
+          checkIdentifier(instance.moduleName, instancePath :+ "moduleName", "referenced module", diagnostics)
+        }
+        block.body.zipWithIndex.foreach {
+          case (_: ModuleInstance, _)   =>
+          case (_: ContinuousAssign, _) =>
+          case (_: GenerateFor, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-NESTED-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-if branches cannot contain another generate construct"
+            )
+          case (_: GenerateIf, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-NESTED-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-if branches cannot contain another generate construct"
+            )
+        }
+      }
+
     }
 
     val dependencies = localParameterByName.map { case (name, localParameter) =>
@@ -354,7 +455,6 @@ object ParamRtlValidator {
           )
       }
     }
-
     ValidatedModuleFacts(
       orderedLocalParameters,
       parameterFacts,
@@ -397,6 +497,31 @@ object ParamRtlValidator {
         )
       case _ =>
     }
+  }
+
+  private def validateBooleanExpression(
+      expression: BoolExpr,
+      parameters: Map[String, BooleanParameter],
+      path: Vector[String],
+      diagnostics: DiagnosticBuilder
+  ): Unit = expression match {
+    case BoolLiteral(_) =>
+    case BoolParameterRef(name) =>
+      if (!parameters.contains(name)) {
+        diagnostics += Diagnostic(
+          "PRTL-UNRESOLVED-BOOLEAN-PARAMETER",
+          path,
+          s"Boolean expression references unknown public parameter '$name'"
+        )
+      }
+    case BoolNot(value) =>
+      validateBooleanExpression(value, parameters, path :+ "operand", diagnostics)
+    case BoolAnd(left, right) =>
+      validateBooleanExpression(left, parameters, path :+ "left", diagnostics)
+      validateBooleanExpression(right, parameters, path :+ "right", diagnostics)
+    case BoolOr(left, right) =>
+      validateBooleanExpression(left, parameters, path :+ "left", diagnostics)
+      validateBooleanExpression(right, parameters, path :+ "right", diagnostics)
   }
 
   private def validateExpressionReferences(
@@ -527,7 +652,10 @@ object ParamRtlValidator {
     val portByName = firstByName(ports)(_.name)
     val instances = module.items.collect { case instance: ModuleInstance => instance }.sortBy(_.name)
     val generateFors = module.items.collect { case generate: GenerateFor => generate }.sortBy(_.label)
+    val generateIfs = module.items.collect { case generate: GenerateIf => generate }.sortBy(generateIfSortKey)
     val driverCounts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
+    val conditionalDriverMinimums = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
+    val conditionalDriverMaximums = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
     val instanceFactsBuilder = Map.newBuilder[String, ValidatedInstanceFacts]
     val parentParameters = baseFacts.parameterFacts
     val parentLocals = baseFacts.localParameterFacts
@@ -625,7 +753,8 @@ object ParamRtlValidator {
         instance: ModuleInstance,
         path: Vector[String],
         factsKey: String,
-        generateContext: Option[GenerateContext]
+        generateContext: Option[GenerateContext],
+        branchDriverCounts: scala.collection.mutable.Map[String, Int]
     ): Unit = {
       val bindingPath = path :+ "parameterBindings"
       val connectionPath = path :+ "portConnections"
@@ -744,9 +873,9 @@ object ParamRtlValidator {
                   if (targetPort.direction == Output) {
                     generateContext match {
                       case None if !actual.indexed =>
-                        driverCounts.update(actual.port.name, driverCounts(actual.port.name) + 1)
+                        branchDriverCounts.update(actual.port.name, branchDriverCounts(actual.port.name) + 1)
                       case Some(_) if actual.indexed && actual.canonicalSlice =>
-                        driverCounts.update(actual.port.name, driverCounts(actual.port.name) + 1)
+                        branchDriverCounts.update(actual.port.name, branchDriverCounts(actual.port.name) + 1)
                       case Some(_) if !actual.indexed =>
                         diagnostics += Diagnostic(
                           "PRTL-GENERATE-OUTPUT-NOT-CANONICAL",
@@ -802,34 +931,42 @@ object ParamRtlValidator {
       }
     }
 
+    def validateAssignment(
+        assignment: ContinuousAssign,
+        path: Vector[String],
+        branchDriverCounts: scala.collection.mutable.Map[String, Int]
+    ): Unit = {
+      val ContinuousAssign(target, value) = assignment
+      val targetPort = resolvePort(target, portByName, path :+ "target", diagnostics)
+      val valueFacts = resolveActual(value, path :+ "value", None)
+      targetPort.foreach { port =>
+        branchDriverCounts.update(port.name, branchDriverCounts(port.name) + 1)
+        if (port.direction == Input)
+          diagnostics += Diagnostic(
+            "PRTL-ILLEGAL-INPUT-DRIVER",
+            path :+ "target",
+            s"Continuous assignment cannot drive input port '${port.name}'"
+          )
+      }
+      for {
+        targetType <- targetPort.map(_.dataType)
+        valueType <- valueFacts.map(_.dataType)
+        if !packedTypesEquivalent(targetType, valueType, module, baseFacts)
+      } diagnostics += Diagnostic(
+        "PRTL-TYPE-MISMATCH",
+        path,
+        s"Continuous assignment target type '$targetType' does not match value type '$valueType'"
+      )
+    }
+
     module.items.zipWithIndex.foreach {
-      case (ContinuousAssign(target, value), index) =>
-        val path = modulePath :+ "items" :+ index.toString
-        val targetPort = resolvePort(target, portByName, path :+ "target", diagnostics)
-        val valueFacts = resolveActual(value, path :+ "value", None)
-        targetPort.foreach { port =>
-          driverCounts.update(port.name, driverCounts(port.name) + 1)
-          if (port.direction == Input)
-            diagnostics += Diagnostic(
-              "PRTL-ILLEGAL-INPUT-DRIVER",
-              path :+ "target",
-              s"Continuous assignment cannot drive input port '${port.name}'"
-            )
-        }
-        for {
-          targetType <- targetPort.map(_.dataType)
-          valueType <- valueFacts.map(_.dataType)
-          if !packedTypesEquivalent(targetType, valueType, module, baseFacts)
-        } diagnostics += Diagnostic(
-          "PRTL-TYPE-MISMATCH",
-          path,
-          s"Continuous assignment target type '$targetType' does not match value type '$valueType'"
-        )
+      case (assignment: ContinuousAssign, index) =>
+        validateAssignment(assignment, modulePath :+ "items" :+ index.toString, driverCounts)
       case _ =>
     }
 
     instances.foreach { instance =>
-      validateInstance(instance, modulePath :+ "instances" :+ instance.name, instance.name, None)
+      validateInstance(instance, modulePath :+ "instances" :+ instance.name, instance.name, None, driverCounts)
     }
 
     generateFors.foreach { generate =>
@@ -852,26 +989,72 @@ object ParamRtlValidator {
           instance,
           path :+ "instances" :+ instance.name,
           s"${generate.label}.${instance.name}",
-          Some(context)
+          Some(context),
+          driverCounts
+        )
+      }
+    }
+
+    generateIfs.foreach { generate =>
+      val path = modulePath :+ "generateIfs" :+ generate.whenTrue.label
+      val trueCounts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
+      val falseCounts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
+
+      def validateBlock(block: GenerateBlock, counts: scala.collection.mutable.Map[String, Int]): Unit = {
+        val blockPath = path :+ block.label
+        block.body.zipWithIndex.foreach {
+          case (instance: ModuleInstance, _) =>
+            validateInstance(
+              instance,
+              blockPath :+ "instances" :+ instance.name,
+              s"${block.label}.${instance.name}",
+              None,
+              counts
+            )
+          case (assignment: ContinuousAssign, index) =>
+            validateAssignment(assignment, blockPath :+ "items" :+ index.toString, counts)
+          case _ => // Nested generate diagnostics are emitted by validateModule.
+        }
+      }
+
+      validateBlock(generate.whenTrue, trueCounts)
+      validateBlock(generate.whenFalse, falseCounts)
+
+      ports.filter(_.direction == Output).foreach { port =>
+        val branchCounts = Vector(trueCounts(port.name), falseCounts(port.name))
+        conditionalDriverMinimums.update(
+          port.name,
+          conditionalDriverMinimums(port.name) + branchCounts.min
+        )
+        conditionalDriverMaximums.update(
+          port.name,
+          conditionalDriverMaximums(port.name) + branchCounts.max
         )
       }
     }
 
     ports.filter(_.direction == Output).foreach { port =>
-      driverCounts(port.name) match {
-        case 0 =>
-          diagnostics += Diagnostic(
-            "PRTL-UNDRIVEN-OUTPUT",
-            modulePath :+ "ports" :+ port.name,
-            s"Output port '${port.name}' has no driver"
-          )
-        case count if count > 1 =>
-          diagnostics += Diagnostic(
-            "PRTL-MULTIPLE-DRIVERS",
-            modulePath :+ "ports" :+ port.name,
-            s"Output port '${port.name}' has $count drivers"
-          )
-        case _ =>
+      val minimumDrivers = driverCounts(port.name) + conditionalDriverMinimums(port.name)
+      val maximumDrivers = driverCounts(port.name) + conditionalDriverMaximums(port.name)
+      if (minimumDrivers == 0) {
+        val message =
+          if (generateIfs.isEmpty) s"Output port '${port.name}' has no driver"
+          else s"Output port '${port.name}' is undriven for at least one legal generate configuration"
+        diagnostics += Diagnostic(
+          "PRTL-UNDRIVEN-OUTPUT",
+          modulePath :+ "ports" :+ port.name,
+          message
+        )
+      }
+      if (maximumDrivers > 1) {
+        val message =
+          if (generateIfs.isEmpty) s"Output port '${port.name}' has $maximumDrivers drivers"
+          else s"Output port '${port.name}' has up to $maximumDrivers drivers in a legal generate configuration"
+        diagnostics += Diagnostic(
+          "PRTL-MULTIPLE-DRIVERS",
+          modulePath :+ "ports" :+ port.name,
+          message
+        )
       }
     }
 
@@ -1021,7 +1204,7 @@ object ParamRtlValidator {
       None
   }
 
-  /** Inc5 rejects nested generate blocks, so dependency discovery intentionally visits one body level. */
+  /** Nested generate constructs are rejected, so dependency discovery visits one body level. */
   private def collectInstances(items: Vector[ModuleItem]): Vector[ModuleInstance] = {
     val result = Vector.newBuilder[ModuleInstance]
     items.foreach {
@@ -1031,10 +1214,23 @@ object ParamRtlValidator {
           case instance: ModuleInstance => result += instance
           case _                        =>
         }
+      case generate: GenerateIf =>
+        generateBlocks(generate).foreach { block =>
+          block.body.foreach {
+            case instance: ModuleInstance => result += instance
+            case _                        =>
+          }
+        }
       case _ =>
     }
     result.result()
   }
+
+  private def generateBlocks(generate: GenerateIf): Vector[GenerateBlock] =
+    Vector(generate.whenTrue, generate.whenFalse)
+
+  private def generateIfSortKey(generate: GenerateIf): (String, String) =
+    generate.whenTrue.label -> generate.whenFalse.label
 
   private def containsGenerateIndex(expression: IntExpr): Boolean = {
     val stack = scala.collection.mutable.ArrayBuffer(expression)

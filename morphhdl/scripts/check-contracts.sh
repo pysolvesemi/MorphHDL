@@ -62,12 +62,13 @@ generated_contracts=(
   derived_width.v
   parameter_forwarding.v
   lane_array.v
+  conditional_forwarding.v
 )
 
 if (( using_reviewed_goldens == 0 )); then
-  expected_artifact_files="$(printf '%s\n' "${generated_contracts[@]}" | sort)"
+  expected_artifact_files="$(printf '%s f\n' "${generated_contracts[@]}" | sort)"
   actual_artifact_files="$(
-    find "$generated_dir" -mindepth 1 -maxdepth 1 -type f -printf '%f\n' | sort
+    find "$generated_dir" -mindepth 1 -maxdepth 1 -printf '%f %y\n' | sort
   )"
   if [[ "$actual_artifact_files" != "$expected_artifact_files" ]]; then
     echo "Generated RTL directory has an unexpected file inventory" >&2
@@ -96,6 +97,7 @@ parameterized_wire_file="$generated_dir/parameterized_wire.v"
 derived_width_file="$generated_dir/derived_width.v"
 parameter_forwarding_file="$generated_dir/parameter_forwarding.v"
 lane_array_file="$generated_dir/lane_array.v"
+conditional_forwarding_file="$generated_dir/conditional_forwarding.v"
 
 parity_args=("$parity_file")
 for live_phase_id_file in "${live_phase_id_files[@]}"; do
@@ -109,6 +111,7 @@ design_files=(
   "$derived_width_file"
   "$parameter_forwarding_file"
   "$lane_array_file"
+  "$conditional_forwarding_file"
 )
 
 all_verilog_files=(
@@ -117,6 +120,7 @@ all_verilog_files=(
   "$examples_dir/derived_width_tb.v"
   "$examples_dir/parameter_forwarding_tb.v"
   "$examples_dir/lane_array_tb.v"
+  "$examples_dir/conditional_forwarding_tb.v"
 )
 
 read_property() {
@@ -148,11 +152,15 @@ require_property profile.standard IEEE-1364-2001
 require_property profile.abi flat
 require_property backend.canonical_ir ParamRTL
 require_property backend.initial_emitter direct-verilog
+require_property parameter.boolean_encoding integer
 require_property port.conditional_presence false
 require_property structure.module_instance true
 require_property structure.named_parameter_binding true
 require_property structure.named_port_binding true
 require_property structure.generate_for true
+require_property structure.generate_if true
+require_property implementation.generate_if true
+require_property implementation.generate_case false
 
 for file in "${all_verilog_files[@]}"; do
   if [[ ! -s "$file" ]]; then
@@ -224,6 +232,9 @@ expected_modules=(
   PixelLane
   LaneArray
   LaneArrayTb
+  ConditionalLeaf
+  ConditionalForwarding
+  ConditionalForwardingTb
 )
 
 for module_name in "${expected_modules[@]}"; do
@@ -262,6 +273,18 @@ if ! grep -Eq 'genvar[[:space:]]+lane[[:space:]]*;' "${design_files[3]}" ||
   exit 1
 fi
 
+if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+ENABLE[[:space:]]*=[[:space:]]*1' "$conditional_forwarding_file" ||
+   ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:space:]]*8' "$conditional_forwarding_file" ||
+   ! grep -Eq 'if[[:space:]]*\([[:space:]]*ENABLE[[:space:]]*==[[:space:]]*1[[:space:]]*\)[[:space:]]*begin[[:space:]]*:[[:space:]]*g_enabled' "$conditional_forwarding_file" ||
+   ! grep -Eq 'end[[:space:]]+else[[:space:]]+begin[[:space:]]*:[[:space:]]*g_disabled' "$conditional_forwarding_file" ||
+   [[ "$(grep -Ec '\)[[:space:]]+selected_inst[[:space:]]*\(' "$conditional_forwarding_file")" != "2" ]] ||
+   [[ "$(grep -Ec '\.WIDTH[[:space:]]*\([[:space:]]*WIDTH[[:space:]]*\)' "$conditional_forwarding_file")" != "2" ]] ||
+   [[ "$(grep -Ec '\.din[[:space:]]*\([[:space:]]*din[[:space:]]*\)' "$conditional_forwarding_file")" != "2" ]] ||
+   [[ "$(grep -Ec '\.dout[[:space:]]*\([[:space:]]*dout[[:space:]]*\)' "$conditional_forwarding_file")" != "2" ]]; then
+  echo "ConditionalForwarding does not retain both named generate-if branches and bindings" >&2
+  exit 1
+fi
+
 missing_tools=()
 for tool in iverilog verilator vvp yosys; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -291,10 +314,12 @@ cp "$parameterized_wire_file" "$tmp_dir/parameterized_wire.v"
 cp "$derived_width_file" "$tmp_dir/derived_width.v"
 cp "$parameter_forwarding_file" "$tmp_dir/parameter_forwarding.v"
 cp "$lane_array_file" "$tmp_dir/lane_array.v"
+cp "$conditional_forwarding_file" "$tmp_dir/conditional_forwarding.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
 yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
 yosys_lane_array_file="$tmp_dir/lane_array.v"
+yosys_conditional_forwarding_file="$tmp_dir/conditional_forwarding.v"
 
 echo "Verilator: $(verilator --version)"
 echo "Icarus: $(iverilog -V 2>/dev/null | head -n 1)"
@@ -398,6 +423,29 @@ verilator --lint-only --language 1364-2001 -Wall \
   -GDATA_WIDTH=5 \
   "$lane_array_file"
 
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ConditionalForwarding \
+  "$conditional_forwarding_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ConditionalForwarding \
+  -GENABLE=0 \
+  "$conditional_forwarding_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ConditionalForwarding \
+  -GENABLE=1 -GWIDTH=5 \
+  "$conditional_forwarding_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ConditionalForwarding \
+  -GENABLE=0 -GWIDTH=13 \
+  "$conditional_forwarding_file"
+
 iverilog -g2001 -Wall -s ParameterizedWireTb \
   -o "$tmp_dir/parameterized_wire.vvp" \
   "$parameterized_wire_file" \
@@ -439,6 +487,17 @@ lane_output="$(vvp "$tmp_dir/lane_array.vvp")"
 echo "$lane_output"
 if ! printf '%s\n' "$lane_output" | grep -q 'PASS: LaneArray'; then
   echo "LaneArray simulation did not report PASS" >&2
+  exit 1
+fi
+
+iverilog -g2001 -Wall -s ConditionalForwardingTb \
+  -o "$tmp_dir/conditional_forwarding.vvp" \
+  "$conditional_forwarding_file" \
+  "$examples_dir/conditional_forwarding_tb.v"
+conditional_output="$(vvp "$tmp_dir/conditional_forwarding.vvp")"
+echo "$conditional_output"
+if ! printf '%s\n' "$conditional_output" | grep -q 'PASS: ConditionalForwarding'; then
+  echo "ConditionalForwarding simulation did not report PASS" >&2
   exit 1
 fi
 
@@ -515,6 +574,22 @@ yosys_hierarchy_synthesize_and_check \
 yosys_hierarchy_synthesize_and_check \
   "$yosys_parameter_forwarding_file" ParameterForwarding forwarded_inst data-width-only 20 \
   "chparam -set DATA_WIDTH 5 ParameterForwarding;"
+
+yosys_hierarchy_synthesize_and_check \
+  "$yosys_conditional_forwarding_file" ConditionalForwarding \
+  g_enabled.selected_inst default 8 ""
+yosys_hierarchy_synthesize_and_check \
+  "$yosys_conditional_forwarding_file" ConditionalForwarding \
+  g_disabled.selected_inst disabled 8 \
+  "chparam -set ENABLE 0 ConditionalForwarding;"
+yosys_hierarchy_synthesize_and_check \
+  "$yosys_conditional_forwarding_file" ConditionalForwarding \
+  g_enabled.selected_inst enabled-width-5 5 \
+  "chparam -set ENABLE 1 -set WIDTH 5 ConditionalForwarding;"
+yosys_hierarchy_synthesize_and_check \
+  "$yosys_conditional_forwarding_file" ConditionalForwarding \
+  g_disabled.selected_inst disabled-width-13 13 \
+  "chparam -set ENABLE 0 -set WIDTH 13 ConditionalForwarding;"
 
 yosys_generate_synthesize_and_check() {
   local input_file="$1"
