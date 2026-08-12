@@ -47,6 +47,10 @@ object PortDirection {
 
 final case class Port(name: String, direction: PortDirection, dataType: PackedBits)
 
+final case class ParameterBinding(parameterName: String, value: IntExpr)
+
+final case class PortConnection(portName: String, actual: RtlExpr)
+
 sealed trait RtlExpr extends Product with Serializable
 
 object RtlExpr {
@@ -57,6 +61,12 @@ sealed trait ModuleItem extends Product with Serializable
 
 object ModuleItem {
   final case class ContinuousAssign(target: RtlExpr.Ref, value: RtlExpr) extends ModuleItem
+  final case class ModuleInstance(
+      name: String,
+      moduleName: String,
+      parameterBindings: Vector[ParameterBinding] = Vector.empty,
+      portConnections: Vector[PortConnection] = Vector.empty
+  ) extends ModuleItem
 }
 
 final case class ModuleDef(

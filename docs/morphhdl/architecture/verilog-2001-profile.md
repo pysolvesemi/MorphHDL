@@ -9,6 +9,7 @@ be accepted without enabling a SystemVerilog parser.
 |---|---|
 | Integer public parameter | `parameter integer` with a literal default |
 | Derived constant | `localparam` |
+| Named module instance | `Child #(.PARAM(expr)) instance (.port(signal))` |
 | Packed unsigned signal | `wire` or `reg [WIDTH-1:0]` |
 | Combinational process | `always @*` |
 | Clocked process | Edge-sensitive `always` |

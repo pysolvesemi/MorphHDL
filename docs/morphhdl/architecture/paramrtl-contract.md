@@ -77,6 +77,11 @@ The v1 structural model contains:
 `GenerateFor` owns a `GenIndex` scoped to its body. It represents one reusable
 structural template, not a collection of concretely elaborated iterations.
 
+Increment 4 implements the non-generate hierarchy tranche: named instances,
+named child-parameter expressions, named child-port bindings, recursive-module
+cycle rejection and deterministic dependency-first module order. Generate
+regions and their lexical index scopes remain planned separately.
+
 ## Required invariants
 
 - Every reference resolves within its lexical parameter, generate or module

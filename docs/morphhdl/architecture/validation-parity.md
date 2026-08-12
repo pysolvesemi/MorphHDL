@@ -62,3 +62,9 @@ Increment 3 extends the partial `PhaseInferWidth` adaptation through bounded
 integer arithmetic and acyclic local-parameter dependencies. It does not claim
 the remaining v1 expression algebra or connection to the inherited phase plan;
 those gaps remain visible as partial or planned work in the inventory.
+
+Increment 4 advances `PhaseCheckHierarchy` to `partial`. ParamRTL now validates
+module dependencies and named parameter/port bindings across the entire
+symbolic design, with dedicated symbolic test evidence. The status remains
+partial until the Morph frontend also executes the shared inherited hierarchy
+phase on its concrete witness; the new ParamRTL checks do not replace that leg.
