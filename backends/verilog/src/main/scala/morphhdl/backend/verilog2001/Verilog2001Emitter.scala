@@ -3,6 +3,7 @@ package morphhdl.backend.verilog2001
 import morphhdl.paramrtl.IntExpr.{
   Add,
   Divide,
+  GenerateIndexRef,
   Literal,
   LocalParameterRef,
   Modulo,
@@ -11,9 +12,9 @@ import morphhdl.paramrtl.IntExpr.{
   ParameterRef,
   Subtract
 }
-import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, ModuleInstance}
+import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateFor, ModuleInstance}
 import morphhdl.paramrtl.PortDirection.{Input, Output}
-import morphhdl.paramrtl.RtlExpr.Ref
+import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 import morphhdl.paramrtl.Signedness.{Signed, Unsigned}
 import morphhdl.paramrtl._
 
@@ -39,6 +40,7 @@ object Verilog2001Emitter {
     val ports = module.ports.sortBy(_.name)
     val localParameters = facts.orderedLocalParameters
     val instances = facts.orderedInstances
+    val generateFors = module.items.collect { case generate: GenerateFor => generate }.sortBy(_.label)
     val assignments = module.items.collect { case assignment: ContinuousAssign => assignment }.sortBy { assignment =>
       (assignment.target.name, renderRtlExpr(assignment.value))
     }
@@ -72,9 +74,31 @@ object Verilog2001Emitter {
     if (instances.nonEmpty) {
       lines += ""
       instances.zipWithIndex.foreach { case (instance, index) =>
-        renderInstance(instance).foreach(lines += _)
+        renderInstance(instance, "  ").foreach(lines += _)
         if (index != instances.size - 1) lines += ""
       }
+    }
+
+    if (generateFors.nonEmpty) {
+      lines += ""
+      generateFors.foreach { generate =>
+        lines += s"  genvar ${generate.indexName};"
+      }
+      lines += "  generate"
+      generateFors.zipWithIndex.foreach { case (generate, generateIndex) =>
+        if (generateIndex != 0) lines += ""
+        lines +=
+          s"    for (${generate.indexName} = 0; ${generate.indexName} < ${renderIntExpr(
+              generate.count
+            )}; ${generate.indexName} = ${generate.indexName} + 1) begin : ${generate.label}"
+        val bodyInstances = generate.body.collect { case instance: ModuleInstance => instance }.sortBy(_.name)
+        bodyInstances.zipWithIndex.foreach { case (instance, instanceIndex) =>
+          renderInstance(instance, "      ").foreach(lines += _)
+          if (instanceIndex != bodyInstances.size - 1) lines += ""
+        }
+        lines += "    end"
+      }
+      lines += "  endgenerate"
     }
 
     if (assignments.nonEmpty) {
@@ -89,27 +113,28 @@ object Verilog2001Emitter {
     lines.result().mkString("\n")
   }
 
-  private def renderInstance(instance: ModuleInstance): Vector[String] = {
+  private def renderInstance(instance: ModuleInstance, indent: String): Vector[String] = {
     val parameterBindings = instance.parameterBindings.sortBy(_.parameterName)
     val portConnections = instance.portConnections.sortBy(_.portName)
     val lines = Vector.newBuilder[String]
+    val associationIndent = indent + "  "
 
     if (parameterBindings.nonEmpty) {
-      lines += "  " + instance.moduleName + " #("
+      lines += s"$indent${instance.moduleName} #("
       parameterBindings.zipWithIndex.foreach { case (binding, index) =>
         val comma = if (index == parameterBindings.size - 1) "" else ","
-        lines += s"    .${binding.parameterName}(${renderIntExpr(binding.value)})$comma"
+        lines += s"$associationIndent.${binding.parameterName}(${renderIntExpr(binding.value)})$comma"
       }
-      lines += s"  ) ${instance.name} ("
+      lines += s"$indent) ${instance.name} ("
     } else {
-      lines += s"  ${instance.moduleName} ${instance.name} ("
+      lines += s"$indent${instance.moduleName} ${instance.name} ("
     }
 
     portConnections.zipWithIndex.foreach { case (connection, index) =>
       val comma = if (index == portConnections.size - 1) "" else ","
-      lines += s"    .${connection.portName}(${renderRtlExpr(connection.actual)})$comma"
+      lines += s"$associationIndent.${connection.portName}(${renderRtlExpr(connection.actual)})$comma"
     }
-    lines += "  );"
+    lines += s"$indent);"
     lines.result()
   }
 
@@ -145,6 +170,7 @@ object Verilog2001Emitter {
     case Literal(value)          => RenderedIntExpr(value.toString, AtomicPrecedence)
     case ParameterRef(name)      => RenderedIntExpr(name, AtomicPrecedence)
     case LocalParameterRef(name) => RenderedIntExpr(name, AtomicPrecedence)
+    case GenerateIndexRef(name)  => RenderedIntExpr(name, AtomicPrecedence)
     case Negate(value) =>
       val rendered = renderIntExprWithPrecedence(value)
       val needsParentheses = rendered.precedence <= UnaryPrecedence || rendered.text.startsWith("-")
@@ -173,5 +199,7 @@ object Verilog2001Emitter {
 
   private def renderRtlExpr(expression: RtlExpr): String = expression match {
     case Ref(name) => name
+    case IndexedPartSelect(base, offset, width) =>
+      s"${base.name}[${renderIntExpr(offset)} +: ${renderIntExpr(width)}]"
   }
 }

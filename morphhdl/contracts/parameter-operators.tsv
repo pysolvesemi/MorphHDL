@@ -2,6 +2,7 @@ operator	semantic_node	increment_status	production_behavior	diagnostic	evidence	
 literal	Literal	implemented	validate-and-emit	-	morphhdl.paramrtl.ParamRtlValidatorTests	Arbitrary-precision IR literals are range-checked before Verilog-2001 emission.
 public-reference	ParameterRef	implemented	validate-and-emit	-	morphhdl.paramrtl.ParamRtlValidatorTests	Public parameter references resolve in module parameter scope.
 local-reference	LocalParameterRef	implemented	validate-and-emit	-	morphhdl.paramrtl.ParamExpressionValidatorTests	Local references resolve through an acyclic dependency graph.
+generate-index-reference	GenerateIndexRef	implemented	validate-and-emit	-	morphhdl.paramrtl.GenerateForValidatorTests	Generate indices resolve only inside their owning generate body and remain symbolic in indexed part-select offsets.
 add	Add	implemented	validate-and-emit	-	morphhdl.paramrtl.ParamExpressionValidatorTests	Interval addition proves the complete legal result domain.
 subtract	Subtract	implemented	validate-and-emit	-	morphhdl.paramrtl.ParamExpressionValidatorTests	Interval subtraction proves the complete legal result domain.
 multiply	Multiply	implemented	validate-and-emit	-	morphhdl.paramrtl.ParamExpressionValidatorTests	All interval endpoint products bound the complete legal result domain.

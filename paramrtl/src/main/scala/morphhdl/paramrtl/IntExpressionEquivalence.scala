@@ -12,26 +12,33 @@ private[morphhdl] object IntExpressionEquivalence {
       parameters: Map[String, IntExpr],
       localParameters: Map[String, IntExpr]
   ): IntExpr = expression match {
-    case value: Literal            => value
-    case ParameterRef(name)        => parameters.getOrElse(name, expression)
-    case LocalParameterRef(name)   => localParameters.getOrElse(name, expression)
-    case Negate(value)             => Negate(substitute(value, parameters, localParameters))
-    case Add(left, right)          => Add(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
-    case Subtract(left, right)     => Subtract(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
-    case Multiply(left, right)     => Multiply(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
-    case Divide(left, right)       => Divide(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
-    case Modulo(left, right)       => Modulo(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
+    case value: Literal          => value
+    case ParameterRef(name)      => parameters.getOrElse(name, expression)
+    case LocalParameterRef(name) => localParameters.getOrElse(name, expression)
+    case value: GenerateIndexRef => value
+    case Negate(value)           => Negate(substitute(value, parameters, localParameters))
+    case Add(left, right) =>
+      Add(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
+    case Subtract(left, right) =>
+      Subtract(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
+    case Multiply(left, right) =>
+      Multiply(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
+    case Divide(left, right) =>
+      Divide(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
+    case Modulo(left, right) =>
+      Modulo(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
   }
 
   def equivalent(left: IntExpr, right: IntExpr): Boolean = {
     if (sameStructure(left, right)) true
-    else {
-      for {
-        leftSize <- boundedNodeCount(left)
-        rightSize <- boundedNodeCount(right)
-        if leftSize + rightSize <= MaximumNormalizedNodes
-      } yield sameStructure(normalize(left), normalize(right))
-    }.getOrElse(false)
+    else
+      {
+        for {
+          leftSize <- boundedNodeCount(left)
+          rightSize <- boundedNodeCount(right)
+          if leftSize + rightSize <= MaximumNormalizedNodes
+        } yield sameStructure(normalize(left), normalize(right))
+      }.getOrElse(false)
   }
 
   /** Iterative equality avoids case-class recursion on deep shared expression DAGs. */
@@ -57,16 +64,17 @@ private[morphhdl] object IntExpressionEquivalence {
       val (a, b) = stack.remove(stack.length - 1)
       if (!(a.asInstanceOf[AnyRef] eq b.asInstanceOf[AnyRef]) && !alreadyVisited(a, b)) {
         (a, b) match {
-          case (Literal(x), Literal(y)) if x == y =>
-          case (ParameterRef(x), ParameterRef(y)) if x == y =>
+          case (Literal(x), Literal(y)) if x == y                     =>
+          case (ParameterRef(x), ParameterRef(y)) if x == y           =>
           case (LocalParameterRef(x), LocalParameterRef(y)) if x == y =>
-          case (Negate(x), Negate(y)) => stack += ((x, y))
-          case (Add(al, ar), Add(bl, br)) => stack += ((al, bl)); stack += ((ar, br))
-          case (Subtract(al, ar), Subtract(bl, br)) => stack += ((al, bl)); stack += ((ar, br))
-          case (Multiply(al, ar), Multiply(bl, br)) => stack += ((al, bl)); stack += ((ar, br))
-          case (Divide(al, ar), Divide(bl, br)) => stack += ((al, bl)); stack += ((ar, br))
-          case (Modulo(al, ar), Modulo(bl, br)) => stack += ((al, bl)); stack += ((ar, br))
-          case _ => return false
+          case (GenerateIndexRef(x), GenerateIndexRef(y)) if x == y   =>
+          case (Negate(x), Negate(y))                                 => stack += ((x, y))
+          case (Add(al, ar), Add(bl, br))                             => stack += ((al, bl)); stack += ((ar, br))
+          case (Subtract(al, ar), Subtract(bl, br))                   => stack += ((al, bl)); stack += ((ar, br))
+          case (Multiply(al, ar), Multiply(bl, br))                   => stack += ((al, bl)); stack += ((ar, br))
+          case (Divide(al, ar), Divide(bl, br))                       => stack += ((al, bl)); stack += ((ar, br))
+          case (Modulo(al, ar), Modulo(bl, br))                       => stack += ((al, bl)); stack += ((ar, br))
+          case _                                                      => return false
         }
       }
     }
@@ -80,20 +88,20 @@ private[morphhdl] object IntExpressionEquivalence {
       val value = stack.remove(stack.length - 1)
       count += 1
       value match {
-        case Literal(_) | ParameterRef(_) | LocalParameterRef(_) =>
-        case Negate(operand)                                     => stack += operand
-        case Add(left, right)                                    => stack += left; stack += right
-        case Subtract(left, right)                               => stack += left; stack += right
-        case Multiply(left, right)                               => stack += left; stack += right
-        case Divide(left, right)                                 => stack += left; stack += right
-        case Modulo(left, right)                                 => stack += left; stack += right
+        case Literal(_) | ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_) =>
+        case Negate(operand)                                                           => stack += operand
+        case Add(left, right)                                                          => stack += left; stack += right
+        case Subtract(left, right)                                                     => stack += left; stack += right
+        case Multiply(left, right)                                                     => stack += left; stack += right
+        case Divide(left, right)                                                       => stack += left; stack += right
+        case Modulo(left, right)                                                       => stack += left; stack += right
       }
     }
     if (count <= MaximumNormalizedNodes) Some(count) else None
   }
 
   private def normalize(expression: IntExpr): IntExpr = expression match {
-    case value @ (Literal(_) | ParameterRef(_) | LocalParameterRef(_)) => value
+    case value @ (Literal(_) | ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_)) => value
     case Negate(value) =>
       normalize(value) match {
         case Literal(number) => Literal(-number)
@@ -148,9 +156,11 @@ private[morphhdl] object IntExpressionEquivalence {
       val combined = if (additive) literals.sum else literals.product
       val include = if (additive) combined != 0 || nonLiterals.isEmpty else combined != 1 || nonLiterals.isEmpty
       val values = nonLiterals.sortBy(shallowKey) ++ (if (include) Vector(Literal(combined)) else Vector.empty)
-      values.reduceLeftOption[IntExpr] { (left, right) =>
-        if (additive) Add(left, right) else Multiply(left, right)
-      }.getOrElse(Literal(if (additive) 0 else 1))
+      values
+        .reduceLeftOption[IntExpr] { (left, right) =>
+          if (additive) Add(left, right) else Multiply(left, right)
+        }
+        .getOrElse(Literal(if (additive) 0 else 1))
     }
   }
 
@@ -158,11 +168,12 @@ private[morphhdl] object IntExpressionEquivalence {
     case Literal(value)          => s"0:$value"
     case ParameterRef(name)      => s"1:$name"
     case LocalParameterRef(name) => s"2:$name"
-    case Negate(_)               => "3"
-    case Add(_, _)               => "4"
-    case Subtract(_, _)          => "5"
-    case Multiply(_, _)          => "6"
-    case Divide(_, _)            => "7"
-    case Modulo(_, _)            => "8"
+    case GenerateIndexRef(name)  => s"3:$name"
+    case Negate(_)               => "4"
+    case Add(_, _)               => "5"
+    case Subtract(_, _)          => "6"
+    case Multiply(_, _)          => "7"
+    case Divide(_, _)            => "8"
+    case Modulo(_, _)            => "9"
   }
 }

@@ -52,6 +52,7 @@ generated_contracts=(
   parameterized_wire.v
   derived_width.v
   parameter_forwarding.v
+  lane_array.v
 )
 
 if (( using_reviewed_goldens == 0 )); then
@@ -85,6 +86,7 @@ done
 parameterized_wire_file="$generated_dir/parameterized_wire.v"
 derived_width_file="$generated_dir/derived_width.v"
 parameter_forwarding_file="$generated_dir/parameter_forwarding.v"
+lane_array_file="$generated_dir/lane_array.v"
 
 python3 "$repo_root/morphhdl/scripts/check-validation-parity.py" "$parity_file"
 python3 "$repo_root/morphhdl/scripts/check-parameter-operators.py" "$operator_file"
@@ -93,7 +95,7 @@ design_files=(
   "$parameterized_wire_file"
   "$derived_width_file"
   "$parameter_forwarding_file"
-  "$examples_dir/lane_array.v"
+  "$lane_array_file"
 )
 
 all_verilog_files=(
@@ -137,6 +139,7 @@ require_property port.conditional_presence false
 require_property structure.module_instance true
 require_property structure.named_parameter_binding true
 require_property structure.named_port_binding true
+require_property structure.generate_for true
 
 for file in "${all_verilog_files[@]}"; do
   if [[ ! -s "$file" ]]; then
@@ -237,9 +240,12 @@ if ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+TOTAL_WIDTH[[:space:]]*=
   exit 1
 fi
 
-if ! grep -Eq 'for[[:space:]]*\(' "${design_files[3]}" ||
-   ! grep -Eq '\+:[[:space:]]*DATA_WIDTH' "${design_files[3]}"; then
-  echo "LaneArray does not exercise generate-for and indexed part-select" >&2
+if ! grep -Eq 'genvar[[:space:]]+lane[[:space:]]*;' "${design_files[3]}" ||
+   ! grep -Eq 'for[[:space:]]*\([[:space:]]*lane[[:space:]]*=[[:space:]]*0[[:space:]]*;[[:space:]]*lane[[:space:]]*<[[:space:]]*LANES[[:space:]]*;' "${design_files[3]}" ||
+   ! grep -Eq 'begin[[:space:]]*:[[:space:]]*g_lane' "${design_files[3]}" ||
+   ! grep -Eq 'lane[[:space:]]*\*[[:space:]]*DATA_WIDTH[[:space:]]*\+:[[:space:]]*DATA_WIDTH' "${design_files[3]}" ||
+   [[ "$(grep -Ec '\)[[:space:]]+lane_inst[[:space:]]*\(' "${design_files[3]}")" != "1" ]]; then
+  echo "LaneArray does not retain one named generate-for template and indexed part-select" >&2
   exit 1
 fi
 
@@ -271,7 +277,7 @@ trap cleanup EXIT
 cp "$parameterized_wire_file" "$tmp_dir/parameterized_wire.v"
 cp "$derived_width_file" "$tmp_dir/derived_width.v"
 cp "$parameter_forwarding_file" "$tmp_dir/parameter_forwarding.v"
-cp "$examples_dir/lane_array.v" "$tmp_dir/lane_array.v"
+cp "$lane_array_file" "$tmp_dir/lane_array.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
 yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
@@ -353,7 +359,31 @@ verilator --lint-only --language 1364-2001 -Wall \
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
   --top-module LaneArray \
-  "$examples_dir/lane_array.v"
+  "$lane_array_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module LaneArray \
+  -GDATA_WIDTH=1 -GLANES=1 \
+  "$lane_array_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module LaneArray \
+  -GDATA_WIDTH=5 -GLANES=3 \
+  "$lane_array_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module LaneArray \
+  -GLANES=3 \
+  "$lane_array_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module LaneArray \
+  -GDATA_WIDTH=5 \
+  "$lane_array_file"
 
 iverilog -g2001 -Wall -s ParameterizedWireTb \
   -o "$tmp_dir/parameterized_wire.vvp" \
@@ -390,7 +420,7 @@ fi
 
 iverilog -g2001 -Wall -s LaneArrayTb \
   -o "$tmp_dir/lane_array.vvp" \
-  "$examples_dir/lane_array.v" \
+  "$lane_array_file" \
   "$examples_dir/lane_array_tb.v"
 lane_output="$(vvp "$tmp_dir/lane_array.vvp")"
 echo "$lane_output"
@@ -473,7 +503,42 @@ yosys_hierarchy_synthesize_and_check \
   "$yosys_parameter_forwarding_file" ParameterForwarding forwarded_inst data-width-only 20 \
   "chparam -set DATA_WIDTH 5 ParameterForwarding;"
 
-yosys -q -p \
-  "read_verilog -noautowire $yosys_lane_array_file; hierarchy -check -top LaneArray; proc; check -assert; synth -top LaneArray; check -assert"
+yosys_generate_synthesize_and_check() {
+  local input_file="$1"
+  local module_name="$2"
+  local label="$3"
+  local expected_lanes="$4"
+  local expected_data_width="$5"
+  local parameter_command="$6"
+  local expected_flat_width=$((expected_lanes * expected_data_width))
+  local hierarchy_netlist="$tmp_dir/${module_name}-${label}-generate.json"
+  local synthesized_netlist="$tmp_dir/${module_name}-${label}-synthesized.json"
+
+  yosys -q -p \
+    "read_verilog -noautowire $input_file; $parameter_command hierarchy -check -top $module_name; proc; check -assert; write_json $hierarchy_netlist; synth -top $module_name; check -assert; write_json $synthesized_netlist"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-generate-contract.py" \
+    "$hierarchy_netlist" "$module_name" \
+    --lanes "$expected_lanes" \
+    --data-width "$expected_data_width"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$synthesized_netlist" "$module_name" \
+    --port "data_in:input:$expected_flat_width" \
+    --port "data_out:output:$expected_flat_width"
+}
+
+yosys_generate_synthesize_and_check \
+  "$yosys_lane_array_file" LaneArray default 4 8 ""
+yosys_generate_synthesize_and_check \
+  "$yosys_lane_array_file" LaneArray minimum 1 1 \
+  "chparam -set DATA_WIDTH 1 -set LANES 1 LaneArray;"
+yosys_generate_synthesize_and_check \
+  "$yosys_lane_array_file" LaneArray awkward 3 5 \
+  "chparam -set DATA_WIDTH 5 -set LANES 3 LaneArray;"
+yosys_generate_synthesize_and_check \
+  "$yosys_lane_array_file" LaneArray lanes-only 3 8 \
+  "chparam -set LANES 3 LaneArray;"
+yosys_generate_synthesize_and_check \
+  "$yosys_lane_array_file" LaneArray data-width-only 4 5 \
+  "chparam -set DATA_WIDTH 5 LaneArray;"
 
 echo "Strict Verilog-2001 contract checks passed"

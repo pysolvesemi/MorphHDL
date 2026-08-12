@@ -9,7 +9,8 @@ object ContractFixtureGenerator {
   private val fixtures = Vector(
     Fixture("parameterized_wire.v", () => ParameterizedWireFixture.design()),
     Fixture("derived_width.v", () => DerivedWidthFixture.design()),
-    Fixture("parameter_forwarding.v", () => ParameterForwardingFixture.design())
+    Fixture("parameter_forwarding.v", () => ParameterForwardingFixture.design()),
+    Fixture("lane_array.v", () => LaneArrayFixture.design())
   )
 
   def main(args: Array[String]): Unit = {

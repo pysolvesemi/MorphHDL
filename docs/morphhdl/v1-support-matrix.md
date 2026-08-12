@@ -13,7 +13,7 @@ first parameterized-Verilog release, not implemented in Increment 1.
 | Shape | Parameter-dependent memory depth | v1 | Supported memory modes are bounded |
 | Shape | Parameter-dependent port presence/direction | Rejected | Use a static interface profile |
 | Structure | Child parameter forwarding | v1 | Named mappings only |
-| Structure | Homogeneous generate-for | v1 | One captured body and scoped `GenIndex` |
+| Structure | Homogeneous generate-for | v1 | Increment 5 implements zero-based unit stride, one captured body, scoped `GenIndex` and a canonical packed-slice partition |
 | Structure | Generate-if/case | v1 | Explicit structural combinators |
 | Structure | Parameter-dependent Scala class selection | Static only | Not recoverable as HDL structure |
 | RTL | Combinational operations | v1 | Explicit width and signedness rules |
