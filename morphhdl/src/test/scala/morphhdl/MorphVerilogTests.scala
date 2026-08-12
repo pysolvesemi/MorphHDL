@@ -9,6 +9,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 
 import morphhdl.frontend._
+import morphhdl.frontend.ParamRtlFrontend._
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
 import morphhdl.paramrtl.IntExpr.ParameterRef
 import morphhdl.paramrtl.ModuleItem.ContinuousAssign
@@ -441,6 +442,54 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("public orchestration preserves the complete HdlInt and local-parameter algebra") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "integer_algebra.v"
+
+      val report = MorphVerilog(config) {
+        MorphProgram(
+          concreteWitness = passThroughWitness("IntegerAlgebra", width = 10),
+          parameterizedDesign = integerAlgebraDesign()
+        )
+      }
+
+      val verilog = new String(
+        Files.readAllBytes(directory.resolve("integer_algebra.v")),
+        StandardCharsets.UTF_8
+      )
+      assert(report.toplevelName == "IntegerAlgebra")
+      assert(verilog.contains("localparam integer ADDED = BASE + 4;"))
+      assert(verilog.contains("localparam integer SUBTRACTED = ADDED - 2;"))
+      assert(verilog.contains("localparam integer MULTIPLIED = SUBTRACTED * 2;"))
+      assert(verilog.contains("localparam integer DIVIDED = MULTIPLIED / DIVISOR;"))
+      assert(verilog.contains("localparam integer REMAINDER = DIVIDED % DIVISOR;"))
+      assert(verilog.contains("localparam integer NEGATED = -REMAINDER;"))
+      assert(verilog.contains("localparam integer WIDTH = DIVIDED + NEGATED + 1;"))
+    }
+  }
+
+  test("public orchestration rejects a divisor domain containing zero") {
+    withTemporaryDirectory { directory =>
+      val result = MorphVerilog.tryGenerate(
+        SpinalConfig(targetDirectory = directory.toString)
+      ) {
+        MorphProgram(
+          concreteWitness = passThroughWitness("UnsafeDivisor", width = 4),
+          parameterizedDesign = unsafeDivisorDesign()
+        )
+      }
+
+      result match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.ParamRtlValidation)
+          assert(failure.message.contains("PRTL-DIVISOR-MAY-BE-ZERO"))
+        case Right(report) => fail(s"Expected whole-domain divisor failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve("UnsafeDivisor.v")))
+    }
+  }
+
   private def witness(
       requestedName: String,
       onLoop: () => Unit = () => (),
@@ -454,6 +503,61 @@ class MorphVerilogTests extends AnyFunSuite {
       val data_out = out(Bits(width bits))
       data_out := data_in
     }
+  }
+
+  private def passThroughWitness(requestedName: String, width: Int): Component =
+    new Component {
+      setDefinitionName(requestedName)
+      val data_in = in(Bits(width bits))
+      val data_out = out(Bits(width bits))
+      data_out := data_in
+    }
+
+  private def integerAlgebraDesign(): Design = {
+    val base = HdlInt.param("BASE", default = 12, min = 8, max = 16)
+    val divisor = HdlInt.param("DIVISOR", default = 3, min = 2, max = 4)
+    val added = localParam("ADDED", base + 4)
+    val subtracted = localParam("SUBTRACTED", added - 2)
+    val multiplied = localParam("MULTIPLIED", subtracted * 2)
+    val divided = localParam("DIVIDED", multiplied / divisor)
+    val remainder = localParam("REMAINDER", divided % divisor)
+    val negated = localParam("NEGATED", -remainder)
+    val width = localParam("WIDTH", divided + negated + 1)
+    val packed = packedBits(width)
+    val module = moduleDef(
+      name = "IntegerAlgebra",
+      parameters = Vector(integerParameter(base), integerParameter(divisor)),
+      ports = Vector(port("data_in", Input, packed), port("data_out", Output, packed)),
+      items = captureItems {
+        emitContinuousAssign("data_out", ref("data_in"))
+      },
+      localParameters = Vector(
+        integerLocalParameter(width),
+        integerLocalParameter(negated),
+        integerLocalParameter(remainder),
+        integerLocalParameter(divided),
+        integerLocalParameter(multiplied),
+        integerLocalParameter(subtracted),
+        integerLocalParameter(added)
+      )
+    )
+    Design(module.name, Vector(module))
+  }
+
+  private def unsafeDivisorDesign(): Design = {
+    val divisor = HdlInt.param("DIVISOR", default = 2, min = 0, max = 3)
+    val width = localParam("WIDTH", HdlInt.literal(8) / divisor)
+    val packed = packedBits(width)
+    val module = moduleDef(
+      name = "UnsafeDivisor",
+      parameters = Vector(integerParameter(divisor)),
+      ports = Vector(port("data_in", Input, packed), port("data_out", Output, packed)),
+      items = captureItems {
+        emitContinuousAssign("data_out", ref("data_in"))
+      },
+      localParameters = Vector(integerLocalParameter(width))
+    )
+    Design(module.name, Vector(module))
   }
 
   private def witnessWithChild(requestedName: String): Component = {

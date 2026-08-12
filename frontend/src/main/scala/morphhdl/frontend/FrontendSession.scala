@@ -56,6 +56,7 @@ private[frontend] object FrontendSession {
       FrontendNode(
         items.map(_.raw).toVector,
         parameters = items.flatMap(_.parameters).toSet,
+        localParameters = items.flatMap(_.localParameters).toSet,
         scopes = items.flatMap(_.scopes).toSet,
         origin = origin
       )
@@ -83,7 +84,7 @@ private[frontend] object FrontendSession {
     if (context.activeScope.nonEmpty) {
       FrontendException.failAt(
         "MORPH-FRONTEND-NESTED-GENERATE-UNSUPPORTED",
-        "nested HdlInt generate loops are not supported in Increment 6",
+        "nested HdlInt generate loops are not supported by the current frontend surface",
         range.origin
       )
     }
@@ -143,6 +144,7 @@ private[frontend] object FrontendSession {
               body = childCollector.map(_.raw).toVector
             ),
             parameters = range.end.parameters ++ childCollector.flatMap(_.parameters),
+            localParameters = range.end.localParameters ++ childCollector.flatMap(_.localParameters),
             origin = range.origin
           )
         }
@@ -168,6 +170,7 @@ private[frontend] object FrontendSession {
     } += FrontendNode(
       item.raw,
       parameters = item.parameters,
+      localParameters = item.localParameters,
       origin = item.origin
     )
   }

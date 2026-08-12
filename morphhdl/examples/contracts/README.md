@@ -2,14 +2,13 @@
 
 These files are executable output contracts for the parameterized backend.
 
-- `parameterized_wire.v` is owned by Increment 2. CI generates it twice from
-  ParamRTL through the public Increment 7 `MorphVerilog` orchestration, checks
-  deterministic byte equality with this golden, and validates the actual
-  generated artifact with external tools.
-- `derived_width.v` is owned by Increment 3. Its two public parameters feed an
+- `parameterized_wire.v` is owned by Increment 2. Increment 8 authors its
+  symbolic width through the guarded frontend and generates it through the
+  public `MorphVerilog` orchestration.
+- `derived_width.v` is owned by Increment 3. Its two frontend public parameters feed an
   acyclic local-parameter expression graph and its packed port width remains
   symbolic in the single public module definition.
-- `parameter_forwarding.v` is owned by Increment 4. CI generates its one leaf
+- `parameter_forwarding.v` is owned by Increment 4. Its Morph program generates its one leaf
   and one parent definition together, checks a derived named child-parameter
   binding and proves the exact elaborated hierarchy before synthesis.
 - `lane_array.v` is owned by Increments 5 and 6. Increment 5 established its
@@ -20,6 +19,10 @@ These files are executable output contracts for the parameterized backend.
   part-select bindings. Its pre-synthesis structural gate resolves Yosys child
   types dynamically, so it does not depend on implementation-specific
   `$paramod` names or generated-cell names.
+- Increment 8 routes all four artifacts through one production fixture source
+  and `MorphVerilog`. CI performs a normal and reverse-construction run,
+  requires an exact four-file inventory, checks byte identity with these
+  goldens, and gives that unmodified directory to the external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
   overrides. `DerivedWidthTb` checks widths 35, 4, 18, 27 and 23 in five
   simultaneous instances of the same emitted module. `ParameterForwardingTb`

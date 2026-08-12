@@ -103,6 +103,10 @@ generateIf(config.enableFeature) {
 }
 ```
 
+This is the planned v1 spelling, not an implemented Increment 8 API. Until the
+bounded `HdlBool`/`GenerateIf` tranche lands, parameter-dependent conditions
+fail closed rather than selecting the default witness branch.
+
 An ordinary Scala `if`, `match`, collection size, recursion or class selection
 continues to execute during elaboration and therefore may depend only on static
 Scala values.
@@ -133,22 +137,40 @@ Every public parameter carries:
   other parameters;
 - source and logical-name metadata.
 
-Each declaration also carries an opaque identity token. Frontend module
-lowering accepts a symbolic reference only when that exact token is declared
-by the module; a separately constructed, same-named `HdlInt.param` is not an
-alias. Identity is checked per module, so independent modules may each declare
-their own parameter named `WIDTH`.
+Each public or local declaration also carries an opaque identity token.
+Frontend module lowering accepts a symbolic reference only when that exact
+token is declared by the module; a separately constructed, same-named value is
+not an alias. Identity is checked per module, so independent modules may each
+declare their own parameter named `WIDTH`.
 
 The concrete witness is validation data, not a fallback. If symbolic capture
 cannot represent an operation, elaboration fails even when the default witness
 could execute it.
 
-Increment 6 implements the first bounded integer slice: public integer
-parameters with inclusive minimum/maximum constraints, integer literals,
-`HdlInt * HdlInt`, and `GenIndex * HdlInt` for indexed part-select offsets.
-Generate-index-dependent widths and child parameter bindings remain unsupported
-and fail before ParamRTL construction. If `HdlInt.param` omits `max`, its
-bounded default is `Int.MaxValue`.
+Increment 8 implements the current bounded integer slice: public and local
+integer parameters, integer literals, `+`, `-`, `*`, `/`, `%`, unary `-`, and
+the existing `GenIndex * HdlInt` indexed part-select offset. Every operation
+retains its exact `BigInt` witness, ParamRTL expression, identity provenance,
+generate scope and call-site origin. If `HdlInt.param` omits `max`, its bounded
+default is `Int.MaxValue`.
+
+The guarded lowering facade remains `private[morphhdl]`; `MorphVerilog` is the
+public generation entry point. Inside that bounded integration surface,
+`localParam(name, value)` creates an identity-bearing reference and
+`integerLocalParameter(handle)` explicitly declares it in the final defaulted
+`moduleDef` local-parameter vector. Public and local dependencies must be
+declared by the same module. Duplicate, undeclared, same-named/different-token
+and foreign-module tokens fail with source-located diagnostics. ParamRTL then
+checks dependency cycles and emits locals in deterministic dependency-first
+order. Local handles are owned by one module-definition boundary and must be
+created afresh inside each re-entrant symbolic factory evaluation; reusing a
+captured handle, even for a second same-named module definition, fails closed.
+
+A zero concrete divisor fails immediately instead of leaking a Scala arithmetic
+exception. A nonzero default does not prove the divisor safe: ParamRTL must
+prove zero absent from its complete legal interval. Generate-index-dependent
+local definitions, widths and child parameter bindings remain unsupported and
+fail before raw ParamRTL construction.
 
 ## Required diagnostics
 

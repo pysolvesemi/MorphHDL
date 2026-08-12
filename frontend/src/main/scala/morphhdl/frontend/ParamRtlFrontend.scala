@@ -3,12 +3,7 @@ package morphhdl.frontend
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 import morphhdl.paramrtl._
 
-/**
-  * Guarded Increment 6 lowering used by MorphHDL integration fixtures.
-  *
-  * This is package-scoped until Increment 7 introduces the supported
-  * MorphVerilog orchestration entry point.
-  */
+/** Guarded parameter-aware lowering used by the MorphVerilog orchestration path. */
 private[morphhdl] object ParamRtlFrontend {
   def concrete[A](body: => A)(implicit
       file: sourcecode.File,
@@ -39,6 +34,38 @@ private[morphhdl] object ParamRtlFrontend {
     )
   }
 
+  /** Creates one identity-bearing module-local integer parameter handle. */
+  def localParam(name: String, value: HdlInt)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): HdlInt = {
+    val origin = SourceOrigin.capture
+    value.requireLoopInvariant(s"local parameter '$name'")
+    requireIdentifier(name, "local parameter", origin)
+    HdlInt.local(name, value, origin)
+  }
+
+  /** Converts the exact handle returned by localParam into a declaration node. */
+  def integerLocalParameter(value: HdlInt)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): FrontendNode[IntegerLocalParameter] = {
+    value.requireLoopInvariant("integer-local-parameter declaration")
+    val token = value.localDeclaration.getOrElse {
+      FrontendException.fail(
+        "MORPH-FRONTEND-NOT-A-LOCAL-PARAMETER",
+        "only the exact HdlInt returned by localParam can declare a module-local parameter"
+      )
+    }
+    FrontendNode(
+      token.declaration,
+      parameters = token.parameters,
+      localParameters = token.dependencies + token,
+      localDeclaration = Some(token),
+      origin = SourceOrigin.capture
+    )
+  }
+
   def packedBits(
       width: HdlInt,
       signedness: Signedness = Signedness.Unsigned
@@ -47,6 +74,7 @@ private[morphhdl] object ParamRtlFrontend {
     FrontendNode(
       PackedBits(width.expression, signedness),
       parameters = width.parameters,
+      localParameters = width.localParameters,
       origin = SourceOrigin.capture
     )
   }
@@ -60,6 +88,7 @@ private[morphhdl] object ParamRtlFrontend {
     FrontendNode(
       Port(name, direction, dataType.raw),
       parameters = dataType.parameters,
+      localParameters = dataType.localParameters,
       scopes = dataType.scopes,
       origin = SourceOrigin.capture
     )
@@ -73,6 +102,7 @@ private[morphhdl] object ParamRtlFrontend {
     FrontendNode(
       ParameterBinding(parameterName, value.expression),
       parameters = value.parameters,
+      localParameters = value.localParameters,
       origin = SourceOrigin.capture
     )
   }
@@ -92,6 +122,7 @@ private[morphhdl] object ParamRtlFrontend {
     FrontendNode(
       IndexedPartSelect(Ref(base), offset.expression, width.expression),
       parameters = offset.parameters ++ width.parameters,
+      localParameters = offset.localParameters ++ width.localParameters,
       scopes = offset.scope.toSet,
       origin = SourceOrigin.capture
     )
@@ -105,6 +136,7 @@ private[morphhdl] object ParamRtlFrontend {
     FrontendNode(
       PortConnection(portName, actual.raw),
       parameters = actual.parameters,
+      localParameters = actual.localParameters,
       scopes = actual.scopes,
       origin = SourceOrigin.capture
     )
@@ -119,6 +151,7 @@ private[morphhdl] object ParamRtlFrontend {
       FrontendNode(
         ModuleItem.ContinuousAssign(Ref(target), value.raw),
         parameters = value.parameters,
+        localParameters = value.localParameters,
         origin = SourceOrigin.capture
       )
     )
@@ -142,6 +175,8 @@ private[morphhdl] object ParamRtlFrontend {
         ),
         parameters = parameterBindings.flatMap(_.parameters).toSet ++
           portConnections.flatMap(_.parameters),
+        localParameters = parameterBindings.flatMap(_.localParameters).toSet ++
+          portConnections.flatMap(_.localParameters),
         origin = SourceOrigin.capture
       )
     )
@@ -151,10 +186,12 @@ private[morphhdl] object ParamRtlFrontend {
       name: String,
       parameters: Vector[FrontendNode[IntegerParameter]],
       ports: Vector[FrontendNode[Port]],
-      items: FrontendNode[Vector[ModuleItem]]
+      items: FrontendNode[Vector[ModuleItem]],
+      localParameters: Vector[FrontendNode[IntegerLocalParameter]] = Vector.empty
   )(implicit file: sourcecode.File, line: sourcecode.Line): ModuleDef = {
     val origin = SourceOrigin.capture
     parameters.foreach(_.requireUsable(s"module '$name' parameter declaration"))
+    localParameters.foreach(_.requireUsable(s"module '$name' local-parameter declaration"))
     ports.foreach(_.requireUsable(s"module '$name' port"))
     items.requireUsable(s"module '$name' items")
 
@@ -183,8 +220,65 @@ private[morphhdl] object ParamRtlFrontend {
         )
       }
 
+    val localDeclarations = localParameters.map { node =>
+      node.localDeclaration match {
+        case Some(token) if token.declaration == node.raw => token
+        case _ =>
+          FrontendException.failAt(
+            "MORPH-FRONTEND-LOCAL-PARAMETER-IDENTITY-UNRESOLVED",
+            s"module '$name' received a local declaration not produced by integerLocalParameter",
+            node.origin
+          )
+      }
+    }
+    localDeclarations
+      .groupBy(identity)
+      .values
+      .filter(_.size > 1)
+      .flatten
+      .toVector
+      .sortBy(token => (token.declaration.name, token.origin.file, token.origin.line))
+      .headOption
+      .foreach { duplicate =>
+        FrontendException.failAt(
+          "MORPH-FRONTEND-LOCAL-PARAMETER-DECLARATION-DUPLICATE",
+          s"module '$name' declares the same local parameter handle " +
+            s"'${duplicate.declaration.name}' more than once",
+          duplicate.origin
+        )
+      }
+    localDeclarations
+      .groupBy(_.declaration.name)
+      .toVector
+      .sortBy(_._1)
+      .collectFirst { case (_, values) if values.size > 1 =>
+        values.sortBy(token => (token.origin.file, token.origin.line)).tail.head
+      }
+      .foreach { duplicate =>
+        FrontendException.failAt(
+          "MORPH-FRONTEND-LOCAL-PARAMETER-NAME-DUPLICATE",
+          s"module '$name' declares local parameter '${duplicate.declaration.name}' more than once",
+          duplicate.origin
+        )
+      }
+
+    val publicNames = declarations.map(_.declaration.name).toSet
+    localDeclarations
+      .filter(token => publicNames(token.declaration.name))
+      .sortBy(token => (token.declaration.name, token.origin.file, token.origin.line))
+      .headOption
+      .foreach { collision =>
+        FrontendException.failAt(
+          "MORPH-FRONTEND-LOCAL-PARAMETER-NAME-COLLISION",
+          s"module '$name' declares '${collision.declaration.name}' as both a public and local parameter",
+          collision.origin
+        )
+      }
+    LocalParameterToken.requireUnclaimed(localDeclarations)
+
     val declaredByName = declarations.map(token => token.declaration.name -> token).toMap
-    val used = ports.flatMap(_.parameters).toSet ++ items.parameters
+    val used = ports.flatMap(_.parameters).toSet ++ items.parameters ++
+      localParameters.flatMap(_.parameters)
     used.toVector
       .sortBy(token => (token.declaration.name, token.origin.file, token.origin.line))
       .foreach { token =>
@@ -206,11 +300,88 @@ private[morphhdl] object ParamRtlFrontend {
         }
       }
 
+    val localDeclaredByName = localDeclarations.map(token => token.declaration.name -> token).toMap
+    val usedLocals = ports.flatMap(_.localParameters).toSet ++ items.localParameters ++
+      localParameters.flatMap(_.localParameters)
+    LocalParameterToken.requireUnclaimed(usedLocals.toVector)
+    usedLocals.toVector
+      .sortBy(token => (token.declaration.name, token.origin.file, token.origin.line))
+      .foreach { token =>
+        localDeclaredByName.get(token.declaration.name) match {
+          case Some(declared) if declared eq token =>
+          case Some(declared) =>
+            FrontendException.failAt(
+              "MORPH-FRONTEND-LOCAL-PARAMETER-TOKEN-MISMATCH",
+              s"module '$name' declares local '${declared.declaration.name}' from " +
+                s"${declared.origin.rendered} but uses a distinct declaration from ${token.origin.rendered}",
+              token.origin
+            )
+          case None =>
+            FrontendException.failAt(
+              "MORPH-FRONTEND-LOCAL-PARAMETER-NOT-DECLARED",
+              s"module '$name' uses local parameter '${token.declaration.name}' without declaring it",
+              token.origin
+            )
+        }
+      }
+
+    val orderedLocalDeclarations = dependencyFirst(localDeclarations, name)
+    LocalParameterToken.claimAll(
+      orderedLocalDeclarations,
+      new LocalParameterOwner(name, origin)
+    )
+
     ModuleDef(
       name = name,
       parameters = parameters.map(_.raw),
       ports = ports.map(_.raw),
-      items = items.raw
+      items = items.raw,
+      localParameters = orderedLocalDeclarations.map(_.declaration)
     )
   }
+
+  private def dependencyFirst(
+      declarations: Vector[LocalParameterToken],
+      moduleName: String
+  ): Vector[LocalParameterToken] = {
+    var remaining = declarations.map(token => token -> token.dependencies).toMap
+    val result = Vector.newBuilder[LocalParameterToken]
+
+    while (remaining.nonEmpty) {
+      val ready = remaining.iterator
+        .collect { case (token, dependencies) if dependencies.forall(!remaining.contains(_)) => token }
+        .toVector
+        .sortBy(token => (token.declaration.name, token.origin.file, token.origin.line))
+
+      if (ready.isEmpty) {
+        val first = remaining.keys.toVector
+          .sortBy(token => (token.declaration.name, token.origin.file, token.origin.line))
+          .head
+        FrontendException.failAt(
+          "MORPH-FRONTEND-LOCAL-PARAMETER-CYCLE",
+          s"module '$moduleName' has a cycle involving local parameter '${first.declaration.name}'",
+          first.origin
+        )
+      }
+
+      ready.foreach(result += _)
+      val emitted = ready.toSet
+      remaining = remaining.iterator
+        .collect { case (token, dependencies) if !emitted(token) => token -> (dependencies -- emitted) }
+        .toMap
+    }
+
+    result.result()
+  }
+
+  private val Identifier = "[A-Za-z_][A-Za-z0-9_]*".r
+
+  private def requireIdentifier(value: String, role: String, origin: SourceOrigin): Unit =
+    if (!Identifier.pattern.matcher(value).matches()) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-INVALID-LOCAL-PARAMETER-NAME",
+        s"$role '$value' is not a portable identifier",
+        origin
+      )
+    }
 }

@@ -25,12 +25,16 @@ The contract is split into these documents:
 - [Increment 7 MorphVerilog orchestration](../increment-7-morph-verilog.md):
   the public dual-leg entry point, shared inherited Verilog phase plan and
   live validation-inventory gate.
+- [Increment 8 integer frontend closure](../increment-8-integer-frontend.md):
+  complete current `HdlInt` arithmetic, identity-bearing local parameters and
+  all four reviewed fixtures through `MorphVerilog`.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
 Machine-readable target capabilities are recorded in
 `morphhdl/contracts/verilog-2001.properties`; the current parameter-expression
-operator tranche is recorded in `morphhdl/contracts/parameter-operators.tsv`.
+operator tranche and its separate frontend, validation and emission evidence
+are recorded in `morphhdl/contracts/parameter-operators.tsv`.
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants

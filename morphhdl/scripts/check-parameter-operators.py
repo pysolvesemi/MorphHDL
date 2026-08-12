@@ -12,7 +12,9 @@ EXPECTED_HEADER = [
     "increment_status",
     "production_behavior",
     "diagnostic",
-    "evidence",
+    "frontend_evidence",
+    "validation_evidence",
+    "emission_evidence",
     "rationale",
 ]
 
@@ -84,7 +86,9 @@ def main():
         status = row["increment_status"].strip()
         behavior = row["production_behavior"].strip()
         diagnostic = row["diagnostic"].strip()
-        evidence = row["evidence"].strip()
+        frontend_evidence = row["frontend_evidence"].strip()
+        validation_evidence = row["validation_evidence"].strip()
+        emission_evidence = row["emission_evidence"].strip()
 
         if status not in STATUS_VALUES:
             return fail(
@@ -116,8 +120,22 @@ def main():
             return fail(
                 "line {} must fail closed with a diagnostic".format(line_number)
             )
-        if evidence == "-":
-            return fail("line {} has no test evidence".format(line_number))
+        if status == "implemented":
+            missing_evidence = [
+                label
+                for label, value in (
+                    ("frontend capture", frontend_evidence),
+                    ("ParamRTL validation", validation_evidence),
+                    ("Verilog emission", emission_evidence),
+                )
+                if value == "-"
+            ]
+            if missing_evidence:
+                return fail(
+                    "line {} has no {} evidence".format(
+                        line_number, ", ".join(missing_evidence)
+                    )
+                )
 
     print(
         "Parameter-operator manifest passed ({} operators)".format(len(rows))

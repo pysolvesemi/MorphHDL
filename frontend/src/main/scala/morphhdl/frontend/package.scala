@@ -12,4 +12,22 @@ package object frontend {
     def until(end: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlRange =
       HdlRange(start, end, SourceOrigin.capture)
   }
+
+  /** Keeps an Int left operand in the dual-valued HdlInt expression domain. */
+  implicit final class HdlIntLeftOperand(private val left: Int) extends AnyVal {
+    def +(right: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
+      HdlInt.literal(BigInt(left)) + right
+
+    def -(right: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
+      HdlInt.literal(BigInt(left)) - right
+
+    def *(right: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
+      HdlInt.literal(BigInt(left)) * right
+
+    def /(right: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
+      HdlInt.literal(BigInt(left)) / right
+
+    def %(right: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
+      HdlInt.literal(BigInt(left)) % right
+  }
 }

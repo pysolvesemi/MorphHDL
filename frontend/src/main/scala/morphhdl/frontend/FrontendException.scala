@@ -28,7 +28,7 @@ private[frontend] object FrontendException {
     case "MORPH-FRONTEND-SYMBOLIC-CONVERSION-UNSUPPORTED" =>
       "Keep the value as HdlInt or GenIndex and pass it to a supported parameter-aware API."
     case "MORPH-FRONTEND-GENINDEX-CONSUMER-UNSUPPORTED" =>
-      "Use the generate index only as an indexedPartSelect offset in Increment 6."
+      "Use the generate index only as an indexedPartSelect offset in the current frontend surface."
     case "MORPH-FRONTEND-CROSS-SCOPE-EXPRESSION" =>
       "Keep each symbolic expression within one generate-loop scope."
     case "MORPH-FRONTEND-GENINDEX-ESCAPED" =>
@@ -45,6 +45,28 @@ private[frontend] object FrontendException {
       "Use an identifier matching `[A-Za-z_][A-Za-z0-9_]*`."
     case "MORPH-FRONTEND-NOT-A-PUBLIC-PARAMETER" =>
       "Declare the value with HdlInt.param before using integerParameter."
+    case "MORPH-FRONTEND-NOT-A-LOCAL-PARAMETER" =>
+      "Pass the exact HdlInt returned by localParam to integerLocalParameter."
+    case "MORPH-FRONTEND-DIVISOR-WITNESS-ZERO" =>
+      "Choose a non-zero concrete divisor witness; ParamRTL will also prove its full domain excludes zero."
+    case "MORPH-FRONTEND-INVALID-LOCAL-PARAMETER-NAME" =>
+      "Use a local-parameter identifier matching `[A-Za-z_][A-Za-z0-9_]*`."
+    case "MORPH-FRONTEND-LOCAL-PARAMETER-IDENTITY-UNRESOLVED" =>
+      "Create the declaration with integerLocalParameter from the exact localParam handle."
+    case "MORPH-FRONTEND-LOCAL-PARAMETER-TOKEN-MISMATCH" =>
+      "Reuse the exact localParam handle declared by this module."
+    case "MORPH-FRONTEND-LOCAL-PARAMETER-NOT-DECLARED" =>
+      "Add integerLocalParameter for every referenced localParam handle to this module."
+    case "MORPH-FRONTEND-LOCAL-PARAMETER-NAME-DUPLICATE" =>
+      "Give every local parameter in a module a unique name and declare each handle once."
+    case "MORPH-FRONTEND-LOCAL-PARAMETER-DECLARATION-DUPLICATE" =>
+      "Pass each integerLocalParameter declaration to moduleDef exactly once."
+    case "MORPH-FRONTEND-LOCAL-PARAMETER-NAME-COLLISION" =>
+      "Use distinct names for public and module-local parameters."
+    case "MORPH-FRONTEND-LOCAL-PARAMETER-FOREIGN" =>
+      "Create a fresh localParam handle for each module definition."
+    case "MORPH-FRONTEND-LOCAL-PARAMETER-CYCLE" =>
+      "Define local parameters from previously created handles without a dependency cycle."
     case "MORPH-FRONTEND-PARAMETER-TOKEN-MISMATCH" =>
       "Reuse the exact HdlInt.param value declared by this module."
     case "MORPH-FRONTEND-PARAMETER-NOT-DECLARED" =>
