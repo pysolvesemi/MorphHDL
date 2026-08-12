@@ -613,7 +613,10 @@ class MorphVerilogTests extends AnyFunSuite {
       val data_out_16 = out(Bits(16 bits))
 
       class BoundLeaf(width: Int) extends Component {
-        setDefinitionName("MultiBoundLeaf")
+        // Spinal requires distinct concrete definition names for layouts with
+        // different widths. The symbolic side intentionally keeps one
+        // parameterized MultiBoundLeaf module.
+        setDefinitionName(s"MultiBoundLeaf$width")
         val leaf_in = in(Bits(width bits))
         val leaf_out = out(Bits(width bits))
         leaf_out := leaf_in
