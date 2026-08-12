@@ -91,6 +91,19 @@ trait Sim extends SpinalModule with SpinalPublishModule {
   def publishVersion = SpinalVersion.sim
 }
 
+object paramrtl extends Cross[ParamRtl](SpinalVersion.compilers) {
+  def defaultCrossSegments = Seq(SpinalVersion.compilers.head)
+}
+trait ParamRtl extends SpinalModule
+
+object verilogBackend extends Cross[VerilogBackend](SpinalVersion.compilers) {
+  def defaultCrossSegments = Seq(SpinalVersion.compilers.head)
+}
+trait VerilogBackend extends SpinalModule {
+  override def moduleDir = mill.api.BuildCtx.workspaceRoot / "backends" / "verilog"
+  def moduleDeps = Seq(paramrtl(crossScalaVersion))
+}
+
 object lib extends Cross[Lib](SpinalVersion.compilers){
   def defaultCrossSegments = Seq(SpinalVersion.compilers.head)
 }

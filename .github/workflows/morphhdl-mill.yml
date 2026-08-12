@@ -1,0 +1,42 @@
+name: MorphHDL Mill
+
+on:
+  push:
+    branches:
+      - main
+      - parameterized-verilog
+  pull_request:
+    branches:
+      - main
+      - parameterized-verilog
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-mill-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test Scala ${{ matrix.scala_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+
+      - name: Test ParamRTL and Verilog-2001 backend
+        shell: bash
+        run: |
+          mill paramrtl[${{ matrix.scala_version }}].test
+          mill verilogBackend[${{ matrix.scala_version }}].test

@@ -21,6 +21,7 @@ concurrency:
 jobs:
   contracts:
     name: Strict Verilog-2001 contracts
+    needs: compile
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -31,11 +32,20 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends iverilog yosys
+          sudo apt-get install -y --no-install-recommends iverilog verilator yosys
+
+      - name: Download generated ParameterizedWire RTL
+        uses: actions/download-artifact@v4
+        with:
+          name: parameterized-wire-scala-2.12.18
+          path: target/morphhdl/generated
 
       - name: Validate architecture contracts
         shell: bash
-        run: ./morphhdl/scripts/check-contracts.sh --require-tools
+        run: |
+          ./morphhdl/scripts/check-contracts.sh \
+            --require-tools \
+            --parameterized-wire target/morphhdl/generated/parameterized_wire.v
 
   compile:
     name: Compile Scala ${{ matrix.scala_version }}
@@ -68,7 +78,43 @@ jobs:
         shell: bash
         run: sbt -batch ++${{ matrix.scala_version }} Test/compile
 
+      - name: Test ParamRTL and Verilog-2001 backend
+        shell: bash
+        run: |
+          sbt -batch ++${{ matrix.scala_version }} \
+            paramrtl/test \
+            verilogBackend/test
+
+      - name: Generate deterministic ParameterizedWire RTL
+        if: matrix.scala_version == '2.12.18'
+        shell: bash
+        run: |
+          mkdir -p target/morphhdl/generated/run-1 target/morphhdl/generated/run-2
+          sbt -batch ++2.12.18 \
+            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.ParameterizedWireFixtureGenerator --output ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-1/parameterized_wire.v"
+          sbt -batch ++2.12.18 \
+            "verilogBackend/Test/runMain morphhdl.backend.verilog2001.ParameterizedWireFixtureGenerator --output ${GITHUB_WORKSPACE}/target/morphhdl/generated/run-2/parameterized_wire.v"
+          cmp target/morphhdl/generated/run-1/parameterized_wire.v \
+            target/morphhdl/generated/run-2/parameterized_wire.v
+          cmp target/morphhdl/generated/run-1/parameterized_wire.v \
+            morphhdl/examples/contracts/parameterized_wire.v
+          cp target/morphhdl/generated/run-1/parameterized_wire.v \
+            target/morphhdl/generated/parameterized_wire.v
+
+      - name: Upload generated ParameterizedWire RTL
+        if: matrix.scala_version == '2.12.18'
+        uses: actions/upload-artifact@v4
+        with:
+          name: parameterized-wire-scala-2.12.18
+          path: target/morphhdl/generated/parameterized_wire.v
+          if-no-files-found: error
+
       - name: Run concrete code-generation smoke test
         if: matrix.scala_version == '2.12.18'
         shell: bash
         run: sbt -batch ++2.12.18 "tester/testOnly spinal.tester.scalatest.AttributeEmitTests"
+
+      - name: Run inherited semantic-check regression
+        if: matrix.scala_version == '2.12.18'
+        shell: bash
+        run: sbt -batch ++2.12.18 "tester/testOnly spinal.core.ChecksTester"

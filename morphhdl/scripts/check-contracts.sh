@@ -3,20 +3,59 @@
 set -euo pipefail
 
 require_tools=0
-if [[ "${1:-}" == "--require-tools" ]]; then
-  require_tools=1
-elif [[ -n "${1:-}" ]]; then
-  echo "Usage: $0 [--require-tools]" >&2
-  exit 2
-fi
+parameterized_wire_file=""
+
+usage() {
+  echo "Usage: $0 [--require-tools] [--parameterized-wire <generated-file>]" >&2
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+    --require-tools)
+      require_tools=1
+      shift
+      ;;
+    --parameterized-wire)
+      if (( $# < 2 )); then
+        usage
+        exit 2
+      fi
+      parameterized_wire_file="$2"
+      shift 2
+      ;;
+    *)
+      usage
+      exit 2
+      ;;
+  esac
+done
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(git -C "$script_dir" rev-parse --show-toplevel)"
 contract_file="$repo_root/morphhdl/contracts/verilog-2001.properties"
+parity_file="$repo_root/morphhdl/contracts/validation-parity.tsv"
 examples_dir="$repo_root/morphhdl/examples/contracts"
+golden_parameterized_wire="$examples_dir/parameterized_wire.v"
+
+if [[ -z "$parameterized_wire_file" ]]; then
+  parameterized_wire_file="$golden_parameterized_wire"
+fi
+
+if [[ ! -s "$parameterized_wire_file" ]]; then
+  echo "Missing or empty generated ParameterizedWire RTL: $parameterized_wire_file" >&2
+  exit 1
+fi
+
+if ! cmp -s "$parameterized_wire_file" "$golden_parameterized_wire"; then
+  echo "Generated ParameterizedWire RTL differs from its reviewed golden file" >&2
+  diff -u "$golden_parameterized_wire" "$parameterized_wire_file" || true
+  exit 1
+fi
+
+python3 "$repo_root/morphhdl/scripts/check-validation-parity.py" "$parity_file"
 
 design_files=(
-  "$examples_dir/parameterized_wire.v"
+  "$parameterized_wire_file"
   "$examples_dir/lane_array.v"
 )
 
@@ -143,7 +182,7 @@ if ! grep -Eq 'for[[:space:]]*\(' "${design_files[1]}" ||
 fi
 
 missing_tools=()
-for tool in iverilog vvp yosys; do
+for tool in iverilog verilator vvp yosys; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     missing_tools+=("$tool")
   fi
@@ -164,9 +203,19 @@ cleanup() {
 }
 trap cleanup EXIT
 
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ParameterizedWire \
+  "$parameterized_wire_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module LaneArray \
+  "$examples_dir/lane_array.v"
+
 iverilog -g2001 -Wall -s ParameterizedWireTb \
   -o "$tmp_dir/parameterized_wire.vvp" \
-  "$examples_dir/parameterized_wire.v" \
+  "$parameterized_wire_file" \
   "$examples_dir/parameterized_wire_tb.v"
 wire_output="$(vvp "$tmp_dir/parameterized_wire.vvp")"
 echo "$wire_output"
@@ -186,10 +235,17 @@ if ! printf '%s\n' "$lane_output" | grep -q 'PASS: LaneArray'; then
   exit 1
 fi
 
-(
-  cd "$examples_dir"
-  yosys -q -p 'read_verilog parameterized_wire.v; hierarchy -check -top ParameterizedWire; proc; check'
-  yosys -q -p 'read_verilog lane_array.v; hierarchy -check -top LaneArray; proc; check'
-)
+yosys -q -p \
+  "read_verilog $parameterized_wire_file; hierarchy -check -top ParameterizedWire; proc; check -assert; synth -top ParameterizedWire; check -assert; write_json $tmp_dir/parameterized_wire-default.json"
+python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+  "$tmp_dir/parameterized_wire-default.json" 8
+
+yosys -q -p \
+  "read_verilog $parameterized_wire_file; chparam -set WIDTH 13 ParameterizedWire; hierarchy -check -top ParameterizedWire; proc; check -assert; synth -top ParameterizedWire; check -assert; write_json $tmp_dir/parameterized_wire-width-13.json"
+python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+  "$tmp_dir/parameterized_wire-width-13.json" 13
+
+yosys -q -p \
+  "read_verilog $examples_dir/lane_array.v; hierarchy -check -top LaneArray; proc; check -assert; synth -top LaneArray; check -assert"
 
 echo "Strict Verilog-2001 contract checks passed"
