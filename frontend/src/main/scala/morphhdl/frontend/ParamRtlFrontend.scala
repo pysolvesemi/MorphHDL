@@ -501,6 +501,98 @@ private[morphhdl] object ParamRtlFrontend {
     )
   }
 
+  /**
+    * Atomically emits one posedge register with active-high synchronous
+    * reset-to-zero and active-high clock-enable semantics. The assignment
+    * supplies the registered output target and direct data-input reference;
+    * when enable is low the register retains its previous value.
+    */
+  def emitSynchronousEnabledRegister(
+      label: String,
+      clock: FrontendNode[RtlExpr],
+      reset: FrontendNode[RtlExpr],
+      enable: FrontendNode[RtlExpr],
+      assignment: FrontendNode[ProceduralAssign]
+  )(implicit file: sourcecode.File, line: sourcecode.Line): Unit = {
+    val origin = SourceOrigin.capture
+    requirePortableIdentifier(
+      label,
+      "synchronous-enabled-register label",
+      "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-LABEL-INVALID",
+      origin
+    )
+    val clockRef = requireSynchronousEnabledRegisterRef(
+      label,
+      "clock",
+      clock,
+      "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-CLOCK-NULL",
+      "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-CLOCK-NOT-REF",
+      "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-CLOCK-INVALID",
+      origin
+    )
+    val resetRef = requireSynchronousEnabledRegisterRef(
+      label,
+      "reset",
+      reset,
+      "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-RESET-NULL",
+      "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-RESET-NOT-REF",
+      "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-RESET-INVALID",
+      origin
+    )
+    val enableRef = requireSynchronousEnabledRegisterRef(
+      label,
+      "enable",
+      enable,
+      "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-ENABLE-NULL",
+      "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-ENABLE-NOT-REF",
+      "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-ENABLE-INVALID",
+      origin
+    )
+    if (assignment eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-ASSIGNMENT-NULL",
+        s"synchronous enabled register '$label' requires one non-null data assignment",
+        origin
+      )
+    }
+    assignment.requireUsable(s"synchronous enabled register '$label' assignment")
+    requirePortableIdentifier(
+      assignment.raw.target.name,
+      "synchronous-enabled-register assignment target",
+      "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-TARGET-INVALID",
+      assignment.origin
+    )
+    requirePortableIdentifier(
+      assignment.raw.value.name,
+      "synchronous-enabled-register assignment value",
+      "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-VALUE-INVALID",
+      assignment.origin
+    )
+
+    FrontendSession.emitSynchronousEnabledRegister(
+      FrontendNode(
+        ModuleItem.SynchronousEnabledRegister(
+          label,
+          clockRef,
+          resetRef,
+          enableRef,
+          assignment.raw
+        ),
+        parameters = clock.parameters ++ reset.parameters ++ enable.parameters ++
+          assignment.parameters,
+        booleanParameters = clock.booleanParameters ++ reset.booleanParameters ++
+          enable.booleanParameters ++ assignment.booleanParameters,
+        localParameters = clock.localParameters ++ reset.localParameters ++
+          enable.localParameters ++ assignment.localParameters,
+        booleanLocalParameters = clock.booleanLocalParameters ++
+          reset.booleanLocalParameters ++ enable.booleanLocalParameters ++
+          assignment.booleanLocalParameters,
+        scopes = clock.scopes ++ reset.scopes ++ enable.scopes ++ assignment.scopes,
+        origin = origin
+      )
+    )
+  }
+
   def indexedPartSelect(base: String, offset: HdlInt, width: HdlInt)(implicit
       file: sourcecode.File,
       line: sourcecode.Line
@@ -1075,6 +1167,38 @@ private[morphhdl] object ParamRtlFrontend {
     requirePortableIdentifier(
       reference.name,
       s"asynchronous-register $role",
+      invalidCode,
+      value.origin
+    )
+    reference
+  }
+
+  private def requireSynchronousEnabledRegisterRef(
+      label: String,
+      role: String,
+      value: FrontendNode[RtlExpr],
+      nullCode: String,
+      notRefCode: String,
+      invalidCode: String,
+      origin: SourceOrigin
+  ): Ref = {
+    if (value eq null) {
+      FrontendException.failAt(
+        nullCode,
+        s"synchronous enabled register '$label' requires a non-null $role reference",
+        origin
+      )
+    }
+    value.requireUsable(s"synchronous enabled register '$label' $role")
+    val reference = requireRef(
+      value,
+      s"synchronous-enabled-register $role",
+      notRefCode,
+      origin
+    )
+    requirePortableIdentifier(
+      reference.name,
+      s"synchronous-enabled-register $role",
       invalidCode,
       value.origin
     )

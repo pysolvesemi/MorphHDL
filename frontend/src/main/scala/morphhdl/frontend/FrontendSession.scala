@@ -23,6 +23,10 @@ private[frontend] case object AsynchronousRegisterKind extends RuntimeProcessKin
   val description = "asynchronous-reset register process"
 }
 
+private[frontend] case object SynchronousEnabledRegisterKind extends RuntimeProcessKind {
+  val description = "synchronous enabled-register process"
+}
+
 private[frontend] final case class CapturedRuntimeProcess(
     kind: RuntimeProcessKind,
     origin: SourceOrigin
@@ -808,6 +812,11 @@ private[frontend] object FrontendSession {
   private[frontend] def emitAsynchronousRegister(item: FrontendNode[ModuleItem]): Unit =
     emitRuntimeProcess(item, AsynchronousRegisterKind)
 
+  private[frontend] def emitSynchronousEnabledRegister(
+      item: FrontendNode[ModuleItem]
+  ): Unit =
+    emitRuntimeProcess(item, SynchronousEnabledRegisterKind)
+
   private def emitRuntimeProcess(
       item: FrontendNode[ModuleItem],
       kind: RuntimeProcessKind
@@ -885,18 +894,24 @@ private[frontend] object FrontendSession {
     case CombinationalProcessKind => "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MIXED"
     case SynchronousRegisterKind  => "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-MIXED"
     case AsynchronousRegisterKind => "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-MIXED"
+    case SynchronousEnabledRegisterKind =>
+      "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-MIXED"
   }
 
   private def nestedCode(kind: RuntimeProcessKind): String = kind match {
     case CombinationalProcessKind => "MORPH-FRONTEND-COMBINATIONAL-PROCESS-NESTED"
     case SynchronousRegisterKind  => "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-NESTED"
     case AsynchronousRegisterKind => "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-NESTED"
+    case SynchronousEnabledRegisterKind =>
+      "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-NESTED"
   }
 
   private def multipleCode(kind: RuntimeProcessKind): String = kind match {
     case CombinationalProcessKind => "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MULTIPLE"
     case SynchronousRegisterKind  => "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-MULTIPLE"
     case AsynchronousRegisterKind => "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-MULTIPLE"
+    case SynchronousEnabledRegisterKind =>
+      "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-MULTIPLE"
   }
 
   private def ordinaryItemKind(item: ModuleItem): String = item match {

@@ -198,6 +198,17 @@ enables/hold behavior, reset polarity selection, multiple registers or clocks,
 external input-domain provenance, CDC structures and memories remain outside
 the bounded node.
 
+Increment 18 adds
+`ModuleItem.SynchronousEnabledRegister(label, clock: RtlExpr.Ref,
+reset: RtlExpr.Ref, enable: RtlExpr.Ref, assignment: ProceduralAssign)`. It
+extends the synchronous register with a distinct exact unsigned one-bit input
+enable. Reset-to-zero has priority, enable high performs the direct full-width
+capture, and enable low intentionally preserves the prior state. Validation
+applies the same sole-output ownership and whole-domain type-equivalence proof
+and rejects all sibling process, continuous, instance and generate items. The
+node does not generalize to arbitrary hold values, multiple registers/clocks,
+external domain provenance or memories.
+
 ## Required invariants
 
 - Every reference resolves within its lexical parameter, generate or module

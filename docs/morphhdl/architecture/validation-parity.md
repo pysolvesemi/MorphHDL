@@ -241,3 +241,18 @@ reset priority and later eight-/five-bit capture. Yosys also rejects
 synchronous-reset, falling-edge-clock and reset-to-ones mutations, and the
 external artifact inventory is exactly thirteen files including
 `asynchronous_register.v`.
+
+Increment 18 adds one bounded `SynchronousEnabledRegister`. The concrete
+witness runs the inherited register and clock-domain checks with explicit
+active-high enable gating. ParamRTL separately proves distinct exact one-bit
+clock/reset/enable roles, full-width input/output equivalence, sole ownership,
+reset priority, enabled capture and intentional disabled hold. This strengthens
+the partial `PhaseCheck_noRegisterAsLatch` adaptation without claiming general
+clocked statements, arbitrary hold expressions, multiple registers or
+parameterized process branches. The one-clock/no-sibling rule retains the same
+bounded `PhaseCheckCrossClock` evidence. The fourteenth fixture proves reset,
+capture, hold and later capture at eight and five bits; Yosys rejects disabled
+capture, enable-before-reset, active-low-enable, falling-edge and reset-to-ones
+mutations. The
+external artifact inventory is exactly fourteen files including
+`synchronous_enabled_register.v`.

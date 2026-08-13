@@ -109,3 +109,13 @@ The thirteenth `asynchronous_register.v` artifact proves immediate reset,
 priority and later capture at default eight-bit and awkward five-bit widths;
 Yosys mutation gates reject synchronous reset, falling-edge clock and
 reset-to-ones substitutions.
+
+Increment 18 adds `SynchronousEnabledRegister`: reset retains priority, enable
+high captures and enable low intentionally holds the sole registered output.
+ParamRTL proves distinct exact one-bit controls, direct full-width data, sole
+ownership and no sibling structure. Strict Verilog-2001 emits one named
+positive-edge process with reset, then enable, and no final assignment branch.
+The fourteenth `synchronous_enabled_register.v` artifact proves reset,
+capture, hold and later capture at default eight-bit and awkward five-bit
+widths; synthesis mutation gates reject disabled capture, reversed priority,
+active-low enable, falling-edge clocking and reset-to-ones.
