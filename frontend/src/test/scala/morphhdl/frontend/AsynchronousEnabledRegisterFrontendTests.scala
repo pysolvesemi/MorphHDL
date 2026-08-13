@@ -262,6 +262,57 @@ class AsynchronousEnabledRegisterFrontendTests extends AnyFunSuite {
     assert(valueError.origin == invalidValue.origin)
   }
 
+  test("provides a focused recovery hint for every asynchronous enabled diagnostic") {
+    val identifierSuggestion =
+      "Use an identifier matching `[A-Za-z_][A-Za-z0-9_]*`."
+    val mixedSuggestion =
+      "Use a separate module definition instead of mixing runtime processes or module items."
+    val cases = Vector(
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-NESTED" ->
+        "Emit the asynchronous-reset enabled register as a top-level module item outside all generate regions.",
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-MULTIPLE" ->
+        "Emit one asynchronous-reset enabled-register process per module-item capture.",
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-MIXED" -> mixedSuggestion,
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-LABEL-INVALID" ->
+        identifierSuggestion,
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-CLOCK-INVALID" ->
+        identifierSuggestion,
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-RESET-INVALID" ->
+        identifierSuggestion,
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-ENABLE-INVALID" ->
+        identifierSuggestion,
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-TARGET-INVALID" ->
+        identifierSuggestion,
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-VALUE-INVALID" ->
+        identifierSuggestion,
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-CLOCK-NULL" ->
+        "Pass a non-null ref(name) clock to emitAsynchronousEnabledRegister.",
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-CLOCK-NOT-REF" ->
+        "Pass a non-null ref(name) clock to emitAsynchronousEnabledRegister.",
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-RESET-NULL" ->
+        "Pass a non-null ref(name) reset to emitAsynchronousEnabledRegister.",
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-RESET-NOT-REF" ->
+        "Pass a non-null ref(name) reset to emitAsynchronousEnabledRegister.",
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-ENABLE-NULL" ->
+        "Pass a non-null ref(name) enable to emitAsynchronousEnabledRegister.",
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-ENABLE-NOT-REF" ->
+        "Pass a non-null ref(name) enable to emitAsynchronousEnabledRegister.",
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-ASSIGNMENT-NULL" ->
+        "Pass one proceduralAssign(target, ref(data)) to emitAsynchronousEnabledRegister."
+    )
+    val origin = SourceOrigin("AsyncEnabledSuggestion.scala", 19)
+
+    cases.foreach { case (code, expectedSuggestion) =>
+      val error = intercept[FrontendException] {
+        FrontendException.failAt(code, "invalid asynchronous enabled register", origin)
+      }
+      assert(error.origin == origin)
+      assert(error.suggestion == expectedSuggestion)
+      assert(error.suggestedReplacement == expectedSuggestion)
+      assert(error.getMessage.contains(s"Suggested replacement: $expectedSuggestion"))
+    }
+  }
+
   test("defers declarations directions widths packed types and role separation to ParamRTL") {
     val items = captureItems {
       emitAsynchronousEnabledRegister(
