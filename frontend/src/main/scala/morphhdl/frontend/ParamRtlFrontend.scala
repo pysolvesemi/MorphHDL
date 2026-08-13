@@ -41,6 +41,16 @@ private[morphhdl] object ParamRtlFrontend {
     )
   }
 
+  /**
+    * Starts one generate-case whose literal choices and mandatory default are
+    * supplied through the returned builder.
+    */
+  def generateCase(selector: HdlInt)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): GenerateCaseBuilder =
+    FrontendSession.startGenerateCase(selector, SourceOrigin.capture)
+
   def integerParameter(value: HdlInt)(implicit
       file: sourcecode.File,
       line: sourcecode.Line

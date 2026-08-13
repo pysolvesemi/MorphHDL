@@ -67,6 +67,7 @@ generated_contracts=(
   conditional_width.v
   boolean_forwarding.v
   boolean_locals.v
+  case_routing.v
 )
 
 if (( using_reviewed_goldens == 0 )); then
@@ -106,6 +107,7 @@ comparison_routing_file="$generated_dir/comparison_routing.v"
 conditional_width_file="$generated_dir/conditional_width.v"
 boolean_forwarding_file="$generated_dir/boolean_forwarding.v"
 boolean_locals_file="$generated_dir/boolean_locals.v"
+case_routing_file="$generated_dir/case_routing.v"
 
 parity_args=("$parity_file")
 for live_phase_id_file in "${live_phase_id_files[@]}"; do
@@ -124,6 +126,7 @@ design_files=(
   "$conditional_width_file"
   "$boolean_forwarding_file"
   "$boolean_locals_file"
+  "$case_routing_file"
 )
 
 all_verilog_files=(
@@ -137,6 +140,7 @@ all_verilog_files=(
   "$examples_dir/conditional_width_tb.v"
   "$examples_dir/boolean_forwarding_tb.v"
   "$examples_dir/boolean_locals_tb.v"
+  "$examples_dir/case_routing_tb.v"
 )
 
 read_property() {
@@ -178,11 +182,12 @@ require_property structure.named_boolean_parameter_binding true
 require_property structure.named_port_binding true
 require_property structure.generate_for true
 require_property structure.generate_if true
+require_property structure.generate_case true
 require_property implementation.generate_if true
 require_property implementation.boolean_parameter_forwarding true
 require_property parameter.boolean_local true
 require_property implementation.boolean_local_parameter true
-require_property implementation.generate_case false
+require_property implementation.generate_case true
 
 for file in "${all_verilog_files[@]}"; do
   if [[ ! -s "$file" ]]; then
@@ -273,6 +278,11 @@ expected_modules=(
   BooleanLocalRoute
   BooleanLocals
   BooleanLocalsTb
+  CaseDefaultRoute
+  CaseOneRoute
+  CaseZeroRoute
+  CaseRouting
+  CaseRoutingTb
 )
 
 for module_name in "${expected_modules[@]}"; do
@@ -375,6 +385,19 @@ if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+ENABLE[[:space:]]*=[[:spa
   exit 1
 fi
 
+if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+MODE[[:space:]]*=[[:space:]]*0' "$case_routing_file" ||
+   ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+OFFSET[[:space:]]*=[[:space:]]*0' "$case_routing_file" ||
+   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+SELECTOR[[:space:]]*=[[:space:]]*MODE[[:space:]]*\+[[:space:]]*OFFSET' "$case_routing_file" ||
+   ! grep -Eq 'case[[:space:]]*\([[:space:]]*SELECTOR[[:space:]]*\)' "$case_routing_file" ||
+   ! grep -Eq '0:[[:space:]]*begin[[:space:]]*:[[:space:]]*g_zero' "$case_routing_file" ||
+   ! grep -Eq '1:[[:space:]]*begin[[:space:]]*:[[:space:]]*g_one' "$case_routing_file" ||
+   ! grep -Eq 'default:[[:space:]]*begin[[:space:]]*:[[:space:]]*g_default' "$case_routing_file" ||
+   [[ "$(grep -Ec '[[:space:]]selected_inst[[:space:]]*\(' "$case_routing_file")" != "3" ]] ||
+   [[ "$(grep -Ec 'endcase' "$case_routing_file")" != "1" ]]; then
+  echo "CaseRouting does not retain two explicit choices and its mandatory default branch" >&2
+  exit 1
+fi
+
 missing_tools=()
 for tool in iverilog verilator vvp yosys; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -409,6 +432,7 @@ cp "$comparison_routing_file" "$tmp_dir/comparison_routing.v"
 cp "$conditional_width_file" "$tmp_dir/conditional_width.v"
 cp "$boolean_forwarding_file" "$tmp_dir/boolean_forwarding.v"
 cp "$boolean_locals_file" "$tmp_dir/boolean_locals.v"
+cp "$case_routing_file" "$tmp_dir/case_routing.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
 yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
@@ -418,6 +442,7 @@ yosys_comparison_routing_file="$tmp_dir/comparison_routing.v"
 yosys_conditional_width_file="$tmp_dir/conditional_width.v"
 yosys_boolean_forwarding_file="$tmp_dir/boolean_forwarding.v"
 yosys_boolean_locals_file="$tmp_dir/boolean_locals.v"
+yosys_case_routing_file="$tmp_dir/case_routing.v"
 
 echo "Verilator: $(verilator --version)"
 echo "Icarus: $(iverilog -V 2>/dev/null | head -n 1)"
@@ -634,6 +659,29 @@ verilator --lint-only --language 1364-2001 -Wall \
   -GENABLE=1 -GWIDTH=8 -GLIMIT=8 \
   "$boolean_locals_file"
 
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module CaseRouting \
+  "$case_routing_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module CaseRouting \
+  -GMODE=1 \
+  "$case_routing_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module CaseRouting \
+  -GMODE=0 -GOFFSET=1 \
+  "$case_routing_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module CaseRouting \
+  -GMODE=3 \
+  "$case_routing_file"
+
 iverilog -g2001 -Wall -s ParameterizedWireTb \
   -o "$tmp_dir/parameterized_wire.vvp" \
   "$parameterized_wire_file" \
@@ -730,6 +778,17 @@ boolean_locals_output="$(vvp "$tmp_dir/boolean_locals.vvp")"
 echo "$boolean_locals_output"
 if ! printf '%s\n' "$boolean_locals_output" | grep -q 'PASS: BooleanLocals'; then
   echo "BooleanLocals simulation did not report PASS" >&2
+  exit 1
+fi
+
+iverilog -g2001 -Wall -s CaseRoutingTb \
+  -o "$tmp_dir/case_routing.vvp" \
+  "$case_routing_file" \
+  "$examples_dir/case_routing_tb.v"
+case_routing_output="$(vvp "$tmp_dir/case_routing.vvp")"
+echo "$case_routing_output"
+if ! printf '%s\n' "$case_routing_output" | grep -q 'PASS: CaseRouting'; then
+  echo "CaseRouting simulation did not report PASS" >&2
   exit 1
 fi
 
@@ -961,5 +1020,31 @@ yosys_boolean_locals_synthesize_and_check \
 yosys_boolean_locals_synthesize_and_check \
   equal-limit high \
   "chparam -set ENABLE 1 -set WIDTH 8 -set LIMIT 8 BooleanLocals;"
+
+yosys_case_routing_synthesize_and_check() {
+  local label="$1"
+  local expected_branch="$2"
+  local parameter_command="$3"
+  local hierarchy_netlist="$tmp_dir/CaseRouting-${label}-hierarchy.json"
+  local synthesized_netlist="$tmp_dir/CaseRouting-${label}-synthesized.json"
+
+  yosys -q -p \
+    "read_verilog -noautowire $yosys_case_routing_file; $parameter_command hierarchy -check -top CaseRouting; proc; check -assert; write_json $hierarchy_netlist; synth -top CaseRouting; check -assert; write_json $synthesized_netlist"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-case-routing-contract.py" \
+    "$hierarchy_netlist" --branch "$expected_branch"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$synthesized_netlist" CaseRouting \
+    --port "din:input:8" \
+    --port "dout:output:8"
+}
+
+yosys_case_routing_synthesize_and_check \
+  default zero ""
+yosys_case_routing_synthesize_and_check \
+  choice-one one "chparam -set MODE 1 CaseRouting;"
+yosys_case_routing_synthesize_and_check \
+  offset-choice-one one "chparam -set MODE 0 -set OFFSET 1 CaseRouting;"
+yosys_case_routing_synthesize_and_check \
+  unmatched default "chparam -set MODE 3 CaseRouting;"
 
 echo "Strict Verilog-2001 contract checks passed"

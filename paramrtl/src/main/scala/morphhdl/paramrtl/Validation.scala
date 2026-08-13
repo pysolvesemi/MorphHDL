@@ -36,7 +36,7 @@ import morphhdl.paramrtl.IntExpressionFailure.{
   UnresolvedLocalParameter,
   UnresolvedParameter
 }
-import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateFor, GenerateIf, ModuleInstance}
+import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateCase, GenerateFor, GenerateIf, ModuleInstance}
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 import morphhdl.paramrtl.Signedness.Unsigned
@@ -166,6 +166,8 @@ object ParamRtlValidator {
     val generateFors = module.items.collect { case generate: GenerateFor => generate }.sortBy(_.label)
     val generateIfs = module.items.collect { case generate: GenerateIf => generate }.sortBy(generateIfSortKey)
     val generateIfBlocks = generateIfs.flatMap(generateBlocks)
+    val generateCases = module.items.collect { case generate: GenerateCase => generate }.sortBy(generateCaseSortKey)
+    val generateCaseBlocks = generateCases.flatMap(generateCaseBlocksInOrder)
 
     addDuplicateDiagnostics(
       parameters.map(_.name),
@@ -210,8 +212,8 @@ object ParamRtlValidator {
       diagnostics
     )
     addDuplicateDiagnostics(
-      generateFors.map(_.label) ++ generateIfBlocks.map(_.label),
-      modulePath :+ "generateFors",
+      generateFors.map(_.label) ++ generateIfBlocks.map(_.label) ++ generateCaseBlocks.map(_.label),
+      modulePath :+ "generateLabels",
       "PRTL-DUPLICATE-GENERATE-LABEL",
       "generate label",
       diagnostics
@@ -231,7 +233,8 @@ object ParamRtlValidator {
       "Boolean local parameter" -> booleanLocalParameters.map(_.name).toSet,
       "port" -> ports.map(_.name).toSet,
       "instance" -> instances.map(_.name).toSet,
-      "generate label" -> (generateFors.map(_.label) ++ generateIfBlocks.map(_.label)).toSet,
+      "generate label" ->
+        (generateFors.map(_.label) ++ generateIfBlocks.map(_.label) ++ generateCaseBlocks.map(_.label)).toSet,
       "generate index" -> generateFors.map(_.indexName).toSet
     )
     declarationKinds.combinations(2).foreach {
@@ -377,6 +380,12 @@ object ParamRtlValidator {
             path :+ "body" :+ index.toString,
             "Generate-for bodies cannot contain generate-if constructs"
           )
+        case (_: GenerateCase, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-NESTED-GENERATE-UNSUPPORTED",
+            path :+ "body" :+ index.toString,
+            "Generate-for bodies cannot contain generate-case constructs"
+          )
         case (_, index) =>
           diagnostics += Diagnostic(
             "PRTL-GENERATE-BODY-ITEM-UNSUPPORTED",
@@ -440,9 +449,97 @@ object ParamRtlValidator {
               branchPath :+ "body" :+ index.toString,
               "Generate-if branches cannot contain another generate construct"
             )
+          case (_: GenerateCase, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-NESTED-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-if branches cannot contain another generate construct"
+            )
         }
       }
 
+    }
+
+    if (generateCases.size > 1) {
+      generateCases.drop(1).foreach { generate =>
+        diagnostics += Diagnostic(
+          "PRTL-MULTIPLE-GENERATE-CASE-UNSUPPORTED",
+          modulePath :+ "generateCases" :+ generate.default.label,
+          "At most one top-level generate-case is supported per module"
+        )
+      }
+    }
+
+    if (generateCases.nonEmpty && generateIfs.nonEmpty) {
+      generateIfs.foreach { generate =>
+        diagnostics += Diagnostic(
+          "PRTL-MULTIPLE-CONDITIONAL-GENERATE-UNSUPPORTED",
+          modulePath :+ "generateIfs" :+ generate.whenTrue.label,
+          "A module cannot contain both generate-if and generate-case constructs"
+        )
+      }
+    }
+
+    generateCases.foreach { generate =>
+      val path = modulePath :+ "generateCases" :+ generate.default.label
+      if (generate.choices.isEmpty)
+        diagnostics += Diagnostic(
+          "PRTL-GENERATE-CASE-NO-CHOICES",
+          path :+ "choices",
+          "Generate-case requires at least one explicit literal choice"
+        )
+      validateExpressionReferences(
+        generate.selector,
+        parameterNames,
+        localParameterNames,
+        path :+ "selector",
+        diagnostics,
+        Set.empty,
+        booleanParameterByName,
+        booleanLocalParameterNames
+      )
+
+      addDuplicateCaseValueDiagnostics(generate, path, diagnostics)
+
+      generateCaseNamedBlocks(generate).foreach { case (branchPathSuffix, block) =>
+        val branchPath = path ++ branchPathSuffix
+        checkIdentifier(block.label, branchPath :+ "label", "generate branch label", diagnostics)
+        val bodyInstances = block.body.collect { case instance: ModuleInstance => instance }.sortBy(_.name)
+        addDuplicateDiagnostics(
+          bodyInstances.map(_.name),
+          branchPath :+ "instances",
+          "PRTL-DUPLICATE-INSTANCE",
+          "instance",
+          diagnostics
+        )
+        bodyInstances.foreach { instance =>
+          val instancePath = branchPath :+ "instances" :+ instance.name
+          checkIdentifier(instance.name, instancePath :+ "name", "instance", diagnostics)
+          checkIdentifier(instance.moduleName, instancePath :+ "moduleName", "referenced module", diagnostics)
+        }
+        block.body.zipWithIndex.foreach {
+          case (_: ModuleInstance, _)   =>
+          case (_: ContinuousAssign, _) =>
+          case (_: GenerateFor, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-NESTED-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-case branches cannot contain another generate construct"
+            )
+          case (_: GenerateIf, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-NESTED-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-case branches cannot contain another generate construct"
+            )
+          case (_: GenerateCase, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-NESTED-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-case branches cannot contain another generate construct"
+            )
+        }
+      }
     }
 
     def integerLocalKey(name: String): String = s"integer:$name"
@@ -561,6 +658,18 @@ object ParamRtlValidator {
         modulePath :+ "generateIfs" :+ generate.whenTrue.label :+ "condition",
         diagnostics,
         booleanLocalParameterFacts
+      )
+    }
+
+    generateCases.foreach { generate =>
+      analyzeExpression(
+        generate.selector,
+        parameterFacts,
+        localParameterFacts,
+        modulePath :+ "generateCases" :+ generate.default.label :+ "selector",
+        diagnostics,
+        booleanParameters = booleanParameterByName,
+        booleanLocalParameters = booleanLocalParameterFacts
       )
     }
 
@@ -1212,9 +1321,10 @@ object ParamRtlValidator {
     val instances = module.items.collect { case instance: ModuleInstance => instance }.sortBy(_.name)
     val generateFors = module.items.collect { case generate: GenerateFor => generate }.sortBy(_.label)
     val generateIfs = module.items.collect { case generate: GenerateIf => generate }.sortBy(generateIfSortKey)
+    val generateCases = module.items.collect { case generate: GenerateCase => generate }.sortBy(generateCaseSortKey)
     val driverCounts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
-    val conditionalDriverMinimums = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
-    val conditionalDriverMaximums = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
+    val conditionalBranchDriverCounts =
+      scala.collection.mutable.ArrayBuffer.empty[scala.collection.mutable.Map[String, Int]]
     val instanceFactsBuilder = Map.newBuilder[String, ValidatedInstanceFacts]
     val parentParameters = baseFacts.parameterFacts
     val parentLocals = baseFacts.localParameterFacts
@@ -1780,26 +1890,50 @@ object ParamRtlValidator {
 
       validateBlock(generate.whenTrue, trueCounts)
       validateBlock(generate.whenFalse, falseCounts)
+      conditionalBranchDriverCounts ++= Vector(trueCounts, falseCounts)
+    }
 
-      ports.filter(_.direction == Output).foreach { port =>
-        val branchCounts = Vector(trueCounts(port.name), falseCounts(port.name))
-        conditionalDriverMinimums.update(
-          port.name,
-          conditionalDriverMinimums(port.name) + branchCounts.min
-        )
-        conditionalDriverMaximums.update(
-          port.name,
-          conditionalDriverMaximums(port.name) + branchCounts.max
-        )
+    generateCases.foreach { generate =>
+      val path = modulePath :+ "generateCases" :+ generate.default.label
+
+      def validateBlock(
+          pathSuffix: Vector[String],
+          block: GenerateBlock,
+          counts: scala.collection.mutable.Map[String, Int]
+      ): Unit = {
+        val blockPath = path ++ pathSuffix
+        block.body.zipWithIndex.foreach {
+          case (instance: ModuleInstance, _) =>
+            validateInstance(
+              instance,
+              blockPath :+ "instances" :+ instance.name,
+              s"${block.label}.${instance.name}",
+              None,
+              counts
+            )
+          case (assignment: ContinuousAssign, index) =>
+            validateAssignment(assignment, blockPath :+ "items" :+ index.toString, counts)
+          case _ => // Nested generate diagnostics are emitted by validateModule.
+        }
       }
+
+      sortedGenerateCaseChoices(generate).foreach { choice =>
+        val counts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
+        validateBlock(Vector("choices", choice.value.toString, choice.block.label), choice.block, counts)
+        conditionalBranchDriverCounts += counts
+      }
+      val defaultCounts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
+      validateBlock(Vector("default", generate.default.label), generate.default, defaultCounts)
+      conditionalBranchDriverCounts += defaultCounts
     }
 
     ports.filter(_.direction == Output).foreach { port =>
-      val minimumDrivers = driverCounts(port.name) + conditionalDriverMinimums(port.name)
-      val maximumDrivers = driverCounts(port.name) + conditionalDriverMaximums(port.name)
-      if (minimumDrivers == 0) {
+      val legalDriverCounts =
+        if (conditionalBranchDriverCounts.isEmpty) Vector(driverCounts(port.name))
+        else conditionalBranchDriverCounts.toVector.map(branch => driverCounts(port.name) + branch(port.name))
+      if (legalDriverCounts.exists(_ == 0)) {
         val message =
-          if (generateIfs.isEmpty) s"Output port '${port.name}' has no driver"
+          if (generateIfs.isEmpty && generateCases.isEmpty) s"Output port '${port.name}' has no driver"
           else s"Output port '${port.name}' is undriven for at least one legal generate configuration"
         diagnostics += Diagnostic(
           "PRTL-UNDRIVEN-OUTPUT",
@@ -1807,9 +1941,10 @@ object ParamRtlValidator {
           message
         )
       }
-      if (maximumDrivers > 1) {
+      val maximumDrivers = legalDriverCounts.max
+      if (legalDriverCounts.exists(_ > 1)) {
         val message =
-          if (generateIfs.isEmpty) s"Output port '${port.name}' has $maximumDrivers drivers"
+          if (generateIfs.isEmpty && generateCases.isEmpty) s"Output port '${port.name}' has $maximumDrivers drivers"
           else s"Output port '${port.name}' has up to $maximumDrivers drivers in a legal generate configuration"
         diagnostics += Diagnostic(
           "PRTL-MULTIPLE-DRIVERS",
@@ -2135,6 +2270,13 @@ object ParamRtlValidator {
             case _                        =>
           }
         }
+      case generate: GenerateCase =>
+        generateCaseBlocksInOrder(generate).foreach { block =>
+          block.body.foreach {
+            case instance: ModuleInstance => result += instance
+            case _                        =>
+          }
+        }
       case _ =>
     }
     result.result()
@@ -2145,6 +2287,42 @@ object ParamRtlValidator {
 
   private def generateIfSortKey(generate: GenerateIf): (String, String) =
     generate.whenTrue.label -> generate.whenFalse.label
+
+  private def sortedGenerateCaseChoices(generate: GenerateCase): Vector[GenerateCaseChoice] =
+    generate.choices.sortBy(choice => (choice.value, choice.block.label))
+
+  private def generateCaseBlocksInOrder(generate: GenerateCase): Vector[GenerateBlock] =
+    sortedGenerateCaseChoices(generate).map(_.block) :+ generate.default
+
+  private def generateCaseNamedBlocks(
+      generate: GenerateCase
+  ): Vector[(Vector[String], GenerateBlock)] =
+    sortedGenerateCaseChoices(generate).map { choice =>
+      Vector("choices", choice.value.toString, choice.block.label) -> choice.block
+    } :+ (Vector("default", generate.default.label) -> generate.default)
+
+  private def generateCaseSortKey(generate: GenerateCase): (String, String) =
+    generate.default.label -> sortedGenerateCaseChoices(generate)
+      .map(choice => s"${choice.value}:${choice.block.label}")
+      .mkString("|")
+
+  private def addDuplicateCaseValueDiagnostics(
+      generate: GenerateCase,
+      path: Vector[String],
+      diagnostics: DiagnosticBuilder
+  ): Unit =
+    generate.choices
+      .groupBy(_.value)
+      .collect { case (value, choices) if choices.size > 1 => value -> choices.map(_.block.label).sorted }
+      .toVector
+      .sortBy(_._1)
+      .foreach { case (value, labels) =>
+        diagnostics += Diagnostic(
+          "PRTL-DUPLICATE-GENERATE-CASE-VALUE",
+          path :+ "choices" :+ value.toString,
+          s"Generate-case literal '$value' is selected by multiple branches: ${labels.mkString(", ")}"
+        )
+      }
 
   private def containsGenerateIndex(expression: IntExpr): Boolean = {
     val stack = scala.collection.mutable.ArrayBuffer(expression)

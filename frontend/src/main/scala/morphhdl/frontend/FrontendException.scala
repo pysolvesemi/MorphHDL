@@ -34,7 +34,7 @@ private[frontend] object FrontendException {
     case "MORPH-FRONTEND-GENINDEX-ESCAPED" =>
       "Construct and consume the generate-index expression inside its loop body."
     case "MORPH-FRONTEND-NESTED-GENERATE-UNSUPPORTED" =>
-      "Flatten the loops or emit one supported generate loop."
+      "Flatten the structural regions and emit one top-level generate loop or conditional region."
     case "MORPH-FRONTEND-GENERATE-IF-OTHERWISE-MISSING" =>
       "Complete every generateIf with exactly one otherwise branch in the same capture."
     case "MORPH-FRONTEND-GENERATE-IF-OTHERWISE-DUPLICATE" =>
@@ -43,6 +43,24 @@ private[frontend] object FrontendException {
       "Complete the generateIf in the same frontend capture where it was created."
     case "MORPH-FRONTEND-GENERATE-IF-MULTIPLE" =>
       "Use one top-level generateIf per module-item capture."
+    case "MORPH-FRONTEND-GENERATE-CASE-DEFAULT-MISSING" =>
+      "Complete every generateCase with exactly one default branch in the same capture."
+    case "MORPH-FRONTEND-GENERATE-CASE-DEFAULT-DUPLICATE" =>
+      "Supply one default branch for each generateCase."
+    case "MORPH-FRONTEND-GENERATE-CASE-ESCAPED" =>
+      "Complete the generateCase in the same frontend capture where it was created."
+    case "MORPH-FRONTEND-GENERATE-CASE-MULTIPLE" =>
+      "Use one top-level generateIf or generateCase per module-item capture."
+    case "MORPH-FRONTEND-GENERATE-CASE-SELECTOR-NULL" =>
+      "Pass an HdlInt literal, expression, public parameter or local parameter to generateCase."
+    case "MORPH-FRONTEND-GENERATE-CASE-CHOICE-NULL" =>
+      "Pass a non-null BigInt literal to generateCase.choice."
+    case "MORPH-FRONTEND-GENERATE-CASE-CHOICE-DUPLICATE" =>
+      "Give every generateCase choice a unique integer literal value."
+    case "MORPH-FRONTEND-GENERATE-CASE-CHOICE-MISSING" =>
+      "Add at least one literal choice before the mandatory default branch."
+    case "MORPH-FRONTEND-GENERATE-CASE-COMPLETED" =>
+      "Add all literal choices before completing generateCase with its default branch."
     case "MORPH-FRONTEND-BOOLEAN-CONDITION-NULL" =>
       "Pass an HdlBool literal, expression or public parameter to generateIf."
     case "MORPH-FRONTEND-BOOLEAN-PARAMETER-BINDING-NULL" =>
@@ -118,7 +136,7 @@ private[frontend] object FrontendException {
     case "MORPH-FRONTEND-PARAMETER-NAME-DUPLICATE" =>
       "Give every public parameter in a module a unique name."
     case "MORPH-FRONTEND-GENERATE-NAME-DUPLICATE" =>
-      "Use .named(label = ..., index = ...) with unique stable identifiers."
+      "Use unique stable labels for generate branches and .named(label = ..., index = ...) loops."
     case "MORPH-FRONTEND-EMIT-OUTSIDE-CAPTURE" | "MORPH-FRONTEND-MISSING-COLLECTOR" =>
       "Emit module items inside ParamRtlFrontend.captureItems."
     case "MORPH-FRONTEND-SESSION-NESTED" =>

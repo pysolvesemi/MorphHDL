@@ -27,7 +27,7 @@ import morphhdl.paramrtl.BoolExpr.{
   Or => BoolOr,
   ParameterRef => BoolParameterRef
 }
-import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateFor, GenerateIf, ModuleInstance}
+import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateCase, GenerateFor, GenerateIf, ModuleInstance}
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 import morphhdl.paramrtl.Signedness.{Signed, Unsigned}
@@ -61,6 +61,7 @@ object Verilog2001Emitter {
     val instances = facts.orderedInstances
     val generateFors = module.items.collect { case generate: GenerateFor => generate }.sortBy(_.label)
     val generateIfs = module.items.collect { case generate: GenerateIf => generate }.sortBy(generateIfSortKey)
+    val generateCases = module.items.collect { case generate: GenerateCase => generate }.sortBy(generateCaseSortKey)
     val assignments = module.items.collect { case assignment: ContinuousAssign => assignment }.sortBy { assignment =>
       (assignment.target.name, renderRtlExpr(assignment.value))
     }
@@ -110,7 +111,7 @@ object Verilog2001Emitter {
       }
     }
 
-    if (generateFors.nonEmpty || generateIfs.nonEmpty) {
+    if (generateFors.nonEmpty || generateIfs.nonEmpty || generateCases.nonEmpty) {
       lines += ""
       if (generateFors.nonEmpty) {
         generateFors.foreach { generate =>
@@ -138,6 +139,19 @@ object Verilog2001Emitter {
         lines += s"    end else begin : ${generate.whenFalse.label}"
         renderGenerateBlockBody(generate.whenFalse, "      ").foreach(lines += _)
         lines += "    end"
+      }
+      generateCases.zipWithIndex.foreach { case (generate, generateIndex) =>
+        if (generateFors.nonEmpty || generateIfs.nonEmpty || generateIndex != 0) lines += ""
+        lines += s"    case (${renderIntExpr(generate.selector)})"
+        generate.choices.sortBy(choice => (choice.value, choice.block.label)).foreach { choice =>
+          lines += s"      ${choice.value}: begin : ${choice.block.label}"
+          renderGenerateBlockBody(choice.block, "        ").foreach(lines += _)
+          lines += "      end"
+        }
+        lines += s"      default: begin : ${generate.default.label}"
+        renderGenerateBlockBody(generate.default, "        ").foreach(lines += _)
+        lines += "      end"
+        lines += "    endcase"
       }
       lines += "  endgenerate"
     }
@@ -340,4 +354,10 @@ object Verilog2001Emitter {
 
   private def generateIfSortKey(generate: GenerateIf): (String, String) =
     generate.whenTrue.label -> generate.whenFalse.label
+
+  private def generateCaseSortKey(generate: GenerateCase): (String, String) =
+    generate.default.label -> generate.choices
+      .sortBy(choice => (choice.value, choice.block.label))
+      .map(choice => s"${choice.value}:${choice.block.label}")
+      .mkString("|")
 }

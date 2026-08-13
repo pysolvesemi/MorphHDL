@@ -74,3 +74,10 @@ recomputes the combined local context separately for every reachable instance
 before selecting default hierarchy. The ninth `boolean_locals.v` artifact
 proves an integer-to-Boolean-to-integer local chain forwarded into a child
 generate-if while retaining a fixed eight-bit interface.
+
+Increment 14 adds one bounded integer-selected `GenerateCase` with explicit
+unique choices and a mandatory default. ParamRTL validates every branch while
+`MorphVerilog` follows only the exact default-selected choice (or default) in
+each reachable instance context. The tenth `case_routing.v` artifact proves
+literal-choice, local-selector and unmatched-default routing through distinct
+leaf schemas behind one fixed eight-bit interface.

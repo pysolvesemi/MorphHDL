@@ -29,7 +29,7 @@ import morphhdl.paramrtl.IntExpr.{
   Subtract
 }
 import morphhdl.paramrtl._
-import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateFor, GenerateIf, ModuleInstance}
+import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateCase, GenerateFor, GenerateIf, ModuleInstance}
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 
 object Verilog2001Capability {
@@ -308,6 +308,37 @@ object Verilog2001Capability {
           path :+ "whenFalse",
           diagnostics
         )
+      }
+
+      module.items.collect { case generate: GenerateCase => generate }.sortBy(generateCaseSortKey).foreach {
+        generate =>
+          val path = modulePath :+ "generateCases" :+ generate.default.label
+          checkExpression(
+            generate.selector,
+            facts.parameterFacts,
+            facts.localParameterFacts,
+            path :+ "selector",
+            diagnostics,
+            booleanParameters = booleanParameterByName,
+            booleanLocalParameters = facts.booleanLocalParameterFacts
+          )
+          generate.choices.sortBy(choice => (choice.value, choice.block.label)).foreach { choice =>
+            checkInteger(choice.value, path :+ "choices" :+ choice.value.toString :+ "value", diagnostics)
+            checkGenerateBlock(
+              choice.block,
+              facts,
+              booleanParameterByName,
+              path :+ "choices" :+ choice.value.toString :+ choice.block.label,
+              diagnostics
+            )
+          }
+          checkGenerateBlock(
+            generate.default,
+            facts,
+            booleanParameterByName,
+            path :+ "default" :+ generate.default.label,
+            diagnostics
+          )
       }
 
       module.items.collect { case assignment: ContinuousAssign => assignment }.zipWithIndex.foreach {
@@ -775,4 +806,10 @@ object Verilog2001Capability {
 
   private def generateIfSortKey(generate: GenerateIf): (String, String) =
     generate.whenTrue.label -> generate.whenFalse.label
+
+  private def generateCaseSortKey(generate: GenerateCase): (String, String) =
+    generate.default.label -> generate.choices
+      .sortBy(choice => (choice.value, choice.block.label))
+      .map(choice => s"${choice.value}:${choice.block.label}")
+      .mkString("|")
 }

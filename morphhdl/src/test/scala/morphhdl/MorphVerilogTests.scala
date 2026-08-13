@@ -568,6 +568,105 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("default shape selects a matching generate-case choice") {
+    withTemporaryDirectory { directory =>
+      val topName = "MatchedGenerateCase"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = generateCaseWitness(topName, selected = 1),
+          parameterizedDesign = generateCaseDesign(topName, modeDefault = 1)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("default shape selects the mandatory generate-case default") {
+    withTemporaryDirectory { directory =>
+      val topName = "DefaultedGenerateCase"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = generateCaseWitness(topName, selected = 3),
+          parameterizedDesign = generateCaseDesign(topName, modeDefault = 3)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("default shape evaluates a generate-case selector through mixed Boolean and integer locals") {
+    withTemporaryDirectory { directory =>
+      val topName = "LocalGenerateCase"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = generateCaseWitness(topName, selected = 2),
+          parameterizedDesign = generateCaseDesign(
+            topName,
+            modeDefault = 1,
+            selectorThroughLocal = true
+          )
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("recursive default shape evaluates a parent-bound child generate-case selector") {
+    withTemporaryDirectory { directory =>
+      val topName = "BoundGenerateCase"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = boundGenerateCaseWitness(topName, selected = 2),
+          parameterizedDesign = boundGenerateCaseDesign(topName)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("sibling instances keep independently selected generate-case contexts") {
+    withTemporaryDirectory { directory =>
+      val topName = "SiblingGenerateCaseContexts"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = siblingGenerateCaseWitness(topName),
+          parameterizedDesign = siblingGenerateCaseDesign(topName)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("inactive generate-case choices remain subject to whole-design validation") {
+    withTemporaryDirectory { directory =>
+      val topName = "InvalidInactiveGenerateCase"
+      val result = MorphVerilog.tryGenerate(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = generateCaseWitness(topName, selected = 0),
+          parameterizedDesign = invalidInactiveGenerateCaseDesign(topName)
+        )
+      }
+
+      result match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.ParamRtlValidation)
+          assert(failure.message.contains("MissingInactiveCaseLeaf"))
+        case Right(report) => fail(s"Expected generate-case validation failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve(s"$topName.v")))
+    }
+  }
+
   test("an invalid inactive conditional integer branch fails whole-design validation") {
     withTemporaryDirectory { directory =>
       val topName = "InvalidInactiveConditionalWidth"
@@ -1981,6 +2080,367 @@ class MorphVerilogTests extends AnyFunSuite {
       )
     )
     Design(requestedName, Vector(module))
+  }
+
+  private def generateCaseWitness(requestedName: String, selected: Int): Component =
+    new Component {
+      setDefinitionName(requestedName)
+      val din = in(Bits(8 bits))
+      val dout = out(Bits(8 bits))
+
+      if (selected == 0) {
+        val selected_inst = new Component {
+          setDefinitionName("GenerateCaseZeroLeaf")
+          val zero_in = in(Bits(8 bits))
+          val zero_out = out(Bits(8 bits))
+          zero_out := zero_in
+        }
+        selected_inst.zero_in := din
+        dout := selected_inst.zero_out
+      } else if (selected == 1) {
+        val selected_inst = new Component {
+          setDefinitionName("GenerateCaseOneLeaf")
+          val one_in = in(Bits(8 bits))
+          val one_out = out(Bits(8 bits))
+          one_out := one_in
+        }
+        selected_inst.one_in := din
+        dout := selected_inst.one_out
+      } else {
+        val selected_inst = new Component {
+          setDefinitionName("GenerateCaseDefaultLeaf")
+          val default_in = in(Bits(8 bits))
+          val default_out = out(Bits(8 bits))
+          default_out := default_in
+        }
+        selected_inst.default_in := din
+        dout := selected_inst.default_out
+      }
+    }
+
+  private def generateCaseLeaves(): (ModuleDef, ModuleDef, ModuleDef) = {
+    val packed = PackedBits(IntExpr.Literal(8), Unsigned)
+    val zero = ModuleDef(
+      "GenerateCaseZeroLeaf",
+      Vector.empty,
+      Vector(Port("zero_in", Input, packed), Port("zero_out", Output, packed)),
+      Vector(ContinuousAssign(Ref("zero_out"), Ref("zero_in")))
+    )
+    val one = ModuleDef(
+      "GenerateCaseOneLeaf",
+      Vector.empty,
+      Vector(Port("one_in", Input, packed), Port("one_out", Output, packed)),
+      Vector(ContinuousAssign(Ref("one_out"), Ref("one_in")))
+    )
+    val default = ModuleDef(
+      "GenerateCaseDefaultLeaf",
+      Vector.empty,
+      Vector(
+        Port("default_in", Input, packed),
+        Port("default_out", Output, packed)
+      ),
+      Vector(ContinuousAssign(Ref("default_out"), Ref("default_in")))
+    )
+    (zero, one, default)
+  }
+
+  private def generateCaseItem(
+      selector: IntExpr,
+      zero: ModuleDef,
+      one: ModuleDef,
+      default: ModuleDef,
+      input: String = "din",
+      output: String = "dout"
+  ): ModuleItem.GenerateCase = {
+    def instance(module: ModuleDef, inputPort: String, outputPort: String) =
+      ModuleItem.ModuleInstance(
+        "selected_inst",
+        module.name,
+        portConnections = Vector(
+          PortConnection(inputPort, Ref(input)),
+          PortConnection(outputPort, Ref(output))
+        )
+      )
+    ModuleItem.GenerateCase(
+      selector,
+      Vector(
+        GenerateCaseChoice(
+          0,
+          GenerateBlock("g_zero", Vector(instance(zero, "zero_in", "zero_out")))
+        ),
+        GenerateCaseChoice(
+          1,
+          GenerateBlock("g_one", Vector(instance(one, "one_in", "one_out")))
+        )
+      ),
+      GenerateBlock(
+        "g_default",
+        Vector(instance(default, "default_in", "default_out"))
+      )
+    )
+  }
+
+  private def generateCaseDesign(
+      requestedName: String,
+      modeDefault: BigInt,
+      selectorThroughLocal: Boolean = false
+  ): Design = {
+    val packed = PackedBits(IntExpr.Literal(8), Unsigned)
+    val (zero, one, default) = generateCaseLeaves()
+    val selector =
+      if (selectorThroughLocal) IntExpr.LocalParameterRef("SELECTOR")
+      else IntExpr.ParameterRef("MODE")
+    val top = ModuleDef(
+      name = requestedName,
+      parameters = Vector(
+        IntegerParameter("MODE", modeDefault, Vector(MinInclusive(0), MaxInclusive(7)))
+      ),
+      ports = Vector(Port("din", Input, packed), Port("dout", Output, packed)),
+      items = Vector(generateCaseItem(selector, zero, one, default)),
+      localParameters =
+        if (selectorThroughLocal)
+          Vector(
+            IntegerLocalParameter(
+              "SELECTOR",
+              IntExpr.Select(
+                morphhdl.paramrtl.BoolExpr.LocalParameterRef("USE_NEXT"),
+                IntExpr.Add(IntExpr.ParameterRef("MODE"), IntExpr.Literal(1)),
+                IntExpr.ParameterRef("MODE")
+              )
+            )
+          )
+        else Vector.empty,
+      booleanParameters =
+        if (selectorThroughLocal) Vector(BooleanParameter("ADVANCE", default = true))
+        else Vector.empty,
+      booleanLocalParameters =
+        if (selectorThroughLocal)
+          Vector(
+            BooleanLocalParameter(
+              "USE_NEXT",
+              morphhdl.paramrtl.BoolExpr.And(
+                morphhdl.paramrtl.BoolExpr.ParameterRef("ADVANCE"),
+                morphhdl.paramrtl.BoolExpr.Equal(
+                  IntExpr.ParameterRef("MODE"),
+                  IntExpr.Literal(1)
+                )
+              )
+            )
+          )
+        else Vector.empty
+    )
+    Design(requestedName, Vector(top, zero, one, default))
+  }
+
+  private def boundGenerateCaseWitness(requestedName: String, selected: Int): Component =
+    new Component {
+      setDefinitionName(requestedName)
+      val din = in(Bits(8 bits))
+      val dout = out(Bits(8 bits))
+      val routed_child = new Component {
+        setDefinitionName("BoundGenerateCaseChild")
+        val child_in = in(Bits(8 bits))
+        val child_out = out(Bits(8 bits))
+
+        if (selected == 0) {
+          val selected_inst = new Component {
+            setDefinitionName("GenerateCaseZeroLeaf")
+            val zero_in = in(Bits(8 bits))
+            val zero_out = out(Bits(8 bits))
+            zero_out := zero_in
+          }
+          selected_inst.zero_in := child_in
+          child_out := selected_inst.zero_out
+        } else if (selected == 1) {
+          val selected_inst = new Component {
+            setDefinitionName("GenerateCaseOneLeaf")
+            val one_in = in(Bits(8 bits))
+            val one_out = out(Bits(8 bits))
+            one_out := one_in
+          }
+          selected_inst.one_in := child_in
+          child_out := selected_inst.one_out
+        } else {
+          val selected_inst = new Component {
+            setDefinitionName("GenerateCaseDefaultLeaf")
+            val default_in = in(Bits(8 bits))
+            val default_out = out(Bits(8 bits))
+            default_out := default_in
+          }
+          selected_inst.default_in := child_in
+          child_out := selected_inst.default_out
+        }
+      }
+      routed_child.child_in := din
+      dout := routed_child.child_out
+    }
+
+  private def boundGenerateCaseDesign(requestedName: String): Design = {
+    val packed = PackedBits(IntExpr.Literal(8), Unsigned)
+    val (zero, one, default) = generateCaseLeaves()
+    val child = ModuleDef(
+      name = "BoundGenerateCaseChild",
+      parameters = Vector(
+        IntegerParameter("MODE", 0, Vector(MinInclusive(0), MaxInclusive(7)))
+      ),
+      ports = Vector(
+        Port("child_in", Input, packed),
+        Port("child_out", Output, packed)
+      ),
+      items = Vector(
+        generateCaseItem(
+          IntExpr.ParameterRef("MODE"),
+          zero,
+          one,
+          default,
+          input = "child_in",
+          output = "child_out"
+        )
+      )
+    )
+    val top = ModuleDef(
+      name = requestedName,
+      parameters = Vector(
+        IntegerParameter("BASE_MODE", 1, Vector(MinInclusive(0), MaxInclusive(6)))
+      ),
+      ports = Vector(Port("din", Input, packed), Port("dout", Output, packed)),
+      items = Vector(
+        ModuleItem.ModuleInstance(
+          "routed_child",
+          child.name,
+          parameterBindings = Vector(
+            ParameterBinding("MODE", IntExpr.LocalParameterRef("BOUND_MODE"))
+          ),
+          portConnections = Vector(
+            PortConnection("child_in", Ref("din")),
+            PortConnection("child_out", Ref("dout"))
+          )
+        )
+      ),
+      localParameters = Vector(
+        IntegerLocalParameter(
+          "BOUND_MODE",
+          IntExpr.Add(IntExpr.ParameterRef("BASE_MODE"), IntExpr.Literal(1))
+        )
+      )
+    )
+    Design(requestedName, Vector(top, child, zero, one, default))
+  }
+
+  private def siblingGenerateCaseWitness(requestedName: String): Component =
+    new Component {
+      setDefinitionName(requestedName)
+      val zero_in = in(Bits(8 bits))
+      val zero_out = out(Bits(8 bits))
+      val one_in = in(Bits(8 bits))
+      val one_out = out(Bits(8 bits))
+
+      val zero_child = new Component {
+        setDefinitionName("SiblingGenerateCaseChildZero")
+        val child_in = in(Bits(8 bits))
+        val child_out = out(Bits(8 bits))
+        val selected_inst = new Component {
+          setDefinitionName("GenerateCaseZeroLeaf")
+          val zero_in = in(Bits(8 bits))
+          val zero_out = out(Bits(8 bits))
+          zero_out := zero_in
+        }
+        selected_inst.zero_in := child_in
+        child_out := selected_inst.zero_out
+      }
+      val one_child = new Component {
+        setDefinitionName("SiblingGenerateCaseChildOne")
+        val child_in = in(Bits(8 bits))
+        val child_out = out(Bits(8 bits))
+        val selected_inst = new Component {
+          setDefinitionName("GenerateCaseOneLeaf")
+          val one_in = in(Bits(8 bits))
+          val one_out = out(Bits(8 bits))
+          one_out := one_in
+        }
+        selected_inst.one_in := child_in
+        child_out := selected_inst.one_out
+      }
+      zero_child.child_in := zero_in
+      zero_out := zero_child.child_out
+      one_child.child_in := one_in
+      one_out := one_child.child_out
+    }
+
+  private def siblingGenerateCaseDesign(requestedName: String): Design = {
+    val packed = PackedBits(IntExpr.Literal(8), Unsigned)
+    val (zero, one, default) = generateCaseLeaves()
+    val child = ModuleDef(
+      name = "SiblingGenerateCaseChild",
+      parameters = Vector(
+        IntegerParameter("MODE", 3, Vector(MinInclusive(0), MaxInclusive(7)))
+      ),
+      ports = Vector(
+        Port("child_in", Input, packed),
+        Port("child_out", Output, packed)
+      ),
+      items = Vector(
+        generateCaseItem(
+          IntExpr.ParameterRef("MODE"),
+          zero,
+          one,
+          default,
+          input = "child_in",
+          output = "child_out"
+        )
+      )
+    )
+    def instance(name: String, mode: BigInt, input: String, output: String) =
+      ModuleItem.ModuleInstance(
+        name,
+        child.name,
+        parameterBindings = Vector(ParameterBinding("MODE", IntExpr.Literal(mode))),
+        portConnections = Vector(
+          PortConnection("child_in", Ref(input)),
+          PortConnection("child_out", Ref(output))
+        )
+      )
+    val top = ModuleDef(
+      requestedName,
+      Vector.empty,
+      Vector(
+        Port("zero_in", Input, packed),
+        Port("zero_out", Output, packed),
+        Port("one_in", Input, packed),
+        Port("one_out", Output, packed)
+      ),
+      Vector(
+        instance("zero_child", 0, "zero_in", "zero_out"),
+        instance("one_child", 1, "one_in", "one_out")
+      )
+    )
+    Design(requestedName, Vector(top, child, zero, one, default))
+  }
+
+  private def invalidInactiveGenerateCaseDesign(requestedName: String): Design = {
+    val base = generateCaseDesign(requestedName, modeDefault = 0)
+    val top = base.modules.find(_.name == requestedName).get
+    val generate = top.items.collectFirst { case value: ModuleItem.GenerateCase => value }.get
+    val invalidChoice = generate.choices.find(_.value == 1).get.copy(
+      block = GenerateBlock(
+        "g_one",
+        Vector(
+          ModuleItem.ModuleInstance(
+            "selected_inst",
+            "MissingInactiveCaseLeaf",
+            portConnections = Vector(
+              PortConnection("one_in", Ref("din")),
+              PortConnection("one_out", Ref("dout"))
+            )
+          )
+        )
+      )
+    )
+    val invalidGenerate = generate.copy(
+      choices = generate.choices.map(choice => if (choice.value == 1) invalidChoice else choice)
+    )
+    val invalidTop = top.copy(items = Vector(invalidGenerate))
+    base.copy(modules = base.modules.map(module => if (module.name == requestedName) invalidTop else module))
   }
 
   private def invalidInactiveBooleanBindingDesign(requestedName: String): Design = {

@@ -45,7 +45,7 @@ private[frontend] object HdlRange {
   }
 
   def requireIdentifier(value: String, role: String, origin: SourceOrigin): Unit =
-    if (!Identifier.pattern.matcher(value).matches()) {
+    if (value == null || !Identifier.pattern.matcher(value).matches()) {
       FrontendException.failAt(
         "MORPH-FRONTEND-INVALID-GENERATE-NAME",
         s"$role '$value' is not a portable identifier",
