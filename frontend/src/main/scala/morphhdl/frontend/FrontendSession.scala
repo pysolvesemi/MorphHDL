@@ -27,6 +27,10 @@ private[frontend] case object SynchronousEnabledRegisterKind extends RuntimeProc
   val description = "synchronous enabled-register process"
 }
 
+private[frontend] case object AsynchronousEnabledRegisterKind extends RuntimeProcessKind {
+  val description = "asynchronous-reset enabled-register process"
+}
+
 private[frontend] final case class CapturedRuntimeProcess(
     kind: RuntimeProcessKind,
     origin: SourceOrigin
@@ -817,6 +821,11 @@ private[frontend] object FrontendSession {
   ): Unit =
     emitRuntimeProcess(item, SynchronousEnabledRegisterKind)
 
+  private[frontend] def emitAsynchronousEnabledRegister(
+      item: FrontendNode[ModuleItem]
+  ): Unit =
+    emitRuntimeProcess(item, AsynchronousEnabledRegisterKind)
+
   private def emitRuntimeProcess(
       item: FrontendNode[ModuleItem],
       kind: RuntimeProcessKind
@@ -896,6 +905,8 @@ private[frontend] object FrontendSession {
     case AsynchronousRegisterKind => "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-MIXED"
     case SynchronousEnabledRegisterKind =>
       "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-MIXED"
+    case AsynchronousEnabledRegisterKind =>
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-MIXED"
   }
 
   private def nestedCode(kind: RuntimeProcessKind): String = kind match {
@@ -904,6 +915,8 @@ private[frontend] object FrontendSession {
     case AsynchronousRegisterKind => "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-NESTED"
     case SynchronousEnabledRegisterKind =>
       "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-NESTED"
+    case AsynchronousEnabledRegisterKind =>
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-NESTED"
   }
 
   private def multipleCode(kind: RuntimeProcessKind): String = kind match {
@@ -912,6 +925,8 @@ private[frontend] object FrontendSession {
     case AsynchronousRegisterKind => "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-MULTIPLE"
     case SynchronousEnabledRegisterKind =>
       "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-MULTIPLE"
+    case AsynchronousEnabledRegisterKind =>
+      "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-MULTIPLE"
   }
 
   private def ordinaryItemKind(item: ModuleItem): String = item match {

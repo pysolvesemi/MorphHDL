@@ -25,6 +25,7 @@ be accepted without enabling a SystemVerilog parser.
 | Synchronous register (implemented) | Named `always @(posedge clock)` block, active-high synchronous reset-to-zero, complete nonblocking assignments and process-driven `output reg` target |
 | Asynchronous-reset register (implemented) | Named `always @(posedge clock or posedge reset)` block, active-high asynchronous reset-to-zero, reset priority, complete nonblocking assignments and process-driven `output reg` target |
 | Synchronous enabled register (implemented) | Named `always @(posedge clock)` block with reset-priority active-high synchronous reset-to-zero, active-high capture, implicit disabled hold and nonblocking assignments |
+| Asynchronous enabled register (implemented) | Named `always @(posedge clock or posedge reset)` block with immediate reset-priority active-high asynchronous reset-to-zero, active-high capture, implicit disabled hold and nonblocking assignments |
 | Logical record/vector port | Deterministically flattened scalar/packed ports |
 | `clog2` | Generated portable constant function or legalized expression |
 | Enum intent | Packed vector plus named local parameters |
@@ -101,6 +102,16 @@ must not be rewritten as a combinational incomplete assignment. Capability and
 validation reject role aliasing, incorrect widths, mixed drivers and sibling
 structure before target spelling. Enable-first priority, falling-edge
 clocking, reset-to-ones, disabled capture and `always_ff` remain forbidden.
+
+Increment 19 legalizes the matching asynchronous-reset hold form. The reset is
+present as `posedge reset` in the sensitivity list and is tested before the
+enable condition. Reset emits target-width zero, enable high emits direct data
+capture and enable low emits no assignment. ParamRTL retains immediate
+active-high reset assertion, reset priority and intentional hold; the backend
+only supplies strict Verilog-2001 spelling. Capability and validation reject
+role aliasing, incorrect widths, mixed ownership and sibling structure before
+emission. Reversed reset/enable roles, synchronous reset, active-low enable,
+falling-edge clocking, reset-to-ones and `always_ff` remain forbidden.
 
 ## Flat ABI
 

@@ -256,3 +256,17 @@ capture, enable-before-reset, active-low-enable, falling-edge and reset-to-ones
 mutations. The
 external artifact inventory is exactly fourteen files including
 `synchronous_enabled_register.v`.
+
+Increment 19 adds the parallel bounded `AsynchronousEnabledRegister`. The
+concrete witness combines active-high `ASYNC` reset with explicit active-high
+enable gating and still runs every inherited validation phase. ParamRTL
+separately proves distinct exact one-bit clock/reset/enable roles, exact
+full-width data/output equivalence, sole ownership, immediate reset priority,
+enabled capture and intentional disabled hold. This completes the bounded
+four-variant reset-timing/enable matrix without claiming general clocked
+statements, arbitrary hold expressions, multiple registers/clocks or
+parameterized process branches. The fifteenth fixture proves immediate reset,
+priority, capture, hold and later capture at eight and five bits. Yosys rejects
+disabled capture, enable-before-reset, active-low enable, falling-edge clock,
+synchronous reset and reset-to-ones mutations. The external artifact inventory
+is exactly fifteen files including `asynchronous_enabled_register.v`.

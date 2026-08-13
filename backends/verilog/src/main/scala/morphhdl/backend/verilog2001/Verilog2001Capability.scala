@@ -30,6 +30,7 @@ import morphhdl.paramrtl.IntExpr.{
 }
 import morphhdl.paramrtl._
 import morphhdl.paramrtl.ModuleItem.{
+  AsynchronousEnabledRegister,
   AsynchronousRegister,
   CombinationalIf,
   ContinuousAssign,
@@ -392,6 +393,15 @@ object Verilog2001Capability {
           checkName(
             process.label,
             modulePath :+ "synchronousEnabledRegisters" :+ process.label :+ "label",
+            diagnostics
+          )
+      }
+
+      module.items.collect { case process: AsynchronousEnabledRegister => process }.sortBy(_.label).foreach {
+        process =>
+          checkName(
+            process.label,
+            modulePath :+ "asynchronousEnabledRegisters" :+ process.label :+ "label",
             diagnostics
           )
       }

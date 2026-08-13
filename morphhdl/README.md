@@ -119,3 +119,14 @@ The fourteenth `synchronous_enabled_register.v` artifact proves reset,
 capture, hold and later capture at default eight-bit and awkward five-bit
 widths; synthesis mutation gates reject disabled capture, reversed priority,
 active-low enable, falling-edge clocking and reset-to-ones.
+
+Increment 19 completes the bounded reset/enable matrix with
+`AsynchronousEnabledRegister`. Active-high reset asserts immediately and has
+priority over active-high enabled capture; enable low intentionally holds the
+sole registered output. Strict Verilog-2001 emits one named
+`always @(posedge clk or posedge reset)` process with reset first, enable
+second and no final assignment branch. The fifteenth
+`asynchronous_enabled_register.v` artifact proves immediate reset, priority,
+capture, hold and later capture at eight and five bits; synthesis mutations
+reject disabled capture, reversed control priority, active-low enable,
+falling-edge clocking, synchronous reset and reset-to-ones.

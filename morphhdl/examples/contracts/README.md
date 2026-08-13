@@ -53,13 +53,17 @@ These files are executable output contracts for the parameterized backend.
 - `synchronous_enabled_register.v` is owned by Increment 18. Its active-high
   synchronous reset has priority over active-high enabled capture, while a low
   enable intentionally holds the sole registered output.
+- `asynchronous_enabled_register.v` is owned by Increment 19. Its active-high
+  asynchronous reset asserts immediately and has priority over active-high
+  enabled capture, while a low enable intentionally holds state.
 - Increment 8 routes the first four artifacts through one production fixture
   source and `MorphVerilog`; Increments 9 and 10 extend that same path to all
   six. Increment 11 extends it to all seven, Increment 12 to all eight, and
   Increment 13 to all nine, Increment 14 to all ten, and Increment 15 to all
   eleven. Increment 16 extends it to all twelve, and Increment 17 to all
-  thirteen, and Increment 18 to all fourteen. CI performs a normal and
-  reverse-construction run, requires an exact fourteen-file inventory, checks
+  thirteen, Increment 18 to all fourteen, and Increment 19 to all fifteen. CI
+  performs a normal and reverse-construction run, requires an exact
+  fifteen-file inventory, checks
   byte identity with these goldens, and gives that unmodified directory to the
   external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
@@ -108,6 +112,13 @@ These files are executable output contracts for the parameterized backend.
   positive-edge active-high enabled flip-flop with active-high synchronous
   zero reset, and rejects disabled-capture, reversed-priority,
   active-low-enable, falling-edge and reset-to-ones mutations.
+  `AsynchronousEnabledRegisterTb` proves immediate reset without a clock edge,
+  reset priority while enable is high, no capture on reset deassertion,
+  enabled capture, disabled hold and later capture in simultaneous default
+  eight-bit and awkward five-bit instances. Yosys proves one positive-edge
+  active-high enabled flip-flop with active-high asynchronous zero reset and
+  rejects disabled-capture, reversed-priority, active-low-enable,
+  falling-edge, synchronous-reset and reset-to-ones mutations.
 
 Run:
 

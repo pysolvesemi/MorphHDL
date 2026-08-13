@@ -833,6 +833,49 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("asynchronous enabled register preserves the default public shape and reviewed output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "asynchronous_enabled_register.v"
+      val report = MorphVerilog(config) {
+        AsynchronousEnabledRegisterContractFixture.program(reverseConstructionOrder = false)
+      }
+
+      val output = directory.resolve("asynchronous_enabled_register.v")
+      assert(report.toplevelName == "AsynchronousEnabledRegister")
+      assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
+      assert(Files.isRegularFile(output))
+      assert(
+        new String(Files.readAllBytes(output), StandardCharsets.UTF_8) ==
+          expectedAsynchronousEnabledRegisterVerilog
+      )
+    }
+  }
+
+  test("asynchronous enabled register validation fails before public output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "asynchronous_enabled_register.v"
+      val fixture =
+        AsynchronousEnabledRegisterContractFixture.program(reverseConstructionOrder = false)
+      val result = MorphVerilog.tryGenerate(config) {
+        MorphProgram(
+          concreteWitness = fixture.concreteWitnessFactory(),
+          parameterizedDesign = invalidAsynchronousEnabledRegisterDesign()
+        )
+      }
+
+      result match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.ParamRtlValidation)
+          assert(failure.message.contains("PRTL-UNRESOLVED-RTL-REFERENCE"))
+        case Right(report) =>
+          fail(s"Expected asynchronous-enabled-register validation failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve("asynchronous_enabled_register.v")))
+    }
+  }
+
   test("an invalid inactive conditional integer branch fails whole-design validation") {
     withTemporaryDirectory { directory =>
       val topName = "InvalidInactiveConditionalWidth"
@@ -3173,6 +3216,38 @@ class MorphVerilogTests extends AnyFunSuite {
     Design(top.name, Vector(top))
   }
 
+  private def invalidAsynchronousEnabledRegisterDesign(): Design = {
+    val width = ParameterRef("WIDTH")
+    val packed = PackedBits(width, Unsigned)
+    val top = ModuleDef(
+      name = "AsynchronousEnabledRegister",
+      parameters = Vector(
+        IntegerParameter(
+          "WIDTH",
+          default = 8,
+          constraints = Vector(MinInclusive(1), MaxInclusive(32))
+        )
+      ),
+      ports = Vector(
+        Port("clk", Input, PackedBits(IntExpr.Literal(1), Unsigned)),
+        Port("data_in", Input, packed),
+        Port("data_out", Output, packed),
+        Port("enable", Input, PackedBits(IntExpr.Literal(1), Unsigned)),
+        Port("reset", Input, PackedBits(IntExpr.Literal(1), Unsigned))
+      ),
+      items = Vector(
+        ModuleItem.AsynchronousEnabledRegister(
+          "p_async_enabled_register",
+          Ref("missing_clock"),
+          Ref("reset"),
+          Ref("enable"),
+          ProceduralAssign(Ref("data_out"), Ref("data_in"))
+        )
+      )
+    )
+    Design(top.name, Vector(top))
+  }
+
   private def expectedVerilog(name: String): String =
     s"""module $name #(
        |  parameter integer WIDTH = 8
@@ -3261,6 +3336,28 @@ class MorphVerilogTests extends AnyFunSuite {
       |);
       |
       |  always @(posedge clk) begin : p_sync_enabled_register
+      |    if (reset == 1'b1) begin
+      |      data_out <= {WIDTH{1'b0}};
+      |    end else if (enable == 1'b1) begin
+      |      data_out <= data_in;
+      |    end
+      |  end
+      |
+      |endmodule
+      |""".stripMargin
+
+  private val expectedAsynchronousEnabledRegisterVerilog =
+    """module AsynchronousEnabledRegister #(
+      |  parameter integer WIDTH = 8
+      |) (
+      |  input  wire [0:0] clk,
+      |  input  wire [WIDTH-1:0] data_in,
+      |  output reg [WIDTH-1:0] data_out,
+      |  input  wire [0:0] enable,
+      |  input  wire [0:0] reset
+      |);
+      |
+      |  always @(posedge clk or posedge reset) begin : p_async_enabled_register
       |    if (reset == 1'b1) begin
       |      data_out <= {WIDTH{1'b0}};
       |    end else if (enable == 1'b1) begin
