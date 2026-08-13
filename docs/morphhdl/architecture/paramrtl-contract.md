@@ -168,7 +168,23 @@ cannot also have continuous, instance or structural drivers. Every reference
 and both branches validate regardless of runtime activity. This tranche permits
 at most one `CombinationalIf` per module and no sibling instance or parameter
 generate region. Multiple processes, nested statements, general runtime
-expressions, sequential state and memories remain separate later tranches.
+expressions, sequential state and memories remained separate later tranches;
+Increment 16 implements the first sequential item below.
+
+Increment 16 adds
+`ModuleItem.SynchronousRegister(label, clock: RtlExpr.Ref,
+reset: RtlExpr.Ref, assignment: ProceduralAssign)`. It has fixed positive-edge
+clocking and active-high synchronous reset-to-zero semantics. Validation
+requires distinct exact unsigned one-bit input clock/reset ports, a direct
+input data reference, a sole output target and exact packed type equivalence
+across the legal parameter domain. The process owns that output completely and
+may not have any sibling continuous assignment, combinational process,
+instance, generate region or second synchronous register. This restriction
+makes partial reset/data coverage, mixed drivers and internal multi-domain
+crossings unrepresentable for the bounded node. It does not model clock
+enables, asynchronous reset, multiple registers or clocks, external
+input-domain provenance, CDC structures, general clocked expressions or
+memories.
 
 ## Required invariants
 

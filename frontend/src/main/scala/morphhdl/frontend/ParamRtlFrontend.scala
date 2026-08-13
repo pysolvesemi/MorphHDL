@@ -246,7 +246,10 @@ private[morphhdl] object ParamRtlFrontend {
   ): FrontendNode[RtlExpr] =
     FrontendNode(Ref(name), origin = SourceOrigin.capture)
 
-  /** Builds one ref-only blocking assignment for a bounded combinational process. */
+  /**
+    * Builds one direct ref-only procedural assignment intent. Its enclosing
+    * process determines blocking versus nonblocking legalization.
+    */
   def proceduralAssign(target: String, value: FrontendNode[RtlExpr])(implicit
       file: sourcecode.File,
       line: sourcecode.Line
@@ -261,20 +264,20 @@ private[morphhdl] object ParamRtlFrontend {
     if (value eq null) {
       FrontendException.failAt(
         "MORPH-FRONTEND-COMBINATIONAL-VALUE-NULL",
-        s"combinational-process assignment '$target' requires a non-null value reference",
+        s"runtime-process assignment '$target' requires a non-null value reference",
         origin
       )
     }
-    value.requireUsable(s"combinational-process assignment '$target'")
+    value.requireUsable(s"runtime-process assignment '$target'")
     val valueRef = requireRef(
       value,
-      "combinational-process assignment value",
+      "runtime-process assignment value",
       "MORPH-FRONTEND-COMBINATIONAL-VALUE-NOT-REF",
       origin
     )
     requirePortableIdentifier(
       valueRef.name,
-      "combinational-process assignment value",
+      "runtime-process assignment value",
       "MORPH-FRONTEND-COMBINATIONAL-VALUE-INVALID",
       value.origin
     )
@@ -347,6 +350,79 @@ private[morphhdl] object ParamRtlFrontend {
         booleanLocalParameters = condition.booleanLocalParameters ++
           assignments.flatMap(_.booleanLocalParameters),
         scopes = condition.scopes ++ assignments.flatMap(_.scopes),
+        origin = origin
+      )
+    )
+  }
+
+  /**
+    * Atomically emits one posedge register with active-high synchronous
+    * reset-to-zero semantics. The assignment supplies the registered output
+    * target and direct data-input reference.
+    */
+  def emitSynchronousRegister(
+      label: String,
+      clock: FrontendNode[RtlExpr],
+      reset: FrontendNode[RtlExpr],
+      assignment: FrontendNode[ProceduralAssign]
+  )(implicit file: sourcecode.File, line: sourcecode.Line): Unit = {
+    val origin = SourceOrigin.capture
+    requirePortableIdentifier(
+      label,
+      "synchronous-register label",
+      "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-LABEL-INVALID",
+      origin
+    )
+    val clockRef = requireSynchronousRegisterRef(
+      label,
+      "clock",
+      clock,
+      "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-CLOCK-NULL",
+      "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-CLOCK-NOT-REF",
+      "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-CLOCK-INVALID",
+      origin
+    )
+    val resetRef = requireSynchronousRegisterRef(
+      label,
+      "reset",
+      reset,
+      "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-RESET-NULL",
+      "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-RESET-NOT-REF",
+      "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-RESET-INVALID",
+      origin
+    )
+    if (assignment eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-ASSIGNMENT-NULL",
+        s"synchronous register '$label' requires one non-null data assignment",
+        origin
+      )
+    }
+    assignment.requireUsable(s"synchronous register '$label' assignment")
+    requirePortableIdentifier(
+      assignment.raw.target.name,
+      "synchronous-register assignment target",
+      "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-TARGET-INVALID",
+      assignment.origin
+    )
+    requirePortableIdentifier(
+      assignment.raw.value.name,
+      "synchronous-register assignment value",
+      "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-VALUE-INVALID",
+      assignment.origin
+    )
+
+    FrontendSession.emitSynchronousRegister(
+      FrontendNode(
+        ModuleItem.SynchronousRegister(label, clockRef, resetRef, assignment.raw),
+        parameters = clock.parameters ++ reset.parameters ++ assignment.parameters,
+        booleanParameters = clock.booleanParameters ++ reset.booleanParameters ++
+          assignment.booleanParameters,
+        localParameters = clock.localParameters ++ reset.localParameters ++
+          assignment.localParameters,
+        booleanLocalParameters = clock.booleanLocalParameters ++
+          reset.booleanLocalParameters ++ assignment.booleanLocalParameters,
+        scopes = clock.scopes ++ reset.scopes ++ assignment.scopes,
         origin = origin
       )
     )
@@ -867,6 +943,38 @@ private[morphhdl] object ParamRtlFrontend {
           origin
         )
     }
+
+  private def requireSynchronousRegisterRef(
+      label: String,
+      role: String,
+      value: FrontendNode[RtlExpr],
+      nullCode: String,
+      notRefCode: String,
+      invalidCode: String,
+      origin: SourceOrigin
+  ): Ref = {
+    if (value eq null) {
+      FrontendException.failAt(
+        nullCode,
+        s"synchronous register '$label' requires a non-null $role reference",
+        origin
+      )
+    }
+    value.requireUsable(s"synchronous register '$label' $role")
+    val reference = requireRef(
+      value,
+      s"synchronous-register $role",
+      notRefCode,
+      origin
+    )
+    requirePortableIdentifier(
+      reference.name,
+      s"synchronous-register $role",
+      invalidCode,
+      value.origin
+    )
+    reference
+  }
 
   private def requirePortableIdentifier(
       value: String,

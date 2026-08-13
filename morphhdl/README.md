@@ -89,3 +89,13 @@ legalizes the process to a named `always @*` block with blocking assignments
 and a process-owned `output reg`. The eleventh `runtime_mux.v` artifact proves
 both select directions at default and awkward parameterized widths without
 specializing the emitted module.
+
+Increment 16 adds one bounded `SynchronousRegister` process with distinct
+one-bit clock/reset inputs, active-high synchronous reset-to-zero, one direct
+full-width data input and one sole registered output. ParamRTL proves exact
+types, complete reset/data ownership and the absence of sibling process,
+hierarchy or generate items before strict Verilog-2001 emits a named
+`always @(posedge clk)` block with nonblocking assignments. The twelfth
+`synchronous_register.v` artifact proves synchronous reset and data capture at
+default eight-bit and awkward five-bit widths without specializing the emitted
+module.

@@ -69,6 +69,7 @@ generated_contracts=(
   boolean_locals.v
   case_routing.v
   runtime_mux.v
+  synchronous_register.v
 )
 
 if (( using_reviewed_goldens == 0 )); then
@@ -110,6 +111,7 @@ boolean_forwarding_file="$generated_dir/boolean_forwarding.v"
 boolean_locals_file="$generated_dir/boolean_locals.v"
 case_routing_file="$generated_dir/case_routing.v"
 runtime_mux_file="$generated_dir/runtime_mux.v"
+synchronous_register_file="$generated_dir/synchronous_register.v"
 
 parity_args=("$parity_file")
 for live_phase_id_file in "${live_phase_id_files[@]}"; do
@@ -130,6 +132,7 @@ design_files=(
   "$boolean_locals_file"
   "$case_routing_file"
   "$runtime_mux_file"
+  "$synchronous_register_file"
 )
 
 all_verilog_files=(
@@ -145,6 +148,7 @@ all_verilog_files=(
   "$examples_dir/boolean_locals_tb.v"
   "$examples_dir/case_routing_tb.v"
   "$examples_dir/runtime_mux_tb.v"
+  "$examples_dir/synchronous_register_tb.v"
 )
 
 read_property() {
@@ -194,6 +198,11 @@ require_property implementation.boolean_local_parameter true
 require_property implementation.generate_case true
 require_property process.combinational always-at-star
 require_property implementation.combinational_if true
+require_property process.sequential edge-sensitive-always
+require_property process.sequential_edge positive
+require_property process.synchronous_reset active-high
+require_property process.synchronous_reset_value zero
+require_property implementation.synchronous_register true
 
 for file in "${all_verilog_files[@]}"; do
   if [[ ! -s "$file" ]]; then
@@ -291,6 +300,8 @@ expected_modules=(
   CaseRoutingTb
   RuntimeMux
   RuntimeMuxTb
+  SynchronousRegister
+  SynchronousRegisterTb
 )
 
 for module_name in "${expected_modules[@]}"; do
@@ -419,6 +430,22 @@ if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:spac
   exit 1
 fi
 
+if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:space:]]*8' "$synchronous_register_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+clk' "$synchronous_register_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+reset' "$synchronous_register_file" ||
+   ! grep -Eq 'output[[:space:]]+reg[[:space:]]+\[WIDTH-1:0\][[:space:]]+data_out' "$synchronous_register_file" ||
+   ! grep -Eq 'always[[:space:]]+@\([[:space:]]*posedge[[:space:]]+clk[[:space:]]*\)[[:space:]]+begin[[:space:]]*:[[:space:]]*p_sync_register' "$synchronous_register_file" ||
+   ! grep -Eq "if[[:space:]]*\\([[:space:]]*reset[[:space:]]*==[[:space:]]*1'b1[[:space:]]*\\)[[:space:]]*begin" "$synchronous_register_file" ||
+   ! grep -Eq "data_out[[:space:]]*<=[[:space:]]*\\{WIDTH\\{1'b0\\}\\}[[:space:]]*;" "$synchronous_register_file" ||
+   ! grep -Eq 'end[[:space:]]+else[[:space:]]+begin' "$synchronous_register_file" ||
+   ! grep -Eq 'data_out[[:space:]]*<=[[:space:]]*data_in[[:space:]]*;' "$synchronous_register_file" ||
+   [[ "$(grep -Ec 'always[[:space:]]+@\(' "$synchronous_register_file")" != "1" ]] ||
+   [[ "$(grep -Ec 'data_out[[:space:]]*<=' "$synchronous_register_file")" != "2" ]] ||
+   grep -Eq 'always_comb|always_ff|always_latch|always[[:space:]]+@\*|data_out[[:space:]]*=[^=]' "$synchronous_register_file"; then
+  echo "SynchronousRegister does not retain one complete positive-edge synchronous reset-to-zero process" >&2
+  exit 1
+fi
+
 missing_tools=()
 for tool in iverilog verilator vvp yosys; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -455,6 +482,7 @@ cp "$boolean_forwarding_file" "$tmp_dir/boolean_forwarding.v"
 cp "$boolean_locals_file" "$tmp_dir/boolean_locals.v"
 cp "$case_routing_file" "$tmp_dir/case_routing.v"
 cp "$runtime_mux_file" "$tmp_dir/runtime_mux.v"
+cp "$synchronous_register_file" "$tmp_dir/synchronous_register.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
 yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
@@ -466,6 +494,7 @@ yosys_boolean_forwarding_file="$tmp_dir/boolean_forwarding.v"
 yosys_boolean_locals_file="$tmp_dir/boolean_locals.v"
 yosys_case_routing_file="$tmp_dir/case_routing.v"
 yosys_runtime_mux_file="$tmp_dir/runtime_mux.v"
+yosys_synchronous_register_file="$tmp_dir/synchronous_register.v"
 
 echo "Verilator: $(verilator --version)"
 echo "Icarus: $(iverilog -V 2>/dev/null | head -n 1)"
@@ -716,6 +745,17 @@ verilator --lint-only --language 1364-2001 -Wall \
   -GWIDTH=5 \
   "$runtime_mux_file"
 
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module SynchronousRegister \
+  "$synchronous_register_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module SynchronousRegister \
+  -GWIDTH=5 \
+  "$synchronous_register_file"
+
 iverilog -g2001 -Wall -s ParameterizedWireTb \
   -o "$tmp_dir/parameterized_wire.vvp" \
   "$parameterized_wire_file" \
@@ -834,6 +874,17 @@ runtime_mux_output="$(vvp "$tmp_dir/runtime_mux.vvp")"
 echo "$runtime_mux_output"
 if ! printf '%s\n' "$runtime_mux_output" | grep -q 'PASS: RuntimeMux'; then
   echo "RuntimeMux simulation did not report PASS" >&2
+  exit 1
+fi
+
+iverilog -g2001 -Wall -s SynchronousRegisterTb \
+  -o "$tmp_dir/synchronous_register.vvp" \
+  "$synchronous_register_file" \
+  "$examples_dir/synchronous_register_tb.v"
+synchronous_register_output="$(vvp "$tmp_dir/synchronous_register.vvp")"
+echo "$synchronous_register_output"
+if ! printf '%s\n' "$synchronous_register_output" | grep -q 'PASS: SynchronousRegister'; then
+  echo "SynchronousRegister simulation did not report PASS" >&2
   exit 1
 fi
 
@@ -1115,5 +1166,29 @@ yosys_runtime_mux_synthesize_and_check \
   default 8 ""
 yosys_runtime_mux_synthesize_and_check \
   width-five 5 "chparam -set WIDTH 5 RuntimeMux;"
+
+yosys_synchronous_register_synthesize_and_check() {
+  local label="$1"
+  local expected_width="$2"
+  local parameter_command="$3"
+  local process_netlist="$tmp_dir/SynchronousRegister-${label}-process.json"
+  local synthesized_netlist="$tmp_dir/SynchronousRegister-${label}-synthesized.json"
+
+  yosys -q -p \
+    "read_verilog -noautowire $yosys_synchronous_register_file; $parameter_command hierarchy -check -top SynchronousRegister; proc; opt; check -assert; write_json $process_netlist; synth -top SynchronousRegister; check -assert; write_json $synthesized_netlist"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-synchronous-register-contract.py" \
+    "$process_netlist" --width "$expected_width"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$synthesized_netlist" SynchronousRegister \
+    --port "clk:input:1" \
+    --port "data_in:input:$expected_width" \
+    --port "data_out:output:$expected_width" \
+    --port "reset:input:1"
+}
+
+yosys_synchronous_register_synthesize_and_check \
+  default 8 ""
+yosys_synchronous_register_synthesize_and_check \
+  width-five 5 "chparam -set WIDTH 5 SynchronousRegister;"
 
 echo "Strict Verilog-2001 contract checks passed"

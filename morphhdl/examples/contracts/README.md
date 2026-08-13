@@ -44,12 +44,15 @@ These files are executable output contracts for the parameterized backend.
 - `runtime_mux.v` is owned by Increment 15. Its one-bit runtime `sel`
   drives a complete two-path combinational process over two `WIDTH`-bit input
   ports and one process-owned output.
+- `synchronous_register.v` is owned by Increment 16. Its one-bit `clk` and
+  active-high synchronous `reset` drive one positive-edge process that clears
+  or captures a `WIDTH`-bit input into its sole registered output.
 - Increment 8 routes the first four artifacts through one production fixture
   source and `MorphVerilog`; Increments 9 and 10 extend that same path to all
   six. Increment 11 extends it to all seven, Increment 12 to all eight, and
   Increment 13 to all nine, Increment 14 to all ten, and Increment 15 to all
-  eleven. CI performs a normal and reverse-construction run, requires an exact
-  eleven-file inventory, checks byte
+  eleven. Increment 16 extends it to all twelve. CI performs a normal and
+  reverse-construction run, requires an exact twelve-file inventory, checks byte
   identity with these goldens, and gives that unmodified directory to the
   external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
@@ -82,6 +85,11 @@ These files are executable output contracts for the parameterized backend.
   `RuntimeMuxTb` covers select false and true at both the default eight-bit
   width and an awkward five-bit override. Yosys proves exact mux connections,
   port widths and absence of latch or flip-flop storage for both widths.
+  `SynchronousRegisterTb` proves that reset and data do not change state away
+  from a positive edge, then checks synchronous zeroing and later capture in
+  simultaneous default eight-bit and awkward five-bit instances. Yosys proves
+  one positive-edge flip-flop, no latch, active-high synchronous zero reset and
+  exact data/output bindings and widths for both parameter values.
 
 Run:
 

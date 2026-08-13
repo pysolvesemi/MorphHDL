@@ -41,6 +41,27 @@ private[frontend] object FrontendException {
       "Emit one combinational process per module-item capture."
     case "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MIXED" =>
       "Use a separate module definition instead of mixing this process with a generate region."
+    case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-NESTED" =>
+      "Emit the synchronous register as a top-level module item outside all generate regions."
+    case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-MULTIPLE" =>
+      "Emit one synchronous register process per module-item capture."
+    case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-MIXED" |
+        "MORPH-FRONTEND-RUNTIME-PROCESS-MIXED" =>
+      "Use a separate module definition instead of mixing runtime processes or module items."
+    case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-LABEL-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-CLOCK-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-RESET-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-TARGET-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-VALUE-INVALID" =>
+      "Use an identifier matching `[A-Za-z_][A-Za-z0-9_]*`."
+    case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-CLOCK-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-CLOCK-NOT-REF" =>
+      "Pass a non-null ref(name) clock to emitSynchronousRegister."
+    case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-RESET-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-RESET-NOT-REF" =>
+      "Pass a non-null ref(name) reset to emitSynchronousRegister."
+    case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-ASSIGNMENT-NULL" =>
+      "Pass one proceduralAssign(target, ref(data)) to emitSynchronousRegister."
     case "MORPH-FRONTEND-COMBINATIONAL-LABEL-INVALID" |
         "MORPH-FRONTEND-COMBINATIONAL-TARGET-INVALID" |
         "MORPH-FRONTEND-COMBINATIONAL-VALUE-INVALID" |

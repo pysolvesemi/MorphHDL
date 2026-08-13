@@ -35,7 +35,8 @@ import morphhdl.paramrtl.ModuleItem.{
   GenerateCase,
   GenerateFor,
   GenerateIf,
-  ModuleInstance
+  ModuleInstance,
+  SynchronousRegister
 }
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 
@@ -364,6 +365,14 @@ object Verilog2001Capability {
         checkName(
           process.label,
           modulePath :+ "combinationalProcesses" :+ process.label :+ "label",
+          diagnostics
+        )
+      }
+
+      module.items.collect { case process: SynchronousRegister => process }.sortBy(_.label).foreach { process =>
+        checkName(
+          process.label,
+          modulePath :+ "synchronousRegisters" :+ process.label :+ "label",
           diagnostics
         )
       }

@@ -149,6 +149,17 @@ inside one module-item capture. This bounded API does not accept arbitrary
 Scala `if`, partial branches, expression trees, nested runtime control or
 sequential state.
 
+Increment 16 adds one atomic sequential helper:
+`emitSynchronousRegister(label, clock, reset, assignment)`. Clock and reset
+must be guarded direct references; the existing `proceduralAssign` supplies one
+direct output target and direct input data value. The helper fixes positive-edge
+clocking and active-high synchronous reset-to-zero semantics, retains every
+origin and reference dependency, and emits one `SynchronousRegister` only
+after all inputs pass frontend checks. A second or nested process, mixing with
+combinational/hierarchy/generate items, arbitrary expressions, selectable edge
+or reset semantics, enable/hold behavior and escaped or cross-thread handles
+fail closed in this tranche.
+
 An ordinary Scala `if`, `match`, collection size, recursion or class selection
 continues to execute during elaboration and therefore may depend only on static
 Scala values.
