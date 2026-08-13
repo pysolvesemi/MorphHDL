@@ -1,7 +1,24 @@
 package morphhdl.paramrtl
 
-import morphhdl.paramrtl.BoolExpr.{And, Literal => BoolLiteral, Not, Or, ParameterRef => BoolParameterRef}
-import morphhdl.paramrtl.IntExpr.{Literal, ParameterRef}
+import morphhdl.paramrtl.BoolExpr.{
+  And,
+  Equal,
+  GreaterThanOrEqual,
+  LessThan,
+  Literal => BoolLiteral,
+  Not,
+  Or,
+  ParameterRef => BoolParameterRef
+}
+import morphhdl.paramrtl.IntExpr.{
+  Add,
+  Divide,
+  GenerateIndexRef,
+  Literal,
+  LocalParameterRef,
+  Multiply,
+  ParameterRef
+}
 import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateFor, GenerateIf, ModuleInstance}
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.Ref
@@ -134,6 +151,68 @@ class GenerateIfValidatorTests extends AnyFunSuite {
     }
   }
 
+  test("accepts public, local, and arithmetic comparison operands") {
+    val condition = And(
+      GreaterThanOrEqual(LocalParameterRef("DOUBLE_WIDTH"), Literal(16)),
+      Equal(Add(ParameterRef("WIDTH"), ParameterRef("OFFSET")), Literal(10))
+    )
+    val top = module(
+      name = "ComparedHierarchy",
+      items = conditionalItems(condition),
+      parameters = Vector(
+        IntegerParameter(
+          "WIDTH",
+          default = 8,
+          constraints = Vector(IntConstraint.MinInclusive(1), IntConstraint.MaxInclusive(16))
+        ),
+        IntegerParameter(
+          "OFFSET",
+          default = 2,
+          constraints = Vector(IntConstraint.MinInclusive(0), IntConstraint.MaxInclusive(4))
+        )
+      ),
+      localParameters = Vector(
+        IntegerLocalParameter("DOUBLE_WIDTH", Multiply(ParameterRef("WIDTH"), Literal(2)))
+      )
+    )
+
+    assert(ParamRtlValidator.validate(Design(top.name, Vector(top))).isRight)
+  }
+
+  test("validates every integer reference in comparisons without Boolean short-circuit") {
+    val condition = And(
+      BoolLiteral(false),
+      And(
+        LessThan(ParameterRef("MISSING"), LocalParameterRef("MISSING_LOCAL")),
+        LessThan(GenerateIndexRef("i"), Literal(1))
+      )
+    )
+    val top = module(name = "MissingComparedNames", items = conditionalItems(condition))
+
+    assertCodes(
+      Design(top.name, Vector(top)),
+      "PRTL-UNRESOLVED-PARAMETER",
+      "PRTL-UNRESOLVED-LOCAL-PARAMETER",
+      "PRTL-GENERATE-INDEX-OUT-OF-SCOPE"
+    )
+  }
+
+  test("rejects a whole-domain-unsafe divisor inside a short-circuited comparison") {
+    val divisor = IntegerParameter(
+      "DIVISOR",
+      default = 1,
+      constraints = Vector(IntConstraint.MinInclusive(-1), IntConstraint.MaxInclusive(1))
+    )
+    val unsafe = LessThan(Divide(Literal(8), ParameterRef("DIVISOR")), Literal(10))
+    val top = module(
+      name = "UnsafeComparedDivision",
+      items = conditionalItems(And(BoolLiteral(false), unsafe)),
+      parameters = Vector(divisor)
+    )
+
+    assertCodes(Design(top.name, Vector(top)), "PRTL-DIVISOR-MAY-BE-ZERO")
+  }
+
   test("requires each legal branch to drive every output exactly once") {
     val base = conditionalAssignDesign().modules.head
     val generate = base.items.head.asInstanceOf[GenerateIf]
@@ -239,6 +318,7 @@ class GenerateIfValidatorTests extends AnyFunSuite {
       items: Vector[ModuleItem],
       parameters: Vector[IntegerParameter] = Vector.empty,
       booleanParameters: Vector[BooleanParameter] = Vector.empty,
+      localParameters: Vector[IntegerLocalParameter] = Vector.empty,
       width: IntExpr = Literal(8)
   ): ModuleDef = {
     val packed = PackedBits(width, Unsigned)
@@ -247,6 +327,7 @@ class GenerateIfValidatorTests extends AnyFunSuite {
       parameters,
       Vector(Port("din", Input, packed), Port("dout", Output, packed)),
       items,
+      localParameters = localParameters,
       booleanParameters = booleanParameters
     )
   }

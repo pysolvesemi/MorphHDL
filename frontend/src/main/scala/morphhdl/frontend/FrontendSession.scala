@@ -353,10 +353,12 @@ private[frontend] object FrontendSession {
             ),
             whenFalse = GenerateBlock(token.names.whenFalse, falseItems.map(_.raw))
           ),
-          parameters = allItems.flatMap(_.parameters).toSet,
+          parameters = token.condition.integerParameters ++
+            allItems.flatMap(_.parameters),
           booleanParameters = token.condition.parameters ++
             allItems.flatMap(_.booleanParameters),
-          localParameters = allItems.flatMap(_.localParameters).toSet,
+          localParameters = token.condition.localParameters ++
+            allItems.flatMap(_.localParameters),
           scopes = allItems.flatMap(_.scopes).toSet,
           origin = token.origin
         )

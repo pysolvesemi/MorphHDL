@@ -223,6 +223,70 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("default shape evaluates integer comparisons before selecting a generate-if branch") {
+    withTemporaryDirectory { directory =>
+      val topName = "ComparedDefaultConditional"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = trueBranchWitness(topName),
+          parameterizedDesign = comparedDefaultConditionalDesign(topName)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("default shape follows a false integer comparison into the alternate branch") {
+    withTemporaryDirectory { directory =>
+      val topName = "ComparedFalseDefaultConditional"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = falseBranchWitness(topName),
+          parameterizedDesign = comparedDefaultConditionalDesign(topName, selectDefault = 3)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("default shape evaluates integer comparisons through derived local facts") {
+    withTemporaryDirectory { directory =>
+      val topName = "ComparedLocalDefaultConditional"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = trueBranchWitness(topName),
+          parameterizedDesign = comparedDefaultConditionalDesign(
+            topName,
+            selectDefault = 4,
+            compareThroughLocal = true
+          )
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("recursive default shape evaluates child comparisons from the parent binding context") {
+    withTemporaryDirectory { directory =>
+      val topName = "BoundComparedConditional"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = boundComparedConditionalWitness(topName),
+          parameterizedDesign = boundComparedConditionalDesign(topName)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
   test("inactive generate-if branches remain subject to whole-design validation") {
     withTemporaryDirectory { directory =>
       val topName = "InvalidInactiveConditional"
@@ -767,6 +831,205 @@ class MorphVerilogTests extends AnyFunSuite {
       booleanParameters = Vector(BooleanParameter("ENABLE", default = true))
     )
     Design(requestedName, Vector(top, enabledLeaf))
+  }
+
+  private def comparedDefaultConditionalDesign(
+      requestedName: String,
+      selectDefault: BigInt = 8,
+      compareThroughLocal: Boolean = false
+  ): Design = {
+    val packed = PackedBits(IntExpr.Literal(8), Unsigned)
+    val enabledLeaf = ModuleDef(
+      name = "TrueDefaultLeaf",
+      parameters = Vector.empty,
+      ports = Vector(
+        Port("true_in", Input, packed),
+        Port("true_out", Output, packed)
+      ),
+      items = Vector(ContinuousAssign(Ref("true_out"), Ref("true_in")))
+    )
+    val disabledLeaf = ModuleDef(
+      name = "FalseDefaultLeaf",
+      parameters = Vector.empty,
+      ports = Vector(
+        Port("false_in", Input, packed),
+        Port("false_out", Output, packed)
+      ),
+      items = Vector(ContinuousAssign(Ref("false_out"), Ref("false_in")))
+    )
+    val selectExpression =
+      if (compareThroughLocal) IntExpr.LocalParameterRef("SELECT_LOCAL")
+      else IntExpr.ParameterRef("SELECT")
+    val top = ModuleDef(
+      name = requestedName,
+      parameters = Vector(
+        IntegerParameter("SELECT", selectDefault, Vector(MinInclusive(0), MaxInclusive(31))),
+        IntegerParameter("THRESHOLD", 5, Vector(MinInclusive(0), MaxInclusive(31)))
+      ),
+      ports = Vector(Port("din", Input, packed), Port("dout", Output, packed)),
+      items = Vector(
+        ModuleItem.GenerateIf(
+          morphhdl.paramrtl.BoolExpr.GreaterThanOrEqual(
+            selectExpression,
+            IntExpr.ParameterRef("THRESHOLD")
+          ),
+          GenerateBlock(
+            "g_enabled",
+            Vector(
+              ModuleItem.ModuleInstance(
+                "selected_inst",
+                enabledLeaf.name,
+                portConnections = Vector(
+                  PortConnection("true_in", Ref("din")),
+                  PortConnection("true_out", Ref("dout"))
+                )
+              )
+            )
+          ),
+          GenerateBlock(
+            "g_disabled",
+            Vector(
+              ModuleItem.ModuleInstance(
+                "selected_inst",
+                disabledLeaf.name,
+                portConnections = Vector(
+                  PortConnection("false_in", Ref("din")),
+                  PortConnection("false_out", Ref("dout"))
+                )
+              )
+            )
+          )
+        )
+      ),
+      localParameters =
+        if (compareThroughLocal)
+          Vector(
+            IntegerLocalParameter(
+              "SELECT_LOCAL",
+              IntExpr.Add(IntExpr.ParameterRef("SELECT"), IntExpr.Literal(1))
+            )
+          )
+        else Vector.empty
+    )
+    Design(requestedName, Vector(top, enabledLeaf, disabledLeaf))
+  }
+
+  private def boundComparedConditionalWitness(requestedName: String): Component =
+    new Component {
+      setDefinitionName(requestedName)
+      val din = in(Bits(8 bits))
+      val dout = out(Bits(8 bits))
+
+      val routedChild = new Component {
+        setDefinitionName("BoundComparedChild")
+        val child_in = in(Bits(8 bits))
+        val child_out = out(Bits(8 bits))
+
+        val selected = new Component {
+          setDefinitionName("BoundHighLeaf")
+          val high_in = in(Bits(8 bits))
+          val high_out = out(Bits(8 bits))
+          high_out := high_in
+        }
+        selected.high_in := child_in
+        child_out := selected.high_out
+      }
+
+      routedChild.child_in := din
+      dout := routedChild.child_out
+    }
+
+  private def boundComparedConditionalDesign(requestedName: String): Design = {
+    val packed = PackedBits(IntExpr.Literal(8), Unsigned)
+    val highLeaf = ModuleDef(
+      name = "BoundHighLeaf",
+      parameters = Vector.empty,
+      ports = Vector(
+        Port("high_in", Input, packed),
+        Port("high_out", Output, packed)
+      ),
+      items = Vector(ContinuousAssign(Ref("high_out"), Ref("high_in")))
+    )
+    val lowLeaf = ModuleDef(
+      name = "BoundLowLeaf",
+      parameters = Vector.empty,
+      ports = Vector(
+        Port("low_in", Input, packed),
+        Port("low_out", Output, packed)
+      ),
+      items = Vector(ContinuousAssign(Ref("low_out"), Ref("low_in")))
+    )
+    val child = ModuleDef(
+      name = "BoundComparedChild",
+      parameters = Vector(
+        IntegerParameter("ROUTE", 2, Vector(MinInclusive(0), MaxInclusive(31)))
+      ),
+      ports = Vector(
+        Port("child_in", Input, packed),
+        Port("child_out", Output, packed)
+      ),
+      items = Vector(
+        ModuleItem.GenerateIf(
+          morphhdl.paramrtl.BoolExpr.GreaterThanOrEqual(
+            IntExpr.LocalParameterRef("EFFECTIVE_ROUTE"),
+            IntExpr.Literal(5)
+          ),
+          GenerateBlock(
+            "g_high",
+            Vector(
+              ModuleItem.ModuleInstance(
+                "selected_inst",
+                highLeaf.name,
+                portConnections = Vector(
+                  PortConnection("high_in", Ref("child_in")),
+                  PortConnection("high_out", Ref("child_out"))
+                )
+              )
+            )
+          ),
+          GenerateBlock(
+            "g_low",
+            Vector(
+              ModuleItem.ModuleInstance(
+                "selected_inst",
+                lowLeaf.name,
+                portConnections = Vector(
+                  PortConnection("low_in", Ref("child_in")),
+                  PortConnection("low_out", Ref("child_out"))
+                )
+              )
+            )
+          )
+        )
+      ),
+      localParameters = Vector(
+        IntegerLocalParameter(
+          "EFFECTIVE_ROUTE",
+          IntExpr.Add(IntExpr.ParameterRef("ROUTE"), IntExpr.Literal(1))
+        )
+      )
+    )
+    val top = ModuleDef(
+      name = requestedName,
+      parameters = Vector(
+        IntegerParameter("TOP_ROUTE", 8, Vector(MinInclusive(0), MaxInclusive(31)))
+      ),
+      ports = Vector(Port("din", Input, packed), Port("dout", Output, packed)),
+      items = Vector(
+        ModuleItem.ModuleInstance(
+          name = "routed_child",
+          moduleName = child.name,
+          parameterBindings = Vector(
+            ParameterBinding("ROUTE", IntExpr.ParameterRef("TOP_ROUTE"))
+          ),
+          portConnections = Vector(
+            PortConnection("child_in", Ref("din")),
+            PortConnection("child_out", Ref("dout"))
+          )
+        )
+      )
+    )
+    Design(requestedName, Vector(top, child, highLeaf, lowLeaf))
   }
 
   private def hierarchicalDesign(requestedName: String, childWidth: Int): Design = {

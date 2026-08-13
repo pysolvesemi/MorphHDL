@@ -605,7 +605,12 @@ object MorphVerilog {
               collect(generate.body, multiplier * countFacts.defaultValue, current)
           }
         case (Right(current), generate: GenerateIf) =>
-          BoolExpressionAnalysis.evaluateDefault(generate.condition, booleanParameters) match {
+          BoolExpressionAnalysis.evaluateDefault(
+            generate.condition,
+            booleanParameters,
+            parameters,
+            localParameters
+          ) match {
             case Left(failure) =>
               Left(
                 s"cannot evaluate default generate condition " +

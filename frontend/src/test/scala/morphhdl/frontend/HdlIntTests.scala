@@ -1,6 +1,14 @@
 package morphhdl.frontend
 
 import morphhdl.frontend.ParamRtlFrontend.integerParameter
+import morphhdl.paramrtl.BoolExpr.{
+  Equal,
+  GreaterThan,
+  GreaterThanOrEqual,
+  LessThan,
+  LessThanOrEqual,
+  NotEqual
+}
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
 import morphhdl.paramrtl.IntExpr.{Add, Divide, Literal, Modulo, Multiply, Negate, ParameterRef, Subtract}
 import morphhdl.paramrtl.IntegerParameter
@@ -77,6 +85,40 @@ class HdlIntTests extends AnyFunSuite {
     ))
   }
 
+  test("retains exact witnesses and expression trees for every integer comparison direction") {
+    val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
+    val comparisons = Vector(
+      (width < 10) -> (true, LessThan(ParameterRef("WIDTH"), Literal(10))),
+      (7 < width) -> (true, LessThan(Literal(7), ParameterRef("WIDTH"))),
+      (width <= 8) -> (true, LessThanOrEqual(ParameterRef("WIDTH"), Literal(8))),
+      (8 <= width) -> (true, LessThanOrEqual(Literal(8), ParameterRef("WIDTH"))),
+      (width > 4) -> (true, GreaterThan(ParameterRef("WIDTH"), Literal(4))),
+      (10 > width) -> (true, GreaterThan(Literal(10), ParameterRef("WIDTH"))),
+      (width >= 8) -> (true, GreaterThanOrEqual(ParameterRef("WIDTH"), Literal(8))),
+      (8 >= width) -> (true, GreaterThanOrEqual(Literal(8), ParameterRef("WIDTH"))),
+      width.hdlEq(8) -> (true, Equal(ParameterRef("WIDTH"), Literal(8))),
+      8.hdlEq(width) -> (true, Equal(Literal(8), ParameterRef("WIDTH"))),
+      width.hdlNe(9) -> (true, NotEqual(ParameterRef("WIDTH"), Literal(9))),
+      9.hdlNe(width) -> (true, NotEqual(Literal(9), ParameterRef("WIDTH")))
+    )
+
+    comparisons.foreach { case (actual, (expectedWitness, expectedExpression)) =>
+      assert(actual.witness == expectedWitness)
+      assert(actual.expression == expectedExpression)
+      assert(actual.integerParameters == width.parameters)
+      assert(actual.localParameters.isEmpty)
+    }
+  }
+
+  test("computes comparison witnesses as mathematical BigInts") {
+    val aboveLong = BigInt(Long.MaxValue) + 100
+    val value = HdlInt.literal(aboveLong)
+
+    assert((value > HdlInt.literal(BigInt(Long.MaxValue))).witness)
+    assert(value.hdlEq(HdlInt.literal(aboveLong)).witness)
+    assert(!value.hdlNe(HdlInt.literal(aboveLong)).witness)
+  }
+
   test("rejects a zero concrete divisor witness at the operator source") {
     val zero = HdlInt.param("ZERO", default = 0, min = 0, max = 1)
     val divideLine = sourcecode.Line() + 1
@@ -97,18 +139,22 @@ class HdlIntTests extends AnyFunSuite {
     val width = HdlInt.param("DATA_WIDTH", default = 8, min = 1, max = 1024)
     val multiplicationLine = sourcecode.Line() + 1
     val product = lanes * width
+    val comparisonLine = sourcecode.Line() + 1
+    val compared = product >= width
 
     assert(lanes.origin.file.endsWith("HdlIntTests.scala"))
     assert(lanes.origin.line == declarationLine)
     assert(product.origin.file.endsWith("HdlIntTests.scala"))
     assert(product.origin.line == multiplicationLine)
+    assert(compared.origin.file.endsWith("HdlIntTests.scala"))
+    assert(compared.origin.line == comparisonLine)
   }
 
   test("fails closed for forward HdlInt equality and inequality") {
     val lanes = HdlInt.param("LANES", default = 4, min = 1, max = 64)
     val other = HdlInt.literal(4)
     val expectedSuggestion =
-      "Use a static Scala condition, or wait for the parameter-aware HdlBool comparison API."
+      "Use hdlEq/hdlNe for HdlInt equality, or use a static Scala condition for unsupported symbolic equality."
 
     val errors = Vector(
       intercept[FrontendException](lanes == other),

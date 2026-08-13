@@ -20,6 +20,12 @@ sealed trait BoolExpr extends Product with Serializable
 object BoolExpr {
   final case class Literal(value: Boolean) extends BoolExpr
   final case class ParameterRef(name: String) extends BoolExpr
+  final case class LessThan(left: IntExpr, right: IntExpr) extends BoolExpr
+  final case class LessThanOrEqual(left: IntExpr, right: IntExpr) extends BoolExpr
+  final case class GreaterThan(left: IntExpr, right: IntExpr) extends BoolExpr
+  final case class GreaterThanOrEqual(left: IntExpr, right: IntExpr) extends BoolExpr
+  final case class Equal(left: IntExpr, right: IntExpr) extends BoolExpr
+  final case class NotEqual(left: IntExpr, right: IntExpr) extends BoolExpr
   final case class Not(value: BoolExpr) extends BoolExpr
   final case class And(left: BoolExpr, right: BoolExpr) extends BoolExpr
   final case class Or(left: BoolExpr, right: BoolExpr) extends BoolExpr

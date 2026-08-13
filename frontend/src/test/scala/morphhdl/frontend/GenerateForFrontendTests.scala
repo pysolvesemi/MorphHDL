@@ -99,7 +99,7 @@ class GenerateForFrontendTests extends AnyFunSuite {
       assert(error.origin.line == loopLine)
       assert(
         error.suggestedReplacement ==
-          "Use a static Scala condition, or wait for the parameter-aware HdlBool comparison API."
+          "Use hdlEq/hdlNe for HdlInt equality, or use a static Scala condition for unsupported symbolic equality."
       )
     }
   }

@@ -98,6 +98,15 @@ and proves output drivers independently on each mutually exclusive path.
 Conditional public ports, multiple or nested generate regions, Boolean child
 bindings and `GenerateCase` remain unsupported.
 
+Increment 10 adds six distinct typed `BoolExpr` comparisons over `IntExpr`:
+less-than, less-than-or-equal, greater-than, greater-than-or-equal, equality and
+inequality. Default evaluation receives the current instance's public and local
+integer facts, while validation eagerly analyzes both operands over their legal
+domains. Comparison semantics are mathematical arbitrary-precision integers;
+Verilog width and signedness behavior enters only during target legalization.
+Conditional integer values remain a separate expression node planned for the
+next tranche.
+
 ## Required invariants
 
 - Every reference resolves within its lexical parameter, generate or module

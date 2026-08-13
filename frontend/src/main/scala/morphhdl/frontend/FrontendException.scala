@@ -24,7 +24,7 @@ private[frontend] object FrontendException {
 
   private def suggestionFor(code: String): String = code match {
     case "MORPH-FRONTEND-SYMBOLIC-COMPARISON-UNSUPPORTED" =>
-      "Use a static Scala condition, or wait for the parameter-aware HdlBool comparison API."
+      "Use hdlEq/hdlNe for HdlInt equality, or use a static Scala condition for unsupported symbolic equality."
     case "MORPH-FRONTEND-SYMBOLIC-CONVERSION-UNSUPPORTED" =>
       "Keep the value as HdlInt or GenIndex and pass it to a supported parameter-aware API."
     case "MORPH-FRONTEND-GENINDEX-CONSUMER-UNSUPPORTED" =>

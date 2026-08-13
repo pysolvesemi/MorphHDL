@@ -34,6 +34,12 @@ REQUIRED_OPERATORS = {
     "boolean-not",
     "boolean-and",
     "boolean-or",
+    "comparison-lt",
+    "comparison-lte",
+    "comparison-gt",
+    "comparison-gte",
+    "comparison-eq",
+    "comparison-ne",
 }
 
 STATUS_VALUES = {"implemented", "deferred"}

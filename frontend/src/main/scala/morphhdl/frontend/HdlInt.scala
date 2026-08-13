@@ -1,6 +1,14 @@
 package morphhdl.frontend
 
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
+import morphhdl.paramrtl.BoolExpr.{
+  Equal => BoolEqual,
+  GreaterThan,
+  GreaterThanOrEqual,
+  LessThan,
+  LessThanOrEqual,
+  NotEqual
+}
 import morphhdl.paramrtl.IntExpr.{
   Add,
   Divide,
@@ -56,6 +64,26 @@ final class HdlInt private[frontend] (
     )(_ % _)
   }
 
+  def <(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlBool =
+    comparison(that, "integer less-than comparison", LessThan.apply)(_ < _)
+
+  def <=(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlBool =
+    comparison(that, "integer less-than-or-equal comparison", LessThanOrEqual.apply)(_ <= _)
+
+  def >(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlBool =
+    comparison(that, "integer greater-than comparison", GreaterThan.apply)(_ > _)
+
+  def >=(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlBool =
+    comparison(that, "integer greater-than-or-equal comparison", GreaterThanOrEqual.apply)(_ >= _)
+
+  /** Symbolic equality; Scala `==` intentionally remains fail-closed. */
+  def hdlEq(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlBool =
+    comparison(that, "integer equality comparison", BoolEqual.apply)(_ == _)
+
+  /** Symbolic inequality; Scala `!=` intentionally remains fail-closed. */
+  def hdlNe(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlBool =
+    comparison(that, "integer inequality comparison", NotEqual.apply)(_ != _)
+
   def unary_-(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt = {
     requireUsable("integer negation")
     val resultOrigin = SourceOrigin.capture
@@ -80,6 +108,26 @@ final class HdlInt private[frontend] (
       line: sourcecode.Line
   ): HdlInt =
     binaryAt(that, consumer, operation, SourceOrigin.capture)(witnessOperation)
+
+  private def comparison(
+      that: HdlInt,
+      consumer: String,
+      operation: (IntExpr, IntExpr) => morphhdl.paramrtl.BoolExpr
+  )(witnessOperation: (BigInt, BigInt) => Boolean)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): HdlBool = {
+    val resultOrigin = SourceOrigin.capture
+    requireLoopInvariant(consumer)
+    that.requireLoopInvariant(consumer)
+    HdlBool.comparison(
+      witnessOperation(witness, that.witness),
+      operation(expression, that.expression),
+      parameters ++ that.parameters,
+      localParameters ++ that.localParameters,
+      resultOrigin
+    )
+  }
 
   private def binaryAt(
       that: HdlInt,

@@ -3,8 +3,14 @@ package morphhdl.paramrtl
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
 import morphhdl.paramrtl.BoolExpr.{
   And => BoolAnd,
+  Equal => BoolEqual,
+  GreaterThan => BoolGreaterThan,
+  GreaterThanOrEqual => BoolGreaterThanOrEqual,
+  LessThan => BoolLessThan,
+  LessThanOrEqual => BoolLessThanOrEqual,
   Literal => BoolLiteral,
   Not => BoolNot,
+  NotEqual => BoolNotEqual,
   Or => BoolOr,
   ParameterRef => BoolParameterRef
 }
@@ -351,6 +357,8 @@ object ParamRtlValidator {
       validateBooleanExpression(
         generate.condition,
         booleanParameterByName,
+        parameterNames,
+        localParameterNames,
         path :+ "condition",
         diagnostics
       )
@@ -428,6 +436,16 @@ object ParamRtlValidator {
       ).foreach(facts => localParameterFacts = localParameterFacts.updated(localParameter.name, facts))
     }
 
+    generateIfs.foreach { generate =>
+      analyzeBooleanExpression(
+        generate.condition,
+        parameterFacts,
+        localParameterFacts,
+        modulePath :+ "generateIfs" :+ generate.whenTrue.label :+ "condition",
+        diagnostics
+      )
+    }
+
     ports.foreach { port =>
       validateWidth(
         port.dataType.width,
@@ -501,13 +519,15 @@ object ParamRtlValidator {
 
   private def validateBooleanExpression(
       expression: BoolExpr,
-      parameters: Map[String, BooleanParameter],
+      booleanParameters: Map[String, BooleanParameter],
+      integerParameters: Set[String],
+      localParameters: Set[String],
       path: Vector[String],
       diagnostics: DiagnosticBuilder
   ): Unit = expression match {
     case BoolLiteral(_) =>
     case BoolParameterRef(name) =>
-      if (!parameters.contains(name)) {
+      if (!booleanParameters.contains(name)) {
         diagnostics += Diagnostic(
           "PRTL-UNRESOLVED-BOOLEAN-PARAMETER",
           path,
@@ -515,13 +535,149 @@ object ParamRtlValidator {
         )
       }
     case BoolNot(value) =>
-      validateBooleanExpression(value, parameters, path :+ "operand", diagnostics)
+      validateBooleanExpression(
+        value,
+        booleanParameters,
+        integerParameters,
+        localParameters,
+        path :+ "operand",
+        diagnostics
+      )
     case BoolAnd(left, right) =>
-      validateBooleanExpression(left, parameters, path :+ "left", diagnostics)
-      validateBooleanExpression(right, parameters, path :+ "right", diagnostics)
+      validateBooleanBinary(
+        left,
+        right,
+        booleanParameters,
+        integerParameters,
+        localParameters,
+        path,
+        diagnostics
+      )
     case BoolOr(left, right) =>
-      validateBooleanExpression(left, parameters, path :+ "left", diagnostics)
-      validateBooleanExpression(right, parameters, path :+ "right", diagnostics)
+      validateBooleanBinary(
+        left,
+        right,
+        booleanParameters,
+        integerParameters,
+        localParameters,
+        path,
+        diagnostics
+      )
+    case BoolLessThan(left, right) =>
+      validateComparisonReferences(left, right, integerParameters, localParameters, path, diagnostics)
+    case BoolLessThanOrEqual(left, right) =>
+      validateComparisonReferences(left, right, integerParameters, localParameters, path, diagnostics)
+    case BoolGreaterThan(left, right) =>
+      validateComparisonReferences(left, right, integerParameters, localParameters, path, diagnostics)
+    case BoolGreaterThanOrEqual(left, right) =>
+      validateComparisonReferences(left, right, integerParameters, localParameters, path, diagnostics)
+    case BoolEqual(left, right) =>
+      validateComparisonReferences(left, right, integerParameters, localParameters, path, diagnostics)
+    case BoolNotEqual(left, right) =>
+      validateComparisonReferences(left, right, integerParameters, localParameters, path, diagnostics)
+  }
+
+  private def validateBooleanBinary(
+      left: BoolExpr,
+      right: BoolExpr,
+      booleanParameters: Map[String, BooleanParameter],
+      integerParameters: Set[String],
+      localParameters: Set[String],
+      path: Vector[String],
+      diagnostics: DiagnosticBuilder
+  ): Unit = {
+    validateBooleanExpression(
+      left,
+      booleanParameters,
+      integerParameters,
+      localParameters,
+      path :+ "left",
+      diagnostics
+    )
+    validateBooleanExpression(
+      right,
+      booleanParameters,
+      integerParameters,
+      localParameters,
+      path :+ "right",
+      diagnostics
+    )
+  }
+
+  private def validateComparisonReferences(
+      left: IntExpr,
+      right: IntExpr,
+      integerParameters: Set[String],
+      localParameters: Set[String],
+      path: Vector[String],
+      diagnostics: DiagnosticBuilder
+  ): Unit = {
+    validateExpressionReferences(
+      left,
+      integerParameters,
+      localParameters,
+      path :+ "left",
+      diagnostics
+    )
+    validateExpressionReferences(
+      right,
+      integerParameters,
+      localParameters,
+      path :+ "right",
+      diagnostics
+    )
+  }
+
+  private def analyzeBooleanExpression(
+      expression: BoolExpr,
+      parameters: Map[String, IntExprFacts],
+      localParameters: Map[String, IntExprFacts],
+      path: Vector[String],
+      diagnostics: DiagnosticBuilder
+  ): Unit = expression match {
+    case BoolLiteral(_) | BoolParameterRef(_) =>
+    case BoolNot(value) =>
+      analyzeBooleanExpression(value, parameters, localParameters, path :+ "operand", diagnostics)
+    case BoolAnd(left, right) =>
+      analyzeBooleanBinary(left, right, parameters, localParameters, path, diagnostics)
+    case BoolOr(left, right) =>
+      analyzeBooleanBinary(left, right, parameters, localParameters, path, diagnostics)
+    case BoolLessThan(left, right) =>
+      analyzeComparison(left, right, parameters, localParameters, path, diagnostics)
+    case BoolLessThanOrEqual(left, right) =>
+      analyzeComparison(left, right, parameters, localParameters, path, diagnostics)
+    case BoolGreaterThan(left, right) =>
+      analyzeComparison(left, right, parameters, localParameters, path, diagnostics)
+    case BoolGreaterThanOrEqual(left, right) =>
+      analyzeComparison(left, right, parameters, localParameters, path, diagnostics)
+    case BoolEqual(left, right) =>
+      analyzeComparison(left, right, parameters, localParameters, path, diagnostics)
+    case BoolNotEqual(left, right) =>
+      analyzeComparison(left, right, parameters, localParameters, path, diagnostics)
+  }
+
+  private def analyzeBooleanBinary(
+      left: BoolExpr,
+      right: BoolExpr,
+      parameters: Map[String, IntExprFacts],
+      localParameters: Map[String, IntExprFacts],
+      path: Vector[String],
+      diagnostics: DiagnosticBuilder
+  ): Unit = {
+    analyzeBooleanExpression(left, parameters, localParameters, path :+ "left", diagnostics)
+    analyzeBooleanExpression(right, parameters, localParameters, path :+ "right", diagnostics)
+  }
+
+  private def analyzeComparison(
+      left: IntExpr,
+      right: IntExpr,
+      parameters: Map[String, IntExprFacts],
+      localParameters: Map[String, IntExprFacts],
+      path: Vector[String],
+      diagnostics: DiagnosticBuilder
+  ): Unit = {
+    analyzeExpression(left, parameters, localParameters, path :+ "left", diagnostics)
+    analyzeExpression(right, parameters, localParameters, path :+ "right", diagnostics)
   }
 
   private def validateExpressionReferences(

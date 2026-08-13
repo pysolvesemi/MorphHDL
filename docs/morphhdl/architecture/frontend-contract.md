@@ -187,8 +187,14 @@ Boolean operators do not short-circuit symbolic validation: every referenced
 declaration remains part of the expression provenance even if a literal fixes
 the default result. `GenerateIf` validates both structural paths and proves
 each path's output-driver coverage separately. Boolean local parameters, child
-bindings, integer comparisons and conditional runtime values remain outside
-this bounded surface.
+bindings and conditional runtime values remain outside this bounded surface.
+
+Increment 10 adds `<`, `<=`, `>`, `>=`, `hdlEq` and `hdlNe` on `HdlInt`, each
+producing `HdlBool`. Both integer operands keep their exact `BigInt` default,
+public/local identity provenance and expression AST; `HdlBool` carries that
+provenance into `GenerateIf` and final module declaration checks. The named
+equality methods avoid Scala equality semantics. Comparisons may consume public
+and local integer expressions but not a `GenIndex` in this non-nested tranche.
 
 A zero concrete divisor fails immediately instead of leaking a Scala arithmetic
 exception. A nonzero default does not prove the divisor safe: ParamRTL must
@@ -220,8 +226,9 @@ so a loop dispatched to another thread fails closed instead of falling back to
 its concrete witness.
 
 Scala `==`, `!=`, hashing and reverse conversion on a statically typed
-`HdlInt`, `HdlBool` or `GenIndex` fail closed. The values themselves reject
-forward comparisons at runtime; the inherited IDSL compiler plugin rejects
+`HdlInt`, `HdlBool` or `GenIndex` fail closed. `HdlInt.hdlEq` and
+`HdlInt.hdlNe` are the only supported symbolic equality operations. The values
+themselves reject Scala equality at runtime; the inherited IDSL compiler plugin rejects
 reverse `==`, `!=`, `equals`, `eq` and `ne` calls before elaboration. In
 particular, both `lane == 0` and `BigInt(0) == lane`, or `true == enable`, are
 rejected instead of silently specializing Scala control flow. Upcasting a

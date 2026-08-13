@@ -5,7 +5,11 @@ import java.util.concurrent.{Callable, Executors, TimeUnit}
 import scala.collection.mutable.ArrayBuffer
 
 import morphhdl.frontend.ParamRtlFrontend._
-import morphhdl.paramrtl.BoolExpr.{And, Not, ParameterRef}
+import morphhdl.paramrtl.BoolExpr.{And, GreaterThanOrEqual, Not, ParameterRef}
+import morphhdl.paramrtl.IntExpr.{
+  LocalParameterRef,
+  ParameterRef => IntParameterRef
+}
 import morphhdl.paramrtl.ModuleItem.{GenerateIf, ModuleInstance}
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -38,6 +42,146 @@ class GenerateIfFrontendTests extends AnyFunSuite {
       booleanParameters = Vector(booleanParameter(enabled), booleanParameter(bypass))
     )
     assert(module.booleanParameters.map(_.name) == Vector("ENABLED", "BYPASS"))
+  }
+
+  test("captures integer comparison conditions and discharges all condition provenance") {
+    val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
+    val threshold = HdlInt.param("THRESHOLD", default = 5, min = 0, max = 64)
+    val enabled = HdlBool.param("ENABLED", default = true)
+    val items = captureItems {
+      generateIf(width >= threshold && enabled, "g_high", "g_low") {
+        emitInstance(name = "high_inst", moduleName = "High")
+      } otherwise {
+        emitInstance(name = "low_inst", moduleName = "Low")
+      }
+    }
+
+    assert(
+      items.raw.head.asInstanceOf[GenerateIf].condition == And(
+        GreaterThanOrEqual(IntParameterRef("WIDTH"), IntParameterRef("THRESHOLD")),
+        ParameterRef("ENABLED")
+      )
+    )
+    val module = moduleDef(
+      name = "ComparedTop",
+      parameters = Vector(integerParameter(width), integerParameter(threshold)),
+      ports = Vector.empty,
+      items = items,
+      booleanParameters = Vector(booleanParameter(enabled))
+    )
+    assert(module.parameters.map(_.name) == Vector("WIDTH", "THRESHOLD"))
+  }
+
+  test("retains integer comparison identities for mismatch and undeclared diagnostics") {
+    val declared = HdlInt.param("SELECT", default = 5, min = 0, max = 10)
+    val used = HdlInt.param("SELECT", default = 7, min = 0, max = 10)
+    val items = captureItems {
+      generateIf(used >= 5) {} otherwise {}
+    }
+
+    val mismatch = intercept[FrontendException] {
+      moduleDef(
+        name = "ComparedMismatch",
+        parameters = Vector(integerParameter(declared)),
+        ports = Vector.empty,
+        items = items
+      )
+    }
+    assert(mismatch.code == "MORPH-FRONTEND-PARAMETER-TOKEN-MISMATCH")
+    assert(mismatch.origin == used.origin)
+
+    val missing = intercept[FrontendException] {
+      moduleDef(
+        name = "ComparedMissing",
+        parameters = Vector.empty,
+        ports = Vector.empty,
+        items = items
+      )
+    }
+    assert(missing.code == "MORPH-FRONTEND-PARAMETER-NOT-DECLARED")
+    assert(missing.origin == used.origin)
+  }
+
+  test("retains local comparison identities for declared, undeclared and foreign diagnostics") {
+    val declaredLocal = localParam("SAME_LOCAL", HdlInt.literal(5))
+    val usedLocal = localParam("SAME_LOCAL", HdlInt.literal(7))
+    val mismatchItems = captureItems {
+      generateIf(usedLocal > 4) {} otherwise {}
+    }
+    val mismatch = intercept[FrontendException] {
+      moduleDef(
+        name = "ComparedLocalMismatch",
+        parameters = Vector.empty,
+        ports = Vector.empty,
+        items = mismatchItems,
+        localParameters = Vector(integerLocalParameter(declaredLocal))
+      )
+    }
+    assert(mismatch.code == "MORPH-FRONTEND-LOCAL-PARAMETER-TOKEN-MISMATCH")
+    assert(mismatch.origin == usedLocal.origin)
+
+    val local = localParam("LOCAL_THRESHOLD", HdlInt.literal(5))
+    val localItems = captureItems {
+      generateIf(local >= 3) {} otherwise {}
+    }
+    val localConditional = localItems.raw.head.asInstanceOf[GenerateIf]
+    assert(
+      localConditional.condition == GreaterThanOrEqual(
+        LocalParameterRef("LOCAL_THRESHOLD"),
+        morphhdl.paramrtl.IntExpr.Literal(3)
+      )
+    )
+    moduleDef(
+      name = "ComparedLocal",
+      parameters = Vector.empty,
+      ports = Vector.empty,
+      items = localItems,
+      localParameters = Vector(integerLocalParameter(local))
+    )
+
+    val missingLocal = localParam("MISSING_LOCAL", HdlInt.literal(2))
+    val missingItems = captureItems {
+      generateIf(missingLocal.hdlNe(0)) {} otherwise {}
+    }
+    val missing = intercept[FrontendException] {
+      moduleDef(
+        name = "ComparedMissingLocal",
+        parameters = Vector.empty,
+        ports = Vector.empty,
+        items = missingItems
+      )
+    }
+    assert(missing.code == "MORPH-FRONTEND-LOCAL-PARAMETER-NOT-DECLARED")
+    assert(missing.origin == missingLocal.origin)
+
+    val foreignItems = captureItems {
+      generateIf(local >= 3) {} otherwise {}
+    }
+    val foreign = intercept[FrontendException] {
+      moduleDef(
+        name = "ComparedForeignLocal",
+        parameters = Vector.empty,
+        ports = Vector.empty,
+        items = foreignItems
+      )
+    }
+    assert(foreign.code == "MORPH-FRONTEND-LOCAL-PARAMETER-FOREIGN")
+    assert(foreign.origin == local.origin)
+  }
+
+  test("rejects generate-index comparison operands and escaped comparison values") {
+    val lanes = HdlInt.param("LANES", default = 1, min = 1, max = 4)
+    var inside: FrontendException = null
+    var escaped: HdlInt = null
+    captureItems {
+      for (lane <- 0 until lanes) {
+        val indexed = lane * HdlInt.literal(1)
+        escaped = indexed
+        inside = intercept[FrontendException](indexed < lanes)
+      }
+    }
+    assert(inside.code == "MORPH-FRONTEND-GENINDEX-CONSUMER-UNSUPPORTED")
+    assert(intercept[FrontendException](escaped >= lanes).code == "MORPH-FRONTEND-GENINDEX-ESCAPED")
   }
 
   test("derives deterministic labels from the generateIf source site") {

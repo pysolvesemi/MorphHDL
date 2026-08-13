@@ -14,8 +14,11 @@ class MorphFrontendSafetyTests extends AnyFunSuite {
   private val symbolicDefinitions =
     """
       |package morphhdl.frontend {
-      |  final class HdlInt
       |  final class HdlBool
+      |  final class HdlInt {
+      |    def hdlEq(that: HdlInt): HdlBool = new HdlBool
+      |    def hdlNe(that: HdlInt): HdlBool = new HdlBool
+      |  }
       |  final class GenIndex
       |}
       |""".stripMargin
@@ -61,6 +64,8 @@ class MorphFrontendSafetyTests extends AnyFunSuite {
           |    val b = hdl == BigInt(4)
           |    val c = index != 0
           |    val d = bool == false
+          |    val e = hdl.hdlEq(hdl)
+          |    val f = hdl.hdlNe(hdl)
           |  }
           |}
           |""".stripMargin
