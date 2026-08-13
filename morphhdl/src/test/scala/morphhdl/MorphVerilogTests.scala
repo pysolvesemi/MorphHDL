@@ -347,6 +347,122 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("recursive default shape substitutes a true Boolean child binding from parent context") {
+    withTemporaryDirectory { directory =>
+      val topName = "TrueBoundBooleanConditional"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = boundBooleanConditionalWitness(topName, selectHigh = true),
+          parameterizedDesign = boundBooleanConditionalDesign(
+            topName,
+            enableDefault = true,
+            widthDefault = 7,
+            limitDefault = 8,
+            childDefault = false,
+            bindChild = true
+          )
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("recursive default shape substitutes a false Boolean child binding from parent context") {
+    withTemporaryDirectory { directory =>
+      val topName = "FalseBoundBooleanConditional"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = boundBooleanConditionalWitness(topName, selectHigh = false),
+          parameterizedDesign = boundBooleanConditionalDesign(
+            topName,
+            enableDefault = false,
+            widthDefault = 12,
+            limitDefault = 8,
+            childDefault = true,
+            bindChild = true
+          )
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("recursive default shape retains an unbound child Boolean declaration default") {
+    withTemporaryDirectory { directory =>
+      val topName = "UnboundBooleanConditional"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = boundBooleanConditionalWitness(topName, selectHigh = true),
+          parameterizedDesign = boundBooleanConditionalDesign(
+            topName,
+            enableDefault = false,
+            widthDefault = 1,
+            limitDefault = 8,
+            childDefault = true,
+            bindChild = false
+          )
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("default shape keeps opposite Boolean bindings separate for sibling child instances") {
+    withTemporaryDirectory { directory =>
+      val topName = "SiblingBoundBooleanConditional"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = siblingBoundBooleanConditionalWitness(topName),
+          parameterizedDesign = siblingBoundBooleanConditionalDesign(topName)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("recursive default shape forwards a substituted Boolean binding across two hierarchy hops") {
+    withTemporaryDirectory { directory =>
+      val topName = "TwoHopBoundBooleanConditional"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = twoHopBoundBooleanConditionalWitness(topName),
+          parameterizedDesign = twoHopBoundBooleanConditionalDesign(topName)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("an invalid inactive Boolean child binding fails whole-design validation") {
+    withTemporaryDirectory { directory =>
+      val topName = "InvalidInactiveBooleanBinding"
+      val result = MorphVerilog.tryGenerate(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = boundBooleanConditionalWitness(topName, selectHigh = false),
+          parameterizedDesign = invalidInactiveBooleanBindingDesign(topName)
+        )
+      }
+
+      result match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.ParamRtlValidation)
+          assert(failure.message.contains("PRTL-DIVISOR-MAY-BE-ZERO"))
+        case Right(report) => fail(s"Expected Boolean-binding validation failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve(s"$topName.v")))
+    }
+  }
+
   test("an invalid inactive conditional integer branch fails whole-design validation") {
     withTemporaryDirectory { directory =>
       val topName = "InvalidInactiveConditionalWidth"
@@ -1289,6 +1405,426 @@ class MorphVerilogTests extends AnyFunSuite {
       )
     )
     Design(requestedName, Vector(top, child))
+  }
+
+  private def boundBooleanConditionalWitness(
+      requestedName: String,
+      selectHigh: Boolean
+  ): Component =
+    new Component {
+      setDefinitionName(requestedName)
+      val din = in(Bits(8 bits))
+      val dout = out(Bits(8 bits))
+
+      val routedChild = new Component {
+        setDefinitionName("BoundBooleanChild")
+        val child_in = in(Bits(8 bits))
+        val child_out = out(Bits(8 bits))
+
+        if (selectHigh) {
+          val selected = new Component {
+            setDefinitionName("BoundBooleanHighLeaf")
+            val high_in = in(Bits(8 bits))
+            val high_out = out(Bits(8 bits))
+            high_out := high_in
+          }
+          selected.high_in := child_in
+          child_out := selected.high_out
+        } else {
+          val selected = new Component {
+            setDefinitionName("BoundBooleanLowLeaf")
+            val low_in = in(Bits(8 bits))
+            val low_out = out(Bits(8 bits))
+            low_out := low_in
+          }
+          selected.low_in := child_in
+          child_out := selected.low_out
+        }
+      }
+
+      routedChild.child_in := din
+      dout := routedChild.child_out
+    }
+
+  private def boundBooleanConditionalDesign(
+      requestedName: String,
+      enableDefault: Boolean,
+      widthDefault: BigInt,
+      limitDefault: BigInt,
+      childDefault: Boolean,
+      bindChild: Boolean
+  ): Design = {
+    val packed = PackedBits(IntExpr.Literal(8), Unsigned)
+    val highLeaf = ModuleDef(
+      name = "BoundBooleanHighLeaf",
+      parameters = Vector.empty,
+      ports = Vector(
+        Port("high_in", Input, packed),
+        Port("high_out", Output, packed)
+      ),
+      items = Vector(ContinuousAssign(Ref("high_out"), Ref("high_in")))
+    )
+    val lowLeaf = ModuleDef(
+      name = "BoundBooleanLowLeaf",
+      parameters = Vector.empty,
+      ports = Vector(
+        Port("low_in", Input, packed),
+        Port("low_out", Output, packed)
+      ),
+      items = Vector(ContinuousAssign(Ref("low_out"), Ref("low_in")))
+    )
+    val child = ModuleDef(
+      name = "BoundBooleanChild",
+      parameters = Vector.empty,
+      ports = Vector(
+        Port("child_in", Input, packed),
+        Port("child_out", Output, packed)
+      ),
+      items = Vector(
+        ModuleItem.GenerateIf(
+          morphhdl.paramrtl.BoolExpr.ParameterRef("SELECT"),
+          GenerateBlock(
+            "g_high",
+            Vector(
+              ModuleItem.ModuleInstance(
+                "selected_inst",
+                highLeaf.name,
+                portConnections = Vector(
+                  PortConnection("high_in", Ref("child_in")),
+                  PortConnection("high_out", Ref("child_out"))
+                )
+              )
+            )
+          ),
+          GenerateBlock(
+            "g_low",
+            Vector(
+              ModuleItem.ModuleInstance(
+                "selected_inst",
+                lowLeaf.name,
+                portConnections = Vector(
+                  PortConnection("low_in", Ref("child_in")),
+                  PortConnection("low_out", Ref("child_out"))
+                )
+              )
+            )
+          )
+        )
+      ),
+      booleanParameters = Vector(BooleanParameter("SELECT", childDefault))
+    )
+    val effectiveWidth = IntExpr.LocalParameterRef("EFFECTIVE_WIDTH")
+    val binding = morphhdl.paramrtl.BoolExpr.And(
+      morphhdl.paramrtl.BoolExpr.ParameterRef("ENABLE"),
+      morphhdl.paramrtl.BoolExpr.GreaterThanOrEqual(
+        effectiveWidth,
+        IntExpr.ParameterRef("LIMIT")
+      )
+    )
+    val top = ModuleDef(
+      name = requestedName,
+      parameters = Vector(
+        IntegerParameter("WIDTH", widthDefault, Vector(MinInclusive(0), MaxInclusive(31))),
+        IntegerParameter("LIMIT", limitDefault, Vector(MinInclusive(0), MaxInclusive(31)))
+      ),
+      ports = Vector(Port("din", Input, packed), Port("dout", Output, packed)),
+      items = Vector(
+        ModuleItem.ModuleInstance(
+          name = "routed_child",
+          moduleName = child.name,
+          portConnections = Vector(
+            PortConnection("child_in", Ref("din")),
+            PortConnection("child_out", Ref("dout"))
+          ),
+          booleanParameterBindings =
+            if (bindChild) Vector(BooleanParameterBinding("SELECT", binding))
+            else Vector.empty
+        )
+      ),
+      localParameters = Vector(
+        IntegerLocalParameter(
+          "EFFECTIVE_WIDTH",
+          IntExpr.Add(IntExpr.ParameterRef("WIDTH"), IntExpr.Literal(1))
+        )
+      ),
+      booleanParameters = Vector(BooleanParameter("ENABLE", enableDefault))
+    )
+    Design(requestedName, Vector(top, child, highLeaf, lowLeaf))
+  }
+
+  private def invalidInactiveBooleanBindingDesign(requestedName: String): Design = {
+    val base = boundBooleanConditionalDesign(
+      requestedName,
+      enableDefault = false,
+      widthDefault = 1,
+      limitDefault = 8,
+      childDefault = false,
+      bindChild = false
+    )
+    val top = base.modules.find(_.name == requestedName).get
+    val childInstance = top.items.collectFirst { case value: ModuleItem.ModuleInstance => value }.get
+    val invalidBinding = BooleanParameterBinding(
+      "SELECT",
+      morphhdl.paramrtl.BoolExpr.And(
+        morphhdl.paramrtl.BoolExpr.Literal(false),
+        morphhdl.paramrtl.BoolExpr.GreaterThan(
+          IntExpr.Divide(IntExpr.Literal(8), IntExpr.ParameterRef("DIVISOR")),
+          IntExpr.Literal(0)
+        )
+      )
+    )
+    val invalidTop = top.copy(
+      parameters = top.parameters :+
+        IntegerParameter("DIVISOR", 1, Vector(MinInclusive(0), MaxInclusive(2))),
+      items = Vector(childInstance.copy(booleanParameterBindings = Vector(invalidBinding)))
+    )
+    base.copy(modules = base.modules.map(module => if (module.name == requestedName) invalidTop else module))
+  }
+
+  private def siblingBoundBooleanConditionalWitness(requestedName: String): Component =
+    new Component {
+      setDefinitionName(requestedName)
+      val high_in = in(Bits(8 bits))
+      val low_in = in(Bits(8 bits))
+      val high_out = out(Bits(8 bits))
+      val low_out = out(Bits(8 bits))
+
+      val highChild = new Component {
+        setDefinitionName("SiblingBoundBooleanChildHigh")
+        val child_in = in(Bits(8 bits))
+        val child_out = out(Bits(8 bits))
+        val selected = new Component {
+          setDefinitionName("SiblingBoundBooleanHighLeaf")
+          val high_in = in(Bits(8 bits))
+          val high_out = out(Bits(8 bits))
+          high_out := high_in
+        }
+        selected.high_in := child_in
+        child_out := selected.high_out
+      }
+      val lowChild = new Component {
+        setDefinitionName("SiblingBoundBooleanChildLow")
+        val child_in = in(Bits(8 bits))
+        val child_out = out(Bits(8 bits))
+        val selected = new Component {
+          setDefinitionName("SiblingBoundBooleanLowLeaf")
+          val low_in = in(Bits(8 bits))
+          val low_out = out(Bits(8 bits))
+          low_out := low_in
+        }
+        selected.low_in := child_in
+        child_out := selected.low_out
+      }
+
+      highChild.child_in := high_in
+      high_out := highChild.child_out
+      lowChild.child_in := low_in
+      low_out := lowChild.child_out
+    }
+
+  private def siblingBoundBooleanConditionalDesign(requestedName: String): Design = {
+    val packed = PackedBits(IntExpr.Literal(8), Unsigned)
+    val highLeaf = ModuleDef(
+      "SiblingBoundBooleanHighLeaf",
+      Vector.empty,
+      Vector(Port("high_in", Input, packed), Port("high_out", Output, packed)),
+      Vector(ContinuousAssign(Ref("high_out"), Ref("high_in")))
+    )
+    val lowLeaf = ModuleDef(
+      "SiblingBoundBooleanLowLeaf",
+      Vector.empty,
+      Vector(Port("low_in", Input, packed), Port("low_out", Output, packed)),
+      Vector(ContinuousAssign(Ref("low_out"), Ref("low_in")))
+    )
+    val child = ModuleDef(
+      name = "SiblingBoundBooleanChild",
+      parameters = Vector.empty,
+      ports = Vector(Port("child_in", Input, packed), Port("child_out", Output, packed)),
+      items = Vector(
+        ModuleItem.GenerateIf(
+          morphhdl.paramrtl.BoolExpr.ParameterRef("SELECT"),
+          GenerateBlock(
+            "g_high",
+            Vector(
+              ModuleItem.ModuleInstance(
+                "selected_inst",
+                highLeaf.name,
+                portConnections = Vector(
+                  PortConnection("high_in", Ref("child_in")),
+                  PortConnection("high_out", Ref("child_out"))
+                )
+              )
+            )
+          ),
+          GenerateBlock(
+            "g_low",
+            Vector(
+              ModuleItem.ModuleInstance(
+                "selected_inst",
+                lowLeaf.name,
+                portConnections = Vector(
+                  PortConnection("low_in", Ref("child_in")),
+                  PortConnection("low_out", Ref("child_out"))
+                )
+              )
+            )
+          )
+        )
+      ),
+      booleanParameters = Vector(BooleanParameter("SELECT", default = false))
+    )
+    def instance(name: String, input: String, output: String, selected: Boolean) =
+      ModuleItem.ModuleInstance(
+        name,
+        child.name,
+        portConnections = Vector(
+          PortConnection("child_in", Ref(input)),
+          PortConnection("child_out", Ref(output))
+        ),
+        booleanParameterBindings = Vector(
+          BooleanParameterBinding("SELECT", morphhdl.paramrtl.BoolExpr.Literal(selected))
+        )
+      )
+    val top = ModuleDef(
+      requestedName,
+      Vector.empty,
+      Vector(
+        Port("high_in", Input, packed),
+        Port("low_in", Input, packed),
+        Port("high_out", Output, packed),
+        Port("low_out", Output, packed)
+      ),
+      Vector(
+        instance("high_child", "high_in", "high_out", selected = true),
+        instance("low_child", "low_in", "low_out", selected = false)
+      )
+    )
+    Design(requestedName, Vector(top, child, highLeaf, lowLeaf))
+  }
+
+  private def twoHopBoundBooleanConditionalWitness(requestedName: String): Component =
+    new Component {
+      setDefinitionName(requestedName)
+      val din = in(Bits(8 bits))
+      val dout = out(Bits(8 bits))
+
+      val middle = new Component {
+        setDefinitionName("TwoHopBooleanMiddle")
+        val mid_in = in(Bits(8 bits))
+        val mid_out = out(Bits(8 bits))
+        val leaf = new Component {
+          setDefinitionName("TwoHopBooleanLeaf")
+          val leaf_in = in(Bits(8 bits))
+          val leaf_out = out(Bits(8 bits))
+          val selected = new Component {
+            setDefinitionName("TwoHopBooleanLowRoute")
+            val low_in = in(Bits(8 bits))
+            val low_out = out(Bits(8 bits))
+            low_out := low_in
+          }
+          selected.low_in := leaf_in
+          leaf_out := selected.low_out
+        }
+        leaf.leaf_in := mid_in
+        mid_out := leaf.leaf_out
+      }
+
+      middle.mid_in := din
+      dout := middle.mid_out
+    }
+
+  private def twoHopBoundBooleanConditionalDesign(requestedName: String): Design = {
+    val packed = PackedBits(IntExpr.Literal(8), Unsigned)
+    val highRoute = ModuleDef(
+      "TwoHopBooleanHighRoute",
+      Vector.empty,
+      Vector(Port("high_in", Input, packed), Port("high_out", Output, packed)),
+      Vector(ContinuousAssign(Ref("high_out"), Ref("high_in")))
+    )
+    val lowRoute = ModuleDef(
+      "TwoHopBooleanLowRoute",
+      Vector.empty,
+      Vector(Port("low_in", Input, packed), Port("low_out", Output, packed)),
+      Vector(ContinuousAssign(Ref("low_out"), Ref("low_in")))
+    )
+    val leaf = ModuleDef(
+      name = "TwoHopBooleanLeaf",
+      parameters = Vector.empty,
+      ports = Vector(Port("leaf_in", Input, packed), Port("leaf_out", Output, packed)),
+      items = Vector(
+        ModuleItem.GenerateIf(
+          morphhdl.paramrtl.BoolExpr.ParameterRef("ENABLE"),
+          GenerateBlock(
+            "g_high",
+            Vector(
+              ModuleItem.ModuleInstance(
+                "selected_inst",
+                highRoute.name,
+                portConnections = Vector(
+                  PortConnection("high_in", Ref("leaf_in")),
+                  PortConnection("high_out", Ref("leaf_out"))
+                )
+              )
+            )
+          ),
+          GenerateBlock(
+            "g_low",
+            Vector(
+              ModuleItem.ModuleInstance(
+                "selected_inst",
+                lowRoute.name,
+                portConnections = Vector(
+                  PortConnection("low_in", Ref("leaf_in")),
+                  PortConnection("low_out", Ref("leaf_out"))
+                )
+              )
+            )
+          )
+        )
+      ),
+      booleanParameters = Vector(BooleanParameter("ENABLE", default = true))
+    )
+    val middle = ModuleDef(
+      name = "TwoHopBooleanMiddle",
+      parameters = Vector.empty,
+      ports = Vector(Port("mid_in", Input, packed), Port("mid_out", Output, packed)),
+      items = Vector(
+        ModuleItem.ModuleInstance(
+          "leaf",
+          leaf.name,
+          portConnections = Vector(
+            PortConnection("leaf_in", Ref("mid_in")),
+            PortConnection("leaf_out", Ref("mid_out"))
+          ),
+          booleanParameterBindings = Vector(
+            BooleanParameterBinding(
+              "ENABLE",
+              morphhdl.paramrtl.BoolExpr.ParameterRef("ENABLE")
+            )
+          )
+        )
+      ),
+      booleanParameters = Vector(BooleanParameter("ENABLE", default = true))
+    )
+    val top = ModuleDef(
+      requestedName,
+      Vector.empty,
+      Vector(Port("din", Input, packed), Port("dout", Output, packed)),
+      Vector(
+        ModuleItem.ModuleInstance(
+          "middle",
+          middle.name,
+          portConnections = Vector(
+            PortConnection("mid_in", Ref("din")),
+            PortConnection("mid_out", Ref("dout"))
+          ),
+          booleanParameterBindings = Vector(
+            BooleanParameterBinding("ENABLE", morphhdl.paramrtl.BoolExpr.Literal(false))
+          )
+        )
+      )
+    )
+    Design(requestedName, Vector(top, middle, leaf, highRoute, lowRoute))
   }
 
   private def forwardingWitness(requestedName: String, width: Int): Component =

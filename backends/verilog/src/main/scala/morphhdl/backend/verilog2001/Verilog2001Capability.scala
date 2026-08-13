@@ -533,6 +533,17 @@ object Verilog2001Capability {
         booleanParameters
       )
     }
+    instance.booleanParameterBindings.sortBy(_.parameterName).foreach { binding =>
+      checkBooleanExpression(
+        binding.value,
+        booleanParameters,
+        facts.parameterFacts,
+        facts.localParameterFacts,
+        path :+ "booleanParameterBindings" :+ binding.parameterName :+ "value",
+        diagnostics,
+        generateIndices
+      )
+    }
     instance.portConnections.sortBy(_.portName).foreach { connection =>
       checkRtlExpression(
         connection.actual,

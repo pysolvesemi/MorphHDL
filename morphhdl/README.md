@@ -56,3 +56,12 @@ evaluates the choice with the Boolean, bound integer and recomputed local facts
 of each reachable module instance. The seventh `conditional_width.v` artifact
 uses that expression in `ACTIVE_WIDTH` and proves both Boolean choices and
 awkward branch-width overrides without regenerating RTL.
+
+Increment 12 adds typed named Boolean child-parameter bindings. Each binding is
+validated in its parent scope and remains distinct from an integer binding in
+ParamRTL, while strict Verilog-2001 legalizes both through named `parameter
+integer` associations. `MorphVerilog` evaluates a binding from the current
+parent Boolean, integer and local facts, substitutes the resulting child
+Boolean default per instance and only then compares the recursively selected
+default hierarchy. The eighth `boolean_forwarding.v` artifact proves true,
+false and inclusive-boundary selection through one fixed-interface child.

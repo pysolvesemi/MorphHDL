@@ -45,6 +45,8 @@ private[frontend] object FrontendException {
       "Use one top-level generateIf per module-item capture."
     case "MORPH-FRONTEND-BOOLEAN-CONDITION-NULL" =>
       "Pass an HdlBool literal, expression or public parameter to generateIf."
+    case "MORPH-FRONTEND-BOOLEAN-PARAMETER-BINDING-NULL" =>
+      "Pass an HdlBool literal, expression or public parameter to parameterBinding."
     case "MORPH-FRONTEND-INTEGER-SELECT-BRANCH-NULL" =>
       "Pass an HdlInt expression or Int literal for both integer selection branches."
     case "MORPH-FRONTEND-GENERATE-START-UNSUPPORTED" =>

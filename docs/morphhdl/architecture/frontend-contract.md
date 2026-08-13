@@ -186,8 +186,10 @@ the Boolean type; only the Verilog backend maps it to integer `1`/`0`.
 Boolean operators do not short-circuit symbolic validation: every referenced
 declaration remains part of the expression provenance even if a literal fixes
 the default result. `GenerateIf` validates both structural paths and proves
-each path's output-driver coverage separately. Boolean local parameters, child
-bindings and conditional runtime values remain outside this bounded surface.
+each path's output-driver coverage separately. At Increment 9, Boolean local
+parameters, child bindings and conditional runtime values remained outside the
+bounded surface; Increment 12 implements child bindings while retaining the
+other restrictions.
 
 Increment 10 adds `<`, `<=`, `>`, `>=`, `hdlEq` and `hdlNe` on `HdlInt`, each
 producing `HdlBool`. Both integer operands keep their exact `BigInt` default,
@@ -204,6 +206,16 @@ identity and the call-site origin. Neither value branch is evaluated away for
 symbolic validation. Select expressions may compose like the other integer
 operators, but both branches must be loop-invariant; `GenIndex`-dependent
 conditions or values fail closed in this tranche.
+
+Increment 12 adds a typed `parameterBinding(name, value: HdlBool)` overload and
+a dedicated `booleanParameterBindings` input on `emitInstance`. The binding
+retains the Boolean expression plus all parent Boolean, public-integer and
+local-integer identities. Module-boundary validation rejects a binding whose
+dependencies are not declared by that parent, while ParamRTL separately
+resolves its name only against the target child's Boolean parameters. The
+dedicated collection prevents the shared Verilog-2001 integer spelling from
+weakening the frontend kind distinction. Boolean local parameters and
+generate-index-dependent bindings remain unsupported.
 
 A zero concrete divisor fails immediately instead of leaking a Scala arithmetic
 exception. A nonzero default does not prove the divisor safe: ParamRTL must
