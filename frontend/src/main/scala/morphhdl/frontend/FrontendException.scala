@@ -47,6 +47,7 @@ private[frontend] object FrontendException {
       "Emit one synchronous register process per module-item capture."
     case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-MIXED" |
         "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-MIXED" |
+        "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-MIXED" |
         "MORPH-FRONTEND-RUNTIME-PROCESS-MIXED" =>
       "Use a separate module definition instead of mixing runtime processes or module items."
     case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-LABEL-INVALID" |
@@ -81,6 +82,28 @@ private[frontend] object FrontendException {
       "Pass a non-null ref(name) reset to emitAsynchronousRegister."
     case "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-ASSIGNMENT-NULL" =>
       "Pass one proceduralAssign(target, ref(data)) to emitAsynchronousRegister."
+    case "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-NESTED" =>
+      "Emit the synchronous enabled register as a top-level module item outside all generate regions."
+    case "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-MULTIPLE" =>
+      "Emit one synchronous enabled-register process per module-item capture."
+    case "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-LABEL-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-CLOCK-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-RESET-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-ENABLE-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-TARGET-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-VALUE-INVALID" =>
+      "Use an identifier matching `[A-Za-z_][A-Za-z0-9_]*`."
+    case "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-CLOCK-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-CLOCK-NOT-REF" =>
+      "Pass a non-null ref(name) clock to emitSynchronousEnabledRegister."
+    case "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-RESET-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-RESET-NOT-REF" =>
+      "Pass a non-null ref(name) reset to emitSynchronousEnabledRegister."
+    case "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-ENABLE-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-ENABLE-NOT-REF" =>
+      "Pass a non-null ref(name) enable to emitSynchronousEnabledRegister."
+    case "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-ASSIGNMENT-NULL" =>
+      "Pass one proceduralAssign(target, ref(data)) to emitSynchronousEnabledRegister."
     case "MORPH-FRONTEND-COMBINATIONAL-LABEL-INVALID" |
         "MORPH-FRONTEND-COMBINATIONAL-TARGET-INVALID" |
         "MORPH-FRONTEND-COMBINATIONAL-VALUE-INVALID" |

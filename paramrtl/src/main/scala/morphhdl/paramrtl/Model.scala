@@ -140,6 +140,13 @@ object ModuleItem {
       reset: RtlExpr.Ref,
       assignment: ProceduralAssign
   ) extends ModuleItem
+  final case class SynchronousEnabledRegister(
+      label: String,
+      clock: RtlExpr.Ref,
+      reset: RtlExpr.Ref,
+      enable: RtlExpr.Ref,
+      assignment: ProceduralAssign
+  ) extends ModuleItem
 }
 
 final case class ModuleDef(

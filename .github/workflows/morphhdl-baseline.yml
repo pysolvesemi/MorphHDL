@@ -146,6 +146,7 @@ jobs:
               'parameter_forwarding.v f' \
               'parameterized_wire.v f' \
               'runtime_mux.v f' \
+              'synchronous_enabled_register.v f' \
               'synchronous_register.v f')"
             test "${actual_inventory}" = "${expected_inventory}"
           done
@@ -165,7 +166,8 @@ jobs:
             case_routing.v \
             runtime_mux.v \
             synchronous_register.v \
-            asynchronous_register.v
+            asynchronous_register.v \
+            synchronous_enabled_register.v
           do
             cmp "target/morphhdl/generated/run-1/${filename}" \
               "morphhdl/examples/contracts/${filename}"

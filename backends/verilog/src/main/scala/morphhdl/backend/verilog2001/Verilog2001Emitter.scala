@@ -35,6 +35,7 @@ import morphhdl.paramrtl.ModuleItem.{
   GenerateFor,
   GenerateIf,
   ModuleInstance,
+  SynchronousEnabledRegister,
   SynchronousRegister
 }
 import morphhdl.paramrtl.PortDirection.{Input, Output}
@@ -76,11 +77,14 @@ object Verilog2001Emitter {
       module.items.collect { case process: SynchronousRegister => process }.sortBy(_.label)
     val asynchronousRegisters =
       module.items.collect { case process: AsynchronousRegister => process }.sortBy(_.label)
+    val synchronousEnabledRegisters =
+      module.items.collect { case process: SynchronousEnabledRegister => process }.sortBy(_.label)
     val proceduralOutputs = (
       combinationalIfs
         .flatMap(process => process.whenTrue.map(_.target.name) ++ process.whenFalse.map(_.target.name)) ++
         synchronousRegisters.map(_.assignment.target.name) ++
-        asynchronousRegisters.map(_.assignment.target.name)
+        asynchronousRegisters.map(_.assignment.target.name) ++
+        synchronousEnabledRegisters.map(_.assignment.target.name)
     ).toSet
     val assignments = module.items.collect { case assignment: ContinuousAssign => assignment }.sortBy { assignment =>
       (assignment.target.name, renderRtlExpr(assignment.value))
@@ -223,6 +227,20 @@ object Verilog2001Emitter {
       lines += s"    if (${process.reset.name} == 1'b1) begin"
       lines += s"      $target <= {$resetWidth{1'b0}};"
       lines += "    end else begin"
+      lines += s"      $target <= ${process.assignment.value.name};"
+      lines += "    end"
+      lines += "  end"
+    }
+
+    synchronousEnabledRegisters.foreach { process =>
+      val target = process.assignment.target.name
+      val targetPort = ports.find(_.name == target).get
+      val resetWidth = renderReplicationWidth(targetPort.dataType.width)
+      lines += ""
+      lines += s"  always @(posedge ${process.clock.name}) begin : ${process.label}"
+      lines += s"    if (${process.reset.name} == 1'b1) begin"
+      lines += s"      $target <= {$resetWidth{1'b0}};"
+      lines += s"    end else if (${process.enable.name} == 1'b1) begin"
       lines += s"      $target <= ${process.assignment.value.name};"
       lines += "    end"
       lines += "  end"

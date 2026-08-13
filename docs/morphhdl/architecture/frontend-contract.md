@@ -169,6 +169,15 @@ changed by caller-provided syntax. A module may contain one supported runtime
 process kind only; synchronous/asynchronous mixing, enables, multiple
 processes and arbitrary clocked statements remain rejected.
 
+Increment 18 adds
+`emitSynchronousEnabledRegister(label, clock, reset, enable, assignment)`.
+Enable is a third guarded direct control reference. The helper fixes
+active-high enable semantics: reset has priority, enable high captures and
+enable low retains state. The process is emitted atomically only after every
+reference and assignment passes the same ownership, origin and cross-thread
+checks. Arbitrary hold expressions, selectable control polarities, multiple or
+mixed processes and nesting remain rejected.
+
 An ordinary Scala `if`, `match`, collection size, recursion or class selection
 continues to execute during elaboration and therefore may depend only on static
 Scala values.
