@@ -127,6 +127,12 @@ class BooleanLocalParameterTests extends AnyFunSuite {
         assert(cycles.size == 2, cycles.mkString("\n"))
         assert(cycles.head.message.contains("integer ALPHA, Boolean BETA"), cycles.mkString("\n"))
         assert(cycles(1).message.contains("integer YELLOW, Boolean ZED"), cycles.mkString("\n"))
+        assert(
+          cycles.map(_.pathString) == Vector(
+            "modules/MultipleMixedLocalCycles/localParameters/ALPHA",
+            "modules/MultipleMixedLocalCycles/localParameters/YELLOW"
+          )
+        )
       case Right(_) => fail("Expected two mixed local cycles")
     }
   }
@@ -145,7 +151,28 @@ class BooleanLocalParameterTests extends AnyFunSuite {
       case Left(diagnostics) =>
         val cycles = diagnostics.values.filter(_.code == "PRTL-LOCAL-PARAMETER-CYCLE")
         assert(cycles.map(_.message) == Vector("Local-parameter dependency cycle members: A, B"))
+        assert(cycles.map(_.pathString) == Vector("modules/LegacyIntegerCycleText/localParameters/A"))
       case Right(_) => fail("Expected an integer-only local cycle")
+    }
+  }
+
+  test("routes a Boolean-first local cycle diagnostic to its Boolean declaration") {
+    val module = passthrough(
+      "BooleanFirstCyclePath",
+      Literal(8),
+      localParameters = Vector(
+        IntegerLocalParameter("BETA", Select(BoolLocalParameterRef("ALPHA"), Literal(8), Literal(4)))
+      ),
+      booleanLocalParameters = Vector(
+        BooleanLocalParameter("ALPHA", GreaterThan(LocalParameterRef("BETA"), Literal(0)))
+      )
+    )
+
+    ParamRtlValidator.validate(Design(module.name, Vector(module))) match {
+      case Left(diagnostics) =>
+        val cycles = diagnostics.values.filter(_.code == "PRTL-LOCAL-PARAMETER-CYCLE")
+        assert(cycles.map(_.pathString) == Vector("modules/BooleanFirstCyclePath/booleanLocalParameters/ALPHA"))
+      case Right(_) => fail("Expected a Boolean-first mixed local cycle")
     }
   }
 

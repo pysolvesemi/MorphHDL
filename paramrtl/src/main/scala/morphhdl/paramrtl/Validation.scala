@@ -483,6 +483,7 @@ object ParamRtlValidator {
     )
     val cycleGroups = localParameterGraph.cycleGroups
     cycleGroups.foreach { names =>
+      val firstIsBoolean = names.head.startsWith("boolean:")
       val renderedNames =
         if (names.forall(_.startsWith("integer:")))
           names.map(_.stripPrefix("integer:"))
@@ -493,7 +494,9 @@ object ParamRtlValidator {
           }
       diagnostics += Diagnostic(
         "PRTL-LOCAL-PARAMETER-CYCLE",
-        modulePath :+ "localParameters" :+ names.head.substring(names.head.indexOf(':') + 1),
+        modulePath :+
+          (if (firstIsBoolean) "booleanLocalParameters" else "localParameters") :+
+          names.head.substring(names.head.indexOf(':') + 1),
         s"Local-parameter dependency cycle members: ${renderedNames.mkString(", ")}"
       )
     }
