@@ -43,6 +43,21 @@ object MorphVerilog {
 
   private final case class ChildShape(shape: ModuleShape, count: BigInt)
 
+  /**
+    * Exact compile-time facts for one reachable symbolic module instance.
+    *
+    * Integer bindings and derived locals vary per instance. Boolean child
+    * bindings are not part of the current frontend tranche, but retaining the
+    * declaration map here is still essential: conditional integer expressions
+    * in a parent binding, local parameter, packed width or generate count must
+    * be evaluated against the Boolean defaults of that same instance.
+    */
+  private final case class SymbolicContext(
+      integerParameters: Map[String, morphhdl.paramrtl.IntExprFacts],
+      localParameters: Map[String, morphhdl.paramrtl.IntExprFacts],
+      booleanParameters: Map[String, morphhdl.paramrtl.BooleanParameter]
+  )
+
   def apply[T <: Component](program: => MorphProgram[T]): MorphVerilogReport =
     apply(SpinalConfig())(program)
 
@@ -501,8 +516,7 @@ object MorphVerilog {
 
     def loop(
         name: String,
-        parameters: Map[String, morphhdl.paramrtl.IntExprFacts],
-        localParameters: Map[String, morphhdl.paramrtl.IntExprFacts],
+        context: SymbolicContext,
         ancestors: Set[String],
         isTop: Boolean
     ): Either[String, ModuleShape] = {
@@ -512,17 +526,16 @@ object MorphVerilog {
           case None => Left(s"symbolic default hierarchy cannot resolve module '$name'")
           case Some(module) =>
             for {
-              ports <- symbolicPortShapes(module, parameters, localParameters)
-              childEntries <- symbolicChildren(module, parameters, localParameters)
+              ports <- symbolicPortShapes(module, context)
+              childEntries <- symbolicChildren(module, context)
               childShapes <- childEntries.foldLeft[Either[String, Vector[ChildShape]]](Right(Vector.empty)) {
                 case (Left(detail), _) => Left(detail)
                 case (Right(shapes), (instance, count)) =>
                   for {
-                    childContext <- instantiatedContext(instance, parameters, localParameters, design)
+                    childContext <- instantiatedContext(instance, context, design)
                     child <- loop(
                       instance.moduleName,
-                      childContext._1,
-                      childContext._2,
+                      childContext,
                       ancestors + name,
                       isTop = false
                     )
@@ -540,19 +553,34 @@ object MorphVerilog {
     }
 
     val topFacts = design.moduleFacts(topName)
-    loop(topName, topFacts.parameterFacts, topFacts.localParameterFacts, Set.empty, isTop = true)
+    val top = modulesByName(topName)
+    loop(
+      topName,
+      SymbolicContext(
+        topFacts.parameterFacts,
+        topFacts.localParameterFacts,
+        top.booleanParameters.map(parameter => parameter.name -> parameter).toMap
+      ),
+      Set.empty,
+      isTop = true
+    )
   }
 
   private def symbolicPortShapes(
       module: morphhdl.paramrtl.ModuleDef,
-      parameters: Map[String, morphhdl.paramrtl.IntExprFacts],
-      localParameters: Map[String, morphhdl.paramrtl.IntExprFacts]
+      context: SymbolicContext
   ): Either[String, Vector[PortShape]] = {
     module.ports.foldLeft[Either[String, Vector[PortShape]]](Right(Vector.empty)) {
       case (Left(detail), _) => Left(detail)
       case (Right(shapes), port) =>
         IntExpressionAnalysis
-          .analyze(port.dataType.width, parameters, localParameters) match {
+          .analyze(
+            port.dataType.width,
+            context.integerParameters,
+            context.localParameters,
+            context.booleanParameters,
+            Map.empty
+          ) match {
           case Left(failure) =>
             Left(s"cannot evaluate default width for '${module.name}.${port.name}': $failure")
           case Right(widthFacts) =>
@@ -578,11 +606,8 @@ object MorphVerilog {
 
   private def symbolicChildren(
       module: morphhdl.paramrtl.ModuleDef,
-      parameters: Map[String, morphhdl.paramrtl.IntExprFacts],
-      localParameters: Map[String, morphhdl.paramrtl.IntExprFacts]
+      context: SymbolicContext
   ): Either[String, Vector[(ModuleInstance, BigInt)]] = {
-    val booleanParameters = module.booleanParameters.map(parameter => parameter.name -> parameter).toMap
-
     def collect(
         items: Vector[morphhdl.paramrtl.ModuleItem],
         multiplier: BigInt,
@@ -594,7 +619,13 @@ object MorphVerilog {
           Right(current :+ (instance -> multiplier))
         case (Right(current), generate: GenerateFor) =>
           IntExpressionAnalysis
-            .analyze(generate.count, parameters, localParameters) match {
+            .analyze(
+              generate.count,
+              context.integerParameters,
+              context.localParameters,
+              context.booleanParameters,
+              Map.empty
+            ) match {
             case Left(failure) =>
               Left(s"cannot evaluate default generate count '${module.name}.${generate.label}': $failure")
             case Right(countFacts) if countFacts.defaultValue < 0 =>
@@ -607,9 +638,10 @@ object MorphVerilog {
         case (Right(current), generate: GenerateIf) =>
           BoolExpressionAnalysis.evaluateDefault(
             generate.condition,
-            booleanParameters,
-            parameters,
-            localParameters
+            context.booleanParameters,
+            context.integerParameters,
+            context.localParameters,
+            Map.empty
           ) match {
             case Left(failure) =>
               Left(
@@ -627,13 +659,9 @@ object MorphVerilog {
 
   private def instantiatedContext(
       instance: ModuleInstance,
-      parentParameters: Map[String, morphhdl.paramrtl.IntExprFacts],
-      parentLocals: Map[String, morphhdl.paramrtl.IntExprFacts],
+      parentContext: SymbolicContext,
       design: ValidatedDesign
-  ): Either[
-    String,
-    (Map[String, morphhdl.paramrtl.IntExprFacts], Map[String, morphhdl.paramrtl.IntExprFacts])
-  ] = {
+  ): Either[String, SymbolicContext] = {
     val target = design.value.modules.find(_.name == instance.moduleName).get
     val bindings = instance.parameterBindings.map(binding => binding.parameterName -> binding.value).toMap
     val parameters = target.parameters.foldLeft[Either[String, Map[String, morphhdl.paramrtl.IntExprFacts]]](
@@ -653,7 +681,13 @@ object MorphVerilog {
               )
             )
           case Some(expression) =>
-            IntExpressionAnalysis.analyze(expression, parentParameters, parentLocals) match {
+            IntExpressionAnalysis.analyze(
+              expression,
+              parentContext.integerParameters,
+              parentContext.localParameters,
+              parentContext.booleanParameters,
+              Map.empty
+            ) match {
               case Left(failure) =>
                 Left(
                   s"cannot evaluate default binding '${instance.name}.${parameter.name}': $failure"
@@ -663,17 +697,25 @@ object MorphVerilog {
         }
     }
     parameters.flatMap { parameterFacts =>
+      val booleanParameters =
+        target.booleanParameters.map(parameter => parameter.name -> parameter).toMap
       design.moduleFacts(target.name).orderedLocalParameters
         .foldLeft[Either[String, Map[String, morphhdl.paramrtl.IntExprFacts]]](Right(Map.empty)) {
           case (Left(detail), _) => Left(detail)
           case (Right(current), local) =>
-            IntExpressionAnalysis.analyze(local.value, parameterFacts, current) match {
+            IntExpressionAnalysis.analyze(
+              local.value,
+              parameterFacts,
+              current,
+              booleanParameters,
+              Map.empty
+            ) match {
               case Left(failure) =>
                 Left(s"cannot evaluate default local parameter '${target.name}.${local.name}': $failure")
               case Right(value) => Right(current.updated(local.name, value))
             }
         }
-        .map(localFacts => parameterFacts -> localFacts)
+        .map(localFacts => SymbolicContext(parameterFacts, localFacts, booleanParameters))
     }
   }
 

@@ -102,6 +102,7 @@ private[morphhdl] object ParamRtlFrontend {
     FrontendNode(
       token.declaration,
       parameters = token.parameters,
+      booleanParameters = token.booleanParameters,
       localParameters = token.dependencies + token,
       localDeclaration = Some(token),
       origin = SourceOrigin.capture
@@ -116,6 +117,7 @@ private[morphhdl] object ParamRtlFrontend {
     FrontendNode(
       PackedBits(width.expression, signedness),
       parameters = width.parameters,
+      booleanParameters = width.booleanParameters,
       localParameters = width.localParameters,
       origin = SourceOrigin.capture
     )
@@ -145,6 +147,7 @@ private[morphhdl] object ParamRtlFrontend {
     FrontendNode(
       ParameterBinding(parameterName, value.expression),
       parameters = value.parameters,
+      booleanParameters = value.booleanParameters,
       localParameters = value.localParameters,
       origin = SourceOrigin.capture
     )
@@ -165,6 +168,7 @@ private[morphhdl] object ParamRtlFrontend {
     FrontendNode(
       IndexedPartSelect(Ref(base), offset.expression, width.expression),
       parameters = offset.parameters ++ width.parameters,
+      booleanParameters = offset.booleanParameters ++ width.booleanParameters,
       localParameters = offset.localParameters ++ width.localParameters,
       scopes = offset.scope.toSet,
       origin = SourceOrigin.capture

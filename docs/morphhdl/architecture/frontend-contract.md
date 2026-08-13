@@ -196,6 +196,15 @@ provenance into `GenerateIf` and final module declaration checks. The named
 equality methods avoid Scala equality semantics. Comparisons may consume public
 and local integer expressions but not a `GenIndex` in this non-nested tranche.
 
+Increment 11 adds one typed conditional integer operation:
+`condition.select(whenTrue, whenFalse): HdlInt`. The concrete witness selects
+the matching integer witness, while the symbolic value retains the exact
+`BoolExpr`, both `IntExpr` branches, every Boolean/integer/local declaration
+identity and the call-site origin. Neither value branch is evaluated away for
+symbolic validation. Select expressions may compose like the other integer
+operators, but both branches must be loop-invariant; `GenIndex`-dependent
+conditions or values fail closed in this tranche.
+
 A zero concrete divisor fails immediately instead of leaking a Scala arithmetic
 exception. A nonzero default does not prove the divisor safe: ParamRTL must
 prove zero absent from its complete legal interval. Generate-index-dependent

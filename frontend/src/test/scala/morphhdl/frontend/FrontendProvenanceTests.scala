@@ -86,6 +86,93 @@ class FrontendProvenanceTests extends AnyFunSuite {
     assert(duplicate.code == "MORPH-FRONTEND-PARAMETER-NAME-DUPLICATE")
   }
 
+  test("rejects integer provenance from an inactive selection branch") {
+    val enabled = HdlBool.param("ENABLED", default = true)
+    val declared = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
+    val inactive = HdlInt.param("INACTIVE_WIDTH", default = 16, min = 1, max = 64)
+    val selected = enabled.select(declared, inactive)
+
+    val error = intercept[FrontendException] {
+      moduleDef(
+        name = "MissingInactiveInteger",
+        parameters = Vector(integerParameter(declared)),
+        ports = Vector(port("data", Input, packedBits(selected))),
+        items = captureItems {},
+        booleanParameters = Vector(booleanParameter(enabled))
+      )
+    }
+
+    assert(error.code == "MORPH-FRONTEND-PARAMETER-NOT-DECLARED")
+    assert(error.origin == inactive.origin)
+  }
+
+  test("rejects Boolean provenance nested in an inactive selection branch") {
+    val outer = HdlBool.param("OUTER", default = true)
+    val inactiveCondition = HdlBool.param("INACTIVE_CONDITION", default = false)
+    val inactive = inactiveCondition.select(16, 12)
+    val selected = outer.select(8, inactive)
+
+    val error = intercept[FrontendException] {
+      moduleDef(
+        name = "MissingInactiveBoolean",
+        parameters = Vector.empty,
+        ports = Vector(port("data", Input, packedBits(selected))),
+        items = captureItems {},
+        booleanParameters = Vector(booleanParameter(outer))
+      )
+    }
+
+    assert(error.code == "MORPH-FRONTEND-BOOLEAN-PARAMETER-NOT-DECLARED")
+    assert(error.origin == inactiveCondition.origin)
+  }
+
+  test("rejects a distinct same-named Boolean identity used by integer selection") {
+    val declared = HdlBool.param("ENABLED", default = true)
+    val used = HdlBool.param("ENABLED", default = false)
+    val selected = used.select(16, 8)
+
+    val error = intercept[FrontendException] {
+      moduleDef(
+        name = "AliasedSelectCondition",
+        parameters = Vector.empty,
+        ports = Vector(port("data", Input, packedBits(selected))),
+        items = captureItems {},
+        booleanParameters = Vector(booleanParameter(declared))
+      )
+    }
+
+    assert(error.code == "MORPH-FRONTEND-BOOLEAN-PARAMETER-TOKEN-MISMATCH")
+    assert(error.origin == used.origin)
+    assert(error.detail.contains(declared.origin.rendered))
+  }
+
+  test("rejects a claimed local hidden in an inactive selection branch") {
+    val foreign = localParam("FOREIGN_WIDTH", HdlInt.literal(16))
+    moduleDef(
+      name = "LocalOwner",
+      parameters = Vector.empty,
+      ports = Vector.empty,
+      items = captureItems {},
+      localParameters = Vector(integerLocalParameter(foreign))
+    )
+    val enabled = HdlBool.param("ENABLED", default = true)
+    val selected = enabled.select(8, foreign)
+
+    val error = intercept[FrontendException] {
+      moduleDef(
+        name = "ForeignInactiveLocal",
+        parameters = Vector.empty,
+        ports = Vector(port("data", Input, packedBits(selected))),
+        items = captureItems {},
+        booleanParameters = Vector(booleanParameter(enabled))
+      )
+    }
+
+    assert(error.code == "MORPH-FRONTEND-LOCAL-PARAMETER-FOREIGN")
+    assert(error.origin == foreign.origin)
+    assert(error.detail.contains("LocalOwner"))
+  }
+
   test("keeps parameter identity local to each module") {
     val firstWidth = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
     val secondWidth = HdlInt.param("WIDTH", default = 4, min = 1, max = 32)

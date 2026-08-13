@@ -6,6 +6,7 @@ import morphhdl.paramrtl.IntegerLocalParameter
 private[frontend] final class LocalParameterToken(
     val declaration: IntegerLocalParameter,
     val parameters: Set[ParameterToken],
+    val booleanParameters: Set[BooleanParameterToken],
     val dependencies: Set[LocalParameterToken],
     val origin: SourceOrigin
 ) {

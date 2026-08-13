@@ -287,6 +287,86 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("default shape follows the true branch of a conditional integer local width") {
+    withTemporaryDirectory { directory =>
+      val topName = "TrueConditionalWidth"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = conditionalWidthWitness(topName, width = 12),
+          parameterizedDesign = conditionalWidthDesign(topName, wideDefault = true)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("default shape follows the false branch of a conditional integer local width") {
+    withTemporaryDirectory { directory =>
+      val topName = "FalseConditionalWidth"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = conditionalWidthWitness(topName, width = 4),
+          parameterizedDesign = conditionalWidthDesign(topName, wideDefault = false)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("recursive default shape evaluates a local-bound conditional branch in instance context") {
+    withTemporaryDirectory { directory =>
+      val topName = "LocalBoundConditionalWidth"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = boundConditionalWidthWitness(topName, width = 6),
+          parameterizedDesign = boundConditionalWidthDesign(topName, childWideDefault = false)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("recursive default shape evaluates a public-bound conditional branch in instance context") {
+    withTemporaryDirectory { directory =>
+      val topName = "PublicBoundConditionalWidth"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = boundConditionalWidthWitness(topName, width = 14),
+          parameterizedDesign = boundConditionalWidthDesign(topName, childWideDefault = true)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("an invalid inactive conditional integer branch fails whole-design validation") {
+    withTemporaryDirectory { directory =>
+      val topName = "InvalidInactiveConditionalWidth"
+      val result = MorphVerilog.tryGenerate(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = passThroughWitness(topName, width = 8),
+          parameterizedDesign = invalidInactiveConditionalWidthDesign(topName)
+        )
+      }
+
+      result match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.ParamRtlValidation)
+          assert(failure.message.contains("PRTL-DIVISOR-MAY-BE-ZERO"))
+        case Right(report) => fail(s"Expected inactive-branch validation failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve(s"$topName.v")))
+    }
+  }
+
   test("inactive generate-if branches remain subject to whole-design validation") {
     withTemporaryDirectory { directory =>
       val topName = "InvalidInactiveConditional"
@@ -622,6 +702,14 @@ class MorphVerilogTests extends AnyFunSuite {
       data_out := data_in
     }
 
+  private def conditionalWidthWitness(requestedName: String, width: Int): Component =
+    new Component {
+      setDefinitionName(requestedName)
+      val din = in(Bits(width bits))
+      val dout = out(Bits(width bits))
+      dout := din
+    }
+
   private def integerAlgebraDesign(): Design = {
     val base = HdlInt.param("BASE", default = 12, min = 8, max = 16)
     val divisor = HdlInt.param("DIVISOR", default = 3, min = 2, max = 4)
@@ -665,6 +753,144 @@ class MorphVerilogTests extends AnyFunSuite {
         emitContinuousAssign("data_out", ref("data_in"))
       },
       localParameters = Vector(integerLocalParameter(width))
+    )
+    Design(module.name, Vector(module))
+  }
+
+  private def conditionalWidthDesign(requestedName: String, wideDefault: Boolean): Design = {
+    val activeWidth = IntExpr.LocalParameterRef("ACTIVE_WIDTH")
+    val module = ModuleDef(
+      name = requestedName,
+      parameters = Vector(
+        IntegerParameter("NARROW_WIDTH", 4, Vector(MinInclusive(1), MaxInclusive(32))),
+        IntegerParameter("WIDE_WIDTH", 12, Vector(MinInclusive(1), MaxInclusive(32)))
+      ),
+      ports = Vector(
+        Port("din", Input, PackedBits(activeWidth, Unsigned)),
+        Port("dout", Output, PackedBits(activeWidth, Unsigned))
+      ),
+      items = Vector(ContinuousAssign(Ref("dout"), Ref("din"))),
+      localParameters = Vector(
+        IntegerLocalParameter(
+          "ACTIVE_WIDTH",
+          IntExpr.Select(
+            morphhdl.paramrtl.BoolExpr.ParameterRef("WIDE"),
+            IntExpr.ParameterRef("WIDE_WIDTH"),
+            IntExpr.ParameterRef("NARROW_WIDTH")
+          )
+        )
+      ),
+      booleanParameters = Vector(BooleanParameter("WIDE", wideDefault))
+    )
+    Design(module.name, Vector(module))
+  }
+
+  private def boundConditionalWidthWitness(requestedName: String, width: Int): Component =
+    new Component {
+      setDefinitionName(requestedName)
+      val din = in(Bits(width bits))
+      val dout = out(Bits(width bits))
+      val child = new Component {
+        setDefinitionName("BoundConditionalWidthChild")
+        val child_in = in(Bits(width bits))
+        val child_out = out(Bits(width bits))
+        child_out := child_in
+      }
+      child.child_in := din
+      dout := child.child_out
+    }
+
+  private def boundConditionalWidthDesign(
+      requestedName: String,
+      childWideDefault: Boolean
+  ): Design = {
+    val childWidth = IntExpr.Select(
+      morphhdl.paramrtl.BoolExpr.Literal(childWideDefault),
+      IntExpr.ParameterRef("WIDE_WIDTH"),
+      IntExpr.Add(IntExpr.ParameterRef("NARROW_WIDTH"), IntExpr.Literal(1))
+    )
+    val child = ModuleDef(
+      name = "BoundConditionalWidthChild",
+      parameters = Vector(
+        IntegerParameter("NARROW_WIDTH", 2, Vector(MinInclusive(1), MaxInclusive(32))),
+        IntegerParameter("WIDE_WIDTH", 3, Vector(MinInclusive(1), MaxInclusive(32)))
+      ),
+      ports = Vector(
+        Port("child_in", Input, PackedBits(childWidth, Unsigned)),
+        Port("child_out", Output, PackedBits(childWidth, Unsigned))
+      ),
+      items = Vector(ContinuousAssign(Ref("child_out"), Ref("child_in")))
+    )
+
+    val topWidth = IntExpr.Select(
+      morphhdl.paramrtl.BoolExpr.Literal(childWideDefault),
+      IntExpr.ParameterRef("TOP_WIDE"),
+      IntExpr.Add(IntExpr.LocalParameterRef("BOUND_NARROW"), IntExpr.Literal(1))
+    )
+    val topPacked = PackedBits(topWidth, Unsigned)
+    val top = ModuleDef(
+      name = requestedName,
+      parameters = Vector(
+        IntegerParameter("TOP_NARROW", 5, Vector(MinInclusive(1), MaxInclusive(16))),
+        IntegerParameter("ALT_NARROW", 9, Vector(MinInclusive(1), MaxInclusive(16))),
+        IntegerParameter("TOP_WIDE", 14, Vector(MinInclusive(1), MaxInclusive(32)))
+      ),
+      ports = Vector(
+        Port("din", Input, topPacked),
+        Port("dout", Output, topPacked)
+      ),
+      items = Vector(
+        ModuleItem.ModuleInstance(
+          name = "child",
+          moduleName = child.name,
+          parameterBindings = Vector(
+            ParameterBinding("NARROW_WIDTH", IntExpr.LocalParameterRef("BOUND_NARROW")),
+            ParameterBinding("WIDE_WIDTH", IntExpr.ParameterRef("TOP_WIDE"))
+          ),
+          portConnections = Vector(
+            PortConnection("child_in", Ref("din")),
+            PortConnection("child_out", Ref("dout"))
+          )
+        )
+      ),
+      localParameters = Vector(
+        IntegerLocalParameter(
+          "BOUND_NARROW",
+          IntExpr.Select(
+            morphhdl.paramrtl.BoolExpr.ParameterRef("USE_ALT_BINDING"),
+            IntExpr.ParameterRef("ALT_NARROW"),
+            IntExpr.ParameterRef("TOP_NARROW")
+          )
+        )
+      ),
+      booleanParameters = Vector(BooleanParameter("USE_ALT_BINDING", default = false))
+    )
+    Design(top.name, Vector(top, child))
+  }
+
+  private def invalidInactiveConditionalWidthDesign(requestedName: String): Design = {
+    val activeWidth = IntExpr.LocalParameterRef("ACTIVE_WIDTH")
+    val module = ModuleDef(
+      name = requestedName,
+      parameters = Vector(
+        IntegerParameter("DIVISOR", 2, Vector(MinInclusive(0), MaxInclusive(3)))
+      ),
+      ports = Vector(
+        Port("din", Input, PackedBits(activeWidth, Unsigned)),
+        Port("dout", Output, PackedBits(activeWidth, Unsigned))
+      ),
+      items = Vector(ContinuousAssign(Ref("dout"), Ref("din"))),
+      localParameters = Vector(
+        IntegerLocalParameter(
+          "ACTIVE_WIDTH",
+          IntExpr.Select(
+            morphhdl.paramrtl.BoolExpr.ParameterRef("WIDE"),
+            IntExpr.Literal(8),
+            IntExpr.Divide(IntExpr.Literal(8), IntExpr.ParameterRef("DIVISOR"))
+          )
+        )
+      ),
+      booleanParameters = Vector(BooleanParameter("WIDE", default = true))
     )
     Design(module.name, Vector(module))
   }

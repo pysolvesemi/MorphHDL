@@ -14,7 +14,9 @@ class MorphFrontendSafetyTests extends AnyFunSuite {
   private val symbolicDefinitions =
     """
       |package morphhdl.frontend {
-      |  final class HdlBool
+      |  final class HdlBool {
+      |    def select(whenTrue: HdlInt, whenFalse: HdlInt): HdlInt = whenTrue
+      |  }
       |  final class HdlInt {
       |    def hdlEq(that: HdlInt): HdlBool = new HdlBool
       |    def hdlNe(that: HdlInt): HdlBool = new HdlBool
@@ -72,6 +74,40 @@ class MorphFrontendSafetyTests extends AnyFunSuite {
     )
 
     assert(errors.isEmpty, errors.mkString("\n"))
+  }
+
+  test("allows named integer selection and still guards reverse equality on its result") {
+    val accepted = compile(
+      symbolicDefinitions +
+        """
+          |package selection {
+          |  object Accepted {
+          |    val condition = new morphhdl.frontend.HdlBool
+          |    val wide = new morphhdl.frontend.HdlInt
+          |    val narrow = new morphhdl.frontend.HdlInt
+          |    val selected = condition.select(wide, narrow)
+          |    val compared = selected.hdlEq(wide)
+          |  }
+          |}
+          |""".stripMargin
+    )
+    assert(accepted.isEmpty, accepted.mkString("\n"))
+
+    val rejected = compile(
+      symbolicDefinitions +
+        """
+          |package selection {
+          |  object Rejected {
+          |    val condition = new morphhdl.frontend.HdlBool
+          |    val wide = new morphhdl.frontend.HdlInt
+          |    val narrow = new morphhdl.frontend.HdlInt
+          |    val compared = 0 == condition.select(wide, narrow)
+          |  }
+          |}
+          |""".stripMargin
+    )
+    assert(rejected.size == 1, rejected.mkString("\n"))
+    assert(rejected.head.contains("MORPH-FRONTEND-SYMBOLIC-COMPARISON-UNSUPPORTED"))
   }
 
   private def compile(source: String): Vector[String] = {

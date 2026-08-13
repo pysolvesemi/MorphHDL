@@ -31,6 +31,17 @@ final class HdlBool private[frontend] (
   def ||(that: HdlBool)(implicit file: sourcecode.File, line: sourcecode.Line): HdlBool =
     binary(that, Or.apply)(_ || _)
 
+  /**
+    * Selects an integer expression without collapsing either symbolic branch.
+    * The concrete witness follows this Boolean witness, while ParamRTL keeps
+    * the condition and both alternatives.
+    */
+  def select(whenTrue: HdlInt, whenFalse: HdlInt)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): HdlInt =
+    HdlInt.select(this, whenTrue, whenFalse, SourceOrigin.capture)
+
   private def binary(
       that: HdlBool,
       operation: (BoolExpr, BoolExpr) => BoolExpr
@@ -101,6 +112,7 @@ object HdlBool {
       witness: Boolean,
       expression: BoolExpr,
       integerParameters: Set[ParameterToken],
+      booleanParameters: Set[BooleanParameterToken],
       localParameters: Set[LocalParameterToken],
       origin: SourceOrigin
   ): HdlBool =
@@ -108,7 +120,7 @@ object HdlBool {
       witness,
       expression,
       declaration = None,
-      parameters = Set.empty,
+      parameters = booleanParameters,
       integerParameters = integerParameters,
       localParameters = localParameters,
       origin = origin

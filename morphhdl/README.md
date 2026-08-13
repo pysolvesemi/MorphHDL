@@ -49,3 +49,10 @@ Increment 10 adds mathematical integer comparisons from `HdlInt` to `HdlBool`:
 fail-closed. `MorphVerilog` evaluates comparison defaults with binding-aware
 integer and local facts, and the sixth `comparison_routing.v` artifact proves
 that downstream parameter overrides select distinct legal child hierarchies.
+
+Increment 11 adds `HdlBool.select(whenTrue, whenFalse): HdlInt`. Validation
+retains and checks both value branches, while exact default-shape agreement
+evaluates the choice with the Boolean, bound integer and recomputed local facts
+of each reachable module instance. The seventh `conditional_width.v` artifact
+uses that expression in `ACTIVE_WIDTH` and proves both Boolean choices and
+awkward branch-width overrides without regenerating RTL.

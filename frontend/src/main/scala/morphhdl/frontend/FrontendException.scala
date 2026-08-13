@@ -45,6 +45,8 @@ private[frontend] object FrontendException {
       "Use one top-level generateIf per module-item capture."
     case "MORPH-FRONTEND-BOOLEAN-CONDITION-NULL" =>
       "Pass an HdlBool literal, expression or public parameter to generateIf."
+    case "MORPH-FRONTEND-INTEGER-SELECT-BRANCH-NULL" =>
+      "Pass an HdlInt expression or Int literal for both integer selection branches."
     case "MORPH-FRONTEND-GENERATE-START-UNSUPPORTED" =>
       "Rewrite the loop as `0 until count` and adjust the indexed offset."
     case "MORPH-FRONTEND-GENERATE-COUNT-NONPOSITIVE" =>

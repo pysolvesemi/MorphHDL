@@ -224,7 +224,8 @@ private[frontend] object FrontendSession {
               body = childCollector.map(_.raw).toVector
             ),
             parameters = range.end.parameters ++ childCollector.flatMap(_.parameters),
-            booleanParameters = childCollector.flatMap(_.booleanParameters).toSet,
+            booleanParameters = range.end.booleanParameters ++
+              childCollector.flatMap(_.booleanParameters),
             localParameters = range.end.localParameters ++ childCollector.flatMap(_.localParameters),
             origin = range.origin
           )

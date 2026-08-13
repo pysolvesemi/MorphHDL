@@ -34,6 +34,9 @@ The contract is split into these documents:
 - [Increment 10 integer comparisons](../increment-10-integer-comparisons.md):
   six mathematical `HdlInt` comparisons, binding-aware default branch
   selection and a sixth reviewed hierarchy-switching fixture.
+- [Increment 11 conditional integer values](../increment-11-conditional-integers.md):
+  typed Boolean selection between two `HdlInt` expressions, conservative
+  whole-domain analysis and a seventh reviewed parameterized-width fixture.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -42,9 +45,10 @@ Machine-readable target-profile capabilities are recorded in
 the bounded v1 target can represent it; separate `implementation.*` keys state
 what is executable now. Current parameter-expression implementation status and
 its separate frontend, validation and emission evidence are recorded in
-`morphhdl/contracts/parameter-operators.tsv`. Increment 10 records all six
-integer comparison nodes as executable. Generate-case remains deferred even
-though the target profile reserves a legal mapping for it.
+`morphhdl/contracts/parameter-operators.tsv`. Increment 11 records conditional
+integer selection as executable alongside the six comparison nodes from
+Increment 10. Generate-case remains deferred even though the target profile
+reserves a legal mapping for it.
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants
