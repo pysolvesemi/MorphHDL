@@ -1,17 +1,19 @@
 package morphhdl.frontend
 
 import morphhdl.paramrtl.BoolExpr
-import morphhdl.paramrtl.BoolExpr.{And, Literal, Not, Or, ParameterRef}
-import morphhdl.paramrtl.BooleanParameter
+import morphhdl.paramrtl.BoolExpr.{And, Literal, LocalParameterRef, Not, Or, ParameterRef}
+import morphhdl.paramrtl.{BooleanLocalParameter, BooleanParameter}
 
 /** A Boolean concrete witness paired with a guarded symbolic expression. */
 final class HdlBool private[frontend] (
     private[frontend] val witness: Boolean,
     private[frontend] val expression: BoolExpr,
     private[frontend] val declaration: Option[BooleanParameterToken],
+    private[frontend] val localDeclaration: Option[BooleanLocalParameterToken],
     private[frontend] val parameters: Set[BooleanParameterToken],
     private[frontend] val integerParameters: Set[ParameterToken],
     private[frontend] val localParameters: Set[LocalParameterToken],
+    private[frontend] val booleanLocalParameters: Set[BooleanLocalParameterToken],
     private[frontend] val origin: SourceOrigin
 ) {
   def unary_!(implicit file: sourcecode.File, line: sourcecode.Line): HdlBool =
@@ -19,9 +21,11 @@ final class HdlBool private[frontend] (
       !witness,
       Not(expression),
       declaration = None,
+      localDeclaration = None,
       parameters = parameters,
       integerParameters = integerParameters,
       localParameters = localParameters,
+      booleanLocalParameters = booleanLocalParameters,
       origin = SourceOrigin.capture
     )
 
@@ -53,9 +57,11 @@ final class HdlBool private[frontend] (
       witnessOperation(witness, that.witness),
       operation(expression, that.expression),
       declaration = None,
+      localDeclaration = None,
       parameters = parameters ++ that.parameters,
       integerParameters = integerParameters ++ that.integerParameters,
       localParameters = localParameters ++ that.localParameters,
+      booleanLocalParameters = booleanLocalParameters ++ that.booleanLocalParameters,
       origin = SourceOrigin.capture
     )
 
@@ -85,9 +91,11 @@ object HdlBool {
       value,
       Literal(value),
       declaration = None,
+      localDeclaration = None,
       parameters = Set.empty,
       integerParameters = Set.empty,
       localParameters = Set.empty,
+      booleanLocalParameters = Set.empty,
       origin = SourceOrigin.capture
     )
 
@@ -101,9 +109,11 @@ object HdlBool {
       default,
       ParameterRef(name),
       declaration = Some(token),
+      localDeclaration = None,
       parameters = Set(token),
       integerParameters = Set.empty,
       localParameters = Set.empty,
+      booleanLocalParameters = Set.empty,
       origin = token.origin
     )
   }
@@ -114,17 +124,45 @@ object HdlBool {
       integerParameters: Set[ParameterToken],
       booleanParameters: Set[BooleanParameterToken],
       localParameters: Set[LocalParameterToken],
+      booleanLocalParameters: Set[BooleanLocalParameterToken],
       origin: SourceOrigin
   ): HdlBool =
     new HdlBool(
       witness,
       expression,
       declaration = None,
+      localDeclaration = None,
       parameters = booleanParameters,
       integerParameters = integerParameters,
       localParameters = localParameters,
+      booleanLocalParameters = booleanLocalParameters,
       origin = origin
     )
+
+  private[frontend] def local(
+      name: String,
+      value: HdlBool,
+      origin: SourceOrigin
+  ): HdlBool = {
+    val token = new BooleanLocalParameterToken(
+      BooleanLocalParameter(name, value.expression),
+      parameters = value.integerParameters,
+      booleanParameters = value.parameters,
+      dependencies = value.localParameters ++ value.booleanLocalParameters,
+      origin = origin
+    )
+    new HdlBool(
+      value.witness,
+      LocalParameterRef(name),
+      declaration = None,
+      localDeclaration = Some(token),
+      parameters = value.parameters,
+      integerParameters = value.integerParameters,
+      localParameters = value.localParameters,
+      booleanLocalParameters = value.booleanLocalParameters + token,
+      origin = origin
+    )
+  }
 
   private def describe(value: Any): String = value match {
     case _: HdlBool => "another HdlBool"

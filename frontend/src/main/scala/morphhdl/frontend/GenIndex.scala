@@ -18,6 +18,7 @@ final class GenIndex private[frontend] (
       that.parameters,
       that.booleanParameters,
       that.localParameters,
+      that.booleanLocalParameters,
       resultOrigin
     )
   }

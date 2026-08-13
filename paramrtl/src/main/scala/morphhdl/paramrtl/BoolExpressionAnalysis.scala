@@ -8,6 +8,7 @@ import morphhdl.paramrtl.BoolExpr.{
   LessThan,
   LessThanOrEqual,
   Literal,
+  LocalParameterRef,
   Not,
   NotEqual,
   Or,
@@ -18,6 +19,7 @@ sealed trait BoolExpressionFailure extends Product with Serializable
 
 object BoolExpressionFailure {
   final case class UnresolvedParameter(name: String) extends BoolExpressionFailure
+  final case class UnresolvedLocalParameter(name: String) extends BoolExpressionFailure
   final case class InvalidIntegerExpression(failure: IntExpressionFailure) extends BoolExpressionFailure
 }
 
@@ -44,7 +46,7 @@ object BoolExpressionAnalysis {
       integerParameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts]
   ): Either[BoolExpressionFailure, Boolean] =
-    evaluateDefault(expression, booleanParameters, integerParameters, localParameters, Map.empty)
+    evaluateDefault(expression, booleanParameters, integerParameters, localParameters, Map.empty, Map.empty)
 
   def evaluateDefault(
       expression: BoolExpr,
@@ -53,21 +55,45 @@ object BoolExpressionAnalysis {
       localParameters: Map[String, IntExprFacts],
       generateIndices: Map[String, IntExprFacts]
   ): Either[BoolExpressionFailure, Boolean] =
+    evaluateDefault(
+      expression,
+      booleanParameters,
+      integerParameters,
+      localParameters,
+      generateIndices,
+      Map.empty
+    )
+
+  def evaluateDefault(
+      expression: BoolExpr,
+      booleanParameters: Map[String, BooleanParameter],
+      integerParameters: Map[String, IntExprFacts],
+      localParameters: Map[String, IntExprFacts],
+      generateIndices: Map[String, IntExprFacts],
+      booleanLocalParameters: Map[String, Boolean]
+  ): Either[BoolExpressionFailure, Boolean] =
     parameterReferences(expression).find(name => !booleanParameters.contains(name)) match {
       case Some(name) => Left(UnresolvedParameter(name))
       case None =>
-        evaluateChecked(
-          expression,
-          booleanParameters,
-          integerParameters,
-          localParameters,
-          generateIndices
-        )
+        booleanLocalParameterReferences(expression)
+          .find(name => !booleanLocalParameters.contains(name)) match {
+          case Some(name) => Left(UnresolvedLocalParameter(name))
+          case None =>
+            evaluateChecked(
+              expression,
+              booleanParameters,
+              integerParameters,
+              localParameters,
+              generateIndices,
+              booleanLocalParameters
+            )
+        }
     }
 
   def parameterReferences(expression: BoolExpr): Vector[String] = expression match {
     case Literal(_)         => Vector.empty
-    case ParameterRef(name) => Vector(name)
+    case ParameterRef(name)      => Vector(name)
+    case LocalParameterRef(_)    => Vector.empty
     case LessThan(left, right) =>
       IntExpressionAnalysis.booleanParameterReferences(left) ++
         IntExpressionAnalysis.booleanParameterReferences(right)
@@ -89,6 +115,32 @@ object BoolExpressionAnalysis {
     case Not(value)       => parameterReferences(value)
     case And(left, right) => parameterReferences(left) ++ parameterReferences(right)
     case Or(left, right)  => parameterReferences(left) ++ parameterReferences(right)
+  }
+
+  def booleanLocalParameterReferences(expression: BoolExpr): Vector[String] = expression match {
+    case Literal(_) | ParameterRef(_) => Vector.empty
+    case LocalParameterRef(name)      => Vector(name)
+    case LessThan(left, right) =>
+      IntExpressionAnalysis.booleanLocalParameterReferences(left) ++
+        IntExpressionAnalysis.booleanLocalParameterReferences(right)
+    case LessThanOrEqual(left, right) =>
+      IntExpressionAnalysis.booleanLocalParameterReferences(left) ++
+        IntExpressionAnalysis.booleanLocalParameterReferences(right)
+    case GreaterThan(left, right) =>
+      IntExpressionAnalysis.booleanLocalParameterReferences(left) ++
+        IntExpressionAnalysis.booleanLocalParameterReferences(right)
+    case GreaterThanOrEqual(left, right) =>
+      IntExpressionAnalysis.booleanLocalParameterReferences(left) ++
+        IntExpressionAnalysis.booleanLocalParameterReferences(right)
+    case Equal(left, right) =>
+      IntExpressionAnalysis.booleanLocalParameterReferences(left) ++
+        IntExpressionAnalysis.booleanLocalParameterReferences(right)
+    case NotEqual(left, right) =>
+      IntExpressionAnalysis.booleanLocalParameterReferences(left) ++
+        IntExpressionAnalysis.booleanLocalParameterReferences(right)
+    case Not(value)       => booleanLocalParameterReferences(value)
+    case And(left, right) => booleanLocalParameterReferences(left) ++ booleanLocalParameterReferences(right)
+    case Or(left, right)  => booleanLocalParameterReferences(left) ++ booleanLocalParameterReferences(right)
   }
 
   def integerParameterReferences(expression: BoolExpr): Vector[String] =
@@ -115,35 +167,37 @@ object BoolExpressionAnalysis {
       booleanParameters: Map[String, BooleanParameter],
       integerParameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts],
-      generateIndices: Map[String, IntExprFacts]
+      generateIndices: Map[String, IntExprFacts],
+      booleanLocalParameters: Map[String, Boolean]
   ): Either[BoolExpressionFailure, Boolean] = expression match {
     case Literal(value) => Right(value)
     case ParameterRef(name) => Right(booleanParameters(name).default)
+    case LocalParameterRef(name) => Right(booleanLocalParameters(name))
     case LessThan(left, right) =>
-      compareChecked(left, right, booleanParameters, integerParameters, localParameters, generateIndices)(_ < _)
+      compareChecked(left, right, booleanParameters, integerParameters, localParameters, generateIndices, booleanLocalParameters)(_ < _)
     case LessThanOrEqual(left, right) =>
-      compareChecked(left, right, booleanParameters, integerParameters, localParameters, generateIndices)(_ <= _)
+      compareChecked(left, right, booleanParameters, integerParameters, localParameters, generateIndices, booleanLocalParameters)(_ <= _)
     case GreaterThan(left, right) =>
-      compareChecked(left, right, booleanParameters, integerParameters, localParameters, generateIndices)(_ > _)
+      compareChecked(left, right, booleanParameters, integerParameters, localParameters, generateIndices, booleanLocalParameters)(_ > _)
     case GreaterThanOrEqual(left, right) =>
-      compareChecked(left, right, booleanParameters, integerParameters, localParameters, generateIndices)(_ >= _)
+      compareChecked(left, right, booleanParameters, integerParameters, localParameters, generateIndices, booleanLocalParameters)(_ >= _)
     case Equal(left, right) =>
-      compareChecked(left, right, booleanParameters, integerParameters, localParameters, generateIndices)(_ == _)
+      compareChecked(left, right, booleanParameters, integerParameters, localParameters, generateIndices, booleanLocalParameters)(_ == _)
     case NotEqual(left, right) =>
-      compareChecked(left, right, booleanParameters, integerParameters, localParameters, generateIndices)(_ != _)
+      compareChecked(left, right, booleanParameters, integerParameters, localParameters, generateIndices, booleanLocalParameters)(_ != _)
     case Not(value) =>
-      evaluateChecked(value, booleanParameters, integerParameters, localParameters, generateIndices).map(!_)
+      evaluateChecked(value, booleanParameters, integerParameters, localParameters, generateIndices, booleanLocalParameters).map(!_)
     case And(left, right) =>
       val leftResult =
-        evaluateChecked(left, booleanParameters, integerParameters, localParameters, generateIndices)
+        evaluateChecked(left, booleanParameters, integerParameters, localParameters, generateIndices, booleanLocalParameters)
       val rightResult =
-        evaluateChecked(right, booleanParameters, integerParameters, localParameters, generateIndices)
+        evaluateChecked(right, booleanParameters, integerParameters, localParameters, generateIndices, booleanLocalParameters)
       leftResult.flatMap(leftValue => rightResult.map(rightValue => leftValue && rightValue))
     case Or(left, right) =>
       val leftResult =
-        evaluateChecked(left, booleanParameters, integerParameters, localParameters, generateIndices)
+        evaluateChecked(left, booleanParameters, integerParameters, localParameters, generateIndices, booleanLocalParameters)
       val rightResult =
-        evaluateChecked(right, booleanParameters, integerParameters, localParameters, generateIndices)
+        evaluateChecked(right, booleanParameters, integerParameters, localParameters, generateIndices, booleanLocalParameters)
       leftResult.flatMap(leftValue => rightResult.map(rightValue => leftValue || rightValue))
   }
 
@@ -153,21 +207,24 @@ object BoolExpressionAnalysis {
       booleanParameters: Map[String, BooleanParameter],
       integerParameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts],
-      generateIndices: Map[String, IntExprFacts]
+      generateIndices: Map[String, IntExprFacts],
+      booleanLocalParameters: Map[String, Boolean]
   )(compare: (BigInt, BigInt) => Boolean): Either[BoolExpressionFailure, Boolean] = {
     val leftResult = analyzeInteger(
       left,
       booleanParameters,
       integerParameters,
       localParameters,
-      generateIndices
+      generateIndices,
+      booleanLocalParameters
     )
     val rightResult = analyzeInteger(
       right,
       booleanParameters,
       integerParameters,
       localParameters,
-      generateIndices
+      generateIndices,
+      booleanLocalParameters
     )
     leftResult.flatMap(leftValue => rightResult.map(rightValue => compare(leftValue, rightValue)))
   }
@@ -177,7 +234,8 @@ object BoolExpressionAnalysis {
       booleanParameters: Map[String, BooleanParameter],
       integerParameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts],
-      generateIndices: Map[String, IntExprFacts]
+      generateIndices: Map[String, IntExprFacts],
+      booleanLocalParameters: Map[String, Boolean]
   ): Either[BoolExpressionFailure, BigInt] =
     IntExpressionAnalysis
       .analyze(
@@ -185,7 +243,8 @@ object BoolExpressionAnalysis {
         integerParameters,
         localParameters,
         booleanParameters,
-        generateIndices
+        generateIndices,
+        booleanLocalParameters
       )
       .left
       .map(InvalidIntegerExpression)

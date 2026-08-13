@@ -31,11 +31,13 @@ domain separately from the default value. A valid default is never accepted as
 proof that all legal overrides have positive widths, nonzero divisors or safe
 expression ranges.
 
-Local parameters form an acyclic dependency graph. Validation permits forward
-references in ParamRTL, rejects dependency cycles and produces a deterministic
-dependency-first order with lexical tie-breaking. Target capability passes then
-prove that every expression subtree can be represented by that target; for the
-Verilog-2001 backend, this currently means the signed 32-bit `integer` domain.
+Integer and Boolean local parameters form one acyclic dependency graph.
+Validation permits forward references within and across kinds, rejects every
+integer, Boolean or mixed cycle, and produces a deterministic dependency-first
+order with lexical tie-breaking. Target capability passes then prove that every
+expression subtree can be represented by that target; for the Verilog-2001
+backend, both kinds currently use the signed 32-bit `integer` domain after
+Boolean legalization.
 
 A parameter expression is not an RTL value. If a design needs a parameter as
 runtime data, an explicit conversion node creates an RTL constant of a declared
@@ -127,8 +129,21 @@ already decided by a Boolean operand. Morph default-shape recursion replaces
 the child declaration default with that per-instance result before evaluating
 child locals, widths and selected hierarchy. Integer/Boolean binding-kind
 mismatches, duplicate Boolean bindings and bindings hidden in inactive
-generate branches remain whole-design errors. Boolean local parameters,
-nested structural predicates and `GenerateCase` remain separate tranches.
+generate branches remain whole-design errors. At Increment 12, Boolean local
+parameters, nested structural predicates and `GenerateCase` remained separate
+tranches; Increment 13 implements the Boolean-local item below.
+
+Increment 13 adds `BoolExpr.LocalParameterRef(name)` and
+`BooleanLocalParameter(name, value)`. Boolean and integer locals are validated,
+ordered and instantiated through one combined dependency graph. This permits
+Boolean locals to compare integer locals and permits integer locals to consume
+Boolean locals through `IntExpr.Select`, including forward cross-kind
+references. Each module-instance context begins with its bound public integer
+and Boolean values, then evaluates that combined order exactly once before
+widths, generate counts, conditions and child bindings consume the local
+facts. Same-name cross-kind declarations, unresolved or wrong-kind references,
+and mixed cycles are deterministic validation errors. Multiple or nested
+structural predicates and `GenerateCase` remain separate tranches.
 
 ## Required invariants
 

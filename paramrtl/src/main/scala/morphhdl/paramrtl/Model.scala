@@ -21,6 +21,7 @@ sealed trait BoolExpr extends Product with Serializable
 object BoolExpr {
   final case class Literal(value: Boolean) extends BoolExpr
   final case class ParameterRef(name: String) extends BoolExpr
+  final case class LocalParameterRef(name: String) extends BoolExpr
   final case class LessThan(left: IntExpr, right: IntExpr) extends BoolExpr
   final case class LessThanOrEqual(left: IntExpr, right: IntExpr) extends BoolExpr
   final case class GreaterThan(left: IntExpr, right: IntExpr) extends BoolExpr
@@ -47,7 +48,15 @@ final case class IntegerParameter(
 
 final case class BooleanParameter(name: String, default: Boolean)
 
+sealed trait LocalParameterDeclaration extends Product with Serializable {
+  def name: String
+}
+
 final case class IntegerLocalParameter(name: String, value: IntExpr)
+    extends LocalParameterDeclaration
+
+final case class BooleanLocalParameter(name: String, value: BoolExpr)
+    extends LocalParameterDeclaration
 
 sealed trait Signedness extends Product with Serializable
 
@@ -112,7 +121,8 @@ final case class ModuleDef(
     ports: Vector[Port],
     items: Vector[ModuleItem],
     localParameters: Vector[IntegerLocalParameter] = Vector.empty,
-    booleanParameters: Vector[BooleanParameter] = Vector.empty
+    booleanParameters: Vector[BooleanParameter] = Vector.empty,
+    booleanLocalParameters: Vector[BooleanLocalParameter] = Vector.empty
 )
 
 final case class Design(top: String, modules: Vector[ModuleDef])

@@ -31,6 +31,7 @@ final class HdlInt private[frontend] (
     private[frontend] val booleanParameters: Set[BooleanParameterToken],
     private[frontend] val localDeclaration: Option[LocalParameterToken],
     private[frontend] val localParameters: Set[LocalParameterToken],
+    private[frontend] val booleanLocalParameters: Set[BooleanLocalParameterToken],
     private[frontend] val scope: Option[ScopeToken],
     private[frontend] val origin: SourceOrigin
 ) extends scala.math.ScalaNumber {
@@ -97,6 +98,7 @@ final class HdlInt private[frontend] (
       booleanParameters = booleanParameters,
       localDeclaration = None,
       localParameters = localParameters,
+      booleanLocalParameters = booleanLocalParameters,
       scope = scope,
       origin = resultOrigin
     )
@@ -129,6 +131,7 @@ final class HdlInt private[frontend] (
       parameters ++ that.parameters,
       booleanParameters ++ that.booleanParameters,
       localParameters ++ that.localParameters,
+      booleanLocalParameters ++ that.booleanLocalParameters,
       resultOrigin
     )
   }
@@ -160,6 +163,7 @@ final class HdlInt private[frontend] (
       booleanParameters = booleanParameters ++ that.booleanParameters,
       localDeclaration = None,
       localParameters = localParameters ++ that.localParameters,
+      booleanLocalParameters = booleanLocalParameters ++ that.booleanLocalParameters,
       scope = resultScope,
       origin = resultOrigin
     )
@@ -226,6 +230,7 @@ object HdlInt {
       booleanParameters = Set.empty,
       localDeclaration = None,
       localParameters = Set.empty,
+      booleanLocalParameters = Set.empty,
       scope = None,
       origin = SourceOrigin.capture
     )
@@ -250,6 +255,7 @@ object HdlInt {
       booleanParameters = Set.empty,
       localDeclaration = None,
       localParameters = Set.empty,
+      booleanLocalParameters = Set.empty,
       scope = None,
       origin = token.origin
     )
@@ -295,6 +301,8 @@ object HdlInt {
       localDeclaration = None,
       localParameters = condition.localParameters ++
         whenTrue.localParameters ++ whenFalse.localParameters,
+      booleanLocalParameters = condition.booleanLocalParameters ++
+        whenTrue.booleanLocalParameters ++ whenFalse.booleanLocalParameters,
       scope = None,
       origin = origin
     )
@@ -309,7 +317,7 @@ object HdlInt {
       IntegerLocalParameter(name, value.expression),
       parameters = value.parameters,
       booleanParameters = value.booleanParameters,
-      dependencies = value.localParameters,
+      dependencies = value.localParameters ++ value.booleanLocalParameters,
       origin = origin
     )
     new HdlInt(
@@ -320,6 +328,7 @@ object HdlInt {
       booleanParameters = value.booleanParameters,
       localDeclaration = Some(token),
       localParameters = value.localParameters + token,
+      booleanLocalParameters = value.booleanLocalParameters,
       scope = None,
       origin = origin
     )
@@ -332,6 +341,7 @@ object HdlInt {
       parameters: Set[ParameterToken],
       booleanParameters: Set[BooleanParameterToken],
       localParameters: Set[LocalParameterToken],
+      booleanLocalParameters: Set[BooleanLocalParameterToken],
       origin: SourceOrigin
   ): HdlInt =
     new HdlInt(
@@ -342,6 +352,7 @@ object HdlInt {
       booleanParameters = booleanParameters,
       localDeclaration = None,
       localParameters = localParameters,
+      booleanLocalParameters = booleanLocalParameters,
       scope = Some(scope),
       origin = origin
     )

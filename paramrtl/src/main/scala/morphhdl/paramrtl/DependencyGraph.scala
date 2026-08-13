@@ -7,7 +7,19 @@ private[morphhdl] final case class DependencyGraphResult(
 
 /** Iterative deterministic graph analysis shared by constant and module dependencies. */
 private[morphhdl] object DependencyGraph {
-  def analyze(dependencies: Map[String, Vector[String]]): DependencyGraphResult = {
+  def analyze(dependencies: Map[String, Vector[String]]): DependencyGraphResult =
+    analyze(dependencies, name => name)
+
+  def analyze(
+      dependencies: Map[String, Vector[String]],
+      orderingKey: String => String
+  ): DependencyGraphResult = {
+    implicit val nodeOrdering: Ordering[String] = new Ordering[String] {
+      override def compare(left: String, right: String): Int = {
+        val keyResult = orderingKey(left).compareTo(orderingKey(right))
+        if (keyResult != 0) keyResult else left.compareTo(right)
+      }
+    }
     val nodes = dependencies.keys.toVector.sorted
     val nodeSet = nodes.toSet
     val normalized = nodes.map { name =>

@@ -9,7 +9,8 @@ be accepted without enabling a SystemVerilog parser.
 |---|---|
 | Integer public parameter | `parameter integer` with a literal default |
 | Boolean public parameter | `parameter integer` with canonical default `1` or `0` |
-| Derived constant | `localparam` |
+| Integer derived constant | `localparam integer` |
+| Boolean derived constant | `localparam integer` with canonical `1`/`0` value |
 | Named module instance | `Child #(.PARAM(expr)) instance (.port(signal))` |
 | Named Boolean child binding | `.PARAM((boolean_expr) ? 1 : 0)` after integer-Boolean legalization; literals use `.PARAM(1)` or `.PARAM(0)` |
 | Packed unsigned signal | `wire` or `reg [WIDTH-1:0]` |
@@ -46,6 +47,14 @@ one-bit logical result is not assigned directly to a Verilog `integer`
 parameter. Binding-kind validation happens before legalization, so the shared
 Verilog spelling cannot make an integer expression a Boolean binding or vice
 versa.
+
+Increment 13 applies the same boundary to typed Boolean local parameters. A
+`BooleanLocalParameter` emits as an integer local parameter whose nonliteral
+value is normalized with `(predicate) ? 1 : 0`; Boolean literals may use direct
+`1` or `0`. A Boolean-local reference emits as `NAME == 1`. Integer and Boolean
+locals use the validator's single combined dependency-first order, so mixed
+forward references in ParamRTL never become forward local declarations in
+strict Verilog.
 
 ## Flat ABI
 

@@ -46,16 +46,17 @@ object MorphVerilog {
   /**
     * Exact compile-time facts for one reachable symbolic module instance.
     *
-    * Integer bindings, Boolean bindings and derived locals vary per instance.
+    * Integer bindings, Boolean bindings and derived integer/Boolean locals vary per instance.
     * The Boolean declarations stored here carry the exact effective defaults
     * for this instance, after parent-scope binding evaluation. Conditional
     * expressions in locals, packed widths, child bindings, generate counts and
-    * generate-if conditions must all consume that same context.
+    * generate-if conditions must all consume that same combined context.
     */
   private final case class SymbolicContext(
       integerParameters: Map[String, morphhdl.paramrtl.IntExprFacts],
       localParameters: Map[String, morphhdl.paramrtl.IntExprFacts],
-      booleanParameters: Map[String, morphhdl.paramrtl.BooleanParameter]
+      booleanParameters: Map[String, morphhdl.paramrtl.BooleanParameter],
+      booleanLocalParameters: Map[String, Boolean]
   )
 
   def apply[T <: Component](program: => MorphProgram[T]): MorphVerilogReport =
@@ -559,7 +560,8 @@ object MorphVerilog {
       SymbolicContext(
         topFacts.parameterFacts,
         topFacts.localParameterFacts,
-        top.booleanParameters.map(parameter => parameter.name -> parameter).toMap
+        top.booleanParameters.map(parameter => parameter.name -> parameter).toMap,
+        topFacts.booleanLocalParameterFacts
       ),
       Set.empty,
       isTop = true
@@ -579,7 +581,8 @@ object MorphVerilog {
             context.integerParameters,
             context.localParameters,
             context.booleanParameters,
-            Map.empty
+            Map.empty,
+            context.booleanLocalParameters
           ) match {
           case Left(failure) =>
             Left(s"cannot evaluate default width for '${module.name}.${port.name}': $failure")
@@ -624,7 +627,8 @@ object MorphVerilog {
               context.integerParameters,
               context.localParameters,
               context.booleanParameters,
-              Map.empty
+              Map.empty,
+              context.booleanLocalParameters
             ) match {
             case Left(failure) =>
               Left(s"cannot evaluate default generate count '${module.name}.${generate.label}': $failure")
@@ -641,7 +645,8 @@ object MorphVerilog {
             context.booleanParameters,
             context.integerParameters,
             context.localParameters,
-            Map.empty
+            Map.empty,
+            context.booleanLocalParameters
           ) match {
             case Left(failure) =>
               Left(
@@ -688,7 +693,8 @@ object MorphVerilog {
               parentContext.integerParameters,
               parentContext.localParameters,
               parentContext.booleanParameters,
-              Map.empty
+              Map.empty,
+              parentContext.booleanLocalParameters
             ) match {
               case Left(failure) =>
                 Left(
@@ -711,7 +717,8 @@ object MorphVerilog {
                   parentContext.booleanParameters,
                   parentContext.integerParameters,
                   parentContext.localParameters,
-                  Map.empty
+                  Map.empty,
+                  parentContext.booleanLocalParameters
                 ) match {
                   case Left(failure) =>
                     Left(
@@ -724,23 +731,47 @@ object MorphVerilog {
             }
         }
         .flatMap { booleanParameters =>
-          design.moduleFacts(target.name).orderedLocalParameters
-            .foldLeft[Either[String, Map[String, morphhdl.paramrtl.IntExprFacts]]](Right(Map.empty)) {
+          design.moduleFacts(target.name).orderedLocalDeclarations
+            .foldLeft[
+              Either[
+                String,
+                (Map[String, morphhdl.paramrtl.IntExprFacts], Map[String, Boolean])
+              ]
+            ](Right((Map.empty, Map.empty))) {
               case (Left(detail), _) => Left(detail)
-              case (Right(current), local) =>
+              case (Right((integerLocals, booleanLocals)), local: morphhdl.paramrtl.IntegerLocalParameter) =>
                 IntExpressionAnalysis.analyze(
                   local.value,
                   parameterFacts,
-                  current,
+                  integerLocals,
                   booleanParameters,
-                  Map.empty
+                  Map.empty,
+                  booleanLocals
                 ) match {
                   case Left(failure) =>
                     Left(s"cannot evaluate default local parameter '${target.name}.${local.name}': $failure")
-                  case Right(value) => Right(current.updated(local.name, value))
+                  case Right(value) => Right((integerLocals.updated(local.name, value), booleanLocals))
+                }
+              case (Right((integerLocals, booleanLocals)), local: morphhdl.paramrtl.BooleanLocalParameter) =>
+                BoolExpressionAnalysis.evaluateDefault(
+                  local.value,
+                  booleanParameters,
+                  parameterFacts,
+                  integerLocals,
+                  Map.empty,
+                  booleanLocals
+                ) match {
+                  case Left(failure) =>
+                    Left(
+                      s"cannot evaluate default Boolean local parameter " +
+                        s"'${target.name}.${local.name}': $failure"
+                    )
+                  case Right(value) => Right((integerLocals, booleanLocals.updated(local.name, value)))
                 }
             }
-            .map(localFacts => SymbolicContext(parameterFacts, localFacts, booleanParameters))
+            .map { case (localFacts, booleanLocalFacts) =>
+              SymbolicContext(parameterFacts, localFacts, booleanParameters, booleanLocalFacts)
+            }
         }
     }
   }

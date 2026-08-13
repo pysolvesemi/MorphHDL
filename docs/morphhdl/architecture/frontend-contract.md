@@ -214,8 +214,25 @@ local-integer identities. Module-boundary validation rejects a binding whose
 dependencies are not declared by that parent, while ParamRTL separately
 resolves its name only against the target child's Boolean parameters. The
 dedicated collection prevents the shared Verilog-2001 integer spelling from
-weakening the frontend kind distinction. Boolean local parameters and
-generate-index-dependent bindings remain unsupported.
+weakening the frontend kind distinction. At Increment 12, Boolean local
+parameters and generate-index-dependent bindings remained unsupported;
+Increment 13 implements the Boolean-local item below.
+
+Increment 13 adds `localParam(name, value: HdlBool)` and the corresponding
+`booleanLocalParameter(handle)` declaration node. The returned `HdlBool`
+retains a distinct local identity and lowers references to
+`BoolExpr.LocalParameterRef`; it is never represented as a public Boolean
+parameter or as a Scala default. Integer and Boolean local declarations are
+checked at one module boundary and participate in one combined dependency
+graph, allowing cross-kind chains through comparisons and `HdlBool.select`.
+Mixed-kind name collisions, missing or foreign tokens, same-named distinct
+tokens and mixed cycles fail closed at retained source origins.
+
+As with integer locals, every re-entrant symbolic factory evaluation must
+create fresh Boolean-local handles. Capturing a handle outside the factory or
+reusing it for another module definition is invalid even if the later module
+declares an identical name and expression. Boolean locals remain loop
+invariant in this tranche; generate-index-dependent local values are rejected.
 
 A zero concrete divisor fails immediately instead of leaking a Scala arithmetic
 exception. A nonzero default does not prove the divisor safe: ParamRTL must

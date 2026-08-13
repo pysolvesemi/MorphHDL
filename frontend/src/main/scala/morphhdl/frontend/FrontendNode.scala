@@ -12,8 +12,10 @@ private[morphhdl] final class FrontendNode[A] private[frontend] (
     private[frontend] val parameters: Set[ParameterToken],
     private[frontend] val booleanParameters: Set[BooleanParameterToken],
     private[frontend] val localParameters: Set[LocalParameterToken],
+    private[frontend] val booleanLocalParameters: Set[BooleanLocalParameterToken],
     private[frontend] val scopes: Set[ScopeToken],
     private[frontend] val localDeclaration: Option[LocalParameterToken],
+    private[frontend] val booleanLocalDeclaration: Option[BooleanLocalParameterToken],
     private[frontend] val origin: SourceOrigin
 ) {
   private[frontend] def requireUsable(consumer: String): Unit =
@@ -26,8 +28,10 @@ private[frontend] object FrontendNode {
       parameters: Set[ParameterToken] = Set.empty,
       booleanParameters: Set[BooleanParameterToken] = Set.empty,
       localParameters: Set[LocalParameterToken] = Set.empty,
+      booleanLocalParameters: Set[BooleanLocalParameterToken] = Set.empty,
       scopes: Set[ScopeToken] = Set.empty,
       localDeclaration: Option[LocalParameterToken] = None,
+      booleanLocalDeclaration: Option[BooleanLocalParameterToken] = None,
       origin: SourceOrigin
   ): FrontendNode[A] =
     new FrontendNode(
@@ -35,8 +39,10 @@ private[frontend] object FrontendNode {
       parameters,
       booleanParameters,
       localParameters,
+      booleanLocalParameters,
       scopes,
       localDeclaration,
+      booleanLocalDeclaration,
       origin
     )
 }
