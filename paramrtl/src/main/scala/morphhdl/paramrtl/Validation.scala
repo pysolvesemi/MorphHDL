@@ -483,10 +483,14 @@ object ParamRtlValidator {
     )
     val cycleGroups = localParameterGraph.cycleGroups
     cycleGroups.foreach { names =>
-      val renderedNames = names.map {
-        case name if name.startsWith("integer:") => s"integer ${name.stripPrefix("integer:")}"
-        case name                                => s"Boolean ${name.stripPrefix("boolean:")}"
-      }
+      val renderedNames =
+        if (names.forall(_.startsWith("integer:")))
+          names.map(_.stripPrefix("integer:"))
+        else
+          names.map {
+            case name if name.startsWith("integer:") => s"integer ${name.stripPrefix("integer:")}"
+            case name                                => s"Boolean ${name.stripPrefix("boolean:")}"
+          }
       diagnostics += Diagnostic(
         "PRTL-LOCAL-PARAMETER-CYCLE",
         modulePath :+ "localParameters" :+ names.head.substring(names.head.indexOf(':') + 1),

@@ -131,6 +131,24 @@ class BooleanLocalParameterTests extends AnyFunSuite {
     }
   }
 
+  test("preserves legacy integer-only cycle diagnostic text") {
+    val module = passthrough(
+      "LegacyIntegerCycleText",
+      Literal(8),
+      localParameters = Vector(
+        IntegerLocalParameter("A", LocalParameterRef("B")),
+        IntegerLocalParameter("B", LocalParameterRef("A"))
+      )
+    )
+
+    ParamRtlValidator.validate(Design(module.name, Vector(module))) match {
+      case Left(diagnostics) =>
+        val cycles = diagnostics.values.filter(_.code == "PRTL-LOCAL-PARAMETER-CYCLE")
+        assert(cycles.map(_.message) == Vector("Local-parameter dependency cycle members: A, B"))
+      case Right(_) => fail("Expected an integer-only local cycle")
+    }
+  }
+
   test("reports Boolean-local unresolved and wrong-kind references") {
     val module = passthrough(
       "InvalidBooleanLocalRefs",
