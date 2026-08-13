@@ -139,6 +139,16 @@ conditional fails closed. `GenerateIf`, `GenerateCase` and `GenerateFor`
 nesting remains rejected in every direction; an ordinary Scala `match` does
 not preserve parameterized structure.
 
+Increment 15 adds one stateless runtime process helper. `proceduralAssign`
+captures a direct output-port target and direct input-port value reference;
+`emitCombinationalIf(label, condition, whenTrue, whenFalse)` consumes one
+one-bit input reference plus mandatory assignment vectors for both runtime
+branches. The frontend retains source origins and port-reference provenance,
+rejects null, non-reference and escaped inputs, and emits the process atomically
+inside one module-item capture. This bounded API does not accept arbitrary
+Scala `if`, partial branches, expression trees, nested runtime control or
+sequential state.
+
 An ordinary Scala `if`, `match`, collection size, recursion or class selection
 continues to execute during elaboration and therefore may depend only on static
 Scala values.

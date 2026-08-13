@@ -21,6 +21,7 @@ be accepted without enabling a SystemVerilog parser.
 | Integer comparison (implemented) | `<`, `<=`, `>`, `>=`, `==` or `!=` after operand capability proof |
 | Conditional integer value (implemented) | Parenthesized Boolean condition with Verilog-2001 `condition ? when_true : when_false` |
 | Structural case (implemented) | Named `generate`/`case` with ascending signed-decimal choices and mandatory default |
+| Runtime two-way mux process (implemented) | Named `always @*` block, one-bit `if` condition, complete blocking assignments and process-driven `output reg` targets |
 | Logical record/vector port | Deterministically flattened scalar/packed ports |
 | `clog2` | Generated portable constant function or legalized expression |
 | Enum intent | Packed vector plus named local parameters |
@@ -57,6 +58,15 @@ value is normalized with `(predicate) ? 1 : 0`; Boolean literals may use direct
 locals use the validator's single combined dependency-first order, so mixed
 forward references in ParamRTL never become forward local declarations in
 strict Verilog.
+
+Increment 15 legalizes the first runtime combinational process. A process-owned
+output emits as `output reg`; the process emits as a named `always @*` block
+with explicit `if`/`else` paths and blocking `=` assignments. The canonical IR
+does not encode `reg`, `always` or blocking syntax: it records one complete
+stateless `CombinationalIf` and procedural assignment intent. Capability and
+validation reject incomplete paths, mixed drivers and non-reference runtime
+expressions before target spelling. `always_comb`, inferred latches and
+nonblocking assignments remain forbidden in the strict profile.
 
 ## Flat ABI
 

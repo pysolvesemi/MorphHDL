@@ -68,6 +68,7 @@ generated_contracts=(
   boolean_forwarding.v
   boolean_locals.v
   case_routing.v
+  runtime_mux.v
 )
 
 if (( using_reviewed_goldens == 0 )); then
@@ -108,6 +109,7 @@ conditional_width_file="$generated_dir/conditional_width.v"
 boolean_forwarding_file="$generated_dir/boolean_forwarding.v"
 boolean_locals_file="$generated_dir/boolean_locals.v"
 case_routing_file="$generated_dir/case_routing.v"
+runtime_mux_file="$generated_dir/runtime_mux.v"
 
 parity_args=("$parity_file")
 for live_phase_id_file in "${live_phase_id_files[@]}"; do
@@ -127,6 +129,7 @@ design_files=(
   "$boolean_forwarding_file"
   "$boolean_locals_file"
   "$case_routing_file"
+  "$runtime_mux_file"
 )
 
 all_verilog_files=(
@@ -141,6 +144,7 @@ all_verilog_files=(
   "$examples_dir/boolean_forwarding_tb.v"
   "$examples_dir/boolean_locals_tb.v"
   "$examples_dir/case_routing_tb.v"
+  "$examples_dir/runtime_mux_tb.v"
 )
 
 read_property() {
@@ -188,6 +192,8 @@ require_property implementation.boolean_parameter_forwarding true
 require_property parameter.boolean_local true
 require_property implementation.boolean_local_parameter true
 require_property implementation.generate_case true
+require_property process.combinational always-at-star
+require_property implementation.combinational_if true
 
 for file in "${all_verilog_files[@]}"; do
   if [[ ! -s "$file" ]]; then
@@ -283,6 +289,8 @@ expected_modules=(
   CaseZeroRoute
   CaseRouting
   CaseRoutingTb
+  RuntimeMux
+  RuntimeMuxTb
 )
 
 for module_name in "${expected_modules[@]}"; do
@@ -398,6 +406,19 @@ if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+MODE[[:space:]]*=[[:space
   exit 1
 fi
 
+if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:space:]]*8' "$runtime_mux_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+sel' "$runtime_mux_file" ||
+   ! grep -Eq 'output[[:space:]]+reg[[:space:]]+\[WIDTH-1:0\][[:space:]]+result' "$runtime_mux_file" ||
+   ! grep -Eq 'always[[:space:]]+@\*[[:space:]]+begin[[:space:]]*:[[:space:]]*p_runtime_mux' "$runtime_mux_file" ||
+   ! grep -Eq "if[[:space:]]*\\([[:space:]]*sel[[:space:]]*==[[:space:]]*1'b1[[:space:]]*\\)[[:space:]]*begin" "$runtime_mux_file" ||
+   ! grep -Eq 'result[[:space:]]*=[[:space:]]*data_true[[:space:]]*;' "$runtime_mux_file" ||
+   ! grep -Eq 'end[[:space:]]+else[[:space:]]+begin' "$runtime_mux_file" ||
+   ! grep -Eq 'result[[:space:]]*=[[:space:]]*data_false[[:space:]]*;' "$runtime_mux_file" ||
+   grep -Eq 'always_comb|always_ff|always_latch|<=' "$runtime_mux_file"; then
+  echo "RuntimeMux does not retain one complete blocking-assignment always-at-star process" >&2
+  exit 1
+fi
+
 missing_tools=()
 for tool in iverilog verilator vvp yosys; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -433,6 +454,7 @@ cp "$conditional_width_file" "$tmp_dir/conditional_width.v"
 cp "$boolean_forwarding_file" "$tmp_dir/boolean_forwarding.v"
 cp "$boolean_locals_file" "$tmp_dir/boolean_locals.v"
 cp "$case_routing_file" "$tmp_dir/case_routing.v"
+cp "$runtime_mux_file" "$tmp_dir/runtime_mux.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
 yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
@@ -443,6 +465,7 @@ yosys_conditional_width_file="$tmp_dir/conditional_width.v"
 yosys_boolean_forwarding_file="$tmp_dir/boolean_forwarding.v"
 yosys_boolean_locals_file="$tmp_dir/boolean_locals.v"
 yosys_case_routing_file="$tmp_dir/case_routing.v"
+yosys_runtime_mux_file="$tmp_dir/runtime_mux.v"
 
 echo "Verilator: $(verilator --version)"
 echo "Icarus: $(iverilog -V 2>/dev/null | head -n 1)"
@@ -682,6 +705,17 @@ verilator --lint-only --language 1364-2001 -Wall \
   -GMODE=3 \
   "$case_routing_file"
 
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module RuntimeMux \
+  "$runtime_mux_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module RuntimeMux \
+  -GWIDTH=5 \
+  "$runtime_mux_file"
+
 iverilog -g2001 -Wall -s ParameterizedWireTb \
   -o "$tmp_dir/parameterized_wire.vvp" \
   "$parameterized_wire_file" \
@@ -789,6 +823,17 @@ case_routing_output="$(vvp "$tmp_dir/case_routing.vvp")"
 echo "$case_routing_output"
 if ! printf '%s\n' "$case_routing_output" | grep -q 'PASS: CaseRouting'; then
   echo "CaseRouting simulation did not report PASS" >&2
+  exit 1
+fi
+
+iverilog -g2001 -Wall -s RuntimeMuxTb \
+  -o "$tmp_dir/runtime_mux.vvp" \
+  "$runtime_mux_file" \
+  "$examples_dir/runtime_mux_tb.v"
+runtime_mux_output="$(vvp "$tmp_dir/runtime_mux.vvp")"
+echo "$runtime_mux_output"
+if ! printf '%s\n' "$runtime_mux_output" | grep -q 'PASS: RuntimeMux'; then
+  echo "RuntimeMux simulation did not report PASS" >&2
   exit 1
 fi
 
@@ -1046,5 +1091,29 @@ yosys_case_routing_synthesize_and_check \
   offset-choice-one one "chparam -set MODE 0 -set OFFSET 1 CaseRouting;"
 yosys_case_routing_synthesize_and_check \
   unmatched default "chparam -set MODE 3 CaseRouting;"
+
+yosys_runtime_mux_synthesize_and_check() {
+  local label="$1"
+  local expected_width="$2"
+  local parameter_command="$3"
+  local process_netlist="$tmp_dir/RuntimeMux-${label}-process.json"
+  local synthesized_netlist="$tmp_dir/RuntimeMux-${label}-synthesized.json"
+
+  yosys -q -p \
+    "read_verilog -noautowire $yosys_runtime_mux_file; $parameter_command hierarchy -check -top RuntimeMux; proc; opt; check -assert; write_json $process_netlist; synth -top RuntimeMux; check -assert; write_json $synthesized_netlist"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-runtime-mux-contract.py" \
+    "$process_netlist" --width "$expected_width"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$synthesized_netlist" RuntimeMux \
+    --port "sel:input:1" \
+    --port "data_false:input:$expected_width" \
+    --port "data_true:input:$expected_width" \
+    --port "result:output:$expected_width"
+}
+
+yosys_runtime_mux_synthesize_and_check \
+  default 8 ""
+yosys_runtime_mux_synthesize_and_check \
+  width-five 5 "chparam -set WIDTH 5 RuntimeMux;"
 
 echo "Strict Verilog-2001 contract checks passed"

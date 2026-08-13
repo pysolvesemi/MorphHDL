@@ -35,6 +35,26 @@ private[frontend] object FrontendException {
       "Construct and consume the generate-index expression inside its loop body."
     case "MORPH-FRONTEND-NESTED-GENERATE-UNSUPPORTED" =>
       "Flatten the structural regions and emit one top-level generate loop or conditional region."
+    case "MORPH-FRONTEND-COMBINATIONAL-PROCESS-NESTED" =>
+      "Emit the combinational process as a top-level module item outside all generate regions."
+    case "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MULTIPLE" =>
+      "Emit one combinational process per module-item capture."
+    case "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MIXED" =>
+      "Use a separate module definition instead of mixing this process with a generate region."
+    case "MORPH-FRONTEND-COMBINATIONAL-LABEL-INVALID" |
+        "MORPH-FRONTEND-COMBINATIONAL-TARGET-INVALID" |
+        "MORPH-FRONTEND-COMBINATIONAL-VALUE-INVALID" |
+        "MORPH-FRONTEND-COMBINATIONAL-CONDITION-INVALID" =>
+      "Use an identifier matching `[A-Za-z_][A-Za-z0-9_]*`."
+    case "MORPH-FRONTEND-COMBINATIONAL-VALUE-NULL" |
+        "MORPH-FRONTEND-COMBINATIONAL-VALUE-NOT-REF" =>
+      "Pass a non-null ref(name) value to proceduralAssign."
+    case "MORPH-FRONTEND-COMBINATIONAL-CONDITION-NULL" |
+        "MORPH-FRONTEND-COMBINATIONAL-CONDITION-NOT-REF" =>
+      "Pass a non-null ref(name) condition to emitCombinationalIf."
+    case "MORPH-FRONTEND-COMBINATIONAL-BRANCH-NULL" |
+        "MORPH-FRONTEND-COMBINATIONAL-ASSIGNMENT-NULL" =>
+      "Pass non-null branch vectors containing only proceduralAssign values."
     case "MORPH-FRONTEND-GENERATE-IF-OTHERWISE-MISSING" =>
       "Complete every generateIf with exactly one otherwise branch in the same capture."
     case "MORPH-FRONTEND-GENERATE-IF-OTHERWISE-DUPLICATE" =>

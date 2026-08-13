@@ -158,6 +158,18 @@ conditional region total per module (`GenerateIf` or `GenerateCase`) and
 rejects a second sibling conditional. A sibling `GenerateFor` remains legal;
 nesting if/for/case regions in any direction remains rejected.
 
+Increment 15 adds `ProceduralAssign(target: RtlExpr.Ref, value: RtlExpr.Ref)`
+and `ModuleItem.CombinationalIf(label, condition, whenTrue, whenFalse)`. The
+condition and values are direct runtime port references in this first tranche.
+Validation requires a one-bit input condition, input values type-compatible
+with their output targets, non-empty complete branches and exactly one
+procedural driver for every process-owned output on both paths. Process targets
+cannot also have continuous, instance or structural drivers. Every reference
+and both branches validate regardless of runtime activity. This tranche permits
+at most one `CombinationalIf` per module and no sibling instance or parameter
+generate region. Multiple processes, nested statements, general runtime
+expressions, sequential state and memories remain separate later tranches.
+
 ## Required invariants
 
 - Every reference resolves within its lexical parameter, generate or module

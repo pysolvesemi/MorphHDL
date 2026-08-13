@@ -46,6 +46,9 @@ The contract is split into these documents:
 - [Increment 14 generate-case](../increment-14-generate-case.md): one bounded
   integer-selected case region, mandatory default and a tenth reviewed
   hierarchy fixture.
+- [Increment 15 runtime combinational mux](../increment-15-runtime-mux.md): one
+  complete runtime if/else process, latch proof and an eleventh reviewed
+  process fixture.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -59,7 +62,9 @@ integer selection as executable alongside the six comparison nodes from
 Increment 10. Increment 12 records typed Boolean child binding support and
 Increment 13 records typed Boolean local support in the target-profile
 properties. Increment 14 makes the reserved bounded generate-case mapping
-executable while nested structural regions remain deferred.
+executable while nested structural regions remain deferred. Increment 15 makes
+the first bounded runtime combinational process executable while general
+statements, sequential processes and memories remain separate tranches.
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants

@@ -5,6 +5,8 @@ import morphhdl.paramrtl._
 
 /** Guarded parameter-aware lowering used by the MorphVerilog orchestration path. */
 private[morphhdl] object ParamRtlFrontend {
+  private val PortableIdentifier = "[A-Za-z_][A-Za-z0-9_]*".r
+
   def concrete[A](body: => A)(implicit
       file: sourcecode.File,
       line: sourcecode.Line
@@ -243,6 +245,112 @@ private[morphhdl] object ParamRtlFrontend {
       line: sourcecode.Line
   ): FrontendNode[RtlExpr] =
     FrontendNode(Ref(name), origin = SourceOrigin.capture)
+
+  /** Builds one ref-only blocking assignment for a bounded combinational process. */
+  def proceduralAssign(target: String, value: FrontendNode[RtlExpr])(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): FrontendNode[ProceduralAssign] = {
+    val origin = SourceOrigin.capture
+    requirePortableIdentifier(
+      target,
+      "combinational-process assignment target",
+      "MORPH-FRONTEND-COMBINATIONAL-TARGET-INVALID",
+      origin
+    )
+    if (value eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-COMBINATIONAL-VALUE-NULL",
+        s"combinational-process assignment '$target' requires a non-null value reference",
+        origin
+      )
+    }
+    value.requireUsable(s"combinational-process assignment '$target'")
+    val valueRef = requireRef(
+      value,
+      "combinational-process assignment value",
+      "MORPH-FRONTEND-COMBINATIONAL-VALUE-NOT-REF",
+      origin
+    )
+    requirePortableIdentifier(
+      valueRef.name,
+      "combinational-process assignment value",
+      "MORPH-FRONTEND-COMBINATIONAL-VALUE-INVALID",
+      value.origin
+    )
+    FrontendNode(
+      ProceduralAssign(Ref(target), valueRef),
+      parameters = value.parameters,
+      booleanParameters = value.booleanParameters,
+      localParameters = value.localParameters,
+      booleanLocalParameters = value.booleanLocalParameters,
+      scopes = value.scopes,
+      origin = origin
+    )
+  }
+
+  /**
+    * Atomically emits one named runtime combinational if/else process.
+    *
+    * ParamRTL remains responsible for complete-driver, duplicate-target and
+    * port-direction validation across the two mandatory branch vectors.
+    */
+  def emitCombinationalIf(
+      label: String,
+      condition: FrontendNode[RtlExpr],
+      whenTrue: Vector[FrontendNode[ProceduralAssign]],
+      whenFalse: Vector[FrontendNode[ProceduralAssign]]
+  )(implicit file: sourcecode.File, line: sourcecode.Line): Unit = {
+    val origin = SourceOrigin.capture
+    requirePortableIdentifier(
+      label,
+      "combinational-process label",
+      "MORPH-FRONTEND-COMBINATIONAL-LABEL-INVALID",
+      origin
+    )
+    if (condition eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-COMBINATIONAL-CONDITION-NULL",
+        s"combinational process '$label' requires a non-null condition reference",
+        origin
+      )
+    }
+    condition.requireUsable(s"combinational process '$label' condition")
+    val conditionRef = requireRef(
+      condition,
+      "combinational-process condition",
+      "MORPH-FRONTEND-COMBINATIONAL-CONDITION-NOT-REF",
+      origin
+    )
+    requirePortableIdentifier(
+      conditionRef.name,
+      "combinational-process condition",
+      "MORPH-FRONTEND-COMBINATIONAL-CONDITION-INVALID",
+      condition.origin
+    )
+    val trueAssignments = requireAssignments(label, "true", whenTrue, origin)
+    val falseAssignments = requireAssignments(label, "false", whenFalse, origin)
+    val assignments = whenTrue ++ whenFalse
+
+    FrontendSession.emitCombinationalIf(
+      FrontendNode(
+        ModuleItem.CombinationalIf(
+          label,
+          conditionRef,
+          trueAssignments,
+          falseAssignments
+        ),
+        parameters = condition.parameters ++ assignments.flatMap(_.parameters),
+        booleanParameters = condition.booleanParameters ++
+          assignments.flatMap(_.booleanParameters),
+        localParameters = condition.localParameters ++ assignments.flatMap(_.localParameters),
+        booleanLocalParameters = condition.booleanLocalParameters ++
+          assignments.flatMap(_.booleanLocalParameters),
+        scopes = condition.scopes ++ assignments.flatMap(_.scopes),
+        origin = origin
+      )
+    )
+  }
 
   def indexedPartSelect(base: String, offset: HdlInt, width: HdlInt)(implicit
       file: sourcecode.File,
@@ -717,6 +825,62 @@ private[morphhdl] object ParamRtlFrontend {
 
     result.result()
   }
+
+  private def requireAssignments(
+      label: String,
+      branch: String,
+      assignments: Vector[FrontendNode[ProceduralAssign]],
+      origin: SourceOrigin
+  ): Vector[ProceduralAssign] = {
+    if (assignments eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-COMBINATIONAL-BRANCH-NULL",
+        s"combinational process '$label' requires a non-null $branch branch vector",
+        origin
+      )
+    }
+    assignments.zipWithIndex.map { case (assignment, index) =>
+      if (assignment eq null) {
+        FrontendException.failAt(
+          "MORPH-FRONTEND-COMBINATIONAL-ASSIGNMENT-NULL",
+          s"combinational process '$label' $branch branch assignment $index is null",
+          origin
+        )
+      }
+      assignment.requireUsable(s"combinational process '$label' $branch branch")
+      assignment.raw
+    }
+  }
+
+  private def requireRef(
+      value: FrontendNode[RtlExpr],
+      role: String,
+      code: String,
+      origin: SourceOrigin
+  ): Ref =
+    value.raw match {
+      case reference: Ref => reference
+      case _ =>
+        FrontendException.failAt(
+          code,
+          s"$role must be an exact ref(...) value",
+          origin
+        )
+    }
+
+  private def requirePortableIdentifier(
+      value: String,
+      role: String,
+      code: String,
+      origin: SourceOrigin
+  ): Unit =
+    if (value == null || !PortableIdentifier.pattern.matcher(value).matches()) {
+      FrontendException.failAt(
+        code,
+        s"$role '$value' is not a portable identifier",
+        origin
+      )
+    }
 
   private def localKindRank(token: LocalParameterIdentity): Int = token match {
     case _: LocalParameterToken        => 0

@@ -41,11 +41,15 @@ These files are executable output contracts for the parameterized backend.
 - `case_routing.v` is owned by Increment 14. Its integer local
   `SELECTOR = MODE + OFFSET` selects explicit zero/one route schemas or one
   mandatory default route behind a fixed eight-bit interface.
+- `runtime_mux.v` is owned by Increment 15. Its one-bit runtime `sel`
+  drives a complete two-path combinational process over two `WIDTH`-bit input
+  ports and one process-owned output.
 - Increment 8 routes the first four artifacts through one production fixture
   source and `MorphVerilog`; Increments 9 and 10 extend that same path to all
   six. Increment 11 extends it to all seven, Increment 12 to all eight, and
-  Increment 13 to all nine, and Increment 14 to all ten. CI performs a normal
-  and reverse-construction run, requires an exact ten-file inventory, checks byte
+  Increment 13 to all nine, Increment 14 to all ten, and Increment 15 to all
+  eleven. CI performs a normal and reverse-construction run, requires an exact
+  eleven-file inventory, checks byte
   identity with these goldens, and gives that unmodified directory to the
   external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
@@ -75,6 +79,9 @@ These files are executable output contracts for the parameterized backend.
   choice one and an unmatched mandatory-default selection. Yosys proves the
   exact labeled branch, route type and direct fixed-width bindings in all four
   elaborated hierarchies.
+  `RuntimeMuxTb` covers select false and true at both the default eight-bit
+  width and an awkward five-bit override. Yosys proves exact mux connections,
+  port widths and absence of latch or flip-flop storage for both widths.
 
 Run:
 
