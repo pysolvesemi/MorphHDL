@@ -69,6 +69,8 @@ final case class Port(name: String, direction: PortDirection, dataType: PackedBi
 
 final case class ParameterBinding(parameterName: String, value: IntExpr)
 
+final case class BooleanParameterBinding(parameterName: String, value: BoolExpr)
+
 final case class PortConnection(portName: String, actual: RtlExpr)
 
 sealed trait RtlExpr extends Product with Serializable
@@ -88,7 +90,8 @@ object ModuleItem {
       name: String,
       moduleName: String,
       parameterBindings: Vector[ParameterBinding] = Vector.empty,
-      portConnections: Vector[PortConnection] = Vector.empty
+      portConnections: Vector[PortConnection] = Vector.empty,
+      booleanParameterBindings: Vector[BooleanParameterBinding] = Vector.empty
   ) extends ModuleItem
   final case class GenerateFor(
       label: String,

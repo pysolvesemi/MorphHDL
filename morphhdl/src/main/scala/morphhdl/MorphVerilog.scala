@@ -46,11 +46,11 @@ object MorphVerilog {
   /**
     * Exact compile-time facts for one reachable symbolic module instance.
     *
-    * Integer bindings and derived locals vary per instance. Boolean child
-    * bindings are not part of the current frontend tranche, but retaining the
-    * declaration map here is still essential: conditional integer expressions
-    * in a parent binding, local parameter, packed width or generate count must
-    * be evaluated against the Boolean defaults of that same instance.
+    * Integer bindings, Boolean bindings and derived locals vary per instance.
+    * The Boolean declarations stored here carry the exact effective defaults
+    * for this instance, after parent-scope binding evaluation. Conditional
+    * expressions in locals, packed widths, child bindings, generate counts and
+    * generate-if conditions must all consume that same context.
     */
   private final case class SymbolicContext(
       integerParameters: Map[String, morphhdl.paramrtl.IntExprFacts],
@@ -664,6 +664,8 @@ object MorphVerilog {
   ): Either[String, SymbolicContext] = {
     val target = design.value.modules.find(_.name == instance.moduleName).get
     val bindings = instance.parameterBindings.map(binding => binding.parameterName -> binding.value).toMap
+    val booleanBindings =
+      instance.booleanParameterBindings.map(binding => binding.parameterName -> binding.value).toMap
     val parameters = target.parameters.foldLeft[Either[String, Map[String, morphhdl.paramrtl.IntExprFacts]]](
       Right(Map.empty)
     ) {
@@ -697,25 +699,49 @@ object MorphVerilog {
         }
     }
     parameters.flatMap { parameterFacts =>
-      val booleanParameters =
-        target.booleanParameters.map(parameter => parameter.name -> parameter).toMap
-      design.moduleFacts(target.name).orderedLocalParameters
-        .foldLeft[Either[String, Map[String, morphhdl.paramrtl.IntExprFacts]]](Right(Map.empty)) {
+      target.booleanParameters
+        .foldLeft[Either[String, Map[String, morphhdl.paramrtl.BooleanParameter]]](Right(Map.empty)) {
           case (Left(detail), _) => Left(detail)
-          case (Right(current), local) =>
-            IntExpressionAnalysis.analyze(
-              local.value,
-              parameterFacts,
-              current,
-              booleanParameters,
-              Map.empty
-            ) match {
-              case Left(failure) =>
-                Left(s"cannot evaluate default local parameter '${target.name}.${local.name}': $failure")
-              case Right(value) => Right(current.updated(local.name, value))
+          case (Right(current), parameter) =>
+            booleanBindings.get(parameter.name) match {
+              case None => Right(current.updated(parameter.name, parameter))
+              case Some(expression) =>
+                BoolExpressionAnalysis.evaluateDefault(
+                  expression,
+                  parentContext.booleanParameters,
+                  parentContext.integerParameters,
+                  parentContext.localParameters,
+                  Map.empty
+                ) match {
+                  case Left(failure) =>
+                    Left(
+                      s"cannot evaluate default Boolean binding " +
+                        s"'${instance.name}.${parameter.name}': $failure"
+                    )
+                  case Right(value) =>
+                    Right(current.updated(parameter.name, parameter.copy(default = value)))
+                }
             }
         }
-        .map(localFacts => SymbolicContext(parameterFacts, localFacts, booleanParameters))
+        .flatMap { booleanParameters =>
+          design.moduleFacts(target.name).orderedLocalParameters
+            .foldLeft[Either[String, Map[String, morphhdl.paramrtl.IntExprFacts]]](Right(Map.empty)) {
+              case (Left(detail), _) => Left(detail)
+              case (Right(current), local) =>
+                IntExpressionAnalysis.analyze(
+                  local.value,
+                  parameterFacts,
+                  current,
+                  booleanParameters,
+                  Map.empty
+                ) match {
+                  case Left(failure) =>
+                    Left(s"cannot evaluate default local parameter '${target.name}.${local.name}': $failure")
+                  case Right(value) => Right(current.updated(local.name, value))
+                }
+            }
+            .map(localFacts => SymbolicContext(parameterFacts, localFacts, booleanParameters))
+        }
     }
   }
 

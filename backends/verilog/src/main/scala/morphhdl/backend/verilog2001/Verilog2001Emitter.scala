@@ -163,16 +163,19 @@ object Verilog2001Emitter {
   }
 
   private def renderInstance(instance: ModuleInstance, indent: String): Vector[String] = {
-    val parameterBindings = instance.parameterBindings.sortBy(_.parameterName)
+    val parameterBindings =
+      (instance.parameterBindings.map(binding => binding.parameterName -> renderIntExpr(binding.value)) ++
+        instance.booleanParameterBindings.map(binding => binding.parameterName -> renderBooleanBinding(binding.value)))
+        .sortBy(_._1)
     val portConnections = instance.portConnections.sortBy(_.portName)
     val lines = Vector.newBuilder[String]
     val associationIndent = indent + "  "
 
     if (parameterBindings.nonEmpty) {
       lines += s"$indent${instance.moduleName} #("
-      parameterBindings.zipWithIndex.foreach { case (binding, index) =>
+      parameterBindings.zipWithIndex.foreach { case ((name, value), index) =>
         val comma = if (index == parameterBindings.size - 1) "" else ","
-        lines += s"$associationIndent.${binding.parameterName}(${renderIntExpr(binding.value)})$comma"
+        lines += s"$associationIndent.$name($value)$comma"
       }
       lines += s"$indent) ${instance.name} ("
     } else {
@@ -279,6 +282,11 @@ object Verilog2001Emitter {
   private final case class RenderedBoolExpr(text: String, precedence: Int)
 
   private def renderBoolExpr(expression: BoolExpr): String = renderBoolExprWithPrecedence(expression).text
+
+  private def renderBooleanBinding(expression: BoolExpr): String = expression match {
+    case BoolLiteral(value) => if (value) "1" else "0"
+    case other              => s"(${renderBoolExpr(other)}) ? 1 : 0"
+  }
 
   private def renderBoolExprWithPrecedence(expression: BoolExpr): RenderedBoolExpr = expression match {
     case BoolLiteral(value) => RenderedBoolExpr(if (value) "1'b1" else "1'b0", BoolAtomicPrecedence)

@@ -153,6 +153,33 @@ private[morphhdl] object ParamRtlFrontend {
     )
   }
 
+  /**
+    * Binds a child Boolean parameter without leaving the symbolic Boolean domain.
+    *
+    * Integer, Boolean and local-parameter identities used by comparisons are
+    * deliberately retained until the enclosing module discharges them.
+    */
+  def parameterBinding(parameterName: String, value: HdlBool)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): FrontendNode[BooleanParameterBinding] = {
+    val origin = SourceOrigin.capture
+    if (value eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-BOOLEAN-PARAMETER-BINDING-NULL",
+        s"Boolean parameter binding '$parameterName' must not be null",
+        origin
+      )
+    }
+    FrontendNode(
+      BooleanParameterBinding(parameterName, value.expression),
+      parameters = value.integerParameters,
+      booleanParameters = value.parameters,
+      localParameters = value.localParameters,
+      origin = origin
+    )
+  }
+
   def ref(name: String)(implicit
       file: sourcecode.File,
       line: sourcecode.Line
@@ -210,24 +237,32 @@ private[morphhdl] object ParamRtlFrontend {
       name: String,
       moduleName: String,
       parameterBindings: Vector[FrontendNode[ParameterBinding]] = Vector.empty,
-      portConnections: Vector[FrontendNode[PortConnection]] = Vector.empty
+      portConnections: Vector[FrontendNode[PortConnection]] = Vector.empty,
+      booleanParameterBindings: Vector[FrontendNode[BooleanParameterBinding]] = Vector.empty
   )(implicit file: sourcecode.File, line: sourcecode.Line): Unit = {
     parameterBindings.foreach(_.requireUsable(s"module instance '$name' parameter binding"))
     portConnections.foreach(_.requireUsable(s"module instance '$name' port connection"))
+    booleanParameterBindings.foreach(
+      _.requireUsable(s"module instance '$name' Boolean-parameter binding")
+    )
     FrontendSession.emit(
       FrontendNode(
         ModuleItem.ModuleInstance(
           name,
           moduleName,
           parameterBindings.map(_.raw),
-          portConnections.map(_.raw)
+          portConnections.map(_.raw),
+          booleanParameterBindings.map(_.raw)
         ),
         parameters = parameterBindings.flatMap(_.parameters).toSet ++
-          portConnections.flatMap(_.parameters),
+          portConnections.flatMap(_.parameters) ++
+          booleanParameterBindings.flatMap(_.parameters),
         booleanParameters = parameterBindings.flatMap(_.booleanParameters).toSet ++
-          portConnections.flatMap(_.booleanParameters),
+          portConnections.flatMap(_.booleanParameters) ++
+          booleanParameterBindings.flatMap(_.booleanParameters),
         localParameters = parameterBindings.flatMap(_.localParameters).toSet ++
-          portConnections.flatMap(_.localParameters),
+          portConnections.flatMap(_.localParameters) ++
+          booleanParameterBindings.flatMap(_.localParameters),
         origin = SourceOrigin.capture
       )
     )

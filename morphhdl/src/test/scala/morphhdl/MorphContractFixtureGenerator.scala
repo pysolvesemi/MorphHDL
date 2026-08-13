@@ -4,7 +4,7 @@ import java.nio.file.{Files, Path, Paths}
 
 import spinal.core.{Component, SpinalConfig}
 
-/** CLI dispatch for the seven public-entry-point contract fixtures. */
+/** CLI dispatch for the eight public-entry-point contract fixtures. */
 object MorphContractFixtureGenerator {
   private final case class Options(outputDirectory: Path, reverseConstructionOrder: Boolean)
 
@@ -20,7 +20,8 @@ object MorphContractFixtureGenerator {
     Fixture("lane_array.v", LaneArrayContractFixture.program),
     Fixture("conditional_forwarding.v", ConditionalForwardingContractFixture.program),
     Fixture("comparison_routing.v", ComparisonRoutingContractFixture.program),
-    Fixture("conditional_width.v", ConditionalWidthContractFixture.program)
+    Fixture("conditional_width.v", ConditionalWidthContractFixture.program),
+    Fixture("boolean_forwarding.v", BooleanForwardingContractFixture.program)
   )
 
   def main(args: Array[String]): Unit = {

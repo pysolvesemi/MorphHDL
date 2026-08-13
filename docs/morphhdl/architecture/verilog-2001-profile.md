@@ -11,6 +11,7 @@ be accepted without enabling a SystemVerilog parser.
 | Boolean public parameter | `parameter integer` with canonical default `1` or `0` |
 | Derived constant | `localparam` |
 | Named module instance | `Child #(.PARAM(expr)) instance (.port(signal))` |
+| Named Boolean child binding | `.PARAM((boolean_expr) ? 1 : 0)` after integer-Boolean legalization; literals use `.PARAM(1)` or `.PARAM(0)` |
 | Packed unsigned signal | `wire` or `reg [WIDTH-1:0]` |
 | Combinational process | `always @*` |
 | Clocked process | Edge-sensitive `always` |
@@ -36,6 +37,15 @@ after the condition and both value branches pass capability checks; the
 condition is always parenthesized and expression precedence preserves the exact
 tree. Increment 9 supports one named two-branch generate-if; generate-case and
 nested conditional structure remain outside the executable profile.
+
+Increment 12 applies that same integer encoding to typed Boolean child
+bindings. The canonical binding remains Boolean in ParamRTL; the emitter
+legalizes its value expression and emits one ordinary named parameter
+association. Non-literal predicates use an explicit `? 1 : 0` boundary so a
+one-bit logical result is not assigned directly to a Verilog `integer`
+parameter. Binding-kind validation happens before legalization, so the shared
+Verilog spelling cannot make an integer expression a Boolean binding or vice
+versa.
 
 ## Flat ABI
 

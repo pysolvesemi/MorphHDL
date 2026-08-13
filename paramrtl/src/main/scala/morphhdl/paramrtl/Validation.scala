@@ -70,7 +70,8 @@ final case class ValidatedInstanceFacts private[morphhdl] (
     targetModule: ModuleDef,
     parameterFacts: Map[String, IntExprFacts],
     localParameterFacts: Map[String, IntExprFacts],
-    instantiatedPortTypes: Map[String, PackedBits]
+    instantiatedPortTypes: Map[String, PackedBits],
+    booleanParameters: Map[String, BooleanParameter] = Map.empty
 )
 
 final class ValidatedDesign private[morphhdl] (
@@ -1157,6 +1158,7 @@ object ParamRtlValidator {
         branchDriverCounts: scala.collection.mutable.Map[String, Int]
     ): Unit = {
       val bindingPath = path :+ "parameterBindings"
+      val booleanBindingPath = path :+ "booleanParameterBindings"
       val connectionPath = path :+ "portConnections"
 
       addDuplicateDiagnostics(
@@ -1166,6 +1168,26 @@ object ParamRtlValidator {
         "parameter binding",
         diagnostics
       )
+      addDuplicateDiagnostics(
+        instance.booleanParameterBindings.map(_.parameterName),
+        booleanBindingPath,
+        "PRTL-DUPLICATE-BOOLEAN-PARAMETER-BINDING",
+        "Boolean parameter binding",
+        diagnostics
+      )
+      instance.parameterBindings
+        .map(_.parameterName)
+        .toSet
+        .intersect(instance.booleanParameterBindings.map(_.parameterName).toSet)
+        .toVector
+        .sorted
+        .foreach { name =>
+          diagnostics += Diagnostic(
+            "PRTL-DUPLICATE-INSTANCE-PARAMETER-BINDING",
+            path :+ "parameterBindings" :+ name,
+            s"Instance parameter '$name' is bound as both an integer and a Boolean parameter"
+          )
+        }
       addDuplicateDiagnostics(
         instance.portConnections.map(_.portName),
         connectionPath,
@@ -1184,6 +1206,25 @@ object ParamRtlValidator {
           booleanParameters = parentBooleanParameters
         )
       }
+      instance.booleanParameterBindings.sortBy(_.parameterName).foreach { binding =>
+        val currentPath = booleanBindingPath :+ binding.parameterName :+ "value"
+        validateBooleanExpression(
+          binding.value,
+          parentBooleanParameters,
+          parentParameterNames,
+          parentLocalNames,
+          currentPath,
+          diagnostics
+        )
+        analyzeBooleanExpression(
+          binding.value,
+          parentBooleanParameters,
+          parentParameters,
+          parentLocals,
+          currentPath,
+          diagnostics
+        )
+      }
 
       moduleByName.get(instance.moduleName) match {
         case None =>
@@ -1196,12 +1237,23 @@ object ParamRtlValidator {
           val targetBaseFacts = allBaseFacts(targetModule.name)
           val targetParameters = targetModule.parameters.sortBy(_.name)
           val targetParameterByName = firstByName(targetParameters)(_.name)
+          val targetBooleanParameters = targetModule.booleanParameters.sortBy(_.name)
+          val targetBooleanParameterByName = firstByName(targetBooleanParameters)(_.name)
           val bindingByName = firstByName(instance.parameterBindings.sortBy(_.parameterName))(_.parameterName)
+          val booleanBindingByName =
+            firstByName(instance.booleanParameterBindings.sortBy(_.parameterName))(_.parameterName)
           val analyzedBindings = scala.collection.mutable.Map.empty[String, IntExprFacts]
+          val analyzedBooleanBindings = scala.collection.mutable.Map.empty[String, BooleanParameter]
 
           instance.parameterBindings.sortBy(_.parameterName).foreach { binding =>
             val currentPath = bindingPath :+ binding.parameterName
             targetParameterByName.get(binding.parameterName) match {
+              case None if targetBooleanParameterByName.contains(binding.parameterName) =>
+                diagnostics += Diagnostic(
+                  "PRTL-INSTANCE-PARAMETER-KIND-MISMATCH",
+                  currentPath,
+                  s"Module '${targetModule.name}' parameter '${binding.parameterName}' is Boolean, but the instance supplies an integer binding"
+                )
               case None =>
                 diagnostics += Diagnostic(
                   "PRTL-UNRESOLVED-INSTANCE-PARAMETER",
@@ -1230,14 +1282,48 @@ object ParamRtlValidator {
             }
           }
 
+          instance.booleanParameterBindings.sortBy(_.parameterName).foreach { binding =>
+            val currentPath = booleanBindingPath :+ binding.parameterName
+            targetBooleanParameterByName.get(binding.parameterName) match {
+              case None if targetParameterByName.contains(binding.parameterName) =>
+                diagnostics += Diagnostic(
+                  "PRTL-INSTANCE-PARAMETER-KIND-MISMATCH",
+                  currentPath,
+                  s"Module '${targetModule.name}' parameter '${binding.parameterName}' is integer, but the instance supplies a Boolean binding"
+                )
+              case None =>
+                diagnostics += Diagnostic(
+                  "PRTL-UNRESOLVED-INSTANCE-BOOLEAN-PARAMETER",
+                  currentPath,
+                  s"Module '${targetModule.name}' has no public Boolean parameter '${binding.parameterName}'"
+                )
+              case Some(targetParameter) =>
+                BoolExpressionAnalysis
+                  .evaluateDefault(
+                    binding.value,
+                    parentBooleanParameters,
+                    parentParameters,
+                    parentLocals
+                  )
+                  .toOption
+                  .foreach { default =>
+                    analyzedBooleanBindings.update(
+                      binding.parameterName,
+                      targetParameter.copy(default = default)
+                    )
+                  }
+            }
+          }
+
           val instantiatedParameters = targetParameters.map { parameter =>
             parameter.name -> analyzedBindings.getOrElse(
               parameter.name,
               IntExprFacts(parameter.default, IntInterval.point(parameter.default))
             )
           }.toMap
-          val targetBooleanParameters =
-            targetModule.booleanParameters.map(parameter => parameter.name -> parameter).toMap
+          val instantiatedBooleanParameters = targetBooleanParameters.map { parameter =>
+            parameter.name -> analyzedBooleanBindings.getOrElse(parameter.name, parameter)
+          }.toMap
           var instantiatedLocals = Map.empty[String, IntExprFacts]
           targetBaseFacts.orderedLocalParameters.foreach { localParameter =>
             IntExpressionAnalysis
@@ -1245,7 +1331,7 @@ object ParamRtlValidator {
                 localParameter.value,
                 instantiatedParameters,
                 instantiatedLocals,
-                targetBooleanParameters,
+                instantiatedBooleanParameters,
                 Map.empty
               )
               .toOption
@@ -1256,14 +1342,23 @@ object ParamRtlValidator {
             val raw = bindingByName.get(parameter.name).map(_.value).getOrElse(Literal(parameter.default))
             parameter.name -> IntExpressionEquivalence.substitute(raw, Map.empty, parentLocalExpressions)
           }.toMap
-          val targetBooleanDefaults = targetBooleanParameters.map { case (name, parameter) =>
-            name -> BoolLiteral(parameter.default)
-          }
+          val targetBooleanExpressions = targetBooleanParameters.map { parameter =>
+            val expression = booleanBindingByName
+              .get(parameter.name)
+              .map(_.value)
+              .getOrElse(BoolLiteral(parameter.default))
+            parameter.name -> substituteBooleanDefinition(
+              expression,
+              Map.empty,
+              parentLocalExpressions,
+              Map.empty
+            )
+          }.toMap
           val targetLocalExpressions =
             expandLocalExpressions(
               targetBaseFacts.orderedLocalParameters,
               expandedBindings,
-              targetBooleanDefaults
+              targetBooleanExpressions
             )
           val instantiatedPortTypes = targetModule.ports.map { port =>
             val width = port.dataType.width match {
@@ -1274,7 +1369,7 @@ object ParamRtlValidator {
                   other,
                   expandedBindings,
                   targetLocalExpressions,
-                  targetBooleanDefaults
+                  targetBooleanExpressions
                 )
             }
             port.name -> port.dataType.copy(width = width)
@@ -1320,7 +1415,7 @@ object ParamRtlValidator {
                       targetPort.dataType.width,
                       instantiatedParameters,
                       instantiatedLocals,
-                      targetBooleanParameters,
+                      instantiatedBooleanParameters,
                       Map.empty
                     )
                     .toOption
@@ -1355,7 +1450,8 @@ object ParamRtlValidator {
             targetModule,
             instantiatedParameters,
             instantiatedLocals,
-            instantiatedPortTypes
+            instantiatedPortTypes,
+            instantiatedBooleanParameters
           )
       }
     }

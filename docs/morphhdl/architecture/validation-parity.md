@@ -157,3 +157,16 @@ remains partial because `min`, `max`, `clog2` and the remaining v1 runtime type
 algebra are deferred; multiple/nested structural predicates and processes keep
 the driver guard partial. The external release-strength artifact now contains
 exactly seven generated files, including `conditional_width.v`.
+
+Increment 12 extends the implemented symbolic hierarchy adaptation with typed
+named Boolean child bindings. The binding value is validated in the parent
+Boolean/public-integer/local-integer scope, including every subtree inactive
+under its default. `MorphVerilog` substitutes that exact per-instance value
+before recomputing child locals and selecting child generate-if hierarchy, so
+two instances of one logical child may safely select opposite default shapes.
+The eighth public fixture proves the true default, explicit disable,
+below-limit comparison and inclusive equality boundary without regenerating
+RTL. The hierarchy disposition remains implemented; width and driver guards
+remain partial because Boolean locals, nested structural predicates and
+runtime processes are still deferred. The external artifact inventory now
+contains exactly eight generated files, including `boolean_forwarding.v`.

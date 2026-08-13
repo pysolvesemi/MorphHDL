@@ -95,8 +95,9 @@ literals/references/negation/conjunction/disjunction and one non-nested
 true and false blocks. Validation resolves every Boolean reference, validates
 the complete hierarchy and bindings in both blocks regardless of the default,
 and proves output drivers independently on each mutually exclusive path.
-Conditional public ports, multiple or nested generate regions, Boolean child
-bindings and `GenerateCase` remain unsupported.
+At Increment 9, conditional public ports, multiple or nested generate regions,
+Boolean child bindings and `GenerateCase` remained unsupported; Increment 12
+implements the Boolean-binding item while retaining the other restrictions.
 
 Increment 10 adds six distinct typed `BoolExpr` comparisons over `IntExpr`:
 less-than, less-than-or-equal, greater-than, greater-than-or-equal, equality and
@@ -113,8 +114,21 @@ it does not yet refine either branch from correlations implied by the guard.
 This conservative rule applies wherever an integer constant expression is
 legal, including local parameters, packed widths, child bindings and generate
 counts. Conditional expressions compose recursively with the normal expression
-precedence rules. Boolean child bindings, Boolean local parameters and nested
-or multiple structural predicates remain separate tranches.
+precedence rules. At Increment 11, Boolean child bindings, Boolean local
+parameters and nested or multiple structural predicates were separate
+tranches; Increment 12 implements the first item only.
+
+Increment 12 adds `BooleanParameterBinding(parameterName, value)` as a typed
+named association separate from the existing integer `ParameterBinding`.
+Validation resolves the target only in the child Boolean namespace and checks
+the value expression in the parent public-Boolean, public-integer and
+local-integer scope. It analyzes the full expression even when the default is
+already decided by a Boolean operand. Morph default-shape recursion replaces
+the child declaration default with that per-instance result before evaluating
+child locals, widths and selected hierarchy. Integer/Boolean binding-kind
+mismatches, duplicate Boolean bindings and bindings hidden in inactive
+generate branches remain whole-design errors. Boolean local parameters,
+nested structural predicates and `GenerateCase` remain separate tranches.
 
 ## Required invariants
 

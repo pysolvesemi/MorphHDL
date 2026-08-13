@@ -29,10 +29,14 @@ These files are executable output contracts for the parameterized backend.
 - `conditional_width.v` is owned by Increment 11. Its typed Boolean `WIDE`
   parameter selects `WIDE_WIDTH` or `NARROW_WIDTH` into the derived
   `ACTIVE_WIDTH` local parameter, which controls both packed ports.
+- `boolean_forwarding.v` is owned by Increment 12. Its parent forwards the
+  typed predicate `ENABLE && EFFECTIVE_WIDTH >= LIMIT` into child Boolean
+  parameter `SELECT`; the child selects distinct high/low leaf types while all
+  public interfaces remain fixed at eight bits.
 - Increment 8 routes the first four artifacts through one production fixture
   source and `MorphVerilog`; Increments 9 and 10 extend that same path to all
-  six. Increment 11 extends it to all seven. CI performs a normal and
-  reverse-construction run, requires an exact seven-file inventory, checks byte
+  six. Increment 11 extends it to all seven, and Increment 12 to all eight. CI performs a normal and
+  reverse-construction run, requires an exact eight-file inventory, checks byte
   identity with these goldens, and gives that unmodified directory to the
   external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
@@ -50,6 +54,10 @@ These files are executable output contracts for the parameterized backend.
   `ConditionalWidthTb` covers the wide default, the narrow choice and awkward
   overrides of each selected branch. Yosys independently proves exact 12-,
   4-, 15- and 7-bit packed interfaces after parameter elaboration.
+  `BooleanForwardingTb` covers the true default, an explicit Boolean disable,
+  a below-limit comparison and the inclusive equality boundary. Yosys proves
+  the exact forwarded route instance and selected high/low leaf for all four
+  configurations.
 
 Run:
 

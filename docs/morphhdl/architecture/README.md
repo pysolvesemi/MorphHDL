@@ -37,6 +37,9 @@ The contract is split into these documents:
 - [Increment 11 conditional integer values](../increment-11-conditional-integers.md):
   typed Boolean selection between two `HdlInt` expressions, conservative
   whole-domain analysis and a seventh reviewed parameterized-width fixture.
+- [Increment 12 Boolean child forwarding](../increment-12-boolean-forwarding.md):
+  typed named Boolean bindings, parent-context validation and instance-aware
+  default substitution through an eighth reviewed hierarchy fixture.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -47,8 +50,9 @@ what is executable now. Current parameter-expression implementation status and
 its separate frontend, validation and emission evidence are recorded in
 `morphhdl/contracts/parameter-operators.tsv`. Increment 11 records conditional
 integer selection as executable alongside the six comparison nodes from
-Increment 10. Generate-case remains deferred even though the target profile
-reserves a legal mapping for it.
+Increment 10. Increment 12 records typed Boolean child binding support in the
+target-profile properties. Generate-case remains deferred even though the
+target profile reserves a legal mapping for it.
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants
