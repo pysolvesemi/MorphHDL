@@ -292,7 +292,7 @@ class MorphVerilogTests extends AnyFunSuite {
       val topName = "TrueConditionalWidth"
       val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
         MorphProgram(
-          concreteWitness = passThroughWitness(topName, width = 12),
+          concreteWitness = conditionalWidthWitness(topName, width = 12),
           parameterizedDesign = conditionalWidthDesign(topName, wideDefault = true)
         )
       }
@@ -307,7 +307,7 @@ class MorphVerilogTests extends AnyFunSuite {
       val topName = "FalseConditionalWidth"
       val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
         MorphProgram(
-          concreteWitness = passThroughWitness(topName, width = 4),
+          concreteWitness = conditionalWidthWitness(topName, width = 4),
           parameterizedDesign = conditionalWidthDesign(topName, wideDefault = false)
         )
       }
@@ -700,6 +700,14 @@ class MorphVerilogTests extends AnyFunSuite {
       val data_in = in(Bits(width bits))
       val data_out = out(Bits(width bits))
       data_out := data_in
+    }
+
+  private def conditionalWidthWitness(requestedName: String, width: Int): Component =
+    new Component {
+      setDefinitionName(requestedName)
+      val din = in(Bits(width bits))
+      val dout = out(Bits(width bits))
+      dout := din
     }
 
   private def integerAlgebraDesign(): Design = {
