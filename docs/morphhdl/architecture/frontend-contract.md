@@ -116,6 +116,29 @@ transactional: a branch exception emits no partial `GenerateIf` and releases
 its names. Conditional/loop nesting and a second `GenerateIf` in the same
 capture are rejected in this tranche.
 
+Increment 14 adds one integer-selected conditional region:
+
+```scala
+generateCase(selector)
+  .choice(BigInt(0), "g_zero") { /* choice body */ }
+  .choice(BigInt(1), "g_one") { /* choice body */ }
+  .default("g_default") { /* mandatory fallback */ }
+```
+
+The builder is lexical and transactional like `GenerateIf`: `choice` retains
+the same builder, while `default` finalizes it exactly once. Choice values and
+labels are unique; labels are explicit in this tranche. Missing or duplicate
+default completion, escaped builders, foreign collectors and cross-thread use
+fail with retained source origins. Every branch is captured once in symbolic
+mode, while concrete mode executes the exact default-selected choice or the
+mandatory default.
+
+The bounded frontend permits one conditional structural region total per
+module capture: either one `GenerateIf` or one `GenerateCase`. A second sibling
+conditional fails closed. `GenerateIf`, `GenerateCase` and `GenerateFor`
+nesting remains rejected in every direction; an ordinary Scala `match` does
+not preserve parameterized structure.
+
 An ordinary Scala `if`, `match`, collection size, recursion or class selection
 continues to execute during elaboration and therefore may depend only on static
 Scala values.

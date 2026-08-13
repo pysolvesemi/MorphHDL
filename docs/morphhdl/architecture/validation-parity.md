@@ -182,5 +182,19 @@ integer-to-Boolean-to-integer chain in default, disabled, below-limit and
 inclusive equality configurations. `PhaseInferWidth` remains partial because
 `min`, `max`, `clog2` and remaining runtime type algebra are deferred; multiple
 or nested predicates and runtime processes keep driver coverage partial. The
-external artifact inventory now contains exactly nine generated files,
-including `boolean_locals.v`.
+Increment 13's external artifact inventory contained exactly nine generated
+files, including `boolean_locals.v`; Increment 14 adds the case tranche below.
+
+Increment 14 extends hierarchy and driver adaptation through one bounded
+integer-selected `GenerateCase`. ParamRTL validates every explicit choice and
+the mandatory default, rejects sibling or nested conditional regions and
+proves complete output coverage independently on every exclusive path.
+`MorphVerilog` evaluates the selector from each exact bound and mixed-local
+instance context, then compares only the matching choice or mandatory default
+against the concrete witness. The tenth fixture proves direct, local-derived
+and unmatched-default selections without regenerating RTL. Width inference and
+driver parity remain partial because remaining runtime type algebra, nested
+structure and runtime processes are deferred. A sibling `GenerateFor` remains
+legal; the rejection applies to a second conditional and to nesting in any
+direction. The external artifact inventory now contains exactly ten generated
+files, including `case_routing.v`.

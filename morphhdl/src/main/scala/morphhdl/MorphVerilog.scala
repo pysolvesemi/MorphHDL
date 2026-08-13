@@ -10,7 +10,7 @@ import spinal.core.{Component, SpinalConfig, SpinalReport, SpinalVerilog, System
 
 import morphhdl.backend.verilog2001.{Verilog2001Capability => V2001Capability, Verilog2001Emitter}
 import morphhdl.frontend.ParamRtlFrontend
-import morphhdl.paramrtl.ModuleItem.{GenerateFor, GenerateIf, ModuleInstance}
+import morphhdl.paramrtl.ModuleItem.{GenerateCase, GenerateFor, GenerateIf, ModuleInstance}
 import morphhdl.paramrtl.{
   BoolExpressionAnalysis,
   Design,
@@ -655,6 +655,25 @@ object MorphVerilog {
               )
             case Right(true)  => collect(generate.whenTrue.body, multiplier, current)
             case Right(false) => collect(generate.whenFalse.body, multiplier, current)
+          }
+        case (Right(current), generate: GenerateCase) =>
+          IntExpressionAnalysis
+            .analyze(
+              generate.selector,
+              context.integerParameters,
+              context.localParameters,
+              context.booleanParameters,
+              Map.empty,
+              context.booleanLocalParameters
+            ) match {
+            case Left(failure) =>
+              Left(s"cannot evaluate default generate-case selector '${module.name}': $failure")
+            case Right(selectorFacts) =>
+              val selectedBody = generate.choices
+                .find(_.value == selectorFacts.defaultValue)
+                .map(_.block.body)
+                .getOrElse(generate.default.body)
+              collect(selectedBody, multiplier, current)
           }
         case (Right(current), _) => Right(current)
       }

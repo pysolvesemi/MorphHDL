@@ -3,7 +3,7 @@ package morphhdl.frontend
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable
 
-import morphhdl.paramrtl.{GenerateBlock, ModuleItem}
+import morphhdl.paramrtl.{GenerateBlock, GenerateCaseChoice, ModuleItem}
 
 private[frontend] final case class GenerateIfNames(whenTrue: String, whenFalse: String)
 
@@ -14,6 +14,14 @@ private[frontend] final class FrontendSessionToken {
   def close(): Unit = open = false
 }
 
+private[frontend] sealed trait ConditionalGenerateToken {
+  def origin: SourceOrigin
+  def isPending: Boolean
+  def isCompleted: Boolean
+  def complete(): Unit
+  def fail(): Unit
+}
+
 private[frontend] final class GenerateIfToken(
     val condition: HdlBool,
     val names: GenerateIfNames,
@@ -22,13 +30,47 @@ private[frontend] final class GenerateIfToken(
     val parentCollector: Option[ArrayBuffer[FrontendNode[ModuleItem]]],
     val whenTrueItems: Vector[FrontendNode[ModuleItem]],
     val parameterized: Boolean
-) {
+) extends ConditionalGenerateToken {
   private var state = 0
 
   def isPending: Boolean = state == 0
   def isCompleted: Boolean = state == 1
   def complete(): Unit = state = 1
   def fail(): Unit = state = 2
+}
+
+private[frontend] final case class CapturedGenerateCaseChoice(
+    value: BigInt,
+    label: String,
+    items: Vector[FrontendNode[ModuleItem]]
+)
+
+private[frontend] final class GenerateCaseToken(
+    val selector: HdlInt,
+    val origin: SourceOrigin,
+    val session: FrontendSessionToken,
+    val parentCollector: Option[ArrayBuffer[FrontendNode[ModuleItem]]],
+    val parameterized: Boolean
+) extends ConditionalGenerateToken {
+  private var state = 0
+  private var capturedChoices = Vector.empty[CapturedGenerateCaseChoice]
+  private var labels = Vector.empty[String]
+  private var concreteChoiceMatched = false
+
+  def isPending: Boolean = state == 0
+  def isCompleted: Boolean = state == 1
+  def complete(): Unit = state = 1
+  def fail(): Unit = state = 2
+
+  def choices: Vector[CapturedGenerateCaseChoice] = capturedChoices
+  def containsChoice(value: BigInt): Boolean = capturedChoices.exists(_.value == value)
+  def addChoice(choice: CapturedGenerateCaseChoice): Unit = capturedChoices :+= choice
+
+  def reservedLabels: Vector[String] = labels
+  def addReservedLabel(label: String): Unit = labels :+= label
+
+  def hasConcreteMatch: Boolean = concreteChoiceMatched
+  def markConcreteMatch(): Unit = concreteChoiceMatched = true
 }
 
 private[frontend] object FrontendSession {
@@ -46,6 +88,9 @@ private[frontend] object FrontendSession {
 
     def reserve(names: GenerateIfNames, origin: SourceOrigin): Unit =
       reserveAll(Vector(names.whenTrue, names.whenFalse), Vector.empty, origin)
+
+    def reserveLabel(label: String, origin: SourceOrigin): Unit =
+      reserveAll(Vector(label), Vector.empty, origin)
 
     private def reserveAll(
         newLabels: Vector[String],
@@ -75,17 +120,19 @@ private[frontend] object FrontendSession {
       labels -= names.whenTrue
       labels -= names.whenFalse
     }
+
+    def releaseLabels(values: Vector[String]): Unit = labels --= values
   }
 
   private final case class Context(
       mode: Mode,
       collector: Option[ArrayBuffer[FrontendNode[ModuleItem]]],
       activeScope: Option[ScopeToken],
-      activeGenerateIf: Boolean,
+      activeConditional: Boolean,
       names: NameRegistry,
       session: FrontendSessionToken,
-      pendingGenerateIfs: mutable.Set[GenerateIfToken],
-      capturedGenerateIfs: mutable.Set[GenerateIfToken]
+      pendingConditionals: mutable.Set[ConditionalGenerateToken],
+      capturedConditionals: mutable.Set[ConditionalGenerateToken]
   )
 
   private val current = new ThreadLocal[Context]
@@ -98,7 +145,7 @@ private[frontend] object FrontendSession {
       Concrete,
       None,
       None,
-      activeGenerateIf = false,
+      activeConditional = false,
       new NameRegistry,
       session,
       mutable.Set.empty,
@@ -107,7 +154,7 @@ private[frontend] object FrontendSession {
     try {
       withContext(context) {
         val result = body
-        requireNoPendingGenerateIf(context)
+        requireNoPendingConditional(context)
         result
       }
     } finally session.close()
@@ -121,7 +168,7 @@ private[frontend] object FrontendSession {
       Parameterized,
       Some(items),
       None,
-      activeGenerateIf = false,
+      activeConditional = false,
       new NameRegistry,
       session,
       mutable.Set.empty,
@@ -130,7 +177,7 @@ private[frontend] object FrontendSession {
     try {
       withContext(context) {
         body
-        requireNoPendingGenerateIf(context)
+        requireNoPendingConditional(context)
         FrontendNode(
           items.map(_.raw).toVector,
           parameters = items.flatMap(_.parameters).toSet,
@@ -162,7 +209,7 @@ private[frontend] object FrontendSession {
 
   private def runRangeInContext(range: HdlRange, body: GenIndex => Unit): Unit = {
     val context = current.get()
-    if (context.activeScope.nonEmpty || context.activeGenerateIf) {
+    if (context.activeScope.nonEmpty || context.activeConditional) {
       FrontendException.failAt(
         "MORPH-FRONTEND-NESTED-GENERATE-UNSUPPORTED",
         "nested HdlInt generate loops are not supported by the current frontend surface",
@@ -258,10 +305,10 @@ private[frontend] object FrontendSession {
       )
     }
     requireNoNestedGenerate(context, origin)
-    context.capturedGenerateIfs.toVector.headOption.foreach { existing =>
+    context.capturedConditionals.toVector.headOption.foreach { existing =>
       FrontendException.failAt(
         "MORPH-FRONTEND-GENERATE-IF-MULTIPLE",
-        s"one module-item capture supports one generateIf; the existing conditional is at " +
+        s"one module-item capture supports one conditional generate region; the existing region is at " +
           existing.origin.rendered,
         origin
       )
@@ -274,7 +321,7 @@ private[frontend] object FrontendSession {
       val trueItems = context.mode match {
         case Concrete =>
           if (condition.witness) {
-            withContext(context.copy(activeGenerateIf = true))(whenTrue)
+            withContext(context.copy(activeConditional = true))(whenTrue)
           }
           Vector.empty
         case Parameterized => captureConditionalBranch(context, whenTrue)
@@ -288,8 +335,8 @@ private[frontend] object FrontendSession {
         trueItems,
         parameterized = context.mode == Parameterized
       )
-      context.pendingGenerateIfs += token
-      context.capturedGenerateIfs += token
+      context.pendingConditionals += token
+      context.capturedConditionals += token
       captured = true
       new GenerateIfBuilder(token)
     } finally {
@@ -312,7 +359,7 @@ private[frontend] object FrontendSession {
     val context = current.get()
     val active =
       context != null && token.session.isOpen && (context.session eq token.session) &&
-        context.pendingGenerateIfs(token) && token.isPending
+        context.pendingConditionals(token) && token.isPending
     if (!active) {
       FrontendException.failAt(
         "MORPH-FRONTEND-GENERATE-IF-ESCAPED",
@@ -369,19 +416,240 @@ private[frontend] object FrontendSession {
           origin = token.origin
         )
       } else if (!token.condition.witness) {
-        withContext(context.copy(activeGenerateIf = true))(whenFalse)
+        withContext(context.copy(activeConditional = true))(whenFalse)
       }
       completed = true
       token.complete()
-      context.pendingGenerateIfs -= token
+      context.pendingConditionals -= token
     } finally {
       if (!completed) {
         token.fail()
-        context.pendingGenerateIfs -= token
-        context.capturedGenerateIfs -= token
+        context.pendingConditionals -= token
+        context.capturedConditionals -= token
         context.names.release(token.names)
       }
     }
+  }
+
+  private[frontend] def startGenerateCase(
+      selector: HdlInt,
+      origin: SourceOrigin
+  ): GenerateCaseBuilder = {
+    val context = current.get()
+    if (context == null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-SESSION-MISSING",
+        "generateCase requires an explicit concrete or parameterized frontend session",
+        origin
+      )
+    }
+    if (selector eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-GENERATE-CASE-SELECTOR-NULL",
+        "generateCase selector must not be null",
+        origin
+      )
+    }
+    selector.requireLoopInvariant("generate-case selector")
+    requireNoNestedGenerate(context, origin)
+    context.capturedConditionals.toVector.headOption.foreach { existing =>
+      FrontendException.failAt(
+        "MORPH-FRONTEND-GENERATE-CASE-MULTIPLE",
+        s"one module-item capture supports one conditional generate region; the existing region is at " +
+          existing.origin.rendered,
+        origin
+      )
+    }
+
+    val token = new GenerateCaseToken(
+      selector,
+      origin,
+      context.session,
+      context.collector,
+      parameterized = context.mode == Parameterized
+    )
+    context.pendingConditionals += token
+    context.capturedConditionals += token
+    new GenerateCaseBuilder(token)
+  }
+
+  private[frontend] def addGenerateCaseChoice(
+      token: GenerateCaseToken,
+      value: BigInt,
+      label: String,
+      body: => Unit,
+      callOrigin: SourceOrigin
+  ): Unit = {
+    if (token.isCompleted) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-GENERATE-CASE-COMPLETED",
+        "a choice cannot be appended after the generateCase default branch",
+        callOrigin
+      )
+    }
+    val context = requireActiveGenerateCase(token, callOrigin)
+    if (value == null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-GENERATE-CASE-CHOICE-NULL",
+        "generateCase choice value must be a non-null integer literal",
+        callOrigin
+      )
+    }
+    if (token.containsChoice(value)) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-GENERATE-CASE-CHOICE-DUPLICATE",
+        s"generateCase choice value '$value' is already present",
+        callOrigin
+      )
+    }
+    requireCaseParentCollector(token, context, callOrigin)
+    context.names.reserveLabel(label, callOrigin)
+    token.addReservedLabel(label)
+
+    var completed = false
+    try {
+      val items = context.mode match {
+        case Parameterized => captureConditionalBranch(context, body)
+        case Concrete =>
+          if (!token.hasConcreteMatch && token.selector.witness == value) {
+            token.markConcreteMatch()
+            withContext(context.copy(activeConditional = true))(body)
+          }
+          Vector.empty
+      }
+      token.addChoice(CapturedGenerateCaseChoice(value, label, items))
+      completed = true
+    } finally {
+      if (!completed) failGenerateCase(token, context)
+    }
+  }
+
+  private[frontend] def completeGenerateCase(
+      token: GenerateCaseToken,
+      defaultLabel: String,
+      defaultBody: => Unit,
+      callOrigin: SourceOrigin
+  ): Unit = {
+    if (token.isCompleted) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-GENERATE-CASE-DEFAULT-DUPLICATE",
+        "the default branch was already supplied for this generateCase",
+        callOrigin
+      )
+    }
+    val context = requireActiveGenerateCase(token, callOrigin)
+    if (token.choices.isEmpty) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-GENERATE-CASE-CHOICE-MISSING",
+        "generateCase requires at least one explicit literal choice before its default branch",
+        token.origin
+      )
+    }
+    val parent = requireCaseParentCollector(token, context, callOrigin)
+    context.names.reserveLabel(defaultLabel, callOrigin)
+    token.addReservedLabel(defaultLabel)
+
+    var completed = false
+    try {
+      context.mode match {
+        case Parameterized =>
+          val defaultItems = captureConditionalBranch(context, defaultBody)
+          val sortedChoices = token.choices.sortBy(_.value)
+          val allItems = sortedChoices.flatMap(_.items) ++ defaultItems
+          parent.getOrElse {
+            FrontendException.failAt(
+              "MORPH-FRONTEND-MISSING-COLLECTOR",
+              "parameterized generateCase has no parent module-item collector",
+              token.origin
+            )
+          } += FrontendNode(
+            ModuleItem.GenerateCase(
+              selector = token.selector.expression,
+              choices = sortedChoices.map { choice =>
+                GenerateCaseChoice(
+                  choice.value,
+                  GenerateBlock(choice.label, choice.items.map(_.raw))
+                )
+              },
+              default = GenerateBlock(defaultLabel, defaultItems.map(_.raw))
+            ),
+            parameters = token.selector.parameters ++ allItems.flatMap(_.parameters),
+            booleanParameters = token.selector.booleanParameters ++
+              allItems.flatMap(_.booleanParameters),
+            localParameters = token.selector.localParameters ++ allItems.flatMap(_.localParameters),
+            booleanLocalParameters = token.selector.booleanLocalParameters ++
+              allItems.flatMap(_.booleanLocalParameters),
+            scopes = allItems.flatMap(_.scopes).toSet,
+            origin = token.origin
+          )
+        case Concrete =>
+          if (!token.hasConcreteMatch) {
+            withContext(context.copy(activeConditional = true))(defaultBody)
+          }
+      }
+      token.complete()
+      context.pendingConditionals -= token
+      completed = true
+    } finally {
+      if (!completed) failGenerateCase(token, context)
+    }
+  }
+
+  private def requireActiveGenerateCase(
+      token: GenerateCaseToken,
+      callOrigin: SourceOrigin
+  ): Context = {
+    val context = current.get()
+    val active =
+      context != null && token.session.isOpen && (context.session eq token.session) &&
+        context.pendingConditionals(token) && token.isPending
+    if (!active) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-GENERATE-CASE-ESCAPED",
+        "generateCase builder escaped the frontend session which created it",
+        token.origin
+      )
+    }
+    requireNoNestedGenerate(context, callOrigin)
+    context
+  }
+
+  private def requireCaseParentCollector(
+      token: GenerateCaseToken,
+      context: Context,
+      callOrigin: SourceOrigin
+  ): Option[ArrayBuffer[FrontendNode[ModuleItem]]] = {
+    if (token.parameterized) {
+      val parent = token.parentCollector.getOrElse {
+        FrontendException.failAt(
+          "MORPH-FRONTEND-MISSING-COLLECTOR",
+          "parameterized generateCase has no parent module-item collector",
+          token.origin
+        )
+      }
+      val currentCollector = context.collector.getOrElse {
+        FrontendException.failAt(
+          "MORPH-FRONTEND-MISSING-COLLECTOR",
+          "parameterized capture has no active module-item collector",
+          callOrigin
+        )
+      }
+      if (!(parent eq currentCollector)) {
+        FrontendException.failAt(
+          "MORPH-FRONTEND-GENERATE-CASE-ESCAPED",
+          "generateCase builder was continued from a foreign module-item collector",
+          callOrigin
+        )
+      }
+      Some(parent)
+    } else None
+  }
+
+  private def failGenerateCase(token: GenerateCaseToken, context: Context): Unit = {
+    token.fail()
+    context.pendingConditionals -= token
+    context.capturedConditionals -= token
+    context.names.releaseLabels(token.reservedLabels)
   }
 
   private def captureConditionalBranch(
@@ -392,31 +660,40 @@ private[frontend] object FrontendSession {
     withContext(
       context.copy(
         collector = Some(childCollector),
-        activeGenerateIf = true
+        activeConditional = true
       )
     )(body)
     childCollector.toVector
   }
 
   private def requireNoNestedGenerate(context: Context, origin: SourceOrigin): Unit =
-    if (context.activeScope.nonEmpty || context.activeGenerateIf) {
+    if (context.activeScope.nonEmpty || context.activeConditional) {
       FrontendException.failAt(
         "MORPH-FRONTEND-NESTED-GENERATE-UNSUPPORTED",
-        "nested generate-if and generate-for regions are not supported by the current frontend surface",
+        "nested generate-if, generate-case and generate-for regions are not supported by the current frontend surface",
         origin
       )
     }
 
-  private def requireNoPendingGenerateIf(context: Context): Unit =
-    context.pendingGenerateIfs.toVector
+  private def requireNoPendingConditional(context: Context): Unit =
+    context.pendingConditionals.toVector
       .sortBy(token => (token.origin.file, token.origin.line))
       .headOption
       .foreach { token =>
-        FrontendException.failAt(
-          "MORPH-FRONTEND-GENERATE-IF-OTHERWISE-MISSING",
-          "generateIf must be completed with exactly one otherwise branch",
-          token.origin
-        )
+        token match {
+          case _: GenerateIfToken =>
+            FrontendException.failAt(
+              "MORPH-FRONTEND-GENERATE-IF-OTHERWISE-MISSING",
+              "generateIf must be completed with exactly one otherwise branch",
+              token.origin
+            )
+          case _: GenerateCaseToken =>
+            FrontendException.failAt(
+              "MORPH-FRONTEND-GENERATE-CASE-DEFAULT-MISSING",
+              "generateCase must be completed with exactly one default branch",
+              token.origin
+            )
+        }
       }
 
   private def generatedIfNames(origin: SourceOrigin): GenerateIfNames = {

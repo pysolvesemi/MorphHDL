@@ -93,6 +93,8 @@ sealed trait ModuleItem extends Product with Serializable
 
 final case class GenerateBlock(label: String, body: Vector[ModuleItem])
 
+final case class GenerateCaseChoice(value: BigInt, block: GenerateBlock)
+
 object ModuleItem {
   final case class ContinuousAssign(target: RtlExpr.Ref, value: RtlExpr) extends ModuleItem
   final case class ModuleInstance(
@@ -112,6 +114,11 @@ object ModuleItem {
       condition: BoolExpr,
       whenTrue: GenerateBlock,
       whenFalse: GenerateBlock
+  ) extends ModuleItem
+  final case class GenerateCase(
+      selector: IntExpr,
+      choices: Vector[GenerateCaseChoice],
+      default: GenerateBlock
   ) extends ModuleItem
 }
 

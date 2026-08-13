@@ -142,8 +142,21 @@ references. Each module-instance context begins with its bound public integer
 and Boolean values, then evaluates that combined order exactly once before
 widths, generate counts, conditions and child bindings consume the local
 facts. Same-name cross-kind declarations, unresolved or wrong-kind references,
-and mixed cycles are deterministic validation errors. Multiple or nested
-structural predicates and `GenerateCase` remain separate tranches.
+and mixed cycles are deterministic validation errors. At Increment 13,
+multiple or nested structural predicates and `GenerateCase` remained separate
+tranches; Increment 14 implements the bounded case item below.
+
+Increment 14 adds `GenerateCaseChoice(value, block)` and
+`ModuleItem.GenerateCase(selector, choices, default)`. The selector is an
+`IntExpr`; explicit choice values are unique mathematical integers and the
+default block is mandatory. Validation checks all explicit blocks and the
+default regardless of the selector default, proves output drivers on each
+exclusive path and orders choices by ascending numeric value. Morph default
+shape evaluates the selector in each exact public/bound/mixed-local instance
+context, choosing an equal literal or the default. This tranche permits one
+conditional region total per module (`GenerateIf` or `GenerateCase`) and
+rejects a second sibling conditional. A sibling `GenerateFor` remains legal;
+nesting if/for/case regions in any direction remains rejected.
 
 ## Required invariants
 

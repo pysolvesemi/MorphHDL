@@ -43,6 +43,9 @@ The contract is split into these documents:
 - [Increment 13 Boolean local parameters](../increment-13-boolean-locals.md):
   identity-bearing Boolean locals, one combined cross-kind dependency graph
   and a ninth reviewed mixed-local hierarchy fixture.
+- [Increment 14 generate-case](../increment-14-generate-case.md): one bounded
+  integer-selected case region, mandatory default and a tenth reviewed
+  hierarchy fixture.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -55,8 +58,8 @@ its separate frontend, validation and emission evidence are recorded in
 integer selection as executable alongside the six comparison nodes from
 Increment 10. Increment 12 records typed Boolean child binding support and
 Increment 13 records typed Boolean local support in the target-profile
-properties. Generate-case remains deferred even though the
-target profile reserves a legal mapping for it.
+properties. Increment 14 makes the reserved bounded generate-case mapping
+executable while nested structural regions remain deferred.
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants

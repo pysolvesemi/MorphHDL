@@ -38,11 +38,14 @@ These files are executable output contracts for the parameterized backend.
   back into integer `ROUTE_CODE`, and then into a typed Boolean child binding.
   The child selects distinct high/low leaf schemas behind a fixed eight-bit
   interface.
+- `case_routing.v` is owned by Increment 14. Its integer local
+  `SELECTOR = MODE + OFFSET` selects explicit zero/one route schemas or one
+  mandatory default route behind a fixed eight-bit interface.
 - Increment 8 routes the first four artifacts through one production fixture
   source and `MorphVerilog`; Increments 9 and 10 extend that same path to all
   six. Increment 11 extends it to all seven, Increment 12 to all eight, and
-  Increment 13 to all nine. CI performs a normal and reverse-construction run,
-  requires an exact nine-file inventory, checks byte
+  Increment 13 to all nine, and Increment 14 to all ten. CI performs a normal
+  and reverse-construction run, requires an exact ten-file inventory, checks byte
   identity with these goldens, and gives that unmodified directory to the
   external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
@@ -67,6 +70,10 @@ These files are executable output contracts for the parameterized backend.
   `BooleanLocalsTb` covers the high default, an explicit disable, a
   below-limit low route and the inclusive equality high route. Yosys proves
   the exact selected leaf and direct fixed-width port bindings in all four
+  elaborated hierarchies.
+  `CaseRoutingTb` covers the zero default, direct choice one, an offset-derived
+  choice one and an unmatched mandatory-default selection. Yosys proves the
+  exact labeled branch, route type and direct fixed-width bindings in all four
   elaborated hierarchies.
 
 Run:

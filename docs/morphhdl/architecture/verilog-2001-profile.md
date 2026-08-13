@@ -20,7 +20,7 @@ be accepted without enabling a SystemVerilog parser.
 | Structural condition (implemented) | Named `generate`/`if` with explicit `== 1` Boolean references |
 | Integer comparison (implemented) | `<`, `<=`, `>`, `>=`, `==` or `!=` after operand capability proof |
 | Conditional integer value (implemented) | Parenthesized Boolean condition with Verilog-2001 `condition ? when_true : when_false` |
-| Structural case (reserved v1 mapping) | Named `generate`/`case` |
+| Structural case (implemented) | Named `generate`/`case` with ascending signed-decimal choices and mandatory default |
 | Logical record/vector port | Deterministically flattened scalar/packed ports |
 | `clog2` | Generated portable constant function or legalized expression |
 | Enum intent | Packed vector plus named local parameters |
@@ -36,8 +36,10 @@ comparison nodes to Verilog operators only after each operand subtree fits the
 target `integer` domain. Increment 11 legalizes conditional integer values only
 after the condition and both value branches pass capability checks; the
 condition is always parenthesized and expression precedence preserves the exact
-tree. Increment 9 supports one named two-branch generate-if; generate-case and
-nested conditional structure remain outside the executable profile.
+tree. Increment 9 supports one named two-branch generate-if. Increment 14
+supports one named integer-selected generate-case with unique literal choices
+and a mandatory default. Only one of these conditional regions may appear in a
+module; nested conditional structure remains outside the executable profile.
 
 Increment 12 applies that same integer encoding to typed Boolean child
 bindings. The canonical binding remains Boolean in ParamRTL; the emitter

@@ -136,6 +136,7 @@ jobs:
             expected_inventory="$(printf '%s\n' \
               'boolean_forwarding.v f' \
               'boolean_locals.v f' \
+              'case_routing.v f' \
               'comparison_routing.v f' \
               'conditional_forwarding.v f' \
               'conditional_width.v f' \
@@ -157,7 +158,8 @@ jobs:
             comparison_routing.v \
             conditional_width.v \
             boolean_forwarding.v \
-            boolean_locals.v
+            boolean_locals.v \
+            case_routing.v
           do
             cmp "target/morphhdl/generated/run-1/${filename}" \
               "morphhdl/examples/contracts/${filename}"
