@@ -87,6 +87,23 @@ private[morphhdl] object ParamRtlFrontend {
     HdlInt.local(name, value, origin)
   }
 
+  /** Creates one identity-bearing module-local Boolean parameter handle. */
+  def localParam(name: String, value: HdlBool)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): HdlBool = {
+    val origin = SourceOrigin.capture
+    if (value eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-BOOLEAN-LOCAL-PARAMETER-NULL",
+        s"Boolean local parameter '$name' must not be null",
+        origin
+      )
+    }
+    requireIdentifier(name, "Boolean local parameter", origin)
+    HdlBool.local(name, value, origin)
+  }
+
   /** Converts the exact handle returned by localParam into a declaration node. */
   def integerLocalParameter(value: HdlInt)(implicit
       file: sourcecode.File,
@@ -103,8 +120,35 @@ private[morphhdl] object ParamRtlFrontend {
       token.declaration,
       parameters = token.parameters,
       booleanParameters = token.booleanParameters,
-      localParameters = token.dependencies + token,
+      localParameters = token.dependencies.collect { case value: LocalParameterToken => value } + token,
+      booleanLocalParameters = token.dependencies.collect {
+        case value: BooleanLocalParameterToken => value
+      },
       localDeclaration = Some(token),
+      origin = SourceOrigin.capture
+    )
+  }
+
+  /** Converts the exact Boolean handle returned by localParam into a declaration node. */
+  def booleanLocalParameter(value: HdlBool)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): FrontendNode[BooleanLocalParameter] = {
+    val token = value.localDeclaration.getOrElse {
+      FrontendException.fail(
+        "MORPH-FRONTEND-NOT-A-BOOLEAN-LOCAL-PARAMETER",
+        "only the exact HdlBool returned by localParam can declare a module-local Boolean parameter"
+      )
+    }
+    FrontendNode(
+      token.declaration,
+      parameters = token.parameters,
+      booleanParameters = token.booleanParameters,
+      localParameters = token.dependencies.collect { case item: LocalParameterToken => item },
+      booleanLocalParameters = token.dependencies.collect {
+        case item: BooleanLocalParameterToken => item
+      } + token,
+      booleanLocalDeclaration = Some(token),
       origin = SourceOrigin.capture
     )
   }
@@ -119,6 +163,7 @@ private[morphhdl] object ParamRtlFrontend {
       parameters = width.parameters,
       booleanParameters = width.booleanParameters,
       localParameters = width.localParameters,
+      booleanLocalParameters = width.booleanLocalParameters,
       origin = SourceOrigin.capture
     )
   }
@@ -134,6 +179,7 @@ private[morphhdl] object ParamRtlFrontend {
       parameters = dataType.parameters,
       booleanParameters = dataType.booleanParameters,
       localParameters = dataType.localParameters,
+      booleanLocalParameters = dataType.booleanLocalParameters,
       scopes = dataType.scopes,
       origin = SourceOrigin.capture
     )
@@ -149,6 +195,7 @@ private[morphhdl] object ParamRtlFrontend {
       parameters = value.parameters,
       booleanParameters = value.booleanParameters,
       localParameters = value.localParameters,
+      booleanLocalParameters = value.booleanLocalParameters,
       origin = SourceOrigin.capture
     )
   }
@@ -176,6 +223,7 @@ private[morphhdl] object ParamRtlFrontend {
       parameters = value.integerParameters,
       booleanParameters = value.parameters,
       localParameters = value.localParameters,
+      booleanLocalParameters = value.booleanLocalParameters,
       origin = origin
     )
   }
@@ -197,6 +245,7 @@ private[morphhdl] object ParamRtlFrontend {
       parameters = offset.parameters ++ width.parameters,
       booleanParameters = offset.booleanParameters ++ width.booleanParameters,
       localParameters = offset.localParameters ++ width.localParameters,
+      booleanLocalParameters = offset.booleanLocalParameters ++ width.booleanLocalParameters,
       scopes = offset.scope.toSet,
       origin = SourceOrigin.capture
     )
@@ -212,6 +261,7 @@ private[morphhdl] object ParamRtlFrontend {
       parameters = actual.parameters,
       booleanParameters = actual.booleanParameters,
       localParameters = actual.localParameters,
+      booleanLocalParameters = actual.booleanLocalParameters,
       scopes = actual.scopes,
       origin = SourceOrigin.capture
     )
@@ -228,6 +278,7 @@ private[morphhdl] object ParamRtlFrontend {
         parameters = value.parameters,
         booleanParameters = value.booleanParameters,
         localParameters = value.localParameters,
+        booleanLocalParameters = value.booleanLocalParameters,
         origin = SourceOrigin.capture
       )
     )
@@ -263,6 +314,9 @@ private[morphhdl] object ParamRtlFrontend {
         localParameters = parameterBindings.flatMap(_.localParameters).toSet ++
           portConnections.flatMap(_.localParameters) ++
           booleanParameterBindings.flatMap(_.localParameters),
+        booleanLocalParameters = parameterBindings.flatMap(_.booleanLocalParameters).toSet ++
+          portConnections.flatMap(_.booleanLocalParameters) ++
+          booleanParameterBindings.flatMap(_.booleanLocalParameters),
         origin = SourceOrigin.capture
       )
     )
@@ -274,12 +328,16 @@ private[morphhdl] object ParamRtlFrontend {
       ports: Vector[FrontendNode[Port]],
       items: FrontendNode[Vector[ModuleItem]],
       localParameters: Vector[FrontendNode[IntegerLocalParameter]] = Vector.empty,
-      booleanParameters: Vector[FrontendNode[BooleanParameter]] = Vector.empty
+      booleanParameters: Vector[FrontendNode[BooleanParameter]] = Vector.empty,
+      booleanLocalParameters: Vector[FrontendNode[BooleanLocalParameter]] = Vector.empty
   )(implicit file: sourcecode.File, line: sourcecode.Line): ModuleDef = {
     val origin = SourceOrigin.capture
     parameters.foreach(_.requireUsable(s"module '$name' parameter declaration"))
     booleanParameters.foreach(_.requireUsable(s"module '$name' Boolean-parameter declaration"))
     localParameters.foreach(_.requireUsable(s"module '$name' local-parameter declaration"))
+    booleanLocalParameters.foreach(
+      _.requireUsable(s"module '$name' Boolean local-parameter declaration")
+    )
     ports.foreach(_.requireUsable(s"module '$name' port"))
     items.requireUsable(s"module '$name' items")
 
@@ -387,24 +445,80 @@ private[morphhdl] object ParamRtlFrontend {
         )
       }
 
-    val publicNames = integerParameterNames ++ booleanParameterNames
-    localDeclarations
-      .filter(token => publicNames(token.declaration.name))
+    val booleanLocalDeclarations = booleanLocalParameters.map { node =>
+      node.booleanLocalDeclaration match {
+        case Some(token) if token.declaration == node.raw => token
+        case _ =>
+          FrontendException.failAt(
+            "MORPH-FRONTEND-BOOLEAN-LOCAL-PARAMETER-IDENTITY-UNRESOLVED",
+            s"module '$name' received a Boolean local declaration not produced by booleanLocalParameter",
+            node.origin
+          )
+      }
+    }
+    booleanLocalDeclarations
+      .groupBy(identity)
+      .values
+      .filter(_.size > 1)
+      .flatten
+      .toVector
       .sortBy(token => (token.declaration.name, token.origin.file, token.origin.line))
+      .headOption
+      .foreach { duplicate =>
+        FrontendException.failAt(
+          "MORPH-FRONTEND-BOOLEAN-LOCAL-PARAMETER-DECLARATION-DUPLICATE",
+          s"module '$name' declares the same Boolean local parameter handle " +
+            s"'${duplicate.declaration.name}' more than once",
+          duplicate.origin
+        )
+      }
+    booleanLocalDeclarations
+      .groupBy(_.declaration.name)
+      .toVector
+      .sortBy(_._1)
+      .collectFirst { case (_, values) if values.size > 1 =>
+        values.sortBy(token => (token.origin.file, token.origin.line)).tail.head
+      }
+      .foreach { duplicate =>
+        FrontendException.failAt(
+          "MORPH-FRONTEND-BOOLEAN-LOCAL-PARAMETER-NAME-DUPLICATE",
+          s"module '$name' declares Boolean local parameter " +
+            s"'${duplicate.declaration.name}' more than once",
+          duplicate.origin
+        )
+      }
+
+    val integerLocalNames = localDeclarations.map(_.declaration.name).toSet
+    val booleanLocalNames = booleanLocalDeclarations.map(_.declaration.name).toSet
+    integerLocalNames.intersect(booleanLocalNames).toVector.sorted.headOption.foreach { collision =>
+      val token = booleanLocalDeclarations.find(_.declaration.name == collision).get
+      FrontendException.failAt(
+        "MORPH-FRONTEND-LOCAL-PARAMETER-KIND-COLLISION",
+        s"module '$name' declares local '$collision' as both integer and Boolean",
+        token.origin
+      )
+    }
+
+    val publicNames = integerParameterNames ++ booleanParameterNames
+    val allLocalDeclarations: Vector[LocalParameterIdentity] =
+      localDeclarations ++ booleanLocalDeclarations
+    allLocalDeclarations
+      .filter(token => publicNames(token.name))
+      .sortBy(token => (token.name, token.origin.file, token.origin.line))
       .headOption
       .foreach { collision =>
         FrontendException.failAt(
           "MORPH-FRONTEND-LOCAL-PARAMETER-NAME-COLLISION",
-          s"module '$name' declares '${collision.declaration.name}' as both a public and local parameter",
+          s"module '$name' declares '${collision.name}' as both a public and local parameter",
           collision.origin
         )
       }
-    LocalParameterToken.requireUnclaimed(localDeclarations)
+    LocalParameterIdentity.requireUnclaimed(allLocalDeclarations)
 
     val declaredByName = declarations.map(token => token.declaration.name -> token).toMap
     val boolDeclaredByName = boolDeclarations.map(token => token.declaration.name -> token).toMap
     val used = ports.flatMap(_.parameters).toSet ++ items.parameters ++
-      localParameters.flatMap(_.parameters)
+      localParameters.flatMap(_.parameters) ++ booleanLocalParameters.flatMap(_.parameters)
     used.toVector
       .sortBy(token => (token.declaration.name, token.origin.file, token.origin.line))
       .foreach { token =>
@@ -435,7 +549,8 @@ private[morphhdl] object ParamRtlFrontend {
       }
 
     val usedBooleans = ports.flatMap(_.booleanParameters).toSet ++
-      items.booleanParameters ++ localParameters.flatMap(_.booleanParameters)
+      items.booleanParameters ++ localParameters.flatMap(_.booleanParameters) ++
+      booleanLocalParameters.flatMap(_.booleanParameters)
     usedBooleans.toVector
       .sortBy(token => (token.declaration.name, token.origin.file, token.origin.line))
       .foreach { token =>
@@ -467,8 +582,9 @@ private[morphhdl] object ParamRtlFrontend {
 
     val localDeclaredByName = localDeclarations.map(token => token.declaration.name -> token).toMap
     val usedLocals = ports.flatMap(_.localParameters).toSet ++ items.localParameters ++
-      localParameters.flatMap(_.localParameters)
-    LocalParameterToken.requireUnclaimed(usedLocals.toVector)
+      localParameters.flatMap(_.localParameters) ++
+      booleanLocalParameters.flatMap(_.localParameters)
+    LocalParameterIdentity.requireUnclaimed(usedLocals.toVector)
     usedLocals.toVector
       .sortBy(token => (token.declaration.name, token.origin.file, token.origin.line))
       .foreach { token =>
@@ -482,16 +598,63 @@ private[morphhdl] object ParamRtlFrontend {
               token.origin
             )
           case None =>
-            FrontendException.failAt(
-              "MORPH-FRONTEND-LOCAL-PARAMETER-NOT-DECLARED",
-              s"module '$name' uses local parameter '${token.declaration.name}' without declaring it",
-              token.origin
-            )
+            if (booleanLocalNames(token.declaration.name)) {
+              FrontendException.failAt(
+                "MORPH-FRONTEND-LOCAL-PARAMETER-KIND-MISMATCH",
+                s"module '$name' uses local '${token.declaration.name}' as integer " +
+                  "but declares it as Boolean",
+                token.origin
+              )
+            } else {
+              FrontendException.failAt(
+                "MORPH-FRONTEND-LOCAL-PARAMETER-NOT-DECLARED",
+                s"module '$name' uses local parameter '${token.declaration.name}' without declaring it",
+                token.origin
+              )
+            }
         }
       }
 
-    val orderedLocalDeclarations = dependencyFirst(localDeclarations, name)
-    LocalParameterToken.claimAll(
+    val booleanLocalDeclaredByName =
+      booleanLocalDeclarations.map(token => token.declaration.name -> token).toMap
+    val usedBooleanLocals = ports.flatMap(_.booleanLocalParameters).toSet ++
+      items.booleanLocalParameters ++ localParameters.flatMap(_.booleanLocalParameters) ++
+      booleanLocalParameters.flatMap(_.booleanLocalParameters)
+    LocalParameterIdentity.requireUnclaimed(usedBooleanLocals.toVector)
+    usedBooleanLocals.toVector
+      .sortBy(token => (token.declaration.name, token.origin.file, token.origin.line))
+      .foreach { token =>
+        booleanLocalDeclaredByName.get(token.declaration.name) match {
+          case Some(declared) if declared eq token =>
+          case Some(declared) =>
+            FrontendException.failAt(
+              "MORPH-FRONTEND-BOOLEAN-LOCAL-PARAMETER-TOKEN-MISMATCH",
+              s"module '$name' declares Boolean local '${declared.declaration.name}' from " +
+                s"${declared.origin.rendered} but uses a distinct declaration from " +
+                token.origin.rendered,
+              token.origin
+            )
+          case None =>
+            if (integerLocalNames(token.declaration.name)) {
+              FrontendException.failAt(
+                "MORPH-FRONTEND-LOCAL-PARAMETER-KIND-MISMATCH",
+                s"module '$name' uses local '${token.declaration.name}' as Boolean " +
+                  "but declares it as integer",
+                token.origin
+              )
+            } else {
+              FrontendException.failAt(
+                "MORPH-FRONTEND-BOOLEAN-LOCAL-PARAMETER-NOT-DECLARED",
+                s"module '$name' uses Boolean local parameter '${token.declaration.name}' " +
+                  "without declaring it",
+                token.origin
+              )
+            }
+        }
+      }
+
+    val orderedLocalDeclarations = dependencyFirst(allLocalDeclarations, name)
+    LocalParameterIdentity.claimAll(
       orderedLocalDeclarations,
       new LocalParameterOwner(name, origin)
     )
@@ -501,31 +664,36 @@ private[morphhdl] object ParamRtlFrontend {
       parameters = parameters.map(_.raw),
       ports = ports.map(_.raw),
       items = items.raw,
-      localParameters = orderedLocalDeclarations.map(_.declaration),
-      booleanParameters = booleanParameters.map(_.raw)
+      localParameters = orderedLocalDeclarations.collect {
+        case token: LocalParameterToken => token.declaration
+      },
+      booleanParameters = booleanParameters.map(_.raw),
+      booleanLocalParameters = orderedLocalDeclarations.collect {
+        case token: BooleanLocalParameterToken => token.declaration
+      }
     )
   }
 
   private def dependencyFirst(
-      declarations: Vector[LocalParameterToken],
+      declarations: Vector[LocalParameterIdentity],
       moduleName: String
-  ): Vector[LocalParameterToken] = {
+  ): Vector[LocalParameterIdentity] = {
     var remaining = declarations.map(token => token -> token.dependencies).toMap
-    val result = Vector.newBuilder[LocalParameterToken]
+    val result = Vector.newBuilder[LocalParameterIdentity]
 
     while (remaining.nonEmpty) {
       val ready = remaining.iterator
         .collect { case (token, dependencies) if dependencies.forall(!remaining.contains(_)) => token }
         .toVector
-        .sortBy(token => (token.declaration.name, token.origin.file, token.origin.line))
+        .sortBy(token => (token.name, localKindRank(token), token.origin.file, token.origin.line))
 
       if (ready.isEmpty) {
         val first = remaining.keys.toVector
-          .sortBy(token => (token.declaration.name, token.origin.file, token.origin.line))
+          .sortBy(token => (token.name, localKindRank(token), token.origin.file, token.origin.line))
           .head
         FrontendException.failAt(
           "MORPH-FRONTEND-LOCAL-PARAMETER-CYCLE",
-          s"module '$moduleName' has a cycle involving local parameter '${first.declaration.name}'",
+          s"module '$moduleName' has a cycle involving local parameter '${first.name}'",
           first.origin
         )
       }
@@ -538,6 +706,11 @@ private[morphhdl] object ParamRtlFrontend {
     }
 
     result.result()
+  }
+
+  private def localKindRank(token: LocalParameterIdentity): Int = token match {
+    case _: LocalParameterToken        => 0
+    case _: BooleanLocalParameterToken => 1
   }
 
   private val Identifier = "[A-Za-z_][A-Za-z0-9_]*".r

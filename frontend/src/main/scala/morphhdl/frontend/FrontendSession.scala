@@ -136,6 +136,7 @@ private[frontend] object FrontendSession {
           parameters = items.flatMap(_.parameters).toSet,
           booleanParameters = items.flatMap(_.booleanParameters).toSet,
           localParameters = items.flatMap(_.localParameters).toSet,
+          booleanLocalParameters = items.flatMap(_.booleanLocalParameters).toSet,
           scopes = items.flatMap(_.scopes).toSet,
           origin = origin
         )
@@ -227,6 +228,8 @@ private[frontend] object FrontendSession {
             booleanParameters = range.end.booleanParameters ++
               childCollector.flatMap(_.booleanParameters),
             localParameters = range.end.localParameters ++ childCollector.flatMap(_.localParameters),
+            booleanLocalParameters = range.end.booleanLocalParameters ++
+              childCollector.flatMap(_.booleanLocalParameters),
             origin = range.origin
           )
         }
@@ -360,6 +363,8 @@ private[frontend] object FrontendSession {
             allItems.flatMap(_.booleanParameters),
           localParameters = token.condition.localParameters ++
             allItems.flatMap(_.localParameters),
+          booleanLocalParameters = token.condition.booleanLocalParameters ++
+            allItems.flatMap(_.booleanLocalParameters),
           scopes = allItems.flatMap(_.scopes).toSet,
           origin = token.origin
         )
@@ -451,6 +456,7 @@ private[frontend] object FrontendSession {
       parameters = item.parameters,
       booleanParameters = item.booleanParameters,
       localParameters = item.localParameters,
+      booleanLocalParameters = item.booleanLocalParameters,
       origin = item.origin
     )
   }

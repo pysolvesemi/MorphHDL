@@ -9,6 +9,7 @@ import morphhdl.paramrtl.BoolExpr.{
   LessThan => BoolLessThan,
   LessThanOrEqual => BoolLessThanOrEqual,
   Literal => BoolLiteral,
+  LocalParameterRef => BoolLocalParameterRef,
   Not => BoolNot,
   NotEqual => BoolNotEqual,
   Or => BoolOr,
@@ -30,6 +31,7 @@ import morphhdl.paramrtl.IntExpr.{
 import morphhdl.paramrtl.IntExpressionFailure.{
   DivisorMayBeZero,
   UnresolvedBooleanParameter,
+  UnresolvedBooleanLocalParameter,
   UnresolvedGenerateIndex,
   UnresolvedLocalParameter,
   UnresolvedParameter
@@ -63,7 +65,9 @@ final case class ValidatedModuleFacts private[morphhdl] (
     localParameterFacts: Map[String, IntExprFacts],
     booleanParameters: Map[String, BooleanParameter] = Map.empty,
     orderedInstances: Vector[ModuleItem.ModuleInstance] = Vector.empty,
-    instanceFacts: Map[String, ValidatedInstanceFacts] = Map.empty
+    instanceFacts: Map[String, ValidatedInstanceFacts] = Map.empty,
+    orderedLocalDeclarations: Vector[LocalParameterDeclaration] = Vector.empty,
+    booleanLocalParameterFacts: Map[String, Boolean] = Map.empty
 )
 
 final case class ValidatedInstanceFacts private[morphhdl] (
@@ -71,7 +75,8 @@ final case class ValidatedInstanceFacts private[morphhdl] (
     parameterFacts: Map[String, IntExprFacts],
     localParameterFacts: Map[String, IntExprFacts],
     instantiatedPortTypes: Map[String, PackedBits],
-    booleanParameters: Map[String, BooleanParameter] = Map.empty
+    booleanParameters: Map[String, BooleanParameter] = Map.empty,
+    booleanLocalParameterFacts: Map[String, Boolean] = Map.empty
 )
 
 final class ValidatedDesign private[morphhdl] (
@@ -155,6 +160,7 @@ object ParamRtlValidator {
     val parameters = module.parameters.sortBy(_.name)
     val booleanParameters = module.booleanParameters.sortBy(_.name)
     val localParameters = module.localParameters.sortBy(_.name)
+    val booleanLocalParameters = module.booleanLocalParameters.sortBy(_.name)
     val ports = module.ports.sortBy(_.name)
     val instances = module.items.collect { case instance: ModuleInstance => instance }.sortBy(_.name)
     val generateFors = module.items.collect { case generate: GenerateFor => generate }.sortBy(_.label)
@@ -180,6 +186,13 @@ object ParamRtlValidator {
       modulePath :+ "localParameters",
       "PRTL-DUPLICATE-LOCAL-PARAMETER",
       "local parameter",
+      diagnostics
+    )
+    addDuplicateDiagnostics(
+      booleanLocalParameters.map(_.name),
+      modulePath :+ "booleanLocalParameters",
+      "PRTL-DUPLICATE-BOOLEAN-LOCAL-PARAMETER",
+      "Boolean local parameter",
       diagnostics
     )
     addDuplicateDiagnostics(
@@ -215,6 +228,7 @@ object ParamRtlValidator {
       "parameter" -> parameters.map(_.name).toSet,
       "Boolean parameter" -> booleanParameters.map(_.name).toSet,
       "local parameter" -> localParameters.map(_.name).toSet,
+      "Boolean local parameter" -> booleanLocalParameters.map(_.name).toSet,
       "port" -> ports.map(_.name).toSet,
       "instance" -> instances.map(_.name).toSet,
       "generate label" -> (generateFors.map(_.label) ++ generateIfBlocks.map(_.label)).toSet,
@@ -248,12 +262,19 @@ object ParamRtlValidator {
       checkIdentifier(localParameter.name, path :+ "name", "local parameter", diagnostics)
     }
 
+    booleanLocalParameters.foreach { localParameter =>
+      val path = modulePath :+ "booleanLocalParameters" :+ localParameter.name
+      checkIdentifier(localParameter.name, path :+ "name", "Boolean local parameter", diagnostics)
+    }
+
     val parameterByName = firstByName(parameters)(_.name)
     val booleanParameterByName = firstByName(booleanParameters)(_.name)
     val localParameterByName = firstByName(localParameters)(_.name)
+    val booleanLocalParameterByName = firstByName(booleanLocalParameters)(_.name)
     val parameterNames = parameterByName.keySet
     val booleanParameterNames = booleanParameterByName.keySet
     val localParameterNames = localParameterByName.keySet
+    val booleanLocalParameterNames = booleanLocalParameterByName.keySet
 
     localParameters.foreach { localParameter =>
       validateExpressionReferences(
@@ -262,7 +283,21 @@ object ParamRtlValidator {
         localParameterNames,
         modulePath :+ "localParameters" :+ localParameter.name :+ "value",
         diagnostics,
-        booleanParameters = booleanParameterByName
+        booleanParameters = booleanParameterByName,
+        booleanLocalParameters = booleanLocalParameterNames
+      )
+    }
+
+
+    booleanLocalParameters.foreach { localParameter =>
+      validateBooleanExpression(
+        localParameter.value,
+        booleanParameterByName,
+        parameterNames,
+        localParameterNames,
+        modulePath :+ "booleanLocalParameters" :+ localParameter.name :+ "value",
+        diagnostics,
+        booleanLocalParameters = booleanLocalParameterNames
       )
     }
 
@@ -275,7 +310,8 @@ object ParamRtlValidator {
         localParameterNames,
         path :+ "width",
         diagnostics,
-        booleanParameters = booleanParameterByName
+        booleanParameters = booleanParameterByName,
+        booleanLocalParameters = booleanLocalParameterNames
       )
       IntExpressionAnalysis
         .parameterReferences(port.dataType.width)
@@ -310,7 +346,8 @@ object ParamRtlValidator {
         path :+ "count",
         diagnostics,
         Set.empty,
-        booleanParameterByName
+        booleanParameterByName,
+        booleanLocalParameterNames
       )
 
       val bodyInstances = generate.body.collect { case instance: ModuleInstance => instance }.sortBy(_.name)
@@ -367,7 +404,8 @@ object ParamRtlValidator {
         parameterNames,
         localParameterNames,
         path :+ "condition",
-        diagnostics
+        diagnostics,
+        booleanLocalParameters = booleanLocalParameterNames
       )
 
       generateBlocks(generate).zipWithIndex.foreach { case (block, branchIndex) =>
@@ -407,41 +445,104 @@ object ParamRtlValidator {
 
     }
 
-    val dependencies = localParameterByName.map { case (name, localParameter) =>
-      name -> IntExpressionAnalysis
-        .localParameterReferences(localParameter.value)
-        .filter(localParameterNames.contains)
-        .distinct
-        .sorted
+    def integerLocalKey(name: String): String = s"integer:$name"
+    def booleanLocalKey(name: String): String = s"boolean:$name"
+
+    val integerDependencies = localParameterByName.map { case (name, localParameter) =>
+      integerLocalKey(name) -> (
+        IntExpressionAnalysis
+          .localParameterReferences(localParameter.value)
+          .filter(localParameterNames.contains)
+          .map(integerLocalKey) ++
+          IntExpressionAnalysis
+            .booleanLocalParameterReferences(localParameter.value)
+            .filter(booleanLocalParameterNames.contains)
+            .map(booleanLocalKey)
+      ).distinct.sorted
+    }
+    val booleanDependencies = booleanLocalParameterByName.map { case (name, localParameter) =>
+      booleanLocalKey(name) -> (
+        BoolExpressionAnalysis
+          .localParameterReferences(localParameter.value)
+          .filter(localParameterNames.contains)
+          .map(integerLocalKey) ++
+          BoolExpressionAnalysis
+            .booleanLocalParameterReferences(localParameter.value)
+            .filter(booleanLocalParameterNames.contains)
+            .map(booleanLocalKey)
+      ).distinct.sorted
     }
 
-    val localParameterGraph = DependencyGraph.analyze(dependencies)
+    val localParameterGraph = DependencyGraph.analyze(
+      integerDependencies ++ booleanDependencies,
+      key => {
+        val separator = key.indexOf(':')
+        val kindRank = if (key.startsWith("integer:")) "0" else "1"
+        s"${key.substring(separator + 1)}:$kindRank"
+      }
+    )
     val cycleGroups = localParameterGraph.cycleGroups
     cycleGroups.foreach { names =>
+      val renderedNames = names.map {
+        case name if name.startsWith("integer:") => s"integer ${name.stripPrefix("integer:")}"
+        case name                                => s"Boolean ${name.stripPrefix("boolean:")}"
+      }
       diagnostics += Diagnostic(
         "PRTL-LOCAL-PARAMETER-CYCLE",
-        modulePath :+ "localParameters" :+ names.head,
-        s"Local-parameter dependency cycle members: ${names.mkString(", ")}"
+        modulePath :+ "localParameters" :+ names.head.substring(names.head.indexOf(':') + 1),
+        s"Local-parameter dependency cycle members: ${renderedNames.mkString(", ")}"
       )
     }
 
-    val orderedLocalParameters = localParameterGraph.orderedNames.map(localParameterByName)
+    val orderedLocalDeclarations: Vector[LocalParameterDeclaration] =
+      localParameterGraph.orderedNames.map {
+        case key if key.startsWith("integer:") => localParameterByName(key.stripPrefix("integer:"))
+        case key                               => booleanLocalParameterByName(key.stripPrefix("boolean:"))
+      }
+    val orderedLocalParameters = orderedLocalDeclarations.collect {
+      case localParameter: IntegerLocalParameter => localParameter
+    }
 
     val parameterFacts = parameterByName.flatMap { case (name, parameter) =>
       IntExpressionAnalysis.parameterFacts(parameter).map(name -> _)
     }
     var localParameterFacts = Map.empty[String, IntExprFacts]
+    var booleanLocalParameterFacts = Map.empty[String, Boolean]
 
-    orderedLocalParameters.foreach { localParameter =>
-      val path = modulePath :+ "localParameters" :+ localParameter.name :+ "value"
-      analyzeExpression(
-        localParameter.value,
-        parameterFacts,
-        localParameterFacts,
-        path,
-        diagnostics,
-        booleanParameters = booleanParameterByName
-      ).foreach(facts => localParameterFacts = localParameterFacts.updated(localParameter.name, facts))
+    orderedLocalDeclarations.foreach {
+      case localParameter: IntegerLocalParameter =>
+        val path = modulePath :+ "localParameters" :+ localParameter.name :+ "value"
+        analyzeExpression(
+          localParameter.value,
+          parameterFacts,
+          localParameterFacts,
+          path,
+          diagnostics,
+          booleanParameters = booleanParameterByName,
+          booleanLocalParameters = booleanLocalParameterFacts
+        ).foreach(facts => localParameterFacts = localParameterFacts.updated(localParameter.name, facts))
+      case localParameter: BooleanLocalParameter =>
+        val path = modulePath :+ "booleanLocalParameters" :+ localParameter.name :+ "value"
+        analyzeBooleanExpression(
+          localParameter.value,
+          booleanParameterByName,
+          parameterFacts,
+          localParameterFacts,
+          path,
+          diagnostics,
+          booleanLocalParameterFacts
+        )
+        BoolExpressionAnalysis
+          .evaluateDefault(
+            localParameter.value,
+            booleanParameterByName,
+            parameterFacts,
+            localParameterFacts,
+            Map.empty,
+            booleanLocalParameterFacts
+          )
+          .toOption
+          .foreach(value => booleanLocalParameterFacts = booleanLocalParameterFacts.updated(localParameter.name, value))
     }
 
     generateIfs.foreach { generate =>
@@ -451,7 +552,8 @@ object ParamRtlValidator {
         parameterFacts,
         localParameterFacts,
         modulePath :+ "generateIfs" :+ generate.whenTrue.label :+ "condition",
-        diagnostics
+        diagnostics,
+        booleanLocalParameterFacts
       )
     }
 
@@ -462,7 +564,8 @@ object ParamRtlValidator {
         localParameterFacts,
         modulePath :+ "ports" :+ port.name :+ "width",
         diagnostics,
-        booleanParameterByName
+        booleanParameterByName,
+        booleanLocalParameterFacts
       )
     }
 
@@ -474,7 +577,8 @@ object ParamRtlValidator {
         localParameterFacts,
         path,
         diagnostics,
-        booleanParameters = booleanParameterByName
+        booleanParameters = booleanParameterByName,
+        booleanLocalParameters = booleanLocalParameterFacts
       ).foreach { facts =>
         if (!facts.interval.lower.exists(_ >= 1))
           diagnostics += Diagnostic(
@@ -488,7 +592,9 @@ object ParamRtlValidator {
       orderedLocalParameters,
       parameterFacts,
       localParameterFacts,
-      booleanParameterByName
+      booleanParameterByName,
+      orderedLocalDeclarations = orderedLocalDeclarations,
+      booleanLocalParameterFacts = booleanLocalParameterFacts
     )
   }
 
@@ -536,7 +642,8 @@ object ParamRtlValidator {
       localParameters: Set[String],
       path: Vector[String],
       diagnostics: DiagnosticBuilder,
-      generateIndices: Set[String] = Set.empty
+      generateIndices: Set[String] = Set.empty,
+      booleanLocalParameters: Set[String] = Set.empty
   ): Unit = expression match {
     case BoolLiteral(_) =>
     case BoolParameterRef(name) =>
@@ -547,6 +654,17 @@ object ParamRtlValidator {
           s"Boolean expression references unknown public parameter '$name'"
         )
       }
+    case BoolLocalParameterRef(name) =>
+      if (!booleanLocalParameters.contains(name)) {
+        val (code, message) =
+          if (localParameters.contains(name))
+            "PRTL-LOCAL-PARAMETER-KIND-MISMATCH" ->
+              s"Boolean expression references integer local parameter '$name' as Boolean"
+          else
+            "PRTL-UNRESOLVED-BOOLEAN-LOCAL-PARAMETER" ->
+              s"Boolean expression references unknown Boolean local parameter '$name'"
+        diagnostics += Diagnostic(code, path, message)
+      }
     case BoolNot(value) =>
       validateBooleanExpression(
         value,
@@ -555,7 +673,8 @@ object ParamRtlValidator {
         localParameters,
         path :+ "operand",
         diagnostics,
-        generateIndices
+        generateIndices,
+        booleanLocalParameters
       )
     case BoolAnd(left, right) =>
       validateBooleanBinary(
@@ -566,7 +685,8 @@ object ParamRtlValidator {
         localParameters,
         path,
         diagnostics,
-        generateIndices
+        generateIndices,
+        booleanLocalParameters
       )
     case BoolOr(left, right) =>
       validateBooleanBinary(
@@ -577,7 +697,8 @@ object ParamRtlValidator {
         localParameters,
         path,
         diagnostics,
-        generateIndices
+        generateIndices,
+        booleanLocalParameters
       )
     case BoolLessThan(left, right) =>
       validateComparisonReferences(
@@ -588,7 +709,8 @@ object ParamRtlValidator {
         localParameters,
         path,
         diagnostics,
-        generateIndices
+        generateIndices,
+        booleanLocalParameters
       )
     case BoolLessThanOrEqual(left, right) =>
       validateComparisonReferences(
@@ -599,7 +721,8 @@ object ParamRtlValidator {
         localParameters,
         path,
         diagnostics,
-        generateIndices
+        generateIndices,
+        booleanLocalParameters
       )
     case BoolGreaterThan(left, right) =>
       validateComparisonReferences(
@@ -610,7 +733,8 @@ object ParamRtlValidator {
         localParameters,
         path,
         diagnostics,
-        generateIndices
+        generateIndices,
+        booleanLocalParameters
       )
     case BoolGreaterThanOrEqual(left, right) =>
       validateComparisonReferences(
@@ -621,7 +745,8 @@ object ParamRtlValidator {
         localParameters,
         path,
         diagnostics,
-        generateIndices
+        generateIndices,
+        booleanLocalParameters
       )
     case BoolEqual(left, right) =>
       validateComparisonReferences(
@@ -632,7 +757,8 @@ object ParamRtlValidator {
         localParameters,
         path,
         diagnostics,
-        generateIndices
+        generateIndices,
+        booleanLocalParameters
       )
     case BoolNotEqual(left, right) =>
       validateComparisonReferences(
@@ -643,7 +769,8 @@ object ParamRtlValidator {
         localParameters,
         path,
         diagnostics,
-        generateIndices
+        generateIndices,
+        booleanLocalParameters
       )
   }
 
@@ -655,7 +782,8 @@ object ParamRtlValidator {
       localParameters: Set[String],
       path: Vector[String],
       diagnostics: DiagnosticBuilder,
-      generateIndices: Set[String]
+      generateIndices: Set[String],
+      booleanLocalParameters: Set[String]
   ): Unit = {
     validateBooleanExpression(
       left,
@@ -664,7 +792,8 @@ object ParamRtlValidator {
       localParameters,
       path :+ "left",
       diagnostics,
-      generateIndices
+      generateIndices,
+      booleanLocalParameters
     )
     validateBooleanExpression(
       right,
@@ -673,7 +802,8 @@ object ParamRtlValidator {
       localParameters,
       path :+ "right",
       diagnostics,
-      generateIndices
+      generateIndices,
+      booleanLocalParameters
     )
   }
 
@@ -685,7 +815,8 @@ object ParamRtlValidator {
       localParameters: Set[String],
       path: Vector[String],
       diagnostics: DiagnosticBuilder,
-      generateIndices: Set[String]
+      generateIndices: Set[String],
+      booleanLocalParameters: Set[String]
   ): Unit = {
     validateExpressionReferences(
       left,
@@ -694,7 +825,8 @@ object ParamRtlValidator {
       path :+ "left",
       diagnostics,
       generateIndices,
-      booleanParameters = booleanParameters
+      booleanParameters = booleanParameters,
+      booleanLocalParameters = booleanLocalParameters
     )
     validateExpressionReferences(
       right,
@@ -703,7 +835,8 @@ object ParamRtlValidator {
       path :+ "right",
       diagnostics,
       generateIndices,
-      booleanParameters = booleanParameters
+      booleanParameters = booleanParameters,
+      booleanLocalParameters = booleanLocalParameters
     )
   }
 
@@ -713,9 +846,10 @@ object ParamRtlValidator {
       parameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts],
       path: Vector[String],
-      diagnostics: DiagnosticBuilder
+      diagnostics: DiagnosticBuilder,
+      booleanLocalParameters: Map[String, Boolean] = Map.empty
   ): Unit = expression match {
-    case BoolLiteral(_) | BoolParameterRef(_) =>
+    case BoolLiteral(_) | BoolParameterRef(_) | BoolLocalParameterRef(_) =>
     case BoolNot(value) =>
       analyzeBooleanExpression(
         value,
@@ -723,24 +857,25 @@ object ParamRtlValidator {
         parameters,
         localParameters,
         path :+ "operand",
-        diagnostics
+        diagnostics,
+        booleanLocalParameters
       )
     case BoolAnd(left, right) =>
-      analyzeBooleanBinary(left, right, booleanParameters, parameters, localParameters, path, diagnostics)
+      analyzeBooleanBinary(left, right, booleanParameters, parameters, localParameters, path, diagnostics, booleanLocalParameters)
     case BoolOr(left, right) =>
-      analyzeBooleanBinary(left, right, booleanParameters, parameters, localParameters, path, diagnostics)
+      analyzeBooleanBinary(left, right, booleanParameters, parameters, localParameters, path, diagnostics, booleanLocalParameters)
     case BoolLessThan(left, right) =>
-      analyzeComparison(left, right, booleanParameters, parameters, localParameters, path, diagnostics)
+      analyzeComparison(left, right, booleanParameters, parameters, localParameters, path, diagnostics, booleanLocalParameters)
     case BoolLessThanOrEqual(left, right) =>
-      analyzeComparison(left, right, booleanParameters, parameters, localParameters, path, diagnostics)
+      analyzeComparison(left, right, booleanParameters, parameters, localParameters, path, diagnostics, booleanLocalParameters)
     case BoolGreaterThan(left, right) =>
-      analyzeComparison(left, right, booleanParameters, parameters, localParameters, path, diagnostics)
+      analyzeComparison(left, right, booleanParameters, parameters, localParameters, path, diagnostics, booleanLocalParameters)
     case BoolGreaterThanOrEqual(left, right) =>
-      analyzeComparison(left, right, booleanParameters, parameters, localParameters, path, diagnostics)
+      analyzeComparison(left, right, booleanParameters, parameters, localParameters, path, diagnostics, booleanLocalParameters)
     case BoolEqual(left, right) =>
-      analyzeComparison(left, right, booleanParameters, parameters, localParameters, path, diagnostics)
+      analyzeComparison(left, right, booleanParameters, parameters, localParameters, path, diagnostics, booleanLocalParameters)
     case BoolNotEqual(left, right) =>
-      analyzeComparison(left, right, booleanParameters, parameters, localParameters, path, diagnostics)
+      analyzeComparison(left, right, booleanParameters, parameters, localParameters, path, diagnostics, booleanLocalParameters)
   }
 
   private def analyzeBooleanBinary(
@@ -750,7 +885,8 @@ object ParamRtlValidator {
       parameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts],
       path: Vector[String],
-      diagnostics: DiagnosticBuilder
+      diagnostics: DiagnosticBuilder,
+      booleanLocalParameters: Map[String, Boolean]
   ): Unit = {
     analyzeBooleanExpression(
       left,
@@ -758,7 +894,8 @@ object ParamRtlValidator {
       parameters,
       localParameters,
       path :+ "left",
-      diagnostics
+      diagnostics,
+      booleanLocalParameters
     )
     analyzeBooleanExpression(
       right,
@@ -766,7 +903,8 @@ object ParamRtlValidator {
       parameters,
       localParameters,
       path :+ "right",
-      diagnostics
+      diagnostics,
+      booleanLocalParameters
     )
   }
 
@@ -777,7 +915,8 @@ object ParamRtlValidator {
       parameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts],
       path: Vector[String],
-      diagnostics: DiagnosticBuilder
+      diagnostics: DiagnosticBuilder,
+      booleanLocalParameters: Map[String, Boolean]
   ): Unit = {
     analyzeExpression(
       left,
@@ -785,7 +924,8 @@ object ParamRtlValidator {
       localParameters,
       path :+ "left",
       diagnostics,
-      booleanParameters = booleanParameters
+      booleanParameters = booleanParameters,
+      booleanLocalParameters = booleanLocalParameters
     )
     analyzeExpression(
       right,
@@ -793,7 +933,8 @@ object ParamRtlValidator {
       localParameters,
       path :+ "right",
       diagnostics,
-      booleanParameters = booleanParameters
+      booleanParameters = booleanParameters,
+      booleanLocalParameters = booleanLocalParameters
     )
   }
 
@@ -804,7 +945,8 @@ object ParamRtlValidator {
       path: Vector[String],
       diagnostics: DiagnosticBuilder,
       generateIndices: Set[String] = Set.empty,
-      booleanParameters: Map[String, BooleanParameter] = Map.empty
+      booleanParameters: Map[String, BooleanParameter] = Map.empty,
+      booleanLocalParameters: Set[String] = Set.empty
   ): Unit = expression match {
     case Literal(_) =>
     case ParameterRef(name) if !parameters.contains(name) =>
@@ -815,11 +957,14 @@ object ParamRtlValidator {
       )
     case ParameterRef(_) =>
     case LocalParameterRef(name) if !localParameters.contains(name) =>
-      diagnostics += Diagnostic(
-        "PRTL-UNRESOLVED-LOCAL-PARAMETER",
-        path,
-        s"Integer expression references unknown local parameter '$name'"
-      )
+      val (code, message) =
+        if (booleanLocalParameters.contains(name))
+          "PRTL-LOCAL-PARAMETER-KIND-MISMATCH" ->
+            s"Integer expression references Boolean local parameter '$name' as integer"
+        else
+          "PRTL-UNRESOLVED-LOCAL-PARAMETER" ->
+            s"Integer expression references unknown local parameter '$name'"
+      diagnostics += Diagnostic(code, path, message)
     case LocalParameterRef(_) =>
     case GenerateIndexRef(name) if !generateIndices.contains(name) =>
       diagnostics += Diagnostic(
@@ -836,7 +981,8 @@ object ParamRtlValidator {
         path :+ "operand",
         diagnostics,
         generateIndices,
-        booleanParameters
+        booleanParameters,
+        booleanLocalParameters
       )
     case Add(left, right) =>
       validateBinaryReferences(
@@ -847,7 +993,8 @@ object ParamRtlValidator {
         path,
         diagnostics,
         generateIndices,
-        booleanParameters
+        booleanParameters,
+        booleanLocalParameters
       )
     case Subtract(left, right) =>
       validateBinaryReferences(
@@ -858,7 +1005,8 @@ object ParamRtlValidator {
         path,
         diagnostics,
         generateIndices,
-        booleanParameters
+        booleanParameters,
+        booleanLocalParameters
       )
     case Multiply(left, right) =>
       validateBinaryReferences(
@@ -869,7 +1017,8 @@ object ParamRtlValidator {
         path,
         diagnostics,
         generateIndices,
-        booleanParameters
+        booleanParameters,
+        booleanLocalParameters
       )
     case Divide(left, right) =>
       validateBinaryReferences(
@@ -880,7 +1029,8 @@ object ParamRtlValidator {
         path,
         diagnostics,
         generateIndices,
-        booleanParameters
+        booleanParameters,
+        booleanLocalParameters
       )
     case Modulo(left, right) =>
       validateBinaryReferences(
@@ -891,7 +1041,8 @@ object ParamRtlValidator {
         path,
         diagnostics,
         generateIndices,
-        booleanParameters
+        booleanParameters,
+        booleanLocalParameters
       )
     case Select(condition, whenTrue, whenFalse) =>
       validateBooleanExpression(
@@ -901,7 +1052,8 @@ object ParamRtlValidator {
         localParameters,
         path :+ "condition",
         diagnostics,
-        generateIndices
+        generateIndices,
+        booleanLocalParameters
       )
       validateExpressionReferences(
         whenTrue,
@@ -910,7 +1062,8 @@ object ParamRtlValidator {
         path :+ "whenTrue",
         diagnostics,
         generateIndices,
-        booleanParameters
+        booleanParameters,
+        booleanLocalParameters
       )
       validateExpressionReferences(
         whenFalse,
@@ -919,7 +1072,8 @@ object ParamRtlValidator {
         path :+ "whenFalse",
         diagnostics,
         generateIndices,
-        booleanParameters
+        booleanParameters,
+        booleanLocalParameters
       )
   }
 
@@ -931,7 +1085,8 @@ object ParamRtlValidator {
       path: Vector[String],
       diagnostics: DiagnosticBuilder,
       generateIndices: Set[String],
-      booleanParameters: Map[String, BooleanParameter]
+      booleanParameters: Map[String, BooleanParameter],
+      booleanLocalParameters: Set[String]
   ): Unit = {
     validateExpressionReferences(
       left,
@@ -940,7 +1095,8 @@ object ParamRtlValidator {
       path :+ "left",
       diagnostics,
       generateIndices,
-      booleanParameters
+      booleanParameters,
+      booleanLocalParameters
     )
     validateExpressionReferences(
       right,
@@ -949,7 +1105,8 @@ object ParamRtlValidator {
       path :+ "right",
       diagnostics,
       generateIndices,
-      booleanParameters
+      booleanParameters,
+      booleanLocalParameters
     )
   }
 
@@ -960,14 +1117,16 @@ object ParamRtlValidator {
       path: Vector[String],
       diagnostics: DiagnosticBuilder,
       generateIndices: Map[String, IntExprFacts] = Map.empty,
-      booleanParameters: Map[String, BooleanParameter] = Map.empty
+      booleanParameters: Map[String, BooleanParameter] = Map.empty,
+      booleanLocalParameters: Map[String, Boolean] = Map.empty
   ): Option[IntExprFacts] =
     IntExpressionAnalysis.analyze(
       expression,
       parameters,
       localParameters,
       booleanParameters,
-      generateIndices
+      generateIndices,
+      booleanLocalParameters
     ) match {
       case Right(facts) => Some(facts)
       case Left(DivisorMayBeZero(operator, interval)) =>
@@ -979,6 +1138,7 @@ object ParamRtlValidator {
         None
       case Left(_: UnresolvedParameter) |
           Left(_: UnresolvedBooleanParameter) |
+          Left(_: UnresolvedBooleanLocalParameter) |
           Left(_: UnresolvedLocalParameter) |
           Left(_: UnresolvedGenerateIndex) => None
     }
@@ -989,7 +1149,8 @@ object ParamRtlValidator {
       localParameters: Map[String, IntExprFacts],
       path: Vector[String],
       diagnostics: DiagnosticBuilder,
-      booleanParameters: Map[String, BooleanParameter] = Map.empty
+      booleanParameters: Map[String, BooleanParameter] = Map.empty,
+      booleanLocalParameters: Map[String, Boolean] = Map.empty
   ): Unit = expression match {
     case Literal(value) if value <= 0 =>
       diagnostics += Diagnostic(
@@ -1005,7 +1166,8 @@ object ParamRtlValidator {
         localParameters,
         path,
         diagnostics,
-        booleanParameters = booleanParameters
+        booleanParameters = booleanParameters,
+        booleanLocalParameters = booleanLocalParameters
       ).foreach { facts =>
         if (!facts.interval.lower.exists(_ >= 1)) {
           diagnostics += Diagnostic(
@@ -1050,12 +1212,24 @@ object ParamRtlValidator {
     val parentParameters = baseFacts.parameterFacts
     val parentLocals = baseFacts.localParameterFacts
     val parentBooleanParameters = baseFacts.booleanParameters
+    val parentBooleanLocals = baseFacts.booleanLocalParameterFacts
     val parentParameterNames = module.parameters.map(_.name).toSet
     val parentLocalNames = module.localParameters.map(_.name).toSet
-    val parentLocalExpressions = expandLocalExpressions(baseFacts.orderedLocalParameters, Map.empty)
+    val parentBooleanLocalNames = module.booleanLocalParameters.map(_.name).toSet
+    val parentLocalExpressions = expandCombinedLocalExpressions(
+      baseFacts.orderedLocalDeclarations,
+      Map.empty,
+      Map.empty
+    )
 
     def expandParentExpression(expression: IntExpr): IntExpr =
-      substituteLocalDefinition(expression, Map.empty, parentLocalExpressions)
+      substituteLocalDefinition(
+        expression,
+        Map.empty,
+        parentLocalExpressions.integer,
+        Map.empty,
+        parentLocalExpressions.boolean
+      )
 
     def resolveActual(
         expression: RtlExpr,
@@ -1078,7 +1252,8 @@ object ParamRtlValidator {
           path :+ "offset",
           diagnostics,
           allowedIndices,
-          parentBooleanParameters
+          parentBooleanParameters,
+          parentBooleanLocalNames
         )
         analyzeExpression(
           offset,
@@ -1087,7 +1262,8 @@ object ParamRtlValidator {
           path :+ "offset",
           diagnostics,
           scopedIndexFacts,
-          parentBooleanParameters
+          parentBooleanParameters,
+          parentBooleanLocals
         )
         validateExpressionReferences(
           width,
@@ -1096,7 +1272,8 @@ object ParamRtlValidator {
           path :+ "width",
           diagnostics,
           allowedIndices,
-          parentBooleanParameters
+          parentBooleanParameters,
+          parentBooleanLocalNames
         )
         validateWidth(
           width,
@@ -1104,7 +1281,8 @@ object ParamRtlValidator {
           parentLocals,
           path :+ "width",
           diagnostics,
-          parentBooleanParameters
+          parentBooleanParameters,
+          parentBooleanLocals
         )
         if (containsGenerateIndex(width))
           diagnostics += Diagnostic(
@@ -1203,7 +1381,8 @@ object ParamRtlValidator {
           parentLocalNames,
           bindingPath :+ binding.parameterName :+ "value",
           diagnostics,
-          booleanParameters = parentBooleanParameters
+          booleanParameters = parentBooleanParameters,
+          booleanLocalParameters = parentBooleanLocalNames
         )
       }
       instance.booleanParameterBindings.sortBy(_.parameterName).foreach { binding =>
@@ -1214,7 +1393,8 @@ object ParamRtlValidator {
           parentParameterNames,
           parentLocalNames,
           currentPath,
-          diagnostics
+          diagnostics,
+          booleanLocalParameters = parentBooleanLocalNames
         )
         analyzeBooleanExpression(
           binding.value,
@@ -1222,7 +1402,8 @@ object ParamRtlValidator {
           parentParameters,
           parentLocals,
           currentPath,
-          diagnostics
+          diagnostics,
+          parentBooleanLocals
         )
       }
 
@@ -1267,7 +1448,8 @@ object ParamRtlValidator {
                   parentLocals,
                   currentPath :+ "value",
                   diagnostics,
-                  booleanParameters = parentBooleanParameters
+                  booleanParameters = parentBooleanParameters,
+                  booleanLocalParameters = parentBooleanLocals
                 ).foreach { bindingFacts =>
                   analyzedBindings.update(binding.parameterName, bindingFacts)
                   if (!domainContained(bindingFacts.interval, targetParameter))
@@ -1303,7 +1485,9 @@ object ParamRtlValidator {
                     binding.value,
                     parentBooleanParameters,
                     parentParameters,
-                    parentLocals
+                    parentLocals,
+                    Map.empty,
+                    parentBooleanLocals
                   )
                   .toOption
                   .foreach { default =>
@@ -1325,22 +1509,45 @@ object ParamRtlValidator {
             parameter.name -> analyzedBooleanBindings.getOrElse(parameter.name, parameter)
           }.toMap
           var instantiatedLocals = Map.empty[String, IntExprFacts]
-          targetBaseFacts.orderedLocalParameters.foreach { localParameter =>
-            IntExpressionAnalysis
-              .analyze(
-                localParameter.value,
-                instantiatedParameters,
-                instantiatedLocals,
-                instantiatedBooleanParameters,
-                Map.empty
-              )
-              .toOption
-              .foreach(facts => instantiatedLocals = instantiatedLocals.updated(localParameter.name, facts))
+          var instantiatedBooleanLocals = Map.empty[String, Boolean]
+          targetBaseFacts.orderedLocalDeclarations.foreach {
+            case localParameter: IntegerLocalParameter =>
+              IntExpressionAnalysis
+                .analyze(
+                  localParameter.value,
+                  instantiatedParameters,
+                  instantiatedLocals,
+                  instantiatedBooleanParameters,
+                  Map.empty,
+                  instantiatedBooleanLocals
+                )
+                .toOption
+                .foreach(facts => instantiatedLocals = instantiatedLocals.updated(localParameter.name, facts))
+            case localParameter: BooleanLocalParameter =>
+              BoolExpressionAnalysis
+                .evaluateDefault(
+                  localParameter.value,
+                  instantiatedBooleanParameters,
+                  instantiatedParameters,
+                  instantiatedLocals,
+                  Map.empty,
+                  instantiatedBooleanLocals
+                )
+                .toOption
+                .foreach(value =>
+                  instantiatedBooleanLocals = instantiatedBooleanLocals.updated(localParameter.name, value)
+                )
           }
 
           val expandedBindings = targetParameters.map { parameter =>
             val raw = bindingByName.get(parameter.name).map(_.value).getOrElse(Literal(parameter.default))
-            parameter.name -> IntExpressionEquivalence.substitute(raw, Map.empty, parentLocalExpressions)
+            parameter.name -> substituteLocalDefinition(
+              raw,
+              Map.empty,
+              parentLocalExpressions.integer,
+              Map.empty,
+              parentLocalExpressions.boolean
+            )
           }.toMap
           val targetBooleanExpressions = targetBooleanParameters.map { parameter =>
             val expression = booleanBindingByName
@@ -1350,26 +1557,28 @@ object ParamRtlValidator {
             parameter.name -> substituteBooleanDefinition(
               expression,
               Map.empty,
-              parentLocalExpressions,
-              Map.empty
+              parentLocalExpressions.integer,
+              Map.empty,
+              parentLocalExpressions.boolean
             )
           }.toMap
           val targetLocalExpressions =
-            expandLocalExpressions(
-              targetBaseFacts.orderedLocalParameters,
+            expandCombinedLocalExpressions(
+              targetBaseFacts.orderedLocalDeclarations,
               expandedBindings,
               targetBooleanExpressions
             )
           val instantiatedPortTypes = targetModule.ports.map { port =>
             val width = port.dataType.width match {
               case ParameterRef(name)      => expandedBindings.getOrElse(name, port.dataType.width)
-              case LocalParameterRef(name) => targetLocalExpressions.getOrElse(name, port.dataType.width)
+              case LocalParameterRef(name) => targetLocalExpressions.integer.getOrElse(name, port.dataType.width)
               case other =>
                 substituteLocalDefinition(
                   other,
                   expandedBindings,
-                  targetLocalExpressions,
-                  targetBooleanExpressions
+                  targetLocalExpressions.integer,
+                  targetBooleanExpressions,
+                  targetLocalExpressions.boolean
                 )
             }
             port.name -> port.dataType.copy(width = width)
@@ -1416,16 +1625,26 @@ object ParamRtlValidator {
                       instantiatedParameters,
                       instantiatedLocals,
                       instantiatedBooleanParameters,
-                      Map.empty
+                      Map.empty,
+                      instantiatedBooleanLocals
                     )
                     .toOption
+                  val closedExpected = isClosedIntegerExpression(expected.width)
+                  val effectiveExpected = instantiatedExpectedFacts
+                    .filter(_ => closedExpected)
+                    .map(facts => expected.copy(width = Literal(facts.defaultValue)))
+                    .getOrElse(expected)
+                  val effectiveExpectedFacts = instantiatedExpectedFacts.map { facts =>
+                    if (closedExpected) facts.copy(interval = IntInterval.point(facts.defaultValue))
+                    else facts
+                  }
                   if (
                     !packedTypesEquivalent(
                       actual.dataType,
-                      expected,
+                      effectiveExpected,
                       module,
                       baseFacts,
-                      instantiatedExpectedFacts
+                      effectiveExpectedFacts
                     )
                   )
                     diagnostics += Diagnostic(
@@ -1451,7 +1670,8 @@ object ParamRtlValidator {
             instantiatedParameters,
             instantiatedLocals,
             instantiatedPortTypes,
-            instantiatedBooleanParameters
+            instantiatedBooleanParameters,
+            instantiatedBooleanLocals
           )
       }
     }
@@ -1497,7 +1717,14 @@ object ParamRtlValidator {
     generateFors.foreach { generate =>
       val path = modulePath :+ "generateFors" :+ generate.label
       val countFacts = IntExpressionAnalysis
-        .analyze(generate.count, parentParameters, parentLocals, parentBooleanParameters, Map.empty)
+        .analyze(
+          generate.count,
+          parentParameters,
+          parentLocals,
+          parentBooleanParameters,
+          Map.empty,
+          parentBooleanLocals
+        )
         .toOption
       val context = GenerateContext(
         generate.indexName,
@@ -1600,7 +1827,11 @@ object ParamRtlValidator {
   ): Boolean = {
     if (left.signedness != right.signedness) false
     else {
-      val locals = expandLocalExpressions(parentFacts.orderedLocalParameters, Map.empty)
+      val locals = expandCombinedLocalExpressions(
+        parentFacts.orderedLocalDeclarations,
+        Map.empty,
+        Map.empty
+      )
       val leftFacts = expressionFacts(left.width, parentFacts)
       val rightFacts = rightFactsOverride.orElse(expressionFacts(right.width, parentFacts))
       val equalFinitePoints = (leftFacts, rightFacts) match {
@@ -1617,8 +1848,9 @@ object ParamRtlValidator {
       if (equalFinitePoints) true
       else {
         val leftWidth = left.width match {
-          case LocalParameterRef(name) => locals.getOrElse(name, left.width)
-          case other                   => substituteLocalDefinition(other, Map.empty, locals)
+          case LocalParameterRef(name) => locals.integer.getOrElse(name, left.width)
+          case other =>
+            substituteLocalDefinition(other, Map.empty, locals.integer, Map.empty, locals.boolean)
         }
         val rightWidth = rightFactsOverride match {
           // Instance-side widths are already expanded in their source scope. Keep the
@@ -1626,8 +1858,9 @@ object ParamRtlValidator {
           case Some(_) => right.width
           case None =>
             right.width match {
-              case LocalParameterRef(name) => locals.getOrElse(name, right.width)
-              case other                   => substituteLocalDefinition(other, Map.empty, locals)
+              case LocalParameterRef(name) => locals.integer.getOrElse(name, right.width)
+              case other =>
+                substituteLocalDefinition(other, Map.empty, locals.integer, Map.empty, locals.boolean)
             }
         }
         IntExpressionEquivalence.equivalent(leftWidth, rightWidth)
@@ -1647,69 +1880,145 @@ object ParamRtlValidator {
             facts.parameterFacts,
             facts.localParameterFacts,
             facts.booleanParameters,
-            Map.empty
+            Map.empty,
+            facts.booleanLocalParameterFacts
           )
           .toOption
     }
 
+  /** Iterative mixed-expression walk stays stack-safe for deeply expanded shared local DAGs. */
+  private def isClosedIntegerExpression(expression: IntExpr): Boolean = {
+    val integers = scala.collection.mutable.ArrayBuffer(expression)
+    val booleans = scala.collection.mutable.ArrayBuffer.empty[BoolExpr]
+    val visitedIntegers = new java.util.IdentityHashMap[IntExpr, java.lang.Boolean]()
+    val visitedBooleans = new java.util.IdentityHashMap[BoolExpr, java.lang.Boolean]()
+
+    while (integers.nonEmpty || booleans.nonEmpty) {
+      if (integers.nonEmpty) {
+        val value = integers.remove(integers.length - 1)
+        if (!visitedIntegers.containsKey(value)) {
+          visitedIntegers.put(value, java.lang.Boolean.TRUE)
+          value match {
+            case Literal(_) =>
+            case ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_) => return false
+            case Negate(operand) => integers += operand
+            case Add(left, right) => integers += left; integers += right
+            case Subtract(left, right) => integers += left; integers += right
+            case Multiply(left, right) => integers += left; integers += right
+            case Divide(left, right) => integers += left; integers += right
+            case Modulo(left, right) => integers += left; integers += right
+            case Select(condition, whenTrue, whenFalse) =>
+              booleans += condition
+              integers += whenTrue
+              integers += whenFalse
+          }
+        }
+      } else {
+        val value = booleans.remove(booleans.length - 1)
+        if (!visitedBooleans.containsKey(value)) {
+          visitedBooleans.put(value, java.lang.Boolean.TRUE)
+          value match {
+            case BoolLiteral(_) =>
+            case BoolParameterRef(_) | BoolLocalParameterRef(_) => return false
+            case BoolNot(operand) => booleans += operand
+            case BoolAnd(left, right) => booleans += left; booleans += right
+            case BoolOr(left, right) => booleans += left; booleans += right
+            case BoolLessThan(left, right) => integers += left; integers += right
+            case BoolLessThanOrEqual(left, right) => integers += left; integers += right
+            case BoolGreaterThan(left, right) => integers += left; integers += right
+            case BoolGreaterThanOrEqual(left, right) => integers += left; integers += right
+            case BoolEqual(left, right) => integers += left; integers += right
+            case BoolNotEqual(left, right) => integers += left; integers += right
+          }
+        }
+      }
+    }
+    true
+  }
+
+  private final case class ExpandedLocalExpressions(
+      integer: Map[String, IntExpr],
+      boolean: Map[String, BoolExpr]
+  )
+
   /** Dependency-first expansion shares prior DAG nodes and never walks a local chain recursively. */
-  private def expandLocalExpressions(
-      ordered: Vector[IntegerLocalParameter],
+  private def expandCombinedLocalExpressions(
+      ordered: Vector[LocalParameterDeclaration],
       parameters: Map[String, IntExpr],
       booleanParameters: Map[String, BoolExpr] = Map.empty
-  ): Map[String, IntExpr] = {
-    var expanded = Map.empty[String, IntExpr]
-    ordered.foreach { localParameter =>
-      expanded = expanded.updated(
-        localParameter.name,
-        substituteLocalDefinition(localParameter.value, parameters, expanded, booleanParameters)
-      )
+  ): ExpandedLocalExpressions = {
+    var expandedIntegers = Map.empty[String, IntExpr]
+    var expandedBooleans = Map.empty[String, BoolExpr]
+    ordered.foreach {
+      case localParameter: IntegerLocalParameter =>
+        expandedIntegers = expandedIntegers.updated(
+          localParameter.name,
+          substituteLocalDefinition(
+            localParameter.value,
+            parameters,
+            expandedIntegers,
+            booleanParameters,
+            expandedBooleans
+          )
+        )
+      case localParameter: BooleanLocalParameter =>
+        expandedBooleans = expandedBooleans.updated(
+          localParameter.name,
+          substituteBooleanDefinition(
+            localParameter.value,
+            parameters,
+            expandedIntegers,
+            booleanParameters,
+            expandedBooleans
+          )
+        )
     }
-    expanded
+    ExpandedLocalExpressions(expandedIntegers, expandedBooleans)
   }
 
   private def substituteLocalDefinition(
       expression: IntExpr,
       parameters: Map[String, IntExpr],
       locals: Map[String, IntExpr],
-      booleanParameters: Map[String, BoolExpr] = Map.empty
+      booleanParameters: Map[String, BoolExpr] = Map.empty,
+      booleanLocals: Map[String, BoolExpr] = Map.empty
   ): IntExpr = expression match {
     case value: Literal          => value
     case ParameterRef(name)      => parameters.getOrElse(name, expression)
     case LocalParameterRef(name) => locals.getOrElse(name, expression)
     case value: GenerateIndexRef => value
     case Negate(value) =>
-      Negate(substituteLocalDefinition(value, parameters, locals, booleanParameters))
+      Negate(substituteLocalDefinition(value, parameters, locals, booleanParameters, booleanLocals))
     case Add(left, right) =>
       Add(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters)
+        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
+        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
       )
     case Subtract(left, right) =>
       Subtract(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters)
+        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
+        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
       )
     case Multiply(left, right) =>
       Multiply(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters)
+        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
+        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
       )
     case Divide(left, right) =>
       Divide(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters)
+        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
+        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
       )
     case Modulo(left, right) =>
       Modulo(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters)
+        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
+        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
       )
     case Select(condition, whenTrue, whenFalse) =>
       Select(
-        substituteBooleanDefinition(condition, parameters, locals, booleanParameters),
-        substituteLocalDefinition(whenTrue, parameters, locals, booleanParameters),
-        substituteLocalDefinition(whenFalse, parameters, locals, booleanParameters)
+        substituteBooleanDefinition(condition, parameters, locals, booleanParameters, booleanLocals),
+        substituteLocalDefinition(whenTrue, parameters, locals, booleanParameters, booleanLocals),
+        substituteLocalDefinition(whenFalse, parameters, locals, booleanParameters, booleanLocals)
       )
   }
 
@@ -1717,51 +2026,53 @@ object ParamRtlValidator {
       expression: BoolExpr,
       parameters: Map[String, IntExpr],
       locals: Map[String, IntExpr],
-      booleanParameters: Map[String, BoolExpr]
+      booleanParameters: Map[String, BoolExpr],
+      booleanLocals: Map[String, BoolExpr] = Map.empty
   ): BoolExpr = expression match {
     case value: BoolLiteral => value
     case BoolParameterRef(name) => booleanParameters.getOrElse(name, expression)
+    case BoolLocalParameterRef(name) => booleanLocals.getOrElse(name, expression)
     case BoolLessThan(left, right) =>
       BoolLessThan(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters)
+        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
+        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
       )
     case BoolLessThanOrEqual(left, right) =>
       BoolLessThanOrEqual(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters)
+        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
+        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
       )
     case BoolGreaterThan(left, right) =>
       BoolGreaterThan(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters)
+        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
+        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
       )
     case BoolGreaterThanOrEqual(left, right) =>
       BoolGreaterThanOrEqual(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters)
+        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
+        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
       )
     case BoolEqual(left, right) =>
       BoolEqual(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters)
+        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
+        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
       )
     case BoolNotEqual(left, right) =>
       BoolNotEqual(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters)
+        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
+        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
       )
     case BoolNot(value) =>
-      BoolNot(substituteBooleanDefinition(value, parameters, locals, booleanParameters))
+      BoolNot(substituteBooleanDefinition(value, parameters, locals, booleanParameters, booleanLocals))
     case BoolAnd(left, right) =>
       BoolAnd(
-        substituteBooleanDefinition(left, parameters, locals, booleanParameters),
-        substituteBooleanDefinition(right, parameters, locals, booleanParameters)
+        substituteBooleanDefinition(left, parameters, locals, booleanParameters, booleanLocals),
+        substituteBooleanDefinition(right, parameters, locals, booleanParameters, booleanLocals)
       )
     case BoolOr(left, right) =>
       BoolOr(
-        substituteBooleanDefinition(left, parameters, locals, booleanParameters),
-        substituteBooleanDefinition(right, parameters, locals, booleanParameters)
+        substituteBooleanDefinition(left, parameters, locals, booleanParameters, booleanLocals),
+        substituteBooleanDefinition(right, parameters, locals, booleanParameters, booleanLocals)
       )
   }
 
@@ -1853,7 +2164,7 @@ object ParamRtlValidator {
     val stack = scala.collection.mutable.ArrayBuffer(expression)
     while (stack.nonEmpty) {
       stack.remove(stack.length - 1) match {
-        case BoolLiteral(_) | BoolParameterRef(_) =>
+        case BoolLiteral(_) | BoolParameterRef(_) | BoolLocalParameterRef(_) =>
         case BoolNot(value)                       => stack += value
         case BoolAnd(left, right)                 => stack += left; stack += right
         case BoolOr(left, right)                  => stack += left; stack += right

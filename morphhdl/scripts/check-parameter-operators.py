@@ -31,6 +31,7 @@ REQUIRED_OPERATORS = {
     "modulo",
     "boolean-literal",
     "boolean-public-reference",
+    "boolean-local-reference",
     "boolean-not",
     "boolean-and",
     "boolean-or",

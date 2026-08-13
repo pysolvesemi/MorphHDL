@@ -166,7 +166,21 @@ before recomputing child locals and selecting child generate-if hierarchy, so
 two instances of one logical child may safely select opposite default shapes.
 The eighth public fixture proves the true default, explicit disable,
 below-limit comparison and inclusive equality boundary without regenerating
-RTL. The hierarchy disposition remains implemented; width and driver guards
-remain partial because Boolean locals, nested structural predicates and
-runtime processes are still deferred. The external artifact inventory now
-contains exactly eight generated files, including `boolean_forwarding.v`.
+RTL. At Increment 12, the hierarchy disposition was implemented while width
+and driver guards remained partial because Boolean locals, nested structural
+predicates and runtime processes were deferred. That increment's external
+artifact inventory contained exactly eight generated files, including
+`boolean_forwarding.v`; Increment 13 adds the Boolean-local tranche below.
+
+Increment 13 extends the partial symbolic width and hierarchy adaptation with
+typed Boolean local parameters. ParamRTL orders integer and Boolean locals in
+one graph, rejects same-kind and mixed cycles, and eagerly analyzes every
+expression subtree. `MorphVerilog` recomputes that combined order from the
+bound public context for each reachable instance before checking widths,
+conditions or child bindings. The ninth fixture proves a consumed
+integer-to-Boolean-to-integer chain in default, disabled, below-limit and
+inclusive equality configurations. `PhaseInferWidth` remains partial because
+`min`, `max`, `clog2` and remaining runtime type algebra are deferred; multiple
+or nested predicates and runtime processes keep driver coverage partial. The
+external artifact inventory now contains exactly nine generated files,
+including `boolean_locals.v`.

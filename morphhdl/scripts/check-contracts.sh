@@ -66,6 +66,7 @@ generated_contracts=(
   comparison_routing.v
   conditional_width.v
   boolean_forwarding.v
+  boolean_locals.v
 )
 
 if (( using_reviewed_goldens == 0 )); then
@@ -104,6 +105,7 @@ conditional_forwarding_file="$generated_dir/conditional_forwarding.v"
 comparison_routing_file="$generated_dir/comparison_routing.v"
 conditional_width_file="$generated_dir/conditional_width.v"
 boolean_forwarding_file="$generated_dir/boolean_forwarding.v"
+boolean_locals_file="$generated_dir/boolean_locals.v"
 
 parity_args=("$parity_file")
 for live_phase_id_file in "${live_phase_id_files[@]}"; do
@@ -121,6 +123,7 @@ design_files=(
   "$comparison_routing_file"
   "$conditional_width_file"
   "$boolean_forwarding_file"
+  "$boolean_locals_file"
 )
 
 all_verilog_files=(
@@ -133,6 +136,7 @@ all_verilog_files=(
   "$examples_dir/comparison_routing_tb.v"
   "$examples_dir/conditional_width_tb.v"
   "$examples_dir/boolean_forwarding_tb.v"
+  "$examples_dir/boolean_locals_tb.v"
 )
 
 read_property() {
@@ -176,6 +180,8 @@ require_property structure.generate_for true
 require_property structure.generate_if true
 require_property implementation.generate_if true
 require_property implementation.boolean_parameter_forwarding true
+require_property parameter.boolean_local true
+require_property implementation.boolean_local_parameter true
 require_property implementation.generate_case false
 
 for file in "${all_verilog_files[@]}"; do
@@ -262,6 +268,11 @@ expected_modules=(
   BooleanRoute
   BooleanForwarding
   BooleanForwardingTb
+  BooleanLocalHighRoute
+  BooleanLocalLowRoute
+  BooleanLocalRoute
+  BooleanLocals
+  BooleanLocalsTb
 )
 
 for module_name in "${expected_modules[@]}"; do
@@ -346,6 +357,24 @@ if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+SELECT[[:space:]]*=[[:spa
   exit 1
 fi
 
+if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+ENABLE[[:space:]]*=[[:space:]]*1' "$boolean_locals_file" ||
+   ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:space:]]*8' "$boolean_locals_file" ||
+   ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+LIMIT[[:space:]]*=[[:space:]]*8' "$boolean_locals_file" ||
+   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+EFFECTIVE_WIDTH[[:space:]]*=[[:space:]]*WIDTH' "$boolean_locals_file" ||
+   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+WIDTH_OK[[:space:]]*=' "$boolean_locals_file" ||
+   ! grep -Eq 'EFFECTIVE_WIDTH[[:space:]]*>=[[:space:]]*LIMIT' "$boolean_locals_file" ||
+   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+ROUTE_HIGH[[:space:]]*=' "$boolean_locals_file" ||
+   ! grep -Eq 'ENABLE[[:space:]]*==[[:space:]]*1[[:space:]]*&&[[:space:]]*WIDTH_OK[[:space:]]*==[[:space:]]*1' "$boolean_locals_file" ||
+   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+ROUTE_CODE[[:space:]]*=' "$boolean_locals_file" ||
+   ! grep -Eq 'ROUTE_HIGH[[:space:]]*==[[:space:]]*1' "$boolean_locals_file" ||
+   ! grep -Eq '\.SELECT[[:space:]]*\([[:space:]]*\([[:space:]]*ROUTE_CODE[[:space:]]*==[[:space:]]*1[[:space:]]*\)[[:space:]]*\?[[:space:]]*1[[:space:]]*:[[:space:]]*0[[:space:]]*\)' "$boolean_locals_file" ||
+   ! grep -Eq 'if[[:space:]]*\([[:space:]]*SELECT[[:space:]]*==[[:space:]]*1[[:space:]]*\)[[:space:]]*begin[[:space:]]*:[[:space:]]*g_high' "$boolean_locals_file" ||
+   ! grep -Eq 'end[[:space:]]+else[[:space:]]+begin[[:space:]]*:[[:space:]]*g_low' "$boolean_locals_file" ||
+   [[ "$(grep -Ec '\)[[:space:]]+route_inst[[:space:]]*\(' "$boolean_locals_file")" != "1" ]]; then
+  echo "BooleanLocals does not retain its mixed dependency-first local chain and Boolean child binding" >&2
+  exit 1
+fi
+
 missing_tools=()
 for tool in iverilog verilator vvp yosys; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -379,6 +408,7 @@ cp "$conditional_forwarding_file" "$tmp_dir/conditional_forwarding.v"
 cp "$comparison_routing_file" "$tmp_dir/comparison_routing.v"
 cp "$conditional_width_file" "$tmp_dir/conditional_width.v"
 cp "$boolean_forwarding_file" "$tmp_dir/boolean_forwarding.v"
+cp "$boolean_locals_file" "$tmp_dir/boolean_locals.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
 yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
@@ -387,6 +417,7 @@ yosys_conditional_forwarding_file="$tmp_dir/conditional_forwarding.v"
 yosys_comparison_routing_file="$tmp_dir/comparison_routing.v"
 yosys_conditional_width_file="$tmp_dir/conditional_width.v"
 yosys_boolean_forwarding_file="$tmp_dir/boolean_forwarding.v"
+yosys_boolean_locals_file="$tmp_dir/boolean_locals.v"
 
 echo "Verilator: $(verilator --version)"
 echo "Icarus: $(iverilog -V 2>/dev/null | head -n 1)"
@@ -580,6 +611,29 @@ verilator --lint-only --language 1364-2001 -Wall \
   -GENABLE=1 -GWIDTH=4 -GOFFSET=1 -GLIMIT=5 \
   "$boolean_forwarding_file"
 
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module BooleanLocals \
+  "$boolean_locals_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module BooleanLocals \
+  -GENABLE=0 \
+  "$boolean_locals_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module BooleanLocals \
+  -GENABLE=1 -GWIDTH=7 -GLIMIT=8 \
+  "$boolean_locals_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module BooleanLocals \
+  -GENABLE=1 -GWIDTH=8 -GLIMIT=8 \
+  "$boolean_locals_file"
+
 iverilog -g2001 -Wall -s ParameterizedWireTb \
   -o "$tmp_dir/parameterized_wire.vvp" \
   "$parameterized_wire_file" \
@@ -665,6 +719,17 @@ boolean_forwarding_output="$(vvp "$tmp_dir/boolean_forwarding.vvp")"
 echo "$boolean_forwarding_output"
 if ! printf '%s\n' "$boolean_forwarding_output" | grep -q 'PASS: BooleanForwarding'; then
   echo "BooleanForwarding simulation did not report PASS" >&2
+  exit 1
+fi
+
+iverilog -g2001 -Wall -s BooleanLocalsTb \
+  -o "$tmp_dir/boolean_locals.vvp" \
+  "$boolean_locals_file" \
+  "$examples_dir/boolean_locals_tb.v"
+boolean_locals_output="$(vvp "$tmp_dir/boolean_locals.vvp")"
+echo "$boolean_locals_output"
+if ! printf '%s\n' "$boolean_locals_output" | grep -q 'PASS: BooleanLocals'; then
+  echo "BooleanLocals simulation did not report PASS" >&2
   exit 1
 fi
 
@@ -868,5 +933,33 @@ yosys_boolean_forwarding_synthesize_and_check \
 yosys_boolean_forwarding_synthesize_and_check \
   equal-limit high \
   "chparam -set ENABLE 1 -set WIDTH 4 -set OFFSET 1 -set LIMIT 5 BooleanForwarding;"
+
+yosys_boolean_locals_synthesize_and_check() {
+  local label="$1"
+  local expected_branch="$2"
+  local parameter_command="$3"
+  local hierarchy_netlist="$tmp_dir/BooleanLocals-${label}-hierarchy.json"
+  local synthesized_netlist="$tmp_dir/BooleanLocals-${label}-synthesized.json"
+
+  yosys -q -p \
+    "read_verilog -noautowire $yosys_boolean_locals_file; $parameter_command hierarchy -check -top BooleanLocals; proc; check -assert; write_json $hierarchy_netlist; synth -top BooleanLocals; check -assert; write_json $synthesized_netlist"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-boolean-locals-contract.py" \
+    "$hierarchy_netlist" --branch "$expected_branch"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$synthesized_netlist" BooleanLocals \
+    --port "din:input:8" \
+    --port "dout:output:8"
+}
+
+yosys_boolean_locals_synthesize_and_check \
+  default high ""
+yosys_boolean_locals_synthesize_and_check \
+  disabled low "chparam -set ENABLE 0 BooleanLocals;"
+yosys_boolean_locals_synthesize_and_check \
+  below-limit low \
+  "chparam -set ENABLE 1 -set WIDTH 7 -set LIMIT 8 BooleanLocals;"
+yosys_boolean_locals_synthesize_and_check \
+  equal-limit high \
+  "chparam -set ENABLE 1 -set WIDTH 8 -set LIMIT 8 BooleanLocals;"
 
 echo "Strict Verilog-2001 contract checks passed"
