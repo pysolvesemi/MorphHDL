@@ -21,6 +21,7 @@ import morphhdl.paramrtl.BoolExpr.{
   LessThan => BoolLessThan,
   LessThanOrEqual => BoolLessThanOrEqual,
   Literal => BoolLiteral,
+  LocalParameterRef => BoolLocalParameterRef,
   Not => BoolNot,
   NotEqual => BoolNotEqual,
   Or => BoolOr,
@@ -56,7 +57,7 @@ object Verilog2001Emitter {
     val integerParameters = module.parameters.sortBy(_.name)
     val booleanParameters = module.booleanParameters.sortBy(_.name)
     val ports = module.ports.sortBy(_.name)
-    val localParameters = facts.orderedLocalParameters
+    val localParameters = facts.orderedLocalParameterDeclarations
     val instances = facts.orderedInstances
     val generateFors = module.items.collect { case generate: GenerateFor => generate }.sortBy(_.label)
     val generateIfs = module.items.collect { case generate: GenerateIf => generate }.sortBy(generateIfSortKey)
@@ -90,7 +91,12 @@ object Verilog2001Emitter {
     if (localParameters.nonEmpty) {
       lines += ""
       localParameters.foreach { localParameter =>
-        lines += s"  localparam integer ${localParameter.name} = ${renderIntExpr(localParameter.value)};"
+        localParameter match {
+          case value: IntegerLocalParameter =>
+            lines += s"  localparam integer ${value.name} = ${renderIntExpr(value.value)};"
+          case value: BooleanLocalParameter =>
+            lines += s"  localparam integer ${value.name} = ${renderBooleanBinding(value.value)};"
+        }
       }
     }
 
@@ -291,6 +297,7 @@ object Verilog2001Emitter {
   private def renderBoolExprWithPrecedence(expression: BoolExpr): RenderedBoolExpr = expression match {
     case BoolLiteral(value) => RenderedBoolExpr(if (value) "1'b1" else "1'b0", BoolAtomicPrecedence)
     case BoolParameterRef(name) => RenderedBoolExpr(s"$name == 1", BoolAtomicPrecedence)
+    case BoolLocalParameterRef(name) => RenderedBoolExpr(s"$name == 1", BoolAtomicPrecedence)
     case BoolLessThan(left, right)           => renderComparison(left, "<", right)
     case BoolLessThanOrEqual(left, right)    => renderComparison(left, "<=", right)
     case BoolGreaterThan(left, right)        => renderComparison(left, ">", right)

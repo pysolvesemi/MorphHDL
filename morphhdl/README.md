@@ -65,3 +65,11 @@ parent Boolean, integer and local facts, substitutes the resulting child
 Boolean default per instance and only then compares the recursively selected
 default hierarchy. The eighth `boolean_forwarding.v` artifact proves true,
 false and inclusive-boundary selection through one fixed-interface child.
+
+Increment 13 adds identity-bearing Boolean local parameters. Integer and
+Boolean locals share one deterministic dependency graph, while their typed
+reference and evaluated-fact namespaces remain separate. `MorphVerilog`
+recomputes both local kinds after each child binding before evaluating widths,
+generate structure or later bindings. The ninth `boolean_local_routing.v`
+artifact uses one derived Boolean local in both a generate-if condition and a
+named Boolean child binding.

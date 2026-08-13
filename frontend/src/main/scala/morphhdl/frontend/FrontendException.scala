@@ -47,6 +47,8 @@ private[frontend] object FrontendException {
       "Pass an HdlBool literal, expression or public parameter to generateIf."
     case "MORPH-FRONTEND-BOOLEAN-PARAMETER-BINDING-NULL" =>
       "Pass an HdlBool literal, expression or public parameter to parameterBinding."
+    case "MORPH-FRONTEND-BOOLEAN-LOCAL-PARAMETER-VALUE-NULL" =>
+      "Pass an HdlBool literal, expression, public parameter or Boolean local to localParam."
     case "MORPH-FRONTEND-INTEGER-SELECT-BRANCH-NULL" =>
       "Pass an HdlInt expression or Int literal for both integer selection branches."
     case "MORPH-FRONTEND-GENERATE-START-UNSUPPORTED" =>
@@ -73,20 +75,36 @@ private[frontend] object FrontendException {
       "Declare and use the parameter through one consistent symbolic type."
     case "MORPH-FRONTEND-NOT-A-LOCAL-PARAMETER" =>
       "Pass the exact HdlInt returned by localParam to integerLocalParameter."
+    case "MORPH-FRONTEND-NOT-A-BOOLEAN-LOCAL-PARAMETER" =>
+      "Pass the exact HdlBool returned by localParam to booleanLocalParameter."
     case "MORPH-FRONTEND-DIVISOR-WITNESS-ZERO" =>
       "Choose a non-zero concrete divisor witness; ParamRTL will also prove its full domain excludes zero."
     case "MORPH-FRONTEND-INVALID-LOCAL-PARAMETER-NAME" =>
       "Use a local-parameter identifier matching `[A-Za-z_][A-Za-z0-9_]*`."
     case "MORPH-FRONTEND-LOCAL-PARAMETER-IDENTITY-UNRESOLVED" =>
       "Create the declaration with integerLocalParameter from the exact localParam handle."
+    case "MORPH-FRONTEND-BOOLEAN-LOCAL-PARAMETER-IDENTITY-UNRESOLVED" =>
+      "Create the declaration with booleanLocalParameter from the exact Boolean localParam handle."
     case "MORPH-FRONTEND-LOCAL-PARAMETER-TOKEN-MISMATCH" =>
       "Reuse the exact localParam handle declared by this module."
+    case "MORPH-FRONTEND-BOOLEAN-LOCAL-PARAMETER-TOKEN-MISMATCH" =>
+      "Reuse the exact Boolean localParam handle declared by this module."
     case "MORPH-FRONTEND-LOCAL-PARAMETER-NOT-DECLARED" =>
       "Add integerLocalParameter for every referenced localParam handle to this module."
+    case "MORPH-FRONTEND-BOOLEAN-LOCAL-PARAMETER-NOT-DECLARED" =>
+      "Add booleanLocalParameter for every referenced Boolean localParam handle to this module."
     case "MORPH-FRONTEND-LOCAL-PARAMETER-NAME-DUPLICATE" =>
       "Give every local parameter in a module a unique name and declare each handle once."
+    case "MORPH-FRONTEND-BOOLEAN-LOCAL-PARAMETER-NAME-DUPLICATE" =>
+      "Give every Boolean local parameter in a module a unique name and declare each handle once."
     case "MORPH-FRONTEND-LOCAL-PARAMETER-DECLARATION-DUPLICATE" =>
       "Pass each integerLocalParameter declaration to moduleDef exactly once."
+    case "MORPH-FRONTEND-BOOLEAN-LOCAL-PARAMETER-DECLARATION-DUPLICATE" =>
+      "Pass each booleanLocalParameter declaration to moduleDef exactly once."
+    case "MORPH-FRONTEND-LOCAL-PARAMETER-KIND-COLLISION" =>
+      "Use distinct names for integer and Boolean local parameters."
+    case "MORPH-FRONTEND-LOCAL-PARAMETER-KIND-MISMATCH" =>
+      "Declare and use each local parameter through one consistent symbolic type."
     case "MORPH-FRONTEND-LOCAL-PARAMETER-NAME-COLLISION" =>
       "Use distinct names for public and module-local parameters."
     case "MORPH-FRONTEND-LOCAL-PARAMETER-FOREIGN" =>

@@ -207,7 +207,7 @@ private[morphhdl] object IntExpressionEquivalence {
       parameters: Map[String, IntExpr],
       localParameters: Map[String, IntExpr]
   ): BoolExpr = expression match {
-    case value @ (BoolExpr.Literal(_) | BoolExpr.ParameterRef(_)) => value
+    case value @ (BoolExpr.Literal(_) | BoolExpr.ParameterRef(_) | BoolExpr.LocalParameterRef(_)) => value
     case BoolExpr.LessThan(left, right) =>
       BoolExpr.LessThan(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
     case BoolExpr.LessThanOrEqual(left, right) =>
@@ -249,6 +249,7 @@ private[morphhdl] object IntExpressionEquivalence {
       (a, b) match {
         case (BoolExpr.Literal(x), BoolExpr.Literal(y)) if x == y =>
         case (BoolExpr.ParameterRef(x), BoolExpr.ParameterRef(y)) if x == y =>
+        case (BoolExpr.LocalParameterRef(x), BoolExpr.LocalParameterRef(y)) if x == y =>
         case (BoolExpr.LessThan(al, ar), BoolExpr.LessThan(bl, br)) =>
           if (!sameStructure(al, bl) || !sameStructure(ar, br)) return false
         case (BoolExpr.LessThanOrEqual(al, ar), BoolExpr.LessThanOrEqual(bl, br)) =>
@@ -278,7 +279,7 @@ private[morphhdl] object IntExpressionEquivalence {
       if (booleanStack.nonEmpty) {
         count += 1
         booleanStack.remove(booleanStack.length - 1) match {
-          case BoolExpr.Literal(_) | BoolExpr.ParameterRef(_) =>
+          case BoolExpr.Literal(_) | BoolExpr.ParameterRef(_) | BoolExpr.LocalParameterRef(_) =>
           case BoolExpr.Not(value) => booleanStack += value
           case BoolExpr.And(left, right) => booleanStack += left; booleanStack += right
           case BoolExpr.Or(left, right) => booleanStack += left; booleanStack += right
@@ -300,7 +301,7 @@ private[morphhdl] object IntExpressionEquivalence {
   }
 
   private def normalizeBoolean(expression: BoolExpr): BoolExpr = expression match {
-    case value @ (BoolExpr.Literal(_) | BoolExpr.ParameterRef(_)) => value
+    case value @ (BoolExpr.Literal(_) | BoolExpr.ParameterRef(_) | BoolExpr.LocalParameterRef(_)) => value
     case BoolExpr.LessThan(left, right) => BoolExpr.LessThan(normalize(left), normalize(right))
     case BoolExpr.LessThanOrEqual(left, right) => BoolExpr.LessThanOrEqual(normalize(left), normalize(right))
     case BoolExpr.GreaterThan(left, right) => BoolExpr.GreaterThan(normalize(left), normalize(right))

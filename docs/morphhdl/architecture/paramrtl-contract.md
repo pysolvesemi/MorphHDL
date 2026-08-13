@@ -128,6 +128,21 @@ the child declaration default with that per-instance result before evaluating
 child locals, widths and selected hierarchy. Integer/Boolean binding-kind
 mismatches, duplicate Boolean bindings and bindings hidden in inactive
 generate branches remain whole-design errors. Boolean local parameters,
+nested structural predicates and `GenerateCase` remained separate tranches at
+that increment.
+
+Increment 13 adds `BooleanLocalParameter(name, value)` and the distinct
+`BoolExpr.LocalParameterRef(name)`. Integer and Boolean local declarations
+participate in one acyclic dependency graph, including cross-kind edges, and
+validation produces one deterministic dependency-first order with lexical
+tie-breaking. Their names and evaluated facts remain in separate typed
+namespaces. Whole-expression validation rejects missing or wrong-kind
+references and unsafe expressions even when a Boolean operand makes them
+inactive at the default point. Morph recomputes both local kinds after public
+and child-bound parameters for every reachable instance, so the exact values
+feed widths, conditional integers, generate structure and later bindings.
+Strict Verilog-2001 legalizes a Boolean local as dependency-ordered
+`localparam integer` with an explicitly normalized `1`/`0` value. Multiple or
 nested structural predicates and `GenerateCase` remain separate tranches.
 
 ## Required invariants

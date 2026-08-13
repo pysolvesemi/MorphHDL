@@ -33,10 +33,16 @@ These files are executable output contracts for the parameterized backend.
   typed predicate `ENABLE && EFFECTIVE_WIDTH >= LIMIT` into child Boolean
   parameter `SELECT`; the child selects distinct high/low leaf types while all
   public interfaces remain fixed at eight bits.
+- `boolean_local_routing.v` is owned by Increment 13. Its dependency-ordered
+  Boolean local `ROUTE_HIGH` is derived from one public Boolean, one integer
+  local and an integer comparison, then drives both a top generate-if and a
+  named child Boolean binding. The child selects distinct high/low leaf types
+  while every public interface remains fixed at eight bits.
 - Increment 8 routes the first four artifacts through one production fixture
   source and `MorphVerilog`; Increments 9 and 10 extend that same path to all
-  six. Increment 11 extends it to all seven, and Increment 12 to all eight. CI performs a normal and
-  reverse-construction run, requires an exact eight-file inventory, checks byte
+  six. Increment 11 extends it to all seven, Increment 12 to all eight and
+  Increment 13 to all nine. CI performs a normal and reverse-construction run,
+  requires an exact nine-file inventory, checks byte
   identity with these goldens, and gives that unmodified directory to the
   external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
@@ -58,6 +64,10 @@ These files are executable output contracts for the parameterized backend.
   a below-limit comparison and the inclusive equality boundary. Yosys proves
   the exact forwarded route instance and selected high/low leaf for all four
   configurations.
+  `BooleanLocalRoutingTb` covers the same four decision boundaries through a
+  derived Boolean local. Yosys additionally proves that the local selects the
+  expected top generate branch and that its child binding selects the matching
+  high/low leaf with exact fixed-width connections.
 
 Run:
 
