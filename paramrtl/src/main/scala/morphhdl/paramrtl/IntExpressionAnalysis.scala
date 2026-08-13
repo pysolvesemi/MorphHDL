@@ -11,6 +11,7 @@ import morphhdl.paramrtl.IntExpr.{
   Multiply,
   Negate,
   ParameterRef,
+  Select,
   Subtract
 }
 
@@ -40,6 +41,7 @@ sealed trait IntExpressionFailure extends Product with Serializable
 
 object IntExpressionFailure {
   final case class UnresolvedParameter(name: String) extends IntExpressionFailure
+  final case class UnresolvedBooleanParameter(name: String) extends IntExpressionFailure
   final case class UnresolvedLocalParameter(name: String) extends IntExpressionFailure
   final case class UnresolvedGenerateIndex(name: String) extends IntExpressionFailure
   final case class DivisorMayBeZero(operator: String, interval: IntInterval) extends IntExpressionFailure
@@ -64,6 +66,21 @@ private[morphhdl] object IntExpressionAnalysis {
       parameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts],
       generateIndices: Map[String, IntExprFacts] = Map.empty
+  ): Either[IntExpressionFailure, IntExprFacts] =
+    analyze(expression, parameters, localParameters, Map.empty, generateIndices)
+
+  /**
+    * Analyzes an integer expression over its complete legal domain. Conditional selections use
+    * the exact Boolean default witness while conservatively hulling both value-branch domains.
+    * The condition and both branches are evaluated before a failure is selected, so an inactive
+    * invalid branch cannot be hidden by the default condition.
+    */
+  def analyze(
+      expression: IntExpr,
+      parameters: Map[String, IntExprFacts],
+      localParameters: Map[String, IntExprFacts],
+      booleanParameters: Map[String, BooleanParameter],
+      generateIndices: Map[String, IntExprFacts]
   ): Either[IntExpressionFailure, IntExprFacts] = expression match {
     case Literal(value) => Right(IntExprFacts(value, IntInterval.point(value)))
     case ParameterRef(name) =>
@@ -82,14 +99,15 @@ private[morphhdl] object IntExpressionAnalysis {
         case None        => Left(UnresolvedGenerateIndex(name))
       }
     case Negate(value) =>
-      analyze(value, parameters, localParameters, generateIndices).map { facts =>
+      analyze(value, parameters, localParameters, booleanParameters, generateIndices).map { facts =>
         IntExprFacts(
           -facts.defaultValue,
           IntInterval(facts.interval.upper.map(-_), facts.interval.lower.map(-_))
         )
       }
     case Add(left, right) =>
-      analyzeBinary(left, right, parameters, localParameters, generateIndices) { (leftFacts, rightFacts) =>
+      analyzeBinary(left, right, parameters, localParameters, booleanParameters, generateIndices) {
+        (leftFacts, rightFacts) =>
         IntExprFacts(
           leftFacts.defaultValue + rightFacts.defaultValue,
           IntInterval(
@@ -99,7 +117,8 @@ private[morphhdl] object IntExpressionAnalysis {
         )
       }
     case Subtract(left, right) =>
-      analyzeBinary(left, right, parameters, localParameters, generateIndices) { (leftFacts, rightFacts) =>
+      analyzeBinary(left, right, parameters, localParameters, booleanParameters, generateIndices) {
+        (leftFacts, rightFacts) =>
         IntExprFacts(
           leftFacts.defaultValue - rightFacts.defaultValue,
           IntInterval(
@@ -109,25 +128,62 @@ private[morphhdl] object IntExpressionAnalysis {
         )
       }
     case Multiply(left, right) =>
-      analyzeBinary(left, right, parameters, localParameters, generateIndices) { (leftFacts, rightFacts) =>
+      analyzeBinary(left, right, parameters, localParameters, booleanParameters, generateIndices) {
+        (leftFacts, rightFacts) =>
         IntExprFacts(
           leftFacts.defaultValue * rightFacts.defaultValue,
           multiply(leftFacts.interval, rightFacts.interval)
         )
       }
     case Divide(left, right) =>
-      analyzeDivisionLike(left, right, parameters, localParameters, generateIndices, "/") { (leftFacts, rightFacts) =>
+      analyzeDivisionLike(
+        left,
+        right,
+        parameters,
+        localParameters,
+        booleanParameters,
+        generateIndices,
+        "/"
+      ) { (leftFacts, rightFacts) =>
         IntExprFacts(
           leftFacts.defaultValue / rightFacts.defaultValue,
           divide(leftFacts.interval, rightFacts.interval)
         )
       }
     case Modulo(left, right) =>
-      analyzeDivisionLike(left, right, parameters, localParameters, generateIndices, "%") { (leftFacts, rightFacts) =>
+      analyzeDivisionLike(
+        left,
+        right,
+        parameters,
+        localParameters,
+        booleanParameters,
+        generateIndices,
+        "%"
+      ) { (leftFacts, rightFacts) =>
         IntExprFacts(
           leftFacts.defaultValue % rightFacts.defaultValue,
           modulo(leftFacts.interval, rightFacts.interval)
         )
+      }
+    case Select(condition, whenTrue, whenFalse) =>
+      val conditionResult = BoolExpressionAnalysis
+        .evaluateDefault(condition, booleanParameters, parameters, localParameters, generateIndices)
+        .left
+        .map {
+          case BoolExpressionFailure.UnresolvedParameter(name) => UnresolvedBooleanParameter(name)
+          case BoolExpressionFailure.InvalidIntegerExpression(failure) => failure
+        }
+      val trueResult = analyze(whenTrue, parameters, localParameters, booleanParameters, generateIndices)
+      val falseResult = analyze(whenFalse, parameters, localParameters, booleanParameters, generateIndices)
+      conditionResult.flatMap { conditionDefault =>
+        trueResult.flatMap { trueFacts =>
+          falseResult.map { falseFacts =>
+            IntExprFacts(
+              if (conditionDefault) trueFacts.defaultValue else falseFacts.defaultValue,
+              hull(trueFacts.interval, falseFacts.interval)
+            )
+          }
+        }
       }
   }
 
@@ -140,6 +196,9 @@ private[morphhdl] object IntExpressionAnalysis {
     case Multiply(left, right) => parameterReferences(left) ++ parameterReferences(right)
     case Divide(left, right)   => parameterReferences(left) ++ parameterReferences(right)
     case Modulo(left, right)   => parameterReferences(left) ++ parameterReferences(right)
+    case Select(condition, whenTrue, whenFalse) =>
+      BoolExpressionAnalysis.integerParameterReferences(condition) ++
+        parameterReferences(whenTrue) ++ parameterReferences(whenFalse)
   }
 
   def localParameterReferences(expression: IntExpr): Vector[String] = expression match {
@@ -151,6 +210,22 @@ private[morphhdl] object IntExpressionAnalysis {
     case Multiply(left, right) => localParameterReferences(left) ++ localParameterReferences(right)
     case Divide(left, right)   => localParameterReferences(left) ++ localParameterReferences(right)
     case Modulo(left, right)   => localParameterReferences(left) ++ localParameterReferences(right)
+    case Select(condition, whenTrue, whenFalse) =>
+      BoolExpressionAnalysis.localParameterReferences(condition) ++
+        localParameterReferences(whenTrue) ++ localParameterReferences(whenFalse)
+  }
+
+  def booleanParameterReferences(expression: IntExpr): Vector[String] = expression match {
+    case Literal(_) | ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_) => Vector.empty
+    case Negate(value) => booleanParameterReferences(value)
+    case Add(left, right) => booleanParameterReferences(left) ++ booleanParameterReferences(right)
+    case Subtract(left, right) => booleanParameterReferences(left) ++ booleanParameterReferences(right)
+    case Multiply(left, right) => booleanParameterReferences(left) ++ booleanParameterReferences(right)
+    case Divide(left, right) => booleanParameterReferences(left) ++ booleanParameterReferences(right)
+    case Modulo(left, right) => booleanParameterReferences(left) ++ booleanParameterReferences(right)
+    case Select(condition, whenTrue, whenFalse) =>
+      BoolExpressionAnalysis.parameterReferences(condition) ++
+        booleanParameterReferences(whenTrue) ++ booleanParameterReferences(whenFalse)
   }
 
   private def analyzeBinary(
@@ -158,12 +233,13 @@ private[morphhdl] object IntExpressionAnalysis {
       right: IntExpr,
       parameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts],
+      booleanParameters: Map[String, BooleanParameter],
       generateIndices: Map[String, IntExprFacts]
   )(
       combineFacts: (IntExprFacts, IntExprFacts) => IntExprFacts
   ): Either[IntExpressionFailure, IntExprFacts] =
-    analyze(left, parameters, localParameters, generateIndices).flatMap { leftFacts =>
-      analyze(right, parameters, localParameters, generateIndices).map { rightFacts =>
+    analyze(left, parameters, localParameters, booleanParameters, generateIndices).flatMap { leftFacts =>
+      analyze(right, parameters, localParameters, booleanParameters, generateIndices).map { rightFacts =>
         combineFacts(leftFacts, rightFacts)
       }
     }
@@ -173,13 +249,14 @@ private[morphhdl] object IntExpressionAnalysis {
       right: IntExpr,
       parameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts],
+      booleanParameters: Map[String, BooleanParameter],
       generateIndices: Map[String, IntExprFacts],
       operator: String
   )(
       combineFacts: (IntExprFacts, IntExprFacts) => IntExprFacts
   ): Either[IntExpressionFailure, IntExprFacts] =
-    analyze(left, parameters, localParameters, generateIndices).flatMap { leftFacts =>
-      analyze(right, parameters, localParameters, generateIndices).flatMap { rightFacts =>
+    analyze(left, parameters, localParameters, booleanParameters, generateIndices).flatMap { leftFacts =>
+      analyze(right, parameters, localParameters, booleanParameters, generateIndices).flatMap { rightFacts =>
         if (rightFacts.defaultValue == 0 || !rightFacts.interval.excludesZero)
           Left(DivisorMayBeZero(operator, rightFacts.interval))
         else Right(combineFacts(leftFacts, rightFacts))
@@ -194,6 +271,12 @@ private[morphhdl] object IntExpressionAnalysis {
       leftValue <- left
       rightValue <- right
     } yield operation(leftValue, rightValue)
+
+  private def hull(left: IntInterval, right: IntInterval): IntInterval =
+    IntInterval(
+      for { a <- left.lower; b <- right.lower } yield a.min(b),
+      for { a <- left.upper; b <- right.upper } yield a.max(b)
+    )
 
   private def multiply(left: IntInterval, right: IntInterval): IntInterval =
     finiteEndpoints(left, right) match {

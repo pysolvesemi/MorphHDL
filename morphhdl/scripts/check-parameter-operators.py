@@ -40,6 +40,7 @@ REQUIRED_OPERATORS = {
     "comparison-gte",
     "comparison-eq",
     "comparison-ne",
+    "conditional-select",
 }
 
 STATUS_VALUES = {"implemented", "deferred"}

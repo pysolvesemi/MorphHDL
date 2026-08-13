@@ -1,6 +1,6 @@
 package morphhdl.frontend
 
-import morphhdl.frontend.ParamRtlFrontend.booleanParameter
+import morphhdl.frontend.ParamRtlFrontend._
 import morphhdl.paramrtl.BoolExpr.{
   And,
   Equal,
@@ -10,8 +10,14 @@ import morphhdl.paramrtl.BoolExpr.{
   Or,
   ParameterRef
 }
-import morphhdl.paramrtl.IntExpr.{ParameterRef => IntParameterRef}
-import morphhdl.paramrtl.BooleanParameter
+import morphhdl.paramrtl.IntExpr.{
+  Add,
+  Literal => IntLiteral,
+  LocalParameterRef,
+  ParameterRef => IntParameterRef,
+  Select
+}
+import morphhdl.paramrtl.{BooleanParameter, PortDirection}
 import org.scalatest.funsuite.AnyFunSuite
 
 class HdlBoolTests extends AnyFunSuite {
@@ -73,6 +79,176 @@ class HdlBoolTests extends AnyFunSuite {
     assert(expression.parameters == Set(enabled.declaration.get))
     assert(expression.integerParameters == width.parameters ++ base.parameters)
     assert(expression.localParameters == local.localParameters)
+  }
+
+  test("selects exact witnesses while retaining the condition and both integer branches") {
+    val enabled = HdlBool.param("ENABLED", default = true)
+    val disabled = HdlBool.param("DISABLED", default = false)
+    val wide = HdlInt.param("WIDE", default = 16, min = 1, max = 64)
+    val narrow = HdlInt.param("NARROW", default = 8, min = 1, max = 64)
+
+    val selectedWide = enabled.select(wide, narrow)
+    val selectedNarrow = disabled.select(wide, narrow)
+
+    assert(selectedWide.witness == 16)
+    assert(selectedNarrow.witness == 8)
+    assert(
+      selectedWide.expression == Select(
+        ParameterRef("ENABLED"),
+        IntParameterRef("WIDE"),
+        IntParameterRef("NARROW")
+      )
+    )
+    assert(
+      selectedNarrow.expression == Select(
+        ParameterRef("DISABLED"),
+        IntParameterRef("WIDE"),
+        IntParameterRef("NARROW")
+      )
+    )
+    assert(selectedWide.parameters == wide.parameters ++ narrow.parameters)
+    assert(selectedWide.booleanParameters == enabled.parameters)
+    assert(selectedWide.localParameters.isEmpty)
+  }
+
+  test("accepts Int branches without leaving the symbolic selection domain") {
+    val enabled = HdlBool.param("ENABLED", default = false)
+    val literalSelection = enabled.select(12, 5)
+    val mixedSelection = enabled.select(12, HdlInt.literal(7))
+
+    assert(literalSelection.witness == 5)
+    assert(
+      literalSelection.expression == Select(
+        ParameterRef("ENABLED"),
+        IntLiteral(12),
+        IntLiteral(5)
+      )
+    )
+    assert(mixedSelection.witness == 7)
+  }
+
+  test("rejects null integer selection branches at the call site") {
+    val enabled = HdlBool.param("ENABLED", default = true)
+    val trueBranchLine = sourcecode.Line() + 1
+    val trueBranch = intercept[FrontendException](enabled.select(null, 4))
+    val falseBranchLine = sourcecode.Line() + 1
+    val falseBranch = intercept[FrontendException](enabled.select(4, null))
+
+    Vector(trueBranch -> trueBranchLine, falseBranch -> falseBranchLine).foreach {
+      case (error, expectedLine) =>
+        assert(error.code == "MORPH-FRONTEND-INTEGER-SELECT-BRANCH-NULL")
+        assert(error.origin.file.endsWith("HdlBoolTests.scala"))
+        assert(error.origin.line == expectedLine)
+    }
+  }
+
+  test("unions Boolean, integer and local provenance from the condition and both branches") {
+    val outer = HdlBool.param("OUTER", default = true)
+    val inner = HdlBool.param("INNER", default = false)
+    val wide = HdlInt.param("WIDE", default = 16, min = 1, max = 64)
+    val narrow = HdlInt.param("NARROW", default = 8, min = 1, max = 64)
+    val local = localParam("LOCAL_WIDTH", inner.select(wide + 1, narrow + 2))
+    val selected = outer.select(local, narrow) + 3
+
+    assert(selected.witness == 13)
+    assert(selected.parameters == wide.parameters ++ narrow.parameters)
+    assert(selected.booleanParameters == outer.parameters ++ inner.parameters)
+    assert(selected.localParameters == local.localParameters)
+    assert(
+      selected.expression == Add(
+        Select(ParameterRef("OUTER"), LocalParameterRef("LOCAL_WIDTH"), IntParameterRef("NARROW")),
+        IntLiteral(3)
+      )
+    )
+
+    val selectedLocal = localParam("SELECTED_WIDTH", selected)
+    val module = moduleDef(
+      name = "SelectedWidth",
+      parameters = Vector(integerParameter(wide), integerParameter(narrow)),
+      ports = Vector(port("data", PortDirection.Input, packedBits(selectedLocal))),
+      items = captureItems {},
+      localParameters = Vector(integerLocalParameter(local), integerLocalParameter(selectedLocal)),
+      booleanParameters = Vector(booleanParameter(outer), booleanParameter(inner))
+    )
+
+    assert(module.localParameters.map(_.name) == Vector("LOCAL_WIDTH", "SELECTED_WIDTH"))
+  }
+
+  test("carries selected-value provenance through guarded frontend consumers") {
+    val enabled = HdlBool.param("ENABLED", default = true)
+    val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
+    val selected = enabled.select(width, 4)
+
+    assert(packedBits(selected).booleanParameters == enabled.parameters)
+    assert(parameterBinding("WIDTH", selected).booleanParameters == enabled.parameters)
+    assert(
+      indexedPartSelect("data", selected - 1, selected).booleanParameters == enabled.parameters
+    )
+
+    val items = captureItems {
+      for (_ <- 0 until selected) {
+        emitInstance(name = "lane_inst", moduleName = "Lane")
+      }
+    }
+    assert(items.booleanParameters == enabled.parameters)
+  }
+
+  test("discharges selected-value Boolean provenance through generateIf") {
+    val enabled = HdlBool.param("ENABLED", default = false)
+    val wide = HdlInt.param("WIDE", default = 16, min = 1, max = 64)
+    val selected = enabled.select(wide, 4)
+    val items = captureItems {
+      generateIf(selected >= 8) {
+        emitInstance(name = "wide_inst", moduleName = "Wide")
+      }.otherwise {
+        emitInstance(name = "narrow_inst", moduleName = "Narrow")
+      }
+    }
+    val module = moduleDef(
+      name = "SelectedGenerateIf",
+      parameters = Vector(integerParameter(wide)),
+      ports = Vector.empty,
+      items = items,
+      booleanParameters = Vector(booleanParameter(enabled))
+    )
+
+    assert(items.booleanParameters == enabled.parameters)
+    assert(module.booleanParameters.map(_.name) == Vector("ENABLED"))
+  }
+
+  test("checks an inactive escaped selection branch before choosing its witness") {
+    val enabled = HdlBool.param("ENABLED", default = true)
+    val lanes = HdlInt.param("LANES", default = 1, min = 1, max = 1)
+    var escaped: HdlInt = null
+    captureItems {
+      for (lane <- 0 until lanes) {
+        escaped = lane * HdlInt.literal(4)
+      }
+    }
+
+    val error = intercept[FrontendException] {
+      enabled.select(HdlInt.literal(8), escaped)
+    }
+
+    assert(error.code == "MORPH-FRONTEND-GENINDEX-ESCAPED")
+    assert(error.origin == escaped.origin)
+  }
+
+  test("rejects a loop-variant selection branch even when its witness is inactive") {
+    val enabled = HdlBool.param("ENABLED", default = false)
+    val lanes = HdlInt.param("LANES", default = 1, min = 1, max = 1)
+    var error: FrontendException = null
+
+    captureItems {
+      for (lane <- 0 until lanes) {
+        val indexed = lane * HdlInt.literal(4)
+        error = intercept[FrontendException] {
+          enabled.select(indexed, HdlInt.literal(8))
+        }
+      }
+    }
+
+    assert(error.code == "MORPH-FRONTEND-GENINDEX-CONSUMER-UNSUPPORTED")
   }
 
   test("supports one-way Boolean conversion without changing ordinary Boolean operators") {

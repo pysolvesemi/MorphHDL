@@ -27,6 +27,12 @@ private[morphhdl] object IntExpressionEquivalence {
       Divide(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
     case Modulo(left, right) =>
       Modulo(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
+    case Select(condition, whenTrue, whenFalse) =>
+      Select(
+        substituteBoolean(condition, parameters, localParameters),
+        substitute(whenTrue, parameters, localParameters),
+        substitute(whenFalse, parameters, localParameters)
+      )
   }
 
   def equivalent(left: IntExpr, right: IntExpr): Boolean = {
@@ -74,6 +80,8 @@ private[morphhdl] object IntExpressionEquivalence {
           case (Multiply(al, ar), Multiply(bl, br))                   => stack += ((al, bl)); stack += ((ar, br))
           case (Divide(al, ar), Divide(bl, br))                       => stack += ((al, bl)); stack += ((ar, br))
           case (Modulo(al, ar), Modulo(bl, br))                       => stack += ((al, bl)); stack += ((ar, br))
+          case (Select(ac, at, af), Select(bc, bt, bf)) if sameBooleanStructure(ac, bc) =>
+            stack += ((at, bt)); stack += ((af, bf))
           case _                                                      => return false
         }
       }
@@ -95,6 +103,12 @@ private[morphhdl] object IntExpressionEquivalence {
         case Multiply(left, right)                                                     => stack += left; stack += right
         case Divide(left, right)                                                       => stack += left; stack += right
         case Modulo(left, right)                                                       => stack += left; stack += right
+        case Select(condition, whenTrue, whenFalse) =>
+          stack += whenTrue
+          stack += whenFalse
+          count += boundedBooleanNodeCount(condition, MaximumNormalizedNodes - count).getOrElse {
+            return None
+          }
       }
     }
     if (count <= MaximumNormalizedNodes) Some(count) else None
@@ -134,6 +148,16 @@ private[morphhdl] object IntExpressionEquivalence {
         case (Literal(x), Literal(y)) if y != 0 => Literal(x % y)
         case (_, Literal(y)) if y.abs == 1      => Literal(0)
         case _                                  => Modulo(a, b)
+      }
+    case Select(condition, whenTrue, whenFalse) =>
+      val normalizedCondition = normalizeBoolean(condition)
+      val normalizedTrue = normalize(whenTrue)
+      val normalizedFalse = normalize(whenFalse)
+      normalizedCondition match {
+        case BoolExpr.Literal(true)  => normalizedTrue
+        case BoolExpr.Literal(false) => normalizedFalse
+        case _ if sameStructure(normalizedTrue, normalizedFalse) => normalizedTrue
+        case _ => Select(normalizedCondition, normalizedTrue, normalizedFalse)
       }
   }
 
@@ -175,5 +199,116 @@ private[morphhdl] object IntExpressionEquivalence {
     case Multiply(_, _)          => "7"
     case Divide(_, _)            => "8"
     case Modulo(_, _)            => "9"
+    case Select(_, _, _)         => "10"
+  }
+
+  private def substituteBoolean(
+      expression: BoolExpr,
+      parameters: Map[String, IntExpr],
+      localParameters: Map[String, IntExpr]
+  ): BoolExpr = expression match {
+    case value @ (BoolExpr.Literal(_) | BoolExpr.ParameterRef(_)) => value
+    case BoolExpr.LessThan(left, right) =>
+      BoolExpr.LessThan(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
+    case BoolExpr.LessThanOrEqual(left, right) =>
+      BoolExpr.LessThanOrEqual(
+        substitute(left, parameters, localParameters),
+        substitute(right, parameters, localParameters)
+      )
+    case BoolExpr.GreaterThan(left, right) =>
+      BoolExpr.GreaterThan(
+        substitute(left, parameters, localParameters),
+        substitute(right, parameters, localParameters)
+      )
+    case BoolExpr.GreaterThanOrEqual(left, right) =>
+      BoolExpr.GreaterThanOrEqual(
+        substitute(left, parameters, localParameters),
+        substitute(right, parameters, localParameters)
+      )
+    case BoolExpr.Equal(left, right) =>
+      BoolExpr.Equal(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
+    case BoolExpr.NotEqual(left, right) =>
+      BoolExpr.NotEqual(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
+    case BoolExpr.Not(value) => BoolExpr.Not(substituteBoolean(value, parameters, localParameters))
+    case BoolExpr.And(left, right) =>
+      BoolExpr.And(
+        substituteBoolean(left, parameters, localParameters),
+        substituteBoolean(right, parameters, localParameters)
+      )
+    case BoolExpr.Or(left, right) =>
+      BoolExpr.Or(
+        substituteBoolean(left, parameters, localParameters),
+        substituteBoolean(right, parameters, localParameters)
+      )
+  }
+
+  private def sameBooleanStructure(left: BoolExpr, right: BoolExpr): Boolean = {
+    val stack = scala.collection.mutable.ArrayBuffer((left, right))
+    while (stack.nonEmpty) {
+      val (a, b) = stack.remove(stack.length - 1)
+      (a, b) match {
+        case (BoolExpr.Literal(x), BoolExpr.Literal(y)) if x == y =>
+        case (BoolExpr.ParameterRef(x), BoolExpr.ParameterRef(y)) if x == y =>
+        case (BoolExpr.LessThan(al, ar), BoolExpr.LessThan(bl, br)) =>
+          if (!sameStructure(al, bl) || !sameStructure(ar, br)) return false
+        case (BoolExpr.LessThanOrEqual(al, ar), BoolExpr.LessThanOrEqual(bl, br)) =>
+          if (!sameStructure(al, bl) || !sameStructure(ar, br)) return false
+        case (BoolExpr.GreaterThan(al, ar), BoolExpr.GreaterThan(bl, br)) =>
+          if (!sameStructure(al, bl) || !sameStructure(ar, br)) return false
+        case (BoolExpr.GreaterThanOrEqual(al, ar), BoolExpr.GreaterThanOrEqual(bl, br)) =>
+          if (!sameStructure(al, bl) || !sameStructure(ar, br)) return false
+        case (BoolExpr.Equal(al, ar), BoolExpr.Equal(bl, br)) =>
+          if (!sameStructure(al, bl) || !sameStructure(ar, br)) return false
+        case (BoolExpr.NotEqual(al, ar), BoolExpr.NotEqual(bl, br)) =>
+          if (!sameStructure(al, bl) || !sameStructure(ar, br)) return false
+        case (BoolExpr.Not(av), BoolExpr.Not(bv)) => stack += ((av, bv))
+        case (BoolExpr.And(al, ar), BoolExpr.And(bl, br)) => stack += ((al, bl)); stack += ((ar, br))
+        case (BoolExpr.Or(al, ar), BoolExpr.Or(bl, br)) => stack += ((al, bl)); stack += ((ar, br))
+        case _ => return false
+      }
+    }
+    true
+  }
+
+  private def boundedBooleanNodeCount(expression: BoolExpr, maximum: Int): Option[Int] = {
+    val booleanStack = scala.collection.mutable.ArrayBuffer(expression)
+    val integerStack = scala.collection.mutable.ArrayBuffer.empty[IntExpr]
+    var count = 0
+    while ((booleanStack.nonEmpty || integerStack.nonEmpty) && count <= maximum) {
+      if (booleanStack.nonEmpty) {
+        count += 1
+        booleanStack.remove(booleanStack.length - 1) match {
+          case BoolExpr.Literal(_) | BoolExpr.ParameterRef(_) =>
+          case BoolExpr.Not(value) => booleanStack += value
+          case BoolExpr.And(left, right) => booleanStack += left; booleanStack += right
+          case BoolExpr.Or(left, right) => booleanStack += left; booleanStack += right
+          case BoolExpr.LessThan(left, right) => integerStack += left; integerStack += right
+          case BoolExpr.LessThanOrEqual(left, right) => integerStack += left; integerStack += right
+          case BoolExpr.GreaterThan(left, right) => integerStack += left; integerStack += right
+          case BoolExpr.GreaterThanOrEqual(left, right) => integerStack += left; integerStack += right
+          case BoolExpr.Equal(left, right) => integerStack += left; integerStack += right
+          case BoolExpr.NotEqual(left, right) => integerStack += left; integerStack += right
+        }
+      } else {
+        boundedNodeCount(integerStack.remove(integerStack.length - 1)) match {
+          case Some(value) => count += value
+          case None        => return None
+        }
+      }
+    }
+    if (count <= maximum) Some(count) else None
+  }
+
+  private def normalizeBoolean(expression: BoolExpr): BoolExpr = expression match {
+    case value @ (BoolExpr.Literal(_) | BoolExpr.ParameterRef(_)) => value
+    case BoolExpr.LessThan(left, right) => BoolExpr.LessThan(normalize(left), normalize(right))
+    case BoolExpr.LessThanOrEqual(left, right) => BoolExpr.LessThanOrEqual(normalize(left), normalize(right))
+    case BoolExpr.GreaterThan(left, right) => BoolExpr.GreaterThan(normalize(left), normalize(right))
+    case BoolExpr.GreaterThanOrEqual(left, right) => BoolExpr.GreaterThanOrEqual(normalize(left), normalize(right))
+    case BoolExpr.Equal(left, right) => BoolExpr.Equal(normalize(left), normalize(right))
+    case BoolExpr.NotEqual(left, right) => BoolExpr.NotEqual(normalize(left), normalize(right))
+    case BoolExpr.Not(value) => BoolExpr.Not(normalizeBoolean(value))
+    case BoolExpr.And(left, right) => BoolExpr.And(normalizeBoolean(left), normalizeBoolean(right))
+    case BoolExpr.Or(left, right) => BoolExpr.Or(normalizeBoolean(left), normalizeBoolean(right))
   }
 }

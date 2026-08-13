@@ -16,6 +16,7 @@ final class GenIndex private[frontend] (
       morphhdl.paramrtl.IntExpr.Multiply(GenerateIndexRef(token.indexName), that.expression),
       token,
       that.parameters,
+      that.booleanParameters,
       that.localParameters,
       resultOrigin
     )

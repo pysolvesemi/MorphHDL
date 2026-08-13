@@ -10,6 +10,7 @@ import morphhdl.paramrtl.IntExpr.{
   Multiply,
   Negate,
   ParameterRef,
+  Select,
   Subtract
 }
 import morphhdl.paramrtl.BoolExpr.{
@@ -112,7 +113,7 @@ object Verilog2001Emitter {
       generateFors.zipWithIndex.foreach { case (generate, generateIndex) =>
         if (generateIndex != 0) lines += ""
         lines +=
-          s"    for (${generate.indexName} = 0; ${generate.indexName} < ${renderIntExpr(
+          s"    for (${generate.indexName} = 0; ${generate.indexName} < ${renderComparisonOperand(
               generate.count
             )}; ${generate.indexName} = ${generate.indexName} + 1) begin : ${generate.label}"
         val bodyInstances = generate.body.collect { case instance: ModuleInstance => instance }.sortBy(_.name)
@@ -205,6 +206,7 @@ object Verilog2001Emitter {
     f"  $direction%-6s wire $signedness$range${port.name}"
   }
 
+  private val ConditionalPrecedence = 0
   private val AdditivePrecedence = 10
   private val MultiplicativePrecedence = 20
   private val UnaryPrecedence = 30
@@ -229,6 +231,19 @@ object Verilog2001Emitter {
     case Multiply(left, right) => renderBinary(left, "*", right, MultiplicativePrecedence)
     case Divide(left, right)   => renderBinary(left, "/", right, MultiplicativePrecedence)
     case Modulo(left, right)   => renderBinary(left, "%", right, MultiplicativePrecedence)
+    case Select(condition, whenTrue, whenFalse) =>
+      val renderedTrue = renderIntExprWithPrecedence(whenTrue)
+      val renderedFalse = renderIntExprWithPrecedence(whenFalse)
+      val trueText =
+        if (renderedTrue.precedence <= ConditionalPrecedence) s"(${renderedTrue.text})"
+        else renderedTrue.text
+      val falseText =
+        if (renderedFalse.precedence <= ConditionalPrecedence) s"(${renderedFalse.text})"
+        else renderedFalse.text
+      RenderedIntExpr(
+        s"(${renderBoolExpr(condition)}) ? $trueText : $falseText",
+        ConditionalPrecedence
+      )
   }
 
   private def renderBinary(
@@ -248,7 +263,12 @@ object Verilog2001Emitter {
   private def renderRtlExpr(expression: RtlExpr): String = expression match {
     case Ref(name) => name
     case IndexedPartSelect(base, offset, width) =>
-      s"${base.name}[${renderIntExpr(offset)} +: ${renderIntExpr(width)}]"
+      s"${base.name}[${renderDelimitedIntOperand(offset)} +: ${renderDelimitedIntOperand(width)}]"
+  }
+
+  private def renderDelimitedIntOperand(expression: IntExpr): String = {
+    val rendered = renderIntExprWithPrecedence(expression)
+    if (rendered.precedence <= ConditionalPrecedence) s"(${rendered.text})" else rendered.text
   }
 
   private val BoolOrPrecedence = 10
@@ -280,9 +300,13 @@ object Verilog2001Emitter {
 
   private def renderComparison(left: IntExpr, operator: String, right: IntExpr): RenderedBoolExpr =
     RenderedBoolExpr(
-      s"${renderIntExpr(left)} $operator ${renderIntExpr(right)}",
+      s"${renderComparisonOperand(left)} $operator ${renderComparisonOperand(right)}",
       BoolAtomicPrecedence
     )
+
+  private def renderComparisonOperand(expression: IntExpr): String = {
+    renderDelimitedIntOperand(expression)
+  }
 
   private def renderBoolBinary(
       left: BoolExpr,

@@ -13,6 +13,7 @@ object IntExpr {
   final case class Multiply(left: IntExpr, right: IntExpr) extends IntExpr
   final case class Divide(left: IntExpr, right: IntExpr) extends IntExpr
   final case class Modulo(left: IntExpr, right: IntExpr) extends IntExpr
+  final case class Select(condition: BoolExpr, whenTrue: IntExpr, whenFalse: IntExpr) extends IntExpr
 }
 
 sealed trait BoolExpr extends Product with Serializable

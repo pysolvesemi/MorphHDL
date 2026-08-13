@@ -18,6 +18,7 @@ import morphhdl.paramrtl.IntExpr.{
   Multiply,
   Negate,
   ParameterRef,
+  Select,
   Subtract
 }
 import morphhdl.paramrtl.{IntConstraint, IntExpr, IntegerLocalParameter, IntegerParameter}
@@ -27,6 +28,7 @@ final class HdlInt private[frontend] (
     private[frontend] val expression: IntExpr,
     private[frontend] val declaration: Option[ParameterToken],
     private[frontend] val parameters: Set[ParameterToken],
+    private[frontend] val booleanParameters: Set[BooleanParameterToken],
     private[frontend] val localDeclaration: Option[LocalParameterToken],
     private[frontend] val localParameters: Set[LocalParameterToken],
     private[frontend] val scope: Option[ScopeToken],
@@ -92,6 +94,7 @@ final class HdlInt private[frontend] (
       Negate(expression),
       declaration = None,
       parameters = parameters,
+      booleanParameters = booleanParameters,
       localDeclaration = None,
       localParameters = localParameters,
       scope = scope,
@@ -124,6 +127,7 @@ final class HdlInt private[frontend] (
       witnessOperation(witness, that.witness),
       operation(expression, that.expression),
       parameters ++ that.parameters,
+      booleanParameters ++ that.booleanParameters,
       localParameters ++ that.localParameters,
       resultOrigin
     )
@@ -153,6 +157,7 @@ final class HdlInt private[frontend] (
       operation(expression, that.expression),
       declaration = None,
       parameters = parameters ++ that.parameters,
+      booleanParameters = booleanParameters ++ that.booleanParameters,
       localDeclaration = None,
       localParameters = localParameters ++ that.localParameters,
       scope = resultScope,
@@ -218,6 +223,7 @@ object HdlInt {
       Literal(value),
       declaration = None,
       parameters = Set.empty,
+      booleanParameters = Set.empty,
       localDeclaration = None,
       localParameters = Set.empty,
       scope = None,
@@ -241,10 +247,56 @@ object HdlInt {
       ParameterRef(name),
       declaration = Some(token),
       parameters = Set(token),
+      booleanParameters = Set.empty,
       localDeclaration = None,
       localParameters = Set.empty,
       scope = None,
       origin = token.origin
+    )
+  }
+
+  private[frontend] def select(
+      condition: HdlBool,
+      whenTrue: HdlInt,
+      whenFalse: HdlInt,
+      origin: SourceOrigin
+  ): HdlInt = {
+    if (whenTrue eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-INTEGER-SELECT-BRANCH-NULL",
+        "integer selection true branch must not be null",
+        origin
+      )
+    }
+    if (whenFalse eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-INTEGER-SELECT-BRANCH-NULL",
+        "integer selection false branch must not be null",
+        origin
+      )
+    }
+
+    // Deliberately inspect both branches before selecting the concrete witness:
+    // an inactive alternative must not hide a loop-variant or escaped index.
+    whenTrue.requireLoopInvariant("integer selection true branch")
+    whenFalse.requireLoopInvariant("integer selection false branch")
+
+    new HdlInt(
+      if (condition.witness) whenTrue.witness else whenFalse.witness,
+      Select(
+        condition.expression,
+        whenTrue.expression,
+        whenFalse.expression
+      ),
+      declaration = None,
+      parameters = condition.integerParameters ++ whenTrue.parameters ++ whenFalse.parameters,
+      booleanParameters = condition.parameters ++
+        whenTrue.booleanParameters ++ whenFalse.booleanParameters,
+      localDeclaration = None,
+      localParameters = condition.localParameters ++
+        whenTrue.localParameters ++ whenFalse.localParameters,
+      scope = None,
+      origin = origin
     )
   }
 
@@ -256,6 +308,7 @@ object HdlInt {
     val token = new LocalParameterToken(
       IntegerLocalParameter(name, value.expression),
       parameters = value.parameters,
+      booleanParameters = value.booleanParameters,
       dependencies = value.localParameters,
       origin = origin
     )
@@ -264,6 +317,7 @@ object HdlInt {
       LocalParameterRef(name),
       declaration = None,
       parameters = value.parameters,
+      booleanParameters = value.booleanParameters,
       localDeclaration = Some(token),
       localParameters = value.localParameters + token,
       scope = None,
@@ -276,6 +330,7 @@ object HdlInt {
       expression: IntExpr,
       scope: ScopeToken,
       parameters: Set[ParameterToken],
+      booleanParameters: Set[BooleanParameterToken],
       localParameters: Set[LocalParameterToken],
       origin: SourceOrigin
   ): HdlInt =
@@ -284,6 +339,7 @@ object HdlInt {
       expression,
       declaration = None,
       parameters = parameters,
+      booleanParameters = booleanParameters,
       localDeclaration = None,
       localParameters = localParameters,
       scope = Some(scope),

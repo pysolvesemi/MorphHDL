@@ -26,11 +26,15 @@ These files are executable output contracts for the parameterized backend.
 - `comparison_routing.v` is owned by Increment 10. Its bounded integer
   `SELECT >= THRESHOLD` condition selects distinct `HighRoute` and `LowRoute`
   children while preserving one fixed eight-bit public interface.
+- `conditional_width.v` is owned by Increment 11. Its typed Boolean `WIDE`
+  parameter selects `WIDE_WIDTH` or `NARROW_WIDTH` into the derived
+  `ACTIVE_WIDTH` local parameter, which controls both packed ports.
 - Increment 8 routes the first four artifacts through one production fixture
   source and `MorphVerilog`; Increments 9 and 10 extend that same path to all
-  six. CI performs a normal and reverse-construction run, requires an exact
-  six-file inventory, checks byte identity with these goldens, and gives that
-  unmodified directory to the external tool gates.
+  six. Increment 11 extends it to all seven. CI performs a normal and
+  reverse-construction run, requires an exact seven-file inventory, checks byte
+  identity with these goldens, and gives that unmodified directory to the
+  external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
   overrides. `DerivedWidthTb` checks widths 35, 4, 18, 27 and 23 in five
   simultaneous instances of the same emitted module. `ParameterForwardingTb`
@@ -43,6 +47,9 @@ These files are executable output contracts for the parameterized backend.
   port width. `ComparisonRoutingTb` covers the high default, a below-threshold low override
   and the inclusive equality boundary; Yosys proves exactly one child of the
   expected route type and exact port bindings for all three configurations.
+  `ConditionalWidthTb` covers the wide default, the narrow choice and awkward
+  overrides of each selected branch. Yosys independently proves exact 12-,
+  4-, 15- and 7-bit packed interfaces after parameter elaboration.
 
 Run:
 

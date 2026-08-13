@@ -24,6 +24,7 @@ import morphhdl.paramrtl.IntExpr.{
   Multiply,
   Negate,
   ParameterRef,
+  Select,
   Subtract
 }
 import morphhdl.paramrtl._
@@ -186,6 +187,8 @@ object Verilog2001Capability {
           diagnostics
         )
       }
+      val booleanParameterByName =
+        module.booleanParameters.map(parameter => parameter.name -> parameter).toMap
 
       val facts = design.moduleFacts(module.name)
 
@@ -197,7 +200,8 @@ object Verilog2001Capability {
           facts.parameterFacts,
           facts.localParameterFacts,
           path :+ "value",
-          diagnostics
+          diagnostics,
+          booleanParameters = booleanParameterByName
         )
       }
 
@@ -209,13 +213,14 @@ object Verilog2001Capability {
           facts.parameterFacts,
           facts.localParameterFacts,
           path :+ "width",
-          diagnostics
+          diagnostics,
+          booleanParameters = booleanParameterByName
         )
       }
 
       module.items.collect { case instance: ModuleInstance => instance }.sortBy(_.name).foreach { instance =>
         val path = modulePath :+ "instances" :+ instance.name
-        checkInstance(instance, facts, path, Map.empty, diagnostics)
+        checkInstance(instance, facts, path, Map.empty, booleanParameterByName, diagnostics)
       }
 
       module.items.collect { case generate: GenerateFor => generate }.sortBy(_.label).foreach { generate =>
@@ -227,11 +232,18 @@ object Verilog2001Capability {
           facts.parameterFacts,
           facts.localParameterFacts,
           path :+ "count",
-          diagnostics
+          diagnostics,
+          booleanParameters = booleanParameterByName
         )
 
         val generateIndices = IntExpressionAnalysis
-          .analyze(generate.count, facts.parameterFacts, facts.localParameterFacts)
+          .analyze(
+            generate.count,
+            facts.parameterFacts,
+            facts.localParameterFacts,
+            booleanParameterByName,
+            Map.empty
+          )
           .toOption
           .map { countFacts =>
             generate.indexName -> IntExprFacts(
@@ -247,6 +259,7 @@ object Verilog2001Capability {
             facts,
             path :+ "instances" :+ instance.name,
             generateIndices,
+            booleanParameterByName,
             diagnostics
           )
         }
@@ -256,14 +269,26 @@ object Verilog2001Capability {
         val path = modulePath :+ "generateIfs" :+ generate.whenTrue.label
         checkBooleanExpression(
           generate.condition,
-          module.booleanParameters.map(parameter => parameter.name -> parameter).toMap,
+          booleanParameterByName,
           facts.parameterFacts,
           facts.localParameterFacts,
           path :+ "condition",
           diagnostics
         )
-        checkGenerateBlock(generate.whenTrue, facts, path :+ "whenTrue", diagnostics)
-        checkGenerateBlock(generate.whenFalse, facts, path :+ "whenFalse", diagnostics)
+        checkGenerateBlock(
+          generate.whenTrue,
+          facts,
+          booleanParameterByName,
+          path :+ "whenTrue",
+          diagnostics
+        )
+        checkGenerateBlock(
+          generate.whenFalse,
+          facts,
+          booleanParameterByName,
+          path :+ "whenFalse",
+          diagnostics
+        )
       }
 
       module.items.collect { case assignment: ContinuousAssign => assignment }.zipWithIndex.foreach {
@@ -273,6 +298,7 @@ object Verilog2001Capability {
             facts,
             modulePath :+ "assignments" :+ index.toString :+ "value",
             Map.empty,
+            booleanParameterByName,
             diagnostics
           )
       }
@@ -285,12 +311,20 @@ object Verilog2001Capability {
   private def checkGenerateBlock(
       block: GenerateBlock,
       facts: ValidatedModuleFacts,
+      booleanParameters: Map[String, BooleanParameter],
       path: Vector[String],
       diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]]
   ): Unit = {
     checkName(block.label, path :+ "label", diagnostics)
     block.body.collect { case instance: ModuleInstance => instance }.sortBy(_.name).foreach { instance =>
-      checkInstance(instance, facts, path :+ "instances" :+ instance.name, Map.empty, diagnostics)
+      checkInstance(
+        instance,
+        facts,
+        path :+ "instances" :+ instance.name,
+        Map.empty,
+        booleanParameters,
+        diagnostics
+      )
     }
     block.body.collect { case assignment: ContinuousAssign => assignment }.zipWithIndex.foreach {
       case (assignment, index) =>
@@ -299,6 +333,7 @@ object Verilog2001Capability {
           facts,
           path :+ "assignments" :+ index.toString :+ "value",
           Map.empty,
+          booleanParameters,
           diagnostics
         )
     }
@@ -310,7 +345,8 @@ object Verilog2001Capability {
       integerParameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts],
       path: Vector[String],
-      diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]]
+      diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]],
+      generateIndices: Map[String, IntExprFacts] = Map.empty
   ): Unit = expression match {
     case BoolLiteral(_) =>
     case BoolParameterRef(name) =>
@@ -324,7 +360,8 @@ object Verilog2001Capability {
         integerParameters,
         localParameters,
         path :+ "operand",
-        diagnostics
+        diagnostics,
+        generateIndices
       )
     case BoolAnd(left, right) =>
       checkBooleanBinary(
@@ -334,7 +371,8 @@ object Verilog2001Capability {
         integerParameters,
         localParameters,
         path,
-        diagnostics
+        diagnostics,
+        generateIndices
       )
     case BoolOr(left, right) =>
       checkBooleanBinary(
@@ -344,20 +382,75 @@ object Verilog2001Capability {
         integerParameters,
         localParameters,
         path,
-        diagnostics
+        diagnostics,
+        generateIndices
       )
     case BoolLessThan(left, right) =>
-      checkComparison(left, right, integerParameters, localParameters, path, diagnostics)
+      checkComparison(
+        left,
+        right,
+        booleanParameters,
+        integerParameters,
+        localParameters,
+        path,
+        diagnostics,
+        generateIndices
+      )
     case BoolLessThanOrEqual(left, right) =>
-      checkComparison(left, right, integerParameters, localParameters, path, diagnostics)
+      checkComparison(
+        left,
+        right,
+        booleanParameters,
+        integerParameters,
+        localParameters,
+        path,
+        diagnostics,
+        generateIndices
+      )
     case BoolGreaterThan(left, right) =>
-      checkComparison(left, right, integerParameters, localParameters, path, diagnostics)
+      checkComparison(
+        left,
+        right,
+        booleanParameters,
+        integerParameters,
+        localParameters,
+        path,
+        diagnostics,
+        generateIndices
+      )
     case BoolGreaterThanOrEqual(left, right) =>
-      checkComparison(left, right, integerParameters, localParameters, path, diagnostics)
+      checkComparison(
+        left,
+        right,
+        booleanParameters,
+        integerParameters,
+        localParameters,
+        path,
+        diagnostics,
+        generateIndices
+      )
     case BoolEqual(left, right) =>
-      checkComparison(left, right, integerParameters, localParameters, path, diagnostics)
+      checkComparison(
+        left,
+        right,
+        booleanParameters,
+        integerParameters,
+        localParameters,
+        path,
+        diagnostics,
+        generateIndices
+      )
     case BoolNotEqual(left, right) =>
-      checkComparison(left, right, integerParameters, localParameters, path, diagnostics)
+      checkComparison(
+        left,
+        right,
+        booleanParameters,
+        integerParameters,
+        localParameters,
+        path,
+        diagnostics,
+        generateIndices
+      )
   }
 
   private def checkBooleanBinary(
@@ -367,7 +460,8 @@ object Verilog2001Capability {
       integerParameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts],
       path: Vector[String],
-      diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]]
+      diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]],
+      generateIndices: Map[String, IntExprFacts]
   ): Unit = {
     checkBooleanExpression(
       left,
@@ -375,7 +469,8 @@ object Verilog2001Capability {
       integerParameters,
       localParameters,
       path :+ "left",
-      diagnostics
+      diagnostics,
+      generateIndices
     )
     checkBooleanExpression(
       right,
@@ -383,20 +478,39 @@ object Verilog2001Capability {
       integerParameters,
       localParameters,
       path :+ "right",
-      diagnostics
+      diagnostics,
+      generateIndices
     )
   }
 
   private def checkComparison(
       left: IntExpr,
       right: IntExpr,
+      booleanParameters: Map[String, BooleanParameter],
       parameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts],
       path: Vector[String],
-      diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]]
+      diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]],
+      generateIndices: Map[String, IntExprFacts]
   ): Unit = {
-    checkExpression(left, parameters, localParameters, path :+ "left", diagnostics)
-    checkExpression(right, parameters, localParameters, path :+ "right", diagnostics)
+    checkExpression(
+      left,
+      parameters,
+      localParameters,
+      path :+ "left",
+      diagnostics,
+      generateIndices,
+      booleanParameters
+    )
+    checkExpression(
+      right,
+      parameters,
+      localParameters,
+      path :+ "right",
+      diagnostics,
+      generateIndices,
+      booleanParameters
+    )
   }
 
   private def checkInstance(
@@ -404,6 +518,7 @@ object Verilog2001Capability {
       facts: ValidatedModuleFacts,
       path: Vector[String],
       generateIndices: Map[String, IntExprFacts],
+      booleanParameters: Map[String, BooleanParameter],
       diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]]
   ): Unit = {
     checkName(instance.name, path :+ "name", diagnostics)
@@ -414,7 +529,8 @@ object Verilog2001Capability {
         facts.localParameterFacts,
         path :+ "parameterBindings" :+ binding.parameterName :+ "value",
         diagnostics,
-        generateIndices
+        generateIndices,
+        booleanParameters
       )
     }
     instance.portConnections.sortBy(_.portName).foreach { connection =>
@@ -423,6 +539,7 @@ object Verilog2001Capability {
         facts,
         path :+ "portConnections" :+ connection.portName :+ "actual",
         generateIndices,
+        booleanParameters,
         diagnostics
       )
     }
@@ -433,6 +550,7 @@ object Verilog2001Capability {
       facts: ValidatedModuleFacts,
       path: Vector[String],
       generateIndices: Map[String, IntExprFacts],
+      booleanParameters: Map[String, BooleanParameter],
       diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]]
   ): Unit = expression match {
     case Ref(_) =>
@@ -443,7 +561,8 @@ object Verilog2001Capability {
         facts.localParameterFacts,
         path :+ "offset",
         diagnostics,
-        generateIndices
+        generateIndices,
+        booleanParameters
       )
       checkExpression(
         width,
@@ -451,7 +570,8 @@ object Verilog2001Capability {
         facts.localParameterFacts,
         path :+ "width",
         diagnostics,
-        generateIndices
+        generateIndices,
+        booleanParameters
       )
   }
 
@@ -506,9 +626,13 @@ object Verilog2001Capability {
       localParameters: Map[String, IntExprFacts],
       path: Vector[String],
       diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]],
-      generateIndices: Map[String, IntExprFacts] = Map.empty
+      generateIndices: Map[String, IntExprFacts] = Map.empty,
+      booleanParameters: Map[String, BooleanParameter] = Map.empty
   ): Unit = {
-    IntExpressionAnalysis.analyze(expression, parameters, localParameters, generateIndices).toOption.foreach { facts =>
+    IntExpressionAnalysis
+      .analyze(expression, parameters, localParameters, booleanParameters, generateIndices)
+      .toOption
+      .foreach { facts =>
       val interval = facts.interval
       if (
         interval.lower.isEmpty ||
@@ -526,27 +650,63 @@ object Verilog2001Capability {
           s"Integer expression domain $renderedDomain is outside the portable signed 32-bit Verilog integer range"
         )
       }
-    }
+      }
 
     expression match {
       case Literal(_) | ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_) =>
       case Negate(value) =>
-        checkExpression(value, parameters, localParameters, path :+ "operand", diagnostics, generateIndices)
+        checkExpression(
+          value,
+          parameters,
+          localParameters,
+          path :+ "operand",
+          diagnostics,
+          generateIndices,
+          booleanParameters
+        )
       case Add(left, right) =>
-        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices)
-        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices)
+        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices, booleanParameters)
+        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices, booleanParameters)
       case Subtract(left, right) =>
-        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices)
-        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices)
+        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices, booleanParameters)
+        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices, booleanParameters)
       case Multiply(left, right) =>
-        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices)
-        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices)
+        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices, booleanParameters)
+        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices, booleanParameters)
       case Divide(left, right) =>
-        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices)
-        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices)
+        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices, booleanParameters)
+        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices, booleanParameters)
       case Modulo(left, right) =>
-        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices)
-        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices)
+        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices, booleanParameters)
+        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices, booleanParameters)
+      case Select(condition, whenTrue, whenFalse) =>
+        checkBooleanExpression(
+          condition,
+          booleanParameters,
+          parameters,
+          localParameters,
+          path :+ "condition",
+          diagnostics,
+          generateIndices
+        )
+        checkExpression(
+          whenTrue,
+          parameters,
+          localParameters,
+          path :+ "whenTrue",
+          diagnostics,
+          generateIndices,
+          booleanParameters
+        )
+        checkExpression(
+          whenFalse,
+          parameters,
+          localParameters,
+          path :+ "whenFalse",
+          diagnostics,
+          generateIndices,
+          booleanParameters
+        )
     }
   }
 

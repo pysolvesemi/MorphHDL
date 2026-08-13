@@ -144,3 +144,16 @@ conditional integer values, `min`, `max` and `clog2` are still deferred;
 multiple/nested predicates and runtime processes keep the driver guard partial.
 The external release-strength artifact now contains exactly six generated
 files, including `comparison_routing.v`.
+
+Increment 11 extends the partial width adaptation through typed conditional
+integer values. ParamRTL validates the Boolean condition and both integer
+branches, computes exact defaults from the current instance context, and uses
+the unconditional hull of both legal branch intervals without claiming guard
+correlation. `MorphVerilog` carries module Boolean defaults alongside bound
+public integer and recomputed local facts when checking packed widths, child
+bindings and generate counts. The seventh public fixture proves wide, narrow
+and awkward override widths without rerunning MorphHDL. `PhaseInferWidth`
+remains partial because `min`, `max`, `clog2` and the remaining v1 runtime type
+algebra are deferred; multiple/nested structural predicates and processes keep
+the driver guard partial. The external release-strength artifact now contains
+exactly seven generated files, including `conditional_width.v`.

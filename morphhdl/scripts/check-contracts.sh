@@ -64,6 +64,7 @@ generated_contracts=(
   lane_array.v
   conditional_forwarding.v
   comparison_routing.v
+  conditional_width.v
 )
 
 if (( using_reviewed_goldens == 0 )); then
@@ -100,6 +101,7 @@ parameter_forwarding_file="$generated_dir/parameter_forwarding.v"
 lane_array_file="$generated_dir/lane_array.v"
 conditional_forwarding_file="$generated_dir/conditional_forwarding.v"
 comparison_routing_file="$generated_dir/comparison_routing.v"
+conditional_width_file="$generated_dir/conditional_width.v"
 
 parity_args=("$parity_file")
 for live_phase_id_file in "${live_phase_id_files[@]}"; do
@@ -115,6 +117,7 @@ design_files=(
   "$lane_array_file"
   "$conditional_forwarding_file"
   "$comparison_routing_file"
+  "$conditional_width_file"
 )
 
 all_verilog_files=(
@@ -125,6 +128,7 @@ all_verilog_files=(
   "$examples_dir/lane_array_tb.v"
   "$examples_dir/conditional_forwarding_tb.v"
   "$examples_dir/comparison_routing_tb.v"
+  "$examples_dir/conditional_width_tb.v"
 )
 
 read_property() {
@@ -158,6 +162,7 @@ require_property backend.canonical_ir ParamRTL
 require_property backend.initial_emitter direct-verilog
 require_property parameter.boolean_encoding integer
 require_property parameter.integer_comparison true
+require_property parameter.integer_conditional true
 require_property port.conditional_presence false
 require_property structure.module_instance true
 require_property structure.named_parameter_binding true
@@ -244,6 +249,8 @@ expected_modules=(
   LowRoute
   ComparisonRouting
   ComparisonRoutingTb
+  ConditionalWidth
+  ConditionalWidthTb
 )
 
 for module_name in "${expected_modules[@]}"; do
@@ -308,6 +315,15 @@ if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+SELECT[[:space:]]*=[[:spa
   exit 1
 fi
 
+if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDE[[:space:]]*=[[:space:]]*1' "$conditional_width_file" ||
+   ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+NARROW_WIDTH[[:space:]]*=[[:space:]]*4' "$conditional_width_file" ||
+   ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDE_WIDTH[[:space:]]*=[[:space:]]*12' "$conditional_width_file" ||
+   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+ACTIVE_WIDTH[[:space:]]*=[[:space:]]*\([[:space:]]*WIDE[[:space:]]*==[[:space:]]*1[[:space:]]*\)[[:space:]]*\?[[:space:]]*WIDE_WIDTH[[:space:]]*:[[:space:]]*NARROW_WIDTH' "$conditional_width_file" ||
+   [[ "$(grep -Ec '\[ACTIVE_WIDTH-1:0\][[:space:]]+(din|dout)' "$conditional_width_file")" != "2" ]]; then
+  echo "ConditionalWidth does not retain its typed conditional local width" >&2
+  exit 1
+fi
+
 missing_tools=()
 for tool in iverilog verilator vvp yosys; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -339,12 +355,14 @@ cp "$parameter_forwarding_file" "$tmp_dir/parameter_forwarding.v"
 cp "$lane_array_file" "$tmp_dir/lane_array.v"
 cp "$conditional_forwarding_file" "$tmp_dir/conditional_forwarding.v"
 cp "$comparison_routing_file" "$tmp_dir/comparison_routing.v"
+cp "$conditional_width_file" "$tmp_dir/conditional_width.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
 yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
 yosys_lane_array_file="$tmp_dir/lane_array.v"
 yosys_conditional_forwarding_file="$tmp_dir/conditional_forwarding.v"
 yosys_comparison_routing_file="$tmp_dir/comparison_routing.v"
+yosys_conditional_width_file="$tmp_dir/conditional_width.v"
 
 echo "Verilator: $(verilator --version)"
 echo "Icarus: $(iverilog -V 2>/dev/null | head -n 1)"
@@ -488,6 +506,29 @@ verilator --lint-only --language 1364-2001 -Wall \
   -GSELECT=5 -GTHRESHOLD=5 \
   "$comparison_routing_file"
 
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ConditionalWidth \
+  "$conditional_width_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ConditionalWidth \
+  -GWIDE=0 \
+  "$conditional_width_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ConditionalWidth \
+  -GWIDE=1 -GNARROW_WIDTH=5 -GWIDE_WIDTH=15 \
+  "$conditional_width_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ConditionalWidth \
+  -GWIDE=0 -GNARROW_WIDTH=7 -GWIDE_WIDTH=20 \
+  "$conditional_width_file"
+
 iverilog -g2001 -Wall -s ParameterizedWireTb \
   -o "$tmp_dir/parameterized_wire.vvp" \
   "$parameterized_wire_file" \
@@ -554,6 +595,17 @@ if ! printf '%s\n' "$comparison_output" | grep -q 'PASS: ComparisonRouting'; the
   exit 1
 fi
 
+iverilog -g2001 -Wall -s ConditionalWidthTb \
+  -o "$tmp_dir/conditional_width.vvp" \
+  "$conditional_width_file" \
+  "$examples_dir/conditional_width_tb.v"
+conditional_width_output="$(vvp "$tmp_dir/conditional_width.vvp")"
+echo "$conditional_width_output"
+if ! printf '%s\n' "$conditional_width_output" | grep -q 'PASS: ConditionalWidth'; then
+  echo "ConditionalWidth simulation did not report PASS" >&2
+  exit 1
+fi
+
 yosys_synthesize_and_check() {
   local input_file="$1"
   local module_name="$2"
@@ -590,6 +642,18 @@ yosys_synthesize_and_check \
 yosys_synthesize_and_check \
   "$yosys_derived_width_file" DerivedWidth data-width-only 23 \
   "chparam -set DATA_WIDTH 5 DerivedWidth;"
+
+yosys_synthesize_and_check \
+  "$yosys_conditional_width_file" ConditionalWidth default 12 ""
+yosys_synthesize_and_check \
+  "$yosys_conditional_width_file" ConditionalWidth narrow 4 \
+  "chparam -set WIDE 0 ConditionalWidth;"
+yosys_synthesize_and_check \
+  "$yosys_conditional_width_file" ConditionalWidth custom-wide 15 \
+  "chparam -set WIDE 1 -set NARROW_WIDTH 5 -set WIDE_WIDTH 15 ConditionalWidth;"
+yosys_synthesize_and_check \
+  "$yosys_conditional_width_file" ConditionalWidth custom-narrow 7 \
+  "chparam -set WIDE 0 -set NARROW_WIDTH 7 -set WIDE_WIDTH 20 ConditionalWidth;"
 
 yosys_hierarchy_synthesize_and_check() {
   local input_file="$1"

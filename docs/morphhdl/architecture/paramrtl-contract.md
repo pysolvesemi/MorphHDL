@@ -104,8 +104,17 @@ inequality. Default evaluation receives the current instance's public and local
 integer facts, while validation eagerly analyzes both operands over their legal
 domains. Comparison semantics are mathematical arbitrary-precision integers;
 Verilog width and signedness behavior enters only during target legalization.
-Conditional integer values remain a separate expression node planned for the
-next tranche.
+Increment 11 adds `IntExpr.Select(condition, whenTrue, whenFalse)`. Its exact
+default follows the typed Boolean condition in the current module-instance
+context. Whole-domain analysis eagerly validates the condition and both value
+branches, then uses the unconditional hull of the two branch intervals. It
+does not use a default choice as proof that the inactive branch is safe, and
+it does not yet refine either branch from correlations implied by the guard.
+This conservative rule applies wherever an integer constant expression is
+legal, including local parameters, packed widths, child bindings and generate
+counts. Conditional expressions compose recursively with the normal expression
+precedence rules. Boolean child bindings, Boolean local parameters and nested
+or multiple structural predicates remain separate tranches.
 
 ## Required invariants
 

@@ -44,28 +44,64 @@ object BoolExpressionAnalysis {
       integerParameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts]
   ): Either[BoolExpressionFailure, Boolean] =
+    evaluateDefault(expression, booleanParameters, integerParameters, localParameters, Map.empty)
+
+  def evaluateDefault(
+      expression: BoolExpr,
+      booleanParameters: Map[String, BooleanParameter],
+      integerParameters: Map[String, IntExprFacts],
+      localParameters: Map[String, IntExprFacts],
+      generateIndices: Map[String, IntExprFacts]
+  ): Either[BoolExpressionFailure, Boolean] =
     parameterReferences(expression).find(name => !booleanParameters.contains(name)) match {
       case Some(name) => Left(UnresolvedParameter(name))
       case None =>
-        integerOperandFailures(expression, integerParameters, localParameters).headOption match {
+        integerOperandFailures(
+          expression,
+          booleanParameters,
+          integerParameters,
+          localParameters,
+          generateIndices
+        ).headOption match {
           case Some(failure) => Left(InvalidIntegerExpression(failure))
           case None =>
             val defaultAssignments = booleanParameters.iterator.map {
               case (name, parameter) => name -> parameter.default
             }.toMap
-            Right(evaluate(expression, defaultAssignments, integerParameters, localParameters))
+            Right(
+              evaluate(
+                expression,
+                defaultAssignments,
+                booleanParameters,
+                integerParameters,
+                localParameters,
+                generateIndices
+              )
+            )
         }
     }
 
   def parameterReferences(expression: BoolExpr): Vector[String] = expression match {
     case Literal(_)         => Vector.empty
     case ParameterRef(name) => Vector(name)
-    case LessThan(_, _)           => Vector.empty
-    case LessThanOrEqual(_, _)    => Vector.empty
-    case GreaterThan(_, _)        => Vector.empty
-    case GreaterThanOrEqual(_, _) => Vector.empty
-    case Equal(_, _)              => Vector.empty
-    case NotEqual(_, _)           => Vector.empty
+    case LessThan(left, right) =>
+      IntExpressionAnalysis.booleanParameterReferences(left) ++
+        IntExpressionAnalysis.booleanParameterReferences(right)
+    case LessThanOrEqual(left, right) =>
+      IntExpressionAnalysis.booleanParameterReferences(left) ++
+        IntExpressionAnalysis.booleanParameterReferences(right)
+    case GreaterThan(left, right) =>
+      IntExpressionAnalysis.booleanParameterReferences(left) ++
+        IntExpressionAnalysis.booleanParameterReferences(right)
+    case GreaterThanOrEqual(left, right) =>
+      IntExpressionAnalysis.booleanParameterReferences(left) ++
+        IntExpressionAnalysis.booleanParameterReferences(right)
+    case Equal(left, right) =>
+      IntExpressionAnalysis.booleanParameterReferences(left) ++
+        IntExpressionAnalysis.booleanParameterReferences(right)
+    case NotEqual(left, right) =>
+      IntExpressionAnalysis.booleanParameterReferences(left) ++
+        IntExpressionAnalysis.booleanParameterReferences(right)
     case Not(value)       => parameterReferences(value)
     case And(left, right) => parameterReferences(left) ++ parameterReferences(right)
     case Or(left, right)  => parameterReferences(left) ++ parameterReferences(right)
@@ -92,11 +128,19 @@ object BoolExpressionAnalysis {
 
   private def integerOperandFailures(
       expression: BoolExpr,
+      booleanParameters: Map[String, BooleanParameter],
       parameters: Map[String, IntExprFacts],
-      localParameters: Map[String, IntExprFacts]
+      localParameters: Map[String, IntExprFacts],
+      generateIndices: Map[String, IntExprFacts]
   ): Vector[IntExpressionFailure] =
     integerOperands(expression).flatMap { operand =>
-      IntExpressionAnalysis.analyze(operand, parameters, localParameters) match {
+      IntExpressionAnalysis.analyze(
+        operand,
+        parameters,
+        localParameters,
+        booleanParameters,
+        generateIndices
+      ) match {
         case Left(failure) => Vector(failure)
         case Right(_)      => Vector.empty
       }
@@ -105,44 +149,62 @@ object BoolExpressionAnalysis {
   private def evaluate(
       expression: BoolExpr,
       booleanValues: Map[String, Boolean],
+      booleanParameters: Map[String, BooleanParameter],
       integerParameters: Map[String, IntExprFacts],
-      localParameters: Map[String, IntExprFacts]
+      localParameters: Map[String, IntExprFacts],
+      generateIndices: Map[String, IntExprFacts]
   ): Boolean = expression match {
     case Literal(value)     => value
     case ParameterRef(name) => booleanValues(name)
     case LessThan(left, right) =>
-      integerDefault(left, integerParameters, localParameters) <
-        integerDefault(right, integerParameters, localParameters)
+      integerDefault(left, booleanParameters, integerParameters, localParameters, generateIndices) <
+        integerDefault(right, booleanParameters, integerParameters, localParameters, generateIndices)
     case LessThanOrEqual(left, right) =>
-      integerDefault(left, integerParameters, localParameters) <=
-        integerDefault(right, integerParameters, localParameters)
+      integerDefault(left, booleanParameters, integerParameters, localParameters, generateIndices) <=
+        integerDefault(right, booleanParameters, integerParameters, localParameters, generateIndices)
     case GreaterThan(left, right) =>
-      integerDefault(left, integerParameters, localParameters) >
-        integerDefault(right, integerParameters, localParameters)
+      integerDefault(left, booleanParameters, integerParameters, localParameters, generateIndices) >
+        integerDefault(right, booleanParameters, integerParameters, localParameters, generateIndices)
     case GreaterThanOrEqual(left, right) =>
-      integerDefault(left, integerParameters, localParameters) >=
-        integerDefault(right, integerParameters, localParameters)
+      integerDefault(left, booleanParameters, integerParameters, localParameters, generateIndices) >=
+        integerDefault(right, booleanParameters, integerParameters, localParameters, generateIndices)
     case Equal(left, right) =>
-      integerDefault(left, integerParameters, localParameters) ==
-        integerDefault(right, integerParameters, localParameters)
+      integerDefault(left, booleanParameters, integerParameters, localParameters, generateIndices) ==
+        integerDefault(right, booleanParameters, integerParameters, localParameters, generateIndices)
     case NotEqual(left, right) =>
-      integerDefault(left, integerParameters, localParameters) !=
-        integerDefault(right, integerParameters, localParameters)
-    case Not(value)       => !evaluate(value, booleanValues, integerParameters, localParameters)
+      integerDefault(left, booleanParameters, integerParameters, localParameters, generateIndices) !=
+        integerDefault(right, booleanParameters, integerParameters, localParameters, generateIndices)
+    case Not(value) =>
+      !evaluate(
+        value,
+        booleanValues,
+        booleanParameters,
+        integerParameters,
+        localParameters,
+        generateIndices
+      )
     case And(left, right) =>
-      evaluate(left, booleanValues, integerParameters, localParameters) &&
-        evaluate(right, booleanValues, integerParameters, localParameters)
+      evaluate(left, booleanValues, booleanParameters, integerParameters, localParameters, generateIndices) &&
+        evaluate(right, booleanValues, booleanParameters, integerParameters, localParameters, generateIndices)
     case Or(left, right) =>
-      evaluate(left, booleanValues, integerParameters, localParameters) ||
-        evaluate(right, booleanValues, integerParameters, localParameters)
+      evaluate(left, booleanValues, booleanParameters, integerParameters, localParameters, generateIndices) ||
+        evaluate(right, booleanValues, booleanParameters, integerParameters, localParameters, generateIndices)
   }
 
   private def integerDefault(
       expression: IntExpr,
+      booleanParameters: Map[String, BooleanParameter],
       parameters: Map[String, IntExprFacts],
-      localParameters: Map[String, IntExprFacts]
+      localParameters: Map[String, IntExprFacts],
+      generateIndices: Map[String, IntExprFacts]
   ): BigInt =
-    IntExpressionAnalysis.analyze(expression, parameters, localParameters) match {
+    IntExpressionAnalysis.analyze(
+      expression,
+      parameters,
+      localParameters,
+      booleanParameters,
+      generateIndices
+    ) match {
       case Right(facts) => facts.defaultValue
       case Left(failure) =>
         throw new IllegalStateException(s"Integer operand was not prevalidated: $failure")
