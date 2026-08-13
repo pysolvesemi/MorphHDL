@@ -43,3 +43,9 @@ expressions and one mandatory two-branch `GenerateIf` per module capture. Both
 branches are validated, while concrete default-shape agreement follows only
 the selected branch. The fifth `conditional_forwarding.v` artifact is produced
 through the same public orchestration and strict Verilog-2001 gates.
+
+Increment 10 adds mathematical integer comparisons from `HdlInt` to `HdlBool`:
+`<`, `<=`, `>`, `>=`, `hdlEq` and `hdlNe`. Ordinary Scala equality remains
+fail-closed. `MorphVerilog` evaluates comparison defaults with binding-aware
+integer and local facts, and the sixth `comparison_routing.v` artifact proves
+that downstream parameter overrides select distinct legal child hierarchies.

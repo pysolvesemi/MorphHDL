@@ -8,6 +8,7 @@ first parameterized-Verilog release, not implemented in Increment 1.
 | Parameters | Integer public parameters | v1 | Literal defaults and explicit constraints |
 | Parameters | Boolean parameters | v1 | Increment 9 preserves typed public Boolean intent and legalizes it to integer `1`/`0` in Verilog |
 | Parameters | Derived local parameters | v1 | Increment 8 captures identity-bearing integer locals; Boolean locals remain planned |
+| Parameters | Integer comparisons | v1 | Increment 10 implements `<`, `<=`, `>`, `>=`, `hdlEq` and `hdlNe` as typed Boolean expressions |
 | Parameters | Enum/type/string parameters | Post-v1 | Static in v1 |
 | Shape | Parameter-dependent packed width | v1 | Width must be provably positive |
 | Shape | Parameter-dependent memory depth | v1 | Supported memory modes are bounded |

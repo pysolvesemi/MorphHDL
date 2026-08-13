@@ -129,7 +129,18 @@ both branches, including modules unreachable under the default witness, and
 requires unconditional-plus-true and unconditional-plus-false output coverage
 to each equal one. `MorphVerilog` selects only the default branch for concrete
 shape agreement after complete symbolic validation. `PhaseInferWidth` and
-`PhaseCheck_noLatchNoOverride` remain partial: integer comparisons,
-conditional values, multiple/nested predicates and runtime processes are still
-deferred. The external release-strength gates now consume the exact five-file
-`MorphVerilog` artifact, including `conditional_forwarding.v`.
+`PhaseCheck_noLatchNoOverride` remain partial. At Increment 9, integer
+comparisons, conditional values, multiple/nested predicates and runtime
+processes were still deferred, and the external release-strength artifact had
+five files including `conditional_forwarding.v`.
+
+Increment 10 extends the partial width adaptation through all six mathematical
+integer comparisons. The default-shape leg now evaluates comparison conditions
+using the current instance's public/local integer facts, while ParamRTL and the
+target pass eagerly validate both operand subtrees. The sixth public fixture
+proves that legal parameter overrides change the selected child hierarchy
+without rerunning MorphHDL. `PhaseInferWidth` remains partial because
+conditional integer values, `min`, `max` and `clog2` are still deferred;
+multiple/nested predicates and runtime processes keep the driver guard partial.
+The external release-strength artifact now contains exactly six generated
+files, including `comparison_routing.v`.

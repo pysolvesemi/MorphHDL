@@ -134,6 +134,7 @@ jobs:
             actual_inventory="$(find "target/morphhdl/generated/run-${run}" \
               -mindepth 1 -maxdepth 1 -printf '%f %y\n' | sort)"
             expected_inventory="$(printf '%s\n' \
+              'comparison_routing.v f' \
               'conditional_forwarding.v f' \
               'derived_width.v f' \
               'lane_array.v f' \
@@ -149,7 +150,8 @@ jobs:
             derived_width.v \
             parameter_forwarding.v \
             lane_array.v \
-            conditional_forwarding.v
+            conditional_forwarding.v \
+            comparison_routing.v
           do
             cmp "target/morphhdl/generated/run-1/${filename}" \
               "morphhdl/examples/contracts/${filename}"

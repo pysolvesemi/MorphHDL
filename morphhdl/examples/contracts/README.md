@@ -23,11 +23,14 @@ These files are executable output contracts for the parameterized backend.
   `ENABLE` parameter selects one of two explicitly labeled generate-if blocks.
   Both blocks retain the same named, width-forwarding `ConditionalLeaf`
   instance, while the default concrete witness contains exactly one child.
+- `comparison_routing.v` is owned by Increment 10. Its bounded integer
+  `SELECT >= THRESHOLD` condition selects distinct `HighRoute` and `LowRoute`
+  children while preserving one fixed eight-bit public interface.
 - Increment 8 routes the first four artifacts through one production fixture
-  source and `MorphVerilog`; Increment 9 extends that same path to all five. CI
-  performs a normal and reverse-construction run, requires an exact five-file
-  inventory, checks byte identity with these goldens, and gives that unmodified
-  directory to the external tool gates.
+  source and `MorphVerilog`; Increments 9 and 10 extend that same path to all
+  six. CI performs a normal and reverse-construction run, requires an exact
+  six-file inventory, checks byte identity with these goldens, and gives that
+  unmodified directory to the external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
   overrides. `DerivedWidthTb` checks widths 35, 4, 18, 27 and 23 in five
   simultaneous instances of the same emitted module. `ParameterForwardingTb`
@@ -37,7 +40,9 @@ These files are executable output contracts for the parameterized backend.
   4x5 exact lane partitions. `ConditionalForwardingTb` covers the true default,
   `ENABLE=0`, enabled width 5 and disabled width 13; Yosys independently proves
   that each configuration retains exactly one selected leaf with the expected
-  port width.
+  port width. `ComparisonRoutingTb` covers the high default, a below-threshold low override
+  and the inclusive equality boundary; Yosys proves exactly one child of the
+  expected route type and exact port bindings for all three configurations.
 
 Run:
 

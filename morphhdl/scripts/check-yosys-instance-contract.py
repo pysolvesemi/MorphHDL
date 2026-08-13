@@ -39,6 +39,10 @@ def main():
     parser.add_argument("top_module")
     parser.add_argument("instance")
     parser.add_argument(
+        "--child-type",
+        help="expected exact elaborated child module type",
+    )
+    parser.add_argument(
         "--binding",
         action="append",
         required=True,
@@ -88,6 +92,12 @@ def main():
         return fail("instance {} has no module type".format(args.instance))
     if child_type == args.top_module:
         return fail("instance {} recursively targets the top module".format(args.instance))
+    if args.child_type is not None and child_type != args.child_type:
+        return fail(
+            "instance {} targets {}, expected {}".format(
+                args.instance, child_type, args.child_type
+            )
+        )
 
     child = modules.get(child_type)
     if child is None:

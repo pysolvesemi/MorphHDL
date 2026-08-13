@@ -63,6 +63,7 @@ generated_contracts=(
   parameter_forwarding.v
   lane_array.v
   conditional_forwarding.v
+  comparison_routing.v
 )
 
 if (( using_reviewed_goldens == 0 )); then
@@ -98,6 +99,7 @@ derived_width_file="$generated_dir/derived_width.v"
 parameter_forwarding_file="$generated_dir/parameter_forwarding.v"
 lane_array_file="$generated_dir/lane_array.v"
 conditional_forwarding_file="$generated_dir/conditional_forwarding.v"
+comparison_routing_file="$generated_dir/comparison_routing.v"
 
 parity_args=("$parity_file")
 for live_phase_id_file in "${live_phase_id_files[@]}"; do
@@ -112,6 +114,7 @@ design_files=(
   "$parameter_forwarding_file"
   "$lane_array_file"
   "$conditional_forwarding_file"
+  "$comparison_routing_file"
 )
 
 all_verilog_files=(
@@ -121,6 +124,7 @@ all_verilog_files=(
   "$examples_dir/parameter_forwarding_tb.v"
   "$examples_dir/lane_array_tb.v"
   "$examples_dir/conditional_forwarding_tb.v"
+  "$examples_dir/comparison_routing_tb.v"
 )
 
 read_property() {
@@ -153,6 +157,7 @@ require_property profile.abi flat
 require_property backend.canonical_ir ParamRTL
 require_property backend.initial_emitter direct-verilog
 require_property parameter.boolean_encoding integer
+require_property parameter.integer_comparison true
 require_property port.conditional_presence false
 require_property structure.module_instance true
 require_property structure.named_parameter_binding true
@@ -235,6 +240,10 @@ expected_modules=(
   ConditionalLeaf
   ConditionalForwarding
   ConditionalForwardingTb
+  HighRoute
+  LowRoute
+  ComparisonRouting
+  ComparisonRoutingTb
 )
 
 for module_name in "${expected_modules[@]}"; do
@@ -285,6 +294,20 @@ if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+ENABLE[[:space:]]*=[[:spa
   exit 1
 fi
 
+if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+SELECT[[:space:]]*=[[:space:]]*8' "$comparison_routing_file" ||
+   ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+THRESHOLD[[:space:]]*=[[:space:]]*5' "$comparison_routing_file" ||
+   ! grep -Eq 'if[[:space:]]*\([[:space:]]*SELECT[[:space:]]*>=[[:space:]]*THRESHOLD[[:space:]]*\)[[:space:]]*begin[[:space:]]*:[[:space:]]*g_high' "$comparison_routing_file" ||
+   ! grep -Eq 'end[[:space:]]+else[[:space:]]+begin[[:space:]]*:[[:space:]]*g_low' "$comparison_routing_file" ||
+   [[ "$(grep -Ec 'HighRoute[[:space:]]+selected_inst[[:space:]]*\(' "$comparison_routing_file")" != "1" ]] ||
+   [[ "$(grep -Ec 'LowRoute[[:space:]]+selected_inst[[:space:]]*\(' "$comparison_routing_file")" != "1" ]] ||
+   [[ "$(grep -Ec '\.high_in[[:space:]]*\([[:space:]]*din[[:space:]]*\)' "$comparison_routing_file")" != "1" ]] ||
+   [[ "$(grep -Ec '\.high_out[[:space:]]*\([[:space:]]*dout[[:space:]]*\)' "$comparison_routing_file")" != "1" ]] ||
+   [[ "$(grep -Ec '\.low_in[[:space:]]*\([[:space:]]*din[[:space:]]*\)' "$comparison_routing_file")" != "1" ]] ||
+   [[ "$(grep -Ec '\.low_out[[:space:]]*\([[:space:]]*dout[[:space:]]*\)' "$comparison_routing_file")" != "1" ]]; then
+  echo "ComparisonRouting does not retain the integer comparison and distinct generate-if branches" >&2
+  exit 1
+fi
+
 missing_tools=()
 for tool in iverilog verilator vvp yosys; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -315,11 +338,13 @@ cp "$derived_width_file" "$tmp_dir/derived_width.v"
 cp "$parameter_forwarding_file" "$tmp_dir/parameter_forwarding.v"
 cp "$lane_array_file" "$tmp_dir/lane_array.v"
 cp "$conditional_forwarding_file" "$tmp_dir/conditional_forwarding.v"
+cp "$comparison_routing_file" "$tmp_dir/comparison_routing.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
 yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
 yosys_lane_array_file="$tmp_dir/lane_array.v"
 yosys_conditional_forwarding_file="$tmp_dir/conditional_forwarding.v"
+yosys_comparison_routing_file="$tmp_dir/comparison_routing.v"
 
 echo "Verilator: $(verilator --version)"
 echo "Icarus: $(iverilog -V 2>/dev/null | head -n 1)"
@@ -446,6 +471,23 @@ verilator --lint-only --language 1364-2001 -Wall \
   -GENABLE=0 -GWIDTH=13 \
   "$conditional_forwarding_file"
 
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ComparisonRouting \
+  "$comparison_routing_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ComparisonRouting \
+  -GSELECT=3 -GTHRESHOLD=5 \
+  "$comparison_routing_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module ComparisonRouting \
+  -GSELECT=5 -GTHRESHOLD=5 \
+  "$comparison_routing_file"
+
 iverilog -g2001 -Wall -s ParameterizedWireTb \
   -o "$tmp_dir/parameterized_wire.vvp" \
   "$parameterized_wire_file" \
@@ -498,6 +540,17 @@ conditional_output="$(vvp "$tmp_dir/conditional_forwarding.vvp")"
 echo "$conditional_output"
 if ! printf '%s\n' "$conditional_output" | grep -q 'PASS: ConditionalForwarding'; then
   echo "ConditionalForwarding simulation did not report PASS" >&2
+  exit 1
+fi
+
+iverilog -g2001 -Wall -s ComparisonRoutingTb \
+  -o "$tmp_dir/comparison_routing.vvp" \
+  "$comparison_routing_file" \
+  "$examples_dir/comparison_routing_tb.v"
+comparison_output="$(vvp "$tmp_dir/comparison_routing.vvp")"
+echo "$comparison_output"
+if ! printf '%s\n' "$comparison_output" | grep -q 'PASS: ComparisonRouting'; then
+  echo "ComparisonRouting simulation did not report PASS" >&2
   exit 1
 fi
 
@@ -590,6 +643,38 @@ yosys_hierarchy_synthesize_and_check \
   "$yosys_conditional_forwarding_file" ConditionalForwarding \
   g_disabled.selected_inst disabled-width-13 13 \
   "chparam -set ENABLE 0 -set WIDTH 13 ConditionalForwarding;"
+
+yosys_comparison_synthesize_and_check() {
+  local label="$1"
+  local expected_instance="$2"
+  local expected_type="$3"
+  local child_input="$4"
+  local child_output="$5"
+  local parameter_command="$6"
+  local hierarchy_netlist="$tmp_dir/ComparisonRouting-${label}-hierarchy.json"
+  local synthesized_netlist="$tmp_dir/ComparisonRouting-${label}-synthesized.json"
+
+  yosys -q -p \
+    "read_verilog -noautowire $yosys_comparison_routing_file; $parameter_command hierarchy -check -top ComparisonRouting; proc; check -assert; write_json $hierarchy_netlist; synth -top ComparisonRouting; check -assert; write_json $synthesized_netlist"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-instance-contract.py" \
+    "$hierarchy_netlist" ComparisonRouting "$expected_instance" \
+    --child-type "$expected_type" \
+    --binding "$child_input:din:input:8" \
+    --binding "$child_output:dout:output:8"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$synthesized_netlist" ComparisonRouting \
+    --port "din:input:8" \
+    --port "dout:output:8"
+}
+
+yosys_comparison_synthesize_and_check \
+  default g_high.selected_inst HighRoute high_in high_out ""
+yosys_comparison_synthesize_and_check \
+  below-threshold g_low.selected_inst LowRoute low_in low_out \
+  "chparam -set SELECT 3 -set THRESHOLD 5 ComparisonRouting;"
+yosys_comparison_synthesize_and_check \
+  equal-threshold g_high.selected_inst HighRoute high_in high_out \
+  "chparam -set SELECT 5 -set THRESHOLD 5 ComparisonRouting;"
 
 yosys_generate_synthesize_and_check() {
   local input_file="$1"

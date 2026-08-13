@@ -14,8 +14,14 @@ import morphhdl.paramrtl.IntExpr.{
 }
 import morphhdl.paramrtl.BoolExpr.{
   And => BoolAnd,
+  Equal => BoolEqual,
+  GreaterThan => BoolGreaterThan,
+  GreaterThanOrEqual => BoolGreaterThanOrEqual,
+  LessThan => BoolLessThan,
+  LessThanOrEqual => BoolLessThanOrEqual,
   Literal => BoolLiteral,
   Not => BoolNot,
+  NotEqual => BoolNotEqual,
   Or => BoolOr,
   ParameterRef => BoolParameterRef
 }
@@ -257,6 +263,12 @@ object Verilog2001Emitter {
   private def renderBoolExprWithPrecedence(expression: BoolExpr): RenderedBoolExpr = expression match {
     case BoolLiteral(value) => RenderedBoolExpr(if (value) "1'b1" else "1'b0", BoolAtomicPrecedence)
     case BoolParameterRef(name) => RenderedBoolExpr(s"$name == 1", BoolAtomicPrecedence)
+    case BoolLessThan(left, right)           => renderComparison(left, "<", right)
+    case BoolLessThanOrEqual(left, right)    => renderComparison(left, "<=", right)
+    case BoolGreaterThan(left, right)        => renderComparison(left, ">", right)
+    case BoolGreaterThanOrEqual(left, right) => renderComparison(left, ">=", right)
+    case BoolEqual(left, right)              => renderComparison(left, "==", right)
+    case BoolNotEqual(left, right)           => renderComparison(left, "!=", right)
     case BoolNot(value) =>
       val rendered = renderBoolExprWithPrecedence(value)
       val needsParentheses = rendered.precedence < BoolNotPrecedence || rendered.text.contains(" ")
@@ -265,6 +277,12 @@ object Verilog2001Emitter {
     case BoolAnd(left, right) => renderBoolBinary(left, "&&", right, BoolAndPrecedence)
     case BoolOr(left, right)  => renderBoolBinary(left, "||", right, BoolOrPrecedence)
   }
+
+  private def renderComparison(left: IntExpr, operator: String, right: IntExpr): RenderedBoolExpr =
+    RenderedBoolExpr(
+      s"${renderIntExpr(left)} $operator ${renderIntExpr(right)}",
+      BoolAtomicPrecedence
+    )
 
   private def renderBoolBinary(
       left: BoolExpr,

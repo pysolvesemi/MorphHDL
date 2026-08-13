@@ -3,8 +3,14 @@ package morphhdl.backend.verilog2001
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
 import morphhdl.paramrtl.BoolExpr.{
   And => BoolAnd,
+  Equal => BoolEqual,
+  GreaterThan => BoolGreaterThan,
+  GreaterThanOrEqual => BoolGreaterThanOrEqual,
+  LessThan => BoolLessThan,
+  LessThanOrEqual => BoolLessThanOrEqual,
   Literal => BoolLiteral,
   Not => BoolNot,
+  NotEqual => BoolNotEqual,
   Or => BoolOr,
   ParameterRef => BoolParameterRef
 }
@@ -251,6 +257,8 @@ object Verilog2001Capability {
         checkBooleanExpression(
           generate.condition,
           module.booleanParameters.map(parameter => parameter.name -> parameter).toMap,
+          facts.parameterFacts,
+          facts.localParameterFacts,
           path :+ "condition",
           diagnostics
         )
@@ -298,23 +306,97 @@ object Verilog2001Capability {
 
   private def checkBooleanExpression(
       expression: BoolExpr,
-      parameters: Map[String, BooleanParameter],
+      booleanParameters: Map[String, BooleanParameter],
+      integerParameters: Map[String, IntExprFacts],
+      localParameters: Map[String, IntExprFacts],
       path: Vector[String],
       diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]]
   ): Unit = expression match {
     case BoolLiteral(_) =>
     case BoolParameterRef(name) =>
-      if (!parameters.contains(name)) {
+      if (!booleanParameters.contains(name)) {
         // ParamRTL reference validation owns the diagnostic. Do not cascade target failures.
       }
     case BoolNot(value) =>
-      checkBooleanExpression(value, parameters, path :+ "operand", diagnostics)
+      checkBooleanExpression(
+        value,
+        booleanParameters,
+        integerParameters,
+        localParameters,
+        path :+ "operand",
+        diagnostics
+      )
     case BoolAnd(left, right) =>
-      checkBooleanExpression(left, parameters, path :+ "left", diagnostics)
-      checkBooleanExpression(right, parameters, path :+ "right", diagnostics)
+      checkBooleanBinary(
+        left,
+        right,
+        booleanParameters,
+        integerParameters,
+        localParameters,
+        path,
+        diagnostics
+      )
     case BoolOr(left, right) =>
-      checkBooleanExpression(left, parameters, path :+ "left", diagnostics)
-      checkBooleanExpression(right, parameters, path :+ "right", diagnostics)
+      checkBooleanBinary(
+        left,
+        right,
+        booleanParameters,
+        integerParameters,
+        localParameters,
+        path,
+        diagnostics
+      )
+    case BoolLessThan(left, right) =>
+      checkComparison(left, right, integerParameters, localParameters, path, diagnostics)
+    case BoolLessThanOrEqual(left, right) =>
+      checkComparison(left, right, integerParameters, localParameters, path, diagnostics)
+    case BoolGreaterThan(left, right) =>
+      checkComparison(left, right, integerParameters, localParameters, path, diagnostics)
+    case BoolGreaterThanOrEqual(left, right) =>
+      checkComparison(left, right, integerParameters, localParameters, path, diagnostics)
+    case BoolEqual(left, right) =>
+      checkComparison(left, right, integerParameters, localParameters, path, diagnostics)
+    case BoolNotEqual(left, right) =>
+      checkComparison(left, right, integerParameters, localParameters, path, diagnostics)
+  }
+
+  private def checkBooleanBinary(
+      left: BoolExpr,
+      right: BoolExpr,
+      booleanParameters: Map[String, BooleanParameter],
+      integerParameters: Map[String, IntExprFacts],
+      localParameters: Map[String, IntExprFacts],
+      path: Vector[String],
+      diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]]
+  ): Unit = {
+    checkBooleanExpression(
+      left,
+      booleanParameters,
+      integerParameters,
+      localParameters,
+      path :+ "left",
+      diagnostics
+    )
+    checkBooleanExpression(
+      right,
+      booleanParameters,
+      integerParameters,
+      localParameters,
+      path :+ "right",
+      diagnostics
+    )
+  }
+
+  private def checkComparison(
+      left: IntExpr,
+      right: IntExpr,
+      parameters: Map[String, IntExprFacts],
+      localParameters: Map[String, IntExprFacts],
+      path: Vector[String],
+      diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]]
+  ): Unit = {
+    checkExpression(left, parameters, localParameters, path :+ "left", diagnostics)
+    checkExpression(right, parameters, localParameters, path :+ "right", diagnostics)
   }
 
   private def checkInstance(

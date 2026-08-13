@@ -16,6 +16,7 @@ be accepted without enabling a SystemVerilog parser.
 | Clocked process | Edge-sensitive `always` |
 | Structural loop | Named `generate`/`for` with `genvar` |
 | Structural condition (implemented) | Named `generate`/`if` with explicit `== 1` Boolean references |
+| Integer comparison (implemented) | `<`, `<=`, `>`, `>=`, `==` or `!=` after operand capability proof |
 | Structural case (reserved v1 mapping) | Named `generate`/`case` |
 | Logical record/vector port | Deterministically flattened scalar/packed ports |
 | `clog2` | Generated portable constant function or legalized expression |
@@ -27,7 +28,9 @@ are backend spellings and are not encoded in ParamRTL.
 
 Boolean intent likewise remains typed in ParamRTL. Integer `1`/`0`
 declarations and `NAME == 1` predicates are backend legalization, not the
-canonical Boolean type. Increment 9 supports one named two-branch generate-if;
+canonical Boolean type. Increment 10 legalizes explicit mathematical integer
+comparison nodes to Verilog operators only after each operand subtree fits the
+target `integer` domain. Increment 9 supports one named two-branch generate-if;
 generate-case and nested conditional structure remain outside the executable
 profile.
 

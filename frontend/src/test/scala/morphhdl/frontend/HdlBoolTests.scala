@@ -1,7 +1,16 @@
 package morphhdl.frontend
 
 import morphhdl.frontend.ParamRtlFrontend.booleanParameter
-import morphhdl.paramrtl.BoolExpr.{And, Literal, Not, Or, ParameterRef}
+import morphhdl.paramrtl.BoolExpr.{
+  And,
+  Equal,
+  GreaterThanOrEqual,
+  Literal,
+  Not,
+  Or,
+  ParameterRef
+}
+import morphhdl.paramrtl.IntExpr.{ParameterRef => IntParameterRef}
 import morphhdl.paramrtl.BooleanParameter
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -30,6 +39,40 @@ class HdlBoolTests extends AnyFunSuite {
       )
     )
     assert(expression.parameters == Set(enabled.declaration.get, bypass.declaration.get))
+  }
+
+  test("preserves integer provenance through chained comparison and Boolean logic") {
+    val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
+    val threshold = HdlInt.param("THRESHOLD", default = 5, min = 0, max = 64)
+    val enabled = HdlBool.param("ENABLED", default = false)
+    val expression = (width >= threshold && enabled) || !width.hdlEq(threshold)
+
+    assert(expression.witness)
+    assert(
+      expression.expression == Or(
+        And(
+          GreaterThanOrEqual(IntParameterRef("WIDTH"), IntParameterRef("THRESHOLD")),
+          ParameterRef("ENABLED")
+        ),
+        Not(Equal(IntParameterRef("WIDTH"), IntParameterRef("THRESHOLD")))
+      )
+    )
+    assert(expression.parameters == Set(enabled.declaration.get))
+    assert(expression.integerParameters == width.parameters ++ threshold.parameters)
+    assert(expression.localParameters.isEmpty)
+  }
+
+  test("preserves local and transitive public provenance through negation and mixed logic") {
+    val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
+    val base = HdlInt.param("BASE", default = 3, min = 0, max = 64)
+    val local = ParamRtlFrontend.localParam("LOCAL_THRESHOLD", base + 2)
+    val enabled = HdlBool.param("ENABLED", default = true)
+    val expression = !local.hdlEq(width) && ((local < width) || enabled)
+
+    assert(expression.witness)
+    assert(expression.parameters == Set(enabled.declaration.get))
+    assert(expression.integerParameters == width.parameters ++ base.parameters)
+    assert(expression.localParameters == local.localParameters)
   }
 
   test("supports one-way Boolean conversion without changing ordinary Boolean operators") {
@@ -81,6 +124,12 @@ class HdlBoolTests extends AnyFunSuite {
       import morphhdl.frontend._
       val enabled = HdlBool.param("ENABLED", default = true)
       if (enabled) ()
+    """)
+    assertTypeError("""
+      import morphhdl.frontend._
+      val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
+      val threshold = HdlInt.param("THRESHOLD", default = 5, min = 0, max = 64)
+      if (width < threshold) ()
     """)
 
     val error = intercept[FrontendException] {

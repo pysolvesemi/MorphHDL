@@ -10,6 +10,8 @@ final class HdlBool private[frontend] (
     private[frontend] val expression: BoolExpr,
     private[frontend] val declaration: Option[BooleanParameterToken],
     private[frontend] val parameters: Set[BooleanParameterToken],
+    private[frontend] val integerParameters: Set[ParameterToken],
+    private[frontend] val localParameters: Set[LocalParameterToken],
     private[frontend] val origin: SourceOrigin
 ) {
   def unary_!(implicit file: sourcecode.File, line: sourcecode.Line): HdlBool =
@@ -18,6 +20,8 @@ final class HdlBool private[frontend] (
       Not(expression),
       declaration = None,
       parameters = parameters,
+      integerParameters = integerParameters,
+      localParameters = localParameters,
       origin = SourceOrigin.capture
     )
 
@@ -39,6 +43,8 @@ final class HdlBool private[frontend] (
       operation(expression, that.expression),
       declaration = None,
       parameters = parameters ++ that.parameters,
+      integerParameters = integerParameters ++ that.integerParameters,
+      localParameters = localParameters ++ that.localParameters,
       origin = SourceOrigin.capture
     )
 
@@ -69,6 +75,8 @@ object HdlBool {
       Literal(value),
       declaration = None,
       parameters = Set.empty,
+      integerParameters = Set.empty,
+      localParameters = Set.empty,
       origin = SourceOrigin.capture
     )
 
@@ -83,9 +91,28 @@ object HdlBool {
       ParameterRef(name),
       declaration = Some(token),
       parameters = Set(token),
+      integerParameters = Set.empty,
+      localParameters = Set.empty,
       origin = token.origin
     )
   }
+
+  private[frontend] def comparison(
+      witness: Boolean,
+      expression: BoolExpr,
+      integerParameters: Set[ParameterToken],
+      localParameters: Set[LocalParameterToken],
+      origin: SourceOrigin
+  ): HdlBool =
+    new HdlBool(
+      witness,
+      expression,
+      declaration = None,
+      parameters = Set.empty,
+      integerParameters = integerParameters,
+      localParameters = localParameters,
+      origin = origin
+    )
 
   private def describe(value: Any): String = value match {
     case _: HdlBool => "another HdlBool"

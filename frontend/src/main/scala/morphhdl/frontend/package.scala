@@ -18,7 +18,7 @@ package object frontend {
       HdlRange(start, end, SourceOrigin.capture)
   }
 
-  /** Keeps an Int left operand in the dual-valued HdlInt expression domain. */
+  /** Keeps Int-left arithmetic in the dual-valued HdlInt expression domain. */
   implicit final class HdlIntLeftOperand(private val left: Int) extends AnyVal {
     def +(right: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
       HdlInt.literal(BigInt(left)) + right
@@ -34,5 +34,6 @@ package object frontend {
 
     def %(right: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
       HdlInt.literal(BigInt(left)) % right
+
   }
 }
