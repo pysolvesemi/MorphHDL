@@ -676,16 +676,13 @@ class MorphVerilogTests extends AnyFunSuite {
       }
 
       val output = directory.resolve("runtime_mux.v")
-      val golden = Vector(
-        java.nio.file.Paths.get("morphhdl/examples/contracts/runtime_mux.v"),
-        java.nio.file.Paths.get("examples/contracts/runtime_mux.v")
-      ).find(path => Files.isRegularFile(path)).getOrElse(
-        fail("Unable to locate reviewed runtime_mux.v golden")
-      )
       assert(report.toplevelName == "RuntimeMux")
       assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
       assert(Files.isRegularFile(output))
-      assert(Files.readAllBytes(output).sameElements(Files.readAllBytes(golden)))
+      assert(
+        new String(Files.readAllBytes(output), StandardCharsets.UTF_8) ==
+          expectedRuntimeMuxVerilog
+      )
     }
   }
 
@@ -2971,6 +2968,27 @@ class MorphVerilogTests extends AnyFunSuite {
        |
        |endmodule
        |""".stripMargin
+
+  private val expectedRuntimeMuxVerilog =
+    """module RuntimeMux #(
+      |  parameter integer WIDTH = 8
+      |) (
+      |  input  wire [WIDTH-1:0] data_false,
+      |  input  wire [WIDTH-1:0] data_true,
+      |  output reg [WIDTH-1:0] result,
+      |  input  wire [0:0] sel
+      |);
+      |
+      |  always @* begin : p_runtime_mux
+      |    if (sel == 1'b1) begin
+      |      result = data_true;
+      |    end else begin
+      |      result = data_false;
+      |    end
+      |  end
+      |
+      |endmodule
+      |""".stripMargin
 
   private def assertStage[T](
       result: Either[MorphVerilogFailure, T],
