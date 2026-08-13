@@ -338,7 +338,7 @@ fi
 if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+SELECT[[:space:]]*=[[:space:]]*0' "$boolean_forwarding_file" ||
    ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+ENABLE[[:space:]]*=[[:space:]]*1' "$boolean_forwarding_file" ||
    ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+EFFECTIVE_WIDTH[[:space:]]*=[[:space:]]*WIDTH[[:space:]]*\+[[:space:]]*OFFSET' "$boolean_forwarding_file" ||
-   ! grep -Eq '\.SELECT[[:space:]]*\([[:space:]]*ENABLE[[:space:]]*==[[:space:]]*1[[:space:]]*&&[[:space:]]*EFFECTIVE_WIDTH[[:space:]]*>=[[:space:]]*LIMIT[[:space:]]*\)' "$boolean_forwarding_file" ||
+   ! grep -Eq '\.SELECT[[:space:]]*\([[:space:]]*\([[:space:]]*ENABLE[[:space:]]*==[[:space:]]*1[[:space:]]*&&[[:space:]]*EFFECTIVE_WIDTH[[:space:]]*>=[[:space:]]*LIMIT[[:space:]]*\)[[:space:]]*\?[[:space:]]*1[[:space:]]*:[[:space:]]*0[[:space:]]*\)' "$boolean_forwarding_file" ||
    ! grep -Eq 'if[[:space:]]*\([[:space:]]*SELECT[[:space:]]*==[[:space:]]*1[[:space:]]*\)[[:space:]]*begin[[:space:]]*:[[:space:]]*g_high' "$boolean_forwarding_file" ||
    ! grep -Eq 'end[[:space:]]+else[[:space:]]+begin[[:space:]]*:[[:space:]]*g_low' "$boolean_forwarding_file" ||
    [[ "$(grep -Ec '\)[[:space:]]+route_inst[[:space:]]*\(' "$boolean_forwarding_file")" != "1" ]]; then
@@ -555,23 +555,27 @@ verilator --lint-only --language 1364-2001 -Wall \
 
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
+  -Wno-UNUSEDSIGNAL \
   --top-module BooleanForwarding \
   "$boolean_forwarding_file"
 
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
+  -Wno-UNUSEDSIGNAL \
   --top-module BooleanForwarding \
   -GENABLE=0 \
   "$boolean_forwarding_file"
 
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
+  -Wno-UNUSEDSIGNAL \
   --top-module BooleanForwarding \
   -GENABLE=1 -GWIDTH=3 -GOFFSET=1 -GLIMIT=5 \
   "$boolean_forwarding_file"
 
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
+  -Wno-UNUSEDSIGNAL \
   --top-module BooleanForwarding \
   -GENABLE=1 -GWIDTH=4 -GOFFSET=1 -GLIMIT=5 \
   "$boolean_forwarding_file"

@@ -54,7 +54,7 @@ module BooleanForwarding #(
   localparam integer EFFECTIVE_WIDTH = WIDTH + OFFSET;
 
   BooleanRoute #(
-    .SELECT(ENABLE == 1 && EFFECTIVE_WIDTH >= LIMIT)
+    .SELECT((ENABLE == 1 && EFFECTIVE_WIDTH >= LIMIT) ? 1 : 0)
   ) route_inst (
     .dout(dout),
     .high_in(high_in),

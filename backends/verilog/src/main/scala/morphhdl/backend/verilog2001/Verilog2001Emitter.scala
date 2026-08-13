@@ -285,7 +285,7 @@ object Verilog2001Emitter {
 
   private def renderBooleanBinding(expression: BoolExpr): String = expression match {
     case BoolLiteral(value) => if (value) "1" else "0"
-    case other              => renderBoolExpr(other)
+    case other              => s"(${renderBoolExpr(other)}) ? 1 : 0"
   }
 
   private def renderBoolExprWithPrecedence(expression: BoolExpr): RenderedBoolExpr = expression match {

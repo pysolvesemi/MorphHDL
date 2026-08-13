@@ -43,7 +43,9 @@ values.
 
 The strict Verilog-2001 backend emits a normal named association whose value is
 the legalized Boolean expression. Boolean references remain explicitly
-integer encoded (`NAME == 1`); comparisons and Boolean operators retain their
+integer encoded (`NAME == 1`); a non-literal binding is normalized to
+`(boolean_expr) ? 1 : 0` so its association has the same target `integer`
+shape as the child declaration. Comparisons and Boolean operators retain their
 canonical precedence. Backend capability verification checks the full binding
 expression, including subexpressions that are inactive under the default.
 

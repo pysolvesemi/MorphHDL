@@ -35,7 +35,7 @@ class BooleanParameterBindingEmitterTests extends AnyFunSuite {
     )
     val verilog = emit(parent)
 
-    assert(verilog.contains(".ENABLE(ALLOW == 1 && LIMIT > 0)"), verilog)
+    assert(verilog.contains(".ENABLE((ALLOW == 1 && LIMIT > 0) ? 1 : 0)"), verilog)
   }
 
   test("sorts integer and Boolean child bindings together deterministically") {
