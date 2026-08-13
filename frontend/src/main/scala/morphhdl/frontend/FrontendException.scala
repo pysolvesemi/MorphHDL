@@ -46,6 +46,7 @@ private[frontend] object FrontendException {
     case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-MULTIPLE" =>
       "Emit one synchronous register process per module-item capture."
     case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-MIXED" |
+        "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-MIXED" |
         "MORPH-FRONTEND-RUNTIME-PROCESS-MIXED" =>
       "Use a separate module definition instead of mixing runtime processes or module items."
     case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-LABEL-INVALID" |
@@ -62,6 +63,24 @@ private[frontend] object FrontendException {
       "Pass a non-null ref(name) reset to emitSynchronousRegister."
     case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-ASSIGNMENT-NULL" =>
       "Pass one proceduralAssign(target, ref(data)) to emitSynchronousRegister."
+    case "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-NESTED" =>
+      "Emit the asynchronous-reset register as a top-level module item outside all generate regions."
+    case "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-MULTIPLE" =>
+      "Emit one asynchronous-reset register process per module-item capture."
+    case "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-LABEL-INVALID" |
+        "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-CLOCK-INVALID" |
+        "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-RESET-INVALID" |
+        "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-TARGET-INVALID" |
+        "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-VALUE-INVALID" =>
+      "Use an identifier matching `[A-Za-z_][A-Za-z0-9_]*`."
+    case "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-CLOCK-NULL" |
+        "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-CLOCK-NOT-REF" =>
+      "Pass a non-null ref(name) clock to emitAsynchronousRegister."
+    case "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-RESET-NULL" |
+        "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-RESET-NOT-REF" =>
+      "Pass a non-null ref(name) reset to emitAsynchronousRegister."
+    case "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-ASSIGNMENT-NULL" =>
+      "Pass one proceduralAssign(target, ref(data)) to emitAsynchronousRegister."
     case "MORPH-FRONTEND-COMBINATIONAL-LABEL-INVALID" |
         "MORPH-FRONTEND-COMBINATIONAL-TARGET-INVALID" |
         "MORPH-FRONTEND-COMBINATIONAL-VALUE-INVALID" |

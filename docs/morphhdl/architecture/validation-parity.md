@@ -228,3 +228,16 @@ multiple clocks and CDC structures are not modeled or approved. The twelfth
 fixture proves synchronous edge behavior and exact eight-/five-bit register
 structure; the external artifact inventory now contains exactly twelve files,
 including `synchronous_register.v`.
+
+Increment 17 adds the matching bounded `AsynchronousRegister`. The concrete
+Spinal witness uses an active-high `ASYNC` reset and still runs every inherited
+validation phase. ParamRTL separately proves the same distinct roles, exact
+control/data types, sole-output ownership and no-sibling restrictions, with
+asynchronous reset assertion and priority fixed in the node semantics. This
+extends the partial register and cross-clock evidence without claiming clock
+enable/hold, multiple clocks, external input-domain provenance or general
+clocked statements. The thirteenth fixture proves immediate reset assertion,
+reset priority and later eight-/five-bit capture. Yosys also rejects
+synchronous-reset, falling-edge-clock and reset-to-ones mutations, and the
+external artifact inventory is exactly thirteen files including
+`asynchronous_register.v`.

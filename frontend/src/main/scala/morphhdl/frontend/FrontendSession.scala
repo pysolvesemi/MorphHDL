@@ -19,6 +19,10 @@ private[frontend] case object SynchronousRegisterKind extends RuntimeProcessKind
   val description = "synchronous register process"
 }
 
+private[frontend] case object AsynchronousRegisterKind extends RuntimeProcessKind {
+  val description = "asynchronous-reset register process"
+}
+
 private[frontend] final case class CapturedRuntimeProcess(
     kind: RuntimeProcessKind,
     origin: SourceOrigin
@@ -801,6 +805,9 @@ private[frontend] object FrontendSession {
   private[frontend] def emitSynchronousRegister(item: FrontendNode[ModuleItem]): Unit =
     emitRuntimeProcess(item, SynchronousRegisterKind)
 
+  private[frontend] def emitAsynchronousRegister(item: FrontendNode[ModuleItem]): Unit =
+    emitRuntimeProcess(item, AsynchronousRegisterKind)
+
   private def emitRuntimeProcess(
       item: FrontendNode[ModuleItem],
       kind: RuntimeProcessKind
@@ -877,16 +884,19 @@ private[frontend] object FrontendSession {
   private def mixedCode(kind: RuntimeProcessKind): String = kind match {
     case CombinationalProcessKind => "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MIXED"
     case SynchronousRegisterKind  => "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-MIXED"
+    case AsynchronousRegisterKind => "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-MIXED"
   }
 
   private def nestedCode(kind: RuntimeProcessKind): String = kind match {
     case CombinationalProcessKind => "MORPH-FRONTEND-COMBINATIONAL-PROCESS-NESTED"
     case SynchronousRegisterKind  => "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-NESTED"
+    case AsynchronousRegisterKind => "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-NESTED"
   }
 
   private def multipleCode(kind: RuntimeProcessKind): String = kind match {
     case CombinationalProcessKind => "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MULTIPLE"
     case SynchronousRegisterKind  => "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-MULTIPLE"
+    case AsynchronousRegisterKind => "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-MULTIPLE"
   }
 
   private def ordinaryItemKind(item: ModuleItem): String = item match {
