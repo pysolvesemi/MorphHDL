@@ -676,7 +676,12 @@ class MorphVerilogTests extends AnyFunSuite {
       }
 
       val output = directory.resolve("runtime_mux.v")
-      val golden = java.nio.file.Paths.get("morphhdl/examples/contracts/runtime_mux.v")
+      val golden = Vector(
+        java.nio.file.Paths.get("morphhdl/examples/contracts/runtime_mux.v"),
+        java.nio.file.Paths.get("examples/contracts/runtime_mux.v")
+      ).find(path => Files.isRegularFile(path)).getOrElse(
+        fail("Unable to locate reviewed runtime_mux.v golden")
+      )
       assert(report.toplevelName == "RuntimeMux")
       assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
       assert(Files.isRegularFile(output))
