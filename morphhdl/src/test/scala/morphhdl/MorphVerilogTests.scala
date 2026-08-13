@@ -667,6 +667,47 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("runtime combinational process preserves the default public shape and reviewed output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "runtime_mux.v"
+      val report = MorphVerilog(config) {
+        RuntimeMuxContractFixture.program(reverseConstructionOrder = false)
+      }
+
+      val output = directory.resolve("runtime_mux.v")
+      assert(report.toplevelName == "RuntimeMux")
+      assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
+      assert(Files.isRegularFile(output))
+      assert(
+        new String(Files.readAllBytes(output), StandardCharsets.UTF_8) ==
+          expectedRuntimeMuxVerilog
+      )
+    }
+  }
+
+  test("runtime combinational process validation fails before public output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "runtime_mux.v"
+      val fixture = RuntimeMuxContractFixture.program(reverseConstructionOrder = false)
+      val result = MorphVerilog.tryGenerate(config) {
+        MorphProgram(
+          concreteWitness = fixture.concreteWitnessFactory(),
+          parameterizedDesign = invalidRuntimeMuxDesign()
+        )
+      }
+
+      result match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.ParamRtlValidation)
+          assert(failure.message.contains("PRTL-EMPTY-COMBINATIONAL-BRANCH"))
+        case Right(report) => fail(s"Expected incomplete process validation failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve("runtime_mux.v")))
+    }
+  }
+
   test("an invalid inactive conditional integer branch fails whole-design validation") {
     withTemporaryDirectory { directory =>
       val topName = "InvalidInactiveConditionalWidth"
@@ -2885,6 +2926,36 @@ class MorphVerilogTests extends AnyFunSuite {
     )
   }
 
+  private def invalidRuntimeMuxDesign(): Design = {
+    val width = ParameterRef("WIDTH")
+    val packed = PackedBits(width, Unsigned)
+    val top = ModuleDef(
+      name = "RuntimeMux",
+      parameters = Vector(
+        IntegerParameter(
+          "WIDTH",
+          default = 8,
+          constraints = Vector(MinInclusive(1), MaxInclusive(32))
+        )
+      ),
+      ports = Vector(
+        Port("sel", Input, PackedBits(IntExpr.Literal(1), Unsigned)),
+        Port("data_false", Input, packed),
+        Port("data_true", Input, packed),
+        Port("result", Output, packed)
+      ),
+      items = Vector(
+        ModuleItem.CombinationalIf(
+          "p_runtime_mux",
+          Ref("sel"),
+          Vector(ProceduralAssign(Ref("result"), Ref("data_true"))),
+          Vector.empty
+        )
+      )
+    )
+    Design(top.name, Vector(top))
+  }
+
   private def expectedVerilog(name: String): String =
     s"""module $name #(
        |  parameter integer WIDTH = 8
@@ -2897,6 +2968,27 @@ class MorphVerilogTests extends AnyFunSuite {
        |
        |endmodule
        |""".stripMargin
+
+  private val expectedRuntimeMuxVerilog =
+    """module RuntimeMux #(
+      |  parameter integer WIDTH = 8
+      |) (
+      |  input  wire [WIDTH-1:0] data_false,
+      |  input  wire [WIDTH-1:0] data_true,
+      |  output reg [WIDTH-1:0] result,
+      |  input  wire [0:0] sel
+      |);
+      |
+      |  always @* begin : p_runtime_mux
+      |    if (sel == 1'b1) begin
+      |      result = data_true;
+      |    end else begin
+      |      result = data_false;
+      |    end
+      |  end
+      |
+      |endmodule
+      |""".stripMargin
 
   private def assertStage[T](
       result: Either[MorphVerilogFailure, T],

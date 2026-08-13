@@ -29,7 +29,14 @@ import morphhdl.paramrtl.IntExpr.{
   Subtract
 }
 import morphhdl.paramrtl._
-import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateCase, GenerateFor, GenerateIf, ModuleInstance}
+import morphhdl.paramrtl.ModuleItem.{
+  CombinationalIf,
+  ContinuousAssign,
+  GenerateCase,
+  GenerateFor,
+  GenerateIf,
+  ModuleInstance
+}
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 
 object Verilog2001Capability {
@@ -351,6 +358,14 @@ object Verilog2001Capability {
             booleanParameterByName,
             diagnostics
           )
+      }
+
+      module.items.collect { case process: CombinationalIf => process }.sortBy(_.label).foreach { process =>
+        checkName(
+          process.label,
+          modulePath :+ "combinationalProcesses" :+ process.label :+ "label",
+          diagnostics
+        )
       }
     }
 

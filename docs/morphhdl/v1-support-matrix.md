@@ -18,7 +18,7 @@ first parameterized-Verilog release, not implemented in Increment 1.
 | Structure | Homogeneous generate-for | v1 | Increments 5 and 6 implement zero-based unit stride, one frontend-captured body, scoped `GenIndex` and a canonical packed-slice partition |
 | Structure | Generate-if/case | v1 | Increments 9 and 14 implement one non-nested conditional region per module: mandatory two-branch generate-if or integer-selected generate-case with unique choices and mandatory default |
 | Structure | Parameter-dependent Scala class selection | Static only | Not recoverable as HDL structure |
-| RTL | Combinational operations | v1 | Explicit width and signedness rules |
+| RTL | Combinational operations | v1 | Increment 15 implements one complete two-branch runtime mux process over direct port references; broader expressions and statement forms remain bounded follow-on work |
 | RTL | Registers and sync/async reset | v1 | Target-neutral process semantics |
 | RTL | Supported memories | v1 | Width/depth, latency and mask contract documented |
 | RTL | Tri-state/analog primitives | Post-v1 | Rejected by initial strict profile |

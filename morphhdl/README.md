@@ -81,3 +81,11 @@ unique choices and a mandatory default. ParamRTL validates every branch while
 each reachable instance context. The tenth `case_routing.v` artifact proves
 literal-choice, local-selector and unmatched-default routing through distinct
 leaf schemas behind one fixed eight-bit interface.
+
+Increment 15 adds one bounded runtime `CombinationalIf` process with a one-bit
+input condition, direct input values and complete output assignments on both
+paths. ParamRTL proves type and driver completeness before strict Verilog-2001
+legalizes the process to a named `always @*` block with blocking assignments
+and a process-owned `output reg`. The eleventh `runtime_mux.v` artifact proves
+both select directions at default and awkward parameterized widths without
+specializing the emitted module.

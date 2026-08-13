@@ -143,7 +143,8 @@ jobs:
               'derived_width.v f' \
               'lane_array.v f' \
               'parameter_forwarding.v f' \
-              'parameterized_wire.v f')"
+              'parameterized_wire.v f' \
+              'runtime_mux.v f')"
             test "${actual_inventory}" = "${expected_inventory}"
           done
           diff --recursive --brief \
@@ -159,7 +160,8 @@ jobs:
             conditional_width.v \
             boolean_forwarding.v \
             boolean_locals.v \
-            case_routing.v
+            case_routing.v \
+            runtime_mux.v
           do
             cmp "target/morphhdl/generated/run-1/${filename}" \
               "morphhdl/examples/contracts/${filename}"

@@ -95,6 +95,8 @@ final case class GenerateBlock(label: String, body: Vector[ModuleItem])
 
 final case class GenerateCaseChoice(value: BigInt, block: GenerateBlock)
 
+final case class ProceduralAssign(target: RtlExpr.Ref, value: RtlExpr.Ref)
+
 object ModuleItem {
   final case class ContinuousAssign(target: RtlExpr.Ref, value: RtlExpr) extends ModuleItem
   final case class ModuleInstance(
@@ -119,6 +121,12 @@ object ModuleItem {
       selector: IntExpr,
       choices: Vector[GenerateCaseChoice],
       default: GenerateBlock
+  ) extends ModuleItem
+  final case class CombinationalIf(
+      label: String,
+      condition: RtlExpr.Ref,
+      whenTrue: Vector[ProceduralAssign],
+      whenFalse: Vector[ProceduralAssign]
   ) extends ModuleItem
 }
 

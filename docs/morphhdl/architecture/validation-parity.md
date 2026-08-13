@@ -198,3 +198,16 @@ structure and runtime processes are deferred. A sibling `GenerateFor` remains
 legal; the rejection applies to a second conditional and to nesting in any
 direction. The external artifact inventory now contains exactly ten generated
 files, including `case_routing.v`.
+
+Increment 15 extends partial width and driver adaptation through one bounded
+runtime `CombinationalIf`. The concrete Spinal witness still runs the inherited
+width, no-latch/no-override and combinational-loop phases. ParamRTL independently
+requires a one-bit input condition, exact target/value type compatibility and
+the same non-empty output target set assigned exactly once with blocking intent
+on both runtime paths. Mixed continuous, hierarchy, parameter-generate and
+procedural ownership fails before emission. Direct input-to-output references
+cannot encode feedback in this tranche; a general symbolic combinational-loop
+graph remains planned. The eleventh fixture proves default and five-bit widths
+with both select directions, while Yosys confirms one mux and no storage. The
+external artifact inventory now contains exactly eleven generated files,
+including `runtime_mux.v`.

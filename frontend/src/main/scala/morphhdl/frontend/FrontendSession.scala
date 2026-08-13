@@ -132,7 +132,10 @@ private[frontend] object FrontendSession {
       names: NameRegistry,
       session: FrontendSessionToken,
       pendingConditionals: mutable.Set[ConditionalGenerateToken],
-      capturedConditionals: mutable.Set[ConditionalGenerateToken]
+      capturedConditionals: mutable.Set[ConditionalGenerateToken],
+      capturedGenerateFors: ArrayBuffer[SourceOrigin],
+      capturedCombinationalProcesses: ArrayBuffer[SourceOrigin],
+      capturedOrdinaryItems: ArrayBuffer[(SourceOrigin, String)]
   )
 
   private val current = new ThreadLocal[Context]
@@ -149,7 +152,10 @@ private[frontend] object FrontendSession {
       new NameRegistry,
       session,
       mutable.Set.empty,
-      mutable.Set.empty
+      mutable.Set.empty,
+      ArrayBuffer.empty,
+      ArrayBuffer.empty,
+      ArrayBuffer.empty
     )
     try {
       withContext(context) {
@@ -172,7 +178,10 @@ private[frontend] object FrontendSession {
       new NameRegistry,
       session,
       mutable.Set.empty,
-      mutable.Set.empty
+      mutable.Set.empty,
+      ArrayBuffer.empty,
+      ArrayBuffer.empty,
+      ArrayBuffer.empty
     )
     try {
       withContext(context) {
@@ -209,6 +218,7 @@ private[frontend] object FrontendSession {
 
   private def runRangeInContext(range: HdlRange, body: GenIndex => Unit): Unit = {
     val context = current.get()
+    requireNoCombinationalProcessMix(context, "generate-for", range.origin)
     if (context.activeScope.nonEmpty || context.activeConditional) {
       FrontendException.failAt(
         "MORPH-FRONTEND-NESTED-GENERATE-UNSUPPORTED",
@@ -279,6 +289,7 @@ private[frontend] object FrontendSession {
               childCollector.flatMap(_.booleanLocalParameters),
             origin = range.origin
           )
+          context.capturedGenerateFors += range.origin
         }
     }
   }
@@ -305,6 +316,7 @@ private[frontend] object FrontendSession {
       )
     }
     requireNoNestedGenerate(context, origin)
+    requireNoCombinationalProcessMix(context, "generate-if", origin)
     context.capturedConditionals.toVector.headOption.foreach { existing =>
       FrontendException.failAt(
         "MORPH-FRONTEND-GENERATE-IF-MULTIPLE",
@@ -452,6 +464,7 @@ private[frontend] object FrontendSession {
     }
     selector.requireLoopInvariant("generate-case selector")
     requireNoNestedGenerate(context, origin)
+    requireNoCombinationalProcessMix(context, "generate-case", origin)
     context.capturedConditionals.toVector.headOption.foreach { existing =>
       FrontendException.failAt(
         "MORPH-FRONTEND-GENERATE-CASE-MULTIPLE",
@@ -675,6 +688,20 @@ private[frontend] object FrontendSession {
       )
     }
 
+  private def requireNoCombinationalProcessMix(
+      context: Context,
+      operation: String,
+      origin: SourceOrigin
+  ): Unit =
+    context.capturedCombinationalProcesses.headOption.foreach { existing =>
+      FrontendException.failAt(
+        "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MIXED",
+        s"$operation cannot share one module-item capture with the combinational process at " +
+          existing.rendered,
+        origin
+      )
+    }
+
   private def requireNoPendingConditional(context: Context): Unit =
     context.pendingConditionals.toVector
       .sortBy(token => (token.origin.file, token.origin.line))
@@ -722,13 +749,25 @@ private[frontend] object FrontendSession {
       )
     }
     item.requireUsable("module-item emission")
-    context.collector.getOrElse {
+    val topLevel = context.activeScope.isEmpty && !context.activeConditional
+    if (topLevel) {
+      context.capturedCombinationalProcesses.headOption.foreach { existing =>
+        FrontendException.failAt(
+          "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MIXED",
+          s"${ordinaryItemKind(item.raw)} cannot share one module-item capture with the " +
+            s"combinational process at ${existing.rendered}",
+          item.origin
+        )
+      }
+    }
+    val collector = context.collector.getOrElse {
       FrontendException.failAt(
         "MORPH-FRONTEND-MISSING-COLLECTOR",
         "parameterized capture has no active module-item collector",
         item.origin
       )
-    } += FrontendNode(
+    }
+    collector += FrontendNode(
       item.raw,
       parameters = item.parameters,
       booleanParameters = item.booleanParameters,
@@ -736,6 +775,78 @@ private[frontend] object FrontendSession {
       booleanLocalParameters = item.booleanLocalParameters,
       origin = item.origin
     )
+    if (topLevel) context.capturedOrdinaryItems += item.origin -> ordinaryItemKind(item.raw)
+  }
+
+  private[frontend] def emitCombinationalIf(item: FrontendNode[ModuleItem]): Unit = {
+    val context = current.get()
+    if (context == null || context.mode != Parameterized) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-EMIT-OUTSIDE-CAPTURE",
+        "a combinational process may be emitted only during parameterized capture",
+        item.origin
+      )
+    }
+    if (context.activeScope.nonEmpty || context.activeConditional) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-COMBINATIONAL-PROCESS-NESTED",
+        "a combinational process cannot be nested in generate-if, generate-case or generate-for",
+        item.origin
+      )
+    }
+    context.capturedCombinationalProcesses.headOption.foreach { existing =>
+      FrontendException.failAt(
+        "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MULTIPLE",
+        s"one module-item capture supports one combinational process; the existing process is at " +
+          existing.rendered,
+        item.origin
+      )
+    }
+    context.capturedOrdinaryItems.headOption.foreach { case (existing, kind) =>
+      FrontendException.failAt(
+        "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MIXED",
+        s"a combinational process cannot share one module-item capture with $kind at " +
+          existing.rendered,
+        item.origin
+      )
+    }
+    val existingGenerate = context.capturedConditionals.toVector
+      .map(_.origin)
+      .sortBy(origin => (origin.file, origin.line))
+      .headOption
+      .orElse(context.capturedGenerateFors.headOption)
+    existingGenerate.foreach { existing =>
+      FrontendException.failAt(
+        "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MIXED",
+        s"a combinational process cannot share one module-item capture with the generate region at " +
+          existing.rendered,
+        item.origin
+      )
+    }
+
+    item.requireUsable("combinational-process emission")
+    val collector = context.collector.getOrElse {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-MISSING-COLLECTOR",
+        "parameterized capture has no active module-item collector",
+        item.origin
+      )
+    }
+    collector += FrontendNode(
+      item.raw,
+      parameters = item.parameters,
+      booleanParameters = item.booleanParameters,
+      localParameters = item.localParameters,
+      booleanLocalParameters = item.booleanLocalParameters,
+      origin = item.origin
+    )
+    context.capturedCombinationalProcesses += item.origin
+  }
+
+  private def ordinaryItemKind(item: ModuleItem): String = item match {
+    case _: ModuleItem.ContinuousAssign => "a continuous assignment"
+    case _: ModuleItem.ModuleInstance   => "a module instance"
+    case _                              => "another module item"
   }
 
   private[frontend] def requireActiveScope(

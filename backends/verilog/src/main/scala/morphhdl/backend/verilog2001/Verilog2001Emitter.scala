@@ -27,7 +27,14 @@ import morphhdl.paramrtl.BoolExpr.{
   Or => BoolOr,
   ParameterRef => BoolParameterRef
 }
-import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateCase, GenerateFor, GenerateIf, ModuleInstance}
+import morphhdl.paramrtl.ModuleItem.{
+  CombinationalIf,
+  ContinuousAssign,
+  GenerateCase,
+  GenerateFor,
+  GenerateIf,
+  ModuleInstance
+}
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 import morphhdl.paramrtl.Signedness.{Signed, Unsigned}
@@ -62,6 +69,10 @@ object Verilog2001Emitter {
     val generateFors = module.items.collect { case generate: GenerateFor => generate }.sortBy(_.label)
     val generateIfs = module.items.collect { case generate: GenerateIf => generate }.sortBy(generateIfSortKey)
     val generateCases = module.items.collect { case generate: GenerateCase => generate }.sortBy(generateCaseSortKey)
+    val combinationalIfs = module.items.collect { case process: CombinationalIf => process }.sortBy(_.label)
+    val proceduralOutputs = combinationalIfs
+      .flatMap(process => process.whenTrue.map(_.target.name) ++ process.whenFalse.map(_.target.name))
+      .toSet
     val assignments = module.items.collect { case assignment: ContinuousAssign => assignment }.sortBy { assignment =>
       (assignment.target.name, renderRtlExpr(assignment.value))
     }
@@ -85,7 +96,7 @@ object Verilog2001Emitter {
 
     ports.zipWithIndex.foreach { case (port, index) =>
       val comma = if (index == ports.size - 1) "" else ","
-      lines += renderPort(port) + comma
+      lines += renderPort(port, proceduralOutputs.contains(port.name)) + comma
     }
     lines += ");"
 
@@ -163,6 +174,23 @@ object Verilog2001Emitter {
       }
     }
 
+    combinationalIfs.foreach { process =>
+      lines += ""
+      lines += s"  always @* begin : ${process.label}"
+      lines += s"    if (${process.condition.name} == 1'b1) begin"
+      process.whenTrue.sortBy(assignment => (assignment.target.name, assignment.value.name)).foreach {
+        assignment =>
+          lines += s"      ${assignment.target.name} = ${assignment.value.name};"
+      }
+      lines += "    end else begin"
+      process.whenFalse.sortBy(assignment => (assignment.target.name, assignment.value.name)).foreach {
+        assignment =>
+          lines += s"      ${assignment.target.name} = ${assignment.value.name};"
+      }
+      lines += "    end"
+      lines += "  end"
+    }
+
     lines += ""
     lines += "endmodule"
     lines.result().mkString("\n")
@@ -212,7 +240,7 @@ object Verilog2001Emitter {
     lines.result()
   }
 
-  private def renderPort(port: Port): String = {
+  private def renderPort(port: Port, procedurallyDriven: Boolean): String = {
     val direction = port.direction match {
       case Input  => "input"
       case Output => "output"
@@ -228,7 +256,8 @@ object Verilog2001Emitter {
       case expression              => s"[(${renderIntExpr(expression)})-1:0] "
     }
 
-    f"  $direction%-6s wire $signedness$range${port.name}"
+    val storage = if (port.direction == Output && procedurallyDriven) "reg" else "wire"
+    f"  $direction%-6s $storage $signedness$range${port.name}"
   }
 
   private val ConditionalPrecedence = 0

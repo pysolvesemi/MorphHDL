@@ -36,7 +36,14 @@ import morphhdl.paramrtl.IntExpressionFailure.{
   UnresolvedLocalParameter,
   UnresolvedParameter
 }
-import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateCase, GenerateFor, GenerateIf, ModuleInstance}
+import morphhdl.paramrtl.ModuleItem.{
+  CombinationalIf,
+  ContinuousAssign,
+  GenerateCase,
+  GenerateFor,
+  GenerateIf,
+  ModuleInstance
+}
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 import morphhdl.paramrtl.Signedness.Unsigned
@@ -168,6 +175,7 @@ object ParamRtlValidator {
     val generateIfBlocks = generateIfs.flatMap(generateBlocks)
     val generateCases = module.items.collect { case generate: GenerateCase => generate }.sortBy(generateCaseSortKey)
     val generateCaseBlocks = generateCases.flatMap(generateCaseBlocksInOrder)
+    val combinationalIfs = module.items.collect { case process: CombinationalIf => process }.sortBy(_.label)
 
     addDuplicateDiagnostics(
       parameters.map(_.name),
@@ -225,6 +233,13 @@ object ParamRtlValidator {
       "generate index",
       diagnostics
     )
+    addDuplicateDiagnostics(
+      combinationalIfs.map(_.label),
+      modulePath :+ "processLabels",
+      "PRTL-DUPLICATE-COMBINATIONAL-PROCESS-LABEL",
+      "combinational process label",
+      diagnostics
+    )
 
     val declarationKinds = Vector(
       "parameter" -> parameters.map(_.name).toSet,
@@ -235,7 +250,8 @@ object ParamRtlValidator {
       "instance" -> instances.map(_.name).toSet,
       "generate label" ->
         (generateFors.map(_.label) ++ generateIfBlocks.map(_.label) ++ generateCaseBlocks.map(_.label)).toSet,
-      "generate index" -> generateFors.map(_.indexName).toSet
+      "generate index" -> generateFors.map(_.indexName).toSet,
+      "combinational process label" -> combinationalIfs.map(_.label).toSet
     )
     declarationKinds.combinations(2).foreach {
       case Vector((leftKind, leftNames), (rightKind, rightNames)) =>
@@ -368,6 +384,12 @@ object ParamRtlValidator {
       }
       generate.body.zipWithIndex.foreach {
         case (_: ModuleInstance, _) =>
+        case (_: CombinationalIf, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+            path :+ "body" :+ index.toString,
+            "Generate-for bodies cannot contain runtime combinational processes"
+          )
         case (_: GenerateFor, index) =>
           diagnostics += Diagnostic(
             "PRTL-NESTED-GENERATE-UNSUPPORTED",
@@ -437,6 +459,12 @@ object ParamRtlValidator {
         block.body.zipWithIndex.foreach {
           case (_: ModuleInstance, _)   =>
           case (_: ContinuousAssign, _) =>
+          case (_: CombinationalIf, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-if branches cannot contain runtime combinational processes"
+            )
           case (_: GenerateFor, index) =>
             diagnostics += Diagnostic(
               "PRTL-NESTED-GENERATE-UNSUPPORTED",
@@ -520,6 +548,12 @@ object ParamRtlValidator {
         block.body.zipWithIndex.foreach {
           case (_: ModuleInstance, _)   =>
           case (_: ContinuousAssign, _) =>
+          case (_: CombinationalIf, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-case branches cannot contain runtime combinational processes"
+            )
           case (_: GenerateFor, index) =>
             diagnostics += Diagnostic(
               "PRTL-NESTED-GENERATE-UNSUPPORTED",
@@ -540,6 +574,92 @@ object ParamRtlValidator {
             )
         }
       }
+    }
+
+    if (combinationalIfs.size > 1) {
+      combinationalIfs.drop(1).foreach { process =>
+        diagnostics += Diagnostic(
+          "PRTL-MULTIPLE-COMBINATIONAL-PROCESSES-UNSUPPORTED",
+          modulePath :+ "combinationalProcesses" :+ process.label,
+          "At most one top-level runtime combinational process is supported per module"
+        )
+      }
+    }
+
+    combinationalIfs.foreach { process =>
+      val path = modulePath :+ "combinationalProcesses" :+ process.label
+      checkIdentifier(process.label, path :+ "label", "combinational process label", diagnostics)
+
+      Vector("whenTrue" -> process.whenTrue, "whenFalse" -> process.whenFalse).foreach {
+        case (branchName, assignments) =>
+          val branchPath = path :+ branchName
+          if (assignments.isEmpty)
+            diagnostics += Diagnostic(
+              "PRTL-EMPTY-COMBINATIONAL-BRANCH",
+              branchPath,
+              s"Combinational process '${process.label}' requires a nonempty $branchName branch"
+            )
+          addDuplicateDiagnostics(
+            assignments.map(_.target.name),
+            branchPath :+ "targets",
+            "PRTL-DUPLICATE-PROCEDURAL-TARGET",
+            "procedural assignment target",
+            diagnostics
+          )
+      }
+
+      val trueTargets = process.whenTrue.map(_.target.name).toSet
+      val falseTargets = process.whenFalse.map(_.target.name).toSet
+      if (trueTargets != falseTargets) {
+        val onlyTrue = (trueTargets -- falseTargets).toVector.sorted
+        val onlyFalse = (falseTargets -- trueTargets).toVector.sorted
+        diagnostics += Diagnostic(
+          "PRTL-COMBINATIONAL-BRANCH-TARGET-MISMATCH",
+          path :+ "branches",
+          s"Combinational process branches must assign the same targets; true-only: ${onlyTrue.mkString(", ")}; false-only: ${onlyFalse.mkString(", ")}"
+        )
+      }
+    }
+
+    if (combinationalIfs.nonEmpty) {
+      val generateItems = module.items.collect {
+        case item: GenerateFor  => item
+        case item: GenerateIf   => item
+        case item: GenerateCase => item
+      }.sortBy {
+        case generate: GenerateFor  => s"0:${generate.label}"
+        case generate: GenerateIf   => s"1:${generateIfSortKey(generate)}"
+        case generate: GenerateCase => s"2:${generateCaseSortKey(generate)}"
+        case _                      => "3"
+      }
+      generateItems.zipWithIndex.foreach { case (item, index) =>
+        diagnostics += Diagnostic(
+          "PRTL-COMBINATIONAL-PROCESS-WITH-GENERATE-UNSUPPORTED",
+          modulePath :+ "combinationalProcesses" :+ "generateConflicts" :+ index.toString,
+          s"Runtime combinational processes cannot be combined with ${moduleItemKind(item)} in this tranche"
+        )
+      }
+
+      module.items.collect { case assignment: ContinuousAssign => assignment }
+        .sortBy(assignment => (assignment.target.name, assignment.value.toString))
+        .zipWithIndex
+        .foreach { case (_, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-COMBINATIONAL-PROCESS-MIXED-DRIVERS-UNSUPPORTED",
+            modulePath :+ "combinationalProcesses" :+ "continuousAssignmentConflicts" :+ index.toString,
+            "Runtime combinational process outputs cannot be mixed with continuous-assignment drivers in this tranche"
+          )
+        }
+      module.items.collect { case instance: ModuleInstance => instance }
+        .sortBy(instance => (instance.name, instance.moduleName))
+        .zipWithIndex
+        .foreach { case (_, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-COMBINATIONAL-PROCESS-MIXED-DRIVERS-UNSUPPORTED",
+            modulePath :+ "combinationalProcesses" :+ "instanceConflicts" :+ index.toString,
+            "Runtime combinational process outputs cannot be mixed with instance drivers in this tranche"
+          )
+        }
     }
 
     def integerLocalKey(name: String): String = s"integer:$name"
@@ -1322,6 +1442,7 @@ object ParamRtlValidator {
     val generateFors = module.items.collect { case generate: GenerateFor => generate }.sortBy(_.label)
     val generateIfs = module.items.collect { case generate: GenerateIf => generate }.sortBy(generateIfSortKey)
     val generateCases = module.items.collect { case generate: GenerateCase => generate }.sortBy(generateCaseSortKey)
+    val combinationalIfs = module.items.collect { case process: CombinationalIf => process }.sortBy(_.label)
     val driverCounts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
     val conditionalBranchDriverCounts =
       scala.collection.mutable.ArrayBuffer.empty[scala.collection.mutable.Map[String, Int]]
@@ -1927,13 +2048,78 @@ object ParamRtlValidator {
       conditionalBranchDriverCounts += defaultCounts
     }
 
+    combinationalIfs.foreach { process =>
+      val path = modulePath :+ "combinationalProcesses" :+ process.label
+      resolvePort(process.condition, portByName, path :+ "condition", diagnostics).foreach { port =>
+        if (port.direction != Input)
+          diagnostics += Diagnostic(
+            "PRTL-COMBINATIONAL-CONDITION-NOT-INPUT",
+            path :+ "condition",
+            s"Combinational process condition '${port.name}' must be an input port"
+          )
+        if (!packedTypesEquivalent(port.dataType, PackedBits(Literal(1), Unsigned), module, baseFacts))
+          diagnostics += Diagnostic(
+            "PRTL-COMBINATIONAL-CONDITION-TYPE-MISMATCH",
+            path :+ "condition",
+            s"Combinational process condition '${port.name}' must have exact unsigned 1-bit type"
+          )
+      }
+
+      def validateBranch(
+          branchName: String,
+          assignments: Vector[ProceduralAssign]
+      ): scala.collection.mutable.Map[String, Int] = {
+        val counts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
+        assignments.sortBy(assignment => (assignment.target.name, assignment.value.name)).zipWithIndex.foreach {
+          case (assignment, index) =>
+          val assignmentPath = path :+ branchName :+ "assignments" :+ index.toString
+          val targetPort = resolvePort(assignment.target, portByName, assignmentPath :+ "target", diagnostics)
+          val valuePort = resolvePort(assignment.value, portByName, assignmentPath :+ "value", diagnostics)
+
+          targetPort.foreach { port =>
+            counts.update(port.name, counts(port.name) + 1)
+            if (port.direction != Output)
+              diagnostics += Diagnostic(
+                "PRTL-ILLEGAL-INPUT-DRIVER",
+                assignmentPath :+ "target",
+                s"Procedural assignment cannot drive input port '${port.name}'"
+              )
+          }
+          valuePort.foreach { port =>
+            if (port.direction != Input)
+              diagnostics += Diagnostic(
+                "PRTL-PROCEDURAL-OUTPUT-READ-UNSUPPORTED",
+                assignmentPath :+ "value",
+                s"Procedural assignment value '${port.name}' must be an input port; output reads are unsupported"
+              )
+          }
+          for {
+            targetType <- targetPort.map(_.dataType)
+            valueType <- valuePort.map(_.dataType)
+            if !packedTypesEquivalent(targetType, valueType, module, baseFacts)
+          } diagnostics += Diagnostic(
+            "PRTL-PROCEDURAL-TYPE-MISMATCH",
+            assignmentPath,
+            s"Procedural assignment target type '$targetType' does not exactly match value type '$valueType'"
+          )
+        }
+        counts
+      }
+
+      conditionalBranchDriverCounts += validateBranch("whenTrue", process.whenTrue)
+      conditionalBranchDriverCounts += validateBranch("whenFalse", process.whenFalse)
+    }
+
     ports.filter(_.direction == Output).foreach { port =>
       val legalDriverCounts =
         if (conditionalBranchDriverCounts.isEmpty) Vector(driverCounts(port.name))
         else conditionalBranchDriverCounts.toVector.map(branch => driverCounts(port.name) + branch(port.name))
       if (legalDriverCounts.exists(_ == 0)) {
         val message =
-          if (generateIfs.isEmpty && generateCases.isEmpty) s"Output port '${port.name}' has no driver"
+          if (generateIfs.isEmpty && generateCases.isEmpty && combinationalIfs.isEmpty)
+            s"Output port '${port.name}' has no driver"
+          else if (combinationalIfs.nonEmpty)
+            s"Output port '${port.name}' is undriven in at least one runtime combinational branch"
           else s"Output port '${port.name}' is undriven for at least one legal generate configuration"
         diagnostics += Diagnostic(
           "PRTL-UNDRIVEN-OUTPUT",
@@ -1944,7 +2130,10 @@ object ParamRtlValidator {
       val maximumDrivers = legalDriverCounts.max
       if (legalDriverCounts.exists(_ > 1)) {
         val message =
-          if (generateIfs.isEmpty && generateCases.isEmpty) s"Output port '${port.name}' has $maximumDrivers drivers"
+          if (generateIfs.isEmpty && generateCases.isEmpty && combinationalIfs.isEmpty)
+            s"Output port '${port.name}' has $maximumDrivers drivers"
+          else if (combinationalIfs.nonEmpty)
+            s"Output port '${port.name}' has up to $maximumDrivers drivers in a runtime combinational branch"
           else s"Output port '${port.name}' has up to $maximumDrivers drivers in a legal generate configuration"
         diagnostics += Diagnostic(
           "PRTL-MULTIPLE-DRIVERS",
@@ -2305,6 +2494,13 @@ object ParamRtlValidator {
     generate.default.label -> sortedGenerateCaseChoices(generate)
       .map(choice => s"${choice.value}:${choice.block.label}")
       .mkString("|")
+
+  private def moduleItemKind(item: ModuleItem): String = item match {
+    case _: GenerateFor  => "a generate-for construct"
+    case _: GenerateIf   => "a generate-if construct"
+    case _: GenerateCase => "a generate-case construct"
+    case _               => "another module item"
+  }
 
   private def addDuplicateCaseValueDiagnostics(
       generate: GenerateCase,
