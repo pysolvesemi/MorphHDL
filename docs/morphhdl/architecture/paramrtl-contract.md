@@ -209,6 +209,16 @@ and rejects all sibling process, continuous, instance and generate items. The
 node does not generalize to arbitrary hold values, multiple registers/clocks,
 external domain provenance or memories.
 
+Increment 19 adds
+`ModuleItem.AsynchronousEnabledRegister(label, clock: RtlExpr.Ref,
+reset: RtlExpr.Ref, enable: RtlExpr.Ref, assignment: ProceduralAssign)`. Its
+roles, whole-domain type proof, sole ownership and disabled hold match the
+synchronous enabled node, but active-high reset-to-zero asserts asynchronously
+and has priority over enabled capture. Sibling processes, continuous drivers,
+instances and generate regions remain rejected. This node still does not
+model arbitrary hold values, multiple registers/clocks, external domain
+provenance or memories.
+
 ## Required invariants
 
 - Every reference resolves within its lexical parameter, generate or module

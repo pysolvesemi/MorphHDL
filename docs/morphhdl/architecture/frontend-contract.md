@@ -178,6 +178,14 @@ reference and assignment passes the same ownership, origin and cross-thread
 checks. Arbitrary hold expressions, selectable control polarities, multiple or
 mixed processes and nesting remain rejected.
 
+Increment 19 adds the parallel
+`emitAsynchronousEnabledRegister(label, clock, reset, enable, assignment)`.
+It preserves the same atomic provenance and distinct-control rules while
+fixing reset as active-high asynchronous reset-to-zero. Reset assertion is
+immediate and retains priority over active-high capture; enable low retains
+state. Selectable timing or polarity, arbitrary hold expressions, multiple or
+mixed processes and nesting remain rejected.
+
 An ordinary Scala `if`, `match`, collection size, recursion or class selection
 continues to execute during elaboration and therefore may depend only on static
 Scala values.
