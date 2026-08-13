@@ -7,6 +7,23 @@ import morphhdl.paramrtl.{GenerateBlock, GenerateCaseChoice, ModuleItem}
 
 private[frontend] final case class GenerateIfNames(whenTrue: String, whenFalse: String)
 
+private[frontend] sealed trait RuntimeProcessKind {
+  def description: String
+}
+
+private[frontend] case object CombinationalProcessKind extends RuntimeProcessKind {
+  val description = "combinational process"
+}
+
+private[frontend] case object SynchronousRegisterKind extends RuntimeProcessKind {
+  val description = "synchronous register process"
+}
+
+private[frontend] final case class CapturedRuntimeProcess(
+    kind: RuntimeProcessKind,
+    origin: SourceOrigin
+)
+
 private[frontend] final class FrontendSessionToken {
   @volatile private var open = true
 
@@ -134,7 +151,7 @@ private[frontend] object FrontendSession {
       pendingConditionals: mutable.Set[ConditionalGenerateToken],
       capturedConditionals: mutable.Set[ConditionalGenerateToken],
       capturedGenerateFors: ArrayBuffer[SourceOrigin],
-      capturedCombinationalProcesses: ArrayBuffer[SourceOrigin],
+      capturedProcesses: ArrayBuffer[CapturedRuntimeProcess],
       capturedOrdinaryItems: ArrayBuffer[(SourceOrigin, String)]
   )
 
@@ -218,7 +235,7 @@ private[frontend] object FrontendSession {
 
   private def runRangeInContext(range: HdlRange, body: GenIndex => Unit): Unit = {
     val context = current.get()
-    requireNoCombinationalProcessMix(context, "generate-for", range.origin)
+    requireNoRuntimeProcessMix(context, "generate-for", range.origin)
     if (context.activeScope.nonEmpty || context.activeConditional) {
       FrontendException.failAt(
         "MORPH-FRONTEND-NESTED-GENERATE-UNSUPPORTED",
@@ -316,7 +333,7 @@ private[frontend] object FrontendSession {
       )
     }
     requireNoNestedGenerate(context, origin)
-    requireNoCombinationalProcessMix(context, "generate-if", origin)
+    requireNoRuntimeProcessMix(context, "generate-if", origin)
     context.capturedConditionals.toVector.headOption.foreach { existing =>
       FrontendException.failAt(
         "MORPH-FRONTEND-GENERATE-IF-MULTIPLE",
@@ -464,7 +481,7 @@ private[frontend] object FrontendSession {
     }
     selector.requireLoopInvariant("generate-case selector")
     requireNoNestedGenerate(context, origin)
-    requireNoCombinationalProcessMix(context, "generate-case", origin)
+    requireNoRuntimeProcessMix(context, "generate-case", origin)
     context.capturedConditionals.toVector.headOption.foreach { existing =>
       FrontendException.failAt(
         "MORPH-FRONTEND-GENERATE-CASE-MULTIPLE",
@@ -688,16 +705,16 @@ private[frontend] object FrontendSession {
       )
     }
 
-  private def requireNoCombinationalProcessMix(
+  private def requireNoRuntimeProcessMix(
       context: Context,
       operation: String,
       origin: SourceOrigin
   ): Unit =
-    context.capturedCombinationalProcesses.headOption.foreach { existing =>
+    context.capturedProcesses.headOption.foreach { existing =>
       FrontendException.failAt(
-        "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MIXED",
-        s"$operation cannot share one module-item capture with the combinational process at " +
-          existing.rendered,
+        mixedCode(existing.kind),
+        s"$operation cannot share one module-item capture with the ${existing.kind.description} at " +
+          existing.origin.rendered,
         origin
       )
     }
@@ -751,11 +768,11 @@ private[frontend] object FrontendSession {
     item.requireUsable("module-item emission")
     val topLevel = context.activeScope.isEmpty && !context.activeConditional
     if (topLevel) {
-      context.capturedCombinationalProcesses.headOption.foreach { existing =>
+      context.capturedProcesses.headOption.foreach { existing =>
         FrontendException.failAt(
-          "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MIXED",
+          mixedCode(existing.kind),
           s"${ordinaryItemKind(item.raw)} cannot share one module-item capture with the " +
-            s"combinational process at ${existing.rendered}",
+            s"${existing.kind.description} at ${existing.origin.rendered}",
           item.origin
         )
       }
@@ -778,34 +795,48 @@ private[frontend] object FrontendSession {
     if (topLevel) context.capturedOrdinaryItems += item.origin -> ordinaryItemKind(item.raw)
   }
 
-  private[frontend] def emitCombinationalIf(item: FrontendNode[ModuleItem]): Unit = {
+  private[frontend] def emitCombinationalIf(item: FrontendNode[ModuleItem]): Unit =
+    emitRuntimeProcess(item, CombinationalProcessKind)
+
+  private[frontend] def emitSynchronousRegister(item: FrontendNode[ModuleItem]): Unit =
+    emitRuntimeProcess(item, SynchronousRegisterKind)
+
+  private def emitRuntimeProcess(
+      item: FrontendNode[ModuleItem],
+      kind: RuntimeProcessKind
+  ): Unit = {
     val context = current.get()
     if (context == null || context.mode != Parameterized) {
       FrontendException.failAt(
         "MORPH-FRONTEND-EMIT-OUTSIDE-CAPTURE",
-        "a combinational process may be emitted only during parameterized capture",
+        s"a ${kind.description} may be emitted only during parameterized capture",
         item.origin
       )
     }
     if (context.activeScope.nonEmpty || context.activeConditional) {
       FrontendException.failAt(
-        "MORPH-FRONTEND-COMBINATIONAL-PROCESS-NESTED",
-        "a combinational process cannot be nested in generate-if, generate-case or generate-for",
+        nestedCode(kind),
+        s"a ${kind.description} cannot be nested in generate-if, generate-case or generate-for",
         item.origin
       )
     }
-    context.capturedCombinationalProcesses.headOption.foreach { existing =>
-      FrontendException.failAt(
-        "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MULTIPLE",
-        s"one module-item capture supports one combinational process; the existing process is at " +
-          existing.rendered,
-        item.origin
-      )
+    context.capturedProcesses.headOption.foreach { existing =>
+      val code =
+        if (existing.kind == kind) multipleCode(kind)
+        else "MORPH-FRONTEND-RUNTIME-PROCESS-MIXED"
+      val detail =
+        if (existing.kind == kind)
+          s"one module-item capture supports one ${kind.description}; the existing process is at " +
+            existing.origin.rendered
+        else
+          s"a ${kind.description} cannot share one module-item capture with the " +
+            s"${existing.kind.description} at ${existing.origin.rendered}"
+      FrontendException.failAt(code, detail, item.origin)
     }
-    context.capturedOrdinaryItems.headOption.foreach { case (existing, kind) =>
+    context.capturedOrdinaryItems.headOption.foreach { case (existing, itemKind) =>
       FrontendException.failAt(
-        "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MIXED",
-        s"a combinational process cannot share one module-item capture with $kind at " +
+        mixedCode(kind),
+        s"a ${kind.description} cannot share one module-item capture with $itemKind at " +
           existing.rendered,
         item.origin
       )
@@ -817,14 +848,14 @@ private[frontend] object FrontendSession {
       .orElse(context.capturedGenerateFors.headOption)
     existingGenerate.foreach { existing =>
       FrontendException.failAt(
-        "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MIXED",
-        s"a combinational process cannot share one module-item capture with the generate region at " +
+        mixedCode(kind),
+        s"a ${kind.description} cannot share one module-item capture with the generate region at " +
           existing.rendered,
         item.origin
       )
     }
 
-    item.requireUsable("combinational-process emission")
+    item.requireUsable(s"${kind.description} emission")
     val collector = context.collector.getOrElse {
       FrontendException.failAt(
         "MORPH-FRONTEND-MISSING-COLLECTOR",
@@ -840,7 +871,22 @@ private[frontend] object FrontendSession {
       booleanLocalParameters = item.booleanLocalParameters,
       origin = item.origin
     )
-    context.capturedCombinationalProcesses += item.origin
+    context.capturedProcesses += CapturedRuntimeProcess(kind, item.origin)
+  }
+
+  private def mixedCode(kind: RuntimeProcessKind): String = kind match {
+    case CombinationalProcessKind => "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MIXED"
+    case SynchronousRegisterKind  => "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-MIXED"
+  }
+
+  private def nestedCode(kind: RuntimeProcessKind): String = kind match {
+    case CombinationalProcessKind => "MORPH-FRONTEND-COMBINATIONAL-PROCESS-NESTED"
+    case SynchronousRegisterKind  => "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-NESTED"
+  }
+
+  private def multipleCode(kind: RuntimeProcessKind): String = kind match {
+    case CombinationalProcessKind => "MORPH-FRONTEND-COMBINATIONAL-PROCESS-MULTIPLE"
+    case SynchronousRegisterKind  => "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-MULTIPLE"
   }
 
   private def ordinaryItemKind(item: ModuleItem): String = item match {

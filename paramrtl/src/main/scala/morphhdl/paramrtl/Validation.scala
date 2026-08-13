@@ -42,7 +42,8 @@ import morphhdl.paramrtl.ModuleItem.{
   GenerateCase,
   GenerateFor,
   GenerateIf,
-  ModuleInstance
+  ModuleInstance,
+  SynchronousRegister
 }
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
@@ -176,6 +177,8 @@ object ParamRtlValidator {
     val generateCases = module.items.collect { case generate: GenerateCase => generate }.sortBy(generateCaseSortKey)
     val generateCaseBlocks = generateCases.flatMap(generateCaseBlocksInOrder)
     val combinationalIfs = module.items.collect { case process: CombinationalIf => process }.sortBy(_.label)
+    val synchronousRegisters =
+      module.items.collect { case process: SynchronousRegister => process }.sortBy(_.label)
 
     addDuplicateDiagnostics(
       parameters.map(_.name),
@@ -240,6 +243,13 @@ object ParamRtlValidator {
       "combinational process label",
       diagnostics
     )
+    addDuplicateDiagnostics(
+      synchronousRegisters.map(_.label),
+      modulePath :+ "processLabels",
+      "PRTL-DUPLICATE-SYNCHRONOUS-REGISTER-LABEL",
+      "synchronous register process label",
+      diagnostics
+    )
 
     val declarationKinds = Vector(
       "parameter" -> parameters.map(_.name).toSet,
@@ -251,7 +261,8 @@ object ParamRtlValidator {
       "generate label" ->
         (generateFors.map(_.label) ++ generateIfBlocks.map(_.label) ++ generateCaseBlocks.map(_.label)).toSet,
       "generate index" -> generateFors.map(_.indexName).toSet,
-      "combinational process label" -> combinationalIfs.map(_.label).toSet
+      "combinational process label" -> combinationalIfs.map(_.label).toSet,
+      "synchronous register process label" -> synchronousRegisters.map(_.label).toSet
     )
     declarationKinds.combinations(2).foreach {
       case Vector((leftKind, leftNames), (rightKind, rightNames)) =>
@@ -390,6 +401,12 @@ object ParamRtlValidator {
             path :+ "body" :+ index.toString,
             "Generate-for bodies cannot contain runtime combinational processes"
           )
+        case (_: SynchronousRegister, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+            path :+ "body" :+ index.toString,
+            "Generate-for bodies cannot contain synchronous register processes"
+          )
         case (_: GenerateFor, index) =>
           diagnostics += Diagnostic(
             "PRTL-NESTED-GENERATE-UNSUPPORTED",
@@ -464,6 +481,12 @@ object ParamRtlValidator {
               "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
               branchPath :+ "body" :+ index.toString,
               "Generate-if branches cannot contain runtime combinational processes"
+            )
+          case (_: SynchronousRegister, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-if branches cannot contain synchronous register processes"
             )
           case (_: GenerateFor, index) =>
             diagnostics += Diagnostic(
@@ -553,6 +576,12 @@ object ParamRtlValidator {
               "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
               branchPath :+ "body" :+ index.toString,
               "Generate-case branches cannot contain runtime combinational processes"
+            )
+          case (_: SynchronousRegister, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-case branches cannot contain synchronous register processes"
             )
           case (_: GenerateFor, index) =>
             diagnostics += Diagnostic(
@@ -658,6 +687,38 @@ object ParamRtlValidator {
             "PRTL-COMBINATIONAL-PROCESS-MIXED-DRIVERS-UNSUPPORTED",
             modulePath :+ "combinationalProcesses" :+ "instanceConflicts" :+ index.toString,
             "Runtime combinational process outputs cannot be mixed with instance drivers in this tranche"
+          )
+        }
+    }
+
+    if (synchronousRegisters.size > 1) {
+      synchronousRegisters.drop(1).foreach { process =>
+        diagnostics += Diagnostic(
+          "PRTL-MULTIPLE-SYNCHRONOUS-REGISTERS-UNSUPPORTED",
+          modulePath :+ "synchronousRegisters" :+ process.label,
+          "At most one top-level synchronous register process is supported per module"
+        )
+      }
+    }
+
+    synchronousRegisters.foreach { process =>
+      val path = modulePath :+ "synchronousRegisters" :+ process.label
+      checkIdentifier(process.label, path :+ "label", "synchronous register process label", diagnostics)
+    }
+
+    if (synchronousRegisters.nonEmpty) {
+      module.items
+        .filter {
+          case _: SynchronousRegister => false
+          case _                      => true
+        }
+        .sortBy(moduleItemStableKey)
+        .zipWithIndex
+        .foreach { case (item, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-SYNCHRONOUS-REGISTER-MIXED-ITEMS-UNSUPPORTED",
+            modulePath :+ "synchronousRegisters" :+ "itemConflicts" :+ index.toString,
+            s"Synchronous register processes cannot be combined with ${moduleItemKind(item)} in this tranche"
           )
         }
     }
@@ -1443,6 +1504,8 @@ object ParamRtlValidator {
     val generateIfs = module.items.collect { case generate: GenerateIf => generate }.sortBy(generateIfSortKey)
     val generateCases = module.items.collect { case generate: GenerateCase => generate }.sortBy(generateCaseSortKey)
     val combinationalIfs = module.items.collect { case process: CombinationalIf => process }.sortBy(_.label)
+    val synchronousRegisters =
+      module.items.collect { case process: SynchronousRegister => process }.sortBy(_.label)
     val driverCounts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
     val conditionalBranchDriverCounts =
       scala.collection.mutable.ArrayBuffer.empty[scala.collection.mutable.Map[String, Int]]
@@ -2110,16 +2173,103 @@ object ParamRtlValidator {
       conditionalBranchDriverCounts += validateBranch("whenFalse", process.whenFalse)
     }
 
+    synchronousRegisters.foreach { process =>
+      val path = modulePath :+ "synchronousRegisters" :+ process.label
+      val oneBitUnsigned = PackedBits(Literal(1), Unsigned)
+
+      def validateControl(role: String, reference: Ref): Option[Port] =
+        resolvePort(reference, portByName, path :+ role, diagnostics).map { port =>
+          if (port.direction != Input)
+            diagnostics += Diagnostic(
+              s"PRTL-SYNCHRONOUS-${role.toUpperCase}-NOT-INPUT",
+              path :+ role,
+              s"Synchronous register $role '${port.name}' must be an input port"
+            )
+          if (!packedTypesEquivalent(port.dataType, oneBitUnsigned, module, baseFacts))
+            diagnostics += Diagnostic(
+              s"PRTL-SYNCHRONOUS-${role.toUpperCase}-TYPE-MISMATCH",
+              path :+ role,
+              s"Synchronous register $role '${port.name}' must have exact unsigned 1-bit type"
+            )
+          port
+        }
+
+      validateControl("clock", process.clock)
+      validateControl("reset", process.reset)
+
+      val roleNames = Vector(
+        "clock" -> process.clock.name,
+        "reset" -> process.reset.name,
+        "data" -> process.assignment.value.name
+      )
+      roleNames
+        .groupBy(_._2)
+        .collect { case (name, roles) if roles.size > 1 => name -> roles.map(_._1).sorted }
+        .toVector
+        .sortBy(_._1)
+        .foreach { case (name, roles) =>
+          diagnostics += Diagnostic(
+            "PRTL-SYNCHRONOUS-REGISTER-ROLE-ALIAS",
+            path :+ "roles" :+ name,
+            s"Synchronous register roles must use distinct input ports; '$name' is used as ${roles.mkString(", ")}"
+          )
+        }
+
+      val assignmentPath = path :+ "assignment"
+      val targetPort =
+        resolvePort(process.assignment.target, portByName, assignmentPath :+ "target", diagnostics)
+      val valuePort =
+        resolvePort(process.assignment.value, portByName, assignmentPath :+ "value", diagnostics)
+
+      targetPort.foreach { port =>
+        driverCounts.update(port.name, driverCounts(port.name) + 1)
+        if (port.direction != Output)
+          diagnostics += Diagnostic(
+            "PRTL-ILLEGAL-INPUT-DRIVER",
+            assignmentPath :+ "target",
+            s"Synchronous register assignment cannot drive input port '${port.name}'"
+          )
+      }
+      valuePort.foreach { port =>
+        if (port.direction != Input)
+          diagnostics += Diagnostic(
+            "PRTL-SYNCHRONOUS-DATA-NOT-INPUT",
+            assignmentPath :+ "value",
+            s"Synchronous register data '${port.name}' must be an input port"
+          )
+      }
+      for {
+        targetType <- targetPort.map(_.dataType)
+        valueType <- valuePort.map(_.dataType)
+        if !packedTypesEquivalent(targetType, valueType, module, baseFacts)
+      } diagnostics += Diagnostic(
+        "PRTL-SYNCHRONOUS-DATA-TYPE-MISMATCH",
+        assignmentPath,
+        s"Synchronous register target type '$targetType' does not exactly match data type '$valueType'"
+      )
+
+      val outputNames = ports.filter(_.direction == Output).map(_.name)
+      val targetName = targetPort.filter(_.direction == Output).map(_.name)
+      if (targetName.forall(name => outputNames != Vector(name)))
+        diagnostics += Diagnostic(
+          "PRTL-SYNCHRONOUS-REGISTER-OUTPUT-SHAPE-UNSUPPORTED",
+          path :+ "outputs",
+          s"Synchronous register target must be the module's sole output; outputs are ${outputNames.mkString(", ")}"
+        )
+    }
+
     ports.filter(_.direction == Output).foreach { port =>
       val legalDriverCounts =
         if (conditionalBranchDriverCounts.isEmpty) Vector(driverCounts(port.name))
         else conditionalBranchDriverCounts.toVector.map(branch => driverCounts(port.name) + branch(port.name))
       if (legalDriverCounts.exists(_ == 0)) {
         val message =
-          if (generateIfs.isEmpty && generateCases.isEmpty && combinationalIfs.isEmpty)
+          if (generateIfs.isEmpty && generateCases.isEmpty && combinationalIfs.isEmpty && synchronousRegisters.isEmpty)
             s"Output port '${port.name}' has no driver"
           else if (combinationalIfs.nonEmpty)
             s"Output port '${port.name}' is undriven in at least one runtime combinational branch"
+          else if (synchronousRegisters.nonEmpty)
+            s"Output port '${port.name}' is not owned by the synchronous register process"
           else s"Output port '${port.name}' is undriven for at least one legal generate configuration"
         diagnostics += Diagnostic(
           "PRTL-UNDRIVEN-OUTPUT",
@@ -2130,10 +2280,12 @@ object ParamRtlValidator {
       val maximumDrivers = legalDriverCounts.max
       if (legalDriverCounts.exists(_ > 1)) {
         val message =
-          if (generateIfs.isEmpty && generateCases.isEmpty && combinationalIfs.isEmpty)
+          if (generateIfs.isEmpty && generateCases.isEmpty && combinationalIfs.isEmpty && synchronousRegisters.isEmpty)
             s"Output port '${port.name}' has $maximumDrivers drivers"
           else if (combinationalIfs.nonEmpty)
             s"Output port '${port.name}' has up to $maximumDrivers drivers in a runtime combinational branch"
+          else if (synchronousRegisters.nonEmpty)
+            s"Output port '${port.name}' has $maximumDrivers drivers including its synchronous register process"
           else s"Output port '${port.name}' has up to $maximumDrivers drivers in a legal generate configuration"
         diagnostics += Diagnostic(
           "PRTL-MULTIPLE-DRIVERS",
@@ -2496,10 +2648,30 @@ object ParamRtlValidator {
       .mkString("|")
 
   private def moduleItemKind(item: ModuleItem): String = item match {
-    case _: GenerateFor  => "a generate-for construct"
-    case _: GenerateIf   => "a generate-if construct"
-    case _: GenerateCase => "a generate-case construct"
-    case _               => "another module item"
+    case _: ContinuousAssign   => "a continuous assignment"
+    case _: ModuleInstance     => "a module instance"
+    case _: GenerateFor        => "a generate-for construct"
+    case _: GenerateIf         => "a generate-if construct"
+    case _: GenerateCase       => "a generate-case construct"
+    case _: CombinationalIf    => "a runtime combinational process"
+    case _: SynchronousRegister => "another synchronous register process"
+  }
+
+  private def moduleItemStableKey(item: ModuleItem): String = item match {
+    case assignment: ContinuousAssign =>
+      s"0:${assignment.target.name}:${assignment.value}"
+    case instance: ModuleInstance =>
+      s"1:${instance.name}:${instance.moduleName}:${instance.parameterBindings}:${instance.booleanParameterBindings}:${instance.portConnections}"
+    case generate: GenerateFor =>
+      s"2:${generate.label}:${generate.indexName}:${generate.count}:${generate.body}"
+    case generate: GenerateIf =>
+      s"3:${generateIfSortKey(generate)}:${generate.condition}:${generate.whenTrue.body}:${generate.whenFalse.body}"
+    case generate: GenerateCase =>
+      s"4:${generateCaseSortKey(generate)}:${generate.selector}:${generate.choices}:${generate.default.body}"
+    case process: CombinationalIf =>
+      s"5:${process.label}:${process.condition.name}:${process.whenTrue}:${process.whenFalse}"
+    case process: SynchronousRegister =>
+      s"6:${process.label}:${process.clock.name}:${process.reset.name}:${process.assignment}"
   }
 
   private def addDuplicateCaseValueDiagnostics(

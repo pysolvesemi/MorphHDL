@@ -128,6 +128,12 @@ object ModuleItem {
       whenTrue: Vector[ProceduralAssign],
       whenFalse: Vector[ProceduralAssign]
   ) extends ModuleItem
+  final case class SynchronousRegister(
+      label: String,
+      clock: RtlExpr.Ref,
+      reset: RtlExpr.Ref,
+      assignment: ProceduralAssign
+  ) extends ModuleItem
 }
 
 final case class ModuleDef(

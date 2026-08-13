@@ -33,7 +33,8 @@ import morphhdl.paramrtl.ModuleItem.{
   GenerateCase,
   GenerateFor,
   GenerateIf,
-  ModuleInstance
+  ModuleInstance,
+  SynchronousRegister
 }
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
@@ -70,9 +71,13 @@ object Verilog2001Emitter {
     val generateIfs = module.items.collect { case generate: GenerateIf => generate }.sortBy(generateIfSortKey)
     val generateCases = module.items.collect { case generate: GenerateCase => generate }.sortBy(generateCaseSortKey)
     val combinationalIfs = module.items.collect { case process: CombinationalIf => process }.sortBy(_.label)
-    val proceduralOutputs = combinationalIfs
-      .flatMap(process => process.whenTrue.map(_.target.name) ++ process.whenFalse.map(_.target.name))
-      .toSet
+    val synchronousRegisters =
+      module.items.collect { case process: SynchronousRegister => process }.sortBy(_.label)
+    val proceduralOutputs = (
+      combinationalIfs
+        .flatMap(process => process.whenTrue.map(_.target.name) ++ process.whenFalse.map(_.target.name)) ++
+        synchronousRegisters.map(_.assignment.target.name)
+    ).toSet
     val assignments = module.items.collect { case assignment: ContinuousAssign => assignment }.sortBy { assignment =>
       (assignment.target.name, renderRtlExpr(assignment.value))
     }
@@ -191,6 +196,20 @@ object Verilog2001Emitter {
       lines += "  end"
     }
 
+    synchronousRegisters.foreach { process =>
+      val target = process.assignment.target.name
+      val targetPort = ports.find(_.name == target).get
+      val resetWidth = renderReplicationWidth(targetPort.dataType.width)
+      lines += ""
+      lines += s"  always @(posedge ${process.clock.name}) begin : ${process.label}"
+      lines += s"    if (${process.reset.name} == 1'b1) begin"
+      lines += s"      $target <= {$resetWidth{1'b0}};"
+      lines += "    end else begin"
+      lines += s"      $target <= ${process.assignment.value.name};"
+      lines += "    end"
+      lines += "  end"
+    }
+
     lines += ""
     lines += "endmodule"
     lines.result().mkString("\n")
@@ -258,6 +277,11 @@ object Verilog2001Emitter {
 
     val storage = if (port.direction == Output && procedurallyDriven) "reg" else "wire"
     f"  $direction%-6s $storage $signedness$range${port.name}"
+  }
+
+  private def renderReplicationWidth(width: IntExpr): String = width match {
+    case _: Literal | _: ParameterRef | _: LocalParameterRef => renderIntExpr(width)
+    case _                                                   => s"(${renderIntExpr(width)})"
   }
 
   private val ConditionalPrecedence = 0

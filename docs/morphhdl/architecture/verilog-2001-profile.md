@@ -22,6 +22,7 @@ be accepted without enabling a SystemVerilog parser.
 | Conditional integer value (implemented) | Parenthesized Boolean condition with Verilog-2001 `condition ? when_true : when_false` |
 | Structural case (implemented) | Named `generate`/`case` with ascending signed-decimal choices and mandatory default |
 | Runtime two-way mux process (implemented) | Named `always @*` block, one-bit `if` condition, complete blocking assignments and process-driven `output reg` targets |
+| Synchronous register (implemented) | Named `always @(posedge clock)` block, active-high synchronous reset-to-zero, complete nonblocking assignments and process-driven `output reg` target |
 | Logical record/vector port | Deterministically flattened scalar/packed ports |
 | `clog2` | Generated portable constant function or legalized expression |
 | Enum intent | Packed vector plus named local parameters |
@@ -67,6 +68,18 @@ stateless `CombinationalIf` and procedural assignment intent. Capability and
 validation reject incomplete paths, mixed drivers and non-reference runtime
 expressions before target spelling. `always_comb`, inferred latches and
 nonblocking assignments remain forbidden in the strict profile.
+
+Increment 16 legalizes the first sequential process. A sole process-owned
+output emits as `output reg`; one named `always @(posedge clock)` block places
+the active-high reset test inside the edge-sensitive body, emits a target-width
+zero replication on reset and captures the direct input otherwise. Both paths
+use nonblocking `<=`. ParamRTL retains the positive edge, synchronous reset
+polarity/value and complete ownership semantics; `reg`, `always`, replication
+and nonblocking syntax are backend spellings. Capability and validation reject
+mixed items, incomplete or aliased roles, type mismatch, multiple processes
+and unsupported width expressions before target spelling. `always_ff`,
+asynchronous reset sensitivity, enables and mixed blocking assignment remain
+outside this executable profile.
 
 ## Flat ABI
 

@@ -19,7 +19,7 @@ first parameterized-Verilog release, not implemented in Increment 1.
 | Structure | Generate-if/case | v1 | Increments 9 and 14 implement one non-nested conditional region per module: mandatory two-branch generate-if or integer-selected generate-case with unique choices and mandatory default |
 | Structure | Parameter-dependent Scala class selection | Static only | Not recoverable as HDL structure |
 | RTL | Combinational operations | v1 | Increment 15 implements one complete two-branch runtime mux process over direct port references; broader expressions and statement forms remain bounded follow-on work |
-| RTL | Registers and sync/async reset | v1 | Target-neutral process semantics |
+| RTL | Registers and sync/async reset | v1 | Increment 16 implements one positive-edge register with active-high synchronous reset-to-zero; clock enables, asynchronous reset and broader state remain bounded follow-on work |
 | RTL | Supported memories | v1 | Width/depth, latency and mask contract documented |
 | RTL | Tri-state/analog primitives | Post-v1 | Rejected by initial strict profile |
 | Aggregates | Bundle/Vec internal intent | v1 | Preserved in ParamRTL, flattened for Verilog |

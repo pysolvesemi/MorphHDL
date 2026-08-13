@@ -708,6 +708,47 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("synchronous register preserves the default public shape and reviewed output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "synchronous_register.v"
+      val report = MorphVerilog(config) {
+        SynchronousRegisterContractFixture.program(reverseConstructionOrder = false)
+      }
+
+      val output = directory.resolve("synchronous_register.v")
+      assert(report.toplevelName == "SynchronousRegister")
+      assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
+      assert(Files.isRegularFile(output))
+      assert(
+        new String(Files.readAllBytes(output), StandardCharsets.UTF_8) ==
+          expectedSynchronousRegisterVerilog
+      )
+    }
+  }
+
+  test("synchronous register validation fails before public output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "synchronous_register.v"
+      val fixture = SynchronousRegisterContractFixture.program(reverseConstructionOrder = false)
+      val result = MorphVerilog.tryGenerate(config) {
+        MorphProgram(
+          concreteWitness = fixture.concreteWitnessFactory(),
+          parameterizedDesign = invalidSynchronousRegisterDesign()
+        )
+      }
+
+      result match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.ParamRtlValidation)
+          assert(failure.message.contains("PRTL-UNRESOLVED-RTL-REFERENCE"))
+        case Right(report) => fail(s"Expected synchronous-register validation failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve("synchronous_register.v")))
+    }
+  }
+
   test("an invalid inactive conditional integer branch fails whole-design validation") {
     withTemporaryDirectory { directory =>
       val topName = "InvalidInactiveConditionalWidth"
@@ -2956,6 +2997,36 @@ class MorphVerilogTests extends AnyFunSuite {
     Design(top.name, Vector(top))
   }
 
+  private def invalidSynchronousRegisterDesign(): Design = {
+    val width = ParameterRef("WIDTH")
+    val packed = PackedBits(width, Unsigned)
+    val top = ModuleDef(
+      name = "SynchronousRegister",
+      parameters = Vector(
+        IntegerParameter(
+          "WIDTH",
+          default = 8,
+          constraints = Vector(MinInclusive(1), MaxInclusive(32))
+        )
+      ),
+      ports = Vector(
+        Port("clk", Input, PackedBits(IntExpr.Literal(1), Unsigned)),
+        Port("data_in", Input, packed),
+        Port("data_out", Output, packed),
+        Port("reset", Input, PackedBits(IntExpr.Literal(1), Unsigned))
+      ),
+      items = Vector(
+        ModuleItem.SynchronousRegister(
+          "p_sync_register",
+          Ref("missing_clock"),
+          Ref("reset"),
+          ProceduralAssign(Ref("data_out"), Ref("data_in"))
+        )
+      )
+    )
+    Design(top.name, Vector(top))
+  }
+
   private def expectedVerilog(name: String): String =
     s"""module $name #(
        |  parameter integer WIDTH = 8
@@ -2984,6 +3055,27 @@ class MorphVerilogTests extends AnyFunSuite {
       |      result = data_true;
       |    end else begin
       |      result = data_false;
+      |    end
+      |  end
+      |
+      |endmodule
+      |""".stripMargin
+
+  private val expectedSynchronousRegisterVerilog =
+    """module SynchronousRegister #(
+      |  parameter integer WIDTH = 8
+      |) (
+      |  input  wire [0:0] clk,
+      |  input  wire [WIDTH-1:0] data_in,
+      |  output reg [WIDTH-1:0] data_out,
+      |  input  wire [0:0] reset
+      |);
+      |
+      |  always @(posedge clk) begin : p_sync_register
+      |    if (reset == 1'b1) begin
+      |      data_out <= {WIDTH{1'b0}};
+      |    end else begin
+      |      data_out <= data_in;
       |    end
       |  end
       |

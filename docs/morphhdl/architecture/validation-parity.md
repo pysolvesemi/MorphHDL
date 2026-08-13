@@ -211,3 +211,20 @@ graph remains planned. The eleventh fixture proves default and five-bit widths
 with both select directions, while Yosys confirms one mux and no storage. The
 external artifact inventory now contains exactly eleven generated files,
 including `runtime_mux.v`.
+
+Increment 16 adds one bounded `SynchronousRegister`. The concrete Spinal
+witness still runs the inherited width, register-as-latch, cross-clock and
+global-data checks. ParamRTL independently requires distinct exact unsigned
+one-bit input clock/reset roles, exact full-width input/output type equivalence,
+one sole process-owned output and complete active-high synchronous
+reset-to-zero plus data-capture paths. Sibling processes, hierarchy, generate
+and continuous assignments fail before emission. This advances
+`PhaseCheck_noRegisterAsLatch` only to partial: clock enables/hold behavior,
+multiple registers and general clocked statements or parameterized process
+branches remain unimplemented. It advances `PhaseCheckCrossClock` only to
+partial because one validated clock and the no-sibling rule make an internal
+multi-domain crossing unrepresentable, but external input-domain provenance,
+multiple clocks and CDC structures are not modeled or approved. The twelfth
+fixture proves synchronous edge behavior and exact eight-/five-bit register
+structure; the external artifact inventory now contains exactly twelve files,
+including `synchronous_register.v`.
