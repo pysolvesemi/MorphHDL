@@ -160,6 +160,15 @@ combinational/hierarchy/generate items, arbitrary expressions, selectable edge
 or reset semantics, enable/hold behavior and escaped or cross-thread handles
 fail closed in this tranche.
 
+Increment 17 adds the parallel
+`emitAsynchronousRegister(label, clock, reset, assignment)` helper. It retains
+the same guarded direct-reference and atomic-capture rules, but fixes the reset
+as active-high asynchronous reset-to-zero. The operation remains distinct from
+`emitSynchronousRegister`, so reset timing cannot be selected or silently
+changed by caller-provided syntax. A module may contain one supported runtime
+process kind only; synchronous/asynchronous mixing, enables, multiple
+processes and arbitrary clocked statements remain rejected.
+
 An ordinary Scala `if`, `match`, collection size, recursion or class selection
 continues to execute during elaboration and therefore may depend only on static
 Scala values.

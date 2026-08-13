@@ -47,14 +47,17 @@ These files are executable output contracts for the parameterized backend.
 - `synchronous_register.v` is owned by Increment 16. Its one-bit `clk` and
   active-high synchronous `reset` drive one positive-edge process that clears
   or captures a `WIDTH`-bit input into its sole registered output.
+- `asynchronous_register.v` is owned by Increment 17. Its one-bit `clk` and
+  active-high asynchronous `reset` drive one positive-edge process whose reset
+  assertion immediately clears its sole registered output.
 - Increment 8 routes the first four artifacts through one production fixture
   source and `MorphVerilog`; Increments 9 and 10 extend that same path to all
   six. Increment 11 extends it to all seven, Increment 12 to all eight, and
   Increment 13 to all nine, Increment 14 to all ten, and Increment 15 to all
-  eleven. Increment 16 extends it to all twelve. CI performs a normal and
-  reverse-construction run, requires an exact twelve-file inventory, checks byte
-  identity with these goldens, and gives that unmodified directory to the
-  external tool gates.
+  eleven. Increment 16 extends it to all twelve, and Increment 17 to all
+  thirteen. CI performs a normal and reverse-construction run, requires an
+  exact thirteen-file inventory, checks byte identity with these goldens, and
+  gives that unmodified directory to the external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
   overrides. `DerivedWidthTb` checks widths 35, 4, 18, 27 and 23 in five
   simultaneous instances of the same emitted module. `ParameterForwardingTb`
@@ -90,6 +93,11 @@ These files are executable output contracts for the parameterized backend.
   simultaneous default eight-bit and awkward five-bit instances. Yosys proves
   one positive-edge flip-flop, no latch, active-high synchronous zero reset and
   exact data/output bindings and widths for both parameter values.
+  `AsynchronousRegisterTb` proves reset assertion without a positive edge,
+  reset priority, no capture on deassertion and later positive-edge capture in
+  simultaneous default eight-bit and awkward five-bit instances. Yosys proves
+  one positive-edge flip-flop with active-high asynchronous zero reset and
+  rejects synchronous-reset, falling-edge-clock and reset-to-ones mutations.
 
 Run:
 

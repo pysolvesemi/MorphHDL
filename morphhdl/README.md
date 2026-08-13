@@ -99,3 +99,13 @@ hierarchy or generate items before strict Verilog-2001 emits a named
 `synchronous_register.v` artifact proves synchronous reset and data capture at
 default eight-bit and awkward five-bit widths without specializing the emitted
 module.
+
+Increment 17 adds the parallel bounded `AsynchronousRegister` process. The
+same exact clock/reset/data roles and sole-output restrictions apply, while
+active-high reset assertion is asynchronous and retains priority over
+positive-edge data capture. Strict Verilog-2001 emits one named
+`always @(posedge clk or posedge reset)` block with nonblocking assignments.
+The thirteenth `asynchronous_register.v` artifact proves immediate reset,
+priority and later capture at default eight-bit and awkward five-bit widths;
+Yosys mutation gates reject synchronous reset, falling-edge clock and
+reset-to-ones substitutions.

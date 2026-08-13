@@ -70,6 +70,7 @@ generated_contracts=(
   case_routing.v
   runtime_mux.v
   synchronous_register.v
+  asynchronous_register.v
 )
 
 if (( using_reviewed_goldens == 0 )); then
@@ -112,6 +113,7 @@ boolean_locals_file="$generated_dir/boolean_locals.v"
 case_routing_file="$generated_dir/case_routing.v"
 runtime_mux_file="$generated_dir/runtime_mux.v"
 synchronous_register_file="$generated_dir/synchronous_register.v"
+asynchronous_register_file="$generated_dir/asynchronous_register.v"
 
 parity_args=("$parity_file")
 for live_phase_id_file in "${live_phase_id_files[@]}"; do
@@ -133,6 +135,7 @@ design_files=(
   "$case_routing_file"
   "$runtime_mux_file"
   "$synchronous_register_file"
+  "$asynchronous_register_file"
 )
 
 all_verilog_files=(
@@ -149,6 +152,7 @@ all_verilog_files=(
   "$examples_dir/case_routing_tb.v"
   "$examples_dir/runtime_mux_tb.v"
   "$examples_dir/synchronous_register_tb.v"
+  "$examples_dir/asynchronous_register_tb.v"
 )
 
 read_property() {
@@ -203,6 +207,9 @@ require_property process.sequential_edge positive
 require_property process.synchronous_reset active-high
 require_property process.synchronous_reset_value zero
 require_property implementation.synchronous_register true
+require_property process.asynchronous_reset active-high
+require_property process.asynchronous_reset_value zero
+require_property implementation.asynchronous_register true
 
 for file in "${all_verilog_files[@]}"; do
   if [[ ! -s "$file" ]]; then
@@ -302,6 +309,8 @@ expected_modules=(
   RuntimeMuxTb
   SynchronousRegister
   SynchronousRegisterTb
+  AsynchronousRegister
+  AsynchronousRegisterTb
 )
 
 for module_name in "${expected_modules[@]}"; do
@@ -446,6 +455,22 @@ if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:spac
   exit 1
 fi
 
+if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:space:]]*8' "$asynchronous_register_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+clk' "$asynchronous_register_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+reset' "$asynchronous_register_file" ||
+   ! grep -Eq 'output[[:space:]]+reg[[:space:]]+\[WIDTH-1:0\][[:space:]]+data_out' "$asynchronous_register_file" ||
+   ! grep -Eq 'always[[:space:]]+@\([[:space:]]*posedge[[:space:]]+clk[[:space:]]+or[[:space:]]+posedge[[:space:]]+reset[[:space:]]*\)[[:space:]]+begin[[:space:]]*:[[:space:]]*p_async_register' "$asynchronous_register_file" ||
+   ! grep -Eq "if[[:space:]]*\\([[:space:]]*reset[[:space:]]*==[[:space:]]*1'b1[[:space:]]*\\)[[:space:]]*begin" "$asynchronous_register_file" ||
+   ! grep -Eq "data_out[[:space:]]*<=[[:space:]]*\\{WIDTH\\{1'b0\\}\\}[[:space:]]*;" "$asynchronous_register_file" ||
+   ! grep -Eq 'end[[:space:]]+else[[:space:]]+begin' "$asynchronous_register_file" ||
+   ! grep -Eq 'data_out[[:space:]]*<=[[:space:]]*data_in[[:space:]]*;' "$asynchronous_register_file" ||
+   [[ "$(grep -Ec 'always[[:space:]]+@\(' "$asynchronous_register_file")" != "1" ]] ||
+   [[ "$(grep -Ec 'data_out[[:space:]]*<=' "$asynchronous_register_file")" != "2" ]] ||
+   grep -Eq 'always_comb|always_ff|always_latch|always[[:space:]]+@\*|data_out[[:space:]]*=[^=]' "$asynchronous_register_file"; then
+  echo "AsynchronousRegister does not retain one complete positive-edge asynchronous reset-to-zero process" >&2
+  exit 1
+fi
+
 missing_tools=()
 for tool in iverilog verilator vvp yosys; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -483,6 +508,7 @@ cp "$boolean_locals_file" "$tmp_dir/boolean_locals.v"
 cp "$case_routing_file" "$tmp_dir/case_routing.v"
 cp "$runtime_mux_file" "$tmp_dir/runtime_mux.v"
 cp "$synchronous_register_file" "$tmp_dir/synchronous_register.v"
+cp "$asynchronous_register_file" "$tmp_dir/asynchronous_register.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
 yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
@@ -495,6 +521,7 @@ yosys_boolean_locals_file="$tmp_dir/boolean_locals.v"
 yosys_case_routing_file="$tmp_dir/case_routing.v"
 yosys_runtime_mux_file="$tmp_dir/runtime_mux.v"
 yosys_synchronous_register_file="$tmp_dir/synchronous_register.v"
+yosys_asynchronous_register_file="$tmp_dir/asynchronous_register.v"
 
 echo "Verilator: $(verilator --version)"
 echo "Icarus: $(iverilog -V 2>/dev/null | head -n 1)"
@@ -756,6 +783,17 @@ verilator --lint-only --language 1364-2001 -Wall \
   -GWIDTH=5 \
   "$synchronous_register_file"
 
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module AsynchronousRegister \
+  "$asynchronous_register_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module AsynchronousRegister \
+  -GWIDTH=5 \
+  "$asynchronous_register_file"
+
 iverilog -g2001 -Wall -s ParameterizedWireTb \
   -o "$tmp_dir/parameterized_wire.vvp" \
   "$parameterized_wire_file" \
@@ -885,6 +923,17 @@ synchronous_register_output="$(vvp "$tmp_dir/synchronous_register.vvp")"
 echo "$synchronous_register_output"
 if ! printf '%s\n' "$synchronous_register_output" | grep -q 'PASS: SynchronousRegister'; then
   echo "SynchronousRegister simulation did not report PASS" >&2
+  exit 1
+fi
+
+iverilog -g2001 -Wall -s AsynchronousRegisterTb \
+  -o "$tmp_dir/asynchronous_register.vvp" \
+  "$asynchronous_register_file" \
+  "$examples_dir/asynchronous_register_tb.v"
+asynchronous_register_output="$(vvp "$tmp_dir/asynchronous_register.vvp")"
+echo "$asynchronous_register_output"
+if ! printf '%s\n' "$asynchronous_register_output" | grep -q 'PASS: AsynchronousRegister'; then
+  echo "AsynchronousRegister simulation did not report PASS" >&2
   exit 1
 fi
 
@@ -1190,5 +1239,58 @@ yosys_synchronous_register_synthesize_and_check \
   default 8 ""
 yosys_synchronous_register_synthesize_and_check \
   width-five 5 "chparam -set WIDTH 5 SynchronousRegister;"
+
+yosys_asynchronous_register_synthesize_and_check() {
+  local label="$1"
+  local expected_width="$2"
+  local parameter_command="$3"
+  local process_netlist="$tmp_dir/AsynchronousRegister-${label}-process.json"
+  local synthesized_netlist="$tmp_dir/AsynchronousRegister-${label}-synthesized.json"
+
+  yosys -q -p \
+    "read_verilog -noautowire $yosys_asynchronous_register_file; $parameter_command hierarchy -check -top AsynchronousRegister; proc; opt; check -assert; write_json $process_netlist; synth -top AsynchronousRegister; check -assert; write_json $synthesized_netlist"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-asynchronous-register-contract.py" \
+    "$process_netlist" --width "$expected_width"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$synthesized_netlist" AsynchronousRegister \
+    --port "clk:input:1" \
+    --port "data_in:input:$expected_width" \
+    --port "data_out:output:$expected_width" \
+    --port "reset:input:1"
+}
+
+yosys_asynchronous_register_synthesize_and_check \
+  default 8 ""
+yosys_asynchronous_register_synthesize_and_check \
+  width-five 5 "chparam -set WIDTH 5 AsynchronousRegister;"
+
+yosys_asynchronous_register_mutation_must_fail() {
+  local label="$1"
+  local sed_expression="$2"
+  local mutated_file="$tmp_dir/asynchronous-register-${label}.v"
+  local mutated_netlist="$tmp_dir/AsynchronousRegister-${label}-mutated.json"
+
+  sed "$sed_expression" "$yosys_asynchronous_register_file" > "$mutated_file"
+  if cmp -s "$yosys_asynchronous_register_file" "$mutated_file"; then
+    echo "AsynchronousRegister mutation did not change the fixture: $label" >&2
+    exit 1
+  fi
+
+  yosys -q -p \
+    "read_verilog -noautowire $mutated_file; hierarchy -check -top AsynchronousRegister; proc; opt; check -assert; write_json $mutated_netlist"
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-asynchronous-register-contract.py" \
+      "$mutated_netlist" --width 8; then
+    echo "AsynchronousRegister Yosys checker accepted forbidden mutation: $label" >&2
+    exit 1
+  fi
+  echo "Yosys AsynchronousRegister rejected forbidden mutation: $label"
+}
+
+yosys_asynchronous_register_mutation_must_fail \
+  synchronous-reset 's/posedge clk or posedge reset/posedge clk/'
+yosys_asynchronous_register_mutation_must_fail \
+  falling-edge-clock 's/posedge clk or posedge reset/negedge clk or posedge reset/'
+yosys_asynchronous_register_mutation_must_fail \
+  reset-to-ones "s/{WIDTH{1'b0}}/{WIDTH{1'b1}}/"
 
 echo "Strict Verilog-2001 contract checks passed"

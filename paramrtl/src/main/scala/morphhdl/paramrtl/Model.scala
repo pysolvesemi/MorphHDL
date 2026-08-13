@@ -134,6 +134,12 @@ object ModuleItem {
       reset: RtlExpr.Ref,
       assignment: ProceduralAssign
   ) extends ModuleItem
+  final case class AsynchronousRegister(
+      label: String,
+      clock: RtlExpr.Ref,
+      reset: RtlExpr.Ref,
+      assignment: ProceduralAssign
+  ) extends ModuleItem
 }
 
 final case class ModuleDef(

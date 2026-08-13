@@ -428,6 +428,79 @@ private[morphhdl] object ParamRtlFrontend {
     )
   }
 
+  /**
+    * Atomically emits one posedge register with active-high asynchronous
+    * reset-to-zero semantics. The assignment supplies the registered output
+    * target and direct data-input reference.
+    */
+  def emitAsynchronousRegister(
+      label: String,
+      clock: FrontendNode[RtlExpr],
+      reset: FrontendNode[RtlExpr],
+      assignment: FrontendNode[ProceduralAssign]
+  )(implicit file: sourcecode.File, line: sourcecode.Line): Unit = {
+    val origin = SourceOrigin.capture
+    requirePortableIdentifier(
+      label,
+      "asynchronous-register label",
+      "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-LABEL-INVALID",
+      origin
+    )
+    val clockRef = requireAsynchronousRegisterRef(
+      label,
+      "clock",
+      clock,
+      "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-CLOCK-NULL",
+      "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-CLOCK-NOT-REF",
+      "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-CLOCK-INVALID",
+      origin
+    )
+    val resetRef = requireAsynchronousRegisterRef(
+      label,
+      "reset",
+      reset,
+      "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-RESET-NULL",
+      "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-RESET-NOT-REF",
+      "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-RESET-INVALID",
+      origin
+    )
+    if (assignment eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-ASSIGNMENT-NULL",
+        s"asynchronous-reset register '$label' requires one non-null data assignment",
+        origin
+      )
+    }
+    assignment.requireUsable(s"asynchronous-reset register '$label' assignment")
+    requirePortableIdentifier(
+      assignment.raw.target.name,
+      "asynchronous-register assignment target",
+      "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-TARGET-INVALID",
+      assignment.origin
+    )
+    requirePortableIdentifier(
+      assignment.raw.value.name,
+      "asynchronous-register assignment value",
+      "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-VALUE-INVALID",
+      assignment.origin
+    )
+
+    FrontendSession.emitAsynchronousRegister(
+      FrontendNode(
+        ModuleItem.AsynchronousRegister(label, clockRef, resetRef, assignment.raw),
+        parameters = clock.parameters ++ reset.parameters ++ assignment.parameters,
+        booleanParameters = clock.booleanParameters ++ reset.booleanParameters ++
+          assignment.booleanParameters,
+        localParameters = clock.localParameters ++ reset.localParameters ++
+          assignment.localParameters,
+        booleanLocalParameters = clock.booleanLocalParameters ++
+          reset.booleanLocalParameters ++ assignment.booleanLocalParameters,
+        scopes = clock.scopes ++ reset.scopes ++ assignment.scopes,
+        origin = origin
+      )
+    )
+  }
+
   def indexedPartSelect(base: String, offset: HdlInt, width: HdlInt)(implicit
       file: sourcecode.File,
       line: sourcecode.Line
@@ -970,6 +1043,38 @@ private[morphhdl] object ParamRtlFrontend {
     requirePortableIdentifier(
       reference.name,
       s"synchronous-register $role",
+      invalidCode,
+      value.origin
+    )
+    reference
+  }
+
+  private def requireAsynchronousRegisterRef(
+      label: String,
+      role: String,
+      value: FrontendNode[RtlExpr],
+      nullCode: String,
+      notRefCode: String,
+      invalidCode: String,
+      origin: SourceOrigin
+  ): Ref = {
+    if (value eq null) {
+      FrontendException.failAt(
+        nullCode,
+        s"asynchronous-reset register '$label' requires a non-null $role reference",
+        origin
+      )
+    }
+    value.requireUsable(s"asynchronous-reset register '$label' $role")
+    val reference = requireRef(
+      value,
+      s"asynchronous-register $role",
+      notRefCode,
+      origin
+    )
+    requirePortableIdentifier(
+      reference.name,
+      s"asynchronous-register $role",
       invalidCode,
       value.origin
     )

@@ -52,6 +52,9 @@ The contract is split into these documents:
 - [Increment 16 synchronous register](../increment-16-synchronous-register.md):
   one positive-edge register with active-high synchronous reset-to-zero and a
   twelfth reviewed process fixture.
+- [Increment 17 asynchronous register](../increment-17-asynchronous-register.md):
+  one positive-edge register with active-high asynchronous reset-to-zero and a
+  thirteenth reviewed process fixture.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -66,10 +69,10 @@ Increment 10. Increment 12 records typed Boolean child binding support and
 Increment 13 records typed Boolean local support in the target-profile
 properties. Increment 14 makes the reserved bounded generate-case mapping
 executable while nested structural regions remain deferred. Increment 15 makes
-the first bounded runtime combinational process executable. Increment 16 makes
-one atomic synchronous register executable while general statements, enables,
-multiple clocks/registers, CDC structures and memories remain separate
-tranches.
+the first bounded runtime combinational process executable. Increments 16 and
+17 make atomic synchronous- and asynchronous-reset register variants
+executable while general statements, enables, multiple clocks/registers, CDC
+structures and memories remain separate tranches.
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants

@@ -30,6 +30,7 @@ import morphhdl.paramrtl.IntExpr.{
 }
 import morphhdl.paramrtl._
 import morphhdl.paramrtl.ModuleItem.{
+  AsynchronousRegister,
   CombinationalIf,
   ContinuousAssign,
   GenerateCase,
@@ -373,6 +374,14 @@ object Verilog2001Capability {
         checkName(
           process.label,
           modulePath :+ "synchronousRegisters" :+ process.label :+ "label",
+          diagnostics
+        )
+      }
+
+      module.items.collect { case process: AsynchronousRegister => process }.sortBy(_.label).foreach { process =>
+        checkName(
+          process.label,
+          modulePath :+ "asynchronousRegisters" :+ process.label :+ "label",
           diagnostics
         )
       }

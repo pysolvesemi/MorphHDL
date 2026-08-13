@@ -169,7 +169,7 @@ and both branches validate regardless of runtime activity. This tranche permits
 at most one `CombinationalIf` per module and no sibling instance or parameter
 generate region. Multiple processes, nested statements, general runtime
 expressions, sequential state and memories remained separate later tranches;
-Increment 16 implements the first sequential item below.
+Increments 16 and 17 implement the first sequential items below.
 
 Increment 16 adds
 `ModuleItem.SynchronousRegister(label, clock: RtlExpr.Ref,
@@ -185,6 +185,18 @@ crossings unrepresentable for the bounded node. It does not model clock
 enables, asynchronous reset, multiple registers or clocks, external
 input-domain provenance, CDC structures, general clocked expressions or
 memories.
+
+Increment 17 adds
+`ModuleItem.AsynchronousRegister(label, clock: RtlExpr.Ref,
+reset: RtlExpr.Ref, assignment: ProceduralAssign)`. Its clock edge, reset
+polarity and reset value match the synchronous variant, while reset assertion
+is asynchronous and has priority over data capture. Validation applies the
+same distinct-role, exact-control-width, direct-data, sole-output and
+whole-domain type-equivalence proof. An asynchronous register may not have a
+sibling continuous assignment, process, instance or generate region. Clock
+enables/hold behavior, reset polarity selection, multiple registers or clocks,
+external input-domain provenance, CDC structures and memories remain outside
+the bounded node.
 
 ## Required invariants
 

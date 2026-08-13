@@ -134,6 +134,7 @@ jobs:
             actual_inventory="$(find "target/morphhdl/generated/run-${run}" \
               -mindepth 1 -maxdepth 1 -printf '%f %y\n' | sort)"
             expected_inventory="$(printf '%s\n' \
+              'asynchronous_register.v f' \
               'boolean_forwarding.v f' \
               'boolean_locals.v f' \
               'case_routing.v f' \
@@ -163,7 +164,8 @@ jobs:
             boolean_locals.v \
             case_routing.v \
             runtime_mux.v \
-            synchronous_register.v
+            synchronous_register.v \
+            asynchronous_register.v
           do
             cmp "target/morphhdl/generated/run-1/${filename}" \
               "morphhdl/examples/contracts/${filename}"
