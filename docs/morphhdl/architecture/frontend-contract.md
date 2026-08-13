@@ -189,7 +189,7 @@ the default result. `GenerateIf` validates both structural paths and proves
 each path's output-driver coverage separately. At Increment 9, Boolean local
 parameters, child bindings and conditional runtime values remained outside the
 bounded surface; Increment 12 implements child bindings while retaining the
-other restrictions.
+other restrictions at that increment.
 
 Increment 10 adds `<`, `<=`, `>`, `>=`, `hdlEq` and `hdlNe` on `HdlInt`, each
 producing `HdlBool`. Both integer operands keep their exact `BigInt` default,
@@ -214,8 +214,19 @@ local-integer identities. Module-boundary validation rejects a binding whose
 dependencies are not declared by that parent, while ParamRTL separately
 resolves its name only against the target child's Boolean parameters. The
 dedicated collection prevents the shared Verilog-2001 integer spelling from
-weakening the frontend kind distinction. Boolean local parameters and
-generate-index-dependent bindings remain unsupported.
+weakening the frontend kind distinction. Boolean local parameters remained
+unsupported at Increment 12; generate-index-dependent bindings remain
+unsupported.
+
+Increment 13 overloads `localParam(name, value: HdlBool)` and adds
+`booleanLocalParameter(handle)`. Only the exact identity-bearing handle returned
+by the local declaration call can discharge that declaration in `moduleDef`.
+The handle retains public Boolean, public integer, integer-local and
+Boolean-local provenance, including dependencies that are inactive under its
+default. Integer and Boolean local declarations share one module-boundary
+dependency closure, but their typed identities and namespaces remain distinct.
+Foreign-session handles, forged declarations, same-name/different-token uses,
+cross-kind duplicates and loop-variant values fail before ParamRTL construction.
 
 A zero concrete divisor fails immediately instead of leaking a Scala arithmetic
 exception. A nonzero default does not prove the divisor safe: ParamRTL must

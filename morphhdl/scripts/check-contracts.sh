@@ -66,6 +66,7 @@ generated_contracts=(
   comparison_routing.v
   conditional_width.v
   boolean_forwarding.v
+  boolean_local_routing.v
 )
 
 if (( using_reviewed_goldens == 0 )); then
@@ -104,6 +105,7 @@ conditional_forwarding_file="$generated_dir/conditional_forwarding.v"
 comparison_routing_file="$generated_dir/comparison_routing.v"
 conditional_width_file="$generated_dir/conditional_width.v"
 boolean_forwarding_file="$generated_dir/boolean_forwarding.v"
+boolean_local_routing_file="$generated_dir/boolean_local_routing.v"
 
 parity_args=("$parity_file")
 for live_phase_id_file in "${live_phase_id_files[@]}"; do
@@ -121,6 +123,7 @@ design_files=(
   "$comparison_routing_file"
   "$conditional_width_file"
   "$boolean_forwarding_file"
+  "$boolean_local_routing_file"
 )
 
 all_verilog_files=(
@@ -133,6 +136,7 @@ all_verilog_files=(
   "$examples_dir/comparison_routing_tb.v"
   "$examples_dir/conditional_width_tb.v"
   "$examples_dir/boolean_forwarding_tb.v"
+  "$examples_dir/boolean_local_routing_tb.v"
 )
 
 read_property() {
@@ -176,6 +180,7 @@ require_property structure.generate_for true
 require_property structure.generate_if true
 require_property implementation.generate_if true
 require_property implementation.boolean_parameter_forwarding true
+require_property implementation.boolean_local_parameter true
 require_property implementation.generate_case false
 
 for file in "${all_verilog_files[@]}"; do
@@ -262,6 +267,11 @@ expected_modules=(
   BooleanRoute
   BooleanForwarding
   BooleanForwardingTb
+  BooleanLocalHighRoute
+  BooleanLocalLowRoute
+  BooleanLocalRoute
+  BooleanLocalRouting
+  BooleanLocalRoutingTb
 )
 
 for module_name in "${expected_modules[@]}"; do
@@ -346,6 +356,23 @@ if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+SELECT[[:space:]]*=[[:spa
   exit 1
 fi
 
+if ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+EFFECTIVE_WIDTH[[:space:]]*=[[:space:]]*WIDTH[[:space:]]*\+[[:space:]]*OFFSET' "$boolean_local_routing_file" ||
+   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+ROUTE_HIGH[[:space:]]*=[[:space:]]*\([[:space:]]*ENABLE[[:space:]]*==[[:space:]]*1[[:space:]]*&&[[:space:]]*EFFECTIVE_WIDTH[[:space:]]*>=[[:space:]]*LIMIT[[:space:]]*\)[[:space:]]*\?[[:space:]]*1[[:space:]]*:[[:space:]]*0' "$boolean_local_routing_file" ||
+   ! grep -Eq 'if[[:space:]]*\([[:space:]]*ROUTE_HIGH[[:space:]]*==[[:space:]]*1[[:space:]]*\)[[:space:]]*begin[[:space:]]*:[[:space:]]*g_local_high' "$boolean_local_routing_file" ||
+   ! grep -Eq 'end[[:space:]]+else[[:space:]]+begin[[:space:]]*:[[:space:]]*g_local_low' "$boolean_local_routing_file" ||
+   [[ "$(grep -Ec '\.SELECT[[:space:]]*\([[:space:]]*\([[:space:]]*ROUTE_HIGH[[:space:]]*==[[:space:]]*1[[:space:]]*\)[[:space:]]*\?[[:space:]]*1[[:space:]]*:[[:space:]]*0[[:space:]]*\)' "$boolean_local_routing_file")" != "2" ]]; then
+  echo "BooleanLocalRouting does not retain its dependency-ordered Boolean local in generate-if and child bindings" >&2
+  exit 1
+fi
+
+effective_width_line="$(grep -En 'localparam[[:space:]]+integer[[:space:]]+EFFECTIVE_WIDTH' "$boolean_local_routing_file" | cut -d: -f1)"
+route_high_line="$(grep -En 'localparam[[:space:]]+integer[[:space:]]+ROUTE_HIGH' "$boolean_local_routing_file" | cut -d: -f1)"
+if [[ -z "$effective_width_line" || -z "$route_high_line" ]] ||
+   (( effective_width_line >= route_high_line )); then
+  echo "BooleanLocalRouting local parameters are not emitted in dependency-first order" >&2
+  exit 1
+fi
+
 missing_tools=()
 for tool in iverilog verilator vvp yosys; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -379,6 +406,7 @@ cp "$conditional_forwarding_file" "$tmp_dir/conditional_forwarding.v"
 cp "$comparison_routing_file" "$tmp_dir/comparison_routing.v"
 cp "$conditional_width_file" "$tmp_dir/conditional_width.v"
 cp "$boolean_forwarding_file" "$tmp_dir/boolean_forwarding.v"
+cp "$boolean_local_routing_file" "$tmp_dir/boolean_local_routing.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
 yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
@@ -387,6 +415,7 @@ yosys_conditional_forwarding_file="$tmp_dir/conditional_forwarding.v"
 yosys_comparison_routing_file="$tmp_dir/comparison_routing.v"
 yosys_conditional_width_file="$tmp_dir/conditional_width.v"
 yosys_boolean_forwarding_file="$tmp_dir/boolean_forwarding.v"
+yosys_boolean_local_routing_file="$tmp_dir/boolean_local_routing.v"
 
 echo "Verilator: $(verilator --version)"
 echo "Icarus: $(iverilog -V 2>/dev/null | head -n 1)"
@@ -580,6 +609,33 @@ verilator --lint-only --language 1364-2001 -Wall \
   -GENABLE=1 -GWIDTH=4 -GOFFSET=1 -GLIMIT=5 \
   "$boolean_forwarding_file"
 
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  -Wno-UNUSEDSIGNAL \
+  --top-module BooleanLocalRouting \
+  "$boolean_local_routing_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  -Wno-UNUSEDSIGNAL \
+  --top-module BooleanLocalRouting \
+  -GENABLE=0 \
+  "$boolean_local_routing_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  -Wno-UNUSEDSIGNAL \
+  --top-module BooleanLocalRouting \
+  -GENABLE=1 -GWIDTH=3 -GOFFSET=1 -GLIMIT=5 \
+  "$boolean_local_routing_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  -Wno-UNUSEDSIGNAL \
+  --top-module BooleanLocalRouting \
+  -GENABLE=1 -GWIDTH=4 -GOFFSET=1 -GLIMIT=5 \
+  "$boolean_local_routing_file"
+
 iverilog -g2001 -Wall -s ParameterizedWireTb \
   -o "$tmp_dir/parameterized_wire.vvp" \
   "$parameterized_wire_file" \
@@ -665,6 +721,17 @@ boolean_forwarding_output="$(vvp "$tmp_dir/boolean_forwarding.vvp")"
 echo "$boolean_forwarding_output"
 if ! printf '%s\n' "$boolean_forwarding_output" | grep -q 'PASS: BooleanForwarding'; then
   echo "BooleanForwarding simulation did not report PASS" >&2
+  exit 1
+fi
+
+iverilog -g2001 -Wall -s BooleanLocalRoutingTb \
+  -o "$tmp_dir/boolean_local_routing.vvp" \
+  "$boolean_local_routing_file" \
+  "$examples_dir/boolean_local_routing_tb.v"
+boolean_local_routing_output="$(vvp "$tmp_dir/boolean_local_routing.vvp")"
+echo "$boolean_local_routing_output"
+if ! printf '%s\n' "$boolean_local_routing_output" | grep -q 'PASS: BooleanLocalRouting'; then
+  echo "BooleanLocalRouting simulation did not report PASS" >&2
   exit 1
 fi
 
@@ -868,5 +935,34 @@ yosys_boolean_forwarding_synthesize_and_check \
 yosys_boolean_forwarding_synthesize_and_check \
   equal-limit high \
   "chparam -set ENABLE 1 -set WIDTH 4 -set OFFSET 1 -set LIMIT 5 BooleanForwarding;"
+
+yosys_boolean_local_routing_synthesize_and_check() {
+  local label="$1"
+  local expected_branch="$2"
+  local parameter_command="$3"
+  local hierarchy_netlist="$tmp_dir/BooleanLocalRouting-${label}-hierarchy.json"
+  local synthesized_netlist="$tmp_dir/BooleanLocalRouting-${label}-synthesized.json"
+
+  yosys -q -p \
+    "read_verilog -noautowire $yosys_boolean_local_routing_file; $parameter_command hierarchy -check -top BooleanLocalRouting; proc; check -assert; write_json $hierarchy_netlist; synth -top BooleanLocalRouting; check -assert; write_json $synthesized_netlist"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-boolean-local-routing-contract.py" \
+    "$hierarchy_netlist" --branch "$expected_branch"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$synthesized_netlist" BooleanLocalRouting \
+    --port "high_in:input:8" \
+    --port "low_in:input:8" \
+    --port "dout:output:8"
+}
+
+yosys_boolean_local_routing_synthesize_and_check \
+  default high ""
+yosys_boolean_local_routing_synthesize_and_check \
+  disabled low "chparam -set ENABLE 0 BooleanLocalRouting;"
+yosys_boolean_local_routing_synthesize_and_check \
+  below-limit low \
+  "chparam -set ENABLE 1 -set WIDTH 3 -set OFFSET 1 -set LIMIT 5 BooleanLocalRouting;"
+yosys_boolean_local_routing_synthesize_and_check \
+  equal-limit high \
+  "chparam -set ENABLE 1 -set WIDTH 4 -set OFFSET 1 -set LIMIT 5 BooleanLocalRouting;"
 
 echo "Strict Verilog-2001 contract checks passed"

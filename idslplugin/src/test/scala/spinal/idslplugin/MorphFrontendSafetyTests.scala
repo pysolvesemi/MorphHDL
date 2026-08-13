@@ -110,6 +110,27 @@ class MorphFrontendSafetyTests extends AnyFunSuite {
     assert(rejected.head.contains("MORPH-FRONTEND-SYMBOLIC-COMPARISON-UNSUPPORTED"))
   }
 
+  test("rejects reverse Scala equality on a Boolean local-parameter handle") {
+    val errors = compile(
+      symbolicDefinitions +
+        """
+          |package booleanlocal {
+          |  object Frontend {
+          |    def localParam(name: String, value: morphhdl.frontend.HdlBool) = value
+          |  }
+          |  object Rejected {
+          |    val local = Frontend.localParam("LOCAL", new morphhdl.frontend.HdlBool)
+          |    val equality = false == local
+          |    val inequality = true != local
+          |  }
+          |}
+          |""".stripMargin
+    )
+
+    assert(errors.size == 2, errors.mkString("\n"))
+    assert(errors.forall(_.contains("MORPH-FRONTEND-SYMBOLIC-COMPARISON-UNSUPPORTED")))
+  }
+
   private def compile(source: String): Vector[String] = {
     val output = Files.createTempDirectory("morph-frontend-plugin-test")
     val settings = new Settings

@@ -443,6 +443,101 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("default shape evaluates a true Boolean local before generate-if selection") {
+    withTemporaryDirectory { directory =>
+      val topName = "TrueBooleanLocalConditional"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = trueBranchWitness(topName),
+          parameterizedDesign = booleanLocalConditionalDesign(topName, enableDefault = true)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("default shape evaluates a false Boolean local before generate-if selection") {
+    withTemporaryDirectory { directory =>
+      val topName = "FalseBooleanLocalConditional"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = falseBranchWitness(topName),
+          parameterizedDesign = booleanLocalConditionalDesign(topName, enableDefault = false)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("default shape evaluates a Boolean local inside a conditional packed width") {
+    withTemporaryDirectory { directory =>
+      val topName = "BooleanLocalConditionalWidth"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = conditionalWidthWitness(topName, width = 4),
+          parameterizedDesign = booleanLocalConditionalWidthDesign(topName)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("recursive default shape recomputes a child Boolean local after a parent binding") {
+    withTemporaryDirectory { directory =>
+      val topName = "BoundBooleanLocalConditional"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = boundBooleanConditionalWitness(topName, selectHigh = false),
+          parameterizedDesign = boundBooleanLocalConditionalDesign(topName)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("recursive default shape propagates recomputed Boolean locals across two hierarchy hops") {
+    withTemporaryDirectory { directory =>
+      val topName = "TwoHopBoundBooleanLocalConditional"
+      val report = MorphVerilog(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = twoHopBoundBooleanConditionalWitness(topName),
+          parameterizedDesign = twoHopBoundBooleanLocalConditionalDesign(topName)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(Files.isRegularFile(directory.resolve(s"$topName.v")))
+    }
+  }
+
+  test("an invalid inactive Boolean-local dependency fails whole-design validation") {
+    withTemporaryDirectory { directory =>
+      val topName = "InvalidInactiveBooleanLocal"
+      val result = MorphVerilog.tryGenerate(SpinalConfig(targetDirectory = directory.toString)) {
+        MorphProgram(
+          concreteWitness = falseBranchWitness(topName),
+          parameterizedDesign = invalidInactiveBooleanLocalDesign(topName)
+        )
+      }
+
+      result match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.ParamRtlValidation)
+          assert(failure.message.contains("PRTL-DIVISOR-MAY-BE-ZERO"))
+        case Right(report) => fail(s"Expected Boolean-local validation failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve(s"$topName.v")))
+    }
+  }
+
   test("an invalid inactive Boolean child binding fails whole-design validation") {
     withTemporaryDirectory { directory =>
       val topName = "InvalidInactiveBooleanBinding"
@@ -901,6 +996,30 @@ class MorphVerilogTests extends AnyFunSuite {
     Design(module.name, Vector(module))
   }
 
+  private def booleanLocalConditionalWidthDesign(requestedName: String): Design = {
+    val base = conditionalWidthDesign(requestedName, wideDefault = false)
+    val module = base.modules.head
+    val activeWidth = module.localParameters.head
+    val select = activeWidth.value.asInstanceOf[IntExpr.Select]
+    val localName = "LOCAL_WIDE"
+    val updated = module.copy(
+      localParameters = Vector(
+        activeWidth.copy(
+          value = select.copy(
+            condition = morphhdl.paramrtl.BoolExpr.LocalParameterRef(localName)
+          )
+        )
+      ),
+      booleanLocalParameters = Vector(
+        BooleanLocalParameter(
+          localName,
+          morphhdl.paramrtl.BoolExpr.ParameterRef("WIDE")
+        )
+      )
+    )
+    Design(updated.name, Vector(updated))
+  }
+
   private def boundConditionalWidthWitness(requestedName: String, width: Int): Component =
     new Component {
       setDefinitionName(requestedName)
@@ -1137,6 +1256,51 @@ class MorphVerilogTests extends AnyFunSuite {
       booleanParameters = Vector(BooleanParameter("ENABLE", default = false))
     )
     Design(requestedName, Vector(top, enabledLeaf, disabledLeaf))
+  }
+
+  private def booleanLocalConditionalDesign(
+      requestedName: String,
+      enableDefault: Boolean
+  ): Design = {
+    val base = falseDefaultConditionalDesign(requestedName)
+    val top = base.modules.find(_.name == requestedName).get
+    val generate = top.items.collectFirst { case value: ModuleItem.GenerateIf => value }.get
+    val localName = "LOCAL_ENABLE"
+    val updatedTop = top.copy(
+      items = Vector(
+        generate.copy(condition = morphhdl.paramrtl.BoolExpr.LocalParameterRef(localName))
+      ),
+      booleanParameters = Vector(BooleanParameter("ENABLE", enableDefault)),
+      booleanLocalParameters = Vector(
+        BooleanLocalParameter(
+          localName,
+          morphhdl.paramrtl.BoolExpr.ParameterRef("ENABLE")
+        )
+      )
+    )
+    base.copy(modules = base.modules.map(module => if (module.name == requestedName) updatedTop else module))
+  }
+
+  private def invalidInactiveBooleanLocalDesign(requestedName: String): Design = {
+    val base = booleanLocalConditionalDesign(requestedName, enableDefault = false)
+    val top = base.modules.find(_.name == requestedName).get
+    val invalid = BooleanLocalParameter(
+      "LOCAL_ENABLE",
+      morphhdl.paramrtl.BoolExpr.And(
+        morphhdl.paramrtl.BoolExpr.Literal(false),
+        morphhdl.paramrtl.BoolExpr.GreaterThan(
+          IntExpr.Divide(IntExpr.Literal(8), IntExpr.ParameterRef("DIVISOR")),
+          IntExpr.Literal(0)
+        )
+      )
+    )
+    val updatedTop = top.copy(
+      parameters = Vector(
+        IntegerParameter("DIVISOR", 1, Vector(MinInclusive(0), MaxInclusive(2)))
+      ),
+      booleanLocalParameters = Vector(invalid)
+    )
+    base.copy(modules = base.modules.map(module => if (module.name == requestedName) updatedTop else module))
   }
 
   private def invalidInactiveConditionalDesign(requestedName: String): Design = {
@@ -1552,6 +1716,52 @@ class MorphVerilogTests extends AnyFunSuite {
     Design(requestedName, Vector(top, child, highLeaf, lowLeaf))
   }
 
+  private def boundBooleanLocalConditionalDesign(requestedName: String): Design = {
+    val base = boundBooleanConditionalDesign(
+      requestedName,
+      enableDefault = false,
+      widthDefault = 1,
+      limitDefault = 8,
+      childDefault = true,
+      bindChild = false
+    )
+    val child = base.modules.find(_.name == "BoundBooleanChild").get
+    val generate = child.items.collectFirst { case value: ModuleItem.GenerateIf => value }.get
+    val childLocalName = "LOCAL_SELECT"
+    val updatedChild = child.copy(
+      items = Vector(
+        generate.copy(
+          condition = morphhdl.paramrtl.BoolExpr.LocalParameterRef(childLocalName)
+        )
+      ),
+      booleanParameters = Vector(BooleanParameter("SELECT", default = true)),
+      booleanLocalParameters = Vector(
+        BooleanLocalParameter(
+          childLocalName,
+          morphhdl.paramrtl.BoolExpr.ParameterRef("SELECT")
+        )
+      )
+    )
+    val top = base.modules.find(_.name == requestedName).get
+    val childInstance = top.items.collectFirst { case value: ModuleItem.ModuleInstance => value }.get
+    val updatedTop = top.copy(
+      items = Vector(
+        childInstance.copy(
+          booleanParameterBindings = Vector(
+            BooleanParameterBinding("SELECT", morphhdl.paramrtl.BoolExpr.Literal(false))
+          )
+        )
+      )
+    )
+    base.copy(
+      modules = base.modules.map {
+        case module if module.name == requestedName      => updatedTop
+        case module if module.name == child.name        => updatedChild
+        case module                                     => module
+      }
+    )
+  }
+
   private def invalidInactiveBooleanBindingDesign(requestedName: String): Design = {
     val base = boundBooleanConditionalDesign(
       requestedName,
@@ -1825,6 +2035,56 @@ class MorphVerilogTests extends AnyFunSuite {
       )
     )
     Design(requestedName, Vector(top, middle, leaf, highRoute, lowRoute))
+  }
+
+  private def twoHopBoundBooleanLocalConditionalDesign(requestedName: String): Design = {
+    val base = twoHopBoundBooleanConditionalDesign(requestedName)
+    val leaf = base.modules.find(_.name == "TwoHopBooleanLeaf").get
+    val leafGenerate = leaf.items.collectFirst { case value: ModuleItem.GenerateIf => value }.get
+    val leafLocalName = "FINAL_ENABLE"
+    val updatedLeaf = leaf.copy(
+      items = Vector(
+        leafGenerate.copy(
+          condition = morphhdl.paramrtl.BoolExpr.LocalParameterRef(leafLocalName)
+        )
+      ),
+      booleanLocalParameters = Vector(
+        BooleanLocalParameter(
+          leafLocalName,
+          morphhdl.paramrtl.BoolExpr.ParameterRef("ENABLE")
+        )
+      )
+    )
+
+    val middle = base.modules.find(_.name == "TwoHopBooleanMiddle").get
+    val leafInstance = middle.items.collectFirst { case value: ModuleItem.ModuleInstance => value }.get
+    val middleLocalName = "FORWARDED_ENABLE"
+    val updatedMiddle = middle.copy(
+      items = Vector(
+        leafInstance.copy(
+          booleanParameterBindings = Vector(
+            BooleanParameterBinding(
+              "ENABLE",
+              morphhdl.paramrtl.BoolExpr.LocalParameterRef(middleLocalName)
+            )
+          )
+        )
+      ),
+      booleanLocalParameters = Vector(
+        BooleanLocalParameter(
+          middleLocalName,
+          morphhdl.paramrtl.BoolExpr.ParameterRef("ENABLE")
+        )
+      )
+    )
+
+    base.copy(
+      modules = base.modules.map {
+        case module if module.name == leaf.name   => updatedLeaf
+        case module if module.name == middle.name => updatedMiddle
+        case module                               => module
+      }
+    )
   }
 
   private def forwardingWitness(requestedName: String, width: Int): Component =

@@ -168,5 +168,19 @@ The eighth public fixture proves the true default, explicit disable,
 below-limit comparison and inclusive equality boundary without regenerating
 RTL. The hierarchy disposition remains implemented; width and driver guards
 remain partial because Boolean locals, nested structural predicates and
-runtime processes are still deferred. The external artifact inventory now
-contains exactly eight generated files, including `boolean_forwarding.v`.
+runtime processes were still deferred. The external artifact inventory at
+that increment contained exactly eight generated files, including
+`boolean_forwarding.v`.
+
+Increment 13 extends both adaptations through typed Boolean local parameters.
+ParamRTL validates integer and Boolean locals in one dependency graph and keeps
+their exact evaluated facts in separate namespaces. `MorphVerilog` recomputes
+the unified order after each instance's public and child-bound parameters, so a
+Boolean local can safely control widths, generate-if selection and later child
+bindings at every hierarchy level. Whole-expression analysis still checks
+inactive dependencies. The ninth fixture covers true, false, bound-child and
+multi-level default propagation, while external Verilator, Icarus and Yosys
+gates prove four override configurations. Width and driver guards remain
+partial because `min`, `max`, `clog2`, nested structural predicates and runtime
+processes remain deferred. The external artifact inventory now contains
+exactly nine generated files, including `boolean_local_routing.v`.

@@ -46,16 +46,18 @@ object MorphVerilog {
   /**
     * Exact compile-time facts for one reachable symbolic module instance.
     *
-    * Integer bindings, Boolean bindings and derived locals vary per instance.
+    * Integer bindings, Boolean bindings and both derived-local kinds vary per instance.
     * The Boolean declarations stored here carry the exact effective defaults
     * for this instance, after parent-scope binding evaluation. Conditional
-    * expressions in locals, packed widths, child bindings, generate counts and
-    * generate-if conditions must all consume that same context.
+    * Integer and Boolean locals are recomputed in one validated dependency
+    * order after those bindings. Packed widths, child bindings, generate
+    * counts and generate-if conditions must all consume that same context.
     */
   private final case class SymbolicContext(
       integerParameters: Map[String, morphhdl.paramrtl.IntExprFacts],
       localParameters: Map[String, morphhdl.paramrtl.IntExprFacts],
-      booleanParameters: Map[String, morphhdl.paramrtl.BooleanParameter]
+      booleanParameters: Map[String, morphhdl.paramrtl.BooleanParameter],
+      booleanLocalParameters: Map[String, morphhdl.paramrtl.BooleanLocalParameterFacts]
   )
 
   def apply[T <: Component](program: => MorphProgram[T]): MorphVerilogReport =
@@ -553,13 +555,13 @@ object MorphVerilog {
     }
 
     val topFacts = design.moduleFacts(topName)
-    val top = modulesByName(topName)
     loop(
       topName,
       SymbolicContext(
         topFacts.parameterFacts,
         topFacts.localParameterFacts,
-        top.booleanParameters.map(parameter => parameter.name -> parameter).toMap
+        topFacts.booleanParameters,
+        topFacts.booleanLocalParameterFacts
       ),
       Set.empty,
       isTop = true
@@ -579,6 +581,7 @@ object MorphVerilog {
             context.integerParameters,
             context.localParameters,
             context.booleanParameters,
+            context.booleanLocalParameters,
             Map.empty
           ) match {
           case Left(failure) =>
@@ -624,6 +627,7 @@ object MorphVerilog {
               context.integerParameters,
               context.localParameters,
               context.booleanParameters,
+              context.booleanLocalParameters,
               Map.empty
             ) match {
             case Left(failure) =>
@@ -641,6 +645,7 @@ object MorphVerilog {
             context.booleanParameters,
             context.integerParameters,
             context.localParameters,
+            context.booleanLocalParameters,
             Map.empty
           ) match {
             case Left(failure) =>
@@ -688,6 +693,7 @@ object MorphVerilog {
               parentContext.integerParameters,
               parentContext.localParameters,
               parentContext.booleanParameters,
+              parentContext.booleanLocalParameters,
               Map.empty
             ) match {
               case Left(failure) =>
@@ -711,6 +717,7 @@ object MorphVerilog {
                   parentContext.booleanParameters,
                   parentContext.integerParameters,
                   parentContext.localParameters,
+                  parentContext.booleanLocalParameters,
                   Map.empty
                 ) match {
                   case Left(failure) =>
@@ -724,23 +731,56 @@ object MorphVerilog {
             }
         }
         .flatMap { booleanParameters =>
-          design.moduleFacts(target.name).orderedLocalParameters
-            .foldLeft[Either[String, Map[String, morphhdl.paramrtl.IntExprFacts]]](Right(Map.empty)) {
+          design.moduleFacts(target.name).orderedLocalParameterDeclarations
+            .foldLeft[
+              Either[
+                String,
+                (
+                    Map[String, morphhdl.paramrtl.IntExprFacts],
+                    Map[String, morphhdl.paramrtl.BooleanLocalParameterFacts]
+                )
+              ]
+            ](Right(Map.empty -> Map.empty)) {
               case (Left(detail), _) => Left(detail)
-              case (Right(current), local) =>
+              case (Right((integerLocals, booleanLocals)), local: morphhdl.paramrtl.IntegerLocalParameter) =>
                 IntExpressionAnalysis.analyze(
                   local.value,
                   parameterFacts,
-                  current,
+                  integerLocals,
                   booleanParameters,
+                  booleanLocals,
                   Map.empty
                 ) match {
                   case Left(failure) =>
                     Left(s"cannot evaluate default local parameter '${target.name}.${local.name}': $failure")
-                  case Right(value) => Right(current.updated(local.name, value))
+                  case Right(value) => Right(integerLocals.updated(local.name, value) -> booleanLocals)
+                }
+              case (Right((integerLocals, booleanLocals)), local: morphhdl.paramrtl.BooleanLocalParameter) =>
+                BoolExpressionAnalysis.evaluateDefault(
+                  local.value,
+                  booleanParameters,
+                  parameterFacts,
+                  integerLocals,
+                  booleanLocals,
+                  Map.empty
+                ) match {
+                  case Left(failure) =>
+                    Left(
+                      s"cannot evaluate default Boolean local parameter " +
+                        s"'${target.name}.${local.name}': $failure"
+                    )
+                  case Right(value) =>
+                    Right(
+                      integerLocals -> booleanLocals.updated(
+                        local.name,
+                        morphhdl.paramrtl.BooleanLocalParameterFacts(value)
+                      )
+                    )
                 }
             }
-            .map(localFacts => SymbolicContext(parameterFacts, localFacts, booleanParameters))
+            .map { case (integerLocals, booleanLocals) =>
+              SymbolicContext(parameterFacts, integerLocals, booleanParameters, booleanLocals)
+            }
         }
     }
   }
