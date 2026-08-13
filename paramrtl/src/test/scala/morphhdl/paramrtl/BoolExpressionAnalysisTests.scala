@@ -14,7 +14,14 @@ import morphhdl.paramrtl.BoolExpr.{
   ParameterRef
 }
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
-import morphhdl.paramrtl.IntExpr.{Add, Divide, Literal => IntLiteral, LocalParameterRef, ParameterRef => IntParameterRef}
+import morphhdl.paramrtl.IntExpr.{
+  Add,
+  Divide,
+  Literal => IntLiteral,
+  LocalParameterRef,
+  ParameterRef => IntParameterRef,
+  Select
+}
 import org.scalatest.funsuite.AnyFunSuite
 
 class BoolExpressionAnalysisTests extends AnyFunSuite {
@@ -114,6 +121,19 @@ class BoolExpressionAnalysisTests extends AnyFunSuite {
         case other => fail(s"Expected eager divisor failure, got $other")
       }
     }
+  }
+
+  test("analyzes deeply nested selection conditions without repeated exponential work") {
+    val depth = 48
+    val nested = (1 to depth).foldLeft[IntExpr](IntLiteral(0)) { (previous, value) =>
+      Select(
+        Equal(previous, IntLiteral(value - 1)),
+        IntLiteral(value),
+        IntLiteral(-value)
+      )
+    }
+
+    assert(BoolExpressionAnalysis.evaluateDefault(Equal(nested, IntLiteral(depth)), Map.empty) == Right(true))
   }
 
   test("reports unresolved integer operands and collects typed references") {
