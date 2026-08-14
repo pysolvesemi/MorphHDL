@@ -79,6 +79,14 @@ These files are executable output contracts for the parameterized backend.
   Simultaneous valid reads and writes both proceed, with deterministic
   read-first behavior when their addresses match. The concrete witness combines
   SpinalHDL `Mem.readSync(..., readUnderWrite = readFirst)` and `Mem.write`.
+- `synchronous_stream_fifo.v` is owned by Increment 27. One active-high
+  synchronous reset controls an atomic single-clock ready/valid FIFO with an
+  exact public `DEPTH`, synchronous-read storage and a registered pop stage.
+  Empty input does not bypass, full rejects a same-edge push, middle push/pop
+  proceeds together, stalled output holds and pointers wrap in FIFO order. The
+  default-depth concrete witness reuses latency-two `spinal.lib.StreamFifo`;
+  parameter overrides, including the uniform `DEPTH=1` rejection policy, are
+  governed by this artifact and its testbench.
 - Increment 8 routes the first four artifacts through one production fixture
   source and `MorphVerilog`; Increments 9 and 10 extend that same path to all
   six. Increment 11 extends it to all seven, Increment 12 to all eight, and
@@ -90,10 +98,11 @@ These files are executable output contracts for the parameterized backend.
   `derived_width.v` without changing that inventory, and Increment 24 upgrades
   both `derived_width.v` and `single_port_memory.v` with the shared
   constant-function lowering. Increment 25 extends the path to seventeen
-  files with `parameterized_counter.v`, and Increment 26 extends it to eighteen
-  with `simple_dual_port_memory.v`. CI
+  files with `parameterized_counter.v`, Increment 26 extends it to eighteen
+  with `simple_dual_port_memory.v`, and Increment 27 extends it to nineteen
+  with `synchronous_stream_fifo.v`. CI
   performs a normal and reverse-construction run, requires an exact
-  eighteen-file inventory, checks
+  nineteen-file inventory, checks
   byte identity with these goldens, and gives that unmodified directory to the
   external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed

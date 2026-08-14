@@ -55,6 +55,7 @@ private[frontend] object FrontendException {
         "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-MIXED" |
         "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-MIXED" |
         "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-MIXED" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-MIXED" |
         "MORPH-FRONTEND-RUNTIME-PROCESS-MIXED" =>
       "Use a separate module definition instead of mixing runtime processes or module items."
     case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-LABEL-INVALID" |
@@ -237,6 +238,53 @@ private[frontend] object FrontendException {
       "Pass a non-null packedBits(width) element type to emitSynchronousReadFirstSimpleDualPortMemory."
     case "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-DEPTH-NULL" =>
       "Pass a non-null loop-invariant HdlInt depth to emitSynchronousReadFirstSimpleDualPortMemory."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-NESTED" =>
+      "Emit the synchronous stream FIFO as a top-level module item outside all generate regions."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-MULTIPLE" =>
+      "Emit one synchronous stream FIFO per module-item capture."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-LABEL-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-NAME-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-CLOCK-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-RESET-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-PUSH-VALID-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-PUSH-READY-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-PUSH-DATA-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-POP-VALID-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-POP-READY-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-POP-DATA-INVALID" =>
+      "Use an identifier matching `[A-Za-z_][A-Za-z0-9_]*`."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-CLOCK-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-CLOCK-NOT-REF" =>
+      "Pass a non-null ref(name) clock to emitSynchronousStreamFifo."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-RESET-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-RESET-NOT-REF" =>
+      "Pass a non-null ref(name) reset to emitSynchronousStreamFifo."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-PUSH-VALID-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-PUSH-VALID-NOT-REF" =>
+      "Pass a non-null ref(name) push-valid input to emitSynchronousStreamFifo."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-PUSH-READY-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-PUSH-READY-NOT-REF" =>
+      "Pass a non-null ref(name) push-ready output to emitSynchronousStreamFifo."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-PUSH-DATA-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-PUSH-DATA-NOT-REF" =>
+      "Pass a non-null ref(name) push-data input to emitSynchronousStreamFifo."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-POP-VALID-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-POP-VALID-NOT-REF" =>
+      "Pass a non-null ref(name) pop-valid output to emitSynchronousStreamFifo."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-POP-READY-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-POP-READY-NOT-REF" =>
+      "Pass a non-null ref(name) pop-ready input to emitSynchronousStreamFifo."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-POP-DATA-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-POP-DATA-NOT-REF" =>
+      "Pass a non-null ref(name) pop-data output to emitSynchronousStreamFifo."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-ELEMENT-TYPE-NULL" =>
+      "Pass a non-null packedBits(width) element type to emitSynchronousStreamFifo."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-DEPTH-NULL" =>
+      "Pass the exact unmodified non-null HdlInt.param handle declared by this FIFO module."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-DEPTH-NOT-PUBLIC-PARAMETER" =>
+      "Pass the exact unmodified HdlInt.param handle declared by this FIFO module."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-DEPTH-WITNESS-NONPOSITIVE" =>
+      "Choose a positive depth witness and declare its finite domain with a minimum of at least 1."
     case "MORPH-FRONTEND-COMBINATIONAL-LABEL-INVALID" |
         "MORPH-FRONTEND-COMBINATIONAL-TARGET-INVALID" |
         "MORPH-FRONTEND-COMBINATIONAL-VALUE-INVALID" |

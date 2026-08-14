@@ -46,7 +46,8 @@ import morphhdl.paramrtl.ModuleItem.{
   SynchronousEnabledRegister,
   SynchronousReadFirstSimpleDualPortMemory,
   SynchronousReadFirstSinglePortMemory,
-  SynchronousRegister
+  SynchronousRegister,
+  SynchronousStreamFifo
 }
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 
@@ -471,6 +472,40 @@ object Verilog2001Capability {
             facts.parameterFacts,
             facts.localParameterFacts,
             path :+ "limit",
+            diagnostics,
+            booleanParameters = booleanParameterByName,
+            booleanLocalParameters = facts.booleanLocalParameterFacts
+          )
+      }
+
+      module.items.collect { case fifo: SynchronousStreamFifo => fifo }.sortBy(_.label).foreach {
+        fifo =>
+          val path = modulePath :+ "synchronousStreamFifos" :+ fifo.label
+          checkName(fifo.label, path :+ "label", diagnostics)
+          checkName(fifo.memoryName, path :+ "memoryName", diagnostics)
+          checkExpression(
+            fifo.elementType.width,
+            facts.parameterFacts,
+            facts.localParameterFacts,
+            path :+ "elementType" :+ "width",
+            diagnostics,
+            booleanParameters = booleanParameterByName,
+            booleanLocalParameters = facts.booleanLocalParameterFacts
+          )
+          checkExpression(
+            fifo.depth,
+            facts.parameterFacts,
+            facts.localParameterFacts,
+            path :+ "depth",
+            diagnostics,
+            booleanParameters = booleanParameterByName,
+            booleanLocalParameters = facts.booleanLocalParameterFacts
+          )
+          checkExpression(
+            Add(fifo.depth, Literal(1)),
+            facts.parameterFacts,
+            facts.localParameterFacts,
+            path :+ "occupancyWidth",
             diagnostics,
             booleanParameters = booleanParameterByName,
             booleanLocalParameters = facts.booleanLocalParameterFacts

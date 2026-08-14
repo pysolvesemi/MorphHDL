@@ -102,7 +102,7 @@ The two sibling paths retain independent address comparators and enables.
 Their ordering does not create write-first forwarding because all state
 updates are nonblocking. Artifact18's two exact `AddressWidth(DEPTH)`
 declarations use the Increment 24 module-local
-`morphhdl$ceil_log2(DEPTH, 1)` constant function. Other accepted capacity-safe,
+`clog2(DEPTH, 1)` constant function. Other accepted capacity-safe,
 mutually type-equivalent address widths retain their own canonical lowering.
 No `$clog2`, specialized module copy or overrideable helper-width parameter is
 emitted.

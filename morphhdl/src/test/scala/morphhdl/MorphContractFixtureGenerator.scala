@@ -2,9 +2,9 @@ package morphhdl
 
 import java.nio.file.{Files, Path, Paths}
 
-import spinal.core.{Component, SpinalConfig}
+import spinal.core.{ClockDomainConfig, Component, HIGH, RISING, SYNC, SpinalConfig}
 
-/** CLI dispatch for the eighteen public-entry-point contract fixtures. */
+/** CLI dispatch for the nineteen public-entry-point contract fixtures. */
 object MorphContractFixtureGenerator {
   private final case class Options(outputDirectory: Path, reverseConstructionOrder: Boolean)
 
@@ -34,7 +34,8 @@ object MorphContractFixtureGenerator {
     ),
     Fixture("single_port_memory.v", SinglePortMemoryContractFixture.program),
     Fixture("parameterized_counter.v", ParameterizedCounterContractFixture.program),
-    Fixture("simple_dual_port_memory.v", SimpleDualPortMemoryContractFixture.program)
+    Fixture("simple_dual_port_memory.v", SimpleDualPortMemoryContractFixture.program),
+    Fixture("synchronous_stream_fifo.v", SynchronousStreamFifoContractFixture.program)
   )
 
   def main(args: Array[String]): Unit = {
@@ -42,7 +43,17 @@ object MorphContractFixtureGenerator {
     Files.createDirectories(options.outputDirectory)
 
     fixtures.foreach { fixture =>
-      val config = SpinalConfig(targetDirectory = options.outputDirectory.toString)
+      val config =
+        if (fixture.filename == "synchronous_stream_fifo.v")
+          SpinalConfig(
+            targetDirectory = options.outputDirectory.toString,
+            defaultConfigForClockDomains = ClockDomainConfig(
+              clockEdge = RISING,
+              resetKind = SYNC,
+              resetActiveLevel = HIGH
+            )
+          )
+        else SpinalConfig(targetDirectory = options.outputDirectory.toString)
       config.netlistFileName = fixture.filename
       MorphVerilog(config)(fixture.program(options.reverseConstructionOrder))
     }

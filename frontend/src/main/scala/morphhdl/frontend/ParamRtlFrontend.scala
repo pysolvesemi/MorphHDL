@@ -981,6 +981,136 @@ private[morphhdl] object ParamRtlFrontend {
   }
 
   /**
+    * Atomically emits one bounded single-clock ready/valid FIFO backed by a synchronous-read
+    * memory and a registered pop stage. Public depth is the total externally observable
+    * capacity. Empty pushes are not bypassed and a pop from a full FIFO does not accept a push
+    * on the same edge. Reset is active-high and synchronous.
+    */
+  def emitSynchronousStreamFifo(
+      label: String,
+      memoryName: String,
+      clock: FrontendNode[RtlExpr],
+      reset: FrontendNode[RtlExpr],
+      pushValid: FrontendNode[RtlExpr],
+      pushReady: FrontendNode[RtlExpr],
+      pushData: FrontendNode[RtlExpr],
+      popValid: FrontendNode[RtlExpr],
+      popReady: FrontendNode[RtlExpr],
+      popData: FrontendNode[RtlExpr],
+      elementType: FrontendNode[PackedBits],
+      depth: HdlInt
+  )(implicit file: sourcecode.File, line: sourcecode.Line): Unit = {
+    val origin = SourceOrigin.capture
+    val prefix = "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO"
+    requirePortableIdentifier(
+      label,
+      "synchronous stream FIFO label",
+      s"$prefix-LABEL-INVALID",
+      origin
+    )
+    requirePortableIdentifier(
+      memoryName,
+      "synchronous stream FIFO memory name",
+      s"$prefix-NAME-INVALID",
+      origin
+    )
+
+    val clockRef = requireSynchronousStreamFifoRef(label, "clock", "CLOCK", clock, origin)
+    val resetRef = requireSynchronousStreamFifoRef(label, "reset", "RESET", reset, origin)
+    val pushValidRef =
+      requireSynchronousStreamFifoRef(label, "push-valid", "PUSH-VALID", pushValid, origin)
+    val pushReadyRef =
+      requireSynchronousStreamFifoRef(label, "push-ready", "PUSH-READY", pushReady, origin)
+    val pushDataRef =
+      requireSynchronousStreamFifoRef(label, "push-data", "PUSH-DATA", pushData, origin)
+    val popValidRef =
+      requireSynchronousStreamFifoRef(label, "pop-valid", "POP-VALID", popValid, origin)
+    val popReadyRef =
+      requireSynchronousStreamFifoRef(label, "pop-ready", "POP-READY", popReady, origin)
+    val popDataRef =
+      requireSynchronousStreamFifoRef(label, "pop-data", "POP-DATA", popData, origin)
+
+    if (elementType eq null) {
+      FrontendException.failAt(
+        s"$prefix-ELEMENT-TYPE-NULL",
+        s"synchronous stream FIFO '$label' requires a non-null element type",
+        origin
+      )
+    }
+    elementType.requireUsable(s"synchronous stream FIFO '$label' element type")
+    if (depth eq null) {
+      FrontendException.failAt(
+        s"$prefix-DEPTH-NULL",
+        s"synchronous stream FIFO '$label' requires a non-null depth",
+        origin
+      )
+    }
+    depth.requireLoopInvariant(s"synchronous stream FIFO '$label' depth")
+    val directPublicParameter = depth.declaration.exists { token =>
+      depth.expression == IntExpr.ParameterRef(token.declaration.name) &&
+      depth.parameters == Set(token) &&
+      depth.booleanParameters.isEmpty &&
+      depth.localDeclaration.isEmpty &&
+      depth.localParameters.isEmpty &&
+      depth.booleanLocalParameters.isEmpty &&
+      depth.scope.isEmpty
+    }
+    if (!directPublicParameter) {
+      FrontendException.failAt(
+        s"$prefix-DEPTH-NOT-PUBLIC-PARAMETER",
+        s"synchronous stream FIFO '$label' depth must be the exact unmodified HdlInt.param handle",
+        depth.origin
+      )
+    }
+    if (depth.witness <= 0) {
+      FrontendException.failAt(
+        s"$prefix-DEPTH-WITNESS-NONPOSITIVE",
+        s"synchronous stream FIFO '$label' depth witness must be positive, received ${depth.witness}",
+        depth.origin
+      )
+    }
+
+    val refs = Vector(
+      clock,
+      reset,
+      pushValid,
+      pushReady,
+      pushData,
+      popValid,
+      popReady,
+      popData
+    )
+    FrontendSession.emitSynchronousStreamFifo(
+      FrontendNode(
+        ModuleItem.SynchronousStreamFifo(
+          label,
+          memoryName,
+          clockRef,
+          resetRef,
+          pushValidRef,
+          pushReadyRef,
+          pushDataRef,
+          popValidRef,
+          popReadyRef,
+          popDataRef,
+          elementType.raw,
+          depth.expression
+        ),
+        parameters = refs.flatMap(_.parameters).toSet ++ elementType.parameters ++
+          depth.parameters,
+        booleanParameters = refs.flatMap(_.booleanParameters).toSet ++
+          elementType.booleanParameters ++ depth.booleanParameters,
+        localParameters = refs.flatMap(_.localParameters).toSet ++
+          elementType.localParameters ++ depth.localParameters,
+        booleanLocalParameters = refs.flatMap(_.booleanLocalParameters).toSet ++
+          elementType.booleanLocalParameters ++ depth.booleanLocalParameters,
+        scopes = refs.flatMap(_.scopes).toSet ++ elementType.scopes ++ depth.scope.toSet,
+        origin = origin
+      )
+    )
+  }
+
+  /**
     * Atomically emits one positive-edge up-counter. Reset is active-high and
     * synchronous, has priority over enable, and clears count to zero. Enable
     * is active-high; when low the count holds. An enabled count equal to
@@ -1798,6 +1928,37 @@ private[morphhdl] object ParamRtlFrontend {
       reference.name,
       s"synchronous read-first simple dual-port memory $role",
       invalidCode,
+      value.origin
+    )
+    reference
+  }
+
+  private def requireSynchronousStreamFifoRef(
+      label: String,
+      role: String,
+      codeRole: String,
+      value: FrontendNode[RtlExpr],
+      origin: SourceOrigin
+  ): Ref = {
+    val prefix = "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO"
+    if (value eq null) {
+      FrontendException.failAt(
+        s"$prefix-$codeRole-NULL",
+        s"synchronous stream FIFO '$label' requires a non-null $role reference",
+        origin
+      )
+    }
+    value.requireUsable(s"synchronous stream FIFO '$label' $role")
+    val reference = requireRef(
+      value,
+      s"synchronous stream FIFO $role",
+      s"$prefix-$codeRole-NOT-REF",
+      origin
+    )
+    requirePortableIdentifier(
+      reference.name,
+      s"synchronous stream FIFO $role",
+      s"$prefix-$codeRole-INVALID",
       value.origin
     )
     reference

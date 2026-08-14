@@ -957,6 +957,48 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("portable logarithm helper uses a natural deterministic suffix on a module-local collision") {
+    withTemporaryDirectory { directory =>
+      val topName = "Clog2Collision"
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "clog2_collision.v"
+      val report = MorphVerilog(config) {
+        MorphProgram(
+          concreteWitness = new Component {
+            setDefinitionName(topName)
+            val clog2 = in(Bits(3 bits)).setName("clog2")
+            val data_out = out(Bits(3 bits)).setName("data_out")
+            data_out := clog2
+          },
+          parameterizedDesign = {
+            val depth = HdlInt.param("DEPTH", default = 5, min = 1, max = 8)
+            val dataType = packedBits(depth.addressWidth)
+            val top = moduleDef(
+              name = topName,
+              parameters = Vector(integerParameter(depth)),
+              ports = Vector(
+                port("clog2", Input, dataType),
+                port("data_out", Output, dataType)
+              ),
+              items = captureItems {
+                emitContinuousAssign("data_out", ref("clog2"))
+              }
+            )
+            Design(top.name, Vector(top))
+          }
+        )
+      }
+
+      val output = directory.resolve("clog2_collision.v")
+      val verilog = new String(Files.readAllBytes(output), StandardCharsets.UTF_8)
+      assert(report.toplevelName == topName)
+      assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
+      assert(verilog.contains("function integer clog2_1;"), verilog)
+      assert(verilog.contains("clog2_1(DEPTH, 1)"), verilog)
+      assert(!verilog.contains("function integer clog2;"), verilog)
+    }
+  }
+
   test("portable address width rejects a possibly nonpositive domain before public output") {
     withTemporaryDirectory { directory =>
       val topName = "UnsafeAddressWidth"
@@ -1083,6 +1125,63 @@ class MorphVerilogTests extends AnyFunSuite {
           fail(s"Expected simple-dual-port-memory validation failure, received $report")
       }
       assert(!Files.exists(directory.resolve("simple_dual_port_memory.v")))
+    }
+  }
+
+  test("synchronous Stream FIFO preserves the default public shape and reviewed output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(
+        targetDirectory = directory.toString,
+        defaultConfigForClockDomains = ClockDomainConfig(
+          clockEdge = RISING,
+          resetKind = SYNC,
+          resetActiveLevel = HIGH
+        )
+      )
+      config.netlistFileName = "synchronous_stream_fifo.v"
+      val report = MorphVerilog(config) {
+        SynchronousStreamFifoContractFixture.program(reverseConstructionOrder = false)
+      }
+
+      val output = directory.resolve("synchronous_stream_fifo.v")
+      assert(report.toplevelName == "SynchronousStreamFifo")
+      assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
+      assert(Files.isRegularFile(output))
+      assert(
+        new String(Files.readAllBytes(output), StandardCharsets.UTF_8) ==
+          expectedSynchronousStreamFifoVerilog
+      )
+    }
+  }
+
+  test("synchronous Stream FIFO validation fails before public output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(
+        targetDirectory = directory.toString,
+        defaultConfigForClockDomains = ClockDomainConfig(
+          clockEdge = RISING,
+          resetKind = SYNC,
+          resetActiveLevel = HIGH
+        )
+      )
+      config.netlistFileName = "synchronous_stream_fifo.v"
+      val fixture =
+        SynchronousStreamFifoContractFixture.program(reverseConstructionOrder = false)
+      val result = MorphVerilog.tryGenerate(config) {
+        MorphProgram(
+          concreteWitness = fixture.concreteWitnessFactory(),
+          parameterizedDesign = invalidSynchronousStreamFifoDesign()
+        )
+      }
+
+      result match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.ParamRtlValidation)
+          assert(failure.message.contains("PRTL-UNRESOLVED-RTL-REFERENCE"))
+        case Right(report) =>
+          fail(s"Expected synchronous-Stream-FIFO validation failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve("synchronous_stream_fifo.v")))
     }
   }
 
@@ -3588,6 +3687,55 @@ class MorphVerilogTests extends AnyFunSuite {
     Design(top.name, Vector(top))
   }
 
+  private def invalidSynchronousStreamFifoDesign(): Design = {
+    val width = ParameterRef("WIDTH")
+    val depth = ParameterRef("DEPTH")
+    val packed = PackedBits(width, Unsigned)
+    val control = PackedBits(IntExpr.Literal(1), Unsigned)
+    val top = ModuleDef(
+      name = "SynchronousStreamFifo",
+      parameters = Vector(
+        IntegerParameter(
+          "WIDTH",
+          default = 8,
+          constraints = Vector(MinInclusive(1), MaxInclusive(32))
+        ),
+        IntegerParameter(
+          "DEPTH",
+          default = 5,
+          constraints = Vector(MinInclusive(1), MaxInclusive(8))
+        )
+      ),
+      ports = Vector(
+        Port("clk", Input, control),
+        Port("reset", Input, control),
+        Port("push_valid", Input, control),
+        Port("push_ready", Output, control),
+        Port("push_data", Input, packed),
+        Port("pop_valid", Output, control),
+        Port("pop_ready", Input, control),
+        Port("pop_data", Output, packed)
+      ),
+      items = Vector(
+        ModuleItem.SynchronousStreamFifo(
+          label = "p_fifo",
+          memoryName = "memory",
+          clock = Ref("missing_clock"),
+          reset = Ref("reset"),
+          pushValid = Ref("push_valid"),
+          pushReady = Ref("push_ready"),
+          pushData = Ref("push_data"),
+          popValid = Ref("pop_valid"),
+          popReady = Ref("pop_ready"),
+          popData = Ref("pop_data"),
+          elementType = packed,
+          depth = depth
+        )
+      )
+    )
+    Design(top.name, Vector(top))
+  }
+
   private def addressWidthDesign(
       requestedName: String,
       depthDefault: Int,
@@ -3697,23 +3845,23 @@ class MorphVerilogTests extends AnyFunSuite {
       |  output wire [PADDED_WIDTH-1:0] dout
       |);
       |
-      |  function integer morphhdl$ceil_log2;
+      |  function integer clog2;
       |    input integer value;
       |    input integer minimum_result;
       |    integer remaining;
       |    begin
-      |      morphhdl$ceil_log2 = 0;
+      |      clog2 = 0;
       |      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
-      |        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;
+      |        clog2 = clog2 + 1;
       |      end
-      |      if (morphhdl$ceil_log2 < minimum_result) begin
-      |        morphhdl$ceil_log2 = minimum_result;
+      |      if (clog2 < minimum_result) begin
+      |        clog2 = minimum_result;
       |      end
       |    end
       |  endfunction
       |
       |  localparam integer CLAMPED_PADDING = (DATA_WIDTH < 3) ? DATA_WIDTH : 3;
-      |  localparam integer LANE_INDEX_WIDTH = morphhdl$ceil_log2(LANES, 0);
+      |  localparam integer LANE_INDEX_WIDTH = clog2(LANES, 0);
       |  localparam integer TOTAL_WIDTH = LANES * DATA_WIDTH;
       |  localparam integer PADDED_WIDTH = ((TOTAL_WIDTH + CLAMPED_PADDING > 4) ? TOTAL_WIDTH + CLAMPED_PADDING : 4) + LANE_INDEX_WIDTH;
       |
@@ -3834,7 +3982,7 @@ class MorphVerilogTests extends AnyFunSuite {
       |  parameter integer DEPTH = 5,
       |  parameter integer WIDTH = 8
       |) (
-      |  input  wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] address,
+      |  input  wire [(clog2(DEPTH, 1))-1:0] address,
       |  input  wire [0:0] clk,
       |  output reg [WIDTH-1:0] read_data,
       |  input  wire [0:0] read_enable,
@@ -3842,17 +3990,17 @@ class MorphVerilogTests extends AnyFunSuite {
       |  input  wire [0:0] write_enable
       |);
       |
-      |  function integer morphhdl$ceil_log2;
+      |  function integer clog2;
       |    input integer value;
       |    input integer minimum_result;
       |    integer remaining;
       |    begin
-      |      morphhdl$ceil_log2 = 0;
+      |      clog2 = 0;
       |      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
-      |        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;
+      |        clog2 = clog2 + 1;
       |      end
-      |      if (morphhdl$ceil_log2 < minimum_result) begin
-      |        morphhdl$ceil_log2 = minimum_result;
+      |      if (clog2 < minimum_result) begin
+      |        clog2 = minimum_result;
       |      end
       |    end
       |  endfunction
@@ -3880,32 +4028,32 @@ class MorphVerilogTests extends AnyFunSuite {
       |  parameter integer LIMIT = 5
       |) (
       |  input  wire [0:0] clk,
-      |  output reg [(morphhdl$ceil_log2(LIMIT, 1))-1:0] count,
+      |  output reg [(clog2(LIMIT, 1))-1:0] count,
       |  input  wire [0:0] enable,
       |  input  wire [0:0] reset
       |);
       |
-      |  function integer morphhdl$ceil_log2;
+      |  function integer clog2;
       |    input integer value;
       |    input integer minimum_result;
       |    integer remaining;
       |    begin
-      |      morphhdl$ceil_log2 = 0;
+      |      clog2 = 0;
       |      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
-      |        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;
+      |        clog2 = clog2 + 1;
       |      end
-      |      if (morphhdl$ceil_log2 < minimum_result) begin
-      |        morphhdl$ceil_log2 = minimum_result;
+      |      if (clog2 < minimum_result) begin
+      |        clog2 = minimum_result;
       |      end
       |    end
       |  endfunction
       |
       |  always @(posedge clk) begin : p_counter
       |    if (reset == 1'b1) begin
-      |      count <= {morphhdl$ceil_log2(LIMIT, 1){1'b0}};
+      |      count <= {clog2(LIMIT, 1){1'b0}};
       |    end else if (enable == 1'b1) begin
       |      if (count == LIMIT - 1) begin
-      |        count <= {morphhdl$ceil_log2(LIMIT, 1){1'b0}};
+      |        count <= {clog2(LIMIT, 1){1'b0}};
       |      end else begin
       |        count <= count + 1'b1;
       |      end
@@ -3921,25 +4069,25 @@ class MorphVerilogTests extends AnyFunSuite {
       |  parameter integer WIDTH = 8
       |) (
       |  input  wire [0:0] clk,
-      |  input  wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] read_address,
+      |  input  wire [(clog2(DEPTH, 1))-1:0] read_address,
       |  output reg [WIDTH-1:0] read_data,
       |  input  wire [0:0] read_enable,
-      |  input  wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] write_address,
+      |  input  wire [(clog2(DEPTH, 1))-1:0] write_address,
       |  input  wire [WIDTH-1:0] write_data,
       |  input  wire [0:0] write_enable
       |);
       |
-      |  function integer morphhdl$ceil_log2;
+      |  function integer clog2;
       |    input integer value;
       |    input integer minimum_result;
       |    integer remaining;
       |    begin
-      |      morphhdl$ceil_log2 = 0;
+      |      clog2 = 0;
       |      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
-      |        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;
+      |        clog2 = clog2 + 1;
       |      end
-      |      if (morphhdl$ceil_log2 < minimum_result) begin
-      |        morphhdl$ceil_log2 = minimum_result;
+      |      if (clog2 < minimum_result) begin
+      |        clog2 = minimum_result;
       |      end
       |    end
       |  endfunction
@@ -3957,6 +4105,89 @@ class MorphVerilogTests extends AnyFunSuite {
       |    if (write_address < DEPTH) begin
       |      if (write_enable == 1'b1) begin
       |        memory[write_address] <= write_data;
+      |      end
+      |    end
+      |  end
+      |
+      |endmodule
+      |""".stripMargin
+
+  private val expectedSynchronousStreamFifoVerilog =
+    """module SynchronousStreamFifo #(
+      |  parameter integer DEPTH = 5,
+      |  parameter integer WIDTH = 8
+      |) (
+      |  input  wire [0:0] clk,
+      |  output reg [WIDTH-1:0] pop_data,
+      |  input  wire [0:0] pop_ready,
+      |  output reg [0:0] pop_valid,
+      |  input  wire [WIDTH-1:0] push_data,
+      |  output wire [0:0] push_ready,
+      |  input  wire [0:0] push_valid,
+      |  input  wire [0:0] reset
+      |);
+      |
+      |  function integer clog2;
+      |    input integer value;
+      |    input integer minimum_result;
+      |    integer remaining;
+      |    begin
+      |      clog2 = 0;
+      |      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
+      |        clog2 = clog2 + 1;
+      |      end
+      |      if (clog2 < minimum_result) begin
+      |        clog2 = minimum_result;
+      |      end
+      |    end
+      |  endfunction
+      |
+      |  localparam integer POINTER_WIDTH = clog2(DEPTH, 1);
+      |  localparam integer OCCUPANCY_WIDTH = clog2(DEPTH + 1, 1);
+      |
+      |  reg [WIDTH-1:0] memory [0:DEPTH-1];
+      |  reg [POINTER_WIDTH-1:0] read_pointer;
+      |  reg [POINTER_WIDTH-1:0] write_pointer;
+      |  reg [OCCUPANCY_WIDTH-1:0] occupancy;
+      |  wire push_fire;
+      |  wire pop_fire;
+      |
+      |  assign push_ready = occupancy < DEPTH;
+      |  assign push_fire = push_valid && push_ready;
+      |  assign pop_fire = pop_valid && pop_ready;
+      |
+      |  always @(posedge clk) begin : p_fifo
+      |    if (reset == 1'b1) begin
+      |      read_pointer <= {POINTER_WIDTH{1'b0}};
+      |      write_pointer <= {POINTER_WIDTH{1'b0}};
+      |      occupancy <= {OCCUPANCY_WIDTH{1'b0}};
+      |      pop_valid <= 1'b0;
+      |    end else begin
+      |      if ((pop_valid == 1'b0 && occupancy > 0) || (pop_fire == 1'b1 && occupancy > 1)) begin
+      |        pop_data <= memory[read_pointer];
+      |        pop_valid <= 1'b1;
+      |        if (read_pointer == DEPTH - 1) begin
+      |          read_pointer <= {POINTER_WIDTH{1'b0}};
+      |        end else begin
+      |          read_pointer <= read_pointer + 1'b1;
+      |        end
+      |      end else if (pop_fire == 1'b1) begin
+      |        pop_valid <= 1'b0;
+      |      end
+      |      if (push_fire == 1'b1) begin
+      |        memory[write_pointer] <= push_data;
+      |        if (write_pointer == DEPTH - 1) begin
+      |          write_pointer <= {POINTER_WIDTH{1'b0}};
+      |        end else begin
+      |          write_pointer <= write_pointer + 1'b1;
+      |        end
+      |      end
+      |      if (push_fire != pop_fire) begin
+      |        if (push_fire == 1'b1) begin
+      |          occupancy <= occupancy + 1'b1;
+      |        end else begin
+      |          occupancy <= occupancy - 1'b1;
+      |        end
       |      end
       |    end
       |  end

@@ -45,7 +45,8 @@ import morphhdl.paramrtl.ModuleItem.{
   SynchronousEnabledRegister,
   SynchronousReadFirstSimpleDualPortMemory,
   SynchronousReadFirstSinglePortMemory,
-  SynchronousRegister
+  SynchronousRegister,
+  SynchronousStreamFifo
 }
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
@@ -53,7 +54,19 @@ import morphhdl.paramrtl.Signedness.{Signed, Unsigned}
 import morphhdl.paramrtl._
 
 object Verilog2001Emitter {
-  private val PortableCeilLog2FunctionName = "morphhdl$ceil_log2"
+  private val PortableCeilLog2FunctionBaseName = "clog2"
+
+  private final case class RenderContext(portableCeilLog2FunctionName: String)
+
+  private final case class FifoInternalNames(
+      pointerWidth: String,
+      occupancyWidth: String,
+      readPointer: String,
+      writePointer: String,
+      occupancy: String,
+      pushFire: String,
+      popFire: String
+  )
 
   def emit(design: Design): Either[DiagnosticSet, String] =
     ParamRtlValidator.validate(design) match {
@@ -75,6 +88,8 @@ object Verilog2001Emitter {
   }
 
   private def renderModule(module: ModuleDef, facts: ValidatedModuleFacts): String = {
+    implicit val context: RenderContext =
+      RenderContext(portableCeilLog2FunctionName(module))
     val usesPortableCeilLog2 = moduleUsesPortableCeilLog2(module)
     val integerParameters = module.parameters.sortBy(_.name)
     val booleanParameters = module.booleanParameters.sortBy(_.name)
@@ -99,6 +114,11 @@ object Verilog2001Emitter {
       module.items.collect { case memory: SynchronousReadFirstSimpleDualPortMemory => memory }.sortBy(_.label)
     val synchronousCounters =
       module.items.collect { case counter: SynchronousCounter => counter }.sortBy(_.label)
+    val synchronousStreamFifos =
+      module.items.collect { case fifo: SynchronousStreamFifo => fifo }.sortBy(_.label)
+    val fifoNames = synchronousStreamFifos.headOption.map { fifo =>
+      allocateFifoInternalNames(module, context.portableCeilLog2FunctionName)
+    }
     val proceduralOutputs = (
       combinationalIfs
         .flatMap(process => process.whenTrue.map(_.target.name) ++ process.whenFalse.map(_.target.name)) ++
@@ -108,7 +128,8 @@ object Verilog2001Emitter {
         asynchronousEnabledRegisters.map(_.assignment.target.name) ++
         synchronousReadFirstSinglePortMemories.map(_.readData.name) ++
         synchronousReadFirstSimpleDualPortMemories.map(_.readData.name) ++
-        synchronousCounters.map(_.count.name)
+        synchronousCounters.map(_.count.name) ++
+        synchronousStreamFifos.flatMap(fifo => Vector(fifo.popValid.name, fifo.popData.name))
     ).toSet
     val assignments = module.items.collect { case assignment: ContinuousAssign => assignment }.sortBy { assignment =>
       (assignment.target.name, renderRtlExpr(assignment.value))
@@ -142,7 +163,7 @@ object Verilog2001Emitter {
       renderPortableCeilLog2Function.foreach(lines += _)
     }
 
-    if (localParameters.nonEmpty) {
+    if (localParameters.nonEmpty || synchronousStreamFifos.nonEmpty) {
       lines += ""
       localParameters.foreach {
         case localParameter: IntegerLocalParameter =>
@@ -153,6 +174,13 @@ object Verilog2001Emitter {
             case other             => s"(${renderBoolExpr(other)}) ? 1 : 0"
           }
           lines += s"  localparam integer ${localParameter.name} = $value;"
+      }
+      fifoNames.foreach { names =>
+        val fifo = synchronousStreamFifos.head
+        lines +=
+          s"  localparam integer ${names.pointerWidth} = ${context.portableCeilLog2FunctionName}(${renderDelimitedIntOperand(fifo.depth)}, 1);"
+        lines +=
+          s"  localparam integer ${names.occupancyWidth} = ${context.portableCeilLog2FunctionName}(${renderDelimitedIntOperand(Add(fifo.depth, Literal(1)))}, 1);"
       }
     }
 
@@ -178,6 +206,23 @@ object Verilog2001Emitter {
         lines +=
           s"  reg $signedness${renderPackedRange(memory.elementType.width)}${memory.memoryName} ${renderMemoryRange(memory.depth)};"
       }
+    }
+
+    if (synchronousStreamFifos.nonEmpty) {
+      lines += ""
+      val fifo = synchronousStreamFifos.head
+      val names = fifoNames.get
+      val signedness = fifo.elementType.signedness match {
+        case Unsigned => ""
+        case Signed   => "signed "
+      }
+      lines +=
+        s"  reg $signedness${renderPackedRange(fifo.elementType.width)}${fifo.memoryName} ${renderMemoryRange(fifo.depth)};"
+      lines += s"  reg [${names.pointerWidth}-1:0] ${names.readPointer};"
+      lines += s"  reg [${names.pointerWidth}-1:0] ${names.writePointer};"
+      lines += s"  reg [${names.occupancyWidth}-1:0] ${names.occupancy};"
+      lines += s"  wire ${names.pushFire};"
+      lines += s"  wire ${names.popFire};"
     }
 
     if (instances.nonEmpty) {
@@ -240,6 +285,17 @@ object Verilog2001Emitter {
       }
     }
 
+    synchronousStreamFifos.headOption.foreach { fifo =>
+      val names = fifoNames.get
+      lines += ""
+      lines +=
+        s"  assign ${fifo.pushReady.name} = ${names.occupancy} < ${renderComparisonOperand(fifo.depth)};"
+      lines +=
+        s"  assign ${names.pushFire} = ${fifo.pushValid.name} && ${fifo.pushReady.name};"
+      lines +=
+        s"  assign ${names.popFire} = ${fifo.popValid.name} && ${fifo.popReady.name};"
+    }
+
     synchronousReadFirstSinglePortMemories.foreach { memory =>
       val zeroWidth = renderReplicationWidth(memory.elementType.width)
       lines += ""
@@ -291,6 +347,47 @@ object Verilog2001Emitter {
       lines += s"        $count <= {$resetWidth{1'b0}};"
       lines += "      end else begin"
       lines += s"        $count <= $count + 1'b1;"
+      lines += "      end"
+      lines += "    end"
+      lines += "  end"
+    }
+
+    synchronousStreamFifos.headOption.foreach { fifo =>
+      val names = fifoNames.get
+      lines += ""
+      lines += s"  always @(posedge ${fifo.clock.name}) begin : ${fifo.label}"
+      lines += s"    if (${fifo.reset.name} == 1'b1) begin"
+      lines += s"      ${names.readPointer} <= {${names.pointerWidth}{1'b0}};"
+      lines += s"      ${names.writePointer} <= {${names.pointerWidth}{1'b0}};"
+      lines += s"      ${names.occupancy} <= {${names.occupancyWidth}{1'b0}};"
+      lines += s"      ${fifo.popValid.name} <= 1'b0;"
+      lines += "    end else begin"
+      lines +=
+        s"      if ((${fifo.popValid.name} == 1'b0 && ${names.occupancy} > 0) || (${names.popFire} == 1'b1 && ${names.occupancy} > 1)) begin"
+      lines += s"        ${fifo.popData.name} <= ${fifo.memoryName}[${names.readPointer}];"
+      lines += s"        ${fifo.popValid.name} <= 1'b1;"
+      lines += s"        if (${names.readPointer} == ${renderComparisonOperand(fifo.depth)} - 1) begin"
+      lines += s"          ${names.readPointer} <= {${names.pointerWidth}{1'b0}};"
+      lines += "        end else begin"
+      lines += s"          ${names.readPointer} <= ${names.readPointer} + 1'b1;"
+      lines += "        end"
+      lines += s"      end else if (${names.popFire} == 1'b1) begin"
+      lines += s"        ${fifo.popValid.name} <= 1'b0;"
+      lines += "      end"
+      lines += s"      if (${names.pushFire} == 1'b1) begin"
+      lines += s"        ${fifo.memoryName}[${names.writePointer}] <= ${fifo.pushData.name};"
+      lines += s"        if (${names.writePointer} == ${renderComparisonOperand(fifo.depth)} - 1) begin"
+      lines += s"          ${names.writePointer} <= {${names.pointerWidth}{1'b0}};"
+      lines += "        end else begin"
+      lines += s"          ${names.writePointer} <= ${names.writePointer} + 1'b1;"
+      lines += "        end"
+      lines += "      end"
+      lines += s"      if (${names.pushFire} != ${names.popFire}) begin"
+      lines += s"        if (${names.pushFire} == 1'b1) begin"
+      lines += s"          ${names.occupancy} <= ${names.occupancy} + 1'b1;"
+      lines += "        end else begin"
+      lines += s"          ${names.occupancy} <= ${names.occupancy} - 1'b1;"
+      lines += "        end"
       lines += "      end"
       lines += "    end"
       lines += "  end"
@@ -374,7 +471,10 @@ object Verilog2001Emitter {
     lines.result().mkString("\n")
   }
 
-  private def renderGenerateBlockBody(block: GenerateBlock, indent: String): Vector[String] = {
+  private def renderGenerateBlockBody(
+      block: GenerateBlock,
+      indent: String
+  )(implicit context: RenderContext): Vector[String] = {
     val instances = block.body.collect { case instance: ModuleInstance => instance }.sortBy(_.name)
     val assignments = block.body.collect { case assignment: ContinuousAssign => assignment }.sortBy { assignment =>
       (assignment.target.name, renderRtlExpr(assignment.value))
@@ -390,7 +490,10 @@ object Verilog2001Emitter {
     lines.result()
   }
 
-  private def renderInstance(instance: ModuleInstance, indent: String): Vector[String] = {
+  private def renderInstance(
+      instance: ModuleInstance,
+      indent: String
+  )(implicit context: RenderContext): Vector[String] = {
     val parameterBindings =
       (instance.parameterBindings.map(binding => binding.parameterName -> renderIntExpr(binding.value)) ++
         instance.booleanParameterBindings.map(binding => binding.parameterName -> renderBooleanBinding(binding.value)))
@@ -418,7 +521,10 @@ object Verilog2001Emitter {
     lines.result()
   }
 
-  private def renderPort(port: Port, procedurallyDriven: Boolean): String = {
+  private def renderPort(
+      port: Port,
+      procedurallyDriven: Boolean
+  )(implicit context: RenderContext): String = {
     val direction = port.direction match {
       case Input  => "input"
       case Output => "output"
@@ -433,21 +539,21 @@ object Verilog2001Emitter {
     f"  $direction%-6s $storage $signedness$range${port.name}"
   }
 
-  private def renderPackedRange(width: IntExpr): String = width match {
+  private def renderPackedRange(width: IntExpr)(implicit context: RenderContext): String = width match {
     case Literal(value)          => s"[${value - 1}:0] "
     case ParameterRef(name)      => s"[$name-1:0] "
     case LocalParameterRef(name) => s"[$name-1:0] "
     case expression              => s"[(${renderIntExpr(expression)})-1:0] "
   }
 
-  private def renderMemoryRange(depth: IntExpr): String = depth match {
+  private def renderMemoryRange(depth: IntExpr)(implicit context: RenderContext): String = depth match {
     case Literal(value)          => s"[0:${value - 1}]"
     case ParameterRef(name)      => s"[0:$name-1]"
     case LocalParameterRef(name) => s"[0:$name-1]"
     case expression              => s"[0:(${renderIntExpr(expression)})-1]"
   }
 
-  private def renderReplicationWidth(width: IntExpr): String = width match {
+  private def renderReplicationWidth(width: IntExpr)(implicit context: RenderContext): String = width match {
     case _: Literal | _: ParameterRef | _: LocalParameterRef => renderIntExpr(width)
     case _                                                   => s"(${renderIntExpr(width)})"
   }
@@ -460,9 +566,12 @@ object Verilog2001Emitter {
 
   private final case class RenderedIntExpr(text: String, precedence: Int)
 
-  private def renderIntExpr(expression: IntExpr): String = renderIntExprWithPrecedence(expression).text
+  private def renderIntExpr(expression: IntExpr)(implicit context: RenderContext): String =
+    renderIntExprWithPrecedence(expression).text
 
-  private def renderIntExprWithPrecedence(expression: IntExpr): RenderedIntExpr =
+  private def renderIntExprWithPrecedence(
+      expression: IntExpr
+  )(implicit context: RenderContext): RenderedIntExpr =
     renderExpressionGraph(expression).integers.get(expression)
 
   private def renderBinary(
@@ -498,10 +607,10 @@ object Verilog2001Emitter {
   private def renderAddressWidth(
       value: IntExpr,
       integers: java.util.IdentityHashMap[IntExpr, RenderedIntExpr]
-  ): RenderedIntExpr = {
+  )(implicit context: RenderContext): RenderedIntExpr = {
     val operand = renderDelimitedIntOperand(integers.get(value))
     RenderedIntExpr(
-      s"$PortableCeilLog2FunctionName($operand, 1)",
+      s"${context.portableCeilLog2FunctionName}($operand, 1)",
       AtomicPrecedence
     )
   }
@@ -509,21 +618,23 @@ object Verilog2001Emitter {
   private def renderCeilLog2(
       value: IntExpr,
       integers: java.util.IdentityHashMap[IntExpr, RenderedIntExpr]
-  ): RenderedIntExpr = {
+  )(implicit context: RenderContext): RenderedIntExpr = {
     val operand = renderDelimitedIntOperand(integers.get(value))
     RenderedIntExpr(
-      s"$PortableCeilLog2FunctionName($operand, 0)",
+      s"${context.portableCeilLog2FunctionName}($operand, 0)",
       AtomicPrecedence
     )
   }
 
-  private def renderRtlExpr(expression: RtlExpr): String = expression match {
+  private def renderRtlExpr(expression: RtlExpr)(implicit context: RenderContext): String = expression match {
     case Ref(name) => name
     case IndexedPartSelect(base, offset, width) =>
       s"${base.name}[${renderDelimitedIntOperand(offset)} +: ${renderDelimitedIntOperand(width)}]"
   }
 
-  private def renderDelimitedIntOperand(expression: IntExpr): String = {
+  private def renderDelimitedIntOperand(
+      expression: IntExpr
+  )(implicit context: RenderContext): String = {
     val rendered = renderIntExprWithPrecedence(expression)
     renderDelimitedIntOperand(rendered)
   }
@@ -543,18 +654,23 @@ object Verilog2001Emitter {
       booleans: java.util.IdentityHashMap[BoolExpr, RenderedBoolExpr]
   )
 
-  private def renderBoolExpr(expression: BoolExpr): String = renderBoolExprWithPrecedence(expression).text
+  private def renderBoolExpr(expression: BoolExpr)(implicit context: RenderContext): String =
+    renderBoolExprWithPrecedence(expression).text
 
-  private def renderBooleanBinding(expression: BoolExpr): String = expression match {
+  private def renderBooleanBinding(expression: BoolExpr)(implicit context: RenderContext): String = expression match {
     case BoolLiteral(value) => if (value) "1" else "0"
     case other              => s"(${renderBoolExpr(other)}) ? 1 : 0"
   }
 
-  private def renderBoolExprWithPrecedence(expression: BoolExpr): RenderedBoolExpr =
+  private def renderBoolExprWithPrecedence(
+      expression: BoolExpr
+  )(implicit context: RenderContext): RenderedBoolExpr =
     renderExpressionGraph(expression).booleans.get(expression)
 
   /** Iterative mixed-graph rendering preserves DAG sharing and never consumes expression depth. */
-  private def renderExpressionGraph(root: AnyRef): RenderedExpressionGraph = {
+  private def renderExpressionGraph(
+      root: AnyRef
+  )(implicit context: RenderContext): RenderedExpressionGraph = {
     final case class Frame(value: AnyRef, expanded: Boolean)
     val integers = new java.util.IdentityHashMap[IntExpr, RenderedIntExpr]()
     val booleans = new java.util.IdentityHashMap[BoolExpr, RenderedBoolExpr]()
@@ -688,7 +804,7 @@ object Verilog2001Emitter {
       BoolAtomicPrecedence
     )
 
-  private def renderComparisonOperand(expression: IntExpr): String =
+  private def renderComparisonOperand(expression: IntExpr)(implicit context: RenderContext): String =
     renderDelimitedIntOperand(expression)
 
   private def renderComparisonOperand(rendered: RenderedIntExpr): String =
@@ -714,28 +830,124 @@ object Verilog2001Emitter {
       .map(choice => s"${choice.value}:${choice.block.label}")
       .mkString("|")
 
-  /**
-    * `$` is legal after the first character of a Verilog simple identifier, but ParamRTL
-    * logical identifiers deliberately exclude it. The helper therefore cannot collide with
-    * any user-visible module identifier.
-    */
-  private def renderPortableCeilLog2Function: Vector[String] =
+  private def renderPortableCeilLog2Function(
+      implicit context: RenderContext
+  ): Vector[String] = {
+    val functionName = context.portableCeilLog2FunctionName
     Vector(
-      s"  function integer $PortableCeilLog2FunctionName;",
+      s"  function integer $functionName;",
       "    input integer value;",
       "    input integer minimum_result;",
       "    integer remaining;",
       "    begin",
-      s"      $PortableCeilLog2FunctionName = 0;",
+      s"      $functionName = 0;",
       "      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin",
-      s"        $PortableCeilLog2FunctionName = $PortableCeilLog2FunctionName + 1;",
+      s"        $functionName = $functionName + 1;",
       "      end",
-      s"      if ($PortableCeilLog2FunctionName < minimum_result) begin",
-      s"        $PortableCeilLog2FunctionName = minimum_result;",
+      s"      if ($functionName < minimum_result) begin",
+      s"        $functionName = minimum_result;",
       "      end",
       "    end",
       "  endfunction"
     )
+  }
+
+  /** Chooses a handwritten-style module-local helper name without reserving an identifier. */
+  private def portableCeilLog2FunctionName(module: ModuleDef): String = {
+    val used = moduleDeclaredIdentifiers(module)
+
+    firstAvailableName(PortableCeilLog2FunctionBaseName, used)
+  }
+
+  private def allocateFifoInternalNames(
+      module: ModuleDef,
+      helperName: String
+  ): FifoInternalNames = {
+    val used = moduleDeclaredIdentifiers(module)
+    used += helperName
+
+    def allocate(base: String): String = {
+      val value = firstAvailableName(base, used)
+      used += value
+      value
+    }
+
+    FifoInternalNames(
+      pointerWidth = allocate("POINTER_WIDTH"),
+      occupancyWidth = allocate("OCCUPANCY_WIDTH"),
+      readPointer = allocate("read_pointer"),
+      writePointer = allocate("write_pointer"),
+      occupancy = allocate("occupancy"),
+      pushFire = allocate("push_fire"),
+      popFire = allocate("pop_fire")
+    )
+  }
+
+  private def moduleDeclaredIdentifiers(module: ModuleDef): scala.collection.mutable.Set[String] = {
+    val used = scala.collection.mutable.Set.empty[String] ++
+      module.parameters.map(_.name) ++
+      module.booleanParameters.map(_.name) ++
+      module.localParameters.map(_.name) ++
+      module.booleanLocalParameters.map(_.name) ++
+      module.ports.map(_.name)
+    val work = scala.collection.mutable.ArrayBuffer.empty[ModuleItem]
+    work ++= module.items
+
+    while (work.nonEmpty) {
+      work.remove(work.length - 1) match {
+        case _: ContinuousAssign =>
+        case instance: ModuleInstance => used += instance.name
+        case generate: GenerateFor =>
+          used += generate.label
+          used += generate.indexName
+          work ++= generate.body
+        case generate: GenerateIf =>
+          used += generate.whenTrue.label
+          used += generate.whenFalse.label
+          work ++= generate.whenTrue.body
+          work ++= generate.whenFalse.body
+        case generate: GenerateCase =>
+          generate.choices.foreach { choice =>
+            used += choice.block.label
+            work ++= choice.block.body
+          }
+          used += generate.default.label
+          work ++= generate.default.body
+        case process: CombinationalIf => used += process.label
+        case process: SynchronousRegister => used += process.label
+        case process: AsynchronousRegister => used += process.label
+        case process: SynchronousEnabledRegister => used += process.label
+        case process: AsynchronousEnabledRegister => used += process.label
+        case memory: SynchronousReadFirstSinglePortMemory =>
+          used += memory.label
+          used += memory.memoryName
+        case memory: SynchronousReadFirstSimpleDualPortMemory =>
+          used += memory.label
+          used += memory.memoryName
+        case counter: SynchronousCounter => used += counter.label
+        case fifo: SynchronousStreamFifo =>
+          used += fifo.label
+          used += fifo.memoryName
+      }
+    }
+
+    used
+  }
+
+  private def firstAvailableName(
+      base: String,
+      used: scala.collection.Set[String]
+  ): String =
+    if (!used(base)) base
+    else {
+      var suffix = 1
+      var candidate = s"${base}_$suffix"
+      while (used(candidate)) {
+        suffix += 1
+        candidate = s"${base}_$suffix"
+      }
+      candidate
+    }
 
   /** Iterative identity-aware scan keeps helper discovery stack-safe and DAG-safe. */
   private def moduleUsesPortableCeilLog2(module: ModuleDef): Boolean = {
@@ -744,7 +956,7 @@ object Verilog2001Emitter {
 
     while (work.nonEmpty) {
       work.remove(work.length - 1) match {
-        case _: AddressWidth | _: CeilLog2 => return true
+        case _: AddressWidth | _: CeilLog2 | _: SynchronousStreamFifo => return true
         case _: String | _: BigInt | null  =>
         case reference: AnyRef if !seen.containsKey(reference) =>
           seen.put(reference, java.lang.Boolean.TRUE)

@@ -57,7 +57,7 @@ one module-local constant function in every module that consumes
 result of one:
 
 ```verilog
-morphhdl$ceil_log2(DEPTH, 1)
+clog2(DEPTH, 1)
 ```
 
 The helper computes mathematical ceiling-log2, then clamps to the supplied
@@ -69,7 +69,7 @@ than `Int.MaxValue`, matching the helper's Verilog `integer` domain.
 The public memory fixture calls that function in its ANSI port range:
 
 ```verilog
-input wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] address
+input wire [(clog2(DEPTH, 1))-1:0] address
 ```
 
 There is no `ADDRESS_WIDTH` public parameter: adding one would let a caller
@@ -106,7 +106,7 @@ identical. `single_port_memory.v` must match its reviewed golden byte for byte.
 The strict gate requires:
 
 - an exact source match for the canonical module-local helper and
-  `morphhdl$ceil_log2(DEPTH, 1)` call;
+  `clog2(DEPTH, 1)` call;
 - a repository-wide rejection of Verilog-2005 `$clog2`, SystemVerilog `$bits`
   and the superseded 31-threshold chain;
 - capability tests for positive signed-32-bit operands and linear nested

@@ -78,17 +78,17 @@ Each module that consumes `CeilLog2` or `AddressWidth` emits exactly one
 module-local helper, regardless of the number of calls:
 
 ```verilog
-function integer morphhdl$ceil_log2;
+function integer clog2;
   input integer value;
   input integer minimum_result;
   integer remaining;
   begin
-    morphhdl$ceil_log2 = 0;
+    clog2 = 0;
     for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
-      morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;
+      clog2 = clog2 + 1;
     end
-    if (morphhdl$ceil_log2 < minimum_result) begin
-      morphhdl$ceil_log2 = minimum_result;
+    if (clog2 < minimum_result) begin
+      clog2 = minimum_result;
     end
   end
 endfunction
@@ -97,23 +97,31 @@ endfunction
 Mathematical ceiling-log2 emits a direct constant-function call:
 
 ```verilog
-localparam integer LANE_INDEX_WIDTH = morphhdl$ceil_log2(LANES, 0);
+localparam integer LANE_INDEX_WIDTH = clog2(LANES, 0);
 ```
 
 Address width adds its distinct one-bit floor:
 
 ```verilog
-morphhdl$ceil_log2(DEPTH, 1)
+clog2(DEPTH, 1)
 ```
 
-The `$` occurs after the first character and is legal in an IEEE simple
-identifier. ParamRTL logical identifiers exclude `$`, so the reserved helper
-name cannot collide with a user parameter, port, local or item. The signed-32
-target capability ceiling prevents a wider operand from reaching the helper.
+`clog2` is the natural name a handwritten Verilog-2001 implementation would
+normally use. Before emission, the backend collects every identifier visible
+in the module. If `clog2` is already occupied, it deterministically selects the
+first free `clog2_1`, `clog2_2`, and so on, and uses that name consistently for
+the declaration and every call in that module. Functions in separate modules
+may safely reuse the same local name. The signed-32 target capability ceiling
+prevents a wider operand from reaching the helper.
 The backend supplies only literal zero or one as `minimum_result`. Encoding the
 floor inside the helper keeps each arbitrary operand expression present once,
 so nested `AddressWidth`/`CeilLog2` compositions grow linearly and require no
 log-specific source-expansion cap.
+
+Increment 27 later renames the backend-private generated helper to the natural
+module-local spelling `clog2`, with deterministic `clog2_1`, `clog2_2`, and so
+on for collisions. This changes generated text, reviewed goldens and hashes,
+but does not change the Scala/ParamRTL API or ceiling-log2 semantics.
 
 The old 31-comparison chain, native `$clog2`, an externally overrideable width
 parameter, generated runtime logic and configuration-specialized module copies

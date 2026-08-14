@@ -74,10 +74,10 @@ one canonical process:
 ```verilog
 always @(posedge clk) begin : p_counter
   if (reset == 1'b1) begin
-    count <= {morphhdl$ceil_log2(LIMIT, 1){1'b0}};
+    count <= {clog2(LIMIT, 1){1'b0}};
   end else if (enable == 1'b1) begin
     if (count == LIMIT - 1) begin
-      count <= {morphhdl$ceil_log2(LIMIT, 1){1'b0}};
+      count <= {clog2(LIMIT, 1){1'b0}};
     end else begin
       count <= count + 1'b1;
     end

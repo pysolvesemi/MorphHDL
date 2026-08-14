@@ -17,25 +17,25 @@ class SynchronousReadFirstSimpleDualPortMemoryEmitterTests extends AnyFunSuite {
         |  parameter integer WIDTH = 8
         |) (
         |  input  wire [0:0] clk,
-        |  input  wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] read_address,
+        |  input  wire [(clog2(DEPTH, 1))-1:0] read_address,
         |  output reg [WIDTH-1:0] read_data,
         |  input  wire [0:0] read_enable,
-        |  input  wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] write_address,
+        |  input  wire [(clog2(DEPTH, 1))-1:0] write_address,
         |  input  wire [WIDTH-1:0] write_data,
         |  input  wire [0:0] write_enable
         |);
         |
-        |  function integer morphhdl$ceil_log2;
+        |  function integer clog2;
         |    input integer value;
         |    input integer minimum_result;
         |    integer remaining;
         |    begin
-        |      morphhdl$ceil_log2 = 0;
+        |      clog2 = 0;
         |      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
-        |        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;
+        |        clog2 = clog2 + 1;
         |      end
-        |      if (morphhdl$ceil_log2 < minimum_result) begin
-        |        morphhdl$ceil_log2 = minimum_result;
+        |      if (clog2 < minimum_result) begin
+        |        clog2 = minimum_result;
         |      end
         |    end
         |  endfunction
@@ -77,8 +77,8 @@ class SynchronousReadFirstSimpleDualPortMemoryEmitterTests extends AnyFunSuite {
 
   test("emits one portable helper definition and two correlated address calls") {
     val verilog = emit(memoryDesign())
-    assert(count(verilog, "function integer morphhdl$ceil_log2;") == 1, verilog)
-    assert(count(verilog, "morphhdl$ceil_log2(DEPTH, 1)") == 2, verilog)
+    assert(count(verilog, "function integer clog2;") == 1, verilog)
+    assert(count(verilog, "clog2(DEPTH, 1)") == 2, verilog)
   }
 
   test("emits capacity-safe overwide addresses without the portable helper") {
@@ -101,7 +101,7 @@ class SynchronousReadFirstSimpleDualPortMemoryEmitterTests extends AnyFunSuite {
 
     assert(verilog.contains("input  wire [3:0] read_address"), verilog)
     assert(verilog.contains("input  wire [3:0] write_address"), verilog)
-    assert(!verilog.contains("morphhdl$ceil_log2"), verilog)
+    assert(!verilog.contains("function integer clog2;"), verilog)
     assert(verilog.contains(canonicalProcess), verilog)
   }
 

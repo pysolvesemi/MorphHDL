@@ -76,6 +76,7 @@ generated_contracts=(
   single_port_memory.v
   parameterized_counter.v
   simple_dual_port_memory.v
+  synchronous_stream_fifo.v
 )
 
 if (( using_reviewed_goldens == 0 )); then
@@ -124,6 +125,7 @@ asynchronous_enabled_register_file="$generated_dir/asynchronous_enabled_register
 single_port_memory_file="$generated_dir/single_port_memory.v"
 parameterized_counter_file="$generated_dir/parameterized_counter.v"
 simple_dual_port_memory_file="$generated_dir/simple_dual_port_memory.v"
+synchronous_stream_fifo_file="$generated_dir/synchronous_stream_fifo.v"
 
 parity_args=("$parity_file")
 for live_phase_id_file in "${live_phase_id_files[@]}"; do
@@ -151,6 +153,7 @@ design_files=(
   "$single_port_memory_file"
   "$parameterized_counter_file"
   "$simple_dual_port_memory_file"
+  "$synchronous_stream_fifo_file"
 )
 
 all_verilog_files=(
@@ -173,6 +176,7 @@ all_verilog_files=(
   "$examples_dir/single_port_memory_tb.v"
   "$examples_dir/parameterized_counter_tb.v"
   "$examples_dir/simple_dual_port_memory_tb.v"
+  "$examples_dir/synchronous_stream_fifo_tb.v"
 )
 
 read_property() {
@@ -212,7 +216,8 @@ require_property parameter.integer_maximum true
 require_property parameter.min_max_expansion_limit 4096
 require_property parameter.ceil_log2 module-local-constant-function-minimum-zero
 require_property parameter.address_width module-local-constant-function-minimum-one
-require_property parameter.log2_helper 'morphhdl$ceil_log2'
+require_property parameter.log2_helper 'clog2'
+require_property parameter.log2_helper_collision deterministic-numeric-suffix
 require_property parameter.log2_operand_domain positive-signed-32
 require_property parameter.log2_helper_runtime_hardware false
 require_property port.conditional_presence false
@@ -266,6 +271,18 @@ require_property memory.simple_dual_port single-clock-1r1w
 require_property memory.simple_dual_port_addresses independent-type-equivalent-capacity-proven
 require_property memory.simultaneous_read_write true
 require_property implementation.synchronous_read_first_simple_dual_port_memory true
+require_property fifo.synchronous_stream single-clock-ready-valid
+require_property fifo.capacity public-depth-includes-registered-pop-stage
+require_property fifo.storage synchronous-read-no-bypass
+require_property fifo.reset active-high-synchronous-control-only
+require_property fifo.full_push reject-even-with-pop-ready
+require_property fifo.empty_pop reject-even-with-push-valid
+require_property fifo.middle_simultaneous_push_pop true
+require_property fifo.occupancy_one_refill one-invalid-cycle
+require_property fifo.stalled_pop valid-and-data-hold
+require_property fifo.memory_initialization false
+require_property fifo.pop_data_when_invalid unspecified
+require_property implementation.synchronous_stream_fifo true
 
 for file in "${all_verilog_files[@]}"; do
   if [[ ! -s "$file" ]]; then
@@ -377,6 +394,8 @@ expected_modules=(
   ParameterizedCounterTb
   SimpleDualPortMemory
   SimpleDualPortMemoryTb
+  SynchronousStreamFifo
+  SynchronousStreamFifoTb
 )
 
 for module_name in "${expected_modules[@]}"; do
@@ -390,17 +409,17 @@ if ! python3 - "${design_files[@]}" <<'PY'
 import pathlib
 import sys
 
-helper = """  function integer morphhdl$ceil_log2;
+helper = """  function integer clog2;
     input integer value;
     input integer minimum_result;
     integer remaining;
     begin
-      morphhdl$ceil_log2 = 0;
+      clog2 = 0;
       for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
-        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;
+        clog2 = clog2 + 1;
       end
-      if (morphhdl$ceil_log2 < minimum_result) begin
-        morphhdl$ceil_log2 = minimum_result;
+      if (clog2 < minimum_result) begin
+        clog2 = minimum_result;
       end
     end
   endfunction"""
@@ -410,6 +429,7 @@ expected_helpers = {
     "single_port_memory.v",
     "parameterized_counter.v",
     "simple_dual_port_memory.v",
+    "synchronous_stream_fifo.v",
 }
 for raw_path in sys.argv[1:]:
     path = pathlib.Path(raw_path)
@@ -417,23 +437,28 @@ for raw_path in sys.argv[1:]:
     if path.name in expected_helpers:
         if source.count(helper) != 1:
             raise SystemExit("missing or duplicate canonical log helper: {}".format(path))
-    elif "morphhdl$ceil_log2" in source:
+    elif "clog2" in source:
         raise SystemExit("unexpected log helper in unrelated module: {}".format(path))
     if "1073741824" in source:
         raise SystemExit("superseded logarithm threshold chain remains: {}".format(path))
 
 derived = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
-memory = pathlib.Path(sys.argv[-3]).read_text(encoding="utf-8")
-counter = pathlib.Path(sys.argv[-2]).read_text(encoding="utf-8")
-simple_dual_port_memory = pathlib.Path(sys.argv[-1]).read_text(encoding="utf-8")
-if derived.count("morphhdl$ceil_log2(LANES, 0)") != 1:
+memory = pathlib.Path(sys.argv[-4]).read_text(encoding="utf-8")
+counter = pathlib.Path(sys.argv[-3]).read_text(encoding="utf-8")
+simple_dual_port_memory = pathlib.Path(sys.argv[-2]).read_text(encoding="utf-8")
+synchronous_stream_fifo = pathlib.Path(sys.argv[-1]).read_text(encoding="utf-8")
+if derived.count("clog2(LANES, 0)") != 1:
     raise SystemExit("DerivedWidth does not call mathematical ceiling-log2 exactly once")
-if memory.count("morphhdl$ceil_log2(DEPTH, 1)") != 1:
+if memory.count("clog2(DEPTH, 1)") != 1:
     raise SystemExit("SinglePortMemory does not call address width exactly once")
-if counter.count("morphhdl$ceil_log2(LIMIT, 1)") != 3:
+if counter.count("clog2(LIMIT, 1)") != 3:
     raise SystemExit("ParameterizedCounter does not use its derived width exactly three times")
-if simple_dual_port_memory.count("morphhdl$ceil_log2(DEPTH, 1)") != 2:
+if simple_dual_port_memory.count("clog2(DEPTH, 1)") != 2:
     raise SystemExit("SimpleDualPortMemory does not derive both address widths exactly once")
+if synchronous_stream_fifo.count("clog2(DEPTH, 1)") != 1:
+    raise SystemExit("SynchronousStreamFifo does not derive pointer width exactly once")
+if synchronous_stream_fifo.count("clog2(DEPTH + 1, 1)") != 1:
+    raise SystemExit("SynchronousStreamFifo does not derive occupancy width exactly once")
 PY
 then
   echo "Constant-function logarithm lowering contract failed" >&2
@@ -447,7 +472,7 @@ fi
 
 if ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+TOTAL_WIDTH[[:space:]]*=[[:space:]]*LANES[[:space:]]*\*[[:space:]]*DATA_WIDTH' "${design_files[1]}" ||
    ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+CLAMPED_PADDING[[:space:]]*=.*DATA_WIDTH[[:space:]]*<[[:space:]]*3.*\?.*DATA_WIDTH.*:.*3' "${design_files[1]}" ||
-   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+LANE_INDEX_WIDTH[[:space:]]*=[[:space:]]*morphhdl\$ceil_log2\([[:space:]]*LANES,[[:space:]]*0[[:space:]]*\)' "${design_files[1]}" ||
+   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+LANE_INDEX_WIDTH[[:space:]]*=[[:space:]]*clog2\([[:space:]]*LANES,[[:space:]]*0[[:space:]]*\)' "${design_files[1]}" ||
    ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+PADDED_WIDTH[[:space:]]*=.*TOTAL_WIDTH[[:space:]]*\+[[:space:]]*CLAMPED_PADDING[[:space:]]*>[[:space:]]*4.*\?.*TOTAL_WIDTH[[:space:]]*\+[[:space:]]*CLAMPED_PADDING.*:.*4.*\+[[:space:]]*LANE_INDEX_WIDTH' "${design_files[1]}"; then
   echo "DerivedWidth does not retain its symbolic Min/Max/CeilLog2 local-parameter expressions" >&2
   exit 1
@@ -649,7 +674,7 @@ if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:spac
   exit 1
 fi
 
-expected_address_port='  input  wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] address,'
+expected_address_port='  input  wire [(clog2(DEPTH, 1))-1:0] address,'
 
 if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+DEPTH[[:space:]]*=[[:space:]]*5' "$single_port_memory_file" ||
    ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:space:]]*8' "$single_port_memory_file" ||
@@ -701,7 +726,7 @@ then
   exit 1
 fi
 
-expected_counter_port='  output reg [(morphhdl$ceil_log2(LIMIT, 1))-1:0] count,'
+expected_counter_port='  output reg [(clog2(LIMIT, 1))-1:0] count,'
 
 if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+LIMIT[[:space:]]*=[[:space:]]*5' "$parameterized_counter_file" ||
    ! grep -Fqx "$expected_counter_port" "$parameterized_counter_file" ||
@@ -712,7 +737,7 @@ if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+LIMIT[[:space:]]*=[[:spac
    ! grep -Eq "if[[:space:]]*\\([[:space:]]*reset[[:space:]]*==[[:space:]]*1'b1[[:space:]]*\\)[[:space:]]*begin" "$parameterized_counter_file" ||
    ! grep -Eq "end[[:space:]]+else[[:space:]]+if[[:space:]]*\\([[:space:]]*enable[[:space:]]*==[[:space:]]*1'b1[[:space:]]*\\)[[:space:]]*begin" "$parameterized_counter_file" ||
    ! grep -Eq 'if[[:space:]]*\([[:space:]]*count[[:space:]]*==[[:space:]]*LIMIT[[:space:]]*-[[:space:]]*1[[:space:]]*\)[[:space:]]*begin' "$parameterized_counter_file" ||
-   [[ "$(grep -Ec "count[[:space:]]*<=[[:space:]]*\\{morphhdl\\\$ceil_log2\\(LIMIT,[[:space:]]*1\\)\\{1'b0\\}\\}[[:space:]]*;" "$parameterized_counter_file")" != "2" ]] ||
+   [[ "$(grep -Ec "count[[:space:]]*<=[[:space:]]*\\{clog2\\(LIMIT,[[:space:]]*1\\)\\{1'b0\\}\\}[[:space:]]*;" "$parameterized_counter_file")" != "2" ]] ||
    ! grep -Eq "count[[:space:]]*<=[[:space:]]*count[[:space:]]*\\+[[:space:]]*1'b1[[:space:]]*;" "$parameterized_counter_file" ||
    [[ "$(grep -Ec 'always[[:space:]]+@\(' "$parameterized_counter_file")" != "1" ]] ||
    [[ "$(grep -Ec 'count[[:space:]]*<=' "$parameterized_counter_file")" != "3" ]] ||
@@ -728,10 +753,10 @@ import sys
 source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
 canonical_process = """  always @(posedge clk) begin : p_counter
     if (reset == 1'b1) begin
-      count <= {morphhdl$ceil_log2(LIMIT, 1){1'b0}};
+      count <= {clog2(LIMIT, 1){1'b0}};
     end else if (enable == 1'b1) begin
       if (count == LIMIT - 1) begin
-        count <= {morphhdl$ceil_log2(LIMIT, 1){1'b0}};
+        count <= {clog2(LIMIT, 1){1'b0}};
       end else begin
         count <= count + 1'b1;
       end
@@ -745,8 +770,8 @@ then
   exit 1
 fi
 
-expected_read_address_port='  input  wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] read_address,'
-expected_write_address_port='  input  wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] write_address,'
+expected_read_address_port='  input  wire [(clog2(DEPTH, 1))-1:0] read_address,'
+expected_write_address_port='  input  wire [(clog2(DEPTH, 1))-1:0] write_address,'
 
 if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+DEPTH[[:space:]]*=[[:space:]]*5' "$simple_dual_port_memory_file" ||
    ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:space:]]*8' "$simple_dual_port_memory_file" ||
@@ -801,6 +826,74 @@ then
   exit 1
 fi
 
+if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+DEPTH[[:space:]]*=[[:space:]]*5' "$synchronous_stream_fifo_file" ||
+   ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:space:]]*8' "$synchronous_stream_fifo_file" ||
+   ! grep -Fqx '  localparam integer POINTER_WIDTH = clog2(DEPTH, 1);' "$synchronous_stream_fifo_file" ||
+   ! grep -Fqx '  localparam integer OCCUPANCY_WIDTH = clog2(DEPTH + 1, 1);' "$synchronous_stream_fifo_file" ||
+   ! grep -Fqx '  reg [WIDTH-1:0] memory [0:DEPTH-1];' "$synchronous_stream_fifo_file" ||
+   ! grep -Fqx '  reg [POINTER_WIDTH-1:0] read_pointer;' "$synchronous_stream_fifo_file" ||
+   ! grep -Fqx '  reg [POINTER_WIDTH-1:0] write_pointer;' "$synchronous_stream_fifo_file" ||
+   ! grep -Fqx '  reg [OCCUPANCY_WIDTH-1:0] occupancy;' "$synchronous_stream_fifo_file" ||
+   ! grep -Fqx '  assign push_ready = occupancy < DEPTH;' "$synchronous_stream_fifo_file" ||
+   ! grep -Fqx '  assign push_fire = push_valid && push_ready;' "$synchronous_stream_fifo_file" ||
+   ! grep -Fqx '  assign pop_fire = pop_valid && pop_ready;' "$synchronous_stream_fifo_file" ||
+   [[ "$(grep -Ec 'always[[:space:]]+@\(' "$synchronous_stream_fifo_file")" != "1" ]] ||
+   grep -Eq 'always_comb|always_ff|always_latch|always[[:space:]]+@\*|negedge|initial[[:space:]]+begin' "$synchronous_stream_fifo_file"; then
+  echo "SynchronousStreamFifo does not retain its exact bounded synchronous ready/valid state" >&2
+  exit 1
+fi
+
+if ! python3 - "$synchronous_stream_fifo_file" <<'PY'
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+canonical_process = """  always @(posedge clk) begin : p_fifo
+    if (reset == 1'b1) begin
+      read_pointer <= {POINTER_WIDTH{1'b0}};
+      write_pointer <= {POINTER_WIDTH{1'b0}};
+      occupancy <= {OCCUPANCY_WIDTH{1'b0}};
+      pop_valid <= 1'b0;
+    end else begin
+      if ((pop_valid == 1'b0 && occupancy > 0) || (pop_fire == 1'b1 && occupancy > 1)) begin
+        pop_data <= memory[read_pointer];
+        pop_valid <= 1'b1;
+        if (read_pointer == DEPTH - 1) begin
+          read_pointer <= {POINTER_WIDTH{1'b0}};
+        end else begin
+          read_pointer <= read_pointer + 1'b1;
+        end
+      end else if (pop_fire == 1'b1) begin
+        pop_valid <= 1'b0;
+      end
+      if (push_fire == 1'b1) begin
+        memory[write_pointer] <= push_data;
+        if (write_pointer == DEPTH - 1) begin
+          write_pointer <= {POINTER_WIDTH{1'b0}};
+        end else begin
+          write_pointer <= write_pointer + 1'b1;
+        end
+      end
+      if (push_fire != pop_fire) begin
+        if (push_fire == 1'b1) begin
+          occupancy <= occupancy + 1'b1;
+        end else begin
+          occupancy <= occupancy - 1'b1;
+        end
+      end
+    end
+  end"""
+if source.count(canonical_process) != 1:
+    raise SystemExit("missing exact synchronous Stream FIFO process")
+reset_body = source.split("if (reset == 1'b1) begin", 1)[1].split("end else begin", 1)[0]
+if "pop_data" in reset_body or "memory" in reset_body:
+    raise SystemExit("FIFO reset illegally initializes payload or memory")
+PY
+then
+  echo "SynchronousStreamFifo process is not canonical" >&2
+  exit 1
+fi
+
 missing_tools=()
 for tool in iverilog verilator vvp yosys; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -844,6 +937,7 @@ cp "$asynchronous_enabled_register_file" "$tmp_dir/asynchronous_enabled_register
 cp "$single_port_memory_file" "$tmp_dir/single_port_memory.v"
 cp "$parameterized_counter_file" "$tmp_dir/parameterized_counter.v"
 cp "$simple_dual_port_memory_file" "$tmp_dir/simple_dual_port_memory.v"
+cp "$synchronous_stream_fifo_file" "$tmp_dir/synchronous_stream_fifo.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
 yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
@@ -862,6 +956,7 @@ yosys_asynchronous_enabled_register_file="$tmp_dir/asynchronous_enabled_register
 yosys_single_port_memory_file="$tmp_dir/single_port_memory.v"
 yosys_parameterized_counter_file="$tmp_dir/parameterized_counter.v"
 yosys_simple_dual_port_memory_file="$tmp_dir/simple_dual_port_memory.v"
+yosys_synchronous_stream_fifo_file="$tmp_dir/synchronous_stream_fifo.v"
 
 echo "Verilator: $(verilator --version)"
 echo "Icarus: $(iverilog -V 2>/dev/null | head -n 1)"
@@ -877,6 +972,8 @@ do
   yosys -q -p \
     "read_verilog -noautowire $helper_file; hierarchy -check -top $helper_top; select -assert-none t:\$shr t:\$sshr t:\$shift t:\$shiftx t:\$add"
 done
+yosys -q -p \
+  "read_verilog -noautowire $yosys_synchronous_stream_fifo_file; hierarchy -check -top SynchronousStreamFifo; proc; opt; select -assert-none t:\$shr t:\$sshr t:\$shift t:\$shiftx"
 yosys -q -p \
   "read_verilog -noautowire $yosys_parameterized_counter_file; hierarchy -check -top ParameterizedCounter; proc; opt; select -assert-none t:\$shr t:\$sshr t:\$shift t:\$shiftx"
 echo "Yosys constant-function logarithm helpers create no runtime shift cells"
@@ -1237,6 +1334,23 @@ verilator --lint-only --language 1364-2001 -Wall \
   -GDEPTH=8 -GWIDTH=4 \
   "$simple_dual_port_memory_file"
 
+for fifo_shape in "5 8" "3 5" "1 1" "8 4"; do
+  fifo_depth="${fifo_shape%% *}"
+  fifo_width="${fifo_shape##* }"
+  fifo_lint_extra=()
+  if [[ "$fifo_depth" == "1" ]]; then
+    fifo_lint_extra=(-Wno-CMPCONST)
+  fi
+  verilator --lint-only --language 1364-2001 -Wall \
+    -Wno-DECLFILENAME \
+    -Wno-WIDTHEXPAND \
+    -Wno-WIDTHTRUNC \
+    "${fifo_lint_extra[@]}" \
+    --top-module SynchronousStreamFifo \
+    -GDEPTH="$fifo_depth" -GWIDTH="$fifo_width" \
+    "$synchronous_stream_fifo_file"
+done
+
 for counter_limit in 1 2 3 5 8; do
   verilator --lint-only --language 1364-2001 -Wall \
     -Wno-DECLFILENAME \
@@ -1445,6 +1559,17 @@ if ! printf '%s\n' "$simple_dual_port_memory_output" | grep -q 'PASS: SimpleDual
   exit 1
 fi
 
+iverilog -g2001 -Wall -s SynchronousStreamFifoTb \
+  -o "$tmp_dir/synchronous_stream_fifo.vvp" \
+  "$synchronous_stream_fifo_file" \
+  "$examples_dir/synchronous_stream_fifo_tb.v"
+synchronous_stream_fifo_output="$(vvp "$tmp_dir/synchronous_stream_fifo.vvp")"
+echo "$synchronous_stream_fifo_output"
+if ! printf '%s\n' "$synchronous_stream_fifo_output" | grep -q 'PASS: SynchronousStreamFifo'; then
+  echo "SynchronousStreamFifo simulation did not report PASS" >&2
+  exit 1
+fi
+
 yosys_synthesize_and_check() {
   local input_file="$1"
   local module_name="$2"
@@ -1543,8 +1668,8 @@ expect_derived_width_mutation_rejected max-specialized 4 \
   '  localparam integer PADDED_WIDTH = 37;'
 
 expect_derived_width_mutation_rejected ceil-helper-initialization 37 "" \
-  '      morphhdl$ceil_log2 = 0;' \
-  '      morphhdl$ceil_log2 = 1;'
+  '      clog2 = 0;' \
+  '      clog2 = 1;'
 expect_derived_width_mutation_rejected ceil-helper-input-declaration 37 "" \
   '    input integer value;' \
   '    input [0:0] value;'
@@ -1558,18 +1683,18 @@ expect_derived_width_mutation_rejected ceil-helper-shift 37 "" \
   '      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin' \
   '      for (remaining = value - 1; remaining > 0; remaining = remaining >> 2) begin'
 expect_derived_width_mutation_rejected ceil-helper-increment 37 "" \
-  '        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;' \
-  '        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 2;'
+  '        clog2 = clog2 + 1;' \
+  '        clog2 = clog2 + 2;'
 expect_derived_width_mutation_rejected ceil-helper-clamp-comparator 37 "" \
-  '      if (morphhdl$ceil_log2 < minimum_result) begin' \
-  '      if (morphhdl$ceil_log2 > minimum_result) begin'
+  '      if (clog2 < minimum_result) begin' \
+  '      if (clog2 > minimum_result) begin'
 expect_derived_width_mutation_rejected ceil-zero-boundary 4 \
   "chparam -set DATA_WIDTH 1 -set LANES 1 DerivedWidth;" \
-  'morphhdl$ceil_log2(LANES, 0)' \
-  'morphhdl$ceil_log2(LANES, 1)'
+  'clog2(LANES, 0)' \
+  'clog2(LANES, 1)'
 expect_derived_width_mutation_rejected ceil-default-specialization 7 \
   "chparam -set DATA_WIDTH 2 -set LANES 2 DerivedWidth;" \
-  'morphhdl$ceil_log2(LANES, 0)' \
+  'clog2(LANES, 0)' \
   '2'
 
 yosys_synthesize_and_check \
@@ -2080,7 +2205,7 @@ yosys_parameterized_counter_mutation_must_fail \
 yosys_parameterized_counter_mutation_must_fail \
   falling-edge-clock 's/posedge clk/negedge clk/'
 yosys_parameterized_counter_mutation_must_fail \
-  reset-to-ones "s/{morphhdl\\\$ceil_log2(LIMIT, 1){1'b0}}/{morphhdl\\\$ceil_log2(LIMIT, 1){1'b1}}/"
+  reset-to-ones "s/{clog2(LIMIT, 1){1'b0}}/{clog2(LIMIT, 1){1'b1}}/"
 
 yosys_single_port_memory_synthesize_and_check() {
   local label="$1"
@@ -2480,17 +2605,17 @@ PY
 }
 
 expect_single_port_memory_address_mutation_rejected address-minimum-zero 1 1 \
-  'morphhdl$ceil_log2(DEPTH, 1)' \
-  'morphhdl$ceil_log2(DEPTH, 0)'
+  'clog2(DEPTH, 1)' \
+  'clog2(DEPTH, 0)'
 expect_single_port_memory_address_mutation_rejected address-minimum-two 1 1 \
-  'morphhdl$ceil_log2(DEPTH, 1)' \
-  'morphhdl$ceil_log2(DEPTH, 2)'
+  'clog2(DEPTH, 1)' \
+  'clog2(DEPTH, 2)'
 expect_single_port_memory_address_mutation_rejected address-specialized-default 3 2 \
-  'morphhdl$ceil_log2(DEPTH, 1)' \
+  'clog2(DEPTH, 1)' \
   '3'
 expect_single_port_memory_address_mutation_rejected address-clamp-assignment 1 1 \
-  '        morphhdl$ceil_log2 = minimum_result;' \
-  '        morphhdl$ceil_log2 = 0;'
+  '        clog2 = minimum_result;' \
+  '        clog2 = 0;'
 
 yosys_single_port_memory_mutation_must_fail \
   write-first-bypass "s/read_data <= memory\[address\];/read_data <= write_enable == 1'b1 ? write_data : memory[address];/"
@@ -3035,7 +3160,7 @@ simple_dual_port_memory_fixed_address_mutation_must_fail() {
   local role="$1"
   local mutated_file="$tmp_dir/simple-dual-port-memory-fixed-${role}.v"
   local mutated_netlist="$tmp_dir/SimpleDualPortMemory-fixed-${role}.json"
-  local original="[(morphhdl\$ceil_log2(DEPTH, 1))-1:0] ${role}_address"
+  local original="[(clog2(DEPTH, 1))-1:0] ${role}_address"
   local replacement="[2:0] ${role}_address"
 
   python3 - "$yosys_simple_dual_port_memory_file" "$mutated_file" \
@@ -3061,5 +3186,377 @@ PY
 
 simple_dual_port_memory_fixed_address_mutation_must_fail read
 simple_dual_port_memory_fixed_address_mutation_must_fail write
+
+yosys_synchronous_stream_fifo_synthesize_and_check() {
+  local label="$1"
+  local expected_width="$2"
+  local expected_depth="$3"
+  local parameter_command="$4"
+  local process_netlist="$tmp_dir/SynchronousStreamFifo-${label}-process.json"
+  local synthesized_netlist="$tmp_dir/SynchronousStreamFifo-${label}-synthesized.json"
+
+  yosys -q -p \
+    "read_verilog -noautowire $yosys_synchronous_stream_fifo_file; $parameter_command hierarchy -check -top SynchronousStreamFifo; proc; opt -mux_undef; memory_dff; opt_merge; memory_collect; opt_clean; check -assert; write_json $process_netlist; synth -top SynchronousStreamFifo; check -assert; write_json $synthesized_netlist"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-synchronous-stream-fifo-contract.py" \
+    "$process_netlist" --source "$yosys_synchronous_stream_fifo_file" \
+    --width "$expected_width" --depth "$expected_depth"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$synthesized_netlist" SynchronousStreamFifo \
+    --port "clk:input:1" \
+    --port "pop_data:output:$expected_width" \
+    --port "pop_ready:input:1" \
+    --port "pop_valid:output:1" \
+    --port "push_data:input:$expected_width" \
+    --port "push_ready:output:1" \
+    --port "push_valid:input:1" \
+    --port "reset:input:1"
+}
+
+yosys_synchronous_stream_fifo_synthesize_and_check default 8 5 ""
+yosys_synchronous_stream_fifo_synthesize_and_check \
+  awkward 5 3 "chparam -set DEPTH 3 -set WIDTH 5 SynchronousStreamFifo;"
+yosys_synchronous_stream_fifo_synthesize_and_check \
+  minimum 1 1 "chparam -set DEPTH 1 -set WIDTH 1 SynchronousStreamFifo;"
+yosys_synchronous_stream_fifo_synthesize_and_check \
+  power-eight 4 8 "chparam -set DEPTH 8 -set WIDTH 4 SynchronousStreamFifo;"
+
+yosys_synchronous_stream_fifo_mutation_must_fail() {
+  local label="$1"
+  local original="$2"
+  local replacement="$3"
+  local expected_count="$4"
+  local mutated_file="$tmp_dir/synchronous-stream-fifo-${label}.v"
+  local mutated_netlist="$tmp_dir/SynchronousStreamFifo-${label}-mutated.json"
+
+  python3 - "$yosys_synchronous_stream_fifo_file" "$mutated_file" \
+      "$original" "$replacement" "$expected_count" <<'PY'
+import pathlib
+import sys
+
+source_path, target_path, original, replacement, expected_count = sys.argv[1:]
+source = pathlib.Path(source_path).read_text(encoding="utf-8")
+expected = int(expected_count)
+actual = source.count(original)
+if actual != expected:
+    raise SystemExit(
+        "mutation source count for {!r} is {}, expected {}".format(
+            original, actual, expected
+        )
+    )
+pathlib.Path(target_path).write_text(
+    source.replace(original, replacement), encoding="utf-8"
+)
+PY
+
+  if cmp -s "$yosys_synchronous_stream_fifo_file" "$mutated_file"; then
+    echo "SynchronousStreamFifo mutation did not change the fixture: $label" >&2
+    exit 1
+  fi
+  if ! yosys -q -p \
+      "read_verilog -noautowire $mutated_file; hierarchy -check -top SynchronousStreamFifo; proc; opt -mux_undef; memory_dff; opt_merge; memory_collect; opt_clean; check -assert; write_json $mutated_netlist"; then
+    echo "Yosys rejected forbidden SynchronousStreamFifo mutation during synthesis: $label"
+    return
+  fi
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-synchronous-stream-fifo-contract.py" \
+      "$mutated_netlist" --source "$mutated_file" --width 8 --depth 5; then
+    echo "SynchronousStreamFifo checker accepted forbidden mutation: $label" >&2
+    exit 1
+  fi
+  echo "Yosys SynchronousStreamFifo rejected forbidden mutation: $label"
+}
+
+yosys_synchronous_stream_fifo_mutation_must_fail \
+  wrong-capacity-ready \
+  'assign push_ready = occupancy < DEPTH;' \
+  'assign push_ready = occupancy <= DEPTH;' 1
+yosys_synchronous_stream_fifo_mutation_must_fail \
+  full-pop-replacement \
+  'assign push_ready = occupancy < DEPTH;' \
+  'assign push_ready = occupancy < DEPTH || pop_fire;' 1
+yosys_synchronous_stream_fifo_mutation_must_fail \
+  empty-fall-through \
+  "pop_valid == 1'b0 && occupancy > 0" \
+  "pop_valid == 1'b0 && occupancy >= 0" 1
+yosys_synchronous_stream_fifo_mutation_must_fail \
+  occupancy-one-no-bubble \
+  "pop_fire == 1'b1 && occupancy > 1" \
+  "pop_fire == 1'b1 && occupancy > 0" 1
+yosys_synchronous_stream_fifo_mutation_must_fail \
+  falling-edge-clock \
+  'always @(posedge clk) begin : p_fifo' \
+  'always @(negedge clk) begin : p_fifo' 1
+yosys_synchronous_stream_fifo_mutation_must_fail \
+  active-low-reset \
+  "if (reset == 1'b1) begin" \
+  "if (reset == 1'b0) begin" 1
+yosys_synchronous_stream_fifo_mutation_must_fail \
+  partial-write \
+  'memory[write_pointer] <= push_data;' \
+  'memory[write_pointer][0] <= push_data[0];' 1
+yosys_synchronous_stream_fifo_mutation_must_fail \
+  wrong-pointer-wrap \
+  'if (write_pointer == DEPTH - 1) begin' \
+  'if (write_pointer == DEPTH) begin' 1
+yosys_synchronous_stream_fifo_mutation_must_fail \
+  decrement-on-push \
+  "occupancy <= occupancy + 1'b1;" \
+  "occupancy <= occupancy - 1'b1;" 1
+yosys_synchronous_stream_fifo_mutation_must_fail \
+  payload-reset \
+  $'      occupancy <= {OCCUPANCY_WIDTH{1\'b0}};\n      pop_valid <= 1\'b0;' \
+  $'      occupancy <= {OCCUPANCY_WIDTH{1\'b0}};\n      pop_valid <= 1\'b0;\n      pop_data <= {WIDTH{1\'b0}};' 1
+yosys_synchronous_stream_fifo_mutation_must_fail \
+  fixed-pointer-width \
+  'localparam integer POINTER_WIDTH = clog2(DEPTH, 1);' \
+  'localparam integer POINTER_WIDTH = 3;' 1
+yosys_synchronous_stream_fifo_mutation_must_fail \
+  extra-storage-slot \
+  'reg [WIDTH-1:0] memory [0:DEPTH-1];' \
+  'reg [WIDTH-1:0] memory [0:DEPTH];' 1
+
+yosys_synchronous_stream_fifo_json_mutation_must_fail() {
+  local label="$1"
+  local mutation="$2"
+  local canonical_netlist="$tmp_dir/SynchronousStreamFifo-default-process.json"
+  local mutated_netlist="$tmp_dir/SynchronousStreamFifo-${label}-json-mutated.json"
+
+  python3 - "$canonical_netlist" "$mutated_netlist" "$mutation" <<'PY'
+import json
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1])
+destination = pathlib.Path(sys.argv[2])
+mutation = sys.argv[3]
+netlist = json.loads(source.read_text(encoding="utf-8"))
+top = netlist.get("modules", {}).get("SynchronousStreamFifo")
+if top is None:
+    raise SystemExit("canonical JSON is missing SynchronousStreamFifo")
+memories = [
+    cell for cell in top.get("cells", {}).values() if cell.get("type") == "$mem_v2"
+]
+if len(memories) != 1:
+    raise SystemExit("canonical JSON does not contain exactly one $mem_v2")
+memory = memories[0]
+parameters = memory.get("parameters", {})
+connections = memory.get("connections", {})
+
+def set_encoded(container, name, expected, replacement):
+    value = container.get(name)
+    if isinstance(value, int):
+        actual = value
+        encoded = replacement
+    elif isinstance(value, str) and value and set(value) <= {"0", "1"}:
+        actual = int(value, 2)
+        encoded = format(replacement, "0{}b".format(len(value)))
+    else:
+        raise SystemExit("unsupported parameter encoding for " + name + ": " + repr(value))
+    if actual != expected:
+        raise SystemExit("canonical parameter {} is {}, expected {}".format(name, actual, expected))
+    container[name] = encoded
+
+def set_integer(name, expected, replacement):
+    set_encoded(parameters, name, expected, replacement)
+
+def exact_state_driver(state_name):
+    state = top.get("netnames", {}).get(state_name, {}).get("bits", [])
+    matches = [
+        cell
+        for cell in top.get("cells", {}).values()
+        if cell.get("connections", {}).get("Q") == state
+    ]
+    if len(matches) != 1:
+        raise SystemExit(
+            "canonical JSON lacks one {} state driver".format(state_name)
+        )
+    return matches[0]
+
+def reset_inverter_output():
+    reset = top.get("ports", {}).get("reset", {}).get("bits", [])
+    matches = [
+        cell.get("connections", {}).get("Y", [])
+        for cell in top.get("cells", {}).values()
+        if cell.get("type") == "$not"
+        and cell.get("connections", {}).get("A") == reset
+        and len(cell.get("connections", {}).get("Y", [])) == 1
+    ]
+    if len(matches) != 1:
+        raise SystemExit("canonical JSON lacks one reset inverter")
+    return matches[0]
+
+if mutation == "initialized-memory":
+    value = parameters.get("INIT")
+    if not isinstance(value, str) or set(value.lower()) != {"x"}:
+        raise SystemExit("canonical INIT is not wholly uninitialized")
+    parameters["INIT"] = "0" * len(value)
+elif mutation == "extra-storage-slot":
+    set_integer("SIZE", 5, 6)
+elif mutation == "falling-write-clock":
+    set_integer("WR_CLK_POLARITY", 1, 0)
+elif mutation == "payload-width-drift":
+    set_integer("WIDTH", 8, 7)
+elif mutation == "reset-memory":
+    reset = top.get("ports", {}).get("reset", {}).get("bits", [])
+    if len(reset) != 1:
+        raise SystemExit("canonical reset port is not one bit")
+    connections["RD_SRST"] = list(reset)
+elif mutation == "asynchronous-read":
+    set_integer("RD_CLK_ENABLE", 1, 0)
+elif mutation == "falling-read-clock":
+    set_integer("RD_CLK_POLARITY", 1, 0)
+elif mutation == "contaminated-read-clock":
+    push_valid = top.get("ports", {}).get("push_valid", {}).get("bits", [])
+    if len(push_valid) != 1:
+        raise SystemExit("canonical push_valid port is not one bit")
+    connections["RD_CLK"] = list(push_valid)
+elif mutation == "disconnected-read-data":
+    connections["RD_DATA"] = ["0"] * len(connections.get("RD_DATA", []))
+elif mutation == "constant-read-enable":
+    connections["RD_EN"] = ["0"]
+elif mutation == "contaminated-read-enable":
+    push_valid = top.get("ports", {}).get("push_valid", {}).get("bits", [])
+    if len(push_valid) != 1:
+        raise SystemExit("canonical push_valid port is not one bit")
+    connections["RD_EN"] = list(push_valid)
+elif mutation == "contaminated-write-enable":
+    pop_fire = top.get("netnames", {}).get("pop_fire", {}).get("bits", [])
+    if len(pop_fire) != 1:
+        raise SystemExit("canonical pop_fire net is not one bit")
+    connections["WR_EN"] = pop_fire * len(connections.get("WR_EN", []))
+elif mutation == "ungated-write-enable":
+    push_fire = top.get("netnames", {}).get("push_fire", {}).get("bits", [])
+    if len(push_fire) != 1:
+        raise SystemExit("canonical push_fire net is not one bit")
+    connections["WR_EN"] = push_fire * len(connections.get("WR_EN", []))
+elif mutation == "inverted-write-reset":
+    write_enable = connections.get("WR_EN", [])
+    if not write_enable or any(bit != write_enable[0] for bit in write_enable):
+        raise SystemExit("canonical WR_EN is not one replicated signal")
+    drivers = [
+        cell
+        for cell in top.get("cells", {}).values()
+        if cell.get("connections", {}).get("Y") == [write_enable[0]]
+    ]
+    if len(drivers) != 1 or drivers[0].get("type") != "$mux":
+        raise SystemExit("canonical WR_EN lacks one reset guard mux")
+    drivers[0]["connections"]["S"] = reset_inverter_output()
+elif mutation == "inverted-read-reset":
+    read_enable = connections.get("RD_EN", [])
+    drivers = [
+        cell
+        for cell in top.get("cells", {}).values()
+        if cell.get("connections", {}).get("Y") == read_enable
+    ]
+    if len(drivers) != 1 or drivers[0].get("type") != "$reduce_and":
+        raise SystemExit("canonical RD_EN lacks one fetch/reset conjunction")
+    inactive_reset = reset_inverter_output()[0]
+    active_reset = top.get("ports", {}).get("reset", {}).get("bits", [])
+    inputs = drivers[0].get("connections", {}).get("A", [])
+    if inputs.count(inactive_reset) != 1 or len(active_reset) != 1:
+        raise SystemExit("canonical RD_EN does not contain one inverted reset")
+    drivers[0]["connections"]["A"] = [
+        active_reset[0] if bit == inactive_reset else bit for bit in inputs
+    ]
+elif mutation in {
+    "state-reset-connection",
+    "state-reset-polarity",
+    "state-reset-value",
+    "state-enable-over-reset",
+}:
+    state = exact_state_driver("occupancy")
+    state_parameters = state.get("parameters", {})
+    state_connections = state.get("connections", {})
+    if mutation == "state-reset-connection":
+        push_valid = top.get("ports", {}).get("push_valid", {}).get("bits", [])
+        if len(push_valid) != 1:
+            raise SystemExit("canonical push_valid port is not one bit")
+        state_connections["SRST"] = list(push_valid)
+    elif mutation == "state-reset-polarity":
+        set_encoded(state_parameters, "SRST_POLARITY", 1, 0)
+    elif mutation == "state-reset-value":
+        value = state_parameters.get("SRST_VALUE")
+        if not isinstance(value, str) or not value or set(value) != {"0"}:
+            raise SystemExit("canonical occupancy reset value is not all zero")
+        state_parameters["SRST_VALUE"] = "1" + value[1:]
+    else:
+        if state.get("type") != "$sdffe":
+            raise SystemExit("canonical occupancy state is not $sdffe")
+        state["type"] = "$sdffce"
+elif mutation in {"signed-ready-comparator", "short-ready-comparator"}:
+    ready = top.get("ports", {}).get("push_ready", {}).get("bits", [])
+    comparators = [
+        cell
+        for cell in top.get("cells", {}).values()
+        if cell.get("type") == "$lt"
+        and cell.get("connections", {}).get("Y") == ready
+    ]
+    if len(comparators) != 1:
+        raise SystemExit("canonical JSON lacks one ready comparator")
+    comparator_parameters = comparators[0].get("parameters", {})
+    if mutation == "signed-ready-comparator":
+        set_encoded(comparator_parameters, "A_SIGNED", 0, 1)
+    else:
+        set_encoded(comparator_parameters, "A_WIDTH", 3, 2)
+else:
+    raise SystemExit("unknown FIFO JSON mutation: " + mutation)
+
+destination.write_text(json.dumps(netlist, indent=2) + "\n", encoding="utf-8")
+PY
+
+  if cmp -s "$canonical_netlist" "$mutated_netlist"; then
+    echo "SynchronousStreamFifo JSON mutation did not change the netlist: $label" >&2
+    exit 1
+  fi
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-synchronous-stream-fifo-contract.py" \
+      "$mutated_netlist" --source "$yosys_synchronous_stream_fifo_file" \
+      --width 8 --depth 5; then
+    echo "SynchronousStreamFifo checker accepted forbidden JSON mutation: $label" >&2
+    exit 1
+  fi
+  echo "Yosys SynchronousStreamFifo checker rejected forbidden JSON mutation: $label"
+}
+
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  initialized-memory initialized-memory
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  extra-storage-slot extra-storage-slot
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  falling-write-clock falling-write-clock
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  payload-width-drift payload-width-drift
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  reset-memory reset-memory
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  asynchronous-read asynchronous-read
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  falling-read-clock falling-read-clock
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  contaminated-read-clock contaminated-read-clock
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  disconnected-read-data disconnected-read-data
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  constant-read-enable constant-read-enable
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  contaminated-read-enable contaminated-read-enable
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  contaminated-write-enable contaminated-write-enable
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  ungated-write-enable ungated-write-enable
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  inverted-write-reset inverted-write-reset
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  inverted-read-reset inverted-read-reset
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  state-reset-connection state-reset-connection
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  state-reset-polarity state-reset-polarity
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  state-reset-value state-reset-value
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  state-enable-over-reset state-enable-over-reset
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  signed-ready-comparator signed-ready-comparator
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  short-ready-comparator short-ready-comparator
 
 echo "Strict Verilog-2001 contract checks passed"
