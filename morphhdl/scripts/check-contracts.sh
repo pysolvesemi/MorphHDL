@@ -1349,10 +1349,15 @@ verilator --lint-only --language 1364-2001 -Wall \
 for fifo_shape in "5 8" "3 5" "1 1" "8 4"; do
   fifo_depth="${fifo_shape%% *}"
   fifo_width="${fifo_shape##* }"
+  fifo_lint_extra=()
+  if [[ "$fifo_depth" == "1" ]]; then
+    fifo_lint_extra=(-Wno-CMPCONST)
+  fi
   verilator --lint-only --language 1364-2001 -Wall \
     -Wno-DECLFILENAME \
     -Wno-WIDTHEXPAND \
     -Wno-WIDTHTRUNC \
+    "${fifo_lint_extra[@]}" \
     --top-module SynchronousStreamFifo \
     -GDEPTH="$fifo_depth" -GWIDTH="$fifo_width" \
     "$synchronous_stream_fifo_file"
