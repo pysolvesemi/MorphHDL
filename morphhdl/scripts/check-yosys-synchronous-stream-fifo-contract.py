@@ -89,7 +89,6 @@ def require_source_contract(path):
         "if (occupancy > 0) begin",
         "end else if (pop_fire == 1'b1) begin",
         "if (occupancy > 1) begin",
-        "if (read_pointer == DEPTH - 1) begin",
         "if (push_fire != pop_fire) begin",
         "occupancy <= occupancy + 1'b1;",
         "occupancy <= occupancy - 1'b1;",
@@ -101,10 +100,16 @@ def require_source_contract(path):
             )
     if source.count("pop_data <= memory[read_pointer];") != 2:
         return "source does not contain exactly two mutually exclusive registered reads"
-    if source.count("read_pointer <= {POINTER_WIDTH{1'b0}};") != 1:
-        return "source reset does not clear read_pointer exactly once"
-    if source.count("write_pointer <= {POINTER_WIDTH{1'b0}};") != 1:
-        return "source reset does not clear write_pointer exactly once"
+    if source.count("if (read_pointer == DEPTH - 1) begin") != 2:
+        return "source does not contain exactly two mutually exclusive read-pointer wrap tests"
+    if source.count("read_pointer <= {POINTER_WIDTH{1'b0}};") != 3:
+        return "source does not contain exactly reset plus two read-pointer wrap clears"
+    if source.count("read_pointer <= read_pointer + 1'b1;") != 2:
+        return "source does not contain exactly two mutually exclusive read-pointer increments"
+    if source.count("write_pointer <= {POINTER_WIDTH{1'b0}};") != 2:
+        return "source does not contain exactly reset plus one write-pointer wrap clear"
+    if source.count("write_pointer <= write_pointer + 1'b1;") != 1:
+        return "source does not contain exactly one write-pointer increment"
     if source.count("occupancy <= {OCCUPANCY_WIDTH{1'b0}};") != 1:
         return "source reset does not clear occupancy exactly once"
     if source.count("pop_valid <= 1'b0;") != 2:
@@ -119,6 +124,16 @@ def require_source_contract(path):
         )[0]
     except IndexError:
         return "source reset branch is not canonical"
+    for assignment in (
+        "read_pointer <= {POINTER_WIDTH{1'b0}};",
+        "write_pointer <= {POINTER_WIDTH{1'b0}};",
+        "occupancy <= {OCCUPANCY_WIDTH{1'b0}};",
+        "pop_valid <= 1'b0;",
+    ):
+        if reset_body.count(assignment) != 1:
+            return "source reset branch does not contain exactly one {!r}".format(
+                assignment
+            )
     if "memory" in reset_body or "pop_data" in reset_body:
         return "source reset initializes payload storage"
     return None
