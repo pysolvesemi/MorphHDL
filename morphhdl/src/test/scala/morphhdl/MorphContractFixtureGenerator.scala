@@ -4,7 +4,7 @@ import java.nio.file.{Files, Path, Paths}
 
 import spinal.core.{ClockDomainConfig, Component, HIGH, RISING, SYNC, SpinalConfig}
 
-/** CLI dispatch for the nineteen public-entry-point contract fixtures. */
+/** CLI dispatch for the twenty public-entry-point contract fixtures. */
 object MorphContractFixtureGenerator {
   private final case class Options(outputDirectory: Path, reverseConstructionOrder: Boolean)
 
@@ -35,7 +35,11 @@ object MorphContractFixtureGenerator {
     Fixture("single_port_memory.v", SinglePortMemoryContractFixture.program),
     Fixture("parameterized_counter.v", ParameterizedCounterContractFixture.program),
     Fixture("simple_dual_port_memory.v", SimpleDualPortMemoryContractFixture.program),
-    Fixture("synchronous_stream_fifo.v", SynchronousStreamFifoContractFixture.program)
+    Fixture("synchronous_stream_fifo.v", SynchronousStreamFifoContractFixture.program),
+    Fixture(
+      "synchronous_stream_m2s_pipe.v",
+      SynchronousStreamM2sPipeContractFixture.program
+    )
   )
 
   def main(args: Array[String]): Unit = {
@@ -44,7 +48,10 @@ object MorphContractFixtureGenerator {
 
     fixtures.foreach { fixture =>
       val config =
-        if (fixture.filename == "synchronous_stream_fifo.v")
+        if (
+          fixture.filename == "synchronous_stream_fifo.v" ||
+          fixture.filename == "synchronous_stream_m2s_pipe.v"
+        )
           SpinalConfig(
             targetDirectory = options.outputDirectory.toString,
             defaultConfigForClockDomains = ClockDomainConfig(

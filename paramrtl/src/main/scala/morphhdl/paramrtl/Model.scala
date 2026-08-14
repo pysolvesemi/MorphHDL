@@ -205,6 +205,18 @@ object ModuleItem {
       elementType: PackedBits,
       depth: IntExpr
   ) extends ModuleItem
+  final case class SynchronousStreamM2sPipe(
+      label: String,
+      clock: RtlExpr.Ref,
+      reset: RtlExpr.Ref,
+      pushValid: RtlExpr.Ref,
+      pushReady: RtlExpr.Ref,
+      pushData: RtlExpr.Ref,
+      popValid: RtlExpr.Ref,
+      popReady: RtlExpr.Ref,
+      popData: RtlExpr.Ref,
+      elementType: PackedBits
+  ) extends ModuleItem
 }
 
 final case class ModuleDef(

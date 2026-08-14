@@ -29,8 +29,9 @@ first parameterized-Verilog release, not implemented in Increment 1.
 | Ports | Scalar and packed-vector ports | v1 | Stable flat ABI |
 | Ports | Unpacked array, struct or interface ports | Post-v1 | Potential rich SystemVerilog ABI |
 | Libraries | Bits/UInt/SInt and core operators | v1 | Symbolic width-aware subset |
-| Libraries | Stream, Flow and Counter | v1 | Increment 25 adapts the bounded `spinal.lib.Counter` policy through a target-neutral symbolic counter node; Stream and Flow remain selected-demand work |
+| Libraries | Stream, Flow and Counter | v1 | Increment 25 adapts the bounded `spinal.lib.Counter`; Increment 28 adds one atomic default `Stream.m2sPipe` registered stage with bubble-free replacement and valid-only synchronous reset; broader Stream operators and Flow remain selected-demand work |
 | Libraries | Synchronous FIFO | v1 | Increment 27 implements one atomic single-clock ready/valid FIFO with a real latency-two `spinal.lib.StreamFifo` default-shape witness; public `DEPTH` is total externally observable capacity including the registered pop stage, with parameter overrides governed by the symbolic contract |
+| Libraries | Stream m2s pipeline | v1 | Increment 28 implements one atomic capacity-one registered ready/valid stage matching default `Stream.m2sPipe()`: one-edge latency, full replacement without a bubble, stall hold, payload capture whenever ready and active-high synchronous valid-only reset |
 | Libraries | AXI4/AXI4-Lite/AXI-Stream subset | v1 | Only blocks required by DisplayController |
 | Libraries | Complete inherited library | Out of scope | Expand from demand and equivalence tests |
 | CDC | Async FIFO and broad CDC library | Post-v1 | Requires a separate audited tranche |

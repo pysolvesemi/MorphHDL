@@ -87,6 +87,10 @@ The contract is split into these documents:
   one atomic bounded ready/valid FIFO with synchronous read storage, a
   registered pop stage and a nineteenth reviewed fixture whose public
   `DEPTH` is the complete externally observable capacity.
+- [Increment 28 synchronous Stream m2s pipe](../increment-28-synchronous-stream-m2s-pipe.md):
+  one atomic registered ready/valid stage matching the pinned default
+  `Stream.m2sPipe`, with bubble-free full replacement and a twentieth reviewed
+  fixture.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -139,6 +143,11 @@ witness for inherited validation and the default shape, then fixes symbolic
 no-bypass registered-pop behavior. Public `DEPTH` counts all
 accepted, unconsumed transactions including the staged word; full and empty
 boundary requests do not become same-edge fall-through transfers.
+Increment 28 adds the corresponding atomic one-entry `Stream.m2sPipe` policy.
+It registers valid and payload, keeps ready combinational, accepts full
+pop-plus-push replacement without a bubble, holds while stalled and clears
+only valid on active-high synchronous reset. The independent payload enable
+retains the pinned default `holdPayload=false` behavior.
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants

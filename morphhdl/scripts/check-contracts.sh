@@ -77,6 +77,7 @@ generated_contracts=(
   parameterized_counter.v
   simple_dual_port_memory.v
   synchronous_stream_fifo.v
+  synchronous_stream_m2s_pipe.v
 )
 
 if (( using_reviewed_goldens == 0 )); then
@@ -126,6 +127,7 @@ single_port_memory_file="$generated_dir/single_port_memory.v"
 parameterized_counter_file="$generated_dir/parameterized_counter.v"
 simple_dual_port_memory_file="$generated_dir/simple_dual_port_memory.v"
 synchronous_stream_fifo_file="$generated_dir/synchronous_stream_fifo.v"
+synchronous_stream_m2s_pipe_file="$generated_dir/synchronous_stream_m2s_pipe.v"
 
 parity_args=("$parity_file")
 for live_phase_id_file in "${live_phase_id_files[@]}"; do
@@ -154,6 +156,7 @@ design_files=(
   "$parameterized_counter_file"
   "$simple_dual_port_memory_file"
   "$synchronous_stream_fifo_file"
+  "$synchronous_stream_m2s_pipe_file"
 )
 
 all_verilog_files=(
@@ -177,6 +180,7 @@ all_verilog_files=(
   "$examples_dir/parameterized_counter_tb.v"
   "$examples_dir/simple_dual_port_memory_tb.v"
   "$examples_dir/synchronous_stream_fifo_tb.v"
+  "$examples_dir/synchronous_stream_m2s_pipe_tb.v"
 )
 
 read_property() {
@@ -283,6 +287,15 @@ require_property fifo.stalled_pop valid-and-data-hold
 require_property fifo.memory_initialization false
 require_property fifo.pop_data_when_invalid unspecified
 require_property implementation.synchronous_stream_fifo true
+require_property stream.m2s_pipe single-clock-one-entry-ready-valid
+require_property stream.m2s_pipe.latency one-edge
+require_property stream.m2s_pipe.ready pop-ready-or-empty
+require_property stream.m2s_pipe.full_replacement bubble-free
+require_property stream.m2s_pipe.stalled_pop valid-and-data-hold
+require_property stream.m2s_pipe.payload_capture whenever-push-ready
+require_property stream.m2s_pipe.reset active-high-synchronous-valid-only
+require_property stream.m2s_pipe.pop_data_when_invalid unspecified
+require_property implementation.synchronous_stream_m2s_pipe true
 
 for file in "${all_verilog_files[@]}"; do
   if [[ ! -s "$file" ]]; then
@@ -396,6 +409,8 @@ expected_modules=(
   SimpleDualPortMemoryTb
   SynchronousStreamFifo
   SynchronousStreamFifoTb
+  SynchronousStreamM2sPipe
+  SynchronousStreamM2sPipeTb
 )
 
 for module_name in "${expected_modules[@]}"; do
@@ -443,10 +458,10 @@ for raw_path in sys.argv[1:]:
         raise SystemExit("superseded logarithm threshold chain remains: {}".format(path))
 
 derived = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
-memory = pathlib.Path(sys.argv[-4]).read_text(encoding="utf-8")
-counter = pathlib.Path(sys.argv[-3]).read_text(encoding="utf-8")
-simple_dual_port_memory = pathlib.Path(sys.argv[-2]).read_text(encoding="utf-8")
-synchronous_stream_fifo = pathlib.Path(sys.argv[-1]).read_text(encoding="utf-8")
+memory = pathlib.Path(sys.argv[-5]).read_text(encoding="utf-8")
+counter = pathlib.Path(sys.argv[-4]).read_text(encoding="utf-8")
+simple_dual_port_memory = pathlib.Path(sys.argv[-3]).read_text(encoding="utf-8")
+synchronous_stream_fifo = pathlib.Path(sys.argv[-2]).read_text(encoding="utf-8")
 if derived.count("clog2(LANES, 0)") != 1:
     raise SystemExit("DerivedWidth does not call mathematical ceiling-log2 exactly once")
 if memory.count("clog2(DEPTH, 1)") != 1:
@@ -894,6 +909,43 @@ then
   exit 1
 fi
 
+if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:space:]]*8' "$synchronous_stream_m2s_pipe_file" ||
+   ! grep -Fqx '  assign push_ready = pop_ready || !pop_valid;' "$synchronous_stream_m2s_pipe_file" ||
+   ! grep -Eq 'always[[:space:]]+@\([[:space:]]*posedge[[:space:]]+clk[[:space:]]*\)[[:space:]]+begin[[:space:]]*:[[:space:]]*p_m2s_pipe' "$synchronous_stream_m2s_pipe_file" ||
+   [[ "$(grep -Ec 'always[[:space:]]+@\(' "$synchronous_stream_m2s_pipe_file")" != "1" ]] ||
+   [[ "$(grep -Ec 'pop_valid[[:space:]]*<=' "$synchronous_stream_m2s_pipe_file")" != "2" ]] ||
+   [[ "$(grep -Ec 'pop_data[[:space:]]*<=' "$synchronous_stream_m2s_pipe_file")" != "1" ]] ||
+   grep -Eq 'always_comb|always_ff|always_latch|always[[:space:]]+@\*|negedge|initial[[:space:]]+begin|localparam|function|memory|occupancy|pointer|flush' "$synchronous_stream_m2s_pipe_file"; then
+  echo "SynchronousStreamM2sPipe does not retain one exact ready/valid stage" >&2
+  exit 1
+fi
+
+if ! python3 - "$synchronous_stream_m2s_pipe_file" <<'PY'
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+canonical_process = """  always @(posedge clk) begin : p_m2s_pipe
+    if (reset == 1'b1) begin
+      pop_valid <= 1'b0;
+    end else if (push_ready == 1'b1) begin
+      pop_valid <= push_valid;
+    end
+    if (push_ready == 1'b1) begin
+      pop_data <= push_data;
+    end
+  end"""
+if source.count(canonical_process) != 1:
+    raise SystemExit("missing exact synchronous Stream m2s pipe process")
+reset_body = source.split("if (reset == 1'b1) begin", 1)[1].split("end else if", 1)[0]
+if "pop_data" in reset_body:
+    raise SystemExit("m2s pipe reset illegally initializes payload")
+PY
+then
+  echo "SynchronousStreamM2sPipe process is not canonical" >&2
+  exit 1
+fi
+
 missing_tools=()
 for tool in iverilog verilator vvp yosys; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -938,6 +990,7 @@ cp "$single_port_memory_file" "$tmp_dir/single_port_memory.v"
 cp "$parameterized_counter_file" "$tmp_dir/parameterized_counter.v"
 cp "$simple_dual_port_memory_file" "$tmp_dir/simple_dual_port_memory.v"
 cp "$synchronous_stream_fifo_file" "$tmp_dir/synchronous_stream_fifo.v"
+cp "$synchronous_stream_m2s_pipe_file" "$tmp_dir/synchronous_stream_m2s_pipe.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
 yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
@@ -957,6 +1010,7 @@ yosys_single_port_memory_file="$tmp_dir/single_port_memory.v"
 yosys_parameterized_counter_file="$tmp_dir/parameterized_counter.v"
 yosys_simple_dual_port_memory_file="$tmp_dir/simple_dual_port_memory.v"
 yosys_synchronous_stream_fifo_file="$tmp_dir/synchronous_stream_fifo.v"
+yosys_synchronous_stream_m2s_pipe_file="$tmp_dir/synchronous_stream_m2s_pipe.v"
 
 echo "Verilator: $(verilator --version)"
 echo "Icarus: $(iverilog -V 2>/dev/null | head -n 1)"
@@ -1351,6 +1405,14 @@ for fifo_shape in "5 8" "3 5" "1 1" "8 4"; do
     "$synchronous_stream_fifo_file"
 done
 
+for pipe_width in 1 5 8 32; do
+  verilator --lint-only --language 1364-2001 -Wall \
+    -Wno-DECLFILENAME \
+    --top-module SynchronousStreamM2sPipe \
+    -GWIDTH="$pipe_width" \
+    "$synchronous_stream_m2s_pipe_file"
+done
+
 for counter_limit in 1 2 3 5 8; do
   verilator --lint-only --language 1364-2001 -Wall \
     -Wno-DECLFILENAME \
@@ -1567,6 +1629,17 @@ synchronous_stream_fifo_output="$(vvp "$tmp_dir/synchronous_stream_fifo.vvp")"
 echo "$synchronous_stream_fifo_output"
 if ! printf '%s\n' "$synchronous_stream_fifo_output" | grep -q 'PASS: SynchronousStreamFifo'; then
   echo "SynchronousStreamFifo simulation did not report PASS" >&2
+  exit 1
+fi
+
+iverilog -g2001 -Wall -s SynchronousStreamM2sPipeTb \
+  -o "$tmp_dir/synchronous_stream_m2s_pipe.vvp" \
+  "$synchronous_stream_m2s_pipe_file" \
+  "$examples_dir/synchronous_stream_m2s_pipe_tb.v"
+synchronous_stream_m2s_pipe_output="$(vvp "$tmp_dir/synchronous_stream_m2s_pipe.vvp")"
+echo "$synchronous_stream_m2s_pipe_output"
+if ! printf '%s\n' "$synchronous_stream_m2s_pipe_output" | grep -q 'PASS: SynchronousStreamM2sPipe'; then
+  echo "SynchronousStreamM2sPipe simulation did not report PASS" >&2
   exit 1
 fi
 
@@ -3558,5 +3631,235 @@ yosys_synchronous_stream_fifo_json_mutation_must_fail \
   signed-ready-comparator signed-ready-comparator
 yosys_synchronous_stream_fifo_json_mutation_must_fail \
   short-ready-comparator short-ready-comparator
+
+yosys_synchronous_stream_m2s_pipe_synthesize_and_check() {
+  local label="$1"
+  local expected_width="$2"
+  local parameter_command="$3"
+  local process_netlist="$tmp_dir/SynchronousStreamM2sPipe-${label}-process.json"
+  local synthesized_netlist="$tmp_dir/SynchronousStreamM2sPipe-${label}-synthesized.json"
+
+  yosys -q -p \
+    "read_verilog -noautowire $yosys_synchronous_stream_m2s_pipe_file; $parameter_command hierarchy -check -top SynchronousStreamM2sPipe; proc; opt_dff; opt_clean; check -assert; write_json $process_netlist; synth -top SynchronousStreamM2sPipe; check -assert; write_json $synthesized_netlist"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-synchronous-stream-m2s-pipe-contract.py" \
+    "$process_netlist" --source "$yosys_synchronous_stream_m2s_pipe_file" \
+    --width "$expected_width"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$synthesized_netlist" SynchronousStreamM2sPipe \
+    --port "clk:input:1" \
+    --port "pop_data:output:$expected_width" \
+    --port "pop_ready:input:1" \
+    --port "pop_valid:output:1" \
+    --port "push_data:input:$expected_width" \
+    --port "push_ready:output:1" \
+    --port "push_valid:input:1" \
+    --port "reset:input:1"
+}
+
+yosys_synchronous_stream_m2s_pipe_synthesize_and_check default 8 ""
+yosys_synchronous_stream_m2s_pipe_synthesize_and_check \
+  minimum 1 "chparam -set WIDTH 1 SynchronousStreamM2sPipe;"
+yosys_synchronous_stream_m2s_pipe_synthesize_and_check \
+  awkward 5 "chparam -set WIDTH 5 SynchronousStreamM2sPipe;"
+yosys_synchronous_stream_m2s_pipe_synthesize_and_check \
+  maximum 32 "chparam -set WIDTH 32 SynchronousStreamM2sPipe;"
+
+yosys_synchronous_stream_m2s_pipe_mutation_must_fail() {
+  local label="$1"
+  local original="$2"
+  local replacement="$3"
+  local expected_count="$4"
+  local mutated_file="$tmp_dir/synchronous-stream-m2s-pipe-${label}.v"
+  local mutated_netlist="$tmp_dir/SynchronousStreamM2sPipe-${label}-mutated.json"
+
+  python3 - "$yosys_synchronous_stream_m2s_pipe_file" "$mutated_file" \
+      "$original" "$replacement" "$expected_count" <<'PY'
+import pathlib
+import sys
+
+source_path, target_path, original, replacement, expected_count = sys.argv[1:]
+source = pathlib.Path(source_path).read_text(encoding="utf-8")
+expected = int(expected_count)
+actual = source.count(original)
+if actual != expected:
+    raise SystemExit(
+        "mutation source count for {!r} is {}, expected {}".format(
+            original, actual, expected
+        )
+    )
+pathlib.Path(target_path).write_text(
+    source.replace(original, replacement), encoding="utf-8"
+)
+PY
+
+  if cmp -s "$yosys_synchronous_stream_m2s_pipe_file" "$mutated_file"; then
+    echo "SynchronousStreamM2sPipe mutation did not change the fixture: $label" >&2
+    exit 1
+  fi
+  if ! yosys -q -p \
+      "read_verilog -noautowire $mutated_file; hierarchy -check -top SynchronousStreamM2sPipe; proc; opt_dff; opt_clean; check -assert; write_json $mutated_netlist"; then
+    echo "Yosys rejected forbidden SynchronousStreamM2sPipe mutation during synthesis: $label"
+    return
+  fi
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-synchronous-stream-m2s-pipe-contract.py" \
+      "$mutated_netlist" --source "$mutated_file" --width 8; then
+    echo "SynchronousStreamM2sPipe checker accepted forbidden mutation: $label" >&2
+    exit 1
+  fi
+  echo "Yosys SynchronousStreamM2sPipe rejected forbidden mutation: $label"
+}
+
+yosys_synchronous_stream_m2s_pipe_mutation_must_fail \
+  missing-full-replacement \
+  'assign push_ready = pop_ready || !pop_valid;' \
+  'assign push_ready = !pop_valid;' 1
+yosys_synchronous_stream_m2s_pipe_mutation_must_fail \
+  wrong-ready-conjunction \
+  'assign push_ready = pop_ready || !pop_valid;' \
+  'assign push_ready = pop_ready && !pop_valid;' 1
+yosys_synchronous_stream_m2s_pipe_mutation_must_fail \
+  falling-edge-clock \
+  'always @(posedge clk) begin : p_m2s_pipe' \
+  'always @(negedge clk) begin : p_m2s_pipe' 1
+yosys_synchronous_stream_m2s_pipe_mutation_must_fail \
+  asynchronous-reset \
+  'always @(posedge clk) begin : p_m2s_pipe' \
+  'always @(posedge clk or posedge reset) begin : p_m2s_pipe' 1
+yosys_synchronous_stream_m2s_pipe_mutation_must_fail \
+  active-low-reset \
+  "if (reset == 1'b1) begin" \
+  "if (reset == 1'b0) begin" 1
+yosys_synchronous_stream_m2s_pipe_mutation_must_fail \
+  reset-valid-high \
+  "pop_valid <= 1'b0;" \
+  "pop_valid <= 1'b1;" 1
+yosys_synchronous_stream_m2s_pipe_mutation_must_fail \
+  wrong-valid-enable \
+  $'    end else if (push_ready == 1\'b1) begin\n      pop_valid <= push_valid;' \
+  $'    end else if (push_valid == 1\'b1) begin\n      pop_valid <= push_valid;' 1
+yosys_synchronous_stream_m2s_pipe_mutation_must_fail \
+  payload-gated-by-valid \
+  $'    if (push_ready == 1\'b1) begin\n      pop_data <= push_data;' \
+  $'    if (push_ready == 1\'b1 && push_valid == 1\'b1) begin\n      pop_data <= push_data;' 1
+yosys_synchronous_stream_m2s_pipe_mutation_must_fail \
+  payload-reset \
+  $'      pop_valid <= 1\'b0;' \
+  $'      pop_valid <= 1\'b0;\n      pop_data <= {WIDTH{1\'b0}};' 1
+
+yosys_synchronous_stream_m2s_pipe_json_mutation_must_fail() {
+  local label="$1"
+  local mutation="$2"
+  local canonical_netlist="$tmp_dir/SynchronousStreamM2sPipe-default-process.json"
+  local mutated_netlist="$tmp_dir/SynchronousStreamM2sPipe-${label}-json-mutated.json"
+
+  python3 - "$canonical_netlist" "$mutated_netlist" "$mutation" <<'PY'
+import json
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1])
+destination = pathlib.Path(sys.argv[2])
+mutation = sys.argv[3]
+netlist = json.loads(source.read_text(encoding="utf-8"))
+top = netlist.get("modules", {}).get("SynchronousStreamM2sPipe")
+if top is None:
+    raise SystemExit("canonical JSON is missing SynchronousStreamM2sPipe")
+ports = top.get("ports", {})
+cells = top.get("cells", {})
+
+def unique(cell_type):
+    matches = [cell for cell in cells.values() if cell.get("type") == cell_type]
+    if len(matches) != 1:
+        raise SystemExit("canonical JSON does not contain one " + cell_type)
+    return matches[0]
+
+def set_encoded(container, name, expected, replacement):
+    value = container.get(name)
+    if isinstance(value, int):
+        actual = value
+        encoded = replacement
+    elif isinstance(value, str) and value and set(value) <= {"0", "1"}:
+        actual = int(value, 2)
+        encoded = format(replacement, "0{}b".format(len(value)))
+    else:
+        raise SystemExit("unsupported parameter encoding for " + name + ": " + repr(value))
+    if actual != expected:
+        raise SystemExit("canonical parameter {} is {}, expected {}".format(name, actual, expected))
+    container[name] = encoded
+
+valid = unique("$sdffe")
+payload = unique("$dffe")
+ready_not = unique("$logic_not")
+ready_or = unique("$logic_or")
+
+if mutation == "valid-clock":
+    valid["connections"]["CLK"] = list(ports["push_valid"]["bits"])
+elif mutation == "valid-data":
+    valid["connections"]["D"] = list(ports["pop_ready"]["bits"])
+elif mutation == "valid-enable":
+    valid["connections"]["EN"] = list(ports["push_valid"]["bits"])
+elif mutation == "valid-reset-connection":
+    valid["connections"]["SRST"] = list(ports["pop_ready"]["bits"])
+elif mutation == "valid-reset-polarity":
+    set_encoded(valid["parameters"], "SRST_POLARITY", 1, 0)
+elif mutation == "valid-reset-value":
+    set_encoded(valid["parameters"], "SRST_VALUE", 0, 1)
+elif mutation == "falling-valid-clock":
+    set_encoded(valid["parameters"], "CLK_POLARITY", 1, 0)
+elif mutation == "payload-clock":
+    payload["connections"]["CLK"] = list(ports["reset"]["bits"])
+elif mutation == "payload-data":
+    payload["connections"]["D"] = ["0"] * len(ports["push_data"]["bits"])
+elif mutation == "payload-enable":
+    payload["connections"]["EN"] = list(ports["push_valid"]["bits"])
+elif mutation == "payload-reset":
+    payload["type"] = "$sdffe"
+    payload["connections"]["SRST"] = list(ports["reset"]["bits"])
+    payload["parameters"]["SRST_POLARITY"] = payload["parameters"]["EN_POLARITY"]
+    payload["parameters"]["SRST_VALUE"] = "0" * 8
+elif mutation == "ready-not-input":
+    ready_not["connections"]["A"] = list(ports["push_valid"]["bits"])
+elif mutation == "ready-and":
+    ready_or["type"] = "$logic_and"
+elif mutation == "ready-or-input":
+    ready_or["connections"]["A"] = list(ports["push_valid"]["bits"])
+else:
+    raise SystemExit("unknown m2s pipe JSON mutation: " + mutation)
+
+destination.write_text(json.dumps(netlist, indent=2) + "\n", encoding="utf-8")
+PY
+
+  if cmp -s "$canonical_netlist" "$mutated_netlist"; then
+    echo "SynchronousStreamM2sPipe JSON mutation did not change the netlist: $label" >&2
+    exit 1
+  fi
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-synchronous-stream-m2s-pipe-contract.py" \
+      "$mutated_netlist" --source "$yosys_synchronous_stream_m2s_pipe_file" \
+      --width 8; then
+    echo "SynchronousStreamM2sPipe checker accepted forbidden JSON mutation: $label" >&2
+    exit 1
+  fi
+  echo "Yosys SynchronousStreamM2sPipe checker rejected forbidden JSON mutation: $label"
+}
+
+for m2s_pipe_json_mutation in \
+  valid-clock \
+  valid-data \
+  valid-enable \
+  valid-reset-connection \
+  valid-reset-polarity \
+  valid-reset-value \
+  falling-valid-clock \
+  payload-clock \
+  payload-data \
+  payload-enable \
+  payload-reset \
+  ready-not-input \
+  ready-and \
+  ready-or-input
+do
+  yosys_synchronous_stream_m2s_pipe_json_mutation_must_fail \
+    "$m2s_pipe_json_mutation" "$m2s_pipe_json_mutation"
+done
 
 echo "Strict Verilog-2001 contract checks passed"

@@ -32,6 +32,7 @@ be accepted without enabling a SystemVerilog parser.
 | Synchronous read-first single-port memory (implemented) | `reg [WIDTH-1:0] memory [0:DEPTH-1]` plus one guarded named positive-edge process with nonblocking read and optional whole-word write assignments |
 | Synchronous read-first simple-dual-port memory (implemented) | One `reg [WIDTH-1:0] memory [0:DEPTH-1]` and one named positive-edge process with independent guarded read/write addresses, nonblocking state updates and deterministic read-first same-address collisions |
 | Synchronous Stream FIFO (implemented) | One synchronous-read `reg [WIDTH-1:0] memory [0:DEPTH-1]`, registered pop stage, wrapped read/write pointers, bounded occupancy and one named positive-edge process; ready/valid outputs preserve exact public capacity and no-bypass boundaries |
+| Synchronous Stream m2s pipe (implemented) | `push_ready = pop_ready || !pop_valid` plus one named positive-edge process with an active-high synchronously reset valid register and an independently ready-enabled unreset payload register |
 | Portable address width (implemented) | The same module-local `clog2(value, minimum_result)` constant function called with minimum one |
 | Logical record/vector port | Deterministically flattened scalar/packed ports |
 | Enum intent | Packed vector plus named local parameters |
@@ -230,6 +231,18 @@ internal names and helper/local names receive the same deterministic numeric
 suffix treatment if a module-local identifier is already occupied. Bypass,
 flush, occupancy ports, initialization, alternate latency, asynchronous read
 or reset, and multiple clocks remain forbidden.
+
+Increment 28 legalizes one atomic `SynchronousStreamM2sPipe`. The emitter
+drives `push_ready = pop_ready || !pop_valid`, then emits one named positive-edge
+process. Active-high synchronous reset clears `pop_valid`; otherwise ready
+captures `push_valid`. A separate ready-enabled nonblocking assignment captures
+`push_data` into `pop_data`, including invalid and reset edges, matching the
+pinned default `holdPayload=false` behavior. Omitting assignments while full
+and stalled holds both registers. There is no valid/payload bypass, helper,
+memory, pointer, status or initialization. Full pop-plus-push replaces the
+resident transaction without a bubble. Selectable hold/collapse policies,
+`s2mPipe`, composition, asynchronous reset and multiple clocks remain
+forbidden.
 
 ## Flat ABI
 

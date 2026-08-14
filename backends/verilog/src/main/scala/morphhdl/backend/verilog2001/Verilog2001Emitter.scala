@@ -46,7 +46,8 @@ import morphhdl.paramrtl.ModuleItem.{
   SynchronousReadFirstSimpleDualPortMemory,
   SynchronousReadFirstSinglePortMemory,
   SynchronousRegister,
-  SynchronousStreamFifo
+  SynchronousStreamFifo,
+  SynchronousStreamM2sPipe
 }
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
@@ -116,6 +117,8 @@ object Verilog2001Emitter {
       module.items.collect { case counter: SynchronousCounter => counter }.sortBy(_.label)
     val synchronousStreamFifos =
       module.items.collect { case fifo: SynchronousStreamFifo => fifo }.sortBy(_.label)
+    val synchronousStreamM2sPipes =
+      module.items.collect { case pipe: SynchronousStreamM2sPipe => pipe }.sortBy(_.label)
     val fifoNames = synchronousStreamFifos.headOption.map { fifo =>
       allocateFifoInternalNames(module, context.portableCeilLog2FunctionName)
     }
@@ -129,7 +132,8 @@ object Verilog2001Emitter {
         synchronousReadFirstSinglePortMemories.map(_.readData.name) ++
         synchronousReadFirstSimpleDualPortMemories.map(_.readData.name) ++
         synchronousCounters.map(_.count.name) ++
-        synchronousStreamFifos.flatMap(fifo => Vector(fifo.popValid.name, fifo.popData.name))
+        synchronousStreamFifos.flatMap(fifo => Vector(fifo.popValid.name, fifo.popData.name)) ++
+        synchronousStreamM2sPipes.flatMap(pipe => Vector(pipe.popValid.name, pipe.popData.name))
     ).toSet
     val assignments = module.items.collect { case assignment: ContinuousAssign => assignment }.sortBy { assignment =>
       (assignment.target.name, renderRtlExpr(assignment.value))
@@ -296,6 +300,12 @@ object Verilog2001Emitter {
         s"  assign ${names.popFire} = ${fifo.popValid.name} && ${fifo.popReady.name};"
     }
 
+    synchronousStreamM2sPipes.headOption.foreach { pipe =>
+      lines += ""
+      lines +=
+        s"  assign ${pipe.pushReady.name} = ${pipe.popReady.name} || !${pipe.popValid.name};"
+    }
+
     synchronousReadFirstSinglePortMemories.foreach { memory =>
       val zeroWidth = renderReplicationWidth(memory.elementType.width)
       lines += ""
@@ -389,6 +399,20 @@ object Verilog2001Emitter {
       lines += s"          ${names.occupancy} <= ${names.occupancy} - 1'b1;"
       lines += "        end"
       lines += "      end"
+      lines += "    end"
+      lines += "  end"
+    }
+
+    synchronousStreamM2sPipes.headOption.foreach { pipe =>
+      lines += ""
+      lines += s"  always @(posedge ${pipe.clock.name}) begin : ${pipe.label}"
+      lines += s"    if (${pipe.reset.name} == 1'b1) begin"
+      lines += s"      ${pipe.popValid.name} <= 1'b0;"
+      lines += s"    end else if (${pipe.pushReady.name} == 1'b1) begin"
+      lines += s"      ${pipe.popValid.name} <= ${pipe.pushValid.name};"
+      lines += "    end"
+      lines += s"    if (${pipe.pushReady.name} == 1'b1) begin"
+      lines += s"      ${pipe.popData.name} <= ${pipe.pushData.name};"
       lines += "    end"
       lines += "  end"
     }
@@ -928,6 +952,7 @@ object Verilog2001Emitter {
         case fifo: SynchronousStreamFifo =>
           used += fifo.label
           used += fifo.memoryName
+        case pipe: SynchronousStreamM2sPipe => used += pipe.label
       }
     }
 

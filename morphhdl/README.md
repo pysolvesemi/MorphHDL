@@ -221,3 +221,15 @@ state only; memory and invalid pop payload remain unspecified.
 The concrete library witness proves the default depth-five shape; the symbolic
 `DEPTH=1` no-full-replacement policy intentionally differs from the pinned
 library's `m2sPipe` specialization and is governed by the Verilog testbench.
+
+Increment 28 exposes that pinned one-entry behavior directly as one atomic
+`SynchronousStreamM2sPipe`. Its concrete witness applies the default
+`spinal.lib.Stream.m2sPipe()` to an eight-bit Stream. Strict Verilog-2001 emits
+`push_ready = pop_ready || !pop_valid` and one named positive-edge process:
+valid has active-high synchronous reset, while payload is independently
+captured whenever ready and is never reset. The stage has one-edge latency and
+no combinational valid/data bypass; full stall holds, while full pop plus push
+replaces without a bubble and sustains one transfer per cycle. The twentieth
+`synchronous_stream_m2s_pipe.v` artifact proves widths 1, 5, 8 and 32 without
+regeneration. `s2mPipe`, broader Stream composition, selectable payload/collapse
+policies, status, asynchronous reset and CDC remain rejected.

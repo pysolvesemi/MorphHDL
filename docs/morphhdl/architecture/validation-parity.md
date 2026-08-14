@@ -394,3 +394,18 @@ depth-five flat shape only. The pinned library's constructor-depth-one
 parameterized `DEPTH=1` contract deliberately rejects that push and refills
 synchronously. The strict parameterized-Verilog simulation is authoritative
 for the override.
+
+Increment 28 extends those partial adaptations with one atomic
+`SynchronousStreamM2sPipe`. The concrete witness applies the pinned default
+`Stream.m2sPipe()` to an eight-bit Stream under active-high synchronous reset,
+while every inherited phase still runs. ParamRTL separately proves exact
+ready/valid roles and widths, sole ownership, one shared clock, valid-only
+reset, full replacement and intentional stall hold. The twentieth fixture
+covers widths 1, 5, 8 and 32. Icarus protects one-edge latency, absence of
+valid/payload bypass, stalls, sustained bubble-free replacement, emptying,
+refill and payload capture on reset. Yosys requires one synchronously reset
+enabled valid register, one unreset enabled payload register and the exact
+ready inverter/OR topology; source and JSON mutations reject gating, reset,
+clock, connection and topology drift. The atomic node cannot express an
+internal combinational loop or second clock, but general Stream composition,
+runtime dependency graphs and CDC support remain partial.

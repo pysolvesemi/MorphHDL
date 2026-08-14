@@ -49,6 +49,10 @@ private[frontend] case object SynchronousStreamFifoKind extends RuntimeProcessKi
   val description = "synchronous stream FIFO process"
 }
 
+private[frontend] case object SynchronousStreamM2sPipeKind extends RuntimeProcessKind {
+  val description = "synchronous stream m2s pipe process"
+}
+
 private[frontend] final case class CapturedRuntimeProcess(
     kind: RuntimeProcessKind,
     origin: SourceOrigin
@@ -861,6 +865,9 @@ private[frontend] object FrontendSession {
   private[frontend] def emitSynchronousStreamFifo(item: FrontendNode[ModuleItem]): Unit =
     emitRuntimeProcess(item, SynchronousStreamFifoKind)
 
+  private[frontend] def emitSynchronousStreamM2sPipe(item: FrontendNode[ModuleItem]): Unit =
+    emitRuntimeProcess(item, SynchronousStreamM2sPipeKind)
+
   private def emitRuntimeProcess(
       item: FrontendNode[ModuleItem],
       kind: RuntimeProcessKind
@@ -950,6 +957,8 @@ private[frontend] object FrontendSession {
       "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-MIXED"
     case SynchronousStreamFifoKind =>
       "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-MIXED"
+    case SynchronousStreamM2sPipeKind =>
+      "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-MIXED"
   }
 
   private def nestedCode(kind: RuntimeProcessKind): String = kind match {
@@ -968,6 +977,8 @@ private[frontend] object FrontendSession {
       "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-NESTED"
     case SynchronousStreamFifoKind =>
       "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-NESTED"
+    case SynchronousStreamM2sPipeKind =>
+      "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-NESTED"
   }
 
   private def multipleCode(kind: RuntimeProcessKind): String = kind match {
@@ -986,6 +997,8 @@ private[frontend] object FrontendSession {
       "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-MULTIPLE"
     case SynchronousStreamFifoKind =>
       "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-MULTIPLE"
+    case SynchronousStreamM2sPipeKind =>
+      "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-MULTIPLE"
   }
 
   private def ordinaryItemKind(item: ModuleItem): String = item match {

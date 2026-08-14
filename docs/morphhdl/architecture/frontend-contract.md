@@ -270,6 +270,18 @@ every role, name, type and ownership check passes. A second or nested runtime
 item, a copied/local/arithmetic depth, masks, flush, bypass, occupancy ports,
 initialization, asynchronous reset/read or multiple clocks fail closed.
 
+Increment 28 adds
+`emitSynchronousStreamM2sPipe(label, clock, reset, pushValid, pushReady,
+pushData, popValid, popReady, popData, elementType)`. Its eight guarded direct
+references are pairwise distinct and retain the same exact one-bit
+clock/reset/handshake and packed payload role checks as the FIFO, without a
+memory or depth argument. The helper atomically publishes one registered
+ready/valid stage only after all roles, types, ownership and provenance checks
+pass. It fixes the default `m2sPipe` policy: combinational ready, registered
+valid/payload, bubble-free full replacement, valid-only synchronous reset and
+payload capture whenever ready. A second or nested runtime item, selectable
+hold/collapse policies, bypass, status or multiple clocks fail closed.
+
 An ordinary Scala `if`, `match`, collection size, recursion or class selection
 continues to execute during elaboration and therefore may depend only on static
 Scala values.
