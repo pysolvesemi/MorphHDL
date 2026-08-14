@@ -85,10 +85,8 @@ def require_source_contract(path):
         "if (reset == 1'b1) begin",
         "memory[write_pointer] <= push_data;",
         "if (write_pointer == DEPTH - 1) begin",
-        "if (pop_valid == 1'b0) begin",
-        "if (occupancy > 0) begin",
+        "if ((pop_valid == 1'b0 && occupancy > 0) || (pop_fire == 1'b1 && occupancy > 1)) begin",
         "end else if (pop_fire == 1'b1) begin",
-        "if (occupancy > 1) begin",
         "if (push_fire != pop_fire) begin",
         "occupancy <= occupancy + 1'b1;",
         "occupancy <= occupancy - 1'b1;",
@@ -98,14 +96,14 @@ def require_source_contract(path):
             return "source contains {} copies of {!r}, expected one".format(
                 source.count(fragment), fragment
             )
-    if source.count("pop_data <= memory[read_pointer];") != 2:
-        return "source does not contain exactly two mutually exclusive registered reads"
-    if source.count("if (read_pointer == DEPTH - 1) begin") != 2:
-        return "source does not contain exactly two mutually exclusive read-pointer wrap tests"
-    if source.count("read_pointer <= {POINTER_WIDTH{1'b0}};") != 3:
-        return "source does not contain exactly reset plus two read-pointer wrap clears"
-    if source.count("read_pointer <= read_pointer + 1'b1;") != 2:
-        return "source does not contain exactly two mutually exclusive read-pointer increments"
+    if source.count("pop_data <= memory[read_pointer];") != 1:
+        return "source does not contain exactly one registered memory read"
+    if source.count("if (read_pointer == DEPTH - 1) begin") != 1:
+        return "source does not contain exactly one read-pointer wrap test"
+    if source.count("read_pointer <= {POINTER_WIDTH{1'b0}};") != 2:
+        return "source does not contain exactly reset plus one read-pointer wrap clear"
+    if source.count("read_pointer <= read_pointer + 1'b1;") != 1:
+        return "source does not contain exactly one read-pointer increment"
     if source.count("write_pointer <= {POINTER_WIDTH{1'b0}};") != 2:
         return "source does not contain exactly reset plus one write-pointer wrap clear"
     if source.count("write_pointer <= write_pointer + 1'b1;") != 1:
@@ -217,7 +215,8 @@ def main():
         return fail("unexpected asynchronous-reset state cell")
 
     combinational_drivers = {}
-    for cell in cells.values():
+    combinational_driver_cells = {}
+    for cell_name, cell in cells.items():
         cell_type = cell.get("type", "").lower()
         if "dff" in cell_type or cell_type == "$mem_v2":
             continue
@@ -232,6 +231,7 @@ def main():
         for bit in outputs:
             if bit not in ("0", "1", "x", "z", 0, 1):
                 combinational_drivers[bit] = tuple(inputs)
+                combinational_driver_cells[bit] = (cell_name, cell)
 
     state_source_bits = set(
         named_bits["read_pointer"]
@@ -279,7 +279,7 @@ def main():
         ("WR_CLK_ENABLE", 1),
         ("WR_CLK_POLARITY", 1),
         ("RD_TRANSPARENCY_MASK", 0),
-        ("RD_COLLISION_X_MASK", 0),
+        ("RD_COLLISION_X_MASK", 1 if args.depth == 1 else 0),
         ("WR_PRIORITY_MASK", 0),
     ):
         problem = require_parameter(memory_name, parameters, parameter, expected)
@@ -338,8 +338,45 @@ def main():
         return fail("registered memory read does not solely drive pop_data")
     if connections["WR_DATA"] != ports["push_data"]["bits"]:
         return fail("memory write data is not connected bit-for-bit to push_data")
-    if replicated_signal(connections["WR_EN"], args.width) != named_bits["push_fire"][0]:
-        return fail("memory write enable is not push_fire replicated across the whole word")
+    write_enable = replicated_signal(connections["WR_EN"], args.width)
+    if write_enable is None:
+        return fail("memory write enable is not one nonconstant whole-word signal")
+    write_enable_driver = combinational_driver_cells.get(write_enable)
+    if write_enable_driver is None:
+        return fail("memory write enable has no retained combinational guard")
+    write_enable_name, write_enable_cell = write_enable_driver
+    write_enable_connections = write_enable_cell.get("connections", {})
+    if (
+        write_enable_cell.get("type") != "$mux"
+        or write_enable_connections.get("Y") != [write_enable]
+        or write_enable_connections.get("A") != named_bits["push_fire"]
+        or write_enable_connections.get("B") not in (["0"], [0])
+        or write_enable_connections.get("S") != ports["reset"]["bits"]
+    ):
+        return fail(
+            "{} is not the exact active-high-reset guard for push_fire".format(
+                write_enable_name
+            )
+        )
+    problem = require_parameter(
+        write_enable_name, write_enable_cell.get("parameters", {}), "WIDTH", 1
+    )
+    if problem is not None:
+        return fail(problem)
+    write_enable_sources = fanin_sources([write_enable])
+    expected_write_sources = (
+        set(ports["reset"]["bits"])
+        | set(ports["push_valid"]["bits"])
+        | set(named_bits["occupancy"])
+    )
+    if write_enable_sources != expected_write_sources:
+        return fail(
+            "memory write enable sources are {}, expected reset, push_valid and "
+            "every occupancy bit {}".format(
+                sorted(write_enable_sources, key=str),
+                sorted(expected_write_sources, key=str),
+            )
+        )
     if len(connections["RD_EN"]) != 1 or connections["RD_EN"][0] in (
         "0",
         "1",
@@ -349,27 +386,71 @@ def main():
         1,
     ):
         return fail("registered memory read lacks one conditional fetch enable")
-    read_enable_sources = fanin_sources(connections["RD_EN"])
-    required_read_sources = (
-        set(ports["reset"]["bits"])
-        | set(ports["pop_valid"]["bits"])
-        | set(named_bits["occupancy"])
-    )
-    if args.depth > 1:
-        required_read_sources |= set(ports["pop_ready"]["bits"])
-    if not required_read_sources.issubset(read_enable_sources):
+    read_enable = connections["RD_EN"][0]
+    read_enable_driver = combinational_driver_cells.get(read_enable)
+    if read_enable_driver is None:
+        return fail("registered memory read enable has no combinational driver")
+    read_enable_name, read_enable_cell = read_enable_driver
+    read_enable_connections = read_enable_cell.get("connections", {})
+    if (
+        read_enable_cell.get("type") != "$reduce_and"
+        or read_enable_connections.get("Y") != [read_enable]
+        or len(read_enable_connections.get("A", [])) != 2
+    ):
         return fail(
-            "registered read enable lacks reset/pop/occupancy sources {}".format(
-                sorted(required_read_sources - read_enable_sources, key=str)
+            "{} is not the exact two-input fetch/reset conjunction".format(
+                read_enable_name
             )
         )
-    forbidden_read_sources = (
-        set(ports["push_valid"]["bits"])
-        | set(ports["push_ready"]["bits"])
-        | set(ports["push_data"]["bits"])
+    problem = require_parameter(
+        read_enable_name, read_enable_cell.get("parameters", {}), "A_WIDTH", 2
     )
-    if forbidden_read_sources & read_enable_sources:
-        return fail("registered read enable is contaminated by the push interface")
+    if problem is not None:
+        return fail(problem)
+    problem = require_parameter(
+        read_enable_name, read_enable_cell.get("parameters", {}), "Y_WIDTH", 1
+    )
+    if problem is not None:
+        return fail(problem)
+    reset_inverters = []
+    for inverter_name, inverter in cells.items():
+        inverter_connections = inverter.get("connections", {})
+        if (
+            inverter.get("type") == "$not"
+            and inverter_connections.get("A") == ports["reset"]["bits"]
+            and len(inverter_connections.get("Y", [])) == 1
+        ):
+            reset_inverters.append(
+                (inverter_name, inverter_connections["Y"][0])
+            )
+    if len(reset_inverters) != 1:
+        return fail(
+            "found {} exact reset inverters for the read enable, expected one".format(
+                len(reset_inverters)
+            )
+        )
+    reset_inverter_name, inactive_reset = reset_inverters[0]
+    if read_enable_connections["A"].count(inactive_reset) != 1:
+        return fail(
+            "{} does not gate the fetch with {}".format(
+                read_enable_name, reset_inverter_name
+            )
+        )
+    read_enable_sources = fanin_sources(connections["RD_EN"])
+    expected_read_sources = (
+        set(ports["reset"]["bits"])
+        | set(ports["pop_valid"]["bits"])
+        | set(ports["pop_ready"]["bits"])
+        | set(named_bits["occupancy"])
+    )
+    if read_enable_sources != expected_read_sources:
+        return fail(
+            "registered read enable sources are {}, expected reset, pop_valid, "
+            "pop_ready and every occupancy bit {}".format(
+                sorted(read_enable_sources, key=str),
+                sorted(expected_read_sources, key=str),
+            )
+        )
     for connection in ("RD_ARST", "RD_SRST"):
         if connections[connection] not in (["0"], [0]):
             return fail("memory {} is not one inactive reset bit".format(connection))
@@ -481,9 +562,31 @@ def main():
                 )
             )
         driver = next(cell for name, cell in state_cells if name == drivers[0])
-        data_sources = fanin_sources(driver.get("connections", {}).get("D", []))
-        if not set(ports["reset"]["bits"]).issubset(data_sources):
-            return fail("{} state does not retain synchronous reset priority".format(state_name))
+        if driver.get("type") != "$sdffe":
+            return fail(
+                "{} state uses {}, expected reset-priority $sdffe".format(
+                    state_name, driver.get("type")
+                )
+            )
+        driver_connections = driver.get("connections", {})
+        driver_parameters = driver.get("parameters", {})
+        if integer(driver_parameters.get("EN_POLARITY")) != 1:
+            return fail("{} state enable is not active high".format(state_name))
+        if driver_connections.get("SRST") != ports["reset"]["bits"]:
+            return fail("{} state reset is not connected directly to reset".format(state_name))
+        if integer(driver_parameters.get("SRST_POLARITY")) != 1:
+            return fail("{} state reset is not active high".format(state_name))
+        reset_value = driver_parameters.get("SRST_VALUE")
+        if (
+            not isinstance(reset_value, str)
+            or len(reset_value) != len(state_bits)
+            or set(reset_value) != {"0"}
+        ):
+            return fail(
+                "{} state reset value is {!r}, expected {} zero bits".format(
+                    state_name, reset_value, len(state_bits)
+                )
+            )
 
     print(
         "Yosys SynchronousStreamFifo is one uninitialized {}x{} RAM with one "

@@ -855,35 +855,23 @@ canonical_process = """  always @(posedge clk) begin : p_fifo
       occupancy <= {OCCUPANCY_WIDTH{1'b0}};
       pop_valid <= 1'b0;
     end else begin
+      if ((pop_valid == 1'b0 && occupancy > 0) || (pop_fire == 1'b1 && occupancy > 1)) begin
+        pop_data <= memory[read_pointer];
+        pop_valid <= 1'b1;
+        if (read_pointer == DEPTH - 1) begin
+          read_pointer <= {POINTER_WIDTH{1'b0}};
+        end else begin
+          read_pointer <= read_pointer + 1'b1;
+        end
+      end else if (pop_fire == 1'b1) begin
+        pop_valid <= 1'b0;
+      end
       if (push_fire == 1'b1) begin
         memory[write_pointer] <= push_data;
         if (write_pointer == DEPTH - 1) begin
           write_pointer <= {POINTER_WIDTH{1'b0}};
         end else begin
           write_pointer <= write_pointer + 1'b1;
-        end
-      end
-      if (pop_valid == 1'b0) begin
-        if (occupancy > 0) begin
-          pop_data <= memory[read_pointer];
-          pop_valid <= 1'b1;
-          if (read_pointer == DEPTH - 1) begin
-            read_pointer <= {POINTER_WIDTH{1'b0}};
-          end else begin
-            read_pointer <= read_pointer + 1'b1;
-          end
-        end
-      end else if (pop_fire == 1'b1) begin
-        if (occupancy > 1) begin
-          pop_data <= memory[read_pointer];
-          pop_valid <= 1'b1;
-          if (read_pointer == DEPTH - 1) begin
-            read_pointer <= {POINTER_WIDTH{1'b0}};
-          end else begin
-            read_pointer <= read_pointer + 1'b1;
-          end
-        end else begin
-          pop_valid <= 1'b0;
         end
       end
       if (push_fire != pop_fire) begin
@@ -3208,7 +3196,7 @@ yosys_synchronous_stream_fifo_synthesize_and_check() {
   local synthesized_netlist="$tmp_dir/SynchronousStreamFifo-${label}-synthesized.json"
 
   yosys -q -p \
-    "read_verilog -noautowire $yosys_synchronous_stream_fifo_file; $parameter_command hierarchy -check -top SynchronousStreamFifo; proc; opt_merge; memory_dff; opt_merge; memory_collect; opt_clean; check -assert; write_json $process_netlist; synth -top SynchronousStreamFifo; check -assert; write_json $synthesized_netlist"
+    "read_verilog -noautowire $yosys_synchronous_stream_fifo_file; $parameter_command hierarchy -check -top SynchronousStreamFifo; proc; opt -mux_undef; memory_dff; opt_merge; memory_collect; opt_clean; check -assert; write_json $process_netlist; synth -top SynchronousStreamFifo; check -assert; write_json $synthesized_netlist"
   python3 "$repo_root/morphhdl/scripts/check-yosys-synchronous-stream-fifo-contract.py" \
     "$process_netlist" --source "$yosys_synchronous_stream_fifo_file" \
     --width "$expected_width" --depth "$expected_depth"
@@ -3265,7 +3253,7 @@ PY
     exit 1
   fi
   if ! yosys -q -p \
-      "read_verilog -noautowire $mutated_file; hierarchy -check -top SynchronousStreamFifo; proc; opt_merge; memory_dff; opt_merge; memory_collect; opt_clean; check -assert; write_json $mutated_netlist"; then
+      "read_verilog -noautowire $mutated_file; hierarchy -check -top SynchronousStreamFifo; proc; opt -mux_undef; memory_dff; opt_merge; memory_collect; opt_clean; check -assert; write_json $mutated_netlist"; then
     echo "Yosys rejected forbidden SynchronousStreamFifo mutation during synthesis: $label"
     return
   fi
@@ -3287,12 +3275,12 @@ yosys_synchronous_stream_fifo_mutation_must_fail \
   'assign push_ready = occupancy < DEPTH || pop_fire;' 1
 yosys_synchronous_stream_fifo_mutation_must_fail \
   empty-fall-through \
-  'if (occupancy > 0) begin' \
-  'if (occupancy >= 0) begin' 1
+  "pop_valid == 1'b0 && occupancy > 0" \
+  "pop_valid == 1'b0 && occupancy >= 0" 1
 yosys_synchronous_stream_fifo_mutation_must_fail \
   occupancy-one-no-bubble \
-  'if (occupancy > 1) begin' \
-  'if (occupancy > 0) begin' 1
+  "pop_fire == 1'b1 && occupancy > 1" \
+  "pop_fire == 1'b1 && occupancy > 0" 1
 yosys_synchronous_stream_fifo_mutation_must_fail \
   falling-edge-clock \
   'always @(posedge clk) begin : p_fifo' \
@@ -3315,8 +3303,8 @@ yosys_synchronous_stream_fifo_mutation_must_fail \
   "occupancy <= occupancy - 1'b1;" 1
 yosys_synchronous_stream_fifo_mutation_must_fail \
   payload-reset \
-  "      occupancy <= {OCCUPANCY_WIDTH{1'b0}};\n      pop_valid <= 1'b0;" \
-  "      occupancy <= {OCCUPANCY_WIDTH{1'b0}};\n      pop_valid <= 1'b0;\n      pop_data <= {WIDTH{1'b0}};" 1
+  $'      occupancy <= {OCCUPANCY_WIDTH{1\'b0}};\n      pop_valid <= 1\'b0;' \
+  $'      occupancy <= {OCCUPANCY_WIDTH{1\'b0}};\n      pop_valid <= 1\'b0;\n      pop_data <= {WIDTH{1\'b0}};' 1
 yosys_synchronous_stream_fifo_mutation_must_fail \
   fixed-pointer-width \
   'localparam integer POINTER_WIDTH = clog2(DEPTH, 1);' \
@@ -3370,6 +3358,32 @@ def set_encoded(container, name, expected, replacement):
 def set_integer(name, expected, replacement):
     set_encoded(parameters, name, expected, replacement)
 
+def exact_state_driver(state_name):
+    state = top.get("netnames", {}).get(state_name, {}).get("bits", [])
+    matches = [
+        cell
+        for cell in top.get("cells", {}).values()
+        if cell.get("connections", {}).get("Q") == state
+    ]
+    if len(matches) != 1:
+        raise SystemExit(
+            "canonical JSON lacks one {} state driver".format(state_name)
+        )
+    return matches[0]
+
+def reset_inverter_output():
+    reset = top.get("ports", {}).get("reset", {}).get("bits", [])
+    matches = [
+        cell.get("connections", {}).get("Y", [])
+        for cell in top.get("cells", {}).values()
+        if cell.get("type") == "$not"
+        and cell.get("connections", {}).get("A") == reset
+        and len(cell.get("connections", {}).get("Y", [])) == 1
+    ]
+    if len(matches) != 1:
+        raise SystemExit("canonical JSON lacks one reset inverter")
+    return matches[0]
+
 if mutation == "initialized-memory":
     value = parameters.get("INIT")
     if not isinstance(value, str) or set(value.lower()) != {"x"}:
@@ -3409,6 +3423,65 @@ elif mutation == "contaminated-write-enable":
     if len(pop_fire) != 1:
         raise SystemExit("canonical pop_fire net is not one bit")
     connections["WR_EN"] = pop_fire * len(connections.get("WR_EN", []))
+elif mutation == "ungated-write-enable":
+    push_fire = top.get("netnames", {}).get("push_fire", {}).get("bits", [])
+    if len(push_fire) != 1:
+        raise SystemExit("canonical push_fire net is not one bit")
+    connections["WR_EN"] = push_fire * len(connections.get("WR_EN", []))
+elif mutation == "inverted-write-reset":
+    write_enable = connections.get("WR_EN", [])
+    if not write_enable or any(bit != write_enable[0] for bit in write_enable):
+        raise SystemExit("canonical WR_EN is not one replicated signal")
+    drivers = [
+        cell
+        for cell in top.get("cells", {}).values()
+        if cell.get("connections", {}).get("Y") == [write_enable[0]]
+    ]
+    if len(drivers) != 1 or drivers[0].get("type") != "$mux":
+        raise SystemExit("canonical WR_EN lacks one reset guard mux")
+    drivers[0]["connections"]["S"] = reset_inverter_output()
+elif mutation == "inverted-read-reset":
+    read_enable = connections.get("RD_EN", [])
+    drivers = [
+        cell
+        for cell in top.get("cells", {}).values()
+        if cell.get("connections", {}).get("Y") == read_enable
+    ]
+    if len(drivers) != 1 or drivers[0].get("type") != "$reduce_and":
+        raise SystemExit("canonical RD_EN lacks one fetch/reset conjunction")
+    inactive_reset = reset_inverter_output()[0]
+    active_reset = top.get("ports", {}).get("reset", {}).get("bits", [])
+    inputs = drivers[0].get("connections", {}).get("A", [])
+    if inputs.count(inactive_reset) != 1 or len(active_reset) != 1:
+        raise SystemExit("canonical RD_EN does not contain one inverted reset")
+    drivers[0]["connections"]["A"] = [
+        active_reset[0] if bit == inactive_reset else bit for bit in inputs
+    ]
+elif mutation in {
+    "state-reset-connection",
+    "state-reset-polarity",
+    "state-reset-value",
+    "state-enable-over-reset",
+}:
+    state = exact_state_driver("occupancy")
+    state_parameters = state.get("parameters", {})
+    state_connections = state.get("connections", {})
+    if mutation == "state-reset-connection":
+        push_valid = top.get("ports", {}).get("push_valid", {}).get("bits", [])
+        if len(push_valid) != 1:
+            raise SystemExit("canonical push_valid port is not one bit")
+        state_connections["SRST"] = list(push_valid)
+    elif mutation == "state-reset-polarity":
+        set_encoded(state_parameters, "SRST_POLARITY", 1, 0)
+    elif mutation == "state-reset-value":
+        value = state_parameters.get("SRST_VALUE")
+        if not isinstance(value, str) or not value or set(value) != {"0"}:
+            raise SystemExit("canonical occupancy reset value is not all zero")
+        state_parameters["SRST_VALUE"] = "1" + value[1:]
+    else:
+        if state.get("type") != "$sdffe":
+            raise SystemExit("canonical occupancy state is not $sdffe")
+        state["type"] = "$sdffce"
 elif mutation in {"signed-ready-comparator", "short-ready-comparator"}:
     ready = top.get("ports", {}).get("push_ready", {}).get("bits", [])
     comparators = [
@@ -3467,6 +3540,20 @@ yosys_synchronous_stream_fifo_json_mutation_must_fail \
   contaminated-read-enable contaminated-read-enable
 yosys_synchronous_stream_fifo_json_mutation_must_fail \
   contaminated-write-enable contaminated-write-enable
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  ungated-write-enable ungated-write-enable
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  inverted-write-reset inverted-write-reset
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  inverted-read-reset inverted-read-reset
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  state-reset-connection state-reset-connection
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  state-reset-polarity state-reset-polarity
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  state-reset-value state-reset-value
+yosys_synchronous_stream_fifo_json_mutation_must_fail \
+  state-enable-over-reset state-enable-over-reset
 yosys_synchronous_stream_fifo_json_mutation_must_fail \
   signed-ready-comparator signed-ready-comparator
 yosys_synchronous_stream_fifo_json_mutation_must_fail \

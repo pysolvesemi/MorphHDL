@@ -130,9 +130,19 @@ The generated module contains one `reg [WIDTH-1:0] memory [0:DEPTH-1]`, wrapped
 read/write pointer registers, bounded occupancy, internal accepted-transfer
 signals, combinational `push_ready`, registered `pop_valid`/`pop_data`, and one
 named `always @(posedge clk)` block. Nonblocking assignments preserve
-synchronous memory reads and state ordering. No `$clog2`, SystemVerilog syntax,
-runtime logarithm hardware, initial block, payload reset or memory reset is
-emitted.
+synchronous memory reads and state ordering. The canonical form contains one
+common registered fetch before the write for readability. The Yosys gate folds
+the payload hold mux into a read enable before output-register absorption,
+retaining nontransparent read-first memory metadata even though valid FIFO
+transfers cannot collide on the same storage address. No `$clog2`,
+SystemVerilog syntax, runtime logarithm hardware, initial block, payload reset
+or memory reset is emitted.
+
+The Yosys gate normalizes procedural hold muxes before memory-register
+absorption. It requires nontransparent read-first metadata. At `DEPTH=1`,
+Yosys additionally marks collision data as don't-care because the exact fetch
+and write enables are mutually exclusive; this does not change an observable
+FIFO behavior or permit a write-first bypass.
 
 ## Public executable contract
 

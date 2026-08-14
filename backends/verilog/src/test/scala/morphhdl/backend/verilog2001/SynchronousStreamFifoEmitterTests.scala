@@ -62,35 +62,23 @@ class SynchronousStreamFifoEmitterTests extends AnyFunSuite {
         |      occupancy <= {OCCUPANCY_WIDTH{1'b0}};
         |      pop_valid <= 1'b0;
         |    end else begin
+        |      if ((pop_valid == 1'b0 && occupancy > 0) || (pop_fire == 1'b1 && occupancy > 1)) begin
+        |        pop_data <= memory[read_pointer];
+        |        pop_valid <= 1'b1;
+        |        if (read_pointer == DEPTH - 1) begin
+        |          read_pointer <= {POINTER_WIDTH{1'b0}};
+        |        end else begin
+        |          read_pointer <= read_pointer + 1'b1;
+        |        end
+        |      end else if (pop_fire == 1'b1) begin
+        |        pop_valid <= 1'b0;
+        |      end
         |      if (push_fire == 1'b1) begin
         |        memory[write_pointer] <= push_data;
         |        if (write_pointer == DEPTH - 1) begin
         |          write_pointer <= {POINTER_WIDTH{1'b0}};
         |        end else begin
         |          write_pointer <= write_pointer + 1'b1;
-        |        end
-        |      end
-        |      if (pop_valid == 1'b0) begin
-        |        if (occupancy > 0) begin
-        |          pop_data <= memory[read_pointer];
-        |          pop_valid <= 1'b1;
-        |          if (read_pointer == DEPTH - 1) begin
-        |            read_pointer <= {POINTER_WIDTH{1'b0}};
-        |          end else begin
-        |            read_pointer <= read_pointer + 1'b1;
-        |          end
-        |        end
-        |      end else if (pop_fire == 1'b1) begin
-        |        if (occupancy > 1) begin
-        |          pop_data <= memory[read_pointer];
-        |          pop_valid <= 1'b1;
-        |          if (read_pointer == DEPTH - 1) begin
-        |            read_pointer <= {POINTER_WIDTH{1'b0}};
-        |          end else begin
-        |            read_pointer <= read_pointer + 1'b1;
-        |          end
-        |        end else begin
-        |          pop_valid <= 1'b0;
         |        end
         |      end
         |      if (push_fire != pop_fire) begin
@@ -114,9 +102,14 @@ class SynchronousStreamFifoEmitterTests extends AnyFunSuite {
     assert(verilog.contains("assign push_ready = occupancy < DEPTH;"), verilog)
     assert(verilog.contains("assign push_fire = push_valid && push_ready;"), verilog)
     assert(verilog.contains("assign pop_fire = pop_valid && pop_ready;"), verilog)
-    assert(verilog.contains("if (pop_valid == 1'b0) begin\n        if (occupancy > 0) begin"), verilog)
-    assert(verilog.contains("end else if (pop_fire == 1'b1) begin\n        if (occupancy > 1) begin"), verilog)
-    assert(count(verilog, "pop_data <= memory[read_pointer];") == 2, verilog)
+    assert(
+      verilog.contains(
+        "if ((pop_valid == 1'b0 && occupancy > 0) || (pop_fire == 1'b1 && occupancy > 1)) begin"
+      ),
+      verilog
+    )
+    assert(verilog.contains("end else if (pop_fire == 1'b1) begin\n        pop_valid <= 1'b0;"), verilog)
+    assert(count(verilog, "pop_data <= memory[read_pointer];") == 1, verilog)
     assert(!verilog.contains("pop_data <= {"), verilog)
     assert(!verilog.contains("initial"), verilog)
     assert(!verilog.contains("$clog2"), verilog)
