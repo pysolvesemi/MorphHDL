@@ -127,6 +127,39 @@ private[frontend] object FrontendException {
       "Pass a non-null ref(name) enable to emitAsynchronousEnabledRegister."
     case "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-ASSIGNMENT-NULL" =>
       "Pass one proceduralAssign(target, ref(data)) to emitAsynchronousEnabledRegister."
+    case "MORPH-FRONTEND-SINGLE-PORT-MEMORY-NESTED" =>
+      "Emit the synchronous read-first single-port memory as a top-level module item outside all generate regions."
+    case "MORPH-FRONTEND-SINGLE-PORT-MEMORY-MULTIPLE" =>
+      "Emit one synchronous read-first single-port memory per module-item capture."
+    case "MORPH-FRONTEND-SINGLE-PORT-MEMORY-MIXED" =>
+      "Use a separate module definition instead of mixing the memory with another module item or generate region."
+    case "MORPH-FRONTEND-SINGLE-PORT-MEMORY-LABEL-INVALID" |
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-NAME-INVALID" |
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-CLOCK-INVALID" |
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-ENABLE-INVALID" |
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-ADDRESS-INVALID" |
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-DATA-INVALID" |
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-DATA-INVALID" =>
+      "Use an identifier matching `[A-Za-z_][A-Za-z0-9_]*`."
+    case "MORPH-FRONTEND-SINGLE-PORT-MEMORY-CLOCK-NULL" |
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-CLOCK-NOT-REF" =>
+      "Pass a non-null ref(name) clock to emitSynchronousReadFirstSinglePortMemory."
+    case "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-ENABLE-NULL" |
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-ENABLE-NOT-REF" =>
+      "Pass a non-null ref(name) write enable to emitSynchronousReadFirstSinglePortMemory."
+    case "MORPH-FRONTEND-SINGLE-PORT-MEMORY-ADDRESS-NULL" |
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-ADDRESS-NOT-REF" =>
+      "Pass a non-null ref(name) address to emitSynchronousReadFirstSinglePortMemory."
+    case "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-DATA-NULL" |
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-DATA-NOT-REF" =>
+      "Pass a non-null ref(name) write data value to emitSynchronousReadFirstSinglePortMemory."
+    case "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-DATA-NULL" |
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-DATA-NOT-REF" =>
+      "Pass a non-null ref(name) read data target to emitSynchronousReadFirstSinglePortMemory."
+    case "MORPH-FRONTEND-SINGLE-PORT-MEMORY-ELEMENT-TYPE-NULL" =>
+      "Pass a non-null packedBits(width) element type to emitSynchronousReadFirstSinglePortMemory."
+    case "MORPH-FRONTEND-SINGLE-PORT-MEMORY-DEPTH-NULL" =>
+      "Pass a non-null loop-invariant HdlInt depth to emitSynchronousReadFirstSinglePortMemory."
     case "MORPH-FRONTEND-COMBINATIONAL-LABEL-INVALID" |
         "MORPH-FRONTEND-COMBINATIONAL-TARGET-INVALID" |
         "MORPH-FRONTEND-COMBINATIONAL-VALUE-INVALID" |

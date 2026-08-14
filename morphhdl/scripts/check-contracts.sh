@@ -73,6 +73,7 @@ generated_contracts=(
   asynchronous_register.v
   synchronous_enabled_register.v
   asynchronous_enabled_register.v
+  single_port_memory.v
 )
 
 if (( using_reviewed_goldens == 0 )); then
@@ -118,6 +119,7 @@ synchronous_register_file="$generated_dir/synchronous_register.v"
 asynchronous_register_file="$generated_dir/asynchronous_register.v"
 synchronous_enabled_register_file="$generated_dir/synchronous_enabled_register.v"
 asynchronous_enabled_register_file="$generated_dir/asynchronous_enabled_register.v"
+single_port_memory_file="$generated_dir/single_port_memory.v"
 
 parity_args=("$parity_file")
 for live_phase_id_file in "${live_phase_id_files[@]}"; do
@@ -142,6 +144,7 @@ design_files=(
   "$asynchronous_register_file"
   "$synchronous_enabled_register_file"
   "$asynchronous_enabled_register_file"
+  "$single_port_memory_file"
 )
 
 all_verilog_files=(
@@ -161,6 +164,7 @@ all_verilog_files=(
   "$examples_dir/asynchronous_register_tb.v"
   "$examples_dir/synchronous_enabled_register_tb.v"
   "$examples_dir/asynchronous_enabled_register_tb.v"
+  "$examples_dir/single_port_memory_tb.v"
 )
 
 read_property() {
@@ -221,6 +225,18 @@ require_property implementation.asynchronous_register true
 require_property process.clock_enable active-high-hold
 require_property implementation.synchronous_enabled_register true
 require_property implementation.asynchronous_enabled_register true
+require_property memory.parameterized_depth true
+require_property memory.address_capacity_guard true
+require_property memory.read_latency synchronous-one-cycle
+require_property memory.read_during_write read-first
+require_property memory.unwritten_read unspecified
+require_property memory.surplus_address_read zero
+require_property memory.surplus_address_write ignored
+require_property memory.initialization false
+require_property memory.reset false
+require_property memory.read_enable false
+require_property memory.write_mask false
+require_property implementation.synchronous_read_first_single_port_memory true
 
 for file in "${all_verilog_files[@]}"; do
   if [[ ! -s "$file" ]]; then
@@ -326,6 +342,8 @@ expected_modules=(
   SynchronousEnabledRegisterTb
   AsynchronousEnabledRegister
   AsynchronousEnabledRegisterTb
+  SinglePortMemory
+  SinglePortMemoryTb
 )
 
 for module_name in "${expected_modules[@]}"; do
@@ -522,6 +540,28 @@ if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:spac
   exit 1
 fi
 
+if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+DEPTH[[:space:]]*=[[:space:]]*5' "$single_port_memory_file" ||
+   ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:space:]]*8' "$single_port_memory_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[2:0\][[:space:]]+address' "$single_port_memory_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+clk' "$single_port_memory_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+write_enable' "$single_port_memory_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[WIDTH-1:0\][[:space:]]+write_data' "$single_port_memory_file" ||
+   ! grep -Eq 'output[[:space:]]+reg[[:space:]]+\[WIDTH-1:0\][[:space:]]+read_data' "$single_port_memory_file" ||
+   ! grep -Eq 'reg[[:space:]]+\[WIDTH-1:0\][[:space:]]+memory[[:space:]]+\[0:DEPTH-1\][[:space:]]*;' "$single_port_memory_file" ||
+   ! grep -Eq 'always[[:space:]]+@\([[:space:]]*posedge[[:space:]]+clk[[:space:]]*\)[[:space:]]+begin[[:space:]]*:[[:space:]]*p_memory' "$single_port_memory_file" ||
+   ! grep -Eq 'if[[:space:]]*\([[:space:]]*address[[:space:]]*<[[:space:]]*DEPTH[[:space:]]*\)[[:space:]]*begin' "$single_port_memory_file" ||
+   ! grep -Eq 'read_data[[:space:]]*<=[[:space:]]*memory\[address\][[:space:]]*;' "$single_port_memory_file" ||
+   ! grep -Eq "if[[:space:]]*\\([[:space:]]*write_enable[[:space:]]*==[[:space:]]*1'b1[[:space:]]*\\)[[:space:]]*begin" "$single_port_memory_file" ||
+   ! grep -Eq 'memory\[address\][[:space:]]*<=[[:space:]]*write_data[[:space:]]*;' "$single_port_memory_file" ||
+   ! grep -Eq "read_data[[:space:]]*<=[[:space:]]*\\{WIDTH\\{1'b0\\}\\}[[:space:]]*;" "$single_port_memory_file" ||
+   [[ "$(grep -Ec 'always[[:space:]]+@\(' "$single_port_memory_file")" != "1" ]] ||
+   [[ "$(grep -Ec 'memory\[address\][[:space:]]*<=' "$single_port_memory_file")" != "1" ]] ||
+   [[ "$(grep -Ec 'read_data[[:space:]]*<=' "$single_port_memory_file")" != "2" ]] ||
+   grep -Eq 'always_comb|always_ff|always_latch|always[[:space:]]+@\*|initial[[:space:]]+begin|read_data[[:space:]]*=[^=]|memory\[address\][[:space:]]*=[^=]' "$single_port_memory_file"; then
+  echo "SinglePortMemory does not retain one guarded synchronous read-first whole-word memory port" >&2
+  exit 1
+fi
+
 missing_tools=()
 for tool in iverilog verilator vvp yosys; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -562,6 +602,7 @@ cp "$synchronous_register_file" "$tmp_dir/synchronous_register.v"
 cp "$asynchronous_register_file" "$tmp_dir/asynchronous_register.v"
 cp "$synchronous_enabled_register_file" "$tmp_dir/synchronous_enabled_register.v"
 cp "$asynchronous_enabled_register_file" "$tmp_dir/asynchronous_enabled_register.v"
+cp "$single_port_memory_file" "$tmp_dir/single_port_memory.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
 yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
@@ -577,6 +618,7 @@ yosys_synchronous_register_file="$tmp_dir/synchronous_register.v"
 yosys_asynchronous_register_file="$tmp_dir/asynchronous_register.v"
 yosys_synchronous_enabled_register_file="$tmp_dir/synchronous_enabled_register.v"
 yosys_asynchronous_enabled_register_file="$tmp_dir/asynchronous_enabled_register.v"
+yosys_single_port_memory_file="$tmp_dir/single_port_memory.v"
 
 echo "Verilator: $(verilator --version)"
 echo "Icarus: $(iverilog -V 2>/dev/null | head -n 1)"
@@ -871,6 +913,29 @@ verilator --lint-only --language 1364-2001 -Wall \
   -GWIDTH=5 \
   "$asynchronous_enabled_register_file"
 
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  -Wno-WIDTHEXPAND \
+  -Wno-WIDTHTRUNC \
+  --top-module SinglePortMemory \
+  "$single_port_memory_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  -Wno-WIDTHEXPAND \
+  -Wno-WIDTHTRUNC \
+  --top-module SinglePortMemory \
+  -GDEPTH=3 -GWIDTH=5 \
+  "$single_port_memory_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  -Wno-WIDTHEXPAND \
+  -Wno-WIDTHTRUNC \
+  --top-module SinglePortMemory \
+  -GDEPTH=1 -GWIDTH=1 \
+  "$single_port_memory_file"
+
 iverilog -g2001 -Wall -s ParameterizedWireTb \
   -o "$tmp_dir/parameterized_wire.vvp" \
   "$parameterized_wire_file" \
@@ -1033,6 +1098,17 @@ asynchronous_enabled_register_output="$(vvp "$tmp_dir/asynchronous_enabled_regis
 echo "$asynchronous_enabled_register_output"
 if ! printf '%s\n' "$asynchronous_enabled_register_output" | grep -q 'PASS: AsynchronousEnabledRegister'; then
   echo "AsynchronousEnabledRegister simulation did not report PASS" >&2
+  exit 1
+fi
+
+iverilog -g2001 -Wall -s SinglePortMemoryTb \
+  -o "$tmp_dir/single_port_memory.vvp" \
+  "$single_port_memory_file" \
+  "$examples_dir/single_port_memory_tb.v"
+single_port_memory_output="$(vvp "$tmp_dir/single_port_memory.vvp")"
+echo "$single_port_memory_output"
+if ! printf '%s\n' "$single_port_memory_output" | grep -q 'PASS: SinglePortMemory'; then
+  echo "SinglePortMemory simulation did not report PASS" >&2
   exit 1
 fi
 
@@ -1511,5 +1587,138 @@ yosys_asynchronous_enabled_register_mutation_must_fail \
   synchronous-reset 's/ or posedge reset//'
 yosys_asynchronous_enabled_register_mutation_must_fail \
   reset-to-ones "s/{WIDTH{1'b0}}/{WIDTH{1'b1}}/"
+
+yosys_single_port_memory_synthesize_and_check() {
+  local label="$1"
+  local expected_width="$2"
+  local expected_depth="$3"
+  local parameter_command="$4"
+  local process_netlist="$tmp_dir/SinglePortMemory-${label}-process.json"
+  local synthesized_netlist="$tmp_dir/SinglePortMemory-${label}-synthesized.json"
+
+  yosys -q -p \
+    "read_verilog -noautowire $yosys_single_port_memory_file; $parameter_command hierarchy -check -top SinglePortMemory; proc; opt_reduce; opt_expr -mux_undef; memory_dff; memory_collect; opt_clean; check -assert; write_json $process_netlist; synth -top SinglePortMemory; check -assert; write_json $synthesized_netlist"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-single-port-memory-contract.py" \
+    "$process_netlist" --width "$expected_width" --depth "$expected_depth"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$synthesized_netlist" SinglePortMemory \
+    --port "address:input:3" \
+    --port "clk:input:1" \
+    --port "read_data:output:$expected_width" \
+    --port "write_data:input:$expected_width" \
+    --port "write_enable:input:1"
+}
+
+yosys_single_port_memory_synthesize_and_check \
+  default 8 5 ""
+yosys_single_port_memory_synthesize_and_check \
+  awkward 5 3 "chparam -set DEPTH 3 -set WIDTH 5 SinglePortMemory;"
+yosys_single_port_memory_synthesize_and_check \
+  minimum 1 1 "chparam -set DEPTH 1 -set WIDTH 1 SinglePortMemory;"
+
+yosys_single_port_memory_json_mutation_must_fail() {
+  local label="$1"
+  local parameter="$2"
+  local canonical_netlist="$tmp_dir/SinglePortMemory-default-process.json"
+  local mutated_netlist="$tmp_dir/SinglePortMemory-${label}-json-mutated.json"
+
+  python3 - "$canonical_netlist" "$mutated_netlist" "$parameter" <<'PY'
+import json
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1])
+destination = pathlib.Path(sys.argv[2])
+parameter = sys.argv[3]
+netlist = json.loads(source.read_text(encoding="utf-8"))
+top = netlist.get("modules", {}).get("SinglePortMemory")
+if top is None:
+    raise SystemExit("canonical JSON is missing SinglePortMemory")
+memories = [
+    cell for cell in top.get("cells", {}).values() if cell.get("type") == "$mem_v2"
+]
+if len(memories) != 1:
+    raise SystemExit("canonical JSON does not contain exactly one $mem_v2")
+parameters = memories[0].get("parameters", {})
+if parameter not in parameters:
+    raise SystemExit("canonical $mem_v2 is missing parameter " + parameter)
+value = parameters[parameter]
+if isinstance(value, int):
+    if value != 0:
+        raise SystemExit("canonical parameter is not zero: " + repr(value))
+    parameters[parameter] = 1
+elif isinstance(value, str) and value and set(value) <= {"0", "1"}:
+    if int(value, 2) != 0:
+        raise SystemExit("canonical parameter is not zero: " + repr(value))
+    parameters[parameter] = value[:-1] + "1"
+else:
+    raise SystemExit("canonical parameter has unsupported encoding: " + repr(value))
+if parameters[parameter] == value:
+    raise SystemExit("JSON mutation did not change parameter " + parameter)
+destination.write_text(json.dumps(netlist, indent=2) + "\n", encoding="utf-8")
+PY
+
+  if cmp -s "$canonical_netlist" "$mutated_netlist"; then
+    echo "SinglePortMemory JSON mutation did not change the netlist: $label" >&2
+    exit 1
+  fi
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-single-port-memory-contract.py" \
+      "$mutated_netlist" --width 8 --depth 5; then
+    echo "SinglePortMemory checker accepted forbidden JSON mutation: $label" >&2
+    exit 1
+  fi
+  echo "Yosys SinglePortMemory checker rejected forbidden JSON mutation: $label"
+}
+
+yosys_single_port_memory_json_mutation_must_fail \
+  transparent-read RD_TRANSPARENCY_MASK
+yosys_single_port_memory_json_mutation_must_fail \
+  collision-x-read RD_COLLISION_X_MASK
+yosys_single_port_memory_json_mutation_must_fail \
+  write-port-priority WR_PRIORITY_MASK
+
+yosys_single_port_memory_mutation_must_fail() {
+  local label="$1"
+  local sed_expression="$2"
+  local mutated_file="$tmp_dir/single-port-memory-${label}.v"
+  local mutated_netlist="$tmp_dir/SinglePortMemory-${label}-mutated.json"
+
+  sed "$sed_expression" "$yosys_single_port_memory_file" > "$mutated_file"
+  if cmp -s "$yosys_single_port_memory_file" "$mutated_file"; then
+    echo "SinglePortMemory mutation did not change the fixture: $label" >&2
+    exit 1
+  fi
+
+  if ! yosys -q -p \
+      "read_verilog -noautowire $mutated_file; hierarchy -check -top SinglePortMemory; proc; opt_reduce; opt_expr -mux_undef; memory_dff; memory_collect; opt_clean; check -assert; write_json $mutated_netlist"; then
+    echo "Yosys rejected forbidden SinglePortMemory mutation during synthesis: $label"
+    return
+  fi
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-single-port-memory-contract.py" \
+      "$mutated_netlist" --width 8 --depth 5; then
+    echo "SinglePortMemory Yosys checker accepted forbidden mutation: $label" >&2
+    exit 1
+  fi
+  echo "Yosys SinglePortMemory rejected forbidden mutation: $label"
+}
+
+yosys_single_port_memory_mutation_must_fail \
+  write-first-bypass "s/read_data <= memory\[address\];/read_data <= write_enable == 1'b1 ? write_data : memory[address];/"
+yosys_single_port_memory_mutation_must_fail \
+  branch-swapped-read "s/read_data <= memory\[address\];/read_data <= __morph_read_swap__;/;s/read_data <= {WIDTH{1'b0}};/read_data <= memory[address];/;s/read_data <= __morph_read_swap__;/read_data <= {WIDTH{1'b0}};/"
+yosys_single_port_memory_mutation_must_fail \
+  falling-edge-clock 's/posedge clk/negedge clk/'
+yosys_single_port_memory_mutation_must_fail \
+  unconditional-write "s/write_enable == 1'b1/1'b1 == 1'b1/"
+yosys_single_port_memory_mutation_must_fail \
+  nonzero-surplus-read "s/{WIDTH{1'b0}}/write_data/"
+yosys_single_port_memory_mutation_must_fail \
+  inverted-address-guard 's/address < DEPTH/address >= DEPTH/'
+yosys_single_port_memory_mutation_must_fail \
+  signed-address-guard 's/address < DEPTH/$signed(address) < DEPTH/'
+yosys_single_port_memory_mutation_must_fail \
+  initialized-memory "/always @(posedge clk)/i\\  initial memory[0] = {WIDTH{1'b0}};"
+yosys_single_port_memory_mutation_must_fail \
+  extra-memory-word 's/\[0:DEPTH-1\]/[0:DEPTH]/'
 
 echo "Strict Verilog-2001 contract checks passed"

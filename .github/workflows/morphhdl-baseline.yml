@@ -147,6 +147,7 @@ jobs:
               'parameter_forwarding.v f' \
               'parameterized_wire.v f' \
               'runtime_mux.v f' \
+              'single_port_memory.v f' \
               'synchronous_enabled_register.v f' \
               'synchronous_register.v f')"
             test "${actual_inventory}" = "${expected_inventory}"
@@ -166,6 +167,7 @@ jobs:
             boolean_locals.v \
             case_routing.v \
             runtime_mux.v \
+            single_port_memory.v \
             synchronous_register.v \
             asynchronous_register.v \
             synchronous_enabled_register.v \

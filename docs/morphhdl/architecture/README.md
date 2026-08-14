@@ -61,6 +61,9 @@ The contract is split into these documents:
 - [Increment 19 asynchronous enabled register](../increment-19-asynchronous-enabled-register.md):
   one positive-edge register with immediate reset-priority active-high
   asynchronous reset, enabled capture, disabled hold and a fifteenth fixture.
+- [Increment 20 synchronous read-first single-port memory](../increment-20-single-port-memory.md):
+  one guarded positive-edge whole-word memory with independent width/depth and
+  a sixteenth reviewed fixture.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -78,8 +81,9 @@ executable while nested structural regions remain deferred. Increment 15 makes
 the first bounded runtime combinational process executable. Increments 16 and
 17 make atomic synchronous- and asynchronous-reset register variants
 executable. Increments 18 and 19 add bounded synchronous and asynchronous
-enable/hold semantics while general statements, multiple clocks/registers,
-CDC structures and memories remain separate tranches.
+enable/hold semantics. Increment 20 adds the first bounded parameterized
+single-port memory while broader statements, multiple clocks/registers, CDC
+structures and memory policies remain separate tranches.
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants

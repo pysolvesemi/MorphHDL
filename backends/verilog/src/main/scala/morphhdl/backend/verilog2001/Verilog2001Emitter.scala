@@ -37,6 +37,7 @@ import morphhdl.paramrtl.ModuleItem.{
   GenerateIf,
   ModuleInstance,
   SynchronousEnabledRegister,
+  SynchronousReadFirstSinglePortMemory,
   SynchronousRegister
 }
 import morphhdl.paramrtl.PortDirection.{Input, Output}
@@ -82,13 +83,16 @@ object Verilog2001Emitter {
       module.items.collect { case process: SynchronousEnabledRegister => process }.sortBy(_.label)
     val asynchronousEnabledRegisters =
       module.items.collect { case process: AsynchronousEnabledRegister => process }.sortBy(_.label)
+    val synchronousReadFirstSinglePortMemories =
+      module.items.collect { case memory: SynchronousReadFirstSinglePortMemory => memory }.sortBy(_.label)
     val proceduralOutputs = (
       combinationalIfs
         .flatMap(process => process.whenTrue.map(_.target.name) ++ process.whenFalse.map(_.target.name)) ++
         synchronousRegisters.map(_.assignment.target.name) ++
         asynchronousRegisters.map(_.assignment.target.name) ++
         synchronousEnabledRegisters.map(_.assignment.target.name) ++
-        asynchronousEnabledRegisters.map(_.assignment.target.name)
+        asynchronousEnabledRegisters.map(_.assignment.target.name) ++
+        synchronousReadFirstSinglePortMemories.map(_.readData.name)
     ).toSet
     val assignments = module.items.collect { case assignment: ContinuousAssign => assignment }.sortBy { assignment =>
       (assignment.target.name, renderRtlExpr(assignment.value))
@@ -128,6 +132,18 @@ object Verilog2001Emitter {
             case other             => s"(${renderBoolExpr(other)}) ? 1 : 0"
           }
           lines += s"  localparam integer ${localParameter.name} = $value;"
+      }
+    }
+
+    if (synchronousReadFirstSinglePortMemories.nonEmpty) {
+      lines += ""
+      synchronousReadFirstSinglePortMemories.foreach { memory =>
+        val signedness = memory.elementType.signedness match {
+          case Unsigned => ""
+          case Signed   => "signed "
+        }
+        lines +=
+          s"  reg $signedness${renderPackedRange(memory.elementType.width)}${memory.memoryName} ${renderMemoryRange(memory.depth)};"
       }
     }
 
@@ -189,6 +205,21 @@ object Verilog2001Emitter {
       assignments.foreach { assignment =>
         lines += s"  assign ${assignment.target.name} = ${renderRtlExpr(assignment.value)};"
       }
+    }
+
+    synchronousReadFirstSinglePortMemories.foreach { memory =>
+      val zeroWidth = renderReplicationWidth(memory.elementType.width)
+      lines += ""
+      lines += s"  always @(posedge ${memory.clock.name}) begin : ${memory.label}"
+      lines += s"    if (${memory.address.name} < ${renderComparisonOperand(memory.depth)}) begin"
+      lines += s"      ${memory.readData.name} <= ${memory.memoryName}[${memory.address.name}];"
+      lines += s"      if (${memory.writeEnable.name} == 1'b1) begin"
+      lines += s"        ${memory.memoryName}[${memory.address.name}] <= ${memory.writeData.name};"
+      lines += "      end"
+      lines += "    end else begin"
+      lines += s"      ${memory.readData.name} <= {$zeroWidth{1'b0}};"
+      lines += "    end"
+      lines += "  end"
     }
 
     combinationalIfs.foreach { process =>
@@ -322,15 +353,24 @@ object Verilog2001Emitter {
       case Unsigned => ""
       case Signed   => "signed "
     }
-    val range = port.dataType.width match {
-      case Literal(value)          => s"[${value - 1}:0] "
-      case ParameterRef(name)      => s"[$name-1:0] "
-      case LocalParameterRef(name) => s"[$name-1:0] "
-      case expression              => s"[(${renderIntExpr(expression)})-1:0] "
-    }
+    val range = renderPackedRange(port.dataType.width)
 
     val storage = if (port.direction == Output && procedurallyDriven) "reg" else "wire"
     f"  $direction%-6s $storage $signedness$range${port.name}"
+  }
+
+  private def renderPackedRange(width: IntExpr): String = width match {
+    case Literal(value)          => s"[${value - 1}:0] "
+    case ParameterRef(name)      => s"[$name-1:0] "
+    case LocalParameterRef(name) => s"[$name-1:0] "
+    case expression              => s"[(${renderIntExpr(expression)})-1:0] "
+  }
+
+  private def renderMemoryRange(depth: IntExpr): String = depth match {
+    case Literal(value)          => s"[0:${value - 1}]"
+    case ParameterRef(name)      => s"[0:$name-1]"
+    case LocalParameterRef(name) => s"[0:$name-1]"
+    case expression              => s"[0:(${renderIntExpr(expression)})-1]"
   }
 
   private def renderReplicationWidth(width: IntExpr): String = width match {

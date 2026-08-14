@@ -219,6 +219,21 @@ instances and generate regions remain rejected. This node still does not
 model arbitrary hold values, multiple registers/clocks, external domain
 provenance or memories.
 
+Increment 20 adds
+`ModuleItem.SynchronousReadFirstSinglePortMemory(label, memoryName, clock,
+writeEnable, address, writeData, readData, elementType: PackedBits,
+depth: IntExpr)`. It represents one positive-edge synchronous read/write port
+with read-first same-address collision semantics. Validation requires distinct
+direct input roles, an exact unsigned one-bit clock and write enable, one
+unsigned packed address, exact element/write/read packed-type equivalence and
+a positive bounded depth. The address capacity must cover the maximum legal
+depth across the whole parameter domain. At every edge, an in-range address
+updates the read output from the pre-write memory value and conditionally
+writes one complete element; a surplus address reads zero and cannot write.
+The node is the sole module item and sole owner of its read output and memory
+name. It carries no reset, initialization, read enable, write mask, additional
+port, selectable collision policy or external clock-domain provenance.
+
 ## Required invariants
 
 - Every reference resolves within its lexical parameter, generate or module

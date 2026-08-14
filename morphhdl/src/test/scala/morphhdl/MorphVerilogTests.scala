@@ -876,6 +876,48 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("single-port memory preserves the default public shape and reviewed output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "single_port_memory.v"
+      val report = MorphVerilog(config) {
+        SinglePortMemoryContractFixture.program(reverseConstructionOrder = false)
+      }
+
+      val output = directory.resolve("single_port_memory.v")
+      assert(report.toplevelName == "SinglePortMemory")
+      assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
+      assert(Files.isRegularFile(output))
+      assert(
+        new String(Files.readAllBytes(output), StandardCharsets.UTF_8) ==
+          expectedSinglePortMemoryVerilog
+      )
+    }
+  }
+
+  test("single-port memory validation fails before public output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "single_port_memory.v"
+      val fixture = SinglePortMemoryContractFixture.program(reverseConstructionOrder = false)
+      val result = MorphVerilog.tryGenerate(config) {
+        MorphProgram(
+          concreteWitness = fixture.concreteWitnessFactory(),
+          parameterizedDesign = invalidSinglePortMemoryDesign()
+        )
+      }
+
+      result match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.ParamRtlValidation)
+          assert(failure.message.contains("PRTL-UNRESOLVED-RTL-REFERENCE"))
+        case Right(report) =>
+          fail(s"Expected single-port-memory validation failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve("single_port_memory.v")))
+    }
+  }
+
   test("an invalid inactive conditional integer branch fails whole-design validation") {
     withTemporaryDirectory { directory =>
       val topName = "InvalidInactiveConditionalWidth"
@@ -3248,6 +3290,48 @@ class MorphVerilogTests extends AnyFunSuite {
     Design(top.name, Vector(top))
   }
 
+  private def invalidSinglePortMemoryDesign(): Design = {
+    val width = ParameterRef("WIDTH")
+    val depth = ParameterRef("DEPTH")
+    val packed = PackedBits(width, Unsigned)
+    val top = ModuleDef(
+      name = "SinglePortMemory",
+      parameters = Vector(
+        IntegerParameter(
+          "WIDTH",
+          default = 8,
+          constraints = Vector(MinInclusive(1), MaxInclusive(32))
+        ),
+        IntegerParameter(
+          "DEPTH",
+          default = 5,
+          constraints = Vector(MinInclusive(1), MaxInclusive(5))
+        )
+      ),
+      ports = Vector(
+        Port("clk", Input, PackedBits(IntExpr.Literal(1), Unsigned)),
+        Port("write_enable", Input, PackedBits(IntExpr.Literal(1), Unsigned)),
+        Port("address", Input, PackedBits(IntExpr.Literal(3), Unsigned)),
+        Port("write_data", Input, packed),
+        Port("read_data", Output, packed)
+      ),
+      items = Vector(
+        ModuleItem.SynchronousReadFirstSinglePortMemory(
+          label = "p_memory",
+          memoryName = "memory",
+          clock = Ref("missing_clock"),
+          writeEnable = Ref("write_enable"),
+          address = Ref("address"),
+          writeData = Ref("write_data"),
+          readData = Ref("read_data"),
+          elementType = packed,
+          depth = depth
+        )
+      )
+    )
+    Design(top.name, Vector(top))
+  }
+
   private def expectedVerilog(name: String): String =
     s"""module $name #(
        |  parameter integer WIDTH = 8
@@ -3362,6 +3446,34 @@ class MorphVerilogTests extends AnyFunSuite {
       |      data_out <= {WIDTH{1'b0}};
       |    end else if (enable == 1'b1) begin
       |      data_out <= data_in;
+      |    end
+      |  end
+      |
+      |endmodule
+      |""".stripMargin
+
+  private val expectedSinglePortMemoryVerilog =
+    """module SinglePortMemory #(
+      |  parameter integer DEPTH = 5,
+      |  parameter integer WIDTH = 8
+      |) (
+      |  input  wire [2:0] address,
+      |  input  wire [0:0] clk,
+      |  output reg [WIDTH-1:0] read_data,
+      |  input  wire [WIDTH-1:0] write_data,
+      |  input  wire [0:0] write_enable
+      |);
+      |
+      |  reg [WIDTH-1:0] memory [0:DEPTH-1];
+      |
+      |  always @(posedge clk) begin : p_memory
+      |    if (address < DEPTH) begin
+      |      read_data <= memory[address];
+      |      if (write_enable == 1'b1) begin
+      |        memory[address] <= write_data;
+      |      end
+      |    end else begin
+      |      read_data <= {WIDTH{1'b0}};
       |    end
       |  end
       |

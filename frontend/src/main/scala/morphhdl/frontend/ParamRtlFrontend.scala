@@ -688,6 +688,131 @@ private[morphhdl] object ParamRtlFrontend {
     )
   }
 
+  /**
+    * Atomically emits one positive-edge single-port memory with a one-cycle
+    * synchronous read. A same-address read/write collision returns the old
+    * element value. Addresses outside the configured depth read as zero and
+    * suppress writes. Reset, initialization, read enable and write masks are
+    * deliberately outside this bounded frontend surface.
+    */
+  def emitSynchronousReadFirstSinglePortMemory(
+      label: String,
+      memoryName: String,
+      clock: FrontendNode[RtlExpr],
+      writeEnable: FrontendNode[RtlExpr],
+      address: FrontendNode[RtlExpr],
+      writeData: FrontendNode[RtlExpr],
+      readData: FrontendNode[RtlExpr],
+      elementType: FrontendNode[PackedBits],
+      depth: HdlInt
+  )(implicit file: sourcecode.File, line: sourcecode.Line): Unit = {
+    val origin = SourceOrigin.capture
+    requirePortableIdentifier(
+      label,
+      "synchronous read-first single-port memory label",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-LABEL-INVALID",
+      origin
+    )
+    requirePortableIdentifier(
+      memoryName,
+      "synchronous read-first single-port memory name",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-NAME-INVALID",
+      origin
+    )
+    val clockRef = requireSynchronousReadFirstSinglePortMemoryRef(
+      label,
+      "clock",
+      clock,
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-CLOCK-NULL",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-CLOCK-NOT-REF",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-CLOCK-INVALID",
+      origin
+    )
+    val writeEnableRef = requireSynchronousReadFirstSinglePortMemoryRef(
+      label,
+      "write-enable",
+      writeEnable,
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-ENABLE-NULL",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-ENABLE-NOT-REF",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-ENABLE-INVALID",
+      origin
+    )
+    val addressRef = requireSynchronousReadFirstSinglePortMemoryRef(
+      label,
+      "address",
+      address,
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-ADDRESS-NULL",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-ADDRESS-NOT-REF",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-ADDRESS-INVALID",
+      origin
+    )
+    val writeDataRef = requireSynchronousReadFirstSinglePortMemoryRef(
+      label,
+      "write-data",
+      writeData,
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-DATA-NULL",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-DATA-NOT-REF",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-DATA-INVALID",
+      origin
+    )
+    val readDataRef = requireSynchronousReadFirstSinglePortMemoryRef(
+      label,
+      "read-data",
+      readData,
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-DATA-NULL",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-DATA-NOT-REF",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-DATA-INVALID",
+      origin
+    )
+    if (elementType eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-ELEMENT-TYPE-NULL",
+        s"synchronous read-first single-port memory '$label' requires a non-null element type",
+        origin
+      )
+    }
+    elementType.requireUsable(
+      s"synchronous read-first single-port memory '$label' element type"
+    )
+    if (depth eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-DEPTH-NULL",
+        s"synchronous read-first single-port memory '$label' requires a non-null depth",
+        origin
+      )
+    }
+    depth.requireLoopInvariant(
+      s"synchronous read-first single-port memory '$label' depth"
+    )
+
+    val refs = Vector(clock, writeEnable, address, writeData, readData)
+    FrontendSession.emitSynchronousReadFirstSinglePortMemory(
+      FrontendNode(
+        ModuleItem.SynchronousReadFirstSinglePortMemory(
+          label,
+          memoryName,
+          clockRef,
+          writeEnableRef,
+          addressRef,
+          writeDataRef,
+          readDataRef,
+          elementType.raw,
+          depth.expression
+        ),
+        parameters = refs.flatMap(_.parameters).toSet ++ elementType.parameters ++
+          depth.parameters,
+        booleanParameters = refs.flatMap(_.booleanParameters).toSet ++
+          elementType.booleanParameters ++ depth.booleanParameters,
+        localParameters = refs.flatMap(_.localParameters).toSet ++
+          elementType.localParameters ++ depth.localParameters,
+        booleanLocalParameters = refs.flatMap(_.booleanLocalParameters).toSet ++
+          elementType.booleanLocalParameters ++ depth.booleanLocalParameters,
+        scopes = refs.flatMap(_.scopes).toSet ++ elementType.scopes,
+        origin = origin
+      )
+    )
+  }
+
   def indexedPartSelect(base: String, offset: HdlInt, width: HdlInt)(implicit
       file: sourcecode.File,
       line: sourcecode.Line
@@ -1326,6 +1451,40 @@ private[morphhdl] object ParamRtlFrontend {
     requirePortableIdentifier(
       reference.name,
       s"asynchronous-enabled-register $role",
+      invalidCode,
+      value.origin
+    )
+    reference
+  }
+
+  private def requireSynchronousReadFirstSinglePortMemoryRef(
+      label: String,
+      role: String,
+      value: FrontendNode[RtlExpr],
+      nullCode: String,
+      notRefCode: String,
+      invalidCode: String,
+      origin: SourceOrigin
+  ): Ref = {
+    if (value eq null) {
+      FrontendException.failAt(
+        nullCode,
+        s"synchronous read-first single-port memory '$label' requires a non-null $role reference",
+        origin
+      )
+    }
+    value.requireUsable(
+      s"synchronous read-first single-port memory '$label' $role"
+    )
+    val reference = requireRef(
+      value,
+      s"synchronous read-first single-port memory $role",
+      notRefCode,
+      origin
+    )
+    requirePortableIdentifier(
+      reference.name,
+      s"synchronous read-first single-port memory $role",
       invalidCode,
       value.origin
     )

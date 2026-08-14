@@ -270,3 +270,18 @@ priority, capture, hold and later capture at eight and five bits. Yosys rejects
 disabled capture, enable-before-reset, active-low enable, falling-edge clock,
 synchronous reset and reset-to-ones mutations. The external artifact inventory
 is exactly fifteen files including `asynchronous_enabled_register.v`.
+
+Increment 20 adds one bounded
+`SynchronousReadFirstSinglePortMemory`. The concrete witness uses the shared
+positive-edge Spinal memory path and still runs every inherited validation
+phase. ParamRTL independently proves positive element width/depth, exact
+write/read element types, distinct one-bit clock/write-enable roles, unsigned
+addressing, sufficient capacity across the complete legal domain, sole
+ownership and the explicit in-range/read-first/surplus policy. This extends the
+partial width, driver, register and cross-clock evidence without claiming
+general memory topology, arbitrary clocked statements or external domain
+provenance. The sixteenth fixture proves 8x5, 5x3 and 1x1 configurations;
+Icarus covers synchronous read-first and surplus semantics while Yosys checks
+the retained memory, output register and exact guard paths. The external
+artifact inventory is exactly sixteen files including
+`single_port_memory.v`.

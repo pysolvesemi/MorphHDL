@@ -130,3 +130,14 @@ second and no final assignment branch. The fifteenth
 capture, hold and later capture at eight and five bits; synthesis mutations
 reject disabled capture, reversed control priority, active-low enable,
 falling-edge clocking, synchronous reset and reset-to-ones.
+
+Increment 20 adds one bounded `SynchronousReadFirstSinglePortMemory`. The
+memory has independent positive `WIDTH` and `DEPTH` parameters, one fixed
+three-bit unsigned address, one positive-edge clock and one active-high
+whole-word write enable. ParamRTL proves that the complete legal depth domain
+fits the address capacity and fixes synchronous read-first collision behavior.
+Addresses at or above `DEPTH` synchronously read zero and ignore writes;
+unwritten in-range values remain unspecified. The sixteenth
+`single_port_memory.v` artifact proves default 8x5, awkward 5x3 and minimum
+1x1 configurations without regeneration. Reset, initialization, read enable,
+write masks and additional ports remain rejected.

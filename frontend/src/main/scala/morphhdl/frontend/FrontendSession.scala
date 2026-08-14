@@ -31,6 +31,11 @@ private[frontend] case object AsynchronousEnabledRegisterKind extends RuntimePro
   val description = "asynchronous-reset enabled-register process"
 }
 
+private[frontend] case object SynchronousReadFirstSinglePortMemoryKind
+    extends RuntimeProcessKind {
+  val description = "synchronous read-first single-port memory process"
+}
+
 private[frontend] final case class CapturedRuntimeProcess(
     kind: RuntimeProcessKind,
     origin: SourceOrigin
@@ -826,6 +831,11 @@ private[frontend] object FrontendSession {
   ): Unit =
     emitRuntimeProcess(item, AsynchronousEnabledRegisterKind)
 
+  private[frontend] def emitSynchronousReadFirstSinglePortMemory(
+      item: FrontendNode[ModuleItem]
+  ): Unit =
+    emitRuntimeProcess(item, SynchronousReadFirstSinglePortMemoryKind)
+
   private def emitRuntimeProcess(
       item: FrontendNode[ModuleItem],
       kind: RuntimeProcessKind
@@ -907,6 +917,8 @@ private[frontend] object FrontendSession {
       "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-MIXED"
     case AsynchronousEnabledRegisterKind =>
       "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-MIXED"
+    case SynchronousReadFirstSinglePortMemoryKind =>
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-MIXED"
   }
 
   private def nestedCode(kind: RuntimeProcessKind): String = kind match {
@@ -917,6 +929,8 @@ private[frontend] object FrontendSession {
       "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-NESTED"
     case AsynchronousEnabledRegisterKind =>
       "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-NESTED"
+    case SynchronousReadFirstSinglePortMemoryKind =>
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-NESTED"
   }
 
   private def multipleCode(kind: RuntimeProcessKind): String = kind match {
@@ -927,6 +941,8 @@ private[frontend] object FrontendSession {
       "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-MULTIPLE"
     case AsynchronousEnabledRegisterKind =>
       "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-MULTIPLE"
+    case SynchronousReadFirstSinglePortMemoryKind =>
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-MULTIPLE"
   }
 
   private def ordinaryItemKind(item: ModuleItem): String = item match {

@@ -12,7 +12,7 @@ first parameterized-Verilog release, not implemented in Increment 1.
 | Parameters | Conditional integer values | v1 | Increment 11 implements `HdlBool.select(whenTrue, whenFalse)` with exact default selection and a conservative whole-domain branch hull |
 | Parameters | Enum/type/string parameters | Post-v1 | Static in v1 |
 | Shape | Parameter-dependent packed width | v1 | Width must be provably positive |
-| Shape | Parameter-dependent memory depth | v1 | Supported memory modes are bounded |
+| Shape | Parameter-dependent memory depth | v1 | Increment 20 implements any positive finitely bounded independent depth whose maximum fits the address type's minimum capacity; its public fixture uses depth 1..5 and a fixed three-bit address |
 | Shape | Parameter-dependent port presence/direction | Rejected | Use a static interface profile |
 | Structure | Child parameter forwarding | v1 | Increments 4 and 12 implement distinct named integer and Boolean mappings; binding expressions are validated in the parent instance context |
 | Structure | Homogeneous generate-for | v1 | Increments 5 and 6 implement zero-based unit stride, one frontend-captured body, scoped `GenIndex` and a canonical packed-slice partition |
@@ -20,7 +20,7 @@ first parameterized-Verilog release, not implemented in Increment 1.
 | Structure | Parameter-dependent Scala class selection | Static only | Not recoverable as HDL structure |
 | RTL | Combinational operations | v1 | Increment 15 implements one complete two-branch runtime mux process over direct port references; broader expressions and statement forms remain bounded follow-on work |
 | RTL | Registers and sync/async reset | v1 | Increments 16 and 17 implement active-high synchronous/asynchronous reset-to-zero; Increments 18 and 19 add the matching reset-priority active-high enable with disabled hold; broader state remains bounded follow-on work |
-| RTL | Supported memories | v1 | Width/depth, latency and mask contract documented |
+| RTL | Supported memories | v1 | Increment 20 implements one synchronous read-first whole-word single-port memory; reset, initialization, read enable, masks and extra ports remain deferred |
 | RTL | Tri-state/analog primitives | Post-v1 | Rejected by initial strict profile |
 | Aggregates | Bundle/Vec internal intent | v1 | Preserved in ParamRTL, flattened for Verilog |
 | Ports | Scalar and packed-vector ports | v1 | Stable flat ABI |
