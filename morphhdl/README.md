@@ -178,6 +178,11 @@ and the memory fixture; constant evaluation creates no runtime hardware.
 forbidden to preserve the 2001 baseline. `addressWidth` stays distinct because
 it guarantees a minimum result of one.
 
+Increment 27 renames that backend-private generated function to the natural
+module-local name `clog2`, with deterministic numeric suffixes on collisions.
+The Scala/ParamRTL API and math are unchanged; helper-consuming Verilog,
+reviewed golden bytes and hashes change.
+
 Increment 25 adds one bounded `SynchronousCounter` that corresponds to the
 existing `spinal.lib.Counter` witness. A direct positive public `LIMIT`
 parameter controls both the terminal `LIMIT - 1` comparison and the exact
@@ -201,3 +206,18 @@ The eighteenth `simple_dual_port_memory.v` artifact chooses two exact
 1x1 and full-domain 4x8 behavior without regeneration. Independent
 clocks, asynchronous reads, masks, initialization, reset, additional ports and
 selectable collision modes remain rejected.
+
+Increment 27 adds one atomic `SynchronousStreamFifo` backed by a real
+latency-two `spinal.lib.StreamFifo` concrete witness. The public `DEPTH`
+parameter counts every accepted, unconsumed transaction including the
+registered pop stage. Strict Verilog-2001 emits one exact-depth synchronous
+array, wrapped pointers, bounded occupancy, ready/valid controls and one named
+positive-edge process. Empty input never bypasses, full rejects a same-edge
+replacement, middle push/pop proceeds together, stalled output holds, and an
+occupancy-one replacement has one refill bubble. The nineteenth
+`synchronous_stream_fifo.v` artifact proves default 8x5, awkward 5x3, minimum
+1x1 and power-of-two 4x8 behavior without regeneration. Reset clears control
+state only; memory and invalid pop payload remain unspecified.
+The concrete library witness proves the default depth-five shape; the symbolic
+`DEPTH=1` no-full-replacement policy intentionally differs from the pinned
+library's `m2sPipe` specialization and is governed by the Verilog testbench.

@@ -15,18 +15,18 @@ import morphhdl.paramrtl._
 import org.scalatest.funsuite.AnyFunSuite
 
 class AddressWidthEmitterTests extends AnyFunSuite {
-  test("emits one exact collision-proof Verilog-2001 constant function and a floor-one call") {
+  test("emits one exact handwritten-style Verilog-2001 constant function and a floor-one call") {
     val verilog = emit(localDesign(AddressWidth(ParameterRef("DEPTH"))))
 
     assert(verilog.contains(portableFunction), verilog)
-    assert(verilog.contains("localparam integer VALUE = morphhdl$ceil_log2(DEPTH, 1);"), verilog)
-    assert(occurrences(verilog, "function integer morphhdl$ceil_log2;") == 1, verilog)
+    assert(verilog.contains("localparam integer VALUE = clog2(DEPTH, 1);"), verilog)
+    assert(occurrences(verilog, "function integer clog2;") == 1, verilog)
     assert(!verilog.contains("$clog2"), verilog)
   }
 
   test("emits the helper only in modules whose rendered expressions need it") {
     val plain = emit(localDesign(Add(ParameterRef("DEPTH"), Literal(1))))
-    assert(!plain.contains("morphhdl$ceil_log2"), plain)
+    assert(!plain.contains("function integer clog2;"), plain)
 
     val withTwoUses = ModuleDef(
       "TwoAddressWidths",
@@ -41,37 +41,37 @@ class AddressWidthEmitterTests extends AnyFunSuite {
       )
     )
     val rendered = emit(Design(withTwoUses.name, Vector(withTwoUses)))
-    assert(occurrences(rendered, "function integer morphhdl$ceil_log2;") == 1, rendered)
+    assert(occurrences(rendered, "function integer clog2;") == 1, rendered)
   }
 
   test("supports forward calls in ANSI port widths and surrounding arithmetic") {
     val direct = emit(identityDesign(AddressWidth(ParameterRef("DEPTH"))))
-    val call = "morphhdl$ceil_log2(DEPTH, 1)"
+    val call = "clog2(DEPTH, 1)"
     assert(direct.contains(s"[($call)-1:0] din"), direct)
     assert(direct.contains(s"[($call)-1:0] dout"), direct)
-    assert(direct.indexOf(call) < direct.indexOf("function integer morphhdl$ceil_log2;"), direct)
+    assert(direct.indexOf(call) < direct.indexOf("function integer clog2;"), direct)
 
     val operandArithmetic = emit(localDesign(AddressWidth(Add(ParameterRef("DEPTH"), Literal(0)))))
     assert(
-      operandArithmetic.contains("localparam integer VALUE = morphhdl$ceil_log2(DEPTH + 0, 1);"),
+      operandArithmetic.contains("localparam integer VALUE = clog2(DEPTH + 0, 1);"),
       operandArithmetic
     )
 
     val resultArithmetic = emit(localDesign(Add(AddressWidth(ParameterRef("DEPTH")), Literal(1))))
     assert(
-      resultArithmetic.contains("localparam integer VALUE = morphhdl$ceil_log2(DEPTH, 1) + 1;"),
+      resultArithmetic.contains("localparam integer VALUE = clog2(DEPTH, 1) + 1;"),
       resultArithmetic
     )
   }
 
   test("uses the single-call lowering in memory generate and indexed part-select contexts") {
     val memoryVerilog = emit(memoryDesign())
-    val capacityCall = "morphhdl$ceil_log2(CAPACITY, 1)"
+    val capacityCall = "clog2(CAPACITY, 1)"
     assert(memoryVerilog.contains(s"reg [7:0] memory [0:($capacityCall)-1];"), memoryVerilog)
     assert(memoryVerilog.contains(s"if (address < $capacityCall) begin"), memoryVerilog)
 
     val generateVerilog = emit(generateCountDesign())
-    val depthCall = "morphhdl$ceil_log2(DEPTH, 1)"
+    val depthCall = "clog2(DEPTH, 1)"
     assert(
       generateVerilog.contains(s"for (i = 0; i < $depthCall; i = i + 1) begin : g_width"),
       generateVerilog
@@ -99,7 +99,7 @@ class AddressWidthEmitterTests extends AnyFunSuite {
     val verilog = emit(localDesign(nested))
     val valueLine = verilog.split("\\n").iterator.find(_.contains("localparam integer VALUE =")).get
 
-    assert(occurrences(valueLine, "morphhdl$ceil_log2(") == 900, valueLine)
+    assert(occurrences(valueLine, "clog2(") == 900, valueLine)
     assert(valueLine.length < 30000, valueLine.length.toString)
   }
 
@@ -108,7 +108,7 @@ class AddressWidthEmitterTests extends AnyFunSuite {
     (1 to 5000).foreach { _ => operand = Add(operand, Literal(1)) }
 
     val verilog = emit(localDesign(AddressWidth(operand)))
-    assert(verilog.contains("localparam integer VALUE = morphhdl$ceil_log2(1 + 1 + 1"), verilog)
+    assert(verilog.contains("localparam integer VALUE = clog2(1 + 1 + 1"), verilog)
     assert(verilog.contains(", 1);"), verilog)
 
     def nest(base: IntExpr): IntExpr =
@@ -121,17 +121,17 @@ class AddressWidthEmitterTests extends AnyFunSuite {
   }
 
   private val portableFunction =
-    """  function integer morphhdl$ceil_log2;
+    """  function integer clog2;
       |    input integer value;
       |    input integer minimum_result;
       |    integer remaining;
       |    begin
-      |      morphhdl$ceil_log2 = 0;
+      |      clog2 = 0;
       |      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
-      |        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;
+      |        clog2 = clog2 + 1;
       |      end
-      |      if (morphhdl$ceil_log2 < minimum_result) begin
-      |        morphhdl$ceil_log2 = minimum_result;
+      |      if (clog2 < minimum_result) begin
+      |        clog2 = minimum_result;
       |      end
       |    end
       |  endfunction""".stripMargin

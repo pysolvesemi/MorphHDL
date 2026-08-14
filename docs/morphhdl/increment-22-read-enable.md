@@ -78,7 +78,7 @@ pre-write memory value during a same-address collision.
 
 The derived address semantics introduced in Increment 21 remain unchanged.
 Increment 24 later replaces the original target conditional chain with the
-module-local `morphhdl$ceil_log2(DEPTH, 1)` constant-function call, without
+module-local `clog2(DEPTH, 1)` constant-function call, without
 native `$clog2` or an overrideable helper parameter.
 
 ## Concrete witness and inherited validation

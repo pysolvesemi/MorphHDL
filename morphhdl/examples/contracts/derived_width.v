@@ -6,23 +6,23 @@ module DerivedWidth #(
   output wire [PADDED_WIDTH-1:0] dout
 );
 
-  function integer morphhdl$ceil_log2;
+  function integer clog2;
     input integer value;
     input integer minimum_result;
     integer remaining;
     begin
-      morphhdl$ceil_log2 = 0;
+      clog2 = 0;
       for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
-        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;
+        clog2 = clog2 + 1;
       end
-      if (morphhdl$ceil_log2 < minimum_result) begin
-        morphhdl$ceil_log2 = minimum_result;
+      if (clog2 < minimum_result) begin
+        clog2 = minimum_result;
       end
     end
   endfunction
 
   localparam integer CLAMPED_PADDING = (DATA_WIDTH < 3) ? DATA_WIDTH : 3;
-  localparam integer LANE_INDEX_WIDTH = morphhdl$ceil_log2(LANES, 0);
+  localparam integer LANE_INDEX_WIDTH = clog2(LANES, 0);
   localparam integer TOTAL_WIDTH = LANES * DATA_WIDTH;
   localparam integer PADDED_WIDTH = ((TOTAL_WIDTH + CLAMPED_PADDING > 4) ? TOTAL_WIDTH + CLAMPED_PADDING : 4) + LANE_INDEX_WIDTH;
 

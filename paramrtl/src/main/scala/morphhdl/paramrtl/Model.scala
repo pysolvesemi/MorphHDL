@@ -191,6 +191,20 @@ object ModuleItem {
       elementType: PackedBits,
       depth: IntExpr
   ) extends ModuleItem
+  final case class SynchronousStreamFifo(
+      label: String,
+      memoryName: String,
+      clock: RtlExpr.Ref,
+      reset: RtlExpr.Ref,
+      pushValid: RtlExpr.Ref,
+      pushReady: RtlExpr.Ref,
+      pushData: RtlExpr.Ref,
+      popValid: RtlExpr.Ref,
+      popReady: RtlExpr.Ref,
+      popData: RtlExpr.Ref,
+      elementType: PackedBits,
+      depth: IntExpr
+  ) extends ModuleItem
 }
 
 final case class ModuleDef(

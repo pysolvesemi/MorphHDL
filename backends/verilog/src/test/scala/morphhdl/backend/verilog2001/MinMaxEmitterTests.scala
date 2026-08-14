@@ -104,7 +104,7 @@ class MinMaxEmitterTests extends AnyFunSuite {
       assert(!Verilog2001IntExpressionLowering.expansionWithin(above, limit))
       assert(
         emit(localDesign(atLimit, Vector(boundedParameter("BASE", 1, 1, 1)))).contains(
-          "morphhdl$ceil_log2"
+          "clog2"
         )
       )
       assert(

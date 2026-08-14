@@ -258,6 +258,18 @@ publishes one atomic item only after every argument passes. A second or nested
 memory/process, sibling module items, independent clocks, masks,
 initialization and selectable collision modes fail closed.
 
+Increment 27 adds
+`emitSynchronousStreamFifo(label, memoryName, clock, reset, pushValid,
+pushReady, pushData, popValid, popReady, popData, elementType, depth)`. The
+eight runtime operands are guarded direct references and pairwise distinct.
+Clock, reset and the four ready/valid controls are exact unsigned one-bit
+ports; push/pop data exactly match one owned packed element type. `depth` must
+be the same module's unmodified direct public positive `HdlInt.param`, with a
+finite target-safe domain. The helper publishes one atomic FIFO only after
+every role, name, type and ownership check passes. A second or nested runtime
+item, a copied/local/arithmetic depth, masks, flush, bypass, occupancy ports,
+initialization, asynchronous reset/read or multiple clocks fail closed.
+
 An ordinary Scala `if`, `match`, collection size, recursion or class selection
 continues to execute during elaboration and therefore may depend only on static
 Scala values.

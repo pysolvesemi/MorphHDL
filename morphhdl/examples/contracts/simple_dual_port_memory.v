@@ -3,25 +3,25 @@ module SimpleDualPortMemory #(
   parameter integer WIDTH = 8
 ) (
   input  wire [0:0] clk,
-  input  wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] read_address,
+  input  wire [(clog2(DEPTH, 1))-1:0] read_address,
   output reg [WIDTH-1:0] read_data,
   input  wire [0:0] read_enable,
-  input  wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] write_address,
+  input  wire [(clog2(DEPTH, 1))-1:0] write_address,
   input  wire [WIDTH-1:0] write_data,
   input  wire [0:0] write_enable
 );
 
-  function integer morphhdl$ceil_log2;
+  function integer clog2;
     input integer value;
     input integer minimum_result;
     integer remaining;
     begin
-      morphhdl$ceil_log2 = 0;
+      clog2 = 0;
       for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
-        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;
+        clog2 = clog2 + 1;
       end
-      if (morphhdl$ceil_log2 < minimum_result) begin
-        morphhdl$ceil_log2 = minimum_result;
+      if (clog2 < minimum_result) begin
+        clog2 = minimum_result;
       end
     end
   endfunction

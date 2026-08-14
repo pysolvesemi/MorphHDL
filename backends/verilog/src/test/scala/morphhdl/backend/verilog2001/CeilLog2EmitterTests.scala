@@ -3,7 +3,7 @@ package morphhdl.backend.verilog2001
 import morphhdl.paramrtl.BoolExpr.{LessThan => BoolLessThan}
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
 import morphhdl.paramrtl.IntExpr.{Add, AddressWidth, CeilLog2, Literal, Min, ParameterRef}
-import morphhdl.paramrtl.ModuleItem.ContinuousAssign
+import morphhdl.paramrtl.ModuleItem.{ContinuousAssign, GenerateFor, ModuleInstance}
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.Ref
 import morphhdl.paramrtl.Signedness.Unsigned
@@ -25,9 +25,9 @@ class CeilLog2EmitterTests extends AnyFunSuite {
     )
     val verilog = emit(Design(module.name, Vector(module)))
 
-    assert(verilog.contains("localparam integer CEILING = morphhdl$ceil_log2(LANES, 0);"), verilog)
-    assert(verilog.contains("localparam integer ADDRESS = morphhdl$ceil_log2(LANES, 1);"), verilog)
-    assert(occurrences(verilog, "function integer morphhdl$ceil_log2;") == 1, verilog)
+    assert(verilog.contains("localparam integer CEILING = clog2(LANES, 0);"), verilog)
+    assert(verilog.contains("localparam integer ADDRESS = clog2(LANES, 1);"), verilog)
+    assert(occurrences(verilog, "function integer clog2;") == 1, verilog)
     assert(!verilog.contains("$clog2"), verilog)
   }
 
@@ -35,8 +35,8 @@ class CeilLog2EmitterTests extends AnyFunSuite {
     val ceil = emit(localDesign(CeilLog2(Literal(1))))
     val address = emit(localDesign(AddressWidth(Literal(1))))
 
-    assert(ceil.contains("localparam integer VALUE = morphhdl$ceil_log2(1, 0);"), ceil)
-    assert(address.contains("localparam integer VALUE = morphhdl$ceil_log2(1, 1);"), address)
+    assert(ceil.contains("localparam integer VALUE = clog2(1, 0);"), ceil)
+    assert(address.contains("localparam integer VALUE = clog2(1, 1);"), address)
   }
 
   test("supports a constant-function call in a forward ANSI port width") {
@@ -49,10 +49,10 @@ class CeilLog2EmitterTests extends AnyFunSuite {
       Vector(ContinuousAssign(Ref("dout"), Ref("din")))
     )
     val verilog = emit(Design(module.name, Vector(module)))
-    val call = "morphhdl$ceil_log2(LANES, 0)"
+    val call = "clog2(LANES, 0)"
 
     assert(verilog.contains(s"[($call)-1:0] din"), verilog)
-    assert(verilog.indexOf(call) < verilog.indexOf("function integer morphhdl$ceil_log2;"), verilog)
+    assert(verilog.indexOf(call) < verilog.indexOf("function integer clog2;"), verilog)
   }
 
   test("discovers ceil-log2 under a Boolean local expression and emits no unused helpers elsewhere") {
@@ -77,9 +77,9 @@ class CeilLog2EmitterTests extends AnyFunSuite {
     )
     val verilog = emit(Design(withLog.name, Vector(withLog, plain)))
 
-    assert(occurrences(verilog, "function integer morphhdl$ceil_log2;") == 1, verilog)
+    assert(occurrences(verilog, "function integer clog2;") == 1, verilog)
     val plainText = verilog.substring(verilog.indexOf("module PlainSibling"))
-    assert(!plainText.contains("morphhdl$ceil_log2"), plainText)
+    assert(!plainText.contains("function integer clog2;"), plainText)
   }
 
   test("retains positive signed-32 target-domain checks for the helper input") {
@@ -97,7 +97,7 @@ class CeilLog2EmitterTests extends AnyFunSuite {
     (1 to 5000).foreach { _ => operand = Add(operand, Literal(1)) }
 
     val verilog = emit(localDesign(CeilLog2(operand)))
-    assert(verilog.contains("localparam integer VALUE = morphhdl$ceil_log2(1 + 1 + 1"), verilog)
+    assert(verilog.contains("localparam integer VALUE = clog2(1 + 1 + 1"), verilog)
     assert(verilog.contains(", 0);"), verilog)
   }
 
@@ -110,6 +110,89 @@ class CeilLog2EmitterTests extends AnyFunSuite {
         assert(diagnostics.codes == Vector("V2001-MIN-MAX-EXPANSION-TOO-LARGE"), diagnostics.values.mkString("\n"))
       case Right(verilog) => fail(s"Expected MinMax expansion diagnostic, emitted:\n$verilog")
     }
+  }
+
+  test("falls back deterministically when handwritten helper names collide") {
+    val packed = PackedBits(Literal(8), Unsigned)
+    val module = ModuleDef(
+      "CeilLog2Collision",
+      Vector(boundedLanes()),
+      Vector(
+        Port("clog2", Input, packed),
+        Port("clog2_1", Input, packed),
+        Port("dout", Output, packed)
+      ),
+      Vector(ContinuousAssign(Ref("dout"), Ref("clog2"))),
+      localParameters = Vector(IntegerLocalParameter("VALUE", CeilLog2(ParameterRef("LANES"))))
+    )
+    val forward = emit(Design(module.name, Vector(module)))
+    val reverse = emit(Design(module.name, Vector(module.copy(ports = module.ports.reverse))))
+
+    assert(forward == reverse)
+    assert(forward.contains("function integer clog2_2;"), forward)
+    assert(forward.contains("localparam integer VALUE = clog2_2(LANES, 0);"), forward)
+    assert(!forward.contains("function integer clog2;"), forward)
+    assert(!forward.contains("function integer clog2_1;"), forward)
+  }
+
+  test("treats local declarations and process labels as same-module collisions") {
+    val packed = PackedBits(Literal(8), Unsigned)
+    val module = ModuleDef(
+      "LocalLabelCollision",
+      Vector(boundedLanes()),
+      Vector(Port("din", Input, packed), Port("dout", Output, packed)),
+      Vector(
+        ContinuousAssign(Ref("dout"), Ref("din")),
+        GenerateFor("clog2_1", "i", Literal(1), Vector.empty)
+      ),
+      localParameters = Vector(
+        IntegerLocalParameter("clog2", Literal(1)),
+        IntegerLocalParameter("VALUE", CeilLog2(ParameterRef("LANES")))
+      )
+    )
+    val verilog = emit(Design(module.name, Vector(module)))
+
+    assert(verilog.contains("function integer clog2_2;"), verilog)
+    assert(verilog.contains("localparam integer VALUE = clog2_2(LANES, 0);"), verilog)
+  }
+
+  test("uses the natural helper name independently in distinct modules") {
+    val first = localDesign(CeilLog2(ParameterRef("LANES"))).modules.head.copy(name = "FirstLog")
+    val second = localDesign(AddressWidth(ParameterRef("LANES"))).modules.head.copy(name = "SecondLog")
+    val verilog = emit(Design(first.name, Vector(second, first)))
+
+    assert(occurrences(verilog, "function integer clog2;") == 2, verilog)
+    assert(occurrences(verilog, "function integer clog2_1;") == 0, verilog)
+  }
+
+  test("ignores child module and formal names outside the local declaration namespace") {
+    val packed = PackedBits(Literal(8), Unsigned)
+    val child = ModuleDef(
+      "clog2",
+      Vector(IntegerParameter("clog2", 1, Vector(MinInclusive(1), MaxInclusive(2)))),
+      Vector(Port("din", Input, packed), Port("dout", Output, packed)),
+      Vector(ContinuousAssign(Ref("dout"), Ref("din")))
+    )
+    val parent = ModuleDef(
+      "ParentLog",
+      Vector(boundedLanes()),
+      Vector(Port("din", Input, packed), Port("dout", Output, packed)),
+      Vector(ModuleInstance(
+        "u_child",
+        "clog2",
+        parameterBindings = Vector(ParameterBinding("clog2", Literal(1))),
+        portConnections = Vector(
+          PortConnection("din", Ref("din")),
+          PortConnection("dout", Ref("dout"))
+        )
+      )),
+      localParameters = Vector(IntegerLocalParameter("VALUE", CeilLog2(ParameterRef("LANES"))))
+    )
+    val verilog = emit(Design(parent.name, Vector(parent, child)))
+    val parentText = verilog.substring(verilog.indexOf("module ParentLog"))
+
+    assert(parentText.contains("function integer clog2;"), parentText)
+    assert(!parentText.contains("function integer clog2_1;"), parentText)
   }
 
   private def occurrences(value: String, needle: String): Int =

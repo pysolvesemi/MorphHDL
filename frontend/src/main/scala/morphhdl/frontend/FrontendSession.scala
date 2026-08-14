@@ -45,6 +45,10 @@ private[frontend] case object SynchronousReadFirstSimpleDualPortMemoryKind
   val description = "synchronous read-first simple dual-port memory process"
 }
 
+private[frontend] case object SynchronousStreamFifoKind extends RuntimeProcessKind {
+  val description = "synchronous stream FIFO process"
+}
+
 private[frontend] final case class CapturedRuntimeProcess(
     kind: RuntimeProcessKind,
     origin: SourceOrigin
@@ -854,6 +858,9 @@ private[frontend] object FrontendSession {
   ): Unit =
     emitRuntimeProcess(item, SynchronousReadFirstSimpleDualPortMemoryKind)
 
+  private[frontend] def emitSynchronousStreamFifo(item: FrontendNode[ModuleItem]): Unit =
+    emitRuntimeProcess(item, SynchronousStreamFifoKind)
+
   private def emitRuntimeProcess(
       item: FrontendNode[ModuleItem],
       kind: RuntimeProcessKind
@@ -941,6 +948,8 @@ private[frontend] object FrontendSession {
       "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-MIXED"
     case SynchronousReadFirstSimpleDualPortMemoryKind =>
       "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-MIXED"
+    case SynchronousStreamFifoKind =>
+      "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-MIXED"
   }
 
   private def nestedCode(kind: RuntimeProcessKind): String = kind match {
@@ -957,6 +966,8 @@ private[frontend] object FrontendSession {
       "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-NESTED"
     case SynchronousReadFirstSimpleDualPortMemoryKind =>
       "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-NESTED"
+    case SynchronousStreamFifoKind =>
+      "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-NESTED"
   }
 
   private def multipleCode(kind: RuntimeProcessKind): String = kind match {
@@ -973,6 +984,8 @@ private[frontend] object FrontendSession {
       "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-MULTIPLE"
     case SynchronousReadFirstSimpleDualPortMemoryKind =>
       "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-MULTIPLE"
+    case SynchronousStreamFifoKind =>
+      "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-MULTIPLE"
   }
 
   private def ordinaryItemKind(item: ModuleItem): String = item match {

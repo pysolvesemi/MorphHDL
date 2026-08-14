@@ -112,6 +112,6 @@ and should remain forbidden by the 2001 baseline. General logarithm bases,
 power/exponent expressions and generated comments should remain deferred.
 
 Increment 24 implements this recommendation with the shared two-argument
-`morphhdl$ceil_log2` constant function, preserving the Verilog-2001 baseline
+`clog2` constant function, preserving the Verilog-2001 baseline
 and the distinct zero and one minimum-result semantics. Its added lane-index
 term updates the current fixture widths to 37, 4, 20, 29, 25 and 7.

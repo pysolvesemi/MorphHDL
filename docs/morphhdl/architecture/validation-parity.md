@@ -371,3 +371,26 @@ and extra ports. Direct references and sole-item ownership make combinational
 feedback unrepresentable in this bounded node, but the general
 `PhaseCheckCombinationalLoops` adaptation remains planned. General multi-port,
 multi-clock and vendor-primitive inference coverage remains partial.
+
+Increment 27 extends the same partial adaptations with one atomic
+`SynchronousStreamFifo`. The default witness is the existing latency-two
+`spinal.lib.StreamFifo` configured with constructor depth five and a registered
+output, yielding the public five-entry capacity while every
+inherited phase still runs. ParamRTL separately proves a direct finite
+positive public depth, exact data/control roles, sole output/memory ownership,
+target-safe pointer and `DEPTH + 1` occupancy widths, one shared clock, and a
+complete synchronous reset/hold/transfer policy. The nineteenth fixture covers
+default 8x5, awkward 5x3, minimum 1x1 and power-of-two 4x8 shapes. Icarus
+protects no-bypass latency, full/empty boundaries, middle simultaneous
+transfer, occupancy-one refill, stall stability, order and wrap. Yosys and
+mutations protect the exact capacity comparator, synchronous registered read,
+whole-word writes, pointer/count/reset equations, unspecified memory/payload
+initial state and absence of extra ports or state. General Stream operators,
+alternate FIFO latency, multiple items/clocks and CDC remain partial.
+
+The concrete witness establishes inherited-phase execution and the default
+depth-five flat shape only. The pinned library's constructor-depth-one
+`m2sPipe` specialization accepts full-pop replacement, whereas Morph's
+parameterized `DEPTH=1` contract deliberately rejects that push and refills
+synchronously. The strict parameterized-Verilog simulation is authoritative
+for the override.

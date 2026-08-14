@@ -55,7 +55,8 @@ import morphhdl.paramrtl.ModuleItem.{
   SynchronousEnabledRegister,
   SynchronousReadFirstSimpleDualPortMemory,
   SynchronousReadFirstSinglePortMemory,
-  SynchronousRegister
+  SynchronousRegister,
+  SynchronousStreamFifo
 }
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
@@ -203,6 +204,8 @@ object ParamRtlValidator {
       module.items.collect { case memory: SynchronousReadFirstSimpleDualPortMemory => memory }.sortBy(_.label)
     val synchronousCounters =
       module.items.collect { case counter: SynchronousCounter => counter }.sortBy(_.label)
+    val synchronousStreamFifos =
+      module.items.collect { case fifo: SynchronousStreamFifo => fifo }.sortBy(_.label)
 
     addDuplicateDiagnostics(
       parameters.map(_.name),
@@ -311,7 +314,8 @@ object ParamRtlValidator {
     )
     addDuplicateDiagnostics(
       synchronousReadFirstSinglePortMemories.map(_.memoryName) ++
-        synchronousReadFirstSimpleDualPortMemories.map(_.memoryName),
+        synchronousReadFirstSimpleDualPortMemories.map(_.memoryName) ++
+        synchronousStreamFifos.map(_.memoryName),
       modulePath :+ "memories",
       "PRTL-DUPLICATE-MEMORY-NAME",
       "memory",
@@ -322,6 +326,13 @@ object ParamRtlValidator {
       modulePath :+ "processLabels",
       "PRTL-DUPLICATE-SYNCHRONOUS-COUNTER-LABEL",
       "synchronous counter process label",
+      diagnostics
+    )
+    addDuplicateDiagnostics(
+      synchronousStreamFifos.map(_.label),
+      modulePath :+ "processLabels",
+      "PRTL-SYNCHRONOUS-STREAM-FIFO-DUPLICATE-LABEL",
+      "synchronous stream FIFO process label",
       diagnostics
     )
 
@@ -344,9 +355,11 @@ object ParamRtlValidator {
       "synchronous read-first simple dual-port memory process label" ->
         synchronousReadFirstSimpleDualPortMemories.map(_.label).toSet,
       "synchronous counter process label" -> synchronousCounters.map(_.label).toSet,
+      "synchronous stream FIFO process label" -> synchronousStreamFifos.map(_.label).toSet,
       "memory" ->
         (synchronousReadFirstSinglePortMemories.map(_.memoryName) ++
-          synchronousReadFirstSimpleDualPortMemories.map(_.memoryName)).toSet
+          synchronousReadFirstSimpleDualPortMemories.map(_.memoryName) ++
+          synchronousStreamFifos.map(_.memoryName)).toSet
     )
     declarationKinds.combinations(2).foreach {
       case Vector((leftKind, leftNames), (rightKind, rightNames)) =>
@@ -527,6 +540,12 @@ object ParamRtlValidator {
             path :+ "body" :+ index.toString,
             "Generate-for bodies cannot contain synchronous counters"
           )
+        case (_: SynchronousStreamFifo, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+            path :+ "body" :+ index.toString,
+            "Generate-for bodies cannot contain synchronous stream FIFOs"
+          )
         case (_: GenerateFor, index) =>
           diagnostics += Diagnostic(
             "PRTL-NESTED-GENERATE-UNSUPPORTED",
@@ -643,6 +662,12 @@ object ParamRtlValidator {
               "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
               branchPath :+ "body" :+ index.toString,
               "Generate-if branches cannot contain synchronous counters"
+            )
+          case (_: SynchronousStreamFifo, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-if branches cannot contain synchronous stream FIFOs"
             )
           case (_: GenerateFor, index) =>
             diagnostics += Diagnostic(
@@ -774,6 +799,12 @@ object ParamRtlValidator {
               "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
               branchPath :+ "body" :+ index.toString,
               "Generate-case branches cannot contain synchronous counters"
+            )
+          case (_: SynchronousStreamFifo, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-case branches cannot contain synchronous stream FIFOs"
             )
           case (_: GenerateFor, index) =>
             diagnostics += Diagnostic(
@@ -1188,6 +1219,66 @@ object ParamRtlValidator {
         }
     }
 
+    if (synchronousStreamFifos.size > 1) {
+      synchronousStreamFifos.drop(1).foreach { fifo =>
+        diagnostics += Diagnostic(
+          "PRTL-SYNCHRONOUS-STREAM-FIFO-MULTIPLE-FIFOS-UNSUPPORTED",
+          modulePath :+ "synchronousStreamFifos" :+ fifo.label,
+          "At most one top-level synchronous stream FIFO is supported per module"
+        )
+      }
+    }
+
+    synchronousStreamFifos.foreach { fifo =>
+      val path = modulePath :+ "synchronousStreamFifos" :+ fifo.label
+      checkIdentifier(fifo.label, path :+ "label", "synchronous stream FIFO process label", diagnostics)
+      checkIdentifier(fifo.memoryName, path :+ "memoryName", "synchronous stream FIFO memory", diagnostics)
+      validateExpressionReferences(
+        fifo.elementType.width,
+        parameterNames,
+        localParameterNames,
+        path :+ "elementType" :+ "width",
+        diagnostics,
+        booleanParameters = booleanParameterByName,
+        booleanLocalParameters = booleanLocalParameterNames
+      )
+      validateExpressionReferences(
+        fifo.depth,
+        parameterNames,
+        localParameterNames,
+        path :+ "depth",
+        diagnostics,
+        booleanParameters = booleanParameterByName,
+        booleanLocalParameters = booleanLocalParameterNames
+      )
+      fifo.depth match {
+        case ParameterRef(name) if parameterNames(name) =>
+        case _ =>
+          diagnostics += Diagnostic(
+            "PRTL-SYNCHRONOUS-STREAM-FIFO-DEPTH-NOT-DIRECT-PUBLIC-PARAMETER",
+            path :+ "depth",
+            "Synchronous stream FIFO depth must be a direct public integer parameter reference"
+          )
+      }
+    }
+
+    if (synchronousStreamFifos.nonEmpty) {
+      module.items
+        .filter {
+          case _: SynchronousStreamFifo => false
+          case _                        => true
+        }
+        .sortBy(moduleItemStableKey)
+        .zipWithIndex
+        .foreach { case (item, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-SYNCHRONOUS-STREAM-FIFO-MIXED-ITEMS-UNSUPPORTED",
+            modulePath :+ "synchronousStreamFifos" :+ "itemConflicts" :+ index.toString,
+            s"Synchronous stream FIFOs cannot be combined with ${moduleItemKind(item)} in this tranche"
+          )
+        }
+    }
+
     def integerLocalKey(name: String): String = s"integer:$name"
     def booleanLocalKey(name: String): String = s"boolean:$name"
 
@@ -1437,6 +1528,41 @@ object ParamRtlValidator {
             "PRTL-SYNCHRONOUS-COUNTER-LIMIT-NOT-FINITELY-BOUNDED",
             path,
             s"Synchronous counter limit domain ${renderInterval(facts.interval)} must have finite lower and upper bounds"
+          )
+      }
+    }
+
+    synchronousStreamFifos.foreach { fifo =>
+      val path = modulePath :+ "synchronousStreamFifos" :+ fifo.label
+      validateWidth(
+        fifo.elementType.width,
+        parameterFacts,
+        localParameterFacts,
+        path :+ "elementType" :+ "width",
+        diagnostics,
+        booleanParameterByName,
+        booleanLocalParameterFacts
+      )
+      analyzeExpression(
+        fifo.depth,
+        parameterFacts,
+        localParameterFacts,
+        path :+ "depth",
+        diagnostics,
+        booleanParameters = booleanParameterByName,
+        booleanLocalParameters = booleanLocalParameterFacts
+      ).foreach { facts =>
+        if (!facts.interval.lower.exists(_ >= 1))
+          diagnostics += Diagnostic(
+            "PRTL-SYNCHRONOUS-STREAM-FIFO-DEPTH-NOT-PROVEN-POSITIVE",
+            path :+ "depth",
+            s"Synchronous stream FIFO depth domain ${renderInterval(facts.interval)} is not proven positive"
+          )
+        if (facts.interval.lower.isEmpty || facts.interval.upper.isEmpty)
+          diagnostics += Diagnostic(
+            "PRTL-SYNCHRONOUS-STREAM-FIFO-DEPTH-NOT-FINITELY-BOUNDED",
+            path :+ "depth",
+            s"Synchronous stream FIFO depth domain ${renderInterval(facts.interval)} must have finite lower and upper bounds"
           )
       }
     }
@@ -2102,6 +2228,8 @@ object ParamRtlValidator {
       module.items.collect { case memory: SynchronousReadFirstSimpleDualPortMemory => memory }.sortBy(_.label)
     val synchronousCounters =
       module.items.collect { case counter: SynchronousCounter => counter }.sortBy(_.label)
+    val synchronousStreamFifos =
+      module.items.collect { case fifo: SynchronousStreamFifo => fifo }.sortBy(_.label)
     val driverCounts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
     val conditionalBranchDriverCounts =
       scala.collection.mutable.ArrayBuffer.empty[scala.collection.mutable.Map[String, Int]]
@@ -3547,6 +3675,116 @@ object ParamRtlValidator {
         )
     }
 
+    synchronousStreamFifos.foreach { fifo =>
+      val path = modulePath :+ "synchronousStreamFifos" :+ fifo.label
+      val prefix = "PRTL-SYNCHRONOUS-STREAM-FIFO"
+      val oneBitUnsigned = PackedBits(Literal(1), Unsigned)
+
+      def resolveInput(role: String, codeRole: String, reference: Ref): Option[Port] =
+        resolvePort(reference, portByName, path :+ role, diagnostics).map { port =>
+          if (port.direction != Input)
+            diagnostics += Diagnostic(
+              s"$prefix-$codeRole-NOT-INPUT",
+              path :+ role,
+              s"Synchronous stream FIFO $role '${port.name}' must be an input port"
+            )
+          port
+        }
+
+      def resolveOutput(role: String, codeRole: String, reference: Ref): Option[Port] =
+        resolvePort(reference, portByName, path :+ role, diagnostics).map { port =>
+          driverCounts.update(port.name, driverCounts(port.name) + 1)
+          if (port.direction != Output)
+            diagnostics += Diagnostic(
+              s"$prefix-$codeRole-NOT-OUTPUT",
+              path :+ role,
+              s"Synchronous stream FIFO $role '${port.name}' must be an output port"
+            )
+          port
+        }
+
+      def requireOneBit(
+          role: String,
+          codeRole: String,
+          port: Option[Port]
+      ): Unit =
+        port.foreach { value =>
+          if (!packedTypesEquivalent(value.dataType, oneBitUnsigned, module, baseFacts))
+            diagnostics += Diagnostic(
+              s"$prefix-$codeRole-TYPE-MISMATCH",
+              path :+ role,
+              s"Synchronous stream FIFO $role '${value.name}' must have exact unsigned 1-bit type"
+            )
+        }
+
+      val clockPort = resolveInput("clock", "CLOCK", fifo.clock)
+      val resetPort = resolveInput("reset", "RESET", fifo.reset)
+      val pushValidPort = resolveInput("pushValid", "PUSH-VALID", fifo.pushValid)
+      val pushReadyPort = resolveOutput("pushReady", "PUSH-READY", fifo.pushReady)
+      val pushDataPort = resolveInput("pushData", "PUSH-DATA", fifo.pushData)
+      val popValidPort = resolveOutput("popValid", "POP-VALID", fifo.popValid)
+      val popReadyPort = resolveInput("popReady", "POP-READY", fifo.popReady)
+      val popDataPort = resolveOutput("popData", "POP-DATA", fifo.popData)
+
+      requireOneBit("clock", "CLOCK", clockPort)
+      requireOneBit("reset", "RESET", resetPort)
+      requireOneBit("pushValid", "PUSH-VALID", pushValidPort)
+      requireOneBit("pushReady", "PUSH-READY", pushReadyPort)
+      requireOneBit("popValid", "POP-VALID", popValidPort)
+      requireOneBit("popReady", "POP-READY", popReadyPort)
+
+      pushDataPort.foreach { port =>
+        if (!packedTypesEquivalent(port.dataType, fifo.elementType, module, baseFacts))
+          diagnostics += Diagnostic(
+            s"$prefix-PUSH-DATA-TYPE-MISMATCH",
+            path :+ "pushData",
+            s"Synchronous stream FIFO push-data type '${port.dataType}' does not exactly match element type '${fifo.elementType}'"
+          )
+      }
+      popDataPort.foreach { port =>
+        if (!packedTypesEquivalent(port.dataType, fifo.elementType, module, baseFacts))
+          diagnostics += Diagnostic(
+            s"$prefix-POP-DATA-TYPE-MISMATCH",
+            path :+ "popData",
+            s"Synchronous stream FIFO pop-data type '${port.dataType}' does not exactly match element type '${fifo.elementType}'"
+          )
+      }
+
+      Vector(
+        "clock" -> fifo.clock.name,
+        "reset" -> fifo.reset.name,
+        "pushValid" -> fifo.pushValid.name,
+        "pushReady" -> fifo.pushReady.name,
+        "pushData" -> fifo.pushData.name,
+        "popValid" -> fifo.popValid.name,
+        "popReady" -> fifo.popReady.name,
+        "popData" -> fifo.popData.name
+      ).groupBy(_._2)
+        .collect { case (name, roles) if roles.size > 1 => name -> roles.map(_._1).sorted }
+        .toVector
+        .sortBy(_._1)
+        .foreach { case (name, roles) =>
+          diagnostics += Diagnostic(
+            s"$prefix-ROLE-ALIAS",
+            path :+ "roles" :+ name,
+            s"Synchronous stream FIFO roles must use distinct ports; '$name' is used as ${roles.mkString(", ")}"
+          )
+        }
+
+      val outputNames = ports.filter(_.direction == Output).map(_.name).sorted
+      val ownedOutputNames = Vector(pushReadyPort, popValidPort, popDataPort)
+        .flatten
+        .filter(_.direction == Output)
+        .map(_.name)
+        .sorted
+      if (ownedOutputNames != outputNames || ownedOutputNames.size != 3)
+        diagnostics += Diagnostic(
+          s"$prefix-OUTPUT-SHAPE-UNSUPPORTED",
+          path :+ "outputs",
+          s"Synchronous stream FIFO must own exactly push-ready, pop-valid and pop-data outputs; outputs are ${outputNames.mkString(", ")}"
+        )
+    }
+
     ports.filter(_.direction == Output).foreach { port =>
       val legalDriverCounts =
         if (conditionalBranchDriverCounts.isEmpty) Vector(driverCounts(port.name))
@@ -3558,7 +3796,8 @@ object ParamRtlValidator {
             synchronousRegisters.isEmpty && asynchronousRegisters.isEmpty &&
             synchronousEnabledRegisters.isEmpty && asynchronousEnabledRegisters.isEmpty &&
             synchronousReadFirstSinglePortMemories.isEmpty &&
-            synchronousReadFirstSimpleDualPortMemories.isEmpty && synchronousCounters.isEmpty
+            synchronousReadFirstSimpleDualPortMemories.isEmpty && synchronousCounters.isEmpty &&
+            synchronousStreamFifos.isEmpty
           )
             s"Output port '${port.name}' has no driver"
           else if (combinationalIfs.nonEmpty)
@@ -3577,6 +3816,8 @@ object ParamRtlValidator {
             s"Output port '${port.name}' is not owned by the synchronous read-first simple dual-port memory"
           else if (synchronousCounters.nonEmpty)
             s"Output port '${port.name}' is not owned by the synchronous counter"
+          else if (synchronousStreamFifos.nonEmpty)
+            s"Output port '${port.name}' is not owned by the synchronous stream FIFO"
           else s"Output port '${port.name}' is undriven for at least one legal generate configuration"
         diagnostics += Diagnostic(
           "PRTL-UNDRIVEN-OUTPUT",
@@ -3592,7 +3833,8 @@ object ParamRtlValidator {
             synchronousRegisters.isEmpty && asynchronousRegisters.isEmpty &&
             synchronousEnabledRegisters.isEmpty && asynchronousEnabledRegisters.isEmpty &&
             synchronousReadFirstSinglePortMemories.isEmpty &&
-            synchronousReadFirstSimpleDualPortMemories.isEmpty && synchronousCounters.isEmpty
+            synchronousReadFirstSimpleDualPortMemories.isEmpty && synchronousCounters.isEmpty &&
+            synchronousStreamFifos.isEmpty
           )
             s"Output port '${port.name}' has $maximumDrivers drivers"
           else if (combinationalIfs.nonEmpty)
@@ -3611,6 +3853,8 @@ object ParamRtlValidator {
             s"Output port '${port.name}' has $maximumDrivers drivers including its synchronous read-first simple dual-port memory"
           else if (synchronousCounters.nonEmpty)
             s"Output port '${port.name}' has $maximumDrivers drivers including its synchronous counter"
+          else if (synchronousStreamFifos.nonEmpty)
+            s"Output port '${port.name}' has $maximumDrivers drivers including its synchronous stream FIFO"
           else s"Output port '${port.name}' has up to $maximumDrivers drivers in a legal generate configuration"
         diagnostics += Diagnostic(
           "PRTL-MULTIPLE-DRIVERS",
@@ -4064,6 +4308,7 @@ object ParamRtlValidator {
     case _: SynchronousReadFirstSimpleDualPortMemory =>
       "another synchronous read-first simple dual-port memory"
     case _: SynchronousCounter => "another synchronous counter process"
+    case _: SynchronousStreamFifo => "another synchronous stream FIFO"
   }
 
   private def moduleItemStableKey(item: ModuleItem): String = item match {
@@ -4093,6 +4338,8 @@ object ParamRtlValidator {
       s"11:${counter.label}:${counter.clock.name}:${counter.reset.name}:${counter.enable.name}:${counter.count.name}:${counter.limit}"
     case memory: SynchronousReadFirstSimpleDualPortMemory =>
       s"12:${memory.label}:${memory.memoryName}:${memory.clock.name}:${memory.readEnable.name}:${memory.writeEnable.name}:${memory.readAddress.name}:${memory.writeAddress.name}:${memory.writeData.name}:${memory.readData.name}:${memory.elementType}:${memory.depth}"
+    case fifo: SynchronousStreamFifo =>
+      s"13:${fifo.label}:${fifo.memoryName}:${fifo.clock.name}:${fifo.reset.name}:${fifo.pushValid.name}:${fifo.pushReady.name}:${fifo.pushData.name}:${fifo.popValid.name}:${fifo.popReady.name}:${fifo.popData.name}:${fifo.elementType}:${fifo.depth}"
   }
 
   private def addDuplicateCaseValueDiagnostics(

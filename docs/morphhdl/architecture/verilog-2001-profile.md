@@ -21,7 +21,7 @@ be accepted without enabling a SystemVerilog parser.
 | Integer comparison (implemented) | `<`, `<=`, `>`, `>=`, `==` or `!=` after operand capability proof |
 | Conditional integer value (implemented) | Parenthesized Boolean condition with Verilog-2001 `condition ? when_true : when_false` |
 | Integer minimum/maximum (implemented) | Canonical `(left < right) ? left : right` / `(left > right) ? left : right` conditional expressions |
-| Mathematical ceiling-log2 (implemented) | One module-local `morphhdl$ceil_log2(value, minimum_result)` constant function called with minimum zero |
+| Mathematical ceiling-log2 (implemented) | One module-local `clog2(value, minimum_result)` constant function called with minimum zero |
 | Structural case (implemented) | Named `generate`/`case` with ascending signed-decimal choices and mandatory default |
 | Runtime two-way mux process (implemented) | Named `always @*` block, one-bit `if` condition, complete blocking assignments and process-driven `output reg` targets |
 | Synchronous register (implemented) | Named `always @(posedge clock)` block, active-high synchronous reset-to-zero, complete nonblocking assignments and process-driven `output reg` target |
@@ -31,7 +31,8 @@ be accepted without enabling a SystemVerilog parser.
 | Parameterized synchronous counter (implemented) | Named `always @(posedge clock)` block with active-high synchronous reset-to-zero, active-high enable/hold, `count == LIMIT - 1` wrap and nonblocking increment; count width is portable address width of `LIMIT` |
 | Synchronous read-first single-port memory (implemented) | `reg [WIDTH-1:0] memory [0:DEPTH-1]` plus one guarded named positive-edge process with nonblocking read and optional whole-word write assignments |
 | Synchronous read-first simple-dual-port memory (implemented) | One `reg [WIDTH-1:0] memory [0:DEPTH-1]` and one named positive-edge process with independent guarded read/write addresses, nonblocking state updates and deterministic read-first same-address collisions |
-| Portable address width (implemented) | The same module-local `morphhdl$ceil_log2(value, minimum_result)` constant function called with minimum one |
+| Synchronous Stream FIFO (implemented) | One synchronous-read `reg [WIDTH-1:0] memory [0:DEPTH-1]`, registered pop stage, wrapped read/write pointers, bounded occupancy and one named positive-edge process; ready/valid outputs preserve exact public capacity and no-bypass boundaries |
+| Portable address width (implemented) | The same module-local `clog2(value, minimum_result)` constant function called with minimum one |
 | Logical record/vector port | Deterministically flattened scalar/packed ports |
 | Enum intent | Packed vector plus named local parameters |
 | Parameterized memory | `reg [WIDTH-1:0] mem [0:DEPTH-1]` |
@@ -155,9 +156,10 @@ ParamRTL retains the target-neutral mathematical node. No `$min`, `$max`,
 function declaration or SystemVerilog construct is emitted.
 
 Increment 24 legalizes both `IntExpr.CeilLog2` and `IntExpr.AddressWidth` with
-one shared module-local constant function per consuming module. Its reserved
-identifier `morphhdl$ceil_log2` cannot collide with ParamRTL logical identifiers
-because their grammar excludes `$`. The canonical helper initializes the
+one shared module-local constant function per consuming module. The natural
+default name is `clog2`; if that identifier is already occupied in the module,
+the backend deterministically chooses the first free `clog2_1`, `clog2_2`, and
+so on from a conservative module-local identifier set. The canonical helper initializes the
 result to zero, shifts `value - 1` right until it reaches zero, increments once
 per shift and clamps to the backend-supplied zero-or-one `minimum_result`. It is a Verilog constant
 function: parameter and local-parameter expressions are evaluated during HDL
@@ -165,8 +167,8 @@ elaboration and no runtime shifter, counter or state is inferred. Every call
 retains its full dynamic parameter expression; no default specialization is
 allowed. Keeping the minimum inside the helper renders each arbitrary operand
 once, so direct and mixed nesting remains linear without a log-specific
-expansion cap. The reserved identifier is outside the logical identifier
-grammar, so a collision is unrepresentable.
+expansion cap. Reusing `clog2` in separate modules is safe because Verilog
+function declarations are module-local.
 
 `$clog2(PARAM)` is synthesizable and was standardized in IEEE 1364-2005
 Verilog; it is not SystemVerilog-only. It remains outside the selected IEEE
@@ -179,7 +181,7 @@ one, while mathematical `CeilLog2(1)` returns zero.
 Increment 25 legalizes the atomic `SynchronousCounter` to one named
 positive-edge process. Reset is tested first, enable second and the terminal
 `count == LIMIT - 1` branch wraps to a zero replication whose width is the
-same `morphhdl$ceil_log2(LIMIT, 1)` used by the packed count port. The
+same `clog2(LIMIT, 1)` used by the packed count port. The
 nonterminal branch uses `count + 1'b1`; disabled enable has no assignment and
 therefore holds state. Capability validation requires a direct positive public
 limit in the signed-32 target domain and exact `AddressWidth(limit)` output
@@ -190,7 +192,7 @@ Increment 26 legalizes one bounded
 `SynchronousReadFirstSimpleDualPortMemory`. The process-owned read output emits
 as `output reg`; both packed unsigned address ports have one exactly equivalent
 type and index one unpacked array. The public fixture derives both widths with
-`morphhdl$ceil_log2(DEPTH, 1)`, while the general node may use any mutually
+`clog2(DEPTH, 1)`, while the general node may use any mutually
 type-equivalent widths whose complete domains independently cover `DEPTH`. One
 named `always @(posedge clock)` process contains sibling read and write paths.
 The read path tests its own `readAddress < DEPTH` guard, schedules an in-range
@@ -208,6 +210,26 @@ memory/output ownership before spelling. No `initial` or reset logic is
 emitted, so unwritten in-range values remain unspecified. Independent clocks,
 asynchronous reads, masks, byte enables, additional ports and selectable
 read-during-write modes remain forbidden.
+
+Increment 27 legalizes one atomic `SynchronousStreamFifo`. The emitter derives
+`POINTER_WIDTH = clog2(DEPTH, 1)` and
+`OCCUPANCY_WIDTH = clog2(DEPTH + 1, 1)`, then declares one exact `DEPTH`-word
+array, wrapped read/write pointers, an occupancy register, registered
+`pop_valid`/`pop_data`, and combinational `push_ready = occupancy < DEPTH`.
+One named positive-edge process writes whole words on accepted pushes,
+synchronously refills an available pop stage only from already-queued storage,
+updates occupancy from accepted push/pop events, and wraps each pointer at
+`DEPTH - 1`. Active-high synchronous reset clears pointers, occupancy and
+`pop_valid`, but neither memory nor invalid `pop_data`.
+
+Consequently an empty push is not same-edge visible, a full push is rejected
+even with `pop_ready`, middle simultaneous push/pop is accepted, and a stalled
+valid pop holds its payload. Occupancy-one simultaneous push/pop at `DEPTH>1`
+retains the new word but produces one synchronous refill bubble. The natural
+internal names and helper/local names receive the same deterministic numeric
+suffix treatment if a module-local identifier is already occupied. Bypass,
+flush, occupancy ports, initialization, alternate latency, asynchronous read
+or reset, and multiple clocks remain forbidden.
 
 ## Flat ABI
 

@@ -83,6 +83,10 @@ The contract is split into these documents:
   one shared-clock `1R1W` memory with independent capacity-proven addresses
   and enables, deterministic read-first collisions and an eighteenth reviewed
   fixture with two exact depth-derived address ports.
+- [Increment 27 synchronous Stream FIFO](../increment-27-synchronous-stream-fifo.md):
+  one atomic bounded ready/valid FIFO with synchronous read storage, a
+  registered pop stage and a nineteenth reviewed fixture whose public
+  `DEPTH` is the complete externally observable capacity.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -128,10 +132,13 @@ disabled-read hold, surplus behavior and read-first same-address collision.
 Strict Verilog-2001 emits one `1R1W` array and one canonical positive-edge
 process. Independent clocks, masks, initialization and additional ports remain
 separate tranches.
-Increment 27 should add the synchronous FIFO as one atomic ParamRTL node rather
-than sibling counter and memory items, which current sole-runtime-item
-ownership prohibits. Its public depth denotes total externally observable FIFO
-capacity, independent of internal RAM or output-stage organization.
+Increment 27 adds one atomic target-neutral synchronous Stream FIFO rather
+than composing sibling counter and memory items, which current sole-runtime-item
+ownership prohibits. It reuses a latency-two `spinal.lib.StreamFifo` concrete
+witness for inherited validation and the default shape, then fixes symbolic
+no-bypass registered-pop behavior. Public `DEPTH` counts all
+accepted, unconsumed transactions including the staged word; full and empty
+boundary requests do not become same-edge fall-through transfers.
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants

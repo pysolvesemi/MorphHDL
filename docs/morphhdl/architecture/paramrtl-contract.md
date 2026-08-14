@@ -316,11 +316,27 @@ commits. Surplus writes are inert and unwritten in-range values are unspecified.
 The node carries no reset, initialization, mask, independent clock, additional
 port or selectable collision policy.
 
-The planned Increment 27 FIFO must be a separate atomic ParamRTL node. Current
-sole-runtime-item and ownership rules intentionally prohibit constructing it
-as sibling counter and memory items. Its public depth must denote total
-externally observable FIFO capacity rather than an implementation-dependent
-count of RAM words or output staging registers.
+Increment 27 adds
+`ModuleItem.SynchronousStreamFifo(label, memoryName, clock, reset, pushValid,
+pushReady, pushData, popValid, popReady, popData, elementType, depth)`. It is
+one atomic single-clock ready/valid FIFO with a synchronous-read array and one
+registered pop stage. The direct public positive `depth` denotes the exact
+number of accepted, unconsumed transactions across both storage locations.
+Validation requires eight distinct direct roles, exact one-bit unsigned
+clock/reset/handshake controls, exact packed push/pop data types, a finite
+target-safe depth, sole ownership of all three outputs and the memory name,
+and no sibling module item.
+
+Active-high reset synchronously clears read/write pointers, occupancy and
+`popValid`; it does not initialize memory or `popData`, which is unspecified
+whenever invalid. Empty input cannot bypass directly to pop. Full rejects a
+push even when a pop is ready on the same edge. Away from those boundaries,
+simultaneous accepted push/pop preserves occupancy and order. A stalled valid
+pop holds its payload. When occupancy one is simultaneously pushed and popped
+at a non-full depth, the new word is retained but the synchronous refill adds
+one invalid cycle. Pointer wrap is exact at `depth - 1`. Bypass, flush,
+occupancy/availability ports, alternate latency, initialization, masks,
+asynchronous reset/read and multiple clocks remain separate policies.
 
 ## Required invariants
 
