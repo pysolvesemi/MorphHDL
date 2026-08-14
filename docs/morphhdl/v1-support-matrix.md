@@ -22,14 +22,14 @@ first parameterized-Verilog release, not implemented in Increment 1.
 | Structure | Generate-if/case | v1 | Increments 9 and 14 implement one non-nested conditional region per module: mandatory two-branch generate-if or integer-selected generate-case with unique choices and mandatory default |
 | Structure | Parameter-dependent Scala class selection | Static only | Not recoverable as HDL structure |
 | RTL | Combinational operations | v1 | Increment 15 implements one complete two-branch runtime mux process over direct port references; broader expressions and statement forms remain bounded follow-on work |
-| RTL | Registers and sync/async reset | v1 | Increments 16 and 17 implement active-high synchronous/asynchronous reset-to-zero; Increments 18 and 19 add the matching reset-priority active-high enable with disabled hold; broader state remains bounded follow-on work |
+| RTL | Registers, counter and sync/async reset | v1 | Increments 16 and 17 implement active-high synchronous/asynchronous reset-to-zero; Increments 18 and 19 add the matching reset-priority active-high enable with disabled hold; Increment 25 adds a direct-public-limit synchronous modulo-up counter with depth-derived state width; broader state remains bounded follow-on work |
 | RTL | Supported memories | v1 | Increment 20 implements one synchronous read-first whole-word single-port memory; Increment 21 derives its address ABI from depth; Increment 22 adds active-high read enable with disabled hold and independent writes; reset, initialization, masks and extra ports remain deferred |
 | RTL | Tri-state/analog primitives | Post-v1 | Rejected by initial strict profile |
 | Aggregates | Bundle/Vec internal intent | v1 | Preserved in ParamRTL, flattened for Verilog |
 | Ports | Scalar and packed-vector ports | v1 | Stable flat ABI |
 | Ports | Unpacked array, struct or interface ports | Post-v1 | Potential rich SystemVerilog ABI |
 | Libraries | Bits/UInt/SInt and core operators | v1 | Symbolic width-aware subset |
-| Libraries | Stream, Flow and Counter | v1 | Adapt only symbolic construction sites |
+| Libraries | Stream, Flow and Counter | v1 | Increment 25 adapts the bounded `spinal.lib.Counter` policy through a target-neutral symbolic counter node; Stream and Flow remain selected-demand work |
 | Libraries | Synchronous FIFO | v1 | Required pilot library block |
 | Libraries | AXI4/AXI4-Lite/AXI-Stream subset | v1 | Only blocks required by DisplayController |
 | Libraries | Complete inherited library | Out of scope | Expand from demand and equivalence tests |

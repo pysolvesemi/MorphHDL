@@ -339,3 +339,14 @@ Parser, simulation and synthesis gates plus helper-body, boundary, floor and
 specialization mutations protect the portable semantics and prove the helper
 creates no runtime hardware. Width parity remains partial only for broader
 runtime expression and library coverage.
+
+Increment 25 extends the partial width, driver, register-as-latch and
+cross-clock adaptations with one bounded `SynchronousCounter`. Its concrete
+witness reuses `spinal.lib.Counter(5)` and still executes every inherited
+validation phase. ParamRTL separately proves a finite positive direct public
+limit, exact `AddressWidth(LIMIT)` output, distinct one-bit clock/reset/enable
+roles, sole state ownership, reset priority, disabled hold and modulo-up
+rollover. The seventeenth fixture proves limits 1, 2, 3, 5 and 8; structural
+and mutation gates protect the terminal comparison, increment direction,
+control polarity/priority and reset value. General state machines, multiple
+counters/clocks and arbitrary next-state expressions remain partial.

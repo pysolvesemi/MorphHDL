@@ -825,6 +825,117 @@ private[morphhdl] object ParamRtlFrontend {
     )
   }
 
+  /**
+    * Atomically emits one positive-edge up-counter. Reset is active-high and
+    * synchronous, has priority over enable, and clears count to zero. Enable
+    * is active-high; when low the count holds. An enabled count equal to
+    * `limit - 1` wraps to zero, otherwise it increments by one. The limit must
+    * be the exact unmodified handle returned by HdlInt.param.
+    */
+  def emitSynchronousCounter(
+      label: String,
+      clock: FrontendNode[RtlExpr],
+      reset: FrontendNode[RtlExpr],
+      enable: FrontendNode[RtlExpr],
+      count: FrontendNode[RtlExpr],
+      limit: HdlInt
+  )(implicit file: sourcecode.File, line: sourcecode.Line): Unit = {
+    val origin = SourceOrigin.capture
+    requirePortableIdentifier(
+      label,
+      "synchronous-counter label",
+      "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-LABEL-INVALID",
+      origin
+    )
+    val clockRef = requireSynchronousCounterRef(
+      label,
+      "clock",
+      clock,
+      "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-CLOCK-NULL",
+      "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-CLOCK-NOT-REF",
+      "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-CLOCK-INVALID",
+      origin
+    )
+    val resetRef = requireSynchronousCounterRef(
+      label,
+      "reset",
+      reset,
+      "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-RESET-NULL",
+      "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-RESET-NOT-REF",
+      "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-RESET-INVALID",
+      origin
+    )
+    val enableRef = requireSynchronousCounterRef(
+      label,
+      "enable",
+      enable,
+      "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-ENABLE-NULL",
+      "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-ENABLE-NOT-REF",
+      "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-ENABLE-INVALID",
+      origin
+    )
+    val countRef = requireSynchronousCounterRef(
+      label,
+      "count",
+      count,
+      "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-COUNT-NULL",
+      "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-COUNT-NOT-REF",
+      "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-COUNT-INVALID",
+      origin
+    )
+    if (limit eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-LIMIT-NULL",
+        s"synchronous counter '$label' requires a non-null public limit parameter",
+        origin
+      )
+    }
+    limit.requireLoopInvariant(s"synchronous counter '$label' limit")
+    val directPublicParameter = limit.declaration.exists { token =>
+      limit.expression == IntExpr.ParameterRef(token.declaration.name) &&
+      limit.parameters == Set(token) &&
+      limit.booleanParameters.isEmpty &&
+      limit.localDeclaration.isEmpty &&
+      limit.localParameters.isEmpty &&
+      limit.booleanLocalParameters.isEmpty &&
+      limit.scope.isEmpty
+    }
+    if (!directPublicParameter) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-LIMIT-NOT-PUBLIC-PARAMETER",
+        s"synchronous counter '$label' limit must be the exact unmodified HdlInt.param handle",
+        limit.origin
+      )
+    }
+    if (limit.witness <= 0) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-LIMIT-WITNESS-NONPOSITIVE",
+        s"synchronous counter '$label' limit witness must be positive, received ${limit.witness}",
+        limit.origin
+      )
+    }
+
+    val refs = Vector(clock, reset, enable, count)
+    FrontendSession.emitSynchronousCounter(
+      FrontendNode(
+        ModuleItem.SynchronousCounter(
+          label,
+          clockRef,
+          resetRef,
+          enableRef,
+          countRef,
+          limit.expression
+        ),
+        parameters = refs.flatMap(_.parameters).toSet ++ limit.parameters,
+        booleanParameters = refs.flatMap(_.booleanParameters).toSet,
+        localParameters = refs.flatMap(_.localParameters).toSet,
+        booleanLocalParameters = refs.flatMap(_.booleanLocalParameters).toSet,
+        scopes = refs.flatMap(_.scopes).toSet,
+        origin = origin
+      )
+    )
+  }
+
   def indexedPartSelect(base: String, offset: HdlInt, width: HdlInt)(implicit
       file: sourcecode.File,
       line: sourcecode.Line
@@ -1497,6 +1608,38 @@ private[morphhdl] object ParamRtlFrontend {
     requirePortableIdentifier(
       reference.name,
       s"synchronous read-first single-port memory $role",
+      invalidCode,
+      value.origin
+    )
+    reference
+  }
+
+  private def requireSynchronousCounterRef(
+      label: String,
+      role: String,
+      value: FrontendNode[RtlExpr],
+      nullCode: String,
+      notRefCode: String,
+      invalidCode: String,
+      origin: SourceOrigin
+  ): Ref = {
+    if (value eq null) {
+      FrontendException.failAt(
+        nullCode,
+        s"synchronous counter '$label' requires a non-null $role reference",
+        origin
+      )
+    }
+    value.requireUsable(s"synchronous counter '$label' $role")
+    val reference = requireRef(
+      value,
+      s"synchronous-counter $role",
+      notRefCode,
+      origin
+    )
+    requirePortableIdentifier(
+      reference.name,
+      s"synchronous-counter $role",
       invalidCode,
       value.origin
     )

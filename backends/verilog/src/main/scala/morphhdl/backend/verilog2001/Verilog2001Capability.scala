@@ -42,6 +42,7 @@ import morphhdl.paramrtl.ModuleItem.{
   GenerateFor,
   GenerateIf,
   ModuleInstance,
+  SynchronousCounter,
   SynchronousEnabledRegister,
   SynchronousReadFirstSinglePortMemory,
   SynchronousRegister
@@ -429,6 +430,21 @@ object Verilog2001Capability {
             facts.parameterFacts,
             facts.localParameterFacts,
             path :+ "depth",
+            diagnostics,
+            booleanParameters = booleanParameterByName,
+            booleanLocalParameters = facts.booleanLocalParameterFacts
+          )
+      }
+
+      module.items.collect { case counter: SynchronousCounter => counter }.sortBy(_.label).foreach {
+        counter =>
+          val path = modulePath :+ "synchronousCounters" :+ counter.label
+          checkName(counter.label, path :+ "label", diagnostics)
+          checkExpression(
+            counter.limit,
+            facts.parameterFacts,
+            facts.localParameterFacts,
+            path :+ "limit",
             diagnostics,
             booleanParameters = booleanParameterByName,
             booleanLocalParameters = facts.booleanLocalParameterFacts

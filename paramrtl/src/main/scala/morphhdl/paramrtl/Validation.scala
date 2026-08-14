@@ -51,6 +51,7 @@ import morphhdl.paramrtl.ModuleItem.{
   GenerateFor,
   GenerateIf,
   ModuleInstance,
+  SynchronousCounter,
   SynchronousEnabledRegister,
   SynchronousReadFirstSinglePortMemory,
   SynchronousRegister
@@ -197,6 +198,8 @@ object ParamRtlValidator {
       module.items.collect { case process: AsynchronousEnabledRegister => process }.sortBy(_.label)
     val synchronousReadFirstSinglePortMemories =
       module.items.collect { case memory: SynchronousReadFirstSinglePortMemory => memory }.sortBy(_.label)
+    val synchronousCounters =
+      module.items.collect { case counter: SynchronousCounter => counter }.sortBy(_.label)
 
     addDuplicateDiagnostics(
       parameters.map(_.name),
@@ -303,6 +306,13 @@ object ParamRtlValidator {
       "memory",
       diagnostics
     )
+    addDuplicateDiagnostics(
+      synchronousCounters.map(_.label),
+      modulePath :+ "processLabels",
+      "PRTL-DUPLICATE-SYNCHRONOUS-COUNTER-LABEL",
+      "synchronous counter process label",
+      diagnostics
+    )
 
     val declarationKinds = Vector(
       "parameter" -> parameters.map(_.name).toSet,
@@ -320,6 +330,7 @@ object ParamRtlValidator {
       "synchronous enabled register process label" -> synchronousEnabledRegisters.map(_.label).toSet,
       "asynchronous enabled register process label" -> asynchronousEnabledRegisters.map(_.label).toSet,
       "synchronous read-first memory process label" -> synchronousReadFirstSinglePortMemories.map(_.label).toSet,
+      "synchronous counter process label" -> synchronousCounters.map(_.label).toSet,
       "memory" -> synchronousReadFirstSinglePortMemories.map(_.memoryName).toSet
     )
     declarationKinds.combinations(2).foreach {
@@ -489,6 +500,12 @@ object ParamRtlValidator {
             path :+ "body" :+ index.toString,
             "Generate-for bodies cannot contain synchronous read-first single-port memories"
           )
+        case (_: SynchronousCounter, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+            path :+ "body" :+ index.toString,
+            "Generate-for bodies cannot contain synchronous counters"
+          )
         case (_: GenerateFor, index) =>
           diagnostics += Diagnostic(
             "PRTL-NESTED-GENERATE-UNSUPPORTED",
@@ -593,6 +610,12 @@ object ParamRtlValidator {
               "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
               branchPath :+ "body" :+ index.toString,
               "Generate-if branches cannot contain synchronous read-first single-port memories"
+            )
+          case (_: SynchronousCounter, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-if branches cannot contain synchronous counters"
             )
           case (_: GenerateFor, index) =>
             diagnostics += Diagnostic(
@@ -712,6 +735,12 @@ object ParamRtlValidator {
               "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
               branchPath :+ "body" :+ index.toString,
               "Generate-case branches cannot contain synchronous read-first single-port memories"
+            )
+          case (_: SynchronousCounter, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-case branches cannot contain synchronous counters"
             )
           case (_: GenerateFor, index) =>
             diagnostics += Diagnostic(
@@ -1015,6 +1044,61 @@ object ParamRtlValidator {
         }
     }
 
+    if (synchronousCounters.size > 1) {
+      synchronousCounters.drop(1).foreach { counter =>
+        diagnostics += Diagnostic(
+          "PRTL-MULTIPLE-SYNCHRONOUS-COUNTERS-UNSUPPORTED",
+          modulePath :+ "synchronousCounters" :+ counter.label,
+          "At most one top-level synchronous counter is supported per module"
+        )
+      }
+    }
+
+    synchronousCounters.foreach { counter =>
+      val path = modulePath :+ "synchronousCounters" :+ counter.label
+      checkIdentifier(
+        counter.label,
+        path :+ "label",
+        "synchronous counter process label",
+        diagnostics
+      )
+      validateExpressionReferences(
+        counter.limit,
+        parameterNames,
+        localParameterNames,
+        path :+ "limit",
+        diagnostics,
+        booleanParameters = booleanParameterByName,
+        booleanLocalParameters = booleanLocalParameterNames
+      )
+      counter.limit match {
+        case ParameterRef(name) if parameterNames(name) =>
+        case _ =>
+          diagnostics += Diagnostic(
+            "PRTL-SYNCHRONOUS-COUNTER-LIMIT-NOT-DIRECT-PUBLIC-PARAMETER",
+            path :+ "limit",
+            "Synchronous counter limit must be a direct public integer parameter reference"
+          )
+      }
+    }
+
+    if (synchronousCounters.nonEmpty) {
+      module.items
+        .filter {
+          case _: SynchronousCounter => false
+          case _                     => true
+        }
+        .sortBy(moduleItemStableKey)
+        .zipWithIndex
+        .foreach { case (item, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-SYNCHRONOUS-COUNTER-MIXED-ITEMS-UNSUPPORTED",
+            modulePath :+ "synchronousCounters" :+ "itemConflicts" :+ index.toString,
+            s"Synchronous counters cannot be combined with ${moduleItemKind(item)} in this tranche"
+          )
+        }
+    }
+
     def integerLocalKey(name: String): String = s"integer:$name"
     def booleanLocalKey(name: String): String = s"boolean:$name"
 
@@ -1196,6 +1280,32 @@ object ParamRtlValidator {
             "PRTL-MEMORY-DEPTH-UPPER-BOUND-NOT-PROVEN",
             path :+ "depth",
             s"Memory depth domain ${renderInterval(facts.interval)} does not have a finite upper bound"
+          )
+      }
+    }
+
+    synchronousCounters.foreach { counter =>
+      val path = modulePath :+ "synchronousCounters" :+ counter.label :+ "limit"
+      analyzeExpression(
+        counter.limit,
+        parameterFacts,
+        localParameterFacts,
+        path,
+        diagnostics,
+        booleanParameters = booleanParameterByName,
+        booleanLocalParameters = booleanLocalParameterFacts
+      ).foreach { facts =>
+        if (!facts.interval.lower.exists(_ >= 1))
+          diagnostics += Diagnostic(
+            "PRTL-SYNCHRONOUS-COUNTER-LIMIT-NOT-PROVEN-POSITIVE",
+            path,
+            s"Synchronous counter limit domain ${renderInterval(facts.interval)} is not proven positive"
+          )
+        if (facts.interval.lower.isEmpty || facts.interval.upper.isEmpty)
+          diagnostics += Diagnostic(
+            "PRTL-SYNCHRONOUS-COUNTER-LIMIT-NOT-FINITELY-BOUNDED",
+            path,
+            s"Synchronous counter limit domain ${renderInterval(facts.interval)} must have finite lower and upper bounds"
           )
       }
     }
@@ -1857,6 +1967,8 @@ object ParamRtlValidator {
       module.items.collect { case process: AsynchronousEnabledRegister => process }.sortBy(_.label)
     val synchronousReadFirstSinglePortMemories =
       module.items.collect { case memory: SynchronousReadFirstSinglePortMemory => memory }.sortBy(_.label)
+    val synchronousCounters =
+      module.items.collect { case counter: SynchronousCounter => counter }.sortBy(_.label)
     val driverCounts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
     val conditionalBranchDriverCounts =
       scala.collection.mutable.ArrayBuffer.empty[scala.collection.mutable.Map[String, Int]]
@@ -3029,6 +3141,98 @@ object ParamRtlValidator {
         )
     }
 
+    synchronousCounters.foreach { counter =>
+      val path = modulePath :+ "synchronousCounters" :+ counter.label
+      val oneBitUnsigned = PackedBits(Literal(1), Unsigned)
+
+      def validateControl(role: String, reference: Ref): Option[Port] =
+        resolvePort(reference, portByName, path :+ role, diagnostics).map { port =>
+          if (port.direction != Input)
+            diagnostics += Diagnostic(
+              s"PRTL-SYNCHRONOUS-COUNTER-${role.toUpperCase}-NOT-INPUT",
+              path :+ role,
+              s"Synchronous counter $role '${port.name}' must be an input port"
+            )
+          if (!packedTypesEquivalent(port.dataType, oneBitUnsigned, module, baseFacts))
+            diagnostics += Diagnostic(
+              s"PRTL-SYNCHRONOUS-COUNTER-${role.toUpperCase}-TYPE-MISMATCH",
+              path :+ role,
+              s"Synchronous counter $role '${port.name}' must have exact unsigned 1-bit type"
+            )
+          port
+        }
+
+      validateControl("clock", counter.clock)
+      validateControl("reset", counter.reset)
+      validateControl("enable", counter.enable)
+
+      val countPort = resolvePort(counter.count, portByName, path :+ "count", diagnostics)
+      countPort.foreach { port =>
+        driverCounts.update(port.name, driverCounts(port.name) + 1)
+        if (port.direction != Output)
+          diagnostics += Diagnostic(
+            "PRTL-SYNCHRONOUS-COUNTER-COUNT-NOT-OUTPUT",
+            path :+ "count",
+            s"Synchronous counter count '${port.name}' must be an output port"
+          )
+      }
+
+      val expandedLocals = expandCombinedLocalExpressions(
+        baseFacts.orderedLocalDeclarations,
+        Map.empty,
+        Map.empty
+      )
+      def expandForCorrelation(expression: IntExpr): IntExpr =
+        substituteLocalDefinition(
+          expression,
+          Map.empty,
+          expandedLocals.integer,
+          Map.empty,
+          expandedLocals.boolean
+        )
+      val expandedLimit = expandForCorrelation(counter.limit)
+      val countTypeMatches = countPort.exists { port =>
+        port.dataType.signedness == Unsigned &&
+        (expandForCorrelation(port.dataType.width) match {
+          case AddressWidth(operand) =>
+            IntExpressionEquivalence.equivalent(operand, expandedLimit)
+          case _ => false
+        })
+      }
+      if (!countTypeMatches)
+        diagnostics += Diagnostic(
+          "PRTL-SYNCHRONOUS-COUNTER-COUNT-TYPE-MISMATCH",
+          path :+ "count",
+          "Synchronous counter count must have exact unsigned AddressWidth(limit) type"
+        )
+
+      Vector(
+        "clock" -> counter.clock.name,
+        "count" -> counter.count.name,
+        "enable" -> counter.enable.name,
+        "reset" -> counter.reset.name
+      ).groupBy(_._2)
+        .collect { case (name, roles) if roles.size > 1 => name -> roles.map(_._1).sorted }
+        .toVector
+        .sortBy(_._1)
+        .foreach { case (name, roles) =>
+          diagnostics += Diagnostic(
+            "PRTL-SYNCHRONOUS-COUNTER-ROLE-ALIAS",
+            path :+ "roles" :+ name,
+            s"Synchronous counter roles must use distinct ports; '$name' is used as ${roles.mkString(", ")}"
+          )
+        }
+
+      val outputNames = ports.filter(_.direction == Output).map(_.name)
+      val countOutputName = countPort.filter(_.direction == Output).map(_.name)
+      if (countOutputName.forall(name => outputNames != Vector(name)))
+        diagnostics += Diagnostic(
+          "PRTL-SYNCHRONOUS-COUNTER-OUTPUT-SHAPE-UNSUPPORTED",
+          path :+ "outputs",
+          s"Synchronous counter count must be the module's sole output; outputs are ${outputNames.mkString(", ")}"
+        )
+    }
+
     ports.filter(_.direction == Output).foreach { port =>
       val legalDriverCounts =
         if (conditionalBranchDriverCounts.isEmpty) Vector(driverCounts(port.name))
@@ -3039,7 +3243,7 @@ object ParamRtlValidator {
             generateIfs.isEmpty && generateCases.isEmpty && combinationalIfs.isEmpty &&
             synchronousRegisters.isEmpty && asynchronousRegisters.isEmpty &&
             synchronousEnabledRegisters.isEmpty && asynchronousEnabledRegisters.isEmpty &&
-            synchronousReadFirstSinglePortMemories.isEmpty
+            synchronousReadFirstSinglePortMemories.isEmpty && synchronousCounters.isEmpty
           )
             s"Output port '${port.name}' has no driver"
           else if (combinationalIfs.nonEmpty)
@@ -3054,6 +3258,8 @@ object ParamRtlValidator {
             s"Output port '${port.name}' is not owned by the asynchronous enabled register process"
           else if (synchronousReadFirstSinglePortMemories.nonEmpty)
             s"Output port '${port.name}' is not owned by the synchronous read-first single-port memory"
+          else if (synchronousCounters.nonEmpty)
+            s"Output port '${port.name}' is not owned by the synchronous counter"
           else s"Output port '${port.name}' is undriven for at least one legal generate configuration"
         diagnostics += Diagnostic(
           "PRTL-UNDRIVEN-OUTPUT",
@@ -3068,7 +3274,7 @@ object ParamRtlValidator {
             generateIfs.isEmpty && generateCases.isEmpty && combinationalIfs.isEmpty &&
             synchronousRegisters.isEmpty && asynchronousRegisters.isEmpty &&
             synchronousEnabledRegisters.isEmpty && asynchronousEnabledRegisters.isEmpty &&
-            synchronousReadFirstSinglePortMemories.isEmpty
+            synchronousReadFirstSinglePortMemories.isEmpty && synchronousCounters.isEmpty
           )
             s"Output port '${port.name}' has $maximumDrivers drivers"
           else if (combinationalIfs.nonEmpty)
@@ -3083,6 +3289,8 @@ object ParamRtlValidator {
             s"Output port '${port.name}' has $maximumDrivers drivers including its asynchronous enabled register process"
           else if (synchronousReadFirstSinglePortMemories.nonEmpty)
             s"Output port '${port.name}' has $maximumDrivers drivers including its synchronous read-first single-port memory"
+          else if (synchronousCounters.nonEmpty)
+            s"Output port '${port.name}' has $maximumDrivers drivers including its synchronous counter"
           else s"Output port '${port.name}' has up to $maximumDrivers drivers in a legal generate configuration"
         diagnostics += Diagnostic(
           "PRTL-MULTIPLE-DRIVERS",
@@ -3533,6 +3741,7 @@ object ParamRtlValidator {
     case _: AsynchronousEnabledRegister => "another asynchronous enabled register process"
     case _: SynchronousReadFirstSinglePortMemory =>
       "another synchronous read-first single-port memory"
+    case _: SynchronousCounter => "another synchronous counter process"
   }
 
   private def moduleItemStableKey(item: ModuleItem): String = item match {
@@ -3558,6 +3767,8 @@ object ParamRtlValidator {
       s"9:${process.label}:${process.clock.name}:${process.reset.name}:${process.enable.name}:${process.assignment}"
     case memory: SynchronousReadFirstSinglePortMemory =>
       s"10:${memory.label}:${memory.memoryName}:${memory.clock.name}:${memory.readEnable.name}:${memory.writeEnable.name}:${memory.address.name}:${memory.writeData.name}:${memory.readData.name}:${memory.elementType}:${memory.depth}"
+    case counter: SynchronousCounter =>
+      s"11:${counter.label}:${counter.clock.name}:${counter.reset.name}:${counter.enable.name}:${counter.count.name}:${counter.limit}"
   }
 
   private def addDuplicateCaseValueDiagnostics(

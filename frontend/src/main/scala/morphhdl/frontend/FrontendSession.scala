@@ -36,6 +36,10 @@ private[frontend] case object SynchronousReadFirstSinglePortMemoryKind
   val description = "synchronous read-first single-port memory process"
 }
 
+private[frontend] case object SynchronousCounterKind extends RuntimeProcessKind {
+  val description = "synchronous counter process"
+}
+
 private[frontend] final case class CapturedRuntimeProcess(
     kind: RuntimeProcessKind,
     origin: SourceOrigin
@@ -836,6 +840,9 @@ private[frontend] object FrontendSession {
   ): Unit =
     emitRuntimeProcess(item, SynchronousReadFirstSinglePortMemoryKind)
 
+  private[frontend] def emitSynchronousCounter(item: FrontendNode[ModuleItem]): Unit =
+    emitRuntimeProcess(item, SynchronousCounterKind)
+
   private def emitRuntimeProcess(
       item: FrontendNode[ModuleItem],
       kind: RuntimeProcessKind
@@ -919,6 +926,8 @@ private[frontend] object FrontendSession {
       "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-MIXED"
     case SynchronousReadFirstSinglePortMemoryKind =>
       "MORPH-FRONTEND-SINGLE-PORT-MEMORY-MIXED"
+    case SynchronousCounterKind =>
+      "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-MIXED"
   }
 
   private def nestedCode(kind: RuntimeProcessKind): String = kind match {
@@ -931,6 +940,8 @@ private[frontend] object FrontendSession {
       "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-NESTED"
     case SynchronousReadFirstSinglePortMemoryKind =>
       "MORPH-FRONTEND-SINGLE-PORT-MEMORY-NESTED"
+    case SynchronousCounterKind =>
+      "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-NESTED"
   }
 
   private def multipleCode(kind: RuntimeProcessKind): String = kind match {
@@ -943,6 +954,8 @@ private[frontend] object FrontendSession {
       "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-MULTIPLE"
     case SynchronousReadFirstSinglePortMemoryKind =>
       "MORPH-FRONTEND-SINGLE-PORT-MEMORY-MULTIPLE"
+    case SynchronousCounterKind =>
+      "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-MULTIPLE"
   }
 
   private def ordinaryItemKind(item: ModuleItem): String = item match {

@@ -41,6 +41,7 @@ import morphhdl.paramrtl.ModuleItem.{
   GenerateFor,
   GenerateIf,
   ModuleInstance,
+  SynchronousCounter,
   SynchronousEnabledRegister,
   SynchronousReadFirstSinglePortMemory,
   SynchronousRegister
@@ -93,6 +94,8 @@ object Verilog2001Emitter {
       module.items.collect { case process: AsynchronousEnabledRegister => process }.sortBy(_.label)
     val synchronousReadFirstSinglePortMemories =
       module.items.collect { case memory: SynchronousReadFirstSinglePortMemory => memory }.sortBy(_.label)
+    val synchronousCounters =
+      module.items.collect { case counter: SynchronousCounter => counter }.sortBy(_.label)
     val proceduralOutputs = (
       combinationalIfs
         .flatMap(process => process.whenTrue.map(_.target.name) ++ process.whenFalse.map(_.target.name)) ++
@@ -100,7 +103,8 @@ object Verilog2001Emitter {
         asynchronousRegisters.map(_.assignment.target.name) ++
         synchronousEnabledRegisters.map(_.assignment.target.name) ++
         asynchronousEnabledRegisters.map(_.assignment.target.name) ++
-        synchronousReadFirstSinglePortMemories.map(_.readData.name)
+        synchronousReadFirstSinglePortMemories.map(_.readData.name) ++
+        synchronousCounters.map(_.count.name)
     ).toSet
     val assignments = module.items.collect { case assignment: ContinuousAssign => assignment }.sortBy { assignment =>
       (assignment.target.name, renderRtlExpr(assignment.value))
@@ -233,6 +237,26 @@ object Verilog2001Emitter {
       lines += "      end"
       lines += s"    end else if (${memory.readEnable.name} == 1'b1) begin"
       lines += s"      ${memory.readData.name} <= {$zeroWidth{1'b0}};"
+      lines += "    end"
+      lines += "  end"
+    }
+
+    synchronousCounters.foreach { counter =>
+      val count = counter.count.name
+      val countPort = ports.find(_.name == count).get
+      // Validation guarantees an atomic AddressWidth(limit) expression here,
+      // so the constant-function call is already a legal replication count.
+      val resetWidth = renderIntExpr(countPort.dataType.width)
+      lines += ""
+      lines += s"  always @(posedge ${counter.clock.name}) begin : ${counter.label}"
+      lines += s"    if (${counter.reset.name} == 1'b1) begin"
+      lines += s"      $count <= {$resetWidth{1'b0}};"
+      lines += s"    end else if (${counter.enable.name} == 1'b1) begin"
+      lines += s"      if ($count == ${renderComparisonOperand(counter.limit)} - 1) begin"
+      lines += s"        $count <= {$resetWidth{1'b0}};"
+      lines += "      end else begin"
+      lines += s"        $count <= $count + 1'b1;"
+      lines += "      end"
       lines += "    end"
       lines += "  end"
     }

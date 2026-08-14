@@ -1002,6 +1002,48 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("parameterized counter preserves the default public shape and reviewed output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "parameterized_counter.v"
+      val report = MorphVerilog(config) {
+        ParameterizedCounterContractFixture.program(reverseConstructionOrder = false)
+      }
+
+      val output = directory.resolve("parameterized_counter.v")
+      assert(report.toplevelName == "ParameterizedCounter")
+      assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
+      assert(Files.isRegularFile(output))
+      assert(
+        new String(Files.readAllBytes(output), StandardCharsets.UTF_8) ==
+          expectedParameterizedCounterVerilog
+      )
+    }
+  }
+
+  test("parameterized counter validation fails before public output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "parameterized_counter.v"
+      val fixture = ParameterizedCounterContractFixture.program(reverseConstructionOrder = false)
+      val result = MorphVerilog.tryGenerate(config) {
+        MorphProgram(
+          concreteWitness = fixture.concreteWitnessFactory(),
+          parameterizedDesign = invalidParameterizedCounterDesign()
+        )
+      }
+
+      result match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.ParamRtlValidation)
+          assert(failure.message.contains("PRTL-UNRESOLVED-RTL-REFERENCE"))
+        case Right(report) =>
+          fail(s"Expected parameterized-counter validation failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve("parameterized_counter.v")))
+    }
+  }
+
   test("an invalid inactive conditional integer branch fails whole-design validation") {
     withTemporaryDirectory { directory =>
       val topName = "InvalidInactiveConditionalWidth"
@@ -3424,6 +3466,38 @@ class MorphVerilogTests extends AnyFunSuite {
     Design(top.name, Vector(top))
   }
 
+  private def invalidParameterizedCounterDesign(): Design = {
+    val limit = ParameterRef("LIMIT")
+    val control = PackedBits(IntExpr.Literal(1), Unsigned)
+    val top = ModuleDef(
+      name = "ParameterizedCounter",
+      parameters = Vector(
+        IntegerParameter(
+          "LIMIT",
+          default = 5,
+          constraints = Vector(MinInclusive(1), MaxInclusive(8))
+        )
+      ),
+      ports = Vector(
+        Port("clk", Input, control),
+        Port("reset", Input, control),
+        Port("enable", Input, control),
+        Port("count", Output, PackedBits(IntExpr.AddressWidth(limit), Unsigned))
+      ),
+      items = Vector(
+        ModuleItem.SynchronousCounter(
+          label = "p_counter",
+          clock = Ref("missing_clock"),
+          reset = Ref("reset"),
+          enable = Ref("enable"),
+          count = Ref("count"),
+          limit = limit
+        )
+      )
+    )
+    Design(top.name, Vector(top))
+  }
+
   private def addressWidthDesign(
       requestedName: String,
       depthDefault: Int,
@@ -3705,6 +3779,46 @@ class MorphVerilogTests extends AnyFunSuite {
       |      end
       |    end else if (read_enable == 1'b1) begin
       |      read_data <= {WIDTH{1'b0}};
+      |    end
+      |  end
+      |
+      |endmodule
+      |""".stripMargin
+
+  private val expectedParameterizedCounterVerilog =
+    """module ParameterizedCounter #(
+      |  parameter integer LIMIT = 5
+      |) (
+      |  input  wire [0:0] clk,
+      |  output reg [(morphhdl$ceil_log2(LIMIT, 1))-1:0] count,
+      |  input  wire [0:0] enable,
+      |  input  wire [0:0] reset
+      |);
+      |
+      |  function integer morphhdl$ceil_log2;
+      |    input integer value;
+      |    input integer minimum_result;
+      |    integer remaining;
+      |    begin
+      |      morphhdl$ceil_log2 = 0;
+      |      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
+      |        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;
+      |      end
+      |      if (morphhdl$ceil_log2 < minimum_result) begin
+      |        morphhdl$ceil_log2 = minimum_result;
+      |      end
+      |    end
+      |  endfunction
+      |
+      |  always @(posedge clk) begin : p_counter
+      |    if (reset == 1'b1) begin
+      |      count <= {morphhdl$ceil_log2(LIMIT, 1){1'b0}};
+      |    end else if (enable == 1'b1) begin
+      |      if (count == LIMIT - 1) begin
+      |        count <= {morphhdl$ceil_log2(LIMIT, 1){1'b0}};
+      |      end else begin
+      |        count <= count + 1'b1;
+      |      end
       |    end
       |  end
       |
