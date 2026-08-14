@@ -159,6 +159,7 @@ object ModuleItem {
       label: String,
       memoryName: String,
       clock: RtlExpr.Ref,
+      readEnable: RtlExpr.Ref,
       writeEnable: RtlExpr.Ref,
       address: RtlExpr.Ref,
       writeData: RtlExpr.Ref,

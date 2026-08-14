@@ -19,6 +19,7 @@ class SynchronousReadFirstSinglePortMemoryEmitterTests extends AnyFunSuite {
         |  input  wire [2:0] address,
         |  input  wire [0:0] clk,
         |  output reg [WIDTH-1:0] read_data,
+        |  input  wire [0:0] read_enable,
         |  input  wire [WIDTH-1:0] write_data,
         |  input  wire [0:0] write_enable
         |);
@@ -27,11 +28,13 @@ class SynchronousReadFirstSinglePortMemoryEmitterTests extends AnyFunSuite {
         |
         |  always @(posedge clk) begin : p_memory
         |    if (address < DEPTH) begin
-        |      read_data <= memory[address];
+        |      if (read_enable == 1'b1) begin
+        |        read_data <= memory[address];
+        |      end
         |      if (write_enable == 1'b1) begin
         |        memory[address] <= write_data;
         |      end
-        |    end else begin
+        |    end else if (read_enable == 1'b1) begin
         |      read_data <= {WIDTH{1'b0}};
         |    end
         |  end
@@ -107,6 +110,7 @@ class SynchronousReadFirstSinglePortMemoryEmitterTests extends AnyFunSuite {
     val elementType = PackedBits(ParameterRef("WIDTH"), if (signed) Signed else Unsigned)
     val ports = Vector(
       Port("clk", Input, PackedBits(Literal(1), Unsigned)),
+      Port("read_enable", Input, PackedBits(Literal(1), Unsigned)),
       Port("write_enable", Input, PackedBits(Literal(1), Unsigned)),
       Port("address", Input, PackedBits(addressWidth, Unsigned)),
       Port("write_data", Input, elementType),
@@ -120,6 +124,7 @@ class SynchronousReadFirstSinglePortMemoryEmitterTests extends AnyFunSuite {
         label,
         memoryName,
         Ref("clk"),
+        Ref("read_enable"),
         Ref("write_enable"),
         Ref("address"),
         Ref("write_data"),

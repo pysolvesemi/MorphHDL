@@ -188,15 +188,19 @@ mixed processes and nesting remain rejected.
 
 Increment 20 adds one atomic memory helper:
 `emitSynchronousReadFirstSinglePortMemory(label, memoryName, clock,
-writeEnable, address, writeData, readData, elementType, depth)`. The five
-runtime operands are guarded direct references, `elementType` is an owned
-packed type and `depth` is an owned `HdlInt`. The helper retains every source
-origin, session and thread dependency, then publishes one memory item only
-after all arguments pass. It fixes one positive-edge clock, synchronous
-read-first behavior, one active-high whole-word write path and an explicit
-in-range address guard. Null, escaped, foreign, cross-thread, wrong-kind or
-non-reference inputs fail before publication or capture-state mutation. Reset,
-initialization, read enable, masks, multiple ports and memory/process mixing
+readEnable, writeEnable, address, writeData, readData, elementType, depth)`.
+The six runtime operands are source-located guarded direct references,
+`elementType` is an owned packed type and `depth` is an owned `HdlInt`. The
+helper retains every declarative and lexical-scope dependency, then publishes
+one memory item only after all arguments pass. Capture state is thread-local;
+the owned type and depth preserve their existing session and thread checks.
+Increments 20 and 22 fix one positive-edge clock,
+synchronous read-first behavior, active-high whole-word read and write enables,
+disabled-read hold and an explicit
+in-range address guard. Null, escaped scoped, wrong-kind or non-reference
+inputs fail before publication or capture-state mutation, while foreign
+retained declarations fail their existing ownership checks. Reset,
+initialization, selectable enable polarity, masks, multiple ports and memory/process mixing
 are not caller selectable in this tranche.
 
 Increment 21 adds `HdlInt.addressWidth`. It returns the minimum positive packed

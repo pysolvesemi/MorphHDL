@@ -56,19 +56,20 @@ These files are executable output contracts for the parameterized backend.
 - `asynchronous_enabled_register.v` is owned by Increment 19. Its active-high
   asynchronous reset asserts immediately and has priority over active-high
   enabled capture, while a low enable intentionally holds state.
-- `single_port_memory.v` is owned by Increments 20 and 21. Its independent
+- `single_port_memory.v` is owned by Increments 20 through 22. Its independent
   positive `WIDTH`/`DEPTH` parameters feed one guarded positive-edge
   synchronous read-first whole-word port; Increment 21 derives the packed
-  address width from `DEPTH`, while surplus addresses still read zero and
-  ignore writes.
+  address width from `DEPTH`, and Increment 22 adds active-high read enable
+  with disabled output hold while writes remain independent. Surplus enabled
+  reads still return zero and surplus writes remain ignored.
 - Increment 8 routes the first four artifacts through one production fixture
   source and `MorphVerilog`; Increments 9 and 10 extend that same path to all
   six. Increment 11 extends it to all seven, Increment 12 to all eight, and
   Increment 13 to all nine, Increment 14 to all ten, and Increment 15 to all
   eleven. Increment 16 extends it to all twelve, and Increment 17 to all
   thirteen, Increment 18 to all fourteen, Increment 19 to all fifteen, and
-  Increment 20 to all sixteen; Increment 21 upgrades the sixteenth artifact
-  without changing that inventory. CI
+  Increment 20 to all sixteen; Increments 21 and 22 upgrade the sixteenth
+  artifact without changing that inventory. CI
   performs a normal and reverse-construction run, requires an exact
   sixteen-file inventory, checks
   byte identity with these goldens, and gives that unmodified directory to the
@@ -128,11 +129,12 @@ These files are executable output contracts for the parameterized backend.
   falling-edge, synchronous-reset and reset-to-ones mutations.
   `SinglePortMemoryTb` covers default 8x5, awkward 5x3 and minimum 1x1 shapes
   simultaneously with derived three-, two- and one-bit address ports. It
-  proves synchronous output timing, valid last addresses,
-  disabled writes, read-first collision, later write visibility, zero reads
-  for surplus addresses and ignored surplus writes. Yosys proves one exact
-  retained memory, positive-edge output state, the memory-or-zero read path
-  and the active-high in-range whole-word write guard, then rejects
+  proves synchronous output timing, valid last addresses, disabled read hold,
+  writes while reads are disabled, disabled writes, read-first collision,
+  later write visibility, zero reads for surplus addresses and ignored surplus
+  writes. Yosys proves one exact retained memory, active-high enabled
+  positive-edge output state, the memory-or-zero read path and an independent
+  active-high in-range whole-word write guard, then rejects
   write-first, swapped-read-branch, falling-edge, unconditional-write,
   nonzero-surplus, inverted-address-guard, signed-address-guard,
   initialized-memory and off-by-one-depth source mutations. Direct JSON

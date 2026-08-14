@@ -108,12 +108,51 @@ class SynchronousReadFirstSinglePortMemoryValidatorTests extends AnyFunSuite {
   }
 
   test("requires exact control, address and data port roles") {
+    assertCodes(
+      memoryDesign(readEnable = "missing_read_enable"),
+      "PRTL-UNRESOLVED-RTL-REFERENCE"
+    )
+
     val outputClock = memoryDesign(clock = "read_data")
     assertCodes(
       outputClock,
       "PRTL-SYNCHRONOUS-READ-FIRST-MEMORY-CLOCK-NOT-INPUT",
       "PRTL-SYNCHRONOUS-READ-FIRST-MEMORY-CLOCK-TYPE-MISMATCH",
       "PRTL-SYNCHRONOUS-READ-FIRST-MEMORY-ROLE-ALIAS"
+    )
+
+    val outputReadEnable = memoryDesign(readEnable = "read_data")
+    assertCodes(
+      outputReadEnable,
+      "PRTL-SYNCHRONOUS-READ-FIRST-MEMORY-READ-ENABLE-NOT-INPUT",
+      "PRTL-SYNCHRONOUS-READ-FIRST-MEMORY-READ-ENABLE-TYPE-MISMATCH",
+      "PRTL-SYNCHRONOUS-READ-FIRST-MEMORY-ROLE-ALIAS"
+    )
+
+    val signedReadEnableBase = memoryDesign().modules.head
+    val signedReadEnable = Design(
+      signedReadEnableBase.name,
+      Vector(signedReadEnableBase.copy(ports = signedReadEnableBase.ports.map {
+        case port if port.name == "read_enable" =>
+          port.copy(dataType = PackedBits(Literal(1), Signed))
+        case port => port
+      }))
+    )
+    assertCodes(
+      signedReadEnable,
+      "PRTL-SYNCHRONOUS-READ-FIRST-MEMORY-READ-ENABLE-TYPE-MISMATCH"
+    )
+    val wideReadEnable = Design(
+      signedReadEnableBase.name,
+      Vector(signedReadEnableBase.copy(ports = signedReadEnableBase.ports.map {
+        case port if port.name == "read_enable" =>
+          port.copy(dataType = PackedBits(Literal(2), Unsigned))
+        case port => port
+      }))
+    )
+    assertCodes(
+      wideReadEnable,
+      "PRTL-SYNCHRONOUS-READ-FIRST-MEMORY-READ-ENABLE-TYPE-MISMATCH"
     )
 
     val wideEnableBase = memoryDesign().modules.head
@@ -134,6 +173,11 @@ class SynchronousReadFirstSinglePortMemoryValidatorTests extends AnyFunSuite {
     assertCodes(
       memoryDesign(writeData = "address"),
       "PRTL-SYNCHRONOUS-READ-FIRST-MEMORY-WRITE-DATA-TYPE-MISMATCH",
+      "PRTL-SYNCHRONOUS-READ-FIRST-MEMORY-ROLE-ALIAS"
+    )
+
+    assertCodes(
+      memoryDesign(readEnable = "write_enable"),
       "PRTL-SYNCHRONOUS-READ-FIRST-MEMORY-ROLE-ALIAS"
     )
   }
@@ -206,6 +250,7 @@ class SynchronousReadFirstSinglePortMemoryValidatorTests extends AnyFunSuite {
       label: String = "p_memory",
       memoryName: String = "memory",
       clock: String = "clk",
+      readEnable: String = "read_enable",
       writeEnable: String = "write_enable",
       address: String = "address",
       writeData: String = "write_data",
@@ -221,6 +266,7 @@ class SynchronousReadFirstSinglePortMemoryValidatorTests extends AnyFunSuite {
     val elementType = PackedBits(ParameterRef("WIDTH"), if (signed) Signed else Unsigned)
     val ports = Vector(
       Port("clk", Input, PackedBits(Literal(1), Unsigned)),
+      Port("read_enable", Input, PackedBits(Literal(1), Unsigned)),
       Port("write_enable", Input, PackedBits(Literal(1), Unsigned)),
       Port("address", Input, PackedBits(addressWidth, Unsigned)),
       Port("write_data", Input, elementType),
@@ -234,6 +280,7 @@ class SynchronousReadFirstSinglePortMemoryValidatorTests extends AnyFunSuite {
         label,
         memoryName,
         Ref(clock),
+        Ref(readEnable),
         Ref(writeEnable),
         Ref(address),
         Ref(writeData),

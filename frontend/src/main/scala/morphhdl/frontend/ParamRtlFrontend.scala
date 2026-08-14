@@ -692,13 +692,15 @@ private[morphhdl] object ParamRtlFrontend {
     * Atomically emits one positive-edge single-port memory with a one-cycle
     * synchronous read. A same-address read/write collision returns the old
     * element value. Addresses outside the configured depth read as zero and
-    * suppress writes. Reset, initialization, read enable and write masks are
-    * deliberately outside this bounded frontend surface.
+    * suppress writes. Read enable low holds the read output, while writes
+    * remain independently controlled. Reset, initialization and write masks
+    * are deliberately outside this bounded frontend surface.
     */
   def emitSynchronousReadFirstSinglePortMemory(
       label: String,
       memoryName: String,
       clock: FrontendNode[RtlExpr],
+      readEnable: FrontendNode[RtlExpr],
       writeEnable: FrontendNode[RtlExpr],
       address: FrontendNode[RtlExpr],
       writeData: FrontendNode[RtlExpr],
@@ -726,6 +728,15 @@ private[morphhdl] object ParamRtlFrontend {
       "MORPH-FRONTEND-SINGLE-PORT-MEMORY-CLOCK-NULL",
       "MORPH-FRONTEND-SINGLE-PORT-MEMORY-CLOCK-NOT-REF",
       "MORPH-FRONTEND-SINGLE-PORT-MEMORY-CLOCK-INVALID",
+      origin
+    )
+    val readEnableRef = requireSynchronousReadFirstSinglePortMemoryRef(
+      label,
+      "read-enable",
+      readEnable,
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-ENABLE-NULL",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-ENABLE-NOT-REF",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-ENABLE-INVALID",
       origin
     )
     val writeEnableRef = requireSynchronousReadFirstSinglePortMemoryRef(
@@ -785,13 +796,14 @@ private[morphhdl] object ParamRtlFrontend {
       s"synchronous read-first single-port memory '$label' depth"
     )
 
-    val refs = Vector(clock, writeEnable, address, writeData, readData)
+    val refs = Vector(clock, readEnable, writeEnable, address, writeData, readData)
     FrontendSession.emitSynchronousReadFirstSinglePortMemory(
       FrontendNode(
         ModuleItem.SynchronousReadFirstSinglePortMemory(
           label,
           memoryName,
           clockRef,
+          readEnableRef,
           writeEnableRef,
           addressRef,
           writeDataRef,

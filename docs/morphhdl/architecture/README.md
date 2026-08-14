@@ -67,6 +67,9 @@ The contract is split into these documents:
 - [Increment 21 portable address width](../increment-21-portable-address-width.md):
   typed positive ceiling-log2 with a one-bit minimum and a depth-derived
   packed memory address ABI in strict Verilog-2001.
+- [Increment 22 memory read enable](../increment-22-read-enable.md): one
+  active-high whole-word read enable with disabled output hold, independent
+  writes and retained read-first collisions.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -89,6 +92,8 @@ single-port memory while broader statements, multiple clocks/registers, CDC
 structures and memory policies remain separate tranches. Increment 21 derives
 that memory's address width from `DEPTH` through a portable typed conditional
 expression without `$clog2` or an externally overrideable helper parameter.
+Increment 22 adds an exact one-bit active-high read enable while keeping the
+write guard independent and preserving read-first behavior.
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants

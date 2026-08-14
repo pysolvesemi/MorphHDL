@@ -71,17 +71,11 @@ def one_signal_replicated(bits, width):
     return signal
 
 
-def inputs_match(cell, left, right):
-    connections = cell.get("connections", {})
-    actual = (connections.get("A", []), connections.get("B", []))
-    return actual == (left, right) or actual == (right, left)
-
-
 def main():
     parser = argparse.ArgumentParser(
         description=(
-            "Check SinglePortMemory is one guarded positive-edge synchronous "
-            "read-first whole-word memory"
+            "Check SinglePortMemory is one independently read/write-enabled "
+            "positive-edge synchronous read-first whole-word memory"
         )
     )
     parser.add_argument("netlist", type=pathlib.Path)
@@ -92,7 +86,6 @@ def main():
     if args.width < 1 or args.depth < 1:
         return fail("expected width and depth must be positive")
     expected_address_width = address_width(args.depth)
-    full_address_domain = args.depth == (1 << expected_address_width)
 
     with args.netlist.open("r", encoding="utf-8") as handle:
         modules = json.load(handle).get("modules", {})
@@ -105,6 +98,7 @@ def main():
         "address": ("input", expected_address_width),
         "clk": ("input", 1),
         "read_data": ("output", args.width),
+        "read_enable": ("input", 1),
         "write_data": ("input", args.width),
         "write_enable": ("input", 1),
     }
@@ -140,8 +134,8 @@ def main():
         ("ABITS", expected_address_width),
         ("RD_PORTS", 1),
         ("WR_PORTS", 1),
-        ("RD_CLK_ENABLE", 1 if full_address_domain else 0),
-        ("RD_CLK_POLARITY", 1 if full_address_domain else 0),
+        ("RD_CLK_ENABLE", 0),
+        ("RD_CLK_POLARITY", 0),
         ("RD_CE_OVER_SRST", 0),
         ("WR_CLK_ENABLE", 1),
         ("WR_CLK_POLARITY", 1),
@@ -208,7 +202,13 @@ def main():
     if connections["WR_DATA"] != ports["write_data"]["bits"]:
         return fail("{} write data is not connected bit-for-bit".format(memory_name))
     if connections["RD_EN"] not in (["1"], [1]):
-        return fail("{} read enable must be exactly one active bit".format(memory_name))
+        return fail("{} raw read port enable must be exactly one active bit".format(memory_name))
+    if len(connections["RD_CLK"]) != 1 or connections["RD_CLK"][0] not in ("x", "X"):
+        return fail(
+            "{} asynchronous raw read clock must be exactly one inactive x bit".format(
+                memory_name
+            )
+        )
     if len(connections["RD_DATA"]) != args.width:
         return fail("{} read data width is not {}".format(memory_name, args.width))
 
@@ -255,64 +255,91 @@ def main():
         for name, cell in cells.items()
         if "dff" in cell.get("type", "").lower()
     ]
-    if full_address_domain:
-        if registers:
-            return fail(
-                "full-domain synchronous read has redundant storage beside memory: {}".format(
-                    {name: cell.get("type") for name, cell in registers}
-                )
+    if len(registers) != 1 or registers[0][1].get("type") != "$dff":
+        return fail(
+            "storage beside the memory is {}, expected exactly one $dff".format(
+                {name: cell.get("type") for name, cell in registers}
             )
-        if connections["RD_CLK"] != ports["clk"]["bits"]:
-            return fail("{} synchronous read clock is not connected directly to clk".format(memory_name))
-        if connections["RD_DATA"] != ports["read_data"]["bits"]:
-            return fail("{} synchronous read data does not solely drive read_data".format(memory_name))
-    else:
-        if len(connections["RD_CLK"]) != 1 or connections["RD_CLK"][0] not in ("x", "X"):
-            return fail(
-                "{} asynchronous read clock must be exactly one inactive x bit".format(
-                    memory_name
-                )
-            )
-        if len(registers) != 1 or registers[0][1].get("type") != "$dff":
-            return fail(
-                "storage beside the memory is {}, expected exactly one $dff".format(
-                    {name: cell.get("type") for name, cell in registers}
-                )
-            )
-        register_name, register = registers[0]
-        register_connections = register.get("connections", {})
-        if register_connections.get("CLK") != ports["clk"]["bits"]:
-            return fail("{} clock is not connected directly to clk".format(register_name))
-        if register_connections.get("Q") != ports["read_data"]["bits"]:
-            return fail("{} does not solely drive read_data".format(register_name))
-        for parameter, expected in (("WIDTH", args.width), ("CLK_POLARITY", 1)):
-            problem = require_parameter(
-                register_name, register.get("parameters", {}), parameter, expected
-            )
-            if problem is not None:
-                return fail(problem)
+        )
+    register_name, register = registers[0]
+    register_connections = register.get("connections", {})
+    if register_connections.get("CLK") != ports["clk"]["bits"]:
+        return fail("{} clock is not connected directly to clk".format(register_name))
+    if register_connections.get("Q") != ports["read_data"]["bits"]:
+        return fail("{} does not solely drive read_data".format(register_name))
+    if len(register_connections.get("D", [])) != args.width:
+        return fail("{} input width is not {}".format(register_name, args.width))
+    for parameter, expected in (("WIDTH", args.width), ("CLK_POLARITY", 1)):
+        problem = require_parameter(
+            register_name, register.get("parameters", {}), parameter, expected
+        )
+        if problem is not None:
+            return fail(problem)
 
-        read_muxes = []
-        for name, cell in cells.items():
-            if cell.get("type") != "$mux":
-                continue
-            mux_connections = cell.get("connections", {})
-            if mux_connections.get("Y") != register_connections.get("D"):
-                continue
-            false_value = mux_connections.get("A", [])
-            true_value = mux_connections.get("B", [])
-            if (
-                all_zero(false_value)
-                and true_value == connections["RD_DATA"]
-                and mux_connections.get("S") == in_range
-            ):
-                read_muxes.append((name, cell))
-        if len(read_muxes) != 1:
-            return fail(
-                "found {} exact in-range ? memory : zero muxes feeding read_data $dff, expected one".format(
-                    len(read_muxes)
-                )
+    valid_read_muxes = []
+    surplus_read_muxes = []
+    for name, cell in cells.items():
+        if cell.get("type") != "$mux":
+            continue
+        mux_connections = cell.get("connections", {})
+        if (
+            mux_connections.get("A") == ports["read_data"]["bits"]
+            and mux_connections.get("B") == connections["RD_DATA"]
+            and mux_connections.get("S") == ports["read_enable"]["bits"]
+        ):
+            valid_read_muxes.append((name, cell))
+        if (
+            mux_connections.get("A") == ports["read_data"]["bits"]
+            and len(mux_connections.get("B", [])) == args.width
+            and all_zero(mux_connections.get("B", []))
+            and mux_connections.get("S") == ports["read_enable"]["bits"]
+        ):
+            surplus_read_muxes.append((name, cell))
+    if len(valid_read_muxes) != 1:
+        return fail(
+            "found {} exact read_enable ? memory : hold valid-address muxes, expected one".format(
+                len(valid_read_muxes)
             )
+        )
+    if len(surplus_read_muxes) != 1:
+        return fail(
+            "found {} exact read_enable ? zero : hold surplus-address muxes, expected one".format(
+                len(surplus_read_muxes)
+            )
+        )
+    valid_read_name, valid_read_mux = valid_read_muxes[0]
+    surplus_read_name, surplus_read_mux = surplus_read_muxes[0]
+    for name, cell in (valid_read_muxes[0], surplus_read_muxes[0]):
+        problem = require_parameter(name, cell.get("parameters", {}), "WIDTH", args.width)
+        if problem is not None:
+            return fail(problem)
+
+    address_read_muxes = []
+    for name, cell in cells.items():
+        if cell.get("type") != "$mux":
+            continue
+        mux_connections = cell.get("connections", {})
+        if (
+            mux_connections.get("A")
+            == surplus_read_mux.get("connections", {}).get("Y")
+            and mux_connections.get("B")
+            == valid_read_mux.get("connections", {}).get("Y")
+            and mux_connections.get("S") == in_range
+            and mux_connections.get("Y") == register_connections.get("D")
+        ):
+            address_read_muxes.append((name, cell))
+    if len(address_read_muxes) != 1:
+        return fail(
+            "found {} exact address-first enabled-read muxes feeding read_data $dff, expected one".format(
+                len(address_read_muxes)
+            )
+        )
+    address_read_name, address_read_mux = address_read_muxes[0]
+    problem = require_parameter(
+        address_read_name, address_read_mux.get("parameters", {}), "WIDTH", args.width
+    )
+    if problem is not None:
+        return fail(problem)
 
     write_guards = []
     for name, cell in cells.items():
@@ -321,12 +348,21 @@ def main():
             continue
         if (
             cell.get("type") in {"$and", "$logic_and"}
-            and inputs_match(cell, ports["write_enable"]["bits"], in_range)
+            and (
+                (
+                    guard_connections.get("A") == ports["write_enable"]["bits"]
+                    and guard_connections.get("B") == in_range
+                )
+                or (
+                    guard_connections.get("A") == in_range
+                    and guard_connections.get("B") == ports["write_enable"]["bits"]
+                )
+            )
         ):
             write_guards.append((name, cell))
         elif (
             cell.get("type") == "$mux"
-            and all_zero(guard_connections.get("A", []))
+            and guard_connections.get("A") in (["0"], [0])
             and guard_connections.get("B") == ports["write_enable"]["bits"]
             and guard_connections.get("S") == in_range
         ):
@@ -337,9 +373,49 @@ def main():
                 len(write_guards)
             )
         )
+    write_guard_name, write_guard_mux = write_guards[0]
+    if write_guard_mux.get("type") == "$mux":
+        problem = require_parameter(
+            write_guard_name, write_guard_mux.get("parameters", {}), "WIDTH", 1
+        )
+        if problem is not None:
+            return fail(problem)
+    else:
+        for parameter, expected in (
+            ("A_SIGNED", 0),
+            ("A_WIDTH", 1),
+            ("B_SIGNED", 0),
+            ("B_WIDTH", 1),
+            ("Y_WIDTH", 1),
+        ):
+            problem = require_parameter(
+                write_guard_name,
+                write_guard_mux.get("parameters", {}),
+                parameter,
+                expected,
+            )
+            if problem is not None:
+                return fail(problem)
+
+    expected_cells = {
+        memory_name,
+        comparison_name,
+        register_name,
+        valid_read_name,
+        surplus_read_name,
+        address_read_name,
+        write_guard_name,
+    }
+    if set(cells) != expected_cells:
+        return fail(
+            "cells are {}, expected only the canonical memory, guard, enabled-read muxes and output register {}".format(
+                {name: cell.get("type") for name, cell in sorted(cells.items())},
+                sorted(expected_cells),
+            )
+        )
 
     print(
-        "Yosys SinglePortMemory is one {}x{} guarded positive-edge synchronous read-first whole-word memory".format(
+        "Yosys SinglePortMemory is one {}x{} independently read/write-enabled positive-edge synchronous read-first whole-word memory".format(
             args.depth, args.width
         )
     )

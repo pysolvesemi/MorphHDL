@@ -2873,6 +2873,16 @@ object ParamRtlValidator {
           )
       }
 
+      val readEnablePort = resolveInput("readEnable", "READ-ENABLE", memory.readEnable)
+      readEnablePort.foreach { port =>
+        if (!packedTypesEquivalent(port.dataType, oneBitUnsigned, module, baseFacts))
+          diagnostics += Diagnostic(
+            "PRTL-SYNCHRONOUS-READ-FIRST-MEMORY-READ-ENABLE-TYPE-MISMATCH",
+            path :+ "readEnable",
+            s"Synchronous read-first memory read enable '${port.name}' must have exact unsigned 1-bit type"
+          )
+      }
+
       val writeEnablePort = resolveInput("writeEnable", "WRITE-ENABLE", memory.writeEnable)
       writeEnablePort.foreach { port =>
         if (!packedTypesEquivalent(port.dataType, oneBitUnsigned, module, baseFacts))
@@ -2924,6 +2934,7 @@ object ParamRtlValidator {
         "address" -> memory.address.name,
         "clock" -> memory.clock.name,
         "readData" -> memory.readData.name,
+        "readEnable" -> memory.readEnable.name,
         "writeData" -> memory.writeData.name,
         "writeEnable" -> memory.writeEnable.name
       ).groupBy(_._2)
@@ -3517,7 +3528,7 @@ object ParamRtlValidator {
     case process: AsynchronousEnabledRegister =>
       s"9:${process.label}:${process.clock.name}:${process.reset.name}:${process.enable.name}:${process.assignment}"
     case memory: SynchronousReadFirstSinglePortMemory =>
-      s"10:${memory.label}:${memory.memoryName}:${memory.clock.name}:${memory.writeEnable.name}:${memory.address.name}:${memory.writeData.name}:${memory.readData.name}:${memory.elementType}:${memory.depth}"
+      s"10:${memory.label}:${memory.memoryName}:${memory.clock.name}:${memory.readEnable.name}:${memory.writeEnable.name}:${memory.address.name}:${memory.writeData.name}:${memory.readData.name}:${memory.elementType}:${memory.depth}"
   }
 
   private def addDuplicateCaseValueDiagnostics(
