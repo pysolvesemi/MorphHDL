@@ -26,6 +26,7 @@ be accepted without enabling a SystemVerilog parser.
 | Asynchronous-reset register (implemented) | Named `always @(posedge clock or posedge reset)` block, active-high asynchronous reset-to-zero, reset priority, complete nonblocking assignments and process-driven `output reg` target |
 | Synchronous enabled register (implemented) | Named `always @(posedge clock)` block with reset-priority active-high synchronous reset-to-zero, active-high capture, implicit disabled hold and nonblocking assignments |
 | Asynchronous enabled register (implemented) | Named `always @(posedge clock or posedge reset)` block with immediate reset-priority active-high asynchronous reset-to-zero, active-high capture, implicit disabled hold and nonblocking assignments |
+| Synchronous read-first single-port memory (implemented) | `reg [WIDTH-1:0] memory [0:DEPTH-1]` plus one guarded named positive-edge process with nonblocking read and optional whole-word write assignments |
 | Logical record/vector port | Deterministically flattened scalar/packed ports |
 | `clog2` | Generated portable constant function or legalized expression |
 | Enum intent | Packed vector plus named local parameters |
@@ -112,6 +113,19 @@ only supplies strict Verilog-2001 spelling. Capability and validation reject
 role aliasing, incorrect widths, mixed ownership and sibling structure before
 emission. Reversed reset/enable roles, synchronous reset, active-low enable,
 falling-edge clocking, reset-to-ones and `always_ff` remain forbidden.
+
+Increment 20 legalizes one bounded memory form. A process-owned read output
+emits as `output reg`, while the memory remains an internal unpacked array of
+packed `reg` elements. One named `always @(posedge clock)` process tests
+`address < DEPTH`, schedules the memory read first and conditionally schedules
+one whole-word write with nonblocking assignments. Nonblocking semantics make
+a same-address collision read-first. The explicit else schedules a target-width
+zero for surplus addresses; nesting the write under the same guard makes those
+addresses write-inert. Capability and validation prove positive width/depth,
+whole-domain address capacity, exact data types, distinct controls and sole
+ownership before spelling. No reset or initial block is emitted, so unwritten
+in-range reads remain unspecified. Initialization, read enable, masks,
+multiple ports/clocks and selectable collision modes remain forbidden.
 
 ## Flat ABI
 

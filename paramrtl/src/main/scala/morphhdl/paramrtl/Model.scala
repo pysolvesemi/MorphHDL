@@ -154,6 +154,17 @@ object ModuleItem {
       enable: RtlExpr.Ref,
       assignment: ProceduralAssign
   ) extends ModuleItem
+  final case class SynchronousReadFirstSinglePortMemory(
+      label: String,
+      memoryName: String,
+      clock: RtlExpr.Ref,
+      writeEnable: RtlExpr.Ref,
+      address: RtlExpr.Ref,
+      writeData: RtlExpr.Ref,
+      readData: RtlExpr.Ref,
+      elementType: PackedBits,
+      depth: IntExpr
+  ) extends ModuleItem
 }
 
 final case class ModuleDef(

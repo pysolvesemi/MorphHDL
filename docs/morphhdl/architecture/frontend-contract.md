@@ -186,6 +186,19 @@ immediate and retains priority over active-high capture; enable low retains
 state. Selectable timing or polarity, arbitrary hold expressions, multiple or
 mixed processes and nesting remain rejected.
 
+Increment 20 adds one atomic memory helper:
+`emitSynchronousReadFirstSinglePortMemory(label, memoryName, clock,
+writeEnable, address, writeData, readData, elementType, depth)`. The five
+runtime operands are guarded direct references, `elementType` is an owned
+packed type and `depth` is an owned `HdlInt`. The helper retains every source
+origin, session and thread dependency, then publishes one memory item only
+after all arguments pass. It fixes one positive-edge clock, synchronous
+read-first behavior, one active-high whole-word write path and an explicit
+in-range address guard. Null, escaped, foreign, cross-thread, wrong-kind or
+non-reference inputs fail before publication or capture-state mutation. Reset,
+initialization, read enable, masks, multiple ports and memory/process mixing
+are not caller selectable in this tranche.
+
 An ordinary Scala `if`, `match`, collection size, recursion or class selection
 continues to execute during elaboration and therefore may depend only on static
 Scala values.

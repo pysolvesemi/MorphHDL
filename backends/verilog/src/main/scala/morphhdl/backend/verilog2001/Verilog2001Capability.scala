@@ -39,6 +39,7 @@ import morphhdl.paramrtl.ModuleItem.{
   GenerateIf,
   ModuleInstance,
   SynchronousEnabledRegister,
+  SynchronousReadFirstSinglePortMemory,
   SynchronousRegister
 }
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
@@ -403,6 +404,31 @@ object Verilog2001Capability {
             process.label,
             modulePath :+ "asynchronousEnabledRegisters" :+ process.label :+ "label",
             diagnostics
+          )
+      }
+
+      module.items.collect { case memory: SynchronousReadFirstSinglePortMemory => memory }.sortBy(_.label).foreach {
+        memory =>
+          val path = modulePath :+ "synchronousReadFirstSinglePortMemories" :+ memory.label
+          checkName(memory.label, path :+ "label", diagnostics)
+          checkName(memory.memoryName, path :+ "memoryName", diagnostics)
+          checkExpression(
+            memory.elementType.width,
+            facts.parameterFacts,
+            facts.localParameterFacts,
+            path :+ "elementType" :+ "width",
+            diagnostics,
+            booleanParameters = booleanParameterByName,
+            booleanLocalParameters = facts.booleanLocalParameterFacts
+          )
+          checkExpression(
+            memory.depth,
+            facts.parameterFacts,
+            facts.localParameterFacts,
+            path :+ "depth",
+            diagnostics,
+            booleanParameters = booleanParameterByName,
+            booleanLocalParameters = facts.booleanLocalParameterFacts
           )
       }
     }
