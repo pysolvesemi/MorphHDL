@@ -182,7 +182,11 @@ def main():
     comparison_name, comparison = by_type["$eq"]
     comparison_connections = comparison.get("connections", {})
     comparison_a = comparison_connections.get("A", [])
-    if comparison_a[:width] != ports["count"]["bits"] or not is_zero(comparison_a[width:]):
+    comparison_extension = comparison_a[width:]
+    if (
+        comparison_a[:width] != ports["count"]["bits"]
+        or any(bit not in ("0", 0) for bit in comparison_extension)
+    ):
         return fail("{} A is not zero-extended count".format(comparison_name))
     if constant_value(comparison_connections.get("B", [])) != args.limit - 1:
         return fail("{} B is not LIMIT - 1".format(comparison_name))
