@@ -312,3 +312,14 @@ sixteen-file inventory and inherited concrete phase plan remain unchanged.
 This strengthens the partial width, driver, register and cross-clock evidence
 without claiming reset, initialization, masks, extra ports or general clocked
 statement coverage.
+
+Increment 23 extends the partial `PhaseInferWidth` adaptation with typed
+minimum and maximum parameter expressions. The concrete witness still runs
+the complete inherited phase plan. ParamRTL separately validates both operand
+trees, computes conservative whole-domain result intervals and preserves local
+dependencies; the strict Verilog capability gate bounds ternary expansion to
+4096 syntax nodes. The existing `derived_width.v` artifact proves both
+operator directions across six elaborated widths, including the minimum
+four-bit floor and a dynamic six-bit case. Comparator, branch-order and
+default-specialization mutations must fail. The public inventory remains
+exactly sixteen files, and broader runtime expressions remain partial.

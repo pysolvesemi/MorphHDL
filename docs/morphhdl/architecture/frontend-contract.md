@@ -214,6 +214,16 @@ complete legal operand domain is positive, so a valid default cannot hide a
 nonpositive override; each target capability separately rejects operands it
 cannot represent.
 
+Increment 23 adds `left.min(right)` and `left.max(right)` on `HdlInt`. Each
+operation computes the exact mathematical concrete witness and retains both
+symbolic operand trees as `IntExpr.Min` or `IntExpr.Max`, including public and
+local declaration identities, scope provenance and source origins. Both
+operands are captured and validated even when a literal or bounded interval
+determines the result. The operations may drive widths, local parameters and
+child bindings wherever the existing consumer permits their retained scope.
+Same-scope generate-index expressions compose; incompatible or escaped scopes
+fail through the existing binary-expression checks.
+
 An ordinary Scala `if`, `match`, collection size, recursion or class selection
 continues to execute during elaboration and therefore may depend only on static
 Scala values.
@@ -254,12 +264,16 @@ The concrete witness is validation data, not a fallback. If symbolic capture
 cannot represent an operation, elaboration fails even when the default witness
 could execute it.
 
-Increment 8 implements the current bounded integer slice: public and local
+Increment 8 implements the initial bounded integer slice: public and local
 integer parameters, integer literals, `+`, `-`, `*`, `/`, `%`, unary `-`, and
 the existing `GenIndex * HdlInt` indexed part-select offset. Every operation
 retains its exact `BigInt` witness, ParamRTL expression, identity provenance,
 generate scope and call-site origin. If `HdlInt.param` omits `max`, its bounded
 default is `Int.MaxValue`.
+
+Increment 23 extends that slice with `min` and `max`. Unlike Scala collection
+helpers, these methods retain the exact target-neutral expression and never
+choose one symbolic branch only from the concrete witness.
 
 The guarded lowering facade remains `private[morphhdl]`; `MorphVerilog` is the
 public generation entry point. Inside that bounded integration surface,

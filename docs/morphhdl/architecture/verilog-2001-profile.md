@@ -20,6 +20,7 @@ be accepted without enabling a SystemVerilog parser.
 | Structural condition (implemented) | Named `generate`/`if` with explicit `== 1` Boolean references |
 | Integer comparison (implemented) | `<`, `<=`, `>`, `>=`, `==` or `!=` after operand capability proof |
 | Conditional integer value (implemented) | Parenthesized Boolean condition with Verilog-2001 `condition ? when_true : when_false` |
+| Integer minimum/maximum (implemented) | Canonical `(left < right) ? left : right` / `(left > right) ? left : right` conditional expressions |
 | Structural case (implemented) | Named `generate`/`case` with ascending signed-decimal choices and mandatory default |
 | Runtime two-way mux process (implemented) | Named `always @*` block, one-bit `if` condition, complete blocking assignments and process-driven `output reg` targets |
 | Synchronous register (implemented) | Named `always @(posedge clock)` block, active-high synchronous reset-to-zero, complete nonblocking assignments and process-driven `output reg` target |
@@ -140,8 +141,7 @@ target-independent ParamRTL validation has proved it positive. Every legal
 value therefore has exact ceiling-log2 behavior and `DEPTH=1` retains a legal
 one-bit port. The public memory address ABI inlines that expression in its
 packed range; no externally overrideable sizing parameter, `$clog2`, constant
-function or specialization is introduced. General logarithms and minimum/
-maximum operations remain deferred.
+function or specialization is introduced. General logarithms remain deferred.
 
 The lowering is resource bounded. Five direct nested `AddressWidth` layers
 collapse to the constant one over the already-proven positive signed-32-bit
@@ -149,6 +149,16 @@ domain. Other compositions use a shared capability/emitter cost plan and are
 rejected with `V2001-ADDRESS-WIDTH-EXPANSION-TOO-LARGE` when their estimated
 portable expansion exceeds 4096 expanded syntax nodes. This is a Verilog-2001
 target cap, not a loss of the canonical ParamRTL expression.
+
+Increment 23 legalizes `IntExpr.Min` and `IntExpr.Max` to canonical
+comparison ternaries. Both operands are rendered in the predicate and the
+selected branches, so branch order is fixed and neither operand may be
+specialized away from a default witness. The capability verifier and emitter
+share a conservative expansion estimate and reject a rendered Min/Max tree
+above 4096 syntax nodes with
+`V2001-MIN-MAX-EXPANSION-TOO-LARGE`. The cap controls generated Verilog size only;
+ParamRTL retains the target-neutral mathematical node. No `$min`, `$max`,
+function declaration or SystemVerilog construct is emitted.
 
 ## Flat ABI
 

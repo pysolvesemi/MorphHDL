@@ -7,6 +7,8 @@ import morphhdl.paramrtl.IntExpr.{
   GenerateIndexRef,
   Literal,
   LocalParameterRef,
+  Max,
+  Min,
   Modulo,
   Multiply,
   Negate,
@@ -14,6 +16,7 @@ import morphhdl.paramrtl.IntExpr.{
   Select,
   Subtract
 }
+
 import morphhdl.paramrtl.BoolExpr.{
   And => BoolAnd,
   Equal => BoolEqual,
@@ -391,49 +394,36 @@ object Verilog2001Emitter {
 
   private def renderIntExpr(expression: IntExpr): String = renderIntExprWithPrecedence(expression).text
 
-  private def renderIntExprWithPrecedence(expression: IntExpr): RenderedIntExpr = expression match {
-    case Literal(value)          => RenderedIntExpr(value.toString, AtomicPrecedence)
-    case ParameterRef(name)      => RenderedIntExpr(name, AtomicPrecedence)
-    case LocalParameterRef(name) => RenderedIntExpr(name, AtomicPrecedence)
-    case GenerateIndexRef(name)  => RenderedIntExpr(name, AtomicPrecedence)
-    case AddressWidth(value)     => renderAddressWidth(value)
-    case Negate(value) =>
-      val rendered = renderIntExprWithPrecedence(value)
-      val needsParentheses = rendered.precedence <= UnaryPrecedence || rendered.text.startsWith("-")
-      val operand = if (needsParentheses) s"(${rendered.text})" else rendered.text
-      RenderedIntExpr(s"-$operand", UnaryPrecedence)
-    case Add(left, right)      => renderBinary(left, "+", right, AdditivePrecedence)
-    case Subtract(left, right) => renderBinary(left, "-", right, AdditivePrecedence)
-    case Multiply(left, right) => renderBinary(left, "*", right, MultiplicativePrecedence)
-    case Divide(left, right)   => renderBinary(left, "/", right, MultiplicativePrecedence)
-    case Modulo(left, right)   => renderBinary(left, "%", right, MultiplicativePrecedence)
-    case Select(condition, whenTrue, whenFalse) =>
-      val renderedTrue = renderIntExprWithPrecedence(whenTrue)
-      val renderedFalse = renderIntExprWithPrecedence(whenFalse)
-      val trueText =
-        if (renderedTrue.precedence <= ConditionalPrecedence) s"(${renderedTrue.text})"
-        else renderedTrue.text
-      val falseText =
-        if (renderedFalse.precedence <= ConditionalPrecedence) s"(${renderedFalse.text})"
-        else renderedFalse.text
-      RenderedIntExpr(
-        s"(${renderBoolExpr(condition)}) ? $trueText : $falseText",
-        ConditionalPrecedence
-      )
-  }
+  private def renderIntExprWithPrecedence(expression: IntExpr): RenderedIntExpr =
+    renderExpressionGraph(expression).integers.get(expression)
 
   private def renderBinary(
-      left: IntExpr,
+      left: RenderedIntExpr,
       operator: String,
-      right: IntExpr,
+      right: RenderedIntExpr,
       precedence: Int
   ): RenderedIntExpr = {
-    val renderedLeft = renderIntExprWithPrecedence(left)
-    val renderedRight = renderIntExprWithPrecedence(right)
-    val leftText = if (renderedLeft.precedence < precedence) s"(${renderedLeft.text})" else renderedLeft.text
-    val parenthesizeRight = renderedRight.precedence <= precedence || renderedRight.text.startsWith("-")
-    val rightText = if (parenthesizeRight) s"(${renderedRight.text})" else renderedRight.text
+    val leftText = if (left.precedence < precedence) s"(${left.text})" else left.text
+    val parenthesizeRight = right.precedence <= precedence || right.text.startsWith("-")
+    val rightText = if (parenthesizeRight) s"(${right.text})" else right.text
     RenderedIntExpr(s"$leftText $operator $rightText", precedence)
+  }
+
+  private def renderExtremum(
+      left: RenderedIntExpr,
+      operator: String,
+      right: RenderedIntExpr
+  ): RenderedIntExpr = {
+    val leftText =
+      if (left.precedence <= ConditionalPrecedence) s"(${left.text})"
+      else left.text
+    val rightText =
+      if (right.precedence <= ConditionalPrecedence) s"(${right.text})"
+      else right.text
+    RenderedIntExpr(
+      s"($leftText $operator $rightText) ? $leftText : $rightText",
+      ConditionalPrecedence
+    )
   }
 
   /**
@@ -441,12 +431,15 @@ object Verilog2001Emitter {
     * proven positive and within the signed 32-bit target domain, so this fixed chain covers
     * every legal value without relying on SystemVerilog's `$clog2`.
     */
-  private def renderAddressWidth(value: IntExpr): RenderedIntExpr = {
-    val shape = AddressWidthLowering.shape(value)
+  private def renderAddressWidth(
+      value: IntExpr,
+      integers: java.util.IdentityHashMap[IntExpr, RenderedIntExpr]
+  ): RenderedIntExpr = {
+    val shape = Verilog2001IntExpressionLowering.addressWidthShape(value)
     if (shape.thresholds.isEmpty)
       return RenderedIntExpr(shape.maximumResult.toString, AtomicPrecedence)
 
-    val operand = renderDelimitedIntOperand(shape.base)
+    val operand = renderDelimitedIntOperand(integers.get(shape.base))
     var chain = shape.maximumResult.toString
     shape.thresholds.reverseIterator.foreach { case (threshold, width) =>
       val falseBranch = if (width == shape.maximumResult - 1) chain else s"($chain)"
@@ -463,8 +456,11 @@ object Verilog2001Emitter {
 
   private def renderDelimitedIntOperand(expression: IntExpr): String = {
     val rendered = renderIntExprWithPrecedence(expression)
-    if (rendered.precedence <= ConditionalPrecedence) s"(${rendered.text})" else rendered.text
+    renderDelimitedIntOperand(rendered)
   }
+
+  private def renderDelimitedIntOperand(rendered: RenderedIntExpr): String =
+    if (rendered.precedence <= ConditionalPrecedence) s"(${rendered.text})" else rendered.text
 
   private val BoolOrPrecedence = 10
   private val BoolAndPrecedence = 20
@@ -473,6 +469,11 @@ object Verilog2001Emitter {
 
   private final case class RenderedBoolExpr(text: String, precedence: Int)
 
+  private final case class RenderedExpressionGraph(
+      integers: java.util.IdentityHashMap[IntExpr, RenderedIntExpr],
+      booleans: java.util.IdentityHashMap[BoolExpr, RenderedBoolExpr]
+  )
+
   private def renderBoolExpr(expression: BoolExpr): String = renderBoolExprWithPrecedence(expression).text
 
   private def renderBooleanBinding(expression: BoolExpr): String = expression match {
@@ -480,59 +481,148 @@ object Verilog2001Emitter {
     case other              => s"(${renderBoolExpr(other)}) ? 1 : 0"
   }
 
-  private def renderBoolExprWithPrecedence(expression: BoolExpr): RenderedBoolExpr = {
-    final case class Frame(value: BoolExpr, expanded: Boolean)
-    val rendered = new java.util.IdentityHashMap[BoolExpr, RenderedBoolExpr]()
-    val work = scala.collection.mutable.ArrayBuffer(Frame(expression, expanded = false))
+  private def renderBoolExprWithPrecedence(expression: BoolExpr): RenderedBoolExpr =
+    renderExpressionGraph(expression).booleans.get(expression)
+
+  /** Iterative mixed-graph rendering preserves DAG sharing and never consumes expression depth. */
+  private def renderExpressionGraph(root: AnyRef): RenderedExpressionGraph = {
+    final case class Frame(value: AnyRef, expanded: Boolean)
+    val integers = new java.util.IdentityHashMap[IntExpr, RenderedIntExpr]()
+    val booleans = new java.util.IdentityHashMap[BoolExpr, RenderedBoolExpr]()
+    val work = scala.collection.mutable.ArrayBuffer(Frame(root, expanded = false))
+
+    def isDone(value: AnyRef): Boolean = value match {
+      case integer: IntExpr => integers.containsKey(integer)
+      case boolean: BoolExpr => booleans.containsKey(boolean)
+      case _ => true
+    }
+    def push(value: AnyRef): Unit = work += Frame(value, expanded = false)
+    def integer(value: IntExpr): RenderedIntExpr = integers.get(value)
+    def boolean(value: BoolExpr): RenderedBoolExpr = booleans.get(value)
 
     while (work.nonEmpty) {
       val frame = work.remove(work.length - 1)
-      if (!rendered.containsKey(frame.value)) {
+      if (!isDone(frame.value)) {
         if (!frame.expanded) {
           work += Frame(frame.value, expanded = true)
           frame.value match {
-            case BoolNot(operand)       => work += Frame(operand, expanded = false)
-            case BoolAnd(left, right)   => work += Frame(right, expanded = false); work += Frame(left, expanded = false)
-            case BoolOr(left, right)    => work += Frame(right, expanded = false); work += Frame(left, expanded = false)
-            case _                      =>
+            case _: Literal | _: ParameterRef | _: LocalParameterRef | _: GenerateIndexRef =>
+            case AddressWidth(operand) =>
+              val shape = Verilog2001IntExpressionLowering.addressWidthShape(operand)
+              if (shape.thresholds.nonEmpty) push(shape.base)
+            case Negate(operand)       => push(operand)
+            case Add(left, right)      => push(right); push(left)
+            case Subtract(left, right) => push(right); push(left)
+            case Multiply(left, right) => push(right); push(left)
+            case Divide(left, right)   => push(right); push(left)
+            case Modulo(left, right)   => push(right); push(left)
+            case Min(left, right)      => push(right); push(left)
+            case Max(left, right)      => push(right); push(left)
+            case Select(condition, whenTrue, whenFalse) =>
+              push(whenFalse); push(whenTrue); push(condition)
+            case _: BoolLiteral | _: BoolParameterRef | _: BoolLocalParameterRef =>
+            case BoolNot(operand)       => push(operand)
+            case BoolAnd(left, right)   => push(right); push(left)
+            case BoolOr(left, right)    => push(right); push(left)
+            case BoolLessThan(left, right)           => push(right); push(left)
+            case BoolLessThanOrEqual(left, right)    => push(right); push(left)
+            case BoolGreaterThan(left, right)        => push(right); push(left)
+            case BoolGreaterThanOrEqual(left, right) => push(right); push(left)
+            case BoolEqual(left, right)              => push(right); push(left)
+            case BoolNotEqual(left, right)           => push(right); push(left)
           }
         } else {
-          val value = frame.value match {
-            case BoolLiteral(result) => RenderedBoolExpr(if (result) "1'b1" else "1'b0", BoolAtomicPrecedence)
-            case BoolParameterRef(name) => RenderedBoolExpr(s"$name == 1", BoolAtomicPrecedence)
-            case BoolLocalParameterRef(name) => RenderedBoolExpr(s"$name == 1", BoolAtomicPrecedence)
-            case BoolLessThan(left, right)           => renderComparison(left, "<", right)
-            case BoolLessThanOrEqual(left, right)    => renderComparison(left, "<=", right)
-            case BoolGreaterThan(left, right)        => renderComparison(left, ">", right)
-            case BoolGreaterThanOrEqual(left, right) => renderComparison(left, ">=", right)
-            case BoolEqual(left, right)              => renderComparison(left, "==", right)
-            case BoolNotEqual(left, right)           => renderComparison(left, "!=", right)
-            case BoolNot(operand) =>
-              val inner = rendered.get(operand)
+          frame.value match {
+            case value @ Literal(number) =>
+              integers.put(value, RenderedIntExpr(number.toString, AtomicPrecedence))
+            case value @ ParameterRef(name) =>
+              integers.put(value, RenderedIntExpr(name, AtomicPrecedence))
+            case value @ LocalParameterRef(name) =>
+              integers.put(value, RenderedIntExpr(name, AtomicPrecedence))
+            case value @ GenerateIndexRef(name) =>
+              integers.put(value, RenderedIntExpr(name, AtomicPrecedence))
+            case value @ AddressWidth(operand) =>
+              integers.put(value, renderAddressWidth(operand, integers))
+            case value @ Negate(operand) =>
+              val rendered = integer(operand)
+              val needsParentheses = rendered.precedence <= UnaryPrecedence || rendered.text.startsWith("-")
+              val operandText = if (needsParentheses) s"(${rendered.text})" else rendered.text
+              integers.put(value, RenderedIntExpr(s"-$operandText", UnaryPrecedence))
+            case value @ Add(left, right) =>
+              integers.put(value, renderBinary(integer(left), "+", integer(right), AdditivePrecedence))
+            case value @ Subtract(left, right) =>
+              integers.put(value, renderBinary(integer(left), "-", integer(right), AdditivePrecedence))
+            case value @ Multiply(left, right) =>
+              integers.put(value, renderBinary(integer(left), "*", integer(right), MultiplicativePrecedence))
+            case value @ Divide(left, right) =>
+              integers.put(value, renderBinary(integer(left), "/", integer(right), MultiplicativePrecedence))
+            case value @ Modulo(left, right) =>
+              integers.put(value, renderBinary(integer(left), "%", integer(right), MultiplicativePrecedence))
+            case value @ Min(left, right) =>
+              integers.put(value, renderExtremum(integer(left), "<", integer(right)))
+            case value @ Max(left, right) =>
+              integers.put(value, renderExtremum(integer(left), ">", integer(right)))
+            case value @ Select(condition, whenTrue, whenFalse) =>
+              val renderedTrue = integer(whenTrue)
+              val renderedFalse = integer(whenFalse)
+              val trueText = renderDelimitedIntOperand(renderedTrue)
+              val falseText = renderDelimitedIntOperand(renderedFalse)
+              integers.put(
+                value,
+                RenderedIntExpr(
+                  s"(${boolean(condition).text}) ? $trueText : $falseText",
+                  ConditionalPrecedence
+                )
+              )
+            case value @ BoolLiteral(result) =>
+              booleans.put(value, RenderedBoolExpr(if (result) "1'b1" else "1'b0", BoolAtomicPrecedence))
+            case value @ BoolParameterRef(name) =>
+              booleans.put(value, RenderedBoolExpr(s"$name == 1", BoolAtomicPrecedence))
+            case value @ BoolLocalParameterRef(name) =>
+              booleans.put(value, RenderedBoolExpr(s"$name == 1", BoolAtomicPrecedence))
+            case value @ BoolLessThan(left, right) =>
+              booleans.put(value, renderComparison(integer(left), "<", integer(right)))
+            case value @ BoolLessThanOrEqual(left, right) =>
+              booleans.put(value, renderComparison(integer(left), "<=", integer(right)))
+            case value @ BoolGreaterThan(left, right) =>
+              booleans.put(value, renderComparison(integer(left), ">", integer(right)))
+            case value @ BoolGreaterThanOrEqual(left, right) =>
+              booleans.put(value, renderComparison(integer(left), ">=", integer(right)))
+            case value @ BoolEqual(left, right) =>
+              booleans.put(value, renderComparison(integer(left), "==", integer(right)))
+            case value @ BoolNotEqual(left, right) =>
+              booleans.put(value, renderComparison(integer(left), "!=", integer(right)))
+            case value @ BoolNot(operand) =>
+              val inner = boolean(operand)
               val needsParentheses = inner.precedence < BoolNotPrecedence || inner.text.contains(" ")
               val operandText = if (needsParentheses) s"(${inner.text})" else inner.text
-              RenderedBoolExpr(s"!$operandText", BoolNotPrecedence)
-            case BoolAnd(left, right) =>
-              renderBoolBinary(rendered.get(left), "&&", rendered.get(right), BoolAndPrecedence)
-            case BoolOr(left, right) =>
-              renderBoolBinary(rendered.get(left), "||", rendered.get(right), BoolOrPrecedence)
+              booleans.put(value, RenderedBoolExpr(s"!$operandText", BoolNotPrecedence))
+            case value @ BoolAnd(left, right) =>
+              booleans.put(value, renderBoolBinary(boolean(left), "&&", boolean(right), BoolAndPrecedence))
+            case value @ BoolOr(left, right) =>
+              booleans.put(value, renderBoolBinary(boolean(left), "||", boolean(right), BoolOrPrecedence))
           }
-          rendered.put(frame.value, value)
         }
       }
     }
-    rendered.get(expression)
+    RenderedExpressionGraph(integers, booleans)
   }
 
-  private def renderComparison(left: IntExpr, operator: String, right: IntExpr): RenderedBoolExpr =
+  private def renderComparison(
+      left: RenderedIntExpr,
+      operator: String,
+      right: RenderedIntExpr
+  ): RenderedBoolExpr =
     RenderedBoolExpr(
       s"${renderComparisonOperand(left)} $operator ${renderComparisonOperand(right)}",
       BoolAtomicPrecedence
     )
 
-  private def renderComparisonOperand(expression: IntExpr): String = {
+  private def renderComparisonOperand(expression: IntExpr): String =
     renderDelimitedIntOperand(expression)
-  }
+
+  private def renderComparisonOperand(rendered: RenderedIntExpr): String =
+    renderDelimitedIntOperand(rendered)
 
   private def renderBoolBinary(
       left: RenderedBoolExpr,
@@ -556,7 +646,9 @@ object Verilog2001Emitter {
 }
 
 /** Shared structural plan keeps target-cost admission and emitted lowering in lockstep. */
-private[verilog2001] object AddressWidthLowering {
+private[verilog2001] object Verilog2001IntExpressionLowering {
+  val MaximumExpansionNodes = 4096L
+
   final case class Shape(
       base: IntExpr,
       maximumResult: Int,
@@ -564,7 +656,7 @@ private[verilog2001] object AddressWidthLowering {
   )
 
   /** `value` is the operand of the outer address-width node. */
-  def shape(value: IntExpr): Shape = {
+  def addressWidthShape(value: IntExpr): Shape = {
     val (layers, base) =
       IntExpressionAnalysis.peelDirectAddressWidths(AddressWidth(value))
 
@@ -588,9 +680,10 @@ private[verilog2001] object AddressWidthLowering {
   }
 
   /**
-    * Estimates the expanded syntax tree and fails closed before repeated conditional operands
-    * can cause target text to grow exponentially. Directly nested address-width nodes use the
-    * flattened shape above and therefore get cheaper as their result range contracts.
+    * Counts every node in the emitted expression syntax tree and fails closed before repeated
+    * conditional operands can cause target text to grow exponentially. Directly nested
+    * address-width nodes use the flattened shape above and therefore get cheaper as their
+    * result range contracts.
     */
   def expansionWithin(expression: IntExpr, maximum: Long): Boolean = {
     final case class Frame(value: AnyRef, expanded: Boolean)
@@ -598,6 +691,9 @@ private[verilog2001] object AddressWidthLowering {
     val booleanCosts = new java.util.IdentityHashMap[BoolExpr, java.lang.Long]()
     val work = scala.collection.mutable.ArrayBuffer(Frame(expression, expanded = false))
     val TooLarge = -1L
+    val LeafCost = if (maximum >= 1L) 1L else TooLarge
+    val NegativeLiteralCost = if (maximum >= 2L) 2L else TooLarge
+    val BooleanReferenceCost = if (maximum >= 3L) 3L else TooLarge
 
     def isDone(value: AnyRef): Boolean = value match {
       case integer: IntExpr => integerCosts.containsKey(integer)
@@ -612,6 +708,11 @@ private[verilog2001] object AddressWidthLowering {
       else left + right + overhead
     def increment(value: Long): Long =
       if (value == TooLarge || value >= maximum) TooLarge else value + 1L
+    def duplicatedBinary(left: Long, right: Long): Long = {
+      val operands = plus(left, right, 0L)
+      if (operands == TooLarge || maximum < 2L || operands > (maximum - 2L) / 2L) TooLarge
+      else operands * 2L + 2L
+    }
 
     while (work.nonEmpty) {
       val frame = work.remove(work.length - 1)
@@ -621,7 +722,7 @@ private[verilog2001] object AddressWidthLowering {
           frame.value match {
             case _: Literal | _: ParameterRef | _: LocalParameterRef | _: GenerateIndexRef =>
             case AddressWidth(operand) =>
-              val lowered = shape(operand)
+              val lowered = addressWidthShape(operand)
               if (lowered.thresholds.nonEmpty) push(lowered.base)
             case Negate(operand)       => push(operand)
             case Add(left, right)      => push(right); push(left)
@@ -629,6 +730,8 @@ private[verilog2001] object AddressWidthLowering {
             case Multiply(left, right) => push(right); push(left)
             case Divide(left, right)   => push(right); push(left)
             case Modulo(left, right)   => push(right); push(left)
+            case Min(left, right)      => push(right); push(left)
+            case Max(left, right)      => push(right); push(left)
             case Select(condition, whenTrue, whenFalse) =>
               push(whenFalse)
               push(whenTrue)
@@ -646,22 +749,25 @@ private[verilog2001] object AddressWidthLowering {
           }
         } else {
           frame.value match {
-            case value: Literal          => integerCosts.put(value, 1L)
-            case value: ParameterRef     => integerCosts.put(value, 1L)
-            case value: LocalParameterRef => integerCosts.put(value, 1L)
-            case value: GenerateIndexRef => integerCosts.put(value, 1L)
+            case value @ Literal(number) =>
+              integerCosts.put(value, if (number < 0) NegativeLiteralCost else LeafCost)
+            case value: ParameterRef     => integerCosts.put(value, LeafCost)
+            case value: LocalParameterRef => integerCosts.put(value, LeafCost)
+            case value: GenerateIndexRef => integerCosts.put(value, LeafCost)
             case value @ AddressWidth(operand) =>
-              val lowered = shape(operand)
+              val lowered = addressWidthShape(operand)
               val cost =
-                if (lowered.thresholds.isEmpty) 1L
+                if (lowered.thresholds.isEmpty) LeafCost
                 else {
                   val operandCost = integer(lowered.base)
                   val comparisons = lowered.thresholds.size.toLong
                   if (
                     operandCost == TooLarge ||
-                    operandCost + 1L > (maximum - 1L) / comparisons
+                    maximum < 4L ||
+                    operandCost > maximum - 4L ||
+                    operandCost + 4L > (maximum - 1L) / comparisons
                   ) TooLarge
-                  else 1L + comparisons * (operandCost + 1L)
+                  else 1L + comparisons * (operandCost + 4L)
                 }
               integerCosts.put(value, cost)
             case value @ Negate(operand) => integerCosts.put(value, increment(integer(operand)))
@@ -670,14 +776,18 @@ private[verilog2001] object AddressWidthLowering {
             case value @ Multiply(left, right) => integerCosts.put(value, plus(integer(left), integer(right), 1L))
             case value @ Divide(left, right) => integerCosts.put(value, plus(integer(left), integer(right), 1L))
             case value @ Modulo(left, right) => integerCosts.put(value, plus(integer(left), integer(right), 1L))
+            case value @ Min(left, right) =>
+              integerCosts.put(value, duplicatedBinary(integer(left), integer(right)))
+            case value @ Max(left, right) =>
+              integerCosts.put(value, duplicatedBinary(integer(left), integer(right)))
             case value @ Select(condition, whenTrue, whenFalse) =>
               integerCosts.put(
                 value,
                 plus(boolean(condition), plus(integer(whenTrue), integer(whenFalse), 0L), 1L)
               )
-            case value: BoolLiteral          => booleanCosts.put(value, 1L)
-            case value: BoolParameterRef     => booleanCosts.put(value, 1L)
-            case value: BoolLocalParameterRef => booleanCosts.put(value, 1L)
+            case value: BoolLiteral          => booleanCosts.put(value, LeafCost)
+            case value: BoolParameterRef     => booleanCosts.put(value, BooleanReferenceCost)
+            case value: BoolLocalParameterRef => booleanCosts.put(value, BooleanReferenceCost)
             case value @ BoolNot(operand) => booleanCosts.put(value, increment(boolean(operand)))
             case value @ BoolAnd(left, right) => booleanCosts.put(value, plus(boolean(left), boolean(right), 1L))
             case value @ BoolOr(left, right) => booleanCosts.put(value, plus(boolean(left), boolean(right), 1L))
@@ -696,4 +806,10 @@ private[verilog2001] object AddressWidthLowering {
 
   private def addressWidth(value: BigInt): BigInt =
     if (value <= 2) BigInt(1) else BigInt((value - 1).bitLength)
+}
+
+/** Retained for package-level address-width tests while the planner now covers all expressions. */
+private[verilog2001] object AddressWidthLowering {
+  def expansionWithin(expression: IntExpr, maximum: Long): Boolean =
+    Verilog2001IntExpressionLowering.expansionWithin(expression, maximum)
 }

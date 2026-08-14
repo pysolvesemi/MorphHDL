@@ -161,6 +161,12 @@ jobs:
             target/morphhdl/generated/run-1/single_port_memory.v)" = "1"
           ! grep -Fq '$clog2' \
             target/morphhdl/generated/run-1/single_port_memory.v
+          test "$(grep -Fc \
+            'CLAMPED_PADDING = (DATA_WIDTH < 3) ? DATA_WIDTH : 3;' \
+            target/morphhdl/generated/run-1/derived_width.v)" = "1"
+          test "$(grep -Fc \
+            'PADDED_WIDTH = (TOTAL_WIDTH + CLAMPED_PADDING > 4) ? TOTAL_WIDTH + CLAMPED_PADDING : 4;' \
+            target/morphhdl/generated/run-1/derived_width.v)" = "1"
           for filename in \
             parameterized_wire.v \
             derived_width.v \

@@ -22,6 +22,8 @@ import morphhdl.paramrtl.IntExpr.{
   GenerateIndexRef,
   Literal,
   LocalParameterRef,
+  Max,
+  Min,
   Modulo,
   Multiply,
   Negate,
@@ -1633,6 +1635,12 @@ object ParamRtlValidator {
             case Modulo(left, right) =>
               pushInteger(right, current.path :+ "right")
               pushInteger(left, current.path :+ "left")
+            case Min(left, right) =>
+              pushInteger(right, current.path :+ "right")
+              pushInteger(left, current.path :+ "left")
+            case Max(left, right) =>
+              pushInteger(right, current.path :+ "right")
+              pushInteger(left, current.path :+ "left")
             case Select(condition, whenTrue, whenFalse) =>
               pushInteger(whenFalse, current.path :+ "whenFalse")
               pushInteger(whenTrue, current.path :+ "whenTrue")
@@ -3168,6 +3176,8 @@ object ParamRtlValidator {
             case Multiply(left, right) => integers += left; integers += right
             case Divide(left, right) => integers += left; integers += right
             case Modulo(left, right) => integers += left; integers += right
+            case Min(left, right) => integers += left; integers += right
+            case Max(left, right) => integers += left; integers += right
             case Select(condition, whenTrue, whenFalse) =>
               booleans += condition
               integers += whenTrue
@@ -3349,6 +3359,8 @@ object ParamRtlValidator {
             case Multiply(left, right) => push(right); push(left)
             case Divide(left, right)   => push(right); push(left)
             case Modulo(left, right)   => push(right); push(left)
+            case Min(left, right)      => push(right); push(left)
+            case Max(left, right)      => push(right); push(left)
             case Select(condition, whenTrue, whenFalse) =>
               push(whenFalse)
               push(whenTrue)
@@ -3377,6 +3389,8 @@ object ParamRtlValidator {
             case value @ Multiply(left, right) => integerMemo.put(value, Multiply(integer(left), integer(right)))
             case value @ Divide(left, right)   => integerMemo.put(value, Divide(integer(left), integer(right)))
             case value @ Modulo(left, right)   => integerMemo.put(value, Modulo(integer(left), integer(right)))
+            case value @ Min(left, right)      => integerMemo.put(value, Min(integer(left), integer(right)))
+            case value @ Max(left, right)      => integerMemo.put(value, Max(integer(left), integer(right)))
             case value @ Select(condition, whenTrue, whenFalse) =>
               integerMemo.put(value, Select(boolean(condition), integer(whenTrue), integer(whenFalse)))
             case value: BoolLiteral => booleanMemo.put(value, value)
@@ -3562,6 +3576,8 @@ object ParamRtlValidator {
         case Multiply(left, right)                               => stack += left; stack += right
         case Divide(left, right)                                 => stack += left; stack += right
         case Modulo(left, right)                                 => stack += left; stack += right
+        case Min(left, right)                                    => stack += left; stack += right
+        case Max(left, right)                                    => stack += left; stack += right
         case Select(condition, whenTrue, whenFalse) =>
           if (containsGenerateIndex(condition)) return true
           stack += whenTrue

@@ -158,3 +158,11 @@ behavior; disabled reads hold `read_data`, including while an independent
 valid write commits. When both enables are high, nonblocking assignments keep
 the collision read-first. Reset, initialization, masks, selectable polarity
 and additional ports remain rejected.
+
+Increment 23 adds typed mathematical `HdlInt.min` and `HdlInt.max` expressions.
+ParamRTL validates and analyzes both full operand domains, while strict
+Verilog-2001 emits canonical comparison ternaries under a 4096-node expansion
+cap. The existing `derived_width.v` artifact now uses both operations and
+proves six parameter combinations without adding a specialized module or
+changing the sixteen-file public inventory. Generated comments, attributes
+and raw HDL remain outside this increment.

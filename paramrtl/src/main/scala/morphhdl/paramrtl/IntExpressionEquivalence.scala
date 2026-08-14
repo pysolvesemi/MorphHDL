@@ -33,6 +33,7 @@ private[morphhdl] object IntExpressionEquivalence {
 
   def equivalent(left: IntExpr, right: IntExpr): Boolean = {
     if (sameStructure(left, right)) true
+    else if (sameDirectExtremumLaw(left, right)) true
     else
       {
         for {
@@ -42,6 +43,32 @@ private[morphhdl] object IntExpressionEquivalence {
         } yield sameStructure(normalize(left), normalize(right))
       }.getOrElse(false)
   }
+
+  /**
+    * Direct commutativity and idempotence are safe to prove without algebraic normalization.
+    * Keeping this structural fast path ahead of the node budget lets large extrema retain those
+    * two laws while every broader rewrite stays bounded by `MaximumNormalizedNodes`.
+    */
+  private def sameDirectExtremumLaw(left: IntExpr, right: IntExpr): Boolean =
+    (left, right) match {
+      case (Min(leftA, leftB), Min(rightA, rightB)) =>
+        (sameStructure(leftA, rightB) && sameStructure(leftB, rightA)) ||
+          (sameStructure(leftA, leftB) && sameStructure(leftA, rightA) &&
+            sameStructure(rightA, rightB))
+      case (Max(leftA, leftB), Max(rightA, rightB)) =>
+        (sameStructure(leftA, rightB) && sameStructure(leftB, rightA)) ||
+          (sameStructure(leftA, leftB) && sameStructure(leftA, rightA) &&
+            sameStructure(rightA, rightB))
+      case (Min(leftA, leftB), other) =>
+        sameStructure(leftA, leftB) && sameStructure(leftA, other)
+      case (other, Min(rightA, rightB)) =>
+        sameStructure(rightA, rightB) && sameStructure(other, rightA)
+      case (Max(leftA, leftB), other) =>
+        sameStructure(leftA, leftB) && sameStructure(leftA, other)
+      case (other, Max(rightA, rightB)) =>
+        sameStructure(rightA, rightB) && sameStructure(other, rightA)
+      case _ => false
+    }
 
   /** Iterative equality avoids case-class recursion on deep shared expression DAGs. */
   private def sameStructure(left: IntExpr, right: IntExpr): Boolean =
@@ -80,6 +107,8 @@ private[morphhdl] object IntExpressionEquivalence {
           case (Multiply(al, ar), Multiply(bl, br))                   => stack += ((al, bl)); stack += ((ar, br))
           case (Divide(al, ar), Divide(bl, br))                       => stack += ((al, bl)); stack += ((ar, br))
           case (Modulo(al, ar), Modulo(bl, br))                       => stack += ((al, bl)); stack += ((ar, br))
+          case (Min(al, ar), Min(bl, br))                             => stack += ((al, bl)); stack += ((ar, br))
+          case (Max(al, ar), Max(bl, br))                             => stack += ((al, bl)); stack += ((ar, br))
           case (Select(ac, at, af), Select(bc, bt, bf)) =>
             stack += ((ac, bc)); stack += ((at, bt)); stack += ((af, bf))
           case (BoolExpr.Literal(x), BoolExpr.Literal(y)) if x == y =>
@@ -125,6 +154,8 @@ private[morphhdl] object IntExpressionEquivalence {
         case Multiply(left, right)                                                     => stack += left; stack += right
         case Divide(left, right)                                                       => stack += left; stack += right
         case Modulo(left, right)                                                       => stack += left; stack += right
+        case Min(left, right)                                                          => stack += left; stack += right
+        case Max(left, right)                                                          => stack += left; stack += right
         case Select(condition, whenTrue, whenFalse) =>
           stack += whenTrue
           stack += whenFalse
@@ -173,6 +204,8 @@ private[morphhdl] object IntExpressionEquivalence {
             case Multiply(left, right) => push(right); push(left)
             case Divide(left, right)   => push(right); push(left)
             case Modulo(left, right)   => push(right); push(left)
+            case Min(left, right)      => push(right); push(left)
+            case Max(left, right)      => push(right); push(left)
             case Select(condition, whenTrue, whenFalse) =>
               push(whenFalse)
               push(whenTrue)
@@ -240,6 +273,10 @@ private[morphhdl] object IntExpressionEquivalence {
                 case _                                  => Modulo(a, b)
               }
               integers.put(value, normalized)
+            case value @ Min(left, right) =>
+              integers.put(value, normalizeExtremum(integer(left), integer(right), minimum = true))
+            case value @ Max(left, right) =>
+              integers.put(value, normalizeExtremum(integer(left), integer(right), minimum = false))
             case value @ Select(condition, whenTrue, whenFalse) =>
               val normalizedCondition = boolean(condition)
               val normalizedTrue = integer(whenTrue)
@@ -303,6 +340,128 @@ private[morphhdl] object IntExpressionEquivalence {
     }
   }
 
+  private def normalizeExtremum(left: IntExpr, right: IntExpr, minimum: Boolean): IntExpr =
+    (left, right) match {
+      case (Literal(a), Literal(b)) => Literal(if (minimum) a.min(b) else a.max(b))
+      case (a, b) if sameStructure(a, b) => a
+      case (a, b) =>
+        val (orderedLeft, orderedRight) =
+          if (compareCanonical(a, b) <= 0) a -> b else b -> a
+        if (minimum) Min(orderedLeft, orderedRight) else Max(orderedLeft, orderedRight)
+    }
+
+  /** Exact iterative structural ordering makes commutative extrema canonical without hashing. */
+  private def compareCanonical(left: AnyRef, right: AnyRef): Int = {
+    val work = scala.collection.mutable.ArrayBuffer((left, right))
+    val visited = new java.util.IdentityHashMap[
+      AnyRef,
+      java.util.IdentityHashMap[AnyRef, java.lang.Boolean]
+    ]()
+
+    def rank(value: AnyRef): Int = value match {
+      case _: Literal                     => 0
+      case _: ParameterRef                => 1
+      case _: LocalParameterRef           => 2
+      case _: GenerateIndexRef            => 3
+      case _: AddressWidth                => 4
+      case _: Negate                      => 5
+      case _: Add                         => 6
+      case _: Subtract                    => 7
+      case _: Multiply                    => 8
+      case _: Divide                      => 9
+      case _: Modulo                      => 10
+      case _: Min                         => 11
+      case _: Max                         => 12
+      case _: Select                      => 13
+      case _: BoolExpr.Literal            => 14
+      case _: BoolExpr.ParameterRef       => 15
+      case _: BoolExpr.LocalParameterRef  => 16
+      case _: BoolExpr.LessThan           => 17
+      case _: BoolExpr.LessThanOrEqual    => 18
+      case _: BoolExpr.GreaterThan        => 19
+      case _: BoolExpr.GreaterThanOrEqual => 20
+      case _: BoolExpr.Equal              => 21
+      case _: BoolExpr.NotEqual           => 22
+      case _: BoolExpr.Not                => 23
+      case _: BoolExpr.And                => 24
+      case _: BoolExpr.Or                 => 25
+    }
+
+    def alreadyVisited(a: AnyRef, b: AnyRef): Boolean = {
+      var rights = visited.get(a)
+      if (rights == null) {
+        rights = new java.util.IdentityHashMap[AnyRef, java.lang.Boolean]()
+        visited.put(a, rights)
+      }
+      if (rights.containsKey(b)) true
+      else {
+        rights.put(b, java.lang.Boolean.TRUE)
+        false
+      }
+    }
+
+    while (work.nonEmpty) {
+      val (a, b) = work.remove(work.length - 1)
+      if (!(a eq b) && !alreadyVisited(a, b)) {
+        val rankComparison = java.lang.Integer.compare(rank(a), rank(b))
+        if (rankComparison != 0) return rankComparison
+        (a, b) match {
+          case (Literal(x), Literal(y)) =>
+            val comparison = x.compare(y)
+            if (comparison != 0) return comparison
+          case (ParameterRef(x), ParameterRef(y)) =>
+            val comparison = x.compareTo(y)
+            if (comparison != 0) return comparison
+          case (LocalParameterRef(x), LocalParameterRef(y)) =>
+            val comparison = x.compareTo(y)
+            if (comparison != 0) return comparison
+          case (GenerateIndexRef(x), GenerateIndexRef(y)) =>
+            val comparison = x.compareTo(y)
+            if (comparison != 0) return comparison
+          case (AddressWidth(x), AddressWidth(y)) => work += ((x, y))
+          case (Negate(x), Negate(y))             => work += ((x, y))
+          case (Add(al, ar), Add(bl, br))             => work += ((ar, br)); work += ((al, bl))
+          case (Subtract(al, ar), Subtract(bl, br))     => work += ((ar, br)); work += ((al, bl))
+          case (Multiply(al, ar), Multiply(bl, br))     => work += ((ar, br)); work += ((al, bl))
+          case (Divide(al, ar), Divide(bl, br))         => work += ((ar, br)); work += ((al, bl))
+          case (Modulo(al, ar), Modulo(bl, br))         => work += ((ar, br)); work += ((al, bl))
+          case (Min(al, ar), Min(bl, br))               => work += ((ar, br)); work += ((al, bl))
+          case (Max(al, ar), Max(bl, br))               => work += ((ar, br)); work += ((al, bl))
+          case (Select(ac, at, af), Select(bc, bt, bf)) =>
+            work += ((af, bf)); work += ((at, bt)); work += ((ac, bc))
+          case (BoolExpr.Literal(x), BoolExpr.Literal(y)) =>
+            val comparison = java.lang.Boolean.compare(x, y)
+            if (comparison != 0) return comparison
+          case (BoolExpr.ParameterRef(x), BoolExpr.ParameterRef(y)) =>
+            val comparison = x.compareTo(y)
+            if (comparison != 0) return comparison
+          case (BoolExpr.LocalParameterRef(x), BoolExpr.LocalParameterRef(y)) =>
+            val comparison = x.compareTo(y)
+            if (comparison != 0) return comparison
+          case (BoolExpr.LessThan(al, ar), BoolExpr.LessThan(bl, br)) =>
+            work += ((ar, br)); work += ((al, bl))
+          case (BoolExpr.LessThanOrEqual(al, ar), BoolExpr.LessThanOrEqual(bl, br)) =>
+            work += ((ar, br)); work += ((al, bl))
+          case (BoolExpr.GreaterThan(al, ar), BoolExpr.GreaterThan(bl, br)) =>
+            work += ((ar, br)); work += ((al, bl))
+          case (BoolExpr.GreaterThanOrEqual(al, ar), BoolExpr.GreaterThanOrEqual(bl, br)) =>
+            work += ((ar, br)); work += ((al, bl))
+          case (BoolExpr.Equal(al, ar), BoolExpr.Equal(bl, br)) =>
+            work += ((ar, br)); work += ((al, bl))
+          case (BoolExpr.NotEqual(al, ar), BoolExpr.NotEqual(bl, br)) =>
+            work += ((ar, br)); work += ((al, bl))
+          case (BoolExpr.Not(av), BoolExpr.Not(bv)) => work += ((av, bv))
+          case (BoolExpr.And(al, ar), BoolExpr.And(bl, br)) =>
+            work += ((ar, br)); work += ((al, bl))
+          case (BoolExpr.Or(al, ar), BoolExpr.Or(bl, br)) =>
+            work += ((ar, br)); work += ((al, bl))
+          case _ =>
+        }
+      }
+    }
+    0
+  }
+
   private def shallowKey(expression: IntExpr): String = expression match {
     case Literal(value)          => s"0:$value"
     case ParameterRef(name)      => s"1:$name"
@@ -314,8 +473,10 @@ private[morphhdl] object IntExpressionEquivalence {
     case Multiply(_, _)          => "7"
     case Divide(_, _)            => "8"
     case Modulo(_, _)            => "9"
-    case Select(_, _, _)         => "10"
-    case AddressWidth(_)         => "11"
+    case Min(_, _)               => "10"
+    case Max(_, _)               => "11"
+    case Select(_, _, _)         => "12"
+    case AddressWidth(_)         => "13"
   }
 
   private def substituteBoolean(
@@ -362,6 +523,8 @@ private[morphhdl] object IntExpressionEquivalence {
             case Multiply(left, right) => push(right); push(left)
             case Divide(left, right)   => push(right); push(left)
             case Modulo(left, right)   => push(right); push(left)
+            case Min(left, right)      => push(right); push(left)
+            case Max(left, right)      => push(right); push(left)
             case Select(condition, whenTrue, whenFalse) =>
               push(whenFalse)
               push(whenTrue)
@@ -390,6 +553,8 @@ private[morphhdl] object IntExpressionEquivalence {
             case value @ Multiply(left, right) => integerMemo.put(value, Multiply(integer(left), integer(right)))
             case value @ Divide(left, right)   => integerMemo.put(value, Divide(integer(left), integer(right)))
             case value @ Modulo(left, right)   => integerMemo.put(value, Modulo(integer(left), integer(right)))
+            case value @ Min(left, right)      => integerMemo.put(value, Min(integer(left), integer(right)))
+            case value @ Max(left, right)      => integerMemo.put(value, Max(integer(left), integer(right)))
             case value @ Select(condition, whenTrue, whenFalse) =>
               integerMemo.put(value, Select(boolean(condition), integer(whenTrue), integer(whenFalse)))
             case value: BoolExpr.Literal => booleanMemo.put(value, value)

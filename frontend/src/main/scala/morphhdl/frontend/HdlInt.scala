@@ -15,6 +15,8 @@ import morphhdl.paramrtl.IntExpr.{
   Divide,
   Literal,
   LocalParameterRef,
+  Max,
+  Min,
   Modulo,
   Multiply,
   Negate,
@@ -67,6 +69,14 @@ final class HdlInt private[frontend] (
       zeroDivisorRole = Some("remainder")
     )(_ % _)
   }
+
+  /** Mathematical minimum retained as an elaboration-time integer expression. */
+  def min(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
+    binary(that, "integer minimum", Min.apply)(_.min(_))
+
+  /** Mathematical maximum retained as an elaboration-time integer expression. */
+  def max(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
+    binary(that, "integer maximum", Max.apply)(_.max(_))
 
   def <(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlBool =
     comparison(that, "integer less-than comparison", LessThan.apply)(_ < _)

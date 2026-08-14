@@ -199,6 +199,9 @@ require_property backend.initial_emitter direct-verilog
 require_property parameter.boolean_encoding integer
 require_property parameter.integer_comparison true
 require_property parameter.integer_conditional true
+require_property parameter.integer_minimum true
+require_property parameter.integer_maximum true
+require_property parameter.min_max_expansion_limit 4096
 require_property parameter.address_width portable-ceiling-log2
 require_property parameter.address_width_direct_flatten_depth 5
 require_property parameter.address_width_expansion_limit 4096
@@ -363,8 +366,29 @@ if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH' "${design_files[0]
 fi
 
 if ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+TOTAL_WIDTH[[:space:]]*=[[:space:]]*LANES[[:space:]]*\*[[:space:]]*DATA_WIDTH' "${design_files[1]}" ||
-   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+PADDED_WIDTH[[:space:]]*=[[:space:]]*TOTAL_WIDTH[[:space:]]*\+[[:space:]]*3' "${design_files[1]}"; then
-  echo "DerivedWidth does not retain its symbolic local-parameter expressions" >&2
+   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+CLAMPED_PADDING[[:space:]]*=.*DATA_WIDTH[[:space:]]*<[[:space:]]*3.*\?.*DATA_WIDTH.*:.*3' "${design_files[1]}" ||
+   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+PADDED_WIDTH[[:space:]]*=.*TOTAL_WIDTH[[:space:]]*\+[[:space:]]*CLAMPED_PADDING[[:space:]]*>[[:space:]]*4.*\?.*TOTAL_WIDTH[[:space:]]*\+[[:space:]]*CLAMPED_PADDING.*:.*4' "${design_files[1]}"; then
+  echo "DerivedWidth does not retain its symbolic minimum/maximum local-parameter expressions" >&2
+  exit 1
+fi
+
+if ! python3 - "$derived_width_file" <<'PY'
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+expected = (
+    "  localparam integer CLAMPED_PADDING = "
+    "(DATA_WIDTH < 3) ? DATA_WIDTH : 3;",
+    "  localparam integer PADDED_WIDTH = "
+    "(TOTAL_WIDTH + CLAMPED_PADDING > 4) ? "
+    "TOTAL_WIDTH + CLAMPED_PADDING : 4;",
+)
+if any(source.count(line) != 1 for line in expected):
+    raise SystemExit("missing exact canonical Min/Max local-parameter lowering")
+PY
+then
+  echo "DerivedWidth Min/Max comparator or branch order is not canonical" >&2
   exit 1
 fi
 
@@ -703,6 +727,12 @@ verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
   --top-module DerivedWidth \
   -GDATA_WIDTH=5 \
+  "$derived_width_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  --top-module DerivedWidth \
+  -GDATA_WIDTH=2 -GLANES=2 \
   "$derived_width_file"
 
 verilator --lint-only --language 1364-2001 -Wall \
@@ -1193,6 +1223,66 @@ yosys_synthesize_and_check \
 yosys_synthesize_and_check \
   "$yosys_derived_width_file" DerivedWidth data-width-only 23 \
   "chparam -set DATA_WIDTH 5 DerivedWidth;"
+yosys_synthesize_and_check \
+  "$yosys_derived_width_file" DerivedWidth dynamic-minimum 6 \
+  "chparam -set DATA_WIDTH 2 -set LANES 2 DerivedWidth;"
+
+expect_derived_width_mutation_rejected() {
+  local label="$1"
+  local expected_width="$2"
+  local parameter_command="$3"
+  local original="$4"
+  local replacement="$5"
+  local mutated_source="$tmp_dir/derived-width-${label}.v"
+  local mutated_netlist="$tmp_dir/derived-width-${label}.json"
+
+  python3 - "$yosys_derived_width_file" "$mutated_source" "$original" "$replacement" <<'PY'
+import pathlib
+import sys
+
+source_path, target_path, original, replacement = sys.argv[1:]
+source = pathlib.Path(source_path).read_text(encoding="utf-8")
+if source.count(original) != 1:
+    raise SystemExit("mutation source is not unique: {}".format(original))
+pathlib.Path(target_path).write_text(source.replace(original, replacement), encoding="utf-8")
+PY
+
+  if {
+    yosys -q -p \
+      "read_verilog -noautowire $mutated_source; $parameter_command hierarchy -check -top DerivedWidth; proc; check -assert; synth -top DerivedWidth; check -assert; write_json $mutated_netlist" &&
+    python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+      "$mutated_netlist" DerivedWidth \
+      --port "din:input:$expected_width" \
+      --port "dout:output:$expected_width"
+  } >/dev/null 2>&1; then
+    echo "DerivedWidth mutation unexpectedly retained the contract: $label" >&2
+    exit 1
+  fi
+}
+
+min_local='  localparam integer CLAMPED_PADDING = (DATA_WIDTH < 3) ? DATA_WIDTH : 3;'
+max_local='  localparam integer PADDED_WIDTH = (TOTAL_WIDTH + CLAMPED_PADDING > 4) ? TOTAL_WIDTH + CLAMPED_PADDING : 4;'
+
+expect_derived_width_mutation_rejected min-comparator 35 "" \
+  "$min_local" \
+  '  localparam integer CLAMPED_PADDING = (DATA_WIDTH > 3) ? DATA_WIDTH : 3;'
+expect_derived_width_mutation_rejected min-branches 35 "" \
+  "$min_local" \
+  '  localparam integer CLAMPED_PADDING = (DATA_WIDTH < 3) ? 3 : DATA_WIDTH;'
+expect_derived_width_mutation_rejected min-specialized 6 \
+  "chparam -set DATA_WIDTH 2 -set LANES 2 DerivedWidth;" \
+  "$min_local" \
+  '  localparam integer CLAMPED_PADDING = 3;'
+expect_derived_width_mutation_rejected max-comparator 35 "" \
+  "$max_local" \
+  '  localparam integer PADDED_WIDTH = (TOTAL_WIDTH + CLAMPED_PADDING < 4) ? TOTAL_WIDTH + CLAMPED_PADDING : 4;'
+expect_derived_width_mutation_rejected max-branches 35 "" \
+  "$max_local" \
+  '  localparam integer PADDED_WIDTH = (TOTAL_WIDTH + CLAMPED_PADDING > 4) ? 4 : TOTAL_WIDTH + CLAMPED_PADDING;'
+expect_derived_width_mutation_rejected max-specialized 4 \
+  "chparam -set DATA_WIDTH 1 -set LANES 1 DerivedWidth;" \
+  "$max_local" \
+  '  localparam integer PADDED_WIDTH = 35;'
 
 yosys_synthesize_and_check \
   "$yosys_conditional_width_file" ConditionalWidth default 12 ""

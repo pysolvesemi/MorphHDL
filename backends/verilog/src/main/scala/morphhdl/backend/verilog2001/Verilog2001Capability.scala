@@ -22,6 +22,8 @@ import morphhdl.paramrtl.IntExpr.{
   GenerateIndexRef,
   Literal,
   LocalParameterRef,
+  Max,
+  Min,
   Modulo,
   Multiply,
   Negate,
@@ -48,8 +50,6 @@ import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 object Verilog2001Capability {
   private val MinimumInteger = BigInt(Int.MinValue)
   private val MaximumInteger = BigInt(Int.MaxValue)
-  private val MaximumAddressWidthExpansionNodes = 4096L
-
   private val ReservedWords = Set(
     "always",
     "and",
@@ -679,117 +679,109 @@ object Verilog2001Capability {
       booleanParameters: Map[String, BooleanParameter] = Map.empty,
       booleanLocalParameters: Map[String, Boolean] = Map.empty
   ): Unit = {
-    IntExpressionAnalysis
-      .analyze(
-        expression,
-        parameters,
-        localParameters,
-        booleanParameters,
-        generateIndices,
-        booleanLocalParameters
-      )
-      .toOption
-      .foreach { facts =>
-      val interval = facts.interval
-      if (
-        interval.lower.isEmpty ||
-        interval.upper.isEmpty ||
-        interval.lower.exists(_ < MinimumInteger) ||
-        interval.upper.exists(_ > MaximumInteger)
-      ) {
-        val renderedDomain = (interval.lower, interval.upper) match {
-          case (Some(lower), Some(upper)) => s"[$lower, $upper]"
-          case _                          => "unbounded"
-        }
-        diagnostics += Diagnostic(
-          "V2001-INTEGER-EXPRESSION-OUT-OF-RANGE",
-          path,
-          s"Integer expression domain $renderedDomain is outside the portable signed 32-bit Verilog integer range"
-        )
-      }
-      }
+    final case class Work(value: IntExpr, path: Vector[String])
+    val work = scala.collection.mutable.ArrayBuffer(Work(expression, path))
 
-    expression match {
-      case Literal(_) | ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_) =>
-      case addressWidth: AddressWidth =>
-        val expansionWithinLimit =
-          AddressWidthLowering.expansionWithin(addressWidth, MaximumAddressWidthExpansionNodes)
-        if (!expansionWithinLimit)
-          diagnostics += Diagnostic(
-            "V2001-ADDRESS-WIDTH-EXPANSION-TOO-LARGE",
-            path,
-            s"Portable address-width lowering exceeds the $MaximumAddressWidthExpansionNodes-node expansion limit"
+    def pushBinary(left: IntExpr, right: IntExpr, currentPath: Vector[String]): Unit = {
+      work += Work(right, currentPath :+ "right")
+      work += Work(left, currentPath :+ "left")
+    }
+
+    while (work.nonEmpty) {
+      val current = work.remove(work.length - 1)
+      IntExpressionAnalysis
+        .analyze(
+          current.value,
+          parameters,
+          localParameters,
+          booleanParameters,
+          generateIndices,
+          booleanLocalParameters
+        )
+        .toOption
+        .foreach { facts =>
+          val interval = facts.interval
+          if (
+            interval.lower.isEmpty ||
+            interval.upper.isEmpty ||
+            interval.lower.exists(_ < MinimumInteger) ||
+            interval.upper.exists(_ > MaximumInteger)
+          ) {
+            val renderedDomain = (interval.lower, interval.upper) match {
+              case (Some(lower), Some(upper)) => s"[$lower, $upper]"
+              case _                          => "unbounded"
+            }
+            diagnostics += Diagnostic(
+              "V2001-INTEGER-EXPRESSION-OUT-OF-RANGE",
+              current.path,
+              s"Integer expression domain $renderedDomain is outside the portable signed 32-bit Verilog integer range"
+            )
+          }
+        }
+
+      current.value match {
+        case Literal(_) | ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_) =>
+        case addressWidth: AddressWidth =>
+          val expansionWithinLimit = Verilog2001IntExpressionLowering.expansionWithin(
+            addressWidth,
+            Verilog2001IntExpressionLowering.MaximumExpansionNodes
           )
-        else {
-          val (layers, base) = IntExpressionAnalysis.peelDirectAddressWidths(addressWidth)
-          checkExpression(
-            base,
+          if (!expansionWithinLimit)
+            diagnostics += Diagnostic(
+              "V2001-ADDRESS-WIDTH-EXPANSION-TOO-LARGE",
+              current.path,
+              s"Portable address-width lowering exceeds the ${Verilog2001IntExpressionLowering.MaximumExpansionNodes}-node expansion limit"
+            )
+          else {
+            val (layers, base) = IntExpressionAnalysis.peelDirectAddressWidths(addressWidth)
+            work += Work(base, current.path ++ Vector.fill(layers)("operand"))
+          }
+        case Negate(value) => work += Work(value, current.path :+ "operand")
+        case Add(left, right)      => pushBinary(left, right, current.path)
+        case Subtract(left, right) => pushBinary(left, right, current.path)
+        case Multiply(left, right) => pushBinary(left, right, current.path)
+        case Divide(left, right)   => pushBinary(left, right, current.path)
+        case Modulo(left, right)   => pushBinary(left, right, current.path)
+        case extremum @ Min(left, right) =>
+          if (
+            !Verilog2001IntExpressionLowering.expansionWithin(
+              extremum,
+              Verilog2001IntExpressionLowering.MaximumExpansionNodes
+            )
+          )
+            diagnostics += Diagnostic(
+              "V2001-MIN-MAX-EXPANSION-TOO-LARGE",
+              current.path,
+              s"Portable min/max lowering exceeds the ${Verilog2001IntExpressionLowering.MaximumExpansionNodes}-node expansion limit"
+            )
+          else pushBinary(left, right, current.path)
+        case extremum @ Max(left, right) =>
+          if (
+            !Verilog2001IntExpressionLowering.expansionWithin(
+              extremum,
+              Verilog2001IntExpressionLowering.MaximumExpansionNodes
+            )
+          )
+            diagnostics += Diagnostic(
+              "V2001-MIN-MAX-EXPANSION-TOO-LARGE",
+              current.path,
+              s"Portable min/max lowering exceeds the ${Verilog2001IntExpressionLowering.MaximumExpansionNodes}-node expansion limit"
+            )
+          else pushBinary(left, right, current.path)
+        case Select(condition, whenTrue, whenFalse) =>
+          checkBooleanExpression(
+            condition,
+            booleanParameters,
             parameters,
             localParameters,
-            path ++ Vector.fill(layers)("operand"),
+            current.path :+ "condition",
             diagnostics,
             generateIndices,
-            booleanParameters,
             booleanLocalParameters
           )
-        }
-      case Negate(value) =>
-        checkExpression(
-          value,
-          parameters,
-          localParameters,
-          path :+ "operand",
-          diagnostics,
-          generateIndices,
-          booleanParameters,
-          booleanLocalParameters
-        )
-      case Add(left, right) =>
-        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices, booleanParameters, booleanLocalParameters)
-        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices, booleanParameters, booleanLocalParameters)
-      case Subtract(left, right) =>
-        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices, booleanParameters, booleanLocalParameters)
-        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices, booleanParameters, booleanLocalParameters)
-      case Multiply(left, right) =>
-        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices, booleanParameters, booleanLocalParameters)
-        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices, booleanParameters, booleanLocalParameters)
-      case Divide(left, right) =>
-        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices, booleanParameters, booleanLocalParameters)
-        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices, booleanParameters, booleanLocalParameters)
-      case Modulo(left, right) =>
-        checkExpression(left, parameters, localParameters, path :+ "left", diagnostics, generateIndices, booleanParameters, booleanLocalParameters)
-        checkExpression(right, parameters, localParameters, path :+ "right", diagnostics, generateIndices, booleanParameters, booleanLocalParameters)
-      case Select(condition, whenTrue, whenFalse) =>
-        checkBooleanExpression(
-          condition,
-          booleanParameters,
-          parameters,
-          localParameters,
-          path :+ "condition",
-          diagnostics,
-          generateIndices,
-          booleanLocalParameters
-        )
-        checkExpression(
-          whenTrue,
-          parameters,
-          localParameters,
-          path :+ "whenTrue",
-          diagnostics,
-          generateIndices,
-          booleanParameters,
-          booleanLocalParameters
-        )
-        checkExpression(
-          whenFalse,
-          parameters,
-          localParameters,
-          path :+ "whenFalse",
-          diagnostics,
-          generateIndices,
-          booleanParameters,
-          booleanLocalParameters
-        )
+          work += Work(whenFalse, current.path :+ "whenFalse")
+          work += Work(whenTrue, current.path :+ "whenTrue")
+      }
     }
   }
 

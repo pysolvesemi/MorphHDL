@@ -29,6 +29,8 @@ REQUIRED_OPERATORS = {
     "negate",
     "divide",
     "modulo",
+    "min",
+    "max",
     "address-width",
     "boolean-literal",
     "boolean-public-reference",

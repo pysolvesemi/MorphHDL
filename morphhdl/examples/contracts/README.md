@@ -5,9 +5,11 @@ These files are executable output contracts for the parameterized backend.
 - `parameterized_wire.v` is owned by Increment 2. Increment 8 authors its
   symbolic width through the guarded frontend and generates it through the
   public `MorphVerilog` orchestration.
-- `derived_width.v` is owned by Increment 3. Its two frontend public parameters feed an
-  acyclic local-parameter expression graph and its packed port width remains
-  symbolic in the single public module definition.
+- `derived_width.v` is owned by Increments 3 and 23. Its two frontend public
+  parameters feed an acyclic local-parameter expression graph; Increment 23
+  clamps parameter-derived padding with typed `Min` and floors the final width
+  with typed `Max`. Its packed port width remains symbolic in the single public
+  module definition.
 - `parameter_forwarding.v` is owned by Increment 4. Its Morph program generates its one leaf
   and one parent definition together, checks a derived named child-parameter
   binding and proves the exact elaborated hierarchy before synthesis.
@@ -69,13 +71,14 @@ These files are executable output contracts for the parameterized backend.
   eleven. Increment 16 extends it to all twelve, and Increment 17 to all
   thirteen, Increment 18 to all fourteen, Increment 19 to all fifteen, and
   Increment 20 to all sixteen; Increments 21 and 22 upgrade the sixteenth
-  artifact without changing that inventory. CI
+  artifact without changing that inventory. Increment 23 upgrades
+  `derived_width.v` without changing that inventory. CI
   performs a normal and reverse-construction run, requires an exact
   sixteen-file inventory, checks
   byte identity with these goldens, and gives that unmodified directory to the
   external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
-  overrides. `DerivedWidthTb` checks widths 35, 4, 18, 27 and 23 in five
+  overrides. `DerivedWidthTb` checks widths 35, 4, 18, 27, 23 and 6 in six
   simultaneous instances of the same emitted module. `ParameterForwardingTb`
   checks forwarded widths 32, 1, 15, 24 and 20 through five simultaneous
   instances of one emitted hierarchy. `LaneArrayTb` exercises the same five
