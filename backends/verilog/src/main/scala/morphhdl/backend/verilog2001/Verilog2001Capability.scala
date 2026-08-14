@@ -17,6 +17,7 @@ import morphhdl.paramrtl.BoolExpr.{
 }
 import morphhdl.paramrtl.IntExpr.{
   Add,
+  AddressWidth,
   Divide,
   GenerateIndexRef,
   Literal,
@@ -47,6 +48,7 @@ import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 object Verilog2001Capability {
   private val MinimumInteger = BigInt(Int.MinValue)
   private val MaximumInteger = BigInt(Int.MaxValue)
+  private val MaximumAddressWidthExpansionNodes = 4096L
 
   private val ReservedWords = Set(
     "always",
@@ -477,153 +479,39 @@ object Verilog2001Capability {
       diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]],
       generateIndices: Map[String, IntExprFacts] = Map.empty,
       booleanLocalParameters: Map[String, Boolean] = Map.empty
-  ): Unit = expression match {
-    case BoolLiteral(_) =>
-    case BoolParameterRef(name) =>
-      if (!booleanParameters.contains(name)) {
-        // ParamRTL reference validation owns the diagnostic. Do not cascade target failures.
-      }
-    case BoolLocalParameterRef(_) =>
-    case BoolNot(value) =>
-      checkBooleanExpression(
-        value,
-        booleanParameters,
-        integerParameters,
-        localParameters,
-        path :+ "operand",
-        diagnostics,
-        generateIndices,
-        booleanLocalParameters
-      )
-    case BoolAnd(left, right) =>
-      checkBooleanBinary(
-        left,
-        right,
-        booleanParameters,
-        integerParameters,
-        localParameters,
-        path,
-        diagnostics,
-        generateIndices,
-        booleanLocalParameters
-      )
-    case BoolOr(left, right) =>
-      checkBooleanBinary(
-        left,
-        right,
-        booleanParameters,
-        integerParameters,
-        localParameters,
-        path,
-        diagnostics,
-        generateIndices,
-        booleanLocalParameters
-      )
-    case BoolLessThan(left, right) =>
-      checkComparison(
-        left,
-        right,
-        booleanParameters,
-        integerParameters,
-        localParameters,
-        path,
-        diagnostics,
-        generateIndices,
-        booleanLocalParameters
-      )
-    case BoolLessThanOrEqual(left, right) =>
-      checkComparison(
-        left,
-        right,
-        booleanParameters,
-        integerParameters,
-        localParameters,
-        path,
-        diagnostics,
-        generateIndices,
-        booleanLocalParameters
-      )
-    case BoolGreaterThan(left, right) =>
-      checkComparison(
-        left,
-        right,
-        booleanParameters,
-        integerParameters,
-        localParameters,
-        path,
-        diagnostics,
-        generateIndices,
-        booleanLocalParameters
-      )
-    case BoolGreaterThanOrEqual(left, right) =>
-      checkComparison(
-        left,
-        right,
-        booleanParameters,
-        integerParameters,
-        localParameters,
-        path,
-        diagnostics,
-        generateIndices,
-        booleanLocalParameters
-      )
-    case BoolEqual(left, right) =>
-      checkComparison(
-        left,
-        right,
-        booleanParameters,
-        integerParameters,
-        localParameters,
-        path,
-        diagnostics,
-        generateIndices,
-        booleanLocalParameters
-      )
-    case BoolNotEqual(left, right) =>
-      checkComparison(
-        left,
-        right,
-        booleanParameters,
-        integerParameters,
-        localParameters,
-        path,
-        diagnostics,
-        generateIndices,
-        booleanLocalParameters
-      )
-  }
-
-  private def checkBooleanBinary(
-      left: BoolExpr,
-      right: BoolExpr,
-      booleanParameters: Map[String, BooleanParameter],
-      integerParameters: Map[String, IntExprFacts],
-      localParameters: Map[String, IntExprFacts],
-      path: Vector[String],
-      diagnostics: scala.collection.mutable.Builder[Diagnostic, Vector[Diagnostic]],
-      generateIndices: Map[String, IntExprFacts],
-      booleanLocalParameters: Map[String, Boolean]
   ): Unit = {
-    checkBooleanExpression(
-      left,
-      booleanParameters,
-      integerParameters,
-      localParameters,
-      path :+ "left",
-      diagnostics,
-      generateIndices,
-      booleanLocalParameters
-    )
-    checkBooleanExpression(
-      right,
-      booleanParameters,
-      integerParameters,
-      localParameters,
-      path :+ "right",
-      diagnostics,
-      generateIndices,
-      booleanLocalParameters
-    )
+    final case class Work(value: BoolExpr, path: Vector[String])
+    val work = scala.collection.mutable.ArrayBuffer(Work(expression, path))
+    val seen = new java.util.IdentityHashMap[BoolExpr, java.lang.Boolean]()
+
+    while (work.nonEmpty) {
+      val current = work.remove(work.length - 1)
+      if (!seen.containsKey(current.value)) {
+        seen.put(current.value, java.lang.Boolean.TRUE)
+        current.value match {
+          case BoolLiteral(_) | BoolParameterRef(_) | BoolLocalParameterRef(_) =>
+          case BoolNot(operand) => work += Work(operand, current.path :+ "operand")
+          case BoolAnd(left, right) =>
+            work += Work(right, current.path :+ "right")
+            work += Work(left, current.path :+ "left")
+          case BoolOr(left, right) =>
+            work += Work(right, current.path :+ "right")
+            work += Work(left, current.path :+ "left")
+          case BoolLessThan(left, right) =>
+            checkComparison(left, right, booleanParameters, integerParameters, localParameters, current.path, diagnostics, generateIndices, booleanLocalParameters)
+          case BoolLessThanOrEqual(left, right) =>
+            checkComparison(left, right, booleanParameters, integerParameters, localParameters, current.path, diagnostics, generateIndices, booleanLocalParameters)
+          case BoolGreaterThan(left, right) =>
+            checkComparison(left, right, booleanParameters, integerParameters, localParameters, current.path, diagnostics, generateIndices, booleanLocalParameters)
+          case BoolGreaterThanOrEqual(left, right) =>
+            checkComparison(left, right, booleanParameters, integerParameters, localParameters, current.path, diagnostics, generateIndices, booleanLocalParameters)
+          case BoolEqual(left, right) =>
+            checkComparison(left, right, booleanParameters, integerParameters, localParameters, current.path, diagnostics, generateIndices, booleanLocalParameters)
+          case BoolNotEqual(left, right) =>
+            checkComparison(left, right, booleanParameters, integerParameters, localParameters, current.path, diagnostics, generateIndices, booleanLocalParameters)
+        }
+      }
+    }
   }
 
   private def checkComparison(
@@ -823,6 +711,28 @@ object Verilog2001Capability {
 
     expression match {
       case Literal(_) | ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_) =>
+      case addressWidth: AddressWidth =>
+        val expansionWithinLimit =
+          AddressWidthLowering.expansionWithin(addressWidth, MaximumAddressWidthExpansionNodes)
+        if (!expansionWithinLimit)
+          diagnostics += Diagnostic(
+            "V2001-ADDRESS-WIDTH-EXPANSION-TOO-LARGE",
+            path,
+            s"Portable address-width lowering exceeds the $MaximumAddressWidthExpansionNodes-node expansion limit"
+          )
+        else {
+          val (layers, base) = IntExpressionAnalysis.peelDirectAddressWidths(addressWidth)
+          checkExpression(
+            base,
+            parameters,
+            localParameters,
+            path ++ Vector.fill(layers)("operand"),
+            diagnostics,
+            generateIndices,
+            booleanParameters,
+            booleanLocalParameters
+          )
+        }
       case Negate(value) =>
         checkExpression(
           value,

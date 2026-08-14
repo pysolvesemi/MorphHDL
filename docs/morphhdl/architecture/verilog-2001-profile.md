@@ -27,8 +27,9 @@ be accepted without enabling a SystemVerilog parser.
 | Synchronous enabled register (implemented) | Named `always @(posedge clock)` block with reset-priority active-high synchronous reset-to-zero, active-high capture, implicit disabled hold and nonblocking assignments |
 | Asynchronous enabled register (implemented) | Named `always @(posedge clock or posedge reset)` block with immediate reset-priority active-high asynchronous reset-to-zero, active-high capture, implicit disabled hold and nonblocking assignments |
 | Synchronous read-first single-port memory (implemented) | `reg [WIDTH-1:0] memory [0:DEPTH-1]` plus one guarded named positive-edge process with nonblocking read and optional whole-word write assignments |
+| Portable address width (implemented) | Right-associated `value <= 2 ? 1 : value <= 4 ? 2 : ... : value <= 1073741824 ? 30 : 31` conditional expression |
 | Logical record/vector port | Deterministically flattened scalar/packed ports |
-| `clog2` | Generated portable constant function or legalized expression |
+| General-purpose `clog2` (deferred) | Must use a separately validated Verilog-2001 expression; never emit `$clog2` |
 | Enum intent | Packed vector plus named local parameters |
 | Parameterized memory | `reg [WIDTH-1:0] mem [0:DEPTH-1]` |
 
@@ -126,6 +127,25 @@ whole-domain address capacity, exact data types, distinct controls and sole
 ownership before spelling. No reset or initial block is emitted, so unwritten
 in-range reads remain unspecified. Initialization, read enable, masks,
 multiple ports/clocks and selectable collision modes remain forbidden.
+
+Increment 21 legalizes `IntExpr.AddressWidth` without a helper function or
+SystemVerilog system task. It emits one fully parenthesized right-associated
+conditional chain covering thresholds `2^1` through `2^30`, returning widths
+one through thirty and a final width of thirty-one. Capability validation has
+already proved the operand lies within signed 32-bit `integer` range, while
+target-independent ParamRTL validation has proved it positive. Every legal
+value therefore has exact ceiling-log2 behavior and `DEPTH=1` retains a legal
+one-bit port. The public memory address ABI inlines that expression in its
+packed range; no externally overrideable sizing parameter, `$clog2`, constant
+function or specialization is introduced. General logarithms and minimum/
+maximum operations remain deferred.
+
+The lowering is resource bounded. Five direct nested `AddressWidth` layers
+collapse to the constant one over the already-proven positive signed-32-bit
+domain. Other compositions use a shared capability/emitter cost plan and are
+rejected with `V2001-ADDRESS-WIDTH-EXPANSION-TOO-LARGE` when their estimated
+portable expansion exceeds 4096 expanded syntax nodes. This is a Verilog-2001
+target cap, not a loss of the canonical ParamRTL expression.
 
 ## Flat ABI
 

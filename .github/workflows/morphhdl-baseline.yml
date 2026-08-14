@@ -155,6 +155,12 @@ jobs:
           diff --recursive --brief \
             target/morphhdl/generated/run-1 \
             target/morphhdl/generated/run-2
+          test "$(grep -Fc 'DEPTH <= 2' \
+            target/morphhdl/generated/run-1/single_port_memory.v)" = "1"
+          test "$(grep -Fc 'DEPTH <= 1073741824' \
+            target/morphhdl/generated/run-1/single_port_memory.v)" = "1"
+          ! grep -Fq '$clog2' \
+            target/morphhdl/generated/run-1/single_port_memory.v
           for filename in \
             parameterized_wire.v \
             derived_width.v \

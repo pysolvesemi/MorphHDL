@@ -6,12 +6,12 @@ module SinglePortMemoryTb;
   reg write_enable_default;
   wire [7:0] read_data_default;
 
-  reg [2:0] address_awkward;
+  reg [1:0] address_awkward;
   reg [4:0] write_data_awkward;
   reg write_enable_awkward;
   wire [4:0] read_data_awkward;
 
-  reg [2:0] address_minimum;
+  reg [0:0] address_minimum;
   reg [0:0] write_data_minimum;
   reg write_enable_minimum;
   wire [0:0] read_data_minimum;
@@ -49,8 +49,8 @@ module SinglePortMemoryTb;
   initial begin
     clk = 1'b0;
     address_default = 3'd7;
-    address_awkward = 3'd7;
-    address_minimum = 3'd7;
+    address_awkward = 2'd3;
+    address_minimum = 1'd1;
     write_data_default = 8'ha5;
     write_data_awkward = 5'h13;
     write_data_minimum = 1'b1;
@@ -70,8 +70,8 @@ module SinglePortMemoryTb;
     clk = 1'b0;
 
     address_default = 3'd4;
-    address_awkward = 3'd2;
-    address_minimum = 3'd0;
+    address_awkward = 2'd2;
+    address_minimum = 1'd0;
     write_enable_default = 1'b1;
     write_enable_awkward = 1'b1;
     write_enable_minimum = 1'b1;
@@ -95,8 +95,8 @@ module SinglePortMemoryTb;
     clk = 1'b0;
 
     address_default = 3'd7;
-    address_awkward = 3'd7;
-    address_minimum = 3'd7;
+    address_awkward = 2'd3;
+    address_minimum = 1'd1;
     #1;
     if (read_data_default !== 8'ha5 ||
         read_data_awkward !== 5'h13 ||
@@ -106,8 +106,8 @@ module SinglePortMemoryTb;
     end
 
     address_default = 3'd4;
-    address_awkward = 3'd2;
-    address_minimum = 3'd0;
+    address_awkward = 2'd2;
+    address_minimum = 1'd0;
     write_data_default = 8'h3c;
     write_data_awkward = 5'h0b;
     write_data_minimum = 1'b0;
@@ -158,8 +158,8 @@ module SinglePortMemoryTb;
     clk = 1'b0;
 
     address_default = 3'd7;
-    address_awkward = 3'd7;
-    address_minimum = 3'd7;
+    address_awkward = 2'd3;
+    address_minimum = 1'd1;
     write_enable_default = 1'b1;
     write_enable_awkward = 1'b1;
     write_enable_minimum = 1'b1;
@@ -181,8 +181,8 @@ module SinglePortMemoryTb;
     clk = 1'b0;
 
     address_default = 3'd4;
-    address_awkward = 3'd2;
-    address_minimum = 3'd0;
+    address_awkward = 2'd2;
+    address_minimum = 1'd0;
     write_enable_default = 1'b0;
     write_enable_awkward = 1'b0;
     write_enable_minimum = 1'b0;

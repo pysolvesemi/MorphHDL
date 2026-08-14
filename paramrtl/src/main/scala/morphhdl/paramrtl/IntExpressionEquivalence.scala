@@ -11,28 +11,24 @@ private[morphhdl] object IntExpressionEquivalence {
       expression: IntExpr,
       parameters: Map[String, IntExpr],
       localParameters: Map[String, IntExpr]
-  ): IntExpr = expression match {
-    case value: Literal          => value
-    case ParameterRef(name)      => parameters.getOrElse(name, expression)
-    case LocalParameterRef(name) => localParameters.getOrElse(name, expression)
-    case value: GenerateIndexRef => value
-    case Negate(value)           => Negate(substitute(value, parameters, localParameters))
-    case Add(left, right) =>
-      Add(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
-    case Subtract(left, right) =>
-      Subtract(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
-    case Multiply(left, right) =>
-      Multiply(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
-    case Divide(left, right) =>
-      Divide(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
-    case Modulo(left, right) =>
-      Modulo(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
-    case Select(condition, whenTrue, whenFalse) =>
-      Select(
-        substituteBoolean(condition, parameters, localParameters),
-        substitute(whenTrue, parameters, localParameters),
-        substitute(whenFalse, parameters, localParameters)
-      )
+  ): IntExpr =
+    substituteInteger(
+      expression,
+      parameters,
+      localParameters,
+      new java.util.IdentityHashMap[IntExpr, IntExpr](),
+      new java.util.IdentityHashMap[BoolExpr, BoolExpr]()
+    )
+
+  private def substituteInteger(
+      expression: IntExpr,
+      parameters: Map[String, IntExpr],
+      localParameters: Map[String, IntExpr],
+      integerMemo: java.util.IdentityHashMap[IntExpr, IntExpr],
+      booleanMemo: java.util.IdentityHashMap[BoolExpr, BoolExpr]
+  ): IntExpr = {
+    substituteGraph(expression, parameters, localParameters, integerMemo, booleanMemo)
+    integerMemo.get(expression)
   }
 
   def equivalent(left: IntExpr, right: IntExpr): Boolean = {
@@ -48,16 +44,19 @@ private[morphhdl] object IntExpressionEquivalence {
   }
 
   /** Iterative equality avoids case-class recursion on deep shared expression DAGs. */
-  private def sameStructure(left: IntExpr, right: IntExpr): Boolean = {
+  private def sameStructure(left: IntExpr, right: IntExpr): Boolean =
+    sameMixedStructure(left, right)
+
+  private def sameMixedStructure(left: AnyRef, right: AnyRef): Boolean = {
     val stack = scala.collection.mutable.ArrayBuffer((left, right))
     val visited = new java.util.IdentityHashMap[
-      IntExpr,
-      java.util.IdentityHashMap[IntExpr, java.lang.Boolean]
+      AnyRef,
+      java.util.IdentityHashMap[AnyRef, java.lang.Boolean]
     ]()
-    def alreadyVisited(a: IntExpr, b: IntExpr): Boolean = {
+    def alreadyVisited(a: AnyRef, b: AnyRef): Boolean = {
       var rights = visited.get(a)
       if (rights == null) {
-        rights = new java.util.IdentityHashMap[IntExpr, java.lang.Boolean]()
+        rights = new java.util.IdentityHashMap[AnyRef, java.lang.Boolean]()
         visited.put(a, rights)
       }
       if (rights.containsKey(b)) true
@@ -68,20 +67,39 @@ private[morphhdl] object IntExpressionEquivalence {
     }
     while (stack.nonEmpty) {
       val (a, b) = stack.remove(stack.length - 1)
-      if (!(a.asInstanceOf[AnyRef] eq b.asInstanceOf[AnyRef]) && !alreadyVisited(a, b)) {
+      if (!(a eq b) && !alreadyVisited(a, b)) {
         (a, b) match {
           case (Literal(x), Literal(y)) if x == y                     =>
           case (ParameterRef(x), ParameterRef(y)) if x == y           =>
           case (LocalParameterRef(x), LocalParameterRef(y)) if x == y =>
           case (GenerateIndexRef(x), GenerateIndexRef(y)) if x == y   =>
+          case (AddressWidth(x), AddressWidth(y))                     => stack += ((x, y))
           case (Negate(x), Negate(y))                                 => stack += ((x, y))
           case (Add(al, ar), Add(bl, br))                             => stack += ((al, bl)); stack += ((ar, br))
           case (Subtract(al, ar), Subtract(bl, br))                   => stack += ((al, bl)); stack += ((ar, br))
           case (Multiply(al, ar), Multiply(bl, br))                   => stack += ((al, bl)); stack += ((ar, br))
           case (Divide(al, ar), Divide(bl, br))                       => stack += ((al, bl)); stack += ((ar, br))
           case (Modulo(al, ar), Modulo(bl, br))                       => stack += ((al, bl)); stack += ((ar, br))
-          case (Select(ac, at, af), Select(bc, bt, bf)) if sameBooleanStructure(ac, bc) =>
-            stack += ((at, bt)); stack += ((af, bf))
+          case (Select(ac, at, af), Select(bc, bt, bf)) =>
+            stack += ((ac, bc)); stack += ((at, bt)); stack += ((af, bf))
+          case (BoolExpr.Literal(x), BoolExpr.Literal(y)) if x == y =>
+          case (BoolExpr.ParameterRef(x), BoolExpr.ParameterRef(y)) if x == y =>
+          case (BoolExpr.LocalParameterRef(x), BoolExpr.LocalParameterRef(y)) if x == y =>
+          case (BoolExpr.LessThan(al, ar), BoolExpr.LessThan(bl, br)) =>
+            stack += ((al, bl)); stack += ((ar, br))
+          case (BoolExpr.LessThanOrEqual(al, ar), BoolExpr.LessThanOrEqual(bl, br)) =>
+            stack += ((al, bl)); stack += ((ar, br))
+          case (BoolExpr.GreaterThan(al, ar), BoolExpr.GreaterThan(bl, br)) =>
+            stack += ((al, bl)); stack += ((ar, br))
+          case (BoolExpr.GreaterThanOrEqual(al, ar), BoolExpr.GreaterThanOrEqual(bl, br)) =>
+            stack += ((al, bl)); stack += ((ar, br))
+          case (BoolExpr.Equal(al, ar), BoolExpr.Equal(bl, br)) =>
+            stack += ((al, bl)); stack += ((ar, br))
+          case (BoolExpr.NotEqual(al, ar), BoolExpr.NotEqual(bl, br)) =>
+            stack += ((al, bl)); stack += ((ar, br))
+          case (BoolExpr.Not(av), BoolExpr.Not(bv)) => stack += ((av, bv))
+          case (BoolExpr.And(al, ar), BoolExpr.And(bl, br)) => stack += ((al, bl)); stack += ((ar, br))
+          case (BoolExpr.Or(al, ar), BoolExpr.Or(bl, br)) => stack += ((al, bl)); stack += ((ar, br))
           case _                                                      => return false
         }
       }
@@ -89,14 +107,18 @@ private[morphhdl] object IntExpressionEquivalence {
     true
   }
 
-  private def boundedNodeCount(expression: IntExpr): Option[Int] = {
-    val stack = scala.collection.mutable.ArrayBuffer(expression)
+  private def boundedNodeCount(expression: IntExpr): Option[Int] =
+    boundedMixedNodeCount(expression, MaximumNormalizedNodes)
+
+  private def boundedMixedNodeCount(expression: AnyRef, maximum: Int): Option[Int] = {
+    val stack = scala.collection.mutable.ArrayBuffer[AnyRef](expression)
     var count = 0
-    while (stack.nonEmpty && count <= MaximumNormalizedNodes) {
+    while (stack.nonEmpty && count <= maximum) {
       val value = stack.remove(stack.length - 1)
       count += 1
       value match {
         case Literal(_) | ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_) =>
+        case AddressWidth(operand)                                                       => stack += operand
         case Negate(operand)                                                           => stack += operand
         case Add(left, right)                                                          => stack += left; stack += right
         case Subtract(left, right)                                                     => stack += left; stack += right
@@ -106,72 +128,165 @@ private[morphhdl] object IntExpressionEquivalence {
         case Select(condition, whenTrue, whenFalse) =>
           stack += whenTrue
           stack += whenFalse
-          count += boundedBooleanNodeCount(condition, MaximumNormalizedNodes - count).getOrElse {
-            return None
+          stack += condition
+        case BoolExpr.Literal(_) | BoolExpr.ParameterRef(_) | BoolExpr.LocalParameterRef(_) =>
+        case BoolExpr.Not(operand)       => stack += operand
+        case BoolExpr.And(left, right)   => stack += left; stack += right
+        case BoolExpr.Or(left, right)    => stack += left; stack += right
+        case BoolExpr.LessThan(left, right)           => stack += left; stack += right
+        case BoolExpr.LessThanOrEqual(left, right)    => stack += left; stack += right
+        case BoolExpr.GreaterThan(left, right)        => stack += left; stack += right
+        case BoolExpr.GreaterThanOrEqual(left, right) => stack += left; stack += right
+        case BoolExpr.Equal(left, right)              => stack += left; stack += right
+        case BoolExpr.NotEqual(left, right)           => stack += left; stack += right
+      }
+    }
+    if (count <= maximum) Some(count) else None
+  }
+
+  private def normalize(expression: IntExpr): IntExpr = {
+    final case class Frame(value: AnyRef, expanded: Boolean)
+    val integers = new java.util.IdentityHashMap[IntExpr, IntExpr]()
+    val booleans = new java.util.IdentityHashMap[BoolExpr, BoolExpr]()
+    val work = scala.collection.mutable.ArrayBuffer(Frame(expression, expanded = false))
+
+    def isDone(value: AnyRef): Boolean = value match {
+      case integer: IntExpr => integers.containsKey(integer)
+      case boolean: BoolExpr => booleans.containsKey(boolean)
+      case _ => true
+    }
+    def push(value: AnyRef): Unit = work += Frame(value, expanded = false)
+    def integer(value: IntExpr): IntExpr = integers.get(value)
+    def boolean(value: BoolExpr): BoolExpr = booleans.get(value)
+
+    while (work.nonEmpty) {
+      val frame = work.remove(work.length - 1)
+      if (!isDone(frame.value)) {
+        if (!frame.expanded) {
+          work += Frame(frame.value, expanded = true)
+          frame.value match {
+            case _: Literal | _: ParameterRef | _: LocalParameterRef | _: GenerateIndexRef =>
+            case AddressWidth(operand) => push(operand)
+            case Negate(operand)       => push(operand)
+            case Add(left, right)      => push(right); push(left)
+            case Subtract(left, right) => push(right); push(left)
+            case Multiply(left, right) => push(right); push(left)
+            case Divide(left, right)   => push(right); push(left)
+            case Modulo(left, right)   => push(right); push(left)
+            case Select(condition, whenTrue, whenFalse) =>
+              push(whenFalse)
+              push(whenTrue)
+              push(condition)
+            case _: BoolExpr.Literal | _: BoolExpr.ParameterRef | _: BoolExpr.LocalParameterRef =>
+            case BoolExpr.Not(operand)       => push(operand)
+            case BoolExpr.And(left, right)   => push(right); push(left)
+            case BoolExpr.Or(left, right)    => push(right); push(left)
+            case BoolExpr.LessThan(left, right)           => push(right); push(left)
+            case BoolExpr.LessThanOrEqual(left, right)    => push(right); push(left)
+            case BoolExpr.GreaterThan(left, right)        => push(right); push(left)
+            case BoolExpr.GreaterThanOrEqual(left, right) => push(right); push(left)
+            case BoolExpr.Equal(left, right)              => push(right); push(left)
+            case BoolExpr.NotEqual(left, right)           => push(right); push(left)
           }
+        } else {
+          frame.value match {
+            case value: Literal          => integers.put(value, value)
+            case value: ParameterRef     => integers.put(value, value)
+            case value: LocalParameterRef => integers.put(value, value)
+            case value: GenerateIndexRef => integers.put(value, value)
+            case value @ AddressWidth(operand) =>
+              val normalized = integer(operand) match {
+                case Literal(number) if number >= 1 =>
+                  Literal(if (number <= 2) BigInt(1) else BigInt((number - 1).bitLength))
+                case other => AddressWidth(other)
+              }
+              integers.put(value, normalized)
+            case value @ Negate(operand) =>
+              val normalized = integer(operand) match {
+                case Literal(number) => Literal(-number)
+                case Negate(inner)   => inner
+                case other           => Negate(other)
+              }
+              integers.put(value, normalized)
+            case value @ Add(left, right) =>
+              integers.put(value, normalizeCommutative(integer(left), integer(right), additive = true))
+            case value @ Multiply(left, right) =>
+              integers.put(value, normalizeCommutative(integer(left), integer(right), additive = false))
+            case value @ Subtract(left, right) =>
+              val a = integer(left)
+              val b = integer(right)
+              val normalized = (a, b) match {
+                case (Literal(x), Literal(y))          => Literal(x - y)
+                case (x, y) if sameStructure(x, y)     => Literal(0)
+                case (x, Literal(number)) if number == 0 => x
+                case _                                 => Subtract(a, b)
+              }
+              integers.put(value, normalized)
+            case value @ Divide(left, right) =>
+              val a = integer(left)
+              val b = integer(right)
+              val normalized = (a, b) match {
+                case (Literal(x), Literal(y)) if y != 0 => Literal(x / y)
+                case (x, Literal(number)) if number == 1 => x
+                case _                                  => Divide(a, b)
+              }
+              integers.put(value, normalized)
+            case value @ Modulo(left, right) =>
+              val a = integer(left)
+              val b = integer(right)
+              val normalized = (a, b) match {
+                case (Literal(x), Literal(y)) if y != 0 => Literal(x % y)
+                case (_, Literal(y)) if y.abs == 1      => Literal(0)
+                case _                                  => Modulo(a, b)
+              }
+              integers.put(value, normalized)
+            case value @ Select(condition, whenTrue, whenFalse) =>
+              val normalizedCondition = boolean(condition)
+              val normalizedTrue = integer(whenTrue)
+              val normalizedFalse = integer(whenFalse)
+              val normalized = normalizedCondition match {
+                case BoolExpr.Literal(true)  => normalizedTrue
+                case BoolExpr.Literal(false) => normalizedFalse
+                case _ if sameStructure(normalizedTrue, normalizedFalse) => normalizedTrue
+                case _ => Select(normalizedCondition, normalizedTrue, normalizedFalse)
+              }
+              integers.put(value, normalized)
+            case value: BoolExpr.Literal => booleans.put(value, value)
+            case value: BoolExpr.ParameterRef => booleans.put(value, value)
+            case value: BoolExpr.LocalParameterRef => booleans.put(value, value)
+            case value @ BoolExpr.Not(operand) => booleans.put(value, BoolExpr.Not(boolean(operand)))
+            case value @ BoolExpr.And(left, right) =>
+              booleans.put(value, BoolExpr.And(boolean(left), boolean(right)))
+            case value @ BoolExpr.Or(left, right) =>
+              booleans.put(value, BoolExpr.Or(boolean(left), boolean(right)))
+            case value @ BoolExpr.LessThan(left, right) =>
+              booleans.put(value, BoolExpr.LessThan(integer(left), integer(right)))
+            case value @ BoolExpr.LessThanOrEqual(left, right) =>
+              booleans.put(value, BoolExpr.LessThanOrEqual(integer(left), integer(right)))
+            case value @ BoolExpr.GreaterThan(left, right) =>
+              booleans.put(value, BoolExpr.GreaterThan(integer(left), integer(right)))
+            case value @ BoolExpr.GreaterThanOrEqual(left, right) =>
+              booleans.put(value, BoolExpr.GreaterThanOrEqual(integer(left), integer(right)))
+            case value @ BoolExpr.Equal(left, right) =>
+              booleans.put(value, BoolExpr.Equal(integer(left), integer(right)))
+            case value @ BoolExpr.NotEqual(left, right) =>
+              booleans.put(value, BoolExpr.NotEqual(integer(left), integer(right)))
+          }
+        }
       }
     }
-    if (count <= MaximumNormalizedNodes) Some(count) else None
+    integers.get(expression)
   }
 
-  private def normalize(expression: IntExpr): IntExpr = expression match {
-    case value @ (Literal(_) | ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_)) => value
-    case Negate(value) =>
-      normalize(value) match {
-        case Literal(number) => Literal(-number)
-        case Negate(inner)   => inner
-        case other           => Negate(other)
-      }
-    case Add(left, right)      => normalizeCommutative(Add(left, right), additive = true)
-    case Multiply(left, right) => normalizeCommutative(Multiply(left, right), additive = false)
-    case Subtract(left, right) =>
-      val a = normalize(left)
-      val b = normalize(right)
-      (a, b) match {
-        case (Literal(x), Literal(y))          => Literal(x - y)
-        case (x, y) if sameStructure(x, y)     => Literal(0)
-        case (x, Literal(value)) if value == 0 => x
-        case _                                 => Subtract(a, b)
-      }
-    case Divide(left, right) =>
-      val a = normalize(left)
-      val b = normalize(right)
-      (a, b) match {
-        case (Literal(x), Literal(y)) if y != 0 => Literal(x / y)
-        case (x, Literal(value)) if value == 1  => x
-        case _                                  => Divide(a, b)
-      }
-    case Modulo(left, right) =>
-      val a = normalize(left)
-      val b = normalize(right)
-      (a, b) match {
-        case (Literal(x), Literal(y)) if y != 0 => Literal(x % y)
-        case (_, Literal(y)) if y.abs == 1      => Literal(0)
-        case _                                  => Modulo(a, b)
-      }
-    case Select(condition, whenTrue, whenFalse) =>
-      val normalizedCondition = normalizeBoolean(condition)
-      val normalizedTrue = normalize(whenTrue)
-      val normalizedFalse = normalize(whenFalse)
-      normalizedCondition match {
-        case BoolExpr.Literal(true)  => normalizedTrue
-        case BoolExpr.Literal(false) => normalizedFalse
-        case _ if sameStructure(normalizedTrue, normalizedFalse) => normalizedTrue
-        case _ => Select(normalizedCondition, normalizedTrue, normalizedFalse)
-      }
-  }
-
-  private def normalizeCommutative(expression: IntExpr, additive: Boolean): IntExpr = {
+  private def normalizeCommutative(left: IntExpr, right: IntExpr, additive: Boolean): IntExpr = {
     val operands = scala.collection.mutable.ArrayBuffer.empty[IntExpr]
-    def collect(value: IntExpr): Unit = normalize(value) match {
-      case Add(left, right) if additive       => collect(left); collect(right)
-      case Multiply(left, right) if !additive => collect(left); collect(right)
-      case other                              => operands += other
-    }
-    expression match {
-      case Add(left, right)      => collect(left); collect(right)
-      case Multiply(left, right) => collect(left); collect(right)
-      case _                     =>
+    val work = scala.collection.mutable.ArrayBuffer(right, left)
+    while (work.nonEmpty) {
+      work.remove(work.length - 1) match {
+        case Add(a, b) if additive       => work += b; work += a
+        case Multiply(a, b) if !additive => work += b; work += a
+        case other                       => operands += other
+      }
     }
     val literals = operands.collect { case Literal(value) => value }
     val nonLiterals = operands.collect { case value if !value.isInstanceOf[Literal] => value }.toVector
@@ -200,116 +315,113 @@ private[morphhdl] object IntExpressionEquivalence {
     case Divide(_, _)            => "8"
     case Modulo(_, _)            => "9"
     case Select(_, _, _)         => "10"
+    case AddressWidth(_)         => "11"
   }
 
   private def substituteBoolean(
       expression: BoolExpr,
       parameters: Map[String, IntExpr],
-      localParameters: Map[String, IntExpr]
-  ): BoolExpr = expression match {
-    case value @ (BoolExpr.Literal(_) | BoolExpr.ParameterRef(_) | BoolExpr.LocalParameterRef(_)) => value
-    case BoolExpr.LessThan(left, right) =>
-      BoolExpr.LessThan(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
-    case BoolExpr.LessThanOrEqual(left, right) =>
-      BoolExpr.LessThanOrEqual(
-        substitute(left, parameters, localParameters),
-        substitute(right, parameters, localParameters)
-      )
-    case BoolExpr.GreaterThan(left, right) =>
-      BoolExpr.GreaterThan(
-        substitute(left, parameters, localParameters),
-        substitute(right, parameters, localParameters)
-      )
-    case BoolExpr.GreaterThanOrEqual(left, right) =>
-      BoolExpr.GreaterThanOrEqual(
-        substitute(left, parameters, localParameters),
-        substitute(right, parameters, localParameters)
-      )
-    case BoolExpr.Equal(left, right) =>
-      BoolExpr.Equal(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
-    case BoolExpr.NotEqual(left, right) =>
-      BoolExpr.NotEqual(substitute(left, parameters, localParameters), substitute(right, parameters, localParameters))
-    case BoolExpr.Not(value) => BoolExpr.Not(substituteBoolean(value, parameters, localParameters))
-    case BoolExpr.And(left, right) =>
-      BoolExpr.And(
-        substituteBoolean(left, parameters, localParameters),
-        substituteBoolean(right, parameters, localParameters)
-      )
-    case BoolExpr.Or(left, right) =>
-      BoolExpr.Or(
-        substituteBoolean(left, parameters, localParameters),
-        substituteBoolean(right, parameters, localParameters)
-      )
+      localParameters: Map[String, IntExpr],
+      integerMemo: java.util.IdentityHashMap[IntExpr, IntExpr],
+      booleanMemo: java.util.IdentityHashMap[BoolExpr, BoolExpr]
+  ): BoolExpr = {
+    substituteGraph(expression, parameters, localParameters, integerMemo, booleanMemo)
+    booleanMemo.get(expression)
   }
 
-  private def sameBooleanStructure(left: BoolExpr, right: BoolExpr): Boolean = {
-    val stack = scala.collection.mutable.ArrayBuffer((left, right))
-    while (stack.nonEmpty) {
-      val (a, b) = stack.remove(stack.length - 1)
-      (a, b) match {
-        case (BoolExpr.Literal(x), BoolExpr.Literal(y)) if x == y =>
-        case (BoolExpr.ParameterRef(x), BoolExpr.ParameterRef(y)) if x == y =>
-        case (BoolExpr.LocalParameterRef(x), BoolExpr.LocalParameterRef(y)) if x == y =>
-        case (BoolExpr.LessThan(al, ar), BoolExpr.LessThan(bl, br)) =>
-          if (!sameStructure(al, bl) || !sameStructure(ar, br)) return false
-        case (BoolExpr.LessThanOrEqual(al, ar), BoolExpr.LessThanOrEqual(bl, br)) =>
-          if (!sameStructure(al, bl) || !sameStructure(ar, br)) return false
-        case (BoolExpr.GreaterThan(al, ar), BoolExpr.GreaterThan(bl, br)) =>
-          if (!sameStructure(al, bl) || !sameStructure(ar, br)) return false
-        case (BoolExpr.GreaterThanOrEqual(al, ar), BoolExpr.GreaterThanOrEqual(bl, br)) =>
-          if (!sameStructure(al, bl) || !sameStructure(ar, br)) return false
-        case (BoolExpr.Equal(al, ar), BoolExpr.Equal(bl, br)) =>
-          if (!sameStructure(al, bl) || !sameStructure(ar, br)) return false
-        case (BoolExpr.NotEqual(al, ar), BoolExpr.NotEqual(bl, br)) =>
-          if (!sameStructure(al, bl) || !sameStructure(ar, br)) return false
-        case (BoolExpr.Not(av), BoolExpr.Not(bv)) => stack += ((av, bv))
-        case (BoolExpr.And(al, ar), BoolExpr.And(bl, br)) => stack += ((al, bl)); stack += ((ar, br))
-        case (BoolExpr.Or(al, ar), BoolExpr.Or(bl, br)) => stack += ((al, bl)); stack += ((ar, br))
-        case _ => return false
+  private def substituteGraph(
+      root: AnyRef,
+      parameters: Map[String, IntExpr],
+      localParameters: Map[String, IntExpr],
+      integerMemo: java.util.IdentityHashMap[IntExpr, IntExpr],
+      booleanMemo: java.util.IdentityHashMap[BoolExpr, BoolExpr]
+  ): Unit = {
+    final case class Frame(value: AnyRef, expanded: Boolean)
+    val work = scala.collection.mutable.ArrayBuffer(Frame(root, expanded = false))
+
+    def isDone(value: AnyRef): Boolean = value match {
+      case integer: IntExpr => integerMemo.containsKey(integer)
+      case boolean: BoolExpr => booleanMemo.containsKey(boolean)
+      case _ => true
+    }
+    def push(value: AnyRef): Unit = work += Frame(value, expanded = false)
+    def integer(value: IntExpr): IntExpr = integerMemo.get(value)
+    def boolean(value: BoolExpr): BoolExpr = booleanMemo.get(value)
+
+    while (work.nonEmpty) {
+      val frame = work.remove(work.length - 1)
+      if (!isDone(frame.value)) {
+        if (!frame.expanded) {
+          work += Frame(frame.value, expanded = true)
+          frame.value match {
+            case _: Literal | _: ParameterRef | _: LocalParameterRef | _: GenerateIndexRef =>
+            case AddressWidth(operand) => push(operand)
+            case Negate(operand)       => push(operand)
+            case Add(left, right)      => push(right); push(left)
+            case Subtract(left, right) => push(right); push(left)
+            case Multiply(left, right) => push(right); push(left)
+            case Divide(left, right)   => push(right); push(left)
+            case Modulo(left, right)   => push(right); push(left)
+            case Select(condition, whenTrue, whenFalse) =>
+              push(whenFalse)
+              push(whenTrue)
+              push(condition)
+            case _: BoolExpr.Literal | _: BoolExpr.ParameterRef | _: BoolExpr.LocalParameterRef =>
+            case BoolExpr.Not(operand)       => push(operand)
+            case BoolExpr.And(left, right)   => push(right); push(left)
+            case BoolExpr.Or(left, right)    => push(right); push(left)
+            case BoolExpr.LessThan(left, right)           => push(right); push(left)
+            case BoolExpr.LessThanOrEqual(left, right)    => push(right); push(left)
+            case BoolExpr.GreaterThan(left, right)        => push(right); push(left)
+            case BoolExpr.GreaterThanOrEqual(left, right) => push(right); push(left)
+            case BoolExpr.Equal(left, right)              => push(right); push(left)
+            case BoolExpr.NotEqual(left, right)           => push(right); push(left)
+          }
+        } else {
+          frame.value match {
+            case value: Literal          => integerMemo.put(value, value)
+            case value @ ParameterRef(name) => integerMemo.put(value, parameters.getOrElse(name, value))
+            case value @ LocalParameterRef(name) => integerMemo.put(value, localParameters.getOrElse(name, value))
+            case value: GenerateIndexRef => integerMemo.put(value, value)
+            case value @ AddressWidth(operand) => integerMemo.put(value, AddressWidth(integer(operand)))
+            case value @ Negate(operand)       => integerMemo.put(value, Negate(integer(operand)))
+            case value @ Add(left, right)      => integerMemo.put(value, Add(integer(left), integer(right)))
+            case value @ Subtract(left, right) => integerMemo.put(value, Subtract(integer(left), integer(right)))
+            case value @ Multiply(left, right) => integerMemo.put(value, Multiply(integer(left), integer(right)))
+            case value @ Divide(left, right)   => integerMemo.put(value, Divide(integer(left), integer(right)))
+            case value @ Modulo(left, right)   => integerMemo.put(value, Modulo(integer(left), integer(right)))
+            case value @ Select(condition, whenTrue, whenFalse) =>
+              integerMemo.put(value, Select(boolean(condition), integer(whenTrue), integer(whenFalse)))
+            case value: BoolExpr.Literal => booleanMemo.put(value, value)
+            case value: BoolExpr.ParameterRef => booleanMemo.put(value, value)
+            case value: BoolExpr.LocalParameterRef => booleanMemo.put(value, value)
+            case value @ BoolExpr.Not(operand) => booleanMemo.put(value, BoolExpr.Not(boolean(operand)))
+            case value @ BoolExpr.And(left, right) =>
+              booleanMemo.put(value, BoolExpr.And(boolean(left), boolean(right)))
+            case value @ BoolExpr.Or(left, right) =>
+              booleanMemo.put(value, BoolExpr.Or(boolean(left), boolean(right)))
+            case value @ BoolExpr.LessThan(left, right) =>
+              booleanMemo.put(value, BoolExpr.LessThan(integer(left), integer(right)))
+            case value @ BoolExpr.LessThanOrEqual(left, right) =>
+              booleanMemo.put(value, BoolExpr.LessThanOrEqual(integer(left), integer(right)))
+            case value @ BoolExpr.GreaterThan(left, right) =>
+              booleanMemo.put(value, BoolExpr.GreaterThan(integer(left), integer(right)))
+            case value @ BoolExpr.GreaterThanOrEqual(left, right) =>
+              booleanMemo.put(value, BoolExpr.GreaterThanOrEqual(integer(left), integer(right)))
+            case value @ BoolExpr.Equal(left, right) =>
+              booleanMemo.put(value, BoolExpr.Equal(integer(left), integer(right)))
+            case value @ BoolExpr.NotEqual(left, right) =>
+              booleanMemo.put(value, BoolExpr.NotEqual(integer(left), integer(right)))
+          }
+        }
       }
     }
-    true
   }
 
-  private def boundedBooleanNodeCount(expression: BoolExpr, maximum: Int): Option[Int] = {
-    val booleanStack = scala.collection.mutable.ArrayBuffer(expression)
-    val integerStack = scala.collection.mutable.ArrayBuffer.empty[IntExpr]
-    var count = 0
-    while ((booleanStack.nonEmpty || integerStack.nonEmpty) && count <= maximum) {
-      if (booleanStack.nonEmpty) {
-        count += 1
-        booleanStack.remove(booleanStack.length - 1) match {
-          case BoolExpr.Literal(_) | BoolExpr.ParameterRef(_) | BoolExpr.LocalParameterRef(_) =>
-          case BoolExpr.Not(value) => booleanStack += value
-          case BoolExpr.And(left, right) => booleanStack += left; booleanStack += right
-          case BoolExpr.Or(left, right) => booleanStack += left; booleanStack += right
-          case BoolExpr.LessThan(left, right) => integerStack += left; integerStack += right
-          case BoolExpr.LessThanOrEqual(left, right) => integerStack += left; integerStack += right
-          case BoolExpr.GreaterThan(left, right) => integerStack += left; integerStack += right
-          case BoolExpr.GreaterThanOrEqual(left, right) => integerStack += left; integerStack += right
-          case BoolExpr.Equal(left, right) => integerStack += left; integerStack += right
-          case BoolExpr.NotEqual(left, right) => integerStack += left; integerStack += right
-        }
-      } else {
-        boundedNodeCount(integerStack.remove(integerStack.length - 1)) match {
-          case Some(value) => count += value
-          case None        => return None
-        }
-      }
-    }
-    if (count <= maximum) Some(count) else None
-  }
+  private def sameBooleanStructure(left: BoolExpr, right: BoolExpr): Boolean =
+    sameMixedStructure(left, right)
 
-  private def normalizeBoolean(expression: BoolExpr): BoolExpr = expression match {
-    case value @ (BoolExpr.Literal(_) | BoolExpr.ParameterRef(_) | BoolExpr.LocalParameterRef(_)) => value
-    case BoolExpr.LessThan(left, right) => BoolExpr.LessThan(normalize(left), normalize(right))
-    case BoolExpr.LessThanOrEqual(left, right) => BoolExpr.LessThanOrEqual(normalize(left), normalize(right))
-    case BoolExpr.GreaterThan(left, right) => BoolExpr.GreaterThan(normalize(left), normalize(right))
-    case BoolExpr.GreaterThanOrEqual(left, right) => BoolExpr.GreaterThanOrEqual(normalize(left), normalize(right))
-    case BoolExpr.Equal(left, right) => BoolExpr.Equal(normalize(left), normalize(right))
-    case BoolExpr.NotEqual(left, right) => BoolExpr.NotEqual(normalize(left), normalize(right))
-    case BoolExpr.Not(value) => BoolExpr.Not(normalizeBoolean(value))
-    case BoolExpr.And(left, right) => BoolExpr.And(normalizeBoolean(left), normalizeBoolean(right))
-    case BoolExpr.Or(left, right) => BoolExpr.Or(normalizeBoolean(left), normalizeBoolean(right))
-  }
+  private def boundedBooleanNodeCount(expression: BoolExpr, maximum: Int): Option[Int] =
+    boundedMixedNodeCount(expression, maximum)
+
 }

@@ -141,3 +141,13 @@ unwritten in-range values remain unspecified. The sixteenth
 `single_port_memory.v` artifact proves default 8x5, awkward 5x3 and minimum
 1x1 configurations without regeneration. Reset, initialization, read enable,
 write masks and additional ports remain rejected.
+
+Increment 21 replaces that fixed address with `HdlInt.addressWidth`, a typed
+positive ceiling-log2 operation whose result never falls below one. The public
+memory now emits one parameter-dependent packed address: three bits at the
+default `DEPTH=5`, two bits at `DEPTH=3` and one bit at `DEPTH=1`. ParamRTL
+proves the address expression is correlated with the same depth across its
+whole legal domain, and strict Verilog-2001 lowers it to one deterministic
+right-associated conditional chain. No `$clog2`, helper function,
+overrideable address parameter or specialized module copy is emitted; the
+memory's read-first and surplus-address behavior is unchanged.

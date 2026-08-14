@@ -27,6 +27,8 @@ private[frontend] object FrontendException {
       "Use hdlEq/hdlNe for HdlInt equality, or use a static Scala condition for unsupported symbolic equality."
     case "MORPH-FRONTEND-SYMBOLIC-CONVERSION-UNSUPPORTED" =>
       "Keep the value as HdlInt or GenIndex and pass it to a supported parameter-aware API."
+    case "MORPH-FRONTEND-ADDRESS-WIDTH-WITNESS-NONPOSITIVE" =>
+      "Choose a positive concrete witness and declare the full symbolic input domain as strictly positive before using addressWidth."
     case "MORPH-FRONTEND-GENINDEX-CONSUMER-UNSUPPORTED" =>
       "Use the generate index only as an indexedPartSelect offset in the current frontend surface."
     case "MORPH-FRONTEND-CROSS-SCOPE-EXPRESSION" =>

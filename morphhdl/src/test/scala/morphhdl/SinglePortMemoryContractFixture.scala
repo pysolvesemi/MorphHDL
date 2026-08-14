@@ -7,7 +7,7 @@ import morphhdl.frontend.ParamRtlFrontend._
 import morphhdl.paramrtl.Design
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 
-/** Sixteenth public MorphVerilog contract: one synchronous read-first memory. */
+/** Sixteenth public MorphVerilog contract: one depth-derived synchronous read-first memory. */
 private[morphhdl] object SinglePortMemoryContractFixture {
   def program(reverseConstructionOrder: Boolean): MorphProgram[Component] =
     MorphProgram(
@@ -39,7 +39,7 @@ private[morphhdl] object SinglePortMemoryContractFixture {
         val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
         val depth = HdlInt.param("DEPTH", default = 5, min = 1, max = 5)
         val elementType = packedBits(width)
-        val addressType = packedBits(3)
+        val addressType = packedBits(depth.addressWidth)
         val control = packedBits(1)
 
         val top = moduleDef(

@@ -282,6 +282,23 @@ partial width, driver, register and cross-clock evidence without claiming
 general memory topology, arbitrary clocked statements or external domain
 provenance. The sixteenth fixture proves 8x5, 5x3 and 1x1 configurations;
 Icarus covers synchronous read-first and surplus semantics while Yosys checks
-the retained memory, output register and exact guard paths. The external
-artifact inventory is exactly sixteen files including
-`single_port_memory.v`.
+the retained memory, exact guard paths, one-bit read controls, full-memory
+unknown initialization and zero wide-continuation metadata. Depths 1, 3 and 5
+retain an asynchronous memory read plus external output register; the
+full-code depth 2 case absorbs that positive-edge state into the memory while
+requiring both reset inputs inactive. JSON mutations cover both forms and
+malformed metadata/connection/comparator shapes. The external artifact
+inventory is exactly sixteen files including `single_port_memory.v`.
+
+Increment 21 extends the partial `PhaseInferWidth` adaptation with one typed
+portable address-width operation. The concrete memory witness still runs the
+same inherited phases, while ParamRTL separately proves positive operands,
+exact results at `DEPTH=1`, power-of-two and non-power-of-two boundaries, and
+public/local/parent-bound default contexts. The Verilog-2001 capability proves
+the signed-32-bit target ceiling. The memory capacity proof now correlates
+`AddressWidth(DEPTH)` with that exact depth instead of requiring an
+independently over-wide fixed port. The public artifact inventory remains
+exactly sixteen files: the existing memory fixture now elaborates to one-,
+two- or three-bit addresses for depths 1, 3 or 5. This does not claim a
+general-purpose logarithm, minimum/maximum algebra or additional memory
+policies, so width parity remains partial.

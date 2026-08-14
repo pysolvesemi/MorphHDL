@@ -7,6 +7,7 @@ object IntExpr {
   final case class ParameterRef(name: String) extends IntExpr
   final case class LocalParameterRef(name: String) extends IntExpr
   final case class GenerateIndexRef(name: String) extends IntExpr
+  final case class AddressWidth(value: IntExpr) extends IntExpr
   final case class Negate(value: IntExpr) extends IntExpr
   final case class Add(left: IntExpr, right: IntExpr) extends IntExpr
   final case class Subtract(left: IntExpr, right: IntExpr) extends IntExpr

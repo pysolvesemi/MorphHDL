@@ -1,7 +1,7 @@
 package morphhdl.paramrtl
 
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
-import morphhdl.paramrtl.IntExpr.{Literal, ParameterRef}
+import morphhdl.paramrtl.IntExpr.{Add, AddressWidth, Literal, LocalParameterRef, ParameterRef}
 import morphhdl.paramrtl.ModuleItem.{
   ContinuousAssign,
   GenerateFor,
@@ -64,6 +64,47 @@ class SynchronousReadFirstSinglePortMemoryValidatorTests extends AnyFunSuite {
         parameters = widthParameter
       )
     ).isRight)
+  }
+
+  test("accepts an address width correlated to the dynamic memory depth") {
+    assert(
+      ParamRtlValidator.validate(
+        memoryDesign(addressWidth = AddressWidth(ParameterRef("DEPTH")))
+      ).isRight
+    )
+    assert(
+      ParamRtlValidator.validate(
+        memoryDesign(addressWidth = AddressWidth(Add(ParameterRef("DEPTH"), Literal(0))))
+      ).isRight
+    )
+
+    val base = memoryDesign(addressWidth = AddressWidth(LocalParameterRef("RAW_DEPTH"))).modules.head
+    val throughLocal = base.copy(
+      localParameters = Vector(IntegerLocalParameter("RAW_DEPTH", Add(ParameterRef("DEPTH"), Literal(0))))
+    )
+    assert(ParamRtlValidator.validate(Design(throughLocal.name, Vector(throughLocal))).isRight)
+
+    var expandedDepth: IntExpr = ParameterRef("DEPTH")
+    (1 to 900).foreach { _ =>
+      expandedDepth = Add(expandedDepth, Literal(1))
+    }
+    assert(
+      ParamRtlValidator.validate(
+        memoryDesign(
+          depth = expandedDepth,
+          addressWidth = AddressWidth(Add(ParameterRef("DEPTH"), Literal(900))),
+          parameters = Vector(
+            IntegerParameter("WIDTH", 8, Vector(MinInclusive(1), MaxInclusive(31))),
+            IntegerParameter("DEPTH", 3, Vector(MinInclusive(1), MaxInclusive(1000000000)))
+          )
+        )
+      ).isRight
+    )
+
+    assertCodes(
+      memoryDesign(addressWidth = AddressWidth(Add(ParameterRef("DEPTH"), Literal(1)))),
+      "PRTL-SYNCHRONOUS-READ-FIRST-MEMORY-ADDRESS-CAPACITY-NOT-PROVEN"
+    )
   }
 
   test("requires exact control, address and data port roles") {

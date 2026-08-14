@@ -199,6 +199,17 @@ non-reference inputs fail before publication or capture-state mutation. Reset,
 initialization, read enable, masks, multiple ports and memory/process mixing
 are not caller selectable in this tranche.
 
+Increment 21 adds `HdlInt.addressWidth`. It returns the minimum positive packed
+address width for its operand: one bit for values one and two, then
+`ceil(log2(value))` for larger values. The frontend rejects a nonpositive
+concrete witness and any generate-index-dependent operand, and otherwise
+retains the complete integer/public/local provenance in one
+`IntExpr.AddressWidth` node. The result can drive packed widths, local
+parameters, child bindings and memory address types. ParamRTL proves the
+complete legal operand domain is positive, so a valid default cannot hide a
+nonpositive override; each target capability separately rejects operands it
+cannot represent.
+
 An ordinary Scala `if`, `match`, collection size, recursion or class selection
 continues to execute during elaboration and therefore may depend only on static
 Scala values.

@@ -199,6 +199,9 @@ require_property backend.initial_emitter direct-verilog
 require_property parameter.boolean_encoding integer
 require_property parameter.integer_comparison true
 require_property parameter.integer_conditional true
+require_property parameter.address_width portable-ceiling-log2
+require_property parameter.address_width_direct_flatten_depth 5
+require_property parameter.address_width_expansion_limit 4096
 require_property port.conditional_presence false
 require_property structure.module_instance true
 require_property structure.named_parameter_binding true
@@ -226,6 +229,7 @@ require_property process.clock_enable active-high-hold
 require_property implementation.synchronous_enabled_register true
 require_property implementation.asynchronous_enabled_register true
 require_property memory.parameterized_depth true
+require_property memory.address_width depth-derived
 require_property memory.address_capacity_guard true
 require_property memory.read_latency synchronous-one-cycle
 require_property memory.read_during_write read-first
@@ -540,9 +544,18 @@ if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:spac
   exit 1
 fi
 
+expected_address_port="$(python3 - <<'PY'
+chain = "31"
+for width in range(30, 0, -1):
+    false_branch = chain if width == 30 else "(" + chain + ")"
+    chain = "(DEPTH <= {}) ? {} : {}".format(1 << width, width, false_branch)
+print("  input  wire [({})-1:0] address,".format(chain))
+PY
+)"
+
 if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+DEPTH[[:space:]]*=[[:space:]]*5' "$single_port_memory_file" ||
    ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:space:]]*8' "$single_port_memory_file" ||
-   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[2:0\][[:space:]]+address' "$single_port_memory_file" ||
+   ! grep -Fqx "$expected_address_port" "$single_port_memory_file" ||
    ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+clk' "$single_port_memory_file" ||
    ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+write_enable' "$single_port_memory_file" ||
    ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[WIDTH-1:0\][[:space:]]+write_data' "$single_port_memory_file" ||
@@ -916,14 +929,12 @@ verilator --lint-only --language 1364-2001 -Wall \
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
   -Wno-WIDTHEXPAND \
-  -Wno-WIDTHTRUNC \
   --top-module SinglePortMemory \
   "$single_port_memory_file"
 
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
   -Wno-WIDTHEXPAND \
-  -Wno-WIDTHTRUNC \
   --top-module SinglePortMemory \
   -GDEPTH=3 -GWIDTH=5 \
   "$single_port_memory_file"
@@ -931,7 +942,13 @@ verilator --lint-only --language 1364-2001 -Wall \
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
   -Wno-WIDTHEXPAND \
-  -Wno-WIDTHTRUNC \
+  --top-module SinglePortMemory \
+  -GDEPTH=2 -GWIDTH=4 \
+  "$single_port_memory_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  -Wno-WIDTHEXPAND \
   --top-module SinglePortMemory \
   -GDEPTH=1 -GWIDTH=1 \
   "$single_port_memory_file"
@@ -1593,8 +1610,15 @@ yosys_single_port_memory_synthesize_and_check() {
   local expected_width="$2"
   local expected_depth="$3"
   local parameter_command="$4"
+  local expected_address_width=1
+  local address_capacity=2
   local process_netlist="$tmp_dir/SinglePortMemory-${label}-process.json"
   local synthesized_netlist="$tmp_dir/SinglePortMemory-${label}-synthesized.json"
+
+  while (( address_capacity < expected_depth )); do
+    expected_address_width=$((expected_address_width + 1))
+    address_capacity=$((address_capacity * 2))
+  done
 
   yosys -q -p \
     "read_verilog -noautowire $yosys_single_port_memory_file; $parameter_command hierarchy -check -top SinglePortMemory; proc; opt_reduce; opt_expr -mux_undef; memory_dff; memory_collect; opt_clean; check -assert; write_json $process_netlist; synth -top SinglePortMemory; check -assert; write_json $synthesized_netlist"
@@ -1602,7 +1626,7 @@ yosys_single_port_memory_synthesize_and_check() {
     "$process_netlist" --width "$expected_width" --depth "$expected_depth"
   python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
     "$synthesized_netlist" SinglePortMemory \
-    --port "address:input:3" \
+    --port "address:input:$expected_address_width" \
     --port "clk:input:1" \
     --port "read_data:output:$expected_width" \
     --port "write_data:input:$expected_width" \
@@ -1613,6 +1637,8 @@ yosys_single_port_memory_synthesize_and_check \
   default 8 5 ""
 yosys_single_port_memory_synthesize_and_check \
   awkward 5 3 "chparam -set DEPTH 3 -set WIDTH 5 SinglePortMemory;"
+yosys_single_port_memory_synthesize_and_check \
+  depth-two 4 2 "chparam -set DEPTH 2 -set WIDTH 4 SinglePortMemory;"
 yosys_single_port_memory_synthesize_and_check \
   minimum 1 1 "chparam -set DEPTH 1 -set WIDTH 1 SinglePortMemory;"
 
@@ -1676,6 +1702,294 @@ yosys_single_port_memory_json_mutation_must_fail \
   collision-x-read RD_COLLISION_X_MASK
 yosys_single_port_memory_json_mutation_must_fail \
   write-port-priority WR_PRIORITY_MASK
+yosys_single_port_memory_json_mutation_must_fail \
+  wide-read-continuation RD_WIDE_CONTINUATION
+yosys_single_port_memory_json_mutation_must_fail \
+  wide-write-continuation WR_WIDE_CONTINUATION
+
+yosys_single_port_memory_init_json_mutation_must_fail() {
+  local label="$1"
+  local mutation="$2"
+  local canonical_netlist="$tmp_dir/SinglePortMemory-default-process.json"
+  local mutated_netlist="$tmp_dir/SinglePortMemory-${label}-json-mutated.json"
+
+  python3 - "$canonical_netlist" "$mutated_netlist" "$mutation" <<'PY'
+import json
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1])
+destination = pathlib.Path(sys.argv[2])
+mutation = sys.argv[3]
+netlist = json.loads(source.read_text(encoding="utf-8"))
+top = netlist.get("modules", {}).get("SinglePortMemory")
+if top is None:
+    raise SystemExit("canonical JSON is missing SinglePortMemory")
+memories = [
+    cell for cell in top.get("cells", {}).values() if cell.get("type") == "$mem_v2"
+]
+if len(memories) != 1:
+    raise SystemExit("canonical JSON does not contain exactly one $mem_v2")
+parameters = memories[0].get("parameters", {})
+value = parameters.get("INIT")
+if not isinstance(value, str) or len(value) != 40 or set(value.lower()) != {"x"}:
+    raise SystemExit("canonical INIT is not exactly 40 unknown bits: " + repr(value))
+if mutation == "empty":
+    parameters["INIT"] = ""
+elif mutation == "truncated":
+    parameters["INIT"] = value[:-1]
+else:
+    raise SystemExit("unknown INIT mutation: " + mutation)
+if parameters["INIT"] == value:
+    raise SystemExit("JSON mutation did not change INIT")
+destination.write_text(json.dumps(netlist, indent=2) + "\n", encoding="utf-8")
+PY
+
+  if cmp -s "$canonical_netlist" "$mutated_netlist"; then
+    echo "SinglePortMemory INIT mutation did not change the netlist: $label" >&2
+    exit 1
+  fi
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-single-port-memory-contract.py" \
+      "$mutated_netlist" --width 8 --depth 5; then
+    echo "SinglePortMemory checker accepted forbidden INIT mutation: $label" >&2
+    exit 1
+  fi
+  echo "Yosys SinglePortMemory checker rejected forbidden INIT mutation: $label"
+}
+
+yosys_single_port_memory_init_json_mutation_must_fail empty-init empty
+yosys_single_port_memory_init_json_mutation_must_fail truncated-init truncated
+
+yosys_single_port_memory_connection_shape_mutation_must_fail() {
+  local label="$1"
+  local connection="$2"
+  local mutation="$3"
+  local canonical_netlist="$tmp_dir/SinglePortMemory-default-process.json"
+  local mutated_netlist="$tmp_dir/SinglePortMemory-${label}-json-mutated.json"
+
+  python3 - "$canonical_netlist" "$mutated_netlist" "$connection" "$mutation" <<'PY'
+import json
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1])
+destination = pathlib.Path(sys.argv[2])
+connection = sys.argv[3]
+mutation = sys.argv[4]
+netlist = json.loads(source.read_text(encoding="utf-8"))
+top = netlist.get("modules", {}).get("SinglePortMemory")
+if top is None:
+    raise SystemExit("canonical JSON is missing SinglePortMemory")
+memories = [
+    cell for cell in top.get("cells", {}).values() if cell.get("type") == "$mem_v2"
+]
+if len(memories) != 1:
+    raise SystemExit("canonical JSON does not contain exactly one $mem_v2")
+connections = memories[0].get("connections", {})
+value = connections.get(connection)
+if not isinstance(value, list) or len(value) != 1:
+    raise SystemExit("canonical connection is not exactly one bit: " + repr(value))
+if mutation == "empty":
+    connections[connection] = []
+elif mutation == "widen-zero":
+    if value[0] not in ("0", 0):
+        raise SystemExit("canonical connection is not inactive: " + repr(value))
+    connections[connection] = [value[0], value[0]]
+else:
+    raise SystemExit("unknown connection-shape mutation: " + mutation)
+if connections[connection] == value:
+    raise SystemExit("JSON mutation did not change connection " + connection)
+destination.write_text(json.dumps(netlist, indent=2) + "\n", encoding="utf-8")
+PY
+
+  if cmp -s "$canonical_netlist" "$mutated_netlist"; then
+    echo "SinglePortMemory connection-shape mutation did not change the netlist: $label" >&2
+    exit 1
+  fi
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-single-port-memory-contract.py" \
+      "$mutated_netlist" --width 8 --depth 5; then
+    echo "SinglePortMemory checker accepted forbidden connection-shape mutation: $label" >&2
+    exit 1
+  fi
+  echo "Yosys SinglePortMemory checker rejected forbidden connection-shape mutation: $label"
+}
+
+yosys_single_port_memory_connection_shape_mutation_must_fail \
+  empty-read-enable RD_EN empty
+yosys_single_port_memory_connection_shape_mutation_must_fail \
+  empty-asynchronous-read-clock RD_CLK empty
+yosys_single_port_memory_connection_shape_mutation_must_fail \
+  widened-asynchronous-read-reset RD_ARST widen-zero
+yosys_single_port_memory_connection_shape_mutation_must_fail \
+  widened-synchronous-read-reset RD_SRST widen-zero
+
+yosys_single_port_memory_comparison_json_mutation_must_fail() {
+  local label="$1"
+  local mutation="$2"
+  local canonical_netlist="$tmp_dir/SinglePortMemory-default-process.json"
+  local mutated_netlist="$tmp_dir/SinglePortMemory-${label}-json-mutated.json"
+
+  python3 - "$canonical_netlist" "$mutated_netlist" "$mutation" <<'PY'
+import json
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1])
+destination = pathlib.Path(sys.argv[2])
+mutation = sys.argv[3]
+netlist = json.loads(source.read_text(encoding="utf-8"))
+top = netlist.get("modules", {}).get("SinglePortMemory")
+if top is None:
+    raise SystemExit("canonical JSON is missing SinglePortMemory")
+comparisons = [
+    cell for cell in top.get("cells", {}).values() if cell.get("type") == "$lt"
+]
+if len(comparisons) != 1:
+    raise SystemExit("canonical JSON does not contain exactly one $lt")
+comparison = comparisons[0]
+if mutation == "short-b":
+    value = comparison.get("connections", {}).get("B")
+    if not isinstance(value, list) or len(value) != 32:
+        raise SystemExit("canonical $lt.B is not exactly 32 bits: " + repr(value))
+    comparison["connections"]["B"] = value[:-1]
+elif mutation == "signed-b":
+    parameters = comparison.get("parameters", {})
+    value = parameters.get("B_SIGNED")
+    if isinstance(value, int):
+        if value != 0:
+            raise SystemExit("canonical B_SIGNED is not zero: " + repr(value))
+        parameters["B_SIGNED"] = 1
+    elif isinstance(value, str) and value and set(value) <= {"0", "1"}:
+        if int(value, 2) != 0:
+            raise SystemExit("canonical B_SIGNED is not zero: " + repr(value))
+        parameters["B_SIGNED"] = value[:-1] + "1"
+    else:
+        raise SystemExit("canonical B_SIGNED has unsupported encoding: " + repr(value))
+else:
+    raise SystemExit("unknown comparison mutation: " + mutation)
+destination.write_text(json.dumps(netlist, indent=2) + "\n", encoding="utf-8")
+PY
+
+  if cmp -s "$canonical_netlist" "$mutated_netlist"; then
+    echo "SinglePortMemory comparison mutation did not change the netlist: $label" >&2
+    exit 1
+  fi
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-single-port-memory-contract.py" \
+      "$mutated_netlist" --width 8 --depth 5; then
+    echo "SinglePortMemory checker accepted forbidden comparison mutation: $label" >&2
+    exit 1
+  fi
+  echo "Yosys SinglePortMemory checker rejected forbidden comparison mutation: $label"
+}
+
+yosys_single_port_memory_comparison_json_mutation_must_fail \
+  short-comparator-rhs short-b
+yosys_single_port_memory_comparison_json_mutation_must_fail \
+  signed-comparator-rhs signed-b
+
+yosys_single_port_memory_full_domain_json_mutation_must_fail() {
+  local label="$1"
+  local parameter="$2"
+  local canonical_netlist="$tmp_dir/SinglePortMemory-depth-two-process.json"
+  local mutated_netlist="$tmp_dir/SinglePortMemory-${label}-json-mutated.json"
+
+  python3 - "$canonical_netlist" "$mutated_netlist" "$parameter" <<'PY'
+import json
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1])
+destination = pathlib.Path(sys.argv[2])
+parameter = sys.argv[3]
+netlist = json.loads(source.read_text(encoding="utf-8"))
+top = netlist.get("modules", {}).get("SinglePortMemory")
+if top is None:
+    raise SystemExit("depth-two JSON is missing SinglePortMemory")
+memories = [
+    cell for cell in top.get("cells", {}).values() if cell.get("type") == "$mem_v2"
+]
+if len(memories) != 1:
+    raise SystemExit("depth-two JSON does not contain exactly one $mem_v2")
+parameters = memories[0].get("parameters", {})
+value = parameters.get(parameter)
+if isinstance(value, int):
+    if value != 1:
+        raise SystemExit("canonical parameter is not one: " + repr(value))
+    parameters[parameter] = 0
+elif isinstance(value, str) and value and set(value) <= {"0", "1"}:
+    if int(value, 2) != 1:
+        raise SystemExit("canonical parameter is not one: " + repr(value))
+    parameters[parameter] = "0" * len(value)
+else:
+    raise SystemExit("canonical parameter has unsupported encoding: " + repr(value))
+destination.write_text(json.dumps(netlist, indent=2) + "\n", encoding="utf-8")
+PY
+
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-single-port-memory-contract.py" \
+      "$mutated_netlist" --width 4 --depth 2; then
+    echo "SinglePortMemory checker accepted forbidden full-domain mutation: $label" >&2
+    exit 1
+  fi
+  echo "Yosys SinglePortMemory checker rejected forbidden full-domain mutation: $label"
+}
+
+yosys_single_port_memory_full_domain_json_mutation_must_fail \
+  asynchronous-full-domain-read RD_CLK_ENABLE
+yosys_single_port_memory_full_domain_json_mutation_must_fail \
+  falling-edge-full-domain-read RD_CLK_POLARITY
+
+yosys_single_port_memory_full_domain_reset_mutation_must_fail() {
+  local label="$1"
+  local connection="$2"
+  local canonical_netlist="$tmp_dir/SinglePortMemory-depth-two-process.json"
+  local mutated_netlist="$tmp_dir/SinglePortMemory-${label}-json-mutated.json"
+
+  python3 - "$canonical_netlist" "$mutated_netlist" "$connection" <<'PY'
+import json
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1])
+destination = pathlib.Path(sys.argv[2])
+connection = sys.argv[3]
+netlist = json.loads(source.read_text(encoding="utf-8"))
+top = netlist.get("modules", {}).get("SinglePortMemory")
+if top is None:
+    raise SystemExit("depth-two JSON is missing SinglePortMemory")
+memories = [
+    cell for cell in top.get("cells", {}).values() if cell.get("type") == "$mem_v2"
+]
+if len(memories) != 1:
+    raise SystemExit("depth-two JSON does not contain exactly one $mem_v2")
+connections = memories[0].get("connections", {})
+value = connections.get(connection)
+if not value or any(bit not in ("0", 0) for bit in value):
+    raise SystemExit("canonical connection is not permanently inactive: " + repr(value))
+clock = top.get("ports", {}).get("clk", {}).get("bits", [])
+if len(clock) != 1 or clock[0] in ("0", "1", "x", "z", 0, 1):
+    raise SystemExit("canonical clk port is not one signal bit: " + repr(clock))
+connections[connection] = list(clock)
+if connections[connection] == value:
+    raise SystemExit("JSON mutation did not activate connection " + connection)
+destination.write_text(json.dumps(netlist, indent=2) + "\n", encoding="utf-8")
+PY
+
+  if cmp -s "$canonical_netlist" "$mutated_netlist"; then
+    echo "SinglePortMemory full-domain reset mutation did not change the netlist: $label" >&2
+    exit 1
+  fi
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-single-port-memory-contract.py" \
+      "$mutated_netlist" --width 4 --depth 2; then
+    echo "SinglePortMemory checker accepted forbidden full-domain reset mutation: $label" >&2
+    exit 1
+  fi
+  echo "Yosys SinglePortMemory checker rejected forbidden full-domain reset mutation: $label"
+}
+
+yosys_single_port_memory_full_domain_reset_mutation_must_fail \
+  active-asynchronous-full-domain-read-reset RD_ARST
+yosys_single_port_memory_full_domain_reset_mutation_must_fail \
+  active-synchronous-full-domain-read-reset RD_SRST
 
 yosys_single_port_memory_mutation_must_fail() {
   local label="$1"
@@ -1720,5 +2034,22 @@ yosys_single_port_memory_mutation_must_fail \
   initialized-memory "/always @(posedge clk)/i\\  initial memory[0] = {WIDTH{1'b0}};"
 yosys_single_port_memory_mutation_must_fail \
   extra-memory-word 's/\[0:DEPTH-1\]/[0:DEPTH]/'
+
+fixed_address_file="$tmp_dir/single-port-memory-fixed-address.v"
+fixed_address_netlist="$tmp_dir/SinglePortMemory-fixed-address-mutated.json"
+sed 's/\[[^]]*-1:0\] address/[2:0] address/' \
+  "$yosys_single_port_memory_file" > "$fixed_address_file"
+if cmp -s "$yosys_single_port_memory_file" "$fixed_address_file"; then
+  echo "SinglePortMemory fixed-address mutation did not change the fixture" >&2
+  exit 1
+fi
+yosys -q -p \
+  "read_verilog -noautowire $fixed_address_file; chparam -set DEPTH 3 SinglePortMemory; hierarchy -check -top SinglePortMemory; proc; opt_reduce; opt_expr -mux_undef; memory_dff; memory_collect; opt_clean; check -assert; write_json $fixed_address_netlist"
+if python3 "$repo_root/morphhdl/scripts/check-yosys-single-port-memory-contract.py" \
+    "$fixed_address_netlist" --width 8 --depth 3; then
+  echo "SinglePortMemory checker accepted a fixed three-bit address bypass" >&2
+  exit 1
+fi
+echo "Yosys SinglePortMemory rejected fixed three-bit address derivation bypass"
 
 echo "Strict Verilog-2001 contract checks passed"
