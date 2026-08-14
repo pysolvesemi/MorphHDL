@@ -826,6 +826,161 @@ private[morphhdl] object ParamRtlFrontend {
   }
 
   /**
+    * Atomically emits one positive-edge simple dual-port memory with an
+    * independently enabled synchronous read port and write port. Same-address
+    * collisions are read-first: the read output captures the pre-edge element
+    * while the write stores the new element. Surplus reads return zero and
+    * surplus writes are suppressed. Read enable low holds the read output.
+    */
+  def emitSynchronousReadFirstSimpleDualPortMemory(
+      label: String,
+      memoryName: String,
+      clock: FrontendNode[RtlExpr],
+      readEnable: FrontendNode[RtlExpr],
+      writeEnable: FrontendNode[RtlExpr],
+      readAddress: FrontendNode[RtlExpr],
+      writeAddress: FrontendNode[RtlExpr],
+      writeData: FrontendNode[RtlExpr],
+      readData: FrontendNode[RtlExpr],
+      elementType: FrontendNode[PackedBits],
+      depth: HdlInt
+  )(implicit file: sourcecode.File, line: sourcecode.Line): Unit = {
+    val origin = SourceOrigin.capture
+    requirePortableIdentifier(
+      label,
+      "synchronous read-first simple dual-port memory label",
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-LABEL-INVALID",
+      origin
+    )
+    requirePortableIdentifier(
+      memoryName,
+      "synchronous read-first simple dual-port memory name",
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-NAME-INVALID",
+      origin
+    )
+    val clockRef = requireSynchronousReadFirstSimpleDualPortMemoryRef(
+      label,
+      "clock",
+      clock,
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-CLOCK-NULL",
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-CLOCK-NOT-REF",
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-CLOCK-INVALID",
+      origin
+    )
+    val readEnableRef = requireSynchronousReadFirstSimpleDualPortMemoryRef(
+      label,
+      "read-enable",
+      readEnable,
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-ENABLE-NULL",
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-ENABLE-NOT-REF",
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-ENABLE-INVALID",
+      origin
+    )
+    val writeEnableRef = requireSynchronousReadFirstSimpleDualPortMemoryRef(
+      label,
+      "write-enable",
+      writeEnable,
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-ENABLE-NULL",
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-ENABLE-NOT-REF",
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-ENABLE-INVALID",
+      origin
+    )
+    val readAddressRef = requireSynchronousReadFirstSimpleDualPortMemoryRef(
+      label,
+      "read-address",
+      readAddress,
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-ADDRESS-NULL",
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-ADDRESS-NOT-REF",
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-ADDRESS-INVALID",
+      origin
+    )
+    val writeAddressRef = requireSynchronousReadFirstSimpleDualPortMemoryRef(
+      label,
+      "write-address",
+      writeAddress,
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-ADDRESS-NULL",
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-ADDRESS-NOT-REF",
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-ADDRESS-INVALID",
+      origin
+    )
+    val writeDataRef = requireSynchronousReadFirstSimpleDualPortMemoryRef(
+      label,
+      "write-data",
+      writeData,
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-DATA-NULL",
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-DATA-NOT-REF",
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-DATA-INVALID",
+      origin
+    )
+    val readDataRef = requireSynchronousReadFirstSimpleDualPortMemoryRef(
+      label,
+      "read-data",
+      readData,
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-DATA-NULL",
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-DATA-NOT-REF",
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-DATA-INVALID",
+      origin
+    )
+    if (elementType eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-ELEMENT-TYPE-NULL",
+        s"synchronous read-first simple dual-port memory '$label' requires a non-null element type",
+        origin
+      )
+    }
+    elementType.requireUsable(
+      s"synchronous read-first simple dual-port memory '$label' element type"
+    )
+    if (depth eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-DEPTH-NULL",
+        s"synchronous read-first simple dual-port memory '$label' requires a non-null depth",
+        origin
+      )
+    }
+    depth.requireLoopInvariant(
+      s"synchronous read-first simple dual-port memory '$label' depth"
+    )
+
+    val refs = Vector(
+      clock,
+      readEnable,
+      writeEnable,
+      readAddress,
+      writeAddress,
+      writeData,
+      readData
+    )
+    FrontendSession.emitSynchronousReadFirstSimpleDualPortMemory(
+      FrontendNode(
+        ModuleItem.SynchronousReadFirstSimpleDualPortMemory(
+          label,
+          memoryName,
+          clockRef,
+          readEnableRef,
+          writeEnableRef,
+          readAddressRef,
+          writeAddressRef,
+          writeDataRef,
+          readDataRef,
+          elementType.raw,
+          depth.expression
+        ),
+        parameters = refs.flatMap(_.parameters).toSet ++ elementType.parameters ++
+          depth.parameters,
+        booleanParameters = refs.flatMap(_.booleanParameters).toSet ++
+          elementType.booleanParameters ++ depth.booleanParameters,
+        localParameters = refs.flatMap(_.localParameters).toSet ++
+          elementType.localParameters ++ depth.localParameters,
+        booleanLocalParameters = refs.flatMap(_.booleanLocalParameters).toSet ++
+          elementType.booleanLocalParameters ++ depth.booleanLocalParameters,
+        scopes = refs.flatMap(_.scopes).toSet ++ elementType.scopes ++ depth.scope.toSet,
+        origin = origin
+      )
+    )
+  }
+
+  /**
     * Atomically emits one positive-edge up-counter. Reset is active-high and
     * synchronous, has priority over enable, and clears count to zero. Enable
     * is active-high; when low the count holds. An enabled count equal to
@@ -1608,6 +1763,40 @@ private[morphhdl] object ParamRtlFrontend {
     requirePortableIdentifier(
       reference.name,
       s"synchronous read-first single-port memory $role",
+      invalidCode,
+      value.origin
+    )
+    reference
+  }
+
+  private def requireSynchronousReadFirstSimpleDualPortMemoryRef(
+      label: String,
+      role: String,
+      value: FrontendNode[RtlExpr],
+      nullCode: String,
+      notRefCode: String,
+      invalidCode: String,
+      origin: SourceOrigin
+  ): Ref = {
+    if (value eq null) {
+      FrontendException.failAt(
+        nullCode,
+        s"synchronous read-first simple dual-port memory '$label' requires a non-null $role reference",
+        origin
+      )
+    }
+    value.requireUsable(
+      s"synchronous read-first simple dual-port memory '$label' $role"
+    )
+    val reference = requireRef(
+      value,
+      s"synchronous read-first simple dual-port memory $role",
+      notRefCode,
+      origin
+    )
+    requirePortableIdentifier(
+      reference.name,
+      s"synchronous read-first simple dual-port memory $role",
       invalidCode,
       value.origin
     )

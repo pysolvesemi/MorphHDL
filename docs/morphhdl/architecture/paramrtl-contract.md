@@ -294,6 +294,34 @@ active-high synchronous reset clears count, otherwise active-high enable wraps
 sole module item and forbids sibling drivers, hierarchy, generates, memories
 or other processes. `LIMIT=1` is legal and retains one zero state bit.
 
+Increment 26 adds
+`ModuleItem.SynchronousReadFirstSimpleDualPortMemory(label, memoryName, clock,
+readEnable, writeEnable, readAddress, writeAddress, writeData, readData,
+elementType, depth)`. It represents one shared positive-edge clock, one
+synchronous read port and one whole-word write port with independent direct
+addresses and active-high enables. Both address ports must be unsigned and
+exactly type-equivalent, and each independently proves enough capacity for the
+same positive bounded depth across its complete legal domain. The public
+fixture selects `PackedBits(AddressWidth(depth), Unsigned)` for both addresses,
+but an independently sufficient fixed or symbolic width is also valid. Data
+ports exactly match the element type; the node is the sole owner of its read
+output and memory name.
+
+An enabled in-range read updates the output from the pre-write array value at
+the edge, while a disabled read holds and an enabled surplus read updates the
+output to zero. A valid write depends only on write enable and its own in-range
+address guard. Thus different-address read/write operations proceed together,
+and a same-address collision is deterministically read-first before the write
+commits. Surplus writes are inert and unwritten in-range values are unspecified.
+The node carries no reset, initialization, mask, independent clock, additional
+port or selectable collision policy.
+
+The planned Increment 27 FIFO must be a separate atomic ParamRTL node. Current
+sole-runtime-item and ownership rules intentionally prohibit constructing it
+as sibling counter and memory items. Its public depth must denote total
+externally observable FIFO capacity rather than an implementation-dependent
+count of RAM words or output staging registers.
+
 ## Required invariants
 
 - Every reference resolves within its lexical parameter, generate or module

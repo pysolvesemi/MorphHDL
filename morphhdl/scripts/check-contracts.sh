@@ -75,6 +75,7 @@ generated_contracts=(
   asynchronous_enabled_register.v
   single_port_memory.v
   parameterized_counter.v
+  simple_dual_port_memory.v
 )
 
 if (( using_reviewed_goldens == 0 )); then
@@ -122,6 +123,7 @@ synchronous_enabled_register_file="$generated_dir/synchronous_enabled_register.v
 asynchronous_enabled_register_file="$generated_dir/asynchronous_enabled_register.v"
 single_port_memory_file="$generated_dir/single_port_memory.v"
 parameterized_counter_file="$generated_dir/parameterized_counter.v"
+simple_dual_port_memory_file="$generated_dir/simple_dual_port_memory.v"
 
 parity_args=("$parity_file")
 for live_phase_id_file in "${live_phase_id_files[@]}"; do
@@ -148,6 +150,7 @@ design_files=(
   "$asynchronous_enabled_register_file"
   "$single_port_memory_file"
   "$parameterized_counter_file"
+  "$simple_dual_port_memory_file"
 )
 
 all_verilog_files=(
@@ -169,6 +172,7 @@ all_verilog_files=(
   "$examples_dir/asynchronous_enabled_register_tb.v"
   "$examples_dir/single_port_memory_tb.v"
   "$examples_dir/parameterized_counter_tb.v"
+  "$examples_dir/simple_dual_port_memory_tb.v"
 )
 
 read_property() {
@@ -258,6 +262,10 @@ require_property memory.reset false
 require_property memory.read_enable active-high-hold
 require_property memory.write_mask false
 require_property implementation.synchronous_read_first_single_port_memory true
+require_property memory.simple_dual_port single-clock-1r1w
+require_property memory.simple_dual_port_addresses independent-type-equivalent-capacity-proven
+require_property memory.simultaneous_read_write true
+require_property implementation.synchronous_read_first_simple_dual_port_memory true
 
 for file in "${all_verilog_files[@]}"; do
   if [[ ! -s "$file" ]]; then
@@ -367,6 +375,8 @@ expected_modules=(
   SinglePortMemoryTb
   ParameterizedCounter
   ParameterizedCounterTb
+  SimpleDualPortMemory
+  SimpleDualPortMemoryTb
 )
 
 for module_name in "${expected_modules[@]}"; do
@@ -395,7 +405,12 @@ helper = """  function integer morphhdl$ceil_log2;
     end
   endfunction"""
 
-expected_helpers = {"derived_width.v", "single_port_memory.v", "parameterized_counter.v"}
+expected_helpers = {
+    "derived_width.v",
+    "single_port_memory.v",
+    "parameterized_counter.v",
+    "simple_dual_port_memory.v",
+}
 for raw_path in sys.argv[1:]:
     path = pathlib.Path(raw_path)
     source = path.read_text(encoding="utf-8")
@@ -408,14 +423,17 @@ for raw_path in sys.argv[1:]:
         raise SystemExit("superseded logarithm threshold chain remains: {}".format(path))
 
 derived = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
-memory = pathlib.Path(sys.argv[-2]).read_text(encoding="utf-8")
-counter = pathlib.Path(sys.argv[-1]).read_text(encoding="utf-8")
+memory = pathlib.Path(sys.argv[-3]).read_text(encoding="utf-8")
+counter = pathlib.Path(sys.argv[-2]).read_text(encoding="utf-8")
+simple_dual_port_memory = pathlib.Path(sys.argv[-1]).read_text(encoding="utf-8")
 if derived.count("morphhdl$ceil_log2(LANES, 0)") != 1:
     raise SystemExit("DerivedWidth does not call mathematical ceiling-log2 exactly once")
 if memory.count("morphhdl$ceil_log2(DEPTH, 1)") != 1:
     raise SystemExit("SinglePortMemory does not call address width exactly once")
 if counter.count("morphhdl$ceil_log2(LIMIT, 1)") != 3:
     raise SystemExit("ParameterizedCounter does not use its derived width exactly three times")
+if simple_dual_port_memory.count("morphhdl$ceil_log2(DEPTH, 1)") != 2:
+    raise SystemExit("SimpleDualPortMemory does not derive both address widths exactly once")
 PY
 then
   echo "Constant-function logarithm lowering contract failed" >&2
@@ -727,6 +745,62 @@ then
   exit 1
 fi
 
+expected_read_address_port='  input  wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] read_address,'
+expected_write_address_port='  input  wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] write_address,'
+
+if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+DEPTH[[:space:]]*=[[:space:]]*5' "$simple_dual_port_memory_file" ||
+   ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:space:]]*8' "$simple_dual_port_memory_file" ||
+   ! grep -Fqx "$expected_read_address_port" "$simple_dual_port_memory_file" ||
+   ! grep -Fqx "$expected_write_address_port" "$simple_dual_port_memory_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+clk' "$simple_dual_port_memory_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+read_enable' "$simple_dual_port_memory_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+write_enable' "$simple_dual_port_memory_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[WIDTH-1:0\][[:space:]]+write_data' "$simple_dual_port_memory_file" ||
+   ! grep -Eq 'output[[:space:]]+reg[[:space:]]+\[WIDTH-1:0\][[:space:]]+read_data' "$simple_dual_port_memory_file" ||
+   ! grep -Eq 'reg[[:space:]]+\[WIDTH-1:0\][[:space:]]+memory[[:space:]]+\[0:DEPTH-1\][[:space:]]*;' "$simple_dual_port_memory_file" ||
+   ! grep -Eq 'always[[:space:]]+@\([[:space:]]*posedge[[:space:]]+clk[[:space:]]*\)[[:space:]]+begin[[:space:]]*:[[:space:]]*p_memory' "$simple_dual_port_memory_file" ||
+   ! grep -Eq 'if[[:space:]]*\([[:space:]]*read_address[[:space:]]*<[[:space:]]*DEPTH[[:space:]]*\)[[:space:]]*begin' "$simple_dual_port_memory_file" ||
+   ! grep -Eq 'if[[:space:]]*\([[:space:]]*write_address[[:space:]]*<[[:space:]]*DEPTH[[:space:]]*\)[[:space:]]*begin' "$simple_dual_port_memory_file" ||
+   [[ "$(grep -Ec "read_enable[[:space:]]*==[[:space:]]*1'b1" "$simple_dual_port_memory_file")" != "2" ]] ||
+   [[ "$(grep -Ec "write_enable[[:space:]]*==[[:space:]]*1'b1" "$simple_dual_port_memory_file")" != "1" ]] ||
+   ! grep -Eq 'read_data[[:space:]]*<=[[:space:]]*memory\[read_address\][[:space:]]*;' "$simple_dual_port_memory_file" ||
+   ! grep -Eq 'memory\[write_address\][[:space:]]*<=[[:space:]]*write_data[[:space:]]*;' "$simple_dual_port_memory_file" ||
+   ! grep -Eq "read_data[[:space:]]*<=[[:space:]]*\{WIDTH\{1'b0\}\}[[:space:]]*;" "$simple_dual_port_memory_file" ||
+   [[ "$(grep -Ec 'always[[:space:]]+@\(' "$simple_dual_port_memory_file")" != "1" ]] ||
+   [[ "$(grep -Ec 'memory\[write_address\][[:space:]]*<=' "$simple_dual_port_memory_file")" != "1" ]] ||
+   [[ "$(grep -Ec 'read_data[[:space:]]*<=' "$simple_dual_port_memory_file")" != "2" ]] ||
+   grep -Eq 'always_comb|always_ff|always_latch|always[[:space:]]+@\*|initial[[:space:]]+begin|read_data[[:space:]]*=[^=]|memory\[write_address\][[:space:]]*=[^=]' "$simple_dual_port_memory_file"; then
+  echo "SimpleDualPortMemory does not retain one independent-address 1R1W synchronous read-first memory" >&2
+  exit 1
+fi
+
+if ! python3 - "$simple_dual_port_memory_file" <<'PY'
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+canonical_process = """  always @(posedge clk) begin : p_memory
+    if (read_address < DEPTH) begin
+      if (read_enable == 1'b1) begin
+        read_data <= memory[read_address];
+      end
+    end else if (read_enable == 1'b1) begin
+      read_data <= {WIDTH{1'b0}};
+    end
+    if (write_address < DEPTH) begin
+      if (write_enable == 1'b1) begin
+        memory[write_address] <= write_data;
+      end
+    end
+  end"""
+if source.count(canonical_process) != 1:
+    raise SystemExit("missing exact independent-address read-first 1R1W process")
+PY
+then
+  echo "SimpleDualPortMemory process is not canonical" >&2
+  exit 1
+fi
+
 missing_tools=()
 for tool in iverilog verilator vvp yosys; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -769,6 +843,7 @@ cp "$synchronous_enabled_register_file" "$tmp_dir/synchronous_enabled_register.v
 cp "$asynchronous_enabled_register_file" "$tmp_dir/asynchronous_enabled_register.v"
 cp "$single_port_memory_file" "$tmp_dir/single_port_memory.v"
 cp "$parameterized_counter_file" "$tmp_dir/parameterized_counter.v"
+cp "$simple_dual_port_memory_file" "$tmp_dir/simple_dual_port_memory.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
 yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
@@ -786,6 +861,7 @@ yosys_synchronous_enabled_register_file="$tmp_dir/synchronous_enabled_register.v
 yosys_asynchronous_enabled_register_file="$tmp_dir/asynchronous_enabled_register.v"
 yosys_single_port_memory_file="$tmp_dir/single_port_memory.v"
 yosys_parameterized_counter_file="$tmp_dir/parameterized_counter.v"
+yosys_simple_dual_port_memory_file="$tmp_dir/simple_dual_port_memory.v"
 
 echo "Verilator: $(verilator --version)"
 echo "Icarus: $(iverilog -V 2>/dev/null | head -n 1)"
@@ -793,7 +869,8 @@ echo "Yosys: $(yosys -V)"
 
 for helper_case in \
   "$yosys_derived_width_file:DerivedWidth" \
-  "$yosys_single_port_memory_file:SinglePortMemory"
+  "$yosys_single_port_memory_file:SinglePortMemory" \
+  "$yosys_simple_dual_port_memory_file:SimpleDualPortMemory"
 do
   helper_file="${helper_case%%:*}"
   helper_top="${helper_case##*:}"
@@ -1126,6 +1203,40 @@ verilator --lint-only --language 1364-2001 -Wall \
   -GDEPTH=1 -GWIDTH=1 \
   "$single_port_memory_file"
 
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  -Wno-WIDTHEXPAND \
+  --top-module SimpleDualPortMemory \
+  "$simple_dual_port_memory_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  -Wno-WIDTHEXPAND \
+  --top-module SimpleDualPortMemory \
+  -GDEPTH=3 -GWIDTH=5 \
+  "$simple_dual_port_memory_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  -Wno-WIDTHEXPAND \
+  --top-module SimpleDualPortMemory \
+  -GDEPTH=1 -GWIDTH=1 \
+  "$simple_dual_port_memory_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  -Wno-WIDTHEXPAND \
+  --top-module SimpleDualPortMemory \
+  -GDEPTH=2 -GWIDTH=4 \
+  "$simple_dual_port_memory_file"
+
+verilator --lint-only --language 1364-2001 -Wall \
+  -Wno-DECLFILENAME \
+  -Wno-WIDTHEXPAND \
+  --top-module SimpleDualPortMemory \
+  -GDEPTH=8 -GWIDTH=4 \
+  "$simple_dual_port_memory_file"
+
 for counter_limit in 1 2 3 5 8; do
   verilator --lint-only --language 1364-2001 -Wall \
     -Wno-DECLFILENAME \
@@ -1320,6 +1431,17 @@ parameterized_counter_output="$(vvp "$tmp_dir/parameterized_counter.vvp")"
 echo "$parameterized_counter_output"
 if ! printf '%s\n' "$parameterized_counter_output" | grep -q 'PASS: ParameterizedCounter'; then
   echo "ParameterizedCounter simulation did not report PASS" >&2
+  exit 1
+fi
+
+iverilog -g2001 -Wall -s SimpleDualPortMemoryTb \
+  -o "$tmp_dir/simple_dual_port_memory.vvp" \
+  "$simple_dual_port_memory_file" \
+  "$examples_dir/simple_dual_port_memory_tb.v"
+simple_dual_port_memory_output="$(vvp "$tmp_dir/simple_dual_port_memory.vvp")"
+echo "$simple_dual_port_memory_output"
+if ! printf '%s\n' "$simple_dual_port_memory_output" | grep -q 'PASS: SimpleDualPortMemory'; then
+  echo "SimpleDualPortMemory simulation did not report PASS" >&2
   exit 1
 fi
 
@@ -2413,5 +2535,531 @@ if python3 "$repo_root/morphhdl/scripts/check-yosys-single-port-memory-contract.
   exit 1
 fi
 echo "Yosys SinglePortMemory rejected fixed three-bit address derivation bypass"
+
+yosys_simple_dual_port_memory_synthesize_and_check() {
+  local label="$1"
+  local expected_width="$2"
+  local expected_depth="$3"
+  local parameter_command="$4"
+  local expected_address_width=1
+  local address_capacity=2
+  local process_netlist="$tmp_dir/SimpleDualPortMemory-${label}-process.json"
+  local synthesized_netlist="$tmp_dir/SimpleDualPortMemory-${label}-synthesized.json"
+
+  while (( address_capacity < expected_depth )); do
+    expected_address_width=$((expected_address_width + 1))
+    address_capacity=$((address_capacity * 2))
+  done
+
+  yosys -q -p \
+    "read_verilog -noautowire $yosys_simple_dual_port_memory_file; $parameter_command hierarchy -check -top SimpleDualPortMemory; proc; opt_reduce; opt_expr -mux_undef; memory_dff; memory_collect; opt_clean; check -assert; write_json $process_netlist; synth -top SimpleDualPortMemory; check -assert; write_json $synthesized_netlist"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-simple-dual-port-memory-contract.py" \
+    "$process_netlist" --width "$expected_width" --depth "$expected_depth"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$synthesized_netlist" SimpleDualPortMemory \
+    --port "clk:input:1" \
+    --port "read_address:input:$expected_address_width" \
+    --port "read_data:output:$expected_width" \
+    --port "read_enable:input:1" \
+    --port "write_address:input:$expected_address_width" \
+    --port "write_data:input:$expected_width" \
+    --port "write_enable:input:1"
+}
+
+yosys_simple_dual_port_memory_synthesize_and_check \
+  default 8 5 ""
+yosys_simple_dual_port_memory_synthesize_and_check \
+  awkward 5 3 "chparam -set DEPTH 3 -set WIDTH 5 SimpleDualPortMemory;"
+yosys_simple_dual_port_memory_synthesize_and_check \
+  minimum 1 1 "chparam -set DEPTH 1 -set WIDTH 1 SimpleDualPortMemory;"
+yosys_simple_dual_port_memory_synthesize_and_check \
+  depth-two 4 2 "chparam -set DEPTH 2 -set WIDTH 4 SimpleDualPortMemory;"
+yosys_simple_dual_port_memory_synthesize_and_check \
+  power-eight 4 8 "chparam -set DEPTH 8 -set WIDTH 4 SimpleDualPortMemory;"
+
+yosys_simple_dual_port_memory_mutation_must_fail() {
+  local label="$1"
+  local original="$2"
+  local replacement="$3"
+  local expected_count="$4"
+  local mutated_file="$tmp_dir/simple-dual-port-memory-${label}.v"
+  local mutated_netlist="$tmp_dir/SimpleDualPortMemory-${label}-mutated.json"
+
+  python3 - "$yosys_simple_dual_port_memory_file" "$mutated_file" \
+      "$original" "$replacement" "$expected_count" <<'PY'
+import pathlib
+import sys
+
+source_path, target_path, original, replacement, expected_count = sys.argv[1:]
+source = pathlib.Path(source_path).read_text(encoding="utf-8")
+expected = int(expected_count)
+if source.count(original) != expected:
+    raise SystemExit(
+        "mutation source count for {!r} is {}, expected {}".format(
+            original, source.count(original), expected
+        )
+    )
+pathlib.Path(target_path).write_text(source.replace(original, replacement), encoding="utf-8")
+PY
+
+  if cmp -s "$yosys_simple_dual_port_memory_file" "$mutated_file"; then
+    echo "SimpleDualPortMemory mutation did not change the fixture: $label" >&2
+    exit 1
+  fi
+  if ! yosys -q -p \
+      "read_verilog -noautowire $mutated_file; hierarchy -check -top SimpleDualPortMemory; proc; opt_reduce; opt_expr -mux_undef; memory_dff; memory_collect; opt_clean; check -assert; write_json $mutated_netlist"; then
+    echo "Yosys rejected forbidden SimpleDualPortMemory mutation during synthesis: $label"
+    return
+  fi
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-simple-dual-port-memory-contract.py" \
+      "$mutated_netlist" --width 8 --depth 5; then
+    echo "SimpleDualPortMemory checker accepted forbidden mutation: $label" >&2
+    exit 1
+  fi
+  echo "Yosys SimpleDualPortMemory rejected forbidden mutation: $label"
+}
+
+yosys_simple_dual_port_memory_mutation_must_fail \
+  write-first-bypass \
+  'read_data <= memory[read_address];' \
+  "read_data <= write_enable == 1'b1 && write_address == read_address ? write_data : memory[read_address];" \
+  1
+yosys_simple_dual_port_memory_mutation_must_fail \
+  read-from-write-address \
+  'read_data <= memory[read_address];' \
+  'read_data <= memory[write_address];' \
+  1
+yosys_simple_dual_port_memory_mutation_must_fail \
+  write-to-read-address \
+  'memory[write_address] <= write_data;' \
+  'memory[read_address] <= write_data;' \
+  1
+yosys_simple_dual_port_memory_mutation_must_fail \
+  read-requires-write-enable \
+  "read_enable == 1'b1" \
+  "read_enable == 1'b1 && write_enable == 1'b1" \
+  2
+yosys_simple_dual_port_memory_mutation_must_fail \
+  write-requires-read-enable \
+  "write_enable == 1'b1" \
+  "read_enable == 1'b1 && write_enable == 1'b1" \
+  1
+yosys_simple_dual_port_memory_mutation_must_fail \
+  active-low-read-enable \
+  "read_enable == 1'b1" \
+  "read_enable == 1'b0" \
+  2
+yosys_simple_dual_port_memory_mutation_must_fail \
+  active-low-write-enable \
+  "write_enable == 1'b1" \
+  "write_enable == 1'b0" \
+  1
+yosys_simple_dual_port_memory_mutation_must_fail \
+  unconditional-read \
+  "read_enable == 1'b1" \
+  "1'b1 == 1'b1" \
+  2
+yosys_simple_dual_port_memory_mutation_must_fail \
+  unconditional-write \
+  "write_enable == 1'b1" \
+  "1'b1 == 1'b1" \
+  1
+yosys_simple_dual_port_memory_mutation_must_fail \
+  falling-edge-clock \
+  'posedge clk' \
+  'negedge clk' \
+  1
+yosys_simple_dual_port_memory_mutation_must_fail \
+  nonzero-surplus-read \
+  "read_data <= {WIDTH{1'b0}};" \
+  'read_data <= write_data;' \
+  1
+yosys_simple_dual_port_memory_mutation_must_fail \
+  inverted-read-guard \
+  'read_address < DEPTH' \
+  'read_address >= DEPTH' \
+  1
+yosys_simple_dual_port_memory_mutation_must_fail \
+  inverted-write-guard \
+  'write_address < DEPTH' \
+  'write_address >= DEPTH' \
+  1
+yosys_simple_dual_port_memory_mutation_must_fail \
+  off-by-one-read-guard \
+  'read_address < DEPTH' \
+  'read_address <= DEPTH' \
+  1
+yosys_simple_dual_port_memory_mutation_must_fail \
+  off-by-one-write-guard \
+  'write_address < DEPTH' \
+  'write_address <= DEPTH' \
+  1
+yosys_simple_dual_port_memory_mutation_must_fail \
+  signed-read-guard \
+  'read_address < DEPTH' \
+  '$signed(read_address) < DEPTH' \
+  1
+yosys_simple_dual_port_memory_mutation_must_fail \
+  signed-write-guard \
+  'write_address < DEPTH' \
+  '$signed(write_address) < DEPTH' \
+  1
+yosys_simple_dual_port_memory_mutation_must_fail \
+  initialized-memory \
+  '  always @(posedge clk) begin : p_memory' \
+  $'  initial memory[0] = {WIDTH{1\x27b0}};\n\n  always @(posedge clk) begin : p_memory' \
+  1
+yosys_simple_dual_port_memory_mutation_must_fail \
+  extra-memory-word \
+  '[0:DEPTH-1]' \
+  '[0:DEPTH]' \
+  1
+
+yosys_simple_dual_port_memory_json_mutation_must_fail() {
+  local label="$1"
+  local mutation="$2"
+  local canonical_netlist="$tmp_dir/SimpleDualPortMemory-default-process.json"
+  local mutated_netlist="$tmp_dir/SimpleDualPortMemory-${label}-json-mutated.json"
+
+  python3 - "$canonical_netlist" "$mutated_netlist" "$mutation" <<'PY'
+import json
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1])
+destination = pathlib.Path(sys.argv[2])
+mutation = sys.argv[3]
+netlist = json.loads(source.read_text(encoding="utf-8"))
+top = netlist.get("modules", {}).get("SimpleDualPortMemory")
+if top is None:
+    raise SystemExit("canonical JSON is missing SimpleDualPortMemory")
+ports = top.get("ports", {})
+memories = [
+    cell for cell in top.get("cells", {}).values() if cell.get("type") == "$mem_v2"
+]
+if len(memories) != 1:
+    raise SystemExit("canonical JSON does not contain exactly one $mem_v2")
+memory = memories[0]
+parameters = memory.get("parameters", {})
+connections = memory.get("connections", {})
+
+def set_nonzero_parameter(name):
+    if name not in parameters:
+        raise SystemExit("canonical memory is missing parameter " + name)
+    value = parameters[name]
+    if isinstance(value, int):
+        if value != 0:
+            raise SystemExit("canonical parameter is not zero: " + repr(value))
+        parameters[name] = 1
+    elif isinstance(value, str) and value and set(value) <= {"0", "1"}:
+        if int(value, 2) != 0:
+            raise SystemExit("canonical parameter is not zero: " + repr(value))
+        parameters[name] = value[:-1] + "1"
+    else:
+        raise SystemExit("unsupported zero parameter encoding: " + repr(value))
+
+def set_one_to_two_parameter(name):
+    if name not in parameters:
+        raise SystemExit("canonical memory is missing parameter " + name)
+    value = parameters[name]
+    if isinstance(value, int):
+        if value != 1:
+            raise SystemExit("canonical parameter is not one: " + repr(value))
+        parameters[name] = 2
+    elif isinstance(value, str) and value and set(value) <= {"0", "1"}:
+        if int(value, 2) != 1:
+            raise SystemExit("canonical parameter is not one: " + repr(value))
+        replacement = format(2, "0" + str(len(value)) + "b")
+        if len(replacement) != len(value):
+            raise SystemExit("canonical parameter is too narrow for two: " + repr(value))
+        parameters[name] = replacement
+    else:
+        raise SystemExit("unsupported one parameter encoding: " + repr(value))
+
+def comparison_for(port_name):
+    bits = ports.get(port_name, {}).get("bits", [])
+    matches = [
+        cell
+        for cell in top.get("cells", {}).values()
+        if cell.get("type") == "$lt"
+        and cell.get("connections", {}).get("A") == bits
+    ]
+    if len(matches) != 1:
+        raise SystemExit("canonical JSON lacks one comparator for " + port_name)
+    return matches[0]
+
+if mutation.startswith("parameter:"):
+    set_nonzero_parameter(mutation.split(":", 1)[1])
+elif mutation.startswith("port-count:"):
+    set_one_to_two_parameter(mutation.split(":", 1)[1])
+elif mutation == "empty-init":
+    parameters["INIT"] = ""
+elif mutation == "truncated-init":
+    value = parameters.get("INIT")
+    if not isinstance(value, str) or not value:
+        raise SystemExit("canonical INIT is missing")
+    parameters["INIT"] = value[:-1]
+elif mutation == "initialized-memory":
+    value = parameters.get("INIT")
+    if not isinstance(value, str) or not value:
+        raise SystemExit("canonical INIT is missing")
+    parameters["INIT"] = "0" + value[1:]
+elif mutation == "collapse-read-address":
+    connections["RD_ADDR"] = list(connections["WR_ADDR"])
+elif mutation == "collapse-write-address":
+    connections["WR_ADDR"] = list(connections["RD_ADDR"])
+elif mutation == "swap-addresses":
+    connections["RD_ADDR"], connections["WR_ADDR"] = (
+        list(connections["WR_ADDR"]),
+        list(connections["RD_ADDR"]),
+    )
+elif mutation == "write-enable-from-read":
+    read_enable = ports.get("read_enable", {}).get("bits", [])
+    if len(read_enable) != 1:
+        raise SystemExit("canonical read_enable is not one bit")
+    connections["WR_EN"] = read_enable * 8
+elif mutation == "partial-write-enable":
+    write_enable = connections.get("WR_EN", [])
+    if len(write_enable) != 8 or len(set(write_enable)) != 1:
+        raise SystemExit("canonical WR_EN is not one replicated whole-word enable")
+    connections["WR_EN"] = ["0"] + list(write_enable[1:])
+elif mutation == "empty-read-enable":
+    connections["RD_EN"] = []
+elif mutation == "active-read-reset":
+    connections["RD_ARST"] = list(ports.get("clk", {}).get("bits", []))
+elif mutation in {
+    "short-read-comparator",
+    "short-write-comparator",
+    "signed-read-comparator",
+    "signed-write-comparator",
+}:
+    role = "read_address" if "read" in mutation else "write_address"
+    comparison = comparison_for(role)
+    if mutation.startswith("short-"):
+        value = comparison.get("connections", {}).get("B", [])
+        if len(value) != 32:
+            raise SystemExit("canonical comparator B is not 32 bits")
+        comparison["connections"]["B"] = value[:-1]
+    else:
+        value = comparison.get("parameters", {}).get("B_SIGNED")
+        if isinstance(value, int):
+            if value != 0:
+                raise SystemExit("canonical comparator B_SIGNED is not zero")
+            comparison["parameters"]["B_SIGNED"] = 1
+        elif isinstance(value, str) and value and set(value) <= {"0", "1"}:
+            if int(value, 2) != 0:
+                raise SystemExit("canonical comparator B_SIGNED is not zero")
+            comparison["parameters"]["B_SIGNED"] = value[:-1] + "1"
+        else:
+            raise SystemExit("unsupported B_SIGNED encoding: " + repr(value))
+else:
+    raise SystemExit("unknown JSON mutation: " + mutation)
+
+destination.write_text(json.dumps(netlist, indent=2) + "\n", encoding="utf-8")
+PY
+
+  if cmp -s "$canonical_netlist" "$mutated_netlist"; then
+    echo "SimpleDualPortMemory JSON mutation did not change the netlist: $label" >&2
+    exit 1
+  fi
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-simple-dual-port-memory-contract.py" \
+      "$mutated_netlist" --width 8 --depth 5; then
+    echo "SimpleDualPortMemory checker accepted forbidden JSON mutation: $label" >&2
+    exit 1
+  fi
+  echo "Yosys SimpleDualPortMemory checker rejected forbidden JSON mutation: $label"
+}
+
+yosys_simple_dual_port_memory_json_mutation_must_fail \
+  transparent-read parameter:RD_TRANSPARENCY_MASK
+yosys_simple_dual_port_memory_json_mutation_must_fail \
+  collision-x-read parameter:RD_COLLISION_X_MASK
+yosys_simple_dual_port_memory_json_mutation_must_fail \
+  write-port-priority parameter:WR_PRIORITY_MASK
+yosys_simple_dual_port_memory_json_mutation_must_fail \
+  synchronous-raw-read parameter:RD_CLK_ENABLE
+yosys_simple_dual_port_memory_json_mutation_must_fail \
+  wide-read-continuation parameter:RD_WIDE_CONTINUATION
+yosys_simple_dual_port_memory_json_mutation_must_fail \
+  wide-write-continuation parameter:WR_WIDE_CONTINUATION
+yosys_simple_dual_port_memory_json_mutation_must_fail \
+  extra-read-port port-count:RD_PORTS
+yosys_simple_dual_port_memory_json_mutation_must_fail \
+  extra-write-port port-count:WR_PORTS
+yosys_simple_dual_port_memory_json_mutation_must_fail empty-init empty-init
+yosys_simple_dual_port_memory_json_mutation_must_fail truncated-init truncated-init
+yosys_simple_dual_port_memory_json_mutation_must_fail initialized-json initialized-memory
+yosys_simple_dual_port_memory_json_mutation_must_fail \
+  collapsed-read-address collapse-read-address
+yosys_simple_dual_port_memory_json_mutation_must_fail \
+  collapsed-write-address collapse-write-address
+yosys_simple_dual_port_memory_json_mutation_must_fail swapped-addresses swap-addresses
+yosys_simple_dual_port_memory_json_mutation_must_fail \
+  write-enable-contaminated write-enable-from-read
+yosys_simple_dual_port_memory_json_mutation_must_fail \
+  partial-write-enable partial-write-enable
+yosys_simple_dual_port_memory_json_mutation_must_fail empty-read-enable empty-read-enable
+yosys_simple_dual_port_memory_json_mutation_must_fail active-read-reset active-read-reset
+yosys_simple_dual_port_memory_json_mutation_must_fail \
+  short-read-comparator short-read-comparator
+yosys_simple_dual_port_memory_json_mutation_must_fail \
+  short-write-comparator short-write-comparator
+yosys_simple_dual_port_memory_json_mutation_must_fail \
+  signed-read-comparator signed-read-comparator
+yosys_simple_dual_port_memory_json_mutation_must_fail \
+  signed-write-comparator signed-write-comparator
+
+yosys_simple_dual_port_memory_full_domain_json_mutation_must_fail() {
+  local label="$1"
+  local mutation="$2"
+  local canonical_netlist="$tmp_dir/SimpleDualPortMemory-power-eight-process.json"
+  local mutated_netlist="$tmp_dir/SimpleDualPortMemory-full-domain-${label}-json-mutated.json"
+
+  python3 - "$canonical_netlist" "$mutated_netlist" "$mutation" <<'PY'
+import json
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1])
+destination = pathlib.Path(sys.argv[2])
+mutation = sys.argv[3]
+netlist = json.loads(source.read_text(encoding="utf-8"))
+top = netlist.get("modules", {}).get("SimpleDualPortMemory")
+if top is None:
+    raise SystemExit("full-domain canonical JSON is missing SimpleDualPortMemory")
+ports = top.get("ports", {})
+cells = top.get("cells", {})
+memories = [cell for cell in cells.values() if cell.get("type") == "$mem_v2"]
+if len(memories) != 1:
+    raise SystemExit("full-domain canonical JSON does not contain exactly one $mem_v2")
+memory = memories[0]
+parameters = memory.get("parameters", {})
+connections = memory.get("connections", {})
+
+def integer(value):
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value and set(value) <= {"0", "1"}:
+        return int(value, 2)
+    raise SystemExit("unsupported integer parameter encoding: " + repr(value))
+
+def set_one_to_zero(container, name):
+    if name not in container:
+        raise SystemExit("canonical cell is missing parameter " + name)
+    value = container[name]
+    if integer(value) != 1:
+        raise SystemExit("canonical parameter is not one: " + name + "=" + repr(value))
+    if isinstance(value, int):
+        container[name] = 0
+    else:
+        container[name] = "0" * len(value)
+
+def sole_output_register():
+    read_data = ports.get("read_data", {}).get("bits", [])
+    matches = [
+        cell
+        for cell in cells.values()
+        if "dff" in cell.get("type", "").lower()
+        and cell.get("connections", {}).get("Q") == read_data
+    ]
+    if len(matches) != 1:
+        raise SystemExit("external full-domain form lacks one read-output register")
+    return matches[0]
+
+clock = ports.get("clk", {}).get("bits", [])
+read_enable = ports.get("read_enable", {}).get("bits", [])
+write_enable = ports.get("write_enable", {}).get("bits", [])
+if len(clock) != 1 or len(read_enable) != 1 or len(write_enable) != 1:
+    raise SystemExit("full-domain canonical control ports are not one bit")
+absorbed = integer(parameters.get("RD_CLK_ENABLE")) == 1
+
+if mutation == "active-asynchronous-read-reset":
+    connections["RD_ARST"] = list(clock)
+elif mutation == "active-synchronous-read-reset":
+    connections["RD_SRST"] = list(clock)
+elif mutation == "contaminated-read-enable":
+    if absorbed:
+        connections["RD_EN"] = list(write_enable)
+    else:
+        raw_read_data = connections.get("RD_DATA", [])
+        matches = [
+            cell
+            for cell in cells.values()
+            if cell.get("type") == "$mux"
+            and cell.get("connections", {}).get("B") == raw_read_data
+            and cell.get("connections", {}).get("S") == read_enable
+        ]
+        if len(matches) != 1:
+            raise SystemExit("external full-domain form lacks one read-enable hold mux")
+        matches[0]["connections"]["S"] = list(write_enable)
+elif mutation == "contaminated-read-clock":
+    if absorbed:
+        connections["RD_CLK"] = list(write_enable)
+    else:
+        sole_output_register()["connections"]["CLK"] = list(write_enable)
+elif mutation == "falling-read-clock":
+    if absorbed:
+        set_one_to_zero(parameters, "RD_CLK_POLARITY")
+    else:
+        set_one_to_zero(sole_output_register().get("parameters", {}), "CLK_POLARITY")
+else:
+    raise SystemExit("unknown full-domain JSON mutation: " + mutation)
+
+destination.write_text(json.dumps(netlist, indent=2) + "\n", encoding="utf-8")
+PY
+
+  if cmp -s "$canonical_netlist" "$mutated_netlist"; then
+    echo "SimpleDualPortMemory full-domain JSON mutation did not change the netlist: $label" >&2
+    exit 1
+  fi
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-simple-dual-port-memory-contract.py" \
+      "$mutated_netlist" --width 4 --depth 8; then
+    echo "SimpleDualPortMemory checker accepted forbidden full-domain JSON mutation: $label" >&2
+    exit 1
+  fi
+  echo "Yosys SimpleDualPortMemory checker rejected forbidden full-domain JSON mutation: $label"
+}
+
+yosys_simple_dual_port_memory_full_domain_json_mutation_must_fail \
+  active-asynchronous-read-reset active-asynchronous-read-reset
+yosys_simple_dual_port_memory_full_domain_json_mutation_must_fail \
+  active-synchronous-read-reset active-synchronous-read-reset
+yosys_simple_dual_port_memory_full_domain_json_mutation_must_fail \
+  contaminated-read-enable contaminated-read-enable
+yosys_simple_dual_port_memory_full_domain_json_mutation_must_fail \
+  contaminated-read-clock contaminated-read-clock
+yosys_simple_dual_port_memory_full_domain_json_mutation_must_fail \
+  falling-read-clock falling-read-clock
+
+simple_dual_port_memory_fixed_address_mutation_must_fail() {
+  local role="$1"
+  local mutated_file="$tmp_dir/simple-dual-port-memory-fixed-${role}.v"
+  local mutated_netlist="$tmp_dir/SimpleDualPortMemory-fixed-${role}.json"
+  local original="[(morphhdl\$ceil_log2(DEPTH, 1))-1:0] ${role}_address"
+  local replacement="[2:0] ${role}_address"
+
+  python3 - "$yosys_simple_dual_port_memory_file" "$mutated_file" \
+      "$original" "$replacement" <<'PY'
+import pathlib
+import sys
+
+source_path, target_path, original, replacement = sys.argv[1:]
+source = pathlib.Path(source_path).read_text(encoding="utf-8")
+if source.count(original) != 1:
+    raise SystemExit("fixed-address mutation source is not unique: " + original)
+pathlib.Path(target_path).write_text(source.replace(original, replacement), encoding="utf-8")
+PY
+  yosys -q -p \
+    "read_verilog -noautowire $mutated_file; chparam -set DEPTH 3 SimpleDualPortMemory; hierarchy -check -top SimpleDualPortMemory; proc; opt_reduce; opt_expr -mux_undef; memory_dff; memory_collect; opt_clean; check -assert; write_json $mutated_netlist"
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-simple-dual-port-memory-contract.py" \
+      "$mutated_netlist" --width 8 --depth 3; then
+    echo "SimpleDualPortMemory checker accepted fixed ${role}-address width" >&2
+    exit 1
+  fi
+  echo "Yosys SimpleDualPortMemory rejected fixed ${role}-address width"
+}
+
+simple_dual_port_memory_fixed_address_mutation_must_fail read
+simple_dual_port_memory_fixed_address_mutation_must_fail write
 
 echo "Strict Verilog-2001 contract checks passed"

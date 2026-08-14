@@ -178,6 +178,19 @@ object ModuleItem {
       count: RtlExpr.Ref,
       limit: IntExpr
   ) extends ModuleItem
+  final case class SynchronousReadFirstSimpleDualPortMemory(
+      label: String,
+      memoryName: String,
+      clock: RtlExpr.Ref,
+      readEnable: RtlExpr.Ref,
+      writeEnable: RtlExpr.Ref,
+      readAddress: RtlExpr.Ref,
+      writeAddress: RtlExpr.Ref,
+      writeData: RtlExpr.Ref,
+      readData: RtlExpr.Ref,
+      elementType: PackedBits,
+      depth: IntExpr
+  ) extends ModuleItem
 }
 
 final case class ModuleDef(

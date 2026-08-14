@@ -43,6 +43,7 @@ import morphhdl.paramrtl.ModuleItem.{
   ModuleInstance,
   SynchronousCounter,
   SynchronousEnabledRegister,
+  SynchronousReadFirstSimpleDualPortMemory,
   SynchronousReadFirstSinglePortMemory,
   SynchronousRegister
 }
@@ -94,6 +95,8 @@ object Verilog2001Emitter {
       module.items.collect { case process: AsynchronousEnabledRegister => process }.sortBy(_.label)
     val synchronousReadFirstSinglePortMemories =
       module.items.collect { case memory: SynchronousReadFirstSinglePortMemory => memory }.sortBy(_.label)
+    val synchronousReadFirstSimpleDualPortMemories =
+      module.items.collect { case memory: SynchronousReadFirstSimpleDualPortMemory => memory }.sortBy(_.label)
     val synchronousCounters =
       module.items.collect { case counter: SynchronousCounter => counter }.sortBy(_.label)
     val proceduralOutputs = (
@@ -104,6 +107,7 @@ object Verilog2001Emitter {
         synchronousEnabledRegisters.map(_.assignment.target.name) ++
         asynchronousEnabledRegisters.map(_.assignment.target.name) ++
         synchronousReadFirstSinglePortMemories.map(_.readData.name) ++
+        synchronousReadFirstSimpleDualPortMemories.map(_.readData.name) ++
         synchronousCounters.map(_.count.name)
     ).toSet
     val assignments = module.items.collect { case assignment: ContinuousAssign => assignment }.sortBy { assignment =>
@@ -155,6 +159,18 @@ object Verilog2001Emitter {
     if (synchronousReadFirstSinglePortMemories.nonEmpty) {
       lines += ""
       synchronousReadFirstSinglePortMemories.foreach { memory =>
+        val signedness = memory.elementType.signedness match {
+          case Unsigned => ""
+          case Signed   => "signed "
+        }
+        lines +=
+          s"  reg $signedness${renderPackedRange(memory.elementType.width)}${memory.memoryName} ${renderMemoryRange(memory.depth)};"
+      }
+    }
+
+    if (synchronousReadFirstSimpleDualPortMemories.nonEmpty) {
+      lines += ""
+      synchronousReadFirstSimpleDualPortMemories.foreach { memory =>
         val signedness = memory.elementType.signedness match {
           case Unsigned => ""
           case Signed   => "signed "
@@ -237,6 +253,25 @@ object Verilog2001Emitter {
       lines += "      end"
       lines += s"    end else if (${memory.readEnable.name} == 1'b1) begin"
       lines += s"      ${memory.readData.name} <= {$zeroWidth{1'b0}};"
+      lines += "    end"
+      lines += "  end"
+    }
+
+    synchronousReadFirstSimpleDualPortMemories.foreach { memory =>
+      val zeroWidth = renderReplicationWidth(memory.elementType.width)
+      lines += ""
+      lines += s"  always @(posedge ${memory.clock.name}) begin : ${memory.label}"
+      lines += s"    if (${memory.readAddress.name} < ${renderComparisonOperand(memory.depth)}) begin"
+      lines += s"      if (${memory.readEnable.name} == 1'b1) begin"
+      lines += s"        ${memory.readData.name} <= ${memory.memoryName}[${memory.readAddress.name}];"
+      lines += "      end"
+      lines += s"    end else if (${memory.readEnable.name} == 1'b1) begin"
+      lines += s"      ${memory.readData.name} <= {$zeroWidth{1'b0}};"
+      lines += "    end"
+      lines += s"    if (${memory.writeAddress.name} < ${renderComparisonOperand(memory.depth)}) begin"
+      lines += s"      if (${memory.writeEnable.name} == 1'b1) begin"
+      lines += s"        ${memory.memoryName}[${memory.writeAddress.name}] <= ${memory.writeData.name};"
+      lines += "      end"
       lines += "    end"
       lines += "  end"
     }

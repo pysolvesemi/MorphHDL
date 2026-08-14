@@ -30,6 +30,7 @@ be accepted without enabling a SystemVerilog parser.
 | Asynchronous enabled register (implemented) | Named `always @(posedge clock or posedge reset)` block with immediate reset-priority active-high asynchronous reset-to-zero, active-high capture, implicit disabled hold and nonblocking assignments |
 | Parameterized synchronous counter (implemented) | Named `always @(posedge clock)` block with active-high synchronous reset-to-zero, active-high enable/hold, `count == LIMIT - 1` wrap and nonblocking increment; count width is portable address width of `LIMIT` |
 | Synchronous read-first single-port memory (implemented) | `reg [WIDTH-1:0] memory [0:DEPTH-1]` plus one guarded named positive-edge process with nonblocking read and optional whole-word write assignments |
+| Synchronous read-first simple-dual-port memory (implemented) | One `reg [WIDTH-1:0] memory [0:DEPTH-1]` and one named positive-edge process with independent guarded read/write addresses, nonblocking state updates and deterministic read-first same-address collisions |
 | Portable address width (implemented) | The same module-local `morphhdl$ceil_log2(value, minimum_result)` constant function called with minimum one |
 | Logical record/vector port | Deterministically flattened scalar/packed ports |
 | Enum intent | Packed vector plus named local parameters |
@@ -184,6 +185,29 @@ therefore holds state. Capability validation requires a direct positive public
 limit in the signed-32 target domain and exact `AddressWidth(limit)` output
 before emission. The helper remains elaboration-time logic; only the intended
 runtime comparator, incrementer, mux and register are synthesized.
+
+Increment 26 legalizes one bounded
+`SynchronousReadFirstSimpleDualPortMemory`. The process-owned read output emits
+as `output reg`; both packed unsigned address ports have one exactly equivalent
+type and index one unpacked array. The public fixture derives both widths with
+`morphhdl$ceil_log2(DEPTH, 1)`, while the general node may use any mutually
+type-equivalent widths whose complete domains independently cover `DEPTH`. One
+named `always @(posedge clock)` process contains sibling read and write paths.
+The read path tests its own `readAddress < DEPTH` guard, schedules an in-range
+array value only when read enable is high, and otherwise schedules a width-wide
+zero only for an enabled surplus read. Omitting a disabled-read assignment
+retains output state. The write path separately tests
+`writeAddress < DEPTH` and schedules one whole-word write only when write
+enable is high. Nonblocking assignments guarantee that simultaneous
+same-address operation observes the pre-write value before committing the
+write; no bypass mux is emitted.
+
+Capability and ParamRTL validation require independently capacity-safe
+addresses, distinct direct controls/data roles, one shared clock and sole
+memory/output ownership before spelling. No `initial` or reset logic is
+emitted, so unwritten in-range values remain unspecified. Independent clocks,
+asynchronous reads, masks, byte enables, additional ports and selectable
+read-during-write modes remain forbidden.
 
 ## Flat ABI
 

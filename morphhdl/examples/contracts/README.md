@@ -72,6 +72,13 @@ These files are executable output contracts for the parameterized backend.
   terminal `LIMIT - 1` comparison. One positive-edge process gives active-high
   synchronous reset priority, active-high enabled increment, disabled hold and
   terminal wrap to zero. The concrete witness reuses `spinal.lib.Counter`.
+- `simple_dual_port_memory.v` is owned by Increment 26. One shared positive-edge
+  clock serves independent `addressWidth(DEPTH)` read and write addresses and
+  independent active-high enables. Enabled reads are synchronous, disabled
+  reads hold and surplus reads return zero; surplus writes are ignored.
+  Simultaneous valid reads and writes both proceed, with deterministic
+  read-first behavior when their addresses match. The concrete witness combines
+  SpinalHDL `Mem.readSync(..., readUnderWrite = readFirst)` and `Mem.write`.
 - Increment 8 routes the first four artifacts through one production fixture
   source and `MorphVerilog`; Increments 9 and 10 extend that same path to all
   six. Increment 11 extends it to all seven, Increment 12 to all eight, and
@@ -83,9 +90,10 @@ These files are executable output contracts for the parameterized backend.
   `derived_width.v` without changing that inventory, and Increment 24 upgrades
   both `derived_width.v` and `single_port_memory.v` with the shared
   constant-function lowering. Increment 25 extends the path to seventeen
-  files with `parameterized_counter.v`. CI
+  files with `parameterized_counter.v`, and Increment 26 extends it to eighteen
+  with `simple_dual_port_memory.v`. CI
   performs a normal and reverse-construction run, requires an exact
-  seventeen-file inventory, checks
+  eighteen-file inventory, checks
   byte identity with these goldens, and gives that unmodified directory to the
   external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
@@ -168,6 +176,18 @@ These files are executable output contracts for the parameterized backend.
   increment/terminal-wrap path, and rejects off-by-one terminal, decrement,
   active-low enable, reversed-priority, falling-edge and nonzero-reset
   mutations.
+  `SimpleDualPortMemoryTb` covers default 8x5, awkward 5x3, minimum 1x1 and a
+  full-domain 4x8 shape with two independent depth-derived addresses.
+  It proves one-cycle read timing, disabled hold, valid and surplus accesses,
+  writes during disabled or surplus reads, disabled and surplus writes,
+  different-address simultaneous operation, read-first same-address collision
+  and later write visibility. Yosys proves one exact `1R1W` memory, distinct
+  direct read/write addresses, separate unsigned range guards, independent
+  active-high enables, positive-edge read state, whole-word writes, all-X
+  initial contents and read-first metadata. Source and JSON mutations reject
+  address collapse or swap, cross-gated controls, write-first bypass,
+  unconditional writes, guard/edge/initialization/reset drift, fixed address
+  widths and extra memory ports.
 
 Run:
 
