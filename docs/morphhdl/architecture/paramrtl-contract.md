@@ -19,7 +19,8 @@ algebra contains:
 - generate-index references;
 - arithmetic, comparison and Boolean operations;
 - conditional selection;
-- `clog2`, minimum and maximum semantic operations;
+- positive `AddressWidth` with a minimum one-bit result;
+- reserved general-purpose `clog2`, minimum and maximum semantic operations;
 - explicit signedness and arbitrary-precision constants;
 - constraints over parameter expressions.
 
@@ -38,6 +39,16 @@ order with lexical tie-breaking. Target capability passes then prove that every
 expression subtree can be represented by that target; for the Verilog-2001
 backend, both kinds currently use the signed 32-bit `integer` domain after
 Boolean legalization.
+
+Increment 21 implements `IntExpr.AddressWidth(value)`. Its mathematical result
+is `max(1, ceil(log2(value)))`; target-independent ParamRTL validation requires
+every possible operand to be positive. A target capability separately proves
+its representable ceiling; Verilog-2001 requires a signed 32-bit operand.
+Analysis preserves exact defaults and maps an interval monotonically through
+the same function. Equivalence and substitution retain the node, including
+public, local and parent-bound contexts. Memory validation recognizes an
+address width derived from that same depth expression, so exact correlation
+proves capacity without replacing the width by an unrelated interval minimum.
 
 A parameter expression is not an RTL value. If a design needs a parameter as
 runtime data, an explicit conversion node creates an RTL constant of a declared
@@ -233,6 +244,14 @@ writes one complete element; a surplus address reads zero and cannot write.
 The node is the sole module item and sole owner of its read output and memory
 name. It carries no reset, initialization, read enable, write mask, additional
 port, selectable collision policy or external clock-domain provenance.
+
+Increment 21 does not change the memory node or its runtime policy. It changes
+the public memory address type to
+`PackedBits(IntExpr.AddressWidth(depth), Unsigned)`, making the static packed
+ABI track each legal depth while keeping at least one address bit for
+`DEPTH=1`. Exact expression correlation proves the address capacity; fixed or
+unrelated widths remain subject to the conservative whole-domain capacity
+check.
 
 ## Required invariants
 

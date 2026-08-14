@@ -3,6 +3,7 @@ package morphhdl.paramrtl
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
 import morphhdl.paramrtl.IntExpr.{
   Add,
+  AddressWidth,
   Divide,
   Literal,
   LocalParameterRef,
@@ -46,6 +47,8 @@ object IntExpressionFailure {
   final case class UnresolvedLocalParameter(name: String) extends IntExpressionFailure
   final case class UnresolvedGenerateIndex(name: String) extends IntExpressionFailure
   final case class DivisorMayBeZero(operator: String, interval: IntInterval) extends IntExpressionFailure
+  final case class AddressWidthOperandNotProvenPositive(interval: IntInterval)
+      extends IntExpressionFailure
 }
 
 private[morphhdl] object IntExpressionAnalysis {
@@ -92,205 +95,356 @@ private[morphhdl] object IntExpressionAnalysis {
       booleanParameters: Map[String, BooleanParameter],
       generateIndices: Map[String, IntExprFacts],
       booleanLocalParameters: Map[String, Boolean]
-  ): Either[IntExpressionFailure, IntExprFacts] = expression match {
-    case Literal(value) => Right(IntExprFacts(value, IntInterval.point(value)))
-    case ParameterRef(name) =>
-      parameters.get(name) match {
-        case Some(facts) => Right(facts)
-        case None        => Left(UnresolvedParameter(name))
-      }
-    case LocalParameterRef(name) =>
-      localParameters.get(name) match {
-        case Some(facts) => Right(facts)
-        case None        => Left(UnresolvedLocalParameter(name))
-      }
-    case GenerateIndexRef(name) =>
-      generateIndices.get(name) match {
-        case Some(facts) => Right(facts)
-        case None        => Left(UnresolvedGenerateIndex(name))
-      }
-    case Negate(value) =>
-      analyze(value, parameters, localParameters, booleanParameters, generateIndices, booleanLocalParameters).map { facts =>
-        IntExprFacts(
-          -facts.defaultValue,
-          IntInterval(facts.interval.upper.map(-_), facts.interval.lower.map(-_))
-        )
-      }
-    case Add(left, right) =>
-      analyzeBinary(left, right, parameters, localParameters, booleanParameters, generateIndices, booleanLocalParameters) {
-        (leftFacts, rightFacts) =>
-        IntExprFacts(
-          leftFacts.defaultValue + rightFacts.defaultValue,
-          IntInterval(
-            combine(leftFacts.interval.lower, rightFacts.interval.lower)(_ + _),
-            combine(leftFacts.interval.upper, rightFacts.interval.upper)(_ + _)
-          )
-        )
-      }
-    case Subtract(left, right) =>
-      analyzeBinary(left, right, parameters, localParameters, booleanParameters, generateIndices, booleanLocalParameters) {
-        (leftFacts, rightFacts) =>
-        IntExprFacts(
-          leftFacts.defaultValue - rightFacts.defaultValue,
-          IntInterval(
-            combine(leftFacts.interval.lower, rightFacts.interval.upper)(_ - _),
-            combine(leftFacts.interval.upper, rightFacts.interval.lower)(_ - _)
-          )
-        )
-      }
-    case Multiply(left, right) =>
-      analyzeBinary(left, right, parameters, localParameters, booleanParameters, generateIndices, booleanLocalParameters) {
-        (leftFacts, rightFacts) =>
-        IntExprFacts(
-          leftFacts.defaultValue * rightFacts.defaultValue,
-          multiply(leftFacts.interval, rightFacts.interval)
-        )
-      }
-    case Divide(left, right) =>
-      analyzeDivisionLike(
-        left,
-        right,
-        parameters,
-        localParameters,
-        booleanParameters,
-        generateIndices,
-        booleanLocalParameters,
-        "/"
-      ) { (leftFacts, rightFacts) =>
-        IntExprFacts(
-          leftFacts.defaultValue / rightFacts.defaultValue,
-          divide(leftFacts.interval, rightFacts.interval)
-        )
-      }
-    case Modulo(left, right) =>
-      analyzeDivisionLike(
-        left,
-        right,
-        parameters,
-        localParameters,
-        booleanParameters,
-        generateIndices,
-        booleanLocalParameters,
-        "%"
-      ) { (leftFacts, rightFacts) =>
-        IntExprFacts(
-          leftFacts.defaultValue % rightFacts.defaultValue,
-          modulo(leftFacts.interval, rightFacts.interval)
-        )
-      }
-    case Select(condition, whenTrue, whenFalse) =>
-      val conditionResult = BoolExpressionAnalysis
-        .evaluateDefault(condition, booleanParameters, parameters, localParameters, generateIndices, booleanLocalParameters)
-        .left
-        .map {
-          case BoolExpressionFailure.UnresolvedParameter(name) => UnresolvedBooleanParameter(name)
-          case BoolExpressionFailure.UnresolvedLocalParameter(name) => UnresolvedBooleanLocalParameter(name)
-          case BoolExpressionFailure.InvalidIntegerExpression(failure) => failure
-        }
-      val trueResult = analyze(whenTrue, parameters, localParameters, booleanParameters, generateIndices, booleanLocalParameters)
-      val falseResult = analyze(whenFalse, parameters, localParameters, booleanParameters, generateIndices, booleanLocalParameters)
-      conditionResult.flatMap { conditionDefault =>
-        trueResult.flatMap { trueFacts =>
-          falseResult.map { falseFacts =>
-            IntExprFacts(
-              if (conditionDefault) trueFacts.defaultValue else falseFacts.defaultValue,
-              hull(trueFacts.interval, falseFacts.interval)
-            )
-          }
-        }
-      }
-  }
-
-  def parameterReferences(expression: IntExpr): Vector[String] = expression match {
-    case Literal(_) | LocalParameterRef(_) | GenerateIndexRef(_) => Vector.empty
-    case ParameterRef(name)                                      => Vector(name)
-    case Negate(value)                                           => parameterReferences(value)
-    case Add(left, right)      => parameterReferences(left) ++ parameterReferences(right)
-    case Subtract(left, right) => parameterReferences(left) ++ parameterReferences(right)
-    case Multiply(left, right) => parameterReferences(left) ++ parameterReferences(right)
-    case Divide(left, right)   => parameterReferences(left) ++ parameterReferences(right)
-    case Modulo(left, right)   => parameterReferences(left) ++ parameterReferences(right)
-    case Select(condition, whenTrue, whenFalse) =>
-      BoolExpressionAnalysis.integerParameterReferences(condition) ++
-        parameterReferences(whenTrue) ++ parameterReferences(whenFalse)
-  }
-
-  def localParameterReferences(expression: IntExpr): Vector[String] = expression match {
-    case Literal(_) | ParameterRef(_) | GenerateIndexRef(_) => Vector.empty
-    case LocalParameterRef(name)                            => Vector(name)
-    case Negate(value)                                      => localParameterReferences(value)
-    case Add(left, right)      => localParameterReferences(left) ++ localParameterReferences(right)
-    case Subtract(left, right) => localParameterReferences(left) ++ localParameterReferences(right)
-    case Multiply(left, right) => localParameterReferences(left) ++ localParameterReferences(right)
-    case Divide(left, right)   => localParameterReferences(left) ++ localParameterReferences(right)
-    case Modulo(left, right)   => localParameterReferences(left) ++ localParameterReferences(right)
-    case Select(condition, whenTrue, whenFalse) =>
-      BoolExpressionAnalysis.localParameterReferences(condition) ++
-        localParameterReferences(whenTrue) ++ localParameterReferences(whenFalse)
-  }
-
-  def booleanParameterReferences(expression: IntExpr): Vector[String] = expression match {
-    case Literal(_) | ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_) => Vector.empty
-    case Negate(value) => booleanParameterReferences(value)
-    case Add(left, right) => booleanParameterReferences(left) ++ booleanParameterReferences(right)
-    case Subtract(left, right) => booleanParameterReferences(left) ++ booleanParameterReferences(right)
-    case Multiply(left, right) => booleanParameterReferences(left) ++ booleanParameterReferences(right)
-    case Divide(left, right) => booleanParameterReferences(left) ++ booleanParameterReferences(right)
-    case Modulo(left, right) => booleanParameterReferences(left) ++ booleanParameterReferences(right)
-    case Select(condition, whenTrue, whenFalse) =>
-      BoolExpressionAnalysis.parameterReferences(condition) ++
-        booleanParameterReferences(whenTrue) ++ booleanParameterReferences(whenFalse)
-  }
-
-  def booleanLocalParameterReferences(expression: IntExpr): Vector[String] = expression match {
-    case Literal(_) | ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_) => Vector.empty
-    case Negate(value) => booleanLocalParameterReferences(value)
-    case Add(left, right) => booleanLocalParameterReferences(left) ++ booleanLocalParameterReferences(right)
-    case Subtract(left, right) => booleanLocalParameterReferences(left) ++ booleanLocalParameterReferences(right)
-    case Multiply(left, right) => booleanLocalParameterReferences(left) ++ booleanLocalParameterReferences(right)
-    case Divide(left, right) => booleanLocalParameterReferences(left) ++ booleanLocalParameterReferences(right)
-    case Modulo(left, right) => booleanLocalParameterReferences(left) ++ booleanLocalParameterReferences(right)
-    case Select(condition, whenTrue, whenFalse) =>
-      BoolExpressionAnalysis.booleanLocalParameterReferences(condition) ++
-        booleanLocalParameterReferences(whenTrue) ++ booleanLocalParameterReferences(whenFalse)
-  }
-
-  private def analyzeBinary(
-      left: IntExpr,
-      right: IntExpr,
-      parameters: Map[String, IntExprFacts],
-      localParameters: Map[String, IntExprFacts],
-      booleanParameters: Map[String, BooleanParameter],
-      generateIndices: Map[String, IntExprFacts],
-      booleanLocalParameters: Map[String, Boolean]
-  )(
-      combineFacts: (IntExprFacts, IntExprFacts) => IntExprFacts
   ): Either[IntExpressionFailure, IntExprFacts] =
-    analyze(left, parameters, localParameters, booleanParameters, generateIndices, booleanLocalParameters).flatMap { leftFacts =>
-      analyze(right, parameters, localParameters, booleanParameters, generateIndices, booleanLocalParameters).map { rightFacts =>
-        combineFacts(leftFacts, rightFacts)
-      }
-    }
+    analyzeMemoized(
+      expression,
+      parameters,
+      localParameters,
+      booleanParameters,
+      generateIndices,
+      booleanLocalParameters,
+      new java.util.IdentityHashMap[IntExpr, Either[IntExpressionFailure, IntExprFacts]]()
+    )
 
-  private def analyzeDivisionLike(
-      left: IntExpr,
-      right: IntExpr,
+  private def analyzeMemoized(
+      expression: IntExpr,
       parameters: Map[String, IntExprFacts],
       localParameters: Map[String, IntExprFacts],
       booleanParameters: Map[String, BooleanParameter],
       generateIndices: Map[String, IntExprFacts],
       booleanLocalParameters: Map[String, Boolean],
-      operator: String
-  )(
-      combineFacts: (IntExprFacts, IntExprFacts) => IntExprFacts
-  ): Either[IntExpressionFailure, IntExprFacts] =
-    analyze(left, parameters, localParameters, booleanParameters, generateIndices, booleanLocalParameters).flatMap { leftFacts =>
-      analyze(right, parameters, localParameters, booleanParameters, generateIndices, booleanLocalParameters).flatMap { rightFacts =>
-        if (rightFacts.defaultValue == 0 || !rightFacts.interval.excludesZero)
-          Left(DivisorMayBeZero(operator, rightFacts.interval))
-        else Right(combineFacts(leftFacts, rightFacts))
+      memo: java.util.IdentityHashMap[IntExpr, Either[IntExpressionFailure, IntExprFacts]]
+  ): Either[IntExpressionFailure, IntExprFacts] = {
+    final case class Frame(value: AnyRef, expanded: Boolean)
+    final case class MissingBooleanReferences(
+        publicParameter: Option[String],
+        localParameter: Option[String]
+    )
+    val noMissingBooleanReferences = MissingBooleanReferences(None, None)
+    val booleanMemo = new java.util.IdentityHashMap[BoolExpr, Either[IntExpressionFailure, Boolean]]()
+    val integerBooleanReferences = new java.util.IdentityHashMap[IntExpr, MissingBooleanReferences]()
+    val booleanReferences = new java.util.IdentityHashMap[BoolExpr, MissingBooleanReferences]()
+    val work = scala.collection.mutable.ArrayBuffer(Frame(expression, expanded = false))
+
+    def isDone(value: AnyRef): Boolean = value match {
+      case integer: IntExpr => memo.containsKey(integer)
+      case boolean: BoolExpr => booleanMemo.containsKey(boolean)
+      case _ => true
+    }
+    def push(value: AnyRef): Unit = work += Frame(value, expanded = false)
+    def facts(value: IntExpr): Either[IntExpressionFailure, IntExprFacts] = memo.get(value)
+    def boolean(value: BoolExpr): Either[IntExpressionFailure, Boolean] = booleanMemo.get(value)
+    def integerRefs(value: IntExpr): MissingBooleanReferences = integerBooleanReferences.get(value)
+    def booleanRefs(value: BoolExpr): MissingBooleanReferences = booleanReferences.get(value)
+    def merge(
+        left: MissingBooleanReferences,
+        right: MissingBooleanReferences
+    ): MissingBooleanReferences =
+      MissingBooleanReferences(
+        left.publicParameter.orElse(right.publicParameter),
+        left.localParameter.orElse(right.localParameter)
+      )
+    def mergeThree(
+        first: MissingBooleanReferences,
+        second: MissingBooleanReferences,
+        third: MissingBooleanReferences
+    ): MissingBooleanReferences = merge(merge(first, second), third)
+    def binary(
+        left: IntExpr,
+        right: IntExpr
+    )(operation: (IntExprFacts, IntExprFacts) => IntExprFacts): Either[IntExpressionFailure, IntExprFacts] =
+      facts(left).flatMap(leftFacts => facts(right).map(rightFacts => operation(leftFacts, rightFacts)))
+    def compare(
+        left: IntExpr,
+        right: IntExpr
+    )(operation: (BigInt, BigInt) => Boolean): Either[IntExpressionFailure, Boolean] =
+      facts(left).flatMap(leftFacts =>
+        facts(right).map(rightFacts => operation(leftFacts.defaultValue, rightFacts.defaultValue))
+      )
+
+    while (work.nonEmpty) {
+      val frame = work.remove(work.length - 1)
+      if (!isDone(frame.value)) {
+        if (!frame.expanded) {
+          work += Frame(frame.value, expanded = true)
+          frame.value match {
+            case _: Literal | _: ParameterRef | _: LocalParameterRef | _: GenerateIndexRef =>
+            case AddressWidth(operand) => push(operand)
+            case Negate(operand)       => push(operand)
+            case Add(left, right)      => push(right); push(left)
+            case Subtract(left, right) => push(right); push(left)
+            case Multiply(left, right) => push(right); push(left)
+            case Divide(left, right)   => push(right); push(left)
+            case Modulo(left, right)   => push(right); push(left)
+            case Select(condition, whenTrue, whenFalse) =>
+              push(whenFalse)
+              push(whenTrue)
+              push(condition)
+            case _: BoolExpr.Literal | _: BoolExpr.ParameterRef | _: BoolExpr.LocalParameterRef =>
+            case BoolExpr.Not(operand)       => push(operand)
+            case BoolExpr.And(left, right)   => push(right); push(left)
+            case BoolExpr.Or(left, right)    => push(right); push(left)
+            case BoolExpr.LessThan(left, right)           => push(right); push(left)
+            case BoolExpr.LessThanOrEqual(left, right)    => push(right); push(left)
+            case BoolExpr.GreaterThan(left, right)        => push(right); push(left)
+            case BoolExpr.GreaterThanOrEqual(left, right) => push(right); push(left)
+            case BoolExpr.Equal(left, right)              => push(right); push(left)
+            case BoolExpr.NotEqual(left, right)           => push(right); push(left)
+          }
+        } else {
+          frame.value match {
+            case value @ Literal(number) =>
+              integerBooleanReferences.put(value, noMissingBooleanReferences)
+              memo.put(value, Right(IntExprFacts(number, IntInterval.point(number))))
+            case value @ ParameterRef(name) =>
+              integerBooleanReferences.put(value, noMissingBooleanReferences)
+              memo.put(value, parameters.get(name).toRight(UnresolvedParameter(name)))
+            case value @ LocalParameterRef(name) =>
+              integerBooleanReferences.put(value, noMissingBooleanReferences)
+              memo.put(value, localParameters.get(name).toRight(UnresolvedLocalParameter(name)))
+            case value @ GenerateIndexRef(name) =>
+              integerBooleanReferences.put(value, noMissingBooleanReferences)
+              memo.put(value, generateIndices.get(name).toRight(UnresolvedGenerateIndex(name)))
+            case value @ AddressWidth(operand) =>
+              integerBooleanReferences.put(value, integerRefs(operand))
+              memo.put(
+                value,
+                facts(operand).flatMap { operandFacts =>
+                  if (operandFacts.defaultValue < 1 || !operandFacts.interval.lower.exists(_ >= 1))
+                    Left(AddressWidthOperandNotProvenPositive(operandFacts.interval))
+                  else
+                    Right(
+                      IntExprFacts(
+                        addressWidthValue(operandFacts.defaultValue),
+                        IntInterval(
+                          operandFacts.interval.lower.map(addressWidthValue),
+                          operandFacts.interval.upper.map(addressWidthValue)
+                        )
+                      )
+                    )
+                }
+              )
+            case value @ Negate(operand) =>
+              integerBooleanReferences.put(value, integerRefs(operand))
+              memo.put(
+                value,
+                facts(operand).map { operandFacts =>
+                  IntExprFacts(
+                    -operandFacts.defaultValue,
+                    IntInterval(operandFacts.interval.upper.map(-_), operandFacts.interval.lower.map(-_))
+                  )
+                }
+              )
+            case value @ Add(left, right) =>
+              integerBooleanReferences.put(value, merge(integerRefs(left), integerRefs(right)))
+              memo.put(
+                value,
+                binary(left, right) { (leftFacts, rightFacts) =>
+                  IntExprFacts(
+                    leftFacts.defaultValue + rightFacts.defaultValue,
+                    IntInterval(
+                      combine(leftFacts.interval.lower, rightFacts.interval.lower)(_ + _),
+                      combine(leftFacts.interval.upper, rightFacts.interval.upper)(_ + _)
+                    )
+                  )
+                }
+              )
+            case value @ Subtract(left, right) =>
+              integerBooleanReferences.put(value, merge(integerRefs(left), integerRefs(right)))
+              memo.put(
+                value,
+                binary(left, right) { (leftFacts, rightFacts) =>
+                  IntExprFacts(
+                    leftFacts.defaultValue - rightFacts.defaultValue,
+                    IntInterval(
+                      combine(leftFacts.interval.lower, rightFacts.interval.upper)(_ - _),
+                      combine(leftFacts.interval.upper, rightFacts.interval.lower)(_ - _)
+                    )
+                  )
+                }
+              )
+            case value @ Multiply(left, right) =>
+              integerBooleanReferences.put(value, merge(integerRefs(left), integerRefs(right)))
+              memo.put(
+                value,
+                binary(left, right) { (leftFacts, rightFacts) =>
+                  IntExprFacts(
+                    leftFacts.defaultValue * rightFacts.defaultValue,
+                    multiply(leftFacts.interval, rightFacts.interval)
+                  )
+                }
+              )
+            case value @ Divide(left, right) =>
+              integerBooleanReferences.put(value, merge(integerRefs(left), integerRefs(right)))
+              memo.put(
+                value,
+                facts(left).flatMap { leftFacts =>
+                  facts(right).flatMap { rightFacts =>
+                    if (rightFacts.defaultValue == 0 || !rightFacts.interval.excludesZero)
+                      Left(DivisorMayBeZero("/", rightFacts.interval))
+                    else Right(IntExprFacts(leftFacts.defaultValue / rightFacts.defaultValue, divide(leftFacts.interval, rightFacts.interval)))
+                  }
+                }
+              )
+            case value @ Modulo(left, right) =>
+              integerBooleanReferences.put(value, merge(integerRefs(left), integerRefs(right)))
+              memo.put(
+                value,
+                facts(left).flatMap { leftFacts =>
+                  facts(right).flatMap { rightFacts =>
+                    if (rightFacts.defaultValue == 0 || !rightFacts.interval.excludesZero)
+                      Left(DivisorMayBeZero("%", rightFacts.interval))
+                    else Right(IntExprFacts(leftFacts.defaultValue % rightFacts.defaultValue, modulo(leftFacts.interval, rightFacts.interval)))
+                  }
+                }
+              )
+            case value @ Select(condition, whenTrue, whenFalse) =>
+              val conditionReferences = booleanRefs(condition)
+              integerBooleanReferences.put(
+                value,
+                mergeThree(conditionReferences, integerRefs(whenTrue), integerRefs(whenFalse))
+              )
+              val conditionResult: Either[IntExpressionFailure, Boolean] =
+                conditionReferences.publicParameter match {
+                  case Some(name) => Left(UnresolvedBooleanParameter(name))
+                  case None => conditionReferences.localParameter match {
+                    case Some(name) => Left(UnresolvedBooleanLocalParameter(name))
+                    case None       => boolean(condition)
+                  }
+                }
+              memo.put(
+                value,
+                conditionResult.flatMap { conditionDefault =>
+                  facts(whenTrue).flatMap { trueFacts =>
+                    facts(whenFalse).map { falseFacts =>
+                      IntExprFacts(
+                        if (conditionDefault) trueFacts.defaultValue else falseFacts.defaultValue,
+                        hull(trueFacts.interval, falseFacts.interval)
+                      )
+                    }
+                  }
+                }
+              )
+            case value @ BoolExpr.Literal(result) =>
+              booleanReferences.put(value, noMissingBooleanReferences)
+              booleanMemo.put(value, Right(result))
+            case value @ BoolExpr.ParameterRef(name) =>
+              val missing = if (booleanParameters.contains(name)) None else Some(name)
+              booleanReferences.put(value, MissingBooleanReferences(missing, None))
+              booleanMemo.put(value, booleanParameters.get(name).map(_.default).toRight(UnresolvedBooleanParameter(name)))
+            case value @ BoolExpr.LocalParameterRef(name) =>
+              val missing = if (booleanLocalParameters.contains(name)) None else Some(name)
+              booleanReferences.put(value, MissingBooleanReferences(None, missing))
+              booleanMemo.put(value, booleanLocalParameters.get(name).toRight(UnresolvedBooleanLocalParameter(name)))
+            case value @ BoolExpr.Not(operand) =>
+              booleanReferences.put(value, booleanRefs(operand))
+              booleanMemo.put(value, boolean(operand).map(result => !result))
+            case value @ BoolExpr.And(left, right) =>
+              booleanReferences.put(value, merge(booleanRefs(left), booleanRefs(right)))
+              booleanMemo.put(value, boolean(left).flatMap(a => boolean(right).map(b => a && b)))
+            case value @ BoolExpr.Or(left, right) =>
+              booleanReferences.put(value, merge(booleanRefs(left), booleanRefs(right)))
+              booleanMemo.put(value, boolean(left).flatMap(a => boolean(right).map(b => a || b)))
+            case value @ BoolExpr.LessThan(left, right) =>
+              booleanReferences.put(value, merge(integerRefs(left), integerRefs(right)))
+              booleanMemo.put(value, compare(left, right)(_ < _))
+            case value @ BoolExpr.LessThanOrEqual(left, right) =>
+              booleanReferences.put(value, merge(integerRefs(left), integerRefs(right)))
+              booleanMemo.put(value, compare(left, right)(_ <= _))
+            case value @ BoolExpr.GreaterThan(left, right) =>
+              booleanReferences.put(value, merge(integerRefs(left), integerRefs(right)))
+              booleanMemo.put(value, compare(left, right)(_ > _))
+            case value @ BoolExpr.GreaterThanOrEqual(left, right) =>
+              booleanReferences.put(value, merge(integerRefs(left), integerRefs(right)))
+              booleanMemo.put(value, compare(left, right)(_ >= _))
+            case value @ BoolExpr.Equal(left, right) =>
+              booleanReferences.put(value, merge(integerRefs(left), integerRefs(right)))
+              booleanMemo.put(value, compare(left, right)(_ == _))
+            case value @ BoolExpr.NotEqual(left, right) =>
+              booleanReferences.put(value, merge(integerRefs(left), integerRefs(right)))
+              booleanMemo.put(value, compare(left, right)(_ != _))
+          }
+        }
       }
     }
+    memo.get(expression)
+  }
+
+  def parameterReferences(expression: IntExpr): Vector[String] =
+    references(expression, IntegerParameterReference)
+
+  def localParameterReferences(expression: IntExpr): Vector[String] =
+    references(expression, IntegerLocalParameterReference)
+
+  def booleanParameterReferences(expression: IntExpr): Vector[String] =
+    references(expression, BooleanParameterReference)
+
+  def booleanLocalParameterReferences(expression: IntExpr): Vector[String] =
+    references(expression, BooleanLocalParameterReference)
+
+  private val IntegerParameterReference = 0
+  private val IntegerLocalParameterReference = 1
+  private val BooleanParameterReference = 2
+  private val BooleanLocalParameterReference = 3
+
+  /**
+    * Walks the mixed integer/Boolean graph once per object identity. This keeps reference
+    * collection linear for expression DAGs while retaining the historical left-to-right order.
+    */
+  private def references(expression: AnyRef, referenceKind: Int): Vector[String] = {
+    val result = Vector.newBuilder[String]
+    val work = scala.collection.mutable.ArrayBuffer[AnyRef](expression)
+    val seenIntegers = new java.util.IdentityHashMap[IntExpr, java.lang.Boolean]()
+    val seenBooleans = new java.util.IdentityHashMap[BoolExpr, java.lang.Boolean]()
+
+    def pushInteger(value: IntExpr): Unit = work += value
+    def pushBoolean(value: BoolExpr): Unit = work += value
+
+    while (work.nonEmpty) {
+      work.remove(work.length - 1) match {
+        case value: IntExpr if !seenIntegers.containsKey(value) =>
+          seenIntegers.put(value, java.lang.Boolean.TRUE)
+          value match {
+            case Literal(_) | GenerateIndexRef(_) =>
+            case ParameterRef(name) if referenceKind == IntegerParameterReference => result += name
+            case ParameterRef(_) =>
+            case LocalParameterRef(name) if referenceKind == IntegerLocalParameterReference => result += name
+            case LocalParameterRef(_) =>
+            case AddressWidth(operand) => pushInteger(operand)
+            case Negate(operand)       => pushInteger(operand)
+            case Add(left, right)      => pushInteger(right); pushInteger(left)
+            case Subtract(left, right) => pushInteger(right); pushInteger(left)
+            case Multiply(left, right) => pushInteger(right); pushInteger(left)
+            case Divide(left, right)   => pushInteger(right); pushInteger(left)
+            case Modulo(left, right)   => pushInteger(right); pushInteger(left)
+            case Select(condition, whenTrue, whenFalse) =>
+              pushInteger(whenFalse)
+              pushInteger(whenTrue)
+              pushBoolean(condition)
+          }
+        case value: BoolExpr if !seenBooleans.containsKey(value) =>
+          seenBooleans.put(value, java.lang.Boolean.TRUE)
+          value match {
+            case BoolExpr.Literal(_) =>
+            case BoolExpr.ParameterRef(name) if referenceKind == BooleanParameterReference => result += name
+            case BoolExpr.ParameterRef(_) =>
+            case BoolExpr.LocalParameterRef(name) if referenceKind == BooleanLocalParameterReference => result += name
+            case BoolExpr.LocalParameterRef(_) =>
+            case BoolExpr.Not(operand)       => pushBoolean(operand)
+            case BoolExpr.And(left, right)   => pushBoolean(right); pushBoolean(left)
+            case BoolExpr.Or(left, right)    => pushBoolean(right); pushBoolean(left)
+            case BoolExpr.LessThan(left, right)           => pushInteger(right); pushInteger(left)
+            case BoolExpr.LessThanOrEqual(left, right)    => pushInteger(right); pushInteger(left)
+            case BoolExpr.GreaterThan(left, right)        => pushInteger(right); pushInteger(left)
+            case BoolExpr.GreaterThanOrEqual(left, right) => pushInteger(right); pushInteger(left)
+            case BoolExpr.Equal(left, right)              => pushInteger(right); pushInteger(left)
+            case BoolExpr.NotEqual(left, right)           => pushInteger(right); pushInteger(left)
+          }
+        case _ =>
+      }
+    }
+    result.result()
+  }
 
   private def combine(
       left: Option[BigInt],
@@ -300,6 +454,35 @@ private[morphhdl] object IntExpressionAnalysis {
       leftValue <- left
       rightValue <- right
     } yield operation(leftValue, rightValue)
+
+  private def addressWidthValue(value: BigInt): BigInt =
+    if (value <= 2) BigInt(1) else BigInt((value - 1).bitLength)
+
+  /** Iterative direct-nesting utilities shared by validation and target lowering. */
+  private[morphhdl] def peelDirectAddressWidths(expression: IntExpr): (Int, IntExpr) = {
+    var layers = 0
+    var base = expression
+    var peeling = true
+    while (peeling) {
+      base match {
+        case AddressWidth(inner) =>
+          layers += 1
+          base = inner
+        case _ => peeling = false
+      }
+    }
+    layers -> base
+  }
+
+  private[morphhdl] def wrapDirectAddressWidths(base: IntExpr, layers: Int): IntExpr = {
+    var result = base
+    var remaining = layers
+    while (remaining > 0) {
+      result = AddressWidth(result)
+      remaining -= 1
+    }
+    result
+  }
 
   private def hull(left: IntInterval, right: IntInterval): IntInterval =
     IntInterval(

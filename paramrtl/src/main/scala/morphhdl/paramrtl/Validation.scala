@@ -17,6 +17,7 @@ import morphhdl.paramrtl.BoolExpr.{
 }
 import morphhdl.paramrtl.IntExpr.{
   Add,
+  AddressWidth,
   Divide,
   GenerateIndexRef,
   Literal,
@@ -29,6 +30,7 @@ import morphhdl.paramrtl.IntExpr.{
   Subtract
 }
 import morphhdl.paramrtl.IntExpressionFailure.{
+  AddressWidthOperandNotProvenPositive,
   DivisorMayBeZero,
   UnresolvedBooleanParameter,
   UnresolvedBooleanLocalParameter,
@@ -1572,134 +1574,120 @@ object ParamRtlValidator {
       generateIndices: Set[String] = Set.empty,
       booleanParameters: Map[String, BooleanParameter] = Map.empty,
       booleanLocalParameters: Set[String] = Set.empty
-  ): Unit = expression match {
-    case Literal(_) =>
-    case ParameterRef(name) if !parameters.contains(name) =>
-      diagnostics += Diagnostic(
-        "PRTL-UNRESOLVED-PARAMETER",
-        path,
-        s"Integer expression references unknown public parameter '$name'"
-      )
-    case ParameterRef(_) =>
-    case LocalParameterRef(name) if !localParameters.contains(name) =>
-      val (code, message) =
-        if (booleanLocalParameters.contains(name))
-          "PRTL-LOCAL-PARAMETER-KIND-MISMATCH" ->
-            s"Integer expression references Boolean local parameter '$name' as integer"
-        else
-          "PRTL-UNRESOLVED-LOCAL-PARAMETER" ->
-            s"Integer expression references unknown local parameter '$name'"
-      diagnostics += Diagnostic(code, path, message)
-    case LocalParameterRef(_) =>
-    case GenerateIndexRef(name) if !generateIndices.contains(name) =>
-      diagnostics += Diagnostic(
-        "PRTL-GENERATE-INDEX-OUT-OF-SCOPE",
-        path,
-        s"Generate index '$name' is not in scope for this integer expression"
-      )
-    case GenerateIndexRef(_) =>
-    case Negate(value) =>
-      validateExpressionReferences(
-        value,
-        parameters,
-        localParameters,
-        path :+ "operand",
-        diagnostics,
-        generateIndices,
-        booleanParameters,
-        booleanLocalParameters
-      )
-    case Add(left, right) =>
-      validateBinaryReferences(
-        left,
-        right,
-        parameters,
-        localParameters,
-        path,
-        diagnostics,
-        generateIndices,
-        booleanParameters,
-        booleanLocalParameters
-      )
-    case Subtract(left, right) =>
-      validateBinaryReferences(
-        left,
-        right,
-        parameters,
-        localParameters,
-        path,
-        diagnostics,
-        generateIndices,
-        booleanParameters,
-        booleanLocalParameters
-      )
-    case Multiply(left, right) =>
-      validateBinaryReferences(
-        left,
-        right,
-        parameters,
-        localParameters,
-        path,
-        diagnostics,
-        generateIndices,
-        booleanParameters,
-        booleanLocalParameters
-      )
-    case Divide(left, right) =>
-      validateBinaryReferences(
-        left,
-        right,
-        parameters,
-        localParameters,
-        path,
-        diagnostics,
-        generateIndices,
-        booleanParameters,
-        booleanLocalParameters
-      )
-    case Modulo(left, right) =>
-      validateBinaryReferences(
-        left,
-        right,
-        parameters,
-        localParameters,
-        path,
-        diagnostics,
-        generateIndices,
-        booleanParameters,
-        booleanLocalParameters
-      )
-    case Select(condition, whenTrue, whenFalse) =>
-      validateBooleanExpression(
-        condition,
-        booleanParameters,
-        parameters,
-        localParameters,
-        path :+ "condition",
-        diagnostics,
-        generateIndices,
-        booleanLocalParameters
-      )
-      validateExpressionReferences(
-        whenTrue,
-        parameters,
-        localParameters,
-        path :+ "whenTrue",
-        diagnostics,
-        generateIndices,
-        booleanParameters,
-        booleanLocalParameters
-      )
-      validateExpressionReferences(
-        whenFalse,
-        parameters,
-        localParameters,
-        path :+ "whenFalse",
-        diagnostics,
-        generateIndices,
-        booleanParameters,
-        booleanLocalParameters
-      )
+  ): Unit = {
+    final case class Work(value: AnyRef, path: Vector[String])
+    val work = scala.collection.mutable.ArrayBuffer(Work(expression, path))
+    val seenIntegers = new java.util.IdentityHashMap[IntExpr, java.lang.Boolean]()
+    val seenBooleans = new java.util.IdentityHashMap[BoolExpr, java.lang.Boolean]()
+
+    def pushInteger(value: IntExpr, valuePath: Vector[String]): Unit = work += Work(value, valuePath)
+    def pushBoolean(value: BoolExpr, valuePath: Vector[String]): Unit = work += Work(value, valuePath)
+
+    while (work.nonEmpty) {
+      val current = work.remove(work.length - 1)
+      current.value match {
+        case value: IntExpr if !seenIntegers.containsKey(value) =>
+          seenIntegers.put(value, java.lang.Boolean.TRUE)
+          value match {
+            case Literal(_) =>
+            case ParameterRef(name) if !parameters.contains(name) =>
+              diagnostics += Diagnostic(
+                "PRTL-UNRESOLVED-PARAMETER",
+                current.path,
+                s"Integer expression references unknown public parameter '$name'"
+              )
+            case ParameterRef(_) =>
+            case LocalParameterRef(name) if !localParameters.contains(name) =>
+              val (code, message) =
+                if (booleanLocalParameters.contains(name))
+                  "PRTL-LOCAL-PARAMETER-KIND-MISMATCH" ->
+                    s"Integer expression references Boolean local parameter '$name' as integer"
+                else
+                  "PRTL-UNRESOLVED-LOCAL-PARAMETER" ->
+                    s"Integer expression references unknown local parameter '$name'"
+              diagnostics += Diagnostic(code, current.path, message)
+            case LocalParameterRef(_) =>
+            case GenerateIndexRef(name) if !generateIndices.contains(name) =>
+              diagnostics += Diagnostic(
+                "PRTL-GENERATE-INDEX-OUT-OF-SCOPE",
+                current.path,
+                s"Generate index '$name' is not in scope for this integer expression"
+              )
+            case GenerateIndexRef(_) =>
+            case addressWidth: AddressWidth =>
+              val (layers, base) = IntExpressionAnalysis.peelDirectAddressWidths(addressWidth)
+              pushInteger(base, current.path ++ Vector.fill(layers)("operand"))
+            case Negate(operand) => pushInteger(operand, current.path :+ "operand")
+            case Add(left, right) =>
+              pushInteger(right, current.path :+ "right")
+              pushInteger(left, current.path :+ "left")
+            case Subtract(left, right) =>
+              pushInteger(right, current.path :+ "right")
+              pushInteger(left, current.path :+ "left")
+            case Multiply(left, right) =>
+              pushInteger(right, current.path :+ "right")
+              pushInteger(left, current.path :+ "left")
+            case Divide(left, right) =>
+              pushInteger(right, current.path :+ "right")
+              pushInteger(left, current.path :+ "left")
+            case Modulo(left, right) =>
+              pushInteger(right, current.path :+ "right")
+              pushInteger(left, current.path :+ "left")
+            case Select(condition, whenTrue, whenFalse) =>
+              pushInteger(whenFalse, current.path :+ "whenFalse")
+              pushInteger(whenTrue, current.path :+ "whenTrue")
+              pushBoolean(condition, current.path :+ "condition")
+          }
+        case value: BoolExpr if !seenBooleans.containsKey(value) =>
+          seenBooleans.put(value, java.lang.Boolean.TRUE)
+          value match {
+            case BoolLiteral(_) =>
+            case BoolParameterRef(name) if !booleanParameters.contains(name) =>
+              diagnostics += Diagnostic(
+                "PRTL-UNRESOLVED-BOOLEAN-PARAMETER",
+                current.path,
+                s"Boolean expression references unknown public parameter '$name'"
+              )
+            case BoolParameterRef(_) =>
+            case BoolLocalParameterRef(name) if !booleanLocalParameters.contains(name) =>
+              val (code, message) =
+                if (localParameters.contains(name))
+                  "PRTL-LOCAL-PARAMETER-KIND-MISMATCH" ->
+                    s"Boolean expression references integer local parameter '$name' as Boolean"
+                else
+                  "PRTL-UNRESOLVED-BOOLEAN-LOCAL-PARAMETER" ->
+                    s"Boolean expression references unknown Boolean local parameter '$name'"
+              diagnostics += Diagnostic(code, current.path, message)
+            case BoolLocalParameterRef(_) =>
+            case BoolNot(operand) => pushBoolean(operand, current.path :+ "operand")
+            case BoolAnd(left, right) =>
+              pushBoolean(right, current.path :+ "right")
+              pushBoolean(left, current.path :+ "left")
+            case BoolOr(left, right) =>
+              pushBoolean(right, current.path :+ "right")
+              pushBoolean(left, current.path :+ "left")
+            case BoolLessThan(left, right) =>
+              pushInteger(right, current.path :+ "right")
+              pushInteger(left, current.path :+ "left")
+            case BoolLessThanOrEqual(left, right) =>
+              pushInteger(right, current.path :+ "right")
+              pushInteger(left, current.path :+ "left")
+            case BoolGreaterThan(left, right) =>
+              pushInteger(right, current.path :+ "right")
+              pushInteger(left, current.path :+ "left")
+            case BoolGreaterThanOrEqual(left, right) =>
+              pushInteger(right, current.path :+ "right")
+              pushInteger(left, current.path :+ "left")
+            case BoolEqual(left, right) =>
+              pushInteger(right, current.path :+ "right")
+              pushInteger(left, current.path :+ "left")
+            case BoolNotEqual(left, right) =>
+              pushInteger(right, current.path :+ "right")
+              pushInteger(left, current.path :+ "left")
+          }
+        case _ =>
+      }
+    }
   }
 
   private def validateBinaryReferences(
@@ -1759,6 +1747,13 @@ object ParamRtlValidator {
           "PRTL-DIVISOR-MAY-BE-ZERO",
           path,
           s"Divisor of '$operator' is not proven nonzero over legal domain ${renderInterval(interval)}"
+        )
+        None
+      case Left(AddressWidthOperandNotProvenPositive(interval)) =>
+        diagnostics += Diagnostic(
+          "PRTL-ADDRESS-WIDTH-OPERAND-NOT-PROVEN-POSITIVE",
+          path,
+          s"Address-width operand domain ${renderInterval(interval)} is not proven positive"
         )
         None
       case Left(_: UnresolvedParameter) |
@@ -2954,7 +2949,7 @@ object ParamRtlValidator {
         )
         .toOption
       val addressWidthFacts = addressPort.flatMap(port => expressionFacts(port.dataType.width, baseFacts))
-      val capacityProven = for {
+      val conservativeCapacityProven = for {
         depth <- depthFacts
         minimumDepth <- depth.interval.lower
         maximumDepth <- depth.interval.upper
@@ -2965,7 +2960,28 @@ object ParamRtlValidator {
           if (maximumDepth <= 1) BigInt(1) else BigInt((maximumDepth - 1).bitLength)
         minimumAddressWidth >= requiredAddressWidth
       }
-      if (!capacityProven.contains(true))
+      val expandedLocals = expandCombinedLocalExpressions(
+        baseFacts.orderedLocalDeclarations,
+        Map.empty,
+        Map.empty
+      )
+      def expandForCorrelation(expression: IntExpr): IntExpr =
+        substituteLocalDefinition(
+          expression,
+          Map.empty,
+          expandedLocals.integer,
+          Map.empty,
+          expandedLocals.boolean
+        )
+      val expandedDepth = expandForCorrelation(memory.depth)
+      val correlatedCapacityProven = addressPort.exists { port =>
+        expandForCorrelation(port.dataType.width) match {
+          case AddressWidth(operand) =>
+            IntExpressionEquivalence.equivalent(operand, expandedDepth)
+          case _ => false
+        }
+      }
+      if (!conservativeCapacityProven.contains(true) && !correlatedCapacityProven)
         diagnostics += Diagnostic(
           "PRTL-SYNCHRONOUS-READ-FIRST-MEMORY-ADDRESS-CAPACITY-NOT-PROVEN",
           path :+ "address",
@@ -3134,6 +3150,7 @@ object ParamRtlValidator {
           value match {
             case Literal(_) =>
             case ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_) => return false
+            case AddressWidth(operand) => integers += operand
             case Negate(operand) => integers += operand
             case Add(left, right) => integers += left; integers += right
             case Subtract(left, right) => integers += left; integers += right
@@ -3215,44 +3232,36 @@ object ParamRtlValidator {
       locals: Map[String, IntExpr],
       booleanParameters: Map[String, BoolExpr] = Map.empty,
       booleanLocals: Map[String, BoolExpr] = Map.empty
-  ): IntExpr = expression match {
-    case value: Literal          => value
-    case ParameterRef(name)      => parameters.getOrElse(name, expression)
-    case LocalParameterRef(name) => locals.getOrElse(name, expression)
-    case value: GenerateIndexRef => value
-    case Negate(value) =>
-      Negate(substituteLocalDefinition(value, parameters, locals, booleanParameters, booleanLocals))
-    case Add(left, right) =>
-      Add(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
-      )
-    case Subtract(left, right) =>
-      Subtract(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
-      )
-    case Multiply(left, right) =>
-      Multiply(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
-      )
-    case Divide(left, right) =>
-      Divide(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
-      )
-    case Modulo(left, right) =>
-      Modulo(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
-      )
-    case Select(condition, whenTrue, whenFalse) =>
-      Select(
-        substituteBooleanDefinition(condition, parameters, locals, booleanParameters, booleanLocals),
-        substituteLocalDefinition(whenTrue, parameters, locals, booleanParameters, booleanLocals),
-        substituteLocalDefinition(whenFalse, parameters, locals, booleanParameters, booleanLocals)
-      )
+  ): IntExpr =
+    substituteLocalDefinitionMemoized(
+      expression,
+      parameters,
+      locals,
+      booleanParameters,
+      booleanLocals,
+      new java.util.IdentityHashMap[IntExpr, IntExpr](),
+      new java.util.IdentityHashMap[BoolExpr, BoolExpr]()
+    )
+
+  private def substituteLocalDefinitionMemoized(
+      expression: IntExpr,
+      parameters: Map[String, IntExpr],
+      locals: Map[String, IntExpr],
+      booleanParameters: Map[String, BoolExpr],
+      booleanLocals: Map[String, BoolExpr],
+      integerMemo: java.util.IdentityHashMap[IntExpr, IntExpr],
+      booleanMemo: java.util.IdentityHashMap[BoolExpr, BoolExpr]
+  ): IntExpr = {
+    substituteDefinitionGraph(
+      expression,
+      parameters,
+      locals,
+      booleanParameters,
+      booleanLocals,
+      integerMemo,
+      booleanMemo
+    )
+    integerMemo.get(expression)
   }
 
   private def substituteBooleanDefinition(
@@ -3261,52 +3270,126 @@ object ParamRtlValidator {
       locals: Map[String, IntExpr],
       booleanParameters: Map[String, BoolExpr],
       booleanLocals: Map[String, BoolExpr] = Map.empty
-  ): BoolExpr = expression match {
-    case value: BoolLiteral => value
-    case BoolParameterRef(name) => booleanParameters.getOrElse(name, expression)
-    case BoolLocalParameterRef(name) => booleanLocals.getOrElse(name, expression)
-    case BoolLessThan(left, right) =>
-      BoolLessThan(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
-      )
-    case BoolLessThanOrEqual(left, right) =>
-      BoolLessThanOrEqual(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
-      )
-    case BoolGreaterThan(left, right) =>
-      BoolGreaterThan(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
-      )
-    case BoolGreaterThanOrEqual(left, right) =>
-      BoolGreaterThanOrEqual(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
-      )
-    case BoolEqual(left, right) =>
-      BoolEqual(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
-      )
-    case BoolNotEqual(left, right) =>
-      BoolNotEqual(
-        substituteLocalDefinition(left, parameters, locals, booleanParameters, booleanLocals),
-        substituteLocalDefinition(right, parameters, locals, booleanParameters, booleanLocals)
-      )
-    case BoolNot(value) =>
-      BoolNot(substituteBooleanDefinition(value, parameters, locals, booleanParameters, booleanLocals))
-    case BoolAnd(left, right) =>
-      BoolAnd(
-        substituteBooleanDefinition(left, parameters, locals, booleanParameters, booleanLocals),
-        substituteBooleanDefinition(right, parameters, locals, booleanParameters, booleanLocals)
-      )
-    case BoolOr(left, right) =>
-      BoolOr(
-        substituteBooleanDefinition(left, parameters, locals, booleanParameters, booleanLocals),
-        substituteBooleanDefinition(right, parameters, locals, booleanParameters, booleanLocals)
-      )
+  ): BoolExpr =
+    substituteBooleanDefinitionMemoized(
+      expression,
+      parameters,
+      locals,
+      booleanParameters,
+      booleanLocals,
+      new java.util.IdentityHashMap[IntExpr, IntExpr](),
+      new java.util.IdentityHashMap[BoolExpr, BoolExpr]()
+    )
+
+  private def substituteBooleanDefinitionMemoized(
+      expression: BoolExpr,
+      parameters: Map[String, IntExpr],
+      locals: Map[String, IntExpr],
+      booleanParameters: Map[String, BoolExpr],
+      booleanLocals: Map[String, BoolExpr],
+      integerMemo: java.util.IdentityHashMap[IntExpr, IntExpr],
+      booleanMemo: java.util.IdentityHashMap[BoolExpr, BoolExpr]
+  ): BoolExpr = {
+    substituteDefinitionGraph(
+      expression,
+      parameters,
+      locals,
+      booleanParameters,
+      booleanLocals,
+      integerMemo,
+      booleanMemo
+    )
+    booleanMemo.get(expression)
+  }
+
+  /** Iterative mixed-expression rebuild preserves DAG sharing without consuming call stack. */
+  private def substituteDefinitionGraph(
+      root: AnyRef,
+      parameters: Map[String, IntExpr],
+      locals: Map[String, IntExpr],
+      booleanParameters: Map[String, BoolExpr],
+      booleanLocals: Map[String, BoolExpr],
+      integerMemo: java.util.IdentityHashMap[IntExpr, IntExpr],
+      booleanMemo: java.util.IdentityHashMap[BoolExpr, BoolExpr]
+  ): Unit = {
+    final case class Frame(value: AnyRef, expanded: Boolean)
+    val work = scala.collection.mutable.ArrayBuffer(Frame(root, expanded = false))
+
+    def isDone(value: AnyRef): Boolean = value match {
+      case integer: IntExpr => integerMemo.containsKey(integer)
+      case boolean: BoolExpr => booleanMemo.containsKey(boolean)
+      case _ => true
+    }
+    def push(value: AnyRef): Unit = work += Frame(value, expanded = false)
+    def integer(value: IntExpr): IntExpr = integerMemo.get(value)
+    def boolean(value: BoolExpr): BoolExpr = booleanMemo.get(value)
+
+    while (work.nonEmpty) {
+      val frame = work.remove(work.length - 1)
+      if (!isDone(frame.value)) {
+        if (!frame.expanded) {
+          work += Frame(frame.value, expanded = true)
+          frame.value match {
+            case _: Literal | _: ParameterRef | _: LocalParameterRef | _: GenerateIndexRef =>
+            case AddressWidth(operand) => push(operand)
+            case Negate(operand)       => push(operand)
+            case Add(left, right)      => push(right); push(left)
+            case Subtract(left, right) => push(right); push(left)
+            case Multiply(left, right) => push(right); push(left)
+            case Divide(left, right)   => push(right); push(left)
+            case Modulo(left, right)   => push(right); push(left)
+            case Select(condition, whenTrue, whenFalse) =>
+              push(whenFalse)
+              push(whenTrue)
+              push(condition)
+            case _: BoolLiteral | _: BoolParameterRef | _: BoolLocalParameterRef =>
+            case BoolNot(operand)       => push(operand)
+            case BoolAnd(left, right)   => push(right); push(left)
+            case BoolOr(left, right)    => push(right); push(left)
+            case BoolLessThan(left, right)           => push(right); push(left)
+            case BoolLessThanOrEqual(left, right)    => push(right); push(left)
+            case BoolGreaterThan(left, right)        => push(right); push(left)
+            case BoolGreaterThanOrEqual(left, right) => push(right); push(left)
+            case BoolEqual(left, right)              => push(right); push(left)
+            case BoolNotEqual(left, right)           => push(right); push(left)
+          }
+        } else {
+          frame.value match {
+            case value: Literal          => integerMemo.put(value, value)
+            case value @ ParameterRef(name) => integerMemo.put(value, parameters.getOrElse(name, value))
+            case value @ LocalParameterRef(name) => integerMemo.put(value, locals.getOrElse(name, value))
+            case value: GenerateIndexRef => integerMemo.put(value, value)
+            case value @ AddressWidth(operand) => integerMemo.put(value, AddressWidth(integer(operand)))
+            case value @ Negate(operand)       => integerMemo.put(value, Negate(integer(operand)))
+            case value @ Add(left, right)      => integerMemo.put(value, Add(integer(left), integer(right)))
+            case value @ Subtract(left, right) => integerMemo.put(value, Subtract(integer(left), integer(right)))
+            case value @ Multiply(left, right) => integerMemo.put(value, Multiply(integer(left), integer(right)))
+            case value @ Divide(left, right)   => integerMemo.put(value, Divide(integer(left), integer(right)))
+            case value @ Modulo(left, right)   => integerMemo.put(value, Modulo(integer(left), integer(right)))
+            case value @ Select(condition, whenTrue, whenFalse) =>
+              integerMemo.put(value, Select(boolean(condition), integer(whenTrue), integer(whenFalse)))
+            case value: BoolLiteral => booleanMemo.put(value, value)
+            case value @ BoolParameterRef(name) =>
+              booleanMemo.put(value, booleanParameters.getOrElse(name, value))
+            case value @ BoolLocalParameterRef(name) =>
+              booleanMemo.put(value, booleanLocals.getOrElse(name, value))
+            case value @ BoolNot(operand) => booleanMemo.put(value, BoolNot(boolean(operand)))
+            case value @ BoolAnd(left, right) => booleanMemo.put(value, BoolAnd(boolean(left), boolean(right)))
+            case value @ BoolOr(left, right) => booleanMemo.put(value, BoolOr(boolean(left), boolean(right)))
+            case value @ BoolLessThan(left, right) => booleanMemo.put(value, BoolLessThan(integer(left), integer(right)))
+            case value @ BoolLessThanOrEqual(left, right) =>
+              booleanMemo.put(value, BoolLessThanOrEqual(integer(left), integer(right)))
+            case value @ BoolGreaterThan(left, right) =>
+              booleanMemo.put(value, BoolGreaterThan(integer(left), integer(right)))
+            case value @ BoolGreaterThanOrEqual(left, right) =>
+              booleanMemo.put(value, BoolGreaterThanOrEqual(integer(left), integer(right)))
+            case value @ BoolEqual(left, right) => booleanMemo.put(value, BoolEqual(integer(left), integer(right)))
+            case value @ BoolNotEqual(left, right) =>
+              booleanMemo.put(value, BoolNotEqual(integer(left), integer(right)))
+          }
+        }
+      }
+    }
   }
 
   private def domainContained(interval: IntInterval, parameter: IntegerParameter): Boolean = {
@@ -3461,6 +3544,7 @@ object ParamRtlValidator {
       stack.remove(stack.length - 1) match {
         case GenerateIndexRef(_)                                 => return true
         case Literal(_) | ParameterRef(_) | LocalParameterRef(_) =>
+        case AddressWidth(value)                                 => stack += value
         case Negate(value)                                       => stack += value
         case Add(left, right)                                    => stack += left; stack += right
         case Subtract(left, right)                               => stack += left; stack += right

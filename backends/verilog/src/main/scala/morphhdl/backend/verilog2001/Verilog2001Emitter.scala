@@ -2,6 +2,7 @@ package morphhdl.backend.verilog2001
 
 import morphhdl.paramrtl.IntExpr.{
   Add,
+  AddressWidth,
   Divide,
   GenerateIndexRef,
   Literal,
@@ -393,6 +394,7 @@ object Verilog2001Emitter {
     case ParameterRef(name)      => RenderedIntExpr(name, AtomicPrecedence)
     case LocalParameterRef(name) => RenderedIntExpr(name, AtomicPrecedence)
     case GenerateIndexRef(name)  => RenderedIntExpr(name, AtomicPrecedence)
+    case AddressWidth(value)     => renderAddressWidth(value)
     case Negate(value) =>
       val rendered = renderIntExprWithPrecedence(value)
       val needsParentheses = rendered.precedence <= UnaryPrecedence || rendered.text.startsWith("-")
@@ -432,6 +434,25 @@ object Verilog2001Emitter {
     RenderedIntExpr(s"$leftText $operator $rightText", precedence)
   }
 
+  /**
+    * IEEE 1364-2001 has no portable ceiling-log2 operator. The operand has already been
+    * proven positive and within the signed 32-bit target domain, so this fixed chain covers
+    * every legal value without relying on SystemVerilog's `$clog2`.
+    */
+  private def renderAddressWidth(value: IntExpr): RenderedIntExpr = {
+    val shape = AddressWidthLowering.shape(value)
+    if (shape.thresholds.isEmpty)
+      return RenderedIntExpr(shape.maximumResult.toString, AtomicPrecedence)
+
+    val operand = renderDelimitedIntOperand(shape.base)
+    var chain = shape.maximumResult.toString
+    shape.thresholds.reverseIterator.foreach { case (threshold, width) =>
+      val falseBranch = if (width == shape.maximumResult - 1) chain else s"($chain)"
+      chain = s"($operand <= $threshold) ? $width : $falseBranch"
+    }
+    RenderedIntExpr(chain, ConditionalPrecedence)
+  }
+
   private def renderRtlExpr(expression: RtlExpr): String = expression match {
     case Ref(name) => name
     case IndexedPartSelect(base, offset, width) =>
@@ -457,23 +478,48 @@ object Verilog2001Emitter {
     case other              => s"(${renderBoolExpr(other)}) ? 1 : 0"
   }
 
-  private def renderBoolExprWithPrecedence(expression: BoolExpr): RenderedBoolExpr = expression match {
-    case BoolLiteral(value) => RenderedBoolExpr(if (value) "1'b1" else "1'b0", BoolAtomicPrecedence)
-    case BoolParameterRef(name) => RenderedBoolExpr(s"$name == 1", BoolAtomicPrecedence)
-    case BoolLocalParameterRef(name) => RenderedBoolExpr(s"$name == 1", BoolAtomicPrecedence)
-    case BoolLessThan(left, right)           => renderComparison(left, "<", right)
-    case BoolLessThanOrEqual(left, right)    => renderComparison(left, "<=", right)
-    case BoolGreaterThan(left, right)        => renderComparison(left, ">", right)
-    case BoolGreaterThanOrEqual(left, right) => renderComparison(left, ">=", right)
-    case BoolEqual(left, right)              => renderComparison(left, "==", right)
-    case BoolNotEqual(left, right)           => renderComparison(left, "!=", right)
-    case BoolNot(value) =>
-      val rendered = renderBoolExprWithPrecedence(value)
-      val needsParentheses = rendered.precedence < BoolNotPrecedence || rendered.text.contains(" ")
-      val operand = if (needsParentheses) s"(${rendered.text})" else rendered.text
-      RenderedBoolExpr(s"!$operand", BoolNotPrecedence)
-    case BoolAnd(left, right) => renderBoolBinary(left, "&&", right, BoolAndPrecedence)
-    case BoolOr(left, right)  => renderBoolBinary(left, "||", right, BoolOrPrecedence)
+  private def renderBoolExprWithPrecedence(expression: BoolExpr): RenderedBoolExpr = {
+    final case class Frame(value: BoolExpr, expanded: Boolean)
+    val rendered = new java.util.IdentityHashMap[BoolExpr, RenderedBoolExpr]()
+    val work = scala.collection.mutable.ArrayBuffer(Frame(expression, expanded = false))
+
+    while (work.nonEmpty) {
+      val frame = work.remove(work.length - 1)
+      if (!rendered.containsKey(frame.value)) {
+        if (!frame.expanded) {
+          work += Frame(frame.value, expanded = true)
+          frame.value match {
+            case BoolNot(operand)       => work += Frame(operand, expanded = false)
+            case BoolAnd(left, right)   => work += Frame(right, expanded = false); work += Frame(left, expanded = false)
+            case BoolOr(left, right)    => work += Frame(right, expanded = false); work += Frame(left, expanded = false)
+            case _                      =>
+          }
+        } else {
+          val value = frame.value match {
+            case BoolLiteral(result) => RenderedBoolExpr(if (result) "1'b1" else "1'b0", BoolAtomicPrecedence)
+            case BoolParameterRef(name) => RenderedBoolExpr(s"$name == 1", BoolAtomicPrecedence)
+            case BoolLocalParameterRef(name) => RenderedBoolExpr(s"$name == 1", BoolAtomicPrecedence)
+            case BoolLessThan(left, right)           => renderComparison(left, "<", right)
+            case BoolLessThanOrEqual(left, right)    => renderComparison(left, "<=", right)
+            case BoolGreaterThan(left, right)        => renderComparison(left, ">", right)
+            case BoolGreaterThanOrEqual(left, right) => renderComparison(left, ">=", right)
+            case BoolEqual(left, right)              => renderComparison(left, "==", right)
+            case BoolNotEqual(left, right)           => renderComparison(left, "!=", right)
+            case BoolNot(operand) =>
+              val inner = rendered.get(operand)
+              val needsParentheses = inner.precedence < BoolNotPrecedence || inner.text.contains(" ")
+              val operandText = if (needsParentheses) s"(${inner.text})" else inner.text
+              RenderedBoolExpr(s"!$operandText", BoolNotPrecedence)
+            case BoolAnd(left, right) =>
+              renderBoolBinary(rendered.get(left), "&&", rendered.get(right), BoolAndPrecedence)
+            case BoolOr(left, right) =>
+              renderBoolBinary(rendered.get(left), "||", rendered.get(right), BoolOrPrecedence)
+          }
+          rendered.put(frame.value, value)
+        }
+      }
+    }
+    rendered.get(expression)
   }
 
   private def renderComparison(left: IntExpr, operator: String, right: IntExpr): RenderedBoolExpr =
@@ -487,15 +533,13 @@ object Verilog2001Emitter {
   }
 
   private def renderBoolBinary(
-      left: BoolExpr,
+      left: RenderedBoolExpr,
       operator: String,
-      right: BoolExpr,
+      right: RenderedBoolExpr,
       precedence: Int
   ): RenderedBoolExpr = {
-    val renderedLeft = renderBoolExprWithPrecedence(left)
-    val renderedRight = renderBoolExprWithPrecedence(right)
-    val leftText = if (renderedLeft.precedence < precedence) s"(${renderedLeft.text})" else renderedLeft.text
-    val rightText = if (renderedRight.precedence < precedence) s"(${renderedRight.text})" else renderedRight.text
+    val leftText = if (left.precedence < precedence) s"(${left.text})" else left.text
+    val rightText = if (right.precedence < precedence) s"(${right.text})" else right.text
     RenderedBoolExpr(s"$leftText $operator $rightText", precedence)
   }
 
@@ -507,4 +551,147 @@ object Verilog2001Emitter {
       .sortBy(choice => (choice.value, choice.block.label))
       .map(choice => s"${choice.value}:${choice.block.label}")
       .mkString("|")
+}
+
+/** Shared structural plan keeps target-cost admission and emitted lowering in lockstep. */
+private[verilog2001] object AddressWidthLowering {
+  final case class Shape(
+      base: IntExpr,
+      maximumResult: Int,
+      thresholds: Vector[(BigInt, Int)]
+  )
+
+  /** `value` is the operand of the outer address-width node. */
+  def shape(value: IntExpr): Shape = {
+    val (layers, base) =
+      IntExpressionAnalysis.peelDirectAddressWidths(AddressWidth(value))
+
+    var maximum = BigInt(Int.MaxValue)
+    var layer = 0
+    while (layer < layers) {
+      maximum = addressWidth(maximum)
+      layer += 1
+    }
+    val maximumResult = maximum.toInt
+    val thresholds = (1 until maximumResult).map { result =>
+      var threshold = BigInt(result)
+      var inverseLayer = 0
+      while (inverseLayer < layers) {
+        threshold = BigInt(1) << threshold.toInt
+        inverseLayer += 1
+      }
+      threshold -> result
+    }.toVector
+    Shape(base, maximumResult, thresholds)
+  }
+
+  /**
+    * Estimates the expanded syntax tree and fails closed before repeated conditional operands
+    * can cause target text to grow exponentially. Directly nested address-width nodes use the
+    * flattened shape above and therefore get cheaper as their result range contracts.
+    */
+  def expansionWithin(expression: IntExpr, maximum: Long): Boolean = {
+    final case class Frame(value: AnyRef, expanded: Boolean)
+    val integerCosts = new java.util.IdentityHashMap[IntExpr, java.lang.Long]()
+    val booleanCosts = new java.util.IdentityHashMap[BoolExpr, java.lang.Long]()
+    val work = scala.collection.mutable.ArrayBuffer(Frame(expression, expanded = false))
+    val TooLarge = -1L
+
+    def isDone(value: AnyRef): Boolean = value match {
+      case integer: IntExpr => integerCosts.containsKey(integer)
+      case boolean: BoolExpr => booleanCosts.containsKey(boolean)
+      case _ => true
+    }
+    def push(value: AnyRef): Unit = work += Frame(value, expanded = false)
+    def integer(value: IntExpr): Long = integerCosts.get(value).longValue
+    def boolean(value: BoolExpr): Long = booleanCosts.get(value).longValue
+    def plus(left: Long, right: Long, overhead: Long): Long =
+      if (left == TooLarge || right == TooLarge || left > maximum - right - overhead) TooLarge
+      else left + right + overhead
+    def increment(value: Long): Long =
+      if (value == TooLarge || value >= maximum) TooLarge else value + 1L
+
+    while (work.nonEmpty) {
+      val frame = work.remove(work.length - 1)
+      if (!isDone(frame.value)) {
+        if (!frame.expanded) {
+          work += Frame(frame.value, expanded = true)
+          frame.value match {
+            case _: Literal | _: ParameterRef | _: LocalParameterRef | _: GenerateIndexRef =>
+            case AddressWidth(operand) =>
+              val lowered = shape(operand)
+              if (lowered.thresholds.nonEmpty) push(lowered.base)
+            case Negate(operand)       => push(operand)
+            case Add(left, right)      => push(right); push(left)
+            case Subtract(left, right) => push(right); push(left)
+            case Multiply(left, right) => push(right); push(left)
+            case Divide(left, right)   => push(right); push(left)
+            case Modulo(left, right)   => push(right); push(left)
+            case Select(condition, whenTrue, whenFalse) =>
+              push(whenFalse)
+              push(whenTrue)
+              push(condition)
+            case _: BoolLiteral | _: BoolParameterRef | _: BoolLocalParameterRef =>
+            case BoolNot(operand)       => push(operand)
+            case BoolAnd(left, right)   => push(right); push(left)
+            case BoolOr(left, right)    => push(right); push(left)
+            case BoolLessThan(left, right)           => push(right); push(left)
+            case BoolLessThanOrEqual(left, right)    => push(right); push(left)
+            case BoolGreaterThan(left, right)        => push(right); push(left)
+            case BoolGreaterThanOrEqual(left, right) => push(right); push(left)
+            case BoolEqual(left, right)              => push(right); push(left)
+            case BoolNotEqual(left, right)           => push(right); push(left)
+          }
+        } else {
+          frame.value match {
+            case value: Literal          => integerCosts.put(value, 1L)
+            case value: ParameterRef     => integerCosts.put(value, 1L)
+            case value: LocalParameterRef => integerCosts.put(value, 1L)
+            case value: GenerateIndexRef => integerCosts.put(value, 1L)
+            case value @ AddressWidth(operand) =>
+              val lowered = shape(operand)
+              val cost =
+                if (lowered.thresholds.isEmpty) 1L
+                else {
+                  val operandCost = integer(lowered.base)
+                  val comparisons = lowered.thresholds.size.toLong
+                  if (
+                    operandCost == TooLarge ||
+                    operandCost + 1L > (maximum - 1L) / comparisons
+                  ) TooLarge
+                  else 1L + comparisons * (operandCost + 1L)
+                }
+              integerCosts.put(value, cost)
+            case value @ Negate(operand) => integerCosts.put(value, increment(integer(operand)))
+            case value @ Add(left, right) => integerCosts.put(value, plus(integer(left), integer(right), 1L))
+            case value @ Subtract(left, right) => integerCosts.put(value, plus(integer(left), integer(right), 1L))
+            case value @ Multiply(left, right) => integerCosts.put(value, plus(integer(left), integer(right), 1L))
+            case value @ Divide(left, right) => integerCosts.put(value, plus(integer(left), integer(right), 1L))
+            case value @ Modulo(left, right) => integerCosts.put(value, plus(integer(left), integer(right), 1L))
+            case value @ Select(condition, whenTrue, whenFalse) =>
+              integerCosts.put(
+                value,
+                plus(boolean(condition), plus(integer(whenTrue), integer(whenFalse), 0L), 1L)
+              )
+            case value: BoolLiteral          => booleanCosts.put(value, 1L)
+            case value: BoolParameterRef     => booleanCosts.put(value, 1L)
+            case value: BoolLocalParameterRef => booleanCosts.put(value, 1L)
+            case value @ BoolNot(operand) => booleanCosts.put(value, increment(boolean(operand)))
+            case value @ BoolAnd(left, right) => booleanCosts.put(value, plus(boolean(left), boolean(right), 1L))
+            case value @ BoolOr(left, right) => booleanCosts.put(value, plus(boolean(left), boolean(right), 1L))
+            case value @ BoolLessThan(left, right) => booleanCosts.put(value, plus(integer(left), integer(right), 1L))
+            case value @ BoolLessThanOrEqual(left, right) => booleanCosts.put(value, plus(integer(left), integer(right), 1L))
+            case value @ BoolGreaterThan(left, right) => booleanCosts.put(value, plus(integer(left), integer(right), 1L))
+            case value @ BoolGreaterThanOrEqual(left, right) => booleanCosts.put(value, plus(integer(left), integer(right), 1L))
+            case value @ BoolEqual(left, right) => booleanCosts.put(value, plus(integer(left), integer(right), 1L))
+            case value @ BoolNotEqual(left, right) => booleanCosts.put(value, plus(integer(left), integer(right), 1L))
+          }
+        }
+      }
+    }
+    integer(expression) != TooLarge
+  }
+
+  private def addressWidth(value: BigInt): BigInt =
+    if (value <= 2) BigInt(1) else BigInt((value - 1).bitLength)
 }

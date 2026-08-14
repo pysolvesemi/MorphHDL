@@ -52,6 +52,10 @@ def require_port(ports, name, direction, width):
     return None
 
 
+def address_width(depth):
+    return max(1, (depth - 1).bit_length())
+
+
 def all_zero(bits):
     return bool(bits) and all(bit in ("0", 0) for bit in bits)
 
@@ -87,6 +91,8 @@ def main():
 
     if args.width < 1 or args.depth < 1:
         return fail("expected width and depth must be positive")
+    expected_address_width = address_width(args.depth)
+    full_address_domain = args.depth == (1 << expected_address_width)
 
     with args.netlist.open("r", encoding="utf-8") as handle:
         modules = json.load(handle).get("modules", {})
@@ -96,7 +102,7 @@ def main():
 
     ports = top.get("ports", {})
     expected_ports = {
-        "address": ("input", 3),
+        "address": ("input", expected_address_width),
         "clk": ("input", 1),
         "read_data": ("output", args.width),
         "write_data": ("input", args.width),
@@ -131,34 +137,68 @@ def main():
         ("WIDTH", args.width),
         ("SIZE", args.depth),
         ("OFFSET", 0),
-        ("ABITS", 3),
+        ("ABITS", expected_address_width),
         ("RD_PORTS", 1),
         ("WR_PORTS", 1),
-        ("RD_CLK_ENABLE", 0),
+        ("RD_CLK_ENABLE", 1 if full_address_domain else 0),
+        ("RD_CLK_POLARITY", 1 if full_address_domain else 0),
+        ("RD_CE_OVER_SRST", 0),
         ("WR_CLK_ENABLE", 1),
         ("WR_CLK_POLARITY", 1),
         ("RD_TRANSPARENCY_MASK", 0),
         ("RD_COLLISION_X_MASK", 0),
+        ("RD_WIDE_CONTINUATION", 0),
         ("WR_PRIORITY_MASK", 0),
+        ("WR_WIDE_CONTINUATION", 0),
     ):
         problem = require_parameter(memory_name, parameters, parameter, expected)
         if problem is not None:
             return fail(problem)
 
     init = parameters.get("INIT")
-    if init is None:
-        return fail("{} is missing uninitialized INIT metadata".format(memory_name))
-    if isinstance(init, str) and set(init.lower()) <= {"x"}:
-        pass
-    elif integer(init) is not None:
-        return fail("{} unexpectedly initializes memory to {!r}".format(memory_name, init))
-    else:
-        return fail("{} has unrecognized INIT metadata {!r}".format(memory_name, init))
+    expected_init_width = args.width * args.depth
+    if (
+        not isinstance(init, str)
+        or len(init) != expected_init_width
+        or set(init.lower()) != {"x"}
+    ):
+        return fail(
+            "{} INIT metadata is {!r}, expected exactly {} uninitialized bits".format(
+                memory_name, init, expected_init_width
+            )
+        )
+
+    for parameter in ("RD_ARST_VALUE", "RD_INIT_VALUE", "RD_SRST_VALUE"):
+        value = parameters.get(parameter)
+        if not isinstance(value, str) or len(value) != args.width or set(value.lower()) != {"x"}:
+            return fail(
+                "{} parameter {} is {!r}, expected {} uninitialized bits".format(
+                    memory_name, parameter, value, args.width
+                )
+            )
 
     connections = memory.get("connections", {})
-    for connection in ("RD_ADDR", "RD_DATA", "RD_EN", "WR_ADDR", "WR_CLK", "WR_DATA", "WR_EN"):
+    for connection in (
+        "RD_ADDR",
+        "RD_ARST",
+        "RD_CLK",
+        "RD_DATA",
+        "RD_EN",
+        "RD_SRST",
+        "WR_ADDR",
+        "WR_CLK",
+        "WR_DATA",
+        "WR_EN",
+    ):
         if connection not in connections:
             return fail("{} is missing connection {}".format(memory_name, connection))
+    for connection in ("RD_ARST", "RD_SRST"):
+        if connections[connection] not in (["0"], [0]):
+            return fail(
+                "{} read reset {} must be exactly one permanently inactive bit".format(
+                    memory_name, connection
+                )
+            )
     if connections["RD_ADDR"] != ports["address"]["bits"]:
         return fail("{} read address is not connected directly to address".format(memory_name))
     if connections["WR_ADDR"] != ports["address"]["bits"]:
@@ -167,58 +207,14 @@ def main():
         return fail("{} write clock is not connected directly to clk".format(memory_name))
     if connections["WR_DATA"] != ports["write_data"]["bits"]:
         return fail("{} write data is not connected bit-for-bit".format(memory_name))
-    if not all(bit in ("1", 1) for bit in connections["RD_EN"]):
-        return fail("{} asynchronous read port is not continuously enabled".format(memory_name))
+    if connections["RD_EN"] not in (["1"], [1]):
+        return fail("{} read enable must be exactly one active bit".format(memory_name))
     if len(connections["RD_DATA"]) != args.width:
         return fail("{} read data width is not {}".format(memory_name, args.width))
 
     write_guard = one_signal_replicated(connections["WR_EN"], args.width)
     if write_guard is None:
         return fail("{} write enable is not one active-high whole-word guard".format(memory_name))
-
-    registers = [
-        (name, cell)
-        for name, cell in cells.items()
-        if "dff" in cell.get("type", "").lower()
-    ]
-    if len(registers) != 1 or registers[0][1].get("type") != "$dff":
-        return fail(
-            "storage beside the memory is {}, expected exactly one $dff".format(
-                {name: cell.get("type") for name, cell in registers}
-            )
-        )
-    register_name, register = registers[0]
-    register_connections = register.get("connections", {})
-    if register_connections.get("CLK") != ports["clk"]["bits"]:
-        return fail("{} clock is not connected directly to clk".format(register_name))
-    if register_connections.get("Q") != ports["read_data"]["bits"]:
-        return fail("{} does not solely drive read_data".format(register_name))
-    for parameter, expected in (("WIDTH", args.width), ("CLK_POLARITY", 1)):
-        problem = require_parameter(register_name, register.get("parameters", {}), parameter, expected)
-        if problem is not None:
-            return fail(problem)
-
-    read_muxes = []
-    for name, cell in cells.items():
-        if cell.get("type") != "$mux":
-            continue
-        mux_connections = cell.get("connections", {})
-        if mux_connections.get("Y") != register_connections.get("D"):
-            continue
-        false_value = mux_connections.get("A", [])
-        true_value = mux_connections.get("B", [])
-        if all_zero(false_value) and true_value == connections["RD_DATA"]:
-            read_muxes.append((name, cell))
-    if len(read_muxes) != 1:
-        return fail(
-            "found {} exact in-range ? memory : zero muxes feeding read_data $dff, expected one".format(
-                len(read_muxes)
-            )
-        )
-    read_mux_name, read_mux = read_muxes[0]
-    in_range = read_mux.get("connections", {}).get("S", [])
-    if len(in_range) != 1:
-        return fail("{} select is not one in-range bit".format(read_mux_name))
 
     comparisons = []
     for name, cell in cells.items():
@@ -227,10 +223,10 @@ def main():
         comparison_connections = cell.get("connections", {})
         if comparison_connections.get("A") != ports["address"]["bits"]:
             continue
-        if comparison_connections.get("Y") != in_range:
-            continue
         constant = comparison_connections.get("B", [])
-        if not constant or any(not isinstance(bit, str) or bit not in {"0", "1"} for bit in constant):
+        if len(constant) != 32 or any(
+            not isinstance(bit, str) or bit not in {"0", "1"} for bit in constant
+        ):
             continue
         if sum((1 << index) for index, bit in enumerate(constant) if bit == "1") != args.depth:
             continue
@@ -238,9 +234,13 @@ def main():
     if len(comparisons) != 1:
         return fail("found {} exact address < DEPTH guards, expected one".format(len(comparisons)))
     comparison_name, comparison = comparisons[0]
+    in_range = comparison.get("connections", {}).get("Y", [])
+    if len(in_range) != 1:
+        return fail("{} result is not one in-range bit".format(comparison_name))
     for parameter, expected in (
         ("A_SIGNED", 0),
-        ("A_WIDTH", 3),
+        ("A_WIDTH", expected_address_width),
+        ("B_SIGNED", 0),
         ("B_WIDTH", 32),
         ("Y_WIDTH", 1),
     ):
@@ -249,6 +249,70 @@ def main():
         )
         if problem is not None:
             return fail(problem)
+
+    registers = [
+        (name, cell)
+        for name, cell in cells.items()
+        if "dff" in cell.get("type", "").lower()
+    ]
+    if full_address_domain:
+        if registers:
+            return fail(
+                "full-domain synchronous read has redundant storage beside memory: {}".format(
+                    {name: cell.get("type") for name, cell in registers}
+                )
+            )
+        if connections["RD_CLK"] != ports["clk"]["bits"]:
+            return fail("{} synchronous read clock is not connected directly to clk".format(memory_name))
+        if connections["RD_DATA"] != ports["read_data"]["bits"]:
+            return fail("{} synchronous read data does not solely drive read_data".format(memory_name))
+    else:
+        if len(connections["RD_CLK"]) != 1 or connections["RD_CLK"][0] not in ("x", "X"):
+            return fail(
+                "{} asynchronous read clock must be exactly one inactive x bit".format(
+                    memory_name
+                )
+            )
+        if len(registers) != 1 or registers[0][1].get("type") != "$dff":
+            return fail(
+                "storage beside the memory is {}, expected exactly one $dff".format(
+                    {name: cell.get("type") for name, cell in registers}
+                )
+            )
+        register_name, register = registers[0]
+        register_connections = register.get("connections", {})
+        if register_connections.get("CLK") != ports["clk"]["bits"]:
+            return fail("{} clock is not connected directly to clk".format(register_name))
+        if register_connections.get("Q") != ports["read_data"]["bits"]:
+            return fail("{} does not solely drive read_data".format(register_name))
+        for parameter, expected in (("WIDTH", args.width), ("CLK_POLARITY", 1)):
+            problem = require_parameter(
+                register_name, register.get("parameters", {}), parameter, expected
+            )
+            if problem is not None:
+                return fail(problem)
+
+        read_muxes = []
+        for name, cell in cells.items():
+            if cell.get("type") != "$mux":
+                continue
+            mux_connections = cell.get("connections", {})
+            if mux_connections.get("Y") != register_connections.get("D"):
+                continue
+            false_value = mux_connections.get("A", [])
+            true_value = mux_connections.get("B", [])
+            if (
+                all_zero(false_value)
+                and true_value == connections["RD_DATA"]
+                and mux_connections.get("S") == in_range
+            ):
+                read_muxes.append((name, cell))
+        if len(read_muxes) != 1:
+            return fail(
+                "found {} exact in-range ? memory : zero muxes feeding read_data $dff, expected one".format(
+                    len(read_muxes)
+                )
+            )
 
     write_guards = []
     for name, cell in cells.items():

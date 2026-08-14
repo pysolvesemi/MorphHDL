@@ -64,6 +64,9 @@ The contract is split into these documents:
 - [Increment 20 synchronous read-first single-port memory](../increment-20-single-port-memory.md):
   one guarded positive-edge whole-word memory with independent width/depth and
   a sixteenth reviewed fixture.
+- [Increment 21 portable address width](../increment-21-portable-address-width.md):
+  typed positive ceiling-log2 with a one-bit minimum and a depth-derived
+  packed memory address ABI in strict Verilog-2001.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -83,7 +86,9 @@ the first bounded runtime combinational process executable. Increments 16 and
 executable. Increments 18 and 19 add bounded synchronous and asynchronous
 enable/hold semantics. Increment 20 adds the first bounded parameterized
 single-port memory while broader statements, multiple clocks/registers, CDC
-structures and memory policies remain separate tranches.
+structures and memory policies remain separate tranches. Increment 21 derives
+that memory's address width from `DEPTH` through a portable typed conditional
+expression without `$clog2` or an externally overrideable helper parameter.
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants

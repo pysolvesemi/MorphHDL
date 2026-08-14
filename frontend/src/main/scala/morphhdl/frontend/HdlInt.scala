@@ -11,6 +11,7 @@ import morphhdl.paramrtl.BoolExpr.{
 }
 import morphhdl.paramrtl.IntExpr.{
   Add,
+  AddressWidth,
   Divide,
   Literal,
   LocalParameterRef,
@@ -93,6 +94,40 @@ final class HdlInt private[frontend] (
     new HdlInt(
       -witness,
       Negate(expression),
+      declaration = None,
+      parameters = parameters,
+      booleanParameters = booleanParameters,
+      localDeclaration = None,
+      localParameters = localParameters,
+      booleanLocalParameters = booleanLocalParameters,
+      scope = scope,
+      origin = resultOrigin
+    )
+  }
+
+  /**
+    * Returns the minimum packed width that can address every element of this
+    * positive size, while retaining the size as a symbolic ParamRTL
+    * expression. A size of one deliberately has an address width of one.
+    */
+  def addressWidth(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt = {
+    val resultOrigin = SourceOrigin.capture
+
+    // Check structural safety before inspecting the concrete witness. This
+    // keeps a loop-variant value from being accepted merely because the
+    // current elaboration iteration happens to carry a positive witness.
+    requireLoopInvariant("address-width computation")
+    if (witness <= 0) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ADDRESS-WIDTH-WITNESS-NONPOSITIVE",
+        s"addressWidth requires a positive concrete witness, but found $witness",
+        resultOrigin
+      )
+    }
+
+    new HdlInt(
+      BigInt(math.max(1, (witness - 1).bitLength)),
+      AddressWidth(expression),
       declaration = None,
       parameters = parameters,
       booleanParameters = booleanParameters,

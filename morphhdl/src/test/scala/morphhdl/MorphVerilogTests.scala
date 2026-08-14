@@ -895,6 +895,71 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("portable address width agrees with concrete defaults at depths one two three and five") {
+    Vector(1 -> 1, 2 -> 1, 3 -> 2, 5 -> 3).foreach {
+      case (depth, expectedWidth) =>
+        withTemporaryDirectory { directory =>
+          val topName = s"AddressWidthDepth$depth"
+          val config = SpinalConfig(targetDirectory = directory.toString)
+          config.netlistFileName = s"address_width_depth_$depth.v"
+          val report = MorphVerilog(config) {
+            MorphProgram(
+              concreteWitness = passThroughWitness(topName, expectedWidth),
+              parameterizedDesign = addressWidthDesign(topName, depth)
+            )
+          }
+
+          val output = directory.resolve(s"address_width_depth_$depth.v")
+          assert(report.toplevelName == topName)
+          assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
+          assert(Files.isRegularFile(output))
+          val verilog = new String(Files.readAllBytes(output), StandardCharsets.UTF_8)
+          assert(verilog.contains(s"parameter integer DEPTH = $depth"))
+          assert(!verilog.contains("$clog2"))
+        }
+    }
+  }
+
+  test("portable address width evaluates local and parent-bound default context") {
+    withTemporaryDirectory { directory =>
+      val topName = "BoundAddressWidth"
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "bound_address_width.v"
+      val report = MorphVerilog(config) {
+        MorphProgram(
+          concreteWitness = boundAddressWidthWitness(topName, width = 2),
+          parameterizedDesign = boundAddressWidthDesign(topName)
+        )
+      }
+
+      assert(report.toplevelName == topName)
+      assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
+      assert(Files.isRegularFile(directory.resolve("bound_address_width.v")))
+    }
+  }
+
+  test("portable address width rejects a possibly nonpositive domain before public output") {
+    withTemporaryDirectory { directory =>
+      val topName = "UnsafeAddressWidth"
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "unsafe_address_width.v"
+      val result = MorphVerilog.tryGenerate(config) {
+        MorphProgram(
+          concreteWitness = passThroughWitness(topName, width = 1),
+          parameterizedDesign = addressWidthDesign(topName, depthDefault = 1, depthMinimum = 0)
+        )
+      }
+
+      result match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.ParamRtlValidation)
+          assert(failure.message.contains("ADDRESS-WIDTH"))
+        case Right(report) => fail(s"Expected unsafe address-width validation failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve("unsafe_address_width.v")))
+    }
+  }
+
   test("single-port memory validation fails before public output") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
@@ -3311,7 +3376,7 @@ class MorphVerilogTests extends AnyFunSuite {
       ports = Vector(
         Port("clk", Input, PackedBits(IntExpr.Literal(1), Unsigned)),
         Port("write_enable", Input, PackedBits(IntExpr.Literal(1), Unsigned)),
-        Port("address", Input, PackedBits(IntExpr.Literal(3), Unsigned)),
+        Port("address", Input, PackedBits(IntExpr.AddressWidth(depth), Unsigned)),
         Port("write_data", Input, packed),
         Port("read_data", Output, packed)
       ),
@@ -3330,6 +3395,93 @@ class MorphVerilogTests extends AnyFunSuite {
       )
     )
     Design(top.name, Vector(top))
+  }
+
+  private def addressWidthDesign(
+      requestedName: String,
+      depthDefault: Int,
+      depthMinimum: Int = 1
+  ): Design = {
+    val width = IntExpr.AddressWidth(IntExpr.ParameterRef("DEPTH"))
+    val packed = PackedBits(width, Unsigned)
+    val top = ModuleDef(
+      name = requestedName,
+      parameters = Vector(
+        IntegerParameter(
+          "DEPTH",
+          default = depthDefault,
+          constraints = Vector(MinInclusive(depthMinimum), MaxInclusive(5))
+        )
+      ),
+      ports = Vector(
+        Port("data_in", Input, packed),
+        Port("data_out", Output, packed)
+      ),
+      items = Vector(ContinuousAssign(Ref("data_out"), Ref("data_in")))
+    )
+    Design(top.name, Vector(top))
+  }
+
+  private def boundAddressWidthWitness(requestedName: String, width: Int): Component =
+    new Component {
+      setDefinitionName(requestedName)
+      val data_in = in(Bits(width bits))
+      val data_out = out(Bits(width bits))
+      val child = new Component {
+        setDefinitionName("BoundAddressWidthChild")
+        val child_in = in(Bits(width bits))
+        val child_out = out(Bits(width bits))
+        child_out := child_in
+      }
+      child.child_in := data_in
+      data_out := child.child_out
+    }
+
+  private def boundAddressWidthDesign(requestedName: String): Design = {
+    val childDepth = IntExpr.ParameterRef("DEPTH")
+    val childWidth = IntExpr.AddressWidth(childDepth)
+    val child = ModuleDef(
+      name = "BoundAddressWidthChild",
+      parameters = Vector(
+        IntegerParameter("DEPTH", 1, Vector(MinInclusive(1), MaxInclusive(5)))
+      ),
+      ports = Vector(
+        Port("child_in", Input, PackedBits(childWidth, Unsigned)),
+        Port("child_out", Output, PackedBits(childWidth, Unsigned))
+      ),
+      items = Vector(ContinuousAssign(Ref("child_out"), Ref("child_in")))
+    )
+
+    val boundDepth = IntExpr.LocalParameterRef("BOUND_DEPTH")
+    val topWidth = IntExpr.AddressWidth(boundDepth)
+    val top = ModuleDef(
+      name = requestedName,
+      parameters = Vector(
+        IntegerParameter("TOP_DEPTH", 2, Vector(MinInclusive(1), MaxInclusive(4)))
+      ),
+      ports = Vector(
+        Port("data_in", Input, PackedBits(topWidth, Unsigned)),
+        Port("data_out", Output, PackedBits(topWidth, Unsigned))
+      ),
+      items = Vector(
+        ModuleItem.ModuleInstance(
+          name = "child",
+          moduleName = child.name,
+          parameterBindings = Vector(ParameterBinding("DEPTH", boundDepth)),
+          portConnections = Vector(
+            PortConnection("child_in", Ref("data_in")),
+            PortConnection("child_out", Ref("data_out"))
+          )
+        )
+      ),
+      localParameters = Vector(
+        IntegerLocalParameter(
+          "BOUND_DEPTH",
+          IntExpr.Add(IntExpr.ParameterRef("TOP_DEPTH"), IntExpr.Literal(1))
+        )
+      )
+    )
+    Design(top.name, Vector(top, child))
   }
 
   private def expectedVerilog(name: String): String =
@@ -3452,12 +3604,21 @@ class MorphVerilogTests extends AnyFunSuite {
       |endmodule
       |""".stripMargin
 
+  private val expectedAddressWidthExpression = {
+    var chain = "31"
+    (30 to 1 by -1).foreach { width =>
+      val falseBranch = if (width == 30) chain else s"($chain)"
+      chain = s"(DEPTH <= ${BigInt(1) << width}) ? $width : $falseBranch"
+    }
+    chain
+  }
+
   private val expectedSinglePortMemoryVerilog =
-    """module SinglePortMemory #(
+    s"""module SinglePortMemory #(
       |  parameter integer DEPTH = 5,
       |  parameter integer WIDTH = 8
       |) (
-      |  input  wire [2:0] address,
+      |  input  wire [($expectedAddressWidthExpression)-1:0] address,
       |  input  wire [0:0] clk,
       |  output reg [WIDTH-1:0] read_data,
       |  input  wire [WIDTH-1:0] write_data,
