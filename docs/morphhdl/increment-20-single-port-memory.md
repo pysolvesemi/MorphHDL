@@ -99,8 +99,10 @@ the default 8x5, awkward 5x3 and minimum 1x1 elaborations in strict 1364-2001
 mode. The memory fixture alone suppresses `WIDTHEXPAND` for comparing the
 three-bit address against Verilog's 32-bit `integer DEPTH`, and `WIDTHTRUNC`
 for indexing a deliberately non-power-of-two memory through that guarded
-address. Port/data width diagnostics and all other fixtures' width diagnostics
-remain enabled.
+address. Those suppressions are confined to the three `SinglePortMemory` lint
+invocations; exact golden, simulation and Yosys structural/port-width gates
+continue to enforce its port and data widths, while all other fixtures retain
+their width diagnostics.
 
 Icarus proves synchronous timing, valid boundary addresses, disabled writes,
 read-first collision, later visibility of the written value, synchronous zero
