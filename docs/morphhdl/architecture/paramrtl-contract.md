@@ -232,17 +232,19 @@ provenance or memories.
 
 Increment 20 adds
 `ModuleItem.SynchronousReadFirstSinglePortMemory(label, memoryName, clock,
-writeEnable, address, writeData, readData, elementType: PackedBits,
+readEnable, writeEnable, address, writeData, readData, elementType: PackedBits,
 depth: IntExpr)`. It represents one positive-edge synchronous read/write port
 with read-first same-address collision semantics. Validation requires distinct
-direct input roles, an exact unsigned one-bit clock and write enable, one
+direct input roles, an exact unsigned one-bit clock and read/write enables, one
 unsigned packed address, exact element/write/read packed-type equivalence and
 a positive bounded depth. The address capacity must cover the maximum legal
-depth across the whole parameter domain. At every edge, an in-range address
-updates the read output from the pre-write memory value and conditionally
-writes one complete element; a surplus address reads zero and cannot write.
+depth across the whole parameter domain. With read enable high, an in-range
+address updates the read output from the pre-write memory value and a surplus
+address updates it to zero. With read enable low, the output holds. A valid
+write remains controlled only by write enable and the in-range guard, including
+while reads are disabled. A surplus address cannot write.
 The node is the sole module item and sole owner of its read output and memory
-name. It carries no reset, initialization, read enable, write mask, additional
+name. It carries no reset, initialization, write mask, additional
 port, selectable collision policy or external clock-domain provenance.
 
 Increment 21 does not change the memory node or its runtime policy. It changes
@@ -252,6 +254,11 @@ ABI track each legal depth while keeping at least one address bit for
 `DEPTH=1`. Exact expression correlation proves the address capacity; fixed or
 unrelated widths remain subject to the conservative whole-domain capacity
 check.
+
+Increment 22 adds the required active-high `readEnable` role without changing
+the depth-derived address ABI. Disabled reads intentionally retain the last
+read output; enabled simultaneous read/write remains read-first, and read
+enable never gates the existing valid whole-word write path.
 
 ## Required invariants
 

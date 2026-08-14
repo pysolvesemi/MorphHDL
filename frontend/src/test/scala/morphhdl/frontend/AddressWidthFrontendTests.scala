@@ -150,6 +150,7 @@ class AddressWidthFrontendTests extends AnyFunSuite {
         "p_memory",
         "memory",
         ref("clk"),
+        ref("read_enable"),
         ref("write_enable"),
         ref("address"),
         ref("write_data"),
@@ -164,6 +165,7 @@ class AddressWidthFrontendTests extends AnyFunSuite {
       parameters = Vector(integerParameter(depth), integerParameter(elementRange)),
       ports = Vector(
         port("clk", Input, packedBits(1)),
+        port("read_enable", Input, packedBits(1)),
         port("write_enable", Input, packedBits(1)),
         port("address", Input, packedBits(addressWidth)),
         port("write_data", Input, packedBits(elementWidth)),
@@ -172,12 +174,13 @@ class AddressWidthFrontendTests extends AnyFunSuite {
       items = items
     )
 
-    assert(module.ports(2).dataType.width == AddressWidth(ParameterRef("DEPTH")))
+    assert(module.ports(3).dataType.width == AddressWidth(ParameterRef("DEPTH")))
     assert(module.items == Vector(
       SynchronousReadFirstSinglePortMemory(
         "p_memory",
         "memory",
         Ref("clk"),
+        Ref("read_enable"),
         Ref("write_enable"),
         Ref("address"),
         Ref("write_data"),
@@ -197,6 +200,7 @@ class AddressWidthFrontendTests extends AnyFunSuite {
         "p_memory",
         "memory",
         ref("clk"),
+        ref("read_enable"),
         ref("write_enable"),
         ref("address"),
         ref("write_data"),
@@ -211,6 +215,7 @@ class AddressWidthFrontendTests extends AnyFunSuite {
       parameters = Vector(integerParameter(capacity)),
       ports = Vector(
         port("clk", Input, packedBits(1)),
+        port("read_enable", Input, packedBits(1)),
         port("write_enable", Input, packedBits(1)),
         port("address", Input, packedBits(memoryDepth.addressWidth)),
         port("write_data", Input, packedBits(8)),

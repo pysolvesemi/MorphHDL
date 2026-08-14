@@ -151,3 +151,10 @@ whole legal domain, and strict Verilog-2001 lowers it to one deterministic
 right-associated conditional chain. No `$clog2`, helper function,
 overrideable address parameter or specialized module copy is emitted; the
 memory's read-first and surplus-address behavior is unchanged.
+
+Increment 22 adds one exact one-bit active-high `read_enable` to that same
+memory. Enabled reads retain the synchronous in-range value or surplus zero
+behavior; disabled reads hold `read_data`, including while an independent
+valid write commits. When both enables are high, nonblocking assignments keep
+the collision read-first. Reset, initialization, masks, selectable polarity
+and additional ports remain rejected.

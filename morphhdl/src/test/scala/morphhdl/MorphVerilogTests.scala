@@ -3375,6 +3375,7 @@ class MorphVerilogTests extends AnyFunSuite {
       ),
       ports = Vector(
         Port("clk", Input, PackedBits(IntExpr.Literal(1), Unsigned)),
+        Port("read_enable", Input, PackedBits(IntExpr.Literal(1), Unsigned)),
         Port("write_enable", Input, PackedBits(IntExpr.Literal(1), Unsigned)),
         Port("address", Input, PackedBits(IntExpr.AddressWidth(depth), Unsigned)),
         Port("write_data", Input, packed),
@@ -3385,6 +3386,7 @@ class MorphVerilogTests extends AnyFunSuite {
           label = "p_memory",
           memoryName = "memory",
           clock = Ref("missing_clock"),
+          readEnable = Ref("read_enable"),
           writeEnable = Ref("write_enable"),
           address = Ref("address"),
           writeData = Ref("write_data"),
@@ -3621,6 +3623,7 @@ class MorphVerilogTests extends AnyFunSuite {
       |  input  wire [($expectedAddressWidthExpression)-1:0] address,
       |  input  wire [0:0] clk,
       |  output reg [WIDTH-1:0] read_data,
+      |  input  wire [0:0] read_enable,
       |  input  wire [WIDTH-1:0] write_data,
       |  input  wire [0:0] write_enable
       |);
@@ -3629,11 +3632,13 @@ class MorphVerilogTests extends AnyFunSuite {
       |
       |  always @(posedge clk) begin : p_memory
       |    if (address < DEPTH) begin
-      |      read_data <= memory[address];
+      |      if (read_enable == 1'b1) begin
+      |        read_data <= memory[address];
+      |      end
       |      if (write_enable == 1'b1) begin
       |        memory[address] <= write_data;
       |      end
-      |    end else begin
+      |    end else if (read_enable == 1'b1) begin
       |      read_data <= {WIDTH{1'b0}};
       |    end
       |  end

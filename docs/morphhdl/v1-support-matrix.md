@@ -21,7 +21,7 @@ first parameterized-Verilog release, not implemented in Increment 1.
 | Structure | Parameter-dependent Scala class selection | Static only | Not recoverable as HDL structure |
 | RTL | Combinational operations | v1 | Increment 15 implements one complete two-branch runtime mux process over direct port references; broader expressions and statement forms remain bounded follow-on work |
 | RTL | Registers and sync/async reset | v1 | Increments 16 and 17 implement active-high synchronous/asynchronous reset-to-zero; Increments 18 and 19 add the matching reset-priority active-high enable with disabled hold; broader state remains bounded follow-on work |
-| RTL | Supported memories | v1 | Increment 20 implements one synchronous read-first whole-word single-port memory; Increment 21 derives its address ABI from depth; reset, initialization, read enable, masks and extra ports remain deferred |
+| RTL | Supported memories | v1 | Increment 20 implements one synchronous read-first whole-word single-port memory; Increment 21 derives its address ABI from depth; Increment 22 adds active-high read enable with disabled hold and independent writes; reset, initialization, masks and extra ports remain deferred |
 | RTL | Tri-state/analog primitives | Post-v1 | Rejected by initial strict profile |
 | Aggregates | Bundle/Vec internal intent | v1 | Preserved in ParamRTL, flattened for Verilog |
 | Ports | Scalar and packed-vector ports | v1 | Stable flat ABI |

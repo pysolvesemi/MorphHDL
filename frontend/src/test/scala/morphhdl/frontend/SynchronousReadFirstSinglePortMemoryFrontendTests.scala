@@ -28,6 +28,7 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
       label,
       memoryName,
       ref("clk"),
+      ref("read_enable"),
       ref("write_enable"),
       ref("address"),
       ref("write_data"),
@@ -86,6 +87,7 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
         "p_memory",
         "memory",
         ref("clk"),
+        ref("read_enable"),
         ref("write_enable"),
         ref("address"),
         ref("write_data"),
@@ -100,6 +102,7 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
         label = "p_memory",
         memoryName = "memory",
         clock = Ref("clk"),
+        readEnable = Ref("read_enable"),
         writeEnable = Ref("write_enable"),
         address = Ref("address"),
         writeData = Ref("write_data"),
@@ -114,6 +117,7 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
       parameters = Vector(integerParameter(width), integerParameter(depth)),
       ports = Vector(
         port("clk", Input, packedBits(1)),
+        port("read_enable", Input, packedBits(1)),
         port("write_enable", Input, packedBits(1)),
         port("address", Input, packedBits(5)),
         port("write_data", Input, packedBits(width)),
@@ -132,8 +136,8 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
     val localDepth = localParam("LOCAL_DEPTH", depth)
     val localFeature = localParam("LOCAL_FEATURE", feature)
 
-    val guardedWriteEnable = FrontendNode[RtlExpr](
-      Ref("write_enable"),
+    val guardedReadEnable = FrontendNode[RtlExpr](
+      Ref("read_enable"),
       parameters = width.parameters,
       booleanParameters = feature.parameters,
       localParameters = localWidth.localParameters,
@@ -145,7 +149,8 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
         "p_provenance",
         "memory",
         ref("clk"),
-        guardedWriteEnable,
+        guardedReadEnable,
+        ref("write_enable"),
         ref("address"),
         ref("write_data"),
         ref("read_data"),
@@ -180,6 +185,7 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
         "p_public_identity",
         "memory",
         ref("clk"),
+        ref("read_enable"),
         ref("write_enable"),
         ref("address"),
         ref("write_data"),
@@ -212,6 +218,7 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
         "p_claimed",
         "memory",
         ref("clk"),
+        ref("read_enable"),
         ref("write_enable"),
         ref("address"),
         ref("write_data"),
@@ -235,6 +242,7 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
         label: String = "p_memory",
         memoryName: String = "memory",
         clock: FrontendNode[RtlExpr] = ref("clk"),
+        readEnable: FrontendNode[RtlExpr] = ref("read_enable"),
         writeEnable: FrontendNode[RtlExpr] = ref("write_enable"),
         address: FrontendNode[RtlExpr] = ref("address"),
         writeData: FrontendNode[RtlExpr] = ref("write_data"),
@@ -246,6 +254,7 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
         label,
         memoryName,
         clock,
+        readEnable,
         writeEnable,
         address,
         writeData,
@@ -271,6 +280,12 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
         "MORPH-FRONTEND-SINGLE-PORT-MEMORY-CLOCK-NOT-REF",
       intercept[FrontendException](emit(clock = ref("not-portable"))) ->
         "MORPH-FRONTEND-SINGLE-PORT-MEMORY-CLOCK-INVALID",
+      intercept[FrontendException](emit(readEnable = null)) ->
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-ENABLE-NULL",
+      intercept[FrontendException](emit(readEnable = nonRef)) ->
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-ENABLE-NOT-REF",
+      intercept[FrontendException](emit(readEnable = ref("not-portable"))) ->
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-ENABLE-INVALID",
       intercept[FrontendException](emit(writeEnable = null)) ->
         "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-ENABLE-NULL",
       intercept[FrontendException](emit(writeEnable = nonRef)) ->
@@ -305,6 +320,20 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
       assert(error.sourceLocation.nonEmpty)
       assert(error.suggestedReplacement.nonEmpty)
     }
+
+    val invalidOrigin = SourceOrigin("ReadEnable.scala", 17)
+    val invalidReadEnable = FrontendNode[RtlExpr](
+      Ref("not-portable"),
+      origin = invalidOrigin
+    )
+    val invalidReadEnableError = intercept[FrontendException] {
+      emit(readEnable = invalidReadEnable)
+    }
+    assert(
+      invalidReadEnableError.code ==
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-ENABLE-INVALID"
+    )
+    assert(invalidReadEnableError.origin == invalidOrigin)
   }
 
   test("provides an explicit suggestion for every new frontend diagnostic") {
@@ -321,6 +350,8 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
         "Use an identifier matching `[A-Za-z_][A-Za-z0-9_]*`.",
       "MORPH-FRONTEND-SINGLE-PORT-MEMORY-CLOCK-INVALID" ->
         "Use an identifier matching `[A-Za-z_][A-Za-z0-9_]*`.",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-ENABLE-INVALID" ->
+        "Use an identifier matching `[A-Za-z_][A-Za-z0-9_]*`.",
       "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-ENABLE-INVALID" ->
         "Use an identifier matching `[A-Za-z_][A-Za-z0-9_]*`.",
       "MORPH-FRONTEND-SINGLE-PORT-MEMORY-ADDRESS-INVALID" ->
@@ -333,6 +364,10 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
         "Pass a non-null ref(name) clock to emitSynchronousReadFirstSinglePortMemory.",
       "MORPH-FRONTEND-SINGLE-PORT-MEMORY-CLOCK-NOT-REF" ->
         "Pass a non-null ref(name) clock to emitSynchronousReadFirstSinglePortMemory.",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-ENABLE-NULL" ->
+        "Pass a non-null ref(name) read enable to emitSynchronousReadFirstSinglePortMemory.",
+      "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-ENABLE-NOT-REF" ->
+        "Pass a non-null ref(name) read enable to emitSynchronousReadFirstSinglePortMemory.",
       "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-ENABLE-NULL" ->
         "Pass a non-null ref(name) write enable to emitSynchronousReadFirstSinglePortMemory.",
       "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-ENABLE-NOT-REF" ->
@@ -372,6 +407,7 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
         ref("same_signal"),
         ref("same_signal"),
         ref("same_signal"),
+        ref("same_signal"),
         FrontendNode(
           PackedBits(Literal(0), Unsigned),
           origin = SourceOrigin("DeferredMemoryType.scala", 4)
@@ -382,6 +418,7 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
     assert(items.raw.head == SynchronousReadFirstSinglePortMemory(
       "p_deferred",
       "memory",
+      Ref("same_signal"),
       Ref("same_signal"),
       Ref("same_signal"),
       Ref("same_signal"),
@@ -413,6 +450,7 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
           "memory",
           ref("clk"),
           indexedPartSelect("controls", 0, 1),
+          ref("write_enable"),
           ref("address"),
           ref("write_data"),
           ref("read_data"),
@@ -424,7 +462,7 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
       duplicate = intercept[FrontendException](memory("p_discarded", "discarded"))
     }
     assert(
-      invalid.code == "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-ENABLE-NOT-REF"
+      invalid.code == "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-ENABLE-NOT-REF"
     )
     assert(duplicate.code == "MORPH-FRONTEND-SINGLE-PORT-MEMORY-MULTIPLE")
     assert(
@@ -555,6 +593,7 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
           "p_escaped",
           "memory",
           ref("clk"),
+          ref("read_enable"),
           ref("write_enable"),
           escapedAddress,
           ref("write_data"),
@@ -607,6 +646,7 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
         "p_bad_address",
         "memory",
         ref("clk"),
+        ref("read_enable"),
         ref("write_enable"),
         HdlInt.literal(0),
         ref("write_data"),
@@ -623,6 +663,7 @@ class SynchronousReadFirstSinglePortMemoryFrontendTests extends AnyFunSuite {
         "p_raw_type",
         "memory",
         ref("clk"),
+        ref("read_enable"),
         ref("write_enable"),
         ref("address"),
         ref("write_data"),

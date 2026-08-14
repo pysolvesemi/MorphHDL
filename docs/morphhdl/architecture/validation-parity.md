@@ -302,3 +302,13 @@ exactly sixteen files: the existing memory fixture now elaborates to one-,
 two- or three-bit addresses for depths 1, 3 or 5. This does not claim a
 general-purpose logarithm, minimum/maximum algebra or additional memory
 policies, so width parity remains partial.
+
+Increment 22 adds a distinct exact unsigned one-bit read-enable input to that
+same memory. ParamRTL proves disabled-read hold, independent in-range writes,
+enabled surplus zero and retained read-first collision behavior. Icarus covers
+the complete enable/address matrix, and Yosys checks that output state is
+enabled by the read control while the memory write guard excludes it. The
+sixteen-file inventory and inherited concrete phase plan remain unchanged.
+This strengthens the partial width, driver, register and cross-clock evidence
+without claiming reset, initialization, masks, extra ports or general clocked
+statement coverage.

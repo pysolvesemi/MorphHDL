@@ -7,13 +7,14 @@ import morphhdl.frontend.ParamRtlFrontend._
 import morphhdl.paramrtl.Design
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 
-/** Sixteenth public MorphVerilog contract: one depth-derived synchronous read-first memory. */
+/** Sixteenth public MorphVerilog contract: one depth-derived enabled synchronous read-first memory. */
 private[morphhdl] object SinglePortMemoryContractFixture {
   def program(reverseConstructionOrder: Boolean): MorphProgram[Component] =
     MorphProgram(
       concreteWitness = new Component {
         setDefinitionName("SinglePortMemory")
         val clk = in(Bool()).setName("clk")
+        val read_enable = in(Bool()).setName("read_enable")
         val write_enable = in(Bool()).setName("write_enable")
         val address = in(UInt(3 bits)).setName("address")
         val write_data = in(Bits(8 bits)).setName("write_data")
@@ -26,14 +27,21 @@ private[morphhdl] object SinglePortMemoryContractFixture {
           val value = memory.readWriteSync(
             address = address,
             data = write_data,
-            enable = addressInRange,
+            enable = addressInRange && (read_enable || write_enable),
             write = write_enable,
             readUnderWrite = readFirst,
             duringWrite = doRead
           )
-          val valid = RegNext(addressInRange)
+          val delayedReadEnable = RegNext(read_enable)
+          val delayedAddressInRange = RegNext(addressInRange)
+          val enabledReadValue = Mux(delayedAddressInRange, value, B(0, 8 bits))
+          val heldReadValue = RegNextWhen(enabledReadValue, delayedReadEnable)
         }
-        read_data := Mux(memoryArea.valid, memoryArea.value, B(0, 8 bits))
+        read_data := Mux(
+          memoryArea.delayedReadEnable,
+          memoryArea.enabledReadValue,
+          memoryArea.heldReadValue
+        )
       },
       parameterizedDesign = {
         val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
@@ -51,6 +59,7 @@ private[morphhdl] object SinglePortMemoryContractFixture {
           ports = ordered(
             Vector(
               port("clk", Input, control),
+              port("read_enable", Input, control),
               port("write_enable", Input, control),
               port("address", Input, addressType),
               port("write_data", Input, elementType),
@@ -63,6 +72,7 @@ private[morphhdl] object SinglePortMemoryContractFixture {
               label = "p_memory",
               memoryName = "memory",
               clock = ref("clk"),
+              readEnable = ref("read_enable"),
               writeEnable = ref("write_enable"),
               address = ref("address"),
               writeData = ref("write_data"),

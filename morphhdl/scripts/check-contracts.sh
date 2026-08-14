@@ -238,7 +238,7 @@ require_property memory.surplus_address_read zero
 require_property memory.surplus_address_write ignored
 require_property memory.initialization false
 require_property memory.reset false
-require_property memory.read_enable false
+require_property memory.read_enable active-high-hold
 require_property memory.write_mask false
 require_property implementation.synchronous_read_first_single_port_memory true
 
@@ -557,21 +557,49 @@ if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+DEPTH[[:space:]]*=[[:spac
    ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:space:]]*8' "$single_port_memory_file" ||
    ! grep -Fqx "$expected_address_port" "$single_port_memory_file" ||
    ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+clk' "$single_port_memory_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+read_enable' "$single_port_memory_file" ||
    ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+write_enable' "$single_port_memory_file" ||
    ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[WIDTH-1:0\][[:space:]]+write_data' "$single_port_memory_file" ||
    ! grep -Eq 'output[[:space:]]+reg[[:space:]]+\[WIDTH-1:0\][[:space:]]+read_data' "$single_port_memory_file" ||
    ! grep -Eq 'reg[[:space:]]+\[WIDTH-1:0\][[:space:]]+memory[[:space:]]+\[0:DEPTH-1\][[:space:]]*;' "$single_port_memory_file" ||
    ! grep -Eq 'always[[:space:]]+@\([[:space:]]*posedge[[:space:]]+clk[[:space:]]*\)[[:space:]]+begin[[:space:]]*:[[:space:]]*p_memory' "$single_port_memory_file" ||
    ! grep -Eq 'if[[:space:]]*\([[:space:]]*address[[:space:]]*<[[:space:]]*DEPTH[[:space:]]*\)[[:space:]]*begin' "$single_port_memory_file" ||
+   [[ "$(grep -Ec "read_enable[[:space:]]*==[[:space:]]*1'b1" "$single_port_memory_file")" != "2" ]] ||
    ! grep -Eq 'read_data[[:space:]]*<=[[:space:]]*memory\[address\][[:space:]]*;' "$single_port_memory_file" ||
    ! grep -Eq "if[[:space:]]*\\([[:space:]]*write_enable[[:space:]]*==[[:space:]]*1'b1[[:space:]]*\\)[[:space:]]*begin" "$single_port_memory_file" ||
    ! grep -Eq 'memory\[address\][[:space:]]*<=[[:space:]]*write_data[[:space:]]*;' "$single_port_memory_file" ||
+   ! grep -Eq "end[[:space:]]+else[[:space:]]+if[[:space:]]*\\([[:space:]]*read_enable[[:space:]]*==[[:space:]]*1'b1[[:space:]]*\\)[[:space:]]*begin" "$single_port_memory_file" ||
    ! grep -Eq "read_data[[:space:]]*<=[[:space:]]*\\{WIDTH\\{1'b0\\}\\}[[:space:]]*;" "$single_port_memory_file" ||
    [[ "$(grep -Ec 'always[[:space:]]+@\(' "$single_port_memory_file")" != "1" ]] ||
    [[ "$(grep -Ec 'memory\[address\][[:space:]]*<=' "$single_port_memory_file")" != "1" ]] ||
    [[ "$(grep -Ec 'read_data[[:space:]]*<=' "$single_port_memory_file")" != "2" ]] ||
    grep -Eq 'always_comb|always_ff|always_latch|always[[:space:]]+@\*|initial[[:space:]]+begin|read_data[[:space:]]*=[^=]|memory\[address\][[:space:]]*=[^=]' "$single_port_memory_file"; then
-  echo "SinglePortMemory does not retain one guarded synchronous read-first whole-word memory port" >&2
+  echo "SinglePortMemory does not retain one independently read/write-enabled synchronous read-first whole-word memory port" >&2
+  exit 1
+fi
+
+if ! python3 - "$single_port_memory_file" <<'PY'
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+canonical_process = """  always @(posedge clk) begin : p_memory
+    if (address < DEPTH) begin
+      if (read_enable == 1'b1) begin
+        read_data <= memory[address];
+      end
+      if (write_enable == 1'b1) begin
+        memory[address] <= write_data;
+      end
+    end else if (read_enable == 1'b1) begin
+      read_data <= {WIDTH{1'b0}};
+    end
+  end"""
+if source.count(canonical_process) != 1:
+    raise SystemExit("missing exact address-first independently enabled memory process")
+PY
+then
+  echo "SinglePortMemory process is not the canonical address-first read-enable/write-independent form" >&2
   exit 1
 fi
 
@@ -1629,6 +1657,7 @@ yosys_single_port_memory_synthesize_and_check() {
     --port "address:input:$expected_address_width" \
     --port "clk:input:1" \
     --port "read_data:output:$expected_width" \
+    --port "read_enable:input:1" \
     --port "write_data:input:$expected_width" \
     --port "write_enable:input:1"
 }
@@ -1700,6 +1729,10 @@ yosys_single_port_memory_json_mutation_must_fail \
   transparent-read RD_TRANSPARENCY_MASK
 yosys_single_port_memory_json_mutation_must_fail \
   collision-x-read RD_COLLISION_X_MASK
+yosys_single_port_memory_json_mutation_must_fail \
+  synchronous-raw-read RD_CLK_ENABLE
+yosys_single_port_memory_json_mutation_must_fail \
+  falling-edge-raw-read RD_CLK_POLARITY
 yosys_single_port_memory_json_mutation_must_fail \
   write-port-priority WR_PRIORITY_MASK
 yosys_single_port_memory_json_mutation_must_fail \
@@ -1887,57 +1920,6 @@ yosys_single_port_memory_comparison_json_mutation_must_fail \
 yosys_single_port_memory_comparison_json_mutation_must_fail \
   signed-comparator-rhs signed-b
 
-yosys_single_port_memory_full_domain_json_mutation_must_fail() {
-  local label="$1"
-  local parameter="$2"
-  local canonical_netlist="$tmp_dir/SinglePortMemory-depth-two-process.json"
-  local mutated_netlist="$tmp_dir/SinglePortMemory-${label}-json-mutated.json"
-
-  python3 - "$canonical_netlist" "$mutated_netlist" "$parameter" <<'PY'
-import json
-import pathlib
-import sys
-
-source = pathlib.Path(sys.argv[1])
-destination = pathlib.Path(sys.argv[2])
-parameter = sys.argv[3]
-netlist = json.loads(source.read_text(encoding="utf-8"))
-top = netlist.get("modules", {}).get("SinglePortMemory")
-if top is None:
-    raise SystemExit("depth-two JSON is missing SinglePortMemory")
-memories = [
-    cell for cell in top.get("cells", {}).values() if cell.get("type") == "$mem_v2"
-]
-if len(memories) != 1:
-    raise SystemExit("depth-two JSON does not contain exactly one $mem_v2")
-parameters = memories[0].get("parameters", {})
-value = parameters.get(parameter)
-if isinstance(value, int):
-    if value != 1:
-        raise SystemExit("canonical parameter is not one: " + repr(value))
-    parameters[parameter] = 0
-elif isinstance(value, str) and value and set(value) <= {"0", "1"}:
-    if int(value, 2) != 1:
-        raise SystemExit("canonical parameter is not one: " + repr(value))
-    parameters[parameter] = "0" * len(value)
-else:
-    raise SystemExit("canonical parameter has unsupported encoding: " + repr(value))
-destination.write_text(json.dumps(netlist, indent=2) + "\n", encoding="utf-8")
-PY
-
-  if python3 "$repo_root/morphhdl/scripts/check-yosys-single-port-memory-contract.py" \
-      "$mutated_netlist" --width 4 --depth 2; then
-    echo "SinglePortMemory checker accepted forbidden full-domain mutation: $label" >&2
-    exit 1
-  fi
-  echo "Yosys SinglePortMemory checker rejected forbidden full-domain mutation: $label"
-}
-
-yosys_single_port_memory_full_domain_json_mutation_must_fail \
-  asynchronous-full-domain-read RD_CLK_ENABLE
-yosys_single_port_memory_full_domain_json_mutation_must_fail \
-  falling-edge-full-domain-read RD_CLK_POLARITY
-
 yosys_single_port_memory_full_domain_reset_mutation_must_fail() {
   local label="$1"
   local connection="$2"
@@ -2020,6 +2002,14 @@ yosys_single_port_memory_mutation_must_fail \
   write-first-bypass "s/read_data <= memory\[address\];/read_data <= write_enable == 1'b1 ? write_data : memory[address];/"
 yosys_single_port_memory_mutation_must_fail \
   branch-swapped-read "s/read_data <= memory\[address\];/read_data <= __morph_read_swap__;/;s/read_data <= {WIDTH{1'b0}};/read_data <= memory[address];/;s/read_data <= __morph_read_swap__;/read_data <= {WIDTH{1'b0}};/"
+yosys_single_port_memory_mutation_must_fail \
+  valid-disabled-read-captures "0,/read_enable == 1'b1/s//1'b1 == 1'b1/"
+yosys_single_port_memory_mutation_must_fail \
+  surplus-disabled-read-captures "s/end else if (read_enable == 1'b1) begin/end else begin/"
+yosys_single_port_memory_mutation_must_fail \
+  active-low-read-enable "s/read_enable == 1'b1/read_enable == 1'b0/g"
+yosys_single_port_memory_mutation_must_fail \
+  write-requires-read-enable "s/write_enable == 1'b1/read_enable == 1'b1 \&\& write_enable == 1'b1/"
 yosys_single_port_memory_mutation_must_fail \
   falling-edge-clock 's/posedge clk/negedge clk/'
 yosys_single_port_memory_mutation_must_fail \

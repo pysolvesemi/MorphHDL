@@ -138,6 +138,7 @@ private[frontend] object FrontendException {
     case "MORPH-FRONTEND-SINGLE-PORT-MEMORY-LABEL-INVALID" |
         "MORPH-FRONTEND-SINGLE-PORT-MEMORY-NAME-INVALID" |
         "MORPH-FRONTEND-SINGLE-PORT-MEMORY-CLOCK-INVALID" |
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-ENABLE-INVALID" |
         "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-ENABLE-INVALID" |
         "MORPH-FRONTEND-SINGLE-PORT-MEMORY-ADDRESS-INVALID" |
         "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-DATA-INVALID" |
@@ -146,6 +147,9 @@ private[frontend] object FrontendException {
     case "MORPH-FRONTEND-SINGLE-PORT-MEMORY-CLOCK-NULL" |
         "MORPH-FRONTEND-SINGLE-PORT-MEMORY-CLOCK-NOT-REF" =>
       "Pass a non-null ref(name) clock to emitSynchronousReadFirstSinglePortMemory."
+    case "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-ENABLE-NULL" |
+        "MORPH-FRONTEND-SINGLE-PORT-MEMORY-READ-ENABLE-NOT-REF" =>
+      "Pass a non-null ref(name) read enable to emitSynchronousReadFirstSinglePortMemory."
     case "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-ENABLE-NULL" |
         "MORPH-FRONTEND-SINGLE-PORT-MEMORY-WRITE-ENABLE-NOT-REF" =>
       "Pass a non-null ref(name) write enable to emitSynchronousReadFirstSinglePortMemory."

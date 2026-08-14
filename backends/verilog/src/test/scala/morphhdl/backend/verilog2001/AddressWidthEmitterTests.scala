@@ -252,6 +252,7 @@ class AddressWidthEmitterTests extends AnyFunSuite {
         Port("address", Input, PackedBits(Literal(5), Unsigned)),
         Port("clk", Input, PackedBits(Literal(1), Unsigned)),
         Port("read_data", Output, elementType),
+        Port("read_enable", Input, PackedBits(Literal(1), Unsigned)),
         Port("write_data", Input, elementType),
         Port("write_enable", Input, PackedBits(Literal(1), Unsigned))
       ),
@@ -260,6 +261,7 @@ class AddressWidthEmitterTests extends AnyFunSuite {
           "p_memory",
           "memory",
           Ref("clk"),
+          Ref("read_enable"),
           Ref("write_enable"),
           Ref("address"),
           Ref("write_data"),

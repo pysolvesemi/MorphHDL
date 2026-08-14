@@ -118,14 +118,17 @@ falling-edge clocking, reset-to-ones and `always_ff` remain forbidden.
 Increment 20 legalizes one bounded memory form. A process-owned read output
 emits as `output reg`, while the memory remains an internal unpacked array of
 packed `reg` elements. One named `always @(posedge clock)` process tests
-`address < DEPTH`, schedules the memory read first and conditionally schedules
-one whole-word write with nonblocking assignments. Nonblocking semantics make
-a same-address collision read-first. The explicit else schedules a target-width
-zero for surplus addresses; nesting the write under the same guard makes those
-addresses write-inert. Capability and validation prove positive width/depth,
-whole-domain address capacity, exact data types, distinct controls and sole
-ownership before spelling. No reset or initial block is emitted, so unwritten
-in-range reads remain unspecified. Initialization, read enable, masks,
+`address < DEPTH`. Increment 22 conditionally schedules the read only when the
+active-high read enable is asserted and independently schedules one whole-word
+write when the write enable is asserted. Nonblocking semantics make a
+same-address collision read-first. The surplus branch schedules a target-width
+zero only for an enabled read; an omitted assignment intentionally holds the
+output when reads are disabled. Nesting only the write under the address guard
+makes surplus addresses write-inert without allowing read enable to gate valid
+writes. Capability and validation prove positive width/depth, whole-domain
+address capacity, exact data types, distinct controls and sole ownership before
+spelling. No reset or initial block is emitted, so unwritten in-range reads
+remain unspecified. Initialization, selectable enable polarity, masks,
 multiple ports/clocks and selectable collision modes remain forbidden.
 
 Increment 21 legalizes `IntExpr.AddressWidth` without a helper function or
