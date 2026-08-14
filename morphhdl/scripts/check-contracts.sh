@@ -977,14 +977,15 @@ echo "Yosys: $(yosys -V)"
 for helper_case in \
   "$yosys_derived_width_file:DerivedWidth" \
   "$yosys_single_port_memory_file:SinglePortMemory" \
-  "$yosys_simple_dual_port_memory_file:SimpleDualPortMemory" \
-  "$yosys_synchronous_stream_fifo_file:SynchronousStreamFifo"
+  "$yosys_simple_dual_port_memory_file:SimpleDualPortMemory"
 do
   helper_file="${helper_case%%:*}"
   helper_top="${helper_case##*:}"
   yosys -q -p \
     "read_verilog -noautowire $helper_file; hierarchy -check -top $helper_top; select -assert-none t:\$shr t:\$sshr t:\$shift t:\$shiftx t:\$add"
 done
+yosys -q -p \
+  "read_verilog -noautowire $yosys_synchronous_stream_fifo_file; hierarchy -check -top SynchronousStreamFifo; proc; opt; select -assert-none t:\$shr t:\$sshr t:\$shift t:\$shiftx"
 yosys -q -p \
   "read_verilog -noautowire $yosys_parameterized_counter_file; hierarchy -check -top ParameterizedCounter; proc; opt; select -assert-none t:\$shr t:\$sshr t:\$shift t:\$shiftx"
 echo "Yosys constant-function logarithm helpers create no runtime shift cells"
