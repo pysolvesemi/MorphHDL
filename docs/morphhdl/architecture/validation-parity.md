@@ -350,3 +350,24 @@ rollover. The seventeenth fixture proves limits 1, 2, 3, 5 and 8; structural
 and mutation gates protect the terminal comparison, increment direction,
 control polarity/priority and reset value. General state machines, multiple
 counters/clocks and arbitrary next-state expressions remain partial.
+
+Increment 26 extends the partial width, driver, register-as-latch and
+cross-clock adaptations with one bounded
+`SynchronousReadFirstSimpleDualPortMemory`. Its concrete witness combines
+SpinalHDL `Mem.readSync(..., readUnderWrite = readFirst)` and a separate
+same-domain `Mem.write`, and still executes every inherited validation phase.
+ParamRTL separately proves positive element width/depth, two exactly
+type-equivalent independently capacity-safe unsigned addresses, distinct
+direct roles, exact data types, sole read-output/memory ownership, independent
+read/write guards, disabled-read hold and one exact shared clock. The public
+fixture chooses two exact `AddressWidth(DEPTH)` ports. The eighteenth fixture
+covers default 8x5, awkward 5x3, minimum 1x1 and full-domain 4x8
+configurations. Icarus protects sequential and collision semantics; Yosys
+proves one `1R1W` memory, distinct addresses, independent active-high controls,
+all-X initialization and read-first metadata across the audited
+external-register and absorbed-read forms. Mutations reject address
+collapse/swap, cross-gating, write-first, guard/edge/reset/initialization drift
+and extra ports. Direct references and sole-item ownership make combinational
+feedback unrepresentable in this bounded node, but the general
+`PhaseCheckCombinationalLoops` adaptation remains planned. General multi-port,
+multi-clock and vendor-primitive inference coverage remains partial.

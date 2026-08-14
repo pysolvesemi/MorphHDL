@@ -23,14 +23,14 @@ first parameterized-Verilog release, not implemented in Increment 1.
 | Structure | Parameter-dependent Scala class selection | Static only | Not recoverable as HDL structure |
 | RTL | Combinational operations | v1 | Increment 15 implements one complete two-branch runtime mux process over direct port references; broader expressions and statement forms remain bounded follow-on work |
 | RTL | Registers, counter and sync/async reset | v1 | Increments 16 and 17 implement active-high synchronous/asynchronous reset-to-zero; Increments 18 and 19 add the matching reset-priority active-high enable with disabled hold; Increment 25 adds a direct-public-limit synchronous modulo-up counter with depth-derived state width; broader state remains bounded follow-on work |
-| RTL | Supported memories | v1 | Increment 20 implements one synchronous read-first whole-word single-port memory; Increment 21 derives its address ABI from depth; Increment 22 adds active-high read enable with disabled hold and independent writes; reset, initialization, masks and extra ports remain deferred |
+| RTL | Supported memories | v1 | Increment 20 implements one synchronous read-first whole-word single-port memory; Increment 21 derives its public address ABI from depth; Increment 22 adds active-high read enable and hold; Increment 26 adds one single-clock simple-dual-port `1R1W` form with independent capacity-proven addresses/enables and deterministic read-first collisions, while its public fixture uses two exact depth-derived addresses; reset, initialization, masks, extra ports and independent clocks remain deferred |
 | RTL | Tri-state/analog primitives | Post-v1 | Rejected by initial strict profile |
 | Aggregates | Bundle/Vec internal intent | v1 | Preserved in ParamRTL, flattened for Verilog |
 | Ports | Scalar and packed-vector ports | v1 | Stable flat ABI |
 | Ports | Unpacked array, struct or interface ports | Post-v1 | Potential rich SystemVerilog ABI |
 | Libraries | Bits/UInt/SInt and core operators | v1 | Symbolic width-aware subset |
 | Libraries | Stream, Flow and Counter | v1 | Increment 25 adapts the bounded `spinal.lib.Counter` policy through a target-neutral symbolic counter node; Stream and Flow remain selected-demand work |
-| Libraries | Synchronous FIFO | v1 | Required pilot library block |
+| Libraries | Synchronous FIFO | v1 | Increment 27 should use one atomic FIFO node and a real `spinal.lib.StreamFifo` witness; public `DEPTH` means total externally observable capacity, not internal RAM words or output staging |
 | Libraries | AXI4/AXI4-Lite/AXI-Stream subset | v1 | Only blocks required by DisplayController |
 | Libraries | Complete inherited library | Out of scope | Expand from demand and equivalence tests |
 | CDC | Async FIFO and broad CDC library | Post-v1 | Requires a separate audited tranche |

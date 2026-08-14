@@ -53,6 +53,7 @@ import morphhdl.paramrtl.ModuleItem.{
   ModuleInstance,
   SynchronousCounter,
   SynchronousEnabledRegister,
+  SynchronousReadFirstSimpleDualPortMemory,
   SynchronousReadFirstSinglePortMemory,
   SynchronousRegister
 }
@@ -198,6 +199,8 @@ object ParamRtlValidator {
       module.items.collect { case process: AsynchronousEnabledRegister => process }.sortBy(_.label)
     val synchronousReadFirstSinglePortMemories =
       module.items.collect { case memory: SynchronousReadFirstSinglePortMemory => memory }.sortBy(_.label)
+    val synchronousReadFirstSimpleDualPortMemories =
+      module.items.collect { case memory: SynchronousReadFirstSimpleDualPortMemory => memory }.sortBy(_.label)
     val synchronousCounters =
       module.items.collect { case counter: SynchronousCounter => counter }.sortBy(_.label)
 
@@ -300,7 +303,15 @@ object ParamRtlValidator {
       diagnostics
     )
     addDuplicateDiagnostics(
-      synchronousReadFirstSinglePortMemories.map(_.memoryName),
+      synchronousReadFirstSimpleDualPortMemories.map(_.label),
+      modulePath :+ "processLabels",
+      "PRTL-SYNCHRONOUS-READ-FIRST-SIMPLE-DUAL-PORT-MEMORY-DUPLICATE-LABEL",
+      "synchronous read-first simple dual-port memory process label",
+      diagnostics
+    )
+    addDuplicateDiagnostics(
+      synchronousReadFirstSinglePortMemories.map(_.memoryName) ++
+        synchronousReadFirstSimpleDualPortMemories.map(_.memoryName),
       modulePath :+ "memories",
       "PRTL-DUPLICATE-MEMORY-NAME",
       "memory",
@@ -330,8 +341,12 @@ object ParamRtlValidator {
       "synchronous enabled register process label" -> synchronousEnabledRegisters.map(_.label).toSet,
       "asynchronous enabled register process label" -> asynchronousEnabledRegisters.map(_.label).toSet,
       "synchronous read-first memory process label" -> synchronousReadFirstSinglePortMemories.map(_.label).toSet,
+      "synchronous read-first simple dual-port memory process label" ->
+        synchronousReadFirstSimpleDualPortMemories.map(_.label).toSet,
       "synchronous counter process label" -> synchronousCounters.map(_.label).toSet,
-      "memory" -> synchronousReadFirstSinglePortMemories.map(_.memoryName).toSet
+      "memory" ->
+        (synchronousReadFirstSinglePortMemories.map(_.memoryName) ++
+          synchronousReadFirstSimpleDualPortMemories.map(_.memoryName)).toSet
     )
     declarationKinds.combinations(2).foreach {
       case Vector((leftKind, leftNames), (rightKind, rightNames)) =>
@@ -500,6 +515,12 @@ object ParamRtlValidator {
             path :+ "body" :+ index.toString,
             "Generate-for bodies cannot contain synchronous read-first single-port memories"
           )
+        case (_: SynchronousReadFirstSimpleDualPortMemory, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+            path :+ "body" :+ index.toString,
+            "Generate-for bodies cannot contain synchronous read-first simple dual-port memories"
+          )
         case (_: SynchronousCounter, index) =>
           diagnostics += Diagnostic(
             "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
@@ -610,6 +631,12 @@ object ParamRtlValidator {
               "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
               branchPath :+ "body" :+ index.toString,
               "Generate-if branches cannot contain synchronous read-first single-port memories"
+            )
+          case (_: SynchronousReadFirstSimpleDualPortMemory, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-if branches cannot contain synchronous read-first simple dual-port memories"
             )
           case (_: SynchronousCounter, index) =>
             diagnostics += Diagnostic(
@@ -735,6 +762,12 @@ object ParamRtlValidator {
               "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
               branchPath :+ "body" :+ index.toString,
               "Generate-case branches cannot contain synchronous read-first single-port memories"
+            )
+          case (_: SynchronousReadFirstSimpleDualPortMemory, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-case branches cannot contain synchronous read-first simple dual-port memories"
             )
           case (_: SynchronousCounter, index) =>
             diagnostics += Diagnostic(
@@ -1044,6 +1077,62 @@ object ParamRtlValidator {
         }
     }
 
+    if (synchronousReadFirstSimpleDualPortMemories.size > 1) {
+      synchronousReadFirstSimpleDualPortMemories.drop(1).foreach { memory =>
+        diagnostics += Diagnostic(
+          "PRTL-SYNCHRONOUS-READ-FIRST-SIMPLE-DUAL-PORT-MEMORY-MULTIPLE-MEMORIES-UNSUPPORTED",
+          modulePath :+ "synchronousReadFirstSimpleDualPortMemories" :+ memory.label,
+          "At most one top-level synchronous read-first simple dual-port memory is supported per module"
+        )
+      }
+    }
+
+    synchronousReadFirstSimpleDualPortMemories.foreach { memory =>
+      val path = modulePath :+ "synchronousReadFirstSimpleDualPortMemories" :+ memory.label
+      checkIdentifier(
+        memory.label,
+        path :+ "label",
+        "synchronous read-first simple dual-port memory process label",
+        diagnostics
+      )
+      checkIdentifier(memory.memoryName, path :+ "memoryName", "memory", diagnostics)
+      validateExpressionReferences(
+        memory.elementType.width,
+        parameterNames,
+        localParameterNames,
+        path :+ "elementType" :+ "width",
+        diagnostics,
+        booleanParameters = booleanParameterByName,
+        booleanLocalParameters = booleanLocalParameterNames
+      )
+      validateExpressionReferences(
+        memory.depth,
+        parameterNames,
+        localParameterNames,
+        path :+ "depth",
+        diagnostics,
+        booleanParameters = booleanParameterByName,
+        booleanLocalParameters = booleanLocalParameterNames
+      )
+    }
+
+    if (synchronousReadFirstSimpleDualPortMemories.nonEmpty) {
+      module.items
+        .filter {
+          case _: SynchronousReadFirstSimpleDualPortMemory => false
+          case _                                           => true
+        }
+        .sortBy(moduleItemStableKey)
+        .zipWithIndex
+        .foreach { case (item, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-SYNCHRONOUS-READ-FIRST-SIMPLE-DUAL-PORT-MEMORY-MIXED-ITEMS-UNSUPPORTED",
+            modulePath :+ "synchronousReadFirstSimpleDualPortMemories" :+ "itemConflicts" :+ index.toString,
+            s"Synchronous read-first simple dual-port memories cannot be combined with ${moduleItemKind(item)} in this tranche"
+          )
+        }
+    }
+
     if (synchronousCounters.size > 1) {
       synchronousCounters.drop(1).foreach { counter =>
         diagnostics += Diagnostic(
@@ -1244,6 +1333,48 @@ object ParamRtlValidator {
 
     synchronousReadFirstSinglePortMemories.foreach { memory =>
       val path = modulePath :+ "synchronousReadFirstSinglePortMemories" :+ memory.label
+      validateWidth(
+        memory.elementType.width,
+        parameterFacts,
+        localParameterFacts,
+        path :+ "elementType" :+ "width",
+        diagnostics,
+        booleanParameterByName,
+        booleanLocalParameterFacts
+      )
+      analyzeExpression(
+        memory.depth,
+        parameterFacts,
+        localParameterFacts,
+        path :+ "depth",
+        diagnostics,
+        booleanParameters = booleanParameterByName,
+        booleanLocalParameters = booleanLocalParameterFacts
+      ).foreach { facts =>
+        if (!facts.interval.lower.exists(_ >= 1)) {
+          val literal = memory.depth match {
+            case Literal(value) => Some(value)
+            case _              => None
+          }
+          diagnostics += Diagnostic(
+            literal.fold("PRTL-MEMORY-DEPTH-NOT-PROVEN-POSITIVE")(_ => "PRTL-MEMORY-DEPTH-NOT-POSITIVE"),
+            path :+ "depth",
+            literal.fold(s"Memory depth domain ${renderInterval(facts.interval)} is not proven positive")(
+              value => s"Memory depth literal $value is not positive"
+            )
+          )
+        }
+        if (facts.interval.upper.isEmpty)
+          diagnostics += Diagnostic(
+            "PRTL-MEMORY-DEPTH-UPPER-BOUND-NOT-PROVEN",
+            path :+ "depth",
+            s"Memory depth domain ${renderInterval(facts.interval)} does not have a finite upper bound"
+          )
+      }
+    }
+
+    synchronousReadFirstSimpleDualPortMemories.foreach { memory =>
+      val path = modulePath :+ "synchronousReadFirstSimpleDualPortMemories" :+ memory.label
       validateWidth(
         memory.elementType.width,
         parameterFacts,
@@ -1967,6 +2098,8 @@ object ParamRtlValidator {
       module.items.collect { case process: AsynchronousEnabledRegister => process }.sortBy(_.label)
     val synchronousReadFirstSinglePortMemories =
       module.items.collect { case memory: SynchronousReadFirstSinglePortMemory => memory }.sortBy(_.label)
+    val synchronousReadFirstSimpleDualPortMemories =
+      module.items.collect { case memory: SynchronousReadFirstSimpleDualPortMemory => memory }.sortBy(_.label)
     val synchronousCounters =
       module.items.collect { case counter: SynchronousCounter => counter }.sortBy(_.label)
     val driverCounts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
@@ -3141,6 +3274,187 @@ object ParamRtlValidator {
         )
     }
 
+    synchronousReadFirstSimpleDualPortMemories.foreach { memory =>
+      val path = modulePath :+ "synchronousReadFirstSimpleDualPortMemories" :+ memory.label
+      val prefix = "PRTL-SYNCHRONOUS-READ-FIRST-SIMPLE-DUAL-PORT-MEMORY"
+      val oneBitUnsigned = PackedBits(Literal(1), Unsigned)
+
+      def resolveInput(role: String, codeRole: String, reference: Ref): Option[Port] =
+        resolvePort(reference, portByName, path :+ role, diagnostics).map { port =>
+          if (port.direction != Input)
+            diagnostics += Diagnostic(
+              s"$prefix-$codeRole-NOT-INPUT",
+              path :+ role,
+              s"Synchronous read-first simple dual-port memory $role '${port.name}' must be an input port"
+            )
+          port
+        }
+
+      def requireOneBitControl(role: String, codeRole: String, reference: Ref): Option[Port] = {
+        val port = resolveInput(role, codeRole, reference)
+        port.foreach { value =>
+          if (!packedTypesEquivalent(value.dataType, oneBitUnsigned, module, baseFacts))
+            diagnostics += Diagnostic(
+              s"$prefix-$codeRole-TYPE-MISMATCH",
+              path :+ role,
+              s"Synchronous read-first simple dual-port memory $role '${value.name}' must have exact unsigned 1-bit type"
+            )
+        }
+        port
+      }
+
+      requireOneBitControl("clock", "CLOCK", memory.clock)
+      requireOneBitControl("readEnable", "READ-ENABLE", memory.readEnable)
+      requireOneBitControl("writeEnable", "WRITE-ENABLE", memory.writeEnable)
+
+      val readAddressPort = resolveInput("readAddress", "READ-ADDRESS", memory.readAddress)
+      readAddressPort.foreach { port =>
+        if (port.dataType.signedness != Unsigned)
+          diagnostics += Diagnostic(
+            s"$prefix-READ-ADDRESS-TYPE-MISMATCH",
+            path :+ "readAddress",
+            s"Synchronous read-first simple dual-port memory read address '${port.name}' must be unsigned"
+          )
+      }
+
+      val writeAddressPort = resolveInput("writeAddress", "WRITE-ADDRESS", memory.writeAddress)
+      writeAddressPort.foreach { port =>
+        if (port.dataType.signedness != Unsigned)
+          diagnostics += Diagnostic(
+            s"$prefix-WRITE-ADDRESS-TYPE-MISMATCH",
+            path :+ "writeAddress",
+            s"Synchronous read-first simple dual-port memory write address '${port.name}' must be unsigned"
+          )
+      }
+
+      for {
+        readPort <- readAddressPort
+        writePort <- writeAddressPort
+        if !packedTypesEquivalent(readPort.dataType, writePort.dataType, module, baseFacts)
+      } diagnostics += Diagnostic(
+        s"$prefix-ADDRESS-TYPE-MISMATCH",
+        path :+ "addresses",
+        s"Synchronous read-first simple dual-port memory read address type '${readPort.dataType}' does not exactly match write address type '${writePort.dataType}'"
+      )
+
+      val writeDataPort = resolveInput("writeData", "WRITE-DATA", memory.writeData)
+      writeDataPort.foreach { port =>
+        if (!packedTypesEquivalent(port.dataType, memory.elementType, module, baseFacts))
+          diagnostics += Diagnostic(
+            s"$prefix-WRITE-DATA-TYPE-MISMATCH",
+            path :+ "writeData",
+            s"Synchronous read-first simple dual-port memory write data type '${port.dataType}' does not exactly match element type '${memory.elementType}'"
+          )
+      }
+
+      val readDataPort = resolvePort(memory.readData, portByName, path :+ "readData", diagnostics)
+      readDataPort.foreach { port =>
+        driverCounts.update(port.name, driverCounts(port.name) + 1)
+        if (port.direction != Output)
+          diagnostics += Diagnostic(
+            s"$prefix-READ-DATA-NOT-OUTPUT",
+            path :+ "readData",
+            s"Synchronous read-first simple dual-port memory read data '${port.name}' must be an output port"
+          )
+        if (!packedTypesEquivalent(port.dataType, memory.elementType, module, baseFacts))
+          diagnostics += Diagnostic(
+            s"$prefix-READ-DATA-TYPE-MISMATCH",
+            path :+ "readData",
+            s"Synchronous read-first simple dual-port memory read data type '${port.dataType}' does not exactly match element type '${memory.elementType}'"
+          )
+      }
+
+      Vector(
+        "clock" -> memory.clock.name,
+        "readAddress" -> memory.readAddress.name,
+        "readData" -> memory.readData.name,
+        "readEnable" -> memory.readEnable.name,
+        "writeAddress" -> memory.writeAddress.name,
+        "writeData" -> memory.writeData.name,
+        "writeEnable" -> memory.writeEnable.name
+      ).groupBy(_._2)
+        .collect { case (name, roles) if roles.size > 1 => name -> roles.map(_._1).sorted }
+        .toVector
+        .sortBy(_._1)
+        .foreach { case (name, roles) =>
+          diagnostics += Diagnostic(
+            s"$prefix-ROLE-ALIAS",
+            path :+ "roles" :+ name,
+            s"Synchronous read-first simple dual-port memory roles must use distinct ports; '$name' is used as ${roles.mkString(", ")}"
+          )
+        }
+
+      val depthFacts = IntExpressionAnalysis
+        .analyze(
+          memory.depth,
+          parentParameters,
+          parentLocals,
+          parentBooleanParameters,
+          Map.empty,
+          parentBooleanLocals
+        )
+        .toOption
+      val expandedLocals = expandCombinedLocalExpressions(
+        baseFacts.orderedLocalDeclarations,
+        Map.empty,
+        Map.empty
+      )
+      def expandForCorrelation(expression: IntExpr): IntExpr =
+        substituteLocalDefinition(
+          expression,
+          Map.empty,
+          expandedLocals.integer,
+          Map.empty,
+          expandedLocals.boolean
+        )
+      val expandedDepth = expandForCorrelation(memory.depth)
+
+      def capacityProven(port: Option[Port]): Boolean = {
+        val addressWidthFacts = port.flatMap(value => expressionFacts(value.dataType.width, baseFacts))
+        val conservative = for {
+          depth <- depthFacts
+          minimumDepth <- depth.interval.lower
+          maximumDepth <- depth.interval.upper
+          minimumAddressWidth <- addressWidthFacts.flatMap(_.interval.lower)
+          if minimumDepth >= 1
+        } yield {
+          val requiredAddressWidth =
+            if (maximumDepth <= 1) BigInt(1) else BigInt((maximumDepth - 1).bitLength)
+          minimumAddressWidth >= requiredAddressWidth
+        }
+        val correlated = port.exists { value =>
+          expandForCorrelation(value.dataType.width) match {
+            case AddressWidth(operand) =>
+              IntExpressionEquivalence.equivalent(operand, expandedDepth)
+            case _ => false
+          }
+        }
+        conservative.contains(true) || correlated
+      }
+
+      if (!capacityProven(readAddressPort))
+        diagnostics += Diagnostic(
+          s"$prefix-READ-ADDRESS-CAPACITY-NOT-PROVEN",
+          path :+ "readAddress",
+          "Read-address width is not proven sufficient for the maximum legal memory depth"
+        )
+      if (!capacityProven(writeAddressPort))
+        diagnostics += Diagnostic(
+          s"$prefix-WRITE-ADDRESS-CAPACITY-NOT-PROVEN",
+          path :+ "writeAddress",
+          "Write-address width is not proven sufficient for the maximum legal memory depth"
+        )
+
+      val outputNames = ports.filter(_.direction == Output).map(_.name)
+      val readOutputName = readDataPort.filter(_.direction == Output).map(_.name)
+      if (readOutputName.forall(name => outputNames != Vector(name)))
+        diagnostics += Diagnostic(
+          s"$prefix-OUTPUT-SHAPE-UNSUPPORTED",
+          path :+ "outputs",
+          s"Synchronous read-first simple dual-port memory read data must be the module's sole output; outputs are ${outputNames.mkString(", ")}"
+        )
+    }
+
     synchronousCounters.foreach { counter =>
       val path = modulePath :+ "synchronousCounters" :+ counter.label
       val oneBitUnsigned = PackedBits(Literal(1), Unsigned)
@@ -3243,7 +3557,8 @@ object ParamRtlValidator {
             generateIfs.isEmpty && generateCases.isEmpty && combinationalIfs.isEmpty &&
             synchronousRegisters.isEmpty && asynchronousRegisters.isEmpty &&
             synchronousEnabledRegisters.isEmpty && asynchronousEnabledRegisters.isEmpty &&
-            synchronousReadFirstSinglePortMemories.isEmpty && synchronousCounters.isEmpty
+            synchronousReadFirstSinglePortMemories.isEmpty &&
+            synchronousReadFirstSimpleDualPortMemories.isEmpty && synchronousCounters.isEmpty
           )
             s"Output port '${port.name}' has no driver"
           else if (combinationalIfs.nonEmpty)
@@ -3258,6 +3573,8 @@ object ParamRtlValidator {
             s"Output port '${port.name}' is not owned by the asynchronous enabled register process"
           else if (synchronousReadFirstSinglePortMemories.nonEmpty)
             s"Output port '${port.name}' is not owned by the synchronous read-first single-port memory"
+          else if (synchronousReadFirstSimpleDualPortMemories.nonEmpty)
+            s"Output port '${port.name}' is not owned by the synchronous read-first simple dual-port memory"
           else if (synchronousCounters.nonEmpty)
             s"Output port '${port.name}' is not owned by the synchronous counter"
           else s"Output port '${port.name}' is undriven for at least one legal generate configuration"
@@ -3274,7 +3591,8 @@ object ParamRtlValidator {
             generateIfs.isEmpty && generateCases.isEmpty && combinationalIfs.isEmpty &&
             synchronousRegisters.isEmpty && asynchronousRegisters.isEmpty &&
             synchronousEnabledRegisters.isEmpty && asynchronousEnabledRegisters.isEmpty &&
-            synchronousReadFirstSinglePortMemories.isEmpty && synchronousCounters.isEmpty
+            synchronousReadFirstSinglePortMemories.isEmpty &&
+            synchronousReadFirstSimpleDualPortMemories.isEmpty && synchronousCounters.isEmpty
           )
             s"Output port '${port.name}' has $maximumDrivers drivers"
           else if (combinationalIfs.nonEmpty)
@@ -3289,6 +3607,8 @@ object ParamRtlValidator {
             s"Output port '${port.name}' has $maximumDrivers drivers including its asynchronous enabled register process"
           else if (synchronousReadFirstSinglePortMemories.nonEmpty)
             s"Output port '${port.name}' has $maximumDrivers drivers including its synchronous read-first single-port memory"
+          else if (synchronousReadFirstSimpleDualPortMemories.nonEmpty)
+            s"Output port '${port.name}' has $maximumDrivers drivers including its synchronous read-first simple dual-port memory"
           else if (synchronousCounters.nonEmpty)
             s"Output port '${port.name}' has $maximumDrivers drivers including its synchronous counter"
           else s"Output port '${port.name}' has up to $maximumDrivers drivers in a legal generate configuration"
@@ -3741,6 +4061,8 @@ object ParamRtlValidator {
     case _: AsynchronousEnabledRegister => "another asynchronous enabled register process"
     case _: SynchronousReadFirstSinglePortMemory =>
       "another synchronous read-first single-port memory"
+    case _: SynchronousReadFirstSimpleDualPortMemory =>
+      "another synchronous read-first simple dual-port memory"
     case _: SynchronousCounter => "another synchronous counter process"
   }
 
@@ -3769,6 +4091,8 @@ object ParamRtlValidator {
       s"10:${memory.label}:${memory.memoryName}:${memory.clock.name}:${memory.readEnable.name}:${memory.writeEnable.name}:${memory.address.name}:${memory.writeData.name}:${memory.readData.name}:${memory.elementType}:${memory.depth}"
     case counter: SynchronousCounter =>
       s"11:${counter.label}:${counter.clock.name}:${counter.reset.name}:${counter.enable.name}:${counter.count.name}:${counter.limit}"
+    case memory: SynchronousReadFirstSimpleDualPortMemory =>
+      s"12:${memory.label}:${memory.memoryName}:${memory.clock.name}:${memory.readEnable.name}:${memory.writeEnable.name}:${memory.readAddress.name}:${memory.writeAddress.name}:${memory.writeData.name}:${memory.readData.name}:${memory.elementType}:${memory.depth}"
   }
 
   private def addDuplicateCaseValueDiagnostics(

@@ -54,6 +54,7 @@ private[frontend] object FrontendException {
         "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-MIXED" |
         "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-MIXED" |
         "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-MIXED" |
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-MIXED" |
         "MORPH-FRONTEND-RUNTIME-PROCESS-MIXED" =>
       "Use a separate module definition instead of mixing runtime processes or module items."
     case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-LABEL-INVALID" |
@@ -197,6 +198,45 @@ private[frontend] object FrontendException {
       "Pass the exact unmodified HdlInt.param handle declared by this counter module."
     case "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-LIMIT-WITNESS-NONPOSITIVE" =>
       "Choose a positive limit witness and declare its full finite domain with a minimum of at least 1."
+    case "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-NESTED" =>
+      "Emit the synchronous read-first simple dual-port memory as a top-level module item outside all generate regions."
+    case "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-MULTIPLE" =>
+      "Emit one synchronous read-first simple dual-port memory per module-item capture."
+    case "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-LABEL-INVALID" |
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-NAME-INVALID" |
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-CLOCK-INVALID" |
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-ENABLE-INVALID" |
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-ENABLE-INVALID" |
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-ADDRESS-INVALID" |
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-ADDRESS-INVALID" |
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-DATA-INVALID" |
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-DATA-INVALID" =>
+      "Use an identifier matching `[A-Za-z_][A-Za-z0-9_]*`."
+    case "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-CLOCK-NULL" |
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-CLOCK-NOT-REF" =>
+      "Pass a non-null ref(name) clock to emitSynchronousReadFirstSimpleDualPortMemory."
+    case "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-ENABLE-NULL" |
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-ENABLE-NOT-REF" =>
+      "Pass a non-null ref(name) read enable to emitSynchronousReadFirstSimpleDualPortMemory."
+    case "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-ENABLE-NULL" |
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-ENABLE-NOT-REF" =>
+      "Pass a non-null ref(name) write enable to emitSynchronousReadFirstSimpleDualPortMemory."
+    case "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-ADDRESS-NULL" |
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-ADDRESS-NOT-REF" =>
+      "Pass a non-null ref(name) read address to emitSynchronousReadFirstSimpleDualPortMemory."
+    case "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-ADDRESS-NULL" |
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-ADDRESS-NOT-REF" =>
+      "Pass a non-null ref(name) write address to emitSynchronousReadFirstSimpleDualPortMemory."
+    case "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-DATA-NULL" |
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-WRITE-DATA-NOT-REF" =>
+      "Pass a non-null ref(name) write data value to emitSynchronousReadFirstSimpleDualPortMemory."
+    case "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-DATA-NULL" |
+        "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-READ-DATA-NOT-REF" =>
+      "Pass a non-null ref(name) read data target to emitSynchronousReadFirstSimpleDualPortMemory."
+    case "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-ELEMENT-TYPE-NULL" =>
+      "Pass a non-null packedBits(width) element type to emitSynchronousReadFirstSimpleDualPortMemory."
+    case "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-DEPTH-NULL" =>
+      "Pass a non-null loop-invariant HdlInt depth to emitSynchronousReadFirstSimpleDualPortMemory."
     case "MORPH-FRONTEND-COMBINATIONAL-LABEL-INVALID" |
         "MORPH-FRONTEND-COMBINATIONAL-TARGET-INVALID" |
         "MORPH-FRONTEND-COMBINATIONAL-VALUE-INVALID" |

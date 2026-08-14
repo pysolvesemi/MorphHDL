@@ -244,6 +244,20 @@ positive witness, retains the parameter identity and origins, and publishes
 one atomic counter item only after every check passes. A second or nested
 counter, mixed module items and selectable counter modes fail closed.
 
+Increment 26 adds
+`emitSynchronousReadFirstSimpleDualPortMemory(label, memoryName, clock,
+readEnable, writeEnable, readAddress, writeAddress, writeData, readData,
+elementType, depth)`. All seven runtime operands must be guarded direct
+references and pairwise distinct. Both address ports must have equivalent
+unsigned packed types, and each must independently prove enough capacity for
+the same positive bounded depth. Exact `depth.addressWidth` is the public
+fixture's selected ABI, not a general-node restriction. Clock and both enables
+are exact unsigned one-bit inputs, and data ports match the exact packed
+element type. The helper preserves both independent address paths and
+publishes one atomic item only after every argument passes. A second or nested
+memory/process, sibling module items, independent clocks, masks,
+initialization and selectable collision modes fail closed.
+
 An ordinary Scala `if`, `match`, collection size, recursion or class selection
 continues to execute during elaboration and therefore may depend only on static
 Scala values.

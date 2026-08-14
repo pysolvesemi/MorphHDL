@@ -1044,6 +1044,48 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("simple-dual-port memory preserves the default public shape and reviewed output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "simple_dual_port_memory.v"
+      val report = MorphVerilog(config) {
+        SimpleDualPortMemoryContractFixture.program(reverseConstructionOrder = false)
+      }
+
+      val output = directory.resolve("simple_dual_port_memory.v")
+      assert(report.toplevelName == "SimpleDualPortMemory")
+      assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
+      assert(Files.isRegularFile(output))
+      assert(
+        new String(Files.readAllBytes(output), StandardCharsets.UTF_8) ==
+          expectedSimpleDualPortMemoryVerilog
+      )
+    }
+  }
+
+  test("simple-dual-port memory validation fails before public output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "simple_dual_port_memory.v"
+      val fixture = SimpleDualPortMemoryContractFixture.program(reverseConstructionOrder = false)
+      val result = MorphVerilog.tryGenerate(config) {
+        MorphProgram(
+          concreteWitness = fixture.concreteWitnessFactory(),
+          parameterizedDesign = invalidSimpleDualPortMemoryDesign()
+        )
+      }
+
+      result match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.ParamRtlValidation)
+          assert(failure.message.contains("PRTL-UNRESOLVED-RTL-REFERENCE"))
+        case Right(report) =>
+          fail(s"Expected simple-dual-port-memory validation failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve("simple_dual_port_memory.v")))
+    }
+  }
+
   test("an invalid inactive conditional integer branch fails whole-design validation") {
     withTemporaryDirectory { directory =>
       val topName = "InvalidInactiveConditionalWidth"
@@ -3498,6 +3540,54 @@ class MorphVerilogTests extends AnyFunSuite {
     Design(top.name, Vector(top))
   }
 
+  private def invalidSimpleDualPortMemoryDesign(): Design = {
+    val width = ParameterRef("WIDTH")
+    val depth = ParameterRef("DEPTH")
+    val packed = PackedBits(width, Unsigned)
+    val address = PackedBits(IntExpr.AddressWidth(depth), Unsigned)
+    val control = PackedBits(IntExpr.Literal(1), Unsigned)
+    val top = ModuleDef(
+      name = "SimpleDualPortMemory",
+      parameters = Vector(
+        IntegerParameter(
+          "WIDTH",
+          default = 8,
+          constraints = Vector(MinInclusive(1), MaxInclusive(32))
+        ),
+        IntegerParameter(
+          "DEPTH",
+          default = 5,
+          constraints = Vector(MinInclusive(1), MaxInclusive(8))
+        )
+      ),
+      ports = Vector(
+        Port("clk", Input, control),
+        Port("read_enable", Input, control),
+        Port("write_enable", Input, control),
+        Port("read_address", Input, address),
+        Port("write_address", Input, address),
+        Port("write_data", Input, packed),
+        Port("read_data", Output, packed)
+      ),
+      items = Vector(
+        ModuleItem.SynchronousReadFirstSimpleDualPortMemory(
+          label = "p_memory",
+          memoryName = "memory",
+          clock = Ref("missing_clock"),
+          readEnable = Ref("read_enable"),
+          writeEnable = Ref("write_enable"),
+          readAddress = Ref("read_address"),
+          writeAddress = Ref("write_address"),
+          writeData = Ref("write_data"),
+          readData = Ref("read_data"),
+          elementType = packed,
+          depth = depth
+        )
+      )
+    )
+    Design(top.name, Vector(top))
+  }
+
   private def addressWidthDesign(
       requestedName: String,
       depthDefault: Int,
@@ -3818,6 +3908,55 @@ class MorphVerilogTests extends AnyFunSuite {
       |        count <= {morphhdl$ceil_log2(LIMIT, 1){1'b0}};
       |      end else begin
       |        count <= count + 1'b1;
+      |      end
+      |    end
+      |  end
+      |
+      |endmodule
+      |""".stripMargin
+
+  private val expectedSimpleDualPortMemoryVerilog =
+    """module SimpleDualPortMemory #(
+      |  parameter integer DEPTH = 5,
+      |  parameter integer WIDTH = 8
+      |) (
+      |  input  wire [0:0] clk,
+      |  input  wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] read_address,
+      |  output reg [WIDTH-1:0] read_data,
+      |  input  wire [0:0] read_enable,
+      |  input  wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] write_address,
+      |  input  wire [WIDTH-1:0] write_data,
+      |  input  wire [0:0] write_enable
+      |);
+      |
+      |  function integer morphhdl$ceil_log2;
+      |    input integer value;
+      |    input integer minimum_result;
+      |    integer remaining;
+      |    begin
+      |      morphhdl$ceil_log2 = 0;
+      |      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
+      |        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;
+      |      end
+      |      if (morphhdl$ceil_log2 < minimum_result) begin
+      |        morphhdl$ceil_log2 = minimum_result;
+      |      end
+      |    end
+      |  endfunction
+      |
+      |  reg [WIDTH-1:0] memory [0:DEPTH-1];
+      |
+      |  always @(posedge clk) begin : p_memory
+      |    if (read_address < DEPTH) begin
+      |      if (read_enable == 1'b1) begin
+      |        read_data <= memory[read_address];
+      |      end
+      |    end else if (read_enable == 1'b1) begin
+      |      read_data <= {WIDTH{1'b0}};
+      |    end
+      |    if (write_address < DEPTH) begin
+      |      if (write_enable == 1'b1) begin
+      |        memory[write_address] <= write_data;
       |      end
       |    end
       |  end

@@ -79,6 +79,10 @@ The contract is split into these documents:
 - [Increment 25 parameterized synchronous counter](../increment-25-parameterized-counter.md):
   one direct-public-limit modulo-up counter, depth-derived state width,
   synchronous reset/enable policy and a seventeenth reviewed fixture.
+- [Increment 26 synchronous read-first simple-dual-port memory](../increment-26-simple-dual-port-memory.md):
+  one shared-clock `1R1W` memory with independent capacity-proven addresses
+  and enables, deterministic read-first collisions and an eighteenth reviewed
+  fixture with two exact depth-derived address ports.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -117,6 +121,17 @@ to the existing `spinal.lib.Counter` witness. ParamRTL ties a direct positive
 public `LIMIT` to both the terminal comparison and exact address-width output,
 while strict Verilog-2001 emits reset-priority enabled modulo-up state. General
 state machines and counter modes remain separate tranches.
+Increment 26 adds one atomic target-neutral simple-dual-port memory. The
+default witness combines SpinalHDL's synchronous read and separate write APIs;
+ParamRTL fixes one shared clock, independent read/write addresses and enables,
+disabled-read hold, surplus behavior and read-first same-address collision.
+Strict Verilog-2001 emits one `1R1W` array and one canonical positive-edge
+process. Independent clocks, masks, initialization and additional ports remain
+separate tranches.
+Increment 27 should add the synchronous FIFO as one atomic ParamRTL node rather
+than sibling counter and memory items, which current sole-runtime-item
+ownership prohibits. Its public depth denotes total externally observable FIFO
+capacity, independent of internal RAM or output-stage organization.
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants

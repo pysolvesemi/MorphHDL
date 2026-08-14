@@ -40,6 +40,11 @@ private[frontend] case object SynchronousCounterKind extends RuntimeProcessKind 
   val description = "synchronous counter process"
 }
 
+private[frontend] case object SynchronousReadFirstSimpleDualPortMemoryKind
+    extends RuntimeProcessKind {
+  val description = "synchronous read-first simple dual-port memory process"
+}
+
 private[frontend] final case class CapturedRuntimeProcess(
     kind: RuntimeProcessKind,
     origin: SourceOrigin
@@ -811,6 +816,7 @@ private[frontend] object FrontendSession {
       booleanParameters = item.booleanParameters,
       localParameters = item.localParameters,
       booleanLocalParameters = item.booleanLocalParameters,
+      scopes = item.scopes,
       origin = item.origin
     )
     if (topLevel) context.capturedOrdinaryItems += item.origin -> ordinaryItemKind(item.raw)
@@ -842,6 +848,11 @@ private[frontend] object FrontendSession {
 
   private[frontend] def emitSynchronousCounter(item: FrontendNode[ModuleItem]): Unit =
     emitRuntimeProcess(item, SynchronousCounterKind)
+
+  private[frontend] def emitSynchronousReadFirstSimpleDualPortMemory(
+      item: FrontendNode[ModuleItem]
+  ): Unit =
+    emitRuntimeProcess(item, SynchronousReadFirstSimpleDualPortMemoryKind)
 
   private def emitRuntimeProcess(
       item: FrontendNode[ModuleItem],
@@ -928,6 +939,8 @@ private[frontend] object FrontendSession {
       "MORPH-FRONTEND-SINGLE-PORT-MEMORY-MIXED"
     case SynchronousCounterKind =>
       "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-MIXED"
+    case SynchronousReadFirstSimpleDualPortMemoryKind =>
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-MIXED"
   }
 
   private def nestedCode(kind: RuntimeProcessKind): String = kind match {
@@ -942,6 +955,8 @@ private[frontend] object FrontendSession {
       "MORPH-FRONTEND-SINGLE-PORT-MEMORY-NESTED"
     case SynchronousCounterKind =>
       "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-NESTED"
+    case SynchronousReadFirstSimpleDualPortMemoryKind =>
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-NESTED"
   }
 
   private def multipleCode(kind: RuntimeProcessKind): String = kind match {
@@ -956,6 +971,8 @@ private[frontend] object FrontendSession {
       "MORPH-FRONTEND-SINGLE-PORT-MEMORY-MULTIPLE"
     case SynchronousCounterKind =>
       "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-MULTIPLE"
+    case SynchronousReadFirstSimpleDualPortMemoryKind =>
+      "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-MULTIPLE"
   }
 
   private def ordinaryItemKind(item: ModuleItem): String = item match {

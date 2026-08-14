@@ -187,3 +187,17 @@ by one and wrap to zero. The seventeenth `parameterized_counter.v` artifact
 proves limits 1, 2, 3, 5 and 8 without regeneration. Load, down-count,
 saturation, rollover pulse, asynchronous reset and general sequential
 statements remain rejected.
+
+Increment 26 adds one bounded
+`SynchronousReadFirstSimpleDualPortMemory`. One positive-edge clock serves an
+independent synchronous read address/enable and whole-word write
+address/enable. General address ports must be mutually type-equivalent unsigned
+values and independently capacity-safe for the complete depth domain. Disabled
+reads hold, enabled surplus reads return zero, surplus writes are ignored and
+simultaneous same-address operation is deterministically read-first. The
+concrete witness combines SpinalHDL `Mem.readSync` with a separate `Mem.write`.
+The eighteenth `simple_dual_port_memory.v` artifact chooses two exact
+`addressWidth(DEPTH)` addresses and proves default 8x5, awkward 5x3, minimum
+1x1 and full-domain 4x8 behavior without regeneration. Independent
+clocks, asynchronous reads, masks, initialization, reset, additional ports and
+selectable collision modes remain rejected.

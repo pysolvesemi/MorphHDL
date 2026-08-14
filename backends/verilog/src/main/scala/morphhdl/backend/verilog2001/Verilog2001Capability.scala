@@ -44,6 +44,7 @@ import morphhdl.paramrtl.ModuleItem.{
   ModuleInstance,
   SynchronousCounter,
   SynchronousEnabledRegister,
+  SynchronousReadFirstSimpleDualPortMemory,
   SynchronousReadFirstSinglePortMemory,
   SynchronousRegister
 }
@@ -414,6 +415,31 @@ object Verilog2001Capability {
       module.items.collect { case memory: SynchronousReadFirstSinglePortMemory => memory }.sortBy(_.label).foreach {
         memory =>
           val path = modulePath :+ "synchronousReadFirstSinglePortMemories" :+ memory.label
+          checkName(memory.label, path :+ "label", diagnostics)
+          checkName(memory.memoryName, path :+ "memoryName", diagnostics)
+          checkExpression(
+            memory.elementType.width,
+            facts.parameterFacts,
+            facts.localParameterFacts,
+            path :+ "elementType" :+ "width",
+            diagnostics,
+            booleanParameters = booleanParameterByName,
+            booleanLocalParameters = facts.booleanLocalParameterFacts
+          )
+          checkExpression(
+            memory.depth,
+            facts.parameterFacts,
+            facts.localParameterFacts,
+            path :+ "depth",
+            diagnostics,
+            booleanParameters = booleanParameterByName,
+            booleanLocalParameters = facts.booleanLocalParameterFacts
+          )
+      }
+
+      module.items.collect { case memory: SynchronousReadFirstSimpleDualPortMemory => memory }.sortBy(_.label).foreach {
+        memory =>
+          val path = modulePath :+ "synchronousReadFirstSimpleDualPortMemories" :+ memory.label
           checkName(memory.label, path :+ "label", diagnostics)
           checkName(memory.memoryName, path :+ "memoryName", diagnostics)
           checkExpression(
