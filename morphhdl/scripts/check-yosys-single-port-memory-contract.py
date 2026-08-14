@@ -252,12 +252,20 @@ def main():
 
     write_guards = []
     for name, cell in cells.items():
-        if cell.get("type") not in {"$and", "$logic_and"}:
-            continue
         guard_connections = cell.get("connections", {})
         if guard_connections.get("Y") != [write_guard]:
             continue
-        if inputs_match(cell, ports["write_enable"]["bits"], in_range):
+        if (
+            cell.get("type") in {"$and", "$logic_and"}
+            and inputs_match(cell, ports["write_enable"]["bits"], in_range)
+        ):
+            write_guards.append((name, cell))
+        elif (
+            cell.get("type") == "$mux"
+            and all_zero(guard_connections.get("A", []))
+            and guard_connections.get("B") == ports["write_enable"]["bits"]
+            and guard_connections.get("S") == in_range
+        ):
             write_guards.append((name, cell))
     if len(write_guards) != 1:
         return fail(

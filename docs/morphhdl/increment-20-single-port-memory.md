@@ -96,9 +96,11 @@ contents.
 CI requires byte-identical normal and reverse-construction sixteen-file
 generation, an exact sorted inventory and reviewed goldens. Verilator lints
 the default 8x5, awkward 5x3 and minimum 1x1 elaborations in strict 1364-2001
-mode. The only lint suppression is `WIDTHEXPAND` for comparing the three-bit
-address against Verilog's 32-bit `integer DEPTH`; width truncation and port/data
-width diagnostics remain enabled.
+mode. The memory fixture alone suppresses `WIDTHEXPAND` for comparing the
+three-bit address against Verilog's 32-bit `integer DEPTH`, and `WIDTHTRUNC`
+for indexing a deliberately non-power-of-two memory through that guarded
+address. Port/data width diagnostics and all other fixtures' width diagnostics
+remain enabled.
 
 Icarus proves synchronous timing, valid boundary addresses, disabled writes,
 read-first collision, later visibility of the written value, synchronous zero

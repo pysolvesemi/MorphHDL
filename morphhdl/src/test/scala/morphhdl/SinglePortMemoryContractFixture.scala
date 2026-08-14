@@ -28,7 +28,8 @@ private[morphhdl] object SinglePortMemoryContractFixture {
             data = write_data,
             enable = addressInRange,
             write = write_enable,
-            readUnderWrite = readFirst
+            readUnderWrite = readFirst,
+            duringWrite = doRead
           )
           val valid = RegNext(addressInRange)
         }

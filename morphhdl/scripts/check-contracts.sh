@@ -916,12 +916,14 @@ verilator --lint-only --language 1364-2001 -Wall \
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
   -Wno-WIDTHEXPAND \
+  -Wno-WIDTHTRUNC \
   --top-module SinglePortMemory \
   "$single_port_memory_file"
 
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
   -Wno-WIDTHEXPAND \
+  -Wno-WIDTHTRUNC \
   --top-module SinglePortMemory \
   -GDEPTH=3 -GWIDTH=5 \
   "$single_port_memory_file"
@@ -929,6 +931,7 @@ verilator --lint-only --language 1364-2001 -Wall \
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
   -Wno-WIDTHEXPAND \
+  -Wno-WIDTHTRUNC \
   --top-module SinglePortMemory \
   -GDEPTH=1 -GWIDTH=1 \
   "$single_port_memory_file"
@@ -1594,7 +1597,7 @@ yosys_single_port_memory_synthesize_and_check() {
   local synthesized_netlist="$tmp_dir/SinglePortMemory-${label}-synthesized.json"
 
   yosys -q -p \
-    "read_verilog -noautowire $yosys_single_port_memory_file; $parameter_command hierarchy -check -top SinglePortMemory; proc; memory_dff; memory_collect; opt_clean; check -assert; write_json $process_netlist; synth -top SinglePortMemory; check -assert; write_json $synthesized_netlist"
+    "read_verilog -noautowire $yosys_single_port_memory_file; $parameter_command hierarchy -check -top SinglePortMemory; proc; opt_reduce; opt_expr -mux_undef; memory_dff; memory_collect; opt_clean; check -assert; write_json $process_netlist; synth -top SinglePortMemory; check -assert; write_json $synthesized_netlist"
   python3 "$repo_root/morphhdl/scripts/check-yosys-single-port-memory-contract.py" \
     "$process_netlist" --width "$expected_width" --depth "$expected_depth"
   python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
@@ -1687,7 +1690,7 @@ yosys_single_port_memory_mutation_must_fail() {
   fi
 
   if ! yosys -q -p \
-      "read_verilog -noautowire $mutated_file; hierarchy -check -top SinglePortMemory; proc; memory_dff; memory_collect; opt_clean; check -assert; write_json $mutated_netlist"; then
+      "read_verilog -noautowire $mutated_file; hierarchy -check -top SinglePortMemory; proc; opt_reduce; opt_expr -mux_undef; memory_dff; memory_collect; opt_clean; check -assert; write_json $mutated_netlist"; then
     echo "Yosys rejected forbidden SinglePortMemory mutation during synthesis: $label"
     return
   fi
