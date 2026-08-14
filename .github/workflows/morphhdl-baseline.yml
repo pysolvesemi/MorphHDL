@@ -152,7 +152,8 @@ jobs:
               'single_port_memory.v f' \
               'synchronous_enabled_register.v f' \
               'synchronous_register.v f' \
-              'synchronous_stream_fifo.v f')"
+              'synchronous_stream_fifo.v f' \
+              'synchronous_stream_m2s_pipe.v f')"
             test "${actual_inventory}" = "${expected_inventory}"
           done
           diff --recursive --brief \
@@ -212,6 +213,7 @@ jobs:
             parameterized_counter.v \
             simple_dual_port_memory.v \
             synchronous_stream_fifo.v \
+            synchronous_stream_m2s_pipe.v \
             synchronous_register.v \
             asynchronous_register.v \
             synchronous_enabled_register.v \

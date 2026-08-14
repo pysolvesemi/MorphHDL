@@ -338,6 +338,20 @@ one invalid cycle. Pointer wrap is exact at `depth - 1`. Bypass, flush,
 occupancy/availability ports, alternate latency, initialization, masks,
 asynchronous reset/read and multiple clocks remain separate policies.
 
+Increment 28 adds
+`ModuleItem.SynchronousStreamM2sPipe(label, clock, reset, pushValid,
+pushReady, pushData, popValid, popReady, popData, elementType)`. It is one
+atomic single-clock capacity-one ready/valid stage. Validation requires eight
+distinct direct roles, exact unsigned one-bit controls, symmetric packed data
+types, sole ownership of all three outputs and no sibling item. `pushReady` is
+true when the registered output is empty or being consumed. An accepted input
+updates registered valid and payload after one edge; full pop plus push
+replaces without a bubble, while full stall holds both. Active-high synchronous
+reset clears only valid. Payload captures whenever ready, including invalid or
+reset cycles, and is unspecified whenever valid is low. Selectable
+`collapsBubble`/`holdPayload`, bypass storage, status, asynchronous reset and
+multiple clocks remain separate policies.
+
 ## Required invariants
 
 - Every reference resolves within its lexical parameter, generate or module

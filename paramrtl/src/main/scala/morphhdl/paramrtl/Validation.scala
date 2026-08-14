@@ -56,7 +56,8 @@ import morphhdl.paramrtl.ModuleItem.{
   SynchronousReadFirstSimpleDualPortMemory,
   SynchronousReadFirstSinglePortMemory,
   SynchronousRegister,
-  SynchronousStreamFifo
+  SynchronousStreamFifo,
+  SynchronousStreamM2sPipe
 }
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
@@ -206,6 +207,8 @@ object ParamRtlValidator {
       module.items.collect { case counter: SynchronousCounter => counter }.sortBy(_.label)
     val synchronousStreamFifos =
       module.items.collect { case fifo: SynchronousStreamFifo => fifo }.sortBy(_.label)
+    val synchronousStreamM2sPipes =
+      module.items.collect { case pipe: SynchronousStreamM2sPipe => pipe }.sortBy(_.label)
 
     addDuplicateDiagnostics(
       parameters.map(_.name),
@@ -335,6 +338,13 @@ object ParamRtlValidator {
       "synchronous stream FIFO process label",
       diagnostics
     )
+    addDuplicateDiagnostics(
+      synchronousStreamM2sPipes.map(_.label),
+      modulePath :+ "processLabels",
+      "PRTL-SYNCHRONOUS-STREAM-M2S-PIPE-DUPLICATE-LABEL",
+      "synchronous stream m2s pipe process label",
+      diagnostics
+    )
 
     val declarationKinds = Vector(
       "parameter" -> parameters.map(_.name).toSet,
@@ -356,6 +366,7 @@ object ParamRtlValidator {
         synchronousReadFirstSimpleDualPortMemories.map(_.label).toSet,
       "synchronous counter process label" -> synchronousCounters.map(_.label).toSet,
       "synchronous stream FIFO process label" -> synchronousStreamFifos.map(_.label).toSet,
+      "synchronous stream m2s pipe process label" -> synchronousStreamM2sPipes.map(_.label).toSet,
       "memory" ->
         (synchronousReadFirstSinglePortMemories.map(_.memoryName) ++
           synchronousReadFirstSimpleDualPortMemories.map(_.memoryName) ++
@@ -546,6 +557,12 @@ object ParamRtlValidator {
             path :+ "body" :+ index.toString,
             "Generate-for bodies cannot contain synchronous stream FIFOs"
           )
+        case (_: SynchronousStreamM2sPipe, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+            path :+ "body" :+ index.toString,
+            "Generate-for bodies cannot contain synchronous stream m2s pipes"
+          )
         case (_: GenerateFor, index) =>
           diagnostics += Diagnostic(
             "PRTL-NESTED-GENERATE-UNSUPPORTED",
@@ -668,6 +685,12 @@ object ParamRtlValidator {
               "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
               branchPath :+ "body" :+ index.toString,
               "Generate-if branches cannot contain synchronous stream FIFOs"
+            )
+          case (_: SynchronousStreamM2sPipe, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-if branches cannot contain synchronous stream m2s pipes"
             )
           case (_: GenerateFor, index) =>
             diagnostics += Diagnostic(
@@ -805,6 +828,12 @@ object ParamRtlValidator {
               "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
               branchPath :+ "body" :+ index.toString,
               "Generate-case branches cannot contain synchronous stream FIFOs"
+            )
+          case (_: SynchronousStreamM2sPipe, index) =>
+            diagnostics += Diagnostic(
+              "PRTL-PROCESS-IN-GENERATE-UNSUPPORTED",
+              branchPath :+ "body" :+ index.toString,
+              "Generate-case branches cannot contain synchronous stream m2s pipes"
             )
           case (_: GenerateFor, index) =>
             diagnostics += Diagnostic(
@@ -1279,6 +1308,52 @@ object ParamRtlValidator {
         }
     }
 
+    if (synchronousStreamM2sPipes.size > 1) {
+      synchronousStreamM2sPipes.drop(1).foreach { pipe =>
+        diagnostics += Diagnostic(
+          "PRTL-SYNCHRONOUS-STREAM-M2S-PIPE-MULTIPLE-PIPES-UNSUPPORTED",
+          modulePath :+ "synchronousStreamM2sPipes" :+ pipe.label,
+          "At most one top-level synchronous stream m2s pipe is supported per module"
+        )
+      }
+    }
+
+    synchronousStreamM2sPipes.foreach { pipe =>
+      val path = modulePath :+ "synchronousStreamM2sPipes" :+ pipe.label
+      checkIdentifier(
+        pipe.label,
+        path :+ "label",
+        "synchronous stream m2s pipe process label",
+        diagnostics
+      )
+      validateExpressionReferences(
+        pipe.elementType.width,
+        parameterNames,
+        localParameterNames,
+        path :+ "elementType" :+ "width",
+        diagnostics,
+        booleanParameters = booleanParameterByName,
+        booleanLocalParameters = booleanLocalParameterNames
+      )
+    }
+
+    if (synchronousStreamM2sPipes.nonEmpty) {
+      module.items
+        .filter {
+          case _: SynchronousStreamM2sPipe => false
+          case _                           => true
+        }
+        .sortBy(moduleItemStableKey)
+        .zipWithIndex
+        .foreach { case (item, index) =>
+          diagnostics += Diagnostic(
+            "PRTL-SYNCHRONOUS-STREAM-M2S-PIPE-MIXED-ITEMS-UNSUPPORTED",
+            modulePath :+ "synchronousStreamM2sPipes" :+ "itemConflicts" :+ index.toString,
+            s"Synchronous stream m2s pipes cannot be combined with ${moduleItemKind(item)} in this tranche"
+          )
+        }
+    }
+
     def integerLocalKey(name: String): String = s"integer:$name"
     def booleanLocalKey(name: String): String = s"boolean:$name"
 
@@ -1565,6 +1640,19 @@ object ParamRtlValidator {
             s"Synchronous stream FIFO depth domain ${renderInterval(facts.interval)} must have finite lower and upper bounds"
           )
       }
+    }
+
+    synchronousStreamM2sPipes.foreach { pipe =>
+      val path = modulePath :+ "synchronousStreamM2sPipes" :+ pipe.label
+      validateWidth(
+        pipe.elementType.width,
+        parameterFacts,
+        localParameterFacts,
+        path :+ "elementType" :+ "width",
+        diagnostics,
+        booleanParameterByName,
+        booleanLocalParameterFacts
+      )
     }
 
     generateFors.foreach { generate =>
@@ -2230,6 +2318,8 @@ object ParamRtlValidator {
       module.items.collect { case counter: SynchronousCounter => counter }.sortBy(_.label)
     val synchronousStreamFifos =
       module.items.collect { case fifo: SynchronousStreamFifo => fifo }.sortBy(_.label)
+    val synchronousStreamM2sPipes =
+      module.items.collect { case pipe: SynchronousStreamM2sPipe => pipe }.sortBy(_.label)
     val driverCounts = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
     val conditionalBranchDriverCounts =
       scala.collection.mutable.ArrayBuffer.empty[scala.collection.mutable.Map[String, Int]]
@@ -3785,6 +3875,112 @@ object ParamRtlValidator {
         )
     }
 
+    synchronousStreamM2sPipes.foreach { pipe =>
+      val path = modulePath :+ "synchronousStreamM2sPipes" :+ pipe.label
+      val prefix = "PRTL-SYNCHRONOUS-STREAM-M2S-PIPE"
+      val oneBitUnsigned = PackedBits(Literal(1), Unsigned)
+
+      def resolveInput(role: String, codeRole: String, reference: Ref): Option[Port] =
+        resolvePort(reference, portByName, path :+ role, diagnostics).map { port =>
+          if (port.direction != Input)
+            diagnostics += Diagnostic(
+              s"$prefix-$codeRole-NOT-INPUT",
+              path :+ role,
+              s"Synchronous stream m2s pipe $role '${port.name}' must be an input port"
+            )
+          port
+        }
+
+      def resolveOutput(role: String, codeRole: String, reference: Ref): Option[Port] =
+        resolvePort(reference, portByName, path :+ role, diagnostics).map { port =>
+          driverCounts.update(port.name, driverCounts(port.name) + 1)
+          if (port.direction != Output)
+            diagnostics += Diagnostic(
+              s"$prefix-$codeRole-NOT-OUTPUT",
+              path :+ role,
+              s"Synchronous stream m2s pipe $role '${port.name}' must be an output port"
+            )
+          port
+        }
+
+      def requireOneBit(role: String, codeRole: String, port: Option[Port]): Unit =
+        port.foreach { value =>
+          if (!packedTypesEquivalent(value.dataType, oneBitUnsigned, module, baseFacts))
+            diagnostics += Diagnostic(
+              s"$prefix-$codeRole-TYPE-MISMATCH",
+              path :+ role,
+              s"Synchronous stream m2s pipe $role '${value.name}' must have exact unsigned 1-bit type"
+            )
+        }
+
+      val clockPort = resolveInput("clock", "CLOCK", pipe.clock)
+      val resetPort = resolveInput("reset", "RESET", pipe.reset)
+      val pushValidPort = resolveInput("pushValid", "PUSH-VALID", pipe.pushValid)
+      val pushReadyPort = resolveOutput("pushReady", "PUSH-READY", pipe.pushReady)
+      val pushDataPort = resolveInput("pushData", "PUSH-DATA", pipe.pushData)
+      val popValidPort = resolveOutput("popValid", "POP-VALID", pipe.popValid)
+      val popReadyPort = resolveInput("popReady", "POP-READY", pipe.popReady)
+      val popDataPort = resolveOutput("popData", "POP-DATA", pipe.popData)
+
+      requireOneBit("clock", "CLOCK", clockPort)
+      requireOneBit("reset", "RESET", resetPort)
+      requireOneBit("pushValid", "PUSH-VALID", pushValidPort)
+      requireOneBit("pushReady", "PUSH-READY", pushReadyPort)
+      requireOneBit("popValid", "POP-VALID", popValidPort)
+      requireOneBit("popReady", "POP-READY", popReadyPort)
+
+      pushDataPort.foreach { port =>
+        if (!packedTypesEquivalent(port.dataType, pipe.elementType, module, baseFacts))
+          diagnostics += Diagnostic(
+            s"$prefix-PUSH-DATA-TYPE-MISMATCH",
+            path :+ "pushData",
+            s"Synchronous stream m2s pipe push-data type '${port.dataType}' does not exactly match element type '${pipe.elementType}'"
+          )
+      }
+      popDataPort.foreach { port =>
+        if (!packedTypesEquivalent(port.dataType, pipe.elementType, module, baseFacts))
+          diagnostics += Diagnostic(
+            s"$prefix-POP-DATA-TYPE-MISMATCH",
+            path :+ "popData",
+            s"Synchronous stream m2s pipe pop-data type '${port.dataType}' does not exactly match element type '${pipe.elementType}'"
+          )
+      }
+
+      Vector(
+        "clock" -> pipe.clock.name,
+        "reset" -> pipe.reset.name,
+        "pushValid" -> pipe.pushValid.name,
+        "pushReady" -> pipe.pushReady.name,
+        "pushData" -> pipe.pushData.name,
+        "popValid" -> pipe.popValid.name,
+        "popReady" -> pipe.popReady.name,
+        "popData" -> pipe.popData.name
+      ).groupBy(_._2)
+        .collect { case (name, roles) if roles.size > 1 => name -> roles.map(_._1).sorted }
+        .toVector
+        .sortBy(_._1)
+        .foreach { case (name, roles) =>
+          diagnostics += Diagnostic(
+            s"$prefix-ROLE-ALIAS",
+            path :+ "roles" :+ name,
+            s"Synchronous stream m2s pipe roles must use distinct ports; '$name' is used as ${roles.mkString(", ")}"
+          )
+        }
+
+      val outputNames = ports.filter(_.direction == Output).map(_.name).sorted
+      val ownedOutputNames = Vector(pushReadyPort, popValidPort, popDataPort)
+        .flatten
+        .filter(_.direction == Output)
+        .map(_.name)
+        .sorted
+      if (ownedOutputNames != outputNames || ownedOutputNames.size != 3)
+        diagnostics += Diagnostic(
+          s"$prefix-OUTPUT-SHAPE-UNSUPPORTED",
+          path :+ "outputs",
+          s"Synchronous stream m2s pipe must own exactly push-ready, pop-valid and pop-data outputs; outputs are ${outputNames.mkString(", ")}"
+        )
+    }
+
     ports.filter(_.direction == Output).foreach { port =>
       val legalDriverCounts =
         if (conditionalBranchDriverCounts.isEmpty) Vector(driverCounts(port.name))
@@ -3797,7 +3993,7 @@ object ParamRtlValidator {
             synchronousEnabledRegisters.isEmpty && asynchronousEnabledRegisters.isEmpty &&
             synchronousReadFirstSinglePortMemories.isEmpty &&
             synchronousReadFirstSimpleDualPortMemories.isEmpty && synchronousCounters.isEmpty &&
-            synchronousStreamFifos.isEmpty
+            synchronousStreamFifos.isEmpty && synchronousStreamM2sPipes.isEmpty
           )
             s"Output port '${port.name}' has no driver"
           else if (combinationalIfs.nonEmpty)
@@ -3818,6 +4014,8 @@ object ParamRtlValidator {
             s"Output port '${port.name}' is not owned by the synchronous counter"
           else if (synchronousStreamFifos.nonEmpty)
             s"Output port '${port.name}' is not owned by the synchronous stream FIFO"
+          else if (synchronousStreamM2sPipes.nonEmpty)
+            s"Output port '${port.name}' is not owned by the synchronous stream m2s pipe"
           else s"Output port '${port.name}' is undriven for at least one legal generate configuration"
         diagnostics += Diagnostic(
           "PRTL-UNDRIVEN-OUTPUT",
@@ -3834,7 +4032,7 @@ object ParamRtlValidator {
             synchronousEnabledRegisters.isEmpty && asynchronousEnabledRegisters.isEmpty &&
             synchronousReadFirstSinglePortMemories.isEmpty &&
             synchronousReadFirstSimpleDualPortMemories.isEmpty && synchronousCounters.isEmpty &&
-            synchronousStreamFifos.isEmpty
+            synchronousStreamFifos.isEmpty && synchronousStreamM2sPipes.isEmpty
           )
             s"Output port '${port.name}' has $maximumDrivers drivers"
           else if (combinationalIfs.nonEmpty)
@@ -3855,6 +4053,8 @@ object ParamRtlValidator {
             s"Output port '${port.name}' has $maximumDrivers drivers including its synchronous counter"
           else if (synchronousStreamFifos.nonEmpty)
             s"Output port '${port.name}' has $maximumDrivers drivers including its synchronous stream FIFO"
+          else if (synchronousStreamM2sPipes.nonEmpty)
+            s"Output port '${port.name}' has $maximumDrivers drivers including its synchronous stream m2s pipe"
           else s"Output port '${port.name}' has up to $maximumDrivers drivers in a legal generate configuration"
         diagnostics += Diagnostic(
           "PRTL-MULTIPLE-DRIVERS",
@@ -4309,6 +4509,7 @@ object ParamRtlValidator {
       "another synchronous read-first simple dual-port memory"
     case _: SynchronousCounter => "another synchronous counter process"
     case _: SynchronousStreamFifo => "another synchronous stream FIFO"
+    case _: SynchronousStreamM2sPipe => "another synchronous stream m2s pipe"
   }
 
   private def moduleItemStableKey(item: ModuleItem): String = item match {
@@ -4340,6 +4541,8 @@ object ParamRtlValidator {
       s"12:${memory.label}:${memory.memoryName}:${memory.clock.name}:${memory.readEnable.name}:${memory.writeEnable.name}:${memory.readAddress.name}:${memory.writeAddress.name}:${memory.writeData.name}:${memory.readData.name}:${memory.elementType}:${memory.depth}"
     case fifo: SynchronousStreamFifo =>
       s"13:${fifo.label}:${fifo.memoryName}:${fifo.clock.name}:${fifo.reset.name}:${fifo.pushValid.name}:${fifo.pushReady.name}:${fifo.pushData.name}:${fifo.popValid.name}:${fifo.popReady.name}:${fifo.popData.name}:${fifo.elementType}:${fifo.depth}"
+    case pipe: SynchronousStreamM2sPipe =>
+      s"14:${pipe.label}:${pipe.clock.name}:${pipe.reset.name}:${pipe.pushValid.name}:${pipe.pushReady.name}:${pipe.pushData.name}:${pipe.popValid.name}:${pipe.popReady.name}:${pipe.popData.name}:${pipe.elementType}"
   }
 
   private def addDuplicateCaseValueDiagnostics(

@@ -87,6 +87,13 @@ These files are executable output contracts for the parameterized backend.
   default-depth concrete witness reuses latency-two `spinal.lib.StreamFifo`;
   parameter overrides, including the uniform `DEPTH=1` rejection policy, are
   governed by this artifact and its testbench.
+- `synchronous_stream_m2s_pipe.v` is owned by Increment 28. One active-high
+  synchronous reset controls a capacity-one registered ready/valid stage
+  matching default `Stream.m2sPipe()`. Ready is high while empty or when the
+  current output is consumed. Full stall holds, full pop plus push replaces
+  without a bubble, and payload captures whenever ready even when invalid or
+  reset clears valid. The concrete witness uses the pinned Spinal primitive;
+  widths 1, 5, 8 and 32 are governed by this artifact and its testbench.
 - Increment 8 routes the first four artifacts through one production fixture
   source and `MorphVerilog`; Increments 9 and 10 extend that same path to all
   six. Increment 11 extends it to all seven, Increment 12 to all eight, and
@@ -99,10 +106,11 @@ These files are executable output contracts for the parameterized backend.
   both `derived_width.v` and `single_port_memory.v` with the shared
   constant-function lowering. Increment 25 extends the path to seventeen
   files with `parameterized_counter.v`, Increment 26 extends it to eighteen
-  with `simple_dual_port_memory.v`, and Increment 27 extends it to nineteen
-  with `synchronous_stream_fifo.v`. CI
+  with `simple_dual_port_memory.v`, Increment 27 extends it to nineteen with
+  `synchronous_stream_fifo.v`, and Increment 28 extends it to twenty with
+  `synchronous_stream_m2s_pipe.v`. CI
   performs a normal and reverse-construction run, requires an exact
-  nineteen-file inventory, checks
+  twenty-file inventory, checks
   byte identity with these goldens, and gives that unmodified directory to the
   external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
@@ -197,6 +205,15 @@ These files are executable output contracts for the parameterized backend.
   address collapse or swap, cross-gated controls, write-first bypass,
   unconditional writes, guard/edge/initialization/reset drift, fixed address
   widths and extra memory ports.
+  `SynchronousStreamM2sPipeTb` instantiates widths 8, 1 and 5 together. It
+  proves valid-only synchronous reset, no combinational valid bypass,
+  registered capture, full stall stability, two consecutive bubble-free
+  replacements, pop without replacement, refill and ready-enabled payload
+  capture during reset. Verilator also lints width 32. Yosys proves one
+  positive-edge synchronously reset ready-enabled valid register, one unreset
+  ready-enabled payload register and the exact ready inverter/OR network.
+  Source and JSON mutations reject wrong ready, lost replacement, payload
+  valid-gating/reset, state/control misconnection and edge/reset drift.
 
 Run:
 

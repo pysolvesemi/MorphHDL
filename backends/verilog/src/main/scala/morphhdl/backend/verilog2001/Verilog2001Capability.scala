@@ -47,7 +47,8 @@ import morphhdl.paramrtl.ModuleItem.{
   SynchronousReadFirstSimpleDualPortMemory,
   SynchronousReadFirstSinglePortMemory,
   SynchronousRegister,
-  SynchronousStreamFifo
+  SynchronousStreamFifo,
+  SynchronousStreamM2sPipe
 }
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 
@@ -506,6 +507,21 @@ object Verilog2001Capability {
             facts.parameterFacts,
             facts.localParameterFacts,
             path :+ "occupancyWidth",
+            diagnostics,
+            booleanParameters = booleanParameterByName,
+            booleanLocalParameters = facts.booleanLocalParameterFacts
+          )
+      }
+
+      module.items.collect { case pipe: SynchronousStreamM2sPipe => pipe }.sortBy(_.label).foreach {
+        pipe =>
+          val path = modulePath :+ "synchronousStreamM2sPipes" :+ pipe.label
+          checkName(pipe.label, path :+ "label", diagnostics)
+          checkExpression(
+            pipe.elementType.width,
+            facts.parameterFacts,
+            facts.localParameterFacts,
+            path :+ "elementType" :+ "width",
             diagnostics,
             booleanParameters = booleanParameterByName,
             booleanLocalParameters = facts.booleanLocalParameterFacts

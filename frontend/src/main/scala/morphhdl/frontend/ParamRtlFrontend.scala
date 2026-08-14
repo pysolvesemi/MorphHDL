@@ -1111,6 +1111,95 @@ private[morphhdl] object ParamRtlFrontend {
   }
 
   /**
+    * Atomically emits one positive-edge one-entry ready/valid pipeline stage matching the
+    * default Spinal Stream `m2sPipe` contract. The stage accepts a replacement on the same
+    * edge that its current element is consumed, holds valid payload while stalled, and has
+    * one edge of forward latency. Reset is active-high and synchronous and clears only valid.
+    */
+  def emitSynchronousStreamM2sPipe(
+      label: String,
+      clock: FrontendNode[RtlExpr],
+      reset: FrontendNode[RtlExpr],
+      pushValid: FrontendNode[RtlExpr],
+      pushReady: FrontendNode[RtlExpr],
+      pushData: FrontendNode[RtlExpr],
+      popValid: FrontendNode[RtlExpr],
+      popReady: FrontendNode[RtlExpr],
+      popData: FrontendNode[RtlExpr],
+      elementType: FrontendNode[PackedBits]
+  )(implicit file: sourcecode.File, line: sourcecode.Line): Unit = {
+    val origin = SourceOrigin.capture
+    val prefix = "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE"
+    requirePortableIdentifier(
+      label,
+      "synchronous stream m2s pipe label",
+      s"$prefix-LABEL-INVALID",
+      origin
+    )
+
+    val clockRef =
+      requireSynchronousStreamM2sPipeRef(label, "clock", "CLOCK", clock, origin)
+    val resetRef =
+      requireSynchronousStreamM2sPipeRef(label, "reset", "RESET", reset, origin)
+    val pushValidRef =
+      requireSynchronousStreamM2sPipeRef(label, "push-valid", "PUSH-VALID", pushValid, origin)
+    val pushReadyRef =
+      requireSynchronousStreamM2sPipeRef(label, "push-ready", "PUSH-READY", pushReady, origin)
+    val pushDataRef =
+      requireSynchronousStreamM2sPipeRef(label, "push-data", "PUSH-DATA", pushData, origin)
+    val popValidRef =
+      requireSynchronousStreamM2sPipeRef(label, "pop-valid", "POP-VALID", popValid, origin)
+    val popReadyRef =
+      requireSynchronousStreamM2sPipeRef(label, "pop-ready", "POP-READY", popReady, origin)
+    val popDataRef =
+      requireSynchronousStreamM2sPipeRef(label, "pop-data", "POP-DATA", popData, origin)
+
+    if (elementType eq null) {
+      FrontendException.failAt(
+        s"$prefix-ELEMENT-TYPE-NULL",
+        s"synchronous stream m2s pipe '$label' requires a non-null element type",
+        origin
+      )
+    }
+    elementType.requireUsable(s"synchronous stream m2s pipe '$label' element type")
+
+    val refs = Vector(
+      clock,
+      reset,
+      pushValid,
+      pushReady,
+      pushData,
+      popValid,
+      popReady,
+      popData
+    )
+    FrontendSession.emitSynchronousStreamM2sPipe(
+      FrontendNode(
+        ModuleItem.SynchronousStreamM2sPipe(
+          label,
+          clockRef,
+          resetRef,
+          pushValidRef,
+          pushReadyRef,
+          pushDataRef,
+          popValidRef,
+          popReadyRef,
+          popDataRef,
+          elementType.raw
+        ),
+        parameters = refs.flatMap(_.parameters).toSet ++ elementType.parameters,
+        booleanParameters = refs.flatMap(_.booleanParameters).toSet ++
+          elementType.booleanParameters,
+        localParameters = refs.flatMap(_.localParameters).toSet ++ elementType.localParameters,
+        booleanLocalParameters = refs.flatMap(_.booleanLocalParameters).toSet ++
+          elementType.booleanLocalParameters,
+        scopes = refs.flatMap(_.scopes).toSet ++ elementType.scopes,
+        origin = origin
+      )
+    )
+  }
+
+  /**
     * Atomically emits one positive-edge up-counter. Reset is active-high and
     * synchronous, has priority over enable, and clears count to zero. Enable
     * is active-high; when low the count holds. An enabled count equal to
@@ -1958,6 +2047,37 @@ private[morphhdl] object ParamRtlFrontend {
     requirePortableIdentifier(
       reference.name,
       s"synchronous stream FIFO $role",
+      s"$prefix-$codeRole-INVALID",
+      value.origin
+    )
+    reference
+  }
+
+  private def requireSynchronousStreamM2sPipeRef(
+      label: String,
+      role: String,
+      codeRole: String,
+      value: FrontendNode[RtlExpr],
+      origin: SourceOrigin
+  ): Ref = {
+    val prefix = "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE"
+    if (value eq null) {
+      FrontendException.failAt(
+        s"$prefix-$codeRole-NULL",
+        s"synchronous stream m2s pipe '$label' requires a non-null $role reference",
+        origin
+      )
+    }
+    value.requireUsable(s"synchronous stream m2s pipe '$label' $role")
+    val reference = requireRef(
+      value,
+      s"synchronous stream m2s pipe $role",
+      s"$prefix-$codeRole-NOT-REF",
+      origin
+    )
+    requirePortableIdentifier(
+      reference.name,
+      s"synchronous stream m2s pipe $role",
       s"$prefix-$codeRole-INVALID",
       value.origin
     )

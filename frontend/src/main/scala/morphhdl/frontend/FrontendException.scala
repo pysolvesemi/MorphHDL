@@ -56,6 +56,7 @@ private[frontend] object FrontendException {
         "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-MIXED" |
         "MORPH-FRONTEND-SIMPLE-DUAL-PORT-MEMORY-MIXED" |
         "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-MIXED" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-MIXED" |
         "MORPH-FRONTEND-RUNTIME-PROCESS-MIXED" =>
       "Use a separate module definition instead of mixing runtime processes or module items."
     case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-LABEL-INVALID" |
@@ -285,6 +286,46 @@ private[frontend] object FrontendException {
       "Pass the exact unmodified HdlInt.param handle declared by this FIFO module."
     case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-FIFO-DEPTH-WITNESS-NONPOSITIVE" =>
       "Choose a positive depth witness and declare its finite domain with a minimum of at least 1."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-NESTED" =>
+      "Emit the synchronous stream m2s pipe as a top-level module item outside all generate regions."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-MULTIPLE" =>
+      "Emit one synchronous stream m2s pipe per module-item capture."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-LABEL-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-CLOCK-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-RESET-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-PUSH-VALID-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-PUSH-READY-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-PUSH-DATA-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-POP-VALID-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-POP-READY-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-POP-DATA-INVALID" =>
+      "Use an identifier matching `[A-Za-z_][A-Za-z0-9_]*`."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-CLOCK-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-CLOCK-NOT-REF" =>
+      "Pass a non-null ref(name) clock to emitSynchronousStreamM2sPipe."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-RESET-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-RESET-NOT-REF" =>
+      "Pass a non-null ref(name) reset to emitSynchronousStreamM2sPipe."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-PUSH-VALID-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-PUSH-VALID-NOT-REF" =>
+      "Pass a non-null ref(name) push-valid input to emitSynchronousStreamM2sPipe."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-PUSH-READY-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-PUSH-READY-NOT-REF" =>
+      "Pass a non-null ref(name) push-ready output to emitSynchronousStreamM2sPipe."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-PUSH-DATA-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-PUSH-DATA-NOT-REF" =>
+      "Pass a non-null ref(name) push-data input to emitSynchronousStreamM2sPipe."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-POP-VALID-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-POP-VALID-NOT-REF" =>
+      "Pass a non-null ref(name) pop-valid output to emitSynchronousStreamM2sPipe."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-POP-READY-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-POP-READY-NOT-REF" =>
+      "Pass a non-null ref(name) pop-ready input to emitSynchronousStreamM2sPipe."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-POP-DATA-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-POP-DATA-NOT-REF" =>
+      "Pass a non-null ref(name) pop-data output to emitSynchronousStreamM2sPipe."
+    case "MORPH-FRONTEND-SYNCHRONOUS-STREAM-M2S-PIPE-ELEMENT-TYPE-NULL" =>
+      "Pass a non-null packedBits(width) element type to emitSynchronousStreamM2sPipe."
     case "MORPH-FRONTEND-COMBINATIONAL-LABEL-INVALID" |
         "MORPH-FRONTEND-COMBINATIONAL-TARGET-INVALID" |
         "MORPH-FRONTEND-COMBINATIONAL-VALUE-INVALID" |

@@ -1185,6 +1185,63 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("synchronous Stream m2s pipe preserves the default public shape and reviewed output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(
+        targetDirectory = directory.toString,
+        defaultConfigForClockDomains = ClockDomainConfig(
+          clockEdge = RISING,
+          resetKind = SYNC,
+          resetActiveLevel = HIGH
+        )
+      )
+      config.netlistFileName = "synchronous_stream_m2s_pipe.v"
+      val report = MorphVerilog(config) {
+        SynchronousStreamM2sPipeContractFixture.program(reverseConstructionOrder = false)
+      }
+
+      val output = directory.resolve("synchronous_stream_m2s_pipe.v")
+      assert(report.toplevelName == "SynchronousStreamM2sPipe")
+      assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
+      assert(Files.isRegularFile(output))
+      assert(
+        new String(Files.readAllBytes(output), StandardCharsets.UTF_8) ==
+          expectedSynchronousStreamM2sPipeVerilog
+      )
+    }
+  }
+
+  test("synchronous Stream m2s pipe validation fails before public output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(
+        targetDirectory = directory.toString,
+        defaultConfigForClockDomains = ClockDomainConfig(
+          clockEdge = RISING,
+          resetKind = SYNC,
+          resetActiveLevel = HIGH
+        )
+      )
+      config.netlistFileName = "synchronous_stream_m2s_pipe.v"
+      val fixture =
+        SynchronousStreamM2sPipeContractFixture.program(reverseConstructionOrder = false)
+      val result = MorphVerilog.tryGenerate(config) {
+        MorphProgram(
+          concreteWitness = fixture.concreteWitnessFactory(),
+          parameterizedDesign = invalidSynchronousStreamM2sPipeDesign()
+        )
+      }
+
+      result match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.ParamRtlValidation)
+          assert(failure.message.contains("PRTL-UNRESOLVED-RTL-REFERENCE"))
+        case Right(report) =>
+          fail(s"Expected synchronous-Stream-m2s-pipe validation failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve("synchronous_stream_m2s_pipe.v")))
+    }
+  }
+
   test("an invalid inactive conditional integer branch fails whole-design validation") {
     withTemporaryDirectory { directory =>
       val topName = "InvalidInactiveConditionalWidth"
@@ -3736,6 +3793,47 @@ class MorphVerilogTests extends AnyFunSuite {
     Design(top.name, Vector(top))
   }
 
+  private def invalidSynchronousStreamM2sPipeDesign(): Design = {
+    val width = ParameterRef("WIDTH")
+    val packed = PackedBits(width, Unsigned)
+    val control = PackedBits(IntExpr.Literal(1), Unsigned)
+    val top = ModuleDef(
+      name = "SynchronousStreamM2sPipe",
+      parameters = Vector(
+        IntegerParameter(
+          "WIDTH",
+          default = 8,
+          constraints = Vector(MinInclusive(1), MaxInclusive(32))
+        )
+      ),
+      ports = Vector(
+        Port("clk", Input, control),
+        Port("reset", Input, control),
+        Port("push_valid", Input, control),
+        Port("push_ready", Output, control),
+        Port("push_data", Input, packed),
+        Port("pop_valid", Output, control),
+        Port("pop_ready", Input, control),
+        Port("pop_data", Output, packed)
+      ),
+      items = Vector(
+        ModuleItem.SynchronousStreamM2sPipe(
+          label = "p_m2s_pipe",
+          clock = Ref("missing_clock"),
+          reset = Ref("reset"),
+          pushValid = Ref("push_valid"),
+          pushReady = Ref("push_ready"),
+          pushData = Ref("push_data"),
+          popValid = Ref("pop_valid"),
+          popReady = Ref("pop_ready"),
+          popData = Ref("pop_data"),
+          elementType = packed
+        )
+      )
+    )
+    Design(top.name, Vector(top))
+  }
+
   private def addressWidthDesign(
       requestedName: String,
       depthDefault: Int,
@@ -4189,6 +4287,36 @@ class MorphVerilogTests extends AnyFunSuite {
       |          occupancy <= occupancy - 1'b1;
       |        end
       |      end
+      |    end
+      |  end
+      |
+      |endmodule
+      |""".stripMargin
+
+  private val expectedSynchronousStreamM2sPipeVerilog =
+    """module SynchronousStreamM2sPipe #(
+      |  parameter integer WIDTH = 8
+      |) (
+      |  input  wire [0:0] clk,
+      |  output reg [WIDTH-1:0] pop_data,
+      |  input  wire [0:0] pop_ready,
+      |  output reg [0:0] pop_valid,
+      |  input  wire [WIDTH-1:0] push_data,
+      |  output wire [0:0] push_ready,
+      |  input  wire [0:0] push_valid,
+      |  input  wire [0:0] reset
+      |);
+      |
+      |  assign push_ready = pop_ready || !pop_valid;
+      |
+      |  always @(posedge clk) begin : p_m2s_pipe
+      |    if (reset == 1'b1) begin
+      |      pop_valid <= 1'b0;
+      |    end else if (push_ready == 1'b1) begin
+      |      pop_valid <= push_valid;
+      |    end
+      |    if (push_ready == 1'b1) begin
+      |      pop_data <= push_data;
       |    end
       |  end
       |
