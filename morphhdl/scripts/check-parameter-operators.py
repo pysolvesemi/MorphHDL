@@ -31,6 +31,7 @@ REQUIRED_OPERATORS = {
     "modulo",
     "min",
     "max",
+    "ceil-log2",
     "address-width",
     "boolean-literal",
     "boolean-public-reference",

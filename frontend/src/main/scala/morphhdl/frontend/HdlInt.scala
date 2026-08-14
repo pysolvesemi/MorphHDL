@@ -12,6 +12,7 @@ import morphhdl.paramrtl.BoolExpr.{
 import morphhdl.paramrtl.IntExpr.{
   Add,
   AddressWidth,
+  CeilLog2,
   Divide,
   Literal,
   LocalParameterRef,
@@ -138,6 +139,40 @@ final class HdlInt private[frontend] (
     new HdlInt(
       BigInt(math.max(1, (witness - 1).bitLength)),
       AddressWidth(expression),
+      declaration = None,
+      parameters = parameters,
+      booleanParameters = booleanParameters,
+      localDeclaration = None,
+      localParameters = localParameters,
+      booleanLocalParameters = booleanLocalParameters,
+      scope = scope,
+      origin = resultOrigin
+    )
+  }
+
+  /**
+    * Returns the mathematical ceiling of log base two while retaining this
+    * positive value as a symbolic ParamRTL expression. In contrast to
+    * `addressWidth`, `ceilLog2(1)` is zero.
+    */
+  def ceilLog2(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt = {
+    val resultOrigin = SourceOrigin.capture
+
+    // Check structural safety before inspecting the concrete witness. This
+    // keeps a loop-variant value from being accepted merely because the
+    // current elaboration iteration happens to carry a positive witness.
+    requireLoopInvariant("ceiling-log2 computation")
+    if (witness <= 0) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-CEIL-LOG2-WITNESS-NONPOSITIVE",
+        s"ceilLog2 requires a positive concrete witness, but found $witness",
+        resultOrigin
+      )
+    }
+
+    new HdlInt(
+      BigInt((witness - 1).bitLength),
+      CeilLog2(expression),
       declaration = None,
       parameters = parameters,
       booleanParameters = booleanParameters,

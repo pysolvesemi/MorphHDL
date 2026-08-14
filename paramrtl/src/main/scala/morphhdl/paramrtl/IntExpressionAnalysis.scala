@@ -4,6 +4,7 @@ import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
 import morphhdl.paramrtl.IntExpr.{
   Add,
   AddressWidth,
+  CeilLog2,
   Divide,
   Literal,
   LocalParameterRef,
@@ -50,6 +51,8 @@ object IntExpressionFailure {
   final case class UnresolvedGenerateIndex(name: String) extends IntExpressionFailure
   final case class DivisorMayBeZero(operator: String, interval: IntInterval) extends IntExpressionFailure
   final case class AddressWidthOperandNotProvenPositive(interval: IntInterval)
+      extends IntExpressionFailure
+  final case class CeilLog2OperandNotProvenPositive(interval: IntInterval)
       extends IntExpressionFailure
 }
 
@@ -172,6 +175,7 @@ private[morphhdl] object IntExpressionAnalysis {
           frame.value match {
             case _: Literal | _: ParameterRef | _: LocalParameterRef | _: GenerateIndexRef =>
             case AddressWidth(operand) => push(operand)
+            case CeilLog2(operand)     => push(operand)
             case Negate(operand)       => push(operand)
             case Add(left, right)      => push(right); push(left)
             case Subtract(left, right) => push(right); push(left)
@@ -223,6 +227,25 @@ private[morphhdl] object IntExpressionAnalysis {
                         IntInterval(
                           operandFacts.interval.lower.map(addressWidthValue),
                           operandFacts.interval.upper.map(addressWidthValue)
+                        )
+                      )
+                    )
+                }
+              )
+            case value @ CeilLog2(operand) =>
+              integerBooleanReferences.put(value, integerRefs(operand))
+              memo.put(
+                value,
+                facts(operand).flatMap { operandFacts =>
+                  if (operandFacts.defaultValue < 1 || !operandFacts.interval.lower.exists(_ >= 1))
+                    Left(CeilLog2OperandNotProvenPositive(operandFacts.interval))
+                  else
+                    Right(
+                      IntExprFacts(
+                        ceilLog2Value(operandFacts.defaultValue),
+                        IntInterval(
+                          operandFacts.interval.lower.map(ceilLog2Value),
+                          operandFacts.interval.upper.map(ceilLog2Value)
                         )
                       )
                     )
@@ -443,6 +466,7 @@ private[morphhdl] object IntExpressionAnalysis {
             case LocalParameterRef(name) if referenceKind == IntegerLocalParameterReference => result += name
             case LocalParameterRef(_) =>
             case AddressWidth(operand) => pushInteger(operand)
+            case CeilLog2(operand)     => pushInteger(operand)
             case Negate(operand)       => pushInteger(operand)
             case Add(left, right)      => pushInteger(right); pushInteger(left)
             case Subtract(left, right) => pushInteger(right); pushInteger(left)
@@ -507,7 +531,10 @@ private[morphhdl] object IntExpressionAnalysis {
   private def addressWidthValue(value: BigInt): BigInt =
     if (value <= 2) BigInt(1) else BigInt((value - 1).bitLength)
 
-  /** Iterative direct-nesting utilities shared by validation and target lowering. */
+  private def ceilLog2Value(value: BigInt): BigInt =
+    BigInt((value - 1).bitLength)
+
+  /** Iterative direct-nesting utilities keep validation independent of expression depth. */
   private[morphhdl] def peelDirectAddressWidths(expression: IntExpr): (Int, IntExpr) = {
     var layers = 0
     var base = expression
@@ -523,14 +550,19 @@ private[morphhdl] object IntExpressionAnalysis {
     layers -> base
   }
 
-  private[morphhdl] def wrapDirectAddressWidths(base: IntExpr, layers: Int): IntExpr = {
-    var result = base
-    var remaining = layers
-    while (remaining > 0) {
-      result = AddressWidth(result)
-      remaining -= 1
+  private[morphhdl] def peelDirectCeilLog2s(expression: IntExpr): (Int, IntExpr) = {
+    var layers = 0
+    var base = expression
+    var peeling = true
+    while (peeling) {
+      base match {
+        case CeilLog2(inner) =>
+          layers += 1
+          base = inner
+        case _ => peeling = false
+      }
     }
-    result
+    layers -> base
   }
 
   private def hull(left: IntInterval, right: IntInterval): IntInterval =

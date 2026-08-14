@@ -323,3 +323,19 @@ operator directions across six elaborated widths, including the minimum
 four-bit floor and a dynamic six-bit case. Comparator, branch-order and
 default-specialization mutations must fail. The public inventory remains
 exactly sixteen files, and broader runtime expressions remain partial.
+
+Increment 24 extends that partial width adaptation with target-neutral
+`CeilLog2`. The concrete witness still runs the complete inherited phase plan;
+ParamRTL independently proves a positive whole operand domain and preserves
+the exact zero result at operand one. The existing `derived_width.v` fixture
+uses `LANES.ceilLog2` across one, two, three and four lane configurations,
+including power-of-two and non-power-of-two boundaries, without changing the
+sixteen-file inventory. Increment 24 also replaces the existing memory's
+address-width threshold chain. Strict Verilog-2001 emits one module-local
+constant function per consuming module, calls it directly for `CeilLog2`, and
+adds the one-bit floor for `AddressWidth`. `$clog2` is a Verilog-2005 feature,
+not SystemVerilog-only, and remains forbidden to preserve the 2001 baseline.
+Parser, simulation and synthesis gates plus helper-body, boundary, floor and
+specialization mutations protect the portable semantics and prove the helper
+creates no runtime hardware. Width parity remains partial only for broader
+runtime expression and library coverage.

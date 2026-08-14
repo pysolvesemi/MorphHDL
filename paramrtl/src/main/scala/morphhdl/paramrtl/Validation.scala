@@ -18,6 +18,7 @@ import morphhdl.paramrtl.BoolExpr.{
 import morphhdl.paramrtl.IntExpr.{
   Add,
   AddressWidth,
+  CeilLog2,
   Divide,
   GenerateIndexRef,
   Literal,
@@ -33,6 +34,7 @@ import morphhdl.paramrtl.IntExpr.{
 }
 import morphhdl.paramrtl.IntExpressionFailure.{
   AddressWidthOperandNotProvenPositive,
+  CeilLog2OperandNotProvenPositive,
   DivisorMayBeZero,
   UnresolvedBooleanParameter,
   UnresolvedBooleanLocalParameter,
@@ -1619,6 +1621,9 @@ object ParamRtlValidator {
             case addressWidth: AddressWidth =>
               val (layers, base) = IntExpressionAnalysis.peelDirectAddressWidths(addressWidth)
               pushInteger(base, current.path ++ Vector.fill(layers)("operand"))
+            case ceilLog2: CeilLog2 =>
+              val (layers, base) = IntExpressionAnalysis.peelDirectCeilLog2s(ceilLog2)
+              pushInteger(base, current.path ++ Vector.fill(layers)("operand"))
             case Negate(operand) => pushInteger(operand, current.path :+ "operand")
             case Add(left, right) =>
               pushInteger(right, current.path :+ "right")
@@ -1762,6 +1767,13 @@ object ParamRtlValidator {
           "PRTL-ADDRESS-WIDTH-OPERAND-NOT-PROVEN-POSITIVE",
           path,
           s"Address-width operand domain ${renderInterval(interval)} is not proven positive"
+        )
+        None
+      case Left(CeilLog2OperandNotProvenPositive(interval)) =>
+        diagnostics += Diagnostic(
+          "PRTL-CEIL-LOG2-OPERAND-NOT-PROVEN-POSITIVE",
+          path,
+          s"Ceiling-log2 operand domain ${renderInterval(interval)} is not proven positive"
         )
         None
       case Left(_: UnresolvedParameter) |
@@ -3170,6 +3182,7 @@ object ParamRtlValidator {
             case Literal(_) =>
             case ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_) => return false
             case AddressWidth(operand) => integers += operand
+            case CeilLog2(operand) => integers += operand
             case Negate(operand) => integers += operand
             case Add(left, right) => integers += left; integers += right
             case Subtract(left, right) => integers += left; integers += right
@@ -3353,6 +3366,7 @@ object ParamRtlValidator {
           frame.value match {
             case _: Literal | _: ParameterRef | _: LocalParameterRef | _: GenerateIndexRef =>
             case AddressWidth(operand) => push(operand)
+            case CeilLog2(operand)     => push(operand)
             case Negate(operand)       => push(operand)
             case Add(left, right)      => push(right); push(left)
             case Subtract(left, right) => push(right); push(left)
@@ -3383,6 +3397,7 @@ object ParamRtlValidator {
             case value @ LocalParameterRef(name) => integerMemo.put(value, locals.getOrElse(name, value))
             case value: GenerateIndexRef => integerMemo.put(value, value)
             case value @ AddressWidth(operand) => integerMemo.put(value, AddressWidth(integer(operand)))
+            case value @ CeilLog2(operand)     => integerMemo.put(value, CeilLog2(integer(operand)))
             case value @ Negate(operand)       => integerMemo.put(value, Negate(integer(operand)))
             case value @ Add(left, right)      => integerMemo.put(value, Add(integer(left), integer(right)))
             case value @ Subtract(left, right) => integerMemo.put(value, Subtract(integer(left), integer(right)))
@@ -3570,6 +3585,7 @@ object ParamRtlValidator {
         case GenerateIndexRef(_)                                 => return true
         case Literal(_) | ParameterRef(_) | LocalParameterRef(_) =>
         case AddressWidth(value)                                 => stack += value
+        case CeilLog2(value)                                     => stack += value
         case Negate(value)                                       => stack += value
         case Add(left, right)                                    => stack += left; stack += right
         case Subtract(left, right)                               => stack += left; stack += right

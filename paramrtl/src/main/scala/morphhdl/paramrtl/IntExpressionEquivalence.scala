@@ -101,6 +101,7 @@ private[morphhdl] object IntExpressionEquivalence {
           case (LocalParameterRef(x), LocalParameterRef(y)) if x == y =>
           case (GenerateIndexRef(x), GenerateIndexRef(y)) if x == y   =>
           case (AddressWidth(x), AddressWidth(y))                     => stack += ((x, y))
+          case (CeilLog2(x), CeilLog2(y))                             => stack += ((x, y))
           case (Negate(x), Negate(y))                                 => stack += ((x, y))
           case (Add(al, ar), Add(bl, br))                             => stack += ((al, bl)); stack += ((ar, br))
           case (Subtract(al, ar), Subtract(bl, br))                   => stack += ((al, bl)); stack += ((ar, br))
@@ -148,6 +149,7 @@ private[morphhdl] object IntExpressionEquivalence {
       value match {
         case Literal(_) | ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_) =>
         case AddressWidth(operand)                                                       => stack += operand
+        case CeilLog2(operand)                                                          => stack += operand
         case Negate(operand)                                                           => stack += operand
         case Add(left, right)                                                          => stack += left; stack += right
         case Subtract(left, right)                                                     => stack += left; stack += right
@@ -198,6 +200,7 @@ private[morphhdl] object IntExpressionEquivalence {
           frame.value match {
             case _: Literal | _: ParameterRef | _: LocalParameterRef | _: GenerateIndexRef =>
             case AddressWidth(operand) => push(operand)
+            case CeilLog2(operand)     => push(operand)
             case Negate(operand)       => push(operand)
             case Add(left, right)      => push(right); push(left)
             case Subtract(left, right) => push(right); push(left)
@@ -232,6 +235,12 @@ private[morphhdl] object IntExpressionEquivalence {
                 case Literal(number) if number >= 1 =>
                   Literal(if (number <= 2) BigInt(1) else BigInt((number - 1).bitLength))
                 case other => AddressWidth(other)
+              }
+              integers.put(value, normalized)
+            case value @ CeilLog2(operand) =>
+              val normalized = integer(operand) match {
+                case Literal(number) if number >= 1 => Literal(BigInt((number - 1).bitLength))
+                case other                          => CeilLog2(other)
               }
               integers.put(value, normalized)
             case value @ Negate(operand) =>
@@ -364,27 +373,28 @@ private[morphhdl] object IntExpressionEquivalence {
       case _: LocalParameterRef           => 2
       case _: GenerateIndexRef            => 3
       case _: AddressWidth                => 4
-      case _: Negate                      => 5
-      case _: Add                         => 6
-      case _: Subtract                    => 7
-      case _: Multiply                    => 8
-      case _: Divide                      => 9
-      case _: Modulo                      => 10
-      case _: Min                         => 11
-      case _: Max                         => 12
-      case _: Select                      => 13
-      case _: BoolExpr.Literal            => 14
-      case _: BoolExpr.ParameterRef       => 15
-      case _: BoolExpr.LocalParameterRef  => 16
-      case _: BoolExpr.LessThan           => 17
-      case _: BoolExpr.LessThanOrEqual    => 18
-      case _: BoolExpr.GreaterThan        => 19
-      case _: BoolExpr.GreaterThanOrEqual => 20
-      case _: BoolExpr.Equal              => 21
-      case _: BoolExpr.NotEqual           => 22
-      case _: BoolExpr.Not                => 23
-      case _: BoolExpr.And                => 24
-      case _: BoolExpr.Or                 => 25
+      case _: CeilLog2                    => 5
+      case _: Negate                      => 6
+      case _: Add                         => 7
+      case _: Subtract                    => 8
+      case _: Multiply                    => 9
+      case _: Divide                      => 10
+      case _: Modulo                      => 11
+      case _: Min                         => 12
+      case _: Max                         => 13
+      case _: Select                      => 14
+      case _: BoolExpr.Literal            => 15
+      case _: BoolExpr.ParameterRef       => 16
+      case _: BoolExpr.LocalParameterRef  => 17
+      case _: BoolExpr.LessThan           => 18
+      case _: BoolExpr.LessThanOrEqual    => 19
+      case _: BoolExpr.GreaterThan        => 20
+      case _: BoolExpr.GreaterThanOrEqual => 21
+      case _: BoolExpr.Equal              => 22
+      case _: BoolExpr.NotEqual           => 23
+      case _: BoolExpr.Not                => 24
+      case _: BoolExpr.And                => 25
+      case _: BoolExpr.Or                 => 26
     }
 
     def alreadyVisited(a: AnyRef, b: AnyRef): Boolean = {
@@ -419,6 +429,7 @@ private[morphhdl] object IntExpressionEquivalence {
             val comparison = x.compareTo(y)
             if (comparison != 0) return comparison
           case (AddressWidth(x), AddressWidth(y)) => work += ((x, y))
+          case (CeilLog2(x), CeilLog2(y))         => work += ((x, y))
           case (Negate(x), Negate(y))             => work += ((x, y))
           case (Add(al, ar), Add(bl, br))             => work += ((ar, br)); work += ((al, bl))
           case (Subtract(al, ar), Subtract(bl, br))     => work += ((ar, br)); work += ((al, bl))
@@ -477,6 +488,7 @@ private[morphhdl] object IntExpressionEquivalence {
     case Max(_, _)               => "11"
     case Select(_, _, _)         => "12"
     case AddressWidth(_)         => "13"
+    case CeilLog2(_)             => "14"
   }
 
   private def substituteBoolean(
@@ -517,6 +529,7 @@ private[morphhdl] object IntExpressionEquivalence {
           frame.value match {
             case _: Literal | _: ParameterRef | _: LocalParameterRef | _: GenerateIndexRef =>
             case AddressWidth(operand) => push(operand)
+            case CeilLog2(operand)     => push(operand)
             case Negate(operand)       => push(operand)
             case Add(left, right)      => push(right); push(left)
             case Subtract(left, right) => push(right); push(left)
@@ -547,6 +560,7 @@ private[morphhdl] object IntExpressionEquivalence {
             case value @ LocalParameterRef(name) => integerMemo.put(value, localParameters.getOrElse(name, value))
             case value: GenerateIndexRef => integerMemo.put(value, value)
             case value @ AddressWidth(operand) => integerMemo.put(value, AddressWidth(integer(operand)))
+            case value @ CeilLog2(operand)     => integerMemo.put(value, CeilLog2(integer(operand)))
             case value @ Negate(operand)       => integerMemo.put(value, Negate(integer(operand)))
             case value @ Add(left, right)      => integerMemo.put(value, Add(integer(left), integer(right)))
             case value @ Subtract(left, right) => integerMemo.put(value, Subtract(integer(left), integer(right)))

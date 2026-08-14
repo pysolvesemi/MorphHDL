@@ -1,14 +1,7 @@
 package morphhdl.backend.verilog2001
 
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
-import morphhdl.paramrtl.BoolExpr.{
-  And => BoolAnd,
-  LessThan => BoolLessThan,
-  Not => BoolNot,
-  Or => BoolOr,
-  ParameterRef => BoolParameterRef
-}
-import morphhdl.paramrtl.IntExpr.{Add, AddressWidth, Divide, GenerateIndexRef, Literal, Multiply, ParameterRef, Select}
+import morphhdl.paramrtl.IntExpr.{Add, AddressWidth, Divide, GenerateIndexRef, Literal, Multiply, ParameterRef}
 import morphhdl.paramrtl.ModuleItem.{
   ContinuousAssign,
   GenerateFor,
@@ -22,58 +15,74 @@ import morphhdl.paramrtl._
 import org.scalatest.funsuite.AnyFunSuite
 
 class AddressWidthEmitterTests extends AnyFunSuite {
-  test("emits the exact portable right-associated address-width chain") {
+  test("emits one exact collision-proof Verilog-2001 constant function and a floor-one call") {
     val verilog = emit(localDesign(AddressWidth(ParameterRef("DEPTH"))))
 
-    assert(verilog.contains(s"localparam integer VALUE = $depthChain;"), verilog)
+    assert(verilog.contains(portableFunction), verilog)
+    assert(verilog.contains("localparam integer VALUE = morphhdl$ceil_log2(DEPTH, 1);"), verilog)
+    assert(occurrences(verilog, "function integer morphhdl$ceil_log2;") == 1, verilog)
     assert(!verilog.contains("$clog2"), verilog)
-    assert(depthChain.split("DEPTH <=", -1).length - 1 == 30)
-    assert(depthChain.contains("(DEPTH <= 1073741824) ? 30 : 31"), depthChain)
   }
 
-  test("parenthesizes address width in ports and surrounding arithmetic") {
+  test("emits the helper only in modules whose rendered expressions need it") {
+    val plain = emit(localDesign(Add(ParameterRef("DEPTH"), Literal(1))))
+    assert(!plain.contains("morphhdl$ceil_log2"), plain)
+
+    val withTwoUses = ModuleDef(
+      "TwoAddressWidths",
+      Vector(boundedDepth()),
+      Vector(
+        Port("din", Input, PackedBits(AddressWidth(ParameterRef("DEPTH")), Unsigned)),
+        Port("dout", Output, PackedBits(AddressWidth(ParameterRef("DEPTH")), Unsigned))
+      ),
+      Vector(ContinuousAssign(Ref("dout"), Ref("din"))),
+      localParameters = Vector(
+        IntegerLocalParameter("ADDRESS_WIDTH", AddressWidth(ParameterRef("DEPTH")))
+      )
+    )
+    val rendered = emit(Design(withTwoUses.name, Vector(withTwoUses)))
+    assert(occurrences(rendered, "function integer morphhdl$ceil_log2;") == 1, rendered)
+  }
+
+  test("supports forward calls in ANSI port widths and surrounding arithmetic") {
     val direct = emit(identityDesign(AddressWidth(ParameterRef("DEPTH"))))
-    assert(direct.contains(s"[($depthChain)-1:0] din"), direct)
-    assert(direct.contains(s"[($depthChain)-1:0] dout"), direct)
+    val call = "morphhdl$ceil_log2(DEPTH, 1)"
+    assert(direct.contains(s"[($call)-1:0] din"), direct)
+    assert(direct.contains(s"[($call)-1:0] dout"), direct)
+    assert(direct.indexOf(call) < direct.indexOf("function integer morphhdl$ceil_log2;"), direct)
 
     val operandArithmetic = emit(localDesign(AddressWidth(Add(ParameterRef("DEPTH"), Literal(0)))))
-    val groupedOperandChain = depthChain.replace("DEPTH", "DEPTH + 0")
-    assert(operandArithmetic.contains(s"localparam integer VALUE = $groupedOperandChain;"), operandArithmetic)
+    assert(
+      operandArithmetic.contains("localparam integer VALUE = morphhdl$ceil_log2(DEPTH + 0, 1);"),
+      operandArithmetic
+    )
 
     val resultArithmetic = emit(localDesign(Add(AddressWidth(ParameterRef("DEPTH")), Literal(1))))
-    assert(resultArithmetic.contains(s"localparam integer VALUE = ($depthChain) + 1;"), resultArithmetic)
-  }
-
-  test("parenthesizes address width in memory bounds and comparisons") {
-    val verilog = emit(memoryDesign())
-    val capacityChain = depthChain.replace("DEPTH", "CAPACITY")
-
-    assert(verilog.contains(s"reg [7:0] memory [0:($capacityChain)-1];"), verilog)
-    assert(verilog.contains(s"if (address < ($capacityChain)) begin"), verilog)
-    assert(!verilog.contains("$clog2"), verilog)
-  }
-
-  test("parenthesizes address width in generate and indexed part-select contexts") {
-    val generateVerilog = emit(generateCountDesign())
     assert(
-      generateVerilog.contains(
-        s"for (i = 0; i < ($depthChain); i = i + 1) begin : g_width"
-      ),
+      resultArithmetic.contains("localparam integer VALUE = morphhdl$ceil_log2(DEPTH, 1) + 1;"),
+      resultArithmetic
+    )
+  }
+
+  test("uses the single-call lowering in memory generate and indexed part-select contexts") {
+    val memoryVerilog = emit(memoryDesign())
+    val capacityCall = "morphhdl$ceil_log2(CAPACITY, 1)"
+    assert(memoryVerilog.contains(s"reg [7:0] memory [0:($capacityCall)-1];"), memoryVerilog)
+    assert(memoryVerilog.contains(s"if (address < $capacityCall) begin"), memoryVerilog)
+
+    val generateVerilog = emit(generateCountDesign())
+    val depthCall = "morphhdl$ceil_log2(DEPTH, 1)"
+    assert(
+      generateVerilog.contains(s"for (i = 0; i < $depthCall; i = i + 1) begin : g_width"),
       generateVerilog
     )
 
     val sliceVerilog = emit(indexedSliceDesign())
-    assert(
-      sliceVerilog.contains(s"din[i * ($depthChain) +: ($depthChain)]"),
-      sliceVerilog
-    )
-    assert(
-      sliceVerilog.contains(s"dout[i * ($depthChain) +: ($depthChain)]"),
-      sliceVerilog
-    )
+    assert(sliceVerilog.contains(s"din[i * $depthCall +: $depthCall]"), sliceVerilog)
+    assert(sliceVerilog.contains(s"dout[i * $depthCall +: $depthCall]"), sliceVerilog)
   }
 
-  test("retains strict signed-32 operand checks and old expression rendering") {
+  test("retains strict signed-32 operand checks") {
     val outside = BigInt(Int.MaxValue) + 1
     Verilog2001Emitter.emit(localDesign(AddressWidth(Literal(outside)))) match {
       case Left(diagnostics) =>
@@ -81,123 +90,54 @@ class AddressWidthEmitterTests extends AnyFunSuite {
         assert(failures.exists(_.path.last == "operand"), failures.mkString("\n"))
       case Right(verilog) => fail(s"Expected target range diagnostic, emitted:\n$verilog")
     }
-
-    val oldExpression = emit(localDesign(Add(ParameterRef("DEPTH"), Literal(1))))
-    assert(oldExpression.contains("localparam integer VALUE = DEPTH + 1;"), oldExpression)
   }
 
-  test("flattens direct nesting and rejects adversarial repeated expansion") {
-    val twice = emit(
-      localDesign(AddressWidth(AddressWidth(ParameterRef("DEPTH"))))
-    )
-    assert(
-      twice.contains(
-        "localparam integer VALUE = (DEPTH <= 4) ? 1 : ((DEPTH <= 16) ? 2 : ((DEPTH <= 256) ? 3 : ((DEPTH <= 65536) ? 4 : 5)));"
-      ),
-      twice
-    )
-
-    val directlyNested = (1 to 64).foldLeft[IntExpr](ParameterRef("DEPTH")) {
+  test("renders 900 directly nested address widths linearly with no log-specific cap") {
+    val nested = (1 to 900).foldLeft[IntExpr](ParameterRef("DEPTH")) {
       case (value, _) => AddressWidth(value)
     }
-    val flattened = emit(localDesign(directlyNested))
-    assert(flattened.contains("localparam integer VALUE = 1;"), flattened)
-    assert(flattened.length < 1000, flattened)
+    val verilog = emit(localDesign(nested))
+    val valueLine = verilog.split("\\n").iterator.find(_.contains("localparam integer VALUE =")).get
 
-    val adversarial = (1 to 3).foldLeft[IntExpr](ParameterRef("DEPTH")) {
-      case (value, _) => AddressWidth(Add(value, Literal(1)))
-    }
-    Verilog2001Emitter.emit(localDesign(adversarial)) match {
-      case Left(diagnostics) =>
-        assert(
-          diagnostics.codes.contains("V2001-ADDRESS-WIDTH-EXPANSION-TOO-LARGE"),
-          diagnostics.values.mkString("\n")
-        )
-      case Right(verilog) => fail(s"Expected bounded expansion diagnostic, emitted:\n$verilog")
-    }
+    assert(occurrences(valueLine, "morphhdl$ceil_log2(") == 900, valueLine)
+    assert(valueLine.length < 30000, valueLine.length.toString)
   }
 
-  test("short-circuits over-budget shared expression DAGs") {
-    var shared: IntExpr = ParameterRef("DEPTH")
-    (1 to 64).foreach { _ =>
-      shared = Add(shared, shared)
-    }
+  test("validates and renders a 5000-node operand without recursive descent") {
+    var operand: IntExpr = Literal(1)
+    (1 to 5000).foreach { _ => operand = Add(operand, Literal(1)) }
 
-    assert(!AddressWidthLowering.expansionWithin(AddressWidth(shared), 4096L))
-    Verilog2001Emitter.emit(localDesign(AddressWidth(shared))) match {
-      case Left(diagnostics) =>
-        assert(
-          diagnostics.codes.contains("V2001-ADDRESS-WIDTH-EXPANSION-TOO-LARGE"),
-          diagnostics.values.mkString("\n")
-        )
-      case Right(verilog) => fail(s"Expected bounded public-pipeline rejection, emitted:\n$verilog")
-    }
-  }
+    val verilog = emit(localDesign(AddressWidth(operand)))
+    assert(verilog.contains("localparam integer VALUE = morphhdl$ceil_log2(1 + 1 + 1"), verilog)
+    assert(verilog.contains(", 1);"), verilog)
 
-  test("rejects a deep linear operand through the public pipeline without recursive descent") {
-    var linear: IntExpr = ParameterRef("DEPTH")
-    (1 to 5000).foreach { _ =>
-      linear = Add(linear, Literal(1))
-    }
-
-    Verilog2001Emitter.emit(localDesign(AddressWidth(linear))) match {
-      case Left(diagnostics) =>
-        assert(
-          diagnostics.codes.contains("V2001-ADDRESS-WIDTH-EXPANSION-TOO-LARGE"),
-          diagnostics.values.mkString("\n")
-        )
-      case Right(verilog) => fail(s"Expected bounded deep-operand rejection, emitted:\n$verilog")
-    }
-  }
-
-  test("handles deep Boolean selection conditions through the public pipeline") {
-    val booleanParameters = Vector(BooleanParameter("ENABLE", default = true))
-    def width(condition: BoolExpr): IntExpr =
-      AddressWidth(Select(condition, Literal(5), Literal(3)))
-
-    var deepNot: BoolExpr = BoolParameterRef("ENABLE")
-    (1 to 5000).foreach { _ => deepNot = BoolNot(deepNot) }
-    assertExpansionRejected(identityDesign(width(deepNot), booleanParameters))
-
-    var shared: BoolExpr = BoolParameterRef("ENABLE")
-    (1 to 64).foreach { index =>
-      shared = if (index % 2 == 0) BoolAnd(shared, shared) else BoolOr(shared, shared)
-    }
-    assertExpansionRejected(identityDesign(width(shared), booleanParameters))
-
-    var admitted: BoolExpr = BoolParameterRef("ENABLE")
-    (1 to 100).foreach { _ => admitted = BoolNot(admitted) }
-    val admittedVerilog = emit(identityDesign(width(admitted), booleanParameters))
-    assert(!admittedVerilog.contains("$clog2"), admittedVerilog)
-
-    var alternating: IntExpr = Literal(1)
-    (1 to 5000).foreach { _ =>
-      alternating = Select(BoolLessThan(alternating, Literal(2)), Literal(5), Literal(3))
-    }
-    assertExpansionRejected(identityDesign(AddressWidth(alternating)))
-  }
-
-  test("validates and emits 4096 direct layers without recursive descent") {
     def nest(base: IntExpr): IntExpr =
       (1 to 4096).foldLeft(base) { case (value, _) => AddressWidth(value) }
-
-    val verilog = emit(identityDesign(nest(Literal(5))))
-    assert(verilog.contains("input  wire [(1)-1:0] din"), verilog)
-    assert(verilog.contains("output wire [(1)-1:0] dout"), verilog)
-
     Verilog2001Emitter.emit(identityDesign(nest(Divide(Literal(1), Literal(0))))) match {
       case Left(diagnostics) =>
         assert(diagnostics.codes.contains("PRTL-DIVISOR-MAY-BE-ZERO"), diagnostics.values.mkString("\n"))
-        assert(
-          !diagnostics.codes.contains("PRTL-ADDRESS-WIDTH-OPERAND-NOT-PROVEN-POSITIVE"),
-          diagnostics.values.mkString("\n")
-        )
       case Right(value) => fail(s"Expected inner divisor diagnostic, emitted:\n$value")
     }
   }
 
-  private lazy val depthChain =
-    "(DEPTH <= 2) ? 1 : ((DEPTH <= 4) ? 2 : ((DEPTH <= 8) ? 3 : ((DEPTH <= 16) ? 4 : ((DEPTH <= 32) ? 5 : ((DEPTH <= 64) ? 6 : ((DEPTH <= 128) ? 7 : ((DEPTH <= 256) ? 8 : ((DEPTH <= 512) ? 9 : ((DEPTH <= 1024) ? 10 : ((DEPTH <= 2048) ? 11 : ((DEPTH <= 4096) ? 12 : ((DEPTH <= 8192) ? 13 : ((DEPTH <= 16384) ? 14 : ((DEPTH <= 32768) ? 15 : ((DEPTH <= 65536) ? 16 : ((DEPTH <= 131072) ? 17 : ((DEPTH <= 262144) ? 18 : ((DEPTH <= 524288) ? 19 : ((DEPTH <= 1048576) ? 20 : ((DEPTH <= 2097152) ? 21 : ((DEPTH <= 4194304) ? 22 : ((DEPTH <= 8388608) ? 23 : ((DEPTH <= 16777216) ? 24 : ((DEPTH <= 33554432) ? 25 : ((DEPTH <= 67108864) ? 26 : ((DEPTH <= 134217728) ? 27 : ((DEPTH <= 268435456) ? 28 : ((DEPTH <= 536870912) ? 29 : ((DEPTH <= 1073741824) ? 30 : 31)))))))))))))))))))))))))))))"
+  private val portableFunction =
+    """  function integer morphhdl$ceil_log2;
+      |    input integer value;
+      |    input integer minimum_result;
+      |    integer remaining;
+      |    begin
+      |      morphhdl$ceil_log2 = 0;
+      |      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
+      |        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;
+      |      end
+      |      if (morphhdl$ceil_log2 < minimum_result) begin
+      |        morphhdl$ceil_log2 = minimum_result;
+      |      end
+      |    end
+      |  endfunction""".stripMargin
+
+  private def occurrences(value: String, needle: String): Int =
+    value.sliding(needle.length).count(_ == needle)
 
   private def boundedDepth(name: String = "DEPTH"): IntegerParameter =
     IntegerParameter(
@@ -206,30 +146,16 @@ class AddressWidthEmitterTests extends AnyFunSuite {
       Vector(MinInclusive(1), MaxInclusive(BigInt(Int.MaxValue) - 1))
     )
 
-  private def identityDesign(
-      width: IntExpr,
-      booleanParameters: Vector[BooleanParameter] = Vector.empty
-  ): Design = {
+  private def identityDesign(width: IntExpr): Design = {
     val packed = PackedBits(width, Unsigned)
     val module = ModuleDef(
       "AddressWidthPort",
       Vector(boundedDepth()),
       Vector(Port("din", Input, packed), Port("dout", Output, packed)),
-      Vector(ContinuousAssign(Ref("dout"), Ref("din"))),
-      booleanParameters = booleanParameters
+      Vector(ContinuousAssign(Ref("dout"), Ref("din")))
     )
     Design(module.name, Vector(module))
   }
-
-  private def assertExpansionRejected(design: Design): Unit =
-    Verilog2001Emitter.emit(design) match {
-      case Left(diagnostics) =>
-        assert(
-          diagnostics.codes.contains("V2001-ADDRESS-WIDTH-EXPANSION-TOO-LARGE"),
-          diagnostics.values.mkString("\n")
-        )
-      case Right(verilog) => fail(s"Expected bounded address-width rejection, emitted:\n$verilog")
-    }
 
   private def localDesign(expression: IntExpr): Design = {
     val packed = PackedBits(Literal(8), Unsigned)

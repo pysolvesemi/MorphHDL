@@ -2,7 +2,7 @@ package morphhdl.backend.verilog2001
 
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
 import morphhdl.paramrtl.BoolExpr.{ParameterRef => BoolParameterRef}
-import morphhdl.paramrtl.IntExpr.{Add, AddressWidth, Literal, Max, Min, Negate, ParameterRef, Select}
+import morphhdl.paramrtl.IntExpr.{Add, AddressWidth, CeilLog2, Literal, Max, Min, Negate, ParameterRef, Select}
 import morphhdl.paramrtl.ModuleItem.ContinuousAssign
 import morphhdl.paramrtl.PortDirection.{Input, Output}
 import morphhdl.paramrtl.RtlExpr.Ref
@@ -92,17 +92,26 @@ class MinMaxEmitterTests extends AnyFunSuite {
     assert(diagnostics(design).codes.contains("V2001-MIN-MAX-EXPANSION-TOO-LARGE"))
   }
 
-  test("counts every repeated address-width syntax node inside shared extrema") {
-    var mixed: IntExpr = AddressWidth(ParameterRef("DEPTH"))
-    (1 to 3).foreach { _ => mixed = Min(mixed, mixed) }
+  test("counts each two-argument log-helper call exactly at the 4096-node MinMax boundary") {
     val limit = Verilog2001IntExpressionLowering.MaximumExpansionNodes
-    val design = localDesign(
-      mixed,
-      Vector(boundedParameter("DEPTH", 5, 1, Int.MaxValue))
-    )
+    def bounded(log: IntExpr => IntExpr, depth: Int): IntExpr =
+      Min(log(addChain(depth)), Negate(Literal(1)))
 
-    assert(!Verilog2001IntExpressionLowering.expansionWithin(mixed, limit))
-    assert(diagnostics(design).codes == Vector("V2001-MIN-MAX-EXPANSION-TOO-LARGE"))
+    Vector[IntExpr => IntExpr](AddressWidth.apply, CeilLog2.apply).foreach { log =>
+      val atLimit = bounded(log, 1021)
+      val above = bounded(log, 1022)
+      assert(Verilog2001IntExpressionLowering.expansionWithin(atLimit, limit))
+      assert(!Verilog2001IntExpressionLowering.expansionWithin(above, limit))
+      assert(
+        emit(localDesign(atLimit, Vector(boundedParameter("BASE", 1, 1, 1)))).contains(
+          "morphhdl$ceil_log2"
+        )
+      )
+      assert(
+        diagnostics(localDesign(above, Vector(boundedParameter("BASE", 1, 1, 1)))).codes ==
+          Vector("V2001-MIN-MAX-EXPANSION-TOO-LARGE")
+      )
+    }
   }
 
   test("counts emitted Boolean parameter comparisons before Min duplication") {

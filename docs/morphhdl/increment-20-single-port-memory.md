@@ -138,8 +138,8 @@ synthesized structure are the contract.
 ## Recommended next increment
 
 Increment 21 should close arbitrary address geometry as its own bounded
-tranche. Add a typed portable ceiling-log2/address-width expression (without
-emitting SystemVerilog `$clog2`), prove its complete domain including
+tranche. Add a typed portable ceiling-log2/address-width expression without
+emitting Verilog-2005 `$clog2`, prove its complete domain including
 `DEPTH=1`, and use it to derive the parameter-dependent packed address ABI
 width for larger positive independent depths while retaining the same explicit
 surplus-address policy. Keep masks and additional ports deferred until that

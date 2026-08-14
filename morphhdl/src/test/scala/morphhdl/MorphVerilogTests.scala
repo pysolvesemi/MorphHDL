@@ -667,6 +667,25 @@ class MorphVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("ceiling-log2 derived width preserves the default public shape and reviewed output") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "derived_width.v"
+      val report = MorphVerilog(config) {
+        DerivedWidthContractFixture.program(reverseConstructionOrder = false)
+      }
+
+      val output = directory.resolve("derived_width.v")
+      assert(report.toplevelName == "DerivedWidth")
+      assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
+      assert(Files.isRegularFile(output))
+      assert(
+        new String(Files.readAllBytes(output), StandardCharsets.UTF_8) ==
+          expectedDerivedWidthVerilog
+      )
+    }
+  }
+
   test("runtime combinational process preserves the default public shape and reviewed output") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
@@ -3505,6 +3524,40 @@ class MorphVerilogTests extends AnyFunSuite {
        |endmodule
        |""".stripMargin
 
+  private val expectedDerivedWidthVerilog =
+    """module DerivedWidth #(
+      |  parameter integer DATA_WIDTH = 8,
+      |  parameter integer LANES = 4
+      |) (
+      |  input  wire [PADDED_WIDTH-1:0] din,
+      |  output wire [PADDED_WIDTH-1:0] dout
+      |);
+      |
+      |  function integer morphhdl$ceil_log2;
+      |    input integer value;
+      |    input integer minimum_result;
+      |    integer remaining;
+      |    begin
+      |      morphhdl$ceil_log2 = 0;
+      |      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
+      |        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;
+      |      end
+      |      if (morphhdl$ceil_log2 < minimum_result) begin
+      |        morphhdl$ceil_log2 = minimum_result;
+      |      end
+      |    end
+      |  endfunction
+      |
+      |  localparam integer CLAMPED_PADDING = (DATA_WIDTH < 3) ? DATA_WIDTH : 3;
+      |  localparam integer LANE_INDEX_WIDTH = morphhdl$ceil_log2(LANES, 0);
+      |  localparam integer TOTAL_WIDTH = LANES * DATA_WIDTH;
+      |  localparam integer PADDED_WIDTH = ((TOTAL_WIDTH + CLAMPED_PADDING > 4) ? TOTAL_WIDTH + CLAMPED_PADDING : 4) + LANE_INDEX_WIDTH;
+      |
+      |  assign dout = din;
+      |
+      |endmodule
+      |""".stripMargin
+
   private val expectedRuntimeMuxVerilog =
     """module RuntimeMux #(
       |  parameter integer WIDTH = 8
@@ -3612,27 +3665,33 @@ class MorphVerilogTests extends AnyFunSuite {
       |endmodule
       |""".stripMargin
 
-  private val expectedAddressWidthExpression = {
-    var chain = "31"
-    (30 to 1 by -1).foreach { width =>
-      val falseBranch = if (width == 30) chain else s"($chain)"
-      chain = s"(DEPTH <= ${BigInt(1) << width}) ? $width : $falseBranch"
-    }
-    chain
-  }
-
   private val expectedSinglePortMemoryVerilog =
-    s"""module SinglePortMemory #(
+    """module SinglePortMemory #(
       |  parameter integer DEPTH = 5,
       |  parameter integer WIDTH = 8
       |) (
-      |  input  wire [($expectedAddressWidthExpression)-1:0] address,
+      |  input  wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] address,
       |  input  wire [0:0] clk,
       |  output reg [WIDTH-1:0] read_data,
       |  input  wire [0:0] read_enable,
       |  input  wire [WIDTH-1:0] write_data,
       |  input  wire [0:0] write_enable
       |);
+      |
+      |  function integer morphhdl$ceil_log2;
+      |    input integer value;
+      |    input integer minimum_result;
+      |    integer remaining;
+      |    begin
+      |      morphhdl$ceil_log2 = 0;
+      |      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
+      |        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;
+      |      end
+      |      if (morphhdl$ceil_log2 < minimum_result) begin
+      |        morphhdl$ceil_log2 = minimum_result;
+      |      end
+      |    end
+      |  endfunction
       |
       |  reg [WIDTH-1:0] memory [0:DEPTH-1];
       |

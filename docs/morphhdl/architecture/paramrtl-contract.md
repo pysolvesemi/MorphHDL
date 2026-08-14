@@ -21,7 +21,7 @@ algebra contains:
 - conditional selection;
 - positive `AddressWidth` with a minimum one-bit result;
 - mathematical `Min` and `Max` operations;
-- a reserved general-purpose `clog2` semantic operation;
+- mathematical `CeilLog2` over a proven-positive operand, with zero at one;
 - explicit signedness and arbitrary-precision constants;
 - constraints over parameter expressions.
 
@@ -62,6 +62,16 @@ operands normalize after validation, and equivalence recognizes swapped
 operands; broader constraint-based dominance rewriting remains deferred.
 Target capability passes remain responsible for proving that the chosen
 lowering is finite and representable.
+
+Increment 24 implements `IntExpr.CeilLog2(value)`. Target-independent
+validation requires the complete operand domain to be positive. Exact
+evaluation uses zero for one and `(value - 1).bitLength` for larger positive
+integers; monotonic interval analysis maps both endpoints through that same
+function. Substitution, equivalence, dependency discovery and local-parameter
+ordering retain the semantic node. The zero result is intentional and keeps
+this operation distinct from `AddressWidth`, whose memory-address contract
+applies a one-bit minimum. Target backends may choose different equivalent
+spellings without changing ParamRTL.
 
 A parameter expression is not an RTL value. If a design needs a parameter as
 runtime data, an explicit conversion node creates an RTL constant of a declared

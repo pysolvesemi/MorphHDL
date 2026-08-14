@@ -12,8 +12,8 @@ private[morphhdl] object DerivedWidthContractFixture {
     MorphProgram(
       concreteWitness = new Component {
         setDefinitionName("DerivedWidth")
-        val din = in(Bits(35 bits))
-        val dout = out(Bits(35 bits))
+        val din = in(Bits(37 bits))
+        val dout = out(Bits(37 bits))
         dout := din
       },
       parameterizedDesign = {
@@ -22,9 +22,10 @@ private[morphhdl] object DerivedWidthContractFixture {
         val totalWidth = localParam("TOTAL_WIDTH", lanes * dataWidth)
         val clampedPadding =
           localParam("CLAMPED_PADDING", dataWidth.min(HdlInt.literal(3)))
+        val laneIndexWidth = localParam("LANE_INDEX_WIDTH", lanes.ceilLog2)
         val paddedWidth = localParam(
           "PADDED_WIDTH",
-          (totalWidth + clampedPadding).max(HdlInt.literal(4))
+          (totalWidth + clampedPadding).max(HdlInt.literal(4)) + laneIndexWidth
         )
         val packed = packedBits(paddedWidth)
         val module = moduleDef(
@@ -44,6 +45,7 @@ private[morphhdl] object DerivedWidthContractFixture {
             Vector(
               integerLocalParameter(totalWidth),
               integerLocalParameter(clampedPadding),
+              integerLocalParameter(laneIndexWidth),
               integerLocalParameter(paddedWidth)
             ),
             reverseConstructionOrder

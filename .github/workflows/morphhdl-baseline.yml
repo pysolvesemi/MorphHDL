@@ -155,18 +155,29 @@ jobs:
           diff --recursive --brief \
             target/morphhdl/generated/run-1 \
             target/morphhdl/generated/run-2
-          test "$(grep -Fc 'DEPTH <= 2' \
+          test "$(grep -Fc 'function integer morphhdl$ceil_log2;' \
+            target/morphhdl/generated/run-1/derived_width.v)" = "1"
+          test "$(grep -Fc 'function integer morphhdl$ceil_log2;' \
             target/morphhdl/generated/run-1/single_port_memory.v)" = "1"
-          test "$(grep -Fc 'DEPTH <= 1073741824' \
+          test "$(grep -Fc 'morphhdl$ceil_log2(LANES, 0)' \
+            target/morphhdl/generated/run-1/derived_width.v)" = "1"
+          test "$(grep -Fc 'morphhdl$ceil_log2(DEPTH, 1)' \
             target/morphhdl/generated/run-1/single_port_memory.v)" = "1"
-          ! grep -Fq '$clog2' \
-            target/morphhdl/generated/run-1/single_port_memory.v
+          ! grep -RFq '$clog2' target/morphhdl/generated/run-1
+          ! grep -RFq '1073741824' target/morphhdl/generated/run-1
           test "$(grep -Fc \
             'CLAMPED_PADDING = (DATA_WIDTH < 3) ? DATA_WIDTH : 3;' \
             target/morphhdl/generated/run-1/derived_width.v)" = "1"
           test "$(grep -Fc \
-            'PADDED_WIDTH = (TOTAL_WIDTH + CLAMPED_PADDING > 4) ? TOTAL_WIDTH + CLAMPED_PADDING : 4;' \
+            'PADDED_WIDTH = ((TOTAL_WIDTH + CLAMPED_PADDING > 4) ? TOTAL_WIDTH + CLAMPED_PADDING : 4) + LANE_INDEX_WIDTH;' \
             target/morphhdl/generated/run-1/derived_width.v)" = "1"
+          for filename in target/morphhdl/generated/run-1/*.v
+          do
+            case "${filename}" in
+              */derived_width.v|*/single_port_memory.v) ;;
+              *) ! grep -Fq 'morphhdl$ceil_log2' "${filename}" ;;
+            esac
+          done
           for filename in \
             parameterized_wire.v \
             derived_width.v \
