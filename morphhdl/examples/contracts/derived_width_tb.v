@@ -1,11 +1,11 @@
 module DerivedWidthTb;
 
-  localparam integer DEFAULT_WIDTH = 35;
+  localparam integer DEFAULT_WIDTH = 37;
   localparam integer MINIMUM_WIDTH = 4;
-  localparam integer AWKWARD_WIDTH = 18;
-  localparam integer LANES_ONLY_WIDTH = 27;
-  localparam integer DATA_WIDTH_ONLY_WIDTH = 23;
-  localparam integer DYNAMIC_MIN_WIDTH = 6;
+  localparam integer AWKWARD_WIDTH = 20;
+  localparam integer LANES_ONLY_WIDTH = 29;
+  localparam integer DATA_WIDTH_ONLY_WIDTH = 25;
+  localparam integer DYNAMIC_MIN_WIDTH = 7;
 
   reg  [DEFAULT_WIDTH-1:0] default_din;
   wire [DEFAULT_WIDTH-1:0] default_dout;

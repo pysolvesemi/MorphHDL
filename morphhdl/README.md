@@ -147,8 +147,9 @@ positive ceiling-log2 operation whose result never falls below one. The public
 memory now emits one parameter-dependent packed address: three bits at the
 default `DEPTH=5`, two bits at `DEPTH=3` and one bit at `DEPTH=1`. ParamRTL
 proves the address expression is correlated with the same depth across its
-whole legal domain, and strict Verilog-2001 lowers it to one deterministic
-right-associated conditional chain. No `$clog2`, helper function,
+whole legal domain. Increment 21 initially lowered it to a deterministic
+threshold chain; Increment 24 replaces that target spelling with one
+module-local constant function and an explicit one-bit floor. No `$clog2`,
 overrideable address parameter or specialized module copy is emitted; the
 memory's read-first and surplus-address behavior is unchanged.
 
@@ -166,3 +167,13 @@ cap. The existing `derived_width.v` artifact now uses both operations and
 proves six parameter combinations without adding a specialized module or
 changing the sixteen-file public inventory. Generated comments, attributes
 and raw HDL remain outside this increment.
+
+Increment 24 adds target-neutral `HdlInt.ceilLog2` with a complete positive
+operand-domain proof and exact `ceilLog2(1) = 0` semantics. The existing
+`derived_width.v` fixture now consumes the result for one-, two-, three- and
+four-lane parameter values while the public inventory stays at sixteen files.
+Strict Verilog-2001 emits one module-local constant function in this fixture
+and the memory fixture; constant evaluation creates no runtime hardware.
+`$clog2` is synthesizable and standardized in Verilog-2005, but remains
+forbidden to preserve the 2001 baseline. `addressWidth` stays distinct because
+it guarantees a minimum result of one.

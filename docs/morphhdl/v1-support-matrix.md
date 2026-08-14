@@ -11,7 +11,8 @@ first parameterized-Verilog release, not implemented in Increment 1.
 | Parameters | Integer comparisons | v1 | Increment 10 implements `<`, `<=`, `>`, `>=`, `hdlEq` and `hdlNe` as typed Boolean expressions |
 | Parameters | Conditional integer values | v1 | Increment 11 implements `HdlBool.select(whenTrue, whenFalse)` with exact default selection and a conservative whole-domain branch hull |
 | Parameters | Integer minimum/maximum | v1 | Increment 23 implements typed `HdlInt.min`/`max`, validates both complete operand domains and emits bounded deterministic Verilog-2001 ternaries |
-| Parameters | Portable address width | v1 | Increment 21 implements `HdlInt.addressWidth` as positive ceiling-log2 with a one-bit minimum and no `$clog2`; direct nesting flattens at five layers and non-direct Verilog expansion is capped at 4096 expanded syntax nodes |
+| Parameters | Mathematical ceiling-log2 | v1 | Increment 24 implements `HdlInt.ceilLog2` with a positive-domain proof and exact `ceilLog2(1) = 0`; strict Verilog-2001 uses one module-local constant function per consuming module |
+| Parameters | Portable address width | v1 | Increment 21 implements `HdlInt.addressWidth` as positive ceiling-log2 with a one-bit minimum; Increment 24 replaces its threshold chain with the shared module-local constant function while retaining strict Verilog-2001 |
 | Parameters | Enum/type/string parameters | Post-v1 | Static in v1 |
 | Shape | Parameter-dependent packed width | v1 | Width must be provably positive |
 | Shape | Parameter-dependent memory depth | v1 | Increment 20 implements positive finitely bounded depth; Increment 21 correlates `AddressWidth(DEPTH)` so the public fixture's packed address is one, two or three bits at depths 1, 3 or 5 |

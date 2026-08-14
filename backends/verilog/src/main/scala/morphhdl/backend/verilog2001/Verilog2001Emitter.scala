@@ -3,6 +3,7 @@ package morphhdl.backend.verilog2001
 import morphhdl.paramrtl.IntExpr.{
   Add,
   AddressWidth,
+  CeilLog2,
   Divide,
   GenerateIndexRef,
   Literal,
@@ -50,6 +51,8 @@ import morphhdl.paramrtl.Signedness.{Signed, Unsigned}
 import morphhdl.paramrtl._
 
 object Verilog2001Emitter {
+  private val PortableCeilLog2FunctionName = "morphhdl$ceil_log2"
+
   def emit(design: Design): Either[DiagnosticSet, String] =
     ParamRtlValidator.validate(design) match {
       case Left(diagnostics) => Left(diagnostics)
@@ -70,6 +73,7 @@ object Verilog2001Emitter {
   }
 
   private def renderModule(module: ModuleDef, facts: ValidatedModuleFacts): String = {
+    val usesPortableCeilLog2 = moduleUsesPortableCeilLog2(module)
     val integerParameters = module.parameters.sortBy(_.name)
     val booleanParameters = module.booleanParameters.sortBy(_.name)
     val ports = module.ports.sortBy(_.name)
@@ -124,6 +128,11 @@ object Verilog2001Emitter {
       lines += renderPort(port, proceduralOutputs.contains(port.name)) + comma
     }
     lines += ");"
+
+    if (usesPortableCeilLog2) {
+      lines += ""
+      renderPortableCeilLog2Function.foreach(lines += _)
+    }
 
     if (localParameters.nonEmpty) {
       lines += ""
@@ -426,26 +435,27 @@ object Verilog2001Emitter {
     )
   }
 
-  /**
-    * IEEE 1364-2001 has no portable ceiling-log2 operator. The operand has already been
-    * proven positive and within the signed 32-bit target domain, so this fixed chain covers
-    * every legal value without relying on SystemVerilog's `$clog2`.
-    */
+  /** IEEE 1364-2001 constant-function lowering with an internal result floor. */
   private def renderAddressWidth(
       value: IntExpr,
       integers: java.util.IdentityHashMap[IntExpr, RenderedIntExpr]
   ): RenderedIntExpr = {
-    val shape = Verilog2001IntExpressionLowering.addressWidthShape(value)
-    if (shape.thresholds.isEmpty)
-      return RenderedIntExpr(shape.maximumResult.toString, AtomicPrecedence)
+    val operand = renderDelimitedIntOperand(integers.get(value))
+    RenderedIntExpr(
+      s"$PortableCeilLog2FunctionName($operand, 1)",
+      AtomicPrecedence
+    )
+  }
 
-    val operand = renderDelimitedIntOperand(integers.get(shape.base))
-    var chain = shape.maximumResult.toString
-    shape.thresholds.reverseIterator.foreach { case (threshold, width) =>
-      val falseBranch = if (width == shape.maximumResult - 1) chain else s"($chain)"
-      chain = s"($operand <= $threshold) ? $width : $falseBranch"
-    }
-    RenderedIntExpr(chain, ConditionalPrecedence)
+  private def renderCeilLog2(
+      value: IntExpr,
+      integers: java.util.IdentityHashMap[IntExpr, RenderedIntExpr]
+  ): RenderedIntExpr = {
+    val operand = renderDelimitedIntOperand(integers.get(value))
+    RenderedIntExpr(
+      s"$PortableCeilLog2FunctionName($operand, 0)",
+      AtomicPrecedence
+    )
   }
 
   private def renderRtlExpr(expression: RtlExpr): String = expression match {
@@ -507,9 +517,8 @@ object Verilog2001Emitter {
           work += Frame(frame.value, expanded = true)
           frame.value match {
             case _: Literal | _: ParameterRef | _: LocalParameterRef | _: GenerateIndexRef =>
-            case AddressWidth(operand) =>
-              val shape = Verilog2001IntExpressionLowering.addressWidthShape(operand)
-              if (shape.thresholds.nonEmpty) push(shape.base)
+            case AddressWidth(operand) => push(operand)
+            case CeilLog2(operand)     => push(operand)
             case Negate(operand)       => push(operand)
             case Add(left, right)      => push(right); push(left)
             case Subtract(left, right) => push(right); push(left)
@@ -543,6 +552,8 @@ object Verilog2001Emitter {
               integers.put(value, RenderedIntExpr(name, AtomicPrecedence))
             case value @ AddressWidth(operand) =>
               integers.put(value, renderAddressWidth(operand, integers))
+            case value @ CeilLog2(operand) =>
+              integers.put(value, renderCeilLog2(operand, integers))
             case value @ Negate(operand) =>
               val rendered = integer(operand)
               val needsParentheses = rendered.precedence <= UnaryPrecedence || rendered.text.startsWith("-")
@@ -643,47 +654,62 @@ object Verilog2001Emitter {
       .sortBy(choice => (choice.value, choice.block.label))
       .map(choice => s"${choice.value}:${choice.block.label}")
       .mkString("|")
+
+  /**
+    * `$` is legal after the first character of a Verilog simple identifier, but ParamRTL
+    * logical identifiers deliberately exclude it. The helper therefore cannot collide with
+    * any user-visible module identifier.
+    */
+  private def renderPortableCeilLog2Function: Vector[String] =
+    Vector(
+      s"  function integer $PortableCeilLog2FunctionName;",
+      "    input integer value;",
+      "    input integer minimum_result;",
+      "    integer remaining;",
+      "    begin",
+      s"      $PortableCeilLog2FunctionName = 0;",
+      "      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin",
+      s"        $PortableCeilLog2FunctionName = $PortableCeilLog2FunctionName + 1;",
+      "      end",
+      s"      if ($PortableCeilLog2FunctionName < minimum_result) begin",
+      s"        $PortableCeilLog2FunctionName = minimum_result;",
+      "      end",
+      "    end",
+      "  endfunction"
+    )
+
+  /** Iterative identity-aware scan keeps helper discovery stack-safe and DAG-safe. */
+  private def moduleUsesPortableCeilLog2(module: ModuleDef): Boolean = {
+    val seen = new java.util.IdentityHashMap[AnyRef, java.lang.Boolean]()
+    val work = scala.collection.mutable.ArrayBuffer[Any](module)
+
+    while (work.nonEmpty) {
+      work.remove(work.length - 1) match {
+        case _: AddressWidth | _: CeilLog2 => return true
+        case _: String | _: BigInt | null  =>
+        case reference: AnyRef if !seen.containsKey(reference) =>
+          seen.put(reference, java.lang.Boolean.TRUE)
+          reference match {
+            case values: Iterable[_] => values.foreach(work += _)
+            case product: Product    => product.productIterator.foreach(work += _)
+            case _                   =>
+          }
+        case _ =>
+      }
+    }
+    false
+  }
 }
 
-/** Shared structural plan keeps target-cost admission and emitted lowering in lockstep. */
+/** Exact emitted-AST cost plan for the Min/Max lowering expansion boundary. */
 private[verilog2001] object Verilog2001IntExpressionLowering {
   val MaximumExpansionNodes = 4096L
 
-  final case class Shape(
-      base: IntExpr,
-      maximumResult: Int,
-      thresholds: Vector[(BigInt, Int)]
-  )
-
-  /** `value` is the operand of the outer address-width node. */
-  def addressWidthShape(value: IntExpr): Shape = {
-    val (layers, base) =
-      IntExpressionAnalysis.peelDirectAddressWidths(AddressWidth(value))
-
-    var maximum = BigInt(Int.MaxValue)
-    var layer = 0
-    while (layer < layers) {
-      maximum = addressWidth(maximum)
-      layer += 1
-    }
-    val maximumResult = maximum.toInt
-    val thresholds = (1 until maximumResult).map { result =>
-      var threshold = BigInt(result)
-      var inverseLayer = 0
-      while (inverseLayer < layers) {
-        threshold = BigInt(1) << threshold.toInt
-        inverseLayer += 1
-      }
-      threshold -> result
-    }.toVector
-    Shape(base, maximumResult, thresholds)
-  }
-
   /**
     * Counts every node in the emitted expression syntax tree and fails closed before repeated
-    * conditional operands can cause target text to grow exponentially. Directly nested
-    * address-width nodes use the flattened shape above and therefore get cheaper as their
-    * result range contracts.
+    * conditional operands can cause target text to grow exponentially. AddressWidth and
+    * CeilLog2 each lower to one two-argument constant-function call, so they contribute only
+    * their operand plus the call and internal floor literal.
     */
   def expansionWithin(expression: IntExpr, maximum: Long): Boolean = {
     final case class Frame(value: AnyRef, expanded: Boolean)
@@ -721,9 +747,8 @@ private[verilog2001] object Verilog2001IntExpressionLowering {
           work += Frame(frame.value, expanded = true)
           frame.value match {
             case _: Literal | _: ParameterRef | _: LocalParameterRef | _: GenerateIndexRef =>
-            case AddressWidth(operand) =>
-              val lowered = addressWidthShape(operand)
-              if (lowered.thresholds.nonEmpty) push(lowered.base)
+            case AddressWidth(operand) => push(operand)
+            case CeilLog2(operand)     => push(operand)
             case Negate(operand)       => push(operand)
             case Add(left, right)      => push(right); push(left)
             case Subtract(left, right) => push(right); push(left)
@@ -755,21 +780,9 @@ private[verilog2001] object Verilog2001IntExpressionLowering {
             case value: LocalParameterRef => integerCosts.put(value, LeafCost)
             case value: GenerateIndexRef => integerCosts.put(value, LeafCost)
             case value @ AddressWidth(operand) =>
-              val lowered = addressWidthShape(operand)
-              val cost =
-                if (lowered.thresholds.isEmpty) LeafCost
-                else {
-                  val operandCost = integer(lowered.base)
-                  val comparisons = lowered.thresholds.size.toLong
-                  if (
-                    operandCost == TooLarge ||
-                    maximum < 4L ||
-                    operandCost > maximum - 4L ||
-                    operandCost + 4L > (maximum - 1L) / comparisons
-                  ) TooLarge
-                  else 1L + comparisons * (operandCost + 4L)
-                }
-              integerCosts.put(value, cost)
+              integerCosts.put(value, plus(integer(operand), LeafCost, 1L))
+            case value @ CeilLog2(operand) =>
+              integerCosts.put(value, plus(integer(operand), LeafCost, 1L))
             case value @ Negate(operand) => integerCosts.put(value, increment(integer(operand)))
             case value @ Add(left, right) => integerCosts.put(value, plus(integer(left), integer(right), 1L))
             case value @ Subtract(left, right) => integerCosts.put(value, plus(integer(left), integer(right), 1L))
@@ -804,12 +817,4 @@ private[verilog2001] object Verilog2001IntExpressionLowering {
     integer(expression) != TooLarge
   }
 
-  private def addressWidth(value: BigInt): BigInt =
-    if (value <= 2) BigInt(1) else BigInt((value - 1).bitLength)
-}
-
-/** Retained for package-level address-width tests while the planner now covers all expressions. */
-private[verilog2001] object AddressWidthLowering {
-  def expansionWithin(expression: IntExpr, maximum: Long): Boolean =
-    Verilog2001IntExpressionLowering.expansionWithin(expression, maximum)
 }

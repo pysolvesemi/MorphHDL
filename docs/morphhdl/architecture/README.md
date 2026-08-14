@@ -73,6 +73,9 @@ The contract is split into these documents:
 - [Increment 23 integer minimum and maximum](../increment-23-min-max.md): typed
   mathematical `Min`/`Max`, whole-domain analysis and bounded deterministic
   strict Verilog-2001 ternary lowering.
+- [Increment 24 target-neutral ceiling-log2](../increment-24-ceil-log2.md):
+  mathematical `CeilLog2` with a positive-domain proof, exact zero-at-one
+  semantics and bounded portable strict-Verilog lowering.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -93,13 +96,19 @@ executable. Increments 18 and 19 add bounded synchronous and asynchronous
 enable/hold semantics. Increment 20 adds the first bounded parameterized
 single-port memory while broader statements, multiple clocks/registers, CDC
 structures and memory policies remain separate tranches. Increment 21 derives
-that memory's address width from `DEPTH` through a portable typed conditional
-expression without `$clog2` or an externally overrideable helper parameter.
+that memory's address width from `DEPTH`; Increment 24 replaces its original
+threshold chain with a module-local Verilog-2001 constant function and retains
+the one-bit address floor without `$clog2` or an externally overrideable helper
+parameter.
 Increment 22 adds an exact one-bit active-high read enable while keeping the
 write guard independent and preserving read-first behavior.
 Increment 23 adds target-neutral minimum and maximum expressions without
 changing the public artifact count; both operands remain validated and dynamic
 strict-Verilog lowering is bounded against exponential source expansion.
+Increment 24 adds target-neutral mathematical ceiling-log2 without changing
+the public artifact count. Strict Verilog-2001 emits one constant function per
+consuming module and no runtime hardware. Native `$clog2` is a synthesizable
+Verilog-2005 feature and remains outside the selected 2001 baseline.
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants

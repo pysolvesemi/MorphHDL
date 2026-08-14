@@ -21,6 +21,7 @@ be accepted without enabling a SystemVerilog parser.
 | Integer comparison (implemented) | `<`, `<=`, `>`, `>=`, `==` or `!=` after operand capability proof |
 | Conditional integer value (implemented) | Parenthesized Boolean condition with Verilog-2001 `condition ? when_true : when_false` |
 | Integer minimum/maximum (implemented) | Canonical `(left < right) ? left : right` / `(left > right) ? left : right` conditional expressions |
+| Mathematical ceiling-log2 (implemented) | One module-local `morphhdl$ceil_log2(value, minimum_result)` constant function called with minimum zero |
 | Structural case (implemented) | Named `generate`/`case` with ascending signed-decimal choices and mandatory default |
 | Runtime two-way mux process (implemented) | Named `always @*` block, one-bit `if` condition, complete blocking assignments and process-driven `output reg` targets |
 | Synchronous register (implemented) | Named `always @(posedge clock)` block, active-high synchronous reset-to-zero, complete nonblocking assignments and process-driven `output reg` target |
@@ -28,9 +29,8 @@ be accepted without enabling a SystemVerilog parser.
 | Synchronous enabled register (implemented) | Named `always @(posedge clock)` block with reset-priority active-high synchronous reset-to-zero, active-high capture, implicit disabled hold and nonblocking assignments |
 | Asynchronous enabled register (implemented) | Named `always @(posedge clock or posedge reset)` block with immediate reset-priority active-high asynchronous reset-to-zero, active-high capture, implicit disabled hold and nonblocking assignments |
 | Synchronous read-first single-port memory (implemented) | `reg [WIDTH-1:0] memory [0:DEPTH-1]` plus one guarded named positive-edge process with nonblocking read and optional whole-word write assignments |
-| Portable address width (implemented) | Right-associated `value <= 2 ? 1 : value <= 4 ? 2 : ... : value <= 1073741824 ? 30 : 31` conditional expression |
+| Portable address width (implemented) | The same module-local `morphhdl$ceil_log2(value, minimum_result)` constant function called with minimum one |
 | Logical record/vector port | Deterministically flattened scalar/packed ports |
-| General-purpose `clog2` (deferred) | Must use a separately validated Verilog-2001 expression; never emit `$clog2` |
 | Enum intent | Packed vector plus named local parameters |
 | Parameterized memory | `reg [WIDTH-1:0] mem [0:DEPTH-1]` |
 
@@ -132,23 +132,15 @@ spelling. No reset or initial block is emitted, so unwritten in-range reads
 remain unspecified. Initialization, selectable enable polarity, masks,
 multiple ports/clocks and selectable collision modes remain forbidden.
 
-Increment 21 legalizes `IntExpr.AddressWidth` without a helper function or
-SystemVerilog system task. It emits one fully parenthesized right-associated
-conditional chain covering thresholds `2^1` through `2^30`, returning widths
-one through thirty and a final width of thirty-one. Capability validation has
-already proved the operand lies within signed 32-bit `integer` range, while
-target-independent ParamRTL validation has proved it positive. Every legal
-value therefore has exact ceiling-log2 behavior and `DEPTH=1` retains a legal
-one-bit port. The public memory address ABI inlines that expression in its
-packed range; no externally overrideable sizing parameter, `$clog2`, constant
-function or specialization is introduced. General logarithms remain deferred.
-
-The lowering is resource bounded. Five direct nested `AddressWidth` layers
-collapse to the constant one over the already-proven positive signed-32-bit
-domain. Other compositions use a shared capability/emitter cost plan and are
-rejected with `V2001-ADDRESS-WIDTH-EXPANSION-TOO-LARGE` when their estimated
-portable expansion exceeds 4096 expanded syntax nodes. This is a Verilog-2001
-target cap, not a loss of the canonical ParamRTL expression.
+Increment 21 originally legalized `IntExpr.AddressWidth` as a fully
+parenthesized threshold chain. Increment 24 replaces that target spelling with
+one module-local constant function called with an internal minimum-result
+literal of one. Target-independent ParamRTL validation still proves the
+operand positive and retains the semantic one-bit minimum, while capability
+validation proves the complete operand lies in the positive signed-32-bit
+`integer` domain. The helper's `integer` input and loop state therefore cover
+the complete target domain without truncation. No externally overrideable
+sizing parameter or specialized module is introduced.
 
 Increment 23 legalizes `IntExpr.Min` and `IntExpr.Max` to canonical
 comparison ternaries. Both operands are rendered in the predicate and the
@@ -159,6 +151,28 @@ above 4096 syntax nodes with
 `V2001-MIN-MAX-EXPANSION-TOO-LARGE`. The cap controls generated Verilog size only;
 ParamRTL retains the target-neutral mathematical node. No `$min`, `$max`,
 function declaration or SystemVerilog construct is emitted.
+
+Increment 24 legalizes both `IntExpr.CeilLog2` and `IntExpr.AddressWidth` with
+one shared module-local constant function per consuming module. Its reserved
+identifier `morphhdl$ceil_log2` cannot collide with ParamRTL logical identifiers
+because their grammar excludes `$`. The canonical helper initializes the
+result to zero, shifts `value - 1` right until it reaches zero, increments once
+per shift and clamps to the backend-supplied zero-or-one `minimum_result`. It is a Verilog constant
+function: parameter and local-parameter expressions are evaluated during HDL
+elaboration and no runtime shifter, counter or state is inferred. Every call
+retains its full dynamic parameter expression; no default specialization is
+allowed. Keeping the minimum inside the helper renders each arbitrary operand
+once, so direct and mixed nesting remains linear without a log-specific
+expansion cap. The reserved identifier is outside the logical identifier
+grammar, so a collision is unrepresentable.
+
+`$clog2(PARAM)` is synthesizable and was standardized in IEEE 1364-2005
+Verilog; it is not SystemVerilog-only. It remains outside the selected IEEE
+1364-2001 baseline, and strict-2001 tools differ on whether they accept it as
+an extension. MorphHDL therefore keeps rejecting `$clog2` and emits the local
+constant function without upgrading the target language. `AddressWidth`
+remains a separate semantic node because it returns at least one for operand
+one, while mathematical `CeilLog2(1)` returns zero.
 
 ## Flat ABI
 
@@ -178,7 +192,8 @@ Strict mode rejects SystemVerilog-only or ambiguous constructs, including:
 - interfaces, modports, packages, structs, unions and typedefs;
 - unpacked array ports and type parameters;
 - classes, SVA/property syntax and SystemVerilog testbench constructs;
-- `$clog2`, `$bits` and other non-Verilog-2001 sizing helpers;
+- Verilog-2005 `$clog2`, SystemVerilog `$bits` and other helpers outside the
+  IEEE 1364-2001 baseline;
 - raw/verbatim HDL that bypasses target verification;
 - configuration-specialized module suffixes such as `__v_lanes4`.
 

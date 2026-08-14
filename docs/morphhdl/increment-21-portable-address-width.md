@@ -1,9 +1,10 @@
 # Increment 21: portable depth-derived address width
 
 Increment 21 closes the address-geometry gap left by the first memory tranche.
-It adds one typed ceiling-log2 operation, keeps its operand and result in
-ParamRTL, and lowers it to strict Verilog-2001 without `$clog2`, a helper
-function or an externally overrideable sizing parameter.
+It adds one typed ceiling-log2 operation and keeps its operand and result in
+ParamRTL. Increment 24 later replaces its original threshold-chain spelling
+with a module-local strict-Verilog-2001 constant function, still without
+native `$clog2` or an externally overrideable sizing parameter.
 
 ## Frontend contract
 
@@ -50,42 +51,34 @@ address expression still uses the conservative whole-domain capacity proof.
 
 ## Strict Verilog-2001 lowering
 
-IEEE 1364-2001 has no portable ceiling-log2 system function. The backend emits
-one deterministic right-associated conditional expression:
+IEEE 1364-2001 has no native ceiling-log2 system function. Increment 24 emits
+one module-local constant function in every module that consumes
+`AddressWidth` or `CeilLog2`. Address width calls it with an internal minimum
+result of one:
 
 ```verilog
-(DEPTH <= 2) ? 1 :
-((DEPTH <= 4) ? 2 :
- ...
- ((DEPTH <= 1073741824) ? 30 : 31))
+morphhdl$ceil_log2(DEPTH, 1)
 ```
 
-Every threshold from `2^1` through `2^30` is present exactly once. The result
-is one through thirty at those thresholds and thirty-one otherwise. Complete
-parenthesization makes precedence independent of use as a packed width, local
-value or binding. Capability verification proves the signed-32-bit domain
-before rendering, so the final branch covers every permitted operand.
+The helper computes mathematical ceiling-log2, then clamps to the supplied
+minimum. It contains each operand expression once, so direct and mixed nesting
+grows linearly and needs no log-specific source-expansion cap. Capability
+verification still proves the complete operand is positive and no greater
+than `Int.MaxValue`, matching the helper's Verilog `integer` domain.
 
-Portable lowering is deliberately bounded. Repeated direct nesting is
-algebraically flattened over the proven positive signed-32-bit domain; five or
-more direct `AddressWidth` layers have the constant result one. For other
-compositions, capability verification and emission share one lowering plan and
-node-cost estimate. An expression estimated to expand beyond 4096 expanded
-syntax nodes fails with `V2001-ADDRESS-WIDTH-EXPANSION-TOO-LARGE` before rendering.
-This prevents adversarial expression growth while leaving the semantic
-ParamRTL node target neutral.
-
-The public memory fixture inlines that expression in its ANSI port range:
+The public memory fixture calls that function in its ANSI port range:
 
 ```verilog
-input wire [((DEPTH <= 2) ? 1 : ...)-1:0] address
+input wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] address
 ```
 
 There is no `ADDRESS_WIDTH` public parameter: adding one would let a caller
-override the derived ABI independently of `DEPTH`. There is no local parameter
-because an ANSI port cannot depend on a body declaration in strict
-Verilog-2001. `$clog2`, `$bits`, SystemVerilog syntax and constant functions
-remain absent.
+override the derived ABI independently of `DEPTH`; the guarded semantic call
+remains directly in the port range. Native `$clog2` and `$bits` remain absent.
+`$clog2` was added in
+Verilog-2005; the module-local constant function preserves the selected 2001
+baseline and is eliminated during HDL elaboration rather than becoming
+runtime hardware.
 
 ## Upgraded public memory contract
 
@@ -112,11 +105,12 @@ identical. `single_port_memory.v` must match its reviewed golden byte for byte.
 
 The strict gate requires:
 
-- an exact source match for the complete portable conditional address range;
-- a repository-wide rejection of `$clog2` and other SystemVerilog sizing
-  helpers;
-- capability tests for direct-nesting flattening and the limit of 4096
-  expanded syntax nodes;
+- an exact source match for the canonical module-local helper and
+  `morphhdl$ceil_log2(DEPTH, 1)` call;
+- a repository-wide rejection of Verilog-2005 `$clog2`, SystemVerilog `$bits`
+  and the superseded 31-threshold chain;
+- capability tests for positive signed-32-bit operands and linear nested
+  helper calls;
 - Verilator strict 1364-2001 lint at depths 5, 3, 2 and 1;
 - Icarus simulation of simultaneous 8x5, 5x3 and 1x1 instances;
 - Yosys checks for address port width, memory `ABITS`, comparator `A_WIDTH`,

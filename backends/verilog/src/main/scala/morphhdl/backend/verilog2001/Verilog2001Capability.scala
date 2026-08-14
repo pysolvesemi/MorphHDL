@@ -18,6 +18,7 @@ import morphhdl.paramrtl.BoolExpr.{
 import morphhdl.paramrtl.IntExpr.{
   Add,
   AddressWidth,
+  CeilLog2,
   Divide,
   GenerateIndexRef,
   Literal,
@@ -721,21 +722,8 @@ object Verilog2001Capability {
 
       current.value match {
         case Literal(_) | ParameterRef(_) | LocalParameterRef(_) | GenerateIndexRef(_) =>
-        case addressWidth: AddressWidth =>
-          val expansionWithinLimit = Verilog2001IntExpressionLowering.expansionWithin(
-            addressWidth,
-            Verilog2001IntExpressionLowering.MaximumExpansionNodes
-          )
-          if (!expansionWithinLimit)
-            diagnostics += Diagnostic(
-              "V2001-ADDRESS-WIDTH-EXPANSION-TOO-LARGE",
-              current.path,
-              s"Portable address-width lowering exceeds the ${Verilog2001IntExpressionLowering.MaximumExpansionNodes}-node expansion limit"
-            )
-          else {
-            val (layers, base) = IntExpressionAnalysis.peelDirectAddressWidths(addressWidth)
-            work += Work(base, current.path ++ Vector.fill(layers)("operand"))
-          }
+        case AddressWidth(value) => work += Work(value, current.path :+ "operand")
+        case CeilLog2(value)     => work += Work(value, current.path :+ "operand")
         case Negate(value) => work += Work(value, current.path :+ "operand")
         case Add(left, right)      => pushBinary(left, right, current.path)
         case Subtract(left, right) => pushBinary(left, right, current.path)

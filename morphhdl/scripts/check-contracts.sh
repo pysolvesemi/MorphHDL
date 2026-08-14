@@ -202,9 +202,11 @@ require_property parameter.integer_conditional true
 require_property parameter.integer_minimum true
 require_property parameter.integer_maximum true
 require_property parameter.min_max_expansion_limit 4096
-require_property parameter.address_width portable-ceiling-log2
-require_property parameter.address_width_direct_flatten_depth 5
-require_property parameter.address_width_expansion_limit 4096
+require_property parameter.ceil_log2 module-local-constant-function-minimum-zero
+require_property parameter.address_width module-local-constant-function-minimum-one
+require_property parameter.log2_helper 'morphhdl$ceil_log2'
+require_property parameter.log2_operand_domain positive-signed-32
+require_property parameter.log2_helper_runtime_hardware false
 require_property port.conditional_presence false
 require_property structure.module_instance true
 require_property structure.named_parameter_binding true
@@ -273,7 +275,7 @@ for word in "${forbidden_words[@]}"; do
 done
 
 if grep -En '\$(clog2|bits)' "${all_verilog_files[@]}"; then
-  echo "SystemVerilog sizing helper found in strict Verilog fixture" >&2
+  echo "Sizing helper outside the strict Verilog-2001 baseline found in fixture" >&2
   exit 1
 fi
 
@@ -360,6 +362,49 @@ for module_name in "${expected_modules[@]}"; do
   fi
 done
 
+if ! python3 - "${design_files[@]}" <<'PY'
+import pathlib
+import sys
+
+helper = """  function integer morphhdl$ceil_log2;
+    input integer value;
+    input integer minimum_result;
+    integer remaining;
+    begin
+      morphhdl$ceil_log2 = 0;
+      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin
+        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;
+      end
+      if (morphhdl$ceil_log2 < minimum_result) begin
+        morphhdl$ceil_log2 = minimum_result;
+      end
+    end
+  endfunction"""
+
+expected_helpers = {"derived_width.v", "single_port_memory.v"}
+for raw_path in sys.argv[1:]:
+    path = pathlib.Path(raw_path)
+    source = path.read_text(encoding="utf-8")
+    if path.name in expected_helpers:
+        if source.count(helper) != 1:
+            raise SystemExit("missing or duplicate canonical log helper: {}".format(path))
+    elif "morphhdl$ceil_log2" in source:
+        raise SystemExit("unexpected log helper in unrelated module: {}".format(path))
+    if "1073741824" in source:
+        raise SystemExit("superseded logarithm threshold chain remains: {}".format(path))
+
+derived = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
+memory = pathlib.Path(sys.argv[-1]).read_text(encoding="utf-8")
+if derived.count("morphhdl$ceil_log2(LANES, 0)") != 1:
+    raise SystemExit("DerivedWidth does not call mathematical ceiling-log2 exactly once")
+if memory.count("morphhdl$ceil_log2(DEPTH, 1)") != 1:
+    raise SystemExit("SinglePortMemory does not call address width exactly once")
+PY
+then
+  echo "Constant-function logarithm lowering contract failed" >&2
+  exit 1
+fi
+
 if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH' "${design_files[0]}"; then
   echo "ParameterizedWire does not declare integer WIDTH" >&2
   exit 1
@@ -367,8 +412,9 @@ fi
 
 if ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+TOTAL_WIDTH[[:space:]]*=[[:space:]]*LANES[[:space:]]*\*[[:space:]]*DATA_WIDTH' "${design_files[1]}" ||
    ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+CLAMPED_PADDING[[:space:]]*=.*DATA_WIDTH[[:space:]]*<[[:space:]]*3.*\?.*DATA_WIDTH.*:.*3' "${design_files[1]}" ||
-   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+PADDED_WIDTH[[:space:]]*=.*TOTAL_WIDTH[[:space:]]*\+[[:space:]]*CLAMPED_PADDING[[:space:]]*>[[:space:]]*4.*\?.*TOTAL_WIDTH[[:space:]]*\+[[:space:]]*CLAMPED_PADDING.*:.*4' "${design_files[1]}"; then
-  echo "DerivedWidth does not retain its symbolic minimum/maximum local-parameter expressions" >&2
+   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+LANE_INDEX_WIDTH[[:space:]]*=[[:space:]]*morphhdl\$ceil_log2\([[:space:]]*LANES,[[:space:]]*0[[:space:]]*\)' "${design_files[1]}" ||
+   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+PADDED_WIDTH[[:space:]]*=.*TOTAL_WIDTH[[:space:]]*\+[[:space:]]*CLAMPED_PADDING[[:space:]]*>[[:space:]]*4.*\?.*TOTAL_WIDTH[[:space:]]*\+[[:space:]]*CLAMPED_PADDING.*:.*4.*\+[[:space:]]*LANE_INDEX_WIDTH' "${design_files[1]}"; then
+  echo "DerivedWidth does not retain its symbolic Min/Max/CeilLog2 local-parameter expressions" >&2
   exit 1
 fi
 
@@ -381,8 +427,8 @@ expected = (
     "  localparam integer CLAMPED_PADDING = "
     "(DATA_WIDTH < 3) ? DATA_WIDTH : 3;",
     "  localparam integer PADDED_WIDTH = "
-    "(TOTAL_WIDTH + CLAMPED_PADDING > 4) ? "
-    "TOTAL_WIDTH + CLAMPED_PADDING : 4;",
+    "((TOTAL_WIDTH + CLAMPED_PADDING > 4) ? "
+    "TOTAL_WIDTH + CLAMPED_PADDING : 4) + LANE_INDEX_WIDTH;",
 )
 if any(source.count(line) != 1 for line in expected):
     raise SystemExit("missing exact canonical Min/Max local-parameter lowering")
@@ -568,14 +614,7 @@ if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:spac
   exit 1
 fi
 
-expected_address_port="$(python3 - <<'PY'
-chain = "31"
-for width in range(30, 0, -1):
-    false_branch = chain if width == 30 else "(" + chain + ")"
-    chain = "(DEPTH <= {}) ? {} : {}".format(1 << width, width, false_branch)
-print("  input  wire [({})-1:0] address,".format(chain))
-PY
-)"
+expected_address_port='  input  wire [(morphhdl$ceil_log2(DEPTH, 1))-1:0] address,'
 
 if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+DEPTH[[:space:]]*=[[:space:]]*5' "$single_port_memory_file" ||
    ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH[[:space:]]*=[[:space:]]*8' "$single_port_memory_file" ||
@@ -688,6 +727,17 @@ yosys_single_port_memory_file="$tmp_dir/single_port_memory.v"
 echo "Verilator: $(verilator --version)"
 echo "Icarus: $(iverilog -V 2>/dev/null | head -n 1)"
 echo "Yosys: $(yosys -V)"
+
+for helper_case in \
+  "$yosys_derived_width_file:DerivedWidth" \
+  "$yosys_single_port_memory_file:SinglePortMemory"
+do
+  helper_file="${helper_case%%:*}"
+  helper_top="${helper_case##*:}"
+  yosys -q -p \
+    "read_verilog -noautowire $helper_file; hierarchy -check -top $helper_top; select -assert-none t:\$shr t:\$sshr t:\$shift t:\$shiftx t:\$add"
+done
+echo "Yosys constant-function logarithm helpers create no runtime shift/add cells"
 
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
@@ -1210,21 +1260,21 @@ yosys_synthesize_and_check \
   "chparam -set WIDTH 13 ParameterizedWire;"
 
 yosys_synthesize_and_check \
-  "$yosys_derived_width_file" DerivedWidth default 35 ""
+  "$yosys_derived_width_file" DerivedWidth default 37 ""
 yosys_synthesize_and_check \
   "$yosys_derived_width_file" DerivedWidth minimum 4 \
   "chparam -set DATA_WIDTH 1 -set LANES 1 DerivedWidth;"
 yosys_synthesize_and_check \
-  "$yosys_derived_width_file" DerivedWidth awkward 18 \
+  "$yosys_derived_width_file" DerivedWidth awkward 20 \
   "chparam -set DATA_WIDTH 5 -set LANES 3 DerivedWidth;"
 yosys_synthesize_and_check \
-  "$yosys_derived_width_file" DerivedWidth lanes-only 27 \
+  "$yosys_derived_width_file" DerivedWidth lanes-only 29 \
   "chparam -set LANES 3 DerivedWidth;"
 yosys_synthesize_and_check \
-  "$yosys_derived_width_file" DerivedWidth data-width-only 23 \
+  "$yosys_derived_width_file" DerivedWidth data-width-only 25 \
   "chparam -set DATA_WIDTH 5 DerivedWidth;"
 yosys_synthesize_and_check \
-  "$yosys_derived_width_file" DerivedWidth dynamic-minimum 6 \
+  "$yosys_derived_width_file" DerivedWidth dynamic-minimum 7 \
   "chparam -set DATA_WIDTH 2 -set LANES 2 DerivedWidth;"
 
 expect_derived_width_mutation_rejected() {
@@ -1261,28 +1311,58 @@ PY
 }
 
 min_local='  localparam integer CLAMPED_PADDING = (DATA_WIDTH < 3) ? DATA_WIDTH : 3;'
-max_local='  localparam integer PADDED_WIDTH = (TOTAL_WIDTH + CLAMPED_PADDING > 4) ? TOTAL_WIDTH + CLAMPED_PADDING : 4;'
+max_local='  localparam integer PADDED_WIDTH = ((TOTAL_WIDTH + CLAMPED_PADDING > 4) ? TOTAL_WIDTH + CLAMPED_PADDING : 4) + LANE_INDEX_WIDTH;'
 
-expect_derived_width_mutation_rejected min-comparator 35 "" \
+expect_derived_width_mutation_rejected min-comparator 37 "" \
   "$min_local" \
   '  localparam integer CLAMPED_PADDING = (DATA_WIDTH > 3) ? DATA_WIDTH : 3;'
-expect_derived_width_mutation_rejected min-branches 35 "" \
+expect_derived_width_mutation_rejected min-branches 37 "" \
   "$min_local" \
   '  localparam integer CLAMPED_PADDING = (DATA_WIDTH < 3) ? 3 : DATA_WIDTH;'
-expect_derived_width_mutation_rejected min-specialized 6 \
+expect_derived_width_mutation_rejected min-specialized 7 \
   "chparam -set DATA_WIDTH 2 -set LANES 2 DerivedWidth;" \
   "$min_local" \
   '  localparam integer CLAMPED_PADDING = 3;'
-expect_derived_width_mutation_rejected max-comparator 35 "" \
+expect_derived_width_mutation_rejected max-comparator 37 "" \
   "$max_local" \
-  '  localparam integer PADDED_WIDTH = (TOTAL_WIDTH + CLAMPED_PADDING < 4) ? TOTAL_WIDTH + CLAMPED_PADDING : 4;'
-expect_derived_width_mutation_rejected max-branches 35 "" \
+  '  localparam integer PADDED_WIDTH = ((TOTAL_WIDTH + CLAMPED_PADDING < 4) ? TOTAL_WIDTH + CLAMPED_PADDING : 4) + LANE_INDEX_WIDTH;'
+expect_derived_width_mutation_rejected max-branches 37 "" \
   "$max_local" \
-  '  localparam integer PADDED_WIDTH = (TOTAL_WIDTH + CLAMPED_PADDING > 4) ? 4 : TOTAL_WIDTH + CLAMPED_PADDING;'
+  '  localparam integer PADDED_WIDTH = ((TOTAL_WIDTH + CLAMPED_PADDING > 4) ? 4 : TOTAL_WIDTH + CLAMPED_PADDING) + LANE_INDEX_WIDTH;'
 expect_derived_width_mutation_rejected max-specialized 4 \
   "chparam -set DATA_WIDTH 1 -set LANES 1 DerivedWidth;" \
   "$max_local" \
-  '  localparam integer PADDED_WIDTH = 35;'
+  '  localparam integer PADDED_WIDTH = 37;'
+
+expect_derived_width_mutation_rejected ceil-helper-initialization 37 "" \
+  '      morphhdl$ceil_log2 = 0;' \
+  '      morphhdl$ceil_log2 = 1;'
+expect_derived_width_mutation_rejected ceil-helper-input-declaration 37 "" \
+  '    input integer value;' \
+  '    input [0:0] value;'
+expect_derived_width_mutation_rejected ceil-helper-loop-declaration 37 "" \
+  '    integer remaining;' \
+  '    reg [0:0] remaining;'
+expect_derived_width_mutation_rejected ceil-helper-decrement 37 "" \
+  '      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin' \
+  '      for (remaining = value; remaining > 0; remaining = remaining >> 1) begin'
+expect_derived_width_mutation_rejected ceil-helper-shift 37 "" \
+  '      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin' \
+  '      for (remaining = value - 1; remaining > 0; remaining = remaining >> 2) begin'
+expect_derived_width_mutation_rejected ceil-helper-increment 37 "" \
+  '        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 1;' \
+  '        morphhdl$ceil_log2 = morphhdl$ceil_log2 + 2;'
+expect_derived_width_mutation_rejected ceil-helper-clamp-comparator 37 "" \
+  '      if (morphhdl$ceil_log2 < minimum_result) begin' \
+  '      if (morphhdl$ceil_log2 > minimum_result) begin'
+expect_derived_width_mutation_rejected ceil-zero-boundary 4 \
+  "chparam -set DATA_WIDTH 1 -set LANES 1 DerivedWidth;" \
+  'morphhdl$ceil_log2(LANES, 0)' \
+  'morphhdl$ceil_log2(LANES, 1)'
+expect_derived_width_mutation_rejected ceil-default-specialization 7 \
+  "chparam -set DATA_WIDTH 2 -set LANES 2 DerivedWidth;" \
+  'morphhdl$ceil_log2(LANES, 0)' \
+  '2'
 
 yosys_synthesize_and_check \
   "$yosys_conditional_width_file" ConditionalWidth default 12 ""
@@ -2087,6 +2167,51 @@ yosys_single_port_memory_mutation_must_fail() {
   fi
   echo "Yosys SinglePortMemory rejected forbidden mutation: $label"
 }
+
+expect_single_port_memory_address_mutation_rejected() {
+  local label="$1"
+  local depth="$2"
+  local expected_width="$3"
+  local original="$4"
+  local replacement="$5"
+  local mutated_file="$tmp_dir/single-port-memory-address-${label}.v"
+  local mutated_netlist="$tmp_dir/SinglePortMemory-address-${label}.json"
+
+  python3 - "$yosys_single_port_memory_file" "$mutated_file" "$original" "$replacement" <<'PY'
+import pathlib
+import sys
+
+source_path, target_path, original, replacement = sys.argv[1:]
+source = pathlib.Path(source_path).read_text(encoding="utf-8")
+if source.count(original) != 1:
+    raise SystemExit("address mutation source is not unique: {}".format(original))
+pathlib.Path(target_path).write_text(source.replace(original, replacement), encoding="utf-8")
+PY
+
+  if {
+    yosys -q -p \
+      "read_verilog -noautowire $mutated_file; chparam -set DEPTH $depth SinglePortMemory; hierarchy -check -top SinglePortMemory; proc; check -assert; synth -top SinglePortMemory; check -assert; write_json $mutated_netlist" &&
+    python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+      "$mutated_netlist" SinglePortMemory \
+      --port "address:input:$expected_width"
+  } >/dev/null 2>&1; then
+    echo "SinglePortMemory address mutation unexpectedly retained the contract: $label" >&2
+    exit 1
+  fi
+}
+
+expect_single_port_memory_address_mutation_rejected address-minimum-zero 1 1 \
+  'morphhdl$ceil_log2(DEPTH, 1)' \
+  'morphhdl$ceil_log2(DEPTH, 0)'
+expect_single_port_memory_address_mutation_rejected address-minimum-two 1 1 \
+  'morphhdl$ceil_log2(DEPTH, 1)' \
+  'morphhdl$ceil_log2(DEPTH, 2)'
+expect_single_port_memory_address_mutation_rejected address-specialized-default 3 2 \
+  'morphhdl$ceil_log2(DEPTH, 1)' \
+  '3'
+expect_single_port_memory_address_mutation_rejected address-clamp-assignment 1 1 \
+  '        morphhdl$ceil_log2 = minimum_result;' \
+  '        morphhdl$ceil_log2 = 0;'
 
 yosys_single_port_memory_mutation_must_fail \
   write-first-bypass "s/read_data <= memory\[address\];/read_data <= write_enable == 1'b1 ? write_data : memory[address];/"

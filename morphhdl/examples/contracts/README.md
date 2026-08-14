@@ -5,11 +5,12 @@ These files are executable output contracts for the parameterized backend.
 - `parameterized_wire.v` is owned by Increment 2. Increment 8 authors its
   symbolic width through the guarded frontend and generates it through the
   public `MorphVerilog` orchestration.
-- `derived_width.v` is owned by Increments 3 and 23. Its two frontend public
+- `derived_width.v` is owned by Increments 3, 23 and 24. Its two frontend public
   parameters feed an acyclic local-parameter expression graph; Increment 23
   clamps parameter-derived padding with typed `Min` and floors the final width
-  with typed `Max`. Its packed port width remains symbolic in the single public
-  module definition.
+  with typed `Max`. Increment 24 derives `LANE_INDEX_WIDTH` with mathematical
+  `CeilLog2`, including a zero result for one lane, and adds it to the packed
+  port width in the single public module definition.
 - `parameter_forwarding.v` is owned by Increment 4. Its Morph program generates its one leaf
   and one parent definition together, checks a derived named child-parameter
   binding and proves the exact elaborated hierarchy before synthesis.
@@ -58,12 +59,14 @@ These files are executable output contracts for the parameterized backend.
 - `asynchronous_enabled_register.v` is owned by Increment 19. Its active-high
   asynchronous reset asserts immediately and has priority over active-high
   enabled capture, while a low enable intentionally holds state.
-- `single_port_memory.v` is owned by Increments 20 through 22. Its independent
+- `single_port_memory.v` is owned by Increments 20 through 22 and 24. Its independent
   positive `WIDTH`/`DEPTH` parameters feed one guarded positive-edge
   synchronous read-first whole-word port; Increment 21 derives the packed
   address width from `DEPTH`, and Increment 22 adds active-high read enable
-  with disabled output hold while writes remain independent. Surplus enabled
-  reads still return zero and surplus writes remain ignored.
+  with disabled output hold while writes remain independent. Increment 24
+  replaces the address-width threshold chain with the same module-local
+  constant function used by `derived_width.v`, retaining the one-bit floor.
+  Surplus enabled reads still return zero and surplus writes remain ignored.
 - Increment 8 routes the first four artifacts through one production fixture
   source and `MorphVerilog`; Increments 9 and 10 extend that same path to all
   six. Increment 11 extends it to all seven, Increment 12 to all eight, and
@@ -72,14 +75,17 @@ These files are executable output contracts for the parameterized backend.
   thirteen, Increment 18 to all fourteen, Increment 19 to all fifteen, and
   Increment 20 to all sixteen; Increments 21 and 22 upgrade the sixteenth
   artifact without changing that inventory. Increment 23 upgrades
-  `derived_width.v` without changing that inventory. CI
+  `derived_width.v` without changing that inventory, and Increment 24 upgrades
+  both `derived_width.v` and `single_port_memory.v` with the shared
+  constant-function lowering. CI
   performs a normal and reverse-construction run, requires an exact
   sixteen-file inventory, checks
   byte identity with these goldens, and gives that unmodified directory to the
   external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
-  overrides. `DerivedWidthTb` checks widths 35, 4, 18, 27, 23 and 6 in six
-  simultaneous instances of the same emitted module. `ParameterForwardingTb`
+  overrides. `DerivedWidthTb` checks widths 37, 4, 20, 29, 25 and 7 in six
+  simultaneous instances of the same emitted module while exercising lane
+  counts one, two, three and four. `ParameterForwardingTb`
   checks forwarded widths 32, 1, 15, 24 and 20 through five simultaneous
   instances of one emitted hierarchy. `LaneArrayTb` exercises the same five
   flattened widths while the structural gate proves 4x8, 1x1, 3x5, 3x8 and

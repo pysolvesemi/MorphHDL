@@ -224,6 +224,16 @@ child bindings wherever the existing consumer permits their retained scope.
 Same-scope generate-index expressions compose; incompatible or escaped scopes
 fail through the existing binary-expression checks.
 
+Increment 24 adds the unary `value.ceilLog2` operation. It computes the
+mathematical ceiling of the base-two logarithm, including the exact boundary
+`ceilLog2(1) == 0`, and retains the complete operand tree in
+`IntExpr.CeilLog2`. The frontend rejects a nonpositive concrete witness and a
+generate-index-dependent operand. ParamRTL separately proves that every legal
+parameter override remains positive, so a valid default cannot hide an
+invalid domain. Unlike `addressWidth`, this general sizing result is allowed to
+be zero and therefore must be composed with an explicitly positive consumer
+when it drives a packed width.
+
 An ordinary Scala `if`, `match`, collection size, recursion or class selection
 continues to execute during elaboration and therefore may depend only on static
 Scala values.

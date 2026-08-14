@@ -78,9 +78,10 @@ val paddedWidth = localParam(
 )
 ```
 
-The normal/reverse fixture generation and exact public inventory remain at
-sixteen files. The same emitted `DerivedWidth` definition is instantiated at
-widths 35, 4, 18, 27, 23 and 6. These configurations exercise the left and
+At Increment 23, normal/reverse fixture generation and the exact public
+inventory remained at sixteen files. The same emitted `DerivedWidth`
+definition was instantiated at widths 35, 4, 18, 27, 23 and 6. These
+configurations exercise the left and
 right choices of `Min`, the lower floor from `Max`, default parameters, mixed
 overrides and a dynamic two-by-two case without regenerating RTL.
 
@@ -104,8 +105,13 @@ gate independently prove the symbolic expression domain.
 
 Increment 24 should add target-neutral `HdlInt.ceilLog2` and
 `IntExpr.CeilLog2` with a positive-input contract and exact
-`ceilLog2(1) = 0` semantics. It should reuse a resource-bounded portable
-Verilog-2001 conditional lowering without `$clog2`, while keeping
-`addressWidth` distinct because address widths have a mandatory one-bit
-minimum. General logarithm bases, power/exponent expressions and generated
-comments should remain deferred.
+`ceilLog2(1) = 0` semantics. It should reuse one module-local Verilog-2001
+constant function and replace the address-width threshold chain with the same
+helper called with a one-bit minimum. Native `$clog2` was added in Verilog-2005
+and should remain forbidden by the 2001 baseline. General logarithm bases,
+power/exponent expressions and generated comments should remain deferred.
+
+Increment 24 implements this recommendation with the shared two-argument
+`morphhdl$ceil_log2` constant function, preserving the Verilog-2001 baseline
+and the distinct zero and one minimum-result semantics. Its added lane-index
+term updates the current fixture widths to 37, 4, 20, 29, 25 and 7.

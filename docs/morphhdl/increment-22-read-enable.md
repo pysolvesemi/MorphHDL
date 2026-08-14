@@ -76,9 +76,10 @@ hold, not a combinational latch. The read and write conditions are siblings,
 so read enable cannot gate a write. Nonblocking assignments retain the
 pre-write memory value during a same-address collision.
 
-The derived address port introduced in Increment 21 remains unchanged and
-continues to use the portable `AddressWidth(DEPTH)` conditional expression
-without `$clog2` or an overrideable helper parameter.
+The derived address semantics introduced in Increment 21 remain unchanged.
+Increment 24 later replaces the original target conditional chain with the
+module-local `morphhdl$ceil_log2(DEPTH, 1)` constant-function call, without
+native `$clog2` or an overrideable helper parameter.
 
 ## Concrete witness and inherited validation
 
