@@ -187,7 +187,7 @@ lazy val core = (project in file("core"))
   .dependsOn(sim)
 
 lazy val morph = (project in file("morphhdl"))
-  .dependsOn(core, frontend, verilogBackend)
+  .dependsOn(core, frontend, verilogBackend, lib % "test->compile")
   .settings(
     defaultSettingsWithPlugin,
     name := "MorphHDL-orchestration",
@@ -228,3 +228,4 @@ addCommandAlias("testFormal", "testOnly * -- -n spinal.tester.formal")
 addCommandAlias("testWithoutFormal", "testOnly * -- -l spinal.tester.formal")
 
 assembly / assemblyOutputPath := file("./release/spinalhdl.jar")
+

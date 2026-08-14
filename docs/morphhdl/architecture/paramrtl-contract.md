@@ -283,6 +283,17 @@ the depth-derived address ABI. Disabled reads intentionally retain the last
 read output; enabled simultaneous read/write remains read-first, and read
 enable never gates the existing valid whole-word write path.
 
+Increment 25 adds
+`ModuleItem.SynchronousCounter(label, clock, reset, enable, count, limit)`.
+The direct `limit` expression must resolve to the same module's public integer
+parameter with a finite lower bound of at least one. Clock, reset and enable
+are distinct exact unsigned one-bit inputs; count is a distinct sole output of
+exact type `PackedBits(AddressWidth(limit), Unsigned)`. On each positive edge,
+active-high synchronous reset clears count, otherwise active-high enable wraps
+`LIMIT - 1` to zero or increments by one; enable low holds. The node is the
+sole module item and forbids sibling drivers, hierarchy, generates, memories
+or other processes. `LIMIT=1` is legal and retains one zero state bit.
+
 ## Required invariants
 
 - Every reference resolves within its lexical parameter, generate or module

@@ -67,6 +67,11 @@ These files are executable output contracts for the parameterized backend.
   replaces the address-width threshold chain with the same module-local
   constant function used by `derived_width.v`, retaining the one-bit floor.
   Surplus enabled reads still return zero and surplus writes remain ignored.
+- `parameterized_counter.v` is owned by Increment 25. Its direct positive
+  public `LIMIT` parameter controls both the `addressWidth` count port and the
+  terminal `LIMIT - 1` comparison. One positive-edge process gives active-high
+  synchronous reset priority, active-high enabled increment, disabled hold and
+  terminal wrap to zero. The concrete witness reuses `spinal.lib.Counter`.
 - Increment 8 routes the first four artifacts through one production fixture
   source and `MorphVerilog`; Increments 9 and 10 extend that same path to all
   six. Increment 11 extends it to all seven, Increment 12 to all eight, and
@@ -77,9 +82,10 @@ These files are executable output contracts for the parameterized backend.
   artifact without changing that inventory. Increment 23 upgrades
   `derived_width.v` without changing that inventory, and Increment 24 upgrades
   both `derived_width.v` and `single_port_memory.v` with the shared
-  constant-function lowering. CI
+  constant-function lowering. Increment 25 extends the path to seventeen
+  files with `parameterized_counter.v`. CI
   performs a normal and reverse-construction run, requires an exact
-  sixteen-file inventory, checks
+  seventeen-file inventory, checks
   byte identity with these goldens, and gives that unmodified directory to the
   external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
@@ -155,6 +161,13 @@ These files are executable output contracts for the parameterized backend.
   boundary and rejects disabled/falling-edge or reset-enabled absorbed reads;
   a fixed three-bit source mutation proves the address derivation cannot be
   bypassed.
+  `ParameterizedCounterTb` instantiates limits 1, 2, 3, 5 and 8 together and
+  proves reset priority and synchronous timing, disabled hold, eight enabled
+  transitions, modulo rollover and absence of an out-of-range state. Yosys
+  proves the exact positive-edge enabled synchronous-reset state and
+  increment/terminal-wrap path, and rejects off-by-one terminal, decrement,
+  active-low enable, reversed-priority, falling-edge and nonzero-reset
+  mutations.
 
 Run:
 

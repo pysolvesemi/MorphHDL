@@ -76,6 +76,9 @@ The contract is split into these documents:
 - [Increment 24 target-neutral ceiling-log2](../increment-24-ceil-log2.md):
   mathematical `CeilLog2` with a positive-domain proof, exact zero-at-one
   semantics and bounded portable strict-Verilog lowering.
+- [Increment 25 parameterized synchronous counter](../increment-25-parameterized-counter.md):
+  one direct-public-limit modulo-up counter, depth-derived state width,
+  synchronous reset/enable policy and a seventeenth reviewed fixture.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -109,6 +112,11 @@ Increment 24 adds target-neutral mathematical ceiling-log2 without changing
 the public artifact count. Strict Verilog-2001 emits one constant function per
 consuming module and no runtime hardware. Native `$clog2` is a synthesizable
 Verilog-2005 feature and remains outside the selected 2001 baseline.
+Increment 25 adds one atomic target-neutral synchronous counter corresponding
+to the existing `spinal.lib.Counter` witness. ParamRTL ties a direct positive
+public `LIMIT` to both the terminal comparison and exact address-width output,
+while strict Verilog-2001 emits reset-priority enabled modulo-up state. General
+state machines and counter modes remain separate tranches.
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants

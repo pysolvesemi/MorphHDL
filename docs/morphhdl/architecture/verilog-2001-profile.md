@@ -28,6 +28,7 @@ be accepted without enabling a SystemVerilog parser.
 | Asynchronous-reset register (implemented) | Named `always @(posedge clock or posedge reset)` block, active-high asynchronous reset-to-zero, reset priority, complete nonblocking assignments and process-driven `output reg` target |
 | Synchronous enabled register (implemented) | Named `always @(posedge clock)` block with reset-priority active-high synchronous reset-to-zero, active-high capture, implicit disabled hold and nonblocking assignments |
 | Asynchronous enabled register (implemented) | Named `always @(posedge clock or posedge reset)` block with immediate reset-priority active-high asynchronous reset-to-zero, active-high capture, implicit disabled hold and nonblocking assignments |
+| Parameterized synchronous counter (implemented) | Named `always @(posedge clock)` block with active-high synchronous reset-to-zero, active-high enable/hold, `count == LIMIT - 1` wrap and nonblocking increment; count width is portable address width of `LIMIT` |
 | Synchronous read-first single-port memory (implemented) | `reg [WIDTH-1:0] memory [0:DEPTH-1]` plus one guarded named positive-edge process with nonblocking read and optional whole-word write assignments |
 | Portable address width (implemented) | The same module-local `morphhdl$ceil_log2(value, minimum_result)` constant function called with minimum one |
 | Logical record/vector port | Deterministically flattened scalar/packed ports |
@@ -173,6 +174,16 @@ an extension. MorphHDL therefore keeps rejecting `$clog2` and emits the local
 constant function without upgrading the target language. `AddressWidth`
 remains a separate semantic node because it returns at least one for operand
 one, while mathematical `CeilLog2(1)` returns zero.
+
+Increment 25 legalizes the atomic `SynchronousCounter` to one named
+positive-edge process. Reset is tested first, enable second and the terminal
+`count == LIMIT - 1` branch wraps to a zero replication whose width is the
+same `morphhdl$ceil_log2(LIMIT, 1)` used by the packed count port. The
+nonterminal branch uses `count + 1'b1`; disabled enable has no assignment and
+therefore holds state. Capability validation requires a direct positive public
+limit in the signed-32 target domain and exact `AddressWidth(limit)` output
+before emission. The helper remains elaboration-time logic; only the intended
+runtime comparator, incrementer, mux and register are synthesized.
 
 ## Flat ABI
 

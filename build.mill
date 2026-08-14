@@ -128,6 +128,7 @@ trait Morph extends SpinalModule {
     frontend(crossScalaVersion),
     verilogBackend(crossScalaVersion)
   )
+  override def testModuleDeps = Seq(lib(crossScalaVersion))
   override def scalacOptions = super.scalacOptions() ++ modulePluginOptions()
   def mvnDeps = super.mvnDeps() ++ Seq(mvn"com.lihaoyi::sourcecode:0.3.0")
 }
@@ -190,3 +191,4 @@ trait Tester extends SpinalModule with SpinalPublishModule {
   def mvnDeps = super.mvnDeps() ++ Seq(mvn"org.scalatest::scalatest:${scalatestVersion}")
   def publishVersion = SpinalVersion.tester
 }
+

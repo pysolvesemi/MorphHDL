@@ -53,6 +53,7 @@ private[frontend] object FrontendException {
         "MORPH-FRONTEND-ASYNCHRONOUS-REGISTER-MIXED" |
         "MORPH-FRONTEND-SYNCHRONOUS-ENABLED-REGISTER-MIXED" |
         "MORPH-FRONTEND-ASYNCHRONOUS-ENABLED-REGISTER-MIXED" |
+        "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-MIXED" |
         "MORPH-FRONTEND-RUNTIME-PROCESS-MIXED" =>
       "Use a separate module definition instead of mixing runtime processes or module items."
     case "MORPH-FRONTEND-SYNCHRONOUS-REGISTER-LABEL-INVALID" |
@@ -168,6 +169,34 @@ private[frontend] object FrontendException {
       "Pass a non-null packedBits(width) element type to emitSynchronousReadFirstSinglePortMemory."
     case "MORPH-FRONTEND-SINGLE-PORT-MEMORY-DEPTH-NULL" =>
       "Pass a non-null loop-invariant HdlInt depth to emitSynchronousReadFirstSinglePortMemory."
+    case "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-NESTED" =>
+      "Emit the synchronous counter as a top-level module item outside all generate regions."
+    case "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-MULTIPLE" =>
+      "Emit one synchronous counter process per module-item capture."
+    case "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-LABEL-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-CLOCK-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-RESET-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-ENABLE-INVALID" |
+        "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-COUNT-INVALID" =>
+      "Use an identifier matching `[A-Za-z_][A-Za-z0-9_]*`."
+    case "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-CLOCK-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-CLOCK-NOT-REF" =>
+      "Pass a non-null ref(name) clock to emitSynchronousCounter."
+    case "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-RESET-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-RESET-NOT-REF" =>
+      "Pass a non-null ref(name) reset to emitSynchronousCounter."
+    case "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-ENABLE-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-ENABLE-NOT-REF" =>
+      "Pass a non-null ref(name) enable to emitSynchronousCounter."
+    case "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-COUNT-NULL" |
+        "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-COUNT-NOT-REF" =>
+      "Pass a non-null ref(name) count output to emitSynchronousCounter."
+    case "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-LIMIT-NULL" =>
+      "Pass the exact non-null HdlInt.param limit handle to emitSynchronousCounter."
+    case "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-LIMIT-NOT-PUBLIC-PARAMETER" =>
+      "Pass the exact unmodified HdlInt.param handle declared by this counter module."
+    case "MORPH-FRONTEND-SYNCHRONOUS-COUNTER-LIMIT-WITNESS-NONPOSITIVE" =>
+      "Choose a positive limit witness and declare its full finite domain with a minimum of at least 1."
     case "MORPH-FRONTEND-COMBINATIONAL-LABEL-INVALID" |
         "MORPH-FRONTEND-COMBINATIONAL-TARGET-INVALID" |
         "MORPH-FRONTEND-COMBINATIONAL-VALUE-INVALID" |

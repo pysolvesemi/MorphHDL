@@ -234,6 +234,16 @@ invalid domain. Unlike `addressWidth`, this general sizing result is allowed to
 be zero and therefore must be composed with an explicitly positive consumer
 when it drives a packed width.
 
+Increment 25 adds
+`emitSynchronousCounter(label, clock, reset, enable, count, limit)`. All four
+runtime operands must be guarded direct references and pairwise distinct.
+`limit` must be the exact unmodified public `HdlInt.param` handle declared by
+the same module; a literal, local, copied expression or arithmetic wrapper is
+rejected even when it has the same witness value. The helper requires a
+positive witness, retains the parameter identity and origins, and publishes
+one atomic counter item only after every check passes. A second or nested
+counter, mixed module items and selectable counter modes fail closed.
+
 An ordinary Scala `if`, `match`, collection size, recursion or class selection
 continues to execute during elaboration and therefore may depend only on static
 Scala values.

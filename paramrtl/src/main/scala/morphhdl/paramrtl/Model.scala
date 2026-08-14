@@ -170,6 +170,14 @@ object ModuleItem {
       elementType: PackedBits,
       depth: IntExpr
   ) extends ModuleItem
+  final case class SynchronousCounter(
+      label: String,
+      clock: RtlExpr.Ref,
+      reset: RtlExpr.Ref,
+      enable: RtlExpr.Ref,
+      count: RtlExpr.Ref,
+      limit: IntExpr
+  ) extends ModuleItem
 }
 
 final case class ModuleDef(

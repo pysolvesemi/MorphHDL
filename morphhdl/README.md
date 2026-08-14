@@ -177,3 +177,13 @@ and the memory fixture; constant evaluation creates no runtime hardware.
 `$clog2` is synthesizable and standardized in Verilog-2005, but remains
 forbidden to preserve the 2001 baseline. `addressWidth` stays distinct because
 it guarantees a minimum result of one.
+
+Increment 25 adds one bounded `SynchronousCounter` that corresponds to the
+existing `spinal.lib.Counter` witness. A direct positive public `LIMIT`
+parameter controls both the terminal `LIMIT - 1` comparison and the exact
+unsigned `addressWidth` count output. The process uses active-high synchronous
+reset-to-zero, reset priority, active-high enable with disabled hold, increment
+by one and wrap to zero. The seventeenth `parameterized_counter.v` artifact
+proves limits 1, 2, 3, 5 and 8 without regeneration. Load, down-count,
+saturation, rollover pulse, asynchronous reset and general sequential
+statements remain rejected.

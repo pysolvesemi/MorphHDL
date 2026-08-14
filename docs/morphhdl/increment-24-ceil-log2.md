@@ -172,5 +172,9 @@ the required increment, terminal comparison, rollover, reset, enable and hold
 semantics. A concrete Spinal `Counter` witness plus power-of-two,
 non-power-of-two and awkward ParamRTL/Verilog overrides would make the new
 sizing operation useful without jumping directly to a broad FIFO feature.
-Increment 26 can then compose the reviewed counter and single-port memory
-contracts into a bounded synchronous FIFO.
+
+The Increment 25 review made one prerequisite explicit: the existing
+shared-address single-port memory cannot support simultaneous FIFO push and
+pop at different locations. Increment 26 therefore adds a bounded
+single-clock synchronous 1R1W simple-dual-port memory with independent read
+and write addresses. A bounded synchronous FIFO follows in Increment 27.

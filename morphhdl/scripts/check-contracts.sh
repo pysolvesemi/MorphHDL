@@ -74,6 +74,7 @@ generated_contracts=(
   synchronous_enabled_register.v
   asynchronous_enabled_register.v
   single_port_memory.v
+  parameterized_counter.v
 )
 
 if (( using_reviewed_goldens == 0 )); then
@@ -120,6 +121,7 @@ asynchronous_register_file="$generated_dir/asynchronous_register.v"
 synchronous_enabled_register_file="$generated_dir/synchronous_enabled_register.v"
 asynchronous_enabled_register_file="$generated_dir/asynchronous_enabled_register.v"
 single_port_memory_file="$generated_dir/single_port_memory.v"
+parameterized_counter_file="$generated_dir/parameterized_counter.v"
 
 parity_args=("$parity_file")
 for live_phase_id_file in "${live_phase_id_files[@]}"; do
@@ -145,6 +147,7 @@ design_files=(
   "$synchronous_enabled_register_file"
   "$asynchronous_enabled_register_file"
   "$single_port_memory_file"
+  "$parameterized_counter_file"
 )
 
 all_verilog_files=(
@@ -165,6 +168,7 @@ all_verilog_files=(
   "$examples_dir/synchronous_enabled_register_tb.v"
   "$examples_dir/asynchronous_enabled_register_tb.v"
   "$examples_dir/single_port_memory_tb.v"
+  "$examples_dir/parameterized_counter_tb.v"
 )
 
 read_property() {
@@ -233,6 +237,14 @@ require_property implementation.asynchronous_register true
 require_property process.clock_enable active-high-hold
 require_property implementation.synchronous_enabled_register true
 require_property implementation.asynchronous_enabled_register true
+require_property implementation.synchronous_counter true
+require_property counter.limit positive-direct-public-parameter
+require_property counter.width address-width-of-limit
+require_property counter.reset active-high-synchronous-zero
+require_property counter.enable active-high-hold
+require_property counter.rollover limit-minus-one-to-zero
+require_property counter.direction up
+require_property counter.out_of_range forbidden
 require_property memory.parameterized_depth true
 require_property memory.address_width depth-derived
 require_property memory.address_capacity_guard true
@@ -353,6 +365,8 @@ expected_modules=(
   AsynchronousEnabledRegisterTb
   SinglePortMemory
   SinglePortMemoryTb
+  ParameterizedCounter
+  ParameterizedCounterTb
 )
 
 for module_name in "${expected_modules[@]}"; do
@@ -381,7 +395,7 @@ helper = """  function integer morphhdl$ceil_log2;
     end
   endfunction"""
 
-expected_helpers = {"derived_width.v", "single_port_memory.v"}
+expected_helpers = {"derived_width.v", "single_port_memory.v", "parameterized_counter.v"}
 for raw_path in sys.argv[1:]:
     path = pathlib.Path(raw_path)
     source = path.read_text(encoding="utf-8")
@@ -394,11 +408,14 @@ for raw_path in sys.argv[1:]:
         raise SystemExit("superseded logarithm threshold chain remains: {}".format(path))
 
 derived = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
-memory = pathlib.Path(sys.argv[-1]).read_text(encoding="utf-8")
+memory = pathlib.Path(sys.argv[-2]).read_text(encoding="utf-8")
+counter = pathlib.Path(sys.argv[-1]).read_text(encoding="utf-8")
 if derived.count("morphhdl$ceil_log2(LANES, 0)") != 1:
     raise SystemExit("DerivedWidth does not call mathematical ceiling-log2 exactly once")
 if memory.count("morphhdl$ceil_log2(DEPTH, 1)") != 1:
     raise SystemExit("SinglePortMemory does not call address width exactly once")
+if counter.count("morphhdl$ceil_log2(LIMIT, 1)") != 3:
+    raise SystemExit("ParameterizedCounter does not use its derived width exactly three times")
 PY
 then
   echo "Constant-function logarithm lowering contract failed" >&2
@@ -666,6 +683,50 @@ then
   exit 1
 fi
 
+expected_counter_port='  output reg [(morphhdl$ceil_log2(LIMIT, 1))-1:0] count,'
+
+if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+LIMIT[[:space:]]*=[[:space:]]*5' "$parameterized_counter_file" ||
+   ! grep -Fqx "$expected_counter_port" "$parameterized_counter_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+clk' "$parameterized_counter_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+reset' "$parameterized_counter_file" ||
+   ! grep -Eq 'input[[:space:]]+wire[[:space:]]+\[0:0\][[:space:]]+enable' "$parameterized_counter_file" ||
+   ! grep -Eq 'always[[:space:]]+@\([[:space:]]*posedge[[:space:]]+clk[[:space:]]*\)[[:space:]]+begin[[:space:]]*:[[:space:]]*p_counter' "$parameterized_counter_file" ||
+   ! grep -Eq "if[[:space:]]*\\([[:space:]]*reset[[:space:]]*==[[:space:]]*1'b1[[:space:]]*\\)[[:space:]]*begin" "$parameterized_counter_file" ||
+   ! grep -Eq "end[[:space:]]+else[[:space:]]+if[[:space:]]*\\([[:space:]]*enable[[:space:]]*==[[:space:]]*1'b1[[:space:]]*\\)[[:space:]]*begin" "$parameterized_counter_file" ||
+   ! grep -Eq 'if[[:space:]]*\([[:space:]]*count[[:space:]]*==[[:space:]]*LIMIT[[:space:]]*-[[:space:]]*1[[:space:]]*\)[[:space:]]*begin' "$parameterized_counter_file" ||
+   [[ "$(grep -Ec "count[[:space:]]*<=[[:space:]]*\\{morphhdl\\\$ceil_log2\\(LIMIT,[[:space:]]*1\\)\\{1'b0\\}\\}[[:space:]]*;" "$parameterized_counter_file")" != "2" ]] ||
+   ! grep -Eq "count[[:space:]]*<=[[:space:]]*count[[:space:]]*\\+[[:space:]]*1'b1[[:space:]]*;" "$parameterized_counter_file" ||
+   [[ "$(grep -Ec 'always[[:space:]]+@\(' "$parameterized_counter_file")" != "1" ]] ||
+   [[ "$(grep -Ec 'count[[:space:]]*<=' "$parameterized_counter_file")" != "3" ]] ||
+   grep -Eq 'always_comb|always_ff|always_latch|always[[:space:]]+@\*|initial[[:space:]]+begin|count[[:space:]]*=[^=]' "$parameterized_counter_file"; then
+  echo "ParameterizedCounter does not retain reset-priority enabled modulo-up-count semantics" >&2
+  exit 1
+fi
+
+if ! python3 - "$parameterized_counter_file" <<'PY'
+import pathlib
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+canonical_process = """  always @(posedge clk) begin : p_counter
+    if (reset == 1'b1) begin
+      count <= {morphhdl$ceil_log2(LIMIT, 1){1'b0}};
+    end else if (enable == 1'b1) begin
+      if (count == LIMIT - 1) begin
+        count <= {morphhdl$ceil_log2(LIMIT, 1){1'b0}};
+      end else begin
+        count <= count + 1'b1;
+      end
+    end
+  end"""
+if source.count(canonical_process) != 1:
+    raise SystemExit("missing exact synchronous counter process")
+PY
+then
+  echo "ParameterizedCounter process is not canonical" >&2
+  exit 1
+fi
+
 missing_tools=()
 for tool in iverilog verilator vvp yosys; do
   if ! command -v "$tool" >/dev/null 2>&1; then
@@ -707,6 +768,7 @@ cp "$asynchronous_register_file" "$tmp_dir/asynchronous_register.v"
 cp "$synchronous_enabled_register_file" "$tmp_dir/synchronous_enabled_register.v"
 cp "$asynchronous_enabled_register_file" "$tmp_dir/asynchronous_enabled_register.v"
 cp "$single_port_memory_file" "$tmp_dir/single_port_memory.v"
+cp "$parameterized_counter_file" "$tmp_dir/parameterized_counter.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
 yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
@@ -723,6 +785,7 @@ yosys_asynchronous_register_file="$tmp_dir/asynchronous_register.v"
 yosys_synchronous_enabled_register_file="$tmp_dir/synchronous_enabled_register.v"
 yosys_asynchronous_enabled_register_file="$tmp_dir/asynchronous_enabled_register.v"
 yosys_single_port_memory_file="$tmp_dir/single_port_memory.v"
+yosys_parameterized_counter_file="$tmp_dir/parameterized_counter.v"
 
 echo "Verilator: $(verilator --version)"
 echo "Icarus: $(iverilog -V 2>/dev/null | head -n 1)"
@@ -737,7 +800,9 @@ do
   yosys -q -p \
     "read_verilog -noautowire $helper_file; hierarchy -check -top $helper_top; select -assert-none t:\$shr t:\$sshr t:\$shift t:\$shiftx t:\$add"
 done
-echo "Yosys constant-function logarithm helpers create no runtime shift/add cells"
+yosys -q -p \
+  "read_verilog -noautowire $yosys_parameterized_counter_file; hierarchy -check -top ParameterizedCounter; proc; opt; select -assert-none t:\$shr t:\$sshr t:\$shift t:\$shiftx"
+echo "Yosys constant-function logarithm helpers create no runtime shift cells"
 
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
@@ -1061,6 +1126,16 @@ verilator --lint-only --language 1364-2001 -Wall \
   -GDEPTH=1 -GWIDTH=1 \
   "$single_port_memory_file"
 
+for counter_limit in 1 2 3 5 8; do
+  verilator --lint-only --language 1364-2001 -Wall \
+    -Wno-DECLFILENAME \
+    -Wno-WIDTHEXPAND \
+    -Wno-WIDTHTRUNC \
+    --top-module ParameterizedCounter \
+    -GLIMIT="$counter_limit" \
+    "$parameterized_counter_file"
+done
+
 iverilog -g2001 -Wall -s ParameterizedWireTb \
   -o "$tmp_dir/parameterized_wire.vvp" \
   "$parameterized_wire_file" \
@@ -1234,6 +1309,17 @@ single_port_memory_output="$(vvp "$tmp_dir/single_port_memory.vvp")"
 echo "$single_port_memory_output"
 if ! printf '%s\n' "$single_port_memory_output" | grep -q 'PASS: SinglePortMemory'; then
   echo "SinglePortMemory simulation did not report PASS" >&2
+  exit 1
+fi
+
+iverilog -g2001 -Wall -s ParameterizedCounterTb \
+  -o "$tmp_dir/parameterized_counter.vvp" \
+  "$parameterized_counter_file" \
+  "$examples_dir/parameterized_counter_tb.v"
+parameterized_counter_output="$(vvp "$tmp_dir/parameterized_counter.vvp")"
+echo "$parameterized_counter_output"
+if ! printf '%s\n' "$parameterized_counter_output" | grep -q 'PASS: ParameterizedCounter'; then
+  echo "ParameterizedCounter simulation did not report PASS" >&2
   exit 1
 fi
 
@@ -1802,6 +1888,77 @@ yosys_asynchronous_enabled_register_mutation_must_fail \
   synchronous-reset 's/ or posedge reset//'
 yosys_asynchronous_enabled_register_mutation_must_fail \
   reset-to-ones "s/{WIDTH{1'b0}}/{WIDTH{1'b1}}/"
+
+yosys_parameterized_counter_synthesize_and_check() {
+  local label="$1"
+  local expected_limit="$2"
+  local parameter_command="$3"
+  local expected_width=1
+  local capacity=2
+  local process_netlist="$tmp_dir/ParameterizedCounter-${label}-process.json"
+  local synthesized_netlist="$tmp_dir/ParameterizedCounter-${label}-synthesized.json"
+
+  while (( capacity < expected_limit )); do
+    expected_width=$((expected_width + 1))
+    capacity=$((capacity * 2))
+  done
+
+  yosys -q -p \
+    "read_verilog -noautowire $yosys_parameterized_counter_file; $parameter_command hierarchy -check -top ParameterizedCounter; proc; opt_dff; opt_clean; check -assert; write_json $process_netlist; synth -top ParameterizedCounter; check -assert; write_json $synthesized_netlist"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-parameterized-counter-contract.py" \
+    "$process_netlist" --limit "$expected_limit"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$synthesized_netlist" ParameterizedCounter \
+    --port "clk:input:1" \
+    --port "count:output:$expected_width" \
+    --port "enable:input:1" \
+    --port "reset:input:1"
+}
+
+yosys_parameterized_counter_synthesize_and_check \
+  default 5 ""
+yosys_parameterized_counter_synthesize_and_check \
+  limit-three 3 "chparam -set LIMIT 3 ParameterizedCounter;"
+yosys_parameterized_counter_synthesize_and_check \
+  limit-eight 8 "chparam -set LIMIT 8 ParameterizedCounter;"
+
+yosys_parameterized_counter_mutation_must_fail() {
+  local label="$1"
+  local sed_expression="$2"
+  local mutated_file="$tmp_dir/parameterized-counter-${label}.v"
+  local mutated_netlist="$tmp_dir/ParameterizedCounter-${label}-mutated.json"
+
+  sed "$sed_expression" "$yosys_parameterized_counter_file" > "$mutated_file"
+  if cmp -s "$yosys_parameterized_counter_file" "$mutated_file"; then
+    echo "ParameterizedCounter mutation did not change the fixture: $label" >&2
+    exit 1
+  fi
+
+  if ! yosys -q -p \
+      "read_verilog -noautowire $mutated_file; hierarchy -check -top ParameterizedCounter; proc; opt_dff; opt_clean; check -assert; write_json $mutated_netlist"; then
+    echo "Yosys rejected forbidden ParameterizedCounter mutation during synthesis: $label"
+    return
+  fi
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-parameterized-counter-contract.py" \
+      "$mutated_netlist" --limit 5; then
+    echo "ParameterizedCounter checker accepted forbidden mutation: $label" >&2
+    exit 1
+  fi
+  echo "Yosys ParameterizedCounter rejected forbidden mutation: $label"
+}
+
+yosys_parameterized_counter_mutation_must_fail \
+  off-by-one-terminal 's/count == LIMIT - 1/count == LIMIT/'
+yosys_parameterized_counter_mutation_must_fail \
+  decrement "s/count + 1'b1/count - 1'b1/"
+yosys_parameterized_counter_mutation_must_fail \
+  active-low-enable "s/enable == 1'b1/enable == 1'b0/"
+yosys_parameterized_counter_mutation_must_fail \
+  enable-before-reset 's/reset/__morph_swap__/g;s/enable/reset/g;s/__morph_swap__/enable/g'
+yosys_parameterized_counter_mutation_must_fail \
+  falling-edge-clock 's/posedge clk/negedge clk/'
+yosys_parameterized_counter_mutation_must_fail \
+  reset-to-ones "s/{morphhdl\\\$ceil_log2(LIMIT, 1){1'b0}}/{morphhdl\\\$ceil_log2(LIMIT, 1){1'b1}}/"
 
 yosys_single_port_memory_synthesize_and_check() {
   local label="$1"
