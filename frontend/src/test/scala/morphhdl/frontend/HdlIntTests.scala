@@ -10,7 +10,7 @@ import morphhdl.paramrtl.BoolExpr.{
   NotEqual
 }
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
-import morphhdl.paramrtl.IntExpr.{Add, Divide, Literal, Modulo, Multiply, Negate, ParameterRef, Subtract}
+import morphhdl.paramrtl.IntExpr.{Add, Divide, Literal, Max, Min, Modulo, Multiply, Negate, ParameterRef, Subtract}
 import morphhdl.paramrtl.IntegerParameter
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -45,6 +45,8 @@ class HdlIntTests extends AnyFunSuite {
       left * right -> (BigInt(85), Multiply(ParameterRef("LEFT"), ParameterRef("RIGHT"))),
       left / right -> (BigInt(3), Divide(ParameterRef("LEFT"), ParameterRef("RIGHT"))),
       left % right -> (BigInt(2), Modulo(ParameterRef("LEFT"), ParameterRef("RIGHT"))),
+      left.min(right) -> (BigInt(5), Min(ParameterRef("LEFT"), ParameterRef("RIGHT"))),
+      left.max(right) -> (BigInt(17), Max(ParameterRef("LEFT"), ParameterRef("RIGHT"))),
       -left -> (BigInt(-17), Negate(ParameterRef("LEFT")))
     )
 
@@ -67,10 +69,15 @@ class HdlIntTests extends AnyFunSuite {
       width / 2,
       32 / width,
       width % 3,
-      19 % width
+      19 % width,
+      width.min(3),
+      width.max(12)
     )
 
-    assert(expressions.map(_.witness) == Vector[BigInt](11, 11, 5, 12, 24, 24, 4, 4, 2, 3))
+    assert(
+      expressions.map(_.witness) ==
+        Vector[BigInt](11, 11, 5, 12, 24, 24, 4, 4, 2, 3, 3, 12)
+    )
     assert(expressions.map(_.expression) == Vector(
       Add(ParameterRef("WIDTH"), Literal(3)),
       Add(Literal(3), ParameterRef("WIDTH")),
@@ -81,7 +88,9 @@ class HdlIntTests extends AnyFunSuite {
       Divide(ParameterRef("WIDTH"), Literal(2)),
       Divide(Literal(32), ParameterRef("WIDTH")),
       Modulo(ParameterRef("WIDTH"), Literal(3)),
-      Modulo(Literal(19), ParameterRef("WIDTH"))
+      Modulo(Literal(19), ParameterRef("WIDTH")),
+      Min(ParameterRef("WIDTH"), Literal(3)),
+      Max(ParameterRef("WIDTH"), Literal(12))
     ))
   }
 

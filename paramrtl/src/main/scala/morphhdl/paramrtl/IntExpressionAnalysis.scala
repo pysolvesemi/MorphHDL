@@ -8,6 +8,8 @@ import morphhdl.paramrtl.IntExpr.{
   Literal,
   LocalParameterRef,
   GenerateIndexRef,
+  Max,
+  Min,
   Modulo,
   Multiply,
   Negate,
@@ -176,6 +178,8 @@ private[morphhdl] object IntExpressionAnalysis {
             case Multiply(left, right) => push(right); push(left)
             case Divide(left, right)   => push(right); push(left)
             case Modulo(left, right)   => push(right); push(left)
+            case Min(left, right)      => push(right); push(left)
+            case Max(left, right)      => push(right); push(left)
             case Select(condition, whenTrue, whenFalse) =>
               push(whenFalse)
               push(whenTrue)
@@ -298,6 +302,34 @@ private[morphhdl] object IntExpressionAnalysis {
                   }
                 }
               )
+            case value @ Min(left, right) =>
+              integerBooleanReferences.put(value, merge(integerRefs(left), integerRefs(right)))
+              memo.put(
+                value,
+                binary(left, right) { (leftFacts, rightFacts) =>
+                  IntExprFacts(
+                    leftFacts.defaultValue.min(rightFacts.defaultValue),
+                    IntInterval(
+                      combine(leftFacts.interval.lower, rightFacts.interval.lower)(_.min(_)),
+                      knownExtremum(leftFacts.interval.upper, rightFacts.interval.upper)(_.min(_))
+                    )
+                  )
+                }
+              )
+            case value @ Max(left, right) =>
+              integerBooleanReferences.put(value, merge(integerRefs(left), integerRefs(right)))
+              memo.put(
+                value,
+                binary(left, right) { (leftFacts, rightFacts) =>
+                  IntExprFacts(
+                    leftFacts.defaultValue.max(rightFacts.defaultValue),
+                    IntInterval(
+                      knownExtremum(leftFacts.interval.lower, rightFacts.interval.lower)(_.max(_)),
+                      combine(leftFacts.interval.upper, rightFacts.interval.upper)(_.max(_))
+                    )
+                  )
+                }
+              )
             case value @ Select(condition, whenTrue, whenFalse) =>
               val conditionReferences = booleanRefs(condition)
               integerBooleanReferences.put(
@@ -417,6 +449,8 @@ private[morphhdl] object IntExpressionAnalysis {
             case Multiply(left, right) => pushInteger(right); pushInteger(left)
             case Divide(left, right)   => pushInteger(right); pushInteger(left)
             case Modulo(left, right)   => pushInteger(right); pushInteger(left)
+            case Min(left, right)      => pushInteger(right); pushInteger(left)
+            case Max(left, right)      => pushInteger(right); pushInteger(left)
             case Select(condition, whenTrue, whenFalse) =>
               pushInteger(whenFalse)
               pushInteger(whenTrue)
@@ -454,6 +488,21 @@ private[morphhdl] object IntExpressionAnalysis {
       leftValue <- left
       rightValue <- right
     } yield operation(leftValue, rightValue)
+
+  /**
+    * An extremum can retain a one-sided bound from either operand: `min` is no greater than
+    * either operand, and `max` is no less than either operand.
+    */
+  private def knownExtremum(
+      left: Option[BigInt],
+      right: Option[BigInt]
+  )(operation: (BigInt, BigInt) => BigInt): Option[BigInt] =
+    (left, right) match {
+      case (Some(a), Some(b)) => Some(operation(a, b))
+      case (some @ Some(_), None) => some
+      case (None, some @ Some(_)) => some
+      case (None, None) => None
+    }
 
   private def addressWidthValue(value: BigInt): BigInt =
     if (value <= 2) BigInt(1) else BigInt((value - 1).bitLength)

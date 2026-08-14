@@ -20,7 +20,12 @@ private[morphhdl] object DerivedWidthContractFixture {
         val dataWidth = HdlInt.param("DATA_WIDTH", default = 8, min = 1, max = 1024)
         val lanes = HdlInt.param("LANES", default = 4, min = 1, max = 64)
         val totalWidth = localParam("TOTAL_WIDTH", lanes * dataWidth)
-        val paddedWidth = localParam("PADDED_WIDTH", totalWidth + 3)
+        val clampedPadding =
+          localParam("CLAMPED_PADDING", dataWidth.min(HdlInt.literal(3)))
+        val paddedWidth = localParam(
+          "PADDED_WIDTH",
+          (totalWidth + clampedPadding).max(HdlInt.literal(4))
+        )
         val packed = packedBits(paddedWidth)
         val module = moduleDef(
           name = "DerivedWidth",
@@ -38,6 +43,7 @@ private[morphhdl] object DerivedWidthContractFixture {
           localParameters = ordered(
             Vector(
               integerLocalParameter(totalWidth),
+              integerLocalParameter(clampedPadding),
               integerLocalParameter(paddedWidth)
             ),
             reverseConstructionOrder

@@ -5,6 +5,7 @@ module DerivedWidthTb;
   localparam integer AWKWARD_WIDTH = 18;
   localparam integer LANES_ONLY_WIDTH = 27;
   localparam integer DATA_WIDTH_ONLY_WIDTH = 23;
+  localparam integer DYNAMIC_MIN_WIDTH = 6;
 
   reg  [DEFAULT_WIDTH-1:0] default_din;
   wire [DEFAULT_WIDTH-1:0] default_dout;
@@ -16,6 +17,8 @@ module DerivedWidthTb;
   wire [LANES_ONLY_WIDTH-1:0] lanes_only_dout;
   reg  [DATA_WIDTH_ONLY_WIDTH-1:0] data_width_only_din;
   wire [DATA_WIDTH_ONLY_WIDTH-1:0] data_width_only_dout;
+  reg  [DYNAMIC_MIN_WIDTH-1:0] dynamic_min_din;
+  wire [DYNAMIC_MIN_WIDTH-1:0] dynamic_min_dout;
 
   DerivedWidth default_dut (
     .din  (default_din),
@@ -52,19 +55,29 @@ module DerivedWidthTb;
     .dout (data_width_only_dout)
   );
 
+  DerivedWidth #(
+    .DATA_WIDTH(2),
+    .LANES(2)
+  ) dynamic_min_dut (
+    .din  (dynamic_min_din),
+    .dout (dynamic_min_dout)
+  );
+
   initial begin
     default_din = {DEFAULT_WIDTH{1'b1}};
     minimum_din = {MINIMUM_WIDTH{1'b1}};
     awkward_din = {AWKWARD_WIDTH{1'b1}};
     lanes_only_din = {LANES_ONLY_WIDTH{1'b1}};
     data_width_only_din = {DATA_WIDTH_ONLY_WIDTH{1'b1}};
+    dynamic_min_din = {DYNAMIC_MIN_WIDTH{1'b1}};
     #1;
 
     if ((default_dout !== default_din) ||
         (minimum_dout !== minimum_din) ||
         (awkward_dout !== awkward_din) ||
         (lanes_only_dout !== lanes_only_din) ||
-        (data_width_only_dout !== data_width_only_din)) begin
+        (data_width_only_dout !== data_width_only_din) ||
+        (dynamic_min_dout !== dynamic_min_din)) begin
       $display("FAIL: DerivedWidth");
     end else begin
       $display("PASS: DerivedWidth");

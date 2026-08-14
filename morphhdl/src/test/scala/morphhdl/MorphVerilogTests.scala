@@ -1290,6 +1290,8 @@ class MorphVerilogTests extends AnyFunSuite {
       assert(verilog.contains("localparam integer DIVIDED = MULTIPLIED / DIVISOR;"))
       assert(verilog.contains("localparam integer REMAINDER = DIVIDED % DIVISOR;"))
       assert(verilog.contains("localparam integer NEGATED = -REMAINDER;"))
+      assert(verilog.contains("localparam integer MINIMUM = (BASE < 10) ? BASE : 10;"))
+      assert(verilog.contains("localparam integer MAXIMUM = (BASE > 14) ? BASE : 14;"))
       assert(verilog.contains("localparam integer WIDTH = DIVIDED + NEGATED + 1;"))
     }
   }
@@ -1355,6 +1357,8 @@ class MorphVerilogTests extends AnyFunSuite {
     val divided = localParam("DIVIDED", multiplied / divisor)
     val remainder = localParam("REMAINDER", divided % divisor)
     val negated = localParam("NEGATED", -remainder)
+    val minimum = localParam("MINIMUM", base.min(HdlInt.literal(10)))
+    val maximum = localParam("MAXIMUM", base.max(HdlInt.literal(14)))
     val width = localParam("WIDTH", divided + negated + 1)
     val packed = packedBits(width)
     val module = moduleDef(
@@ -1369,6 +1373,8 @@ class MorphVerilogTests extends AnyFunSuite {
         integerLocalParameter(negated),
         integerLocalParameter(remainder),
         integerLocalParameter(divided),
+        integerLocalParameter(minimum),
+        integerLocalParameter(maximum),
         integerLocalParameter(multiplied),
         integerLocalParameter(subtracted),
         integerLocalParameter(added)

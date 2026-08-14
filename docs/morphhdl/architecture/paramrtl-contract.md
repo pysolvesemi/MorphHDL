@@ -20,7 +20,8 @@ algebra contains:
 - arithmetic, comparison and Boolean operations;
 - conditional selection;
 - positive `AddressWidth` with a minimum one-bit result;
-- reserved general-purpose `clog2`, minimum and maximum semantic operations;
+- mathematical `Min` and `Max` operations;
+- a reserved general-purpose `clog2` semantic operation;
 - explicit signedness and arbitrary-precision constants;
 - constraints over parameter expressions.
 
@@ -49,6 +50,18 @@ the same function. Equivalence and substitution retain the node, including
 public, local and parent-bound contexts. Memory validation recognizes an
 address width derived from that same depth expression, so exact correlation
 proves capacity without replacing the width by an unrelated interval minimum.
+
+Increment 23 implements `IntExpr.Min(left, right)` and
+`IntExpr.Max(left, right)`. Validation, exact evaluation, substitution,
+equivalence and dependency discovery recurse through both operands. For
+intervals `[a, b]` and `[c, d]`, minimum produces
+`[min(a, c), min(b, d)]` and maximum produces
+`[max(a, c), max(b, d)]`. This conservative whole-domain result does not use
+the default witness to discard either operand. Literal pairs and identical
+operands normalize after validation, and equivalence recognizes swapped
+operands; broader constraint-based dominance rewriting remains deferred.
+Target capability passes remain responsible for proving that the chosen
+lowering is finite and representable.
 
 A parameter expression is not an RTL value. If a design needs a parameter as
 runtime data, an explicit conversion node creates an RTL constant of a declared

@@ -70,6 +70,9 @@ The contract is split into these documents:
 - [Increment 22 memory read enable](../increment-22-read-enable.md): one
   active-high whole-word read enable with disabled output hold, independent
   writes and retained read-first collisions.
+- [Increment 23 integer minimum and maximum](../increment-23-min-max.md): typed
+  mathematical `Min`/`Max`, whole-domain analysis and bounded deterministic
+  strict Verilog-2001 ternary lowering.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -94,6 +97,9 @@ that memory's address width from `DEPTH` through a portable typed conditional
 expression without `$clog2` or an externally overrideable helper parameter.
 Increment 22 adds an exact one-bit active-high read enable while keeping the
 write guard independent and preserving read-first behavior.
+Increment 23 adds target-neutral minimum and maximum expressions without
+changing the public artifact count; both operands remain validated and dynamic
+strict-Verilog lowering is bounded against exponential source expansion.
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants
