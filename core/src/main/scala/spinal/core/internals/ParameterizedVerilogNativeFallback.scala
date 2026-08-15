@@ -8,7 +8,7 @@ import scala.collection.mutable.ArrayBuffer
 import spinal.core._
 
 /**
-  * Generic parameterized-Verilog lowering for the bounded Increment 31
+  * Generic parameterized-Verilog lowering for the bounded Increment 32
   * expression surface.
   *
   * The existing ComponentEmitterVerilog remains authoritative for ordinary
@@ -31,7 +31,8 @@ private[internals] object ParameterizedVerilogNativeFallback {
     "SPINAL-PARAMETERIZED-VERILOG-REGISTER-PATHS-UNSUPPORTED",
     "SPINAL-PARAMETERIZED-VERILOG-REGISTER-DRIVER-UNSUPPORTED",
     "SPINAL-PARAMETERIZED-VERILOG-MULTIPLE-DRIVERS-UNSUPPORTED",
-    "SPINAL-PARAMETERIZED-VERILOG-OUTPUT-DRIVER-UNSUPPORTED"
+    "SPINAL-PARAMETERIZED-VERILOG-OUTPUT-DRIVER-UNSUPPORTED",
+    "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-UNSUPPORTED"
   )
 
   def supports(
@@ -39,7 +40,12 @@ private[internals] object ParameterizedVerilogNativeFallback {
       component: Component
   ): Boolean =
     eligibleGateFailures.contains(failure.code) &&
-      ParameterizedWidth.parametersOf(component).nonEmpty &&
+      (
+        ParameterizedWidth.parametersOf(component).nonEmpty ||
+          component.children.exists(
+            child => ParameterizedWidth.parametersOf(child).nonEmpty
+          )
+      ) &&
       hasPotentialIncrement31Surface(component)
 
   private def hasPotentialIncrement31Surface(component: Component): Boolean = {
@@ -78,27 +84,62 @@ private[internals] object ParameterizedVerilogNativeFallback {
     count == 1 && falseOnly
   }
 
-  def rewrite(component: Component, verilog: String, pc: PhaseContext): String = {
-    val analysis = new Analysis(component, pc)
+  def rewrite(component: Component, verilog: String, pc: PhaseContext): String =
+    rewrite(component, verilog, pc, child => child)
+
+  def rewrite(
+      component: Component,
+      verilog: String,
+      pc: PhaseContext,
+      canonicalOf: Component => Component
+  ): String = {
+    val hierarchy = ParameterizedVerilogHierarchy.analyze(component, pc, canonicalOf)
+    val analysis = new Analysis(
+      component,
+      pc,
+      hierarchy.parameters,
+      hierarchy.hasParameterizedInstances
+    )
     analysis.validate()
 
-    val modulePattern =
-      ("(?m)^module\\s+" + Pattern.quote(component.definitionName) + "\\s*\\(").r
-    val withHeader = modulePattern.replaceFirstIn(
-      verilog,
-      Matcher.quoteReplacement(renderHeader(component.definitionName, analysis.parameters))
-    )
-    if (withHeader == verilog) {
+    val withHeader =
+      if (analysis.parameters.isEmpty) verilog
+      else {
+        val modulePattern =
+          ("(?m)^module\\s+" + Pattern.quote(component.definitionName) + "\\s*\\(").r
+        val rewritten = modulePattern.replaceFirstIn(
+          verilog,
+          Matcher.quoteReplacement(
+            renderHeader(component.definitionName, analysis.parameters)
+          )
+        )
+        if (rewritten == verilog) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-NOT-FOUND",
+            s"normal Verilog emission did not contain the expected module header for '${component.definitionName}'"
+          )
+        }
+        rewritten
+      }
+
+    val (withHierarchy, hierarchyWidths) = hierarchy.rewrite(withHeader)
+    val allWidths =
+      analysis.symbolicDeclarationWidths.map { case (name, expression) =>
+        name -> expression.range
+      } ++ hierarchyWidths
+    val groupedWidths = allWidths.groupBy(_._1)
+    groupedWidths.collectFirst {
+      case (name, values) if values.map(_._2).distinct.size != 1 => name
+    }.foreach { name =>
       fail(
-        "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-NOT-FOUND",
-        s"normal Verilog emission did not contain the expected module header for '${component.definitionName}'"
+        "SPINAL-PARAMETERIZED-VERILOG-DECLARATION-WIDTH-CONFLICT",
+        s"symbolic analysis inferred conflicting packed ranges for declaration '$name'"
       )
     }
-
-    val widthsByName = analysis.symbolicDeclarationWidths.sortBy {
-      case (name, _) => -name.length
-    }
-    withHeader
+    val widthsByName = groupedWidths.toVector
+      .map { case (name, values) => name -> values.head._2 }
+      .sortBy { case (name, _) => -name.length }
+    withHierarchy
       .split("\\n", -1)
       .map(line => rewriteDeclarationLine(line, widthsByName))
       .mkString("\n")
@@ -117,7 +158,7 @@ private[internals] object ParameterizedVerilogNativeFallback {
 
   private def rewriteDeclarationLine(
       line: String,
-      widthsByName: Vector[(String, WidthExpr)]
+      widthsByName: Vector[(String, String)]
   ): String = {
     val trimmed = line.trim
     val declarationLine =
@@ -126,7 +167,7 @@ private[internals] object ParameterizedVerilogNativeFallback {
         trimmed.startsWith("reg ") || trimmed.startsWith("logic ")
     if (!declarationLine) return line
 
-    widthsByName.foldLeft(line) { case (current, (name, expression)) =>
+    widthsByName.foldLeft(line) { case (current, (name, range)) =>
       val quotedName = Pattern.quote(name)
       val packedPattern = ("(\\[[^\\]]+\\])(\\s+)(" + quotedName + ")(?=\\s*(?:[,;]|$))").r
       var replaced = false
@@ -136,7 +177,7 @@ private[internals] object ParameterizedVerilogNativeFallback {
           if (replaced) matched.matched
           else {
             replaced = true
-            expression.range + matched.group(2) + matched.group(3)
+            range + matched.group(2) + matched.group(3)
           }
         }
       )
@@ -150,7 +191,7 @@ private[internals] object ParameterizedVerilogNativeFallback {
             if (inserted) matched.matched
             else {
               inserted = true
-              matched.group(1) + expression.range + " " + matched.group(2)
+              matched.group(1) + range + " " + matched.group(2)
             }
           }
         )
@@ -158,7 +199,12 @@ private[internals] object ParameterizedVerilogNativeFallback {
     }
   }
 
-  private final class Analysis(component: Component, pc: PhaseContext) {
+  private final class Analysis(
+      component: Component,
+      pc: PhaseContext,
+      hierarchyParameters: Vector[ElaborationIntegerParameter],
+      hasParameterizedHierarchy: Boolean
+  ) {
     private val declarations = ArrayBuffer.empty[BaseType]
     private val memories = ArrayBuffer.empty[Mem[_]]
     private val assignments = ArrayBuffer.empty[DataAssignmentStatement]
@@ -190,7 +236,8 @@ private[internals] object ParameterizedVerilogNativeFallback {
       }
 
     lazy val parameters: Vector[ElaborationIntegerParameter] = {
-      val referenced = symbolicDeclarationWidths.flatMap(_._2.parameters)
+      val referenced =
+        symbolicDeclarationWidths.flatMap(_._2.parameters) ++ hierarchyParameters
       val grouped = referenced.groupBy(_.name)
       grouped.collectFirst {
         case (name, values) if values.distinct.size != 1 => name
@@ -210,19 +257,13 @@ private[internals] object ParameterizedVerilogNativeFallback {
           "generic parameterized expressions target Verilog-2001, not SystemVerilog"
         )
       }
-      if (component.parent != null || component.children.nonEmpty) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-UNSUPPORTED",
-          s"component '${component.definitionName}' uses hierarchy before Increment 32 parameter binding"
-        )
-      }
       if (memories.nonEmpty) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-MEMORY-UNSUPPORTED",
           s"component '${component.definitionName}' uses native memories before Increment 35"
         )
       }
-      if (parameters.isEmpty) {
+      if (parameters.isEmpty && !hasParameterizedHierarchy) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-NO-SYMBOLIC-PORTS",
           s"component '${component.definitionName}' has no retained or inferred symbolic packed widths"
@@ -309,28 +350,52 @@ private[internals] object ParameterizedVerilogNativeFallback {
 
     private def validateAssignments(): Unit = {
       assignments.foreach { assignment =>
-        assignment.finalTarget match {
-          case target: BitVector
-              if assignment.target == target && assignment.source.isInstanceOf[WidthProvider] =>
-            val targetWidth = widthInference.ofBase(target)
-            val sourceWidth = widthInference.ofExpression(assignment.source)
-            if (targetWidth.isSymbolic && sourceWidth.isSymbolic && targetWidth != sourceWidth) {
-              fail(
-                "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
-                s"assignment to '${target.getName()}' crosses symbolic width expressions '${targetWidth.render}' and '${sourceWidth.render}'",
-                ParameterizedWidth.sourceLocationOf(target)
-              )
-            }
-            if (targetWidth.isSymbolic && !sourceWidth.isSymbolic) {
-              fail(
-                "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
-                s"assignment to symbolic signal '${target.getName()}' uses concrete-width expression ${sourceWidth.render}; explicit domain-safe conversion is required",
-                ParameterizedWidth.sourceLocationOf(target)
-              )
-            }
-          case _ =>
+        if (!isHierarchyBoundary(assignment)) {
+          assignment.finalTarget match {
+            case target: BitVector
+                if assignment.target == target && assignment.source.isInstanceOf[WidthProvider] =>
+              val targetWidth = widthInference.ofBase(target)
+              val sourceWidth = widthInference.ofExpression(assignment.source)
+              if (targetWidth.isSymbolic && sourceWidth.isSymbolic && targetWidth != sourceWidth) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
+                  s"assignment to '${target.getName()}' crosses symbolic width expressions '${targetWidth.render}' and '${sourceWidth.render}'",
+                  ParameterizedWidth.sourceLocationOf(target)
+                )
+              }
+              if (targetWidth.isSymbolic && !sourceWidth.isSymbolic) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
+                  s"assignment to symbolic signal '${target.getName()}' uses concrete-width expression ${sourceWidth.render}; explicit domain-safe conversion is required",
+                  ParameterizedWidth.sourceLocationOf(target)
+                )
+              }
+            case _ =>
+          }
         }
       }
+    }
+
+    private def isHierarchyBoundary(
+        assignment: DataAssignmentStatement
+    ): Boolean =
+      referencesDirectChild(assignment.target) ||
+        referencesDirectChild(assignment.source)
+
+    private def referencesDirectChild(expression: Expression): Boolean = {
+      var found = false
+      def visit(current: Expression): Unit = {
+        if (!found) {
+          current match {
+            case baseType: BaseType
+                if baseType.component != null && baseType.component.parent == component =>
+              found = true
+            case other => other.foreachExpression(visit)
+          }
+        }
+      }
+      visit(expression)
+      found
     }
 
     private def validateProcesses(): Unit = {
@@ -442,7 +507,9 @@ private[internals] object ParameterizedVerilogNativeFallback {
         val fullSources = ArrayBuffer.empty[Expression]
         bitVector.foreachStatements {
           case assignment: DataAssignmentStatement
-              if assignment.target == bitVector && assignment.finalTarget == bitVector =>
+              if assignment.target == bitVector &&
+                assignment.finalTarget == bitVector &&
+                !isHierarchyBoundary(assignment) =>
             fullSources += assignment.source
           case _ =>
         }

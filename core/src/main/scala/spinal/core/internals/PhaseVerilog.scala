@@ -218,7 +218,12 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
               // component, so expose that proven input view only while validating the
               // bounded native fallback, then restore the source signals unchanged.
               withPulledExternalClockInputs {
-                ParameterizedVerilogNativeFallback.rewrite(component, nativeResult, pc)
+                ParameterizedVerilogNativeFallback.rewrite(
+                      component,
+                      nativeResult,
+                      pc,
+                      child => Option(emitedComponentRef.get(child)).getOrElse(child)
+                    )
               }
             }
           )
