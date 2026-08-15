@@ -132,7 +132,7 @@ lazy val paramrtl = (project in file("paramrtl"))
   )
 
 lazy val frontend = (project in file("frontend"))
-  .dependsOn(paramrtl, core % "test->compile")
+  .dependsOn(paramrtl, core)
   .settings(
     defaultSettings,
     name := "MorphHDL-frontend",
@@ -228,4 +228,3 @@ addCommandAlias("testFormal", "testOnly * -- -n spinal.tester.formal")
 addCommandAlias("testWithoutFormal", "testOnly * -- -l spinal.tester.formal")
 
 assembly / assemblyOutputPath := file("./release/spinalhdl.jar")
-

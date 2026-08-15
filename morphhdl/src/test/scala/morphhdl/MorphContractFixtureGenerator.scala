@@ -10,33 +10,57 @@ object MorphContractFixtureGenerator {
 
   private final case class Fixture(
       filename: String,
-      program: Boolean => MorphProgram[Component]
+      generate: (SpinalConfig, Boolean) => Unit
   )
 
-  private val fixtures = Vector(
-    Fixture("parameterized_wire.v", ParameterizedWireContractFixture.program),
-    Fixture("derived_width.v", DerivedWidthContractFixture.program),
-    Fixture("parameter_forwarding.v", ParameterForwardingContractFixture.program),
-    Fixture("lane_array.v", LaneArrayContractFixture.program),
-    Fixture("conditional_forwarding.v", ConditionalForwardingContractFixture.program),
-    Fixture("comparison_routing.v", ComparisonRoutingContractFixture.program),
-    Fixture("conditional_width.v", ConditionalWidthContractFixture.program),
-    Fixture("boolean_forwarding.v", BooleanForwardingContractFixture.program),
-    Fixture("boolean_locals.v", BooleanLocalsContractFixture.program),
-    Fixture("case_routing.v", CaseRoutingContractFixture.program),
-    Fixture("runtime_mux.v", RuntimeMuxContractFixture.program),
-    Fixture("synchronous_register.v", SynchronousRegisterContractFixture.program),
-    Fixture("asynchronous_register.v", AsynchronousRegisterContractFixture.program),
-    Fixture("synchronous_enabled_register.v", SynchronousEnabledRegisterContractFixture.program),
+  private def dualSource(
+      filename: String,
+      program: Boolean => MorphProgram[Component]
+  ): Fixture =
     Fixture(
+      filename,
+      (config, reverseConstructionOrder) => {
+        MorphVerilog(config)(program(reverseConstructionOrder))
+        ()
+      }
+    )
+
+  private def singleSource(
+      filename: String,
+      component: Boolean => Component
+  ): Fixture =
+    Fixture(
+      filename,
+      (config, reverseConstructionOrder) => {
+        MorphVerilog(config)(component(reverseConstructionOrder))
+        ()
+      }
+    )
+
+  private val fixtures = Vector(
+    singleSource("parameterized_wire.v", ParameterizedWireContractFixture.component),
+    dualSource("derived_width.v", DerivedWidthContractFixture.program),
+    dualSource("parameter_forwarding.v", ParameterForwardingContractFixture.program),
+    dualSource("lane_array.v", LaneArrayContractFixture.program),
+    dualSource("conditional_forwarding.v", ConditionalForwardingContractFixture.program),
+    dualSource("comparison_routing.v", ComparisonRoutingContractFixture.program),
+    dualSource("conditional_width.v", ConditionalWidthContractFixture.program),
+    dualSource("boolean_forwarding.v", BooleanForwardingContractFixture.program),
+    dualSource("boolean_locals.v", BooleanLocalsContractFixture.program),
+    dualSource("case_routing.v", CaseRoutingContractFixture.program),
+    dualSource("runtime_mux.v", RuntimeMuxContractFixture.program),
+    dualSource("synchronous_register.v", SynchronousRegisterContractFixture.program),
+    dualSource("asynchronous_register.v", AsynchronousRegisterContractFixture.program),
+    dualSource("synchronous_enabled_register.v", SynchronousEnabledRegisterContractFixture.program),
+    dualSource(
       "asynchronous_enabled_register.v",
       AsynchronousEnabledRegisterContractFixture.program
     ),
-    Fixture("single_port_memory.v", SinglePortMemoryContractFixture.program),
-    Fixture("parameterized_counter.v", ParameterizedCounterContractFixture.program),
-    Fixture("simple_dual_port_memory.v", SimpleDualPortMemoryContractFixture.program),
-    Fixture("synchronous_stream_fifo.v", SynchronousStreamFifoContractFixture.program),
-    Fixture(
+    dualSource("single_port_memory.v", SinglePortMemoryContractFixture.program),
+    dualSource("parameterized_counter.v", ParameterizedCounterContractFixture.program),
+    dualSource("simple_dual_port_memory.v", SimpleDualPortMemoryContractFixture.program),
+    dualSource("synchronous_stream_fifo.v", SynchronousStreamFifoContractFixture.program),
+    dualSource(
       "synchronous_stream_m2s_pipe.v",
       SynchronousStreamM2sPipeContractFixture.program
     )
@@ -62,7 +86,7 @@ object MorphContractFixtureGenerator {
           )
         else SpinalConfig(targetDirectory = options.outputDirectory.toString)
       config.netlistFileName = fixture.filename
-      MorphVerilog(config)(fixture.program(options.reverseConstructionOrder))
+      fixture.generate(config, options.reverseConstructionOrder)
     }
   }
 

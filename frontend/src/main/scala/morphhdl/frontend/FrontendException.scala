@@ -442,6 +442,16 @@ private[frontend] object FrontendException {
       "Give every public parameter in a module a unique name."
     case "MORPH-FRONTEND-GENERATE-NAME-DUPLICATE" =>
       "Use unique stable labels for generate branches and .named(label = ..., index = ...) loops."
+    case "MORPH-FRONTEND-SPINAL-WIDTH-NOT-DIRECT-PARAMETER" |
+        "MORPH-FRONTEND-SPINAL-WIDTH-PROVENANCE-UNSUPPORTED" =>
+      "Pass the exact HdlInt returned by HdlInt.param directly to UInt(width bits)."
+    case "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-UNBOUNDED" |
+        "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-NONPOSITIVE" |
+        "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-TOO-LARGE" |
+        "MORPH-FRONTEND-SPINAL-WIDTH-DEFAULT-INVALID" =>
+      "Use a positive Int-sized literal width, or declare a positive non-empty Int-sized parameter domain whose default is inside it."
+    case "MORPH-FRONTEND-SPINAL-WIDTH-NAME-INVALID" =>
+      "Use a parameter identifier matching `[A-Za-z_][A-Za-z0-9_]*`."
     case "MORPH-FRONTEND-EMIT-OUTSIDE-CAPTURE" | "MORPH-FRONTEND-MISSING-COLLECTOR" =>
       "Emit module items inside ParamRtlFrontend.captureItems."
     case "MORPH-FRONTEND-SESSION-NESTED" =>

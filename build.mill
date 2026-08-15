@@ -103,10 +103,9 @@ object frontend extends Cross[Frontend](SpinalVersion.compilers) {
   def defaultCrossSegments = Seq(SpinalVersion.compilers.head)
 }
 trait Frontend extends SpinalModule {
-  def moduleDeps = Seq(paramrtl(crossScalaVersion))
+  def moduleDeps = Seq(paramrtl(crossScalaVersion), core(crossScalaVersion))
   override def scalacOptions = super.scalacOptions() ++ modulePluginOptions()
   def mvnDeps = super.mvnDeps() ++ Seq(mvn"com.lihaoyi::sourcecode:0.3.0")
-  override def testModuleDeps = Seq(core(crossScalaVersion))
 }
 
 object verilogBackend extends Cross[VerilogBackend](SpinalVersion.compilers) {
@@ -191,4 +190,3 @@ trait Tester extends SpinalModule with SpinalPublishModule {
   def mvnDeps = super.mvnDeps() ++ Seq(mvn"org.scalatest::scalatest:${scalatestVersion}")
   def publishVersion = SpinalVersion.tester
 }
-

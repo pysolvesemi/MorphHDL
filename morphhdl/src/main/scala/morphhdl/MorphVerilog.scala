@@ -28,6 +28,13 @@ object MorphVerilog {
       verilog: String
   )
 
+  private final case class PreparedSingleSourceGeneration(
+      top: String,
+      parameters: Vector[morphhdl.paramrtl.IntegerParameter],
+      inheritedValidationPhaseIds: Vector[String],
+      verilog: String
+  )
+
   private final case class PortShape(
       name: String,
       direction: String,
@@ -62,15 +69,67 @@ object MorphVerilog {
   def apply[T <: Component](program: => MorphProgram[T]): MorphVerilogReport =
     apply(SpinalConfig())(program)
 
+  /**
+    * Generate parameterized Verilog from the same ordinary Component factory
+    * that SpinalHDL elaborates and validates.
+    *
+    * The extra implicit parameter keeps this source-compatible overload
+    * distinct from the legacy dual-factory MorphProgram entry point after JVM
+    * erasure. Callers still use the natural `MorphVerilog(config) { ... }`
+    * syntax.
+    */
   def apply[T <: Component](
+      component: => T
+  )(implicit singleSource: DummyImplicit): MorphSingleSourceVerilogReport =
+    apply(SpinalConfig())(component)
+
+  /** Configured entry point shared by the dual-factory compatibility path and the single-source path. */
+  final class Configured private[morphhdl] (config: SpinalConfig) {
+    def apply[T <: Component](program: => MorphProgram[T]): MorphVerilogReport =
+      generateDual(config)(program)
+
+    def apply[T <: Component](
+        component: => T
+    )(implicit singleSource: DummyImplicit): MorphSingleSourceVerilogReport =
+      generateSingleSource(config)(component)
+  }
+
+  /** Failure-returning counterpart of [[Configured]]. */
+  final class TryConfigured private[morphhdl] (config: SpinalConfig) {
+    def apply[T <: Component](
+        program: => MorphProgram[T]
+    ): Either[MorphVerilogFailure, MorphVerilogReport] =
+      tryGenerateDual(config)(program)
+
+    def apply[T <: Component](
+        component: => T
+    )(implicit
+        singleSource: DummyImplicit
+    ): Either[MorphVerilogFailure, MorphSingleSourceVerilogReport] =
+      tryGenerateSingleSource(config)(component)
+  }
+
+  def apply(config: SpinalConfig): Configured = new Configured(config)
+
+  def tryGenerate(config: SpinalConfig): TryConfigured = new TryConfigured(config)
+
+  private def generateDual[T <: Component](
       config: SpinalConfig
   )(program: => MorphProgram[T]): MorphVerilogReport =
-    tryGenerate(config)(program) match {
+    tryGenerateDual(config)(program) match {
       case Right(report) => report
       case Left(failure) => throw new MorphVerilogException(failure)
     }
 
-  def tryGenerate[T <: Component](
+  private def generateSingleSource[T <: Component](
+      config: SpinalConfig
+  )(component: => T)(implicit singleSource: DummyImplicit): MorphSingleSourceVerilogReport =
+    tryGenerateSingleSource(config)(component) match {
+      case Right(report) => report
+      case Left(failure) => throw new MorphVerilogException(failure)
+    }
+
+  private def tryGenerateDual[T <: Component](
       config: SpinalConfig
   )(program: => MorphProgram[T]): Either[MorphVerilogFailure, MorphVerilogReport] = {
     val checkedConfig = validateConfig(config)
@@ -83,6 +142,90 @@ object MorphVerilog {
         }
     }
   }
+
+  private def tryGenerateSingleSource[T <: Component](
+      config: SpinalConfig
+  )(component: => T)(implicit
+      singleSource: DummyImplicit
+  ): Either[MorphVerilogFailure, MorphSingleSourceVerilogReport] = {
+    val checkedConfig = validateConfig(config)
+    checkedConfig match {
+      case Left(failure) => Left(failure)
+      case Right(_)      => runSingleSource(config, component)
+    }
+  }
+
+  private def runSingleSource[T <: Component](
+      config: SpinalConfig,
+      component: => T
+  ): Either[MorphVerilogFailure, MorphSingleSourceVerilogReport] =
+    createSingleSourceDirectory() match {
+      case Left(failure) => Left(failure)
+      case Right(workspace) =>
+        val prepared = prepareSingleSource(config, component, workspace)
+        cleanupSingleSourceDirectory(workspace) match {
+          case Left(cleanupFailure) =>
+            prepared match {
+              case Left(original) => Left(appendCleanupFailure(original, cleanupFailure))
+              case Right(_)       => Left(cleanupFailure)
+            }
+          case Right(_) =>
+            prepared match {
+              case Left(failure) => Left(failure)
+              case Right(value) =>
+                writeOutput(config, value.top, value.verilog) match {
+                  case Left(failure) => Left(failure)
+                  case Right(output) =>
+                    Right(
+                      MorphSingleSourceVerilogReport(
+                        toplevelName = value.top,
+                        generatedSourcesPaths = Vector(output.toString),
+                        parameters = value.parameters,
+                        inheritedValidationPhaseIds = value.inheritedValidationPhaseIds
+                      )
+                    )
+                }
+            }
+        }
+    }
+
+  private def prepareSingleSource[T <: Component](
+      config: SpinalConfig,
+      component: => T,
+      workspace: Path
+  ): Either[MorphVerilogFailure, PreparedSingleSourceGeneration] =
+    for {
+      report <- runSingleSourceNative(config, component, workspace)
+      phaseIds <- checkPhasePlan(report)
+      parameters <- readSingleSourceParameters(report)
+      verilog <- readSingleSourceModule(report)
+    } yield PreparedSingleSourceGeneration(report.toplevelName, parameters, phaseIds, verilog)
+
+  private def runSingleSourceNative[T <: Component](
+      config: SpinalConfig,
+      component: => T,
+      workspace: Path
+  ): Either[MorphVerilogFailure, SpinalReport[T]] =
+    try {
+      val nativeConfig = copyForSingleSource(config, workspace)
+      val report = SpinalVerilog(nativeConfig) {
+        val value = component
+        if (value == null) {
+          throw new IllegalArgumentException("component factory returned null")
+        }
+        value
+      }
+      Right(report)
+    } catch {
+      case NonFatal(error) =>
+        Left(
+          MorphVerilogFailure(
+            SingleSourceGeneration,
+            singleSourceErrorMessage(error),
+            cause = Some(error)
+          )
+        )
+    }
 
   private def run[T <: Component](
       config: SpinalConfig,
@@ -430,6 +573,13 @@ object MorphVerilog {
         Left(MorphVerilogFailure(TemporaryWorkspace, errorMessage(error), cause = Some(error)))
     }
 
+  private def createSingleSourceDirectory(): Either[MorphVerilogFailure, Path] =
+    try Right(Files.createTempDirectory("morphhdl-single-source-"))
+    catch {
+      case NonFatal(error) =>
+        Left(MorphVerilogFailure(TemporaryWorkspace, errorMessage(error), cause = Some(error)))
+    }
+
   private def cleanupWitnessDirectory(root: Path): Either[MorphVerilogFailure, Unit] =
     try {
       deleteTree(root)
@@ -437,6 +587,15 @@ object MorphVerilog {
     } catch {
       case NonFatal(error) =>
         Left(MorphVerilogFailure(WitnessCleanup, errorMessage(error), cause = Some(error)))
+    }
+
+  private def cleanupSingleSourceDirectory(root: Path): Either[MorphVerilogFailure, Unit] =
+    try {
+      deleteTree(root)
+      Right(())
+    } catch {
+      case NonFatal(error) =>
+        Left(MorphVerilogFailure(SingleSourceCleanup, errorMessage(error), cause = Some(error)))
     }
 
   private def appendCleanupFailure(
@@ -447,7 +606,7 @@ object MorphVerilog {
       originalCause <- original.cause
       cleanupCause <- cleanup.cause
     } originalCause.addSuppressed(cleanupCause)
-    original.copy(detail = s"${original.detail}; witness cleanup also failed: ${cleanup.detail}")
+    original.copy(detail = s"${original.detail}; temporary cleanup also failed: ${cleanup.detail}")
   }
 
   private def copyForWitness(config: SpinalConfig, witnessDirectory: Path): SpinalConfig =
@@ -460,8 +619,94 @@ object MorphVerilog {
       phasesInserters = config.phasesInserters.clone(),
       transformationPhases = config.transformationPhases.clone(),
       memBlackBoxers = config.memBlackBoxers.clone(),
-      scopeProperties = config.scopeProperties.clone()
+      scopeProperties = config.scopeProperties.clone(),
+      parameterizedVerilog = false
     )
+
+  private def copyForSingleSource(config: SpinalConfig, workspace: Path): SpinalConfig =
+    config.copy(
+      mode = Verilog,
+      flags = config.flags.clone(),
+      debugComponents = config.debugComponents.clone(),
+      targetDirectory = workspace.toString,
+      phasesInserters = config.phasesInserters.clone(),
+      transformationPhases = config.transformationPhases.clone(),
+      memBlackBoxers = config.memBlackBoxers.clone(),
+      scopeProperties = config.scopeProperties.clone(),
+      parameterizedVerilog = true
+    )
+
+  private def readSingleSourceParameters[T <: Component](
+      report: SpinalReport[T]
+  ): Either[MorphVerilogFailure, Vector[morphhdl.paramrtl.IntegerParameter]] =
+    try {
+      Right(
+        spinal.core.ParameterizedWidth.parametersOf(report.toplevel).map { parameter =>
+          morphhdl.paramrtl.IntegerParameter(
+            parameter.name,
+            parameter.default,
+            Vector[morphhdl.paramrtl.IntConstraint](
+              morphhdl.paramrtl.IntConstraint.MinInclusive(parameter.minimum),
+              morphhdl.paramrtl.IntConstraint.MaxInclusive(parameter.maximum)
+            )
+          )
+        }
+      )
+    } catch {
+      case NonFatal(error) =>
+        Left(
+          MorphVerilogFailure(
+            SingleSourceGeneration,
+            singleSourceErrorMessage(error),
+            cause = Some(error)
+          )
+        )
+    }
+
+  private def readSingleSourceModule[T <: Component](
+      report: SpinalReport[T]
+  ): Either[MorphVerilogFailure, String] =
+    try {
+      val generated = report.generatedSourcesPaths.toVector
+      if (generated.size != 1) {
+        Left(
+          MorphVerilogFailure(
+            SingleSourceGeneration,
+            s"native parameterized generation produced ${generated.size} source files; expected exactly one"
+          )
+        )
+      } else {
+        val raw = new String(Files.readAllBytes(Paths.get(generated.head)), StandardCharsets.UTF_8)
+          .replace("\r\n", "\n")
+          .replace('\r', '\n')
+        val lines = raw.split("\n", -1).toVector
+        val moduleStart = lines.indexWhere(_.startsWith("module "))
+        val moduleEnd =
+          if (moduleStart < 0) -1
+          else lines.indexWhere(_.trim == "endmodule", moduleStart)
+        if (moduleStart < 0 || moduleEnd < moduleStart) {
+          Left(
+            MorphVerilogFailure(
+              SingleSourceGeneration,
+              "native parameterized generation did not produce one complete Verilog module"
+            )
+          )
+        } else {
+          val trailingContent = lines.drop(moduleEnd + 1).exists(_.trim.nonEmpty)
+          if (trailingContent) {
+            Left(
+              MorphVerilogFailure(
+                SingleSourceGeneration,
+                "native parameterized generation produced content after the top-level module"
+              )
+            )
+          } else Right(lines.slice(moduleStart, moduleEnd + 1).mkString("\n") + "\n")
+        }
+      }
+    } catch {
+      case NonFatal(error) =>
+        Left(MorphVerilogFailure(SingleSourceGeneration, errorMessage(error), cause = Some(error)))
+    }
 
   private def validateNetlistFilename(filename: String): Option[String] = {
     val path = Paths.get(filename)
@@ -829,6 +1074,21 @@ object MorphVerilog {
 
   private def errorMessage(error: Throwable): String =
     Option(error.getMessage).filter(_.nonEmpty).getOrElse(error.getClass.getName)
+
+  private def singleSourceErrorMessage(error: Throwable): String = {
+    @annotation.tailrec
+    def find(current: Throwable): Option[String] =
+      if (current == null) None
+      else
+        current match {
+          case parameterized: spinal.core.ParameterizedVerilogException =>
+            Some(parameterized.getMessage)
+          case frontend: morphhdl.frontend.FrontendException => Some(errorMessage(frontend))
+          case _                                              => find(current.getCause)
+        }
+
+    find(error).getOrElse(errorMessage(error))
+  }
 
   private def deleteIfExistsBestEffort(path: Path): Unit =
     try Files.deleteIfExists(path)

@@ -19,6 +19,9 @@ object MorphVerilogStage {
   case object ConcreteWitness extends MorphVerilogStage {
     override val id = "concrete-witness"
   }
+  case object SingleSourceGeneration extends MorphVerilogStage {
+    override val id = "single-source-generation"
+  }
   case object PhasePlanParity extends MorphVerilogStage {
     override val id = "phase-plan-parity"
   }
@@ -39,6 +42,9 @@ object MorphVerilogStage {
   }
   case object WitnessCleanup extends MorphVerilogStage {
     override val id = "witness-cleanup"
+  }
+  case object SingleSourceCleanup extends MorphVerilogStage {
+    override val id = "single-source-cleanup"
   }
   case object OutputWrite extends MorphVerilogStage {
     override val id = "output-write"

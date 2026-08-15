@@ -2,9 +2,11 @@
 
 These files are executable output contracts for the parameterized backend.
 
-- `parameterized_wire.v` is owned by Increment 2. Increment 8 authors its
-  symbolic width through the guarded frontend and generates it through the
-  public `MorphVerilog` orchestration.
+- `parameterized_wire.v` is owned by Increments 2, 8 and 29. Increment 29
+  migrates it to the single-source bridge: one ordinary SpinalHDL component
+  consumes a direct public `HdlInt` through `UInt(width bits)`, connects the
+  two ports with a normal assignment and generates this parameterized module
+  without a separately authored ParamRTL `Design`.
 - `derived_width.v` is owned by Increments 3, 23 and 24. Its two frontend public
   parameters feed an acyclic local-parameter expression graph; Increment 23
   clamps parameter-derived padding with typed `Min` and floors the final width
@@ -108,13 +110,17 @@ These files are executable output contracts for the parameterized backend.
   files with `parameterized_counter.v`, Increment 26 extends it to eighteen
   with `simple_dual_port_memory.v`, Increment 27 extends it to nineteen with
   `synchronous_stream_fifo.v`, and Increment 28 extends it to twenty with
-  `synchronous_stream_m2s_pipe.v`. CI
+  `synchronous_stream_m2s_pipe.v`. Increment 29 migrates the first artifact to
+  the native single-source width bridge without changing that inventory. CI
   performs a normal and reverse-construction run, requires an exact
   twenty-file inventory, checks
   byte identity with these goldens, and gives that unmodified directory to the
   external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
-  overrides. `DerivedWidthTb` checks widths 37, 4, 20, 29, 25 and 7 in six
+  overrides. `ParameterizedWireTb` checks the direct native width bridge at
+  widths 8, 1, 13 and 64 in four simultaneous instances; Yosys rejects separate
+  mutations that freeze either symbolic port at eight bits under the 64-bit
+  override. `DerivedWidthTb` checks widths 37, 4, 20, 29, 25 and 7 in six
   simultaneous instances of the same emitted module while exercising lane
   counts one, two, three and four. `ParameterForwardingTb`
   checks forwarded widths 32, 1, 15, 24 and 20 through five simultaneous

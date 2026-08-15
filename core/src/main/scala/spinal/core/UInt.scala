@@ -33,6 +33,18 @@ trait UIntFactory{
   def UInt(u: Unit = ()): UInt = new UInt()
   /** Create a new UInt of a given width */
   def UInt(width: BitCount): UInt = UInt().setWidth(width.value)
+  /**
+    * Create a UInt at its concrete witness width while retaining a direct
+    * public integer parameter, when present, for an explicitly enabled
+    * parameterized backend.
+    */
+  def UInt(width: ParameterizedBitCount): UInt = {
+    val result = UInt().setWidth(width.value)
+    width.parameter.foreach { parameter =>
+      result.addTag(ParameterizedWidthTag(parameter, width.sourceLocation))
+    }
+    result
+  }
 }
 
 
@@ -542,4 +554,3 @@ object UInt2D {
     */
   def apply(commonBitCount: BitCount) : UInt2D = UInt2D(commonBitCount, commonBitCount)
 }
-

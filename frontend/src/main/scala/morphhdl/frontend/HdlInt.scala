@@ -26,6 +26,7 @@ import morphhdl.paramrtl.IntExpr.{
   Subtract
 }
 import morphhdl.paramrtl.{IntConstraint, IntExpr, IntegerLocalParameter, IntegerParameter}
+import spinal.core.{ElaborationIntegerParameter, ParameterizedBitCount}
 
 final class HdlInt private[frontend] (
     private[frontend] val witness: BigInt,
@@ -39,6 +40,134 @@ final class HdlInt private[frontend] (
     private[frontend] val scope: Option[ScopeToken],
     private[frontend] val origin: SourceOrigin
 ) extends scala.math.ScalaNumber {
+  /**
+    * Retain a direct public integer parameter while supplying its concrete
+    * default to SpinalHDL's ordinary width inference and validation phases.
+    *
+    * Increment 29 preserves an `HdlInt.literal` as an ordinary untagged
+    * concrete width. For symbolic emission it deliberately accepts only an
+    * unmodified `HdlInt.param`; derived expressions and local parameters
+    * remain fail-closed until the shared symbolic data-shape work lands in a
+    * following increment.
+    */
+  private[frontend] def toParameterizedBitCount(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): ParameterizedBitCount = {
+    val useOrigin = SourceOrigin.capture
+    requireLoopInvariant("SpinalHDL UInt width")
+
+    (expression, declaration) match {
+      case (Literal(value), None) =>
+        if (
+          value != witness || parameters.nonEmpty || booleanParameters.nonEmpty ||
+          localDeclaration.nonEmpty || localParameters.nonEmpty ||
+          booleanLocalParameters.nonEmpty || scope.nonEmpty
+        ) {
+          FrontendException.failAt(
+            "MORPH-FRONTEND-SPINAL-WIDTH-PROVENANCE-UNSUPPORTED",
+            "the literal width carries unsupported or ambiguous symbolic provenance",
+            useOrigin
+          )
+        }
+        if (value < 1) {
+          FrontendException.failAt(
+            "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-NONPOSITIVE",
+            s"literal SpinalHDL width must be at least 1, but found $value",
+            useOrigin
+          )
+        }
+        if (value > BigInt(Int.MaxValue)) {
+          FrontendException.failAt(
+            "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-TOO-LARGE",
+            s"literal SpinalHDL width $value is outside SpinalHDL's Int-sized width domain",
+            useOrigin
+          )
+        }
+        return ParameterizedBitCount(
+          value.toInt,
+          parameter = None,
+          sourceLocation = Some(useOrigin.rendered)
+        )
+      case _ =>
+    }
+
+    val token = (expression, declaration) match {
+      case (ParameterRef(name), Some(value)) if value.declaration.name == name => value
+      case _ =>
+        FrontendException.failAt(
+          "MORPH-FRONTEND-SPINAL-WIDTH-NOT-DIRECT-PARAMETER",
+          "the Increment 29 SpinalHDL width bridge accepts only an unmodified HdlInt.param value",
+          useOrigin
+        )
+    }
+
+    if (
+      parameters.size != 1 || !parameters.exists(_ eq token) ||
+      booleanParameters.nonEmpty || localDeclaration.nonEmpty ||
+      localParameters.nonEmpty || booleanLocalParameters.nonEmpty || scope.nonEmpty
+    ) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-SPINAL-WIDTH-PROVENANCE-UNSUPPORTED",
+        "the direct width parameter carries unsupported or ambiguous symbolic provenance",
+        useOrigin
+      )
+    }
+
+    val parameter = token.declaration
+    val minimums = parameter.constraints.collect { case MinInclusive(value) => value }
+    val maximums = parameter.constraints.collect { case MaxInclusive(value) => value }
+    if (minimums.isEmpty || maximums.isEmpty) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-UNBOUNDED",
+        s"parameter '${parameter.name}' must declare finite minimum and maximum width bounds",
+        useOrigin
+      )
+    }
+
+    val minimum = minimums.max
+    val maximum = maximums.min
+    if (minimum < 1 || maximum < minimum) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-NONPOSITIVE",
+        s"parameter '${parameter.name}' must have a non-empty width domain whose minimum is at least 1",
+        useOrigin
+      )
+    }
+    if (maximum > BigInt(Int.MaxValue)) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-TOO-LARGE",
+        s"parameter '${parameter.name}' has maximum $maximum outside SpinalHDL's Int-sized width domain",
+        useOrigin
+      )
+    }
+    if (parameter.default < minimum || parameter.default > maximum || witness != parameter.default) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-SPINAL-WIDTH-DEFAULT-INVALID",
+        s"parameter '${parameter.name}' default ${parameter.default} must be its concrete witness and lie in [$minimum, $maximum]",
+        useOrigin
+      )
+    }
+    if (
+      parameter.name == null ||
+      !HdlInt.PortableIdentifier.pattern.matcher(parameter.name).matches()
+    ) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-SPINAL-WIDTH-NAME-INVALID",
+        s"parameter name '${parameter.name}' is not a portable Verilog identifier",
+        useOrigin
+      )
+    }
+
+    ParameterizedBitCount(
+      parameter.default.toInt,
+      parameter = Some(
+        ElaborationIntegerParameter(parameter.name, parameter.default, minimum, maximum)
+      ),
+      sourceLocation = Some(useOrigin.rendered)
+    )
+  }
+
   def +(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
     binary(that, "integer addition", Add.apply)(_ + _)
 
@@ -301,6 +430,23 @@ final class HdlInt private[frontend] (
 }
 
 object HdlInt {
+  private val PortableIdentifier = "[A-Za-z_][A-Za-z0-9_]*".r
+
+  /**
+    * Adds SpinalHDL's ordinary `width bits` spelling only to an actual
+    * `HdlInt`. Keeping this syntax in the receiver type's implicit scope
+    * prevents the existing `Int => HdlInt` conversion from competing with
+    * SpinalHDL's single-step `Int => IntBuilder` conversion for expressions
+    * such as `UInt(8 bits)`.
+    */
+  implicit final class HdlIntBitCountOps(private val value: HdlInt) extends AnyVal {
+    def bits(implicit
+        file: sourcecode.File,
+        line: sourcecode.Line
+    ): ParameterizedBitCount =
+      value.toParameterizedBitCount(file, line)
+  }
+
   def literal(value: BigInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
     new HdlInt(
       value,

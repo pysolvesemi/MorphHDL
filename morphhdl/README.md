@@ -19,17 +19,25 @@ Fork-specific implementation should follow these rules:
 See `docs/morphhdl/upstream-sync.md` for the synchronization procedure.
 The parameterized-Verilog architecture contract starts at
 `docs/morphhdl/architecture/README.md`.
-The bounded symbolic Scala frontend is isolated under `frontend`; it lowers to
-the target-neutral `paramrtl` module and does not change inherited concrete
-SpinalHDL entry points.
+The controlling single-source implementation sequence is
+`docs/morphhdl/parameterized-verilog-todo.md`; its first unchecked increment is
+the next increment and its completion rules govern checkbox updates.
+The compatibility symbolic Scala frontend is isolated under `frontend` and
+lowers to the target-neutral `paramrtl` module. Increment 29 adds a small
+native symbolic-width metadata type, a matching `UInt` factory overload and a
+default-off native emission flag; ordinary concrete SpinalHDL entry points
+retain their existing output semantics.
 
-The supported orchestration API is under `morphhdl/src`. Its
-`MorphVerilog` entry point requires an explicit `MorphProgram` containing a
+The supported orchestration API is under `morphhdl/src`. The compatibility
+`MorphVerilog` overload accepts an explicit `MorphProgram` containing a
 re-entrant concrete Spinal witness and a re-entrant symbolic ParamRTL design.
 Every reachable module instance in their binding-aware default flat interface
 and hierarchy must agree.
 Only the validated parameterized Verilog is published; concrete witness RTL is
 temporary validation data and is not exposed through the success report.
+Increment 29 adds a bounded single-source overload for one ordinary SpinalHDL
+component carrying a direct public `HdlInt` through `UInt(width bits)`. That
+overload returns a report without a ParamRTL design.
 
 Increment 8 closes the current integer frontend through that entry point.
 `HdlInt` retains addition, subtraction, multiplication, division, modulo and
@@ -233,3 +241,14 @@ replaces without a bubble and sustains one transfer per cycle. The twentieth
 `synchronous_stream_m2s_pipe.v` artifact proves widths 1, 5, 8 and 32 without
 regeneration. `s2mPipe`, broader Stream composition, selectable payload/collapse
 policies, status, asynchronous reset and CDC remain rejected.
+
+Increment 29 migrates the original `ParameterizedWire` fixture to the first
+native single-source bridge. One ordinary component accepts an `HdlInt`
+configuration width, declares its ports with `UInt(width bits)` and connects
+them with a normal assignment. Explicit `MorphVerilog` emits one strict
+Verilog-2001 `WIDTH` parameter and two `[WIDTH-1:0]` ports; ordinary
+`SpinalVerilog` emits only the concrete eight-bit witness. The other nineteen
+fixtures remain on the reviewed ParamRTL compatibility path, and the public
+artifact inventory remains exactly twenty. Constructing the same configuration
+with a literal `HdlInt` or implicit `Int` remains valid for ordinary concrete
+generation and does not create a public parameter.

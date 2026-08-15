@@ -212,6 +212,16 @@ require_property profile.standard IEEE-1364-2001
 require_property profile.abi flat
 require_property backend.canonical_ir ParamRTL
 require_property backend.initial_emitter direct-verilog
+require_property backend.single_source_emitter native-spinal-verilog
+require_property frontend.single_source_component true
+require_property frontend.symbolic_width positive-direct-public-hdlint
+require_property frontend.symbolic_width_domain positive-finite-within-bit-vector-limit
+require_property frontend.symbolic_width_types top-level-uint-ports
+require_property frontend.symbolic_width_logic direct-equal-parameter-wire
+require_property frontend.literal_width concrete-uint-no-symbolic-tag
+require_property frontend.single_source_literal_ports reject-untagged
+require_property frontend.legacy_spinalverilog concrete-witness
+require_property implementation.single_source_symbolic_width true
 require_property parameter.boolean_encoding integer
 require_property parameter.integer_comparison true
 require_property parameter.integer_conditional true
@@ -480,8 +490,37 @@ then
   exit 1
 fi
 
-if ! grep -Eq 'parameter[[:space:]]+integer[[:space:]]+WIDTH' "${design_files[0]}"; then
-  echo "ParameterizedWire does not declare integer WIDTH" >&2
+if ! python3 - "$parameterized_wire_file" <<'PY'
+import pathlib
+import re
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+required = (
+    "  parameter integer WIDTH = 8",
+    "  input  wire [WIDTH-1:0] din,",
+    "  output wire [WIDTH-1:0] dout",
+    "  assign dout = din;",
+)
+if any(source.count(fragment) != 1 for fragment in required):
+    raise SystemExit("missing or duplicate native symbolic-width construct")
+if len(re.findall(r"\bparameter\s+integer\b", source)) != 1:
+    raise SystemExit("expected exactly one public integer parameter")
+if len(re.findall(r"\bmodule\s+ParameterizedWire\b", source)) != 1:
+    raise SystemExit("expected exactly one logical module definition")
+if re.search(r"\b(localparam|function|always|reg|generate|genvar)\b", source):
+    raise SystemExit("single-source direct-wire contract contains deferred RTL")
+PY
+then
+  echo "ParameterizedWire does not retain the bounded native symbolic-width bridge" >&2
+  exit 1
+fi
+
+if ! grep -Fqx '  localparam integer MINIMUM_WIDTH = 1;' "$examples_dir/parameterized_wire_tb.v" ||
+   ! grep -Fqx '  localparam integer AWKWARD_WIDTH = 13;' "$examples_dir/parameterized_wire_tb.v" ||
+   ! grep -Fqx '  localparam integer MAXIMUM_WIDTH = 64;' "$examples_dir/parameterized_wire_tb.v" ||
+   [[ "$(grep -Ec '^[[:space:]]*ParameterizedWire([[:space:]]|[[:space:]]*#)' "$examples_dir/parameterized_wire_tb.v")" != "4" ]]; then
+  echo "ParameterizedWire testbench does not retain default, minimum, awkward and maximum instances" >&2
   exit 1
 fi
 
@@ -1037,11 +1076,13 @@ verilator --lint-only --language 1364-2001 -Wall \
   --top-module ParameterizedWire \
   "$parameterized_wire_file"
 
-verilator --lint-only --language 1364-2001 -Wall \
-  -Wno-DECLFILENAME \
-  --top-module ParameterizedWire \
-  -GWIDTH=13 \
-  "$parameterized_wire_file"
+for wire_width in 1 13 64; do
+  verilator --lint-only --language 1364-2001 -Wall \
+    -Wno-DECLFILENAME \
+    --top-module ParameterizedWire \
+    -GWIDTH="$wire_width" \
+    "$parameterized_wire_file"
+done
 
 verilator --lint-only --language 1364-2001 -Wall \
   -Wno-DECLFILENAME \
@@ -1662,8 +1703,55 @@ yosys_synthesize_and_check() {
 yosys_synthesize_and_check \
   "$yosys_parameterized_wire_file" ParameterizedWire default 8 ""
 yosys_synthesize_and_check \
-  "$yosys_parameterized_wire_file" ParameterizedWire width-13 13 \
+  "$yosys_parameterized_wire_file" ParameterizedWire minimum 1 \
+  "chparam -set WIDTH 1 ParameterizedWire;"
+yosys_synthesize_and_check \
+  "$yosys_parameterized_wire_file" ParameterizedWire awkward 13 \
   "chparam -set WIDTH 13 ParameterizedWire;"
+yosys_synthesize_and_check \
+  "$yosys_parameterized_wire_file" ParameterizedWire maximum 64 \
+  "chparam -set WIDTH 64 ParameterizedWire;"
+
+yosys_parameterized_wire_fixed_port_mutation_must_fail() {
+  local label="$1"
+  local original="$2"
+  local replacement="$3"
+  local mutated_file="$tmp_dir/parameterized-wire-${label}.v"
+  local netlist="$tmp_dir/ParameterizedWire-${label}.json"
+
+  python3 - "$yosys_parameterized_wire_file" "$mutated_file" "$original" "$replacement" <<'PY'
+import pathlib
+import sys
+
+source_path, output_path, original, replacement = sys.argv[1:]
+source = pathlib.Path(source_path).read_text(encoding="utf-8")
+if source.count(original) != 1:
+    raise SystemExit("ParameterizedWire mutation source did not match exactly once")
+pathlib.Path(output_path).write_text(source.replace(original, replacement), encoding="utf-8")
+PY
+
+  if ! yosys -q -p \
+    "read_verilog -noautowire $mutated_file; chparam -set WIDTH 64 ParameterizedWire; hierarchy -check -top ParameterizedWire; proc; check -assert; synth -top ParameterizedWire; check -assert; write_json $netlist"; then
+    echo "ParameterizedWire $label mutation did not reach the width-64 ABI checker" >&2
+    exit 1
+  fi
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$netlist" ParameterizedWire \
+    --port "din:input:64" \
+    --port "dout:output:64"; then
+    echo "ParameterizedWire width-64 ABI gate accepted $label mutation" >&2
+    exit 1
+  fi
+}
+
+yosys_parameterized_wire_fixed_port_mutation_must_fail \
+  fixed-input \
+  'input  wire [WIDTH-1:0] din' \
+  'input  wire [7:0] din'
+yosys_parameterized_wire_fixed_port_mutation_must_fail \
+  fixed-output \
+  'output wire [WIDTH-1:0] dout' \
+  'output wire [7:0] dout'
 
 yosys_synthesize_and_check \
   "$yosys_derived_width_file" DerivedWidth default 37 ""
