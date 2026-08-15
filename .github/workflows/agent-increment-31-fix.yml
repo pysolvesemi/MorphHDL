@@ -32,29 +32,20 @@ jobs:
 
           path = Path("core/src/main/scala/spinal/core/internals/ParameterizedVerilogNativeFallback.scala")
           text = path.read_text(encoding="utf-8")
-          old = '''      private def inferUntaggedBitVector(bitVector: BitVector): WidthExpr = {
-                val fullSources = ArrayBuffer.empty[Expression]
-                bitVector.foreachStatements {
-                  case assignment: DataAssignmentStatement
-                      if assignment.target == bitVector && assignment.finalTarget == bitVector =>
-                    fullSources += assignment.source
-                  case _ =>
-                }
-                val sourceWidths = fullSources.map(ofExpression)
-          '''
-          new = '''      private def inferUntaggedBitVector(bitVector: BitVector): WidthExpr = {
-                val fullSources = ArrayBuffer.empty[Expression]
-                assignments.foreach {
-                  case assignment
-                      if assignment.target == bitVector && assignment.finalTarget == bitVector =>
-                    fullSources += assignment.source
-                  case _ =>
-                }
-                val sourceWidths = fullSources.map(ofExpression)
-          '''
-          if text.count(old) != 1:
-              raise SystemExit(f"expected exactly one width-inference block, found {text.count(old)}")
-          path.write_text(text.replace(old, new), encoding="utf-8")
+          start_marker = "      private def inferUntaggedBitVector(bitVector: BitVector): WidthExpr = {"
+          end_marker = "        val sourceWidths = fullSources.map(ofExpression)"
+          start = text.find(start_marker)
+          end = text.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit("could not locate inferUntaggedBitVector body")
+          block = text[start:end]
+          if block.count("bitVector.foreachStatements") != 1:
+              raise SystemExit("expected one local statement walk in inferUntaggedBitVector")
+          if block.count("case assignment: DataAssignmentStatement") != 1:
+              raise SystemExit("expected one typed assignment case in inferUntaggedBitVector")
+          block = block.replace("bitVector.foreachStatements", "assignments.foreach", 1)
+          block = block.replace("case assignment: DataAssignmentStatement", "case assignment", 1)
+          path.write_text(text[:start] + block + text[end:], encoding="utf-8")
           PY
 
           git diff --check
