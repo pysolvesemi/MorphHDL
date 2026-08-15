@@ -45,7 +45,7 @@ with this roadmap.
   payload shapes. Prove positive-width constraints over the complete declared
   parameter domain.
 
-- [ ] **Increment 31 — Generic expressions and connections**
+- [x] **Increment 31 — Generic expressions and connections**
 
   Lower ordinary Spinal assignments, muxes, arithmetic result widths,
   concatenation, slicing and resize without fixture-specific ParamRTL calls.
