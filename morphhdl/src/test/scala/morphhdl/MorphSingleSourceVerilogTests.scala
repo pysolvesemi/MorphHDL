@@ -1,5 +1,6 @@
 package morphhdl
 
+import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
 
@@ -293,10 +294,36 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
     new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
 
   private def contractGolden(fileName: String): Path = {
-    val repositoryRootPath = Paths.get("morphhdl", "examples", "contracts", fileName)
-    if (Files.exists(repositoryRootPath)) repositoryRootPath
-    else Paths.get("examples", "contracts", fileName)
+    val relativePath = Paths.get("morphhdl", "examples", "contracts", fileName)
+    val codeSource =
+      Option(getClass.getProtectionDomain)
+        .flatMap(domain => Option(domain.getCodeSource))
+        .flatMap(source => Option(source.getLocation))
+        .filter(_.getProtocol == "file")
+        .map(location => Paths.get(location.toURI))
+        .toVector
+    val classPath =
+      sys.props
+        .get("java.class.path")
+        .toVector
+        .flatMap(_.split(File.pathSeparator).toVector)
+        .filter(_.nonEmpty)
+        .map(Paths.get(_))
+    val searchRoots = codeSource ++ Vector(Paths.get("")) ++ classPath
+    searchRoots.iterator
+      .flatMap(pathAndAncestors)
+      .map(_.toAbsolutePath.normalize.resolve(relativePath))
+      .find(path => Files.isRegularFile(path))
+      .getOrElse(throw new java.nio.file.NoSuchFileException(relativePath.toString))
   }
+
+  private def pathAndAncestors(path: Path): Iterator[Path] =
+    Iterator
+      .iterate(Option(path.toAbsolutePath.normalize))(
+        _.flatMap(current => Option(current.getParent))
+      )
+      .takeWhile(_.nonEmpty)
+      .map(_.get)
 
   private def withTemporaryDirectory(body: Path => Unit): Unit = {
     val directory = Files.createTempDirectory("morphhdl-single-source-test-")
