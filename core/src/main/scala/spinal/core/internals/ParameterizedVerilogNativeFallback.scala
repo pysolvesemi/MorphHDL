@@ -774,8 +774,13 @@ private[internals] object ParameterizedVerilogNativeFallback {
   ): WidthExpr = {
     def orderKey(value: WidthExpr): (Int, String) =
       (if (value.isSymbolic) 0 else 1, value.render)
+    val leftKey = orderKey(left)
+    val rightKey = orderKey(right)
+    val leftComesAfter =
+      leftKey._1 > rightKey._1 ||
+        (leftKey._1 == rightKey._1 && leftKey._2.compareTo(rightKey._2) > 0)
     val ordered =
-      if (commutative && orderKey(left) > orderKey(right)) (right, left)
+      if (commutative && leftComesAfter) (right, left)
       else (left, right)
     WidthBinary(
       operator,
