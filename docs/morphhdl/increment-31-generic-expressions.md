@@ -35,7 +35,9 @@ bitwise operators, muxes and ordinary addition/subtraction preserve the shared
 width. Concatenation and carry-expanding arithmetic add operand widths. Fixed
 slices and domain-invariant narrowing resize produce concrete result widths.
 Every declaration is checked against its concrete witness and its full
-minimum/maximum interval before Verilog is published.
+minimum/maximum interval before Verilog is published. Canonical commutative
+width expressions use explicit field comparison so Scala 2.12 and Scala 2.13
+produce the same deterministic operand ordering.
 
 Unsupported or unsafe cases fail with stable diagnostics. In particular, a
 slice must be valid at the minimum legal source width, a resize may not switch
