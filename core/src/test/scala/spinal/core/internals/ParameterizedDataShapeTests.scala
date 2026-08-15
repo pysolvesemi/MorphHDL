@@ -1,5 +1,6 @@
 package spinal.core.internals
 
+import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
 
 import scala.collection.JavaConverters._
@@ -184,18 +185,26 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
     }
   }
 
-  test("parameterized emission rejects an untagged internal bit vector") {
-    val failure = interceptParameterized("UntaggedInternalShape") { () =>
-      new Component {
-        setDefinitionName("UntaggedInternalShape")
-        val din = in(Bits(bitCount))
-        val dout = out(Bits(bitCount))
-        val concreteInternal = Bits(8 bits).dontSimplifyIt()
-        dout := din
+  test("parameterized emission accepts concrete internals beside symbolic shapes") {
+    withTemporaryDirectory { directory =>
+      SpinalVerilog(parameterizedConfig(directory)) {
+        new Component {
+          setDefinitionName("ConcreteInternalShape")
+          val din = in(Bits(bitCount))
+          val dout = out(Bits(bitCount))
+          val concreteInternal = Bits(8 bits).setName("concrete_internal").dontSimplifyIt()
+          concreteInternal := B(0, 8 bits)
+          dout := din
+        }
       }
-    }
 
-    assert(failure.code == "SPINAL-PARAMETERIZED-VERILOG-UNTAGGED-INTERNAL-SIGNAL")
+      val verilog = read(directory.resolve("ConcreteInternalShape.v"))
+      assert(verilog.contains("parameter integer WIDTH = 8"))
+      assert(hasDeclarationWidth(verilog, "din", "[WIDTH-1:0]"))
+      assert(hasDeclarationWidth(verilog, "dout", "[WIDTH-1:0]"))
+      assert(verilog.contains("[7:0]"))
+      assert(verilog.contains("concrete_internal"))
+    }
   }
 
   test("parameterized emission rejects a concrete witness mismatch") {
@@ -273,29 +282,39 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
     assert(failure.code == "SPINAL-PARAMETERIZED-VERILOG-STATEMENT-UNSUPPORTED")
   }
 
-  test("parameterized emission rejects partial assignments and expressions") {
-    val partial = interceptParameterized("PartialShapeAssignment") { () =>
-      new Component {
-        setDefinitionName("PartialShapeAssignment")
-        val din = in(Bits(bitCount))
-        val alternate = in(Bits(bitCount))
-        val dout = out(Bits(bitCount))
-        dout := din
-        dout(3 downto 0) := alternate(3 downto 0)
+  test("parameterized emission lowers partial assignments and expressions") {
+    withTemporaryDirectory { directory =>
+      SpinalVerilog(parameterizedConfig(directory)) {
+        new Component {
+          setDefinitionName("PartialShapeAssignment")
+          val din = in(Bits(bitCount))
+          val alternate = in(Bits(bitCount))
+          val dout = out(Bits(bitCount))
+          dout := din
+          dout(0) := alternate(0)
+        }
       }
+      val partial = read(directory.resolve("PartialShapeAssignment.v"))
+      assert(partial.contains("parameter integer WIDTH = 8"))
+      assert(partial.contains("dout[0]"))
+      assert(partial.contains("alternate[0]"))
     }
-    assert(partial.code == "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-UNSUPPORTED")
 
-    val expression = interceptParameterized("ExpressionShapeAssignment") { () =>
-      new Component {
-        setDefinitionName("ExpressionShapeAssignment")
-        val din = in(Bits(bitCount))
-        val alternate = in(Bits(bitCount))
-        val dout = out(Bits(bitCount))
-        dout := din ^ alternate
+    withTemporaryDirectory { directory =>
+      SpinalVerilog(parameterizedConfig(directory)) {
+        new Component {
+          setDefinitionName("ExpressionShapeAssignment")
+          val din = in(Bits(bitCount))
+          val alternate = in(Bits(bitCount))
+          val dout = out(Bits(bitCount))
+          dout := din ^ alternate
+        }
       }
+      val expression = read(directory.resolve("ExpressionShapeAssignment.v"))
+      assert(expression.contains("parameter integer WIDTH = 8"))
+      assert(hasDeclarationWidth(expression, "dout", "[WIDTH-1:0]"))
+      assert(expression.contains("din ^ alternate"))
     }
-    assert(expression.code == "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-UNSUPPORTED")
   }
 
   test("inherited validation rejects missing and overlapping output drivers") {
@@ -369,6 +388,17 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
     assert(fallingEdge.code == "SPINAL-PARAMETERIZED-VERILOG-REGISTER-UNSUPPORTED")
   }
 
+  private def hasDeclarationWidth(
+      verilog: String,
+      name: String,
+      range: String
+  ): Boolean = {
+    val pattern =
+      (java.util.regex.Pattern.quote(range) + "\\s+" +
+        java.util.regex.Pattern.quote(name) + "(?=\\s*(?:[,;]|\\)))").r
+    pattern.findFirstIn(verilog).nonEmpty
+  }
+
   private def generateMetadata(directory: Path): SpinalReport[MetadataComponent] =
     SpinalVerilog(concreteConfig(directory)) {
       new MetadataComponent
@@ -381,6 +411,12 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
       withTimescale = false,
       printFilelist = false
     )
+
+  private def parameterizedConfig(directory: Path): SpinalConfig =
+    concreteConfig(directory).copy(parameterizedVerilog = true)
+
+  private def read(path: Path): String =
+    new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
 
   private def interceptParameterized(
       name: String

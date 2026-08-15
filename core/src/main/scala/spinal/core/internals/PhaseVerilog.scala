@@ -158,23 +158,71 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
 
   val romCache = mutable.HashMap[String, String]()
   def compile(component: Component): () => String = {
-    val componentBuilderVerilog = new ComponentEmitterVerilog(
-      c                           = component,
-      systemVerilog               = pc.config.isSystemVerilog,
-      verilogBase                 = this,
-      algoIdIncrementalBase       = allocateAlgoIncrementalBase,
-      mergeAsyncProcess           = config.mergeAsyncProcess,
-      asyncResetCombSensitivity   = config.asyncResetCombSensitivity,
-      anonymSignalPrefix          = if(pc.config.anonymSignalUniqueness) globalData.anonymSignalPrefix + "_" + component.definitionName else globalData.anonymSignalPrefix,
-      nativeRom                   = config.inlineRom,
-      nativeRomFilePrefix         = rtlName,
-      caseRom                     = config.caseRom,
-      emitedComponentRef          = emitedComponentRef,
-      emitedRtlSourcesPath        = report.generatedSourcesPaths,
-      spinalConfig                = pc.config,
-      pc                          = pc,
-      romCache                    = romCache
-    )
+    def newBuilder(builderConfig: SpinalConfig): ComponentEmitterVerilog =
+      new ComponentEmitterVerilog(
+        c                           = component,
+        systemVerilog               = builderConfig.isSystemVerilog,
+        verilogBase                 = this,
+        algoIdIncrementalBase       = allocateAlgoIncrementalBase,
+        mergeAsyncProcess           = builderConfig.mergeAsyncProcess,
+        asyncResetCombSensitivity   = builderConfig.asyncResetCombSensitivity,
+        anonymSignalPrefix          = if(builderConfig.anonymSignalUniqueness) globalData.anonymSignalPrefix + "_" + component.definitionName else globalData.anonymSignalPrefix,
+        nativeRom                   = builderConfig.inlineRom,
+        nativeRomFilePrefix         = rtlName,
+        caseRom                     = builderConfig.caseRom,
+        emitedComponentRef          = emitedComponentRef,
+        emitedRtlSourcesPath        = report.generatedSourcesPaths,
+        spinalConfig                = builderConfig,
+        pc                          = pc,
+        romCache                    = romCache
+      )
+
+    def withPulledExternalClockInputs[T](body: => T): T = {
+      val patchedSources = ArrayBuffer.empty[Bool]
+      component.dslBody.walkDeclarations {
+        case baseType: BaseType if baseType.isReg && baseType.clockDomain != null =>
+          val domain = baseType.clockDomain
+          Vector(domain.clock, domain.reset).foreach { source =>
+            if (
+              source != null &&
+              source.component == null &&
+              source.isDirectionLess &&
+              component.pulledDataCache.get(source).exists(_.isInput) &&
+              !patchedSources.exists(_ eq source)
+            ) {
+              source.dir = in
+              patchedSources += source
+            }
+          }
+        case _ =>
+      }
+      try body
+      finally patchedSources.foreach(_.dir = null)
+    }
+
+    val (componentBuilderVerilog, componentResult) =
+      try {
+        val builder = newBuilder(pc.config)
+        (builder, () => builder.result)
+      } catch {
+        case failure: ParameterizedVerilogException
+            if pc.config.parameterizedVerilog &&
+              ParameterizedVerilogNativeFallback.supports(failure, component) =>
+          val builder = newBuilder(pc.config.copy(parameterizedVerilog = false))
+          (
+            builder,
+            () => {
+              val nativeResult = builder.result
+              // ClockDomain.external keeps its source signals outside the component.
+              // The normal emitter has already pulled top-level input proxies into the
+              // component, so expose that proven input view only while validating the
+              // bounded native fallback, then restore the source signals unchanged.
+              withPulledExternalClockInputs {
+                ParameterizedVerilogNativeFallback.rewrite(component, nativeResult, pc)
+              }
+            }
+          )
+      }
 
     if(component.parentScope == null && pc.config.dumpWave != null) {
       componentBuilderVerilog.logics ++=
@@ -193,7 +241,7 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
       assert(!usedDefinitionNames.contains(component.definitionName) || component.isInBlackBoxTree, s"Component '${component}' with definition name '${component.definitionName}' was already used once for a different layout\n${component.getScalaLocationLong}")
       usedDefinitionNames += component.definitionName
       emitedComponent += (trace -> component)
-      () => componentBuilderVerilog.result
+      componentResult
     } else {
       emitedComponentRef.put(component, oldComponent)
       val originalName = component.definitionName
