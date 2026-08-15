@@ -63,7 +63,12 @@ jobs:
       - name: Validate the complete reviewed contract suite
         shell: bash
         run: |
-          ./morphhdl/scripts/check-contracts.sh --require-tools
+          awk -F '\t' 'NR > 1 { print $1 }' \
+            morphhdl/contracts/validation-parity.tsv \
+            > /tmp/validation-phase-ids.txt
+          ./morphhdl/scripts/check-contracts.sh \
+            --require-tools \
+            --live-phase-ids /tmp/validation-phase-ids.txt
 
       - name: Commit tested checker fix and remove temporary workflow
         shell: bash
