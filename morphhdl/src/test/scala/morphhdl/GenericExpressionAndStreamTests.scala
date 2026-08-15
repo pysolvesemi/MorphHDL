@@ -146,7 +146,8 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
       assert(parameterized.contains("pop_valid"))
       assert(parameterized.contains("!"))
       assert(parameterized.contains("<= push_valid"))
-      assert(parameterized.contains("<= push_data"))
+      assert(parameterized.contains("assign push_payload = push_data"))
+      assert(parameterized.contains("<= push_payload"))
 
       val oracle = read(contractGolden("synchronous_stream_m2s_pipe.v"))
       Vector(
