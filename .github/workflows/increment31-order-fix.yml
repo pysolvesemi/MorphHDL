@@ -1,0 +1,43 @@
+name: Apply Increment 31 compile fix
+
+on:
+  push:
+    branches:
+      - agent/increment-31-generic-expressions
+    paths:
+      - .github/increment31/order-fix.patch.b64
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    name: Apply reviewed compile fix
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out increment branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-31-generic-expressions
+          fetch-depth: 0
+
+      - name: Apply fix and remove bootstrap files
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode .github/increment31/order-fix.patch.b64 > /tmp/order-fix.patch
+          git apply --check /tmp/order-fix.patch
+          git apply /tmp/order-fix.patch
+          rm -rf .github/increment31
+          rm -f .github/workflows/increment31-order-fix.yml
+
+      - name: Commit compile fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix cross-version symbolic width ordering"
+          git push origin HEAD:agent/increment-31-generic-expressions
