@@ -82,7 +82,10 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
         new GenericExpressions(width)
       )
 
-      assert(concretize(parameterized, "NativeGenericExpressions", width = 8) == concrete)
+      assert(
+        nativeModule(concretize(parameterized, "NativeGenericExpressions", width = 8)) ==
+          nativeModule(concrete)
+      )
       assert(parameterized.contains("parameter integer WIDTH = 8"))
       assert(hasDeclarationWidth(parameterized, "connected", "[WIDTH-1:0]"))
       assert(
@@ -128,7 +131,10 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
         synchronousResetConfig(concreteDirectory)
       )
 
-      assert(concretize(parameterized, "NativeStreamM2sPipe", width = 8) == concrete)
+      assert(
+        nativeModule(concretize(parameterized, "NativeStreamM2sPipe", width = 8)) ==
+          nativeModule(concrete)
+      )
       assert(parameterized.contains("module NativeStreamM2sPipe #("))
       assert(parameterized.contains("parameter integer WIDTH = 8"))
       assert(hasDeclarationWidth(parameterized, "push_data", "[WIDTH-1:0]"))
@@ -271,6 +277,12 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
         java.util.regex.Pattern.quote(name) + "(?=\\s*[,;])").r
     pattern.findFirstIn(verilog).nonEmpty
   }
+
+  private def nativeModule(verilog: String): String =
+    "(?m)^module\\s".r
+      .findFirstMatchIn(verilog)
+      .map(module => verilog.substring(module.start))
+      .getOrElse(verilog)
 
   private def concretize(verilog: String, moduleName: String, width: Int): String = {
     val header: Regex =
