@@ -158,23 +158,39 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
 
   val romCache = mutable.HashMap[String, String]()
   def compile(component: Component): () => String = {
-    val componentBuilderVerilog = new ComponentEmitterVerilog(
-      c                           = component,
-      systemVerilog               = pc.config.isSystemVerilog,
-      verilogBase                 = this,
-      algoIdIncrementalBase       = allocateAlgoIncrementalBase,
-      mergeAsyncProcess           = config.mergeAsyncProcess,
-      asyncResetCombSensitivity   = config.asyncResetCombSensitivity,
-      anonymSignalPrefix          = if(pc.config.anonymSignalUniqueness) globalData.anonymSignalPrefix + "_" + component.definitionName else globalData.anonymSignalPrefix,
-      nativeRom                   = config.inlineRom,
-      nativeRomFilePrefix         = rtlName,
-      caseRom                     = config.caseRom,
-      emitedComponentRef          = emitedComponentRef,
-      emitedRtlSourcesPath        = report.generatedSourcesPaths,
-      spinalConfig                = pc.config,
-      pc                          = pc,
-      romCache                    = romCache
-    )
+    def newBuilder(builderConfig: SpinalConfig): ComponentEmitterVerilog =
+      new ComponentEmitterVerilog(
+        c                           = component,
+        systemVerilog               = builderConfig.isSystemVerilog,
+        verilogBase                 = this,
+        algoIdIncrementalBase       = allocateAlgoIncrementalBase,
+        mergeAsyncProcess           = builderConfig.mergeAsyncProcess,
+        asyncResetCombSensitivity   = builderConfig.asyncResetCombSensitivity,
+        anonymSignalPrefix          = if(builderConfig.anonymSignalUniqueness) globalData.anonymSignalPrefix + "_" + component.definitionName else globalData.anonymSignalPrefix,
+        nativeRom                   = builderConfig.inlineRom,
+        nativeRomFilePrefix         = rtlName,
+        caseRom                     = builderConfig.caseRom,
+        emitedComponentRef          = emitedComponentRef,
+        emitedRtlSourcesPath        = report.generatedSourcesPaths,
+        spinalConfig                = builderConfig,
+        pc                          = pc,
+        romCache                    = romCache
+      )
+
+    val (componentBuilderVerilog, componentResult) =
+      try {
+        val builder = newBuilder(pc.config)
+        (builder, () => builder.result)
+      } catch {
+        case failure: ParameterizedVerilogException
+            if pc.config.parameterizedVerilog &&
+              ParameterizedVerilogNativeFallback.supports(failure, component) =>
+          val builder = newBuilder(pc.config.copy(parameterizedVerilog = false))
+          (
+            builder,
+            () => ParameterizedVerilogNativeFallback.rewrite(component, builder.result, pc)
+          )
+      }
 
     if(component.parentScope == null && pc.config.dumpWave != null) {
       componentBuilderVerilog.logics ++=
@@ -193,7 +209,7 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
       assert(!usedDefinitionNames.contains(component.definitionName) || component.isInBlackBoxTree, s"Component '${component}' with definition name '${component.definitionName}' was already used once for a different layout\n${component.getScalaLocationLong}")
       usedDefinitionNames += component.definitionName
       emitedComponent += (trace -> component)
-      () => componentBuilderVerilog.result
+      componentResult
     } else {
       emitedComponentRef.put(component, oldComponent)
       val originalName = component.definitionName

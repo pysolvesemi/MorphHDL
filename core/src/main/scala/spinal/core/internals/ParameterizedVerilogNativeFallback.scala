@@ -456,53 +456,68 @@ private[internals] object ParameterizedVerilogNativeFallback {
         expressionCache.getOrElseUpdate(expression, inferExpression(expression))
       }
 
+      /**
+        * Spinal input normalization inserts concrete-witness Resize nodes around
+        * operands.  Those nodes are not user-visible resizes and must retain the
+        * operand's symbolic width when their concrete size equals its witness.
+        * A top-level Resize expression still goes through inferResize and remains
+        * subject to the full-domain narrowing rule.
+        */
+      private def operandWidth(expression: Expression): WidthExpr = expression match {
+        case resize: Resize =>
+          val source = ofExpression(resize.input)
+          if (source.isSymbolic && source.default == BigInt(resize.size)) source
+          else ofExpression(resize)
+        case other => ofExpression(other)
+      }
+
       private def inferExpression(expression: Expression): WidthExpr = expression match {
         case baseType: BaseType => ofBase(baseType)
         case resize: Resize     => inferResize(resize)
-        case cast: CastBitVectorToBitVector => ofExpression(cast.input)
+        case cast: CastBitVectorToBitVector => operandWidth(cast.input)
         case _: CastBoolToBits              => WidthLiteral(1)
         case operator: Operator.Bits.Cat =>
-          widthAdd(ofExpression(operator.left), ofExpression(operator.right))
+          widthAdd(operandWidth(operator.left), operandWidth(operator.right))
         case operator: Operator.BitVector.Add =>
-          widthMax(ofExpression(operator.left), ofExpression(operator.right))
+          widthMax(operandWidth(operator.left), operandWidth(operator.right))
         case operator: Operator.BitVector.Sub =>
-          widthMax(ofExpression(operator.left), ofExpression(operator.right))
+          widthMax(operandWidth(operator.left), operandWidth(operator.right))
         case operator: Operator.BitVector.And =>
-          widthMax(ofExpression(operator.left), ofExpression(operator.right))
+          widthMax(operandWidth(operator.left), operandWidth(operator.right))
         case operator: Operator.BitVector.Or =>
-          widthMax(ofExpression(operator.left), ofExpression(operator.right))
+          widthMax(operandWidth(operator.left), operandWidth(operator.right))
         case operator: Operator.BitVector.Xor =>
-          widthMax(ofExpression(operator.left), ofExpression(operator.right))
+          widthMax(operandWidth(operator.left), operandWidth(operator.right))
         case operator: Operator.BitVector.Mul =>
-          widthAdd(ofExpression(operator.left), ofExpression(operator.right))
-        case operator: Operator.BitVector.Div => ofExpression(operator.left)
+          widthAdd(operandWidth(operator.left), operandWidth(operator.right))
+        case operator: Operator.BitVector.Div => operandWidth(operator.left)
         case operator: Operator.BitVector.Mod =>
-          widthMin(ofExpression(operator.left), ofExpression(operator.right))
+          widthMin(operandWidth(operator.left), operandWidth(operator.right))
         case operator: Operator.BitVector.Repeat =>
-          widthMultiply(ofExpression(operator.source), WidthLiteral(operator.count))
+          widthMultiply(operandWidth(operator.source), WidthLiteral(operator.count))
         case operator: Operator.BitVector.ShiftLeftByInt =>
-          widthAdd(ofExpression(operator.source), WidthLiteral(operator.shift))
+          widthAdd(operandWidth(operator.source), WidthLiteral(operator.shift))
         case operator: Operator.BitVector.ShiftRightByInt =>
           widthMax(
-            widthSubtract(ofExpression(operator.source), WidthLiteral(operator.shift)),
+            widthSubtract(operandWidth(operator.source), WidthLiteral(operator.shift)),
             WidthLiteral(0)
           )
         case operator: Operator.BitVector.ShiftLeftByIntFixedWidth =>
-          ofExpression(operator.source)
+          operandWidth(operator.source)
         case operator: Operator.BitVector.ShiftRightByIntFixedWidth =>
-          ofExpression(operator.source)
+          operandWidth(operator.source)
         case operator: Operator.BitVector.ShiftRightByUInt =>
-          ofExpression(operator.left)
+          operandWidth(operator.left)
         case operator: Operator.BitVector.ShiftLeftByUIntFixedWidth =>
-          ofExpression(operator.left)
-        case operator: Operator.Bits.Not => ofExpression(operator.source)
-        case operator: Operator.UInt.Not => ofExpression(operator.source)
-        case operator: Operator.SInt.Not => ofExpression(operator.source)
-        case operator: Operator.SInt.Minus => ofExpression(operator.source)
+          operandWidth(operator.left)
+        case operator: Operator.Bits.Not => operandWidth(operator.source)
+        case operator: Operator.UInt.Not => operandWidth(operator.source)
+        case operator: Operator.SInt.Not => operandWidth(operator.source)
+        case operator: Operator.SInt.Minus => operandWidth(operator.source)
         case mux: MultiplexerWidthable =>
-          mux.inputs.map(ofExpression).reduce(widthMax)
+          mux.inputs.map(operandWidth).reduce(widthMax)
         case mux: BinaryMultiplexerWidthable =>
-          widthMax(ofExpression(mux.whenTrue), ofExpression(mux.whenFalse))
+          widthMax(operandWidth(mux.whenTrue), operandWidth(mux.whenFalse))
         case access: BitVectorRangedAccessFixed => inferFixedRange(access)
         case access: BitVectorRangedAccessFloating => inferFloatingRange(access)
         case access: BitVectorBitAccessFixed => inferFixedBit(access)
