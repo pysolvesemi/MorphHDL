@@ -1,4 +1,4 @@
-name: Diagnose Increment 31 symbolic-output widths
+name: Validate Increment 31 declaration matcher
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  validate:
     runs-on: ubuntu-24.04
     container:
       image: ghcr.io/spinalhdl/docker:latest
@@ -24,36 +24,23 @@ jobs:
           ref: agent/increment-31-generic-expressions
           fetch-depth: 0
 
-      - name: Add temporary diagnostics
+      - name: Apply focused test matcher fix
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          source = Path("core/src/main/scala/spinal/core/internals/ParameterizedVerilogNativeFallback.scala")
-          text = source.read_text(encoding="utf-8")
-          anchor = """    val analysis = new Analysis(component, pc)\n    analysis.validate()\n\n    val modulePattern =\n"""
-          replacement = """    val analysis = new Analysis(component, pc)\n    analysis.validate()\n    println(\"INCREMENT31_DIAG_WIDTHS \" + analysis.symbolicDeclarationWidths.map { case (name, width) => name + \"=\" + width.render }.mkString(\",\"))\n    verilog.linesIterator.filter(line => line.contains(\"dout\") || line.contains(\"din\") || line.contains(\"alternate\")).foreach(line => println(\"INCREMENT31_DIAG_NATIVE \" + line))\n\n    val modulePattern =\n"""
-          if text.count(anchor) != 1:
-              raise SystemExit(f"expected one rewrite diagnostic anchor, found {text.count(anchor)}")
-          source.write_text(text.replace(anchor, replacement), encoding="utf-8")
-
-          tests = Path("core/src/test/scala/spinal/core/internals/ParameterizedDataShapeTests.scala")
-          test_text = tests.read_text(encoding="utf-8")
-          replacements = {
-              '    assert(hasDeclarationWidth(verilog, "dout", "[WIDTH-1:0]"))':
-                  '    assert(hasDeclarationWidth(verilog, "dout", "[WIDTH-1:0]"), "INCREMENT31_DIAG_REWRITTEN_BEGIN\\n" + verilog + "\\nINCREMENT31_DIAG_REWRITTEN_END")',
-              '    assert(hasDeclarationWidth(expression, "dout", "[WIDTH-1:0]"))':
-                  '    assert(hasDeclarationWidth(expression, "dout", "[WIDTH-1:0]"), "INCREMENT31_DIAG_EXPRESSION_BEGIN\\n" + expression + "\\nINCREMENT31_DIAG_EXPRESSION_END")',
-          }
-          for old, new in replacements.items():
-              count = test_text.count(old)
-              if count != 1:
-                  raise SystemExit(f"expected one test assertion {old!r}, found {count}")
-              test_text = test_text.replace(old, new)
-          tests.write_text(test_text, encoding="utf-8")
+          path = Path("core/src/test/scala/spinal/core/internals/ParameterizedDataShapeTests.scala")
+          text = path.read_text(encoding="utf-8")
+          old = '        java.util.regex.Pattern.quote(name) + "(?=\\\\s*[,;])").r'
+          new = '        java.util.regex.Pattern.quote(name) + "(?=\\\\s*(?:[,;]|\\\\)))").r'
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f"expected one declaration matcher, found {count}")
+          path.write_text(text.replace(old, new), encoding="utf-8")
           PY
           git diff --check
+          git diff -- core/src/test/scala/spinal/core/internals/ParameterizedDataShapeTests.scala
 
       - name: Install pinned Mill bootstrap
         shell: bash
@@ -63,8 +50,10 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Capture the failing Scala 2.12 suite
+      - name: Run the affected suite on both Scala versions
         shell: bash
         run: |
           /tmp/morphhdl-mill core[2.12.18].testOnly \
+            spinal.core.internals.ParameterizedDataShapeTests
+          /tmp/morphhdl-mill core[2.13.12].testOnly \
             spinal.core.internals.ParameterizedDataShapeTests
