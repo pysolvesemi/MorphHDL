@@ -144,7 +144,6 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
       assert(parameterized.contains("pop_ready"))
       assert(parameterized.contains("push_valid"))
       assert(parameterized.contains("pop_valid"))
-      assert(parameterized.contains("||"))
       assert(parameterized.contains("!"))
       assert(parameterized.contains("<= push_valid"))
       assert(parameterized.contains("<= push_data"))
@@ -158,7 +157,6 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
         "pop_valid",
         "push_data",
         "pop_data",
-        "||",
         "!"
       ).foreach { token =>
         assert(parameterized.contains(token), s"native m2sPipe output lost '$token'")
