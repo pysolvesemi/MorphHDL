@@ -395,7 +395,7 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
   ): Boolean = {
     val pattern =
       (java.util.regex.Pattern.quote(range) + "\\s+" +
-        java.util.regex.Pattern.quote(name) + "(?=\\s*[,;])").r
+        java.util.regex.Pattern.quote(name) + "(?=\\s*(?:[,;]|\\)))").r
     pattern.findFirstIn(verilog).nonEmpty
   }
 
