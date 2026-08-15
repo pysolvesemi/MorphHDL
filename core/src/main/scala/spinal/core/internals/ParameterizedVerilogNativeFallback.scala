@@ -128,7 +128,7 @@ private[internals] object ParameterizedVerilogNativeFallback {
 
     widthsByName.foldLeft(line) { case (current, (name, expression)) =>
       val quotedName = Pattern.quote(name)
-      val packedPattern = ("(\\[[^\\]]+\\])(\\s+)(" + quotedName + ")(?=\\s*[,;])").r
+      val packedPattern = ("(\\[[^\\]]+\\])(\\s+)(" + quotedName + ")(?=\\s*(?:[,;]|$))").r
       var replaced = false
       val withRange = packedPattern.replaceAllIn(
         current,
@@ -142,7 +142,7 @@ private[internals] object ParameterizedVerilogNativeFallback {
       )
       if (replaced) withRange
       else {
-        val scalarPattern = ("(\\s+)(" + quotedName + ")(?=\\s*[,;])").r
+        val scalarPattern = ("(\\s+)(" + quotedName + ")(?=\\s*(?:[,;]|$))").r
         var inserted = false
         scalarPattern.replaceAllIn(
           withRange,
