@@ -409,3 +409,20 @@ ready inverter/OR topology; source and JSON mutations reject gating, reset,
 clock, connection and topology drift. The atomic node cannot express an
 internal combinational loop or second clock, but general Stream composition,
 runtime dependency graphs and CDC support remain partial.
+
+Increment 29 begins native single-source validation by carrying one direct
+public width through an ordinary UInt wire component while retaining the full
+inherited phase inventory. Increment 30 extends that native analysis to every
+Bits/UInt/SInt leaf in ports, internal wires and one bounded register path,
+including leaves cloned through HardType, Bundle, static Vec, Stream and Flow.
+It validates complete parameter domains, concrete/default witness agreement,
+same-name schemas, compatible direct assignments, one concrete clock and sole
+drivers before emission. Untagged non-Bool packed leaves and unsupported
+statements fail closed.
+
+The twenty-first fixture covers widths 1, 8, 13 and 64. Normal and reverse
+construction runs must match byte-for-byte; strict Verilog parsing, simulation
+and Yosys synthesis prove the flat ABI and internal/register widths. These
+shape and narrowly bounded register checks do not claim generic expression,
+process, hierarchy or library validation; those remain partial until their
+roadmap increments.

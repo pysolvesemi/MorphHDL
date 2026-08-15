@@ -7,6 +7,11 @@ These files are executable output contracts for the parameterized backend.
   consumes a direct public `HdlInt` through `UInt(width bits)`, connects the
   two ports with a normal assignment and generates this parameterized module
   without a separately authored ParamRTL `Design`.
+- `symbolic_data_shapes.v` is owned by Increment 30. One ordinary component
+  carries `WIDTH` through native Bits/UInt/SInt leaves, cloneOf, HardType,
+  Bundle, static Vec, Stream and Flow payloads, an internal wire and one
+  unconditional uninitialized register path. Concrete Bool clock and protocol
+  controls stay one bit; the Verilog ABI is deterministically flattened.
 - `derived_width.v` is owned by Increments 3, 23 and 24. Its two frontend public
   parameters feed an acyclic local-parameter expression graph; Increment 23
   clamps parameter-derived padding with typed `Min` and floors the final width
@@ -111,16 +116,21 @@ These files are executable output contracts for the parameterized backend.
   with `simple_dual_port_memory.v`, Increment 27 extends it to nineteen with
   `synchronous_stream_fifo.v`, and Increment 28 extends it to twenty with
   `synchronous_stream_m2s_pipe.v`. Increment 29 migrates the first artifact to
-  the native single-source width bridge without changing that inventory. CI
+  the native single-source width bridge without changing that inventory.
+  Increment 30 extends the path to twenty-one files with
+  `symbolic_data_shapes.v`. CI
   performs a normal and reverse-construction run, requires an exact
-  twenty-file inventory, checks
+  twenty-one-file inventory, checks
   byte identity with these goldens, and gives that unmodified directory to the
   external tool gates.
 - The generated-fixture testbenches cover default, minimum, awkward and mixed
   overrides. `ParameterizedWireTb` checks the direct native width bridge at
   widths 8, 1, 13 and 64 in four simultaneous instances; Yosys rejects separate
   mutations that freeze either symbolic port at eight bits under the 64-bit
-  override. `DerivedWidthTb` checks widths 37, 4, 20, 29, 25 and 7 in six
+  override. `SymbolicDataShapesTb` checks all direct, aggregate, Vec, Stream,
+  Flow and register paths at widths 1, 8, 13 and 64. Yosys proves the complete
+  flattened ABI and internal/register widths and rejects fixed-width
+  mutations at the 64-bit override. `DerivedWidthTb` checks widths 37, 4, 20, 29, 25 and 7 in six
   simultaneous instances of the same emitted module while exercising lane
   counts one, two, three and four. `ParameterForwardingTb`
   checks forwarded widths 32, 1, 15, 24 and 20 through five simultaneous

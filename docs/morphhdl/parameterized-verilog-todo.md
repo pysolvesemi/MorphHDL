@@ -38,7 +38,7 @@ with this roadmap.
   The bounded executable contract is documented in
   [Increment 29](increment-29-single-source-symbolic-width.md).
 
-- [ ] **Increment 30 — Symbolic data shapes**
+- [x] **Increment 30 — Symbolic data shapes**
 
   Preserve symbolic widths through `Bits`, `UInt`, `SInt`, ports, registers,
   cloning and `HardType`, then through `Bundle`, `Vec`, `Stream` and `Flow`

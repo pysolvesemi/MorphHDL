@@ -4,7 +4,7 @@ import java.nio.file.{Files, Path, Paths}
 
 import spinal.core.{ClockDomainConfig, Component, HIGH, RISING, SYNC, SpinalConfig}
 
-/** CLI dispatch for the twenty public-entry-point contract fixtures. */
+/** CLI dispatch for the twenty-one public-entry-point contract fixtures. */
 object MorphContractFixtureGenerator {
   private final case class Options(outputDirectory: Path, reverseConstructionOrder: Boolean)
 
@@ -39,6 +39,7 @@ object MorphContractFixtureGenerator {
 
   private val fixtures = Vector(
     singleSource("parameterized_wire.v", ParameterizedWireContractFixture.component),
+    singleSource("symbolic_data_shapes.v", SymbolicDataShapesContractFixture.component),
     dualSource("derived_width.v", DerivedWidthContractFixture.program),
     dualSource("parameter_forwarding.v", ParameterForwardingContractFixture.program),
     dualSource("lane_array.v", LaneArrayContractFixture.program),

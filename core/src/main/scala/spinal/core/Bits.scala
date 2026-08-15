@@ -31,6 +31,9 @@ trait BitsFactory {
   def Bits(u: Unit = ()): Bits = new Bits()
   /** Create a new Bits of a given width */
   def Bits(width: BitCount): Bits = Bits().setWidth(width.value)
+  /** Create Bits at its concrete witness while retaining a symbolic width. */
+  def Bits(width: ParameterizedBitCount): Bits =
+    ParameterizedWidth.attach(Bits(), width)
 }
 
 

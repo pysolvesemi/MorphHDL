@@ -65,6 +65,22 @@ dual-factory association but is not a complete behavioral equivalence proof.
 Increment 29 does not claim that this broader compatibility surface has
 already migrated.
 
+## Native symbolic data shapes
+
+Increment 30 attaches the retained direct public parameter schema to ordinary
+`Bits`, `UInt` and `SInt` BaseType leaves. The standard `cloneOf` and `HardType`
+paths preserve the tag; Bundle, statically sized Vec, Stream and Flow payload
+construction therefore propagate it recursively without a component-specific
+adapter. Internal wires and one uninitialized, unconditional register path are
+included. A concrete Bool clock or ready/valid control is permitted without a
+symbolic tag and remains one bit.
+
+Only whole-leaf same-type assignments with identical parameter schemas, direct
+Bool-to-Bool control assignments and the bounded register path are accepted.
+Vec length is still a Scala constant. Derived widths, partial aggregates,
+expressions, conditional or resettable processes and Stream algorithms remain
+explicitly unsupported here and cannot specialize to the default silently.
+
 The names are part of the v1 source contract:
 
 - `MorphVerilog`: parameter-aware Verilog-2001 generation entry point.

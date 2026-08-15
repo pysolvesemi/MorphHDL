@@ -54,6 +54,76 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("one ordinary component retains symbolic native and aggregate data shapes") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "symbolic_data_shapes.v"
+
+      val report = MorphVerilog(config) {
+        SymbolicDataShapesContractFixture.component(reverseConstructionOrder = false)
+      }
+
+      val output = directory.resolve("symbolic_data_shapes.v")
+      assert(report.toplevelName == "SymbolicDataShapes")
+      assert(report.generatedSourcesPaths == Vector(output.toString))
+      assert(
+        report.parameters == Vector(
+          IntegerParameter(
+            "WIDTH",
+            8,
+            Vector(MinInclusive(1), MaxInclusive(64))
+          )
+        )
+      )
+      assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
+      assert(read(output) == read(Paths.get("morphhdl/examples/contracts/symbolic_data_shapes.v")))
+
+      val verilog = read(output)
+      assert(verilog.contains("module SymbolicDataShapes #("))
+      assert(verilog.contains("parameter integer WIDTH = 8"))
+      assert(verilog.contains("[WIDTH-1:0] bits_in"))
+      assert(verilog.contains("[WIDTH-1:0] uint_in"))
+      assert(verilog.contains("[WIDTH-1:0] sint_in"))
+      assert(verilog.contains("[WIDTH-1:0] vec_in_0_bits"))
+      assert(verilog.contains("[WIDTH-1:0] stream_in_payload_sint"))
+      assert(verilog.contains("[WIDTH-1:0] flow_out_payload_uint"))
+      assert(verilog.contains("[WIDTH-1:0] internal_payload_bits"))
+      assert(verilog.contains("[WIDTH-1:0] payload_register_sint"))
+      assert(verilog.contains("always @(posedge clk)"))
+      assert(!verilog.contains("parameterizedDesign"))
+    }
+  }
+
+  test("ordinary SpinalVerilog is byte-identical for symbolic-default and literal data shapes") {
+    withTemporaryDirectory { directory =>
+      val symbolicDirectory = directory.resolve("symbolic")
+      val literalDirectory = directory.resolve("literal")
+      Files.createDirectories(symbolicDirectory)
+      Files.createDirectories(literalDirectory)
+
+      val symbolicConfig = SpinalConfig(targetDirectory = symbolicDirectory.toString)
+      symbolicConfig.netlistFileName = "SymbolicDataShapes.v"
+      val symbolicReport = SpinalVerilog(symbolicConfig) {
+        SymbolicDataShapesContractFixture.component(reverseConstructionOrder = false)
+      }
+      val literalConfig = SpinalConfig(targetDirectory = literalDirectory.toString)
+      literalConfig.netlistFileName = "SymbolicDataShapes.v"
+      val literalReport = SpinalVerilog(literalConfig) {
+        SymbolicDataShapesContractFixture.componentWithWidth(
+          HdlInt.literal(8),
+          reverseConstructionOrder = false
+        )
+      }
+
+      val verilog = read(Paths.get(symbolicReport.generatedSourcesPaths.head))
+      assert(verilog == read(Paths.get(literalReport.generatedSourcesPaths.head)))
+      assert(verilog.contains("module SymbolicDataShapes ("))
+      assert(verilog.contains("[7:0]"))
+      assert(!verilog.contains("parameter integer WIDTH"))
+      assert(!verilog.contains("[WIDTH-1:0]"))
+    }
+  }
+
   test("single-source emission is independent of component and parameter names") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)

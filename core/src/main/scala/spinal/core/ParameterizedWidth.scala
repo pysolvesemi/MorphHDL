@@ -39,25 +39,62 @@ object ParameterizedBitCount {
     new ParameterizedBitCount(value, Some(parameter), sourceLocation)
 }
 
-/** Internal AST marker installed by the parameter-aware UInt factory. */
+/** Internal AST marker installed by a parameter-aware bit-vector factory. */
 private[core] final case class ParameterizedWidthTag(
     parameter: ElaborationIntegerParameter,
     sourceLocation: Option[String]
 ) extends SpinalTag {
   override def allowMultipleInstance: Boolean = false
+  // Metadata must not change ordinary SpinalHDL simplification. Parameterized
+  // designs retain named data-shape leaves; the tag is not a keep directive.
+  override def canSymplifyHost: Boolean = true
 }
 
 /** Read-only access to symbolic-width metadata retained on a native AST. */
 object ParameterizedWidth {
+  /**
+    * Construct a concrete bit vector while retaining its symbolic packed
+    * width.  All supported bit-vector factories use this single path so the
+    * metadata semantics cannot diverge between Bits, UInt and SInt.
+    */
+  private[core] def attach[T <: BitVector](
+      data: T,
+      width: ParameterizedBitCount
+  ): T = {
+    data.setWidth(width.value)
+    width.parameter.foreach { parameter =>
+      data.addTag(ParameterizedWidthTag(parameter, width.sourceLocation))
+    }
+    data
+  }
+
+  /** Preserve only symbolic-width metadata when a native leaf is cloned. */
+  private[core] def copy(from: BaseType, to: BaseType): Unit =
+    from.getTag(classOf[ParameterizedWidthTag]).foreach { tag =>
+      to.addTag(ParameterizedWidthTag(tag.parameter, tag.sourceLocation))
+    }
+
   def parameterOf(data: BaseType): Option[ElaborationIntegerParameter] =
     data.getTag(classOf[ParameterizedWidthTag]).map(_.parameter)
 
   def sourceLocationOf(data: BaseType): Option[String] =
     data.getTag(classOf[ParameterizedWidthTag]).flatMap(_.sourceLocation)
 
-  /** Canonical public parameter schemas referenced by a component's ports. */
+  /** Symbolically sized leaves in deterministic data-model order. */
+  def leavesOf(data: Data): Vector[BaseType] =
+    data.flatten.filter(parameterOf(_).nonEmpty).toVector
+
+  /**
+    * Canonical public parameter schemas referenced anywhere in a component.
+    * This includes internal signals and registers as well as flattened ports.
+    */
   def parametersOf(component: Component): Vector[ElaborationIntegerParameter] = {
-    val values = component.getOrdredNodeIo.flatMap(parameterOf)
+    val leaves = scala.collection.mutable.ArrayBuffer.empty[BaseType]
+    component.dslBody.walkLeafStatements {
+      case baseType: BaseType if parameterOf(baseType).nonEmpty => leaves += baseType
+      case _ =>
+    }
+    val values = leaves.flatMap(parameterOf)
     val conflicts = values.groupBy(_.name).collectFirst {
       case (name, schemas) if schemas.distinct.size != 1 => name
     }

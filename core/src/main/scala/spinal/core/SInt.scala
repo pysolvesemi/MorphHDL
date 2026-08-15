@@ -31,6 +31,9 @@ trait SIntFactory {
   def SInt(u: Unit = ()) = new SInt()
   /** Create a new SInt of a given width */
   def SInt(width: BitCount): SInt = SInt().setWidth(width.value)
+  /** Create SInt at its concrete witness while retaining a symbolic width. */
+  def SInt(width: ParameterizedBitCount): SInt =
+    ParameterizedWidth.attach(SInt(), width)
 }
 
 
