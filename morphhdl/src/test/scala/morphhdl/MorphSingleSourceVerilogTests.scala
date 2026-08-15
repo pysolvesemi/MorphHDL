@@ -76,7 +76,7 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
         )
       )
       assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
-      assert(read(output) == read(Paths.get("morphhdl/examples/contracts/symbolic_data_shapes.v")))
+      assert(read(output) == read(contractGolden("symbolic_data_shapes.v")))
 
       val verilog = read(output)
       assert(verilog.contains("module SymbolicDataShapes #("))
@@ -291,6 +291,12 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
 
   private def read(path: Path): String =
     new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
+
+  private def contractGolden(fileName: String): Path = {
+    val repositoryRootPath = Paths.get("morphhdl", "examples", "contracts", fileName)
+    if (Files.exists(repositoryRootPath)) repositoryRootPath
+    else Paths.get("examples", "contracts", fileName)
+  }
 
   private def withTemporaryDirectory(body: Path => Unit): Unit = {
     val directory = Files.createTempDirectory("morphhdl-single-source-test-")
