@@ -177,6 +177,29 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
         romCache                    = romCache
       )
 
+    def withPulledExternalClockInputs[T](body: => T): T = {
+      val patchedSources = ArrayBuffer.empty[Bool]
+      component.dslBody.walkDeclarations {
+        case baseType: BaseType if baseType.isReg && baseType.clockDomain != null =>
+          val domain = baseType.clockDomain
+          Vector(domain.clock, domain.reset).foreach { source =>
+            if (
+              source != null &&
+              source.component == null &&
+              source.isDirectionLess &&
+              component.pulledDataCache.get(source).exists(_.isInput) &&
+              !patchedSources.exists(_ eq source)
+            ) {
+              source.dir = in
+              patchedSources += source
+            }
+          }
+        case _ =>
+      }
+      try body
+      finally patchedSources.foreach(_.dir = null)
+    }
+
     val (componentBuilderVerilog, componentResult) =
       try {
         val builder = newBuilder(pc.config)
@@ -188,7 +211,16 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
           val builder = newBuilder(pc.config.copy(parameterizedVerilog = false))
           (
             builder,
-            () => ParameterizedVerilogNativeFallback.rewrite(component, builder.result, pc)
+            () => {
+              val nativeResult = builder.result
+              // ClockDomain.external keeps its source signals outside the component.
+              // The normal emitter has already pulled top-level input proxies into the
+              // component, so expose that proven input view only while validating the
+              // bounded native fallback, then restore the source signals unchanged.
+              withPulledExternalClockInputs {
+                ParameterizedVerilogNativeFallback.rewrite(component, nativeResult, pc)
+              }
+            }
           )
       }
 
