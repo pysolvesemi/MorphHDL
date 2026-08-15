@@ -1,0 +1,43 @@
+name: Apply Increment 31 patch
+
+on:
+  push:
+    branches:
+      - agent/increment-31-generic-expressions
+    paths:
+      - .github/increment31/increment31.patch.gz.b64
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    name: Apply reviewed Increment 31 delta
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out increment branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply patch and remove bootstrap files
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode .github/increment31/increment31.patch.gz.b64 \
+            | gzip --decompress > /tmp/increment31.patch
+          git apply --check /tmp/increment31.patch
+          git apply /tmp/increment31.patch
+          rm -rf .github/increment31
+          rm -f .github/workflows/increment31-apply.yml
+
+      - name: Commit Increment 31 implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Complete Increment 31 generic expressions"
+          git push origin HEAD:agent/increment-31-generic-expressions
