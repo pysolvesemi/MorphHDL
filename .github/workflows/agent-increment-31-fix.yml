@@ -1,0 +1,90 @@
+name: Apply Increment 31 symbolic-output fix
+
+on:
+  push:
+    branches:
+      - agent/increment-31-generic-expressions
+    paths:
+      - .github/workflows/agent-increment-31-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-31-generic-expressions
+          fetch-depth: 0
+
+      - name: Apply focused symbolic-output width fix
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("core/src/main/scala/spinal/core/internals/ParameterizedVerilogNativeFallback.scala")
+          text = path.read_text(encoding="utf-8")
+          old = '''      private def inferUntaggedBitVector(bitVector: BitVector): WidthExpr = {
+                val fullSources = ArrayBuffer.empty[Expression]
+                bitVector.foreachStatements {
+                  case assignment: DataAssignmentStatement
+                      if assignment.target == bitVector && assignment.finalTarget == bitVector =>
+                    fullSources += assignment.source
+                  case _ =>
+                }
+                val sourceWidths = fullSources.map(ofExpression)
+          '''
+          new = '''      private def inferUntaggedBitVector(bitVector: BitVector): WidthExpr = {
+                val fullSources = ArrayBuffer.empty[Expression]
+                assignments.foreach {
+                  case assignment
+                      if assignment.target == bitVector && assignment.finalTarget == bitVector =>
+                    fullSources += assignment.source
+                  case _ =>
+                }
+                val sourceWidths = fullSources.map(ofExpression)
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(f"expected exactly one width-inference block, found {text.count(old)}")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+
+          git diff --check
+          git diff -- core/src/main/scala/spinal/core/internals/ParameterizedVerilogNativeFallback.scala
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Re-run the failing suite on both Scala versions
+        shell: bash
+        run: |
+          /tmp/morphhdl-mill core[2.12.18].testOnly \
+            spinal.core.internals.ParameterizedDataShapeTests
+          /tmp/morphhdl-mill core[2.13.12].testOnly \
+            spinal.core.internals.ParameterizedDataShapeTests
+
+      - name: Commit tested fix and remove temporary workflow
+        shell: bash
+        run: |
+          rm .github/workflows/agent-increment-31-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            core/src/main/scala/spinal/core/internals/ParameterizedVerilogNativeFallback.scala \
+            .github/workflows/agent-increment-31-fix.yml
+          git diff --cached --check
+          git commit -m "Fix symbolic output width inference"
+          git push origin HEAD:agent/increment-31-generic-expressions
