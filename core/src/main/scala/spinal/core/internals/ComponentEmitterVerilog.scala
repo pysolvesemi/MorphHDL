@@ -59,29 +59,59 @@ class ComponentEmitterVerilog(
   val localparams = new StringBuilder()
   val logics       = new StringBuilder()
   val endModule = new StringBuilder()
-  def getTrace() = new ComponentEmitterTrace(definitionAttributes :: beginModule :: endModule :: localparams :: declarations :: logics :: Nil, portMaps)
+  val parameterDeclarations = new StringBuilder()
+  def getTrace() = new ComponentEmitterTrace(definitionAttributes :: parameterDeclarations :: beginModule :: endModule :: localparams :: declarations :: logics :: Nil, portMaps)
+
+  private val directParameters =
+    if (spinalConfig.parameterizedVerilog) analyzeParameterizedVerilog()
+    else Vector.empty[ElaborationIntegerParameter]
+
+  if (directParameters.nonEmpty) {
+    parameterDeclarations ++= directParameters.zipWithIndex.map { case (parameter, index) =>
+      val comma = if (index == directParameters.size - 1) "" else ","
+      s"${theme.porttab}parameter integer ${parameter.name} = ${parameter.default}$comma\n"
+    }.mkString
+  }
 
   def result: String = {
     val ports = portMaps.map{ portMap => s"${theme.porttab}${portMap}\n"}.mkString + s");"
     val definitionComments = commentTagsToString(component.definition, "//")
-    s"""
-      |${definitionComments}${definitionAttributes}module ${component.definitionName} (
-      |${ports}
-      |${beginModule}${localparams}
-      |${declarations}
-      |${logics}${endModule}
-      |endmodule
-      |""".stripMargin
+    val moduleHeader =
+      if (parameterDeclarations.isEmpty) s"module ${component.definitionName} ("
+      else s"module ${component.definitionName} #(\n${parameterDeclarations}) ("
+    if (spinalConfig.parameterizedVerilog) {
+      s"""
+        |${definitionComments}${definitionAttributes}${moduleHeader}
+        |${ports}
+        |
+        |${logics}${endModule}
+        |endmodule
+        |""".stripMargin
+    } else {
+      s"""
+        |${definitionComments}${definitionAttributes}${moduleHeader}
+        |${ports}
+        |${beginModule}${localparams}
+        |${declarations}
+        |${logics}${endModule}
+        |endmodule
+        |""".stripMargin
+    }
   }
 
 
 
   def emitEntity(): Unit = {
-    val ios = component.getOrdredNodeIo.filterNot(_.isSuffix)
+    val ordinaryIos = component.getOrdredNodeIo.filterNot(_.isSuffix)
+    val ios =
+      if (spinalConfig.parameterizedVerilog) ordinaryIos.sortBy(parameterizedPortSortKey)
+      else ordinaryIos
     ios.foreach{baseType =>
       val syntax     = s"${emitSyntaxAttributes(baseType.instanceAttributes)}"
       val dir        = s"${emitDirection(baseType)}"
-      val section    = s"${emitType(baseType)}"
+      val section    =
+        if (spinalConfig.parameterizedVerilog) emitParameterizedPortType(baseType)
+        else s"${emitType(baseType)}"
       val name       = s"${baseType.getName()}"
       val comma      = ","
       val EDAcomment = s"${emitCommentAttributes(baseType.instanceAttributes)}"  //like "/* verilator public */"
@@ -112,6 +142,203 @@ class ComponentEmitterVerilog(
     }
     if(!portMaps.isEmpty)
       portMaps(portMaps.length - 1) = portMaps.last.stripSuffix(",")
+  }
+
+  private def parameterizedPortSortKey(baseType: BaseType): (Int, String) = {
+    val direction =
+      if (baseType.isInput) 0
+      else if (baseType.isOutput) 1
+      else 2
+    (direction, baseType.getName())
+  }
+
+  private def emitParameterizedPortType(baseType: BaseType): String =
+    ParameterizedWidth.parameterOf(baseType) match {
+      case Some(parameter) => s"[${parameter.name}-1:0]"
+      case None =>
+        ParameterizedVerilogException.fail(
+          "SPINAL-PARAMETERIZED-VERILOG-UNTAGGED-PORT",
+          s"top-level port '${baseType.getName()}' has no retained direct width parameter"
+        )
+    }
+
+  private def analyzeParameterizedVerilog(): Vector[ElaborationIntegerParameter] = {
+    def fail(
+        code: String,
+        detail: String,
+        sourceLocation: Option[String] = None
+    ): Nothing =
+      ParameterizedVerilogException.fail(code, detail, sourceLocation)
+
+    if (systemVerilog) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MODE-UNSUPPORTED",
+        "the native direct-width bridge targets Verilog-2001, not SystemVerilog"
+      )
+    }
+    if (component.parent != null || component.children.nonEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-UNSUPPORTED",
+        s"component '${component.definitionName}' uses hierarchy outside the Increment 29 top-level-only surface"
+      )
+    }
+
+    val ios = component.getOrdredNodeIo.filterNot(_.isSuffix).toVector
+    if (ios.isEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-NO-SYMBOLIC-PORTS",
+        s"component '${component.definitionName}' has no direct parameterized UInt ports"
+      )
+    }
+    if (!ios.exists(_.isInput) || !ios.exists(_.isOutput)) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PORT-DIRECTIONS-UNSUPPORTED",
+        s"component '${component.definitionName}' must have at least one parameterized UInt input and one parameterized UInt output"
+      )
+    }
+
+    val portableIdentifier = "[A-Za-z_][A-Za-z0-9_]*".r
+    val schemas = ios.map { baseType =>
+      if (!baseType.isInstanceOf[UInt] || (!baseType.isInput && !baseType.isOutput)) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PORT-TYPE-UNSUPPORTED",
+          s"port '${baseType.getName()}' must be a top-level input or output UInt"
+        )
+      }
+      val parameter = ParameterizedWidth.parameterOf(baseType).getOrElse {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-UNTAGGED-PORT",
+          s"top-level port '${baseType.getName()}' has no retained direct width parameter"
+        )
+      }
+      val sourceLocation = ParameterizedWidth.sourceLocationOf(baseType)
+      if (
+        parameter.name == null ||
+        !portableIdentifier.pattern.matcher(parameter.name).matches()
+      ) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-NAME-INVALID",
+          s"parameter name '${parameter.name}' is not a portable Verilog identifier",
+          sourceLocation
+        )
+      }
+      if (pc.verilogKeywords.contains(parameter.name)) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-NAME-RESERVED",
+          s"parameter name '${parameter.name}' is reserved by IEEE 1364",
+          sourceLocation
+        )
+      }
+      if (
+        parameter.minimum < 1 || parameter.maximum < parameter.minimum ||
+        parameter.maximum > BigInt(spinalConfig.bitVectorWidthMax)
+      ) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-DOMAIN-INVALID",
+          s"parameter '${parameter.name}' must have a positive non-empty width domain bounded by SpinalConfig.bitVectorWidthMax=${spinalConfig.bitVectorWidthMax}",
+          sourceLocation
+        )
+      }
+      if (parameter.default < parameter.minimum || parameter.default > parameter.maximum) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-DEFAULT-INVALID",
+          s"parameter '${parameter.name}' default ${parameter.default} is outside [${parameter.minimum}, ${parameter.maximum}]",
+          sourceLocation
+        )
+      }
+      val concreteWidth = baseType.asInstanceOf[UInt].getWidth
+      if (concreteWidth != parameter.default.toInt) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-WITNESS-MISMATCH",
+          s"port '${baseType.getName()}' concrete width $concreteWidth does not match parameter '${parameter.name}' default ${parameter.default}",
+          sourceLocation
+        )
+      }
+      parameter
+    }
+
+    val schemaConflicts = schemas.groupBy(_.name).collectFirst {
+      case (name, values) if values.distinct.size != 1 => name
+    }
+    schemaConflicts.foreach { name =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
+        s"parameter '$name' has conflicting declarations on component '${component.definitionName}'",
+        ios.zip(schemas).find(_._2.name == name)
+          .flatMap { case (baseType, _) => ParameterizedWidth.sourceLocationOf(baseType) }
+      )
+    }
+
+    val portNames = ios.map(_.getName()).toSet
+    schemas.map(_.name).distinct.find(portNames.contains).foreach { name =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-PORT-NAME-COLLISION",
+        s"parameter '$name' collides with a port of component '${component.definitionName}'",
+        ios.find(baseType => ParameterizedWidth.parameterOf(baseType).exists(_.name == name))
+          .flatMap(ParameterizedWidth.sourceLocationOf)
+      )
+    }
+
+    val ioSet = ios.toSet
+    val assignments = ArrayBuffer.empty[DataAssignmentStatement]
+    component.dslBody.walkLeafStatements {
+      case baseType: BaseType if ioSet.contains(baseType) =>
+      case baseType: BaseType =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-INTERNAL-SIGNAL-UNSUPPORTED",
+          s"internal signal '${baseType.getName()}' is outside the Increment 29 direct-port wire surface"
+        )
+      case assignment: DataAssignmentStatement => assignments += assignment
+      case statement =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STATEMENT-UNSUPPORTED",
+          s"statement '${statement.getClass.getSimpleName}' is outside the Increment 29 direct-wire surface"
+        )
+    }
+    if (assignments.isEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-NO-DIRECT-ASSIGNMENTS",
+        s"component '${component.definitionName}' must contain at least one supported direct input-to-output assignment"
+      )
+    }
+
+    val drivenOutputs = mutable.HashMap.empty[BaseType, Int].withDefaultValue(0)
+    assignments.foreach { assignment =>
+      (assignment.target, assignment.source) match {
+        case (target: UInt, source: UInt)
+            if ioSet.contains(target) && ioSet.contains(source) &&
+              target.isOutput && source.isInput &&
+              assignment.finalTarget == target &&
+              assignment.parentScope == target.rootScopeStatement =>
+          val targetParameter = ParameterizedWidth.parameterOf(target).get
+          val sourceParameter = ParameterizedWidth.parameterOf(source).get
+          if (targetParameter != sourceParameter) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
+              s"direct assignment '${target.getName()} := ${source.getName()}' crosses parameter schemas '${targetParameter.name}' and '${sourceParameter.name}'",
+              ParameterizedWidth.sourceLocationOf(target)
+                .orElse(ParameterizedWidth.sourceLocationOf(source))
+            )
+          }
+          drivenOutputs(target) += 1
+        case _ =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-UNSUPPORTED",
+            "only root-scope direct assignments from a parameterized UInt input to an equal-parameter UInt output are supported"
+          )
+      }
+    }
+
+    ios.filter(_.isOutput).foreach { output =>
+      if (drivenOutputs(output) != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-OUTPUT-DRIVER-UNSUPPORTED",
+          s"output '${output.getName()}' must have exactly one direct parameterized input driver"
+        )
+      }
+    }
+
+    schemas.distinct.sortBy(_.name)
   }
 
   override def wrapSubInput(io: BaseType): Unit = {

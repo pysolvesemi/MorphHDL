@@ -92,7 +92,7 @@ jobs:
         shell: bash
         run: sbt -batch ++${{ matrix.scala_version }} Test/compile
 
-      - name: Test frontend, ParamRTL, orchestration and Verilog-2001 backend
+      - name: Test frontend, native single-source bridge, ParamRTL and Verilog-2001 backends
         shell: bash
         run: |
           sbt -batch ++${{ matrix.scala_version }} \
@@ -101,7 +101,7 @@ jobs:
             frontend/test \
             verilogBackend/test \
             morph/test \
-            "core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests"
+            "core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests spinal.core.internals.ParameterizedVerilogTests"
 
       - name: Export live inherited validation phase inventory
         shell: bash
@@ -159,6 +159,15 @@ jobs:
           diff --recursive --brief \
             target/morphhdl/generated/run-1 \
             target/morphhdl/generated/run-2
+          parameterized_wire=target/morphhdl/generated/run-1/parameterized_wire.v
+          test "$(grep -Ec '^[[:space:]]*parameter integer WIDTH = 8$' \
+            "${parameterized_wire}")" = "1"
+          test "$(grep -Ec '\[WIDTH-1:0\] (din|dout)' \
+            "${parameterized_wire}")" = "2"
+          test "$(grep -Fc 'assign dout = din;' \
+            "${parameterized_wire}")" = "1"
+          ! grep -Eq '\b(localparam|function|always|generate|genvar)\b' \
+            "${parameterized_wire}"
           test "$(grep -Fc 'function integer clog2;' \
             target/morphhdl/generated/run-1/derived_width.v)" = "1"
           test "$(grep -Fc 'function integer clog2;' \

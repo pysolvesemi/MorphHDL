@@ -1,5 +1,10 @@
 package morphhdl.frontend
 
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+
+import scala.collection.JavaConverters._
+
 import morphhdl.frontend.ParamRtlFrontend.integerParameter
 import morphhdl.paramrtl.BoolExpr.{
   Equal,
@@ -280,5 +285,122 @@ class HdlIntTests extends AnyFunSuite {
       val lanes = HdlInt.param("LANES", default = 4, min = 1, max = 64)
       Predef.intWrapper(0).until(lanes)
     """)
+  }
+
+  test("retains a direct public parameter through the SpinalHDL bit-count bridge") {
+    val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
+    val bitCount = width.bits
+
+    assert(bitCount.value == 8)
+    assert(
+      bitCount.parameter.contains(
+        spinal.core.ElaborationIntegerParameter(
+          "WIDTH",
+          default = 8,
+          minimum = 1,
+          maximum = 64
+        )
+      )
+    )
+  }
+
+  test("keeps ordinary SpinalHDL Int bit-count syntax unambiguous") {
+    import spinal.core.{assert => _, _}
+
+    val ordinary: BitCount = 8 bits
+    val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
+    val symbolic: ParameterizedBitCount = width bits
+
+    assert(ordinary == BitCount(8))
+    assert(symbolic.value == 8)
+    assert(symbolic.parameter.exists(_.name == "WIDTH"))
+  }
+
+  test("an HdlInt literal config emits an ordinary concrete UInt component") {
+    import spinal.core.{assert => _, _}
+
+    final case class Config(width: HdlInt)
+    val directory = Files.createTempDirectory("morphhdl-hdlint-literal-width-")
+    try {
+      val report = SpinalVerilog(
+        SpinalConfig(
+          targetDirectory = directory.toString,
+          headerWithRepoHash = false,
+          withTimescale = false,
+          printFilelist = false
+        )
+      ) {
+        val config = Config(8)
+        new Component {
+          setDefinitionName("LiteralWidthWire")
+          val din = in(UInt(config.width bits))
+          val dout = out(UInt(config.width bits))
+          dout := din
+        }
+      }
+
+      val verilog = new String(
+        Files.readAllBytes(java.nio.file.Paths.get(report.generatedSourcesPaths.head)),
+        StandardCharsets.UTF_8
+      )
+      assert(ParameterizedWidth.parametersOf(report.toplevel).isEmpty)
+      assert(verilog.contains("input  wire [7:0]    din"))
+      assert(verilog.contains("output wire [7:0]    dout"))
+      assert(!verilog.contains("parameter integer"))
+    } finally {
+      val stream = Files.walk(directory)
+      try {
+        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach { path =>
+          Files.deleteIfExists(path)
+        }
+      } finally stream.close()
+    }
+  }
+
+  test("the Increment 29 bit-count bridge rejects derived symbolic widths") {
+    val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
+    val useLine = sourcecode.Line() + 1
+    val error = intercept[FrontendException] { (width + 1).bits }
+
+    assert(error.code == "MORPH-FRONTEND-SPINAL-WIDTH-NOT-DIRECT-PARAMETER")
+    assert(error.detail.contains("unmodified HdlInt.param"))
+    assert(error.origin.line == useLine)
+    assert(error.sourceLocation.endsWith(s"HdlIntTests.scala:$useLine"))
+  }
+
+  test("the SpinalHDL bit-count bridge requires a positive non-empty bounded domain") {
+    val nonpositive = intercept[FrontendException] {
+      HdlInt.param("WIDTH", default = 0, min = 0, max = 64).bits
+    }
+    val empty = intercept[FrontendException] {
+      HdlInt.param("WIDTH", default = 8, min = 9, max = 8).bits
+    }
+    val invalidDefault = intercept[FrontendException] {
+      HdlInt.param("WIDTH", default = 8, min = 9, max = 64).bits
+    }
+    val tooLarge = intercept[FrontendException] {
+      HdlInt.param(
+        "WIDTH",
+        default = 8,
+        min = 1,
+        max = BigInt(Int.MaxValue) + 1
+      ).bits
+    }
+
+    assert(nonpositive.code == "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-NONPOSITIVE")
+    assert(empty.code == "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-NONPOSITIVE")
+    assert(invalidDefault.code == "MORPH-FRONTEND-SPINAL-WIDTH-DEFAULT-INVALID")
+    assert(tooLarge.code == "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-TOO-LARGE")
+  }
+
+  test("the SpinalHDL bit-count bridge rejects invalid parameter names without throwing NPE") {
+    val values = Vector(null, "bad-name")
+
+    values.foreach { name =>
+      val error = intercept[FrontendException] {
+        HdlInt.param(name, default = 8, min = 1, max = 64).bits
+      }
+      assert(error.code == "MORPH-FRONTEND-SPINAL-WIDTH-NAME-INVALID")
+    }
   }
 }

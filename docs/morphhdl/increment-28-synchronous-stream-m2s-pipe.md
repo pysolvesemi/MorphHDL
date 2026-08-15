@@ -136,8 +136,8 @@ asynchronous reset or CDC support.
 
 ## Recommended next increment
 
-Increment 29 should add the atomic default `SynchronousStreamS2mPipe`: a
-zero-latency output bypass with one-entry skid storage that cuts the ready path.
-It is the natural dual of this m2s stage and should freeze stall capture,
-same-cycle bypass, buffered replay and active-high synchronous valid-only reset
-before attempting a composed full pipeline stage.
+This historical component-by-component recommendation is superseded by the
+[parameterized-Verilog corrective roadmap](parameterized-verilog-todo.md).
+Increment 29 is the single-source symbolic-width bridge; further atomic Stream
+adapters must not substitute for integration with ordinary SpinalHDL component
+logic.

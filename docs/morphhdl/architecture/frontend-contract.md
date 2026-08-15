@@ -12,10 +12,36 @@ Concrete generation remains unchanged:
 SpinalVerilog(new DisplayController(DisplayConfig(laneCount = 4)))
 ```
 
-Parameterized Verilog uses a separate entry point and explicit public
-parameters in top-level glue. Increment 7 exposes the bounded entry point as
-two re-entrant factories because the current frontend cannot yet derive both a
-Spinal `Component` and ParamRTL from one constructor:
+Parameterized Verilog uses a separate entry point and explicit typed public
+parameters. Increment 29 adds the first bounded single-source form:
+
+```scala
+final case class WireConfig(width: HdlInt)
+
+final class ParameterizedWire(config: WireConfig) extends Component {
+  val din = in UInt(config.width bits)
+  val dout = out UInt(config.width bits)
+  dout := din
+}
+
+MorphVerilog(SpinalConfig(targetDirectory = "rtl")) {
+  new ParameterizedWire(
+    WireConfig(HdlInt.param("WIDTH", default = 8, min = 1, max = 64))
+  )
+}
+```
+
+The `HdlInt` is not a Scala `Int` and is not erased. Its `bits` front door
+retains both the concrete witness required by normal elaboration and the
+direct public parameter metadata required by explicit Morph generation. A
+literal `HdlInt`, including an implicitly converted `Int`, retains only the
+concrete witness so `Config(8)` remains valid with ordinary `SpinalVerilog`.
+This first Morph path is limited to parameter-tagged top-level `UInt` ports and
+a direct same-parameter wire assignment; literal-only, mixed tagged/untagged
+and other unsupported uses fail closed.
+
+Increment 7's two-factory form remains the compatibility entry point for the
+other reviewed fixtures:
 
 ```scala
 MorphVerilog(SpinalConfig(targetDirectory = "rtl")) {
@@ -28,22 +54,24 @@ MorphVerilog(SpinalConfig(targetDirectory = "rtl")) {
 }
 ```
 
-Both arguments are by-name factories. The concrete factory may be replayed by
-Spinal's source-location diagnostic pass, and the symbolic factory is invoked
-exactly once after concrete validation succeeds. Before emission,
+Both compatibility arguments are by-name factories. The concrete factory may
+be replayed by Spinal's source-location diagnostic pass, and the symbolic
+factory is invoked exactly once after concrete validation succeeds. Before
+emission,
 `MorphVerilog` also requires their default top name and every reachable module
 instance's binding-aware flat port directions, signedness and widths and
 recursive child-module multiplicities to agree. This guards the bounded
-dual-factory association but is not a complete behavioral equivalence proof. A
-future frontend tranche may collapse this surface to
-`MorphVerilog { new DisplayController(...) }` only after one constructor can
-honestly supply both representations.
+dual-factory association but is not a complete behavioral equivalence proof.
+Increment 29 does not claim that this broader compatibility surface has
+already migrated.
 
 The names are part of the v1 source contract:
 
 - `MorphVerilog`: parameter-aware Verilog-2001 generation entry point.
+- `MorphSingleSourceVerilogReport`: the honest result of native single-source
+  generation; it contains no ParamRTL design.
 - `MorphProgram`: explicit concrete-witness and symbolic-design factories used
-  by the Increment 7 entry point.
+  by the Increment 7 compatibility entry point.
 - `HdlInt`: dual-valued integer carrying a concrete witness and a symbolic
   parameter expression.
 - `HdlBool`: dual-valued Boolean parameter expression.

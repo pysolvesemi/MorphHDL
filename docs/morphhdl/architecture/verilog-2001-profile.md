@@ -5,9 +5,10 @@ be accepted without enabling a SystemVerilog parser.
 
 ## Required mappings
 
-| ParamRTL semantic construct | Verilog-2001 representation |
+| Semantic construct | Verilog-2001 representation |
 |---|---|
 | Integer public parameter | `parameter integer` with a literal default |
+| Native direct symbolic `UInt` width (implemented) | One deduplicated `parameter integer` declaration and `[NAME-1:0]` top-level input/output ranges |
 | Boolean public parameter | `parameter integer` with canonical default `1` or `0` |
 | Integer derived constant | `localparam integer` |
 | Boolean derived constant | `localparam integer` with canonical `1`/`0` value |
@@ -40,6 +41,17 @@ be accepted without enabling a SystemVerilog parser.
 
 The emitter determines `wire` versus `reg` from driver semantics. Those words
 are backend spellings and are not encoded in ParamRTL.
+
+Increment 29 applies the first row through ordinary SpinalHDL component
+syntax without constructing ParamRTL. Its explicit native mode accepts only
+direct positive finite `HdlInt` parameters on top-level `UInt` ports and one
+same-schema input-to-output assignment. The concrete default still passes
+through inherited width inference, while the retained parameter schema drives
+the module declaration and packed ranges. Ordinary `SpinalVerilog` leaves
+this mode disabled and emits only the concrete witness width. An `HdlInt`
+literal carries no symbolic tag and remains a normal concrete `UInt` width;
+explicit parameterized generation rejects literal-only or mixed tagged and
+untagged interfaces.
 
 Boolean intent likewise remains typed in ParamRTL. Integer `1`/`0`
 declarations and `NAME == 1` predicates are backend legalization, not the

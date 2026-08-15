@@ -2,38 +2,37 @@ package morphhdl
 
 import spinal.core._
 
-import morphhdl.frontend._
-import morphhdl.frontend.ParamRtlFrontend._
-import morphhdl.paramrtl.PortDirection.{Input, Output}
-import morphhdl.paramrtl.Design
+import morphhdl.frontend.HdlInt
 
 private[morphhdl] object ParameterizedWireContractFixture {
-  def program(reverseConstructionOrder: Boolean): MorphProgram[Component] =
-    MorphProgram(
-      concreteWitness = new Component {
-        setDefinitionName("ParameterizedWire")
-        val din = in(Bits(8 bits))
-        val dout = out(Bits(8 bits))
-        dout := din
-      },
-      parameterizedDesign = {
-        val width = HdlInt.param("WIDTH", default = 8, min = 1)
-        val packed = packedBits(width)
-        val module = moduleDef(
-          name = "ParameterizedWire",
-          parameters = Vector(integerParameter(width)),
-          ports = ordered(
-            Vector(port("din", Input, packed), port("dout", Output, packed)),
-            reverseConstructionOrder
-          ),
-          items = captureItems {
-            emitContinuousAssign("dout", ref("din"))
-          }
-        )
-        Design(top = module.name, modules = Vector(module))
-      }
-    )
+  final case class Config(width: HdlInt)
 
-  private def ordered[A](values: Vector[A], reverse: Boolean): Vector[A] =
-    if (reverse) values.reverse else values
+  /**
+    * One ordinary SpinalHDL component is both the concrete witness and the
+    * parameterized Verilog source. No parallel ParamRTL module is authored.
+    */
+  private final class ParameterizedWire(config: Config, reverseConstructionOrder: Boolean)
+      extends Component {
+    setDefinitionName("ParameterizedWire")
+
+    private val ports =
+      if (reverseConstructionOrder) {
+        val reversedDout = out(UInt(config.width bits)).setName("dout")
+        val reversedDin = in(UInt(config.width bits)).setName("din")
+        (reversedDin, reversedDout)
+      } else {
+        val orderedDin = in(UInt(config.width bits)).setName("din")
+        val orderedDout = out(UInt(config.width bits)).setName("dout")
+        (orderedDin, orderedDout)
+      }
+
+    val din: UInt = ports._1
+    val dout: UInt = ports._2
+    dout := din
+  }
+
+  def component(reverseConstructionOrder: Boolean): Component = {
+    val config = Config(HdlInt.param("WIDTH", default = 8, min = 1, max = 64))
+    new ParameterizedWire(config, reverseConstructionOrder)
+  }
 }

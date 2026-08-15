@@ -6,9 +6,13 @@ it without silently weakening its rules.
 
 The contract is split into these documents:
 
+- [Parameterized-Verilog corrective roadmap](../parameterized-verilog-todo.md):
+  the controlling single-source implementation checklist; the first unchecked
+  item is always the next increment.
 - [Frontend and elaboration](frontend-contract.md): public Scala types, entry
   points, dual concrete/parameterized behavior and symbolic-escape rules.
-- [ParamRTL](paramrtl-contract.md): the target-neutral canonical semantic IR.
+- [ParamRTL](paramrtl-contract.md): the target-neutral semantic IR for
+  explicitly authored compatibility designs.
 - [Strict Verilog-2001](verilog-2001-profile.md): legal output constructs,
   flattening policy and validation requirements.
 - [Validation parity](validation-parity.md): preservation of inherited
@@ -91,6 +95,10 @@ The contract is split into these documents:
   one atomic registered ready/valid stage matching the pinned default
   `Stream.m2sPipe`, with bubble-free full replacement and a twentieth reviewed
   fixture.
+- [Increment 29 single-source symbolic width](../increment-29-single-source-symbolic-width.md):
+  one ordinary SpinalHDL component carrying a direct public `HdlInt` through
+  `UInt(width bits)` into native parameterized Verilog without a parallel
+  ParamRTL design.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -148,6 +156,13 @@ It registers valid and payload, keeps ready combinational, accepts full
 pop-plus-push replacement without a bubble, holds while stalled and clears
 only valid on active-high synchronous reset. The independent payload enable
 retains the pinned default `holdPayload=false` behavior.
+Increment 29 starts the corrective single-source integration. A direct public
+`HdlInt` carries its concrete witness and symbolic parameter schema through an
+ordinary top-level `UInt` port width. Explicit Morph generation enables a
+bounded native emitter path; legacy `SpinalVerilog` continues to emit the
+concrete width. The remaining ParamRTL fixtures stay compatibility oracles and
+are not represented as already migrated.
+
 Runnable contract examples live under `morphhdl/examples/contracts`.
 
 ## Architectural invariants
@@ -158,15 +173,18 @@ Runnable contract examples live under `morphhdl/examples/contracts`.
    point.
 3. A symbolic value is never implicitly converted to a Scala `Int` or
    `Boolean`.
-4. ParamRTL is the canonical semantic IR for both current Verilog and possible
-   future SystemVerilog targets.
+4. ParamRTL remains the canonical semantic IR for explicitly authored
+   compatibility designs. A single-source feature must instead retain its
+   symbolic intent on the ordinary Spinal graph or lower that graph
+   generically; it must not require a parallel component-specific design.
 5. There is one module definition per logical component, never one definition
    per parameter-value combination.
 6. Unsupported symbolic constructs fail with a source-located diagnostic;
    they are not specialized using a default value.
-7. Strict Verilog-2001 legalization is a separate, non-destructive backend
-   pass.
-8. Aggregate intent is retained in ParamRTL even when the Verilog ABI is flat.
+7. Strict Verilog-2001 legalization is explicit and non-destructive, whether
+   it consumes validated ParamRTL or retained native symbolic metadata.
+8. Aggregate intent is retained in ParamRTL or the ordinary Spinal graph even
+   when the Verilog ABI is flat.
 9. Frontend capture state is lexical, exception-safe and isolated between
    concurrent elaboration threads.
 

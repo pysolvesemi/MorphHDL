@@ -222,7 +222,8 @@ case class SpinalConfig(mode                           : SpinalMode = null,
                         var emitFullComponentBindings  : Boolean = true,
                         var reportIncludeSourceLocation: Boolean = false,
                         var reportSourceLocationFormat : String = SpinalConfig.defaultReportSourceLocationFormat,
-                        var svInterface                : Boolean = false
+                        var svInterface                : Boolean = false,
+                        parameterizedVerilog           : Boolean = false
 ){
   def generate       [T <: Component](gen: => T): SpinalReport[T] = Spinal(this)(gen)
   def generateVhdl   [T <: Component](gen: => T): SpinalReport[T] = Spinal(this.copy(mode = VHDL))(gen)

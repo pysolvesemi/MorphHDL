@@ -1,8 +1,16 @@
 # ParamRTL contract
 
-ParamRTL is MorphHDL's canonical, target-neutral semantic IR. It is owned by
-MorphHDL and must not expose Verilog syntax, CIRCT operations or concrete-only
-Spinal internal types in its public model.
+ParamRTL is MorphHDL's canonical, target-neutral semantic IR for explicitly
+authored compatibility designs. It is owned by MorphHDL and must not expose
+Verilog syntax, CIRCT operations or concrete-only Spinal internal types in its
+public model.
+
+Increment 29 does not manufacture a second ParamRTL `Design` from or beside an
+ordinary component merely to claim single-source support. Its bounded bridge
+retains direct symbolic-width metadata on the native Spinal graph and emits
+that graph through the explicit Morph path. ParamRTL remains the regression
+oracle for the other reviewed fixtures until their ordinary component sources
+are migrated or a generic native-to-semantic lowering is justified.
 
 ## Expression domains
 
