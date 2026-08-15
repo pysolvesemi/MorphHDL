@@ -262,6 +262,13 @@ The v1 public ABI permits scalar and packed-vector ports. Bundles, logical
 vectors and protocol records are flattened using stable field order and naming.
 The layout is retained in ParamRTL for a possible future SystemVerilog target.
 
+Increment 30 applies the same flat ABI directly to native tagged
+Bits/UInt/SInt leaves cloned through HardType, Bundle, static Vec, Stream and
+Flow. Each packed payload leaf and supported internal/register declaration
+uses `[PARAMETER-1:0]`; concrete Bool controls have no range. SInt retains its
+native Spinal AST identity, while emitted declarations intentionally follow
+the native Verilog style without adding a `signed` keyword.
+
 Widths may depend on parameters. Port presence, name, direction and clock/reset
 role may not depend on parameters. Designs requiring different interfaces use
 separate static profiles or top modules.

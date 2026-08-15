@@ -44,18 +44,17 @@ final class HdlInt private[frontend] (
     * Retain a direct public integer parameter while supplying its concrete
     * default to SpinalHDL's ordinary width inference and validation phases.
     *
-    * Increment 29 preserves an `HdlInt.literal` as an ordinary untagged
-    * concrete width. For symbolic emission it deliberately accepts only an
-    * unmodified `HdlInt.param`; derived expressions and local parameters
-    * remain fail-closed until the shared symbolic data-shape work lands in a
-    * following increment.
+    * An `HdlInt.literal` remains an ordinary untagged concrete width. For
+    * symbolic data shapes this deliberately accepts only an unmodified
+    * `HdlInt.param`; expression propagation remains fail-closed until the
+    * generic expression increment.
     */
   private[frontend] def toParameterizedBitCount(implicit
       file: sourcecode.File,
       line: sourcecode.Line
   ): ParameterizedBitCount = {
     val useOrigin = SourceOrigin.capture
-    requireLoopInvariant("SpinalHDL UInt width")
+    requireLoopInvariant("SpinalHDL bit-vector width")
 
     (expression, declaration) match {
       case (Literal(value), None) =>
@@ -97,7 +96,7 @@ final class HdlInt private[frontend] (
       case _ =>
         FrontendException.failAt(
           "MORPH-FRONTEND-SPINAL-WIDTH-NOT-DIRECT-PARAMETER",
-          "the Increment 29 SpinalHDL width bridge accepts only an unmodified HdlInt.param value",
+          "the SpinalHDL symbolic-width bridge accepts only an unmodified HdlInt.param value",
           useOrigin
         )
     }

@@ -99,6 +99,9 @@ The contract is split into these documents:
   one ordinary SpinalHDL component carrying a direct public `HdlInt` through
   `UInt(width bits)` into native parameterized Verilog without a parallel
   ParamRTL design.
+- [Increment 30 symbolic data shapes](../increment-30-symbolic-data-shapes.md):
+  native `Bits`/`UInt`/`SInt` width retention through cloning, aggregates,
+  static Vec, Stream/Flow payloads, internal wires and one bounded register.
 - [v1 support matrix](../v1-support-matrix.md): the bounded feature and library
   scope required before the first parameterized-Verilog release.
 
@@ -162,6 +165,11 @@ ordinary top-level `UInt` port width. Explicit Morph generation enables a
 bounded native emitter path; legacy `SpinalVerilog` continues to emit the
 concrete width. The remaining ParamRTL fixtures stay compatibility oracles and
 are not represented as already migrated.
+Increment 30 moves that retained schema onto ordinary packed BaseType leaves
+and preserves it through `cloneOf`, `HardType`, Bundle, static Vec, Stream and
+Flow payload cloning. Internal wires and one narrowly validated unconditional
+register retain the same symbolic shape. General expression and process
+lowering remain later roadmap work.
 
 Runnable contract examples live under `morphhdl/examples/contracts`.
 

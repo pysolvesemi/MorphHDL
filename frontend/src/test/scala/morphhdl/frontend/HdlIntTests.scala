@@ -316,6 +316,59 @@ class HdlIntTests extends AnyFunSuite {
     assert(symbolic.parameter.exists(_.name == "WIDTH"))
   }
 
+  test("one HdlInt parameter drives Bits UInt and SInt native shapes") {
+    import spinal.core.{assert => _, _}
+
+    val directory = Files.createTempDirectory("morphhdl-hdlint-native-shapes-")
+    var leaves = Vector.empty[BaseType]
+    try {
+      SpinalVerilog(
+        SpinalConfig(
+          targetDirectory = directory.toString,
+          headerWithRepoHash = false,
+          withTimescale = false,
+          printFilelist = false
+        )
+      ) {
+        val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
+        new Component {
+          setDefinitionName("HdlIntNativeShapes")
+          val bitsIn = in(Bits(width bits))
+          val bitsOut = out(Bits(width bits))
+          val uintIn = in(UInt(width bits))
+          val uintOut = out(UInt(width bits))
+          val sintIn = in(SInt(width bits))
+          val sintOut = out(SInt(width bits))
+          bitsOut := bitsIn
+          uintOut := uintIn
+          sintOut := sintIn
+          leaves = Vector(bitsIn, bitsOut, uintIn, uintOut, sintIn, sintOut)
+        }
+      }
+
+      assert(
+        leaves.map(_.getClass) ==
+          Vector(
+            classOf[Bits],
+            classOf[Bits],
+            classOf[UInt],
+            classOf[UInt],
+            classOf[SInt],
+            classOf[SInt]
+          )
+      )
+      assert(leaves.forall(ParameterizedWidth.parameterOf(_).exists(_.name == "WIDTH")))
+      assert(leaves.forall(_.asInstanceOf[BitVector].getWidth == 8))
+    } finally {
+      val stream = Files.walk(directory)
+      try {
+        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach { path =>
+          Files.deleteIfExists(path)
+        }
+      } finally stream.close()
+    }
+  }
+
   test("an HdlInt literal config emits an ordinary concrete UInt component") {
     import spinal.core.{assert => _, _}
 
@@ -357,7 +410,7 @@ class HdlIntTests extends AnyFunSuite {
     }
   }
 
-  test("the Increment 29 bit-count bridge rejects derived symbolic widths") {
+  test("the symbolic bit-count bridge rejects derived symbolic widths") {
     val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
     val useLine = sourcecode.Line() + 1
     val error = intercept[FrontendException] { (width + 1).bits }

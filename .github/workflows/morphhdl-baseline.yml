@@ -101,7 +101,7 @@ jobs:
             frontend/test \
             verilogBackend/test \
             morph/test \
-            "core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests spinal.core.internals.ParameterizedVerilogTests"
+            "core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests spinal.core.internals.ParameterizedVerilogTests spinal.core.internals.ParameterizedDataShapeTests"
 
       - name: Export live inherited validation phase inventory
         shell: bash
@@ -150,6 +150,7 @@ jobs:
               'runtime_mux.v f' \
               'simple_dual_port_memory.v f' \
               'single_port_memory.v f' \
+              'symbolic_data_shapes.v f' \
               'synchronous_enabled_register.v f' \
               'synchronous_register.v f' \
               'synchronous_stream_fifo.v f' \
@@ -168,6 +169,13 @@ jobs:
             "${parameterized_wire}")" = "1"
           ! grep -Eq '\b(localparam|function|always|generate|genvar)\b' \
             "${parameterized_wire}"
+          symbolic_data_shapes=target/morphhdl/generated/run-1/symbolic_data_shapes.v
+          test "$(grep -Ec '^[[:space:]]*parameter integer WIDTH = 8$' \
+            "${symbolic_data_shapes}")" = "1"
+          test "$(grep -Ec '\[WIDTH-1:0\]' \
+            "${symbolic_data_shapes}")" = "45"
+          test "$(grep -Ec '^[[:space:]]*always @\(posedge clk\)' \
+            "${symbolic_data_shapes}")" = "1"
           test "$(grep -Fc 'function integer clog2;' \
             target/morphhdl/generated/run-1/derived_width.v)" = "1"
           test "$(grep -Fc 'function integer clog2;' \
@@ -208,6 +216,7 @@ jobs:
           done
           for filename in \
             parameterized_wire.v \
+            symbolic_data_shapes.v \
             derived_width.v \
             parameter_forwarding.v \
             lane_array.v \

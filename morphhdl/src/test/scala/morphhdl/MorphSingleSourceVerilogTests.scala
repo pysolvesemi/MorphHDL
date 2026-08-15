@@ -1,5 +1,6 @@
 package morphhdl
 
+import java.io.File
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
 
@@ -51,6 +52,76 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
       try {
         assert(listing.iterator().asScala.map(_.getFileName.toString).toVector == Vector("parameterized_wire.v"))
       } finally listing.close()
+    }
+  }
+
+  test("one ordinary component retains symbolic native and aggregate data shapes") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "symbolic_data_shapes.v"
+
+      val report = MorphVerilog(config) {
+        SymbolicDataShapesContractFixture.component(reverseConstructionOrder = false)
+      }
+
+      val output = directory.resolve("symbolic_data_shapes.v")
+      assert(report.toplevelName == "SymbolicDataShapes")
+      assert(report.generatedSourcesPaths == Vector(output.toString))
+      assert(
+        report.parameters == Vector(
+          IntegerParameter(
+            "WIDTH",
+            8,
+            Vector(MinInclusive(1), MaxInclusive(64))
+          )
+        )
+      )
+      assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
+      assert(read(output) == read(contractGolden("symbolic_data_shapes.v")))
+
+      val verilog = read(output)
+      assert(verilog.contains("module SymbolicDataShapes #("))
+      assert(verilog.contains("parameter integer WIDTH = 8"))
+      assert(verilog.contains("[WIDTH-1:0] bits_in"))
+      assert(verilog.contains("[WIDTH-1:0] uint_in"))
+      assert(verilog.contains("[WIDTH-1:0] sint_in"))
+      assert(verilog.contains("[WIDTH-1:0] vec_in_0_bits"))
+      assert(verilog.contains("[WIDTH-1:0] stream_in_payload_sint"))
+      assert(verilog.contains("[WIDTH-1:0] flow_out_payload_uint"))
+      assert(verilog.contains("[WIDTH-1:0] internal_payload_bits"))
+      assert(verilog.contains("[WIDTH-1:0] payload_register_sint"))
+      assert(verilog.contains("always @(posedge clk)"))
+      assert(!verilog.contains("parameterizedDesign"))
+    }
+  }
+
+  test("ordinary SpinalVerilog is byte-identical for symbolic-default and literal data shapes") {
+    withTemporaryDirectory { directory =>
+      val symbolicDirectory = directory.resolve("symbolic")
+      val literalDirectory = directory.resolve("literal")
+      Files.createDirectories(symbolicDirectory)
+      Files.createDirectories(literalDirectory)
+
+      val symbolicConfig = SpinalConfig(targetDirectory = symbolicDirectory.toString)
+      symbolicConfig.netlistFileName = "SymbolicDataShapes.v"
+      val symbolicReport = SpinalVerilog(symbolicConfig) {
+        SymbolicDataShapesContractFixture.component(reverseConstructionOrder = false)
+      }
+      val literalConfig = SpinalConfig(targetDirectory = literalDirectory.toString)
+      literalConfig.netlistFileName = "SymbolicDataShapes.v"
+      val literalReport = SpinalVerilog(literalConfig) {
+        SymbolicDataShapesContractFixture.componentWithWidth(
+          HdlInt.literal(8),
+          reverseConstructionOrder = false
+        )
+      }
+
+      val verilog = read(Paths.get(symbolicReport.generatedSourcesPaths.head))
+      assert(verilog == read(Paths.get(literalReport.generatedSourcesPaths.head)))
+      assert(verilog.contains("module SymbolicDataShapes ("))
+      assert(verilog.contains("[7:0]"))
+      assert(!verilog.contains("parameter integer WIDTH"))
+      assert(!verilog.contains("[WIDTH-1:0]"))
     }
   }
 
@@ -221,6 +292,38 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
 
   private def read(path: Path): String =
     new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
+
+  private def contractGolden(fileName: String): Path = {
+    val relativePath = Paths.get("morphhdl", "examples", "contracts", fileName)
+    val codeSource =
+      Option(getClass.getProtectionDomain)
+        .flatMap(domain => Option(domain.getCodeSource))
+        .flatMap(source => Option(source.getLocation))
+        .filter(_.getProtocol == "file")
+        .map(location => Paths.get(location.toURI))
+        .toVector
+    val classPath =
+      sys.props
+        .get("java.class.path")
+        .toVector
+        .flatMap(_.split(File.pathSeparator).toVector)
+        .filter(_.nonEmpty)
+        .map(Paths.get(_))
+    val searchRoots = codeSource ++ Vector(Paths.get("")) ++ classPath
+    searchRoots.iterator
+      .flatMap(pathAndAncestors)
+      .map(_.toAbsolutePath.normalize.resolve(relativePath))
+      .find(path => Files.isRegularFile(path))
+      .getOrElse(throw new java.nio.file.NoSuchFileException(relativePath.toString))
+  }
+
+  private def pathAndAncestors(path: Path): Iterator[Path] =
+    Iterator
+      .iterate(Option(path.toAbsolutePath.normalize))(
+        _.flatMap(current => Option(current.getParent))
+      )
+      .takeWhile(_.nonEmpty)
+      .map(_.get)
 
   private def withTemporaryDirectory(body: Path => Unit): Unit = {
     val directory = Files.createTempDirectory("morphhdl-single-source-test-")

@@ -59,6 +59,7 @@ fi
 
 generated_contracts=(
   parameterized_wire.v
+  symbolic_data_shapes.v
   derived_width.v
   parameter_forwarding.v
   lane_array.v
@@ -109,6 +110,7 @@ for filename in "${generated_contracts[@]}"; do
 done
 
 parameterized_wire_file="$generated_dir/parameterized_wire.v"
+symbolic_data_shapes_file="$generated_dir/symbolic_data_shapes.v"
 derived_width_file="$generated_dir/derived_width.v"
 parameter_forwarding_file="$generated_dir/parameter_forwarding.v"
 lane_array_file="$generated_dir/lane_array.v"
@@ -138,6 +140,7 @@ python3 "$repo_root/morphhdl/scripts/check-parameter-operators.py" "$operator_fi
 
 design_files=(
   "$parameterized_wire_file"
+  "$symbolic_data_shapes_file"
   "$derived_width_file"
   "$parameter_forwarding_file"
   "$lane_array_file"
@@ -162,6 +165,7 @@ design_files=(
 all_verilog_files=(
   "${design_files[@]}"
   "$examples_dir/parameterized_wire_tb.v"
+  "$examples_dir/symbolic_data_shapes_tb.v"
   "$examples_dir/derived_width_tb.v"
   "$examples_dir/parameter_forwarding_tb.v"
   "$examples_dir/lane_array_tb.v"
@@ -216,12 +220,17 @@ require_property backend.single_source_emitter native-spinal-verilog
 require_property frontend.single_source_component true
 require_property frontend.symbolic_width positive-direct-public-hdlint
 require_property frontend.symbolic_width_domain positive-finite-within-bit-vector-limit
-require_property frontend.symbolic_width_types top-level-uint-ports
-require_property frontend.symbolic_width_logic direct-equal-parameter-wire
-require_property frontend.literal_width concrete-uint-no-symbolic-tag
-require_property frontend.single_source_literal_ports reject-untagged
+require_property frontend.symbolic_width_types bits-uint-sint
+require_property frontend.symbolic_width_locations port-internal-register
+require_property frontend.symbolic_width_propagation clone-hardtype-bundle-static-vec-stream-flow
+require_property frontend.symbolic_width_logic equal-schema-leaf-wire-and-unconditional-register
+require_property frontend.concrete_bool_controls true
+require_property frontend.symbolic_vec_length false
+require_property frontend.literal_width concrete-bits-uint-sint-no-symbolic-tag
+require_property frontend.single_source_literal_bitvector_ports reject-untagged
 require_property frontend.legacy_spinalverilog concrete-witness
 require_property implementation.single_source_symbolic_width true
+require_property implementation.single_source_symbolic_data_shapes true
 require_property parameter.boolean_encoding integer
 require_property parameter.integer_comparison true
 require_property parameter.integer_conditional true
@@ -369,6 +378,9 @@ fi
 expected_modules=(
   ParameterizedWire
   ParameterizedWireTb
+  SymbolicDataShapes
+  SymbolicDataShapesCase
+  SymbolicDataShapesTb
   DerivedWidth
   DerivedWidthTb
   ForwardingLeaf
@@ -456,9 +468,11 @@ expected_helpers = {
     "simple_dual_port_memory.v",
     "synchronous_stream_fifo.v",
 }
+sources = {}
 for raw_path in sys.argv[1:]:
     path = pathlib.Path(raw_path)
     source = path.read_text(encoding="utf-8")
+    sources[path.name] = source
     if path.name in expected_helpers:
         if source.count(helper) != 1:
             raise SystemExit("missing or duplicate canonical log helper: {}".format(path))
@@ -467,11 +481,11 @@ for raw_path in sys.argv[1:]:
     if "1073741824" in source:
         raise SystemExit("superseded logarithm threshold chain remains: {}".format(path))
 
-derived = pathlib.Path(sys.argv[2]).read_text(encoding="utf-8")
-memory = pathlib.Path(sys.argv[-5]).read_text(encoding="utf-8")
-counter = pathlib.Path(sys.argv[-4]).read_text(encoding="utf-8")
-simple_dual_port_memory = pathlib.Path(sys.argv[-3]).read_text(encoding="utf-8")
-synchronous_stream_fifo = pathlib.Path(sys.argv[-2]).read_text(encoding="utf-8")
+derived = sources["derived_width.v"]
+memory = sources["single_port_memory.v"]
+counter = sources["parameterized_counter.v"]
+simple_dual_port_memory = sources["simple_dual_port_memory.v"]
+synchronous_stream_fifo = sources["synchronous_stream_fifo.v"]
 if derived.count("clog2(LANES, 0)") != 1:
     raise SystemExit("DerivedWidth does not call mathematical ceiling-log2 exactly once")
 if memory.count("clog2(DEPTH, 1)") != 1:
@@ -524,10 +538,76 @@ if ! grep -Fqx '  localparam integer MINIMUM_WIDTH = 1;' "$examples_dir/paramete
   exit 1
 fi
 
-if ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+TOTAL_WIDTH[[:space:]]*=[[:space:]]*LANES[[:space:]]*\*[[:space:]]*DATA_WIDTH' "${design_files[1]}" ||
-   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+CLAMPED_PADDING[[:space:]]*=.*DATA_WIDTH[[:space:]]*<[[:space:]]*3.*\?.*DATA_WIDTH.*:.*3' "${design_files[1]}" ||
-   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+LANE_INDEX_WIDTH[[:space:]]*=[[:space:]]*clog2\([[:space:]]*LANES,[[:space:]]*0[[:space:]]*\)' "${design_files[1]}" ||
-   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+PADDED_WIDTH[[:space:]]*=.*TOTAL_WIDTH[[:space:]]*\+[[:space:]]*CLAMPED_PADDING[[:space:]]*>[[:space:]]*4.*\?.*TOTAL_WIDTH[[:space:]]*\+[[:space:]]*CLAMPED_PADDING.*:.*4.*\+[[:space:]]*LANE_INDEX_WIDTH' "${design_files[1]}"; then
+if ! python3 - "$symbolic_data_shapes_file" <<'PY'
+import pathlib
+import re
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+symbolic_ports = {
+    "bits_in", "bundle_in_bits", "bundle_in_sint", "bundle_in_uint",
+    "flow_in_payload_bits", "flow_in_payload_sint", "flow_in_payload_uint",
+    "sint_in", "stream_in_payload_bits", "stream_in_payload_sint",
+    "stream_in_payload_uint", "uint_in", "vec_in_0_bits", "vec_in_0_sint",
+    "vec_in_0_uint", "vec_in_1_bits", "vec_in_1_sint", "vec_in_1_uint",
+    "bits_out", "bundle_out_bits", "bundle_out_sint", "bundle_out_uint",
+    "flow_out_payload_bits", "flow_out_payload_sint", "flow_out_payload_uint",
+    "register_out_bits", "register_out_sint", "register_out_uint", "sint_out",
+    "stream_out_payload_bits", "stream_out_payload_sint",
+    "stream_out_payload_uint", "uint_out", "vec_out_0_bits", "vec_out_0_sint",
+    "vec_out_0_uint", "vec_out_1_bits", "vec_out_1_sint", "vec_out_1_uint",
+}
+bool_ports = {
+    "clk", "flow_in_valid", "stream_in_valid", "stream_out_ready",
+    "flow_out_valid", "stream_in_ready", "stream_out_valid",
+}
+port_pattern = re.compile(
+    r"^  (input|output)\s+wire\s+(?:(\[WIDTH-1:0\])\s+)?([A-Za-z0-9_]+),?$",
+    re.MULTILINE,
+)
+ports = {name: (direction, packed) for direction, packed, name in port_pattern.findall(source)}
+if set(ports) != symbolic_ports | bool_ports:
+    raise SystemExit("native symbolic-data-shape port inventory changed")
+if any(ports[name][1] != "[WIDTH-1:0]" for name in symbolic_ports):
+    raise SystemExit("a symbolic data-shape port lost WIDTH")
+if any(ports[name][1] for name in bool_ports):
+    raise SystemExit("a concrete Bool control gained a packed symbolic range")
+if source.count("[WIDTH-1:0]") != 45:
+    raise SystemExit("expected exactly 39 symbolic ports and six symbolic internals")
+if len(re.findall(r"\bparameter\s+integer\s+WIDTH\s*=\s*8\b", source)) != 1:
+    raise SystemExit("expected exactly one WIDTH public parameter")
+if len(re.findall(r"^  wire\s+\[WIDTH-1:0\]\s+internal_payload_", source, re.MULTILINE)) != 3:
+    raise SystemExit("expected three symbolic internal Bundle leaves")
+if len(re.findall(r"^  reg\s+\[WIDTH-1:0\]\s+payload_register_", source, re.MULTILINE)) != 3:
+    raise SystemExit("expected three symbolic register Bundle leaves")
+if len(re.findall(r"^  assign\s+", source, re.MULTILINE)) != 27:
+    raise SystemExit("expected the exact direct equal-shape assignment inventory")
+if len(re.findall(r"^  always @\(posedge clk\) begin$", source, re.MULTILINE)) != 1:
+    raise SystemExit("expected one bounded unconditional register process")
+if len(re.findall(r"^    payload_register_(bits|uint|sint) <= bundle_in_\1;$", source, re.MULTILINE)) != 3:
+    raise SystemExit("register leaves do not capture their same-type Bundle inputs")
+if re.search(r"\b(localparam|function|generate|genvar)\b|\$signed", source):
+    raise SystemExit("symbolic shape fixture contains a deferred construct")
+PY
+then
+  echo "SymbolicDataShapes does not retain the bounded native shape contract" >&2
+  exit 1
+fi
+
+if [[ "$(grep -Ec '^[[:space:]]*SymbolicDataShapesCase[[:space:]]*#' "$examples_dir/symbolic_data_shapes_tb.v")" != "4" ]] ||
+   [[ "$(grep -Fc '.WIDTH(1),' "$examples_dir/symbolic_data_shapes_tb.v")" != "1" ]] ||
+   [[ "$(grep -Fc '.WIDTH(8),' "$examples_dir/symbolic_data_shapes_tb.v")" != "1" ]] ||
+   [[ "$(grep -Fc '.WIDTH(13),' "$examples_dir/symbolic_data_shapes_tb.v")" != "1" ]] ||
+   [[ "$(grep -Fc '.WIDTH(64),' "$examples_dir/symbolic_data_shapes_tb.v")" != "1" ]] ||
+   [[ "$(grep -Fc '.USE_DEFAULT(1)' "$examples_dir/symbolic_data_shapes_tb.v")" != "1" ]]; then
+  echo "SymbolicDataShapes testbench does not retain default, minimum, awkward and maximum cases" >&2
+  exit 1
+fi
+
+if ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+TOTAL_WIDTH[[:space:]]*=[[:space:]]*LANES[[:space:]]*\*[[:space:]]*DATA_WIDTH' "$derived_width_file" ||
+   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+CLAMPED_PADDING[[:space:]]*=.*DATA_WIDTH[[:space:]]*<[[:space:]]*3.*\?.*DATA_WIDTH.*:.*3' "$derived_width_file" ||
+   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+LANE_INDEX_WIDTH[[:space:]]*=[[:space:]]*clog2\([[:space:]]*LANES,[[:space:]]*0[[:space:]]*\)' "$derived_width_file" ||
+   ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+PADDED_WIDTH[[:space:]]*=.*TOTAL_WIDTH[[:space:]]*\+[[:space:]]*CLAMPED_PADDING[[:space:]]*>[[:space:]]*4.*\?.*TOTAL_WIDTH[[:space:]]*\+[[:space:]]*CLAMPED_PADDING.*:.*4.*\+[[:space:]]*LANE_INDEX_WIDTH' "$derived_width_file"; then
   echo "DerivedWidth does not retain its symbolic Min/Max/CeilLog2 local-parameter expressions" >&2
   exit 1
 fi
@@ -552,20 +632,20 @@ then
   exit 1
 fi
 
-if ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+TOTAL_WIDTH[[:space:]]*=[[:space:]]*LANES[[:space:]]*\*[[:space:]]*DATA_WIDTH' "${design_files[2]}" ||
-   ! grep -Eq '\.WIDTH[[:space:]]*\([[:space:]]*TOTAL_WIDTH[[:space:]]*\)' "${design_files[2]}" ||
-   ! grep -Eq '\)[[:space:]]+forwarded_inst[[:space:]]*\(' "${design_files[2]}" ||
-   ! grep -Eq '\.din[[:space:]]*\([[:space:]]*din[[:space:]]*\)' "${design_files[2]}" ||
-   ! grep -Eq '\.dout[[:space:]]*\([[:space:]]*dout[[:space:]]*\)' "${design_files[2]}"; then
+if ! grep -Eq 'localparam[[:space:]]+integer[[:space:]]+TOTAL_WIDTH[[:space:]]*=[[:space:]]*LANES[[:space:]]*\*[[:space:]]*DATA_WIDTH' "$parameter_forwarding_file" ||
+   ! grep -Eq '\.WIDTH[[:space:]]*\([[:space:]]*TOTAL_WIDTH[[:space:]]*\)' "$parameter_forwarding_file" ||
+   ! grep -Eq '\)[[:space:]]+forwarded_inst[[:space:]]*\(' "$parameter_forwarding_file" ||
+   ! grep -Eq '\.din[[:space:]]*\([[:space:]]*din[[:space:]]*\)' "$parameter_forwarding_file" ||
+   ! grep -Eq '\.dout[[:space:]]*\([[:space:]]*dout[[:space:]]*\)' "$parameter_forwarding_file"; then
   echo "ParameterForwarding does not retain its named symbolic child bindings" >&2
   exit 1
 fi
 
-if ! grep -Eq 'genvar[[:space:]]+lane[[:space:]]*;' "${design_files[3]}" ||
-   ! grep -Eq 'for[[:space:]]*\([[:space:]]*lane[[:space:]]*=[[:space:]]*0[[:space:]]*;[[:space:]]*lane[[:space:]]*<[[:space:]]*LANES[[:space:]]*;' "${design_files[3]}" ||
-   ! grep -Eq 'begin[[:space:]]*:[[:space:]]*g_lane' "${design_files[3]}" ||
-   ! grep -Eq 'lane[[:space:]]*\*[[:space:]]*DATA_WIDTH[[:space:]]*\+:[[:space:]]*DATA_WIDTH' "${design_files[3]}" ||
-   [[ "$(grep -Ec '\)[[:space:]]+lane_inst[[:space:]]*\(' "${design_files[3]}")" != "1" ]]; then
+if ! grep -Eq 'genvar[[:space:]]+lane[[:space:]]*;' "$lane_array_file" ||
+   ! grep -Eq 'for[[:space:]]*\([[:space:]]*lane[[:space:]]*=[[:space:]]*0[[:space:]]*;[[:space:]]*lane[[:space:]]*<[[:space:]]*LANES[[:space:]]*;' "$lane_array_file" ||
+   ! grep -Eq 'begin[[:space:]]*:[[:space:]]*g_lane' "$lane_array_file" ||
+   ! grep -Eq 'lane[[:space:]]*\*[[:space:]]*DATA_WIDTH[[:space:]]*\+:[[:space:]]*DATA_WIDTH' "$lane_array_file" ||
+   [[ "$(grep -Ec '\)[[:space:]]+lane_inst[[:space:]]*\(' "$lane_array_file")" != "1" ]]; then
   echo "LaneArray does not retain one named generate-for template and indexed part-select" >&2
   exit 1
 fi
@@ -1011,6 +1091,7 @@ trap cleanup EXIT
 # command strings. Stable temporary names avoid depending on user/repository
 # path spelling while preserving the exact artifact bytes.
 cp "$parameterized_wire_file" "$tmp_dir/parameterized_wire.v"
+cp "$symbolic_data_shapes_file" "$tmp_dir/symbolic_data_shapes.v"
 cp "$derived_width_file" "$tmp_dir/derived_width.v"
 cp "$parameter_forwarding_file" "$tmp_dir/parameter_forwarding.v"
 cp "$lane_array_file" "$tmp_dir/lane_array.v"
@@ -1031,6 +1112,7 @@ cp "$simple_dual_port_memory_file" "$tmp_dir/simple_dual_port_memory.v"
 cp "$synchronous_stream_fifo_file" "$tmp_dir/synchronous_stream_fifo.v"
 cp "$synchronous_stream_m2s_pipe_file" "$tmp_dir/synchronous_stream_m2s_pipe.v"
 yosys_parameterized_wire_file="$tmp_dir/parameterized_wire.v"
+yosys_symbolic_data_shapes_file="$tmp_dir/symbolic_data_shapes.v"
 yosys_derived_width_file="$tmp_dir/derived_width.v"
 yosys_parameter_forwarding_file="$tmp_dir/parameter_forwarding.v"
 yosys_lane_array_file="$tmp_dir/lane_array.v"
@@ -1082,6 +1164,18 @@ for wire_width in 1 13 64; do
     --top-module ParameterizedWire \
     -GWIDTH="$wire_width" \
     "$parameterized_wire_file"
+done
+
+for shape_width in 8 1 13 64; do
+  shape_arguments=()
+  if [[ "$shape_width" != "8" ]]; then
+    shape_arguments=(-GWIDTH="$shape_width")
+  fi
+  verilator --lint-only --language 1364-2001 -Wall \
+    -Wno-DECLFILENAME \
+    --top-module SymbolicDataShapes \
+    "${shape_arguments[@]}" \
+    "$symbolic_data_shapes_file"
 done
 
 verilator --lint-only --language 1364-2001 -Wall \
@@ -1475,6 +1569,17 @@ if ! printf '%s\n' "$wire_output" | grep -q 'PASS: ParameterizedWire'; then
   exit 1
 fi
 
+iverilog -g2001 -Wall -s SymbolicDataShapesTb \
+  -o "$tmp_dir/symbolic_data_shapes.vvp" \
+  "$symbolic_data_shapes_file" \
+  "$examples_dir/symbolic_data_shapes_tb.v"
+symbolic_data_shapes_output="$(vvp "$tmp_dir/symbolic_data_shapes.vvp")"
+echo "$symbolic_data_shapes_output"
+if ! printf '%s\n' "$symbolic_data_shapes_output" | grep -q 'PASS: SymbolicDataShapes'; then
+  echo "SymbolicDataShapes simulation did not report PASS" >&2
+  exit 1
+fi
+
 iverilog -g2001 -Wall -s DerivedWidthTb \
   -o "$tmp_dir/derived_width.vvp" \
   "$derived_width_file" \
@@ -1752,6 +1857,145 @@ yosys_parameterized_wire_fixed_port_mutation_must_fail \
   fixed-output \
   'output wire [WIDTH-1:0] dout' \
   'output wire [7:0] dout'
+
+yosys_symbolic_data_shapes_synthesize_and_check() {
+  local label="$1"
+  local expected_width="$2"
+  local parameter_command="$3"
+  local process_netlist="$tmp_dir/SymbolicDataShapes-${label}-process.json"
+  local synth_netlist="$tmp_dir/SymbolicDataShapes-${label}-synth.json"
+  local port_args=()
+  local name
+
+  yosys -q -p \
+    "read_verilog -noautowire $yosys_symbolic_data_shapes_file; $parameter_command hierarchy -check -top SymbolicDataShapes; proc; check -assert; write_json $process_netlist"
+  python3 "$repo_root/morphhdl/scripts/check-yosys-symbolic-data-shapes-contract.py" \
+    "$process_netlist" --width "$expected_width"
+
+  yosys -q -p \
+    "read_verilog -noautowire $yosys_symbolic_data_shapes_file; $parameter_command hierarchy -check -top SymbolicDataShapes; proc; check -assert; synth -top SymbolicDataShapes; check -assert; write_json $synth_netlist"
+  for name in \
+    bits_in \
+    bundle_in_bits bundle_in_sint bundle_in_uint \
+    flow_in_payload_bits flow_in_payload_sint flow_in_payload_uint \
+    sint_in \
+    stream_in_payload_bits stream_in_payload_sint stream_in_payload_uint \
+    uint_in \
+    vec_in_0_bits vec_in_0_sint vec_in_0_uint \
+    vec_in_1_bits vec_in_1_sint vec_in_1_uint
+  do
+    port_args+=(--port "$name:input:$expected_width")
+  done
+  for name in \
+    bits_out \
+    bundle_out_bits bundle_out_sint bundle_out_uint \
+    flow_out_payload_bits flow_out_payload_sint flow_out_payload_uint \
+    register_out_bits register_out_sint register_out_uint \
+    sint_out \
+    stream_out_payload_bits stream_out_payload_sint stream_out_payload_uint \
+    uint_out \
+    vec_out_0_bits vec_out_0_sint vec_out_0_uint \
+    vec_out_1_bits vec_out_1_sint vec_out_1_uint
+  do
+    port_args+=(--port "$name:output:$expected_width")
+  done
+  for name in clk flow_in_valid stream_in_valid stream_out_ready; do
+    port_args+=(--port "$name:input:1")
+  done
+  for name in flow_out_valid stream_in_ready stream_out_valid; do
+    port_args+=(--port "$name:output:1")
+  done
+  python3 "$repo_root/morphhdl/scripts/check-yosys-port-widths.py" \
+    "$synth_netlist" SymbolicDataShapes "${port_args[@]}"
+}
+
+yosys_symbolic_data_shapes_synthesize_and_check default 8 ""
+yosys_symbolic_data_shapes_synthesize_and_check minimum 1 \
+  "chparam -set WIDTH 1 SymbolicDataShapes;"
+yosys_symbolic_data_shapes_synthesize_and_check awkward 13 \
+  "chparam -set WIDTH 13 SymbolicDataShapes;"
+yosys_symbolic_data_shapes_synthesize_and_check maximum 64 \
+  "chparam -set WIDTH 64 SymbolicDataShapes;"
+
+yosys_symbolic_data_shapes_width_mutation_must_fail() {
+  local label="$1"
+  local original="$2"
+  local replacement="$3"
+  local mutated_file="$tmp_dir/symbolic-data-shapes-${label}.v"
+  local netlist="$tmp_dir/SymbolicDataShapes-${label}.json"
+
+  python3 - "$yosys_symbolic_data_shapes_file" "$mutated_file" "$original" "$replacement" <<'PY'
+import pathlib
+import sys
+
+source_path, output_path, original, replacement = sys.argv[1:]
+source = pathlib.Path(source_path).read_text(encoding="utf-8")
+if source.count(original) != 1:
+    raise SystemExit("SymbolicDataShapes mutation source did not match exactly once")
+pathlib.Path(output_path).write_text(source.replace(original, replacement), encoding="utf-8")
+PY
+
+  if ! yosys -q -p \
+    "read_verilog -noautowire $mutated_file; chparam -set WIDTH 64 SymbolicDataShapes; hierarchy -check -top SymbolicDataShapes; proc; write_json $netlist"; then
+    echo "SymbolicDataShapes $label mutation did not reach the width-64 structural checker" >&2
+    exit 1
+  fi
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-symbolic-data-shapes-contract.py" \
+      "$netlist" --width 64; then
+    echo "SymbolicDataShapes width-64 gate accepted $label mutation" >&2
+    exit 1
+  fi
+  echo "Yosys SymbolicDataShapes checker rejected forbidden mutation: $label"
+}
+
+yosys_symbolic_data_shapes_width_mutation_must_fail \
+  fixed-packed-input \
+  'input  wire [WIDTH-1:0] bits_in,' \
+  'input  wire [7:0] bits_in,'
+yosys_symbolic_data_shapes_width_mutation_must_fail \
+  fixed-register-leaf \
+  'reg        [WIDTH-1:0] payload_register_sint;' \
+  'reg        [7:0] payload_register_sint;'
+yosys_symbolic_data_shapes_width_mutation_must_fail \
+  falling-register-clock \
+  'always @(posedge clk) begin' \
+  'always @(negedge clk) begin'
+
+yosys_symbolic_data_shapes_extra_cell_mutation_must_fail() {
+  local canonical_netlist="$tmp_dir/SymbolicDataShapes-default-process.json"
+  local mutated_netlist="$tmp_dir/SymbolicDataShapes-extra-cell.json"
+
+  python3 - "$canonical_netlist" "$mutated_netlist" <<'PY'
+import copy
+import json
+import pathlib
+import sys
+
+source_path = pathlib.Path(sys.argv[1])
+target_path = pathlib.Path(sys.argv[2])
+netlist = json.loads(source_path.read_text(encoding="utf-8"))
+module = netlist.get("modules", {}).get("SymbolicDataShapes")
+if module is None:
+    raise SystemExit("canonical SymbolicDataShapes netlist is missing")
+cells = module.get("cells", {})
+if len(cells) != 3:
+    raise SystemExit("canonical SymbolicDataShapes netlist does not have three cells")
+extra_name = "$morphhdl_extra_dff"
+if extra_name in cells:
+    raise SystemExit("extra-cell mutation name already exists")
+cells[extra_name] = copy.deepcopy(next(iter(cells.values())))
+target_path.write_text(json.dumps(netlist, sort_keys=True), encoding="utf-8")
+PY
+
+  if python3 "$repo_root/morphhdl/scripts/check-yosys-symbolic-data-shapes-contract.py" \
+      "$mutated_netlist" --width 8; then
+    echo "SymbolicDataShapes checker accepted a surplus storage cell" >&2
+    exit 1
+  fi
+  echo "Yosys SymbolicDataShapes checker rejected forbidden mutation: extra-cell"
+}
+
+yosys_symbolic_data_shapes_extra_cell_mutation_must_fail
 
 yosys_synthesize_and_check \
   "$yosys_derived_width_file" DerivedWidth default 37 ""

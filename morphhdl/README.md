@@ -247,8 +247,16 @@ native single-source bridge. One ordinary component accepts an `HdlInt`
 configuration width, declares its ports with `UInt(width bits)` and connects
 them with a normal assignment. Explicit `MorphVerilog` emits one strict
 Verilog-2001 `WIDTH` parameter and two `[WIDTH-1:0]` ports; ordinary
-`SpinalVerilog` emits only the concrete eight-bit witness. The other nineteen
-fixtures remain on the reviewed ParamRTL compatibility path, and the public
-artifact inventory remains exactly twenty. Constructing the same configuration
+`SpinalVerilog` emits only the concrete eight-bit witness. At Increment 29, the
+other nineteen fixtures remained on the reviewed ParamRTL compatibility path
+and the public artifact inventory was exactly twenty. Constructing the same configuration
 with a literal `HdlInt` or implicit `Int` remains valid for ordinary concrete
 generation and does not create a public parameter.
+
+Increment 30 carries the same direct symbolic schema through native `Bits`,
+`UInt` and `SInt` leaves, `cloneOf`, `HardType`, Bundle, static Vec, Stream and
+Flow payload construction. The twenty-first `symbolic_data_shapes.v` fixture
+also proves a symbolically ranged internal wire and one unconditional,
+uninitialized register path. Concrete Bool controls remain one bit, legacy
+`SpinalVerilog` remains concrete, and generic expressions, processes and
+library algorithms remain later roadmap increments.

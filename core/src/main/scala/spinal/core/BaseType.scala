@@ -267,6 +267,7 @@ abstract class BaseType extends Data with DeclarationStatement with StatementDou
 
   override def clone: this.type = {
     val res = this.getClass.newInstance
+    ParameterizedWidth.copy(this, res)
     res.asInstanceOf[this.type]
   }
 

@@ -39,11 +39,7 @@ trait UIntFactory{
     * parameterized backend.
     */
   def UInt(width: ParameterizedBitCount): UInt = {
-    val result = UInt().setWidth(width.value)
-    width.parameter.foreach { parameter =>
-      result.addTag(ParameterizedWidthTag(parameter, width.sourceLocation))
-    }
-    result
+    ParameterizedWidth.attach(UInt(), width)
   }
 }
 
