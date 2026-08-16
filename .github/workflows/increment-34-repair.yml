@@ -27,15 +27,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply reviewed repair and remove temporary helpers
+      - name: Apply reviewed repairs and remove temporary helpers
         shell: bash
         run: |
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git apply --check .github/increment-34-fix.patch
           git apply .github/increment-34-fix.patch
+          git apply --check .github/increment-34-fix2.patch
+          git apply .github/increment-34-fix2.patch
           rm -f \
             .github/increment-34-fix.patch \
+            .github/increment-34-fix2.patch \
             .github/workflows/increment-34-repair.yml
           git diff --check
 
