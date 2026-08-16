@@ -286,7 +286,6 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
                   canonicalOf
                 )
               }
-              )
           )
         } catch {
           case failure: ParameterizedVerilogException
