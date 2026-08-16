@@ -55,16 +55,8 @@ jobs:
               raise SystemExit(f'Increment 35 guarded bridge repair expected 3 matches, found {count}')
           text = text.replace(old, new)
 
-          old_renderer = '''  private def renderBoolean(
-              expression: BoolExpr,
-              origin: SourceOrigin,
-              allowPortableLogHelper: Boolean
-            ): String = expression match {'''
-          new_renderer = '''  private def renderBoolean(
-              expression: BoolExpr,
-              origin: SourceOrigin,
-              allowPortableLogHelper: Boolean = false
-            ): String = expression match {'''
+          old_renderer = "  private def renderBoolean(\n      expression: BoolExpr,\n      origin: SourceOrigin,\n      allowPortableLogHelper: Boolean\n  ): String = expression match {"
+          new_renderer = "  private def renderBoolean(\n      expression: BoolExpr,\n      origin: SourceOrigin,\n      allowPortableLogHelper: Boolean = false\n  ): String = expression match {"
           count = text.count(old_renderer)
           if count != 1:
               raise SystemExit(f'Increment 35 guarded Boolean renderer repair expected 1 match, found {count}')
