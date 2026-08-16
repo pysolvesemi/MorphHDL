@@ -62,6 +62,20 @@ jobs:
               raise SystemExit(f'Increment 35 guarded Boolean renderer repair expected 1 match, found {count}')
           text = text.replace(old_renderer, new_renderer)
 
+          old_rewrite = "  def rewrite(component: Component, verilog: String, pc: PhaseContext): String = {\n    val memories = ParameterizedMemory.memoriesOf(component)"
+          new_rewrite = "  def rewrite(component: Component, verilog: String, pc: PhaseContext): String = {\n    if (!pc.config.parameterizedVerilog) return verilog\n    val memories = ParameterizedMemory.memoriesOf(component)"
+          count = text.count(old_rewrite)
+          if count != 1:
+              raise SystemExit(f'Increment 35 guarded mode gate expected 1 match, found {count}')
+          text = text.replace(old_rewrite, new_rewrite)
+
+          old_width = "  ): Unit = expression match {\n    case width: WidthProvider if width.getWidth == expected =>"
+          new_width = "  ): Unit = expression match {\n    case _: Bool if expected == 1 =>\n    case width: WidthProvider if width.getWidth == expected =>"
+          count = text.count(old_width)
+          if count != 1:
+              raise SystemExit(f'Increment 35 guarded Bool-width repair expected 1 match, found {count}')
+          text = text.replace(old_width, new_width)
+
           path.write_text(text, encoding='utf-8')
           PY
           python3 /tmp/apply_increment_35.py
