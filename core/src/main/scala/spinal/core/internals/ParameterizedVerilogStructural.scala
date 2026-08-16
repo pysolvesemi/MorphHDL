@@ -129,14 +129,15 @@ private[internals] object ParameterizedVerilogStructural {
     val ranges = ArrayBuffer.empty[LineRange]
     val trackedInternalNames = mutable.LinkedHashSet.empty[String]
 
+    // Normal Spinal transforms may forward or prune captured temporaries before
+    // native emission. Such values have no emitted declaration (and therefore
+    // no stable name); the instance connections and slice references below
+    // recover the concrete wrapper nets that remain in Verilog.
     block.declarations.foreach { declaration =>
-      val name = requiredName(
-        declaration,
-        "captured declaration",
-        block.sourceLocation
-      )
-      trackedInternalNames += name
-      ranges += findDeclarationLine(lines, name, block.sourceLocation)
+      Option(declaration.getName()).filter(_.nonEmpty).foreach { name =>
+        trackedInternalNames += name
+        ranges += findDeclarationLine(lines, name, block.sourceLocation)
+      }
     }
 
     block.children.foreach { child =>
