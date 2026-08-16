@@ -1,8 +1,6 @@
-diff --git a/core/src/main/scala/spinal/core/ParameterizedProcess.scala b/core/src/main/scala/spinal/core/ParameterizedProcess.scala
-index 3c8dd48..162bafe 100644
 --- a/core/src/main/scala/spinal/core/ParameterizedProcess.scala
 +++ b/core/src/main/scala/spinal/core/ParameterizedProcess.scala
-@@ -281,6 +281,11 @@ object ParameterizedProcess {
+@@ -281,6 +281,11 @@
      val assignments = statements.collect {
        case value: DataAssignmentStatement => value
      }
@@ -14,7 +12,7 @@ index 3c8dd48..162bafe 100644
      val unsupported = statements.filterNot {
        case _: BaseType                => true
        case _: DataAssignmentStatement => true
-@@ -366,13 +371,13 @@ object ParameterizedProcess {
+@@ -364,10 +369,10 @@
          sourceLocation
        )
      }
@@ -27,7 +25,7 @@ index 3c8dd48..162bafe 100644
          sourceLocation
        )
      }
-@@ -390,7 +395,7 @@ object ParameterizedProcess {
+@@ -386,7 +391,7 @@
        )
      }
  
@@ -36,11 +34,10 @@ index 3c8dd48..162bafe 100644
      if (assignment.finalTarget.component ne component) {
        fail(
          "SPINAL-PARAMETERIZED-VERILOG-PROCESS-LOOP-TARGET-UNSUPPORTED",
-diff --git a/morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala b/morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala
-index df78e82..3129951 100644
 --- a/morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala
 +++ b/morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala
-@@ -182,10 +182,10 @@ class GenericProcessLoweringTests extends AnyFunSuite {
+@@ -182,10 +182,10 @@
+           )
          ) == nativeModule(concrete)
        )
 -      assert(parameterized.contains("always @(posedge clk or negedge reset)"))
