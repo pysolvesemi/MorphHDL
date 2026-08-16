@@ -680,27 +680,72 @@ object MorphVerilog {
           .replace("\r\n", "\n")
           .replace('\r', '\n')
         val lines = raw.split("\n", -1).toVector
-        val moduleStart = lines.indexWhere(_.startsWith("module "))
-        val moduleEnd =
-          if (moduleStart < 0) -1
-          else lines.indexWhere(_.trim == "endmodule", moduleStart)
-        if (moduleStart < 0 || moduleEnd < moduleStart) {
+        val declaration = """^module\s+([A-Za-z_][A-Za-z0-9_$]*)\b.*$""".r
+        var insideModule = false
+        var firstModule = -1
+        var lastEndmodule = -1
+        var moduleNames = Vector.empty[String]
+        var failure: Option[String] = None
+
+        lines.zipWithIndex.foreach { case (line, index) =>
+          if (failure.isEmpty) {
+            val trimmed = line.trim
+            if (insideModule) {
+              if (trimmed.startsWith("module ")) {
+                failure = Some("native parameterized generation nested one module inside another")
+              } else if (trimmed == "endmodule") {
+                insideModule = false
+                lastEndmodule = index
+              }
+            } else {
+              trimmed match {
+                case declaration(name) =>
+                  if (firstModule < 0) firstModule = index
+                  moduleNames :+= name
+                  insideModule = true
+                case _ if firstModule < 0 =>
+                case _ if trimmed.isEmpty || trimmed.startsWith("//") =>
+                case _ =>
+                  failure = Some(
+                    "native parameterized generation produced non-comment content between modules"
+                  )
+              }
+            }
+          }
+        }
+
+        if (failure.nonEmpty) {
+          Left(MorphVerilogFailure(SingleSourceGeneration, failure.get))
+        } else if (insideModule || firstModule < 0 || lastEndmodule < firstModule) {
           Left(
             MorphVerilogFailure(
               SingleSourceGeneration,
-              "native parameterized generation did not produce one complete Verilog module"
+              "native parameterized generation did not produce a complete Verilog module set"
+            )
+          )
+        } else if (moduleNames.count(_ == report.toplevelName) != 1) {
+          Left(
+            MorphVerilogFailure(
+              SingleSourceGeneration,
+              s"native parameterized generation did not define top '${report.toplevelName}' exactly once"
+            )
+          )
+        } else if (moduleNames.distinct.size != moduleNames.size) {
+          Left(
+            MorphVerilogFailure(
+              SingleSourceGeneration,
+              "native parameterized generation produced duplicate module definitions"
+            )
+          )
+        } else if (lines.drop(lastEndmodule + 1).exists(_.trim.nonEmpty)) {
+          Left(
+            MorphVerilogFailure(
+              SingleSourceGeneration,
+              "native parameterized generation produced content after the complete module set"
             )
           )
         } else {
-          val trailingContent = lines.drop(moduleEnd + 1).exists(_.trim.nonEmpty)
-          if (trailingContent) {
-            Left(
-              MorphVerilogFailure(
-                SingleSourceGeneration,
-                "native parameterized generation produced content after the top-level module"
-              )
-            )
-          } else Right(lines.slice(moduleStart, moduleEnd + 1).mkString("\n") + "\n")
+          Right(lines.slice(firstModule, lastEndmodule + 1).mkString("\n") + "\n")
         }
       }
     } catch {

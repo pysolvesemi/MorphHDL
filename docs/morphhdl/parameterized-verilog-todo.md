@@ -52,7 +52,7 @@ with this roadmap.
   Use the real `Stream.m2sPipe()` path as the first library-reuse proof and
   compare it with the existing Increment 28 behavioral oracle.
 
-- [ ] **Increment 32 — Hierarchy and parameter binding**
+- [x] **Increment 32 — Hierarchy and parameter binding**
 
   Discover child parameter dependencies, declarations and parent bindings from
   ordinary component hierarchy. Infer compatible symbolic payload-width
