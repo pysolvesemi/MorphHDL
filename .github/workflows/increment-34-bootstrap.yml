@@ -108,15 +108,74 @@ jobs:
           path.write_text(''.join(output))
           PY
           echo "7aaf2cd26226c89f21a6cbdeb5d878304f2d0cd259f1049faf487fdbae3625a9  /tmp/increment-34.patch" | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          source = Path('/tmp/increment-34.patch').read_text()
+          starts = [match.start() for match in re.finditer(r'(?m)^diff --git ', source)]
+          starts.append(len(source))
+          modified = []
+          new_root = Path('/tmp/increment-34-new')
+
+          for start, end in zip(starts, starts[1:]):
+              section = source[start:end]
+              if '\n--- /dev/null\n' not in section:
+                  modified.append(section)
+                  continue
+
+              path_match = re.search(r'(?m)^\+\+\+ b/(.+)$', section)
+              if path_match is None:
+                  raise RuntimeError('new-file patch has no destination path')
+              relative = Path(path_match.group(1))
+              if relative.is_absolute() or '..' in relative.parts:
+                  raise RuntimeError(f'unsafe new-file path: {relative}')
+
+              content = []
+              in_hunk = False
+              for line in section.splitlines(True):
+                  if line.startswith('@@ '):
+                      in_hunk = True
+                      continue
+                  if not in_hunk:
+                      continue
+                  if line.startswith('+') and not line.startswith('+++'):
+                      content.append(line[1:])
+                  elif line.startswith('\\ No newline at end of file'):
+                      continue
+                  elif line.startswith('-'):
+                      raise RuntimeError(f'new-file patch deletes content: {relative}')
+                  elif line.startswith(' '):
+                      content.append(line[1:])
+
+              destination = new_root / relative
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              destination.write_text(''.join(content))
+
+          Path('/tmp/increment-34-mod.patch').write_text(''.join(modified))
+          PY
+          echo "7f970ec11cbcb4281d03abd2dbf7b2d2736badf5bb78df9e153503ae555d6037  /tmp/increment-34-mod.patch" | sha256sum -c -
+          echo "c3113bc973346310067c575183940921b35a6b41535e31a93f36cb49297d2843  /tmp/increment-34-new/core/src/main/scala/spinal/core/ParameterizedProcess.scala" | sha256sum -c -
+          echo "d1531942e85421dd25d1c493da37eab62b7b68c64779be76339e673628a51aab  /tmp/increment-34-new/core/src/main/scala/spinal/core/internals/ParameterizedVerilogProcesses.scala" | sha256sum -c -
+          echo "b52ede60f83592ef756f8ec2a4752b3cadb44ce68d0e17ba7b8267c28021f011  /tmp/increment-34-new/morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala" | sha256sum -c -
           if ! patch --dry-run --batch --forward --fuzz=3 -p1 \
-            < /tmp/increment-34.patch > /tmp/increment-34-apply.log 2>&1; then
+            < /tmp/increment-34-mod.patch > /tmp/increment-34-apply.log 2>&1; then
             cat /tmp/increment-34-apply.log
             echo "::error file=.github/workflows/increment-34-bootstrap.yml,line=1::$(tr '\n' ' ' </tmp/increment-34-apply.log)"
             exit 1
           fi
-          patch --batch --forward --fuzz=3 -p1 < /tmp/increment-34.patch
-          if find . -name '*.rej' -o -name '*.orig' | grep -q .; then
-            find . -name '*.rej' -o -name '*.orig' -print
+          patch --batch --forward --fuzz=3 -p1 < /tmp/increment-34-mod.patch
+          while IFS= read -r -d '' generated; do
+            relative="${generated#/tmp/increment-34-new/}"
+            if [[ -e "$relative" ]]; then
+              echo "::error file=$relative,line=1::Increment 34 new-file destination already exists"
+              exit 1
+            fi
+            mkdir -p "$(dirname "$relative")"
+            cp "$generated" "$relative"
+          done < <(find /tmp/increment-34-new -type f -print0)
+          if find . \( -name '*.rej' -o -name '*.orig' \) -print -quit | grep -q .; then
+            find . \( -name '*.rej' -o -name '*.orig' \) -print
             echo "::error file=.github/workflows/increment-34-bootstrap.yml,line=1::Increment 34 patch left reject or backup files"
             exit 1
           fi
