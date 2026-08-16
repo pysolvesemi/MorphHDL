@@ -35,6 +35,71 @@ jobs:
           echo "76f51872ea0df901f806860cbf9de3c80a11868efc2a2694d76ee9f07fcda56a  /tmp/increment-34.patch.gz.b64" | sha256sum -c -
           base64 -d /tmp/increment-34.patch.gz.b64 | gzip -dc > /tmp/increment-34.patch
           echo "00cb50da62d724433553c810ac73455dac15d6e28702c32c50855c9245fc4789  /tmp/increment-34.patch" | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('/tmp/increment-34.patch')
+          lines = path.read_text().splitlines(True)
+          output = []
+          index = 0
+          header = re.compile(r'^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$')
+
+          while index < len(lines):
+              match = header.match(lines[index].rstrip('\n'))
+              if match is None:
+                  output.append(lines[index])
+                  index += 1
+                  continue
+
+              old_start = int(match.group(1))
+              new_start = int(match.group(3))
+              suffix = match.group(5)
+              header_index = len(output)
+              output.append(lines[index])
+              index += 1
+              body = []
+
+              while (
+                  index < len(lines)
+                  and not lines[index].startswith('@@ ')
+                  and not lines[index].startswith('diff --git ')
+              ):
+                  line = lines[index]
+                  if line == '\n':
+                      if index + 1 < len(lines) and lines[index + 1].startswith('diff --git '):
+                          break
+                      line = ' \n'
+                  body.append(line)
+                  index += 1
+
+              old_count = 0
+              new_count = 0
+              for line in body:
+                  if line.startswith('\\ No newline at end of file'):
+                      continue
+                  if line[0] == ' ':
+                      old_count += 1
+                      new_count += 1
+                  elif line[0] == '-':
+                      old_count += 1
+                  elif line[0] == '+':
+                      new_count += 1
+                  else:
+                      raise RuntimeError(f'invalid hunk line: {line!r}')
+
+              def coordinate(start, count):
+                  return str(start) if count == 1 else f'{start},{count}'
+
+              output[header_index] = (
+                  f'@@ -{coordinate(old_start, old_count)} '
+                  f'+{coordinate(new_start, new_count)} @@{suffix}\n'
+              )
+              output.extend(body)
+
+          path.write_text(''.join(output))
+          PY
+          echo "090bf84de6f4563ee9b8eb739776863da5c1abd90749dc9ce328d8ee7f5dd69d  /tmp/increment-34.patch" | sha256sum -c -
           if ! git apply --check /tmp/increment-34.patch >/tmp/increment-34-apply.log 2>&1; then
             cat /tmp/increment-34-apply.log
             echo "::error file=.github/workflows/increment-34-bootstrap.yml,line=1::$(tr '\n' ' ' </tmp/increment-34-apply.log)"
