@@ -104,12 +104,23 @@ jobs:
           path.write_text(''.join(output))
           PY
           echo "7aaf2cd26226c89f21a6cbdeb5d878304f2d0cd259f1049faf487fdbae3625a9  /tmp/increment-34.patch" | sha256sum -c -
-          if ! git apply --check /tmp/increment-34.patch >/tmp/increment-34-apply.log 2>&1; then
+          if ! patch --dry-run --batch --forward --fuzz=3 -p1 \
+            < /tmp/increment-34.patch > /tmp/increment-34-apply.log 2>&1; then
             cat /tmp/increment-34-apply.log
             echo "::error file=.github/workflows/increment-34-bootstrap.yml,line=1::$(tr '\n' ' ' </tmp/increment-34-apply.log)"
             exit 1
           fi
-          git apply /tmp/increment-34.patch
+          patch --batch --forward --fuzz=3 -p1 < /tmp/increment-34.patch
+          if find . -name '*.rej' -o -name '*.orig' | grep -q .; then
+            find . -name '*.rej' -o -name '*.orig' -print
+            echo "::error file=.github/workflows/increment-34-bootstrap.yml,line=1::Increment 34 patch left reject or backup files"
+            exit 1
+          fi
+          grep -q 'object ParameterizedProcess' core/src/main/scala/spinal/core/ParameterizedProcess.scala
+          grep -q 'object ParameterizedVerilogProcesses' core/src/main/scala/spinal/core/internals/ParameterizedVerilogProcesses.scala
+          grep -q 'ParameterizedVerilogProcesses.rewrite' core/src/main/scala/spinal/core/internals/PhaseVerilog.scala
+          grep -q 'class GenericProcessLoweringTests' morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala
+          git diff --check
           rm -rf .github/inc34-payload
           rm -f .github/workflows/increment-34-bootstrap.yml
 
