@@ -67,7 +67,7 @@ with this roadmap.
   indexing and slices, then add parameter-controlled generate-if/case with
   explicit diagnostics for unsupported Scala side effects.
 
-- [ ] **Increment 34 — Generic combinational and sequential processes**
+- [x] **Increment 34 — Generic combinational and sequential processes**
 
   Lower normal Spinal combinational and clocked statements instead of atomic
   mux/register nodes. Classify a safe parameter-bounded loop inside a process
