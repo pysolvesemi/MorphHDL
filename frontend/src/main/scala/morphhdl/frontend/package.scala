@@ -43,53 +43,52 @@ package object frontend {
   }
 
   /**
-    * Parameter-controlled generate-if available in both ParamRTL capture and
-    * ordinary SpinalHDL Component construction.
+    * Parameter-controlled structural generate-if for ordinary SpinalHDL
+    * Component construction. Keeping it as an HdlBool extension avoids
+    * colliding with the established ParamRtlFrontend.generateIf import.
     */
-  def generateIf(condition: HdlBool)(whenTrue: => Unit)(implicit
-      file: sourcecode.File,
-      line: sourcecode.Line
-  ): GenerateIfBuilder = {
-    val origin = SourceOrigin.capture
-    try FrontendSession.startGenerateIf(condition, None, whenTrue, origin)
-    catch {
-      case error: FrontendException
-          if error.code == "MORPH-FRONTEND-SESSION-MISSING" =>
-        NativeStructuralFrontend.startGenerateIf(condition, None, whenTrue, origin)
+  implicit final class StructuralGenerateIfOps(private val condition: HdlBool) extends AnyVal {
+    def generateIf(whenTrue: => Unit)(implicit
+        file: sourcecode.File,
+        line: sourcecode.Line
+    ): GenerateIfBuilder =
+      startStructuralGenerateIf(condition, None, whenTrue, SourceOrigin.capture)
+
+    def generateIf(
+        whenTrueLabel: String,
+        whenFalseLabel: String
+    )(whenTrue: => Unit)(implicit
+        file: sourcecode.File,
+        line: sourcecode.Line
+    ): GenerateIfBuilder = {
+      val origin = SourceOrigin.capture
+      HdlRange.requireIdentifier(whenTrueLabel, "generate-if true label", origin)
+      HdlRange.requireIdentifier(whenFalseLabel, "generate-if false label", origin)
+      startStructuralGenerateIf(
+        condition,
+        Some(GenerateIfNames(whenTrueLabel, whenFalseLabel)),
+        whenTrue,
+        origin
+      )
     }
   }
 
-  def generateIf(
-      condition: HdlBool,
-      whenTrueLabel: String,
-      whenFalseLabel: String
-  )(whenTrue: => Unit)(implicit
-      file: sourcecode.File,
-      line: sourcecode.Line
-  ): GenerateIfBuilder = {
-    val origin = SourceOrigin.capture
-    HdlRange.requireIdentifier(whenTrueLabel, "generate-if true label", origin)
-    HdlRange.requireIdentifier(whenFalseLabel, "generate-if false label", origin)
-    val names = Some(GenerateIfNames(whenTrueLabel, whenFalseLabel))
-    try FrontendSession.startGenerateIf(condition, names, whenTrue, origin)
-    catch {
-      case error: FrontendException
-          if error.code == "MORPH-FRONTEND-SESSION-MISSING" =>
-        NativeStructuralFrontend.startGenerateIf(condition, names, whenTrue, origin)
-    }
-  }
-
-  /** Parameter-controlled generate-case for native and ParamRTL construction. */
-  def generateCase(selector: HdlInt)(implicit
-      file: sourcecode.File,
-      line: sourcecode.Line
-  ): GenerateCaseBuilder = {
-    val origin = SourceOrigin.capture
-    try FrontendSession.startGenerateCase(selector, origin)
-    catch {
-      case error: FrontendException
-          if error.code == "MORPH-FRONTEND-SESSION-MISSING" =>
-        NativeStructuralFrontend.startGenerateCase(selector, origin)
+  /**
+    * Parameter-controlled structural generate-case for ordinary SpinalHDL
+    * Component construction.
+    */
+  implicit final class StructuralGenerateCaseOps(private val selector: HdlInt) extends AnyVal {
+    def generateCase(implicit
+        file: sourcecode.File,
+        line: sourcecode.Line
+    ): GenerateCaseBuilder = {
+      val origin = SourceOrigin.capture
+      try FrontendSession.startGenerateCase(selector, origin)
+      catch {
+        case error: FrontendException
+            if error.code == "MORPH-FRONTEND-SESSION-MISSING" =>
+          NativeStructuralFrontend.startGenerateCase(selector, origin)
+      }
     }
   }
 
@@ -160,6 +159,19 @@ package object frontend {
         line: sourcecode.Line
     ): T = apply(index.asHdlInt("Vec index"))
   }
+
+  private def startStructuralGenerateIf(
+      condition: HdlBool,
+      names: Option[GenerateIfNames],
+      whenTrue: => Unit,
+      origin: SourceOrigin
+  ): GenerateIfBuilder =
+    try FrontendSession.startGenerateIf(condition, names, whenTrue, origin)
+    catch {
+      case error: FrontendException
+          if error.code == "MORPH-FRONTEND-SESSION-MISSING" =>
+        NativeStructuralFrontend.startGenerateIf(condition, names, whenTrue, origin)
+    }
 
   private def witnessInt(
       value: HdlInt,
