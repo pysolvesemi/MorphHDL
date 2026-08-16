@@ -226,9 +226,14 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
                 )
               }
             } else nativeResult
-          ParameterizedVerilogStructural.rewrite(
+          val processResult = ParameterizedVerilogProcesses.rewrite(
             component,
             parameterizedResult,
+            pc
+          )
+          ParameterizedVerilogStructural.rewrite(
+            component,
+            processResult,
             pc,
             canonicalOf
           )
@@ -243,6 +248,7 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
       parameterizedMode &&
         (
           ParameterizedWidth.parametersOf(component).nonEmpty ||
+          ParameterizedProcess.parametersOf(component).nonEmpty ||
           component.children.exists(
             child => ParameterizedWidth.parametersOf(child).nonEmpty
           )
@@ -267,12 +273,19 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
           (
             builder,
             () =>
-              ParameterizedVerilogStructural.rewrite(
-                component,
-                builder.result,
-                pc,
-                canonicalOf
-              )
+              {
+                val processResult = ParameterizedVerilogProcesses.rewrite(
+                  component,
+                  builder.result,
+                  pc
+                )
+                ParameterizedVerilogStructural.rewrite(
+                  component,
+                  processResult,
+                  pc,
+                  canonicalOf
+                )
+              }
           )
         } catch {
           case failure: ParameterizedVerilogException
