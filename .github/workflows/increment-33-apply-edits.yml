@@ -1,0 +1,41 @@
+name: Increment 33 apply reviewed edits
+
+on:
+  push:
+    branches:
+      - agent/increment-33-structural-generate-control
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message != 'Apply Increment 33 source edits'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out Increment 33 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-33-structural-generate-control
+          fetch-depth: 0
+
+      - name: Apply exact reviewed replacements
+        run: python3 morphhdl/scripts/apply-increment-33-edits.py
+
+      - name: Commit source edits when needed
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No source edits required."
+            exit 0
+          fi
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add \
+            core/src/main/scala/spinal/core/ParameterizedStructure.scala \
+            core/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
+            core/src/main/scala/spinal/core/internals/PhaseVerilog.scala \
+            frontend/src/main/scala/morphhdl/frontend/HdlInt.scala \
+            frontend/src/main/scala/morphhdl/frontend/NativeStructuralFrontend.scala
+          git commit -m "Apply Increment 33 source edits"
+          git push origin HEAD:agent/increment-33-structural-generate-control
