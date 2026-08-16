@@ -61,6 +61,9 @@ deferred.
 `NativeSymbolicMemoryTests` covers shared-address and independent-address
 lowering, concrete-mode isolation, read-first enforcement, explicit enables,
 whole-domain address capacity and mask rejection on Scala 2.12 and 2.13.
+`HdlIntTests` also proves that derived bounded bit counts retain their concrete
+witness, symbolic expression, complete range, public parameter schema and
+source location across both supported Scala lines.
 
 ## Recommended next increment
 
