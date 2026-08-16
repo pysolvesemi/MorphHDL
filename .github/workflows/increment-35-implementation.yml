@@ -76,6 +76,16 @@ jobs:
               raise SystemExit(f'Increment 35 guarded Bool-width repair expected 1 match, found {count}')
           text = text.replace(old_width, new_width)
 
+          old_enable_order = "    requireType(read.address, TypeUInt, \"read address\", memory, source)\n    requireType(write.address, TypeUInt, \"write address\", memory, source)\n    requireType(read.readEnable, TypeBool, \"read enable\", memory, source)\n    requireType(write.writeEnable, TypeBool, \"write enable\", memory, source)\n    requireWidth(read.readEnable, 1, \"read enable\", memory, source)\n    requireWidth(write.writeEnable, 1, \"write enable\", memory, source)\n    requireExplicitEnable(read.readEnable, \"read\", memory, source)\n    requireExplicitEnable(write.writeEnable, \"write\", memory, source)"
+          new_enable_order = "    requireType(read.address, TypeUInt, \"read address\", memory, source)\n    requireType(write.address, TypeUInt, \"write address\", memory, source)\n    requireType(read.readEnable, TypeBool, \"read enable\", memory, source)\n    requireType(write.writeEnable, TypeBool, \"write enable\", memory, source)\n    requireExplicitEnable(read.readEnable, \"read\", memory, source)\n    requireExplicitEnable(write.writeEnable, \"write\", memory, source)\n    requireWidth(read.readEnable, 1, \"read enable\", memory, source)\n    requireWidth(write.writeEnable, 1, \"write enable\", memory, source)"
+          count = text.count(old_enable_order)
+          if count != 1:
+              raise SystemExit(f'Increment 35 guarded enable-validation ordering expected 1 match, found {count}')
+          text = text.replace(old_enable_order, new_enable_order)
+
+          if text.count('    case _: BoolLiteral =>') != 1:
+              raise SystemExit('Increment 35 explicit-enable validator must reject every literal enable')
+
           path.write_text(text, encoding='utf-8')
           PY
           python3 /tmp/apply_increment_35.py
