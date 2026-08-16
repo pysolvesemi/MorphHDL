@@ -34,6 +34,16 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git apply --check .github/increment-34-core-test-update.patch
           git apply .github/increment-34-core-test-update.patch
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('core/src/test/scala/spinal/core/internals/ParameterizedDataShapeTests.scala')
+          text = path.read_text()
+          before = 'assert(verilog.contains("if(select) begin"))'
+          after = 'assert(verilog.contains("if(select"))'
+          if text.count(before) != 1:
+              raise RuntimeError('expected exactly one conditional-process assertion')
+          path.write_text(text.replace(before, after, 1))
+          PY
           rm -f \
             .github/increment-34-core-test-update.patch \
             .github/workflows/increment-34-core-contract-repair.yml \
