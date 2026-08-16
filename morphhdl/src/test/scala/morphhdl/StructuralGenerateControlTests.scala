@@ -213,8 +213,9 @@ class StructuralGenerateControlTests extends AnyFunSuite {
       assert(!concrete.contains("genvar lane"))
       assert(!concrete.contains("begin : g_lane"))
       assert(instanceCount(concrete, "StructuralLaneSink") == 4)
+      val compactConcrete = concrete.replaceAll("\\s+", "")
       Vector("[7:0]", "[15:8]", "[23:16]", "[31:24]").foreach { slice =>
-        assert(concrete.contains(slice), s"concrete witness lost slice $slice")
+        assert(compactConcrete.contains(slice), s"concrete witness lost slice $slice")
       }
     }
   }
