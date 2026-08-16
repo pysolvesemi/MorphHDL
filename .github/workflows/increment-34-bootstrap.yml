@@ -67,7 +67,11 @@ jobs:
               ):
                   line = lines[index]
                   if line == '\n':
-                      if index + 1 < len(lines) and lines[index + 1].startswith('diff --git '):
+                      if index + 1 < len(lines) and (
+                          lines[index + 1].startswith('diff --git ')
+                          or lines[index + 1].startswith('@@ ')
+                      ):
+                          index += 1
                           break
                       line = ' \n'
                   body.append(line)
@@ -99,7 +103,7 @@ jobs:
 
           path.write_text(''.join(output))
           PY
-          echo "090bf84de6f4563ee9b8eb739776863da5c1abd90749dc9ce328d8ee7f5dd69d  /tmp/increment-34.patch" | sha256sum -c -
+          echo "7aaf2cd26226c89f21a6cbdeb5d878304f2d0cd259f1049faf487fdbae3625a9  /tmp/increment-34.patch" | sha256sum -c -
           if ! git apply --check /tmp/increment-34.patch >/tmp/increment-34-apply.log 2>&1; then
             cat /tmp/increment-34-apply.log
             echo "::error file=.github/workflows/increment-34-bootstrap.yml,line=1::$(tr '\n' ' ' </tmp/increment-34-apply.log)"
@@ -126,10 +130,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+          if ! /tmp/morphhdl-mill morph[2.12.18].testOnly \
             morphhdl.GenericProcessLoweringTests \
             morphhdl.StructuralGenerateControlTests \
-            morphhdl.GenericExpressionAndStreamTests
+            morphhdl.GenericExpressionAndStreamTests \
+            > /tmp/increment-34-test.log 2>&1; then
+            tail -n 240 /tmp/increment-34-test.log
+            diagnostic="$(tail -n 120 /tmp/increment-34-test.log | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g')"
+            echo "::error file=.github/workflows/increment-34-bootstrap.yml,line=1::$diagnostic"
+            exit 1
+          fi
+          cat /tmp/increment-34-test.log
 
       - name: Commit validated implementation
         shell: bash
