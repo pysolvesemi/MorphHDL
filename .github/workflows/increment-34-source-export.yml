@@ -24,23 +24,26 @@ jobs:
           fetch-depth: 0
           submodules: false
 
-      - name: Package the exact source tree
+      - name: Package head and target branch source trees
         shell: bash
         run: |
           set -euo pipefail
-          tar \
-            --exclude=.git \
-            --exclude=out \
-            --exclude=target \
-            --exclude='**/out' \
-            --exclude='**/target' \
-            -czf /tmp/morphhdl-increment-34-source.tar.gz .
-          sha256sum /tmp/morphhdl-increment-34-source.tar.gz
+          git archive --format=tar.gz \
+            --output=/tmp/morphhdl-increment-34-head.tar.gz \
+            HEAD
+          git archive --format=tar.gz \
+            --output=/tmp/morphhdl-increment-34-base.tar.gz \
+            origin/parameterized-verilog
+          sha256sum \
+            /tmp/morphhdl-increment-34-head.tar.gz \
+            /tmp/morphhdl-increment-34-base.tar.gz
 
-      - name: Upload source archive
+      - name: Upload source archives
         uses: actions/upload-artifact@v4
         with:
-          name: morphhdl-increment-34-source-${{ github.sha }}
-          path: /tmp/morphhdl-increment-34-source.tar.gz
+          name: morphhdl-increment-34-sources-${{ github.sha }}
+          path: |
+            /tmp/morphhdl-increment-34-head.tar.gz
+            /tmp/morphhdl-increment-34-base.tar.gz
           if-no-files-found: error
           retention-days: 3
