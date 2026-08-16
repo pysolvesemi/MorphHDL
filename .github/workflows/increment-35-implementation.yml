@@ -47,12 +47,30 @@ jobs:
 
           path = pathlib.Path('/tmp/apply_increment_35.py')
           text = raw.decode('utf-8')
+
           old = 'generateIndices: Map[String, Int]'
           new = 'generateIndices: Map[String, GenerateIndexFacts]'
           count = text.count(old)
           if count != 3:
               raise SystemExit(f'Increment 35 guarded bridge repair expected 3 matches, found {count}')
-          path.write_text(text.replace(old, new), encoding='utf-8')
+          text = text.replace(old, new)
+
+          old_renderer = '''  private def renderBoolean(
+              expression: BoolExpr,
+              origin: SourceOrigin,
+              allowPortableLogHelper: Boolean
+            ): String = expression match {'''
+          new_renderer = '''  private def renderBoolean(
+              expression: BoolExpr,
+              origin: SourceOrigin,
+              allowPortableLogHelper: Boolean = false
+            ): String = expression match {'''
+          count = text.count(old_renderer)
+          if count != 1:
+              raise SystemExit(f'Increment 35 guarded Boolean renderer repair expected 1 match, found {count}')
+          text = text.replace(old_renderer, new_renderer)
+
+          path.write_text(text, encoding='utf-8')
           PY
           python3 /tmp/apply_increment_35.py
           git diff --check
