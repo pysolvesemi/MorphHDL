@@ -1,0 +1,73 @@
+name: Increment 34 bootstrap
+
+on:
+  push:
+    branches:
+      - agent/increment-34-generic-processes
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-34-bootstrap-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply-test-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out Increment 34 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify and apply reviewed Increment 34 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/inc34-payload/*.b64 > /tmp/increment-34.patch.gz.b64
+          echo "76f51872ea0df901f806860cbf9de3c80a11868efc2a2694d76ee9f07fcda56a  /tmp/increment-34.patch.gz.b64" | sha256sum -c -
+          base64 -d /tmp/increment-34.patch.gz.b64 | gzip -dc > /tmp/increment-34.patch
+          echo "00cb50da62d724433553c810ac73455dac15d6e28702c32c50855c9245fc4789  /tmp/increment-34.patch" | sha256sum -c -
+          git apply --check /tmp/increment-34.patch
+          git apply /tmp/increment-34.patch
+          rm -rf .github/inc34-payload
+          rm -f .github/workflows/increment-34-bootstrap.yml
+
+      - name: Install validation tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+          if ! command -v iverilog >/dev/null 2>&1; then
+            apt-get update
+            DEBIAN_FRONTEND=noninteractive apt-get install -y iverilog
+          fi
+
+      - name: Run Increment 34 focused regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.GenericProcessLoweringTests \
+            morphhdl.StructuralGenerateControlTests \
+            morphhdl.GenericExpressionAndStreamTests
+
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "feat: lower generic parameterized processes"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
