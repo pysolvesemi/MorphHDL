@@ -5,7 +5,7 @@ package spinal.core
   * packed width.
   *
   * The concrete `default` remains the width used by the ordinary SpinalHDL
-  * elaboration and validation phases.  The symbolic identity is retained only
+  * elaboration and validation phases. The symbolic identity is retained only
   * as metadata for an explicitly enabled parameter-aware backend.
   */
 final case class ElaborationIntegerParameter(
@@ -15,11 +15,15 @@ final case class ElaborationIntegerParameter(
     maximum: BigInt
 )
 
-/** A concrete SpinalHDL bit count which may also retain a direct parameter. */
+/**
+  * A concrete SpinalHDL bit count which may retain either one direct public
+  * parameter or a complete bounded elaboration expression.
+  */
 final case class ParameterizedBitCount(
     value: Int,
     parameter: Option[ElaborationIntegerParameter],
-    sourceLocation: Option[String] = None
+    sourceLocation: Option[String] = None,
+    expression: Option[ElaborationIntegerExpression] = None
 )
 
 object ParameterizedBitCount {
@@ -39,14 +43,21 @@ object ParameterizedBitCount {
     new ParameterizedBitCount(value, Some(parameter), sourceLocation)
 }
 
-/** Internal AST marker installed by a parameter-aware bit-vector factory. */
+/** Internal AST marker installed by a direct parameter-aware factory. */
 private[core] final case class ParameterizedWidthTag(
     parameter: ElaborationIntegerParameter,
     sourceLocation: Option[String]
 ) extends SpinalTag {
   override def allowMultipleInstance: Boolean = false
-  // Metadata must not change ordinary SpinalHDL simplification. Parameterized
-  // designs retain named data-shape leaves; the tag is not a keep directive.
+  override def canSymplifyHost: Boolean = true
+}
+
+/** Internal AST marker for a complete bounded packed-width expression. */
+private[core] final case class ParameterizedWidthExpressionTag(
+    expression: ElaborationIntegerExpression,
+    sourceLocation: Option[String]
+) extends SpinalTag {
+  override def allowMultipleInstance: Boolean = false
   override def canSymplifyHost: Boolean = true
 }
 
@@ -54,7 +65,7 @@ private[core] final case class ParameterizedWidthTag(
 object ParameterizedWidth {
   /**
     * Construct a concrete bit vector while retaining its symbolic packed
-    * width.  All supported bit-vector factories use this single path so the
+    * width. All supported bit-vector factories use this single path so the
     * metadata semantics cannot diverge between Bits, UInt and SInt.
     */
   private[core] def attach[T <: BitVector](
@@ -62,27 +73,62 @@ object ParameterizedWidth {
       width: ParameterizedBitCount
   ): T = {
     data.setWidth(width.value)
-    width.parameter.foreach { parameter =>
-      data.addTag(ParameterizedWidthTag(parameter, width.sourceLocation))
+    width.expression match {
+      case Some(expression) =>
+        data.addTag(
+          ParameterizedWidthExpressionTag(expression, width.sourceLocation)
+        )
+      case None =>
+        width.parameter.foreach { parameter =>
+          data.addTag(ParameterizedWidthTag(parameter, width.sourceLocation))
+        }
     }
     data
   }
 
   /** Preserve only symbolic-width metadata when a native leaf is cloned. */
-  private[core] def copy(from: BaseType, to: BaseType): Unit =
+  private[core] def copy(from: BaseType, to: BaseType): Unit = {
     from.getTag(classOf[ParameterizedWidthTag]).foreach { tag =>
       to.addTag(ParameterizedWidthTag(tag.parameter, tag.sourceLocation))
     }
+    from.getTag(classOf[ParameterizedWidthExpressionTag]).foreach { tag =>
+      to.addTag(
+        ParameterizedWidthExpressionTag(tag.expression, tag.sourceLocation)
+      )
+    }
+  }
 
   def parameterOf(data: BaseType): Option[ElaborationIntegerParameter] =
     data.getTag(classOf[ParameterizedWidthTag]).map(_.parameter)
 
+  /** Complete retained width expression, including direct parameters. */
+  def expressionOf(data: BaseType): Option[ElaborationIntegerExpression] =
+    data.getTag(classOf[ParameterizedWidthExpressionTag])
+      .map(_.expression)
+      .orElse {
+        data.getTag(classOf[ParameterizedWidthTag]).map { tag =>
+          val parameter = tag.parameter
+          ElaborationIntegerExpression(
+            verilog = parameter.name,
+            default = parameter.default,
+            minimum = parameter.minimum,
+            maximum = parameter.maximum,
+            parameters = Vector(parameter),
+            sourceLocation = tag.sourceLocation
+          )
+        }
+      }
+
   def sourceLocationOf(data: BaseType): Option[String] =
-    data.getTag(classOf[ParameterizedWidthTag]).flatMap(_.sourceLocation)
+    data.getTag(classOf[ParameterizedWidthExpressionTag])
+      .flatMap(_.sourceLocation)
+      .orElse(
+        data.getTag(classOf[ParameterizedWidthTag]).flatMap(_.sourceLocation)
+      )
 
   /** Symbolically sized leaves in deterministic data-model order. */
   def leavesOf(data: Data): Vector[BaseType] =
-    data.flatten.filter(parameterOf(_).nonEmpty).toVector
+    data.flatten.filter(expressionOf(_).exists(_.parameters.nonEmpty)).toVector
 
   /**
     * Canonical public parameter schemas referenced anywhere in a component.
@@ -91,11 +137,14 @@ object ParameterizedWidth {
   def parametersOf(component: Component): Vector[ElaborationIntegerParameter] = {
     val leaves = scala.collection.mutable.ArrayBuffer.empty[BaseType]
     component.dslBody.walkLeafStatements {
-      case baseType: BaseType if parameterOf(baseType).nonEmpty => leaves += baseType
+      case baseType: BaseType if expressionOf(baseType).exists(_.parameters.nonEmpty) =>
+        leaves += baseType
       case _ =>
     }
     val tagged = leaves.flatMap { baseType =>
-      parameterOf(baseType).map(parameter => baseType -> parameter)
+      expressionOf(baseType).toVector.flatMap(
+        _.parameters.map(parameter => baseType -> parameter)
+      )
     }
     val values = tagged.map(_._2)
     val conflicts = values.groupBy(_.name).collectFirst {

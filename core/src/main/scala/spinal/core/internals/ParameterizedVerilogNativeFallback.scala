@@ -43,6 +43,7 @@ private[internals] object ParameterizedVerilogNativeFallback {
     eligibleGateFailures.contains(failure.code) &&
       (
         ParameterizedWidth.parametersOf(component).nonEmpty ||
+          ParameterizedMemory.parametersOf(component).nonEmpty ||
           ParameterizedProcess.parametersOf(component).nonEmpty ||
           ParameterizedStructure.parametersOf(component).nonEmpty ||
           component.children.exists(
@@ -64,6 +65,7 @@ private[internals] object ParameterizedVerilogNativeFallback {
       component,
       pc,
       hierarchy.parameters ++
+        ParameterizedMemory.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component),
       hierarchy.hasParameterizedInstances
@@ -225,12 +227,8 @@ private[internals] object ParameterizedVerilogNativeFallback {
           "generic parameterized expressions target Verilog-2001, not SystemVerilog"
         )
       }
-      if (memories.nonEmpty) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-MEMORY-UNSUPPORTED",
-          s"component '${component.definitionName}' uses native memories before Increment 35"
-        )
-      }
+      // Native memories are validated and canonically lowered after this
+      // generic declaration-width pass.
       if (parameters.isEmpty && !hasParameterizedHierarchy) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-NO-SYMBOLIC-PORTS",
@@ -416,8 +414,15 @@ private[internals] object ParameterizedVerilogNativeFallback {
           case None if activeBases.contains(baseType) => WidthLiteral(baseType.getBitsWidth)
           case None =>
             activeBases += baseType
-            val result = ParameterizedWidth.parameterOf(baseType) match {
-              case Some(parameter) => WidthParameter(parameter)
+            val result = ParameterizedWidth.expressionOf(baseType) match {
+              case Some(expression) =>
+                WidthRetained(
+                  expression.verilog,
+                  expression.default,
+                  expression.minimum,
+                  expression.maximum,
+                  expression.parameters.distinct.sortBy(_.name)
+                )
               case None =>
                 baseType match {
                   case _: Bool => WidthLiteral(1)
@@ -519,6 +524,18 @@ private[internals] object ParameterizedVerilogNativeFallback {
         case _: BitVectorBitAccessFloating => WidthLiteral(1)
         case literal: BitVectorLiteral => WidthLiteral(literal.getWidth)
         case _: BoolLiteral            => WidthLiteral(1)
+        case port: MemReadSync =>
+          ParameterizedMemory.metadataOf(port.mem) match {
+            case Some(metadata) =>
+              WidthRetained(
+                metadata.elementWidth.verilog,
+                metadata.elementWidth.default,
+                metadata.elementWidth.minimum,
+                metadata.elementWidth.maximum,
+                metadata.elementWidth.parameters.distinct.sortBy(_.name)
+              )
+            case None => WidthLiteral(port.getWidth)
+          }
         case widthProvider: Expression with WidthProvider =>
           val childWidths = ArrayBuffer.empty[WidthExpr]
           widthProvider.foreachExpression(child => childWidths += ofExpression(child))
@@ -619,6 +636,16 @@ private[internals] object ParameterizedVerilogNativeFallback {
     override val parameters: Vector[ElaborationIntegerParameter] = Vector(value)
     override val precedence: Int = 100
     override val render: String = value.name
+  }
+
+  private final case class WidthRetained(
+      render: String,
+      default: BigInt,
+      minimum: BigInt,
+      maximum: BigInt,
+      parameters: Vector[ElaborationIntegerParameter]
+  ) extends WidthExpr {
+    override val precedence: Int = 100
   }
 
   private final case class WidthBinary(

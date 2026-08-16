@@ -74,7 +74,7 @@ with this roadmap.
   as a procedural Verilog `for`, while structural construction remains a
   generate loop, and retain driver, latch, clock and reset validation.
 
-- [ ] **Increment 35 — Native symbolic memories**
+- [x] **Increment 35 — Native symbolic memories**
 
   Carry symbolic width, depth and address expressions through ordinary Spinal
   `Mem`, `readSync` and `write`. Validate capacity, enable, collision and

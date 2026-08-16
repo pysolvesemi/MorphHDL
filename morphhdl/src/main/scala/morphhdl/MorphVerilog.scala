@@ -642,6 +642,7 @@ object MorphVerilog {
     try {
       val retained =
         spinal.core.ParameterizedWidth.parametersOf(report.toplevel) ++
+          spinal.core.ParameterizedMemory.parametersOf(report.toplevel) ++
           spinal.core.ParameterizedStructure.parametersOf(report.toplevel) ++
           spinal.core.ParameterizedProcess.parametersOf(report.toplevel)
       val grouped = retained.groupBy(_.name)

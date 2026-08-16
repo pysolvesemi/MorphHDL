@@ -226,9 +226,14 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
                 )
               }
             } else nativeResult
-          val processResult = ParameterizedVerilogProcesses.rewrite(
+          val memoryResult = ParameterizedVerilogMemories.rewrite(
             component,
             parameterizedResult,
+            pc
+          )
+          val processResult = ParameterizedVerilogProcesses.rewrite(
+            component,
+            memoryResult,
             pc
           )
           ParameterizedVerilogStructural.rewrite(
@@ -248,9 +253,12 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
       parameterizedMode &&
         (
           ParameterizedWidth.parametersOf(component).nonEmpty ||
+          ParameterizedMemory.parametersOf(component).nonEmpty ||
           ParameterizedProcess.parametersOf(component).nonEmpty ||
           component.children.exists(
-            child => ParameterizedWidth.parametersOf(child).nonEmpty
+            child =>
+              ParameterizedWidth.parametersOf(child).nonEmpty ||
+                ParameterizedMemory.parametersOf(child).nonEmpty
           )
         )
     val isPlainParameterizedChild =
@@ -274,9 +282,14 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
             builder,
             () =>
               {
-                val processResult = ParameterizedVerilogProcesses.rewrite(
+                val memoryResult = ParameterizedVerilogMemories.rewrite(
                   component,
                   builder.result,
+                  pc
+                )
+                val processResult = ParameterizedVerilogProcesses.rewrite(
+                  component,
+                  memoryResult,
                   pc
                 )
                 ParameterizedVerilogStructural.rewrite(

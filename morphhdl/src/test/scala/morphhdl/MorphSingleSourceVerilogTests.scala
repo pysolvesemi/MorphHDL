@@ -173,7 +173,7 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
     }
   }
 
-  test("an unsupported symbolic width leaves the previous public output untouched") {
+  test("a bounded derived symbolic width atomically replaces the previous public output") {
     withTemporaryDirectory { directory =>
       val output = directory.resolve("preserved.v")
       Files.write(output, "previous-good-output".getBytes(StandardCharsets.UTF_8))
@@ -184,7 +184,7 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
         val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
         val derivedWidth = width + HdlInt.literal(1)
         new Component {
-          setDefinitionName("UnsupportedDerivedWidth")
+          setDefinitionName("BoundedDerivedWidth")
           val payload = in UInt(derivedWidth bits)
           val result = out UInt(derivedWidth bits)
           result := payload
@@ -193,11 +193,32 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
 
       result match {
         case Left(failure) =>
-          assert(failure.stage == MorphVerilogStage.SingleSourceGeneration)
-          assert(failure.detail.contains("MORPH-FRONTEND-SPINAL-WIDTH-NOT-DIRECT-PARAMETER"))
-        case Right(report) => fail(s"Expected unsupported symbolic-width failure, received $report")
+          fail(s"Expected derived symbolic-width success, received $failure")
+        case Right(report) =>
+          assert(report.toplevelName == "BoundedDerivedWidth")
+          assert(report.generatedSourcesPaths == Vector(output.toString))
+          assert(
+            report.parameters == Vector(
+              IntegerParameter(
+                "WIDTH",
+                8,
+                Vector(MinInclusive(1), MaxInclusive(64))
+              )
+            )
+          )
+          assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
       }
-      assert(read(output) == "previous-good-output")
+
+      val verilog = read(output)
+      assert(verilog != "previous-good-output")
+      assert(verilog.contains("module BoundedDerivedWidth #("))
+      assert(verilog.contains("parameter integer WIDTH = 8"))
+      assert(verilog.contains("(WIDTH + 1)"))
+      assert(verilog.contains("assign result = payload;"))
+      val listing = Files.list(directory)
+      try {
+        assert(listing.iterator().asScala.map(_.getFileName.toString).toVector == Vector("preserved.v"))
+      } finally listing.close()
     }
   }
 
