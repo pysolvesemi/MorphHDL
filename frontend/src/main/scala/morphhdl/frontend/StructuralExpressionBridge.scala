@@ -22,6 +22,14 @@ private[frontend] object StructuralExpressionBridge {
       value: HdlInt,
       role: String,
       generateIndices: Map[String, GenerateIndexFacts]
+  ): ElaborationIntegerExpression =
+    integerImpl(value, role, generateIndices, allowPortableLogHelper = false)
+
+  private def integerImpl(
+      value: HdlInt,
+      role: String,
+      generateIndices: Map[String, GenerateIndexFacts],
+      allowPortableLogHelper: Boolean
   ): ElaborationIntegerExpression = {
     if (value eq null) {
       FrontendException.fail(
@@ -103,7 +111,7 @@ private[frontend] object StructuralExpressionBridge {
     }
 
     ElaborationIntegerExpression(
-      verilog = renderInteger(value.expression, value.origin),
+      verilog = renderInteger(value.expression, value.origin, allowPortableLogHelper),
       default = facts.defaultValue,
       minimum = minimum,
       maximum = maximum,
@@ -118,6 +126,17 @@ private[frontend] object StructuralExpressionBridge {
       role: String
   ): ElaborationIntegerExpression =
     integer(value, role, NativeStructuralFrontend.currentGenerateIndices)
+
+  def width(
+      value: HdlInt,
+      role: String
+  ): ElaborationIntegerExpression =
+    integerImpl(
+      value,
+      role,
+      NativeStructuralFrontend.currentGenerateIndices,
+      allowPortableLogHelper = true
+    )
 
   def integer(
       value: GenIndex,
@@ -254,7 +273,8 @@ private[frontend] object StructuralExpressionBridge {
 
   private def renderInteger(
       expression: IntExpr,
-      origin: SourceOrigin
+      origin: SourceOrigin,
+      allowPortableLogHelper: Boolean
   ): String = expression match {
     case IntExpr.Literal(value)         => value.toString
     case IntExpr.ParameterRef(name)     => name
@@ -266,27 +286,31 @@ private[frontend] object StructuralExpressionBridge {
         origin
       )
     case IntExpr.Negate(value) =>
-      s"-(${renderInteger(value, origin)})"
+      s"-(${renderInteger(value, origin, allowPortableLogHelper)})"
     case IntExpr.Add(left, right) =>
-      binary(left, "+", right, origin)
+      binary(left, "+", right, origin, allowPortableLogHelper)
     case IntExpr.Subtract(left, right) =>
-      binary(left, "-", right, origin)
+      binary(left, "-", right, origin, allowPortableLogHelper)
     case IntExpr.Multiply(left, right) =>
-      binary(left, "*", right, origin)
+      binary(left, "*", right, origin, allowPortableLogHelper)
     case IntExpr.Divide(left, right) =>
-      binary(left, "/", right, origin)
+      binary(left, "/", right, origin, allowPortableLogHelper)
     case IntExpr.Modulo(left, right) =>
-      binary(left, "%", right, origin)
+      binary(left, "%", right, origin, allowPortableLogHelper)
     case IntExpr.Min(left, right) =>
-      val l = renderInteger(left, origin)
-      val r = renderInteger(right, origin)
+      val l = renderInteger(left, origin, allowPortableLogHelper)
+      val r = renderInteger(right, origin, allowPortableLogHelper)
       s"(($l) < ($r) ? ($l) : ($r))"
     case IntExpr.Max(left, right) =>
-      val l = renderInteger(left, origin)
-      val r = renderInteger(right, origin)
+      val l = renderInteger(left, origin, allowPortableLogHelper)
+      val r = renderInteger(right, origin, allowPortableLogHelper)
       s"(($l) > ($r) ? ($l) : ($r))"
     case IntExpr.Select(condition, whenTrue, whenFalse) =>
-      s"((${renderBoolean(condition, origin)}) ? (${renderInteger(whenTrue, origin)}) : (${renderInteger(whenFalse, origin)}))"
+      s"((${renderBoolean(condition, origin, allowPortableLogHelper)}) ? (${renderInteger(whenTrue, origin, allowPortableLogHelper)}) : (${renderInteger(whenFalse, origin, allowPortableLogHelper)}))"
+    case IntExpr.AddressWidth(value) if allowPortableLogHelper =>
+      s"clog2(${renderInteger(value, origin, allowPortableLogHelper)}, 1)"
+    case IntExpr.CeilLog2(value) if allowPortableLogHelper =>
+      s"clog2(${renderInteger(value, origin, allowPortableLogHelper)}, 0)"
     case IntExpr.AddressWidth(_) | IntExpr.CeilLog2(_) =>
       FrontendException.failAt(
         "MORPH-FRONTEND-STRUCTURAL-INTEGER-OPERATOR-UNSUPPORTED",
@@ -299,13 +323,15 @@ private[frontend] object StructuralExpressionBridge {
       left: IntExpr,
       operator: String,
       right: IntExpr,
-      origin: SourceOrigin
+      origin: SourceOrigin,
+      allowPortableLogHelper: Boolean
   ): String =
-    s"(${renderInteger(left, origin)} $operator ${renderInteger(right, origin)})"
+    s"(${renderInteger(left, origin, allowPortableLogHelper)} $operator ${renderInteger(right, origin, allowPortableLogHelper)})"
 
   private def renderBoolean(
       expression: BoolExpr,
-      origin: SourceOrigin
+      origin: SourceOrigin,
+      allowPortableLogHelper: Boolean = false
   ): String = expression match {
     case BoolExpr.Literal(value) =>
       if (value) "1'b1" else "1'b0"
@@ -318,30 +344,31 @@ private[frontend] object StructuralExpressionBridge {
         origin
       )
     case BoolExpr.LessThan(left, right) =>
-      compare(left, "<", right, origin)
+      compare(left, "<", right, origin, allowPortableLogHelper)
     case BoolExpr.LessThanOrEqual(left, right) =>
-      compare(left, "<=", right, origin)
+      compare(left, "<=", right, origin, allowPortableLogHelper)
     case BoolExpr.GreaterThan(left, right) =>
-      compare(left, ">", right, origin)
+      compare(left, ">", right, origin, allowPortableLogHelper)
     case BoolExpr.GreaterThanOrEqual(left, right) =>
-      compare(left, ">=", right, origin)
+      compare(left, ">=", right, origin, allowPortableLogHelper)
     case BoolExpr.Equal(left, right) =>
-      compare(left, "==", right, origin)
+      compare(left, "==", right, origin, allowPortableLogHelper)
     case BoolExpr.NotEqual(left, right) =>
-      compare(left, "!=", right, origin)
+      compare(left, "!=", right, origin, allowPortableLogHelper)
     case BoolExpr.Not(value) =>
-      s"!(${renderBoolean(value, origin)})"
+      s"!(${renderBoolean(value, origin, allowPortableLogHelper)})"
     case BoolExpr.And(left, right) =>
-      s"((${renderBoolean(left, origin)}) && (${renderBoolean(right, origin)}))"
+      s"((${renderBoolean(left, origin, allowPortableLogHelper)}) && (${renderBoolean(right, origin, allowPortableLogHelper)}))"
     case BoolExpr.Or(left, right) =>
-      s"((${renderBoolean(left, origin)}) || (${renderBoolean(right, origin)}))"
+      s"((${renderBoolean(left, origin, allowPortableLogHelper)}) || (${renderBoolean(right, origin, allowPortableLogHelper)}))"
   }
 
   private def compare(
       left: IntExpr,
       operator: String,
       right: IntExpr,
-      origin: SourceOrigin
+      origin: SourceOrigin,
+      allowPortableLogHelper: Boolean
   ): String =
-    s"((${renderInteger(left, origin)}) $operator (${renderInteger(right, origin)}))"
+    s"((${renderInteger(left, origin, allowPortableLogHelper)}) $operator (${renderInteger(right, origin, allowPortableLogHelper)}))"
 }

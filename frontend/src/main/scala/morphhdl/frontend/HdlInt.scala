@@ -26,7 +26,11 @@ import morphhdl.paramrtl.IntExpr.{
   Subtract
 }
 import morphhdl.paramrtl.{IntConstraint, IntExpr, IntegerLocalParameter, IntegerParameter}
-import spinal.core.{ElaborationIntegerParameter, ParameterizedBitCount}
+import spinal.core.{
+  ElaborationIntegerParameter,
+  ParameterizedBitCount,
+  ParameterizedMemoryDepth
+}
 
 final class HdlInt private[frontend] (
     private[frontend] val witness: BigInt,
@@ -41,13 +45,8 @@ final class HdlInt private[frontend] (
     private[frontend] val origin: SourceOrigin
 ) extends scala.math.ScalaNumber {
   /**
-    * Retain a direct public integer parameter while supplying its concrete
-    * default to SpinalHDL's ordinary width inference and validation phases.
-    *
-    * An `HdlInt.literal` remains an ordinary untagged concrete width. For
-    * symbolic data shapes this deliberately accepts only an unmodified
-    * `HdlInt.param`; expression propagation remains fail-closed until the
-    * generic expression increment.
+    * Supply the concrete witness to ordinary SpinalHDL while retaining either
+    * a direct parameter or a complete bounded packed-width expression.
     */
   private[frontend] def toParameterizedBitCount(implicit
       file: sourcecode.File,
@@ -69,20 +68,7 @@ final class HdlInt private[frontend] (
             useOrigin
           )
         }
-        if (value < 1) {
-          FrontendException.failAt(
-            "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-NONPOSITIVE",
-            s"literal SpinalHDL width must be at least 1, but found $value",
-            useOrigin
-          )
-        }
-        if (value > BigInt(Int.MaxValue)) {
-          FrontendException.failAt(
-            "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-TOO-LARGE",
-            s"literal SpinalHDL width $value is outside SpinalHDL's Int-sized width domain",
-            useOrigin
-          )
-        }
+        validateSpinalWidthDomain(value, value, value, "literal SpinalHDL width", useOrigin)
         return ParameterizedBitCount(
           value.toInt,
           parameter = None,
@@ -91,80 +77,151 @@ final class HdlInt private[frontend] (
       case _ =>
     }
 
-    val token = (expression, declaration) match {
-      case (ParameterRef(name), Some(value)) if value.declaration.name == name => value
-      case _ =>
-        FrontendException.failAt(
-          "MORPH-FRONTEND-SPINAL-WIDTH-NOT-DIRECT-PARAMETER",
-          "the SpinalHDL symbolic-width bridge accepts only an unmodified HdlInt.param value",
+    val directToken = (expression, declaration) match {
+      case (ParameterRef(name), Some(value)) if value.declaration.name == name =>
+        Some(value)
+      case _ => None
+    }
+
+    directToken match {
+      case Some(token)
+          if parameters.size == 1 && parameters.exists(_ eq token) &&
+            booleanParameters.isEmpty && localDeclaration.isEmpty &&
+            localParameters.isEmpty && booleanLocalParameters.isEmpty && scope.isEmpty =>
+        val parameter = token.declaration
+        val minimums = parameter.constraints.collect { case MinInclusive(value) => value }
+        val maximums = parameter.constraints.collect { case MaxInclusive(value) => value }
+        if (minimums.isEmpty || maximums.isEmpty) {
+          FrontendException.failAt(
+            "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-UNBOUNDED",
+            s"parameter '${parameter.name}' must declare finite minimum and maximum width bounds",
+            useOrigin
+          )
+        }
+        val minimum = minimums.max
+        val maximum = maximums.min
+        validateSpinalWidthDomain(
+          parameter.default,
+          minimum,
+          maximum,
+          s"parameter '${parameter.name}'",
           useOrigin
         )
+        if (parameter.default != witness) {
+          FrontendException.failAt(
+            "MORPH-FRONTEND-SPINAL-WIDTH-DEFAULT-INVALID",
+            s"parameter '${parameter.name}' default ${parameter.default} must equal its concrete witness $witness",
+            useOrigin
+          )
+        }
+        if (
+          parameter.name == null ||
+          !HdlInt.PortableIdentifier.pattern.matcher(parameter.name).matches()
+        ) {
+          FrontendException.failAt(
+            "MORPH-FRONTEND-SPINAL-WIDTH-NAME-INVALID",
+            s"parameter name '${parameter.name}' is not a portable Verilog identifier",
+            useOrigin
+          )
+        }
+        ParameterizedBitCount(
+          parameter.default.toInt,
+          parameter = Some(
+            ElaborationIntegerParameter(
+              parameter.name,
+              parameter.default,
+              minimum,
+              maximum
+            )
+          ),
+          sourceLocation = Some(useOrigin.rendered)
+        )
+      case _ =>
+        val retained = StructuralExpressionBridge.width(
+          this,
+          "SpinalHDL packed width"
+        )
+        validateSpinalWidthDomain(
+          retained.default,
+          retained.minimum,
+          retained.maximum,
+          s"packed-width expression '${retained.verilog}'",
+          useOrigin
+        )
+        if (retained.default != witness) {
+          FrontendException.failAt(
+            "MORPH-FRONTEND-SPINAL-WIDTH-DEFAULT-INVALID",
+            s"packed-width expression '${retained.verilog}' default ${retained.default} does not match concrete witness $witness",
+            useOrigin
+          )
+        }
+        ParameterizedBitCount(
+          witness.toInt,
+          parameter = None,
+          sourceLocation = Some(useOrigin.rendered),
+          expression =
+            if (retained.parameters.nonEmpty) Some(retained) else None
+        )
     }
+  }
 
+  /** Retain one bounded native Mem word-count expression. */
+  private[frontend] def toParameterizedMemoryDepth(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): ParameterizedMemoryDepth = {
+    val useOrigin = SourceOrigin.capture
+    requireLoopInvariant("SpinalHDL memory depth")
+    val retained = StructuralExpressionBridge.width(
+      this,
+      "SpinalHDL memory depth"
+    )
     if (
-      parameters.size != 1 || !parameters.exists(_ eq token) ||
-      booleanParameters.nonEmpty || localDeclaration.nonEmpty ||
-      localParameters.nonEmpty || booleanLocalParameters.nonEmpty || scope.nonEmpty
+      retained.default != witness || retained.minimum < 1 ||
+      retained.maximum < retained.minimum ||
+      retained.maximum > BigInt(Int.MaxValue) || !witness.isValidInt
     ) {
       FrontendException.failAt(
-        "MORPH-FRONTEND-SPINAL-WIDTH-PROVENANCE-UNSUPPORTED",
-        "the direct width parameter carries unsupported or ambiguous symbolic provenance",
+        "MORPH-FRONTEND-SPINAL-MEMORY-DEPTH-DOMAIN-INVALID",
+        s"memory depth '${retained.verilog}' must have concrete witness $witness and a finite positive Int-sized domain",
         useOrigin
       )
     }
+    ParameterizedMemoryDepth(
+      witness.toInt,
+      retained.copy(sourceLocation = Some(useOrigin.rendered)),
+      sourceLocation = Some(useOrigin.rendered)
+    )
+  }
 
-    val parameter = token.declaration
-    val minimums = parameter.constraints.collect { case MinInclusive(value) => value }
-    val maximums = parameter.constraints.collect { case MaxInclusive(value) => value }
-    if (minimums.isEmpty || maximums.isEmpty) {
-      FrontendException.failAt(
-        "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-UNBOUNDED",
-        s"parameter '${parameter.name}' must declare finite minimum and maximum width bounds",
-        useOrigin
-      )
-    }
-
-    val minimum = minimums.max
-    val maximum = maximums.min
+  private def validateSpinalWidthDomain(
+      default: BigInt,
+      minimum: BigInt,
+      maximum: BigInt,
+      role: String,
+      origin: SourceOrigin
+  ): Unit = {
     if (minimum < 1 || maximum < minimum) {
       FrontendException.failAt(
         "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-NONPOSITIVE",
-        s"parameter '${parameter.name}' must have a non-empty width domain whose minimum is at least 1",
-        useOrigin
+        s"$role must have a non-empty domain whose minimum is at least 1",
+        origin
       )
     }
     if (maximum > BigInt(Int.MaxValue)) {
       FrontendException.failAt(
         "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-TOO-LARGE",
-        s"parameter '${parameter.name}' has maximum $maximum outside SpinalHDL's Int-sized width domain",
-        useOrigin
+        s"$role maximum $maximum is outside SpinalHDL's Int-sized width domain",
+        origin
       )
     }
-    if (parameter.default < minimum || parameter.default > maximum || witness != parameter.default) {
+    if (default < minimum || default > maximum || !default.isValidInt) {
       FrontendException.failAt(
         "MORPH-FRONTEND-SPINAL-WIDTH-DEFAULT-INVALID",
-        s"parameter '${parameter.name}' default ${parameter.default} must be its concrete witness and lie in [$minimum, $maximum]",
-        useOrigin
+        s"$role default $default must lie inside [$minimum, $maximum]",
+        origin
       )
     }
-    if (
-      parameter.name == null ||
-      !HdlInt.PortableIdentifier.pattern.matcher(parameter.name).matches()
-    ) {
-      FrontendException.failAt(
-        "MORPH-FRONTEND-SPINAL-WIDTH-NAME-INVALID",
-        s"parameter name '${parameter.name}' is not a portable Verilog identifier",
-        useOrigin
-      )
-    }
-
-    ParameterizedBitCount(
-      parameter.default.toInt,
-      parameter = Some(
-        ElaborationIntegerParameter(parameter.name, parameter.default, minimum, maximum)
-      ),
-      sourceLocation = Some(useOrigin.rendered)
-    )
   }
 
   def +(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
@@ -430,6 +487,17 @@ final class HdlInt private[frontend] (
 
 object HdlInt {
   private val PortableIdentifier = "[A-Za-z_][A-Za-z0-9_]*".r
+
+  import scala.language.implicitConversions
+
+  /** Allow ordinary Mem(wordType, depth) to retain an HdlInt depth. */
+  implicit def hdlIntToParameterizedMemoryDepth(
+      value: HdlInt
+  )(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): ParameterizedMemoryDepth =
+    value.toParameterizedMemoryDepth(file, line)
 
   /**
     * Adds SpinalHDL's ordinary `width bits` spelling only to an actual
