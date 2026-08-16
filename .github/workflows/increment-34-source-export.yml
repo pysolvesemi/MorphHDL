@@ -1,0 +1,46 @@
+name: Increment 34 source export
+
+on:
+  push:
+    branches:
+      - agent/increment-34-generic-processes
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-34-source-export-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out Increment 34 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Package the exact source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar \
+            --exclude=.git \
+            --exclude=out \
+            --exclude=target \
+            --exclude='**/out' \
+            --exclude='**/target' \
+            -czf /tmp/morphhdl-increment-34-source.tar.gz .
+          sha256sum /tmp/morphhdl-increment-34-source.tar.gz
+
+      - name: Upload source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-increment-34-source-${{ github.sha }}
+          path: /tmp/morphhdl-increment-34-source.tar.gz
+          if-no-files-found: error
+          retention-days: 3
