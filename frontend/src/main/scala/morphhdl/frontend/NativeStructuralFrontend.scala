@@ -57,7 +57,7 @@ private[frontend] object NativeStructuralFrontend {
         Some(range.origin.rendered)
       ) {
         withGenerateIndices(Map(names.index -> facts)) {
-          val one = HdlInt.literal(BigInt(1))
+          val one = HdlInt.literalAt(BigInt(1), range.origin)
           val representative = new HdlRange(
             start = 0,
             end = one,
@@ -129,13 +129,13 @@ private[frontend] object NativeStructuralFrontend {
       if (condition.witness) whenTrue
       new GenerateIfBuilder(
         new NativeGenerateIfToken(
-          component,
+          component = component,
           pending = null,
-          condition,
+          condition = condition,
           expression = null,
-          resolved,
+          names = resolved,
           whenTrueBlock = null,
-          origin,
+          origin = origin,
           parameterized = false
         )
       )
@@ -178,11 +178,11 @@ private[frontend] object NativeStructuralFrontend {
     } else {
       new GenerateCaseBuilder(
         new NativeGenerateCaseToken(
-          component,
+          component = component,
           pending = null,
-          selector,
+          selector = selector,
           expression = null,
-          origin,
+          origin = origin,
           parameterized = false
         )
       )

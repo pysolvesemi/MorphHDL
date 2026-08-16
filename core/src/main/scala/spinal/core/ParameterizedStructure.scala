@@ -507,7 +507,7 @@ object ParameterizedStructure {
       }
     }
     visit(expression)
-    found.distinct match {
+    found.distinct.toVector match {
       case Vector()      => None
       case Vector(value) => Some(value)
       case _ =>

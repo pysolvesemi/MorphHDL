@@ -460,6 +460,23 @@ object HdlInt {
       origin = SourceOrigin.capture
     )
 
+  private[frontend] def literalAt(
+      value: BigInt,
+      origin: SourceOrigin
+  ): HdlInt =
+    new HdlInt(
+      value,
+      Literal(value),
+      declaration = None,
+      parameters = Set.empty,
+      booleanParameters = Set.empty,
+      localDeclaration = None,
+      localParameters = Set.empty,
+      booleanLocalParameters = Set.empty,
+      scope = None,
+      origin = origin
+    )
+
   def param(
       name: String,
       default: BigInt,

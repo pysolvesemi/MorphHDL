@@ -200,10 +200,22 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
       finally patchedSources.foreach(_.dir = null)
     }
 
+    def canonicalOf(child: Component): Component =
+      Option(emitedComponentRef.get(child)).getOrElse(child)
+
     val (componentBuilderVerilog, componentResult) =
       try {
         val builder = newBuilder(pc.config)
-        (builder, () => builder.result)
+        (
+          builder,
+          () =>
+            ParameterizedVerilogStructural.rewrite(
+              component,
+              builder.result,
+              pc,
+              canonicalOf
+            )
+        )
       } catch {
         case failure: ParameterizedVerilogException
             if pc.config.parameterizedVerilog &&
@@ -217,14 +229,20 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
               // The normal emitter has already pulled top-level input proxies into the
               // component, so expose that proven input view only while validating the
               // bounded native fallback, then restore the source signals unchanged.
-              withPulledExternalClockInputs {
+              val parameterizedResult = withPulledExternalClockInputs {
                 ParameterizedVerilogNativeFallback.rewrite(
-                      component,
-                      nativeResult,
-                      pc,
-                      child => Option(emitedComponentRef.get(child)).getOrElse(child)
-                    )
+                  component,
+                  nativeResult,
+                  pc,
+                  canonicalOf
+                )
               }
+              ParameterizedVerilogStructural.rewrite(
+                component,
+                parameterizedResult,
+                pc,
+                canonicalOf
+              )
             }
           )
       }

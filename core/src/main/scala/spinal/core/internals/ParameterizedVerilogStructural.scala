@@ -315,7 +315,7 @@ private[internals] object ParameterizedVerilogStructural {
 
     val witnessMappings = selections.flatMap { selection =>
       val selectedLeaves = selection.selected.flatten.toVector
-      val witnessLeaves = selection.vector.vec(default).flatten.toVector
+      val witnessLeaves = selection.vector.vec(default).asInstanceOf[Data].flatten.toVector
       if (
         selectedLeaves.size != witnessLeaves.size ||
         !selectedLeaves.zip(witnessLeaves).forall { case (left, right) => left eq right }
@@ -344,7 +344,7 @@ private[internals] object ParameterizedVerilogStructural {
       var branchBody = body
       selections.foreach { selection =>
         val from = selection.selected.flatten.toVector
-        val to = selection.vector.vec(value).flatten.toVector
+        val to = selection.vector.vec(value).asInstanceOf[Data].flatten.toVector
         if (from.size != to.size) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-LAYOUT-MISMATCH",
@@ -507,7 +507,7 @@ private[internals] object ParameterizedVerilogStructural {
       case _                  =>
     }
     parameters.foreach { parameter =>
-      if (pc.verilogKeywords(parameter.name)) {
+      if (pc.verilogKeywords.contains(parameter.name)) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-NAME-RESERVED",
           s"structural parameter '${parameter.name}' is reserved by IEEE 1364"
@@ -519,7 +519,7 @@ private[internals] object ParameterizedVerilogStructural {
           s"structural parameter '${parameter.name}' collides with a port of '${component.definitionName}'"
         )
       }
-      if (signalNames(parameter.name)) {
+      if (signalNames.contains(parameter.name)) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-SIGNAL-NAME-COLLISION",
           s"structural parameter '${parameter.name}' collides with a signal of '${component.definitionName}'"
