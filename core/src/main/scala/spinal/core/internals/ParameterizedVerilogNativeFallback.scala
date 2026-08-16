@@ -331,7 +331,10 @@ private[internals] object ParameterizedVerilogNativeFallback {
                   ParameterizedWidth.sourceLocationOf(target)
                 )
               }
-              if (targetWidth.isSymbolic && !sourceWidth.isSymbolic) {
+              if (
+                targetWidth.isSymbolic && !sourceWidth.isSymbolic &&
+                !isUnfixedLiteral(assignment.source)
+              ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
                   s"assignment to symbolic signal '${target.getName()}' uses concrete-width expression ${sourceWidth.render}; explicit domain-safe conversion is required",
@@ -343,6 +346,15 @@ private[internals] object ParameterizedVerilogNativeFallback {
         }
       }
     }
+
+    private def isUnfixedLiteral(expression: Expression): Boolean =
+      expression match {
+        case literal: BitVectorLiteral => !literal.hasSpecifiedBitCount
+        case resize: Resize            => isUnfixedLiteral(resize.input)
+        case cast: CastBitVectorToBitVector =>
+          isUnfixedLiteral(cast.input)
+        case _ => false
+      }
 
     private def isHierarchyBoundary(
         assignment: DataAssignmentStatement

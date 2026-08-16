@@ -59,8 +59,8 @@ object ParameterizedProcess {
 
   /**
     * Capture and classify one representative range body without executing it
-    * twice. Statements are first built in a detached scope, then relocated to
-    * the caller's original scope after their hardware role is known.
+    * twice. The body stays in the caller's real DSL scope so ordinary child
+    * hierarchy and process ownership remain identical to concrete elaboration.
     */
   def captureRange(
       component: Component,
@@ -96,24 +96,27 @@ object ParameterizedProcess {
       )
     }
 
+    val beforeStatements = originalScope.statementIterable.toVector
     val beforeChildren = component.children.toVector
-    val captureScope = new ScopeStatement(null)
-    captureScope.component = component
     val state = new CaptureState(component, indexName, sourceLocation)
     activeCapture.set(state)
-    val scopeContext = DslScopeStack.set(captureScope)
 
     var bodyCompleted = false
     try {
       body
       bodyCompleted = true
     } finally {
-      scopeContext.restore()
       activeCapture.remove()
-      if (!bodyCompleted) rollbackNewChildren(component, beforeChildren)
+      if (!bodyCompleted) {
+        rollbackNewStatements(originalScope, beforeStatements)
+        rollbackNewChildren(component, beforeChildren)
+      }
     }
 
-    val statements = captureScope.statementIterable.toVector
+    val statements =
+      originalScope.statementIterable.toVector.filterNot(value =>
+        beforeStatements.exists(_ eq value)
+      )
     val children =
       component.children.toVector.filterNot(value =>
         beforeChildren.exists(_ eq value)
@@ -122,7 +125,6 @@ object ParameterizedProcess {
     try {
       classify(
         component,
-        originalScope,
         statements,
         children,
         state,
@@ -133,7 +135,10 @@ object ParameterizedProcess {
       )
       committed = true
     } finally {
-      if (!committed) rollbackNewChildren(component, beforeChildren)
+      if (!committed) {
+        rollbackNewStatements(originalScope, beforeStatements)
+        rollbackNewChildren(component, beforeChildren)
+      }
     }
   }
 
@@ -261,7 +266,6 @@ object ParameterizedProcess {
 
   private def classify(
       component: Component,
-      originalScope: ScopeStatement,
       statements: Vector[Statement],
       children: Vector[Component],
       state: CaptureState,
@@ -271,8 +275,16 @@ object ParameterizedProcess {
       sourceLocation: Option[String]
   ): Unit = {
     val declarations = statements.collect { case value: BaseType => value }
+    val structuralDeclarations = declarations.filterNot { declaration =>
+      state.slices.exists(slice => slice.result eq declaration)
+    }
     val assignments = statements.collect {
       case value: DataAssignmentStatement => value
+    }
+    val processAssignments = assignments.filterNot { assignment =>
+      state.slices.exists { slice =>
+        assignment.finalTarget eq slice.result
+      }
     }
     val unsupported = statements.filterNot {
       case _: BaseType                => true
@@ -291,7 +303,7 @@ object ParameterizedProcess {
       )
     }
 
-    if (children.nonEmpty || declarations.nonEmpty) {
+    if (children.nonEmpty || structuralDeclarations.nonEmpty) {
       unsupported.headOption.foreach { value =>
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALA-SIDE-EFFECT-UNSUPPORTED",
@@ -307,11 +319,11 @@ object ParameterizedProcess {
         )
       }
 
-      val declarationSet = declarations.toSet
-      val childSet = children.toSet
       assignments.find { assignment =>
         val target = assignment.finalTarget
-        !declarationSet(target) && !childSet(target.component)
+        val declaredInBody = declarations.exists(_ eq target)
+        val ownedByNewChild = children.exists(child => target.component eq child)
+        !declaredInBody && !ownedByNewChild
       }.foreach { assignment =>
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-MIXED-STRUCTURAL-PROCESS-LOOP-UNSUPPORTED",
@@ -330,7 +342,6 @@ object ParameterizedProcess {
         )
       }
 
-      relocate(statements, originalScope)
       val block = new ParameterizedStructuralBlock(
         statements,
         declarations,
@@ -358,10 +369,10 @@ object ParameterizedProcess {
         sourceLocation
       )
     }
-    if (assignments.size != 1) {
+    if (processAssignments.size != 1) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-PROCESS-LOOP-ASSIGNMENT-COUNT-UNSUPPORTED",
-        s"safe procedural loops require exactly one direct assignment, received ${assignments.size}",
+        s"safe procedural loops require exactly one direct assignment after excluding ${assignments.size - processAssignments.size} native slice witness copies, received ${processAssignments.size}",
         sourceLocation
       )
     }
@@ -380,7 +391,7 @@ object ParameterizedProcess {
       )
     }
 
-    val assignment = assignments.head
+    val assignment = processAssignments.head
     if (assignment.finalTarget.component ne component) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-PROCESS-LOOP-TARGET-UNSUPPORTED",
@@ -397,7 +408,7 @@ object ParameterizedProcess {
     }
 
     val targetSlices = state.slices.filter(slice =>
-      containsIdentity(assignment.target, slice.result)
+      matchesTargetSlice(assignment, slice)
     )
     if (targetSlices.size != 1) {
       fail(
@@ -443,7 +454,6 @@ object ParameterizedProcess {
         .map(value => s"$value $marker")
         .getOrElse(marker)
 
-    relocate(statements, originalScope)
     storage.loops += ParameterizedProceduralFor(
       label,
       indexName,
@@ -464,6 +474,20 @@ object ParameterizedProcess {
       case _                                                     =>
     }
     found
+  }
+
+  private def matchesTargetSlice(
+      assignment: DataAssignmentStatement,
+      slice: ParameterizedStructure.StructuralSlice
+  ): Boolean = {
+    val matchesWitness = assignment.target match {
+      case target: RangedAssignmentFixed =>
+        (target.out eq slice.source) &&
+          BigInt(target.lo) == slice.offset.default &&
+          BigInt(target.getWidth) == slice.width.default
+      case _ => containsIdentity(assignment.target, slice.result)
+    }
+    matchesWitness && !containsIdentity(assignment.source, slice.result)
   }
 
   private def containsIdentity(
@@ -522,15 +546,6 @@ object ParameterizedProcess {
 
   private def compact(value: String): String =
     value.replaceAll("\\s+", "")
-
-  private def relocate(
-      statements: Vector[Statement],
-      target: ScopeStatement
-  ): Unit =
-    statements.foreach { statement =>
-      statement.removeStatementFromScope()
-      target.append(statement)
-    }
 
   private def validateCount(
       count: ElaborationIntegerExpression,
@@ -613,6 +628,15 @@ object ParameterizedProcess {
 
   private def storageOption(component: Component): Option[Storage] =
     component.userCache.get(StorageKey).map(_.asInstanceOf[Storage])
+
+  private def rollbackNewStatements(
+      scope: ScopeStatement,
+      before: Vector[Statement]
+  ): Unit =
+    scope.statementIterable.toVector
+      .filterNot(value => before.exists(_ eq value))
+      .reverse
+      .foreach(_.removeStatement())
 
   private def rollbackNewChildren(
       component: Component,
