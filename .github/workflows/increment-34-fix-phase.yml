@@ -32,16 +32,10 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           python3 - <<'PY'
           from pathlib import Path
-
           path = Path('core/src/main/scala/spinal/core/internals/PhaseVerilog.scala')
           text = path.read_text()
-          before = """              }
-              )
-          )
-"""
-          after = """              }
-          )
-"""
+          before = "              }\n              )\n          )\n"
+          after = "              }\n          )\n"
           if text.count(before) != 1:
               raise RuntimeError('expected exactly one duplicated PhaseVerilog tuple closer')
           path.write_text(text.replace(before, after, 1))
