@@ -31,6 +31,10 @@ jobs:
         run: |
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          if ! command -v patch >/dev/null 2>&1; then
+            apt-get update
+            DEBIAN_FRONTEND=noninteractive apt-get install -y patch
+          fi
           cat .github/inc34-payload/*.b64 > /tmp/increment-34.patch.gz.b64
           echo "76f51872ea0df901f806860cbf9de3c80a11868efc2a2694d76ee9f07fcda56a  /tmp/increment-34.patch.gz.b64" | sha256sum -c -
           base64 -d /tmp/increment-34.patch.gz.b64 | gzip -dc > /tmp/increment-34.patch
