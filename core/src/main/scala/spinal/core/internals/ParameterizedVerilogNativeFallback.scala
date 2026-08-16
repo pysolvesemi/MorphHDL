@@ -8,13 +8,13 @@ import scala.collection.mutable.ArrayBuffer
 import spinal.core._
 
 /**
-  * Generic parameterized-Verilog lowering for the bounded Increment 32
-  * expression surface.
+  * Generic parameterized-Verilog lowering for the Increment 34 expression and
+  * process surface.
   *
   * The existing ComponentEmitterVerilog remains authoritative for ordinary
   * expression and process syntax. This helper is used only when the narrower
   * Increment 30 direct-assignment gate rejects an otherwise valid ordinary
-  * SpinalHDL graph. It validates symbolic result widths, asks the normal
+  * SpinalHDL graph. It validates retained widths and controls, asks the normal
   * emitter for Verilog-2001, then substitutes the public parameter header and
   * packed declaration ranges. No fixture-specific ParamRTL graph is involved.
   */
@@ -25,6 +25,7 @@ private[internals] object ParameterizedVerilogNativeFallback {
     "SPINAL-PARAMETERIZED-VERILOG-STATEMENT-UNSUPPORTED",
     "SPINAL-PARAMETERIZED-VERILOG-UNTAGGED-PORT",
     "SPINAL-PARAMETERIZED-VERILOG-UNTAGGED-INTERNAL-SIGNAL",
+    "SPINAL-PARAMETERIZED-VERILOG-NO-SYMBOLIC-PORTS",
     "SPINAL-PARAMETERIZED-VERILOG-NO-DIRECT-ASSIGNMENTS",
     "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-UNSUPPORTED",
     "SPINAL-PARAMETERIZED-VERILOG-REGISTER-UNSUPPORTED",
@@ -42,47 +43,12 @@ private[internals] object ParameterizedVerilogNativeFallback {
     eligibleGateFailures.contains(failure.code) &&
       (
         ParameterizedWidth.parametersOf(component).nonEmpty ||
+          ParameterizedProcess.parametersOf(component).nonEmpty ||
+          ParameterizedStructure.parametersOf(component).nonEmpty ||
           component.children.exists(
             child => ParameterizedWidth.parametersOf(child).nonEmpty
           )
-      ) &&
-      hasPotentialIncrement31Surface(component)
-
-  private def hasPotentialIncrement31Surface(component: Component): Boolean = {
-    val declarations = ArrayBuffer.empty[BaseType]
-    component.dslBody.walkDeclarations {
-      case baseType: BaseType if !baseType.isSuffix => declarations += baseType
-      case _                                        =>
-    }
-    val registers = declarations.distinct.filter(_.isReg).toVector
-    if (registers.isEmpty) true
-    else {
-      val initializedBoolRegisters = registers.collect {
-        case value: Bool if hasSingleFalseInit(value) => value
-      }
-      val symbolicPayloadRegisters = registers.collect {
-        case value: BitVector
-            if !value.hasInit && ParameterizedWidth.parameterOf(value).nonEmpty => value
-      }
-      initializedBoolRegisters.size == 1 && symbolicPayloadRegisters.nonEmpty &&
-        registers.size == initializedBoolRegisters.size + symbolicPayloadRegisters.size
-    }
-  }
-
-  private def hasSingleFalseInit(value: Bool): Boolean = {
-    var count = 0
-    var falseOnly = true
-    value.foreachStatements {
-      case init: InitAssignmentStatement =>
-        count += 1
-        init.source match {
-          case literal: BoolLiteral if !literal.value =>
-          case _                                      => falseOnly = false
-        }
-      case _ =>
-    }
-    count == 1 && falseOnly
-  }
+      )
 
   def rewrite(component: Component, verilog: String, pc: PhaseContext): String =
     rewrite(component, verilog, pc, child => child)
@@ -97,7 +63,9 @@ private[internals] object ParameterizedVerilogNativeFallback {
     val analysis = new Analysis(
       component,
       pc,
-      hierarchy.parameters,
+      hierarchy.parameters ++
+        ParameterizedStructure.parametersOf(component) ++
+        ParameterizedProcess.parametersOf(component),
       hierarchy.hasParameterizedInstances
     )
     analysis.validate()
@@ -299,13 +267,13 @@ private[internals] object ParameterizedVerilogNativeFallback {
           )
         }
         if (
-          parameter.minimum < 1 || parameter.maximum < parameter.minimum ||
+          parameter.minimum < 0 || parameter.maximum < parameter.minimum ||
           parameter.default < parameter.minimum || parameter.default > parameter.maximum ||
           parameter.maximum > BigInt(pc.config.bitVectorWidthMax)
         ) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-DOMAIN-INVALID",
-            s"parameter '${parameter.name}' must have a positive non-empty domain bounded by SpinalConfig.bitVectorWidthMax=${pc.config.bitVectorWidthMax}, with its default inside that domain"
+            s"parameter '${parameter.name}' must have a non-negative bounded domain no larger than SpinalConfig.bitVectorWidthMax=${pc.config.bitVectorWidthMax}, with its default inside that domain"
           )
         }
         namedDeclarations.get(parameter.name).foreach { signal =>
@@ -400,81 +368,29 @@ private[internals] object ParameterizedVerilogNativeFallback {
 
     private def validateProcesses(): Unit = {
       val registers = declarations.distinct.filter(_.isReg).toVector
-      if (registers.isEmpty) {
-        if (treeStatements.nonEmpty) {
+      registers.foreach { register =>
+        val clockDomain = register.clockDomain
+        if (clockDomain == null || clockDomain.clock == null) {
           fail(
-            "SPINAL-PARAMETERIZED-VERILOG-PROCESS-UNSUPPORTED",
-            "generic conditional/process lowering is deferred to Increment 34; Increment 31 permits tree statements only for the reviewed Stream.m2sPipe library proof"
+            "SPINAL-PARAMETERIZED-VERILOG-CLOCK-DOMAIN-MISSING",
+            s"register '${register.getName()}' has no complete ClockDomain"
           )
         }
-      } else {
-        validateM2sPipeRegisterShape(registers)
+        if (
+          clockDomain.reset != null &&
+          clockDomain.config.resetKind != SYNC &&
+          clockDomain.config.resetKind != ASYNC
+        ) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-RESET-KIND-UNSUPPORTED",
+            s"register '${register.getName()}' uses an unsupported reset kind"
+          )
+        }
       }
-    }
-
-    private def validateM2sPipeRegisterShape(registers: Vector[BaseType]): Unit = {
-      val initializedBoolRegisters = registers.collect {
-        case value: Bool if hasSingleFalseInit(value) => value
-      }
-      val symbolicPayloadRegisters = registers.collect {
-        case value: BitVector
-            if !value.hasInit && widthInference.ofBase(value).isSymbolic => value
-      }
-      val accepted =
-        initializedBoolRegisters.size == 1 && symbolicPayloadRegisters.nonEmpty &&
-          registers.size == initializedBoolRegisters.size + symbolicPayloadRegisters.size
-      if (!accepted) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-SEQUENTIAL-SURFACE-UNSUPPORTED",
-          "Increment 31 permits sequential logic only for one real Stream.m2sPipe stage: one false-initialized valid register plus one or more uninitialized symbolic payload registers"
-        )
-      }
-
-      val clockDomain = registers.head.clockDomain
-      val sameClockDomain = registers.forall(_.clockDomain eq clockDomain)
-      val directClock =
-        clockDomain != null && clockDomain.clock != null &&
-          clockDomain.clock.isInput && clockDomain.clock.isInstanceOf[Bool]
-      val directReset =
-        clockDomain != null && clockDomain.reset != null &&
-          clockDomain.reset.isInput && clockDomain.reset.isInstanceOf[Bool]
-      val reviewedDomain =
-        clockDomain != null && sameClockDomain && directClock && directReset &&
-          clockDomain.config.clockEdge == RISING &&
-          clockDomain.config.resetKind == SYNC &&
-          clockDomain.config.resetActiveLevel == HIGH &&
-          clockDomain.softReset == null && clockDomain.clockEnable == null
-      if (!reviewedDomain || treeStatements.isEmpty) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-STREAM-M2S-CLOCK-DOMAIN-UNSUPPORTED",
-          "the Stream.m2sPipe proof requires one rising-edge clock and one active-high synchronous reset, with no soft reset or clock enable"
-        )
-      }
-
-      val symbolicPorts = component.getOrdredNodeIo.collect {
-        case value: BitVector if widthInference.ofBase(value).isSymbolic => value
-      }
-      if (!symbolicPorts.exists(_.isInput) || !symbolicPorts.exists(_.isOutput)) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-STREAM-M2S-PORT-SHAPE-UNSUPPORTED",
-          "the Stream.m2sPipe proof requires symbolic payload input and output ports"
-        )
-      }
-    }
-
-    private def hasSingleFalseInit(value: Bool): Boolean = {
-      var count = 0
-      var falseOnly = true
-      value.foreachStatements {
-        case init: InitAssignmentStatement =>
-          count += 1
-          init.source match {
-            case literal: BoolLiteral if !literal.value =>
-            case _                                      => falseOnly = false
-          }
-        case _ =>
-      }
-      count == 1 && falseOnly
+      // Driver ownership, combinational completeness, latch detection and
+      // clock/reset legality have already run in the shared inherited Spinal
+      // phase plan. Keeping ordinary statements in the native AST preserves
+      // those checks while the normal emitter owns process syntax.
     }
 
     private final class WidthInference {

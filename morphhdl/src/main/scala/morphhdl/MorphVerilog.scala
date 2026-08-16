@@ -640,16 +640,29 @@ object MorphVerilog {
       report: SpinalReport[T]
   ): Either[MorphVerilogFailure, Vector[morphhdl.paramrtl.IntegerParameter]] =
     try {
+      val retained =
+        spinal.core.ParameterizedWidth.parametersOf(report.toplevel) ++
+          spinal.core.ParameterizedStructure.parametersOf(report.toplevel) ++
+          spinal.core.ParameterizedProcess.parametersOf(report.toplevel)
+      val grouped = retained.groupBy(_.name)
+      grouped.collectFirst {
+        case (name, values) if values.distinct.size != 1 => name
+      }.foreach { name =>
+        throw new IllegalArgumentException(
+          s"retained parameter '$name' has conflicting declarations"
+        )
+      }
       Right(
-        spinal.core.ParameterizedWidth.parametersOf(report.toplevel).map { parameter =>
-          morphhdl.paramrtl.IntegerParameter(
-            parameter.name,
-            parameter.default,
-            Vector[morphhdl.paramrtl.IntConstraint](
-              morphhdl.paramrtl.IntConstraint.MinInclusive(parameter.minimum),
-              morphhdl.paramrtl.IntConstraint.MaxInclusive(parameter.maximum)
+        grouped.toVector.map(_._2.head).sortBy(_.name).map {
+          parameter =>
+            morphhdl.paramrtl.IntegerParameter(
+              parameter.name,
+              parameter.default,
+              Vector[morphhdl.paramrtl.IntConstraint](
+                morphhdl.paramrtl.IntConstraint.MinInclusive(parameter.minimum),
+                morphhdl.paramrtl.IntConstraint.MaxInclusive(parameter.maximum)
+              )
             )
-          )
         }
       )
     } catch {

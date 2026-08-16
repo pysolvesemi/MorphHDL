@@ -67,7 +67,8 @@ private[internals] object ParameterizedVerilogStructural {
       .toSet
     val parameters = mergeParameters(
       ParameterizedWidth.parametersOf(component) ++
-        ParameterizedStructure.parametersOf(component)
+        ParameterizedStructure.parametersOf(component) ++
+        ParameterizedProcess.parametersOf(component)
     )
     validateParameters(component, parameters, portNames, pc)
 

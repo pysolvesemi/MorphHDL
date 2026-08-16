@@ -110,13 +110,23 @@ package object frontend {
           StructuralExpressionBridge.integer(offset, "packed-slice offset")
         val widthExpression =
           StructuralExpressionBridge.integer(width, "packed-slice width")
-        ParameterizedStructure.recordSlice(
-          source,
-          result,
-          offsetExpression,
-          widthExpression,
-          Some(origin.rendered)
-        )
+        if (ParameterizedProcess.captureActive) {
+          ParameterizedProcess.recordSlice(
+            source,
+            result,
+            offsetExpression,
+            widthExpression,
+            Some(origin.rendered)
+          )
+        } else {
+          ParameterizedStructure.recordSlice(
+            source,
+            result,
+            offsetExpression,
+            widthExpression,
+            Some(origin.rendered)
+          )
+        }
       }
       result.asInstanceOf[T]
     }
@@ -144,12 +154,22 @@ package object frontend {
       }
       val selected = vector(indexValue)
       if (ParameterizedStructure.captureEnabled) {
-        ParameterizedStructure.recordVecIndex(
-          vector,
-          selected,
-          StructuralExpressionBridge.integer(index, "Vec index"),
-          Some(origin.rendered)
-        )
+        val expression = StructuralExpressionBridge.integer(index, "Vec index")
+        if (ParameterizedProcess.captureActive) {
+          ParameterizedProcess.recordVecIndex(
+            vector,
+            selected,
+            expression,
+            Some(origin.rendered)
+          )
+        } else {
+          ParameterizedStructure.recordVecIndex(
+            vector,
+            selected,
+            expression,
+            Some(origin.rendered)
+          )
+        }
       }
       selected
     }

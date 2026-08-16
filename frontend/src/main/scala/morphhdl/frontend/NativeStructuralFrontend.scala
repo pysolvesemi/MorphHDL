@@ -4,6 +4,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import spinal.core.{
   Component,
+  ParameterizedProcess,
   ParameterizedStructuralBlock,
   ParameterizedStructuralPending,
   ParameterizedStructure
@@ -35,7 +36,7 @@ private[frontend] object NativeStructuralFrontend {
     if (ParameterizedStructure.captureEnabled) {
       val count = StructuralExpressionBridge.integer(
         range.end,
-        "native structural generate-loop count",
+        "native parameterized loop count",
         Map.empty
       )
       if (count.default <= 0 || !count.default.isValidInt) {
@@ -52,8 +53,11 @@ private[frontend] object NativeStructuralFrontend {
         minimum = BigInt(0),
         maximum = count.maximum - 1
       )
-      val block = ParameterizedStructure.captureBlock(
+      ParameterizedProcess.captureRange(
         component,
+        names.label,
+        names.index,
+        count,
         Some(range.origin.rendered)
       ) {
         withGenerateIndices(Map(names.index -> facts)) {
@@ -69,14 +73,6 @@ private[frontend] object NativeStructuralFrontend {
           }
         }
       }
-      ParameterizedStructure.registerFor(
-        component,
-        names.label,
-        names.index,
-        count,
-        block,
-        Some(range.origin.rendered)
-      )
     } else {
       FrontendSession.concrete {
         range.foreach(body)
