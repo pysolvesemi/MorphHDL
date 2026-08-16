@@ -410,15 +410,26 @@ class HdlIntTests extends AnyFunSuite {
     }
   }
 
-  test("the symbolic bit-count bridge rejects derived symbolic widths") {
+  test("the symbolic bit-count bridge retains derived bounded widths") {
     val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
     val useLine = sourcecode.Line() + 1
-    val error = intercept[FrontendException] { (width + 1).bits }
+    val bitCount = (width + 1).bits
 
-    assert(error.code == "MORPH-FRONTEND-SPINAL-WIDTH-NOT-DIRECT-PARAMETER")
-    assert(error.detail.contains("unmodified HdlInt.param"))
-    assert(error.origin.line == useLine)
-    assert(error.sourceLocation.endsWith(s"HdlIntTests.scala:$useLine"))
+    assert(bitCount.value == 9)
+    assert(bitCount.parameter.isEmpty)
+    assert(bitCount.expression.nonEmpty)
+    val expression = bitCount.expression.get
+    assert(expression.verilog == "(WIDTH + 1)")
+    assert(expression.default == 9)
+    assert(expression.minimum == 2)
+    assert(expression.maximum == 65)
+    assert(expression.parameters.size == 1)
+    val parameter = expression.parameters.head
+    assert(parameter.name == "WIDTH")
+    assert(parameter.default == 8)
+    assert(parameter.minimum == 1)
+    assert(parameter.maximum == 64)
+    assert(expression.sourceLocation.exists(_.endsWith(s"HdlIntTests.scala:$useLine")))
   }
 
   test("the SpinalHDL bit-count bridge requires a positive non-empty bounded domain") {
