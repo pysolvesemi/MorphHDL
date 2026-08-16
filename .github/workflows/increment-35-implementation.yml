@@ -1,0 +1,82 @@
+name: Increment 35 implementation gate
+
+on:
+  push:
+    branches:
+      - agent/increment-35-native-symbolic-memories
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-35-implementation
+  cancel-in-progress: true
+
+jobs:
+  implement:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out increment branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-35-native-symbolic-memories
+          fetch-depth: 0
+
+      - name: Reconstruct and apply reviewed Increment 35 edit
+        shell: bash
+        run: |
+          cat .increment35/payload.* | tr -d '\r\n' > /tmp/increment35.b64
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import pathlib
+          import zlib
+
+          encoded = pathlib.Path('/tmp/increment35.b64').read_bytes()
+          raw = zlib.decompress(base64.b64decode(encoded))
+          expected = '7721e440367ce662cea55a7903778d720c313a7b02d46ff12ee1fe97f48378da'
+          actual = hashlib.sha256(raw).hexdigest()
+          if actual != expected:
+              raise SystemExit(f'Increment 35 payload checksum mismatch: {actual}')
+          pathlib.Path('/tmp/apply_increment_35.py').write_bytes(raw)
+          PY
+          python3 /tmp/apply_increment_35.py
+          git diff --check
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate native symbolic memories on Scala 2.12 and 2.13
+        shell: bash
+        run: |
+          /tmp/morphhdl-mill morph[2.12.18].testOnly morphhdl.NativeSymbolicMemoryTests
+          /tmp/morphhdl-mill morph[2.13.12].testOnly morphhdl.NativeSymbolicMemoryTests
+          /tmp/morphhdl-mill core[2.12.18].testOnly \
+            spinal.core.internals.ParameterizedVerilogTests \
+            spinal.core.internals.ParameterizedDataShapeTests
+          /tmp/morphhdl-mill core[2.13.12].testOnly \
+            spinal.core.internals.ParameterizedVerilogTests \
+            spinal.core.internals.ParameterizedDataShapeTests
+
+      - name: Commit validated Increment 35 source
+        shell: bash
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -rf .increment35 .github/workflows/increment-35-implementation.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "Implement Increment 35 native symbolic memories"
+          git push origin HEAD:agent/increment-35-native-symbolic-memories
