@@ -1,0 +1,103 @@
+name: Increment 35 frontend regression fix
+
+on:
+  push:
+    branches:
+      - agent/increment-35-native-symbolic-memories
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-35-frontend-regression-fix
+  cancel-in-progress: true
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out increment branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-35-native-symbolic-memories
+          fetch-depth: 0
+
+      - name: Replace the stale derived-width rejection test
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('frontend/src/test/scala/morphhdl/frontend/HdlIntTests.scala')
+          text = path.read_text(encoding='utf-8')
+          old = '''  test("the symbolic bit-count bridge rejects derived symbolic widths") {
+    val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
+    val useLine = sourcecode.Line() + 1
+    val error = intercept[FrontendException] { (width + 1).bits }
+
+    assert(error.code == "MORPH-FRONTEND-SPINAL-WIDTH-NOT-DIRECT-PARAMETER")
+    assert(error.detail.contains("unmodified HdlInt.param"))
+    assert(error.origin.line == useLine)
+    assert(error.sourceLocation.endsWith(s"HdlIntTests.scala:$useLine"))
+  }
+'''
+          new = '''  test("the symbolic bit-count bridge retains derived bounded widths") {
+    val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
+    val useLine = sourcecode.Line() + 1
+    val bitCount = (width + 1).bits
+
+    assert(bitCount.value == 9)
+    assert(bitCount.parameter.isEmpty)
+    assert(bitCount.expression.nonEmpty)
+    val expression = bitCount.expression.get
+    assert(expression.verilog == "(WIDTH + 1)")
+    assert(expression.default == 9)
+    assert(expression.minimum == 2)
+    assert(expression.maximum == 65)
+    assert(expression.parameters.size == 1)
+    val parameter = expression.parameters.head
+    assert(parameter.name == "WIDTH")
+    assert(parameter.default == 8)
+    assert(parameter.minimum == 1)
+    assert(parameter.maximum == 64)
+    assert(expression.sourceLocation.exists(_.endsWith(s"HdlIntTests.scala:$useLine")))
+  }
+'''
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'expected exactly one stale derived-width test, found {count}')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+          git diff --check
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate the frontend suite on Scala 2.12 and 2.13
+        shell: bash
+        run: |
+          /tmp/morphhdl-mill frontend[2.12.18].testOnly morphhdl.frontend.HdlIntTests
+          /tmp/morphhdl-mill frontend[2.13.12].testOnly morphhdl.frontend.HdlIntTests
+
+      - name: Commit the validated regression update
+        shell: bash
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm .github/workflows/increment-35-frontend-regression-fix.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "Update derived symbolic width regression"
+          git push origin HEAD:agent/increment-35-native-symbolic-memories
