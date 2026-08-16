@@ -94,14 +94,20 @@ object ParameterizedWidth {
       case baseType: BaseType if parameterOf(baseType).nonEmpty => leaves += baseType
       case _ =>
     }
-    val values = leaves.flatMap(parameterOf)
+    val tagged = leaves.flatMap { baseType =>
+      parameterOf(baseType).map(parameter => baseType -> parameter)
+    }
+    val values = tagged.map(_._2)
     val conflicts = values.groupBy(_.name).collectFirst {
       case (name, schemas) if schemas.distinct.size != 1 => name
     }
     conflicts.foreach { name =>
       ParameterizedVerilogException.fail(
         "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
-        s"parameter '$name' has conflicting declarations on component '${component.definitionName}'"
+        s"parameter '$name' has conflicting declarations on component '${component.definitionName}'",
+        tagged.find(_._2.name == name).flatMap { case (baseType, _) =>
+          sourceLocationOf(baseType)
+        }
       )
     }
     values.distinct.sortBy(_.name).toVector
