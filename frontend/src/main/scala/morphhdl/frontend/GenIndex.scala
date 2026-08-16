@@ -7,19 +7,30 @@ final class GenIndex private[frontend] (
     private[frontend] val token: ScopeToken,
     private[frontend] val origin: SourceOrigin
 ) extends scala.math.ScalaNumber {
-  def *(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt = {
+  def +(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
+    asHdlInt("generate-index addition") + that
+
+  def -(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
+    asHdlInt("generate-index subtraction") - that
+
+  def *(that: HdlInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
+    asHdlInt("generate-index multiplication") * that
+
+  private[frontend] def asHdlInt(consumer: String)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): HdlInt = {
     val resultOrigin = SourceOrigin.capture
-    FrontendSession.requireActiveScope(token, "generate-index multiplication", resultOrigin)
-    that.requireUsable("generate-index multiplication")
+    FrontendSession.requireActiveScope(token, consumer, resultOrigin)
     HdlInt.fromGenerateIndex(
-      witness * that.witness,
-      morphhdl.paramrtl.IntExpr.Multiply(GenerateIndexRef(token.indexName), that.expression),
+      witness,
+      GenerateIndexRef(token.indexName),
       token,
-      that.parameters,
-      that.booleanParameters,
-      that.localParameters,
-      that.booleanLocalParameters,
-      resultOrigin
+      parameters = Set.empty,
+      booleanParameters = Set.empty,
+      localParameters = Set.empty,
+      booleanLocalParameters = Set.empty,
+      origin = resultOrigin
     )
   }
 
