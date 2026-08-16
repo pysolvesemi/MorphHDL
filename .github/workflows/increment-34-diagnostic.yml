@@ -1,0 +1,119 @@
+name: Increment 34 diagnostic
+
+on:
+  push:
+    branches:
+      - agent/increment-34-generic-processes
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-34-diagnostic-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    name: Diagnose Scala ${{ matrix.scala_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run standard compile and test commands with retained diagnostics
+        id: diagnose
+        shell: bash
+        env:
+          SCALA_VERSION: ${{ matrix.scala_version }}
+        run: |
+          set +e
+          full="/tmp/increment-34-diagnostic-${SCALA_VERSION}.log"
+          concise="/tmp/increment-34-diagnostic-${SCALA_VERSION}-concise.log"
+          : > "${full}"
+          : > "${concise}"
+
+          run_one() {
+            label="$1"
+            shift
+            echo "===== ${label} =====" | tee -a "${full}"
+            "$@" >> "${full}" 2>&1
+            rc=$?
+            echo "===== exit ${rc}: ${label} =====" | tee -a "${full}"
+            if [ "${rc}" -ne 0 ]; then
+              echo "FAILED COMMAND: ${label}" > "${concise}"
+              grep -E '(\[error\]|(^|[[:space:]])error:|Exception|FAILED|Compilation failed|not found:|type mismatch|overloaded method|AssertionError|Stack trace|Tests unsuccessful)' \
+                "${full}" | tail -n 400 >> "${concise}" || true
+              if [ "$(wc -l < "${concise}")" -le 1 ]; then
+                tail -n 400 "${full}" >> "${concise}"
+              fi
+              cat "${concise}"
+              return "${rc}"
+            fi
+            return 0
+          }
+
+          failure=0
+          run_one "sbt compile" sbt -batch "++${SCALA_VERSION}" compile || failure=$?
+          if [ "${failure}" -eq 0 ]; then
+            run_one "sbt Test/compile" sbt -batch "++${SCALA_VERSION}" Test/compile || failure=$?
+          fi
+          if [ "${failure}" -eq 0 ]; then
+            run_one "mill idslplugin test" /tmp/morphhdl-mill "idslplugin[${SCALA_VERSION}].test" || failure=$?
+          fi
+          if [ "${failure}" -eq 0 ]; then
+            run_one "mill paramrtl test" /tmp/morphhdl-mill "paramrtl[${SCALA_VERSION}].test" || failure=$?
+          fi
+          if [ "${failure}" -eq 0 ]; then
+            run_one "mill frontend test" /tmp/morphhdl-mill "frontend[${SCALA_VERSION}].test" || failure=$?
+          fi
+          if [ "${failure}" -eq 0 ]; then
+            run_one "mill verilogBackend test" /tmp/morphhdl-mill "verilogBackend[${SCALA_VERSION}].test" || failure=$?
+          fi
+          if [ "${failure}" -eq 0 ]; then
+            run_one "mill morph test" /tmp/morphhdl-mill "morph[${SCALA_VERSION}].test" || failure=$?
+          fi
+          if [ "${failure}" -eq 0 ]; then
+            run_one "mill core focused tests" /tmp/morphhdl-mill "core[${SCALA_VERSION}].testOnly" \
+              spinal.core.internals.SpinalVerilogPhasePlanTests \
+              spinal.core.internals.ParameterizedVerilogTests \
+              spinal.core.internals.ParameterizedDataShapeTests || failure=$?
+          fi
+
+          if [ "${failure}" -eq 0 ]; then
+            echo "ALL DIAGNOSTIC COMMANDS PASSED" | tee "${concise}"
+          fi
+          exit "${failure}"
+
+      - name: Upload diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-34-diagnostic-scala-${{ matrix.scala_version }}-${{ github.sha }}
+          path: |
+            /tmp/increment-34-diagnostic-${{ matrix.scala_version }}.log
+            /tmp/increment-34-diagnostic-${{ matrix.scala_version }}-concise.log
+          if-no-files-found: error
+          retention-days: 7
