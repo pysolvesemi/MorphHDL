@@ -200,33 +200,86 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
       finally patchedSources.foreach(_.dir = null)
     }
 
-    val (componentBuilderVerilog, componentResult) =
-      try {
-        val builder = newBuilder(pc.config)
-        (builder, () => builder.result)
-      } catch {
-        case failure: ParameterizedVerilogException
-            if pc.config.parameterizedVerilog &&
-              ParameterizedVerilogNativeFallback.supports(failure, component) =>
-          val builder = newBuilder(pc.config.copy(parameterizedVerilog = false))
-          (
-            builder,
-            () => {
-              val nativeResult = builder.result
+    def canonicalOf(child: Component): Component =
+      Option(emitedComponentRef.get(child)).getOrElse(child)
+
+    def nativeBuilder(
+        rewriteParameterizedGraph: Boolean
+    ): (ComponentEmitterVerilog, () => String) = {
+      val builder = newBuilder(pc.config.copy(parameterizedVerilog = false))
+      (
+        builder,
+        () => {
+          val nativeResult = builder.result
+          val parameterizedResult =
+            if (rewriteParameterizedGraph) {
               // ClockDomain.external keeps its source signals outside the component.
               // The normal emitter has already pulled top-level input proxies into the
               // component, so expose that proven input view only while validating the
               // bounded native fallback, then restore the source signals unchanged.
               withPulledExternalClockInputs {
                 ParameterizedVerilogNativeFallback.rewrite(
-                      component,
-                      nativeResult,
-                      pc,
-                      child => Option(emitedComponentRef.get(child)).getOrElse(child)
-                    )
+                  component,
+                  nativeResult,
+                  pc,
+                  canonicalOf
+                )
               }
-            }
+            } else nativeResult
+          ParameterizedVerilogStructural.rewrite(
+            component,
+            parameterizedResult,
+            pc,
+            canonicalOf
           )
+        }
+      )
+    }
+
+    val parameterizedMode = pc.config.parameterizedVerilog
+    val hasStructuralRegions =
+      parameterizedMode && ParameterizedVerilogStructural.hasRegions(component)
+    val hasParameterizedGraph =
+      parameterizedMode &&
+        (
+          ParameterizedWidth.parametersOf(component).nonEmpty ||
+          component.children.exists(
+            child => ParameterizedWidth.parametersOf(child).nonEmpty
+          )
+        )
+    val isPlainParameterizedChild =
+      parameterizedMode && component.parent != null &&
+        !hasStructuralRegions && !hasParameterizedGraph
+
+    val (componentBuilderVerilog, componentResult) =
+      if (hasStructuralRegions) {
+        // Structural-only parameterization lives in the parent generate region,
+        // so the ordinary emitter must first provide the concrete witness text.
+        nativeBuilder(rewriteParameterizedGraph = hasParameterizedGraph)
+      } else if (isPlainParameterizedChild) {
+        // A fixed-width child remains an ordinary Verilog module even when its
+        // parent is parameterized. Increment 32 hierarchy rewriting owns the
+        // parent-side instance binding; the child itself needs no parameter gate.
+        nativeBuilder(rewriteParameterizedGraph = false)
+      } else {
+        try {
+          val builder = newBuilder(pc.config)
+          (
+            builder,
+            () =>
+              ParameterizedVerilogStructural.rewrite(
+                component,
+                builder.result,
+                pc,
+                canonicalOf
+              )
+          )
+        } catch {
+          case failure: ParameterizedVerilogException
+              if parameterizedMode &&
+                ParameterizedVerilogNativeFallback.supports(failure, component) =>
+            nativeBuilder(rewriteParameterizedGraph = true)
+        }
       }
 
     if(component.parentScope == null && pc.config.dumpWave != null) {

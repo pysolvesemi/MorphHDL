@@ -59,7 +59,7 @@ with this roadmap.
   bindings from connections, retain one definition per logical component and
   reject ambiguous or inconsistent constraints.
 
-- [ ] **Increment 33 — Structural loops and generate control**
+- [x] **Increment 33 — Structural loops and generate control**
 
   Integrate symbolic ranges and indices with normal component construction so
   parameter-bounded instance/declaration loops lower to Verilog generate

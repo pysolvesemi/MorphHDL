@@ -19,7 +19,12 @@ final class HdlRange private[frontend] (
   }
 
   def foreach(body: GenIndex => Unit): Unit =
-    FrontendSession.runRange(this, body)
+    try FrontendSession.runRange(this, body)
+    catch {
+      case error: FrontendException
+          if error.code == "MORPH-FRONTEND-SESSION-MISSING" =>
+        NativeStructuralFrontend.runRange(this, body)
+    }
 }
 
 private[frontend] object HdlRange {
