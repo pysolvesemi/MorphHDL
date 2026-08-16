@@ -1,0 +1,84 @@
+name: Increment 34 core contract repair
+
+on:
+  push:
+    branches:
+      - agent/increment-34-generic-processes
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-34-core-contract-repair-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repair-test-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out Increment 34 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply core contract update and remove temporary diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git apply --check .github/increment-34-core-test-update.patch
+          git apply .github/increment-34-core-test-update.patch
+          rm -f \
+            .github/increment-34-core-test-update.patch \
+            .github/workflows/increment-34-core-contract-repair.yml \
+            .github/workflows/increment-34-diagnostic.yml
+          git diff --check
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run updated core contracts on both Scala versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            for scala_version in 2.12.18 2.13.12
+            do
+              echo "=== Scala ${scala_version} ==="
+              /tmp/morphhdl-mill "core[${scala_version}].testOnly" \
+                spinal.core.internals.SpinalVerilogPhasePlanTests \
+                spinal.core.internals.ParameterizedVerilogTests \
+                spinal.core.internals.ParameterizedDataShapeTests
+            done
+          } 2>&1 | tee /tmp/increment-34-core-contract-repair.log
+
+      - name: Commit and push passing source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Update Increment 34 native process contracts"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Upload core contract log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-34-core-contract-repair-${{ github.sha }}
+          path: /tmp/increment-34-core-contract-repair.log
+          if-no-files-found: ignore
+          retention-days: 7
