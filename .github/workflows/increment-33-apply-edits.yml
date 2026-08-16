@@ -1,4 +1,4 @@
-name: Increment 33 apply reviewed edits
+name: Increment 33 diagnostic capture
 
 on:
   push:
@@ -9,9 +9,14 @@ permissions:
   contents: write
 
 jobs:
-  apply:
-    if: github.event.head_commit.message != 'Apply Increment 33 source edits'
-    runs-on: ubuntu-24.04
+  diagnose:
+    if: github.event.head_commit.message != 'Record Increment 33 diagnostics'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
     steps:
       - name: Check out Increment 33 branch
         uses: actions/checkout@v4
@@ -19,23 +24,61 @@ jobs:
           ref: agent/increment-33-structural-generate-control
           fetch-depth: 0
 
-      - name: Apply exact reviewed replacements
-        run: python3 morphhdl/scripts/apply-increment-33-edits.py
-
-      - name: Commit source edits when needed
+      - name: Install pinned Mill bootstrap
         shell: bash
         run: |
-          if git diff --quiet; then
-            echo "No source edits required."
-            exit 0
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Capture first failing Scala 2.12 gate
+        shell: bash
+        run: |
+          set +e
+          log=morphhdl/increment-33-diagnostics.log
+          : > "$log"
+          status=0
+          run_gate() {
+            title="$1"
+            shift
+            {
+              echo
+              echo "===== $title ====="
+              "$@"
+              rc=$?
+              echo "===== exit $rc: $title ====="
+            } 2>&1 | tee -a "$log"
+            rc=${PIPESTATUS[0]}
+            if [ "$rc" -ne 0 ]; then
+              status="$rc"
+              return "$rc"
+            fi
+            return 0
+          }
+          run_gate idslplugin /tmp/morphhdl-mill 'idslplugin[2.12.18].test' || true
+          if [ "$status" -eq 0 ]; then run_gate paramrtl /tmp/morphhdl-mill 'paramrtl[2.12.18].test' || true; fi
+          if [ "$status" -eq 0 ]; then run_gate frontend /tmp/morphhdl-mill 'frontend[2.12.18].test' || true; fi
+          if [ "$status" -eq 0 ]; then run_gate verilogBackend /tmp/morphhdl-mill 'verilogBackend[2.12.18].test' || true; fi
+          if [ "$status" -eq 0 ]; then run_gate morph /tmp/morphhdl-mill 'morph[2.12.18].test' || true; fi
+          if [ "$status" -eq 0 ]; then
+            run_gate core /tmp/morphhdl-mill 'core[2.12.18].testOnly' \
+              spinal.core.internals.SpinalVerilogPhasePlanTests \
+              spinal.core.internals.ParameterizedVerilogTests \
+              spinal.core.internals.ParameterizedDataShapeTests || true
           fi
+          echo "FINAL_STATUS=$status" | tee -a "$log"
+
+      - name: Commit diagnostic output
+        shell: bash
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name "MorphHDL Increment Agent"
           git config user.email "actions@users.noreply.github.com"
-          git add \
-            core/src/main/scala/spinal/core/ParameterizedStructure.scala \
-            core/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
-            core/src/main/scala/spinal/core/internals/PhaseVerilog.scala \
-            frontend/src/main/scala/morphhdl/frontend/HdlInt.scala \
-            frontend/src/main/scala/morphhdl/frontend/NativeStructuralFrontend.scala
-          git commit -m "Apply Increment 33 source edits"
+          git add morphhdl/increment-33-diagnostics.log
+          if git diff --cached --quiet; then
+            echo "Diagnostic output is unchanged."
+            exit 0
+          fi
+          git commit -m "Record Increment 33 diagnostics"
           git push origin HEAD:agent/increment-33-structural-generate-control
