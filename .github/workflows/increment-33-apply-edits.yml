@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          log=morphhdl/increment-33-diagnostics.log
+          log=morphhdl/increment-33-diagnostics.txt
           : > "$log"
           status=0
           run_gate() {
@@ -75,7 +75,7 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name "MorphHDL Increment Agent"
           git config user.email "actions@users.noreply.github.com"
-          git add morphhdl/increment-33-diagnostics.log
+          git add -f morphhdl/increment-33-diagnostics.txt
           if git diff --cached --quiet; then
             echo "Diagnostic output is unchanged."
             exit 0
