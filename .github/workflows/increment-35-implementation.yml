@@ -44,7 +44,15 @@ jobs:
           actual = hashlib.sha256(raw).hexdigest()
           if actual != expected:
               raise SystemExit(f'Increment 35 payload checksum mismatch: {actual}')
-          pathlib.Path('/tmp/apply_increment_35.py').write_bytes(raw)
+
+          path = pathlib.Path('/tmp/apply_increment_35.py')
+          text = raw.decode('utf-8')
+          old = 'generateIndices: Map[String, Int]'
+          new = 'generateIndices: Map[String, GenerateIndexFacts]'
+          count = text.count(old)
+          if count != 3:
+              raise SystemExit(f'Increment 35 guarded bridge repair expected 3 matches, found {count}')
+          path.write_text(text.replace(old, new), encoding='utf-8')
           PY
           python3 /tmp/apply_increment_35.py
           git diff --check
