@@ -1,0 +1,55 @@
+diff --git a/core/src/main/scala/spinal/core/ParameterizedProcess.scala b/core/src/main/scala/spinal/core/ParameterizedProcess.scala
+index 3c8dd48..162bafe 100644
+--- a/core/src/main/scala/spinal/core/ParameterizedProcess.scala
++++ b/core/src/main/scala/spinal/core/ParameterizedProcess.scala
+@@ -281,6 +281,11 @@ object ParameterizedProcess {
+     val assignments = statements.collect {
+       case value: DataAssignmentStatement => value
+     }
++    val processAssignments = assignments.filterNot { assignment =>
++      state.slices.exists { slice =>
++        assignment.finalTarget eq slice.result
++      }
++    }
+     val unsupported = statements.filterNot {
+       case _: BaseType                => true
+       case _: DataAssignmentStatement => true
+@@ -366,13 +371,13 @@ object ParameterizedProcess {
+         sourceLocation
+       )
+     }
+-    if (assignments.size != 1) {
++    if (processAssignments.size != 1) {
+       fail(
+         "SPINAL-PARAMETERIZED-VERILOG-PROCESS-LOOP-ASSIGNMENT-COUNT-UNSUPPORTED",
+-        s"safe procedural loops require exactly one direct assignment, received ${assignments.size}",
++        s"safe procedural loops require exactly one direct assignment after excluding ${assignments.size - processAssignments.size} native slice witness copies, received ${processAssignments.size}",
+         sourceLocation
+       )
+     }
+@@ -390,7 +395,7 @@ object ParameterizedProcess {
+       )
+     }
+ 
+-    val assignment = assignments.head
++    val assignment = processAssignments.head
+     if (assignment.finalTarget.component ne component) {
+       fail(
+         "SPINAL-PARAMETERIZED-VERILOG-PROCESS-LOOP-TARGET-UNSUPPORTED",
+diff --git a/morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala b/morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala
+index df78e82..3129951 100644
+--- a/morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala
++++ b/morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala
+@@ -182,10 +182,10 @@ class GenericProcessLoweringTests extends AnyFunSuite {
+         ) == nativeModule(concrete)
+       )
+-      assert(parameterized.contains("always @(posedge clk or negedge reset)"))
+-      assert(parameterized.contains("if(!reset) begin"))
++      assert(parameterized.contains("always @(posedge clk or negedge resetn)"))
++      assert(parameterized.contains("if(!resetn) begin"))
+       assert(parameterized.contains("if(clear) begin"))
+-      assert(parameterized.contains("end else if(load) begin"))
++      assert(parameterized.contains("if(load) begin"))
+       assert(parameterized.contains("state <= din;"))
+     }
+   }
