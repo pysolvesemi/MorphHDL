@@ -77,8 +77,70 @@ if safe_splice not in repaired:
         raise SystemExit('Increment 37 test splice anchor was not found')
     repaired = repaired.replace(broken_splice, safe_splice, 1)
 
+parameter_assertions_old = '''block = block.replace(
+    'assert(!verilog.contains("parameter integer DEPTH"))',
+    'assert(verilog.contains("parameter integer DEPTH = 5"))',
+)
+block = block.replace(
+    'assert(!verilog.contains("parameter DEPTH"))',
+    'assert(verilog.contains("parameter integer DEPTH = 5") || verilog.contains("parameter DEPTH = 5"))',
+)
+'''
+parameter_assertions_new = '''block = block.replace(
+    'assert(!parameterized.contains("parameter integer DEPTH"))',
+    'assert(parameterized.contains("parameter integer DEPTH = 5"))',
+)
+'''
+if parameter_assertions_new not in repaired:
+    if parameter_assertions_old not in repaired:
+        raise SystemExit('Increment 37 copied-test parameter assertion anchors were not found')
+    repaired = repaired.replace(
+        parameter_assertions_old,
+        parameter_assertions_new,
+        1,
+    )
+
+geometry_anchor = 'block = block.replace("[0:3]", "[0:DEPTH-1]")\n'
+geometry_repair = geometry_anchor + '''block = block.replace(
+    'assert(parameterizedReport._1.parameters.map(_.name) == Vector("WIDTH"))',
+    'assert(parameterizedReport._1.parameters.map(_.name) == Vector("DEPTH", "WIDTH"))',
+)
+block = block.replace(
+    'assert(parameterized.contains(".WIDTH(WIDTH)"))',
+    'assert(parameterized.contains(".WIDTH(WIDTH)"))\\n      assert(parameterized.contains(".DEPTH(DEPTH)"))',
+)
+block = block.replace(
+    'assert(parameterized.contains("< 4"))',
+    'assert(parameterized.contains("< DEPTH"))',
+)
+block = block.replace(
+    'assert(concrete.contains("[0:DEPTH-1]"))',
+    'assert(concrete.contains("[0:4]"))',
+)
+block = block.replace(
+    'assert(!concrete.contains("parameter integer WIDTH"))',
+    'assert(!concrete.contains("parameter integer WIDTH"))\\n      assert(!concrete.contains("parameter integer DEPTH"))',
+)
+'''
+if geometry_repair not in repaired:
+    if geometry_anchor not in repaired:
+        raise SystemExit('Increment 37 copied-test geometry anchor was not found')
+    repaired = repaired.replace(geometry_anchor, geometry_repair, 1)
+
+proof_start = repaired.find("proof = r'''")
+proof_end = repaired.find("\n'''", proof_start)
+if proof_start < 0 or proof_end < 0:
+    raise SystemExit('Increment 37 override-proof anchors were not found')
+proof_block = repaired[proof_start:proof_end]
+if 'verilog.contains' in proof_block or 'verilog.getBytes' in proof_block:
+    proof_block = proof_block.replace('verilog', 'parameterized')
+elif 'parameterized.contains' not in proof_block:
+    raise SystemExit('Increment 37 override proof has no recognized Verilog source binding')
+repaired = repaired[:proof_start] + proof_block + repaired[proof_end:]
+
 path.write_text(repaired)
 print(
     f'Repaired Increment 37 fixture transformation, {occurrences} existential '
-    'memory word access(es), pointer increment sizing, and test-body splice'
+    'memory word access(es), pointer increment sizing, test-body splice, and '
+    'copied regression bindings'
 )
