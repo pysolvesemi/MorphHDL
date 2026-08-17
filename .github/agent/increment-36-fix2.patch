@@ -1,0 +1,54 @@
+--- a/lib/src/main/scala/spinal/lib/Counter.scala
++++ b/lib/src/main/scala/spinal/lib/Counter.scala
+@@ -354,21 +354,39 @@
+     case None    => value === start
+   }
+ 
++  private def stepValue(enable: Bool): UInt = retainedBitCount match {
++    case Some(bitCount) =>
++      // Keep the increment/decrement operand on the same retained width as the
++      // state.  The ordinary concrete Counter widens Bool.asUInt to its Scala
++      // witness before addition; carrying the shared symbolic shape here avoids
++      // baking that witness into the reusable Verilog arithmetic.
++      val step = UInt(bitCount)
++      step := 0
++      step(0) := enable
++      step
++    case None => U(enable)
++  }
++
++  private def stateLiteral(value: BigInt): UInt = retainedBitCount match {
++    case Some(_) => U(value)
++    case None    => U(value, w bits)
++  }
++
+   def stepOne(arith: UInt, boundary: Bool, policy: BoundaryPolicy,
+               wrapTo: BigInt, pinTo: BigInt): Unit = {
+     valueNext := arith.resized
+     val naturalWrap = policy == BoundaryPolicy.Wrap && isPow2(end + 1) && start == 0
+     if (!naturalWrap) {
+       val pin = if (policy == BoundaryPolicy.Wrap) wrapTo else pinTo
+-      when(boundary) { valueNext := U(pin, w bits) }
++      when(boundary) { valueNext := stateLiteral(pin) }
+     }
+   }
+ 
+   direction match {
+     case CounterDirection.Up =>
+-      stepOne(value + U(effectiveInc), willOverflow,  upper, wrapTo = start, pinTo = end)
++      stepOne(value + stepValue(effectiveInc), willOverflow,  upper, wrapTo = start, pinTo = end)
+     case CounterDirection.Down =>
+-      stepOne(value - U(effectiveDec), willUnderflow, lower, wrapTo = end,   pinTo = start)
++      stepOne(value - stepValue(effectiveDec), willUnderflow, lower, wrapTo = end,   pinTo = start)
+     case CounterDirection.Both =>
+       val bothWrap = upper == BoundaryPolicy.Wrap && lower == BoundaryPolicy.Wrap
+       val span = end - start + 1
+@@ -389,7 +407,7 @@
+       }
+   }
+ 
+-  when(willClear) { valueNext := U(initVal, w bits) }
++  when(willClear) { valueNext := stateLiteral(initVal) }
+ 
+   enableStandardPruning()
+   willOverflow.setCompositeName(this, "willOverflow", true)
