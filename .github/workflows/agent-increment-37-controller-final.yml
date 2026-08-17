@@ -34,6 +34,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Deterministic recovery avoids recursively executing historical wrappers.
           python3 .github/increment-37/repair_apply_increment_37.py
           python3 .github/increment-37/repair_build_increment_37_test.py
           python3 .github/increment-37/repair_increment_37_semantics.py
