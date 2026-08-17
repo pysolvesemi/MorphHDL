@@ -34,4 +34,4 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python .github/increment-37/complete_increment_37.py
+          python3 .github/increment-37/complete_increment_37.py
