@@ -1645,7 +1645,11 @@ class StreamFifo[T <: Data](val dataType: HardType[T],
       val sync = !withAsyncRead generate new Area{
         assert(!useVec)
         val readArbitration = addressGen.m2sPipe(flush = io.flush)
-        val readPort = ram.readSyncPort
+        // The FIFO must return the queued word when a full pop and push target
+        // the same physical entry. Make the existing algorithm's read-first
+        // requirement explicit so symbolic-width native Mem lowering can
+        // preserve that behavior instead of relying on an unspecified policy.
+        val readPort = ram.readSyncPort(readUnderWrite = readFirst)
         readPort.cmd := addressGen.toFlowFire
         io.pop << readArbitration.translateWith(readPort.rsp)
 

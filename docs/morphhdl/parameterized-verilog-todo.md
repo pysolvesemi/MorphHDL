@@ -81,7 +81,7 @@ with this roadmap.
   out-of-range policies against the existing single-port and simple-dual-port
   memory contracts.
 
-- [ ] **Increment 36 — Native library reuse**
+- [x] **Increment 36 — Native library reuse**
 
   Reuse ordinary Spinal `Counter`, Stream/Flow pipeline primitives and
   `StreamFifo` with symbolic payload width and initially static depth. Extend
