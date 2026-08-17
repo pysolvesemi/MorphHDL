@@ -41,7 +41,11 @@ jobs:
           set -euo pipefail
           rm -rf /tmp/increment-37-patches
           mkdir -p /tmp/increment-37-patches
-          tar -xzf .github/agent/increment-37-patches.tgz -C /tmp/increment-37-patches
+          cat .github/agent/increment-37-patches.b64.* \
+            | base64 --decode > /tmp/increment-37-patches.tgz
+          echo 'b0ac67ae2cf7a34282f8ed5c71c85009356b6f6c6722736803b7599e9dc29751  /tmp/increment-37-patches.tgz' \
+            | sha256sum --check --strict
+          tar -xzf /tmp/increment-37-patches.tgz -C /tmp/increment-37-patches
           if git apply --check /tmp/increment-37-patches/01.patch; then
             for patch in /tmp/increment-37-patches/*.patch; do
               git apply "$patch"
