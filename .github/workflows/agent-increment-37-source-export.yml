@@ -61,6 +61,7 @@ jobs:
             echo 'Increment 37 source patch is neither applicable nor already present.' >&2
             exit 1
           fi
+          git apply .github/agent/increment-37-diagnostic.patch
           git diff --check
 
       - name: Test Increment 37 on Scala 2.12.18
