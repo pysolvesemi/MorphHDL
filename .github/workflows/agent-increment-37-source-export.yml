@@ -75,6 +75,15 @@ jobs:
             spinal.core.internals.ParameterizedVerilogTests \
             spinal.core.internals.ParameterizedDataShapeTests
 
+      - name: Upload generated FIFO diagnostic RTL
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-37-streamfifo-debug
+          path: increment37-streamfifo-debug.v
+          if-no-files-found: warn
+          retention-days: 1
+
       - name: Test Increment 37 on Scala 2.13.12
         shell: bash
         run: |
