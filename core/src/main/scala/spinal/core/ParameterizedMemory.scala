@@ -27,6 +27,38 @@ private[core] final case class ParameterizedMemoryTag(
 
 /** Native symbolic-memory metadata and schema discovery. */
 object ParameterizedMemory {
+  /**
+    * Retain a symbolic element shape on an ordinary fixed-depth Mem.
+    *
+    * Most Spinal library memories, including StreamFifo storage, intentionally
+    * keep their depth as a Scala Int.  Their payload HardType can nevertheless
+    * carry a public packed-width expression.  Tag only those memories whose
+    * element width actually references a parameter so ordinary concrete Mem
+    * construction remains indistinguishable from the upstream path.
+    */
+  private[core] def attachStatic[T <: Data](memory: Mem[T]): Mem[T] = {
+    val leaves = memory.wordType().flatten.toVector
+    val hasSymbolicElement = leaves.exists { leaf =>
+      ParameterizedWidth.expressionOf(leaf).exists(_.parameters.nonEmpty)
+    }
+    if (!hasSymbolicElement) memory
+    else {
+      val elementWidth = elementWidthOf(
+        memory,
+        leaves,
+        sourceLocation = None
+      )
+      attachMetadata(
+        memory,
+        ParameterizedMemoryMetadata(
+          depth = literal(memory.wordCount),
+          elementWidth = elementWidth,
+          sourceLocation = elementWidth.sourceLocation
+        )
+      )
+    }
+  }
+
   private[core] def attach[T <: Data](
       memory: Mem[T],
       depth: ParameterizedMemoryDepth
@@ -58,12 +90,33 @@ object ParameterizedMemory {
       )
     }
 
-    val leaves = memory.wordType().flatten.toVector
+    val elementWidth = elementWidthOf(
+      memory,
+      memory.wordType().flatten.toVector,
+      depth.sourceLocation.orElse(depth.expression.sourceLocation)
+    )
+    attachMetadata(
+      memory,
+      ParameterizedMemoryMetadata(
+        depth.expression,
+        elementWidth,
+        depth.sourceLocation
+          .orElse(depth.expression.sourceLocation)
+          .orElse(elementWidth.sourceLocation)
+      )
+    )
+  }
+
+  private def elementWidthOf[T <: Data](
+      memory: Mem[T],
+      leaves: Vector[BaseType],
+      sourceLocation: Option[String]
+  ): ElaborationIntegerExpression = {
     if (leaves.isEmpty) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-TYPE-UNSUPPORTED",
         "native symbolic memory element type has no flattened data leaves",
-        depth.sourceLocation
+        sourceLocation
       )
     }
     val elementWidth = leaves.map { leaf =>
@@ -77,25 +130,24 @@ object ParameterizedMemory {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID",
         s"native memory concrete element width ${memory.getWidth} does not match retained expression '${elementWidth.verilog}' in [${elementWidth.minimum}, ${elementWidth.maximum}]",
-        depth.sourceLocation.orElse(elementWidth.sourceLocation)
+        sourceLocation.orElse(elementWidth.sourceLocation)
       )
     }
+    elementWidth
+  }
+
+  private def attachMetadata[T <: Data](
+      memory: Mem[T],
+      metadata: ParameterizedMemoryMetadata
+  ): Mem[T] = {
     if (memory.getTag(classOf[ParameterizedMemoryTag]).nonEmpty) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-METADATA-DUPLICATE",
-        "native memory already carries symbolic-depth metadata",
-        depth.sourceLocation
+        "native memory already carries symbolic geometry metadata",
+        metadata.sourceLocation
       )
     }
-    memory.addTag(
-      ParameterizedMemoryTag(
-        ParameterizedMemoryMetadata(
-          depth.expression,
-          elementWidth,
-          depth.sourceLocation.orElse(depth.expression.sourceLocation)
-        )
-      )
-    )
+    memory.addTag(ParameterizedMemoryTag(metadata))
     memory
   }
 

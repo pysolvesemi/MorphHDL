@@ -100,7 +100,8 @@ object Mem {
     * 
     * @see [[https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Sequential%20logic/memory.html RAM/ROM documentation]]
     */
-  def apply[T <: Data](wordType: HardType[T], wordCount: Int) = new Mem(wordType, wordCount)
+  def apply[T <: Data](wordType: HardType[T], wordCount: Int): Mem[T] =
+    ParameterizedMemory.attachStatic(new Mem(wordType, wordCount))
 
   /** Create a RAM at the concrete witness while retaining a bounded depth. */
   def apply[T <: Data](
@@ -113,9 +114,9 @@ object Mem {
     * 
     * @see [[https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Sequential%20logic/memory.html RAM/ROM documentation]]
     */
-  def apply[T <: Data](wordType: HardType[T], wordCount: BigInt) = {
+  def apply[T <: Data](wordType: HardType[T], wordCount: BigInt): Mem[T] = {
     assert(wordCount <= Integer.MAX_VALUE)
-    new Mem(wordType, wordCount.toInt)
+    apply(wordType, wordCount.toInt)
   }
 
   /** Create a ROM.
@@ -143,7 +144,8 @@ object Mem {
    *
    * @see [[https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Sequential%20logic/memory.html RAM/ROM documentation]]
    */
-  def fill[T <: Data](wordCount: Int)(wordType: HardType[T])  = new Mem(wordType, wordCount)
+  def fill[T <: Data](wordCount: Int)(wordType: HardType[T]): Mem[T] =
+    apply(wordType, wordCount)
 
   /** Scala fill syntax with a retained bounded symbolic depth. */
   def fill[T <: Data](wordCount: ParameterizedMemoryDepth)(
