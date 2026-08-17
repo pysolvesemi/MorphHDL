@@ -1,6 +1,6 @@
 --- a/morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala
 +++ b/morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala
-@@ -95,6 +95,14 @@
+@@ -95,6 +95,15 @@
        assert(concrete.contains("[7:0]"))
        assert(concrete.contains("[0:4]"))
  
