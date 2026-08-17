@@ -74,10 +74,81 @@ jobs:
           path.write_text(text.replace(anchor, patch, 1))
           print('Instrumented Increment 37 generated RTL failure diagnostics')
           PY
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/increment-37/complete_increment_37.py')
+          text = path.read_text()
+          start = text.find('def api(\n')
+          end = text.find('\n\ndef branch_sha', start)
+          if start < 0 or end < 0:
+              raise SystemExit('Increment 37 controller API anchors were not found')
+          replacement = '''def api(
+              method: str,
+              path: str,
+              *,
+              data: dict | None = None,
+              allow: tuple[int, ...] = (),
+          ) -> tuple[int, object | None]:
+              url = f"https://api.github.com/repos/{REPO}{path}"
+              body = None if data is None else json.dumps(data).encode("utf-8")
+              attempts = 5
+              for attempt in range(1, attempts + 1):
+                  request = urllib.request.Request(url, data=body, method=method)
+                  request.add_header("Authorization", f"Bearer {TOKEN}")
+                  request.add_header("Accept", "application/vnd.github+json")
+                  request.add_header("X-GitHub-Api-Version", "2022-11-28")
+                  if body is not None:
+                      request.add_header("Content-Type", "application/json")
+                  try:
+                      with urllib.request.urlopen(request, timeout=60) as response:
+                          payload = response.read()
+                          decoded = json.loads(payload) if payload else None
+                          return response.status, decoded
+                  except urllib.error.HTTPError as error:
+                      payload = error.read()
+                      decoded: object | None
+                      try:
+                          decoded = json.loads(payload) if payload else None
+                      except json.JSONDecodeError:
+                          decoded = payload.decode("utf-8", errors="replace")
+                      if error.code in allow:
+                          return error.code, decoded
+                      retryable = error.code == 429 or 500 <= error.code < 600
+                      if retryable and attempt < attempts:
+                          delay = min(2 ** (attempt - 1), 8)
+                          print(
+                              f"GitHub API {method} {path} returned {error.code}; "
+                              f"retrying in {delay}s ({attempt}/{attempts})"
+                          )
+                          time.sleep(delay)
+                          continue
+                      raise RuntimeError(
+                          f"GitHub API {method} {path} failed: {error.code} {decoded}"
+                      ) from error
+                  except (urllib.error.URLError, TimeoutError, OSError) as error:
+                      if attempt < attempts:
+                          delay = min(2 ** (attempt - 1), 8)
+                          print(
+                              f"GitHub API {method} {path} transport failure {error}; "
+                              f"retrying in {delay}s ({attempt}/{attempts})"
+                          )
+                          time.sleep(delay)
+                          continue
+                      raise RuntimeError(
+                          f"GitHub API {method} {path} transport failure after {attempts} attempts: {error}"
+                      ) from error
+              raise RuntimeError(f"GitHub API {method} {path} exhausted retries")
+          '''
+          path.write_text(text[:start] + replacement + text[end:])
+          print('Hardened Increment 37 controller GitHub API retries')
+          PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add \
             .github/increment-37/apply_increment_37.py \
-            .github/increment-37/build_increment_37_test.py
-          git commit --no-gpg-sign -m 'Apply Increment 37 controller fixture repairs'
+            .github/increment-37/build_increment_37_test.py \
+            .github/increment-37/complete_increment_37.py
+          git diff --cached --quiet || \
+            git commit --no-gpg-sign -m 'Apply Increment 37 controller fixture repairs'
           python3 .github/increment-37/complete_increment_37.py
