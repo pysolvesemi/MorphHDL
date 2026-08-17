@@ -1,4 +1,4 @@
-name: Agent Increment 37 implementation gate
+name: Agent Increment 37 RTL diagnostic
 
 on:
   push:
@@ -7,16 +7,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: increment-37-implementation-${{ github.ref }}
+  group: increment-37-diagnostic-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  implement-and-test:
+  diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 25
     container:
       image: ghcr.io/spinalhdl/docker:latest
     env:
@@ -46,78 +46,41 @@ jobs:
           echo 'b0ac67ae2cf7a34282f8ed5c71c85009356b6f6c6722736803b7599e9dc29751  /tmp/increment-37-patches.tgz' \
             | sha256sum --check --strict
           tar -xzf /tmp/increment-37-patches.tgz -C /tmp/increment-37-patches
-          if git apply --check /tmp/increment-37-patches/01.patch; then
-            for patch in /tmp/increment-37-patches/*.patch; do
-              git apply "$patch"
-            done
-          elif test -f core/src/main/scala/spinal/core/ParameterizedValue.scala \
-            && test -f core/src/main/scala/spinal/core/ParameterizedHierarchy.scala \
-            && test -f core/src/main/scala/spinal/core/internals/ParameterizedVerilogValues.scala \
-            && test -f morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala \
-            && test -f docs/morphhdl/increment-37-parameterized-streamfifo-depth.md \
-            && grep -q 'depth: ParameterizedMemoryDepth' lib/src/main/scala/spinal/lib/Stream.scala; then
-            echo 'Increment 37 source is already applied.'
-          else
-            echo 'Increment 37 source patch is neither applicable nor already present.' >&2
-            exit 1
-          fi
-          git apply .github/agent/increment-37-diagnostic.patch
+          for patch in /tmp/increment-37-patches/*.patch; do
+            git apply "$patch"
+          done
           git diff --check
 
-      - name: Test Increment 37 on Scala 2.12.18
+      - name: Generate and exercise the parameterized FIFO
+        id: fifo_test
+        continue-on-error: true
         shell: bash
         run: |
           /tmp/morphhdl-mill morph[2.12.18].testOnly \
-            morphhdl.ParameterizedStreamFifoDepthTests \
-            morphhdl.NativeLibraryReuseTests \
-            morphhdl.NativeSymbolicMemoryTests
-          /tmp/morphhdl-mill core[2.12.18].testOnly \
-            spinal.core.internals.ParameterizedVerilogTests \
-            spinal.core.internals.ParameterizedDataShapeTests
+            morphhdl.ParameterizedStreamFifoDepthTests
 
-      - name: Upload generated FIFO diagnostic RTL
+      - name: Collect generated FIFO RTL
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p increment37-debug
+          find /tmp -type f \
+            \( -name 'native_parameterized_depth_stream_fifo.v' \
+               -o -name 'increment37-streamfifo-debug.v' \) \
+            -print -exec cp --parents '{}' increment37-debug/ \;
+          find increment37-debug -type f -maxdepth 12 -print
+
+      - name: Upload generated FIFO RTL
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: increment-37-streamfifo-debug
-          path: increment37-streamfifo-debug.v
-          if-no-files-found: warn
+          path: increment37-debug
+          if-no-files-found: error
           retention-days: 1
 
-      - name: Test Increment 37 on Scala 2.13.12
+      - name: Preserve diagnostic failure
+        if: steps.fifo_test.outcome != 'success'
         shell: bash
-        run: |
-          /tmp/morphhdl-mill morph[2.13.12].testOnly \
-            morphhdl.ParameterizedStreamFifoDepthTests \
-            morphhdl.NativeLibraryReuseTests \
-            morphhdl.NativeSymbolicMemoryTests
-          /tmp/morphhdl-mill core[2.13.12].testOnly \
-            spinal.core.internals.ParameterizedVerilogTests \
-            spinal.core.internals.ParameterizedDataShapeTests
-
-      - name: Commit tested implementation
-        shell: bash
-        run: |
-          set -euo pipefail
-          paths=(
-            core/src/main/scala/spinal/core/ParameterizedHierarchy.scala
-            core/src/main/scala/spinal/core/ParameterizedMemory.scala
-            core/src/main/scala/spinal/core/ParameterizedValue.scala
-            core/src/main/scala/spinal/core/internals/ParameterizedVerilogHierarchy.scala
-            core/src/main/scala/spinal/core/internals/ParameterizedVerilogNativeFallback.scala
-            core/src/main/scala/spinal/core/internals/ParameterizedVerilogValues.scala
-            core/src/main/scala/spinal/core/internals/PhaseVerilog.scala
-            lib/src/main/scala/spinal/lib/Stream.scala
-            morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
-            morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala
-            docs/morphhdl/increment-37-parameterized-streamfifo-depth.md
-          )
-          if git diff --quiet -- "${paths[@]}"; then
-            echo 'No implementation commit is needed.'
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- "${paths[@]}"
-          git commit -m 'Implement Increment 37 parameterized StreamFifo depth'
-          git push origin HEAD:agent/increment-37-parameterized-streamfifo-depth
+        run: exit 1
