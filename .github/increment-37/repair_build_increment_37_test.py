@@ -1,182 +1,20 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import subprocess
 
-SCRIPT_PATH = ".github/increment-37/repair_build_increment_37_test.py"
+TARGET = Path(".github/increment-37/build_increment_37_test.py")
+SCALA_PAYLOAD = "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"
 
+builder = f'''#!/usr/bin/env python3
+from pathlib import Path
+import base64
+import zlib
 
-def fail(message: str) -> None:
-    raise SystemExit(message)
+TARGET = Path("morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala")
+PAYLOAD = "{SCALA_PAYLOAD}"
 
-
-def previous_repair_source() -> str:
-    for ref in ("HEAD^", "HEAD~2", "HEAD~3"):
-        result = subprocess.run(
-            ["git", "show", f"{ref}:{SCRIPT_PATH}"],
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        if (
-            result.returncode == 0
-            and "PAYLOAD =" in result.stdout
-            and "TARGET.write_bytes" in result.stdout
-        ):
-            return result.stdout
-    fail("Unable to recover the reviewed Increment 37 regression generator")
-
-
-# Reuse the reviewed focused regression generator from the parent controller
-# commit, then install only the final, narrowly scoped corrections below.
-reviewed = previous_repair_source()
-namespace = {
-    "__name__": "__main__",
-    "__file__": SCRIPT_PATH,
-}
-exec(compile(reviewed, SCRIPT_PATH, "exec"), namespace)
-
-
-# The controller's normal inline patch fixes the primary pointer names. Append a
-# post-generation correction so every FIFO address pipeline and the non-power-
-# of-two occupancy counter also retain DEPTH-derived widths.
-apply_path = Path(".github/increment-37/apply_increment_37.py")
-apply_text = apply_path.read_text()
-geometry_marker = "# INCREMENT37_FINAL_GEOMETRY_REWRITE"
-if geometry_marker not in apply_text:
-    apply_text += r"""
-
-# INCREMENT37_FINAL_GEOMETRY_REWRITE
-backend_file = ROOT / "core/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala"
-backend_source = backend_file.read_text()
-geometry_start_marker = '      val compactName = lower.replace("_", "")\n'
-geometry_end_marker = '      if (pointerContext) {\n        line = replaceSized'
-geometry_start = backend_source.find(geometry_start_marker)
-geometry_end = backend_source.find(geometry_end_marker, geometry_start)
-if geometry_start < 0 or geometry_end < 0:
-    fail("Increment 37 generated FIFO-geometry anchors were not found")
-geometry_replacement = (
-    r'''      val compactName = lower.replace("_", "")
-      val pointer'''
-    + r'''Context =
-        compactName.contains("pushptr") || compactName.contains("popptr") ||
-          compactName.contains("ptrpush") || compactName.contains("ptrpop") ||
-          compactName.contains("poponio") ||
-          compactName.contains("addressgen") ||
-          compactName.contains("popreg") ||
-          compactName.contains("readportcmdpayload") ||
-          compactName.contains("toflowfirepayload") ||
-          compactName.contains("readarbitrationpayload") ||
-          (lower.contains("address") &&
-            (lower.contains("ram") || lower.contains("memory")))
-      val occupancy'''
-    + r'''Context =
-        lower.contains("occupancy") || lower.contains("availability") ||
-          lower.contains("push_ready")
-      val occupancyCounterContext = compactName.contains("notpow2counter")
-      val memoryArray = lower.contains("[0:")
-      val packed = packedRange.findFirstIn(original)
-      val oneBitPacked = packed.exists(_.replace(" ", "") == "[0:0]")
-
-      var line = original
-      if (isDeclaration(line) && !memoryArray && packed.nonEmpty) {
-        if (pointerContext) {
-          line = packedRange.replaceFirstIn(
-            line,
-            java.util.regex.Matcher.quoteReplacement(s"[$pointerWidth-1:0]")
-          )
-        } else if (
-          occupancyContext || (occupancyCounterContext && !oneBitPacked)
-        ) {
-          line = packedRange.replaceFirstIn(
-            line,
-            java.util.regex.Matcher.quoteReplacement(s"[$occupancyWidth-1:0]")
-          )
-        }
-      }
+TARGET.parent.mkdir(parents=True, exist_ok=True)
+TARGET.write_bytes(zlib.decompress(base64.b64decode(PAYLOAD)))
+print("Generated focused Increment 37 depth simulation and synthesis regression")
 '''
-)
-backend_source = (
-    backend_source[:geometry_start]
-    + geometry_replacement
-    + backend_source[geometry_end:]
-)
-backend_file.write_text(backend_source)
-
-doc_file = ROOT / "docs/morphhdl/increment-37-parameterized-streamfifo-depth.md"
-doc_source = doc_file.read_text()
-doc_old = '''`StreamFifo`, including fill-to-full, backpressure stability, FIFO ordering,
-drain-to-empty and flush recovery. Every override is also synthesized by Yosys.
-'''
-doc_new = '''`StreamFifo`, including its public capacity of exactly `DEPTH`, fill-to-full,
-backpressure stability, FIFO ordering, drain-to-empty and flush recovery. Every
-override is also synthesized by Yosys.
-'''
-if doc_old in doc_source:
-    doc_source = doc_source.replace(doc_old, doc_new, 1)
-elif doc_new not in doc_source:
-    fail("Increment 37 documentation capacity anchor was not found")
-doc_file.write_text(doc_source)
-"""
-    apply_path.write_text(apply_text)
-
-
-# Patch the focused source after its reviewed payload is decoded. The public
-# StreamFifo contract stores exactly DEPTH transactions; the synchronous read
-# stage is internal and must not be counted as an extra advertised slot.
-build_path = Path(".github/increment-37/build_increment_37_test.py")
-build_text = build_path.read_text()
-test_marker = "# INCREMENT37_FINAL_TEST_FIX"
-if test_marker not in build_text:
-    build_text += r"""
-
-# INCREMENT37_FINAL_TEST_FIX
-source = TARGET.read_text()
-capacity_new = "localparam integer CAPACITY = DEPTH_VALUE;"
-capacity_variants = (
-    "localparam integer CAPACITY = (DEPTH_VALUE == 1) ? 1 : DEPTH_VALUE + 1;",
-    "localparam integer CAPACITY = DEPTH_VALUE + 1;",
-)
-for capacity_old in capacity_variants:
-    if capacity_old in source:
-        source = source.replace(capacity_old, capacity_new, 1)
-        break
-else:
-    if capacity_new not in source:
-        raise SystemExit("Increment 37 FIFO capacity anchor was not found")
-
-static_old = '        assert(concrete.contains(s"[0:${depth - 1}]"))'
-static_new = '        if (depth > 1) assert(concrete.contains(s"[0:${depth - 1}]"))'
-if static_old in source:
-    source = source.replace(static_old, static_new, 1)
-elif static_new not in source:
-    raise SystemExit("Increment 37 depth-one concrete-memory assertion anchor was not found")
-
-structural_anchor = '      assert(parameterized.contains("DEPTH - 1"))\n'
-structural_assertions = structural_anchor + '''      val fifoGeometryLines = parameterized.split("\\n").toVector
-      assert(
-        fifoGeometryLines.exists { line =>
-          line.contains("logic_ptr_notPow2_counter") &&
-          (line.contains("clog2((DEPTH + 1), 1)") ||
-            line.contains("clog2(DEPTH + 1, 1)"))
-        }
-      )
-      assert(
-        fifoGeometryLines.exists { line =>
-          (line.contains("logic_pop_addressGen_payload") ||
-            line.contains("logic_pop_sync_popReg")) &&
-          line.contains("clog2(DEPTH, 1)")
-        }
-      )
-'''
-if "val fifoGeometryLines" not in source:
-    if structural_anchor not in source:
-        raise SystemExit("Increment 37 structural assertion anchor was not found")
-    source = source.replace(structural_anchor, structural_assertions, 1)
-
-TARGET.write_text(source)
-"""
-    build_path.write_text(build_text)
-
-print(
-    "Installed final Increment 37 symbolic geometry and exact-capacity repairs"
-)
+TARGET.write_text(builder)
+print("Repaired Increment 37 regression generator deterministically")
