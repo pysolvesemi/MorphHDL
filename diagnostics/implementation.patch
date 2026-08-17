@@ -1,0 +1,358 @@
+diff --git a/core/src/main/scala/spinal/core/ParameterizedMemory.scala b/core/src/main/scala/spinal/core/ParameterizedMemory.scala
+index be1f8bf2c..4b87d4274 100644
+--- a/core/src/main/scala/spinal/core/ParameterizedMemory.scala
++++ b/core/src/main/scala/spinal/core/ParameterizedMemory.scala
+@@ -25,6 +25,18 @@ private[core] final case class ParameterizedMemoryTag(
+   override def canSymplifyHost: Boolean = true
+ }
+ 
++/**
++  * A shared native library primitive may replace only the concrete witness
++  * depth retained by its ordinary Mem after normal elaboration.
++  */
++private[core] final case class ParameterizedMemoryDepthOverrideTag(
++    depth: ElaborationIntegerExpression,
++    sourceLocation: Option[String]
++) extends SpinalTag {
++  override def allowMultipleInstance: Boolean = false
++  override def canSymplifyHost: Boolean = true
++}
++
+ /** Native symbolic-memory metadata and schema discovery. */
+ object ParameterizedMemory {
+   /**
+@@ -59,6 +71,111 @@ object ParameterizedMemory {
+     }
+   }
+ 
++  /**
++    * Retain one bounded depth on the single native Mem owned by a library
++    * component while leaving that component's ordinary algorithm authoritative.
++    */
++  private[spinal] def retainSingleDepth(
++      component: Component,
++      depth: ParameterizedMemoryDepth
++  ): Unit = {
++    val values = ArrayBuffer.empty[Mem[_]]
++    component.dslBody.walkDeclarations {
++      case memory: Mem[_] => values += memory
++      case _              =>
++    }
++    val memories = values.distinct.toVector
++    if (memories.size != 1) {
++      fail(
++        "SPINAL-PARAMETERIZED-VERILOG-LIBRARY-MEMORY-COUNT",
++        s"parameterized library component '${component.definitionName}' must own exactly one native memory, found ${memories.size}",
++        depth.sourceLocation
++      )
++    }
++    retainDepth(memories.head, depth)
++  }
++
++  /** Overlay a bounded symbolic depth on an existing ordinary native Mem. */
++  private[spinal] def retainDepth(
++      memory: Mem[_],
++      depth: ParameterizedMemoryDepth
++  ): Unit = {
++    if (depth.value < 1) {
++      fail(
++        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-NOT-POSITIVE",
++        s"native memory depth witness ${depth.value} must be positive",
++        depth.sourceLocation
++      )
++    }
++    if (depth.expression.generateIndex.nonEmpty) {
++      fail(
++        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-GENERATE-DEPENDENT",
++        "native memory depth cannot depend on a generate index",
++        depth.sourceLocation
++      )
++    }
++    if (
++      depth.expression.default != BigInt(depth.value) ||
++      depth.expression.minimum < 1 ||
++      depth.expression.maximum < depth.expression.minimum ||
++      depth.expression.maximum > BigInt(Int.MaxValue)
++    ) {
++      fail(
++        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-DOMAIN-INVALID",
++        s"native memory depth '${depth.expression.verilog}' must have witness ${depth.value} and a finite positive Int-sized domain",
++        depth.sourceLocation.orElse(depth.expression.sourceLocation)
++      )
++    }
++    if (memory.getTag(classOf[ParameterizedMemoryDepthOverrideTag]).nonEmpty) {
++      fail(
++        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-OVERRIDE-DUPLICATE",
++        "native memory already carries a retained library depth override",
++        depth.sourceLocation
++      )
++    }
++
++    val leaves = memory.wordType().asInstanceOf[Data].flatten.toVector
++    if (leaves.isEmpty) {
++      fail(
++        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-TYPE-UNSUPPORTED",
++        "native symbolic memory element type has no flattened data leaves",
++        depth.sourceLocation
++      )
++    }
++    val elementWidth = leaves.map { leaf =>
++      ParameterizedWidth.expressionOf(leaf).getOrElse(literal(leaf.getBitsWidth))
++    }.reduce(add)
++    if (
++      elementWidth.default != BigInt(memory.getWidth) ||
++      elementWidth.minimum < 1 ||
++      elementWidth.maximum < elementWidth.minimum
++    ) {
++      fail(
++        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID",
++        s"native memory concrete element width ${memory.getWidth} does not match retained expression '${elementWidth.verilog}' in [${elementWidth.minimum}, ${elementWidth.maximum}]",
++        depth.sourceLocation.orElse(elementWidth.sourceLocation)
++      )
++    }
++
++    if (memory.getTag(classOf[ParameterizedMemoryTag]).isEmpty) {
++      memory.addTag(
++        ParameterizedMemoryTag(
++          ParameterizedMemoryMetadata(
++            depth = literal(memory.wordCount),
++            elementWidth = elementWidth,
++            sourceLocation = depth.sourceLocation.orElse(elementWidth.sourceLocation)
++          )
++        )
++      )
++    }
++    memory.addTag(
++      ParameterizedMemoryDepthOverrideTag(
++        depth.expression,
++        depth.sourceLocation.orElse(depth.expression.sourceLocation)
++      )
++    )
++  }
++
+   private[core] def attach[T <: Data](
+       memory: Mem[T],
+       depth: ParameterizedMemoryDepth
+@@ -153,8 +270,19 @@ object ParameterizedMemory {
+ 
+   private[core] def metadataOf(
+       memory: Mem[_]
+-  ): Option[ParameterizedMemoryMetadata] =
+-    memory.getTag(classOf[ParameterizedMemoryTag]).map(_.metadata)
++  ): Option[ParameterizedMemoryMetadata] = {
++    val base = memory.getTag(classOf[ParameterizedMemoryTag]).map(_.metadata)
++    memory.getTag(classOf[ParameterizedMemoryDepthOverrideTag]) match {
++      case Some(tag) =>
++        base.map { metadata =>
++          metadata.copy(
++            depth = tag.depth,
++            sourceLocation = tag.sourceLocation.orElse(metadata.sourceLocation)
++          )
++        }
++      case None => base
++    }
++  }
+ 
+   private[core] def memoriesOf(component: Component): Vector[Mem[_]] = {
+     val values = ArrayBuffer.empty[Mem[_]]
+diff --git a/core/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala b/core/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
+index bdb51c27d..328cf8b1e 100644
+--- a/core/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
++++ b/core/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
+@@ -67,7 +67,16 @@ private[internals] object ParameterizedVerilogMemories {
+         plan.readAddressWidth,
+         plan.writeAddressWidth
+       ).exists(expression => PortableLogCall.findFirstIn(expression.verilog).nonEmpty) ||
+-        PortableLogCall.findFirstIn(normalized).nonEmpty
++        PortableLogCall.findFirstIn(normalized).nonEmpty ||
++        (
++          plan.metadata.depth.parameters.nonEmpty &&
++            normalized.toLowerCase.contains("io_push_valid") &&
++            normalized.toLowerCase.contains("io_push_ready") &&
++            normalized.toLowerCase.contains("io_pop_valid") &&
++            normalized.toLowerCase.contains("io_pop_ready") &&
++            normalized.toLowerCase.contains("io_occupancy") &&
++            normalized.toLowerCase.contains("io_availability")
++        )
+     val helperName =
+       if (!helperNeeded || !declaresIdentifier(normalized, "clog2")) "clog2"
+       else firstAvailable("clog2", used)
+@@ -79,6 +88,7 @@ private[internals] object ParameterizedVerilogMemories {
+     }
+     lines = rewriteMemoryDeclaration(lines, plan, helperName)
+     lines = rewriteReadTargetDeclaration(lines, plan, helperName)
++    lines = rewriteParameterizedStreamFifoDepth(lines, plan, helperName)
+ 
+     val memoryBlocks = alwaysBlocks(lines).filter { block =>
+       val text = lines.slice(block.start, block.endInclusive + 1).mkString("\n")
+@@ -464,6 +474,129 @@ private[internals] object ParameterizedVerilogMemories {
+     case _ =>
+   }
+ 
++  /**
++    * Retain the native non-power-of-two StreamFifo algorithm while replacing
++    * witness-only geometry with the public bounded depth. A witness of five
++    * selects the library's explicit terminal-count wrap path, which remains
++    * valid for each supported override, including one and powers of two.
++    */
++  private def rewriteParameterizedStreamFifoDepth(
++      lines: Vector[String],
++      plan: MemoryPlan,
++      helperName: String
++  ): Vector[String] = {
++    val depth = plan.metadata.depth
++    if (depth.parameters.isEmpty) return lines
++
++    val moduleText = lines.mkString("\n").toLowerCase
++    val isStreamFifo =
++      moduleText.contains("io_push_valid") &&
++        moduleText.contains("io_push_ready") &&
++        moduleText.contains("io_pop_valid") &&
++        moduleText.contains("io_pop_ready") &&
++        moduleText.contains("io_occupancy") &&
++        moduleText.contains("io_availability")
++    if (!isStreamFifo) return lines
++
++    val depthExpression = render(depth, helperName)
++    val pointerWidth = s"$helperName($depthExpression, 1)"
++    val occupancyWidth = s"$helperName(($depthExpression + 1), 1)"
++    val depthDefault = depth.default
++    val packedRange = "\\[[^\\]]+\\]".r
++    val sizedLiteral = "(?i)([0-9]+)'([s]?)([bodh])([0-9a-f_xz]+)".r
++    val pushReadyAssignment =
++      """^(\s*assign\s+io_push_ready\s*=\s*)(.*)(;\s*)$""".r
++
++    def isDeclaration(line: String): Boolean = {
++      val value = line.trim.toLowerCase
++      value.startsWith("input ") || value.startsWith("output ") ||
++      value.startsWith("inout ") || value.startsWith("wire ") ||
++      value.startsWith("reg ")
++    }
++
++    def literalValue(value: String, radix: String): Option[BigInt] = {
++      if (value.exists(c => c == 'x' || c == 'X' || c == 'z' || c == 'Z')) None
++      else {
++        val cleaned = value.replace("_", "")
++        val base = radix.toLowerCase match {
++          case "b" => 2
++          case "o" => 8
++          case "d" => 10
++          case "h" => 16
++        }
++        Some(BigInt(cleaned, base))
++      }
++    }
++
++    def replaceSized(line: String, target: BigInt, replacement: String): String =
++      sizedLiteral.replaceAllIn(
++        line,
++        value =>
++          literalValue(value.group(4), value.group(3)) match {
++            case Some(parsed) if parsed == target =>
++              java.util.regex.Matcher.quoteReplacement(replacement)
++            case _ => value.matched
++          }
++      )
++
++    def replaceDecimal(line: String, target: BigInt, replacement: String): String = {
++      val pattern =
++        ("(?<![A-Za-z0-9_$'])" + java.util.regex.Pattern.quote(target.toString) +
++          "(?![A-Za-z0-9_$])").r
++      pattern.replaceAllIn(
++        line,
++        java.util.regex.Matcher.quoteReplacement(replacement)
++      )
++    }
++
++    lines.map { original =>
++      val lower = original.toLowerCase
++      // Normal emission uses logic_ptr_push/logic_ptr_pop while other
++    // contexts use pushPtr/popPtr. Normalize separators and accept both
++    // word orders so a non-power-of-two override never retains the
++    // concrete witness terminal.
++    val compactName = lower.replace("_", "")
++    val pointerContext =
++      compactName.contains("pushptr") || compactName.contains("popptr") ||
++        compactName.contains("ptrpush") || compactName.contains("ptrpop") ||
++        compactName.contains("poponio") ||
++        (lower.contains("address") &&
++          (lower.contains("ram") || lower.contains("memory")))
++      val occupancyContext =
++        lower.contains("occupancy") || lower.contains("availability") ||
++          lower.contains("push_ready")
++      val memoryArray = lower.contains("[0:")
++
++      var line = original
++      if (isDeclaration(line) && !memoryArray && packedRange.findFirstIn(line).nonEmpty) {
++        if (pointerContext) {
++          line = packedRange.replaceFirstIn(
++            line,
++            java.util.regex.Matcher.quoteReplacement(s"[$pointerWidth-1:0]")
++          )
++        } else if (occupancyContext) {
++          line = packedRange.replaceFirstIn(
++            line,
++            java.util.regex.Matcher.quoteReplacement(s"[$occupancyWidth-1:0]")
++          )
++        }
++      }
++      if (pointerContext) {
++        line = replaceSized(line, depthDefault - 1, s"($depthExpression - 1)")
++        line = replaceDecimal(line, depthDefault - 1, s"($depthExpression - 1)")
++      }
++      if (occupancyContext) {
++        line = replaceSized(line, depthDefault, depthExpression)
++        line = replaceDecimal(line, depthDefault, depthExpression)
++      }
++      line match {
++        case pushReadyAssignment(prefix, rhs, suffix) =>
++          s"$prefix(($depthExpression == 1) ? ((io_occupancy == 0) || (io_pop_valid && io_pop_ready)) : ($rhs))$suffix"
++        case _ => line
++      }
++    }
++  }
++
+   private def rewriteReadTargetDeclaration(
+     lines: Vector[String],
+     plan: MemoryPlan,
+diff --git a/lib/src/main/scala/spinal/lib/Stream.scala b/lib/src/main/scala/spinal/lib/Stream.scala
+index 41f3f17e6..3883fb034 100644
+--- a/lib/src/main/scala/spinal/lib/Stream.scala
++++ b/lib/src/main/scala/spinal/lib/Stream.scala
+@@ -1444,6 +1444,22 @@ trait StreamFifoInterface[T <: Data]{
+ }
+ 
+ object StreamFifo{
++
++  /**
++    * Construct the ordinary StreamFifo at its concrete witness while retaining
++    * one bounded public depth for parameter-aware Verilog generation.
++    *
++    * The existing Int front door and the native FIFO algorithm are unchanged.
++    */
++  def apply[T <: Data](
++      dataType: HardType[T],
++      depth: ParameterizedMemoryDepth
++  ): StreamFifo[T] =
++    ParameterizedStreamFifoDepth.attach(
++      new StreamFifo(dataType, depth.value),
++      depth
++    )
++
+   def apply[T <: Data](dataType: HardType[T],
+                        depth: Int,
+                        latency: Int = 2,
+@@ -1588,11 +1604,11 @@ class StreamFifo[T <: Data](val dataType: HardType[T],
+ 
+ 
+       when(doPush){
+-        push := push + 1
++        push := (push + 1).resized
+         if(!isPow2(depth)) when(push === depth - 1){ push := 0 }
+       }
+       when(doPop){
+-        pop := pop + 1
++        pop := (pop + 1).resized
+         if(!isPow2(depth)) when(pop === depth - 1){ pop := 0 }
+       }
+ 
