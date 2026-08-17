@@ -35,4 +35,8 @@ jobs:
         run: |
           set -euo pipefail
           python3 .github/increment-37/repair_apply_increment_37.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/increment-37/apply_increment_37.py
+          git commit --no-gpg-sign -m 'Apply Increment 37 fixture transformation repair'
           python3 .github/increment-37/complete_increment_37.py
