@@ -1,0 +1,93 @@
+name: Agent Increment 37 implementation gate v2
+
+on:
+  push:
+    branches:
+      - agent/increment-37-parameterized-streamfifo-depth
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-37-implementation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  implement-test-and-finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply Increment 37 shared-source refactor
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/agent/increment-37-apply.py
+          python .github/agent/increment-37-repair1.py
+          git diff --check
+          test -f docs/morphhdl/increment-37-parameterized-streamfifo-depth.md
+          test -f morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala
+          grep -q -- '- \[ \] \*\*Increment 37 — Parameterized StreamFifo depth\*\*' \
+            docs/morphhdl/parameterized-verilog-todo.md
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Test Increment 37 on Scala 2.12.18
+        shell: bash
+        run: |
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.NativeLibraryReuseTests \
+            morphhdl.NativeSymbolicMemoryTests
+          /tmp/morphhdl-mill core[2.12.18].testOnly \
+            spinal.core.internals.ParameterizedVerilogTests \
+            spinal.core.internals.ParameterizedDataShapeTests
+
+      - name: Test Increment 37 on Scala 2.13.12
+        shell: bash
+        run: |
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.NativeLibraryReuseTests \
+            morphhdl.NativeSymbolicMemoryTests
+          /tmp/morphhdl-mill core[2.13.12].testOnly \
+            spinal.core.internals.ParameterizedVerilogTests \
+            spinal.core.internals.ParameterizedDataShapeTests
+
+      - name: Finalize tested source and roadmap
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = p.read_text()
+          old = '- [ ] **Increment 37 — Parameterized StreamFifo depth**'
+          new = '- [x] **Increment 37 — Parameterized StreamFifo depth**'
+          if old not in text:
+              raise SystemExit('Increment 37 unchecked roadmap entry not found')
+          p.write_text(text.replace(old, new, 1))
+          PY
+          rm -rf .github/agent
+          rm -f .github/workflows/agent-increment-37-*.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Implement Increment 37 parameterized StreamFifo depth'
+          git push origin HEAD:agent/increment-37-parameterized-streamfifo-depth
