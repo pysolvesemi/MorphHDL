@@ -44,9 +44,11 @@ then commits the write, matching the Increment 20--22 and 26 contracts.
 
 ## Strict Verilog-2001 lowering
 
-MorphHDL retains the normal emitter's names and wiring, rewrites the memory
-array to symbolic geometry, and replaces only its native clocked memory block
-with the reviewed guarded process. The address ABI uses the collision-safe
+MorphHDL retains the normal emitter's names and wiring, rewrites both the memory
+array and its synchronous read-result register to the retained symbolic element
+width, rewrites the array depth to the symbolic word count, and replaces only its
+native clocked memory block with the reviewed guarded process. The address ABI
+uses the collision-safe
 module-local `clog2` helper from Increment 24; no SystemVerilog `$clog2`,
 specialized module copy or independently overrideable address-width parameter
 is emitted.
@@ -60,7 +62,8 @@ deferred.
 
 `NativeSymbolicMemoryTests` covers shared-address and independent-address
 lowering, concrete-mode isolation, read-first enforcement, explicit enables,
-whole-domain address capacity and mask rejection on Scala 2.12 and 2.13.
+whole-domain address capacity, scalar-witness read-result widening and mask
+rejection on Scala 2.12 and 2.13.
 `HdlIntTests` also proves that derived bounded bit counts retain their concrete
 witness, symbolic expression, complete range, public parameter schema and
 source location across both supported Scala lines.

@@ -78,6 +78,7 @@ private[internals] object ParameterizedVerilogMemories {
       lines = lines.map(line => replacePortableLogName(line, helperName))
     }
     lines = rewriteMemoryDeclaration(lines, plan, helperName)
+    lines = rewriteReadTargetDeclaration(lines, plan, helperName)
 
     val memoryBlocks = alwaysBlocks(lines).filter { block =>
       val text = lines.slice(block.start, block.endInclusive + 1).mkString("\n")
@@ -461,6 +462,44 @@ private[internals] object ParameterizedVerilogMemories {
         source
       )
     case _ =>
+  }
+
+  private def rewriteReadTargetDeclaration(
+    lines: Vector[String],
+    plan: MemoryPlan,
+    helperName: String
+  ): Vector[String] = {
+    if (plan.metadata.elementWidth.parameters.isEmpty) return lines
+
+    val regDeclaration = "^\\s*(?:output\\s+)?reg\\b".r
+    val candidates = lines.zipWithIndex.collect {
+      case (line, index)
+          if regDeclaration.findFirstIn(line).nonEmpty &&
+            containsIdentifier(line, plan.readTarget) =>
+        index
+    }
+    if (candidates.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-READ-TARGET-DECLARATION-NOT-FOUND",
+        s"normal Verilog emission contains ${candidates.size} register declarations matching synchronous read result '${plan.readTarget}'",
+        plan.sourceLocation
+      )
+    }
+
+    val index = candidates.head
+    val line = lines(index)
+    val nameMatch = identifierPattern(plan.readTarget).findFirstMatchIn(line).get
+    var prefix = line.substring(0, nameMatch.start)
+    val suffix = line.substring(nameMatch.end)
+    val packed = "\\[[^\\]]+\\]\\s*$".r
+    val range = s"[${render(plan.metadata.elementWidth, helperName)}-1:0]"
+    packed.findFirstMatchIn(prefix) match {
+      case Some(value) =>
+        prefix = prefix.substring(0, value.start) + range + " "
+      case None =>
+        prefix = prefix + range + " "
+    }
+    lines.updated(index, prefix + plan.readTarget + suffix)
   }
 
   private def rewriteMemoryDeclaration(
