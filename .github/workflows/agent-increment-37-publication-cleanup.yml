@@ -1,0 +1,32 @@
+name: Agent Increment 37 publication cleanup
+
+on:
+  push:
+    branches:
+      - agent/increment-37-parameterized-streamfifo-depth
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-37-publication-cleanup-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f \
+            .github/agent/increment-37-pr-ready-guard.txt \
+            .github/workflows/agent-increment-37-publication-cleanup.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Remove Increment 37 publication guard'
+          git push origin HEAD:agent/increment-37-parameterized-streamfifo-depth
