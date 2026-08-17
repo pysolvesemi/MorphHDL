@@ -1,0 +1,323 @@
+package morphhdl
+
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Path}
+
+import scala.collection.JavaConverters._
+import scala.sys.process.{Process, ProcessLogger}
+
+import org.scalatest.funsuite.AnyFunSuite
+import spinal.core._
+import spinal.lib._
+
+class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
+  test("one native StreamFifo definition preserves behavior at depths 1, 3, 5 and 8") {
+    withTemporaryDirectory { directory =>
+      val parameterizedDirectory = directory.resolve("parameterized")
+      val concreteDirectory = directory.resolve("concrete")
+      Files.createDirectories(parameterizedDirectory)
+      Files.createDirectories(concreteDirectory)
+
+      val depthSchema = ElaborationIntegerParameter(
+        name = "DEPTH",
+        default = BigInt(5),
+        minimum = BigInt(1),
+        maximum = BigInt(8)
+      )
+      val symbolicDepth = ParameterizedMemoryDepth(
+        value = 5,
+        expression = ElaborationIntegerExpression(
+          verilog = "DEPTH",
+          default = BigInt(5),
+          minimum = BigInt(1),
+          maximum = BigInt(8),
+          parameters = Vector(depthSchema),
+          sourceLocation = Some("ParameterizedStreamFifoDepthTests.scala:DEPTH")
+        ),
+        sourceLocation = Some("ParameterizedStreamFifoDepthTests.scala:DEPTH")
+      )
+
+      val parameterizedConfig = synchronousResetConfig(parameterizedDirectory)
+      parameterizedConfig.netlistFileName = "stream_fifo_parameterized_depth.v"
+      val parameterizedReport =
+        MorphVerilog(parameterizedConfig)(StreamFifo(Bits(8 bits), symbolicDepth))
+      val parameterized =
+        read(parameterizedDirectory.resolve("stream_fifo_parameterized_depth.v"))
+
+      val concreteConfig = synchronousResetConfig(concreteDirectory)
+      concreteConfig.netlistFileName = "stream_fifo_parameterized_depth.v"
+      SpinalVerilog(concreteConfig)(StreamFifo(Bits(8 bits), symbolicDepth))
+      val concrete =
+        read(concreteDirectory.resolve("stream_fifo_parameterized_depth.v"))
+
+      assert(parameterizedReport.parameters.map(_.name) == Vector("DEPTH"))
+      assert("(?m)^module StreamFifo #\\(".r.findAllMatchIn(parameterized).size == 1)
+      assert(parameterized.contains("parameter integer DEPTH = 5"))
+      assert(
+        parameterized.contains("[0:DEPTH-1]") ||
+          parameterized.contains("[0:(DEPTH - 1)]")
+      )
+      assert(parameterized.contains("clog2(DEPTH, 1)"))
+      assert(
+        parameterized.contains("clog2((DEPTH + 1), 1)") ||
+          parameterized.contains("clog2(DEPTH + 1, 1)")
+      )
+      assert(
+        """(?m)^\s*(?:wire|reg)\s+\[clog2\(DEPTH, 1\)-1:0\]\s+logic_ptr_(?:push|pop|popOnIo);\s*$""".r
+          .findAllMatchIn(parameterized)
+          .size >= 3
+      )
+      assert(
+        """(?m)^\s*(?:wire|reg)\s+\[clog2\(DEPTH, 1\)-1:0\]\s+logic_pop_(?:addressGen_payload|sync_readPort_cmd_payload|sync_popReg);\s*$""".r
+          .findAllMatchIn(parameterized)
+          .size >= 3
+      )
+      assert(
+        """(?m)^\s*(?:wire|reg)\s+\[clog2\(\(DEPTH \+ 1\), 1\)-1:0\]\s+logic_ptr_notPow2_counter;\s*$""".r
+          .findFirstIn(parameterized)
+          .nonEmpty
+      )
+      assert(parameterized.contains("io_push_ready"))
+      assert(parameterized.contains("io_pop_valid"))
+      assert(parameterized.contains("io_occupancy"))
+      assert(parameterized.contains("io_availability"))
+      assert(parameterized.contains("always @(posedge clk)"))
+      assert(!parameterized.contains("ParamRTL"))
+
+      assert(!concrete.contains("parameter integer DEPTH"))
+      assert(concrete.contains("[0:4]"))
+      assert(concrete.contains("[7:0]"))
+
+      val rtl = parameterizedDirectory.resolve("stream_fifo_parameterized_depth.v")
+      Vector(1, 3, 5, 8).foreach { selectedDepth =>
+        simulateDepth(parameterizedDirectory, rtl, selectedDepth)
+        synthesizeDepth(parameterizedDirectory, rtl, selectedDepth)
+      }
+    }
+  }
+
+  private def simulateDepth(
+      directory: Path,
+      rtl: Path,
+      selectedDepth: Int
+  ): Unit = {
+    val testbench = directory.resolve(s"StreamFifoDepth${selectedDepth}Tb.v")
+    val executable = directory.resolve(s"StreamFifoDepth${selectedDepth}Tb.out")
+    val source =
+      s"""`timescale 1ns/1ps
+         |module StreamFifoDepth${selectedDepth}Tb;
+         |  localparam integer DEPTH = $selectedDepth;
+         |  reg clk = 1'b0;
+         |  reg reset = 1'b1;
+         |  reg io_push_valid = 1'b0;
+         |  wire io_push_ready;
+         |  reg [7:0] io_push_payload = 8'h00;
+         |  wire io_pop_valid;
+         |  reg io_pop_ready = 1'b0;
+         |  wire [7:0] io_pop_payload;
+         |  reg io_flush = 1'b0;
+         |  wire [3:0] io_occupancy;
+         |  wire [3:0] io_availability;
+         |  integer capacity;
+         |  integer sent;
+         |  integer received;
+         |  integer timeout;
+         |
+         |  always #5 clk = ~clk;
+         |
+         |  StreamFifo #(
+         |    .DEPTH(DEPTH)
+         |  ) dut (
+         |    .io_push_valid(io_push_valid),
+         |    .io_push_ready(io_push_ready),
+         |    .io_push_payload(io_push_payload),
+         |    .io_pop_valid(io_pop_valid),
+         |    .io_pop_ready(io_pop_ready),
+         |    .io_pop_payload(io_pop_payload),
+         |    .io_flush(io_flush),
+         |    .io_occupancy(io_occupancy),
+         |    .io_availability(io_availability),
+         |    .clk(clk),
+         |    .reset(reset)
+         |  );
+         |
+         |  task tick;
+         |    begin
+         |      @(posedge clk);
+         |      #1;
+         |    end
+         |  endtask
+         |
+         |  task fail;
+         |    input [255:0] reason;
+         |    begin
+         |      $$display("FAIL depth=%0d: %0s", DEPTH, reason);
+         |      $$display("STATE sent=%0d received=%0d ready=%b valid=%b occupancy=%0d availability=%0d",
+         |        sent, received, io_push_ready, io_pop_valid, io_occupancy, io_availability);
+         |      $$finish(2);
+         |    end
+         |  endtask
+         |
+         |  initial begin
+         |    repeat (3) tick;
+         |    reset = 1'b0;
+         |    tick;
+         |    if (io_occupancy !== 0) fail("reset occupancy mismatch");
+         |    if (io_availability !== DEPTH) fail("reset availability mismatch");
+         |
+         |    capacity = DEPTH;
+         |    for (sent = 0; sent < capacity; sent = sent + 1) begin
+         |      io_push_payload = 8'h40 + sent;
+         |      io_push_valid = 1'b1;
+         |      timeout = 0;
+         |      while (!io_push_ready && timeout < 50) begin
+         |        tick;
+         |        timeout = timeout + 1;
+         |      end
+         |      if (!io_push_ready) fail("push timeout");
+         |      tick;
+         |      if (io_occupancy !== (sent + 1)) fail("occupancy mismatch after push");
+         |      if (io_availability !== (DEPTH - sent - 1)) fail("availability mismatch after push");
+         |    end
+         |    io_push_valid = 1'b0;
+         |    tick;
+         |    if (io_push_ready !== 1'b0) fail("fifo did not report full");
+         |    if (io_occupancy !== capacity) fail("full occupancy mismatch");
+         |    if (io_availability !== 0) fail("full availability mismatch");
+         |
+         |    io_pop_ready = 1'b1;
+         |    received = 0;
+         |    timeout = 0;
+         |    while (received < capacity && timeout < 200) begin
+         |      if (io_pop_valid) begin
+         |        if (io_pop_payload !== (8'h40 + received))
+         |          fail("payload ordering mismatch");
+         |        received = received + 1;
+         |      end
+         |      tick;
+         |      if (io_occupancy !== (capacity - received)) fail("occupancy mismatch after pop");
+         |      if (io_availability !== received) fail("availability mismatch after pop");
+         |      timeout = timeout + 1;
+         |    end
+         |    if (received != capacity) fail("pop timeout");
+         |    io_pop_ready = 1'b0;
+         |    tick;
+         |    if (io_pop_valid !== 1'b0) fail("fifo did not become empty");
+         |    if (io_occupancy !== 0) fail("empty occupancy mismatch");
+         |    if (io_availability !== DEPTH) fail("empty availability mismatch");
+         |
+         |    io_push_payload = 8'hA5;
+         |    io_push_valid = 1'b1;
+         |    timeout = 0;
+         |    while (!io_push_ready && timeout < 50) begin
+         |      tick;
+         |      timeout = timeout + 1;
+         |    end
+         |    if (!io_push_ready) fail("post-drain push timeout");
+         |    tick;
+         |    if (io_occupancy !== 1) fail("post-drain occupancy mismatch");
+         |    if (io_availability !== (DEPTH - 1)) fail("post-drain availability mismatch");
+         |    io_push_valid = 1'b0;
+         |    io_flush = 1'b1;
+         |    tick;
+         |    io_flush = 1'b0;
+         |    tick;
+         |    if (io_pop_valid !== 1'b0) fail("flush did not discard queued data");
+         |    if (io_occupancy !== 0) fail("flush occupancy mismatch");
+         |    if (io_availability !== DEPTH) fail("flush availability mismatch");
+         |
+         |    $$display("PASS depth=%0d", DEPTH);
+         |    $$finish;
+         |  end
+         |endmodule
+         |""".stripMargin
+    Files.write(testbench, source.getBytes(StandardCharsets.UTF_8))
+
+    val compileLog = run(
+      directory,
+      Seq(
+        "iverilog",
+        "-g2001",
+        "-s",
+        s"StreamFifoDepth${selectedDepth}Tb",
+        "-o",
+        executable.toString,
+        rtl.toString,
+        testbench.toString
+      )
+    )
+    assert(compileLog._1 == 0, compileLog._2)
+    val simulationLog = run(directory, Seq("vvp", executable.toString))
+    if (
+      simulationLog._1 != 0 ||
+        !simulationLog._2.contains(s"PASS depth=$selectedDepth")
+    ) {
+      println(s"--- BEGIN PARAMETERIZED FIFO RTL depth=$selectedDepth ---")
+      println(read(rtl))
+      println(s"--- END PARAMETERIZED FIFO RTL depth=$selectedDepth ---")
+    }
+    assert(simulationLog._1 == 0, simulationLog._2)
+    assert(
+      simulationLog._2.contains(s"PASS depth=$selectedDepth"),
+      simulationLog._2
+    )
+  }
+
+  private def synthesizeDepth(
+      directory: Path,
+      rtl: Path,
+      selectedDepth: Int
+  ): Unit = {
+    val script = directory.resolve(s"stream_fifo_depth_$selectedDepth.ys")
+    Files.write(
+      script,
+      s"""read_verilog -defer ${rtl.toString}
+         |chparam -set DEPTH $selectedDepth StreamFifo
+         |hierarchy -top StreamFifo
+         |proc
+         |memory
+         |opt
+         |check
+         |""".stripMargin.getBytes(StandardCharsets.UTF_8)
+    )
+    val result = run(directory, Seq("yosys", "-q", "-s", script.toString))
+    assert(result._1 == 0, result._2)
+  }
+
+  private def synchronousResetConfig(directory: Path): SpinalConfig =
+    SpinalConfig(
+      targetDirectory = directory.toString,
+      defaultConfigForClockDomains = ClockDomainConfig(
+        clockEdge = RISING,
+        resetKind = SYNC,
+        resetActiveLevel = HIGH
+      )
+    )
+
+  private def run(directory: Path, command: Seq[String]): (Int, String) = {
+    val log = new StringBuilder
+    val status = Process(command, directory.toFile).!(
+      ProcessLogger(
+        line => log.append(line).append('\n'),
+        line => log.append(line).append('\n')
+      )
+    )
+    status -> log.toString
+  }
+
+  private def read(path: Path): String =
+    new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
+
+  private def withTemporaryDirectory(body: Path => Unit): Unit = {
+    val directory = Files.createTempDirectory("morphhdl-streamfifo-depth-test-")
+    try body(directory)
+    finally {
+      val stream = Files.walk(directory)
+      try {
+        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach {
+          path => Files.deleteIfExists(path)
+        }
+      } finally stream.close()
+    }
+  }
+}

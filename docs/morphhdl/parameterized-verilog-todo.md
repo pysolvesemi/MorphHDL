@@ -88,7 +88,7 @@ with this roadmap.
   shared primitives or core representations where necessary; do not duplicate
   their algorithms in component-specific ParamRTL nodes.
 
-- [ ] **Increment 37 — Parameterized StreamFifo depth**
+- [x] **Increment 37 — Parameterized StreamFifo depth**
 
   Adapt the existing StreamFifo source path so symbolic depth controls storage,
   address width, pointers, occupancy and depth-dependent special cases while

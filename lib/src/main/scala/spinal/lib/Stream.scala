@@ -1444,6 +1444,22 @@ trait StreamFifoInterface[T <: Data]{
 }
 
 object StreamFifo{
+
+  /**
+    * Construct the ordinary StreamFifo at its concrete witness while retaining
+    * one bounded public depth for parameter-aware Verilog generation.
+    *
+    * The existing Int front door and the native FIFO algorithm are unchanged.
+    */
+  def apply[T <: Data](
+      dataType: HardType[T],
+      depth: ParameterizedMemoryDepth
+  ): StreamFifo[T] =
+    ParameterizedStreamFifoDepth.attach(
+      new StreamFifo(dataType, depth.value),
+      depth
+    )
+
   def apply[T <: Data](dataType: HardType[T],
                        depth: Int,
                        latency: Int = 2,
@@ -1588,11 +1604,11 @@ class StreamFifo[T <: Data](val dataType: HardType[T],
 
 
       when(doPush){
-        push := push + 1
+        push := (push + 1).resized
         if(!isPow2(depth)) when(push === depth - 1){ push := 0 }
       }
       when(doPop){
-        pop := pop + 1
+        pop := (pop + 1).resized
         if(!isPow2(depth)) when(pop === depth - 1){ pop := 0 }
       }
 

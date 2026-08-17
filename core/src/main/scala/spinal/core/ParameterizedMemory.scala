@@ -25,6 +25,18 @@ private[core] final case class ParameterizedMemoryTag(
   override def canSymplifyHost: Boolean = true
 }
 
+/**
+  * A shared native library primitive may replace only the concrete witness
+  * depth retained by its ordinary Mem after normal elaboration.
+  */
+private[core] final case class ParameterizedMemoryDepthOverrideTag(
+    depth: ElaborationIntegerExpression,
+    sourceLocation: Option[String]
+) extends SpinalTag {
+  override def allowMultipleInstance: Boolean = false
+  override def canSymplifyHost: Boolean = true
+}
+
 /** Native symbolic-memory metadata and schema discovery. */
 object ParameterizedMemory {
   /**
@@ -57,6 +69,111 @@ object ParameterizedMemory {
         )
       )
     }
+  }
+
+  /**
+    * Retain one bounded depth on the single native Mem owned by a library
+    * component while leaving that component's ordinary algorithm authoritative.
+    */
+  private[spinal] def retainSingleDepth(
+      component: Component,
+      depth: ParameterizedMemoryDepth
+  ): Unit = {
+    val values = ArrayBuffer.empty[Mem[_]]
+    component.dslBody.walkDeclarations {
+      case memory: Mem[_] => values += memory
+      case _              =>
+    }
+    val memories = values.distinct.toVector
+    if (memories.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-LIBRARY-MEMORY-COUNT",
+        s"parameterized library component '${component.definitionName}' must own exactly one native memory, found ${memories.size}",
+        depth.sourceLocation
+      )
+    }
+    retainDepth(memories.head, depth)
+  }
+
+  /** Overlay a bounded symbolic depth on an existing ordinary native Mem. */
+  private[spinal] def retainDepth(
+      memory: Mem[_],
+      depth: ParameterizedMemoryDepth
+  ): Unit = {
+    if (depth.value < 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-NOT-POSITIVE",
+        s"native memory depth witness ${depth.value} must be positive",
+        depth.sourceLocation
+      )
+    }
+    if (depth.expression.generateIndex.nonEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-GENERATE-DEPENDENT",
+        "native memory depth cannot depend on a generate index",
+        depth.sourceLocation
+      )
+    }
+    if (
+      depth.expression.default != BigInt(depth.value) ||
+      depth.expression.minimum < 1 ||
+      depth.expression.maximum < depth.expression.minimum ||
+      depth.expression.maximum > BigInt(Int.MaxValue)
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-DOMAIN-INVALID",
+        s"native memory depth '${depth.expression.verilog}' must have witness ${depth.value} and a finite positive Int-sized domain",
+        depth.sourceLocation.orElse(depth.expression.sourceLocation)
+      )
+    }
+    if (memory.getTag(classOf[ParameterizedMemoryDepthOverrideTag]).nonEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-OVERRIDE-DUPLICATE",
+        "native memory already carries a retained library depth override",
+        depth.sourceLocation
+      )
+    }
+
+    val leaves = memory.wordType().asInstanceOf[Data].flatten.toVector
+    if (leaves.isEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-TYPE-UNSUPPORTED",
+        "native symbolic memory element type has no flattened data leaves",
+        depth.sourceLocation
+      )
+    }
+    val elementWidth = leaves.map { leaf =>
+      ParameterizedWidth.expressionOf(leaf).getOrElse(literal(leaf.getBitsWidth))
+    }.reduce(add)
+    if (
+      elementWidth.default != BigInt(memory.getWidth) ||
+      elementWidth.minimum < 1 ||
+      elementWidth.maximum < elementWidth.minimum
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID",
+        s"native memory concrete element width ${memory.getWidth} does not match retained expression '${elementWidth.verilog}' in [${elementWidth.minimum}, ${elementWidth.maximum}]",
+        depth.sourceLocation.orElse(elementWidth.sourceLocation)
+      )
+    }
+
+    if (memory.getTag(classOf[ParameterizedMemoryTag]).isEmpty) {
+      memory.addTag(
+        ParameterizedMemoryTag(
+          ParameterizedMemoryMetadata(
+            depth = literal(memory.wordCount),
+            elementWidth = elementWidth,
+            sourceLocation = depth.sourceLocation.orElse(elementWidth.sourceLocation)
+          )
+        )
+      )
+    }
+    memory.addTag(
+      ParameterizedMemoryDepthOverrideTag(
+        depth.expression,
+        depth.sourceLocation.orElse(depth.expression.sourceLocation)
+      )
+    )
   }
 
   private[core] def attach[T <: Data](
@@ -153,8 +270,19 @@ object ParameterizedMemory {
 
   private[core] def metadataOf(
       memory: Mem[_]
-  ): Option[ParameterizedMemoryMetadata] =
-    memory.getTag(classOf[ParameterizedMemoryTag]).map(_.metadata)
+  ): Option[ParameterizedMemoryMetadata] = {
+    val base = memory.getTag(classOf[ParameterizedMemoryTag]).map(_.metadata)
+    memory.getTag(classOf[ParameterizedMemoryDepthOverrideTag]) match {
+      case Some(tag) =>
+        base.map { metadata =>
+          metadata.copy(
+            depth = tag.depth,
+            sourceLocation = tag.sourceLocation.orElse(metadata.sourceLocation)
+          )
+        }
+      case None => base
+    }
+  }
 
   private[core] def memoriesOf(component: Component): Vector[Mem[_]] = {
     val values = ArrayBuffer.empty[Mem[_]]

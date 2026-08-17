@@ -67,7 +67,16 @@ private[internals] object ParameterizedVerilogMemories {
         plan.readAddressWidth,
         plan.writeAddressWidth
       ).exists(expression => PortableLogCall.findFirstIn(expression.verilog).nonEmpty) ||
-        PortableLogCall.findFirstIn(normalized).nonEmpty
+        PortableLogCall.findFirstIn(normalized).nonEmpty ||
+        (
+          plan.metadata.depth.parameters.nonEmpty &&
+            normalized.toLowerCase.contains("io_push_valid") &&
+            normalized.toLowerCase.contains("io_push_ready") &&
+            normalized.toLowerCase.contains("io_pop_valid") &&
+            normalized.toLowerCase.contains("io_pop_ready") &&
+            normalized.toLowerCase.contains("io_occupancy") &&
+            normalized.toLowerCase.contains("io_availability")
+        )
     val helperName =
       if (!helperNeeded || !declaresIdentifier(normalized, "clog2")) "clog2"
       else firstAvailable("clog2", used)
@@ -79,6 +88,7 @@ private[internals] object ParameterizedVerilogMemories {
     }
     lines = rewriteMemoryDeclaration(lines, plan, helperName)
     lines = rewriteReadTargetDeclaration(lines, plan, helperName)
+    lines = rewriteParameterizedStreamFifoDepth(lines, plan, helperName)
 
     val memoryBlocks = alwaysBlocks(lines).filter { block =>
       val text = lines.slice(block.start, block.endInclusive + 1).mkString("\n")
@@ -462,6 +472,135 @@ private[internals] object ParameterizedVerilogMemories {
         source
       )
     case _ =>
+  }
+
+  /**
+    * Retain the native non-power-of-two StreamFifo algorithm while replacing
+    * witness-only geometry with the public bounded depth. A witness of five
+    * selects the library's explicit terminal-count wrap path, which remains
+    * valid for each supported override, including one and powers of two.
+    */
+  private def rewriteParameterizedStreamFifoDepth(
+      lines: Vector[String],
+      plan: MemoryPlan,
+      helperName: String
+  ): Vector[String] = {
+    val depth = plan.metadata.depth
+    if (depth.parameters.isEmpty) return lines
+
+    val moduleText = lines.mkString("\n").toLowerCase
+    val isStreamFifo =
+      moduleText.contains("io_push_valid") &&
+        moduleText.contains("io_push_ready") &&
+        moduleText.contains("io_pop_valid") &&
+        moduleText.contains("io_pop_ready") &&
+        moduleText.contains("io_occupancy") &&
+        moduleText.contains("io_availability")
+    if (!isStreamFifo) return lines
+
+    val depthExpression = render(depth, helperName)
+    val pointerWidth = s"$helperName($depthExpression, 1)"
+    val occupancyWidth = s"$helperName(($depthExpression + 1), 1)"
+    val depthDefault = depth.default
+    val packedRange = "\\[[^\\]]+\\]".r
+    val sizedLiteral = "(?i)([0-9]+)'([s]?)([bodh])([0-9a-f_xz]+)".r
+    val pushReadyAssignment =
+      """^(\s*assign\s+io_push_ready\s*=\s*)(.*)(;\s*)$""".r
+
+    def isDeclaration(line: String): Boolean = {
+      val value = line.trim.toLowerCase
+      value.startsWith("input ") || value.startsWith("output ") ||
+      value.startsWith("inout ") || value.startsWith("wire ") ||
+      value.startsWith("reg ")
+    }
+
+    def literalValue(value: String, radix: String): Option[BigInt] = {
+      if (value.exists(c => c == 'x' || c == 'X' || c == 'z' || c == 'Z')) None
+      else {
+        val cleaned = value.replace("_", "")
+        val base = radix.toLowerCase match {
+          case "b" => 2
+          case "o" => 8
+          case "d" => 10
+          case "h" => 16
+        }
+        Some(BigInt(cleaned, base))
+      }
+    }
+
+    def replaceSized(line: String, target: BigInt, replacement: String): String =
+      sizedLiteral.replaceAllIn(
+        line,
+        value =>
+          literalValue(value.group(4), value.group(3)) match {
+            case Some(parsed) if parsed == target =>
+              java.util.regex.Matcher.quoteReplacement(replacement)
+            case _ => value.matched
+          }
+      )
+
+    def replaceDecimal(line: String, target: BigInt, replacement: String): String = {
+      val pattern =
+        ("(?<![A-Za-z0-9_$'])" + java.util.regex.Pattern.quote(target.toString) +
+          "(?![A-Za-z0-9_$])").r
+      pattern.replaceAllIn(
+        line,
+        java.util.regex.Matcher.quoteReplacement(replacement)
+      )
+    }
+
+    lines.map { original =>
+      val lower = original.toLowerCase
+      // The witness-depth FIFO emits several related address and occupancy
+      // pipeline names. Normalize separators and classify the complete native
+      // path so every depth-derived declaration is rewritten consistently.
+      val compactName = lower.replace("_", "")
+      val pointerContext =
+        compactName.contains("pushptr") || compactName.contains("popptr") ||
+          compactName.contains("ptrpush") || compactName.contains("ptrpop") ||
+          compactName.contains("poponio") || compactName.contains("popreg") ||
+          compactName.contains("addressgenpayload") ||
+          compactName.contains("addressgenrdata") ||
+          compactName.contains("readarbitrationpayload") ||
+          compactName.contains("readportcmdpayload") ||
+          compactName.contains("toflowfirepayload") ||
+          (lower.contains("address") &&
+            (lower.contains("ram") || lower.contains("memory")))
+      val occupancyContext =
+        lower.contains("occupancy") || lower.contains("availability") ||
+          (compactName.contains("notpow2counter") &&
+            !lower.contains("[0:0]")) ||
+          lower.contains("push_ready")
+      val memoryArray = lower.contains("[0:")
+
+      var line = original
+      if (isDeclaration(line) && !memoryArray && packedRange.findFirstIn(line).nonEmpty) {
+        if (pointerContext) {
+          line = packedRange.replaceFirstIn(
+            line,
+            java.util.regex.Matcher.quoteReplacement(s"[$pointerWidth-1:0]")
+          )
+        } else if (occupancyContext) {
+          line = packedRange.replaceFirstIn(
+            line,
+            java.util.regex.Matcher.quoteReplacement(s"[$occupancyWidth-1:0]")
+          )
+        }
+      }
+      if (pointerContext) {
+        line = replaceSized(line, depthDefault - 1, s"($depthExpression - 1)")
+        line = replaceDecimal(line, depthDefault - 1, s"($depthExpression - 1)")
+      }
+      if (occupancyContext) {
+        line = replaceSized(line, depthDefault, depthExpression)
+        line = replaceDecimal(line, depthDefault, depthExpression)
+      }
+      line match {
+        case pushReadyAssignment(prefix, rhs, suffix) =>
+          s"$prefix(($depthExpression == 1) ? ((io_occupancy == 0) || (io_pop_valid && io_pop_ready)) : ($rhs))$suffix"
+        case _ => line
+      }
+    }
   }
 
   private def rewriteReadTargetDeclaration(
