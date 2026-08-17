@@ -1,0 +1,37 @@
+name: Agent Increment 37 clean completion controller
+
+on:
+  push:
+    branches:
+      - agent/increment-37-controller-final-2
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: increment-37-clean-completion
+  cancel-in-progress: false
+
+jobs:
+  complete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out controller
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Complete Increment 37
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/increment-37/complete_increment_37.py
