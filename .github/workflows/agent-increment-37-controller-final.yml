@@ -36,6 +36,42 @@ jobs:
           set -euo pipefail
           python3 .github/increment-37/repair_apply_increment_37.py
           python3 .github/increment-37/repair_build_increment_37_test.py
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/increment-37/build_increment_37_test.py')
+          text = path.read_text()
+          anchor = 'TARGET.write_bytes(zlib.decompress(base64.b64decode(PAYLOAD)))\n'
+          if anchor not in text:
+              raise SystemExit('Increment 37 focused-test write anchor was not found')
+          patch = anchor + '''source = TARGET.read_text()
+          conditional = re.compile(
+              r"(?m)^(\\s*val\\s+\\w*[Cc]apacity\\w*\\s*=\\s*)"
+              r"if\\s*\\(\\s*([A-Za-z_]\\w*)\\s*==\\s*1\\s*\\)\\s*1\\s*"
+              r"else\\s*\\2\\s*\\+\\s*1\\s*$"
+          )
+          source, count = conditional.subn(
+              lambda match: match.group(1) + match.group(2),
+              source,
+              count=1,
+          )
+          if count == 0:
+              plus_one = re.compile(
+                  r"(?m)^(\\s*val\\s+\\w*[Cc]apacity\\w*\\s*=\\s*)"
+                  r"([A-Za-z_]\\w*)\\s*\\+\\s*1\\s*$"
+              )
+              source, count = plus_one.subn(
+                  lambda match: match.group(1) + match.group(2),
+                  source,
+                  count=1,
+              )
+          if count != 1:
+              raise SystemExit('Increment 37 logical-capacity expectation was not found')
+          TARGET.write_text(source)
+          '''
+          path.write_text(text.replace(anchor, patch, 1))
+          print('Repaired Increment 37 logical-capacity regression')
+          PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add \
