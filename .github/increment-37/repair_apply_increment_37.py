@@ -37,5 +37,12 @@ outer_open = test_text.find("{", marker_index)
 outer_close = matching_delimiter(test_text, outer_open, "{", "}")
 block = test_text[outer_open + 1 : outer_close]
 '''
-path.write_text(text[:start] + replacement + text[end:])
-print('Repaired Increment 37 fixture transformation')
+repaired = text[:start] + replacement + text[end:]
+existential_old = '    val leaves = memory.wordType().flatten.toVector'
+existential_new = '    val leaves = memory.wordType().asInstanceOf[Data].flatten.toVector'
+if existential_new not in repaired:
+    if existential_old not in repaired:
+        raise SystemExit('Increment 37 existential memory-word anchor was not found')
+    repaired = repaired.replace(existential_old, existential_new, 1)
+path.write_text(repaired)
+print('Repaired Increment 37 fixture transformation and existential memory word type')
