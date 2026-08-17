@@ -70,8 +70,15 @@ if pointer_resize_block not in repaired:
         raise SystemExit('Increment 37 Stream.scala write anchor was not found')
     repaired = repaired[:anchor_index] + pointer_resize_block + repaired[anchor_index:]
 
+broken_splice = 'test_text = test_text[:marker_index] + new_marker + test_text[marker_index + len(marker) : outer_open + (len(new_marker) - len(marker)) + 1] + block + test_text[outer_close + (len(new_marker) - len(marker)) :]'
+safe_splice = 'test_text = test_text[:marker_index] + new_marker + " {" + block + "\\n  }" + test_text[outer_close + 1 :]'
+if safe_splice not in repaired:
+    if broken_splice not in repaired:
+        raise SystemExit('Increment 37 test splice anchor was not found')
+    repaired = repaired.replace(broken_splice, safe_splice, 1)
+
 path.write_text(repaired)
 print(
     f'Repaired Increment 37 fixture transformation, {occurrences} existential '
-    'memory word access(es), and pointer increment sizing'
+    'memory word access(es), pointer increment sizing, and test-body splice'
 )
