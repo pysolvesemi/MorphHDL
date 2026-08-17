@@ -41,6 +41,7 @@ jobs:
           set -euo pipefail
           if git apply --check .github/agent/increment-36-core.patch; then
             git apply .github/agent/increment-36-core.patch
+            git apply .github/agent/increment-36-fix1.patch
             git apply .github/agent/increment-36-doc.patch
             git apply .github/agent/increment-36-test.patch
           elif grep -q 'def attachStatic' core/src/main/scala/spinal/core/ParameterizedMemory.scala \
