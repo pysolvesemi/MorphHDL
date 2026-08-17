@@ -1,0 +1,341 @@
+name: Agent Increment 37 completion controller
+
+on:
+  push:
+    branches:
+      - agent/increment-37-controller-v1
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+jobs:
+  complete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      FEATURE_BRANCH: agent/increment-37-parameterized-streamfifo-depth
+      BASE_BRANCH: parameterized-verilog
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve current Increment 37 state
+        id: state
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${REPOSITORY}"
+          owner="${REPOSITORY%%/*}"
+          auth=(-H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+          pulls=$(curl --fail --silent --show-error "${auth[@]}" \
+            "${api}/pulls?state=all&base=${BASE_BRANCH}&head=${owner}:${FEATURE_BRANCH}&per_page=10")
+          pr_number=$(jq -r '.[0].number // empty' <<<"${pulls}")
+          merged=$(jq -r '.[0].merged_at != null' <<<"${pulls}")
+          echo "pr_number=${pr_number}" >> "${GITHUB_OUTPUT}"
+          echo "merged=${merged}" >> "${GITHUB_OUTPUT}"
+          if [[ "${merged}" == "true" ]]; then
+            merge_sha=$(jq -r '.[0].merge_commit_sha' <<<"${pulls}")
+            echo "merge_sha=${merge_sha}" >> "${GITHUB_OUTPUT}"
+            echo 'Increment 37 PR is already merged.'
+            exit 0
+          fi
+
+          git fetch origin "${BASE_BRANCH}" "${FEATURE_BRANCH}"
+          old_sha=$(git rev-parse "origin/${FEATURE_BRANCH}")
+          echo "old_sha=${old_sha}" >> "${GITHUB_OUTPUT}"
+          todo=$(git show "origin/${FEATURE_BRANCH}:docs/morphhdl/parameterized-verilog-todo.md")
+          final=false
+          if grep -q -- '- \[x\] \*\*Increment 37 — Parameterized StreamFifo depth\*\*' <<<"${todo}" \
+            && ! git ls-tree -r --name-only "origin/${FEATURE_BRANCH}" | \
+                 grep -Eq '^\.github/(agent/|workflows/agent-increment-37-)'; then
+            final=true
+          fi
+          echo "final=${final}" >> "${GITHUB_OUTPUT}"
+
+      - name: Reconstruct clean Increment 37 source
+        if: steps.state.outputs.merged != 'true' && steps.state.outputs.final != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            increment-37-apply.py \
+            increment-37-repair1.py \
+            increment-37-testgen.py \
+            increment-37-repair2.py; do
+            git show "origin/${FEATURE_BRANCH}:.github/agent/${name}" > "/tmp/${name}"
+          done
+
+          git checkout -B "${FEATURE_BRANCH}" "origin/${BASE_BRANCH}"
+          mkdir -p .github/agent morphhdl/src/test/scala/morphhdl
+          cp /tmp/increment-37-*.py .github/agent/
+          chmod +x .github/agent/increment-37-*.py
+          printf '// generated after shared source application\n' > \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala
+          python .github/agent/increment-37-apply.py
+          python .github/agent/increment-37-repair1.py
+          python .github/agent/increment-37-testgen.py
+          python .github/agent/increment-37-repair2.py
+          git diff --check
+          test -f docs/morphhdl/increment-37-parameterized-streamfifo-depth.md
+          grep -q 'class ParameterizedStreamFifoDepthTests' \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala
+          grep -q 'Vector(1, 3, 5, 8)' \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala
+          grep -q -- '- \[ \] \*\*Increment 37 — Parameterized StreamFifo depth\*\*' \
+            docs/morphhdl/parameterized-verilog-todo.md
+
+      - name: Check out already-finalized Increment 37 source
+        if: steps.state.outputs.merged != 'true' && steps.state.outputs.final == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout -B "${FEATURE_BRANCH}" "origin/${FEATURE_BRANCH}"
+
+      - name: Install pinned Mill bootstrap
+        if: steps.state.outputs.merged != 'true'
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate Scala 2.12.18
+        if: steps.state.outputs.merged != 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.NativeLibraryReuseTests \
+            morphhdl.NativeSymbolicMemoryTests 2>&1 | tee /tmp/increment-37-controller-2.12.log
+          /tmp/morphhdl-mill core[2.12.18].testOnly \
+            spinal.core.internals.ParameterizedVerilogTests \
+            spinal.core.internals.ParameterizedDataShapeTests 2>&1 | tee -a /tmp/increment-37-controller-2.12.log
+
+      - name: Validate Scala 2.13.12
+        if: steps.state.outputs.merged != 'true'
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.NativeLibraryReuseTests \
+            morphhdl.NativeSymbolicMemoryTests 2>&1 | tee /tmp/increment-37-controller-2.13.log
+          /tmp/morphhdl-mill core[2.13.12].testOnly \
+            spinal.core.internals.ParameterizedVerilogTests \
+            spinal.core.internals.ParameterizedDataShapeTests 2>&1 | tee -a /tmp/increment-37-controller-2.13.log
+
+      - name: Publish controller diagnostics
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.state.outputs.pr_number }}
+        run: |
+          set +e
+          mkdir -p /tmp/controller-diagnostics
+          cp /tmp/increment-37-controller-2.12.log /tmp/controller-diagnostics/scala-2.12.log
+          cp /tmp/increment-37-controller-2.13.log /tmp/controller-diagnostics/scala-2.13.log
+          git diff --binary > /tmp/controller-diagnostics/implementation.patch
+          git reset --hard HEAD
+          git clean -fdx
+          git checkout -B agent/increment-37-controller-diagnostics
+          git rm -rf .
+          mkdir diagnostics
+          cp -R /tmp/controller-diagnostics/. diagnostics/
+          git add -A
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Capture Increment 37 controller diagnostics'
+          git push --force origin HEAD:agent/increment-37-controller-diagnostics
+          if [[ -n "${PR_NUMBER}" ]]; then
+            tail -n 120 /tmp/controller-diagnostics/scala-2.12.log > /tmp/comment.log
+            jq -Rs '{body:("Increment 37 controller validation failed. Reproducible logs and the implementation patch are available on `agent/increment-37-controller-diagnostics`.\n\n```text\n" + . + "\n```")}' /tmp/comment.log > /tmp/comment.json
+            curl --silent --show-error -X POST \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2022-11-28' \
+              "https://api.github.com/repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              --data-binary @/tmp/comment.json
+          fi
+
+      - name: Finalize and publish clean feature branch
+        id: publish
+        if: steps.state.outputs.merged != 'true'
+        shell: bash
+        env:
+          OLD_SHA: ${{ steps.state.outputs.old_sha }}
+        run: |
+          set -euo pipefail
+          if ! grep -q -- '- \[x\] \*\*Increment 37 — Parameterized StreamFifo depth\*\*' \
+              docs/morphhdl/parameterized-verilog-todo.md; then
+            python - <<'PY'
+          from pathlib import Path
+          p = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = p.read_text()
+          old = '- [ ] **Increment 37 — Parameterized StreamFifo depth**'
+          new = '- [x] **Increment 37 — Parameterized StreamFifo depth**'
+          if old not in text:
+              raise SystemExit('Increment 37 unchecked roadmap entry not found')
+          p.write_text(text.replace(old, new, 1))
+          PY
+          fi
+          rm -rf .github/agent
+          rm -f .github/workflows/agent-increment-37-*.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m 'Implement Increment 37 parameterized StreamFifo depth'
+          fi
+          new_sha=$(git rev-parse HEAD)
+          git push --force-with-lease="refs/heads/${FEATURE_BRANCH}:${OLD_SHA}" \
+            origin HEAD:"${FEATURE_BRANCH}"
+          echo "head_sha=${new_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Ensure Increment 37 pull request exists
+        id: pr
+        if: steps.state.outputs.merged != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          EXISTING_PR: ${{ steps.state.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${EXISTING_PR}" ]]; then
+            echo "number=${EXISTING_PR}" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          body=$(jq -nc '{title:"Implement Increment 37 parameterized StreamFifo depth",head:"agent/increment-37-parameterized-streamfifo-depth",base:"parameterized-verilog",body:"Reuse the ordinary StreamFifo source while retaining bounded DEPTH through storage, pointer, occupancy and depth-dependent behavior. Prove one Verilog-2001 definition at depths 1, 3, 5 and 8 on Scala 2.12.18 and 2.13.12."}')
+          response=$(curl --fail --silent --show-error -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${REPOSITORY}/pulls" \
+            -d "${body}")
+          echo "number=$(jq -r '.number' <<<"${response}")" >> "${GITHUB_OUTPUT}"
+
+      - name: Wait for normal pull-request workflows
+        if: steps.state.outputs.merged != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ steps.publish.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          api="https://api.github.com/repos/${REPOSITORY}"
+          auth=(-H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+          for attempt in $(seq 1 140); do
+            runs=$(curl --fail --silent --show-error "${auth[@]}" \
+              "${api}/actions/runs?head_sha=${HEAD_SHA}&event=pull_request&per_page=100")
+            mill_status=$(jq -r '[.workflow_runs[] | select(.name == "MorphHDL Mill")] | sort_by(.created_at) | last | .status // "missing"' <<<"${runs}")
+            mill_conclusion=$(jq -r '[.workflow_runs[] | select(.name == "MorphHDL Mill")] | sort_by(.created_at) | last | .conclusion // "missing"' <<<"${runs}")
+            baseline_status=$(jq -r '[.workflow_runs[] | select(.name == "MorphHDL baseline")] | sort_by(.created_at) | last | .status // "missing"' <<<"${runs}")
+            baseline_conclusion=$(jq -r '[.workflow_runs[] | select(.name == "MorphHDL baseline")] | sort_by(.created_at) | last | .conclusion // "missing"' <<<"${runs}")
+            echo "mill=${mill_status}/${mill_conclusion} baseline=${baseline_status}/${baseline_conclusion}"
+            if [[ "${mill_status}" == "completed" && "${mill_conclusion}" == "success" \
+               && "${baseline_status}" == "completed" && "${baseline_conclusion}" == "success" ]]; then
+              exit 0
+            fi
+            if [[ "${mill_status}" == "completed" && "${mill_conclusion}" != "success" && "${mill_conclusion}" != "missing" ]]; then
+              exit 1
+            fi
+            if [[ "${baseline_status}" == "completed" && "${baseline_conclusion}" != "success" && "${baseline_conclusion}" != "missing" ]]; then
+              exit 1
+            fi
+            sleep 15
+          done
+          exit 1
+
+      - name: Squash-merge Increment 37
+        id: merge
+        if: steps.state.outputs.merged != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          HEAD_SHA: ${{ steps.publish.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          payload=$(jq -nc --arg sha "${HEAD_SHA}" '{merge_method:"squash",sha:$sha,commit_title:"Increment 37: parameterized StreamFifo depth",commit_message:"Retain one ordinary StreamFifo source path while bounded DEPTH controls storage, address width, pointers, occupancy and depth-dependent behavior. Prove depths 1, 3, 5 and 8 without regeneration."}')
+          response=$(curl --fail --silent --show-error -X PUT \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${REPOSITORY}/pulls/${PR_NUMBER}/merge" \
+            -d "${payload}")
+          jq -e '.merged == true' <<<"${response}" >/dev/null
+          echo "sha=$(jq -r '.sha' <<<"${response}")" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify post-merge workflows
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          EXISTING_MERGE_SHA: ${{ steps.state.outputs.merge_sha }}
+          NEW_MERGE_SHA: ${{ steps.merge.outputs.sha }}
+        run: |
+          set -euo pipefail
+          merge_sha="${NEW_MERGE_SHA:-${EXISTING_MERGE_SHA}}"
+          [[ -n "${merge_sha}" ]] || { echo 'Merge SHA is missing.' >&2; exit 1; }
+          api="https://api.github.com/repos/${REPOSITORY}"
+          auth=(-H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
+          for attempt in $(seq 1 140); do
+            branch_sha=$(curl --fail --silent --show-error "${auth[@]}" \
+              "${api}/branches/${BASE_BRANCH}" | jq -r '.commit.sha')
+            [[ "${branch_sha}" == "${merge_sha}" ]] || { sleep 15; continue; }
+            runs=$(curl --fail --silent --show-error "${auth[@]}" \
+              "${api}/actions/runs?head_sha=${merge_sha}&event=push&per_page=100")
+            mill_status=$(jq -r '[.workflow_runs[] | select(.name == "MorphHDL Mill")] | sort_by(.created_at) | last | .status // "missing"' <<<"${runs}")
+            mill_conclusion=$(jq -r '[.workflow_runs[] | select(.name == "MorphHDL Mill")] | sort_by(.created_at) | last | .conclusion // "missing"' <<<"${runs}")
+            baseline_status=$(jq -r '[.workflow_runs[] | select(.name == "MorphHDL baseline")] | sort_by(.created_at) | last | .status // "missing"' <<<"${runs}")
+            baseline_conclusion=$(jq -r '[.workflow_runs[] | select(.name == "MorphHDL baseline")] | sort_by(.created_at) | last | .conclusion // "missing"' <<<"${runs}")
+            echo "post-merge mill=${mill_status}/${mill_conclusion} baseline=${baseline_status}/${baseline_conclusion}"
+            if [[ "${mill_status}" == "completed" && "${mill_conclusion}" == "success" \
+               && "${baseline_status}" == "completed" && "${baseline_conclusion}" == "success" ]]; then
+              echo "Increment 37 complete at ${merge_sha}."
+              exit 0
+            fi
+            if [[ "${mill_status}" == "completed" && "${mill_conclusion}" != "success" && "${mill_conclusion}" != "missing" ]]; then exit 1; fi
+            if [[ "${baseline_status}" == "completed" && "${baseline_conclusion}" != "success" && "${baseline_conclusion}" != "missing" ]]; then exit 1; fi
+            sleep 15
+          done
+          exit 1
+
+      - name: Clean temporary Increment 37 branches
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set +e
+          for branch in \
+            agent/increment-37-transfer \
+            agent/increment-37-merge-guard \
+            agent/increment-37-merge-guard-v2 \
+            agent/increment-37-controller-v1; do
+            encoded=${branch//\//%2F}
+            curl --silent --show-error -X DELETE \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2022-11-28' \
+              "https://api.github.com/repos/${REPOSITORY}/git/refs/heads/${encoded}"
+          done
