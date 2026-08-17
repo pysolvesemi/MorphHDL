@@ -72,6 +72,11 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
       assert(verilog.contains("function integer clog2;"))
       assert(verilog.contains("clog2(DEPTH, 1)"))
       assert(verilog.contains("reg [WIDTH-1:0] memory [0:DEPTH-1];"))
+      assert(
+        """(?m)^\s*reg\s+\[WIDTH-1:0\]\s+memory_spinal_port0\s*;\s*$""".r
+          .findFirstIn(verilog)
+          .nonEmpty
+      )
       assert(verilog.contains("always @(posedge clk) begin : p_memory"))
       assert(verilog.contains("if (address < DEPTH) begin"))
       assert(verilog.contains("if (read_enable == 1'b1) begin"))
@@ -84,6 +89,30 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
       val writeIndex = verilog.indexOf("memory[address] <= write_data;")
       assert(readIndex >= 0 && writeIndex > readIndex)
       assert(count(verilog, "always @(posedge clk)") == 1)
+    }
+  }
+
+  test("symbolic read-result storage is widened from a scalar concrete witness") {
+    withTemporaryDirectory { directory =>
+      val width = HdlInt.param("WIDTH", default = 1, min = 1, max = 8)
+      val depth = HdlInt.param("DEPTH", default = 5, min = 1, max = 8)
+      val verilog = emitMorph(
+        directory,
+        "native_single_port_scalar_witness.v",
+        new NativeSinglePortMemory(width, depth)
+      )
+
+      assert(verilog.contains("reg [WIDTH-1:0] memory [0:DEPTH-1];"))
+      assert(
+        """(?m)^\s*reg\s+\[WIDTH-1:0\]\s+memory_spinal_port0\s*;\s*$""".r
+          .findFirstIn(verilog)
+          .nonEmpty
+      )
+      assert(
+        """(?m)^\s*reg\s+memory_spinal_port0\s*;\s*$""".r
+          .findFirstIn(verilog)
+          .isEmpty
+      )
     }
   }
 
