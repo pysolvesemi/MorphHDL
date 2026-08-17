@@ -54,8 +54,10 @@ geometry_start = backend_source.find(geometry_start_marker)
 geometry_end = backend_source.find(geometry_end_marker, geometry_start)
 if geometry_start < 0 or geometry_end < 0:
     fail("Increment 37 generated FIFO-geometry anchors were not found")
-geometry_replacement = r'''      val compactName = lower.replace("_", "")
-      val pointerContext =
+geometry_replacement = (
+    r'''      val compactName = lower.replace("_", "")
+      val pointer'''
+    + r'''Context =
         compactName.contains("pushptr") || compactName.contains("popptr") ||
           compactName.contains("ptrpush") || compactName.contains("ptrpop") ||
           compactName.contains("poponio") ||
@@ -66,7 +68,8 @@ geometry_replacement = r'''      val compactName = lower.replace("_", "")
           compactName.contains("readarbitrationpayload") ||
           (lower.contains("address") &&
             (lower.contains("ram") || lower.contains("memory")))
-      val occupancyContext =
+      val occupancy'''
+    + r'''Context =
         lower.contains("occupancy") || lower.contains("availability") ||
           lower.contains("push_ready")
       val occupancyCounterContext = compactName.contains("notpow2counter")
@@ -91,6 +94,7 @@ geometry_replacement = r'''      val compactName = lower.replace("_", "")
         }
       }
 '''
+)
 backend_source = (
     backend_source[:geometry_start]
     + geometry_replacement
