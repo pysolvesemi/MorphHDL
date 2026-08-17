@@ -2,16 +2,28 @@
 from pathlib import Path
 
 path = Path('.github/increment-37/build_increment_37_test.py')
-text = path.read_text()
-start_marker = 'selected = None\n'
-end_marker = '\nblock = block.replace("[0:3]", "[0:DEPTH-1]")'
-start = text.find(start_marker)
-end = text.find(end_marker, start)
-if start < 0 or end < 0:
-    raise SystemExit('Increment 37 regression-generator repair anchors were not found')
-replacement = '''symbolic_call = "val fifo = StreamFifo(Bits(width bits), depth = symbolicDepth)"
-if symbolic_call not in text:
-    fail("symbolic-depth StreamFifo fixture not found after source transformation")
-'''
-path.write_text(text[:start] + replacement + text[end:])
-print('Repaired Increment 37 regression generator')
+path.write_text('''#!/usr/bin/env python3
+from pathlib import Path
+
+TARGET = Path("morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala")
+
+if not TARGET.is_file():
+    raise SystemExit("Increment 37 transformed regression was not generated")
+
+text = TARGET.read_text()
+required = (
+    "class ParameterizedStreamFifoDepthTests extends AnyFunSuite",
+    "ParameterizedMemoryDepth(",
+    "depth = symbolicDepth",
+    "parameter integer DEPTH = 5",
+    "Vector(1, 3, 5, 8)",
+)
+missing = [token for token in required if token not in text]
+if missing:
+    raise SystemExit(
+        "Increment 37 transformed regression is incomplete: " + ", ".join(missing)
+    )
+
+print("Increment 37 four-depth regression already generated")
+''')
+print('Repaired Increment 37 regression validator')
