@@ -71,6 +71,31 @@ def replace_source_once(old: str, new: str, description: str) -> None:
     source = source.replace(old, new, 1)
 
 replace_source_once(
+    """    val simulationLog = run(directory, Seq("vvp", executable.toString))
+    assert(simulationLog._1 == 0, simulationLog._2)
+    assert(
+      simulationLog._2.contains(s"PASS depth=$selectedDepth"),
+      simulationLog._2
+    )
+""",
+    """    val simulationLog = run(directory, Seq("vvp", executable.toString))
+    if (
+      simulationLog._1 != 0 ||
+        !simulationLog._2.contains(s"PASS depth=$selectedDepth")
+    ) {
+      println(s"--- BEGIN PARAMETERIZED FIFO RTL depth=$selectedDepth ---")
+      println(read(rtl))
+      println(s"--- END PARAMETERIZED FIFO RTL depth=$selectedDepth ---")
+    }
+    assert(simulationLog._1 == 0, simulationLog._2)
+    assert(
+      simulationLog._2.contains(s"PASS depth=$selectedDepth"),
+      simulationLog._2
+    )
+""",
+    "generated RTL failure diagnostics",
+)
+replace_source_once(
     """         |  wire [7:0] io_pop_payload;
          |  reg io_flush = 1'b0;
 """,
@@ -232,4 +257,74 @@ print("Repaired Increment 37 native capacity, geometry, and occupancy regression
 '''
     build_path.write_text(build_text)
 
-print('Repaired Increment 37 complete native FIFO geometry and capacity semantics')
+complete_path = Path('.github/increment-37/complete_increment_37.py')
+complete_text = complete_path.read_text()
+api_start = complete_text.find('def api(\n')
+api_end = complete_text.find('\n\ndef branch_sha', api_start)
+if api_start < 0 or api_end < 0:
+    raise SystemExit('Increment 37 controller API anchors were not found')
+api_replacement = '''def api(
+    method: str,
+    path: str,
+    *,
+    data: dict | None = None,
+    allow: tuple[int, ...] = (),
+) -> tuple[int, object | None]:
+    url = f"https://api.github.com/repos/{REPO}{path}"
+    body = None if data is None else json.dumps(data).encode("utf-8")
+    attempts = 5
+    for attempt in range(1, attempts + 1):
+        request = urllib.request.Request(url, data=body, method=method)
+        request.add_header("Authorization", f"Bearer {TOKEN}")
+        request.add_header("Accept", "application/vnd.github+json")
+        request.add_header("X-GitHub-Api-Version", "2022-11-28")
+        if body is not None:
+            request.add_header("Content-Type", "application/json")
+        try:
+            with urllib.request.urlopen(request, timeout=60) as response:
+                payload = response.read()
+                decoded = json.loads(payload) if payload else None
+                return response.status, decoded
+        except urllib.error.HTTPError as error:
+            payload = error.read()
+            decoded: object | None
+            try:
+                decoded = json.loads(payload) if payload else None
+            except json.JSONDecodeError:
+                decoded = payload.decode("utf-8", errors="replace")
+            if error.code in allow:
+                return error.code, decoded
+            retryable = error.code == 429 or 500 <= error.code < 600
+            if retryable and attempt < attempts:
+                delay = min(2 ** (attempt - 1), 8)
+                print(
+                    f"GitHub API {method} {path} returned {error.code}; "
+                    f"retrying in {delay}s ({attempt}/{attempts})"
+                )
+                time.sleep(delay)
+                continue
+            raise RuntimeError(
+                f"GitHub API {method} {path} failed: {error.code} {decoded}"
+            ) from error
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            if attempt < attempts:
+                delay = min(2 ** (attempt - 1), 8)
+                print(
+                    f"GitHub API {method} {path} transport failure {error}; "
+                    f"retrying in {delay}s ({attempt}/{attempts})"
+                )
+                time.sleep(delay)
+                continue
+            raise RuntimeError(
+                f"GitHub API {method} {path} transport failure after {attempts} attempts: {error}"
+            ) from error
+    raise RuntimeError(f"GitHub API {method} {path} exhausted retries")
+'''
+complete_path.write_text(
+    complete_text[:api_start] + api_replacement + complete_text[api_end:]
+)
+
+print(
+    'Repaired Increment 37 native FIFO capacity, complete symbolic geometry, '
+    'failure diagnostics, and controller retries'
+)
