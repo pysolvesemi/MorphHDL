@@ -1,0 +1,15 @@
+--- a/morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala
++++ b/morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala
+@@ -95,6 +95,12 @@
+       assert(concrete.contains("[7:0]"))
+       assert(concrete.contains("[0:4]"))
+ 
++      val fifoStart = parameterized.indexOf("module StreamFifo #(")
++      val fifoEnd = parameterized.indexOf("\nendmodule", fifoStart)
++      println("INCREMENT37_STREAMFIFO_BEGIN")
++      println(parameterized.substring(fifoStart, fifoEnd + "\nendmodule".length))
++      println("INCREMENT37_STREAMFIFO_END")
++
+       simulateDepths(
+         parameterizedDirectory,
+         parameterizedDirectory.resolve("native_parameterized_depth_stream_fifo.v")
