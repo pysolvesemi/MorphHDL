@@ -1,0 +1,13 @@
+diff --git a/core/src/main/scala/spinal/core/Mem.scala b/core/src/main/scala/spinal/core/Mem.scala
+index f7aff24..b30001e 100644
+--- a/core/src/main/scala/spinal/core/Mem.scala
++++ b/core/src/main/scala/spinal/core/Mem.scala
+@@ -113,7 +113,7 @@ object Mem {
+     * 
+     * @see [[https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Sequential%20logic/memory.html RAM/ROM documentation]]
+     */
+-  def apply[T <: Data](wordType: HardType[T], wordCount: BigInt) = {
++  def apply[T <: Data](wordType: HardType[T], wordCount: BigInt): Mem[T] = {
+     assert(wordCount <= Integer.MAX_VALUE)
+     apply(wordType, wordCount.toInt)
+   }
