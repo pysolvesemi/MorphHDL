@@ -1,1 +1,0 @@
-This marker is created only for publication-state verification and must be removed before merge.
