@@ -1,0 +1,251 @@
+diff --git a/core/src/main/scala/spinal/core/Mem.scala b/core/src/main/scala/spinal/core/Mem.scala
+index 763c293..f7aff24 100644
+--- a/core/src/main/scala/spinal/core/Mem.scala
++++ b/core/src/main/scala/spinal/core/Mem.scala
+@@ -100,7 +100,8 @@ object Mem {
+     * 
+     * @see [[https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Sequential%20logic/memory.html RAM/ROM documentation]]
+     */
+-  def apply[T <: Data](wordType: HardType[T], wordCount: Int) = new Mem(wordType, wordCount)
++  def apply[T <: Data](wordType: HardType[T], wordCount: Int): Mem[T] =
++    ParameterizedMemory.attachStatic(new Mem(wordType, wordCount))
+ 
+   /** Create a RAM at the concrete witness while retaining a bounded depth. */
+   def apply[T <: Data](
+@@ -115,7 +116,7 @@ object Mem {
+     */
+   def apply[T <: Data](wordType: HardType[T], wordCount: BigInt) = {
+     assert(wordCount <= Integer.MAX_VALUE)
+-    new Mem(wordType, wordCount.toInt)
++    apply(wordType, wordCount.toInt)
+   }
+ 
+   /** Create a ROM.
+@@ -143,7 +144,8 @@ object Mem {
+    *
+    * @see [[https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Sequential%20logic/memory.html RAM/ROM documentation]]
+    */
+-  def fill[T <: Data](wordCount: Int)(wordType: HardType[T])  = new Mem(wordType, wordCount)
++  def fill[T <: Data](wordCount: Int)(wordType: HardType[T]): Mem[T] =
++    apply(wordType, wordCount)
+ 
+   /** Scala fill syntax with a retained bounded symbolic depth. */
+   def fill[T <: Data](wordCount: ParameterizedMemoryDepth)(
+diff --git a/core/src/main/scala/spinal/core/ParameterizedMemory.scala b/core/src/main/scala/spinal/core/ParameterizedMemory.scala
+index 03b93b7..be1f8bf 100644
+--- a/core/src/main/scala/spinal/core/ParameterizedMemory.scala
++++ b/core/src/main/scala/spinal/core/ParameterizedMemory.scala
+@@ -27,6 +27,38 @@ private[core] final case class ParameterizedMemoryTag(
+ 
+ /** Native symbolic-memory metadata and schema discovery. */
+ object ParameterizedMemory {
++  /**
++    * Retain a symbolic element shape on an ordinary fixed-depth Mem.
++    *
++    * Most Spinal library memories, including StreamFifo storage, intentionally
++    * keep their depth as a Scala Int.  Their payload HardType can nevertheless
++    * carry a public packed-width expression.  Tag only those memories whose
++    * element width actually references a parameter so ordinary concrete Mem
++    * construction remains indistinguishable from the upstream path.
++    */
++  private[core] def attachStatic[T <: Data](memory: Mem[T]): Mem[T] = {
++    val leaves = memory.wordType().flatten.toVector
++    val hasSymbolicElement = leaves.exists { leaf =>
++      ParameterizedWidth.expressionOf(leaf).exists(_.parameters.nonEmpty)
++    }
++    if (!hasSymbolicElement) memory
++    else {
++      val elementWidth = elementWidthOf(
++        memory,
++        leaves,
++        sourceLocation = None
++      )
++      attachMetadata(
++        memory,
++        ParameterizedMemoryMetadata(
++          depth = literal(memory.wordCount),
++          elementWidth = elementWidth,
++          sourceLocation = elementWidth.sourceLocation
++        )
++      )
++    }
++  }
++
+   private[core] def attach[T <: Data](
+       memory: Mem[T],
+       depth: ParameterizedMemoryDepth
+@@ -58,12 +90,33 @@ object ParameterizedMemory {
+       )
+     }
+ 
+-    val leaves = memory.wordType().flatten.toVector
++    val elementWidth = elementWidthOf(
++      memory,
++      memory.wordType().flatten.toVector,
++      depth.sourceLocation.orElse(depth.expression.sourceLocation)
++    )
++    attachMetadata(
++      memory,
++      ParameterizedMemoryMetadata(
++        depth.expression,
++        elementWidth,
++        depth.sourceLocation
++          .orElse(depth.expression.sourceLocation)
++          .orElse(elementWidth.sourceLocation)
++      )
++    )
++  }
++
++  private def elementWidthOf[T <: Data](
++      memory: Mem[T],
++      leaves: Vector[BaseType],
++      sourceLocation: Option[String]
++  ): ElaborationIntegerExpression = {
+     if (leaves.isEmpty) {
+       fail(
+         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-TYPE-UNSUPPORTED",
+         "native symbolic memory element type has no flattened data leaves",
+-        depth.sourceLocation
++        sourceLocation
+       )
+     }
+     val elementWidth = leaves.map { leaf =>
+@@ -77,25 +130,24 @@ object ParameterizedMemory {
+       fail(
+         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID",
+         s"native memory concrete element width ${memory.getWidth} does not match retained expression '${elementWidth.verilog}' in [${elementWidth.minimum}, ${elementWidth.maximum}]",
+-        depth.sourceLocation.orElse(elementWidth.sourceLocation)
++        sourceLocation.orElse(elementWidth.sourceLocation)
+       )
+     }
++    elementWidth
++  }
++
++  private def attachMetadata[T <: Data](
++      memory: Mem[T],
++      metadata: ParameterizedMemoryMetadata
++  ): Mem[T] = {
+     if (memory.getTag(classOf[ParameterizedMemoryTag]).nonEmpty) {
+       fail(
+         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-METADATA-DUPLICATE",
+-        "native memory already carries symbolic-depth metadata",
+-        depth.sourceLocation
++        "native memory already carries symbolic geometry metadata",
++        metadata.sourceLocation
+       )
+     }
+-    memory.addTag(
+-      ParameterizedMemoryTag(
+-        ParameterizedMemoryMetadata(
+-          depth.expression,
+-          elementWidth,
+-          depth.sourceLocation.orElse(depth.expression.sourceLocation)
+-        )
+-      )
+-    )
++    memory.addTag(ParameterizedMemoryTag(metadata))
+     memory
+   }
+ 
+diff --git a/lib/src/main/scala/spinal/lib/Counter.scala b/lib/src/main/scala/spinal/lib/Counter.scala
+index a0cd4fb..6280fa3 100644
+--- a/lib/src/main/scala/spinal/lib/Counter.scala
++++ b/lib/src/main/scala/spinal/lib/Counter.scala
+@@ -202,6 +202,8 @@ abstract class BoundedCounter[T <: BitVector](
+ object CounterFreeRun {
+   def apply(stateCount: BigInt): Counter = Counter(stateCount).freeRun()
+   def apply(bitCount: BitCount): Counter = Counter(bitCount).freeRun()
++  def apply(bitCount: ParameterizedBitCount): Counter =
++    Counter(bitCount).freeRun()
+ }
+ 
+ /** Creates a counter
+@@ -248,6 +250,17 @@ object Counter {
+   /** Create a counter on `[0, 2^bitCount-1]` */
+   def apply(bitCount: BitCount): Counter = new Counter(0, (BigInt(1) << bitCount.value) - 1)
+ 
++  /**
++    * Create a full-range counter whose ordinary UInt state retains a bounded
++    * symbolic packed width.
++    */
++  def apply(bitCount: ParameterizedBitCount): Counter =
++    new Counter(
++      0,
++      (BigInt(1) << bitCount.value) - 1,
++      retainedBitCount = Some(bitCount)
++    )
++
+   /** Create a counter on `[start, end]` with `inc` signal as increment enable */
+   def apply(start: BigInt, end: BigInt, inc: Bool): Counter = {
+     val c = apply(start, end)
+@@ -267,6 +280,13 @@ object Counter {
+   /** Create a counter on `[0, 2^bitCount-1]` with `inc` signal as increment enable */
+   def apply(bitCount: BitCount, inc: Bool): Counter = apply(0, (BigInt(1) << bitCount.value) - 1, inc)
+ 
++  /** Create a symbolic-width full-range counter with `inc` as increment enable. */
++  def apply(bitCount: ParameterizedBitCount, inc: Bool): Counter = {
++    val c = apply(bitCount)
++    when(inc) { c.increment() }
++    c
++  }
++
+   /** Create a counter on `[0, Clocks for given Time]` */
+   def apply(time: TimeNumber): Counter = apply(
+     ((time.toBigDecimal * ClockDomain.current.frequency.getValue.toBigDecimal)
+@@ -304,19 +324,35 @@ class Counter(
+   direction: CounterDirection = CounterDirection.Up,
+   upper: BoundaryPolicy = BoundaryPolicy.Wrap,
+   lower: BoundaryPolicy = BoundaryPolicy.Wrap,
+-  val handleOverflow: Boolean = true
++  val handleOverflow: Boolean = true,
++  private[lib] val retainedBitCount: Option[ParameterizedBitCount] = None
+ ) extends BoundedCounter[UInt](direction, upper, lower) {
+ 
+   require(start <= end)
++  retainedBitCount.foreach { bitCount =>
++    require(
++      start == 0 && end == (BigInt(1) << bitCount.value) - 1,
++      "a symbolic-width Counter must cover the complete unsigned bit-count range"
++    )
++  }
+ 
+   private val initVal: BigInt = if (direction == CounterDirection.Down) end else start
+   private val w = log2Up(end + 1)
+ 
+-  val valueNext = UInt(w bit)
++  val valueNext: UInt = retainedBitCount match {
++    case Some(bitCount) => UInt(bitCount)
++    case None           => UInt(w bit)
++  }
+   val value = RegNext(valueNext) init(initVal)
+ 
+-  val willOverflowIfInc  = value === end
+-  val willUnderflowIfDec = value === start
++  val willOverflowIfInc = retainedBitCount match {
++    case Some(_) => value.andR
++    case None    => value === end
++  }
++  val willUnderflowIfDec = retainedBitCount match {
++    case Some(_) => !value.orR
++    case None    => value === start
++  }
+ 
+   def stepOne(arith: UInt, boundary: Bool, policy: BoundaryPolicy,
+               wrapTo: BigInt, pinTo: BigInt): Unit = {
+diff --git a/lib/src/main/scala/spinal/lib/Stream.scala b/lib/src/main/scala/spinal/lib/Stream.scala
+index 29a5c4d..41f3f17 100644
+--- a/lib/src/main/scala/spinal/lib/Stream.scala
++++ b/lib/src/main/scala/spinal/lib/Stream.scala
+@@ -1645,7 +1645,11 @@ class StreamFifo[T <: Data](val dataType: HardType[T],
+       val sync = !withAsyncRead generate new Area{
+         assert(!useVec)
+         val readArbitration = addressGen.m2sPipe(flush = io.flush)
+-        val readPort = ram.readSyncPort
++        // The FIFO must return the queued word when a full pop and push target
++        // the same physical entry. Make the existing algorithm's read-first
++        // requirement explicit so symbolic-width native Mem lowering can
++        // preserve that behavior instead of relying on an unspecified policy.
++        val readPort = ram.readSyncPort(readUnderWrite = readFirst)
+         readPort.cmd := addressGen.toFlowFire
+         io.pop << readArbitration.translateWith(readPort.rsp)
+ 
