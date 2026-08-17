@@ -38,6 +38,7 @@ outer_close = matching_delimiter(test_text, outer_open, "{", "}")
 block = test_text[outer_open + 1 : outer_close]
 '''
 repaired = text[:start] + replacement + text[end:]
+
 existential_old = '    val leaves = memory.wordType().flatten.toVector'
 existential_new = '    val leaves = memory.wordType().asInstanceOf[Data].flatten.toVector'
 occurrences = repaired.count(existential_old)
@@ -46,5 +47,31 @@ if occurrences == 0 and existential_new not in repaired:
 repaired = repaired.replace(existential_old, existential_new)
 if existential_old in repaired:
     raise SystemExit('Increment 37 existential memory-word repair was incomplete')
+
+stream_write_anchor = 'stream_path.write_text(stream)'
+pointer_resize_block = '''push_increment = "        push := push + 1"
+pop_increment = "        pop := pop + 1"
+if push_increment not in stream or pop_increment not in stream:
+    fail("native StreamFifo pointer increment anchors not found")
+stream = stream.replace(
+    push_increment,
+    "        push := (push + 1).resized",
+    1,
+)
+stream = stream.replace(
+    pop_increment,
+    "        pop := (pop + 1).resized",
+    1,
+)
+'''
+if pointer_resize_block not in repaired:
+    anchor_index = repaired.find(stream_write_anchor)
+    if anchor_index < 0:
+        raise SystemExit('Increment 37 Stream.scala write anchor was not found')
+    repaired = repaired[:anchor_index] + pointer_resize_block + repaired[anchor_index:]
+
 path.write_text(repaired)
-print(f'Repaired Increment 37 fixture transformation and {occurrences} existential memory word access(es)')
+print(
+    f'Repaired Increment 37 fixture transformation, {occurrences} existential '
+    'memory word access(es), and pointer increment sizing'
+)
