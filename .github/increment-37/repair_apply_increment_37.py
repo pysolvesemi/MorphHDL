@@ -138,9 +138,50 @@ elif 'parameterized.contains' not in proof_block:
     raise SystemExit('Increment 37 override proof has no recognized Verilog source binding')
 repaired = repaired[:proof_start] + proof_block + repaired[proof_end:]
 
+backend_write_anchor = 'backend_path.write_text(backend)\n'
+helper_dependency_patch = '''helper_needed_old = """    val helperNeeded =
+      Vector(
+        plan.metadata.depth,
+        plan.metadata.elementWidth,
+        plan.readAddressWidth,
+        plan.writeAddressWidth
+      ).exists(expression => PortableLogCall.findFirstIn(expression.verilog).nonEmpty) ||
+        PortableLogCall.findFirstIn(normalized).nonEmpty
+"""
+helper_needed_new = """    val helperNeeded =
+      Vector(
+        plan.metadata.depth,
+        plan.metadata.elementWidth,
+        plan.readAddressWidth,
+        plan.writeAddressWidth
+      ).exists(expression => PortableLogCall.findFirstIn(expression.verilog).nonEmpty) ||
+        PortableLogCall.findFirstIn(normalized).nonEmpty ||
+        (
+          plan.metadata.depth.parameters.nonEmpty &&
+            normalized.toLowerCase.contains("io_push_valid") &&
+            normalized.toLowerCase.contains("io_push_ready") &&
+            normalized.toLowerCase.contains("io_pop_valid") &&
+            normalized.toLowerCase.contains("io_pop_ready") &&
+            normalized.toLowerCase.contains("io_occupancy") &&
+            normalized.toLowerCase.contains("io_availability")
+        )
+"""
+backend = replace_once(
+    backend,
+    helper_needed_old,
+    helper_needed_new,
+    "StreamFifo portable-log helper dependency",
+)
+'''
+if helper_dependency_patch not in repaired:
+    anchor_index = repaired.find(backend_write_anchor)
+    if anchor_index < 0:
+        raise SystemExit('Increment 37 backend write anchor was not found')
+    repaired = repaired[:anchor_index] + helper_dependency_patch + repaired[anchor_index:]
+
 path.write_text(repaired)
 print(
     f'Repaired Increment 37 fixture transformation, {occurrences} existential '
-    'memory word access(es), pointer increment sizing, test-body splice, and '
-    'copied regression bindings'
+    'memory word access(es), pointer increment sizing, test-body splice, copied '
+    'regression bindings, and portable-log helper discovery'
 )
