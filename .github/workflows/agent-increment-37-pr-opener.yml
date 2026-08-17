@@ -1,0 +1,75 @@
+name: Agent Increment 37 PR opener
+
+on:
+  push:
+    branches:
+      - agent/increment-37-parameterized-streamfifo-depth
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  open:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify implementation state
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f core/src/main/scala/spinal/core/ParameterizedValue.scala
+          test -f core/src/main/scala/spinal/core/internals/ParameterizedVerilogValues.scala
+          test -f docs/morphhdl/increment-37-parameterized-streamfifo-depth.md
+          grep -q -- '- \[x\] \*\*Increment 37 — Parameterized StreamFifo depth\*\*' \
+            docs/morphhdl/parameterized-verilog-todo.md
+          test ! -e .github/agent/increment-37-apply.py
+          test ! -e .github/agent/increment-37-add-test.py
+          test ! -e .github/workflows/agent-increment-37-source-export.yml
+          test ! -e .github/workflows/agent-increment-37-implementation.yml
+      - name: Open PR and remove opener
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          existing=$(gh pr list \
+            --head agent/increment-37-parameterized-streamfifo-depth \
+            --base parameterized-verilog \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+          if [ -z "$existing" ]; then
+            cat > /tmp/pr-body.md <<'EOF'
+          ## Summary
+
+          - retain one bounded public `DEPTH` through ordinary `StreamFifo`
+          - preserve the native depth-one pipeline and memory-backed FIFO algorithms
+          - use symbolic storage, pointer, address, occupancy, availability and wrap expressions
+          - prove one generated strict Verilog-2001 definition at depths 1, 3, 5 and 8
+          - keep concrete `StreamFifo(..., depth: Int)` behavior unchanged
+          - document the supported synchronous boundary and mark Increment 37 complete
+
+          ## Validation
+
+          - `morph[2.12.18].testOnly morphhdl.NativeLibraryReuseTests`
+          - `core[2.12.18].testOnly spinal.core.internals.ParameterizedVerilogTests spinal.core.internals.ParameterizedDataShapeTests`
+          - `morph[2.13.12].testOnly morphhdl.NativeLibraryReuseTests`
+          - `core[2.13.12].testOnly spinal.core.internals.ParameterizedVerilogTests spinal.core.internals.ParameterizedDataShapeTests`
+
+          The same generated FIFO RTL is compiled and simulated with `DEPTH=1,3,5,8`; each run checks capacity, full backpressure, ordered draining, empty recovery and flush quarantine.
+          EOF
+            gh pr create \
+              --base parameterized-verilog \
+              --head agent/increment-37-parameterized-streamfifo-depth \
+              --title 'Implement Increment 37 parameterized StreamFifo depth' \
+              --body-file /tmp/pr-body.md
+          fi
+          git rm -f .github/workflows/agent-increment-37-pr-opener.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Remove Increment 37 PR opener'
+          git push origin HEAD:agent/increment-37-parameterized-streamfifo-depth
