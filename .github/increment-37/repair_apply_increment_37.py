@@ -40,9 +40,11 @@ block = test_text[outer_open + 1 : outer_close]
 repaired = text[:start] + replacement + text[end:]
 existential_old = '    val leaves = memory.wordType().flatten.toVector'
 existential_new = '    val leaves = memory.wordType().asInstanceOf[Data].flatten.toVector'
-if existential_new not in repaired:
-    if existential_old not in repaired:
-        raise SystemExit('Increment 37 existential memory-word anchor was not found')
-    repaired = repaired.replace(existential_old, existential_new, 1)
+occurrences = repaired.count(existential_old)
+if occurrences == 0 and existential_new not in repaired:
+    raise SystemExit('Increment 37 existential memory-word anchors were not found')
+repaired = repaired.replace(existential_old, existential_new)
+if existential_old in repaired:
+    raise SystemExit('Increment 37 existential memory-word repair was incomplete')
 path.write_text(repaired)
-print('Repaired Increment 37 fixture transformation and existential memory word type')
+print(f'Repaired Increment 37 fixture transformation and {occurrences} existential memory word access(es)')
