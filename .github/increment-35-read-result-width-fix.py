@@ -123,7 +123,7 @@ replace_once(
 )
 replace_once(
     documentation,
-    "memory-policy validation and mask rejection on Scala 2.12 and 2.13.\n",
-    "memory-policy validation, scalar-witness read-result widening and mask rejection\n"
-    "on Scala 2.12 and 2.13.\n",
+    "whole-domain address capacity and mask rejection on Scala 2.12 and 2.13.\n",
+    "whole-domain address capacity, scalar-witness read-result widening and mask\n"
+    "rejection on Scala 2.12 and 2.13.\n",
 )
