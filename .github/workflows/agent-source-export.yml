@@ -1,32 +1,96 @@
-name: Agent source export
+name: Agent Increment 36 implementation gate
 
 on:
   push:
     branches:
       - agent/increment-36-native-library-reuse
+  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: increment-36-implementation-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  export:
+  implement-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 35
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
     steps:
       - name: Check out sources
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Archive checkout
+      - name: Install pinned Mill bootstrap
         shell: bash
         run: |
-          tar --exclude=.git -czf /tmp/morphhdl-source.tgz .
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
 
-      - name: Upload source archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: morphhdl-source
-          path: /tmp/morphhdl-source.tgz
-          if-no-files-found: error
-          retention-days: 1
+      - name: Apply reviewed Increment 36 source patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git apply --check .github/agent/increment-36-core.patch; then
+            git apply .github/agent/increment-36-core.patch
+            git apply .github/agent/increment-36-doc.patch
+            git apply .github/agent/increment-36-test.patch
+          elif grep -q 'def attachStatic' core/src/main/scala/spinal/core/ParameterizedMemory.scala \
+            && test -f docs/morphhdl/increment-36-native-library-reuse.md \
+            && test -f morphhdl/src/test/scala/morphhdl/NativeLibraryReuseTests.scala; then
+            echo 'Increment 36 source is already applied.'
+          else
+            echo 'Increment 36 source patch is neither applicable nor already present.' >&2
+            exit 1
+          fi
+          git diff --check
+
+      - name: Test Increment 36 on Scala 2.12.18
+        shell: bash
+        run: |
+          /tmp/morphhdl-mill morph[2.12.18].testOnly morphhdl.NativeLibraryReuseTests
+          /tmp/morphhdl-mill core[2.12.18].testOnly \
+            spinal.core.internals.ParameterizedVerilogTests \
+            spinal.core.internals.ParameterizedDataShapeTests
+
+      - name: Test Increment 36 on Scala 2.13.12
+        shell: bash
+        run: |
+          /tmp/morphhdl-mill morph[2.13.12].testOnly morphhdl.NativeLibraryReuseTests
+          /tmp/morphhdl-mill core[2.13.12].testOnly \
+            spinal.core.internals.ParameterizedVerilogTests \
+            spinal.core.internals.ParameterizedDataShapeTests
+
+      - name: Commit tested implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- \
+            core/src/main/scala/spinal/core/Mem.scala \
+            core/src/main/scala/spinal/core/ParameterizedMemory.scala \
+            lib/src/main/scala/spinal/lib/Counter.scala \
+            lib/src/main/scala/spinal/lib/Stream.scala \
+            docs/morphhdl/increment-36-native-library-reuse.md \
+            morphhdl/src/test/scala/morphhdl/NativeLibraryReuseTests.scala; then
+            echo 'No implementation commit is needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            core/src/main/scala/spinal/core/Mem.scala \
+            core/src/main/scala/spinal/core/ParameterizedMemory.scala \
+            lib/src/main/scala/spinal/lib/Counter.scala \
+            lib/src/main/scala/spinal/lib/Stream.scala \
+            docs/morphhdl/increment-36-native-library-reuse.md \
+            morphhdl/src/test/scala/morphhdl/NativeLibraryReuseTests.scala
+          git commit -m 'Implement Increment 36 native library reuse'
+          git push origin HEAD:agent/increment-36-native-library-reuse
