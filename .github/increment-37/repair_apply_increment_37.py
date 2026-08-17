@@ -179,9 +179,49 @@ if helper_dependency_patch not in repaired:
         raise SystemExit('Increment 37 backend write anchor was not found')
     repaired = repaired[:anchor_index] + helper_dependency_patch + repaired[anchor_index:]
 
+push_ready_regex_anchor = '''    val sizedLiteral = "(?i)([0-9]+)'([s]?)([bodh])([0-9a-f_xz]+)".r
+'''
+push_ready_regex_replacement = push_ready_regex_anchor + r'''    val pushReadyAssignment =
+      """^(\s*assign\s+io_push_ready\s*=\s*)(.*)(;\s*)$""".r
+'''
+if push_ready_regex_replacement not in repaired:
+    if push_ready_regex_anchor not in repaired:
+        raise SystemExit('Increment 37 sized-literal anchor was not found')
+    repaired = repaired.replace(
+        push_ready_regex_anchor,
+        push_ready_regex_replacement,
+        1,
+    )
+
+push_ready_logic_anchor = '''      if (occupancyContext) {
+        line = replaceSized(line, depthDefault, depthExpression)
+        line = replaceDecimal(line, depthDefault, depthExpression)
+      }
+      line
+'''
+push_ready_logic_replacement = '''      if (occupancyContext) {
+        line = replaceSized(line, depthDefault, depthExpression)
+        line = replaceDecimal(line, depthDefault, depthExpression)
+      }
+      line match {
+        case pushReadyAssignment(prefix, rhs, suffix) =>
+          s"$prefix(($depthExpression == 1) ? ((io_occupancy == 0) || (io_pop_valid && io_pop_ready)) : ($rhs))$suffix"
+        case _ => line
+      }
+'''
+if push_ready_logic_replacement not in repaired:
+    if push_ready_logic_anchor not in repaired:
+        raise SystemExit('Increment 37 push-ready rewrite anchor was not found')
+    repaired = repaired.replace(
+        push_ready_logic_anchor,
+        push_ready_logic_replacement,
+        1,
+    )
+
 path.write_text(repaired)
 print(
     f'Repaired Increment 37 fixture transformation, {occurrences} existential '
     'memory word access(es), pointer increment sizing, test-body splice, copied '
-    'regression bindings, and portable-log helper discovery'
+    'regression bindings, portable-log helper discovery, and depth-one '
+    'backpressure semantics'
 )
