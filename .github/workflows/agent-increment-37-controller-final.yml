@@ -39,6 +39,36 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
+          path = Path('.github/increment-37/apply_increment_37.py')
+          text = path.read_text()
+          old = '''      val pointerContext =
+                lower.contains("pushptr") || lower.contains("popptr") ||
+                  lower.contains("push_ptr") || lower.contains("pop_ptr") ||
+                  (lower.contains("address") &&
+                    (lower.contains("ram") || lower.contains("memory")))
+          '''
+          new = '''      // Normal emission uses logic_ptr_push/logic_ptr_pop while other
+              // contexts use pushPtr/popPtr. Normalize separators and accept both
+              // word orders so a non-power-of-two override never retains the
+              // concrete witness terminal.
+              val compactName = lower.replace("_", "")
+              val pointerContext =
+                compactName.contains("pushptr") || compactName.contains("popptr") ||
+                  compactName.contains("ptrpush") || compactName.contains("ptrpop") ||
+                  compactName.contains("poponio") ||
+                  (lower.contains("address") &&
+                    (lower.contains("ram") || lower.contains("memory")))
+          '''
+          if new not in text:
+              if text.count(old) != 1:
+                  raise SystemExit('Increment 37 pointer-context rewrite anchor was not found')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          print('Recognized normal-emitter StreamFifo pointer naming in Increment 37')
+          PY
+          python3 - <<'PY'
+          from pathlib import Path
+
           path = Path('.github/increment-37/build_increment_37_test.py')
           text = path.read_text()
           anchor = 'TARGET.write_bytes(zlib.decompress(base64.b64decode(PAYLOAD)))\n'
