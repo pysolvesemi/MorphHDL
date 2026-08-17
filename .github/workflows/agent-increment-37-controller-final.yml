@@ -41,6 +41,11 @@ jobs:
 
           path = Path('.github/increment-37/build_increment_37_test.py')
           text = path.read_text()
+          if 'import re\n' not in text:
+              import_anchor = 'import zlib\n'
+              if import_anchor not in text:
+                  raise SystemExit('Increment 37 focused-test import anchor was not found')
+              text = text.replace(import_anchor, import_anchor + 'import re\n', 1)
           anchor = 'TARGET.write_bytes(zlib.decompress(base64.b64decode(PAYLOAD)))\n'
           if anchor not in text:
               raise SystemExit('Increment 37 focused-test write anchor was not found')
