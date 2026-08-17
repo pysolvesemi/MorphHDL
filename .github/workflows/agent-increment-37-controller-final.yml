@@ -71,6 +71,9 @@ jobs:
                   count=1,
               )
           if count != 1:
+              print('--- BEGIN GENERATED INCREMENT 37 TEST ---')
+              print(source)
+              print('--- END GENERATED INCREMENT 37 TEST ---')
               raise SystemExit('Increment 37 logical-capacity expectation was not found')
           TARGET.write_text(source)
           '''
