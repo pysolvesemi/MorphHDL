@@ -1,0 +1,146 @@
+name: Agent Increment 37 diagnostic implementation gate
+
+on:
+  push:
+    branches:
+      - agent/increment-37-parameterized-streamfifo-depth
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-37-diagnostic-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  implement-test-and-finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply Increment 37 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p morphhdl/src/test/scala/morphhdl
+          printf '// generated after shared source application\n' > \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala
+          python .github/agent/increment-37-apply.py
+          python .github/agent/increment-37-repair1.py
+          python .github/agent/increment-37-testgen.py
+          python .github/agent/increment-37-repair2.py
+          git diff --check
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run complete Increment 37 validation
+        id: tests
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          status=0
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.NativeLibraryReuseTests \
+            morphhdl.NativeSymbolicMemoryTests 2>&1 | tee /tmp/increment-37-scala-2.12.log
+          status=$((status | ${PIPESTATUS[0]}))
+          /tmp/morphhdl-mill core[2.12.18].testOnly \
+            spinal.core.internals.ParameterizedVerilogTests \
+            spinal.core.internals.ParameterizedDataShapeTests 2>&1 | tee -a /tmp/increment-37-scala-2.12.log
+          status=$((status | ${PIPESTATUS[0]}))
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.NativeLibraryReuseTests \
+            morphhdl.NativeSymbolicMemoryTests 2>&1 | tee /tmp/increment-37-scala-2.13.log
+          status=$((status | ${PIPESTATUS[0]}))
+          /tmp/morphhdl-mill core[2.13.12].testOnly \
+            spinal.core.internals.ParameterizedVerilogTests \
+            spinal.core.internals.ParameterizedDataShapeTests 2>&1 | tee -a /tmp/increment-37-scala-2.13.log
+          status=$((status | ${PIPESTATUS[0]}))
+          echo "status=${status}" >> "${GITHUB_OUTPUT}"
+          exit 0
+
+      - name: Publish reproducible failure diagnostics
+        if: steps.tests.outputs.status != '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/increment-37-diagnostics
+          cp /tmp/increment-37-scala-2.12.log /tmp/increment-37-diagnostics/scala-2.12.log || true
+          cp /tmp/increment-37-scala-2.13.log /tmp/increment-37-diagnostics/scala-2.13.log || true
+          git diff --binary > /tmp/increment-37-diagnostics/implementation.patch
+          for path in \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala \
+            core/src/main/scala/spinal/core/ParameterizedMemory.scala \
+            core/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala \
+            lib/src/main/scala/spinal/lib/ParameterizedStreamFifoDepth.scala \
+            lib/src/main/scala/spinal/lib/Stream.scala; do
+            if [[ -f "${path}" ]]; then
+              mkdir -p "/tmp/increment-37-diagnostics/source/$(dirname "${path}")"
+              cp "${path}" "/tmp/increment-37-diagnostics/source/${path}"
+            fi
+          done
+          git reset --hard HEAD
+          git clean -fdx
+          git checkout -B agent/increment-37-diagnostics
+          git rm -rf .
+          mkdir -p diagnostics
+          cp -R /tmp/increment-37-diagnostics/. diagnostics/
+          git add -A
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Capture Increment 37 validation diagnostics'
+          git push --force origin HEAD:agent/increment-37-diagnostics
+          exit 1
+
+      - name: Finalize tested Increment 37 source
+        if: steps.tests.outputs.status == '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = p.read_text()
+          old = '- [ ] **Increment 37 — Parameterized StreamFifo depth**'
+          new = '- [x] **Increment 37 — Parameterized StreamFifo depth**'
+          if old not in text:
+              raise SystemExit('Increment 37 unchecked roadmap entry not found')
+          p.write_text(text.replace(old, new, 1))
+          PY
+          rm -rf .github/agent
+          rm -f .github/workflows/agent-increment-37-*.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Implement Increment 37 parameterized StreamFifo depth'
+          if ! git push origin HEAD:agent/increment-37-parameterized-streamfifo-depth; then
+            git fetch origin agent/increment-37-parameterized-streamfifo-depth
+            remote=origin/agent/increment-37-parameterized-streamfifo-depth
+            if git show "${remote}:docs/morphhdl/parameterized-verilog-todo.md" | \
+                 grep -q -- '- \[x\] \*\*Increment 37 — Parameterized StreamFifo depth\*\*' \
+              && ! git ls-tree -r --name-only "${remote}" | \
+                 grep -Eq '^\.github/(agent/|workflows/agent-increment-37-)'; then
+              echo 'Another validated gate already finalized the branch.'
+              exit 0
+            fi
+            echo 'Increment 37 branch advanced without a validated final source.' >&2
+            exit 1
+          fi
