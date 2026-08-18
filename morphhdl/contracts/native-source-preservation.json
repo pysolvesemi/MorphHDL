@@ -8,9 +8,9 @@
     "description": "Increment 0 repository baseline"
   },
   "approved_state": {
-    "commit": "b1d713dbd3a01be425f091d5d4e86c88d4412543",
-    "tree": "40c0f91c99d66fd17950bff1deb1a522caa5ad1c",
-    "description": "Reviewed native-source state after Increment 40 external symbolic-width migration"
+    "commit": "e88bca528a2444685cdbaf2cdc7874f15f7f3464",
+    "tree": "50de51127c3d632b5d53184cc4d5ef5cfd7cb823",
+    "description": "Reviewed native-source state after the final Increment 40 external symbolic-width repairs"
   },
   "source_roots": [
     "core/src/main/scala/spinal/core",
