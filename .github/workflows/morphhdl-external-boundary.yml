@@ -1,0 +1,42 @@
+name: MorphHDL external SpinalHDL boundary
+
+on:
+  push:
+    branches:
+      - main
+      - parameterized-verilog
+  pull_request:
+    branches:
+      - main
+      - parameterized-verilog
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-external-boundary-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  baseline-proof:
+    name: Baseline API proof Scala ${{ matrix.scala_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compile and run the external boundary against Increment 0 native sources
+        shell: bash
+        run: bash ./morphhdl/scripts/check-external-spinal-boundary.sh "${{ matrix.scala_version }}"
