@@ -109,9 +109,209 @@ private[internals] object ParameterizedVerilogNativeFallback {
     val widthsByName = groupedWidths.toVector
       .map { case (name, values) => name -> values.head._2 }
       .sortBy { case (name, _) => -name.length }
-    withHierarchy
+    val withSymbolicWidths = withHierarchy
       .split("\\n", -1)
       .map(line => rewriteDeclarationLine(line, widthsByName))
+      .mkString("\n")
+    val withCanonicalPorts = canonicalizePortBlock(component, withSymbolicWidths)
+    canonicalizeSignalDeclarations(component, withCanonicalPorts)
+  }
+
+  private final case class EmittedPortLine(
+      direction: String,
+      netType: String,
+      packedRange: String,
+      name: String,
+      comment: String
+  )
+
+  private val emittedPortLine =
+    """^\s*(input|output|inout)\s+(wire|reg|logic)\s*(\[[^\]]+\])?\s+([A-Za-z_][A-Za-z0-9_$]*)(\s*(?:/\*.*\*/\s*)?)(,?)\s*$""".r
+
+  /**
+    * The ordinary parameterized emitter canonicalizes ports by native graph
+    * direction and object name. The native fallback starts from concrete
+    * Verilog, whose port order follows construction order, so reproduce that
+    * same graph-backed ordering before publication. This keeps normal and
+    * reverse component construction byte-identical without recognizing a
+    * component or signal family.
+    */
+  private def canonicalizePortBlock(
+      component: Component,
+      verilog: String
+  ): String = {
+    val lines = verilog.split("\\n", -1).toVector
+    val moduleDeclaration =
+      ("^\\s*module\\s+" + Pattern.quote(component.definitionName) + "(?:\\s*#\\s*\\(|\\s*\\()\\s*$").r
+    val moduleIndex = lines.indexWhere(line => moduleDeclaration.pattern.matcher(line).matches())
+    if (moduleIndex < 0) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-NOT-FOUND",
+        s"normal Verilog emission did not contain the expected module declaration for '${component.definitionName}'"
+      )
+    }
+
+    val moduleLine = lines(moduleIndex).trim
+    val portStart =
+      if (moduleLine.endsWith("(") && !moduleLine.endsWith("#(")) moduleIndex + 1
+      else {
+        val separator = lines.indexWhere(_.trim == ") (", moduleIndex + 1)
+        if (separator < 0) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-PORT-BLOCK-NOT-FOUND",
+            s"normal Verilog emission did not expose a port-list boundary for '${component.definitionName}'"
+          )
+        }
+        separator + 1
+      }
+    val portEnd = lines.indexWhere(_.trim == ");", portStart)
+    if (portEnd < 0) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PORT-BLOCK-NOT-FOUND",
+        s"normal Verilog emission did not terminate the port list for '${component.definitionName}'"
+      )
+    }
+
+    val parsed = lines.slice(portStart, portEnd).filter(_.trim.nonEmpty).map {
+      case emittedPortLine(direction, netType, packedRange, name, comment, _) =>
+        name -> EmittedPortLine(
+          direction = direction,
+          netType = netType,
+          packedRange = Option(packedRange).getOrElse(""),
+          name = name,
+          comment = Option(comment).getOrElse("").trim
+        )
+      case line =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PORT-LINE-UNSUPPORTED",
+          s"normal Verilog port declaration '${line.trim}' cannot be mapped to the native component graph"
+        )
+    }
+    val duplicateNames = parsed.groupBy(_._1).collect {
+      case (name, values) if values.size != 1 => name
+    }.toVector.sorted
+    if (duplicateNames.nonEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PORT-MAPPING-AMBIGUOUS",
+        s"normal Verilog emission contains duplicate port declarations [${duplicateNames.mkString(", ")}]"
+      )
+    }
+    val byName = parsed.toMap
+
+    def directionOf(port: BaseType): (Int, String) =
+      if (port.isInput) 0 -> "input"
+      else if (port.isOutput) 1 -> "output"
+      else 2 -> "inout"
+
+    val graphPorts = component.getOrdredNodeIo.filterNot(_.isSuffix).sortBy { port =>
+      val direction = directionOf(port)._1
+      (direction, port.getName())
+    }
+    val graphNames = graphPorts.map(_.getName())
+    val missing = graphNames.filterNot(byName.contains)
+    val unexpected = byName.keySet.diff(graphNames.toSet).toVector.sorted
+    if (missing.nonEmpty || unexpected.nonEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PORT-MAPPING-INCOMPLETE",
+        s"normal Verilog ports do not match the native component graph; " +
+          s"missing [${missing.mkString(", ")}], unexpected [${unexpected.mkString(", ")}]"
+      )
+    }
+
+    def padRight(value: String, width: Int): String =
+      if (value.length >= width) value else value + (" " * (width - value.length))
+
+    val rendered = graphPorts.zipWithIndex.map { case (port, index) =>
+      val emitted = byName(port.getName())
+      val expectedDirection = directionOf(port)._2
+      if (emitted.direction != expectedDirection) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PORT-DIRECTION-CONFLICT",
+          s"port '${port.getName()}' is '$expectedDirection' in the native graph but '${emitted.direction}' in normal Verilog"
+        )
+      }
+      val comma = if (index == graphPorts.size - 1) "" else ","
+      val comment = if (emitted.comment.isEmpty) "" else " " + emitted.comment
+      "  " +
+        padRight(emitted.direction, 7) +
+        padRight(emitted.netType, 5) +
+        padRight(emitted.packedRange, 8) +
+        " " + emitted.name + comment + comma
+    }
+
+    (lines.take(portStart) ++ rendered ++ lines.drop(portEnd)).mkString("\n")
+  }
+
+  private final case class EmittedSignalLine(
+      netType: String,
+      packedRange: String,
+      name: String,
+      comment: String
+  )
+
+  private val emittedSignalLine =
+    """^\s*(wire|reg|logic)\s*(\[[^\]]+\])?\s+([A-Za-z_][A-Za-z0-9_$]*)(\s*(?:/\*.*\*/\s*)?);\s*$""".r
+
+  /**
+    * Normal parameterized emission orders native declarations by graph name.
+    * Reorder only declaration lines that map to real native BaseType objects;
+    * generated temporaries, memories, localparams and functions stay in their
+    * original positions.
+    */
+  private def canonicalizeSignalDeclarations(
+      component: Component,
+      verilog: String
+  ): String = {
+    val graphNames = ArrayBuffer.empty[String]
+    component.dslBody.walkDeclarations {
+      case baseType: BaseType
+          if !baseType.isIo && !baseType.isSuffix &&
+            Option(baseType.getName()).exists(_.nonEmpty) =>
+        graphNames += baseType.getName()
+      case _ =>
+    }
+    val expected = graphNames.distinct.toSet
+    if (expected.isEmpty) return verilog
+
+    val lines = verilog.split("\\n", -1).toVector
+    val mapped = lines.zipWithIndex.flatMap {
+      case (emittedSignalLine(netType, packedRange, name, comment), index)
+          if expected.contains(name) =>
+        Some(
+          index -> EmittedSignalLine(
+            netType = netType,
+            packedRange = Option(packedRange).getOrElse(""),
+            name = name,
+            comment = Option(comment).getOrElse("").trim
+          )
+        )
+      case _ => None
+    }
+    val duplicateNames = mapped.groupBy(_._2.name).collect {
+      case (name, values) if values.size != 1 => name
+    }.toVector.sorted
+    if (duplicateNames.nonEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-DECLARATION-MAPPING-AMBIGUOUS",
+        s"normal Verilog emission contains duplicate signal declarations [${duplicateNames.mkString(", ")}]"
+      )
+    }
+    if (mapped.isEmpty) return verilog
+
+    def padRight(value: String, width: Int): String =
+      if (value.length >= width) value else value + (" " * (width - value.length))
+
+    val ordered = mapped.map(_._2).sortBy(_.name).map { emitted =>
+      val comment = if (emitted.comment.isEmpty) "" else " " + emitted.comment
+      "  " +
+        padRight(emitted.netType, 10) +
+        " " +
+        padRight(emitted.packedRange, 8) +
+        " " + emitted.name + comment + ";"
+    }
+    val replacements = mapped.map(_._1).sorted.zip(ordered).toMap
+    lines.zipWithIndex
+      .map { case (line, index) => replacements.getOrElse(index, line) }
       .mkString("\n")
   }
 
