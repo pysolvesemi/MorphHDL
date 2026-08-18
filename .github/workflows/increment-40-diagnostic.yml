@@ -1,0 +1,79 @@
+name: Increment 40 focused diagnostic
+
+on:
+  push:
+    branches:
+      - agent/increment-40-external-symbolic-width
+    paths:
+      - .github/workflows/increment-40-diagnostic.yml
+      - core/src/main/scala/spinal/core/ParameterizedWidth.scala
+      - core/src/test/scala/spinal/core/internals/ParameterizedDataShapeTests.scala
+      - core/src/test/scala/spinal/core/internals/ParameterizedVerilogTests.scala
+      - frontend/src/test/scala/morphhdl/frontend/HdlIntTests.scala
+      - morphhdl/src/test/scala/morphhdl/MorphSingleSourceVerilogTests.scala
+      - morphhdl/src/test/scala/morphhdl/NativeLibraryReuseTests.scala
+      - morphhdl/src/test/scala/morphhdl/NativeSymbolicMemoryTests.scala
+      - lib/src/main/scala/spinal/lib/Counter.scala
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Diagnose ${{ matrix.label }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: core-data-shapes
+            module: core
+            suite: spinal.core.internals.ParameterizedDataShapeTests
+          - label: core-verilog
+            module: core
+            suite: spinal.core.internals.ParameterizedVerilogTests
+          - label: frontend-hdl-int
+            module: frontend
+            suite: morphhdl.frontend.HdlIntTests
+          - label: morph-single-source
+            module: morph
+            suite: morphhdl.MorphSingleSourceVerilogTests
+          - label: native-library-reuse
+            module: morph
+            suite: morphhdl.NativeLibraryReuseTests
+          - label: native-symbolic-memory
+            module: morph
+            suite: morphhdl.NativeSymbolicMemoryTests
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Mill
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+      - name: Run focused suite
+        shell: bash
+        env:
+          XDG_CACHE_HOME: /tmp/morphhdl-cache
+        run: |
+          set +e
+          /tmp/morphhdl-mill "${{ matrix.module }}[2.13.12].testOnly" "${{ matrix.suite }}" > /tmp/suite.log 2>&1
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo '::group::Compiler and test failures'
+            grep -nE '\[error\]|FAILED|ABORTED|AssertionError|StackOverflowError|Exception|did not equal|expected|not found|type mismatch|ambiguous|overloaded method' /tmp/suite.log | tail -n 160 || true
+            echo '::endgroup::'
+            echo '::group::Last 180 lines'
+            tail -n 180 /tmp/suite.log
+            echo '::endgroup::'
+          else
+            grep -E 'Run completed|Total number of tests|Tests:|All tests passed' /tmp/suite.log || true
+          fi
+          exit "$status"
