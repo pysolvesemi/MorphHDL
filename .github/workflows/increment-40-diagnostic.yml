@@ -1,6 +1,11 @@
 name: Increment 40 focused diagnostic
 
 on:
+  pull_request:
+    branches:
+      - parameterized-verilog
+    paths:
+      - .github/workflows/increment-40-diagnostic.yml
   push:
     branches:
       - agent/increment-40-external-symbolic-width
