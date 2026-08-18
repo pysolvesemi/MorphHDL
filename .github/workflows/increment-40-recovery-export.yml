@@ -1,0 +1,29 @@
+name: Increment 40 recovery export
+
+on:
+  push:
+    branches:
+      - agent/increment-40-external-symbolic-width
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          git archive --format=tar.gz --output=/tmp/morphhdl-increment-40-current.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-increment-40-current
+          path: /tmp/morphhdl-increment-40-current.tar.gz
+          if-no-files-found: error
+          retention-days: 1
