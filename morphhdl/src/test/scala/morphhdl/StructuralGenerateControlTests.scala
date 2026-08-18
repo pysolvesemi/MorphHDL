@@ -64,7 +64,7 @@ object StructuralGenerateControlSmoke {
   final class StructuralVecTop(lanes: HdlInt) extends Component {
     setDefinitionName("StructuralVecTop")
 
-    val laneIn = in(Vec(morphhdl.frontend.Bits(8 bits), 4))
+    val laneIn = in(morphhdl.frontend.Vec(morphhdl.frontend.Bits(8 bits), 4))
     val alive = out(Bool())
 
     alive := laneIn(0).orR
