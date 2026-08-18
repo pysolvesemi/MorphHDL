@@ -29,7 +29,7 @@ jobs:
 
       - name: Run the approved P1 sanity validation closure
         shell: bash
-        run: bash validation/display-controller-p1-sanity-00/run_validation.sh
+        run: bash validation/display-controller-p1-sanity-00/run_validation_with_diagnostics.sh
 
       - name: Upload generated RTL and target evidence
         if: always()
