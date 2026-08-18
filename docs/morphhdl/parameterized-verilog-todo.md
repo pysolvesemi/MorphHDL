@@ -119,7 +119,7 @@ recorded in
   guard that rejects any new unapproved native-source modification. Establish
   exact baseline and current hashes without changing parameterized behavior.
 
-- [ ] **Increment 39 — External elaboration and publication boundary**
+- [x] **Increment 39 — External elaboration and publication boundary**
 
   Prove that MorphHDL can invoke normal SpinalHDL elaboration, inherited
   validation, graph inspection and Verilog publication from a MorphHDL-owned
