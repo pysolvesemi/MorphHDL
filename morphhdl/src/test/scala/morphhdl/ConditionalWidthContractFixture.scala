@@ -13,8 +13,8 @@ private[morphhdl] object ConditionalWidthContractFixture {
     MorphProgram(
       concreteWitness = new Component {
         setDefinitionName("ConditionalWidth")
-        val din = in(Bits(12 bits))
-        val dout = out(Bits(12 bits))
+        val din = in(morphhdl.frontend.Bits(12 bits))
+        val dout = out(morphhdl.frontend.Bits(12 bits))
         dout := din
       },
       parameterizedDesign = {

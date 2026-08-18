@@ -40,13 +40,13 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       val parameterizedConfig = synchronousResetConfig(parameterizedDirectory)
       parameterizedConfig.netlistFileName = "stream_fifo_parameterized_depth.v"
       val parameterizedReport =
-        MorphVerilog(parameterizedConfig)(StreamFifo(Bits(8 bits), symbolicDepth))
+        MorphVerilog(parameterizedConfig)(StreamFifo(morphhdl.frontend.HardType(morphhdl.frontend.Bits(8 bits)), symbolicDepth))
       val parameterized =
         read(parameterizedDirectory.resolve("stream_fifo_parameterized_depth.v"))
 
       val concreteConfig = synchronousResetConfig(concreteDirectory)
       concreteConfig.netlistFileName = "stream_fifo_parameterized_depth.v"
-      SpinalVerilog(concreteConfig)(StreamFifo(Bits(8 bits), symbolicDepth))
+      SpinalVerilog(concreteConfig)(StreamFifo(morphhdl.frontend.HardType(morphhdl.frontend.Bits(8 bits)), symbolicDepth))
       val concrete =
         read(concreteDirectory.resolve("stream_fifo_parameterized_depth.v"))
 

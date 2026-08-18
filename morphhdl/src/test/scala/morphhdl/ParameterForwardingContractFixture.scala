@@ -12,12 +12,12 @@ private[morphhdl] object ParameterForwardingContractFixture {
     MorphProgram(
       concreteWitness = new Component {
         setDefinitionName("ParameterForwarding")
-        val din = in(Bits(32 bits))
-        val dout = out(Bits(32 bits))
+        val din = in(morphhdl.frontend.Bits(32 bits))
+        val dout = out(morphhdl.frontend.Bits(32 bits))
         val forwarded_inst = new Component {
           setDefinitionName("ForwardingLeaf")
-          val din = in(Bits(32 bits))
-          val dout = out(Bits(32 bits))
+          val din = in(morphhdl.frontend.Bits(32 bits))
+          val dout = out(morphhdl.frontend.Bits(32 bits))
           dout := din
         }
         forwarded_inst.din := din

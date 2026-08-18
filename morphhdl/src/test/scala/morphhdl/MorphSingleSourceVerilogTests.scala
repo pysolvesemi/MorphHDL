@@ -185,8 +185,8 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
         val derivedWidth = width + HdlInt.literal(1)
         new Component {
           setDefinitionName("BoundedDerivedWidth")
-          val payload = in UInt(derivedWidth bits)
-          val result = out UInt(derivedWidth bits)
+          val payload = in morphhdl.frontend.UInt(derivedWidth bits)
+          val result = out morphhdl.frontend.UInt(derivedWidth bits)
           result := payload
         }
       }
@@ -230,8 +230,8 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
       val result = MorphVerilog.tryGenerate(config) {
         new Component {
           setDefinitionName("UntaggedDirectWire")
-          val payload = in UInt(8 bits)
-          val result = out UInt(8 bits)
+          val payload = in morphhdl.frontend.UInt(8 bits)
+          val result = out morphhdl.frontend.UInt(8 bits)
           result := payload
         }
       }
@@ -255,8 +255,8 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
         val width = HdlInt.param("payload", default = 8, min = 1, max = 64)
         new Component {
           setDefinitionName("CollidingParameterWire")
-          val payload = in UInt(width bits)
-          val result = out UInt(width bits)
+          val payload = in morphhdl.frontend.UInt(width bits)
+          val result = out morphhdl.frontend.UInt(width bits)
           result := payload
         }
       }
@@ -305,8 +305,8 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
     val width = HdlInt.param(parameterName, default = defaultWidth, min = 1, max = 64)
     new Component {
       setDefinitionName(componentName)
-      val payload = in UInt(width bits)
-      val result = out UInt(width bits)
+      val payload = in morphhdl.frontend.UInt(width bits)
+      val result = out morphhdl.frontend.UInt(width bits)
       result := payload
     }
   }

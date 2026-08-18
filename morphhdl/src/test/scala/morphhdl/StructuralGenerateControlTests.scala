@@ -15,7 +15,7 @@ object StructuralGenerateControlSmoke {
   final class LaneSink extends Component {
     setDefinitionName("StructuralLaneSink")
 
-    val din = in(Bits(8 bits))
+    val din = in(morphhdl.frontend.Bits(8 bits))
     val observed = out(Bool())
 
     observed := din.orR
@@ -24,13 +24,13 @@ object StructuralGenerateControlSmoke {
   final class StructuralLoopTop(lanes: HdlInt) extends Component {
     setDefinitionName("StructuralLoopTop")
 
-    val packedIn = in(Bits(32 bits))
+    val packedIn = in(morphhdl.frontend.Bits(32 bits))
     val alive = out(Bool())
 
     alive := packedIn.orR
 
     (0 until lanes).named("g_lane", "lane").foreach { lane =>
-      val laneWire = Bits(8 bits)
+      val laneWire = morphhdl.frontend.Bits(8 bits)
       laneWire := packedIn(
         lane * HdlInt.literal(BigInt(8)),
         HdlInt.literal(BigInt(8))
@@ -44,13 +44,13 @@ object StructuralGenerateControlSmoke {
   final class InclusiveLoopTop(last: HdlInt) extends Component {
     setDefinitionName("InclusiveLoopTop")
 
-    val packedIn = in(Bits(32 bits))
+    val packedIn = in(morphhdl.frontend.Bits(32 bits))
     val alive = out(Bool())
 
     alive := packedIn.orR
 
     (0 to last).named("g_inclusive", "inclusive").foreach { index =>
-      val laneWire = Bits(8 bits)
+      val laneWire = morphhdl.frontend.Bits(8 bits)
       laneWire := packedIn(
         index * HdlInt.literal(BigInt(8)),
         HdlInt.literal(BigInt(8))
@@ -64,13 +64,13 @@ object StructuralGenerateControlSmoke {
   final class StructuralVecTop(lanes: HdlInt) extends Component {
     setDefinitionName("StructuralVecTop")
 
-    val laneIn = in(Vec(Bits(8 bits), 4))
+    val laneIn = in(Vec(morphhdl.frontend.Bits(8 bits), 4))
     val alive = out(Bool())
 
     alive := laneIn(0).orR
 
     (0 until lanes).named("g_vec_lane", "lane").foreach { index =>
-      val laneWire = Bits(8 bits)
+      val laneWire = morphhdl.frontend.Bits(8 bits)
       laneWire := laneIn(index)
 
       val sink = new LaneSink
@@ -82,7 +82,7 @@ object StructuralGenerateControlSmoke {
       extends Component {
     setDefinitionName("StructuralConditionalTop")
 
-    val din = in(Bits(8 bits))
+    val din = in(morphhdl.frontend.Bits(8 bits))
     val alive = out(Bool())
 
     alive := din.orR
@@ -105,7 +105,7 @@ object StructuralGenerateControlSmoke {
       }
 
     private def attachSink(value: Bits): Unit = {
-      val branchWire = Bits(8 bits)
+      val branchWire = morphhdl.frontend.Bits(8 bits)
       branchWire := value
 
       val sink = new LaneSink
@@ -321,12 +321,12 @@ class StructuralGenerateControlTests extends AnyFunSuite {
         val enable = HdlBool.param("ENABLE", default = true)
         new Component {
           setDefinitionName("MissingOtherwiseTop")
-          val din = in(Bits(8 bits))
+          val din = in(morphhdl.frontend.Bits(8 bits))
           val alive = out(Bool())
           alive := din.orR
 
           enable.generateIf("g_yes", "g_no") {
-            val branchWire = Bits(8 bits)
+            val branchWire = morphhdl.frontend.Bits(8 bits)
             branchWire := din
             val sink = new LaneSink
             sink.din := branchWire

@@ -9,9 +9,9 @@ private[morphhdl] object SymbolicDataShapesContractFixture {
   final case class Config(width: HdlInt)
 
   private final case class Payload(width: HdlInt) extends Bundle {
-    val bits = Bits(width bits)
-    val uint = UInt(width bits)
-    val sint = SInt(width bits)
+    val bits = morphhdl.frontend.Bits(width bits)
+    val uint = morphhdl.frontend.UInt(width bits)
+    val sint = morphhdl.frontend.SInt(width bits)
   }
 
   /**
@@ -25,9 +25,9 @@ private[morphhdl] object SymbolicDataShapesContractFixture {
   ) extends Component {
     setDefinitionName("SymbolicDataShapes")
 
-    private val bitsType = HardType(Bits(config.width bits))
-    private val uintType = HardType(UInt(config.width bits))
-    private val sintType = HardType(SInt(config.width bits))
+    private val bitsType = morphhdl.frontend.HardType(morphhdl.frontend.Bits(config.width bits))
+    private val uintType = morphhdl.frontend.HardType(morphhdl.frontend.UInt(config.width bits))
+    private val sintType = morphhdl.frontend.HardType(morphhdl.frontend.SInt(config.width bits))
     private val payloadType = HardType(Payload(config.width))
 
     private var bitsIn: Bits = null

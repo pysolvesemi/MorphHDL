@@ -13,13 +13,13 @@ private[morphhdl] object CaseRoutingContractFixture {
     MorphProgram(
       concreteWitness = new Component {
         setDefinitionName("CaseRouting")
-        val din = in(Bits(8 bits))
-        val dout = out(Bits(8 bits))
+        val din = in(morphhdl.frontend.Bits(8 bits))
+        val dout = out(morphhdl.frontend.Bits(8 bits))
 
         val selected_inst = new Component {
           setDefinitionName("CaseZeroRoute")
-          val zero_in = in(Bits(8 bits))
-          val zero_out = out(Bits(8 bits))
+          val zero_in = in(morphhdl.frontend.Bits(8 bits))
+          val zero_out = out(morphhdl.frontend.Bits(8 bits))
           zero_out := zero_in
         }
 

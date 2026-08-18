@@ -17,12 +17,12 @@ private[morphhdl] object ParameterizedWireContractFixture {
 
     private val ports =
       if (reverseConstructionOrder) {
-        val reversedDout = out(UInt(config.width bits)).setName("dout")
-        val reversedDin = in(UInt(config.width bits)).setName("din")
+        val reversedDout = out(morphhdl.frontend.UInt(config.width bits)).setName("dout")
+        val reversedDin = in(morphhdl.frontend.UInt(config.width bits)).setName("din")
         (reversedDin, reversedDout)
       } else {
-        val orderedDin = in(UInt(config.width bits)).setName("din")
-        val orderedDout = out(UInt(config.width bits)).setName("dout")
+        val orderedDin = in(morphhdl.frontend.UInt(config.width bits)).setName("din")
+        val orderedDout = out(morphhdl.frontend.UInt(config.width bits)).setName("dout")
         (orderedDin, orderedDout)
       }
 

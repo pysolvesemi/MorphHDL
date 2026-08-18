@@ -333,12 +333,12 @@ class HdlIntTests extends AnyFunSuite {
         val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
         new Component {
           setDefinitionName("HdlIntNativeShapes")
-          val bitsIn = in(Bits(width bits))
-          val bitsOut = out(Bits(width bits))
-          val uintIn = in(UInt(width bits))
-          val uintOut = out(UInt(width bits))
-          val sintIn = in(SInt(width bits))
-          val sintOut = out(SInt(width bits))
+          val bitsIn = in(morphhdl.frontend.Bits(width bits))
+          val bitsOut = out(morphhdl.frontend.Bits(width bits))
+          val uintIn = in(morphhdl.frontend.UInt(width bits))
+          val uintOut = out(morphhdl.frontend.UInt(width bits))
+          val sintIn = in(morphhdl.frontend.SInt(width bits))
+          val sintOut = out(morphhdl.frontend.SInt(width bits))
           bitsOut := bitsIn
           uintOut := uintIn
           sintOut := sintIn
@@ -386,8 +386,8 @@ class HdlIntTests extends AnyFunSuite {
         val config = Config(8)
         new Component {
           setDefinitionName("LiteralWidthWire")
-          val din = in(UInt(config.width bits))
-          val dout = out(UInt(config.width bits))
+          val din = in(morphhdl.frontend.UInt(config.width bits))
+          val dout = out(morphhdl.frontend.UInt(config.width bits))
           dout := din
         }
       }

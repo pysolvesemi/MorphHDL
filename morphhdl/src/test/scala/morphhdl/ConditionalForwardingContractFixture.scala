@@ -12,12 +12,12 @@ private[morphhdl] object ConditionalForwardingContractFixture {
     MorphProgram(
       concreteWitness = new Component {
         setDefinitionName("ConditionalForwarding")
-        val din = in(Bits(8 bits))
-        val dout = out(Bits(8 bits))
+        val din = in(morphhdl.frontend.Bits(8 bits))
+        val dout = out(morphhdl.frontend.Bits(8 bits))
         val selected_inst = new Component {
           setDefinitionName("ConditionalLeaf")
-          val din = in(Bits(8 bits))
-          val dout = out(Bits(8 bits))
+          val din = in(morphhdl.frontend.Bits(8 bits))
+          val dout = out(morphhdl.frontend.Bits(8 bits))
           dout := din
         }
         selected_inst.din := din

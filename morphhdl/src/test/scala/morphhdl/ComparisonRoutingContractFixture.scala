@@ -12,12 +12,12 @@ private[morphhdl] object ComparisonRoutingContractFixture {
     MorphProgram(
       concreteWitness = new Component {
         setDefinitionName("ComparisonRouting")
-        val din = in(Bits(8 bits))
-        val dout = out(Bits(8 bits))
+        val din = in(morphhdl.frontend.Bits(8 bits))
+        val dout = out(morphhdl.frontend.Bits(8 bits))
         val selected_inst = new Component {
           setDefinitionName("HighRoute")
-          val high_in = in(Bits(8 bits))
-          val high_out = out(Bits(8 bits))
+          val high_in = in(morphhdl.frontend.Bits(8 bits))
+          val high_out = out(morphhdl.frontend.Bits(8 bits))
           high_out := high_in
         }
         selected_inst.high_in := din

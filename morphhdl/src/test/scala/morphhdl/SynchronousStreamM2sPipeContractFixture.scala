@@ -17,12 +17,12 @@ private[morphhdl] object SynchronousStreamM2sPipeContractFixture {
 
         val pushValid = in(Bool()).setName("push_valid")
         val pushReady = out(Bool()).setName("push_ready")
-        val pushData = in(Bits(8 bits)).setName("push_data")
+        val pushData = in(morphhdl.frontend.Bits(8 bits)).setName("push_data")
         val popValid = out(Bool()).setName("pop_valid")
         val popReady = in(Bool()).setName("pop_ready")
-        val popData = out(Bits(8 bits)).setName("pop_data")
+        val popData = out(morphhdl.frontend.Bits(8 bits)).setName("pop_data")
 
-        val push = Stream(Bits(8 bits))
+        val push = Stream(morphhdl.frontend.Bits(8 bits))
         push.valid := pushValid
         push.payload := pushData
         pushReady := push.ready
