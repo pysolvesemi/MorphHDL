@@ -111,7 +111,7 @@ recorded in
 
 ## Native-source preservation increments
 
-- [ ] **Increment 38 — Native-source inventory and zero-diff guard**
+- [x] **Increment 38 — Native-source inventory and zero-diff guard**
 
   Convert the reviewed audit into a machine-readable manifest that classifies
   every current change to upstream-owned `core`, `lib` and `idslplugin` source
