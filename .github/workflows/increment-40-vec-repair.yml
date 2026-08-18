@@ -1,0 +1,42 @@
+name: Increment 40 Vec ambiguity repair
+
+on:
+  push:
+    branches:
+      - agent/increment-40-external-symbolic-width
+    paths:
+      - .github/workflows/increment-40-vec-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-40-external-symbolic-width
+          fetch-depth: 0
+      - name: Qualify the external symbolic Vec adapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphhdl/src/test/scala/morphhdl/StructuralGenerateControlTests.scala")
+          text = path.read_text(encoding="utf-8")
+          old = "    val laneIn = in(Vec(morphhdl.frontend.Bits(8 bits), 4))"
+          new = "    val laneIn = in(morphhdl.frontend.Vec(morphhdl.frontend.Bits(8 bits), 4))"
+          if text.count(old) != 1:
+              raise SystemExit(f"expected one Vec ambiguity anchor, found {text.count(old)}")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          git diff --check
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "agent@users.noreply.github.com"
+          git add morphhdl/src/test/scala/morphhdl/StructuralGenerateControlTests.scala
+          git commit -m "Qualify Increment 40 symbolic Vec adapter"
+          git push origin HEAD:agent/increment-40-external-symbolic-width
