@@ -25,7 +25,20 @@ jobs:
       - name: Apply migration and publish reviewed commits
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          python3 .github/increment-40/apply_increment_40.py
+          mkdir -p .github/increment-40
+          set +e
+          python3 .github/increment-40/apply_increment_40.py \
+            > >(tee .github/increment-40/controller.log) \
+            2> >(tee -a .github/increment-40/controller.log >&2)
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            printf '\ncontroller_exit_status=%s\n' "$status" >> .github/increment-40/controller.log
+            git add .github/increment-40/controller.log
+            git commit --no-gpg-sign -m 'Capture Increment 40 controller failure' || true
+            git push origin HEAD:agent/increment-40-external-symbolic-width
+            exit "$status"
+          fi
