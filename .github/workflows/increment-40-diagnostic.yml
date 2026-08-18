@@ -1,9 +1,9 @@
 name: Increment 40 focused diagnostic
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/increment-40-external-symbolic-width
+      - parameterized-verilog
     paths:
       - .github/workflows/increment-40-diagnostic.yml
       - core/src/main/scala/spinal/core/ParameterizedWidth.scala
