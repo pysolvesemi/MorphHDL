@@ -39,4 +39,4 @@ jobs:
 
       - name: Compile and run the external boundary against Increment 0 native sources
         shell: bash
-        run: ./morphhdl/scripts/check-external-spinal-boundary.sh "${{ matrix.scala_version }}"
+        run: bash ./morphhdl/scripts/check-external-spinal-boundary.sh "${{ matrix.scala_version }}"
