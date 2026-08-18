@@ -34,14 +34,23 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           mkdir -p .github/increment-40
           set +e
-          python3 .github/increment-40/apply_increment_40.py \
+          python3 .github/increment-40/repair_apply_increment_40.py \
             > >(tee .github/increment-40/controller.log) \
             2> >(tee -a .github/increment-40/controller.log >&2)
-          status=$?
+          repair_status=$?
+          if [ "$repair_status" -eq 0 ]; then
+            rm .github/increment-40/repair_apply_increment_40.py
+            python3 .github/increment-40/apply_increment_40.py \
+              >> >(tee -a .github/increment-40/controller.log) \
+              2>> >(tee -a .github/increment-40/controller.log >&2)
+            status=$?
+          else
+            status=$repair_status
+          fi
           set -e
           if [ "$status" -ne 0 ]; then
             printf '\ncontroller_exit_status=%s\n' "$status" >> .github/increment-40/controller.log
-            git add .github/increment-40/controller.log
+            git add -f .github/increment-40/controller.log
             git commit --no-gpg-sign -m 'Capture Increment 40 controller failure' || true
             git push origin HEAD:agent/increment-40-external-symbolic-width
             exit "$status"
