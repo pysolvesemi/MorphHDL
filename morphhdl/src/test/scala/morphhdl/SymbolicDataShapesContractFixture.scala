@@ -50,18 +50,18 @@ private[morphhdl] object SymbolicDataShapesContractFixture {
     private def createScalarPorts(): Unit = {
       if (reverseConstructionOrder) {
         bitsOut = out(bitsType()).setName("bits_out")
-        bitsIn = in(cloneOf(bitsOut)).setName("bits_in")
+        bitsIn = in(morphhdl.frontend.cloneOf(bitsOut)).setName("bits_in")
         uintOut = out(uintType()).setName("uint_out")
-        uintIn = in(cloneOf(uintOut)).setName("uint_in")
+        uintIn = in(morphhdl.frontend.cloneOf(uintOut)).setName("uint_in")
         sintOut = out(sintType()).setName("sint_out")
-        sintIn = in(cloneOf(sintOut)).setName("sint_in")
+        sintIn = in(morphhdl.frontend.cloneOf(sintOut)).setName("sint_in")
       } else {
         bitsIn = in(bitsType()).setName("bits_in")
-        bitsOut = out(cloneOf(bitsIn)).setName("bits_out")
+        bitsOut = out(morphhdl.frontend.cloneOf(bitsIn)).setName("bits_out")
         uintIn = in(uintType()).setName("uint_in")
-        uintOut = out(cloneOf(uintIn)).setName("uint_out")
+        uintOut = out(morphhdl.frontend.cloneOf(uintIn)).setName("uint_out")
         sintIn = in(sintType()).setName("sint_in")
-        sintOut = out(cloneOf(sintIn)).setName("sint_out")
+        sintOut = out(morphhdl.frontend.cloneOf(sintIn)).setName("sint_out")
       }
     }
 
