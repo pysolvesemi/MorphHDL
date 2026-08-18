@@ -1,0 +1,38 @@
+name: MorphHDL native source guard
+
+on:
+  push:
+    branches:
+      - main
+      - parameterized-verilog
+  pull_request:
+    branches:
+      - main
+      - parameterized-verilog
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-native-source-guard-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: Native source preservation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Test guard failure detection
+        shell: bash
+        run: python3 morphhdl/scripts/check-native-source-preservation.py --self-test
+
+      - name: Verify reviewed native-source state
+        shell: bash
+        run: python3 morphhdl/scripts/check-native-source-preservation.py
