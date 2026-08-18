@@ -340,7 +340,7 @@ class Counter(
   private val w = log2Up(end + 1)
 
   val valueNext: UInt = retainedBitCount match {
-    case Some(bitCount) => UInt(bitCount)
+    case Some(bitCount) => ParameterizedWidth.UInt(bitCount)
     case None           => UInt(w bit)
   }
   val value = RegNext(valueNext) init(initVal)
@@ -360,7 +360,7 @@ class Counter(
       // state.  The ordinary concrete Counter widens Bool.asUInt to its Scala
       // witness before addition; carrying the shared symbolic shape here avoids
       // baking that witness into the reusable Verilog arithmetic.
-      val step = UInt(bitCount)
+      val step = ParameterizedWidth.UInt(bitCount)
       step := 0
       step(0) := enable
       step

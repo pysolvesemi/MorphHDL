@@ -190,13 +190,7 @@ object ParameterizedWidth {
     */
   def HardType[T <: Data](dataType: => T): spinal.core.HardType[T] = {
     val template = dataType
-    lazy val result: spinal.core.HardType[T] =
-      new spinal.core.HardType[T](cloneOf(template))
-    template match {
-      case bundle: Bundle => bundle.hardtype = result
-      case _ =>
-    }
-    result
+    new spinal.core.HardType[T](cloneOf(template))
   }
 
   /** Untouched native register algorithm driven by the retained HardType. */
