@@ -28,6 +28,11 @@ jobs:
           git grep -n 'ParameterizedBitCount' -- '*.scala' || true
           echo '=== ParameterizedWidth references ==='
           git grep -n 'ParameterizedWidth' -- '*.scala' || true
+          echo '=== BitCount definition and syntax ==='
+          git grep -nE '(^|[^A-Za-z])(case class|class|trait) BitCount|def bits.*BitCount|IntBuilder' -- 'core/src/main/scala/**/*.scala' || true
+          echo '=== Native clone and container factories ==='
+          git grep -nE 'object cloneOf|object HardType|class HardType|object Reg|def Reg\(|object Vec|def Vec\(|object Stream|def Stream\(|object Flow|def Flow\(' -- \
+            'core/src/main/scala/**/*.scala' 'lib/src/main/scala/**/*.scala' || true
           echo '=== Native four-file diff from Increment 0 baseline ==='
           git diff --no-ext-diff --unified=20 \
             8c4241396cd718a36227dcd89a2e6a29d9077f11 HEAD -- \
@@ -36,4 +41,4 @@ jobs:
             core/src/main/scala/spinal/core/SInt.scala \
             core/src/main/scala/spinal/core/UInt.scala
           echo '=== Relevant project definitions ==='
-          grep -nE 'lazy val (core|lib|morph)|dependsOn' build.sbt | head -n 120 || true
+          grep -nE 'lazy val (core|lib|morph)|dependsOn' build.sbt | head -n 160 || true
