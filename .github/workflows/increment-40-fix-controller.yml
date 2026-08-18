@@ -1,0 +1,39 @@
+name: Increment 40 fallback canonicalization controller
+
+on:
+  push:
+    branches:
+      - agent/increment-40-external-symbolic-width
+    paths:
+      - .github/increment-40/fallback-canonicalization.patch
+      - .github/workflows/increment-40-fix-controller.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-40-fallback-canonicalization-controller
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-40-external-symbolic-width
+          fetch-depth: 0
+      - name: Apply reviewed generic fallback fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git apply --check .github/increment-40/fallback-canonicalization.patch
+          git apply .github/increment-40/fallback-canonicalization.patch
+          git diff --check
+          git add core/src/main/scala/spinal/core/internals/ParameterizedVerilogNativeFallback.scala
+          git commit --no-gpg-sign -m 'Canonicalize graph-backed fallback declarations'
+          git push origin HEAD:agent/increment-40-external-symbolic-width
