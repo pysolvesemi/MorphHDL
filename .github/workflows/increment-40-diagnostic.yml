@@ -10,6 +10,7 @@ on:
       - core/src/test/scala/spinal/core/internals/ParameterizedDataShapeTests.scala
       - core/src/test/scala/spinal/core/internals/ParameterizedVerilogTests.scala
       - frontend/src/test/scala/morphhdl/frontend/HdlIntTests.scala
+      - morphhdl/src/test/scala/morphhdl/Increment40GoldenDiagnostic.scala
       - morphhdl/src/test/scala/morphhdl/MorphSingleSourceVerilogTests.scala
       - morphhdl/src/test/scala/morphhdl/NativeLibraryReuseTests.scala
       - morphhdl/src/test/scala/morphhdl/NativeSymbolicMemoryTests.scala
@@ -30,6 +31,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - label: golden-output
+            module: morph
+            suite: morphhdl.Increment40GoldenDiagnostic
           - label: core-data-shapes
             module: core
             suite: spinal.core.internals.ParameterizedDataShapeTests
@@ -74,6 +78,6 @@ jobs:
             tail -n 180 /tmp/suite.log
             echo '::endgroup::'
           else
-            grep -E 'Run completed|Total number of tests|Tests:|All tests passed' /tmp/suite.log || true
+            cat /tmp/suite.log
           fi
           exit "$status"
