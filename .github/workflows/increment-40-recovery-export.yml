@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/increment-40-external-symbolic-width
+  pull_request:
+    branches:
+      - parameterized-verilog
 
 permissions:
   contents: read
