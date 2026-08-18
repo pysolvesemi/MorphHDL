@@ -1,0 +1,85 @@
+name: Increment 40 final targeted repair
+
+on:
+  push:
+    branches:
+      - agent/increment-40-external-symbolic-width
+    paths:
+      - .github/workflows/increment-40-final-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out Increment 40 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-40-external-symbolic-width
+          fetch-depth: 0
+
+      - name: Repair qualified IO syntax and repin native-source state
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          test_path = Path("morphhdl/src/test/scala/morphhdl/MorphSingleSourceVerilogTests.scala")
+          lines = test_path.read_text(encoding="utf-8").splitlines()
+          pattern = re.compile(
+              r"^(\s*val\s+\w+\s*=\s*(?:in|out))\s+"
+              r"(morphhdl\.frontend\.(?:Bits|UInt|SInt)\(.*\))$"
+          )
+          repaired = []
+          replacements = 0
+          for line in lines:
+              match = pattern.match(line)
+              if match:
+                  repaired.append(f"{match.group(1)}({match.group(2)})")
+                  replacements += 1
+              else:
+                  repaired.append(line)
+          if replacements != 8:
+              raise SystemExit(
+                  f"expected 8 qualified IO declarations, repaired {replacements}"
+              )
+          test_path.write_text("\n".join(repaired) + "\n", encoding="utf-8")
+
+          manifest_path = Path("morphhdl/contracts/native-source-preservation.json")
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          manifest["approved_state"] = {
+              "commit": "e88bca528a2444685cdbaf2cdc7874f15f7f3464",
+              "tree": "50de51127c3d632b5d53184cc4d5ef5cfd7cb823",
+              "description": (
+                  "Reviewed native-source state after the final Increment 40 "
+                  "external symbolic-width repairs"
+              ),
+          }
+          manifest_path.write_text(
+              json.dumps(manifest, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          git diff --check
+          git diff -- \
+            morphhdl/src/test/scala/morphhdl/MorphSingleSourceVerilogTests.scala \
+            morphhdl/contracts/native-source-preservation.json
+
+      - name: Commit repairs to Increment 40 branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "agent@users.noreply.github.com"
+          git add \
+            morphhdl/src/test/scala/morphhdl/MorphSingleSourceVerilogTests.scala \
+            morphhdl/contracts/native-source-preservation.json
+          git commit -m "Fix Increment 40 fixture syntax and guard baseline"
+          git push origin HEAD:agent/increment-40-external-symbolic-width
