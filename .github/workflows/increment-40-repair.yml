@@ -28,25 +28,30 @@ jobs:
 
           width_path = Path("core/src/main/scala/spinal/core/ParameterizedWidth.scala")
           width_text = width_path.read_text(encoding="utf-8")
-          old_hard_type = '''  def HardType[T <: Data](dataType: => T): spinal.core.HardType[T] = {
-            val template = dataType
-            lazy val result: spinal.core.HardType[T] =
-              new spinal.core.HardType[T](cloneOf(template))
-            template match {
-              case bundle: Bundle => bundle.hardtype = result
-              case _ =>
-            }
-            result
-          }
-          '''
-          new_hard_type = '''  def HardType[T <: Data](dataType: => T): spinal.core.HardType[T] = {
-            val template = dataType
-            new spinal.core.HardType[T](cloneOf(template))
-          }
-          '''
-          if width_text.count(old_hard_type) != 1:
-              raise SystemExit("expected exactly one recursive ParameterizedWidth.HardType block")
-          width_path.write_text(width_text.replace(old_hard_type, new_hard_type), encoding="utf-8")
+          signature = "  def HardType[T <: Data](dataType: => T): spinal.core.HardType[T] = {"
+          next_section = "\n  /** Untouched native register algorithm driven by the retained HardType. */"
+          if width_text.count(signature) != 1 or width_text.count(next_section) != 1:
+              raise SystemExit("could not isolate the ParameterizedWidth.HardType method")
+          start = width_text.index(signature)
+          end = width_text.index(next_section, start)
+          old_hard_type = width_text[start:end]
+          for required in (
+              "lazy val result: spinal.core.HardType[T]",
+              "case bundle: Bundle => bundle.hardtype = result",
+              "result",
+          ):
+              if required not in old_hard_type:
+                  raise SystemExit(f"unexpected ParameterizedWidth.HardType body; missing {required}")
+          new_hard_type = (
+              "  def HardType[T <: Data](dataType: => T): spinal.core.HardType[T] = {\n"
+              "    val template = dataType\n"
+              "    new spinal.core.HardType[T](cloneOf(template))\n"
+              "  }\n"
+          )
+          width_path.write_text(
+              width_text[:start] + new_hard_type + width_text[end:],
+              encoding="utf-8",
+          )
 
           counter_path = Path("lib/src/main/scala/spinal/lib/Counter.scala")
           counter_text = counter_path.read_text(encoding="utf-8")
