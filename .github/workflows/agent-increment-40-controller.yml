@@ -15,7 +15,6 @@ concurrency:
 
 jobs:
   apply:
-    if: ${{ github.event.head_commit.message == 'Add deterministic Increment 40 migration controller' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
