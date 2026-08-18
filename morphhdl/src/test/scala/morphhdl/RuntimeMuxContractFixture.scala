@@ -14,9 +14,9 @@ private[morphhdl] object RuntimeMuxContractFixture {
       concreteWitness = new Component {
         setDefinitionName("RuntimeMux")
         val sel = in(Bool()).setName("sel")
-        val data_false = in(Bits(8 bits)).setName("data_false")
-        val data_true = in(Bits(8 bits)).setName("data_true")
-        val result = out(Bits(8 bits)).setName("result")
+        val data_false = in(morphhdl.frontend.Bits(8 bits)).setName("data_false")
+        val data_true = in(morphhdl.frontend.Bits(8 bits)).setName("data_true")
+        val result = out(morphhdl.frontend.Bits(8 bits)).setName("result")
 
         when(sel) {
           result := data_true

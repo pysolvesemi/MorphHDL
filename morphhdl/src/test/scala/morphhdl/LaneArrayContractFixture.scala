@@ -12,15 +12,15 @@ private[morphhdl] object LaneArrayContractFixture {
     MorphProgram(
       concreteWitness = new Component {
         setDefinitionName("LaneArray")
-        val data_in = in(Bits(32 bits))
-        val data_out = out(Bits(32 bits))
+        val data_in = in(morphhdl.frontend.Bits(32 bits))
+        val data_out = out(morphhdl.frontend.Bits(32 bits))
 
         val laneIndices = ordered((0 until 4).toVector, reverseConstructionOrder)
         val laneInstances = laneIndices.map { lane =>
           val instance = new Component {
             setDefinitionName("PixelLane")
-            val data_in = in(Bits(8 bits))
-            val data_out = out(Bits(8 bits))
+            val data_in = in(morphhdl.frontend.Bits(8 bits))
+            val data_out = out(morphhdl.frontend.Bits(8 bits))
             data_out := data_in
           }
           instance.data_in := data_in(lane * 8 + 7 downto lane * 8)

@@ -9,9 +9,9 @@ private[morphhdl] object SymbolicDataShapesContractFixture {
   final case class Config(width: HdlInt)
 
   private final case class Payload(width: HdlInt) extends Bundle {
-    val bits = Bits(width bits)
-    val uint = UInt(width bits)
-    val sint = SInt(width bits)
+    val bits = morphhdl.frontend.Bits(width bits)
+    val uint = morphhdl.frontend.UInt(width bits)
+    val sint = morphhdl.frontend.SInt(width bits)
   }
 
   /**
@@ -25,9 +25,9 @@ private[morphhdl] object SymbolicDataShapesContractFixture {
   ) extends Component {
     setDefinitionName("SymbolicDataShapes")
 
-    private val bitsType = HardType(Bits(config.width bits))
-    private val uintType = HardType(UInt(config.width bits))
-    private val sintType = HardType(SInt(config.width bits))
+    private val bitsType = morphhdl.frontend.HardType(morphhdl.frontend.Bits(config.width bits))
+    private val uintType = morphhdl.frontend.HardType(morphhdl.frontend.UInt(config.width bits))
+    private val sintType = morphhdl.frontend.HardType(morphhdl.frontend.SInt(config.width bits))
     private val payloadType = HardType(Payload(config.width))
 
     private var bitsIn: Bits = null
@@ -50,18 +50,18 @@ private[morphhdl] object SymbolicDataShapesContractFixture {
     private def createScalarPorts(): Unit = {
       if (reverseConstructionOrder) {
         bitsOut = out(bitsType()).setName("bits_out")
-        bitsIn = in(cloneOf(bitsOut)).setName("bits_in")
+        bitsIn = in(morphhdl.frontend.cloneOf(bitsOut)).setName("bits_in")
         uintOut = out(uintType()).setName("uint_out")
-        uintIn = in(cloneOf(uintOut)).setName("uint_in")
+        uintIn = in(morphhdl.frontend.cloneOf(uintOut)).setName("uint_in")
         sintOut = out(sintType()).setName("sint_out")
-        sintIn = in(cloneOf(sintOut)).setName("sint_in")
+        sintIn = in(morphhdl.frontend.cloneOf(sintOut)).setName("sint_in")
       } else {
         bitsIn = in(bitsType()).setName("bits_in")
-        bitsOut = out(cloneOf(bitsIn)).setName("bits_out")
+        bitsOut = out(morphhdl.frontend.cloneOf(bitsIn)).setName("bits_out")
         uintIn = in(uintType()).setName("uint_in")
-        uintOut = out(cloneOf(uintIn)).setName("uint_out")
+        uintOut = out(morphhdl.frontend.cloneOf(uintIn)).setName("uint_out")
         sintIn = in(sintType()).setName("sint_in")
-        sintOut = out(cloneOf(sintIn)).setName("sint_out")
+        sintOut = out(morphhdl.frontend.cloneOf(sintIn)).setName("sint_out")
       }
     }
 

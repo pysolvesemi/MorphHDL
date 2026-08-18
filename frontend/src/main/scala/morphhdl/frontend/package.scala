@@ -5,6 +5,30 @@ package object frontend {
 
   import spinal.core._
 
+  /**
+    * MorphHDL-owned symbolic data factories. These shadow only explicit
+    * `morphhdl.frontend` calls and delegate concrete construction to untouched
+    * SpinalHDL factories.
+    */
+  def Bits(width: ParameterizedBitCount): spinal.core.Bits =
+    ParameterizedWidth.Bits(width)
+  def Bits(width: BitCount): spinal.core.Bits = spinal.core.Bits(width)
+
+  def UInt(width: ParameterizedBitCount): spinal.core.UInt =
+    ParameterizedWidth.UInt(width)
+  def UInt(width: BitCount): spinal.core.UInt = spinal.core.UInt(width)
+
+  def SInt(width: ParameterizedBitCount): spinal.core.SInt =
+    ParameterizedWidth.SInt(width)
+  def SInt(width: BitCount): spinal.core.SInt = spinal.core.SInt(width)
+
+  def cloneOf[T <: Data](data: T): T = ParameterizedWidth.cloneOf(data)
+  def HardType[T <: Data](dataType: => T): spinal.core.HardType[T] =
+    ParameterizedWidth.HardType(dataType)
+  def Reg[T <: Data](dataType: => T): T = ParameterizedWidth.Reg(dataType)
+  def Vec[T <: Data](dataType: => T, size: Int): spinal.core.Vec[T] =
+    ParameterizedWidth.Vec(dataType, size)
+
   implicit def intToHdlInt(value: Int)(implicit
       file: sourcecode.File,
       line: sourcecode.Line

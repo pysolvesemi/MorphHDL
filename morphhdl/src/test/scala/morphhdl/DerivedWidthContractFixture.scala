@@ -12,8 +12,8 @@ private[morphhdl] object DerivedWidthContractFixture {
     MorphProgram(
       concreteWitness = new Component {
         setDefinitionName("DerivedWidth")
-        val din = in(Bits(37 bits))
-        val dout = out(Bits(37 bits))
+        val din = in(morphhdl.frontend.Bits(37 bits))
+        val dout = out(morphhdl.frontend.Bits(37 bits))
         dout := din
       },
       parameterizedDesign = {

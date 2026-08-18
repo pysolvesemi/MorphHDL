@@ -13,20 +13,20 @@ private[morphhdl] object BooleanForwardingContractFixture {
     MorphProgram(
       concreteWitness = new Component {
         setDefinitionName("BooleanForwarding")
-        val high_in = in(Bits(8 bits))
-        val low_in = in(Bits(8 bits))
-        val dout = out(Bits(8 bits))
+        val high_in = in(morphhdl.frontend.Bits(8 bits))
+        val low_in = in(morphhdl.frontend.Bits(8 bits))
+        val dout = out(morphhdl.frontend.Bits(8 bits))
 
         val route_inst = new Component {
           setDefinitionName("BooleanRoute")
-          val high_in = in(Bits(8 bits))
-          val low_in = in(Bits(8 bits))
-          val dout = out(Bits(8 bits))
+          val high_in = in(morphhdl.frontend.Bits(8 bits))
+          val low_in = in(morphhdl.frontend.Bits(8 bits))
+          val dout = out(morphhdl.frontend.Bits(8 bits))
 
           val selected_inst = new Component {
             setDefinitionName("BooleanHighRoute")
-            val high_in = in(Bits(8 bits))
-            val high_out = out(Bits(8 bits))
+            val high_in = in(morphhdl.frontend.Bits(8 bits))
+            val high_out = out(morphhdl.frontend.Bits(8 bits))
             high_out := high_in
           }
 

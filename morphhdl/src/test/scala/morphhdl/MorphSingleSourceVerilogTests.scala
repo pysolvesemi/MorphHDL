@@ -80,18 +80,19 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
       assert(read(output) == read(contractGolden("symbolic_data_shapes.v")))
 
       val verilog = read(output)
-      assert(verilog.contains("module SymbolicDataShapes #("))
-      assert(verilog.contains("parameter integer WIDTH = 8"))
-      assert(verilog.contains("[WIDTH-1:0] bits_in"))
-      assert(verilog.contains("[WIDTH-1:0] uint_in"))
-      assert(verilog.contains("[WIDTH-1:0] sint_in"))
-      assert(verilog.contains("[WIDTH-1:0] vec_in_0_bits"))
-      assert(verilog.contains("[WIDTH-1:0] stream_in_payload_sint"))
-      assert(verilog.contains("[WIDTH-1:0] flow_out_payload_uint"))
-      assert(verilog.contains("[WIDTH-1:0] internal_payload_bits"))
-      assert(verilog.contains("[WIDTH-1:0] payload_register_sint"))
-      assert(verilog.contains("always @(posedge clk)"))
-      assert(!verilog.contains("parameterizedDesign"))
+      val normalizedVerilog = verilog.replaceAll("\\s+", " ")
+      assert(normalizedVerilog.contains("module SymbolicDataShapes #("))
+      assert(normalizedVerilog.contains("parameter integer WIDTH = 8"))
+      assert(normalizedVerilog.contains("[WIDTH-1:0] bits_in"))
+      assert(normalizedVerilog.contains("[WIDTH-1:0] uint_in"))
+      assert(normalizedVerilog.contains("[WIDTH-1:0] sint_in"))
+      assert(normalizedVerilog.contains("[WIDTH-1:0] vec_in_0_bits"))
+      assert(normalizedVerilog.contains("[WIDTH-1:0] stream_in_payload_sint"))
+      assert(normalizedVerilog.contains("[WIDTH-1:0] flow_out_payload_uint"))
+      assert(normalizedVerilog.contains("[WIDTH-1:0] internal_payload_bits"))
+      assert(normalizedVerilog.contains("[WIDTH-1:0] payload_register_sint"))
+      assert(normalizedVerilog.contains("always @(posedge clk)"))
+      assert(!normalizedVerilog.contains("parameterizedDesign"))
     }
   }
 
@@ -185,8 +186,8 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
         val derivedWidth = width + HdlInt.literal(1)
         new Component {
           setDefinitionName("BoundedDerivedWidth")
-          val payload = in UInt(derivedWidth bits)
-          val result = out UInt(derivedWidth bits)
+          val payload = in(morphhdl.frontend.UInt(derivedWidth bits))
+          val result = out(morphhdl.frontend.UInt(derivedWidth bits))
           result := payload
         }
       }
@@ -230,8 +231,8 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
       val result = MorphVerilog.tryGenerate(config) {
         new Component {
           setDefinitionName("UntaggedDirectWire")
-          val payload = in UInt(8 bits)
-          val result = out UInt(8 bits)
+          val payload = in(morphhdl.frontend.UInt(8 bits))
+          val result = out(morphhdl.frontend.UInt(8 bits))
           result := payload
         }
       }
@@ -255,8 +256,8 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
         val width = HdlInt.param("payload", default = 8, min = 1, max = 64)
         new Component {
           setDefinitionName("CollidingParameterWire")
-          val payload = in UInt(width bits)
-          val result = out UInt(width bits)
+          val payload = in(morphhdl.frontend.UInt(width bits))
+          val result = out(morphhdl.frontend.UInt(width bits))
           result := payload
         }
       }
@@ -305,8 +306,8 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
     val width = HdlInt.param(parameterName, default = defaultWidth, min = 1, max = 64)
     new Component {
       setDefinitionName(componentName)
-      val payload = in UInt(width bits)
-      val result = out UInt(width bits)
+      val payload = in(morphhdl.frontend.UInt(width bits))
+      val result = out(morphhdl.frontend.UInt(width bits))
       result := payload
     }
   }

@@ -13,7 +13,7 @@ private[morphhdl] object SynchronousStreamFifoContractFixture {
   def program(reverseConstructionOrder: Boolean): MorphProgram[Component] =
     MorphProgram(
       concreteWitness = new StreamFifo(
-        dataType = Bits(8 bits),
+        dataType = morphhdl.frontend.Bits(8 bits),
         depth = 5,
         withAsyncRead = false,
         withBypass = false

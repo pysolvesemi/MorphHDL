@@ -19,10 +19,10 @@ class NativeLibraryReuseTests extends AnyFunSuite {
 
     val increment = in(Bool())
     val clear = in(Bool())
-    val value = out(UInt(width bits))
+    val value = out(morphhdl.frontend.UInt(width bits))
     val will_complete = out(Bool())
     val flow_valid = out(Bool())
-    val flow_payload = out(UInt(width bits))
+    val flow_payload = out(morphhdl.frontend.UInt(width bits))
 
     val counter = Counter(width bits)
     when(increment) {
@@ -44,17 +44,17 @@ class NativeLibraryReuseTests extends AnyFunSuite {
 
     val stream_in_valid = in(Bool())
     val stream_in_ready = out(Bool())
-    val stream_in_payload = in(Bits(width bits))
+    val stream_in_payload = in(morphhdl.frontend.Bits(width bits))
     val stream_out_valid = out(Bool())
     val stream_out_ready = in(Bool())
-    val stream_out_payload = out(Bits(width bits))
+    val stream_out_payload = out(morphhdl.frontend.Bits(width bits))
 
     val flow_in_valid = in(Bool())
-    val flow_in_payload = in(Bits(width bits))
+    val flow_in_payload = in(morphhdl.frontend.Bits(width bits))
     val flow_out_valid = out(Bool())
-    val flow_out_payload = out(Bits(width bits))
+    val flow_out_payload = out(morphhdl.frontend.Bits(width bits))
 
-    val stream = Stream(Bits(width bits))
+    val stream = Stream(morphhdl.frontend.Bits(width bits))
     stream.valid := stream_in_valid
     stream.payload := stream_in_payload
     stream_in_ready := stream.ready
@@ -64,7 +64,7 @@ class NativeLibraryReuseTests extends AnyFunSuite {
     pipedStream.ready := stream_out_ready
     stream_out_payload := pipedStream.payload
 
-    val flow = Flow(Bits(width bits))
+    val flow = Flow(morphhdl.frontend.Bits(width bits))
     flow.valid := flow_in_valid
     flow.payload := flow_in_payload
     val pipedFlow = flow.m2sPipe
@@ -77,15 +77,15 @@ class NativeLibraryReuseTests extends AnyFunSuite {
 
     val push_valid = in(Bool())
     val push_ready = out(Bool())
-    val push_payload = in(Bits(width bits))
+    val push_payload = in(morphhdl.frontend.Bits(width bits))
     val pop_valid = out(Bool())
     val pop_ready = in(Bool())
-    val pop_payload = out(Bits(width bits))
+    val pop_payload = out(morphhdl.frontend.Bits(width bits))
     val flush = in(Bool())
-    val occupancy = out(UInt(3 bits))
-    val availability = out(UInt(3 bits))
+    val occupancy = out(morphhdl.frontend.UInt(3 bits))
+    val availability = out(morphhdl.frontend.UInt(3 bits))
 
-    val fifo = StreamFifo(Bits(width bits), depth = 4, latency = 2)
+    val fifo = StreamFifo(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth = 4, latency = 2)
     fifo.setName("fifo")
     fifo.io.push.valid := push_valid
     fifo.io.push.payload := push_payload

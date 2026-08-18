@@ -17,7 +17,7 @@ private[morphhdl] object ParameterizedCounterContractFixture {
         val clk = in(Bool()).setName("clk")
         val reset = in(Bool()).setName("reset")
         val enable = in(Bool()).setName("enable")
-        val count = out(UInt(3 bits)).setName("count")
+        val count = out(morphhdl.frontend.UInt(3 bits)).setName("count")
 
         val counterClockDomain = ClockDomain(
           clock = clk,

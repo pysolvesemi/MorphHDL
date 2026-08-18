@@ -1,0 +1,70 @@
+name: MorphHDL external symbolic width
+
+on:
+  push:
+    branches:
+      - main
+      - parameterized-verilog
+  pull_request:
+    branches:
+      - main
+      - parameterized-verilog
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-external-symbolic-width-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    name: External width proof Scala ${{ matrix.scala_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove native width files match Increment 0
+        shell: bash
+        run: |
+          git diff --exit-code \
+            8c4241396cd718a36227dcd89a2e6a29d9077f11 HEAD -- \
+            core/src/main/scala/spinal/core/BaseType.scala \
+            core/src/main/scala/spinal/core/Bits.scala \
+            core/src/main/scala/spinal/core/SInt.scala \
+            core/src/main/scala/spinal/core/UInt.scala
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate external width and data-shape contracts
+        shell: bash
+        run: |
+          /tmp/morphhdl-mill core[${{ matrix.scala_version }}].testOnly \
+            spinal.core.internals.ParameterizedVerilogTests \
+            spinal.core.internals.ParameterizedDataShapeTests
+          /tmp/morphhdl-mill frontend[${{ matrix.scala_version }}].testOnly \
+            morphhdl.frontend.HdlIntTests
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.NativeLibraryReuseTests \
+            morphhdl.NativeSymbolicMemoryTests

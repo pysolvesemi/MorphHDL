@@ -966,8 +966,8 @@ class MorphVerilogTests extends AnyFunSuite {
         MorphProgram(
           concreteWitness = new Component {
             setDefinitionName(topName)
-            val clog2 = in(Bits(3 bits)).setName("clog2")
-            val data_out = out(Bits(3 bits)).setName("data_out")
+            val clog2 = in(morphhdl.frontend.Bits(3 bits)).setName("clog2")
+            val data_out = out(morphhdl.frontend.Bits(3 bits)).setName("data_out")
             data_out := clog2
           },
           parameterizedDesign = {
@@ -1585,8 +1585,8 @@ class MorphVerilogTests extends AnyFunSuite {
     for (_ <- 0 until symbolicWidth) onLoop()
     new Component {
       setDefinitionName(requestedName)
-      val data_in = in(Bits(width bits))
-      val data_out = out(Bits(width bits))
+      val data_in = in(morphhdl.frontend.Bits(width bits))
+      val data_out = out(morphhdl.frontend.Bits(width bits))
       data_out := data_in
     }
   }
@@ -1594,16 +1594,16 @@ class MorphVerilogTests extends AnyFunSuite {
   private def passThroughWitness(requestedName: String, width: Int): Component =
     new Component {
       setDefinitionName(requestedName)
-      val data_in = in(Bits(width bits))
-      val data_out = out(Bits(width bits))
+      val data_in = in(morphhdl.frontend.Bits(width bits))
+      val data_out = out(morphhdl.frontend.Bits(width bits))
       data_out := data_in
     }
 
   private def conditionalWidthWitness(requestedName: String, width: Int): Component =
     new Component {
       setDefinitionName(requestedName)
-      val din = in(Bits(width bits))
-      val dout = out(Bits(width bits))
+      val din = in(morphhdl.frontend.Bits(width bits))
+      val dout = out(morphhdl.frontend.Bits(width bits))
       dout := din
     }
 
@@ -1689,12 +1689,12 @@ class MorphVerilogTests extends AnyFunSuite {
   private def boundConditionalWidthWitness(requestedName: String, width: Int): Component =
     new Component {
       setDefinitionName(requestedName)
-      val din = in(Bits(width bits))
-      val dout = out(Bits(width bits))
+      val din = in(morphhdl.frontend.Bits(width bits))
+      val dout = out(morphhdl.frontend.Bits(width bits))
       val child = new Component {
         setDefinitionName("BoundConditionalWidthChild")
-        val child_in = in(Bits(width bits))
-        val child_out = out(Bits(width bits))
+        val child_in = in(morphhdl.frontend.Bits(width bits))
+        val child_out = out(morphhdl.frontend.Bits(width bits))
         child_out := child_in
       }
       child.child_in := din
@@ -1801,12 +1801,12 @@ class MorphVerilogTests extends AnyFunSuite {
     for (_ <- 0 until symbolicWidth) ()
     new Component {
       setDefinitionName(requestedName)
-      val data_in = in(Bits(8 bits))
-      val data_out = out(Bits(8 bits))
+      val data_in = in(morphhdl.frontend.Bits(8 bits))
+      val data_out = out(morphhdl.frontend.Bits(8 bits))
       val child = new Component {
         setDefinitionName("WitnessChild")
-        val child_in = in(Bits(8 bits))
-        val child_out = out(Bits(8 bits))
+        val child_in = in(morphhdl.frontend.Bits(8 bits))
+        val child_out = out(morphhdl.frontend.Bits(8 bits))
         child_out := child_in
       }
       child.child_in := data_in
@@ -1819,12 +1819,12 @@ class MorphVerilogTests extends AnyFunSuite {
     for (_ <- 0 until symbolicWidth) ()
     new Component {
       setDefinitionName(requestedName)
-      val data_in = in(Bits(8 bits))
-      val data_out = out(Bits(8 bits))
+      val data_in = in(morphhdl.frontend.Bits(8 bits))
+      val data_out = out(morphhdl.frontend.Bits(8 bits))
       val child = new Component {
         setDefinitionName("HierarchyLeaf")
-        val leaf_in = in(Bits(childWidth bits))
-        val leaf_out = out(Bits(childWidth bits))
+        val leaf_in = in(morphhdl.frontend.Bits(childWidth bits))
+        val leaf_out = out(morphhdl.frontend.Bits(childWidth bits))
         leaf_out := leaf_in
       }
       child.leaf_in := data_in.resized
@@ -1835,13 +1835,13 @@ class MorphVerilogTests extends AnyFunSuite {
   private def falseBranchWitness(requestedName: String, copies: Int = 1): Component =
     new Component {
       setDefinitionName(requestedName)
-      val din = in(Bits(8 bits))
-      val dout = out(Bits(8 bits))
+      val din = in(morphhdl.frontend.Bits(8 bits))
+      val dout = out(morphhdl.frontend.Bits(8 bits))
       val selected = Vector.fill(copies) {
         new Component {
           setDefinitionName("FalseDefaultLeaf")
-          val false_in = in(Bits(8 bits))
-          val false_out = out(Bits(8 bits))
+          val false_in = in(morphhdl.frontend.Bits(8 bits))
+          val false_out = out(morphhdl.frontend.Bits(8 bits))
           false_out := false_in
         }
       }
@@ -1852,12 +1852,12 @@ class MorphVerilogTests extends AnyFunSuite {
   private def trueBranchWitness(requestedName: String): Component =
     new Component {
       setDefinitionName(requestedName)
-      val din = in(Bits(8 bits))
-      val dout = out(Bits(8 bits))
+      val din = in(morphhdl.frontend.Bits(8 bits))
+      val dout = out(morphhdl.frontend.Bits(8 bits))
       val selected = new Component {
         setDefinitionName("TrueDefaultLeaf")
-        val true_in = in(Bits(8 bits))
-        val true_out = out(Bits(8 bits))
+        val true_in = in(morphhdl.frontend.Bits(8 bits))
+        val true_out = out(morphhdl.frontend.Bits(8 bits))
         true_out := true_in
       }
       selected.true_in := din
@@ -2044,18 +2044,18 @@ class MorphVerilogTests extends AnyFunSuite {
   private def boundComparedConditionalWitness(requestedName: String): Component =
     new Component {
       setDefinitionName(requestedName)
-      val din = in(Bits(8 bits))
-      val dout = out(Bits(8 bits))
+      val din = in(morphhdl.frontend.Bits(8 bits))
+      val dout = out(morphhdl.frontend.Bits(8 bits))
 
       val routedChild = new Component {
         setDefinitionName("BoundComparedChild")
-        val child_in = in(Bits(8 bits))
-        val child_out = out(Bits(8 bits))
+        val child_in = in(morphhdl.frontend.Bits(8 bits))
+        val child_out = out(morphhdl.frontend.Bits(8 bits))
 
         val selected = new Component {
           setDefinitionName("BoundHighLeaf")
-          val high_in = in(Bits(8 bits))
-          val high_out = out(Bits(8 bits))
+          val high_in = in(morphhdl.frontend.Bits(8 bits))
+          val high_out = out(morphhdl.frontend.Bits(8 bits))
           high_out := high_in
         }
         selected.high_in := child_in
@@ -2198,19 +2198,19 @@ class MorphVerilogTests extends AnyFunSuite {
   ): Component =
     new Component {
       setDefinitionName(requestedName)
-      val din = in(Bits(8 bits))
-      val dout = out(Bits(8 bits))
+      val din = in(morphhdl.frontend.Bits(8 bits))
+      val dout = out(morphhdl.frontend.Bits(8 bits))
 
       val routedChild = new Component {
         setDefinitionName("BoundBooleanChild")
-        val child_in = in(Bits(8 bits))
-        val child_out = out(Bits(8 bits))
+        val child_in = in(morphhdl.frontend.Bits(8 bits))
+        val child_out = out(morphhdl.frontend.Bits(8 bits))
 
         if (selectHigh) {
           val selected = new Component {
             setDefinitionName("BoundBooleanHighLeaf")
-            val high_in = in(Bits(8 bits))
-            val high_out = out(Bits(8 bits))
+            val high_in = in(morphhdl.frontend.Bits(8 bits))
+            val high_out = out(morphhdl.frontend.Bits(8 bits))
             high_out := high_in
           }
           selected.high_in := child_in
@@ -2218,8 +2218,8 @@ class MorphVerilogTests extends AnyFunSuite {
         } else {
           val selected = new Component {
             setDefinitionName("BoundBooleanLowLeaf")
-            val low_in = in(Bits(8 bits))
-            val low_out = out(Bits(8 bits))
+            val low_in = in(morphhdl.frontend.Bits(8 bits))
+            val low_out = out(morphhdl.frontend.Bits(8 bits))
             low_out := low_in
           }
           selected.low_in := child_in
@@ -2666,14 +2666,14 @@ class MorphVerilogTests extends AnyFunSuite {
   private def generateCaseWitness(requestedName: String, selected: Int): Component =
     new Component {
       setDefinitionName(requestedName)
-      val din = in(Bits(8 bits))
-      val dout = out(Bits(8 bits))
+      val din = in(morphhdl.frontend.Bits(8 bits))
+      val dout = out(morphhdl.frontend.Bits(8 bits))
 
       if (selected == 0) {
         val selected_inst = new Component {
           setDefinitionName("GenerateCaseZeroLeaf")
-          val zero_in = in(Bits(8 bits))
-          val zero_out = out(Bits(8 bits))
+          val zero_in = in(morphhdl.frontend.Bits(8 bits))
+          val zero_out = out(morphhdl.frontend.Bits(8 bits))
           zero_out := zero_in
         }
         selected_inst.zero_in := din
@@ -2681,8 +2681,8 @@ class MorphVerilogTests extends AnyFunSuite {
       } else if (selected == 1) {
         val selected_inst = new Component {
           setDefinitionName("GenerateCaseOneLeaf")
-          val one_in = in(Bits(8 bits))
-          val one_out = out(Bits(8 bits))
+          val one_in = in(morphhdl.frontend.Bits(8 bits))
+          val one_out = out(morphhdl.frontend.Bits(8 bits))
           one_out := one_in
         }
         selected_inst.one_in := din
@@ -2690,8 +2690,8 @@ class MorphVerilogTests extends AnyFunSuite {
       } else {
         val selected_inst = new Component {
           setDefinitionName("GenerateCaseDefaultLeaf")
-          val default_in = in(Bits(8 bits))
-          val default_out = out(Bits(8 bits))
+          val default_in = in(morphhdl.frontend.Bits(8 bits))
+          val default_out = out(morphhdl.frontend.Bits(8 bits))
           default_out := default_in
         }
         selected_inst.default_in := din
@@ -2816,18 +2816,18 @@ class MorphVerilogTests extends AnyFunSuite {
   private def boundGenerateCaseWitness(requestedName: String, selected: Int): Component =
     new Component {
       setDefinitionName(requestedName)
-      val din = in(Bits(8 bits))
-      val dout = out(Bits(8 bits))
+      val din = in(morphhdl.frontend.Bits(8 bits))
+      val dout = out(morphhdl.frontend.Bits(8 bits))
       val routed_child = new Component {
         setDefinitionName("BoundGenerateCaseChild")
-        val child_in = in(Bits(8 bits))
-        val child_out = out(Bits(8 bits))
+        val child_in = in(morphhdl.frontend.Bits(8 bits))
+        val child_out = out(morphhdl.frontend.Bits(8 bits))
 
         if (selected == 0) {
           val selected_inst = new Component {
             setDefinitionName("GenerateCaseZeroLeaf")
-            val zero_in = in(Bits(8 bits))
-            val zero_out = out(Bits(8 bits))
+            val zero_in = in(morphhdl.frontend.Bits(8 bits))
+            val zero_out = out(morphhdl.frontend.Bits(8 bits))
             zero_out := zero_in
           }
           selected_inst.zero_in := child_in
@@ -2835,8 +2835,8 @@ class MorphVerilogTests extends AnyFunSuite {
         } else if (selected == 1) {
           val selected_inst = new Component {
             setDefinitionName("GenerateCaseOneLeaf")
-            val one_in = in(Bits(8 bits))
-            val one_out = out(Bits(8 bits))
+            val one_in = in(morphhdl.frontend.Bits(8 bits))
+            val one_out = out(morphhdl.frontend.Bits(8 bits))
             one_out := one_in
           }
           selected_inst.one_in := child_in
@@ -2844,8 +2844,8 @@ class MorphVerilogTests extends AnyFunSuite {
         } else {
           val selected_inst = new Component {
             setDefinitionName("GenerateCaseDefaultLeaf")
-            val default_in = in(Bits(8 bits))
-            val default_out = out(Bits(8 bits))
+            val default_in = in(morphhdl.frontend.Bits(8 bits))
+            val default_out = out(morphhdl.frontend.Bits(8 bits))
             default_out := default_in
           }
           selected_inst.default_in := child_in
@@ -2911,19 +2911,19 @@ class MorphVerilogTests extends AnyFunSuite {
   private def siblingGenerateCaseWitness(requestedName: String): Component =
     new Component {
       setDefinitionName(requestedName)
-      val zero_in = in(Bits(8 bits))
-      val zero_out = out(Bits(8 bits))
-      val one_in = in(Bits(8 bits))
-      val one_out = out(Bits(8 bits))
+      val zero_in = in(morphhdl.frontend.Bits(8 bits))
+      val zero_out = out(morphhdl.frontend.Bits(8 bits))
+      val one_in = in(morphhdl.frontend.Bits(8 bits))
+      val one_out = out(morphhdl.frontend.Bits(8 bits))
 
       val zero_child = new Component {
         setDefinitionName("SiblingGenerateCaseChildZero")
-        val child_in = in(Bits(8 bits))
-        val child_out = out(Bits(8 bits))
+        val child_in = in(morphhdl.frontend.Bits(8 bits))
+        val child_out = out(morphhdl.frontend.Bits(8 bits))
         val selected_inst = new Component {
           setDefinitionName("GenerateCaseZeroLeaf")
-          val zero_in = in(Bits(8 bits))
-          val zero_out = out(Bits(8 bits))
+          val zero_in = in(morphhdl.frontend.Bits(8 bits))
+          val zero_out = out(morphhdl.frontend.Bits(8 bits))
           zero_out := zero_in
         }
         selected_inst.zero_in := child_in
@@ -2931,12 +2931,12 @@ class MorphVerilogTests extends AnyFunSuite {
       }
       val one_child = new Component {
         setDefinitionName("SiblingGenerateCaseChildOne")
-        val child_in = in(Bits(8 bits))
-        val child_out = out(Bits(8 bits))
+        val child_in = in(morphhdl.frontend.Bits(8 bits))
+        val child_out = out(morphhdl.frontend.Bits(8 bits))
         val selected_inst = new Component {
           setDefinitionName("GenerateCaseOneLeaf")
-          val one_in = in(Bits(8 bits))
-          val one_out = out(Bits(8 bits))
+          val one_in = in(morphhdl.frontend.Bits(8 bits))
+          val one_out = out(morphhdl.frontend.Bits(8 bits))
           one_out := one_in
         }
         selected_inst.one_in := child_in
@@ -3056,19 +3056,19 @@ class MorphVerilogTests extends AnyFunSuite {
   private def siblingBoundBooleanConditionalWitness(requestedName: String): Component =
     new Component {
       setDefinitionName(requestedName)
-      val high_in = in(Bits(8 bits))
-      val low_in = in(Bits(8 bits))
-      val high_out = out(Bits(8 bits))
-      val low_out = out(Bits(8 bits))
+      val high_in = in(morphhdl.frontend.Bits(8 bits))
+      val low_in = in(morphhdl.frontend.Bits(8 bits))
+      val high_out = out(morphhdl.frontend.Bits(8 bits))
+      val low_out = out(morphhdl.frontend.Bits(8 bits))
 
       val highChild = new Component {
         setDefinitionName("SiblingBoundBooleanChildHigh")
-        val child_in = in(Bits(8 bits))
-        val child_out = out(Bits(8 bits))
+        val child_in = in(morphhdl.frontend.Bits(8 bits))
+        val child_out = out(morphhdl.frontend.Bits(8 bits))
         val selected = new Component {
           setDefinitionName("SiblingBoundBooleanHighLeaf")
-          val high_in = in(Bits(8 bits))
-          val high_out = out(Bits(8 bits))
+          val high_in = in(morphhdl.frontend.Bits(8 bits))
+          val high_out = out(morphhdl.frontend.Bits(8 bits))
           high_out := high_in
         }
         selected.high_in := child_in
@@ -3076,12 +3076,12 @@ class MorphVerilogTests extends AnyFunSuite {
       }
       val lowChild = new Component {
         setDefinitionName("SiblingBoundBooleanChildLow")
-        val child_in = in(Bits(8 bits))
-        val child_out = out(Bits(8 bits))
+        val child_in = in(morphhdl.frontend.Bits(8 bits))
+        val child_out = out(morphhdl.frontend.Bits(8 bits))
         val selected = new Component {
           setDefinitionName("SiblingBoundBooleanLowLeaf")
-          val low_in = in(Bits(8 bits))
-          val low_out = out(Bits(8 bits))
+          val low_in = in(morphhdl.frontend.Bits(8 bits))
+          val low_out = out(morphhdl.frontend.Bits(8 bits))
           low_out := low_in
         }
         selected.low_in := child_in
@@ -3177,21 +3177,21 @@ class MorphVerilogTests extends AnyFunSuite {
   private def twoHopBoundBooleanConditionalWitness(requestedName: String): Component =
     new Component {
       setDefinitionName(requestedName)
-      val din = in(Bits(8 bits))
-      val dout = out(Bits(8 bits))
+      val din = in(morphhdl.frontend.Bits(8 bits))
+      val dout = out(morphhdl.frontend.Bits(8 bits))
 
       val middle = new Component {
         setDefinitionName("TwoHopBooleanMiddle")
-        val mid_in = in(Bits(8 bits))
-        val mid_out = out(Bits(8 bits))
+        val mid_in = in(morphhdl.frontend.Bits(8 bits))
+        val mid_out = out(morphhdl.frontend.Bits(8 bits))
         val leaf = new Component {
           setDefinitionName("TwoHopBooleanLeaf")
-          val leaf_in = in(Bits(8 bits))
-          val leaf_out = out(Bits(8 bits))
+          val leaf_in = in(morphhdl.frontend.Bits(8 bits))
+          val leaf_out = out(morphhdl.frontend.Bits(8 bits))
           val selected = new Component {
             setDefinitionName("TwoHopBooleanLowRoute")
-            val low_in = in(Bits(8 bits))
-            val low_out = out(Bits(8 bits))
+            val low_in = in(morphhdl.frontend.Bits(8 bits))
+            val low_out = out(morphhdl.frontend.Bits(8 bits))
             low_out := low_in
           }
           selected.low_in := leaf_in
@@ -3302,16 +3302,16 @@ class MorphVerilogTests extends AnyFunSuite {
   private def forwardingWitness(requestedName: String, width: Int): Component =
     new Component {
       setDefinitionName(requestedName)
-      val data_in = in(Bits(width bits))
-      val data_out = out(Bits(width bits))
+      val data_in = in(morphhdl.frontend.Bits(width bits))
+      val data_out = out(morphhdl.frontend.Bits(width bits))
       val middle = new Component {
         setDefinitionName("ForwardingMiddle")
-        val mid_in = in(Bits(width bits))
-        val mid_out = out(Bits(width bits))
+        val mid_in = in(morphhdl.frontend.Bits(width bits))
+        val mid_out = out(morphhdl.frontend.Bits(width bits))
         val leaf = new Component {
           setDefinitionName("ForwardingLeaf")
-          val leaf_in = in(Bits(width bits))
-          val leaf_out = out(Bits(width bits))
+          val leaf_in = in(morphhdl.frontend.Bits(width bits))
+          val leaf_out = out(morphhdl.frontend.Bits(width bits))
           leaf_out := leaf_in
         }
         leaf.leaf_in := mid_in
@@ -3381,18 +3381,18 @@ class MorphVerilogTests extends AnyFunSuite {
   private def multiBoundWitness(requestedName: String): Component =
     new Component {
       setDefinitionName(requestedName)
-      val data_in_8 = in(Bits(8 bits))
-      val data_out_8 = out(Bits(8 bits))
-      val data_in_16 = in(Bits(16 bits))
-      val data_out_16 = out(Bits(16 bits))
+      val data_in_8 = in(morphhdl.frontend.Bits(8 bits))
+      val data_out_8 = out(morphhdl.frontend.Bits(8 bits))
+      val data_in_16 = in(morphhdl.frontend.Bits(16 bits))
+      val data_out_16 = out(morphhdl.frontend.Bits(16 bits))
 
       class BoundLeaf(width: Int) extends Component {
         // Spinal requires distinct concrete definition names for layouts with
         // different widths. The symbolic side intentionally keeps one
         // parameterized MultiBoundLeaf module.
         setDefinitionName(s"MultiBoundLeaf$width")
-        val leaf_in = in(Bits(width bits))
-        val leaf_out = out(Bits(width bits))
+        val leaf_in = in(morphhdl.frontend.Bits(width bits))
+        val leaf_out = out(morphhdl.frontend.Bits(width bits))
         leaf_out := leaf_in
       }
 
@@ -3862,12 +3862,12 @@ class MorphVerilogTests extends AnyFunSuite {
   private def boundAddressWidthWitness(requestedName: String, width: Int): Component =
     new Component {
       setDefinitionName(requestedName)
-      val data_in = in(Bits(width bits))
-      val data_out = out(Bits(width bits))
+      val data_in = in(morphhdl.frontend.Bits(width bits))
+      val data_out = out(morphhdl.frontend.Bits(width bits))
       val child = new Component {
         setDefinitionName("BoundAddressWidthChild")
-        val child_in = in(Bits(width bits))
-        val child_out = out(Bits(width bits))
+        val child_in = in(morphhdl.frontend.Bits(width bits))
+        val child_out = out(morphhdl.frontend.Bits(width bits))
         child_out := child_in
       }
       child.child_in := data_in

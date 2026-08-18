@@ -15,8 +15,8 @@ private[morphhdl] object AsynchronousRegisterContractFixture {
         setDefinitionName("AsynchronousRegister")
         val clk = in(Bool()).setName("clk")
         val reset = in(Bool()).setName("reset")
-        val data_in = in(Bits(8 bits)).setName("data_in")
-        val data_out = out(Bits(8 bits)).setName("data_out")
+        val data_in = in(morphhdl.frontend.Bits(8 bits)).setName("data_in")
+        val data_out = out(morphhdl.frontend.Bits(8 bits)).setName("data_out")
 
         val registerClockDomain = ClockDomain(
           clock = clk,
@@ -28,7 +28,7 @@ private[morphhdl] object AsynchronousRegisterContractFixture {
           )
         )
         val registerArea = new ClockingArea(registerClockDomain) {
-          val state = Reg(Bits(8 bits)) init (0)
+          val state = morphhdl.frontend.Reg(morphhdl.frontend.Bits(8 bits)) init (0)
           state := data_in
           data_out := state
         }

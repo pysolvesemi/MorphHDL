@@ -16,11 +16,11 @@ object GenericProcessLoweringSmoke {
   final class GenericCombinational(width: HdlInt) extends Component {
     setDefinitionName("NativeGenericCombinationalProcess")
 
-    val left = in(Bits(width bits))
-    val right = in(Bits(width bits))
-    val mode = in(UInt(2 bits))
+    val left = in(morphhdl.frontend.Bits(width bits))
+    val right = in(morphhdl.frontend.Bits(width bits))
+    val mode = in(morphhdl.frontend.UInt(2 bits))
     val invert = in(Bool())
-    val result = out(Bits(width bits))
+    val result = out(morphhdl.frontend.Bits(width bits))
 
     result := left
     switch(mode) {
@@ -45,10 +45,10 @@ object GenericProcessLoweringSmoke {
 
     val clear = in(Bool())
     val load = in(Bool())
-    val din = in(Bits(width bits))
-    val dout = out(Bits(width bits))
+    val din = in(morphhdl.frontend.Bits(width bits))
+    val dout = out(morphhdl.frontend.Bits(width bits))
 
-    val state = Reg(Bits(width bits)) init (0)
+    val state = morphhdl.frontend.Reg(morphhdl.frontend.Bits(width bits)) init (0)
     when(clear) {
       state := 0
     } elsewhen (load) {
@@ -60,8 +60,8 @@ object GenericProcessLoweringSmoke {
   final class ProceduralLoopTop(lanes: HdlInt) extends Component {
     setDefinitionName("ProceduralLoopTop")
 
-    val din = in(Bits(32 bits))
-    val dout = out(Bits(32 bits))
+    val din = in(morphhdl.frontend.Bits(32 bits))
+    val dout = out(morphhdl.frontend.Bits(32 bits))
     dout := B(0, 32 bits)
     (0 until lanes).named("p_lane", "lane").foreach { lane =>
       val laneWidth = HdlInt.literal(BigInt(8))
@@ -74,9 +74,9 @@ object GenericProcessLoweringSmoke {
     setDefinitionName("SequentialProceduralLoopTop")
 
     val load = in(Bool())
-    val din = in(Bits(32 bits))
-    val dout = out(Bits(32 bits))
-    val state = Reg(Bits(32 bits)) init (0)
+    val din = in(morphhdl.frontend.Bits(32 bits))
+    val dout = out(morphhdl.frontend.Bits(32 bits))
+    val state = morphhdl.frontend.Reg(morphhdl.frontend.Bits(32 bits)) init (0)
 
     when(load) {
       (0 until lanes).named("p_word", "word").foreach { word =>
@@ -259,8 +259,8 @@ class GenericProcessLoweringTests extends AnyFunSuite {
         val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 16)
         new Component {
           setDefinitionName("InvalidNoDriverProcess")
-          val din = in(Bits(width bits))
-          val dout = out(Bits(width bits))
+          val din = in(morphhdl.frontend.Bits(width bits))
+          val dout = out(morphhdl.frontend.Bits(width bits))
           val alive = out(Bool())
           alive := din.orR
         }
@@ -277,8 +277,8 @@ class GenericProcessLoweringTests extends AnyFunSuite {
         new Component {
           setDefinitionName("InvalidLatchProcess")
           val enable = in(Bool())
-          val din = in(Bits(width bits))
-          val dout = out(Bits(width bits))
+          val din = in(morphhdl.frontend.Bits(width bits))
+          val dout = out(morphhdl.frontend.Bits(width bits))
           when(enable) {
             dout := din
           }

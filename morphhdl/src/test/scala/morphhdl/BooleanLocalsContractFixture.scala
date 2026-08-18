@@ -13,18 +13,18 @@ private[morphhdl] object BooleanLocalsContractFixture {
     MorphProgram(
       concreteWitness = new Component {
         setDefinitionName("BooleanLocals")
-        val din = in(Bits(8 bits))
-        val dout = out(Bits(8 bits))
+        val din = in(morphhdl.frontend.Bits(8 bits))
+        val dout = out(morphhdl.frontend.Bits(8 bits))
 
         val route_inst = new Component {
           setDefinitionName("BooleanLocalRoute")
-          val din = in(Bits(8 bits))
-          val dout = out(Bits(8 bits))
+          val din = in(morphhdl.frontend.Bits(8 bits))
+          val dout = out(morphhdl.frontend.Bits(8 bits))
 
           val selected_inst = new Component {
             setDefinitionName("BooleanLocalHighRoute")
-            val high_in = in(Bits(8 bits))
-            val high_out = out(Bits(8 bits))
+            val high_in = in(morphhdl.frontend.Bits(8 bits))
+            val high_out = out(morphhdl.frontend.Bits(8 bits))
             high_out := high_in
           }
 

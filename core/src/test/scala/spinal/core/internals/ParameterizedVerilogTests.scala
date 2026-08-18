@@ -54,8 +54,8 @@ class ParameterizedVerilogTests extends AnyFunSuite {
           new Component {
             setDefinitionName("ConcreteOnlyWidthWire")
             private val concrete = ParameterizedBitCount(8, parameter = None)
-            val din = in(UInt(concrete))
-            val dout = out(UInt(concrete))
+            val din = in(ParameterizedWidth.UInt(concrete))
+            val dout = out(ParameterizedWidth.UInt(concrete))
             dout := din
           }
         }
@@ -127,9 +127,9 @@ class ParameterizedVerilogTests extends AnyFunSuite {
         SpinalVerilog(parameterizedConfig(directory)) {
           new Component {
             setDefinitionName("MismatchedWidthWire")
-            val din = in(UInt(ParameterizedBitCount(8, width)))
+            val din = in(ParameterizedWidth.UInt(ParameterizedBitCount(8, width)))
             val dout = out(
-              UInt(
+              ParameterizedWidth.UInt(
                 ParameterizedBitCount(
                   8,
                   ElaborationIntegerParameter("OTHER_WIDTH", 8, 1, 64)
@@ -155,7 +155,7 @@ class ParameterizedVerilogTests extends AnyFunSuite {
           new Component {
             setDefinitionName("ConflictingWidthWire")
             val din = in(
-              UInt(
+              ParameterizedWidth.UInt(
                 ParameterizedBitCount(
                   8,
                   width,
@@ -164,7 +164,7 @@ class ParameterizedVerilogTests extends AnyFunSuite {
               )
             )
             val dout = out(
-              UInt(
+              ParameterizedWidth.UInt(
                 ParameterizedBitCount(
                   8,
                   width.copy(maximum = 32),
@@ -189,7 +189,7 @@ class ParameterizedVerilogTests extends AnyFunSuite {
         SpinalVerilog(parameterizedConfig(directory)) {
           new Component {
             setDefinitionName("InputOnlyWidth")
-            val din = in(UInt(ParameterizedBitCount(8, width)))
+            val din = in(ParameterizedWidth.UInt(ParameterizedBitCount(8, width)))
           }
         }
       }
@@ -218,12 +218,12 @@ class ParameterizedVerilogTests extends AnyFunSuite {
         private val bitCount = ParameterizedBitCount(parameter.default.toInt, parameter)
         private val ports =
           if (reversePorts) {
-            val output = out(UInt(bitCount)).setName("dout")
-            val input = in(UInt(bitCount)).setName("din")
+            val output = out(ParameterizedWidth.UInt(bitCount)).setName("dout")
+            val input = in(ParameterizedWidth.UInt(bitCount)).setName("din")
             (input, output)
           } else {
-            val input = in(UInt(bitCount)).setName("din")
-            val output = out(UInt(bitCount)).setName("dout")
+            val input = in(ParameterizedWidth.UInt(bitCount)).setName("din")
+            val output = out(ParameterizedWidth.UInt(bitCount)).setName("dout")
             (input, output)
           }
         ports._2 := ports._1

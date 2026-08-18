@@ -10,9 +10,9 @@ import spinal.core._
 
 private object ParameterizedDataShapeTestFixture {
   final case class Payload(shapeWidth: ParameterizedBitCount) extends Bundle {
-    val bits = Bits(shapeWidth)
-    val uint = UInt(shapeWidth)
-    val sint = SInt(shapeWidth)
+    val bits = ParameterizedWidth.Bits(shapeWidth)
+    val uint = ParameterizedWidth.UInt(shapeWidth)
+    val sint = ParameterizedWidth.SInt(shapeWidth)
   }
 }
 
@@ -28,29 +28,29 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
     setDefinitionName("ParameterizedShapeMetadata")
 
     val clk = in(Bool())
-    val din = in(Bits(bitCount))
-    val dout = out(Bits(bitCount))
+    val din = in(ParameterizedWidth.Bits(bitCount))
+    val dout = out(ParameterizedWidth.Bits(bitCount))
 
-    val directBits = Bits(bitCount)
-    val directUInt = UInt(bitCount)
-    val directSInt = SInt(bitCount)
-    val clonedBits = cloneOf(directBits)
+    val directBits = ParameterizedWidth.Bits(bitCount)
+    val directUInt = ParameterizedWidth.UInt(bitCount)
+    val directSInt = ParameterizedWidth.SInt(bitCount)
+    val clonedBits = ParameterizedWidth.cloneOf(directBits)
 
-    private val uintTemplate = UInt(bitCount)
-    private val uintHardType = HardType(uintTemplate)
+    private val uintTemplate = ParameterizedWidth.UInt(bitCount)
+    private val uintHardType = ParameterizedWidth.HardType(uintTemplate)
     val hardUIntA = uintHardType()
     val hardUIntB = uintHardType()
 
     val payload = Payload(bitCount)
-    val payloadClone = cloneOf(payload)
-    val payloadVec = Vec(Payload(bitCount), 2)
+    val payloadClone = ParameterizedWidth.cloneOf(payload)
+    val payloadVec = ParameterizedWidth.Vec(Payload(bitCount), 2)
 
-    val ordinary = Bits(8 bits)
-    val ordinaryClone = cloneOf(ordinary)
+    val ordinary = ParameterizedWidth.Bits(8 bits)
+    val ordinaryClone = ParameterizedWidth.cloneOf(ordinary)
 
     private val registerClock = ClockDomain(clock = clk)
     val registerArea = new ClockingArea(registerClock) {
-      val symbolicRegister = Reg(Bits(bitCount))
+      val symbolicRegister = ParameterizedWidth.Reg(ParameterizedWidth.Bits(bitCount))
       symbolicRegister := din
     }
     dout := registerArea.symbolicRegister
@@ -72,7 +72,7 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
     }
   }
 
-  test("cloneOf and repeated HardType construction preserve independent metadata") {
+  test("external cloneOf and HardType preserve identity-associated metadata") {
     withTemporaryDirectory { directory =>
       val top = generateMetadata(directory).toplevel
 
@@ -85,12 +85,10 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
       assert(ParameterizedWidth.sourceLocationOf(top.hardUIntA) == sourceLocation)
       assert(ParameterizedWidth.sourceLocationOf(top.hardUIntB) == sourceLocation)
 
-      val directTag = top.directBits.getTag(classOf[ParameterizedWidthTag]).get
-      val cloneTag = top.clonedBits.getTag(classOf[ParameterizedWidthTag]).get
-      val hardTagA = top.hardUIntA.getTag(classOf[ParameterizedWidthTag]).get
-      val hardTagB = top.hardUIntB.getTag(classOf[ParameterizedWidthTag]).get
-      assert(directTag ne cloneTag)
-      assert(hardTagA ne hardTagB)
+      assert(ParameterizedWidth.isRetained(top.directBits))
+      assert(ParameterizedWidth.isRetained(top.clonedBits))
+      assert(ParameterizedWidth.isRetained(top.hardUIntA))
+      assert(ParameterizedWidth.isRetained(top.hardUIntB))
     }
   }
 
@@ -116,7 +114,7 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
     }
   }
 
-  test("ordinary concrete factories and clones remain untagged") {
+  test("ordinary concrete factories and clones remain unregistered") {
     withTemporaryDirectory { directory =>
       val top = generateMetadata(directory).toplevel
 
@@ -141,10 +139,10 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
           val passed = out(Bool())
           passed := pass
 
-          val internal = Bits(ParameterizedBitCount(5, internalWidth)).dontSimplifyIt()
+          val internal = ParameterizedWidth.Bits(ParameterizedBitCount(5, internalWidth)).dontSimplifyIt()
           private val internalClockDomain = ClockDomain(clock = clk)
           val area = new ClockingArea(internalClockDomain) {
-            val state = Reg(Bits(ParameterizedBitCount(5, internalWidth))).dontSimplifyIt()
+            val state = ParameterizedWidth.Reg(ParameterizedWidth.Bits(ParameterizedBitCount(5, internalWidth))).dontSimplifyIt()
             state := internal
           }
           discovered = ParameterizedWidth.parametersOf(this)
@@ -165,10 +163,10 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
             val passed = out(Bool())
             passed := pass
 
-            val first = Bits(
+            val first = ParameterizedWidth.Bits(
               ParameterizedBitCount(8, width, Some("InternalShapeConflict.scala:10"))
             )
-            val second = Bits(
+            val second = ParameterizedWidth.Bits(
               ParameterizedBitCount(
                 8,
                 width.copy(maximum = 32),
@@ -190,9 +188,9 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
       SpinalVerilog(parameterizedConfig(directory)) {
         new Component {
           setDefinitionName("ConcreteInternalShape")
-          val din = in(Bits(bitCount))
-          val dout = out(Bits(bitCount))
-          val concreteInternal = Bits(8 bits).setName("concrete_internal").dontSimplifyIt()
+          val din = in(ParameterizedWidth.Bits(bitCount))
+          val dout = out(ParameterizedWidth.Bits(bitCount))
+          val concreteInternal = ParameterizedWidth.Bits(8 bits).setName("concrete_internal").dontSimplifyIt()
           concreteInternal := B(0, 8 bits)
           dout := din
         }
@@ -212,8 +210,8 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
       new Component {
         setDefinitionName("MismatchedShapeWitness")
         private val wrongWitness = ParameterizedBitCount(7, width, sourceLocation)
-        val din = in(Bits(wrongWitness))
-        val dout = out(Bits(wrongWitness))
+        val din = in(ParameterizedWidth.Bits(wrongWitness))
+        val dout = out(ParameterizedWidth.Bits(wrongWitness))
         dout := din
       }
     }
@@ -225,9 +223,9 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
     val failure = interceptParameterized("InternalParameterCollision") { () =>
       new Component {
         setDefinitionName("InternalParameterCollision")
-        val din = in(Bits(bitCount))
-        val dout = out(Bits(bitCount))
-        val internal = Bits(bitCount).setName("WIDTH").dontSimplifyIt()
+        val din = in(ParameterizedWidth.Bits(bitCount))
+        val dout = out(ParameterizedWidth.Bits(bitCount))
+        val internal = ParameterizedWidth.Bits(bitCount).setName("WIDTH").dontSimplifyIt()
         internal := din
         dout := internal
       }
@@ -246,11 +244,11 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
           setDefinitionName("ResetSymbolicRegister")
           val clk = in(Bool())
           val reset = in(Bool())
-          val din = in(Bits(bitCount))
-          val dout = out(Bits(bitCount))
+          val din = in(ParameterizedWidth.Bits(bitCount))
+          val dout = out(ParameterizedWidth.Bits(bitCount))
           private val resetClockDomain = ClockDomain(clock = clk, reset = reset)
           val area = new ClockingArea(resetClockDomain) {
-            val state = Reg(Bits(bitCount))
+            val state = ParameterizedWidth.Reg(ParameterizedWidth.Bits(bitCount))
             state.init(B(0, 8 bits))
             state := din
             dout := state
@@ -274,11 +272,11 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
           setDefinitionName("ConditionalShapeAssignment")
           val clk = in(Bool())
           val select = in(Bool())
-          val din = in(Bits(bitCount))
-          val dout = out(Bits(bitCount))
+          val din = in(ParameterizedWidth.Bits(bitCount))
+          val dout = out(ParameterizedWidth.Bits(bitCount))
           private val registerClockDomain = ClockDomain(clock = clk)
           val area = new ClockingArea(registerClockDomain) {
-            val state = Reg(Bits(bitCount))
+            val state = ParameterizedWidth.Reg(ParameterizedWidth.Bits(bitCount))
             when(select) {
               state := din
             }
@@ -301,9 +299,9 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
       SpinalVerilog(parameterizedConfig(directory)) {
         new Component {
           setDefinitionName("PartialShapeAssignment")
-          val din = in(Bits(bitCount))
-          val alternate = in(Bits(bitCount))
-          val dout = out(Bits(bitCount))
+          val din = in(ParameterizedWidth.Bits(bitCount))
+          val alternate = in(ParameterizedWidth.Bits(bitCount))
+          val dout = out(ParameterizedWidth.Bits(bitCount))
           dout := din
           dout(0) := alternate(0)
         }
@@ -318,9 +316,9 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
       SpinalVerilog(parameterizedConfig(directory)) {
         new Component {
           setDefinitionName("ExpressionShapeAssignment")
-          val din = in(Bits(bitCount))
-          val alternate = in(Bits(bitCount))
-          val dout = out(Bits(bitCount))
+          val din = in(ParameterizedWidth.Bits(bitCount))
+          val alternate = in(ParameterizedWidth.Bits(bitCount))
+          val dout = out(ParameterizedWidth.Bits(bitCount))
           dout := din ^ alternate
         }
       }
@@ -337,9 +335,9 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
         SpinalVerilog(concreteConfig(directory).copy(parameterizedVerilog = true)) {
           new Component {
             setDefinitionName("MissingShapeDriver")
-            val din = in(Bits(bitCount))
-            val dout = out(Bits(bitCount))
-            val internal = Bits(bitCount).dontSimplifyIt()
+            val din = in(ParameterizedWidth.Bits(bitCount))
+            val dout = out(ParameterizedWidth.Bits(bitCount))
+            val internal = ParameterizedWidth.Bits(bitCount).dontSimplifyIt()
             internal := din
           }
         }
@@ -352,9 +350,9 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
         SpinalVerilog(concreteConfig(directory).copy(parameterizedVerilog = true)) {
           new Component {
             setDefinitionName("MultipleShapeDrivers")
-            val first = in(Bits(bitCount))
-            val second = in(Bits(bitCount))
-            val dout = out(Bits(bitCount))
+            val first = in(ParameterizedWidth.Bits(bitCount))
+            val second = in(ParameterizedWidth.Bits(bitCount))
+            val dout = out(ParameterizedWidth.Bits(bitCount))
             dout := first
             dout := second
           }
@@ -376,11 +374,11 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
           setDefinitionName("ResetDomainSymbolicRegister")
           val clk = in(Bool())
           val reset = in(Bool())
-          val din = in(Bits(bitCount))
-          val dout = out(Bits(bitCount))
+          val din = in(ParameterizedWidth.Bits(bitCount))
+          val dout = out(ParameterizedWidth.Bits(bitCount))
           private val registerClockDomain = ClockDomain(clock = clk, reset = reset)
           val area = new ClockingArea(registerClockDomain) {
-            val state = Reg(Bits(bitCount))
+            val state = ParameterizedWidth.Reg(ParameterizedWidth.Bits(bitCount))
             state := din
             dout := state
           }
@@ -396,14 +394,14 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
         new Component {
           setDefinitionName("FallingEdgeSymbolicRegister")
           val clk = in(Bool())
-          val din = in(Bits(bitCount))
-          val dout = out(Bits(bitCount))
+          val din = in(ParameterizedWidth.Bits(bitCount))
+          val dout = out(ParameterizedWidth.Bits(bitCount))
           private val registerClockDomain = ClockDomain(
             clock = clk,
             config = ClockDomainConfig(clockEdge = FALLING)
           )
           val area = new ClockingArea(registerClockDomain) {
-            val state = Reg(Bits(bitCount))
+            val state = ParameterizedWidth.Reg(ParameterizedWidth.Bits(bitCount))
             state := din
             dout := state
           }

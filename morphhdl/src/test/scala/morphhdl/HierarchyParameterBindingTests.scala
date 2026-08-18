@@ -13,8 +13,8 @@ import morphhdl.frontend.HdlInt
 object HierarchyParameterBindingSmoke {
   final class Leaf(width: HdlInt) extends Component {
     setDefinitionName("NativeHierarchyLeaf")
-    val din = in(Bits(width bits))
-    val dout = out(Bits(width bits))
+    val din = in(morphhdl.frontend.Bits(width bits))
+    val dout = out(morphhdl.frontend.Bits(width bits))
     dout := din
   }
 
@@ -24,10 +24,10 @@ object HierarchyParameterBindingSmoke {
       leafWidth: HdlInt
   ) extends Component {
     setDefinitionName("NativeHierarchyTop")
-    val leftIn = in(Bits(leftWidth bits))
-    val leftOut = out(Bits(leftWidth bits))
-    val rightIn = in(Bits(rightWidth bits))
-    val rightOut = out(Bits(rightWidth bits))
+    val leftIn = in(morphhdl.frontend.Bits(leftWidth bits))
+    val leftOut = out(morphhdl.frontend.Bits(leftWidth bits))
+    val rightIn = in(morphhdl.frontend.Bits(rightWidth bits))
+    val rightOut = out(morphhdl.frontend.Bits(rightWidth bits))
 
     val left = new Leaf(leafWidth)
     left.setName("left")
@@ -73,8 +73,8 @@ class HierarchyParameterBindingTests extends AnyFunSuite {
 
   private final class LiteralTop(childWidth: HdlInt) extends Component {
     setDefinitionName("ConcreteHierarchyTop")
-    val din = in(Bits(8 bits))
-    val dout = out(Bits(8 bits))
+    val din = in(morphhdl.frontend.Bits(8 bits))
+    val dout = out(morphhdl.frontend.Bits(8 bits))
     val leaf = new Leaf(childWidth)
     leaf.setName("leaf")
     leaf.din := din
@@ -87,8 +87,8 @@ class HierarchyParameterBindingTests extends AnyFunSuite {
       childWidth: HdlInt
   ) extends Component {
     setDefinitionName("ConflictingHierarchyTop")
-    val din = in(Bits(leftWidth bits))
-    val dout = out(Bits(rightWidth bits))
+    val din = in(morphhdl.frontend.Bits(leftWidth bits))
+    val dout = out(morphhdl.frontend.Bits(rightWidth bits))
     val leaf = new Leaf(childWidth)
     leaf.setName("leaf")
     leaf.din := din
@@ -102,10 +102,10 @@ class HierarchyParameterBindingTests extends AnyFunSuite {
       rightLeafWidth: HdlInt
   ) extends Component {
     setDefinitionName("TwoLeafHierarchyTop")
-    val leftIn = in(Bits(leftWidth bits))
-    val leftOut = out(Bits(leftWidth bits))
-    val rightIn = in(Bits(rightWidth bits))
-    val rightOut = out(Bits(rightWidth bits))
+    val leftIn = in(morphhdl.frontend.Bits(leftWidth bits))
+    val leftOut = out(morphhdl.frontend.Bits(leftWidth bits))
+    val rightIn = in(morphhdl.frontend.Bits(rightWidth bits))
+    val rightOut = out(morphhdl.frontend.Bits(rightWidth bits))
     val left = new Leaf(leftLeafWidth)
     left.setName("left")
     val right = new Leaf(rightLeafWidth)

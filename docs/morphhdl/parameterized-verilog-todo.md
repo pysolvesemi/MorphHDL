@@ -129,7 +129,7 @@ recorded in
   required capability is inaccessible, stop and present the precise minimal
   native hook and alternatives for approval before changing source.
 
-- [ ] **Increment 40 — External symbolic width and data-shape retention**
+- [x] **Increment 40 — External symbolic width and data-shape retention**
 
   Restore the native `BaseType`, `Bits`, `SInt` and `UInt` construction and
   cloning paths. Move bounded symbolic-width ownership to a MorphHDL registry

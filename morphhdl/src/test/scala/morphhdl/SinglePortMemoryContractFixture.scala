@@ -16,13 +16,13 @@ private[morphhdl] object SinglePortMemoryContractFixture {
         val clk = in(Bool()).setName("clk")
         val read_enable = in(Bool()).setName("read_enable")
         val write_enable = in(Bool()).setName("write_enable")
-        val address = in(UInt(3 bits)).setName("address")
-        val write_data = in(Bits(8 bits)).setName("write_data")
-        val read_data = out(Bits(8 bits)).setName("read_data")
+        val address = in(morphhdl.frontend.UInt(3 bits)).setName("address")
+        val write_data = in(morphhdl.frontend.Bits(8 bits)).setName("write_data")
+        val read_data = out(morphhdl.frontend.Bits(8 bits)).setName("read_data")
 
         val memoryClockDomain = ClockDomain(clock = clk)
         val memoryArea = new ClockingArea(memoryClockDomain) {
-          val memory = Mem(Bits(8 bits), wordCount = 5)
+          val memory = Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(8 bits)), wordCount = 5)
           val addressInRange = address < 5
           val value = memory.readWriteSync(
             address = address,

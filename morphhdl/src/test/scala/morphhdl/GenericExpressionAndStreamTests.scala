@@ -17,20 +17,20 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
   private final class GenericExpressions(width: HdlInt) extends Component {
     setDefinitionName("NativeGenericExpressions")
 
-    val left = in(Bits(width bits))
-    val right = in(Bits(width bits))
-    val unsignedLeft = in(UInt(width bits))
-    val unsignedRight = in(UInt(width bits))
+    val left = in(morphhdl.frontend.Bits(width bits))
+    val right = in(morphhdl.frontend.Bits(width bits))
+    val unsignedLeft = in(morphhdl.frontend.UInt(width bits))
+    val unsignedRight = in(morphhdl.frontend.UInt(width bits))
     val select = in(Bool())
 
-    val connected = out(Bits(width bits))
-    val muxed = out(Bits(width bits))
-    val xored = out(Bits(width bits))
-    val sum = out(UInt(width bits))
+    val connected = out(morphhdl.frontend.Bits(width bits))
+    val muxed = out(morphhdl.frontend.Bits(width bits))
+    val xored = out(morphhdl.frontend.Bits(width bits))
+    val sum = out(morphhdl.frontend.UInt(width bits))
     val expandedSum = out(UInt())
     val concatenated = out(Bits())
-    val sliced = out(Bits(4 bits))
-    val resized = out(Bits(4 bits))
+    val sliced = out(morphhdl.frontend.Bits(4 bits))
+    val resized = out(morphhdl.frontend.Bits(4 bits))
 
     connected := left
     muxed := Mux(select, left, right)
@@ -47,12 +47,12 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
 
     val push_valid = in(Bool())
     val push_ready = out(Bool())
-    val push_data = in(Bits(width bits))
+    val push_data = in(morphhdl.frontend.Bits(width bits))
     val pop_valid = out(Bool())
     val pop_ready = in(Bool())
-    val pop_data = out(Bits(width bits))
+    val pop_data = out(morphhdl.frontend.Bits(width bits))
 
-    val push = Stream(Bits(width bits))
+    val push = Stream(morphhdl.frontend.Bits(width bits))
     push.valid := push_valid
     push.payload := push_data
     push_ready := push.ready
@@ -172,8 +172,8 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
         val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 3000)
         new Component {
           setDefinitionName("TooWideExpression")
-          val left = in(Bits(width bits))
-          val right = in(Bits(width bits))
+          val left = in(morphhdl.frontend.Bits(width bits))
+          val right = in(morphhdl.frontend.Bits(width bits))
           val concatenated = out(Bits())
           concatenated := left ## right
         }
@@ -196,8 +196,8 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
         val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 16)
         new Component {
           setDefinitionName("UnsafeSlice")
-          val input = in(Bits(width bits))
-          val output = out(Bits(4 bits))
+          val input = in(morphhdl.frontend.Bits(width bits))
+          val output = out(morphhdl.frontend.Bits(4 bits))
           output := input(3 downto 0)
         }
       }
@@ -213,8 +213,8 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
         val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 16)
         new Component {
           setDefinitionName("UnsafeResize")
-          val input = in(Bits(width bits))
-          val output = out(Bits(12 bits))
+          val input = in(morphhdl.frontend.Bits(width bits))
+          val output = out(morphhdl.frontend.Bits(12 bits))
           output := input.resize(12)
         }
       }

@@ -19,11 +19,11 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
 
     val read_enable = in(Bool())
     val write_enable = in(Bool())
-    val address = in(UInt(depth.addressWidth bits))
-    val write_data = in(Bits(width bits))
-    val read_data = out(Bits(width bits))
+    val address = in(morphhdl.frontend.UInt(depth.addressWidth bits))
+    val write_data = in(morphhdl.frontend.Bits(width bits))
+    val read_data = out(morphhdl.frontend.Bits(width bits))
 
-    val memory = Mem(Bits(width bits), depth).setName("memory")
+    val memory = Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
     val read_word = memory.readSync(
       address,
       enable = read_enable,
@@ -41,12 +41,12 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
 
     val read_enable = in(Bool())
     val write_enable = in(Bool())
-    val read_address = in(UInt(depth.addressWidth bits))
-    val write_address = in(UInt(depth.addressWidth bits))
-    val write_data = in(Bits(width bits))
-    val read_data = out(Bits(width bits))
+    val read_address = in(morphhdl.frontend.UInt(depth.addressWidth bits))
+    val write_address = in(morphhdl.frontend.UInt(depth.addressWidth bits))
+    val write_data = in(morphhdl.frontend.Bits(width bits))
+    val read_data = out(morphhdl.frontend.Bits(width bits))
 
-    val memory = Mem(Bits(width bits), depth).setName("memory")
+    val memory = Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
     val read_word = memory.readSync(
       read_address,
       enable = read_enable,
@@ -162,10 +162,10 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
           setDefinitionName("BadNativeMemoryCollision")
           val read_enable = in(Bool())
           val write_enable = in(Bool())
-          val address = in(UInt(depth.addressWidth bits))
-          val write_data = in(Bits(width bits))
-          val read_data = out(Bits(width bits))
-          val memory = Mem(Bits(width bits), depth).setName("memory")
+          val address = in(morphhdl.frontend.UInt(depth.addressWidth bits))
+          val write_data = in(morphhdl.frontend.Bits(width bits))
+          val read_data = out(morphhdl.frontend.Bits(width bits))
+          val memory = Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
           val read_word = memory.readSync(address, enable = read_enable)
           memory.write(address, write_data, enable = write_enable)
           read_data := read_word
@@ -186,10 +186,10 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
         new Component {
           setDefinitionName("MissingNativeMemoryEnable")
           val write_enable = in(Bool())
-          val address = in(UInt(depth.addressWidth bits))
-          val write_data = in(Bits(width bits))
-          val read_data = out(Bits(width bits))
-          val memory = Mem(Bits(width bits), depth).setName("memory")
+          val address = in(morphhdl.frontend.UInt(depth.addressWidth bits))
+          val write_data = in(morphhdl.frontend.Bits(width bits))
+          val read_data = out(morphhdl.frontend.Bits(width bits))
+          val memory = Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
           val read_word = memory.readSync(
             address,
             readUnderWrite = readFirst
@@ -214,10 +214,10 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
           setDefinitionName("BadNativeMemoryCapacity")
           val read_enable = in(Bool())
           val write_enable = in(Bool())
-          val address = in(UInt(3 bits))
-          val write_data = in(Bits(width bits))
-          val read_data = out(Bits(width bits))
-          val memory = Mem(Bits(width bits), depth).setName("memory")
+          val address = in(morphhdl.frontend.UInt(3 bits))
+          val write_data = in(morphhdl.frontend.Bits(width bits))
+          val read_data = out(morphhdl.frontend.Bits(width bits))
+          val memory = Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
           val read_word = memory.readSync(
             address,
             enable = read_enable,
@@ -243,10 +243,10 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
           setDefinitionName("MaskedNativeMemory")
           val read_enable = in(Bool())
           val write_enable = in(Bool())
-          val address = in(UInt(depth.addressWidth bits))
-          val write_data = in(Bits(width bits))
-          val read_data = out(Bits(width bits))
-          val memory = Mem(Bits(width bits), depth).setName("memory")
+          val address = in(morphhdl.frontend.UInt(depth.addressWidth bits))
+          val write_data = in(morphhdl.frontend.Bits(width bits))
+          val read_data = out(morphhdl.frontend.Bits(width bits))
+          val memory = Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
           val read_word = memory.readSync(
             address,
             enable = read_enable,

@@ -444,7 +444,7 @@ private[frontend] object FrontendException {
       "Use unique stable labels for generate branches and .named(label = ..., index = ...) loops."
     case "MORPH-FRONTEND-SPINAL-WIDTH-NOT-DIRECT-PARAMETER" |
         "MORPH-FRONTEND-SPINAL-WIDTH-PROVENANCE-UNSUPPORTED" =>
-      "Pass the exact HdlInt returned by HdlInt.param directly to UInt(width bits)."
+      "Pass the exact HdlInt returned by HdlInt.param to the MorphHDL symbolic UInt factory."
     case "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-UNBOUNDED" |
         "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-NONPOSITIVE" |
         "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-TOO-LARGE" |

@@ -8,9 +8,9 @@
     "description": "Increment 0 repository baseline"
   },
   "approved_state": {
-    "commit": "36e3d3b4988c4b09670b327fd617f070223c3d9a",
-    "tree": "80bd849b93ff5cd4e7ac26ad7f54412f22667bc2",
-    "description": "Reviewed native-source state after Increment 37 and the zero-native-edit roadmap"
+    "commit": "e88bca528a2444685cdbaf2cdc7874f15f7f3464",
+    "tree": "50de51127c3d632b5d53184cc4d5ef5cfd7cb823",
+    "description": "Reviewed native-source state after the final Increment 40 external symbolic-width repairs"
   },
   "source_roots": [
     "core/src/main/scala/spinal/core",
@@ -24,164 +24,191 @@
   ],
   "entries": [
     {
-      "path": "core/src/main/scala/spinal/core/BaseType.scala",
-      "change": "modified",
-      "classification": "direct_edit",
-      "introduced_by": ["30"],
-      "reason": "Copies retained symbolic width metadata through the native BaseType clone path."
-    },
-    {
-      "path": "core/src/main/scala/spinal/core/Bits.scala",
-      "change": "modified",
-      "classification": "direct_edit",
-      "introduced_by": ["30"],
-      "reason": "Adds a parameterized bit-count constructor to the native Bits factory."
-    },
-    {
       "path": "core/src/main/scala/spinal/core/Mem.scala",
       "change": "modified",
       "classification": "direct_edit",
-      "introduced_by": ["35", "36"],
+      "introduced_by": [
+        "35",
+        "36"
+      ],
       "reason": "Adds symbolic-depth construction and automatic symbolic element-shape attachment to native Mem constructors."
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedMemory.scala",
       "change": "added",
       "classification": "morphhdl_sidecar",
-      "introduced_by": ["35", "36", "37"],
+      "introduced_by": [
+        "35",
+        "36",
+        "37"
+      ],
       "reason": "Stores MorphHDL symbolic memory geometry and library-depth override metadata inside the native core source tree."
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedProcess.scala",
       "change": "added",
       "classification": "morphhdl_sidecar",
-      "introduced_by": ["34"],
+      "introduced_by": [
+        "34"
+      ],
       "reason": "Stores MorphHDL procedural-loop capture metadata inside the native core source tree."
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedStructure.scala",
       "change": "added",
       "classification": "morphhdl_sidecar",
-      "introduced_by": ["33"],
+      "introduced_by": [
+        "33"
+      ],
       "reason": "Stores MorphHDL structural generate metadata inside the native core source tree."
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
       "change": "added",
       "classification": "morphhdl_sidecar",
-      "introduced_by": ["29", "30"],
+      "introduced_by": [
+        "29",
+        "30"
+      ],
       "reason": "Stores MorphHDL symbolic-width metadata inside the native core source tree."
-    },
-    {
-      "path": "core/src/main/scala/spinal/core/SInt.scala",
-      "change": "modified",
-      "classification": "direct_edit",
-      "introduced_by": ["30"],
-      "reason": "Adds a parameterized bit-count constructor to the native SInt factory."
     },
     {
       "path": "core/src/main/scala/spinal/core/Spinal.scala",
       "change": "modified",
       "classification": "direct_edit",
-      "introduced_by": ["29", "platform"],
+      "introduced_by": [
+        "29",
+        "platform"
+      ],
       "reason": "Adds MorphHDL parameterized generation and phase-planning integration to the native entrypoint."
-    },
-    {
-      "path": "core/src/main/scala/spinal/core/UInt.scala",
-      "change": "modified",
-      "classification": "direct_edit",
-      "introduced_by": ["29", "30"],
-      "reason": "Adds parameterized bit-count construction and retained width behavior to the native UInt path."
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
       "change": "modified",
       "classification": "generated_backend_coupling",
-      "introduced_by": ["29", "30"],
+      "introduced_by": [
+        "29",
+        "30"
+      ],
       "reason": "Publishes MorphHDL parameters and symbolic declaration geometry through the native Verilog emitter."
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/ParameterizedVerilogHierarchy.scala",
       "change": "added",
       "classification": "generated_backend_coupling",
-      "introduced_by": ["32"],
+      "introduced_by": [
+        "32"
+      ],
       "reason": "Rewrites emitted native hierarchy and parameter bindings from MorphHDL analysis."
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala",
       "change": "added",
       "classification": "generated_backend_coupling",
-      "introduced_by": ["35", "37"],
+      "introduced_by": [
+        "35",
+        "37"
+      ],
       "reason": "Rewrites emitted native memories and currently contains the StreamFifo-specific depth reconstruction."
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/ParameterizedVerilogNativeFallback.scala",
       "change": "added",
       "classification": "generated_backend_coupling",
-      "introduced_by": ["31", "32", "34", "35"],
+      "introduced_by": [
+        "31",
+        "32",
+        "34",
+        "35"
+      ],
       "reason": "Post-processes ordinary native Verilog for symbolic declarations, expressions and selected library paths."
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/ParameterizedVerilogProcesses.scala",
       "change": "added",
       "classification": "generated_backend_coupling",
-      "introduced_by": ["34"],
+      "introduced_by": [
+        "34"
+      ],
       "reason": "Lowers captured parameterized process metadata into emitted Verilog."
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala",
       "change": "added",
       "classification": "generated_backend_coupling",
-      "introduced_by": ["33", "34", "35"],
+      "introduced_by": [
+        "33",
+        "34",
+        "35"
+      ],
       "reason": "Lowers captured structural metadata into emitted Verilog generate regions."
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
       "change": "modified",
       "classification": "generated_backend_coupling",
-      "introduced_by": ["platform"],
+      "introduced_by": [
+        "platform"
+      ],
       "reason": "Changes native phase behavior for MorphHDL validation and publication integration."
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
       "change": "modified",
       "classification": "generated_backend_coupling",
-      "introduced_by": ["31", "32", "33", "34", "35"],
+      "introduced_by": [
+        "31",
+        "32",
+        "33",
+        "34",
+        "35"
+      ],
       "reason": "Routes MorphHDL hierarchy, structural, process, memory and fallback lowering through the native Verilog phase."
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/SpinalVerilogPhasePlan.scala",
       "change": "added",
       "classification": "generated_backend_coupling",
-      "introduced_by": ["platform"],
+      "introduced_by": [
+        "platform"
+      ],
       "reason": "Defines MorphHDL-specific phase planning inside the native internal source tree."
     },
     {
       "path": "idslplugin/src/main/scala/spinal/idslplugin/components/MainTransformer.scala",
       "change": "modified",
       "classification": "generated_backend_coupling",
-      "introduced_by": ["platform"],
+      "introduced_by": [
+        "platform"
+      ],
       "reason": "Adds MorphHDL compiler-plugin transformation coupling to the native IDSL plugin."
     },
     {
       "path": "lib/src/main/scala/spinal/lib/Counter.scala",
       "change": "modified",
       "classification": "direct_edit",
-      "introduced_by": ["36"],
+      "introduced_by": [
+        "36"
+      ],
       "reason": "Adds a symbolic-width Counter path and adjusts native counter state, arithmetic and boundary logic for it."
     },
     {
       "path": "lib/src/main/scala/spinal/lib/ParameterizedStreamFifoDepth.scala",
       "change": "added",
       "classification": "morphhdl_sidecar",
-      "introduced_by": ["37"],
+      "introduced_by": [
+        "37"
+      ],
       "reason": "Attaches MorphHDL symbolic depth metadata to an ordinary StreamFifo from inside the native library tree."
     },
     {
       "path": "lib/src/main/scala/spinal/lib/Stream.scala",
       "change": "modified",
       "classification": "direct_edit",
-      "introduced_by": ["36", "37"],
+      "introduced_by": [
+        "36",
+        "37"
+      ],
       "reason": "Adds symbolic-depth StreamFifo construction, pointer resizing and an explicit synchronous-memory collision policy."
     }
   ]
