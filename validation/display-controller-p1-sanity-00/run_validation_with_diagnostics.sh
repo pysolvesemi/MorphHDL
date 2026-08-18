@@ -22,6 +22,7 @@ for candidate in /tmp/p1-sanity-*.log /tmp/p1-sanity-yosys.json; do
 done
 
 {
+  echo "diagnostics_wrapper=v1"
   echo "validation_exit_code=${validation_rc}"
   echo "validation_commit=$(git rev-parse HEAD)"
   echo "morphhdl_base=81abd25518551b8a452ecf038e409331e646f726"
