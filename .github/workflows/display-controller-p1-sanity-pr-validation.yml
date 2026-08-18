@@ -1,0 +1,40 @@
+name: Display Controller P1 sanity PR validation
+
+on:
+  pull_request:
+    branches:
+      - validation/display-controller-p1-sanity-ci-base
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: display-controller-p1-sanity-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/p1-sanity-cache
+    steps:
+      - name: Check out PR validation merge
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run the approved P1 sanity validation closure
+        shell: bash
+        run: bash validation/display-controller-p1-sanity-00/run_validation.sh
+
+      - name: Upload generated RTL and target evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: display-controller-p1-sanity-validation
+          path: /tmp/p1-sanity-validation-artifact
+          if-no-files-found: warn
