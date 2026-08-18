@@ -1,0 +1,32 @@
+name: Agent Increment 40 migration controller
+
+on:
+  push:
+    branches:
+      - agent/increment-40-external-symbolic-width
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-increment-40-migration-controller
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: ${{ github.event.head_commit.message == 'Add deterministic Increment 40 migration controller' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-40-external-symbolic-width
+          fetch-depth: 0
+      - name: Apply migration and publish reviewed commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python3 .github/increment-40/apply_increment_40.py
