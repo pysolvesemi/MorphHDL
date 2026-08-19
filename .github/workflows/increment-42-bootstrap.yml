@@ -15,8 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  repair-and-validate:
-    name: Repair and validate Increment 42
+  validate:
+    name: Validate Increment 42 with diagnostics
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     container:
@@ -30,102 +30,99 @@ jobs:
           ref: agent/increment-42-external-structural-process-capture
           fetch-depth: 0
 
-      - name: Restore structural continuation validation ordering
+      - name: Run focused dual-Scala validation and publish diagnostics
         shell: bash
         run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
+          set -uo pipefail
+          log=/tmp/increment-42-validation.log
+          : > "$log"
+          failed_gate=""
+          rc=0
 
-          path = Path("morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala")
-          text = path.read_text(encoding="utf-8")
-          old = (
-              "  private def hasParameterizedMetadata(component: Component): Boolean =\n"
-              "    componentParameters(component).nonEmpty"
-          )
-          new = (
-              "  private def hasParameterizedMetadata(component: Component): Boolean =\n"
-              "    ParameterizedWidth.parametersOf(component).nonEmpty ||\n"
-              "      ParameterizedMemory.parametersOf(component).nonEmpty ||\n"
-              "      ParameterizedVerilogStructural.hasRegions(component) ||\n"
-              "      ParameterizedVerilogProcesses.hasLoops(component)"
-          )
-          if old in text:
-              text = text.replace(old, new, 1)
-              path.write_text(text, encoding="utf-8")
-          elif new not in text:
-              raise SystemExit("Increment 42 diagnostic-ordering anchor was not found")
-          PY
+          run_gate() {
+            local label="$1"
+            shift
+            printf '\n=== %s ===\n' "$label" | tee -a "$log"
+            if "$@" >>"$log" 2>&1; then
+              printf 'PASS: %s\n' "$label" | tee -a "$log"
+            else
+              rc=$?
+              failed_gate="$label"
+              printf 'FAIL(%s): %s\n' "$rc" "$label" | tee -a "$log"
+              return "$rc"
+            fi
+          }
 
-          rm -f morphhdl/.increment-42-validation-status
+          run_gate "external ownership boundary" \
+            ./morphhdl/scripts/check-external-structural-process-boundary.sh || true
+
+          if [ -z "$failed_gate" ]; then
+            run_gate "install pinned Mill" \
+              curl --fail --location --retry 3 \
+                https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+                --output /tmp/morphhdl-mill || true
+            if [ -z "$failed_gate" ]; then chmod +x /tmp/morphhdl-mill; fi
+          fi
+
+          if [ -z "$failed_gate" ]; then
+            run_gate "Scala 2.12.18 core compile" \
+              /tmp/morphhdl-mill 'core[2.12.18].compile' || true
+          fi
+          if [ -z "$failed_gate" ]; then
+            run_gate "Scala 2.12.18 frontend compile" \
+              /tmp/morphhdl-mill 'frontend[2.12.18].compile' || true
+          fi
+          if [ -z "$failed_gate" ]; then
+            run_gate "Scala 2.12.18 focused tests" \
+              /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
+                morphhdl.StructuralGenerateControlTests \
+                morphhdl.GenericProcessLoweringTests \
+                morphhdl.HierarchyParameterBindingTests \
+                morphhdl.GenericExpressionAndStreamTests \
+                morphhdl.MorphSingleSourceVerilogTests || true
+          fi
+
+          if [ -z "$failed_gate" ]; then
+            run_gate "Scala 2.13.12 core compile" \
+              /tmp/morphhdl-mill 'core[2.13.12].compile' || true
+          fi
+          if [ -z "$failed_gate" ]; then
+            run_gate "Scala 2.13.12 frontend compile" \
+              /tmp/morphhdl-mill 'frontend[2.13.12].compile' || true
+          fi
+          if [ -z "$failed_gate" ]; then
+            run_gate "Scala 2.13.12 focused tests" \
+              /tmp/morphhdl-mill 'morph[2.13.12].testOnly' \
+                morphhdl.StructuralGenerateControlTests \
+                morphhdl.GenericProcessLoweringTests \
+                morphhdl.HierarchyParameterBindingTests \
+                morphhdl.GenericExpressionAndStreamTests \
+                morphhdl.MorphSingleSourceVerilogTests || true
+          fi
+
+          {
+            if [ -z "$failed_gate" ]; then
+              echo 'focused-dual-scala=passed'
+            else
+              echo 'focused-dual-scala=failed'
+              echo "failed-gate=$failed_gate"
+              echo "exit-code=$rc"
+            fi
+            echo '--- validation log tail ---'
+            tail -n 240 "$log"
+          } > morphhdl/.increment-42-validation-status
+
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add -A morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala morphhdl/.increment-42-validation-status
+          git add morphhdl/.increment-42-validation-status
           git diff --cached --check
           if ! git diff --cached --quiet; then
-            git commit -m "Restore structural continuation diagnostic ordering"
+            if [ -z "$failed_gate" ]; then
+              git commit -m "Record Increment 42 focused validation success"
+            else
+              git commit -m "Record Increment 42 focused validation diagnostics"
+            fi
             git push origin HEAD:agent/increment-42-external-structural-process-capture
           fi
 
-      - name: Prove external ownership boundary
-        shell: bash
-        run: ./morphhdl/scripts/check-external-structural-process-boundary.sh
-
-      - name: Install pinned Mill bootstrap
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --location --retry 3 \
-            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
-            --output /tmp/morphhdl-mill
-          chmod +x /tmp/morphhdl-mill
-
-      - name: Run focused Scala 2.12.18 validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          /tmp/morphhdl-mill core[2.12.18].compile
-          /tmp/morphhdl-mill frontend[2.12.18].compile
-          /tmp/morphhdl-mill morph[2.12.18].testOnly \
-            morphhdl.StructuralGenerateControlTests \
-            morphhdl.GenericProcessLoweringTests \
-            morphhdl.HierarchyParameterBindingTests \
-            morphhdl.GenericExpressionAndStreamTests \
-            morphhdl.MorphSingleSourceVerilogTests
-
-      - name: Run focused Scala 2.13.12 validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          /tmp/morphhdl-mill core[2.13.12].compile
-          /tmp/morphhdl-mill frontend[2.13.12].compile
-          /tmp/morphhdl-mill morph[2.13.12].testOnly \
-            morphhdl.StructuralGenerateControlTests \
-            morphhdl.GenericProcessLoweringTests \
-            morphhdl.HierarchyParameterBindingTests \
-            morphhdl.GenericExpressionAndStreamTests \
-            morphhdl.MorphSingleSourceVerilogTests
-
-      - name: Record focused validation success
-        if: ${{ success() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          printf '%s\n' 'focused-dual-scala=passed' > morphhdl/.increment-42-validation-status
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add morphhdl/.increment-42-validation-status
-          git commit -m "Record Increment 42 focused validation success"
-          git push origin HEAD:agent/increment-42-external-structural-process-capture
-
-      - name: Record focused validation failure
-        if: ${{ failure() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          printf '%s\n' 'focused-dual-scala=failed' > morphhdl/.increment-42-validation-status
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add morphhdl/.increment-42-validation-status
-          git commit -m "Record Increment 42 focused validation failure"
-          git push origin HEAD:agent/increment-42-external-structural-process-capture
+          if [ -n "$failed_gate" ]; then exit "$rc"; fi
