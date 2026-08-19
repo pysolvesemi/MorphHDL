@@ -796,7 +796,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case literal: BitVectorLiteral => WidthLiteral(literal.getWidth)
         case _: BoolLiteral            => WidthLiteral(1)
         case port: MemReadSync =>
-          ParameterizedMemory.metadataOf(port.mem) match {
+          ExternalParameterizedMemoryRegistry.metadataOf(port.mem) match {
             case Some(metadata) =>
               WidthRetained(
                 metadata.elementWidth.verilog,
