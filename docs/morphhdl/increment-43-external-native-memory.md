@@ -13,6 +13,9 @@ constructors or routes memory rewriting through the native Verilog phase.
   from the existing external HardType/width registry after normal elaboration
   and inherited validation. It also reads the temporary StreamFifo library-depth
   tags that remain until Increment 45.
+- Generic width inference resolves native `MemReadSync` result geometry through
+  that external registry, so read results and their downstream assignments retain
+  the symbolic element-width expression instead of the concrete witness width.
 - The existing Increment 35 memory analyzer/lowerer now lives in the MorphHDL
   orchestration module. It still derives native read/write ports, address
   expressions, enables, clocking, masks and collision policy directly from AST
