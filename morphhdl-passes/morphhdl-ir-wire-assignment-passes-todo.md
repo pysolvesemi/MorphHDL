@@ -197,14 +197,14 @@ MorphHDL-owned orchestration code; pass logic remains under `morphhdl-passes/`.
   the two authorized passes. Added a boundary guard and self-tests that permit
   `morphhdl-passes/**` and `.github/workflows/morphhdl-passes.yml`, reject root
   and upstream-owned changes, and reserve MorphHDL-owned production handoff
-  paths for an eligible WA-07 branch after WA-06 and PV-48 are checked. No RTL
+  paths for an eligible WA-07 branch after WA-06 and PV-55 are checked. No RTL
   transformation is implemented by WA-01.
 
 - [ ] **WA-02 — Canonical MorphHDL IR pass adapter and alias contract**
 
-  **Dependencies:** WA-01 and PV-46 implemented and merged.
+  **Dependencies:** WA-01 and PV-53 implemented and merged.
 
-  **Status:** `BLOCKED` by PV-46.
+  **Status:** `BLOCKED` by PV-53.
 
   Bind the standalone workspace to the stable canonical MorphHDL-owned IR after
   external parameterization/capture and before Verilog lowering. Expose
@@ -261,9 +261,9 @@ MorphHDL-owned orchestration code; pass logic remains under `morphhdl-passes/`.
 
 - [ ] **WA-07 — Final MorphHDL IR-stage production handoff**
 
-  **Dependencies:** WA-06 and PV-48 implemented and merged.
+  **Dependencies:** WA-06 and PV-55 implemented and merged.
 
-  **Status:** `BLOCKED` by WA-06 and PV-48.
+  **Status:** `BLOCKED` by WA-06 and PV-55.
 
   Connect the optional pipeline to the final MorphHDL single-source production
   path after parameterization/capture and before Verilog lowering. Keep pass
