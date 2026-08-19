@@ -1,0 +1,359 @@
+name: Increment 41 repair controller
+
+on:
+  push:
+    branches:
+      - agent/increment-41-external-expression-hierarchy
+    paths:
+      - .github/workflows/increment-41-repair.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: increment-41-repair-controller
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out Increment 41 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-41-external-expression-hierarchy
+          fetch-depth: 0
+
+      - name: Apply external-lowering repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/i41-repair.py <<'PY'
+          from __future__ import annotations
+
+          import re
+          import sys
+          from pathlib import Path
+
+          ROOT = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
+          MORPH = ROOT / "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala"
+          CANON = ROOT / "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogCanonicalizer.scala"
+          TEMP_WORKFLOW = ROOT / ".github/workflows/increment-41-source-snapshot.yml"
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f"{label}: expected one exact match, found {count}")
+              return text.replace(old, new, 1)
+
+          def regex_once(text: str, pattern: str, replacement: str, label: str) -> str:
+              updated, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+              if count != 1:
+                  raise RuntimeError(f"{label}: expected one regex match, found {count}")
+              return updated
+
+          text = MORPH.read_text()
+
+          text = replace_once(
+              text,
+              """    val components = componentGraph(top)\n    val groups = components.groupBy(componentName)\n""",
+              """    val components = componentGraph(top)\n    val hasAnyParameterizedMetadata = components.exists { component =>\n      ParameterizedWidth.parametersOf(component).nonEmpty ||\n      ParameterizedMemory.parametersOf(component).nonEmpty ||\n      ParameterizedStructure.parametersOf(component).nonEmpty ||\n      ParameterizedProcess.parametersOf(component).nonEmpty\n    }\n    if (!hasAnyParameterizedMetadata) {\n      val firstConcretePort = top.getOrdredNodeIo.toVector.filterNot(_.isSuffix).collectFirst {\n        case port: BitVector => port\n      }\n      firstConcretePort match {\n        case Some(port) =>\n          fail(\n            \"SPINAL-PARAMETERIZED-VERILOG-UNTAGGED-PORT\",\n            s\"top-level bit-vector port '${port.getName()}' has no retained symbolic width\",\n            ParameterizedWidth.sourceLocationOf(port)\n          )\n        case None =>\n          fail(\n            \"SPINAL-PARAMETERIZED-VERILOG-NO-SYMBOLIC-PORTS\",\n            s\"component '${componentName(top)}' has no retained symbolic parameter metadata\"\n          )\n      }\n    }\n    val groups = components.groupBy(componentName)\n""",
+              "insert metadata guard",
+          )
+
+          text = text.replace(
+              "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-CANONICAL-SCHEMA-CONFLICT",
+              "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
+          )
+
+          text = replace_once(
+              text,
+              """          ExternalParameterizedVerilogNativeFallback.rewrite(\n            component,\n            block.text,\n            hierarchyComponents\n          )\n""",
+              """          ExternalParameterizedVerilogCanonicalizer.validate(component)\n          val lowered = ExternalParameterizedVerilogNativeFallback.rewrite(\n            component,\n            block.text,\n            hierarchyComponents\n          )\n          ExternalParameterizedVerilogCanonicalizer.rewrite(component, lowered)\n""",
+              "canonicalize external lowering",
+          )
+
+          text = regex_once(
+              text,
+              r"""  private final case class ComponentSchema\(.*?\n  private def componentGraph""",
+              """  private final case class ComponentSchema(\n      ports: Vector[(\n        String,\n        String,\n        BigInt,\n        Option[(\n          BigInt,\n          Option[String],\n          Option[String],\n          Vector[(String, BigInt, Option[BigInt], Option[BigInt])]\n        )],\n        Boolean\n      )]\n  )\n\n  private def componentSchema(component: Component): ComponentSchema = {\n    val ports = component.getOrdredNodeIo.toVector.filterNot(_.isSuffix).map { port =>\n      val direction =\n        if (port.isInput) \"input\"\n        else if (port.isOutput) \"output\"\n        else if (port.isInOut) \"inout\"\n        else \"unknown\"\n      val width = port match {\n        case vector: BitVector => BigInt(vector.getWidth)\n        case _: Bool           => BigInt(1)\n        case _                 => BigInt(-1)\n      }\n      val expression = port match {\n        case vector: BitVector =>\n          ParameterizedWidth.expressionOf(vector).map { retained =>\n            (\n              retained.default,\n              retained.parameterName,\n              retained.localParameterName,\n              retained.parameters.map { parameter =>\n                (\n                  parameter.name,\n                  parameter.default,\n                  parameter.minimum,\n                  parameter.maximum\n                )\n              }\n            )\n          }\n        case _ => None\n      }\n      val signed = port.isInstanceOf[SInt]\n      (port.getName(), direction, width, expression, signed)\n    }.sortBy { case (name, direction, _, _, signed) =>\n      (name, direction, signed.toString)\n    }\n    ComponentSchema(ports)\n  }\n\n  private def componentGraph""",
+              "replace component schema",
+          )
+
+          text = regex_once(
+              text,
+              r"""  private def requiresRewrite\(component: Component\): Boolean =.*?\n\n  private def componentName""",
+              """  private def requiresRewrite(component: Component): Boolean =\n    ParameterizedWidth.parametersOf(component).nonEmpty ||\n      ParameterizedMemory.parametersOf(component).nonEmpty ||\n      ParameterizedProcess.parametersOf(component).nonEmpty ||\n      component.children.exists { child =>\n        ParameterizedWidth.parametersOf(child).nonEmpty ||\n          ParameterizedMemory.parametersOf(child).nonEmpty\n      }\n\n  private def componentName""",
+              "narrow external rewrite boundary",
+          )
+
+          text = regex_once(
+              text,
+              r"""  private def fail\(code: String, detail: String\): Nothing =\n    ParameterizedVerilogException\.fail\(code, detail\)\n""",
+              """  private def fail(\n      code: String,\n      detail: String,\n      sourceLocation: Option[String] = None\n  ): Nothing =\n    ParameterizedVerilogException.fail(code, detail, sourceLocation)\n""",
+              "source-aware external diagnostic",
+          )
+
+          MORPH.write_text(text)
+
+          CANON.write_text(r'''package spinal.core.internals
+
+          import scala.collection.mutable
+          import scala.util.matching.Regex
+
+          import spinal.core._
+
+          /**
+            * Canonicalizes only declaration surfaces whose identities are available
+            * from the elaborated component graph. Native statement and expression
+            * text remains authoritative.
+            */
+          private[internals] object ExternalParameterizedVerilogCanonicalizer {
+            private final case class PortDeclaration(
+                leading: String,
+                direction: String,
+                net: String,
+                signed: Boolean,
+                range: String,
+                name: String,
+                suffix: String
+            ) {
+              def render(terminal: Boolean): String = {
+                val renderedDirection = direction match {
+                  case "input"  => "input "
+                  case "output" => "output"
+                  case "inout"  => "inout "
+                  case other    => other
+                }
+                val section = Vector(if (signed) Some("signed") else None, Option(range).filter(_.nonEmpty)).flatten.mkString(" ")
+                val body = f"$renderedDirection%6s $net%-4s $section%-8s $name"
+                setTerminalComma(leading + body + suffix, terminal)
+              }
+            }
+
+            private final case class SignalDeclaration(
+                leading: String,
+                net: String,
+                signed: Boolean,
+                range: String,
+                name: String,
+                suffix: String
+            ) {
+              def render: String = {
+                val section = Vector(if (signed) Some("signed") else None, Option(range).filter(_.nonEmpty)).flatten.mkString(" ")
+                leading + f"$net%-10s $section%-8s $name" + suffix
+              }
+            }
+
+            private val portPattern: Regex =
+              """^(\s*(?:(?:\(\*.*?\*\)|/\*.*?\*/)\s*)*)(input|output|inout)\s+(wire|reg|logic)(?:\s+(signed))?\s*(\[[^\]]+\])?\s+([A-Za-z_][A-Za-z0-9_$]*)(.*)$""".r
+            private val signalPattern: Regex =
+              """^(\s*(?:(?:\(\*.*?\*\)|/\*.*?\*/)\s*)*)(wire|reg|logic)(?:\s+(signed))?\s*(\[[^\]]+\])?\s+([A-Za-z_][A-Za-z0-9_$]*)(\s*(?:\[[^\]]+\])?\s*(?:/\*.*?\*/\s*)?;\s*)$""".r
+
+            def validate(component: Component): Unit =
+              validateParameterSignalCollisions(component)
+
+            def rewrite(component: Component, verilog: String): String =
+              canonicalizeDeclarations(component, verilog)
+
+            private def validateParameterSignalCollisions(component: Component): Unit = {
+              val parameters = (
+                ParameterizedWidth.parametersOf(component) ++
+                ParameterizedMemory.parametersOf(component) ++
+                ParameterizedStructure.parametersOf(component) ++
+                ParameterizedProcess.parametersOf(component)
+              ).groupBy(_.name).map { case (name, declarations) => name -> declarations.head }
+
+              if (parameters.nonEmpty) {
+                component.dslBody.walkDeclarations {
+                  case signal: BaseType if parameters.contains(signal.getName()) =>
+                    ParameterizedVerilogException.fail(
+                      "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-PORT-NAME-COLLISION",
+                      s"parameter '${signal.getName()}' collides with signal '${signal.getName()}' of component '${componentName(component)}'",
+                      ParameterizedWidth.sourceLocationOf(signal).orElse(parameters(signal.getName()).sourceLocation)
+                    )
+                  case _ =>
+                }
+              }
+            }
+
+            private def canonicalizeDeclarations(component: Component, verilog: String): String = {
+              val lines = verilog.split("\n", -1).toVector
+              val moduleStart = lines.indexWhere(_.trim.startsWith("module "))
+              if (moduleStart < 0) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-MODULE-HEADER-MISSING",
+                  s"native module '${componentName(component)}' has no module declaration"
+                )
+              }
+
+              val portStart = {
+                val parameterHeaderEnd = lines.indexWhere(_.trim == ") (", moduleStart)
+                if (parameterHeaderEnd >= 0) parameterHeaderEnd + 1
+                else if (lines(moduleStart).trim.endsWith("(")) moduleStart + 1
+                else {
+                  fail(
+                    "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-PORT-HEADER-UNSUPPORTED",
+                    s"native module '${componentName(component)}' has an unsupported port header"
+                  )
+                }
+              }
+              val portEnd = lines.indexWhere(_.trim == ");", portStart)
+              if (portEnd < 0) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-PORT-HEADER-UNSUPPORTED",
+                  s"native module '${componentName(component)}' has no bounded ANSI port list"
+                )
+              }
+
+              val parsedPorts = lines.slice(portStart, portEnd).filter(_.trim.nonEmpty).map(parsePortDeclaration)
+              val byName = parsedPorts.groupBy(_.name)
+              byName.collectFirst { case (name, declarations) if declarations.size != 1 => name }.foreach { name =>
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-PORT-IDENTITY-AMBIGUOUS",
+                  s"native module '${componentName(component)}' emits port '$name' ${byName(name).size} times"
+                )
+              }
+
+              val graphPorts = component.getOrdredNodeIo.toVector.filterNot(_.isSuffix)
+              val graphPortNames = graphPorts.map(_.getName()).toSet
+              val parsedPortNames = byName.keySet
+              if (graphPortNames != parsedPortNames) {
+                val missing = (graphPortNames -- parsedPortNames).toVector.sorted
+                val unexpected = (parsedPortNames -- graphPortNames).toVector.sorted
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-PORT-IDENTITY-MISMATCH",
+                  s"native module '${componentName(component)}' port mapping differs from the graph; missing=${missing.mkString("[", ", ", "]")}, unexpected=${unexpected.mkString("[", ", ", "]")}"
+                )
+              }
+
+              val orderedPorts = graphPorts.sortBy(portSortKey)
+              val canonicalPorts = orderedPorts.zipWithIndex.map { case (port, index) =>
+                byName(port.getName()).head.render(terminal = index == orderedPorts.size - 1)
+              }
+
+              val declarationKinds = mutable.LinkedHashMap.empty[String, Int]
+              component.dslBody.walkDeclarations {
+                case baseType: BaseType if !baseType.isIO && !baseType.isSuffix =>
+                  declarationKinds.getOrElseUpdate(baseType.getName(), 0)
+                case memory: Mem[_] =>
+                  declarationKinds.getOrElseUpdate(memory.getName(), 1)
+                case _ =>
+              }
+
+              val bodyDeclarations = lines.zipWithIndex.flatMap { case (line, index) =>
+                parseSignalDeclaration(line) match {
+                  case Some(declaration) if declarationKinds.contains(declaration.name) => Some((index, declaration))
+                  case _ => None
+                }
+              }
+              bodyDeclarations.groupBy(_._2.name).collectFirst {
+                case (name, declarations) if declarations.size != 1 => name
+              }.foreach { name =>
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-DECLARATION-IDENTITY-AMBIGUOUS",
+                  s"native module '${componentName(component)}' emits declaration '$name' more than once"
+                )
+              }
+
+              val signalSlots = bodyDeclarations.map(_._1).sorted
+              val canonicalSignals = bodyDeclarations.map(_._2).sortBy { declaration =>
+                (declarationKinds.getOrElse(declaration.name, 2), declaration.name)
+              }.map(_.render)
+
+              val result = mutable.ArrayBuffer.empty[String]
+              result ++= lines
+              result.remove(portStart, portEnd - portStart)
+              result.insertAll(portStart, canonicalPorts)
+              signalSlots.zip(canonicalSignals).foreach { case (slot, declaration) => result(slot) = declaration }
+              result.mkString("\n")
+            }
+
+            private def parsePortDeclaration(line: String): PortDeclaration = line match {
+              case portPattern(leading, direction, net, signed, range, name, suffix) =>
+                PortDeclaration(leading, direction, net, signed != null, Option(range).getOrElse(""), name, stripTerminalComma(suffix))
+              case _ =>
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-PORT-LINE-UNSUPPORTED",
+                  s"native ANSI port declaration cannot be mapped by graph identity: '${line.trim}'"
+                )
+            }
+
+            private def parseSignalDeclaration(line: String): Option[SignalDeclaration] = line match {
+              case signalPattern(leading, net, signed, range, name, suffix) =>
+                Some(SignalDeclaration(leading, net, signed != null, Option(range).getOrElse(""), name, suffix))
+              case _ => None
+            }
+
+            private def portSortKey(port: BaseType): (Int, String) = {
+              val direction = if (port.isInput) 0 else if (port.isOutput) 1 else 2
+              (direction, port.getName())
+            }
+
+            private def stripTerminalComma(suffix: String): String =
+              suffix.reverse.dropWhile(_.isWhitespace).dropWhile(_ == ',').reverse
+
+            private def setTerminalComma(line: String, terminal: Boolean): String = {
+              val trimmed = line.reverse.dropWhile(_.isWhitespace).reverse
+              val whitespace = line.substring(trimmed.length)
+              val withoutComma = if (trimmed.endsWith(",")) trimmed.dropRight(1) else trimmed
+              withoutComma + (if (terminal) "" else ",") + whitespace
+            }
+
+            private def componentName(component: Component): String =
+              Option(component.getDefinitionName).filter(_.nonEmpty).getOrElse(component.getClass.getSimpleName)
+
+            private def fail(code: String, detail: String): Nothing =
+              ParameterizedVerilogException.fail(code, detail)
+          }
+          ''')
+
+          if TEMP_WORKFLOW.exists():
+              TEMP_WORKFLOW.unlink()
+          PY
+          python /tmp/i41-repair.py .
+          rm -f .github/workflows/increment-41-repair.yml
+          git diff --check
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run focused dual-Scala regressions
+        shell: bash
+        env:
+          XDG_CACHE_HOME: /tmp/morphhdl-cache
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.StructuralGenerateControlTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.GenericExpressionAndStreamTests \
+            spinal.core.internals.ParameterizedVerilogTests \
+            spinal.core.internals.ParameterizedDataShapeTests
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.StructuralGenerateControlTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.GenericExpressionAndStreamTests \
+            spinal.core.internals.ParameterizedVerilogTests \
+            spinal.core.internals.ParameterizedDataShapeTests
+
+      - name: Commit and push repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name pysolvesemi
+          git config user.email pysolvesemi@gmail.com
+          git add -A
+          git diff --cached --check
+          git commit -m "Fix Increment 41 external lowering regressions"
+          git push origin HEAD:agent/increment-41-external-expression-hierarchy
