@@ -147,7 +147,7 @@ recorded in
   emitted-text assumptions with graph/AST identity wherever available and
   reject ambiguous mappings explicitly.
 
-- [ ] **Increment 42 — External structural and process capture**
+- [x] **Increment 42 — External structural and process capture**
 
   Relocate the Increment 33 and 34 structural-region and procedural-loop
   metadata/lowering from the native `core` source tree into MorphHDL-owned
