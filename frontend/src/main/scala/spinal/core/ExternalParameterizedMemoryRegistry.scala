@@ -25,14 +25,101 @@ private[core] final class ExternalMemoryIdentityRef(
   }
 }
 
+/** Weak key with native HardType object-identity semantics. */
+private[core] final class ExternalHardTypeIdentityRef(
+    value: HardType[_],
+    queue: ReferenceQueue[HardType[_]]
+) extends WeakReference[HardType[_]](value, queue) {
+  private val identityHash = System.identityHashCode(value)
+
+  override def hashCode(): Int = identityHash
+
+  override def equals(other: Any): Boolean = other match {
+    case that: ExternalHardTypeIdentityRef =>
+      (this eq that) || {
+        val left = get()
+        val right = that.get()
+        (left ne null) && (right ne null) && (left eq right)
+      }
+    case _ => false
+  }
+}
+
+/**
+  * Frontend-owned symbolic geometry retained beside an ordinary native
+  * HardType. Capturing the leaf expressions at construction avoids evaluating
+  * the HardType generator again after normal elaboration has completed.
+  */
+object ExternalParameterizedHardTypeRegistry {
+  private val queue = new ReferenceQueue[HardType[_]]()
+  private val retained =
+    mutable.HashMap.empty[
+      ExternalHardTypeIdentityRef,
+      Vector[ElaborationIntegerExpression]
+    ]
+
+  private def reap(): Unit = {
+    var reference = queue.poll().asInstanceOf[ExternalHardTypeIdentityRef]
+    while (reference != null) {
+      retained.remove(reference)
+      reference = queue.poll().asInstanceOf[ExternalHardTypeIdentityRef]
+    }
+  }
+
+  private def retain(
+      dataType: HardType[_],
+      expressions: Vector[ElaborationIntegerExpression]
+  ): Unit = synchronized {
+    reap()
+    retained.update(
+      new ExternalHardTypeIdentityRef(dataType, queue),
+      expressions
+    )
+  }
+
+  def create[T <: Data](dataType: => T): HardType[T] = {
+    val template = dataType
+    if (template == null)
+      throw new IllegalArgumentException("native HardType template must not be null")
+    val expressions = template.flatten.toVector.map { leaf =>
+      ParameterizedWidth.expressionOf(leaf).getOrElse(literal(leaf.getBitsWidth))
+    }
+    val hardType = ParameterizedWidth.HardType(template)
+    if (expressions.exists(_.parameters.nonEmpty)) {
+      retain(hardType, expressions)
+    }
+    hardType
+  }
+
+  private[core] def expressionsOf(
+      dataType: HardType[_]
+  ): Option[Vector[ElaborationIntegerExpression]] = synchronized {
+    if (dataType == null) None
+    else {
+      reap()
+      retained.get(new ExternalHardTypeIdentityRef(dataType, null))
+    }
+  }
+
+  private def literal(value: Int): ElaborationIntegerExpression =
+    ElaborationIntegerExpression(
+      verilog = value.toString,
+      default = BigInt(value),
+      minimum = BigInt(value),
+      maximum = BigInt(value),
+      parameters = Vector.empty
+    )
+}
+
 /**
   * MorphHDL-owned native-memory geometry registry.
   *
   * Ordinary SpinalHDL Mem construction remains untouched. A MorphHDL depth
   * adapter records the bounded depth beside the concrete native Mem, while the
   * final external publication phase discovers symbolic element widths from the
-  * existing HardType registry. Read/write ports, clocks, enables and collision
-  * policies are always inspected from the native AST itself.
+  * frontend-owned HardType identity registry. Read/write ports, clocks,
+  * enables and collision policies are always inspected from the native AST
+  * itself.
   */
 object ExternalParameterizedMemoryRegistry {
   private val queue = new ReferenceQueue[Mem[_]]()
@@ -122,8 +209,8 @@ object ExternalParameterizedMemoryRegistry {
     allMemoriesOf(component).foreach { memory =>
       if (metadataOf(memory).isEmpty) {
         val symbolic =
-          ParameterizedWidth
-            .hardTypeExpressionsOf(memory.wordType)
+          ExternalParameterizedHardTypeRegistry
+            .expressionsOf(memory.wordType)
             .exists(_.exists(_.parameters.nonEmpty))
         if (symbolic) {
           val elementWidth = elementWidthOf(memory, sourceLocation = None)
@@ -247,8 +334,8 @@ object ExternalParameterizedMemoryRegistry {
       )
     }
     val expressions =
-      ParameterizedWidth
-        .hardTypeExpressionsOf(memory.wordType)
+      ExternalParameterizedHardTypeRegistry
+        .expressionsOf(memory.wordType)
         .getOrElse(concreteWidths.map(literal))
     if (expressions.size != concreteWidths.size) {
       fail(
