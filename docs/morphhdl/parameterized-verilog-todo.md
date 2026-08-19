@@ -34,7 +34,7 @@ with this roadmap.
 - The suggested next increment after every completed increment must be taken
   from the first unchecked entry in this file.
 
-The source audit and classification behind Increments 38 through 55 are
+The source audit and classification behind Increments 38 through 48 are
 recorded in
 [Native SpinalHDL source-preservation audit](native-spinal-source-preservation-audit.md).
 
@@ -156,7 +156,7 @@ recorded in
   procedural-for behavior. If native AST ownership prevents an external
   implementation, apply the native-change approval gate before proceeding.
 
-- [ ] **Increment 43 — Native memory reuse with zero `Mem.scala` changes**
+- [x] **Increment 43 — Native memory reuse with zero `Mem.scala` changes**
 
   Restore the ordinary `Mem` constructors and remove automatic symbolic
   attachment from native memory creation. Discover and associate symbolic
@@ -174,130 +174,47 @@ recorded in
   concrete-default parity and override tests without component-specific RTL
   reconstruction.
 
-The formalization and symbolic-control-flow increments below are strict ordered
-prerequisites. Increment 52 must not start until Increments 45 through 51 are
-implemented, reviewed and merged.
+- [ ] **Increment 45 — Native StreamFifo parameter structure without source edits**
 
-- [ ] **Increment 45 — Formal parameter identity and canonical child modules**
-
-  Separate component-definition formals from parent-instance actual
-  expressions. Add an explicit deterministic formal API such as
-  `formalParam(actual, "WIDTH")` or an equivalent component-identity registry.
-  Prove that `new Leaf(leftWidth)` and `new Leaf(rightWidth)` retain one
-  canonical `Leaf #(parameter integer WIDTH = ...)` definition with named
-  `.WIDTH(LEFT_WIDTH)` and `.WIDTH(RIGHT_WIDTH)` bindings, even when the legal
-  parent domains differ. Reject incompatible defaults/domains, ambiguous slot
-  matching and duplicate formal declarations. Explicit names are required
-  first; Scala source-name inference may be added only as validated sugar on
-  both supported Scala versions.
-
-- [ ] **Increment 46 — External formalization boundary for native `Int` APIs**
-
-  Introduce MorphHDL-owned `formalComponent`, `formalRegion` or equivalent
-  adapters that pass only concrete witnesses to untouched SpinalHDL
-  constructors and algorithms while retaining formal-to-actual symbolic
-  bindings by component/region identity. Prove simple native `Int`-controlled
-  geometry and hierarchy without native-source changes, compiler magic,
-  emitted-name recognition or component-specific RTL reconstruction. This
-  increment establishes identity and lifetime only; it does not recover
-  unselected Scala control-flow branches.
-
-- [ ] **Increment 47 — Natural symbolic conditionals for explicit `HdlInt`/`HdlBool`**
-
-  Add a compiler-plugin or equivalently typed frontend transformation for
-  conditionals whose condition is explicitly proven to be MorphHDL symbolic.
-  Capture both alternatives and lower them to parameter-controlled Verilog
-  structure while keeping the witness-selected path authoritative for ordinary
-  Spinal elaboration and validation. Do not add an implicit `HdlBool`-to-
-  `Boolean` witness conversion, and leave ordinary Scala `Boolean`
-  conditionals unchanged. Cover simple `if`/`else`, chained `else if`,
-  diagnostics and dual-Scala behavior before handling native `Int`
-  provenance.
-
-- [ ] **Increment 48 — Native `Int` symbolic provenance propagation**
-
-  At an Increment 46 formalization boundary, associate each selected native
-  `Int` constructor argument or local value with both its concrete Scala
-  witness and its MorphHDL symbolic actual. Preserve that shadow provenance
-  through component construction, nested formal scopes and Spinal
-  re-elaboration without changing the native API or runtime value. Prove
-  deterministic identity, cleanup, replay and conflict diagnostics. Do not yet
-  transform arbitrary arithmetic or control flow.
-
-- [ ] **Increment 49 — Shadow native `Int` expressions and predicates**
-
-  Propagate proven symbolic provenance through the bounded operations needed by
-  native library code: addition, subtraction, multiplication, division,
-  remainder, comparisons, min/max, address/log2 helpers and power-of-two
-  predicates. Retain one concrete witness expression and one bounded symbolic
-  expression, prove their default agreement and domain safety, and reject
-  unsupported calls, boxing, mutable escape or ambiguous aliasing explicitly.
-
-- [ ] **Increment 50 — Symbolic native-`Int` branch capture**
-
-  Transform `if`/`else if`/`else` only when its ordinary Scala Boolean
-  predicate is proven to depend on shadow-symbolic native `Int` values from
-  Increments 48 and 49. Capture every source alternative, keep only the
-  witness-selected alternative in the ordinary concrete Spinal graph and
-  retain all alternatives in MorphHDL-owned structural IR for generic
-  Verilog-2001 lowering. Preserve source order, names and diagnostics; ordinary
-  Scala conditionals without symbolic provenance remain untouched.
-
-- [ ] **Increment 51 — Nested symbolic control flow and side-effect safety**
-
-  Extend native symbolic branch capture to the bounded constructs required by
-  real library algorithms: nested conditionals, loops inside alternatives,
-  local vals, registers, memories, Areas/ClockingAreas, naming and supported
-  assignments. Define an explicit safe side-effect contract and fail closed for
-  mutable external state, I/O, reflection, nondeterminism or unsupported
-  arbitrary Scala effects. Prove deterministic replay, hierarchy stability,
-  driver/latch/clock/reset validation and nested generate legality.
-
-- [ ] **Increment 52 — Native StreamFifo parameter structure without source edits**
-
-  Apply Increments 45 through 51 to the real, untouched `StreamFifo` source.
   Restore the Increment 37 `Stream.scala` overload and pointer edits and remove
-  the `ParameterizedStreamFifoDepth` library sidecar. Retain the native
-  depth-one, power-of-two and non-power-of-two alternatives and lower them to
-  one parameterized Verilog definition with parameter-controlled generate
-  structure. Remove port/signal-name recognition and
+  the `ParameterizedStreamFifoDepth` library sidecar. Retain the unmodified
+  native depth-dependent alternatives and lower them generically to one
+  parameterized Verilog definition, using parameter-controlled generate
+  structure where required for depth one, power-of-two and non-power-of-two
+  algorithms. Remove port/signal-name recognition and
   `rewriteParameterizedStreamFifoDepth`; prove depths 1, 3, 5 and 8 without a
   separately authored FIFO. Stop for architecture approval if the alternatives
-  cannot be retained through the generic provenance and branch-capture path.
+  cannot be retained externally.
 
-- [ ] **Increment 53 — MorphHDL module extraction and native-tree cleanup**
+- [ ] **Increment 46 — MorphHDL module extraction and native-tree cleanup**
 
   Move remaining MorphHDL-specific parameter metadata, capture and lowering
   files out of native `core`, `lib` and `idslplugin` source trees into
   MorphHDL-owned modules/packages. Remove build coupling that requires a forked
   native implementation while retaining both Scala 2.12.18 and 2.13.12 support,
-  source locations, diagnostics and public MorphHDL behavior. Publish the
-  stable canonical MorphHDL-owned post-parameterization IR/API required by
-  downstream optional passes.
+  source locations, diagnostics and public MorphHDL behavior.
 
-- [ ] **Increment 54 — Upstream parity and complete zero-diff proof**
+- [ ] **Increment 47 — Upstream parity and complete zero-diff proof**
 
   Restore every upstream-owned runtime, library, emitter, phase and compiler
   plugin file identified by the audit to the selected upstream snapshot. Add an
   exact native-source manifest gate with no exception unless previously
   approved. Run the complete inherited validation inventory and all concrete,
   parameter-override, simulation, lint, synthesis, mutation and determinism
-  gates for Increments 29 through 52.
+  gates for Increments 29 through 37.
 
-- [ ] **Increment 55 — Migration and adapter retirement**
+- [ ] **Increment 48 — Migration and adapter retirement**
 
   Migrate the existing reviewed artifacts to the zero-native-edit single-source
   lowering path, preserve their simulation, lint, synthesis, mutation and
   determinism gates, and deprecate the dual-factory/component-specific
   production path. Keep the old contracts only as explicit compatibility and
-  regression oracles. Finalize the stable post-parameterization, pre-emission
-  production handoff used by optional MorphHDL-owned IR passes.
+  regression oracles.
 
 ## Completion target
 
 The roadmap is complete when normal, unmodified SpinalHDL component and library
 source can retain typed public parameters through MorphHDL-owned integration,
-including parameter-dependent native Scala expressions and structural
-alternatives, producing one readable parameterized Verilog-2001 definition per
-logical component without separately handwritten ParamRTL implementations,
+producing one readable parameterized Verilog-2001 definition per logical
+component without separately handwritten ParamRTL implementations,
 component-name rewrites or unapproved native-source modifications.
