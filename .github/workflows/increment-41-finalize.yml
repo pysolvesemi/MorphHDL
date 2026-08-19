@@ -1,0 +1,58 @@
+name: Increment 41 finalization
+
+on:
+  push:
+    branches:
+      - agent/increment-41-external-expression-hierarchy
+    paths:
+      - .github/workflows/increment-41-finalize.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-41-finalization
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact Increment 41 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-41-external-expression-hierarchy
+          fetch-depth: 0
+
+      - name: Mark Increment 41 complete and remove controller
+        shell: bash
+        run: |
+          set -euo pipefail
+          todo=docs/morphhdl/parameterized-verilog-todo.md
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          text = path.read_text()
+          old = "- [ ] **Increment 41 — External expression, connection and hierarchy lowering**"
+          new = "- [x] **Increment 41 — External expression, connection and hierarchy lowering**"
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f"expected exactly one unchecked Increment 41 entry, found {count}")
+          path.write_text(text.replace(old, new, 1))
+          PY
+          rm -f .github/workflows/increment-41-finalize.yml
+          git diff --check
+          grep -Fq -- '- [x] **Increment 41 — External expression, connection and hierarchy lowering**' "$todo"
+          ! grep -Fq -- '- [ ] **Increment 41 — External expression, connection and hierarchy lowering**' "$todo"
+
+      - name: Commit final roadmap state
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name pysolvesemi
+          git config user.email pysolvesemi@gmail.com
+          git add -A
+          git diff --cached --check
+          git commit -m "Mark Increment 41 complete"
+          git push origin HEAD:agent/increment-41-external-expression-hierarchy
