@@ -53,4 +53,4 @@ jobs:
 
       - name: Apply, approve and publish Increment 43 source
         shell: bash
-        run: python3 morphhdl/scripts/increment-43-bootstrap.py
+        run: python3 morphhdl/scripts/increment-43-bootstrap-v2.py
