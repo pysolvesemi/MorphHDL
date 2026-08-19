@@ -1,0 +1,293 @@
+package spinal.core
+
+import java.lang.ref.{ReferenceQueue, WeakReference}
+
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
+
+/** Weak key with native Mem object-identity semantics. */
+private[core] final class ExternalMemoryIdentityRef(
+    value: Mem[_],
+    queue: ReferenceQueue[Mem[_]]
+) extends WeakReference[Mem[_]](value, queue) {
+  private val identityHash = System.identityHashCode(value)
+
+  override def hashCode(): Int = identityHash
+
+  override def equals(other: Any): Boolean = other match {
+    case that: ExternalMemoryIdentityRef =>
+      (this eq that) || {
+        val left = get()
+        val right = that.get()
+        (left ne null) && (right ne null) && (left eq right)
+      }
+    case _ => false
+  }
+}
+
+/**
+  * MorphHDL-owned native-memory geometry registry.
+  *
+  * Ordinary SpinalHDL Mem construction remains untouched. A MorphHDL depth
+  * adapter records the bounded depth beside the concrete native Mem, while the
+  * final external publication phase discovers symbolic element widths from the
+  * existing HardType registry. Read/write ports, clocks, enables and collision
+  * policies are always inspected from the native AST itself.
+  */
+object ExternalParameterizedMemoryRegistry {
+  private val queue = new ReferenceQueue[Mem[_]]()
+  private val retained =
+    mutable.HashMap.empty[ExternalMemoryIdentityRef, ParameterizedMemoryMetadata]
+
+  private def reap(): Unit = {
+    var reference = queue.poll().asInstanceOf[ExternalMemoryIdentityRef]
+    while (reference != null) {
+      retained.remove(reference)
+      reference = queue.poll().asInstanceOf[ExternalMemoryIdentityRef]
+    }
+  }
+
+  private def externalMetadataOf(
+      memory: Mem[_]
+  ): Option[ParameterizedMemoryMetadata] = synchronized {
+    reap()
+    retained.get(new ExternalMemoryIdentityRef(memory, null))
+  }
+
+  private def retain(
+      memory: Mem[_],
+      metadata: ParameterizedMemoryMetadata
+  ): Unit = synchronized {
+    reap()
+    if (retained.contains(new ExternalMemoryIdentityRef(memory, null))) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-METADATA-DUPLICATE",
+        "native memory already carries external symbolic geometry metadata",
+        metadata.sourceLocation
+      )
+    }
+    retained.update(new ExternalMemoryIdentityRef(memory, queue), metadata)
+  }
+
+  /** Native Mem factory followed only by external metadata association. */
+  def create[T <: Data](
+      wordType: HardType[T],
+      depth: ParameterizedMemoryDepth
+  ): Mem[T] = {
+    if (wordType == null)
+      throw new IllegalArgumentException("native memory word type must not be null")
+    if (depth == null)
+      throw new IllegalArgumentException("symbolic native memory depth must not be null")
+    attach(spinal.core.Mem(wordType, depth.value), depth)
+  }
+
+  /** Associate a bounded depth with an already-created ordinary native Mem. */
+  def attach[T <: Data](
+      memory: Mem[T],
+      depth: ParameterizedMemoryDepth
+  ): Mem[T] = {
+    if (memory == null)
+      throw new IllegalArgumentException("native memory must not be null")
+    validateDepth(memory, depth)
+    if (metadataOf(memory).nonEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-METADATA-DUPLICATE",
+        "native memory already carries symbolic geometry metadata",
+        depth.sourceLocation
+      )
+    }
+    val elementWidth = elementWidthOf(
+      memory,
+      depth.sourceLocation.orElse(depth.expression.sourceLocation)
+    )
+    retain(
+      memory,
+      ParameterizedMemoryMetadata(
+        depth = depth.expression,
+        elementWidth = elementWidth,
+        sourceLocation = depth.sourceLocation
+          .orElse(depth.expression.sourceLocation)
+          .orElse(elementWidth.sourceLocation)
+      )
+    )
+    memory
+  }
+
+  /**
+    * Discover symbolic element geometry after normal elaboration and inherited
+    * validation. This records no hardware statement and changes no native Mem,
+    * port or algorithm.
+    */
+  private[core] def discover(component: Component): Unit = {
+    allMemoriesOf(component).foreach { memory =>
+      if (metadataOf(memory).isEmpty) {
+        val leaves = memory.wordType().asInstanceOf[Data].flatten.toVector
+        val symbolic = leaves.exists { leaf =>
+          ParameterizedWidth.expressionOf(leaf).exists(_.parameters.nonEmpty)
+        }
+        if (symbolic) {
+          val elementWidth = elementWidthOf(memory, sourceLocation = None)
+          retain(
+            memory,
+            ParameterizedMemoryMetadata(
+              depth = literal(memory.wordCount),
+              elementWidth = elementWidth,
+              sourceLocation = elementWidth.sourceLocation
+            )
+          )
+        }
+      }
+    }
+  }
+
+  private[core] def metadataOf(
+      memory: Mem[_]
+  ): Option[ParameterizedMemoryMetadata] = {
+    val external = externalMetadataOf(memory)
+    val library = ParameterizedMemory.metadataOf(memory)
+    (external, library) match {
+      case (Some(left), Some(right))
+          if left.depth != right.depth || left.elementWidth != right.elementWidth =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-MEMORY-METADATA-CONFLICT",
+          "native memory carries conflicting external and library symbolic geometry",
+          left.sourceLocation.orElse(right.sourceLocation)
+        )
+      case (Some(left), Some(right)) =>
+        Some(left.copy(sourceLocation = left.sourceLocation.orElse(right.sourceLocation)))
+      case (Some(value), None) => Some(value)
+      case (None, Some(value)) => Some(value)
+      case _                   => None
+    }
+  }
+
+  private[core] def memoriesOf(component: Component): Vector[Mem[_]] = {
+    discover(component)
+    allMemoriesOf(component).filter(memory => metadataOf(memory).nonEmpty)
+  }
+
+  def parametersOf(component: Component): Vector[ElaborationIntegerParameter] = {
+    val memories = memoriesOf(component)
+    val referenced = memories.flatMap { memory =>
+      val metadata = metadataOf(memory).get
+      metadata.depth.parameters ++ metadata.elementWidth.parameters
+    }
+    val grouped = referenced.groupBy(_.name)
+    grouped.collectFirst {
+      case (name, schemas) if schemas.distinct.size != 1 => name
+    }.foreach { name =>
+      val source = memories.iterator
+        .flatMap(metadataOf)
+        .find(metadata =>
+          (metadata.depth.parameters ++ metadata.elementWidth.parameters)
+            .exists(_.name == name)
+        )
+        .flatMap(_.sourceLocation)
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
+        s"parameter '$name' has conflicting native-memory declarations on component '${component.definitionName}'",
+        source
+      )
+    }
+    grouped.toVector.map(_._2.head).sortBy(_.name)
+  }
+
+  private def allMemoriesOf(component: Component): Vector[Mem[_]] = {
+    val values = ArrayBuffer.empty[Mem[_]]
+    component.dslBody.walkDeclarations {
+      case memory: Mem[_] => values += memory
+      case _              =>
+    }
+    values.toVector
+  }
+
+  private def validateDepth(
+      memory: Mem[_],
+      depth: ParameterizedMemoryDepth
+  ): Unit = {
+    if (depth.value < 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-NOT-POSITIVE",
+        s"native memory depth witness ${depth.value} must be positive",
+        depth.sourceLocation
+      )
+    }
+    if (depth.expression.generateIndex.nonEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-GENERATE-DEPENDENT",
+        "native memory depth cannot depend on a generate index",
+        depth.sourceLocation
+      )
+    }
+    if (
+      depth.expression.default != BigInt(depth.value) ||
+      depth.expression.minimum < 1 ||
+      depth.expression.maximum < depth.expression.minimum ||
+      depth.expression.maximum > BigInt(Int.MaxValue) ||
+      memory.wordCount != depth.value
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-DOMAIN-INVALID",
+        s"native memory depth '${depth.expression.verilog}' must have witness ${memory.wordCount} and a finite positive Int-sized domain",
+        depth.sourceLocation.orElse(depth.expression.sourceLocation)
+      )
+    }
+  }
+
+  private def elementWidthOf(
+      memory: Mem[_],
+      sourceLocation: Option[String]
+  ): ElaborationIntegerExpression = {
+    val leaves = memory.wordType().asInstanceOf[Data].flatten.toVector
+    if (leaves.isEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-TYPE-UNSUPPORTED",
+        "native symbolic memory element type has no flattened data leaves",
+        sourceLocation
+      )
+    }
+    val elementWidth = leaves.map { leaf =>
+      ParameterizedWidth.expressionOf(leaf).getOrElse(literal(leaf.getBitsWidth))
+    }.reduce(add)
+    if (
+      elementWidth.default != BigInt(memory.getWidth) ||
+      elementWidth.minimum < 1 || elementWidth.maximum < elementWidth.minimum
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID",
+        s"native memory concrete element width ${memory.getWidth} does not match retained expression '${elementWidth.verilog}' in [${elementWidth.minimum}, ${elementWidth.maximum}]",
+        sourceLocation.orElse(elementWidth.sourceLocation)
+      )
+    }
+    elementWidth
+  }
+
+  private def literal(value: Int): ElaborationIntegerExpression =
+    ElaborationIntegerExpression(
+      verilog = value.toString,
+      default = BigInt(value),
+      minimum = BigInt(value),
+      maximum = BigInt(value),
+      parameters = Vector.empty
+    )
+
+  private def add(
+      left: ElaborationIntegerExpression,
+      right: ElaborationIntegerExpression
+  ): ElaborationIntegerExpression =
+    ElaborationIntegerExpression(
+      verilog = s"(${left.verilog} + ${right.verilog})",
+      default = left.default + right.default,
+      minimum = left.minimum + right.minimum,
+      maximum = left.maximum + right.maximum,
+      parameters = (left.parameters ++ right.parameters).distinct.sortBy(_.name),
+      sourceLocation = left.sourceLocation.orElse(right.sourceLocation)
+    )
+
+  private def fail(
+      code: String,
+      detail: String,
+      sourceLocation: Option[String] = None
+  ): Nothing =
+    ParameterizedVerilogException.fail(code, detail, sourceLocation)
+}

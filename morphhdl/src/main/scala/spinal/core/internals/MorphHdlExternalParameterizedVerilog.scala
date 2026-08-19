@@ -11,13 +11,13 @@ import scala.util.matching.Regex
 import spinal.core._
 
 /**
-  * MorphHDL-owned final publication transform for Increments 41 and 42.
+  * MorphHDL-owned final publication transform for Increments 41 through 43.
   *
   * Native SpinalHDL remains authoritative for elaboration, validation,
   * expression semantics, module deduplication and concrete Verilog emission.
   * This external phase observes the finished native graph by object identity,
-  * proves symbolic expression, connection, hierarchy, structural and process
-  * contracts, then rewrites only the published Verilog artifact.
+  * proves symbolic memory, expression, connection, hierarchy, structural and
+  * process contracts, then rewrites only the published Verilog artifact.
   */
 object MorphHdlExternalParameterizedVerilog {
   private final case class ModuleBlock(name: String, start: Int, end: Int)
@@ -72,6 +72,7 @@ object MorphHdlExternalParameterizedVerilog {
     val blockByName = blocks.map(block => block.name -> block).toMap
 
     val components = componentGraph(top)
+    components.foreach(ExternalParameterizedMemoryRegistry.discover)
     val groups = components.groupBy(componentName)
     val canonicalByName = groups.toVector.map { case (name, candidates) =>
       val schemas = candidates.map(componentSchema).distinct
@@ -122,9 +123,14 @@ object MorphHdlExternalParameterizedVerilog {
         val block = blockByName(name)
         val text = lines.slice(block.start, block.end + 1).mkString("\n")
         val rewritten = withPulledExternalClockInputs(component) {
-          val withProcesses = ParameterizedVerilogProcesses.rewrite(
+          val withMemories = ParameterizedVerilogMemories.rewrite(
             component,
             text,
+            pc
+          )
+          val withProcesses = ParameterizedVerilogProcesses.rewrite(
+            component,
+            withMemories,
             pc
           )
           val withStructure = ParameterizedVerilogStructural.rewrite(
@@ -234,7 +240,7 @@ object MorphHdlExternalParameterizedVerilog {
   ): Vector[ElaborationIntegerParameter] = {
     val values =
       ParameterizedWidth.parametersOf(component) ++
-        ParameterizedMemory.parametersOf(component) ++
+        ExternalParameterizedMemoryRegistry.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component)
     val grouped = values.groupBy(_.name)
@@ -251,13 +257,13 @@ object MorphHdlExternalParameterizedVerilog {
 
   private def hasParameterizedMetadata(component: Component): Boolean =
     ParameterizedWidth.parametersOf(component).nonEmpty ||
-      ParameterizedMemory.parametersOf(component).nonEmpty ||
+      ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
       ParameterizedVerilogStructural.hasRegions(component) ||
       ParameterizedVerilogProcesses.hasLoops(component)
 
   /**
     * Preserve the publication order that existed before Increment 42:
-    * native memory lowering first, then procedural loops, structural generate
+    * external memory lowering first, then procedural loops, structural generate
     * regions, and finally Increment 41 expression/hierarchy rewriting.
     * Structure-only modules deliberately skip hierarchy text analysis after
     * their captured module items have been relocated.
@@ -271,11 +277,11 @@ object MorphHdlExternalParameterizedVerilog {
       component: Component
   ): Boolean =
     ParameterizedWidth.parametersOf(component).nonEmpty ||
-      ParameterizedMemory.parametersOf(component).nonEmpty ||
+      ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
       ParameterizedProcess.parametersOf(component).nonEmpty ||
       component.children.exists { child =>
         ParameterizedWidth.parametersOf(child).nonEmpty ||
-          ParameterizedMemory.parametersOf(child).nonEmpty
+          ExternalParameterizedMemoryRegistry.parametersOf(child).nonEmpty
       }
 
   private def moduleBlocks(lines: Vector[String]): Vector[ModuleBlock] = {
