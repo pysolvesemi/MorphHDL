@@ -1,9 +1,13 @@
 name: Increment 41 repair controller
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/increment-41-external-expression-hierarchy
+      - parameterized-verilog
+    types:
+      - opened
+      - synchronize
+      - reopened
   workflow_dispatch:
 
 permissions:
@@ -11,11 +15,13 @@ permissions:
 
 jobs:
   apply-repair:
+    if: github.event.pull_request.head.ref == 'agent/increment-41-external-expression-hierarchy'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repair branch
         uses: actions/checkout@v4
         with:
+          ref: agent/increment-41-external-expression-hierarchy
           fetch-depth: 0
 
       - name: Apply reviewed Increment 41 repair
