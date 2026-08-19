@@ -1,1 +1,8 @@
 focused-dual-scala=failed
+failed-gate=external ownership boundary
+exit-code=126
+--- validation log tail ---
+
+=== external ownership boundary ===
+/__w/_temp/622d42c4-2354-4e35-8bf3-089d6b37687f.sh: line 11: ./morphhdl/scripts/check-external-structural-process-boundary.sh: Permission denied
+FAIL(126): external ownership boundary
