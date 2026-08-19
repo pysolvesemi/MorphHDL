@@ -61,10 +61,13 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Diagnose focused Scala 2.12.18 regressions
+      - name: Collect focused Scala 2.12.18 diagnostics
         shell: bash
         run: |
           set -uo pipefail
+          diagnostics="$GITHUB_WORKSPACE/increment-41-diagnostics"
+          rm -rf "$diagnostics"
+          mkdir -p "$diagnostics"
           failures=0
           suites='spinal.core.internals.ParameterizedVerilogTests
           spinal.core.internals.ParameterizedDataShapeTests
@@ -78,7 +81,7 @@ jobs:
           while IFS= read -r suite; do
             suite="$(printf '%s' "$suite" | xargs)"
             [ -n "$suite" ] || continue
-            log="/tmp/${suite##*.}.log"
+            log="$diagnostics/${suite##*.}.log"
             printf '\n===== RUN %s =====\n' "$suite"
             if /tmp/morphhdl-mill morph[2.12.18].testOnly "$suite" >"$log" 2>&1; then
               printf 'PASS %s\n' "$suite"
@@ -86,16 +89,31 @@ jobs:
               failures=$((failures + 1))
               printf 'FAIL %s\n' "$suite"
               grep -E --color=never \
-                '(^| )- .+ \*\*\* FAILED \*\*\*|SPINAL-PARAMETERIZED-VERILOG-[A-Z0-9_-]+|MorphVerilogFailure|MorphVerilogException|ParameterizedVerilogException|Expected |expected |received |not produce|nested one module|TESTS FAILED|tests failed|\[error\]' \
-                "$log" | tail -n 160 || true
-              printf '%s\n' '----- final context -----'
-              tail -n 60 "$log" || true
+                'FAILED|SPINAL-PARAMETERIZED-VERILOG-[A-Z0-9_-]+|MorphVerilogFailure|MorphVerilogException|Expected |expected |received |\[error\]' \
+                "$log" | tail -n 120 || true
             fi
           done <<EOF
           $suites
           EOF
+          printf '%s\n' "$failures" > "$diagnostics/failure-count.txt"
+          printf '\nFAILED_SUITES=%s\n' "$failures"
+
+      - name: Upload focused diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-41-focused-diagnostics
+          path: increment-41-diagnostics
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Gate focused Scala 2.12.18 diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          failures="$(cat increment-41-diagnostics/failure-count.txt)"
           if [ "$failures" -ne 0 ]; then
-            printf '\nFAILED_SUITES=%s\n' "$failures"
+            printf 'Increment 41 still has %s failing Scala 2.12 suites\n' "$failures" >&2
             exit 1
           fi
           /tmp/morphhdl-mill core[2.12.18].testOnly \
@@ -122,6 +140,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf increment-41-diagnostics
           rm -f \
             .github/workflows/increment-41-head-snapshot.yml \
             .github/workflows/increment-41-repair.yml \
