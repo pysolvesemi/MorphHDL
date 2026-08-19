@@ -23,7 +23,10 @@ private[morphhdl] object SimpleDualPortMemoryContractFixture {
 
         val memoryClockDomain = ClockDomain(clock = clk)
         val memoryArea = new ClockingArea(memoryClockDomain) {
-          val memory = Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(8 bits)), wordCount = 5)
+          val memory = spinal.core.Mem(
+            morphhdl.frontend.HardType(morphhdl.frontend.Bits(8 bits)),
+            wordCount = 5
+          )
           val readAddressInRange = read_address < 5
           val writeAddressInRange = write_address < 5
           val value = memory.readSync(
