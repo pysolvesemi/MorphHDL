@@ -11,13 +11,13 @@ import scala.util.matching.Regex
 import spinal.core._
 
 /**
-  * MorphHDL-owned final publication transform for Increment 41.
+  * MorphHDL-owned final publication transform for Increments 41 and 42.
   *
   * Native SpinalHDL remains authoritative for elaboration, validation,
   * expression semantics, module deduplication and concrete Verilog emission.
   * This external phase observes the finished native graph by object identity,
-  * proves symbolic expression/connection/hierarchy contracts, then rewrites
-  * only the published Verilog artifact.
+  * proves symbolic expression, connection, hierarchy, structural and process
+  * contracts, then rewrites only the published Verilog artifact.
   */
 object MorphHdlExternalParameterizedVerilog {
   private final case class ModuleBlock(name: String, start: Int, end: Int)
@@ -118,16 +118,29 @@ object MorphHdlExternalParameterizedVerilog {
 
     val rewrittenByName = expectedModules.toVector.sorted.flatMap { name =>
       val component = canonicalByName(name)
-      if (requiresRewrite(component)) {
+      if (requiresPublicationRewrite(component)) {
         val block = blockByName(name)
         val text = lines.slice(block.start, block.end + 1).mkString("\n")
         val rewritten = withPulledExternalClockInputs(component) {
-          ExternalParameterizedVerilogNativeFallback.rewrite(
+          val withProcesses = ParameterizedVerilogProcesses.rewrite(
             component,
             text,
+            pc
+          )
+          val withStructure = ParameterizedVerilogStructural.rewrite(
+            component,
+            withProcesses,
             pc,
             canonicalOf
           )
+          if (requiresExpressionHierarchyRewrite(component)) {
+            ExternalParameterizedVerilogNativeFallback.rewrite(
+              component,
+              withStructure,
+              pc,
+              canonicalOf
+            )
+          } else withStructure
         }
         Some(name -> rewritten.split("\n", -1).toVector)
       } else None
@@ -213,23 +226,50 @@ object MorphHdlExternalParameterizedVerilog {
         else 2
       (direction, port.name)
     }
-    ComponentSchema(orderedPorts, ParameterizedWidth.parametersOf(component))
+    ComponentSchema(orderedPorts, componentParameters(component))
+  }
+
+  private def componentParameters(
+      component: Component
+  ): Vector[ElaborationIntegerParameter] = {
+    val values =
+      ParameterizedWidth.parametersOf(component) ++
+        ParameterizedMemory.parametersOf(component) ++
+        ParameterizedStructure.parametersOf(component) ++
+        ParameterizedProcess.parametersOf(component)
+    val grouped = values.groupBy(_.name)
+    grouped.collectFirst {
+      case (name, declarations) if declarations.distinct.size != 1 => name
+    }.foreach { name =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
+        s"component '${componentName(component)}' has conflicting external parameter declarations for '$name'"
+      )
+    }
+    grouped.toVector.map(_._2.head).sortBy(_.name)
   }
 
   private def hasParameterizedMetadata(component: Component): Boolean =
     ParameterizedWidth.parametersOf(component).nonEmpty ||
       ParameterizedMemory.parametersOf(component).nonEmpty ||
-      ParameterizedStructure.parametersOf(component).nonEmpty ||
-      ParameterizedProcess.parametersOf(component).nonEmpty
+      ParameterizedVerilogStructural.hasRegions(component) ||
+      ParameterizedVerilogProcesses.hasLoops(component)
 
   /**
-    * Match the Increment 31/32 routing boundary that existed before native
-    * emitter/phase coupling was removed. Structure-only regions are already
-    * lowered by the still-native Increment 33 pass; running hierarchy analysis
-    * over their generated helper connections would misclassify those helpers
-    * as ordinary parent/child bindings.
+    * Preserve the publication order that existed before Increment 42:
+    * native memory lowering first, then procedural loops, structural generate
+    * regions, and finally Increment 41 expression/hierarchy rewriting.
+    * Structure-only modules deliberately skip hierarchy text analysis after
+    * their captured module items have been relocated.
     */
-  private def requiresRewrite(component: Component): Boolean =
+  private def requiresPublicationRewrite(component: Component): Boolean =
+    ParameterizedVerilogProcesses.hasLoops(component) ||
+      ParameterizedVerilogStructural.hasRegions(component) ||
+      requiresExpressionHierarchyRewrite(component)
+
+  private def requiresExpressionHierarchyRewrite(
+      component: Component
+  ): Boolean =
     ParameterizedWidth.parametersOf(component).nonEmpty ||
       ParameterizedMemory.parametersOf(component).nonEmpty ||
       ParameterizedProcess.parametersOf(component).nonEmpty ||

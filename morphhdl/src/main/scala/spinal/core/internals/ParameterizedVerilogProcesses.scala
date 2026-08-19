@@ -7,7 +7,7 @@ import scala.collection.mutable
 import spinal.core._
 
 /**
-  * Increment 34 replacement of one witnessed native assignment with a
+  * MorphHDL-owned Increment 34 replacement of one witnessed native assignment with a
   * parameter-bounded Verilog-2001 procedural `for`.
   *
   * Normal SpinalHDL elaboration and process grouping remain authoritative. The

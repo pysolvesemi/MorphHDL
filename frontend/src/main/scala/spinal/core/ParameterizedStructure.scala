@@ -8,34 +8,8 @@ import scala.collection.mutable.ArrayBuffer
 import spinal.core.internals._
 
 /**
-  * Backend-neutral integer expression retained during ordinary SpinalHDL
-  * elaboration for structural generate control.
-  *
-  * `default` is the concrete witness used by the native SpinalHDL graph.
-  * `minimum` and `maximum` describe the complete admitted parameter domain.
-  */
-final case class ElaborationIntegerExpression(
-    verilog: String,
-    default: BigInt,
-    minimum: BigInt,
-    maximum: BigInt,
-    parameters: Vector[ElaborationIntegerParameter],
-    generateIndex: Option[String] = None,
-    sourceLocation: Option[String] = None
-)
-
-/** Boolean counterpart used by parameter-controlled generate-if regions. */
-final case class ElaborationBooleanExpression(
-    verilog: String,
-    default: Boolean,
-    parameters: Vector[ElaborationIntegerParameter],
-    sourceLocation: Option[String] = None
-)
-
-/**
   * Opaque snapshot of the ordinary SpinalHDL statements created by one
-  * structural body. Frontend code can capture and register it, while only the
-  * core lowering inspects the native AST objects.
+  * structural body. Frontend code can capture and register it, while the MorphHDL-owned external lowering inspects the native AST objects.
   */
 final class ParameterizedStructuralBlock private[core] (
     private[core] val statements: Vector[Statement],
@@ -56,7 +30,7 @@ final class ParameterizedStructuralPending private[core] (
 )
 
 /**
-  * Native structural-capture registry used by Increment 33.
+  * MorphHDL-owned structural-capture registry retained from Increment 33.
   *
   * The normal SpinalHDL graph remains authoritative. Parameterized mode
   * elaborates one representative body, records exactly which declarations,

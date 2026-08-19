@@ -176,31 +176,15 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
       romCache                    = romCache
     )
 
-    def canonicalOf(child: Component): Component =
-      Option(emitedComponentRef.get(child)).getOrElse(child)
-
-    // Increment 41 restores ordinary native expression/declaration/hierarchy
-    // emission. MorphHDL applies those symbolic rewrites from an external final
-    // phase. The remaining Increment 33-35 structural, process and memory
-    // lowerers stay here until their dedicated corrective increments.
-    val componentResult = () => {
-      val memoryResult = ParameterizedVerilogMemories.rewrite(
+    // Increment 42 moves structural and procedural publication behind the
+    // MorphHDL-owned external final phase. Increment 35 memory lowering remains
+    // here until its dedicated zero-Mem.scala corrective increment.
+    val componentResult = () =>
+      ParameterizedVerilogMemories.rewrite(
         component,
         componentBuilderVerilog.result,
         pc
       )
-      val processResult = ParameterizedVerilogProcesses.rewrite(
-        component,
-        memoryResult,
-        pc
-      )
-      ParameterizedVerilogStructural.rewrite(
-        component,
-        processResult,
-        pc,
-        canonicalOf
-      )
-    }
 
     if(component.parentScope == null && pc.config.dumpWave != null) {
       componentBuilderVerilog.logics ++=
