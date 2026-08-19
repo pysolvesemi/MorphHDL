@@ -26,7 +26,7 @@ private[core] final case class ParameterizedProceduralFor(
 )
 
 /**
-  * Increment 34 classifier for parameter-bounded ranges.
+  * MorphHDL-owned Increment 34 classifier for parameter-bounded ranges.
   *
   * Bodies that construct declarations or child Components remain structural
   * generate regions. A body containing exactly one direct assignment to an

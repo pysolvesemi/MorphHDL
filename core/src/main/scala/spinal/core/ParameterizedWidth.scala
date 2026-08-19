@@ -19,6 +19,33 @@ final case class ElaborationIntegerParameter(
     maximum: BigInt
 )
 
+
+/**
+  * Backend-neutral integer expression retained during ordinary SpinalHDL
+  * elaboration for symbolic widths, hierarchy, structure, processes and memory
+  * geometry.
+  *
+  * `default` is the concrete witness used by the native SpinalHDL graph.
+  * `minimum` and `maximum` describe the complete admitted parameter domain.
+  */
+final case class ElaborationIntegerExpression(
+    verilog: String,
+    default: BigInt,
+    minimum: BigInt,
+    maximum: BigInt,
+    parameters: Vector[ElaborationIntegerParameter],
+    generateIndex: Option[String] = None,
+    sourceLocation: Option[String] = None
+)
+
+/** Boolean counterpart used by retained parameter-controlled metadata. */
+final case class ElaborationBooleanExpression(
+    verilog: String,
+    default: Boolean,
+    parameters: Vector[ElaborationIntegerParameter],
+    sourceLocation: Option[String] = None
+)
+
 /** A concrete witness bit count with an optional bounded symbolic expression. */
 final case class ParameterizedBitCount(
     value: Int,

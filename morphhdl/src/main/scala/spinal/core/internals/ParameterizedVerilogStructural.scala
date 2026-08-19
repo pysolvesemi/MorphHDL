@@ -8,7 +8,7 @@ import scala.collection.mutable.ArrayBuffer
 import spinal.core._
 
 /**
-  * Increment 33 relocation of validated ordinary SpinalHDL module items into
+  * MorphHDL-owned Increment 33 relocation of validated ordinary SpinalHDL module items into
   * Verilog-2001 generate regions.
   *
   * The native emitter remains authoritative for declarations, assignments,
