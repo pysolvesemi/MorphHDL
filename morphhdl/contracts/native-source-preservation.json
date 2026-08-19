@@ -8,9 +8,9 @@
     "description": "Increment 0 repository baseline"
   },
   "approved_state": {
-    "commit": "d7e1bf3de784cb79aa47a81b3b35617a0c0a11f0",
-    "tree": "3fa233f2d2c85961dd18428f696e573b5fc9a31e",
-    "description": "Reviewed native-source state at the Increment 40 squash merge; repinned after post-merge ancestry validation"
+    "commit": "3b152a1aaacb5ff41cf8ad6849a3c3b33f5c8a19",
+    "tree": "4f4bba3f1d430e452454b8dd5eb6aac1141ed4ef",
+    "description": "Reviewed native-source state after Increment 41 external expression, connection and hierarchy lowering"
   },
   "source_roots": [
     "core/src/main/scala/spinal/core",
@@ -83,25 +83,6 @@
       "reason": "Adds MorphHDL parameterized generation and phase-planning integration to the native entrypoint."
     },
     {
-      "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
-      "change": "modified",
-      "classification": "generated_backend_coupling",
-      "introduced_by": [
-        "29",
-        "30"
-      ],
-      "reason": "Publishes MorphHDL parameters and symbolic declaration geometry through the native Verilog emitter."
-    },
-    {
-      "path": "core/src/main/scala/spinal/core/internals/ParameterizedVerilogHierarchy.scala",
-      "change": "added",
-      "classification": "generated_backend_coupling",
-      "introduced_by": [
-        "32"
-      ],
-      "reason": "Rewrites emitted native hierarchy and parameter bindings from MorphHDL analysis."
-    },
-    {
       "path": "core/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala",
       "change": "added",
       "classification": "generated_backend_coupling",
@@ -110,18 +91,6 @@
         "37"
       ],
       "reason": "Rewrites emitted native memories and currently contains the StreamFifo-specific depth reconstruction."
-    },
-    {
-      "path": "core/src/main/scala/spinal/core/internals/ParameterizedVerilogNativeFallback.scala",
-      "change": "added",
-      "classification": "generated_backend_coupling",
-      "introduced_by": [
-        "31",
-        "32",
-        "34",
-        "35"
-      ],
-      "reason": "Post-processes ordinary native Verilog for symbolic declarations, expressions and selected library paths."
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/ParameterizedVerilogProcesses.scala",
@@ -157,13 +126,11 @@
       "change": "modified",
       "classification": "generated_backend_coupling",
       "introduced_by": [
-        "31",
-        "32",
         "33",
         "34",
         "35"
       ],
-      "reason": "Routes MorphHDL hierarchy, structural, process, memory and fallback lowering through the native Verilog phase."
+      "reason": "Routes only the still-pending MorphHDL structural, process and memory lowering through the native Verilog phase."
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/SpinalVerilogPhasePlan.scala",

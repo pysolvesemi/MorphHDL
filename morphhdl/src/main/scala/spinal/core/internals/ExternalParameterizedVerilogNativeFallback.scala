@@ -8,8 +8,8 @@ import scala.collection.mutable.ArrayBuffer
 import spinal.core._
 
 /**
-  * Generic parameterized-Verilog lowering for the Increment 34 expression and
-  * process surface.
+  * MorphHDL-owned external parameterized-Verilog lowering for ordinary
+  * expressions, declarations, connections and hierarchy.
   *
   * The existing ComponentEmitterVerilog remains authoritative for ordinary
   * expression and process syntax. This helper is used only when the narrower
@@ -18,7 +18,7 @@ import spinal.core._
   * emitter for Verilog-2001, then substitutes the public parameter header and
   * packed declaration ranges. No fixture-specific ParamRTL graph is involved.
   */
-private[internals] object ParameterizedVerilogNativeFallback {
+private[internals] object ExternalParameterizedVerilogNativeFallback {
   private val eligibleGateFailures = Set(
     "SPINAL-PARAMETERIZED-VERILOG-REGISTER-INIT-UNSUPPORTED",
     "SPINAL-PARAMETERIZED-VERILOG-INITIAL-ASSIGNMENT-UNSUPPORTED",
@@ -60,7 +60,7 @@ private[internals] object ParameterizedVerilogNativeFallback {
       pc: PhaseContext,
       canonicalOf: Component => Component
   ): String = {
-    val hierarchy = ParameterizedVerilogHierarchy.analyze(component, pc, canonicalOf)
+    val hierarchy = ExternalParameterizedVerilogHierarchy.analyze(component, pc, canonicalOf)
     val analysis = new Analysis(
       component,
       pc,
@@ -74,23 +74,11 @@ private[internals] object ParameterizedVerilogNativeFallback {
 
     val withHeader =
       if (analysis.parameters.isEmpty) verilog
-      else {
-        val modulePattern =
-          ("(?m)^module\\s+" + Pattern.quote(component.definitionName) + "\\s*\\(").r
-        val rewritten = modulePattern.replaceFirstIn(
-          verilog,
-          Matcher.quoteReplacement(
-            renderHeader(component.definitionName, analysis.parameters)
-          )
-        )
-        if (rewritten == verilog) {
-          fail(
-            "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-NOT-FOUND",
-            s"normal Verilog emission did not contain the expected module header for '${component.definitionName}'"
-          )
-        }
-        rewritten
-      }
+      else ensureParameterHeader(
+        verilog,
+        component.definitionName,
+        analysis.parameters
+      )
 
     val (withHierarchy, hierarchyWidths) = hierarchy.rewrite(withHeader)
     val allWidths =
@@ -109,10 +97,90 @@ private[internals] object ParameterizedVerilogNativeFallback {
     val widthsByName = groupedWidths.toVector
       .map { case (name, values) => name -> values.head._2 }
       .sortBy { case (name, _) => -name.length }
-    withHierarchy
+    val rewrittenDeclarations = withHierarchy
       .split("\\n", -1)
       .map(line => rewriteDeclarationLine(line, widthsByName))
       .mkString("\n")
+    if (isCanonicalDirectSurface(component))
+      canonicalizeDeclarations(component, rewrittenDeclarations)
+    else rewrittenDeclarations
+  }
+
+  private def ensureParameterHeader(
+      verilog: String,
+      definitionName: String,
+      parameters: Vector[ElaborationIntegerParameter]
+  ): String = {
+    val lines = verilog.split("\n", -1).toVector
+    val modulePattern =
+      ("^\\s*module\\s+" + Pattern.quote(definitionName) + "\\b.*$").r
+    val moduleLines = lines.zipWithIndex.collect {
+      case (line, index) if modulePattern.findFirstIn(line).nonEmpty => index
+    }
+    if (moduleLines.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-NOT-FOUND",
+        s"normal Verilog emission contains ${moduleLines.size} module headers for '$definitionName'"
+      )
+    }
+    val start = moduleLines.head
+    val line = lines(start)
+    val plain =
+      ("^(\\s*)module\\s+" + Pattern.quote(definitionName) + "\\s*\\(\\s*$").r
+    val indent = line.takeWhile(_.isWhitespace)
+    val end =
+      if (plain.findFirstIn(line).nonEmpty) start
+      else if (line.contains("#(")) {
+        val close = (start + 1 until lines.size).find(index => lines(index).trim == ") (")
+          .getOrElse {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-UNSUPPORTED",
+              s"parameterized module '$definitionName' has no canonical ') (' header terminator"
+            )
+          }
+        val parameterPattern =
+          "\\bparameter\\s+integer\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*(-?[0-9]+)".r
+        val existing = lines.slice(start + 1, close).flatMap { declaration =>
+          parameterPattern.findFirstMatchIn(declaration).map { matched =>
+            matched.group(1) -> BigInt(matched.group(2))
+          }
+        }
+        val duplicates = existing.groupBy(_._1).collectFirst {
+          case (name, values) if values.size != 1 => name
+        }
+        duplicates.foreach { name =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-MODULE-PARAMETER-AMBIGUOUS",
+            s"module '$definitionName' declares parameter '$name' more than once"
+          )
+        }
+        val existingMap = existing.toMap
+        val expectedMap = parameters.map(parameter => parameter.name -> parameter.default).toMap
+        if (existingMap != expectedMap) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-MODULE-PARAMETER-SCHEMA-CONFLICT",
+            s"module '$definitionName' emitted parameter schema ${existingMap.toVector.sortBy(_._1).mkString(",")}, expected ${expectedMap.toVector.sortBy(_._1).mkString(",")}"
+          )
+        }
+        close
+      } else {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-UNSUPPORTED",
+          s"module '$definitionName' does not use one portable native header form"
+        )
+      }
+
+    val declarations = parameters.zipWithIndex.map { case (parameter, index) =>
+      val comma = if (index == parameters.size - 1) "" else ","
+      s"${indent}  parameter integer ${parameter.name} = ${parameter.default}$comma"
+    }
+    (
+      lines.take(start) ++
+        Vector(s"${indent}module $definitionName #(") ++
+        declarations ++
+        Vector(s"${indent}) (") ++
+        lines.drop(end + 1)
+    ).mkString("\n")
   }
 
   private def renderHeader(
@@ -167,6 +235,188 @@ private[internals] object ParameterizedVerilogNativeFallback {
         )
       }
     }
+  }
+
+  private final case class RenderedDeclaration(
+      indent: String,
+      syntax: String,
+      direction: Option[String],
+      net: String,
+      range: String,
+      name: String,
+      suffix: String
+  ) {
+    private def renderedDirection: String = direction match {
+      case Some("input") => "input "
+      case Some("output") => "output"
+      case Some("inout") => "inout "
+      case Some(other) => other
+      case None => ""
+    }
+
+    def renderPort(comma: Boolean): String = {
+      val ending = suffix + (if (comma) "," else "")
+      val body = f"$renderedDirection%6s $net%-4s $range%-8s $name$ending"
+      indent + syntax + body
+    }
+
+    def renderSignal: String = {
+      val body = f"$net%-10s $range%-8s $name$suffix"
+      indent + syntax + body + ";"
+    }
+  }
+
+  /**
+      * Preserve the declaration canonicalization contract of the original
+      * direct-assignment bridge without reordering ordinary native expression,
+      * process, hierarchy or library output. The direct surface contains only
+      * whole-leaf assignments (and at most its native unconditional register
+      * path); every richer graph must retain the native emitter's declaration
+      * order so a concrete witness remains byte-identical after concretization.
+      */
+    private def isCanonicalDirectSurface(component: Component): Boolean = {
+      val assignments = ArrayBuffer.empty[DataAssignmentStatement]
+      var unsupported =
+        component.children.nonEmpty ||
+          ParameterizedMemory.parametersOf(component).nonEmpty ||
+          ParameterizedProcess.parametersOf(component).nonEmpty ||
+          ParameterizedStructure.parametersOf(component).nonEmpty
+
+      component.dslBody.walkLeafStatements {
+        case _: BaseType =>
+        case assignment: DataAssignmentStatement => assignments += assignment
+        case _ => unsupported = true
+      }
+      component.dslBody.walkStatements {
+        case _: TreeStatement => unsupported = true
+        case _                =>
+      }
+
+      !unsupported && assignments.nonEmpty && assignments.forall { assignment =>
+        (assignment.target, assignment.source) match {
+          case (target: BaseType, _: BaseType) =>
+            assignment.finalTarget == target &&
+              assignment.parentScope == target.rootScopeStatement
+          case _ => false
+        }
+      }
+    }
+
+  private def canonicalizeDeclarations(
+      component: Component,
+      verilog: String
+  ): String = {
+    val lines = verilog.split("\\n", -1).toVector
+    val moduleIndex = lines.indexWhere(_.trim.startsWith("module "))
+    if (moduleIndex < 0) return verilog
+    val parameterizedPortStart = (moduleIndex until lines.size)
+      .find(index => lines(index).trim == ") (")
+      .map(_ + 1)
+    val plainPortStart =
+      if (!lines(moduleIndex).contains("#(") && lines(moduleIndex).trim.endsWith("("))
+        Some(moduleIndex + 1)
+      else None
+    val portStart = parameterizedPortStart.orElse(plainPortStart).getOrElse(return verilog)
+    val portEnd = (portStart until lines.size).find(lines(_).trim == ");")
+      .getOrElse(return verilog)
+
+    val portPattern =
+      "^(\\s*)(.*?)(input|output|inout)\\s+(wire|reg|logic)\\s*(\\[[^\\]]+\\])?\\s*([A-Za-z_][A-Za-z0-9_$]*)(.*?)(?:,)?\\s*$".r
+    val parsedPorts = lines.slice(portStart, portEnd).filter(_.trim.nonEmpty).map {
+      case portPattern(indent, syntax, direction, net, range, name, suffix) =>
+        RenderedDeclaration(
+          indent,
+          syntax,
+          Some(direction),
+          net,
+          Option(range).getOrElse(""),
+          name,
+          suffix.replaceFirst(",\\s*$", "").trim
+        )
+      case line =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-PORT-LINE-MAPPING-AMBIGUOUS",
+          s"module '${component.definitionName}' contains an unsupported native port declaration: ${line.trim}"
+        )
+    }
+    val duplicatePorts = parsedPorts.groupBy(_.name).collectFirst {
+      case (name, values) if values.size != 1 => name
+    }
+    duplicatePorts.foreach { name =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-PORT-LINE-MAPPING-AMBIGUOUS",
+        s"module '${component.definitionName}' contains multiple native port declarations named '$name'"
+      )
+    }
+    val graphPorts = component.getOrdredNodeIo.toVector.filterNot(_.isSuffix)
+      .flatMap(port => Option(port.getName()).filter(_.nonEmpty)).toSet
+    val missingGraphPorts = graphPorts.diff(parsedPorts.map(_.name).toSet)
+    if (missingGraphPorts.nonEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-PORT-LINE-MAPPING-MISSING",
+        s"module '${component.definitionName}' has no native declaration for graph ports ${missingGraphPorts.toVector.sorted.mkString(", ")}"
+      )
+    }
+    val orderedPorts = parsedPorts.sortBy { port =>
+      val direction = port.direction match {
+        case Some("input") => 0
+        case Some("output") => 1
+        case _ => 2
+      }
+      (direction, port.name)
+    }
+    val canonicalPorts = orderedPorts.zipWithIndex.map { case (port, index) =>
+      port.renderPort(comma = index != orderedPorts.size - 1)
+    }
+
+    val declarationNames = mutable.LinkedHashSet.empty[String]
+    component.dslBody.walkDeclarations {
+      case baseType: BaseType if !baseType.isIo && !baseType.isSuffix =>
+        Option(baseType.getName()).filter(_.nonEmpty).foreach(declarationNames += _)
+      case _ =>
+    }
+    val signalPattern =
+      "^(\\s*)(.*?)(wire|reg|logic)\\s*(\\[[^\\]]+\\])?\\s*([A-Za-z_][A-Za-z0-9_$]*)(.*?)\\s*;\\s*$".r
+    val signalSlots = lines.zipWithIndex.collect {
+      case (signalPattern(indent, syntax, net, range, name, suffix), index)
+          if index > portEnd && declarationNames.contains(name) =>
+        index -> RenderedDeclaration(
+          indent,
+          syntax,
+          None,
+          net,
+          Option(range).getOrElse(""),
+          name,
+          suffix.trim
+        )
+    }
+    val duplicateSignals = signalSlots.map(_._2).groupBy(_.name).collectFirst {
+      case (name, values) if values.size != 1 => name
+    }
+    duplicateSignals.foreach { name =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-SIGNAL-LINE-MAPPING-AMBIGUOUS",
+        s"module '${component.definitionName}' contains multiple native declarations named '$name'"
+      )
+    }
+    val orderedSignals = signalSlots.map(_._2).sortBy(_.name)
+    var result = lines
+      .patch(portStart, canonicalPorts, portEnd - portStart)
+    if (signalSlots.nonEmpty) {
+      // Port canonicalization preserves the number of lines, so original signal
+      // declaration indexes remain valid.
+      signalSlots.map(_._1).sorted.zip(orderedSignals).foreach { case (index, signal) =>
+        result = result.updated(index, signal.renderSignal)
+      }
+    }
+    val normalized =
+      if (
+        portEnd + 2 < result.size &&
+        result(portEnd + 1).trim.isEmpty &&
+        result(portEnd + 2).trim.isEmpty
+      ) result.patch(portEnd + 1, Nil, 1)
+      else result
+    normalized.mkString("\n")
   }
 
   private final class Analysis(
@@ -235,12 +485,29 @@ private[internals] object ParameterizedVerilogNativeFallback {
           s"component '${component.definitionName}' has no retained or inferred symbolic packed widths"
         )
       }
+      val ports = declarations.distinct.filter(_.isIo)
+      if (!ports.exists(_.isInput) || !ports.exists(_.isOutput)) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PORT-DIRECTIONS-UNSUPPORTED",
+          s"component '${component.definitionName}' must expose at least one native input and one native output"
+        )
+      }
 
       validateParameters()
       validateWidths()
       validateAssignments()
       validateProcesses()
     }
+
+    private def parameterSourceLocation(
+        parameter: ElaborationIntegerParameter
+    ): Option[String] =
+      declarations.distinct.collectFirst {
+        case bitVector: BitVector
+            if widthInference.ofBase(bitVector).parameters.contains(parameter) &&
+              ParameterizedWidth.sourceLocationOf(bitVector).nonEmpty =>
+          ParameterizedWidth.sourceLocationOf(bitVector).get
+      }
 
     private def validateParameters(): Unit = {
       val portableIdentifier = "[A-Za-z_][A-Za-z0-9_]*".r
@@ -255,13 +522,15 @@ private[internals] object ParameterizedVerilogNativeFallback {
         ) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-NAME-INVALID",
-            s"parameter name '${parameter.name}' is not a portable Verilog identifier"
+            s"parameter name '${parameter.name}' is not a portable Verilog identifier",
+            parameterSourceLocation(parameter)
           )
         }
         if (pc.verilogKeywords.contains(parameter.name)) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-NAME-RESERVED",
-            s"parameter name '${parameter.name}' is reserved by IEEE 1364"
+            s"parameter name '${parameter.name}' is reserved by IEEE 1364",
+            parameterSourceLocation(parameter)
           )
         }
         if (
@@ -271,7 +540,8 @@ private[internals] object ParameterizedVerilogNativeFallback {
         ) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-DOMAIN-INVALID",
-            s"parameter '${parameter.name}' must have a non-negative bounded domain no larger than SpinalConfig.bitVectorWidthMax=${pc.config.bitVectorWidthMax}, with its default inside that domain"
+            s"parameter '${parameter.name}' must have a non-negative bounded domain no larger than SpinalConfig.bitVectorWidthMax=${pc.config.bitVectorWidthMax}, with its default inside that domain",
+            parameterSourceLocation(parameter)
           )
         }
         namedDeclarations.get(parameter.name).foreach { signal =>
@@ -279,7 +549,8 @@ private[internals] object ParameterizedVerilogNativeFallback {
             if (signal.isIo)
               "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-PORT-NAME-COLLISION"
             else "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-SIGNAL-NAME-COLLISION",
-            s"parameter '${parameter.name}' collides with signal '${signal.getName()}' of component '${component.definitionName}'"
+            s"parameter '${parameter.name}' collides with signal '${signal.getName()}' of component '${component.definitionName}'",
+            ParameterizedWidth.sourceLocationOf(signal).orElse(parameterSourceLocation(parameter))
           )
         }
       }

@@ -138,7 +138,7 @@ recorded in
   registers, clones, `HardType`, `Bundle`, `Vec`, `Stream` and `Flow` without
   native constructor or clone hooks.
 
-- [ ] **Increment 41 — External expression, connection and hierarchy lowering**
+- [x] **Increment 41 — External expression, connection and hierarchy lowering**
 
   Move the Increment 31 and 32 expression, declaration, connection and
   hierarchy analysis behind the external MorphHDL boundary. Remove native

@@ -7,8 +7,10 @@ import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
 
 import spinal.core.{Component, SpinalConfig, SpinalReport, SpinalVerilog, SystemVerilog, VHDL, Verilog}
+import spinal.core.internals.MorphHdlExternalParameterizedVerilog
 
 import morphhdl.backend.verilog2001.{Verilog2001Capability => V2001Capability, Verilog2001Emitter}
+import morphhdl.integration.ExternalSpinalVerilog
 import morphhdl.frontend.ParamRtlFrontend
 import morphhdl.paramrtl.ModuleItem.{GenerateCase, GenerateFor, GenerateIf, ModuleInstance}
 import morphhdl.paramrtl.{
@@ -208,14 +210,16 @@ object MorphVerilog {
   ): Either[MorphVerilogFailure, SpinalReport[T]] =
     try {
       val nativeConfig = copyForSingleSource(config, workspace)
-      val report = SpinalVerilog(nativeConfig) {
+      val external = ExternalSpinalVerilog.transform(nativeConfig) {
         val value = component
         if (value == null) {
           throw new IllegalArgumentException("component factory returned null")
         }
         value
+      } { pc =>
+        MorphHdlExternalParameterizedVerilog.rewrite(pc)
       }
-      Right(report)
+      Right(external.nativeReport)
     } catch {
       case NonFatal(error) =>
         Left(

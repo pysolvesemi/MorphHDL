@@ -101,7 +101,7 @@ jobs:
             frontend/test \
             verilogBackend/test \
             morph/test \
-            "core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests spinal.core.internals.ParameterizedVerilogTests spinal.core.internals.ParameterizedDataShapeTests"
+            "core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests"
 
       - name: Export live inherited validation phase inventory
         shell: bash

@@ -158,155 +158,49 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
 
   val romCache = mutable.HashMap[String, String]()
   def compile(component: Component): () => String = {
-    def newBuilder(builderConfig: SpinalConfig): ComponentEmitterVerilog =
-      new ComponentEmitterVerilog(
-        c                           = component,
-        systemVerilog               = builderConfig.isSystemVerilog,
-        verilogBase                 = this,
-        algoIdIncrementalBase       = allocateAlgoIncrementalBase,
-        mergeAsyncProcess           = builderConfig.mergeAsyncProcess,
-        asyncResetCombSensitivity   = builderConfig.asyncResetCombSensitivity,
-        anonymSignalPrefix          = if(builderConfig.anonymSignalUniqueness) globalData.anonymSignalPrefix + "_" + component.definitionName else globalData.anonymSignalPrefix,
-        nativeRom                   = builderConfig.inlineRom,
-        nativeRomFilePrefix         = rtlName,
-        caseRom                     = builderConfig.caseRom,
-        emitedComponentRef          = emitedComponentRef,
-        emitedRtlSourcesPath        = report.generatedSourcesPaths,
-        spinalConfig                = builderConfig,
-        pc                          = pc,
-        romCache                    = romCache
-      )
-
-    def withPulledExternalClockInputs[T](body: => T): T = {
-      val patchedSources = ArrayBuffer.empty[Bool]
-      component.dslBody.walkDeclarations {
-        case baseType: BaseType if baseType.isReg && baseType.clockDomain != null =>
-          val domain = baseType.clockDomain
-          Vector(domain.clock, domain.reset).foreach { source =>
-            if (
-              source != null &&
-              source.component == null &&
-              source.isDirectionLess &&
-              component.pulledDataCache.get(source).exists(_.isInput) &&
-              !patchedSources.exists(_ eq source)
-            ) {
-              source.dir = in
-              patchedSources += source
-            }
-          }
-        case _ =>
-      }
-      try body
-      finally patchedSources.foreach(_.dir = null)
-    }
+    val componentBuilderVerilog = new ComponentEmitterVerilog(
+      c                           = component,
+      systemVerilog               = pc.config.isSystemVerilog,
+      verilogBase                 = this,
+      algoIdIncrementalBase       = allocateAlgoIncrementalBase,
+      mergeAsyncProcess           = config.mergeAsyncProcess,
+      asyncResetCombSensitivity   = config.asyncResetCombSensitivity,
+      anonymSignalPrefix          = if(pc.config.anonymSignalUniqueness) globalData.anonymSignalPrefix + "_" + component.definitionName else globalData.anonymSignalPrefix,
+      nativeRom                   = config.inlineRom,
+      nativeRomFilePrefix         = rtlName,
+      caseRom                     = config.caseRom,
+      emitedComponentRef          = emitedComponentRef,
+      emitedRtlSourcesPath        = report.generatedSourcesPaths,
+      spinalConfig                = pc.config,
+      pc                          = pc,
+      romCache                    = romCache
+    )
 
     def canonicalOf(child: Component): Component =
       Option(emitedComponentRef.get(child)).getOrElse(child)
 
-    def nativeBuilder(
-        rewriteParameterizedGraph: Boolean
-    ): (ComponentEmitterVerilog, () => String) = {
-      val builder = newBuilder(pc.config.copy(parameterizedVerilog = false))
-      (
-        builder,
-        () => {
-          val nativeResult = builder.result
-          val parameterizedResult =
-            if (rewriteParameterizedGraph) {
-              // ClockDomain.external keeps its source signals outside the component.
-              // The normal emitter has already pulled top-level input proxies into the
-              // component, so expose that proven input view only while validating the
-              // bounded native fallback, then restore the source signals unchanged.
-              withPulledExternalClockInputs {
-                ParameterizedVerilogNativeFallback.rewrite(
-                  component,
-                  nativeResult,
-                  pc,
-                  canonicalOf
-                )
-              }
-            } else nativeResult
-          val memoryResult = ParameterizedVerilogMemories.rewrite(
-            component,
-            parameterizedResult,
-            pc
-          )
-          val processResult = ParameterizedVerilogProcesses.rewrite(
-            component,
-            memoryResult,
-            pc
-          )
-          ParameterizedVerilogStructural.rewrite(
-            component,
-            processResult,
-            pc,
-            canonicalOf
-          )
-        }
+    // Increment 41 restores ordinary native expression/declaration/hierarchy
+    // emission. MorphHDL applies those symbolic rewrites from an external final
+    // phase. The remaining Increment 33-35 structural, process and memory
+    // lowerers stay here until their dedicated corrective increments.
+    val componentResult = () => {
+      val memoryResult = ParameterizedVerilogMemories.rewrite(
+        component,
+        componentBuilderVerilog.result,
+        pc
+      )
+      val processResult = ParameterizedVerilogProcesses.rewrite(
+        component,
+        memoryResult,
+        pc
+      )
+      ParameterizedVerilogStructural.rewrite(
+        component,
+        processResult,
+        pc,
+        canonicalOf
       )
     }
-
-    val parameterizedMode = pc.config.parameterizedVerilog
-    val hasStructuralRegions =
-      parameterizedMode && ParameterizedVerilogStructural.hasRegions(component)
-    val hasParameterizedGraph =
-      parameterizedMode &&
-        (
-          ParameterizedWidth.parametersOf(component).nonEmpty ||
-          ParameterizedMemory.parametersOf(component).nonEmpty ||
-          ParameterizedProcess.parametersOf(component).nonEmpty ||
-          component.children.exists(
-            child =>
-              ParameterizedWidth.parametersOf(child).nonEmpty ||
-                ParameterizedMemory.parametersOf(child).nonEmpty
-          )
-        )
-    val isPlainParameterizedChild =
-      parameterizedMode && component.parent != null &&
-        !hasStructuralRegions && !hasParameterizedGraph
-
-    val (componentBuilderVerilog, componentResult) =
-      if (hasStructuralRegions) {
-        // Structural-only parameterization lives in the parent generate region,
-        // so the ordinary emitter must first provide the concrete witness text.
-        nativeBuilder(rewriteParameterizedGraph = hasParameterizedGraph)
-      } else if (isPlainParameterizedChild) {
-        // A fixed-width child remains an ordinary Verilog module even when its
-        // parent is parameterized. Increment 32 hierarchy rewriting owns the
-        // parent-side instance binding; the child itself needs no parameter gate.
-        nativeBuilder(rewriteParameterizedGraph = false)
-      } else {
-        try {
-          val builder = newBuilder(pc.config)
-          (
-            builder,
-            () =>
-              {
-                val memoryResult = ParameterizedVerilogMemories.rewrite(
-                  component,
-                  builder.result,
-                  pc
-                )
-                val processResult = ParameterizedVerilogProcesses.rewrite(
-                  component,
-                  memoryResult,
-                  pc
-                )
-                ParameterizedVerilogStructural.rewrite(
-                  component,
-                  processResult,
-                  pc,
-                  canonicalOf
-                )
-              }
-          )
-        } catch {
-          case failure: ParameterizedVerilogException
-              if parameterizedMode &&
-                ParameterizedVerilogNativeFallback.supports(failure, component) =>
-            nativeBuilder(rewriteParameterizedGraph = true)
-        }
-      }
 
     if(component.parentScope == null && pc.config.dumpWave != null) {
       componentBuilderVerilog.logics ++=

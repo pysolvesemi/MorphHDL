@@ -8,14 +8,14 @@ import scala.collection.mutable.ArrayBuffer
 import spinal.core._
 
 /**
-  * Increment 32 analysis for ordinary Component hierarchy.
+  * MorphHDL-owned external analysis for ordinary Component hierarchy.
   *
   * The concrete SpinalHDL graph remains authoritative for component
   * construction, naming, port order and instance connections. This helper
   * only proves a bounded direct packed-width binding and rewrites the
   * already-emitted native Verilog instance with explicit named parameters.
   */
-private[internals] object ParameterizedVerilogHierarchy {
+private[internals] object ExternalParameterizedVerilogHierarchy {
   private sealed trait BindingExpr {
     def render: String
     def default: BigInt
@@ -53,7 +53,7 @@ private[internals] object ParameterizedVerilogHierarchy {
       ports: Vector[PortRewrite]
   )
 
-  private[internals] final class Plan private[ParameterizedVerilogHierarchy] (
+  private[internals] final class Plan private[ExternalParameterizedVerilogHierarchy] (
       val parameters: Vector[ElaborationIntegerParameter],
       val hasParameterizedInstances: Boolean,
       private val instances: Vector[InstancePlan]
