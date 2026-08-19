@@ -37,20 +37,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path("morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala")
-          text = path.read_text()
-          bad = '    result.mkString("\\\\n")'
-          good = '    result.mkString("\\n")'
-          count = text.count(bad)
-          if count != 1:
-              raise RuntimeError(f"expected one malformed line reassembly, found {count}")
-          path.write_text(text.replace(bad, good, 1))
-          PY
+          path=morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+          actual="$(sed -n '374p' "$path")"
+          expected='    result.mkString("\\n")'
+          if [ "$actual" != "$expected" ]; then
+            printf 'unexpected line 374: %s\n' "$actual" >&2
+            exit 1
+          fi
+          {
+            head -n 373 "$path"
+            printf '%s\n' '    result.mkString("\n")'
+            tail -n +375 "$path"
+          } > "$path.tmp"
+          mv "$path.tmp" "$path"
           git diff --check
-          git diff -- morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+          git diff -- "$path"
 
       - name: Install pinned Mill bootstrap
         shell: bash
