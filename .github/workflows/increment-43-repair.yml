@@ -1,0 +1,77 @@
+name: Increment 43 repair controller
+
+on:
+  push:
+    branches:
+      - agent/increment-43-native-memory-reuse
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-43-repair-controller
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-43-native-memory-reuse
+          fetch-depth: 0
+
+      - name: Repair external native-memory width inference
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala")
+          text = path.read_text()
+          old = """        case port: MemReadSync =>
+                    ParameterizedMemory.metadataOf(port.mem) match {"""
+          new = """        case port: MemReadSync =>
+                    ExternalParameterizedMemoryRegistry.metadataOf(port.mem) match {"""
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f"expected exactly one retired native-memory lookup, found {count}")
+          path.write_text(text.replace(old, new))
+          PY
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate focused memory contracts on both Scala lines
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala_version in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill morph[$scala_version].testOnly \
+              morphhdl.NativeSymbolicMemoryTests \
+              morphhdl.NativeLibraryReuseTests
+          done
+
+      - name: Publish repair and remove controller
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+          git rm .github/workflows/increment-43-repair.yml
+          git commit -m "Fix external native memory width inference"
+          git push origin HEAD:agent/increment-43-native-memory-reuse
