@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/increment-41-external-expression-hierarchy
+  pull_request:
+    branches:
+      - parameterized-verilog
   workflow_dispatch:
 
 permissions:
