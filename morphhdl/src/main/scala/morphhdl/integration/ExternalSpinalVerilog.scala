@@ -106,6 +106,7 @@ object ExternalSpinalVerilog {
   private final class CapturePhase[T <: Component, A](
       attempt: Int,
       inspector: T => A,
+      afterPublication: PhaseContext => Unit,
       capture: AtomicReference[CapturedInspection[A]]
   ) extends PhaseMisc {
     override def impl(pc: PhaseContext): Unit = {
@@ -116,7 +117,9 @@ object ExternalSpinalVerilog {
         )
       }
       val typedTop = top.asInstanceOf[T]
-      capture.set(CapturedInspection(attempt, typedTop, inspector(typedTop)))
+      val inspected = inspector(typedTop)
+      afterPublication(pc)
+      capture.set(CapturedInspection(attempt, typedTop, inspected))
     }
   }
 
@@ -138,12 +141,38 @@ object ExternalSpinalVerilog {
     */
   def inspect[T <: Component, A](
       config: SpinalConfig
-  )(component: => T)(inspector: T => A): ExternalSpinalVerilogReport[T, A] = {
+  )(component: => T)(inspector: T => A): ExternalSpinalVerilogReport[T, A] =
+    run(config)(component)(inspector, (_: PhaseContext) => ())
+
+  /**
+    * Run one MorphHDL-owned publication transform as the final configured phase,
+    * after native validation and Verilog emission. The callback may rewrite only
+    * published artifacts; native graph mutation remains outside this boundary.
+    */
+  def transform[T <: Component](
+      config: SpinalConfig
+  )(component: => T)(
+      afterPublication: PhaseContext => Unit
+  ): ExternalSpinalVerilogReport[T, NativeGraphSnapshot] =
+    run(config)(component)(
+      (top: T) => NativeGraphSnapshot.capture(top),
+      afterPublication
+    )
+
+  private def run[T <: Component, A](
+      config: SpinalConfig
+  )(component: => T)(
+      inspector: T => A,
+      afterPublication: PhaseContext => Unit
+  ): ExternalSpinalVerilogReport[T, A] = {
     if (config == null) {
       throw new IllegalArgumentException("SpinalConfig must not be null")
     }
     if (inspector == null) {
       throw new IllegalArgumentException("native graph inspector must not be null")
+    }
+    if (afterPublication == null) {
+      throw new IllegalArgumentException("external publication transform must not be null")
     }
 
     val attempts = new AtomicInteger(0)
@@ -153,7 +182,12 @@ object ExternalSpinalVerilog {
     val inserters = config.phasesInserters.clone()
     inserters += { phases: ArrayBuffer[Phase] =>
       val attempt = attempts.incrementAndGet()
-      val capturePhase = new CapturePhase[T, A](attempt, inspector, captured)
+      val capturePhase = new CapturePhase[T, A](
+        attempt,
+        inspector,
+        afterPublication,
+        captured
+      )
       phases += capturePhase
       capturedPlan.set(
         CapturedPhasePlan(attempt, phases.toVector.map(_.getClass.getName))

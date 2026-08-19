@@ -8,8 +8,8 @@ import scala.collection.mutable.ArrayBuffer
 import spinal.core._
 
 /**
-  * Generic parameterized-Verilog lowering for the Increment 34 expression and
-  * process surface.
+  * MorphHDL-owned external parameterized-Verilog lowering for ordinary
+  * expressions, declarations, connections and hierarchy.
   *
   * The existing ComponentEmitterVerilog remains authoritative for ordinary
   * expression and process syntax. This helper is used only when the narrower
@@ -18,7 +18,7 @@ import spinal.core._
   * emitter for Verilog-2001, then substitutes the public parameter header and
   * packed declaration ranges. No fixture-specific ParamRTL graph is involved.
   */
-private[internals] object ParameterizedVerilogNativeFallback {
+private[internals] object ExternalParameterizedVerilogNativeFallback {
   private val eligibleGateFailures = Set(
     "SPINAL-PARAMETERIZED-VERILOG-REGISTER-INIT-UNSUPPORTED",
     "SPINAL-PARAMETERIZED-VERILOG-INITIAL-ASSIGNMENT-UNSUPPORTED",
@@ -60,7 +60,7 @@ private[internals] object ParameterizedVerilogNativeFallback {
       pc: PhaseContext,
       canonicalOf: Component => Component
   ): String = {
-    val hierarchy = ParameterizedVerilogHierarchy.analyze(component, pc, canonicalOf)
+    val hierarchy = ExternalParameterizedVerilogHierarchy.analyze(component, pc, canonicalOf)
     val analysis = new Analysis(
       component,
       pc,
@@ -74,23 +74,11 @@ private[internals] object ParameterizedVerilogNativeFallback {
 
     val withHeader =
       if (analysis.parameters.isEmpty) verilog
-      else {
-        val modulePattern =
-          ("(?m)^module\\s+" + Pattern.quote(component.definitionName) + "\\s*\\(").r
-        val rewritten = modulePattern.replaceFirstIn(
-          verilog,
-          Matcher.quoteReplacement(
-            renderHeader(component.definitionName, analysis.parameters)
-          )
-        )
-        if (rewritten == verilog) {
-          fail(
-            "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-NOT-FOUND",
-            s"normal Verilog emission did not contain the expected module header for '${component.definitionName}'"
-          )
-        }
-        rewritten
-      }
+      else ensureParameterHeader(
+        verilog,
+        component.definitionName,
+        analysis.parameters
+      )
 
     val (withHierarchy, hierarchyWidths) = hierarchy.rewrite(withHeader)
     val allWidths =
@@ -113,6 +101,83 @@ private[internals] object ParameterizedVerilogNativeFallback {
       .split("\\n", -1)
       .map(line => rewriteDeclarationLine(line, widthsByName))
       .mkString("\n")
+  }
+
+  private def ensureParameterHeader(
+      verilog: String,
+      definitionName: String,
+      parameters: Vector[ElaborationIntegerParameter]
+  ): String = {
+    val lines = verilog.split("\n", -1).toVector
+    val modulePattern =
+      ("^\\s*module\\s+" + Pattern.quote(definitionName) + "\\b.*$").r
+    val moduleLines = lines.zipWithIndex.collect {
+      case (line, index) if modulePattern.findFirstIn(line).nonEmpty => index
+    }
+    if (moduleLines.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-NOT-FOUND",
+        s"normal Verilog emission contains ${moduleLines.size} module headers for '$definitionName'"
+      )
+    }
+    val start = moduleLines.head
+    val line = lines(start)
+    val plain =
+      ("^(\\s*)module\\s+" + Pattern.quote(definitionName) + "\\s*\\(\\s*$").r
+    val indent = line.takeWhile(_.isWhitespace)
+    val end =
+      if (plain.findFirstIn(line).nonEmpty) start
+      else if (line.contains("#(")) {
+        val close = (start + 1 until lines.size).find(index => lines(index).trim == ") (")
+          .getOrElse {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-UNSUPPORTED",
+              s"parameterized module '$definitionName' has no canonical ') (' header terminator"
+            )
+          }
+        val parameterPattern =
+          "\\bparameter\\s+integer\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*(-?[0-9]+)".r
+        val existing = lines.slice(start + 1, close).flatMap { declaration =>
+          parameterPattern.findFirstMatchIn(declaration).map { matched =>
+            matched.group(1) -> BigInt(matched.group(2))
+          }
+        }
+        val duplicates = existing.groupBy(_._1).collectFirst {
+          case (name, values) if values.size != 1 => name
+        }
+        duplicates.foreach { name =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-MODULE-PARAMETER-AMBIGUOUS",
+            s"module '$definitionName' declares parameter '$name' more than once"
+          )
+        }
+        val existingMap = existing.toMap
+        val expectedMap = parameters.map(parameter => parameter.name -> parameter.default).toMap
+        if (existingMap != expectedMap) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-MODULE-PARAMETER-SCHEMA-CONFLICT",
+            s"module '$definitionName' emitted parameter schema ${existingMap.toVector.sortBy(_._1).mkString(",")}, expected ${expectedMap.toVector.sortBy(_._1).mkString(",")}"
+          )
+        }
+        close
+      } else {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-UNSUPPORTED",
+          s"module '$definitionName' does not use one portable native header form"
+        )
+      }
+
+    val declarations = parameters.zipWithIndex.map { case (parameter, index) =>
+      val comma = if (index == parameters.size - 1) "" else ","
+      s"${indent}  parameter integer ${parameter.name} = ${parameter.default}$comma"
+    }
+    (
+      lines.take(start) ++
+        Vector(s"${indent}module $definitionName #(") ++
+        declarations ++
+        Vector(s"${indent}) (") ++
+        lines.drop(end + 1)
+    ).mkString("\n")
   }
 
   private def renderHeader(
