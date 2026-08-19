@@ -1,0 +1,73 @@
+name: MorphHDL IR pass workspace
+
+on:
+  pull_request:
+    branches:
+      - parameterized-verilog
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  push:
+    branches:
+      - parameterized-verilog
+    paths:
+      - "morphhdl-passes/**"
+      - ".github/workflows/morphhdl-passes.yml"
+      - "morphhdl/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-ir-passes-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  boundary:
+    name: Pass workspace boundary
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enforce isolated pass paths
+        shell: bash
+        env:
+          MORPHDL_PASSES_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MORPHDL_PASSES_HEAD_REF: ${{ github.head_ref || github.ref_name }}
+          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+        run: bash morphhdl-passes/scripts/check-boundary.sh
+
+      - name: Test the boundary guard
+        shell: bash
+        run: bash morphhdl-passes/scripts/test-boundary-guard.sh
+
+  contracts:
+    name: Pass contracts Scala ${{ matrix.scala_version }}
+    needs: boundary
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+
+      - name: Test standalone pass contracts
+        working-directory: morphhdl-passes
+        shell: bash
+        run: sbt -batch ++${{ matrix.scala_version }} test
