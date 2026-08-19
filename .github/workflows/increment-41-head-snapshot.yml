@@ -1,0 +1,36 @@
+name: Increment 41 head snapshot
+
+on:
+  pull_request:
+    branches:
+      - parameterized-verilog
+    types:
+      - opened
+      - reopened
+      - synchronize
+    paths:
+      - .github/workflows/increment-41-head-snapshot.yml
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    if: github.event.pull_request.head.ref == 'agent/increment-41-external-expression-hierarchy'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Archive source
+        shell: bash
+        run: git archive --format=zip --output=/tmp/morphhdl-increment-41-head.zip HEAD
+      - name: Upload source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-increment-41-head
+          path: /tmp/morphhdl-increment-41-head.zip
+          if-no-files-found: error
+          retention-days: 1
