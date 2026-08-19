@@ -8,9 +8,9 @@
     "description": "Increment 0 repository baseline"
   },
   "approved_state": {
-    "commit": "2a4cb0ee692372dadf49b1b8b19608235240d180",
-    "tree": "a9a01552574394c57c5c483b6d6bd39cf18f6b1a",
-    "description": "Reviewed native-source state at the Increment 41 squash merge; repinned after post-merge ancestry validation"
+    "commit": "04bf1a53f5310af1d3f97034d22b55e0c46ffe76",
+    "tree": "e38a6724d2218294867334a08dd54cf29693aab7",
+    "description": "Reviewed native-source state after Increment 42 external structural and process capture"
   },
   "source_roots": [
     "core/src/main/scala/spinal/core",
@@ -45,32 +45,16 @@
       "reason": "Stores MorphHDL symbolic memory geometry and library-depth override metadata inside the native core source tree."
     },
     {
-      "path": "core/src/main/scala/spinal/core/ParameterizedProcess.scala",
-      "change": "added",
-      "classification": "morphhdl_sidecar",
-      "introduced_by": [
-        "34"
-      ],
-      "reason": "Stores MorphHDL procedural-loop capture metadata inside the native core source tree."
-    },
-    {
-      "path": "core/src/main/scala/spinal/core/ParameterizedStructure.scala",
-      "change": "added",
-      "classification": "morphhdl_sidecar",
-      "introduced_by": [
-        "33"
-      ],
-      "reason": "Stores MorphHDL structural generate metadata inside the native core source tree."
-    },
-    {
       "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
       "change": "added",
       "classification": "morphhdl_sidecar",
       "introduced_by": [
         "29",
-        "30"
+        "30",
+        "33",
+        "34"
       ],
-      "reason": "Stores MorphHDL symbolic-width metadata inside the native core source tree."
+      "reason": "Stores MorphHDL symbolic-width metadata and the shared retained integer/Boolean expression facts pending complete module extraction."
     },
     {
       "path": "core/src/main/scala/spinal/core/Spinal.scala",
@@ -93,26 +77,6 @@
       "reason": "Rewrites emitted native memories and currently contains the StreamFifo-specific depth reconstruction."
     },
     {
-      "path": "core/src/main/scala/spinal/core/internals/ParameterizedVerilogProcesses.scala",
-      "change": "added",
-      "classification": "generated_backend_coupling",
-      "introduced_by": [
-        "34"
-      ],
-      "reason": "Lowers captured parameterized process metadata into emitted Verilog."
-    },
-    {
-      "path": "core/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala",
-      "change": "added",
-      "classification": "generated_backend_coupling",
-      "introduced_by": [
-        "33",
-        "34",
-        "35"
-      ],
-      "reason": "Lowers captured structural metadata into emitted Verilog generate regions."
-    },
-    {
       "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
       "change": "modified",
       "classification": "generated_backend_coupling",
@@ -126,11 +90,9 @@
       "change": "modified",
       "classification": "generated_backend_coupling",
       "introduced_by": [
-        "33",
-        "34",
         "35"
       ],
-      "reason": "Routes only the still-pending MorphHDL structural, process and memory lowering through the native Verilog phase."
+      "reason": "Routes only the still-pending MorphHDL memory lowering through the native Verilog phase."
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/SpinalVerilogPhasePlan.scala",
