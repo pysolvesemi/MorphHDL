@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: morphhdl-native-source-guard-${{ github.workflow }}-${{ github.ref }}
@@ -36,21 +36,3 @@ jobs:
       - name: Verify reviewed native-source state
         shell: bash
         run: python3 morphhdl/scripts/check-native-source-preservation.py
-
-  bootstrap_increment_43:
-    name: Apply Increment 43 implementation
-    if: github.event_name == 'pull_request' && github.head_ref == 'agent/increment-43-native-memory-reuse'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    container:
-      image: ghcr.io/spinalhdl/docker:latest
-    steps:
-      - name: Check out exact Increment 43 branch
-        uses: actions/checkout@v4
-        with:
-          ref: agent/increment-43-native-memory-reuse
-          fetch-depth: 0
-
-      - name: Apply, approve and publish Increment 43 source
-        shell: bash
-        run: python3 morphhdl/scripts/increment-43-bootstrap-v3.py
