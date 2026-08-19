@@ -1,4 +1,4 @@
-name: Increment 41 head snapshot
+name: Increment 41 newline repair
 
 on:
   pull_request:
@@ -12,25 +12,100 @@ on:
       - .github/workflows/increment-41-head-snapshot.yml
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: increment-41-newline-repair
+  cancel-in-progress: false
 
 jobs:
-  snapshot:
+  repair:
     if: github.event.pull_request.head.ref == 'agent/increment-41-external-expression-hierarchy'
     runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
     steps:
-      - name: Check out exact PR head
+      - name: Check out exact Increment 41 branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: agent/increment-41-external-expression-hierarchy
           fetch-depth: 0
-      - name: Archive source
+
+      - name: Repair module line reassembly
         shell: bash
-        run: git archive --format=zip --output=/tmp/morphhdl-increment-41-head.zip HEAD
-      - name: Upload source archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: morphhdl-increment-41-head
-          path: /tmp/morphhdl-increment-41-head.zip
-          if-no-files-found: error
-          retention-days: 1
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala")
+          text = path.read_text()
+          bad = '    result.mkString("\\\\n")'
+          good = '    result.mkString("\\n")'
+          count = text.count(bad)
+          if count != 1:
+              raise RuntimeError(f"expected one malformed line reassembly, found {count}")
+          path.write_text(text.replace(bad, good, 1))
+          PY
+          git diff --check
+          git diff -- morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run focused Scala 2.12.18 regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            spinal.core.internals.ParameterizedVerilogTests \
+            spinal.core.internals.ParameterizedDataShapeTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.StructuralGenerateControlTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.GenericExpressionAndStreamTests \
+            morphhdl.GenericProcessLoweringTests \
+            morphhdl.NativeLibraryReuseTests \
+            morphhdl.NativeSymbolicMemoryTests
+          /tmp/morphhdl-mill core[2.12.18].testOnly \
+            spinal.core.internals.SpinalVerilogPhasePlanTests
+
+      - name: Run focused Scala 2.13.12 regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            spinal.core.internals.ParameterizedVerilogTests \
+            spinal.core.internals.ParameterizedDataShapeTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.StructuralGenerateControlTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.GenericExpressionAndStreamTests \
+            morphhdl.GenericProcessLoweringTests \
+            morphhdl.NativeLibraryReuseTests \
+            morphhdl.NativeSymbolicMemoryTests
+          /tmp/morphhdl-mill core[2.13.12].testOnly \
+            spinal.core.internals.SpinalVerilogPhasePlanTests
+
+      - name: Commit validated repair and remove temporary controllers
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f \
+            .github/workflows/increment-41-head-snapshot.yml \
+            .github/workflows/increment-41-repair.yml \
+            .github/workflows/increment-41-repair-v2.yml
+          git config user.name pysolvesemi
+          git config user.email pysolvesemi@gmail.com
+          git add -A
+          git diff --cached --check
+          git commit -m "Fix Increment 41 module line reassembly"
+          git push origin HEAD:agent/increment-41-external-expression-hierarchy
