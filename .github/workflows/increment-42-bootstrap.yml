@@ -54,7 +54,7 @@ jobs:
           }
 
           run_gate "external ownership boundary" \
-            ./morphhdl/scripts/check-external-structural-process-boundary.sh || true
+            bash ./morphhdl/scripts/check-external-structural-process-boundary.sh || true
 
           if [ -z "$failed_gate" ]; then
             run_gate "install pinned Mill" \
