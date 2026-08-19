@@ -8,9 +8,9 @@
     "description": "Increment 0 repository baseline"
   },
   "approved_state": {
-    "commit": "04bf1a53f5310af1d3f97034d22b55e0c46ffe76",
-    "tree": "e38a6724d2218294867334a08dd54cf29693aab7",
-    "description": "Reviewed native-source state after Increment 42 external structural and process capture"
+    "commit": "a5d6505f245e101d3e024dce554e41735b0f7a3a",
+    "tree": "58f25f9eb85f017ea2bbd6e9421633715c4a5d21",
+    "description": "Reviewed native-source state at the Increment 42 squash merge; repinned after post-merge ancestry validation"
   },
   "source_roots": [
     "core/src/main/scala/spinal/core",
