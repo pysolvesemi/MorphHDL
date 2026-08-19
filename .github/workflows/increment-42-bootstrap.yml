@@ -58,8 +58,8 @@ jobs:
 
           if [ -z "$failed_gate" ]; then
             run_gate "install pinned Mill" \
-              curl --fail --location --retry 3 \
-                https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+              curl --fail --location --retry 5 --retry-all-errors \
+                https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
                 --output /tmp/morphhdl-mill || true
             if [ -z "$failed_gate" ]; then chmod +x /tmp/morphhdl-mill; fi
           fi
