@@ -24,21 +24,29 @@ jobs:
           ref: agent/increment-41-external-expression-hierarchy
           fetch-depth: 0
 
-      - name: Apply reviewed Increment 41 repair
+      - name: Apply reviewed Increment 41 source and test repair
         shell: bash
         run: |
           set -euo pipefail
+          if ! compgen -G '.github/increment-41-repair.patch.b64.*' > /dev/null; then
+            echo 'Increment 41 repair payload has already been applied.'
+            exit 0
+          fi
+
           cat .github/increment-41-repair.patch.b64.* | base64 --decode > /tmp/increment-41-repair.patch.gz
           echo "3386c0403103e1ac6369bec2f31875d410fe8d27c0594af3beb39ce1bbe17145  /tmp/increment-41-repair.patch.gz" | sha256sum --check --strict
           gzip -dc /tmp/increment-41-repair.patch.gz > /tmp/increment-41-repair.patch
           echo "99f3c59da4baa9d064d1d33fd1fb138b52245f5059d22b46233c560c87b072c4  /tmp/increment-41-repair.patch" | sha256sum --check --strict
           git apply --index /tmp/increment-41-repair.patch
-          git diff --cached --check
+
+          git restore --source=HEAD --staged --worktree -- \
+            .github/workflows/morphhdl-baseline.yml \
+            .github/workflows/morphhdl-external-symbolic-width.yml \
+            .github/workflows/morphhdl-mill.yml
 
           rm -f \
             .github/increment-41-repair.patch.gz \
-            .github/increment-41-repair.patch.b64.* \
-            .github/workflows/increment-41-source-snapshot.yml
+            .github/increment-41-repair.patch.b64.*
           git add -A
           git diff --cached --check
 
