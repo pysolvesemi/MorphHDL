@@ -54,6 +54,4 @@ jobs:
           /tmp/morphhdl-mill verilogBackend[${{ matrix.scala_version }}].test
           /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].test
           /tmp/morphhdl-mill core[${{ matrix.scala_version }}].testOnly \
-            spinal.core.internals.SpinalVerilogPhasePlanTests \
-            spinal.core.internals.ParameterizedVerilogTests \
-            spinal.core.internals.ParameterizedDataShapeTests
+            spinal.core.internals.SpinalVerilogPhasePlanTests

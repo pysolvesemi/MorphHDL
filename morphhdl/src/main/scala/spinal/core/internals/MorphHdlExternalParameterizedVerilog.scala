@@ -77,13 +77,20 @@ object MorphHdlExternalParameterizedVerilog {
       val schemas = candidates.map(componentSchema).distinct
       if (schemas.size != 1) {
         fail(
-          "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-CANONICAL-SCHEMA-CONFLICT",
+          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
           s"native module identity '$name' maps to ${schemas.size} distinct graph schemas"
         )
       }
       val representative = candidates.head
       name -> representative
     }.toMap
+
+    if (!components.exists(hasParameterizedMetadata)) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-UNTAGGED-PORT",
+        s"component '${componentName(top)}' contains no retained MorphHDL parameter metadata"
+      )
+    }
 
     val canonicalByIdentity = new IdentityHashMap[Component, Component]()
     groups.foreach { case (name, candidates) =>
@@ -199,19 +206,36 @@ object MorphHdlExternalParameterizedVerilog {
         s"component '${componentName(component)}' has multiple native ports named '$name'"
       )
     }
-    ComponentSchema(ports, ParameterizedWidth.parametersOf(component))
+    val orderedPorts = ports.sortBy { port =>
+      val direction =
+        if (port.direction == "input") 0
+        else if (port.direction == "output") 1
+        else 2
+      (direction, port.name)
+    }
+    ComponentSchema(orderedPorts, ParameterizedWidth.parametersOf(component))
   }
 
-  private def requiresRewrite(component: Component): Boolean =
+  private def hasParameterizedMetadata(component: Component): Boolean =
     ParameterizedWidth.parametersOf(component).nonEmpty ||
       ParameterizedMemory.parametersOf(component).nonEmpty ||
       ParameterizedStructure.parametersOf(component).nonEmpty ||
+      ParameterizedProcess.parametersOf(component).nonEmpty
+
+  /**
+    * Match the Increment 31/32 routing boundary that existed before native
+    * emitter/phase coupling was removed. Structure-only regions are already
+    * lowered by the still-native Increment 33 pass; running hierarchy analysis
+    * over their generated helper connections would misclassify those helpers
+    * as ordinary parent/child bindings.
+    */
+  private def requiresRewrite(component: Component): Boolean =
+    ParameterizedWidth.parametersOf(component).nonEmpty ||
+      ParameterizedMemory.parametersOf(component).nonEmpty ||
       ParameterizedProcess.parametersOf(component).nonEmpty ||
       component.children.exists { child =>
         ParameterizedWidth.parametersOf(child).nonEmpty ||
-          ParameterizedMemory.parametersOf(child).nonEmpty ||
-          ParameterizedStructure.parametersOf(child).nonEmpty ||
-          ParameterizedProcess.parametersOf(child).nonEmpty
+          ParameterizedMemory.parametersOf(child).nonEmpty
       }
 
   private def moduleBlocks(lines: Vector[String]): Vector[ModuleBlock] = {

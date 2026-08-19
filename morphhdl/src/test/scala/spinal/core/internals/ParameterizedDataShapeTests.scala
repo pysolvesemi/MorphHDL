@@ -3,10 +3,13 @@ package spinal.core.internals
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
 
+import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
+
+import morphhdl.{MorphVerilog, MorphVerilogException}
 
 private object ParameterizedDataShapeTestFixture {
   final case class Payload(shapeWidth: ParameterizedBitCount) extends Bundle {
@@ -185,7 +188,7 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
 
   test("parameterized emission accepts concrete internals beside symbolic shapes") {
     withTemporaryDirectory { directory =>
-      SpinalVerilog(parameterizedConfig(directory)) {
+      MorphVerilog(morphConfig(directory)) {
         new Component {
           setDefinitionName("ConcreteInternalShape")
           val din = in(ParameterizedWidth.Bits(bitCount))
@@ -239,7 +242,7 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
 
   test("parameterized emission lowers initialized reset register paths") {
     withTemporaryDirectory { directory =>
-      SpinalVerilog(parameterizedConfig(directory)) {
+      MorphVerilog(morphConfig(directory)) {
         new Component {
           setDefinitionName("ResetSymbolicRegister")
           val clk = in(Bool())
@@ -267,7 +270,7 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
 
   test("parameterized emission lowers conditional assignments") {
     withTemporaryDirectory { directory =>
-      SpinalVerilog(parameterizedConfig(directory)) {
+      MorphVerilog(morphConfig(directory)) {
         new Component {
           setDefinitionName("ConditionalShapeAssignment")
           val clk = in(Bool())
@@ -296,7 +299,7 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
 
   test("parameterized emission lowers partial assignments and expressions") {
     withTemporaryDirectory { directory =>
-      SpinalVerilog(parameterizedConfig(directory)) {
+      MorphVerilog(morphConfig(directory)) {
         new Component {
           setDefinitionName("PartialShapeAssignment")
           val din = in(ParameterizedWidth.Bits(bitCount))
@@ -313,7 +316,7 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
     }
 
     withTemporaryDirectory { directory =>
-      SpinalVerilog(parameterizedConfig(directory)) {
+      MorphVerilog(morphConfig(directory)) {
         new Component {
           setDefinitionName("ExpressionShapeAssignment")
           val din = in(ParameterizedWidth.Bits(bitCount))
@@ -369,7 +372,7 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
       Files.createDirectories(resetDirectory)
       Files.createDirectories(fallingDirectory)
 
-      SpinalVerilog(parameterizedConfig(resetDirectory)) {
+      MorphVerilog(morphConfig(resetDirectory)) {
         new Component {
           setDefinitionName("ResetDomainSymbolicRegister")
           val clk = in(Bool())
@@ -390,7 +393,7 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
       assert(resetVerilog.contains("reset"))
       assert(resetVerilog.contains("<= din;"))
 
-      SpinalVerilog(parameterizedConfig(fallingDirectory)) {
+      MorphVerilog(morphConfig(fallingDirectory)) {
         new Component {
           setDefinitionName("FallingEdgeSymbolicRegister")
           val clk = in(Bool())
@@ -438,8 +441,8 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
       printFilelist = false
     )
 
-  private def parameterizedConfig(directory: Path): SpinalConfig =
-    concreteConfig(directory).copy(parameterizedVerilog = true)
+  private def morphConfig(directory: Path): SpinalConfig =
+    SpinalConfig(targetDirectory = directory.toString)
 
   private def read(path: Path): String =
     new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
@@ -448,14 +451,24 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
       name: String
   )(factory: () => Component): ParameterizedVerilogException =
     withTemporaryDirectory { directory =>
-      intercept[ParameterizedVerilogException] {
-        SpinalVerilog(
-          concreteConfig(directory).copy(parameterizedVerilog = true)
-        ) {
+      val error = intercept[MorphVerilogException] {
+        MorphVerilog(morphConfig(directory)) {
           factory()
         }
       }
+      findParameterized(error).getOrElse {
+        fail(s"Expected ParameterizedVerilogException, received ${error.failure}")
+      }
     }
+
+  @tailrec
+  private def findParameterized(error: Throwable): Option[ParameterizedVerilogException] =
+    if (error == null) None
+    else
+      error match {
+        case value: ParameterizedVerilogException => Some(value)
+        case _                                    => findParameterized(error.getCause)
+      }
 
   private def withTemporaryDirectory[A](body: Path => A): A = {
     val directory = Files.createTempDirectory("morphhdl-parameterized-shape-test-")

@@ -59,12 +59,11 @@ jobs:
       - name: Validate external width and data-shape contracts
         shell: bash
         run: |
-          /tmp/morphhdl-mill core[${{ matrix.scala_version }}].testOnly \
-            spinal.core.internals.ParameterizedVerilogTests \
-            spinal.core.internals.ParameterizedDataShapeTests
           /tmp/morphhdl-mill frontend[${{ matrix.scala_version }}].testOnly \
             morphhdl.frontend.HdlIntTests
           /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            spinal.core.internals.ParameterizedVerilogTests \
+            spinal.core.internals.ParameterizedDataShapeTests \
             morphhdl.MorphSingleSourceVerilogTests \
             morphhdl.NativeLibraryReuseTests \
             morphhdl.NativeSymbolicMemoryTests
