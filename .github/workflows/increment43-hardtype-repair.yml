@@ -1,0 +1,218 @@
+name: Increment 43 retained HardType memory repair
+
+on:
+  push:
+    branches:
+      - agent/increment-43-native-memory-reuse
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Apply reviewed retained-HardType repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/increment43-repair.patch <<'PATCH'
+          diff --git a/core/src/main/scala/spinal/core/ParameterizedWidth.scala b/core/src/main/scala/spinal/core/ParameterizedWidth.scala
+          index 96db2dc..b459547 100644
+          --- a/core/src/main/scala/spinal/core/ParameterizedWidth.scala
+          +++ b/core/src/main/scala/spinal/core/ParameterizedWidth.scala
+          @@ -95,6 +95,26 @@ private[core] final class RetainedWidthIdentityRef(
+             }
+           }
+           
+          +/** Weak HardType key with the same object-identity semantics. */
+          +private[core] final class RetainedHardTypeIdentityRef(
+          +    value: HardType[_],
+          +    queue: ReferenceQueue[HardType[_]]
+          +) extends WeakReference[HardType[_]](value, queue) {
+          +  private val identityHash = System.identityHashCode(value)
+          +
+          +  override def hashCode(): Int = identityHash
+          +
+          +  override def equals(other: Any): Boolean = other match {
+          +    case that: RetainedHardTypeIdentityRef =>
+          +      (this eq that) || {
+          +        val left = get()
+          +        val right = that.get()
+          +        (left ne null) && (right ne null) && (left eq right)
+          +      }
+          +    case _ => false
+          +  }
+          +}
+          +
+           /**
+             * MorphHDL-owned symbolic-width registry and native-factory adapters.
+             *
+          @@ -106,6 +126,9 @@ private[core] final class RetainedWidthIdentityRef(
+           object ParameterizedWidth {
+             private val queue = new ReferenceQueue[BaseType]()
+             private val retained = mutable.HashMap.empty[RetainedWidthIdentityRef, RetainedWidth]
+          +  private val hardTypeQueue = new ReferenceQueue[HardType[_]]()
+          +  private val retainedHardTypes =
+          +    mutable.HashMap.empty[RetainedHardTypeIdentityRef, Vector[ElaborationIntegerExpression]]
+           
+             private def reap(): Unit = {
+               var reference = queue.poll().asInstanceOf[RetainedWidthIdentityRef]
+          @@ -113,6 +136,13 @@ object ParameterizedWidth {
+                 retained.remove(reference)
+                 reference = queue.poll().asInstanceOf[RetainedWidthIdentityRef]
+               }
+          +    var hardTypeReference =
+          +      hardTypeQueue.poll().asInstanceOf[RetainedHardTypeIdentityRef]
+          +    while (hardTypeReference != null) {
+          +      retainedHardTypes.remove(hardTypeReference)
+          +      hardTypeReference =
+          +        hardTypeQueue.poll().asInstanceOf[RetainedHardTypeIdentityRef]
+          +    }
+             }
+           
+             private def metadataOf(data: BaseType): Option[RetainedWidth] = synchronized {
+          @@ -125,6 +155,33 @@ object ParameterizedWidth {
+               retained.update(new RetainedWidthIdentityRef(data, queue), metadata)
+             }
+           
+          +  private def hardTypeMetadataOf(
+          +      dataType: HardType[_]
+          +  ): Option[Vector[ElaborationIntegerExpression]] = synchronized {
+          +    reap()
+          +    retainedHardTypes.get(new RetainedHardTypeIdentityRef(dataType, null))
+          +  }
+          +
+          +  private def retainHardType(
+          +      dataType: HardType[_],
+          +      expressions: Vector[ElaborationIntegerExpression]
+          +  ): Unit = synchronized {
+          +    reap()
+          +    retainedHardTypes.update(
+          +      new RetainedHardTypeIdentityRef(dataType, hardTypeQueue),
+          +      expressions
+          +    )
+          +  }
+          +
+          +  private def literalWidth(value: Int): ElaborationIntegerExpression =
+          +    ElaborationIntegerExpression(
+          +      verilog = value.toString,
+          +      default = BigInt(value),
+          +      minimum = BigInt(value),
+          +      maximum = BigInt(value),
+          +      parameters = Vector.empty
+          +    )
+          +
+             private def retainedExpression(width: ParameterizedBitCount): Option[ElaborationIntegerExpression] =
+               width.expression.orElse {
+                 width.parameter.map { parameter =>
+          @@ -217,7 +274,14 @@ object ParameterizedWidth {
+               */
+             def HardType[T <: Data](dataType: => T): spinal.core.HardType[T] = {
+               val template = dataType
+          -    new spinal.core.HardType[T](cloneOf(template))
+          +    val expressions = template.flatten.toVector.map { leaf =>
+          +      expressionOf(leaf).getOrElse(literalWidth(leaf.getBitsWidth))
+          +    }
+          +    val dataTypeFactory = new spinal.core.HardType[T](cloneOf(template))
+          +    if (expressions.exists(_.parameters.nonEmpty)) {
+          +      retainHardType(dataTypeFactory, expressions)
+          +    }
+          +    dataTypeFactory
+             }
+           
+             /** Untouched native register algorithm driven by the retained HardType. */
+          @@ -235,6 +299,11 @@ object ParameterizedWidth {
+             def expressionOf(data: BaseType): Option[ElaborationIntegerExpression] =
+               metadataOf(data).flatMap(_.expression)
+           
+          +  private[core] def hardTypeExpressionsOf(
+          +      dataType: HardType[_]
+          +  ): Option[Vector[ElaborationIntegerExpression]] =
+          +    if (dataType == null) None else hardTypeMetadataOf(dataType)
+          +
+             def sourceLocationOf(data: BaseType): Option[String] =
+               metadataOf(data).flatMap(_.sourceLocation)
+           
+          diff --git a/frontend/src/main/scala/spinal/core/ExternalParameterizedMemoryRegistry.scala b/frontend/src/main/scala/spinal/core/ExternalParameterizedMemoryRegistry.scala
+          index aafd9c6..19a7cb7 100644
+          --- a/frontend/src/main/scala/spinal/core/ExternalParameterizedMemoryRegistry.scala
+          +++ b/frontend/src/main/scala/spinal/core/ExternalParameterizedMemoryRegistry.scala
+          @@ -121,10 +121,11 @@ object ExternalParameterizedMemoryRegistry {
+             private[core] def discover(component: Component): Unit = {
+               allMemoriesOf(component).foreach { memory =>
+                 if (metadataOf(memory).isEmpty) {
+          -        val leaves = memory.wordType().asInstanceOf[Data].flatten.toVector
+          -        val symbolic = leaves.exists { leaf =>
+          -          ParameterizedWidth.expressionOf(leaf).exists(_.parameters.nonEmpty)
+          -        }
+          +        val retainedShape =
+          +          ParameterizedWidth.hardTypeExpressionsOf(memory.wordType)
+          +        val symbolic = retainedShape.exists(
+          +          _.exists(_.parameters.nonEmpty)
+          +        )
+                   if (symbolic) {
+                     val elementWidth = elementWidthOf(memory, sourceLocation = None)
+                     retain(
+          @@ -238,17 +239,36 @@ object ExternalParameterizedMemoryRegistry {
+                 memory: Mem[_],
+                 sourceLocation: Option[String]
+             ): ElaborationIntegerExpression = {
+          -    val leaves = memory.wordType().asInstanceOf[Data].flatten.toVector
+          -    if (leaves.isEmpty) {
+          +    val concreteWidths = memory._widths
+          +    if (concreteWidths.isEmpty) {
+                 fail(
+                   "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-TYPE-UNSUPPORTED",
+                   "native symbolic memory element type has no flattened data leaves",
+                   sourceLocation
+                 )
+               }
+          -    val elementWidth = leaves.map { leaf =>
+          -      ParameterizedWidth.expressionOf(leaf).getOrElse(literal(leaf.getBitsWidth))
+          -    }.reduce(add)
+          +    val expressions =
+          +      ParameterizedWidth
+          +        .hardTypeExpressionsOf(memory.wordType)
+          +        .getOrElse(concreteWidths.map(literal))
+          +    if (expressions.size != concreteWidths.size) {
+          +      fail(
+          +        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID",
+          +        s"native memory concrete element shape has ${concreteWidths.size} leaves but retained HardType geometry has ${expressions.size}",
+          +        sourceLocation.orElse(expressions.iterator.flatMap(_.sourceLocation).toSeq.headOption)
+          +      )
+          +    }
+          +    expressions.zip(concreteWidths).zipWithIndex.foreach {
+          +      case ((expression, concreteWidth), index)
+          +          if expression.default != BigInt(concreteWidth) =>
+          +        fail(
+          +          "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID",
+          +          s"native memory leaf $index has concrete width $concreteWidth but retained HardType expression '${expression.verilog}' has witness ${expression.default}",
+          +          sourceLocation.orElse(expression.sourceLocation)
+          +        )
+          +      case _ =>
+          +    }
+          +    val elementWidth = expressions.reduce(add)
+               if (
+                 elementWidth.default != BigInt(memory.getWidth) ||
+                 elementWidth.minimum < 1 || elementWidth.maximum < elementWidth.minimum
+          PATCH
+          sed -i 's/^          //' /tmp/increment43-repair.patch
+          git apply --check /tmp/increment43-repair.patch
+          git apply /tmp/increment43-repair.patch
+          rm -- .github/workflows/increment43-hardtype-repair.yml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            core/src/main/scala/spinal/core/ParameterizedWidth.scala \
+            frontend/src/main/scala/spinal/core/ExternalParameterizedMemoryRegistry.scala \
+            .github/workflows/increment43-hardtype-repair.yml
+          git commit -m "Retain symbolic HardType memory geometry by identity"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
