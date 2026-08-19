@@ -63,7 +63,7 @@ expect_failure \
 wa07_manifest="${tmp_dir}/wa07.txt"
 printf '%s\n' 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala' >"${wa07_manifest}"
 expect_failure \
-  'WA-07 handoff is rejected while WA-06 and PV-48 are unchecked' \
+  'WA-07 handoff is rejected while WA-06 and PV-55 are unchecked' \
   run_checker agent/wa-07-final-handoff "${wa07_manifest}"
 
 printf 'MorphHDL pass boundary self-tests passed.\n'
