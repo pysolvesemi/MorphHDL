@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: morphhdl-native-source-guard-${{ github.workflow }}-${{ github.ref }}
@@ -36,23 +36,3 @@ jobs:
       - name: Verify reviewed native-source state
         shell: bash
         run: python3 morphhdl/scripts/check-native-source-preservation.py
-
-  bootstrap_increment_42:
-    name: Bootstrap Increment 42 implementation
-    if: github.event_name == 'pull_request' && github.head_ref == 'agent/increment-42-external-structural-process-capture'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 120
-    container:
-      image: ghcr.io/spinalhdl/docker:latest
-    env:
-      XDG_CACHE_HOME: /tmp/morphhdl-cache
-    steps:
-      - name: Check out exact Increment 42 branch
-        uses: actions/checkout@v4
-        with:
-          ref: agent/increment-42-external-structural-process-capture
-          fetch-depth: 0
-
-      - name: Implement and validate Increment 42 without workflow mutation
-        shell: bash
-        run: bash morphhdl/scripts/increment-42-bootstrap-v2.sh
