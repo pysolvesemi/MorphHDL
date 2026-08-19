@@ -1,4 +1,4 @@
-name: Increment 41 newline repair
+name: Increment 41 focused repair
 
 on:
   pull_request:
@@ -15,7 +15,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: increment-41-newline-repair
+  group: increment-41-focused-repair
   cancel-in-progress: false
 
 jobs:
@@ -51,7 +51,6 @@ jobs:
           } > "$path.tmp"
           mv "$path.tmp" "$path"
           git diff --check
-          git diff -- "$path"
 
       - name: Install pinned Mill bootstrap
         shell: bash
@@ -62,20 +61,43 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Run focused Scala 2.12.18 regressions
+      - name: Diagnose focused Scala 2.12.18 regressions
         shell: bash
         run: |
-          set -euo pipefail
-          /tmp/morphhdl-mill morph[2.12.18].testOnly \
-            spinal.core.internals.ParameterizedVerilogTests \
-            spinal.core.internals.ParameterizedDataShapeTests \
-            morphhdl.MorphSingleSourceVerilogTests \
-            morphhdl.StructuralGenerateControlTests \
-            morphhdl.HierarchyParameterBindingTests \
-            morphhdl.GenericExpressionAndStreamTests \
-            morphhdl.GenericProcessLoweringTests \
-            morphhdl.NativeLibraryReuseTests \
-            morphhdl.NativeSymbolicMemoryTests
+          set -uo pipefail
+          failures=0
+          suites='spinal.core.internals.ParameterizedVerilogTests
+          spinal.core.internals.ParameterizedDataShapeTests
+          morphhdl.MorphSingleSourceVerilogTests
+          morphhdl.StructuralGenerateControlTests
+          morphhdl.HierarchyParameterBindingTests
+          morphhdl.GenericExpressionAndStreamTests
+          morphhdl.GenericProcessLoweringTests
+          morphhdl.NativeLibraryReuseTests
+          morphhdl.NativeSymbolicMemoryTests'
+          while IFS= read -r suite; do
+            suite="$(printf '%s' "$suite" | xargs)"
+            [ -n "$suite" ] || continue
+            log="/tmp/${suite##*.}.log"
+            printf '\n===== RUN %s =====\n' "$suite"
+            if /tmp/morphhdl-mill morph[2.12.18].testOnly "$suite" >"$log" 2>&1; then
+              printf 'PASS %s\n' "$suite"
+            else
+              failures=$((failures + 1))
+              printf 'FAIL %s\n' "$suite"
+              grep -E --color=never \
+                '(^| )- .+ \*\*\* FAILED \*\*\*|SPINAL-PARAMETERIZED-VERILOG-[A-Z0-9_-]+|MorphVerilogFailure|MorphVerilogException|ParameterizedVerilogException|Expected |expected |received |not produce|nested one module|TESTS FAILED|tests failed|\[error\]' \
+                "$log" | tail -n 160 || true
+              printf '%s\n' '----- final context -----'
+              tail -n 60 "$log" || true
+            fi
+          done <<EOF
+          $suites
+          EOF
+          if [ "$failures" -ne 0 ]; then
+            printf '\nFAILED_SUITES=%s\n' "$failures"
+            exit 1
+          fi
           /tmp/morphhdl-mill core[2.12.18].testOnly \
             spinal.core.internals.SpinalVerilogPhasePlanTests
 
