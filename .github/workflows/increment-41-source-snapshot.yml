@@ -1,0 +1,29 @@
+name: Increment 41 source snapshot
+
+on:
+  push:
+    branches:
+      - agent/increment-41-external-expression-hierarchy
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Package source checkout
+        shell: bash
+        run: |
+          tar --exclude=.git -czf /tmp/morphhdl-increment41-source.tgz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-increment41-source
+          path: /tmp/morphhdl-increment41-source.tgz
+          if-no-files-found: error
+          retention-days: 1
