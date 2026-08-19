@@ -101,7 +101,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       .split("\\n", -1)
       .map(line => rewriteDeclarationLine(line, widthsByName))
       .mkString("\n")
-    canonicalizeDeclarations(component, rewrittenDeclarations)
+    if (isCanonicalDirectSurface(component))
+      canonicalizeDeclarations(component, rewrittenDeclarations)
+    else rewrittenDeclarations
   }
 
   private def ensureParameterHeader(
@@ -264,6 +266,42 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     }
   }
 
+  /**
+      * Preserve the declaration canonicalization contract of the original
+      * direct-assignment bridge without reordering ordinary native expression,
+      * process, hierarchy or library output. The direct surface contains only
+      * whole-leaf assignments (and at most its native unconditional register
+      * path); every richer graph must retain the native emitter's declaration
+      * order so a concrete witness remains byte-identical after concretization.
+      */
+    private def isCanonicalDirectSurface(component: Component): Boolean = {
+      val assignments = ArrayBuffer.empty[DataAssignmentStatement]
+      var unsupported =
+        component.children.nonEmpty ||
+          ParameterizedMemory.parametersOf(component).nonEmpty ||
+          ParameterizedProcess.parametersOf(component).nonEmpty ||
+          ParameterizedStructure.parametersOf(component).nonEmpty
+
+      component.dslBody.walkLeafStatements {
+        case _: BaseType =>
+        case assignment: DataAssignmentStatement => assignments += assignment
+        case _ => unsupported = true
+      }
+      component.dslBody.walkStatements {
+        case _: TreeStatement => unsupported = true
+        case _                =>
+      }
+
+      !unsupported && assignments.nonEmpty && assignments.forall { assignment =>
+        (assignment.target, assignment.source) match {
+          case (target: BaseType, _: BaseType) =>
+            assignment.finalTarget == target &&
+              assignment.parentScope == target.rootScopeStatement
+          case _ => false
+        }
+      }
+    }
+
   private def canonicalizeDeclarations(
       component: Component,
       verilog: String
@@ -371,7 +409,14 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         result = result.updated(index, signal.renderSignal)
       }
     }
-    result.mkString("\\n")
+    val normalized =
+      if (
+        portEnd + 2 < result.size &&
+        result(portEnd + 1).trim.isEmpty &&
+        result(portEnd + 2).trim.isEmpty
+      ) result.patch(portEnd + 1, Nil, 1)
+      else result
+    normalized.mkString("\n")
   }
 
   private final class Analysis(
