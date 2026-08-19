@@ -20,13 +20,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Package source checkout
+      - name: Package current and Increment 0 source trees
         shell: bash
         run: |
           tar --exclude=.git -czf /tmp/morphhdl-increment41-source.tgz .
+          git archive \
+            --format=tar.gz \
+            --output=/tmp/morphhdl-increment0-source.tgz \
+            8c4241396cd718a36227dcd89a2e6a29d9077f11
       - uses: actions/upload-artifact@v4
         with:
           name: morphhdl-increment41-source
-          path: /tmp/morphhdl-increment41-source.tgz
+          path: |
+            /tmp/morphhdl-increment41-source.tgz
+            /tmp/morphhdl-increment0-source.tgz
           if-no-files-found: error
           retention-days: 1
