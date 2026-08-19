@@ -60,7 +60,7 @@ class ParameterizedVerilogTests extends AnyFunSuite {
   }
 
   test("parameterized mode rejects a concrete-only bit-count bridge") {
-    val failure = interceptParameterized { () =>
+    val failure = interceptParameterized() { () =>
       new Component {
         setDefinitionName("ConcreteOnlyWidthWire")
         private val concrete = ParameterizedBitCount(8, parameter = None)
@@ -85,7 +85,7 @@ class ParameterizedVerilogTests extends AnyFunSuite {
 
   test("rejects a same-module parameter and port identifier collision") {
     val collision = width.copy(name = "din")
-    val failure = interceptParameterized { () =>
+    val failure = interceptParameterized() { () =>
       directWidthComponent(reversePorts = false, collision)
     }
 
@@ -97,7 +97,7 @@ class ParameterizedVerilogTests extends AnyFunSuite {
 
   test("rejects an IEEE 1364 reserved parameter identifier") {
     val reserved = width.copy(name = "wire")
-    val failure = interceptParameterized { () =>
+    val failure = interceptParameterized() { () =>
       directWidthComponent(reversePorts = false, reserved)
     }
 
@@ -108,7 +108,7 @@ class ParameterizedVerilogTests extends AnyFunSuite {
   }
 
   test("rejects direct assignments across distinct symbolic width schemas") {
-    val failure = interceptParameterized { () =>
+    val failure = interceptParameterized() { () =>
       new Component {
         setDefinitionName("MismatchedWidthWire")
         val din = in(ParameterizedWidth.UInt(ParameterizedBitCount(8, width)))
@@ -131,7 +131,7 @@ class ParameterizedVerilogTests extends AnyFunSuite {
   }
 
   test("rejects conflicting declarations for the same retained parameter name") {
-    val failure = interceptParameterized { () =>
+    val failure = interceptParameterized() { () =>
       new Component {
         setDefinitionName("ConflictingWidthWire")
         val din = in(
@@ -162,7 +162,7 @@ class ParameterizedVerilogTests extends AnyFunSuite {
   }
 
   test("rejects an input-only tagged component outside the direct-wire slice") {
-    val failure = interceptParameterized { () =>
+    val failure = interceptParameterized() { () =>
       new Component {
         setDefinitionName("InputOnlyWidth")
         val din = in(ParameterizedWidth.UInt(ParameterizedBitCount(8, width)))
