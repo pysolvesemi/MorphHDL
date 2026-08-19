@@ -250,7 +250,10 @@ object MorphHdlExternalParameterizedVerilog {
   }
 
   private def hasParameterizedMetadata(component: Component): Boolean =
-    componentParameters(component).nonEmpty
+    ParameterizedWidth.parametersOf(component).nonEmpty ||
+      ParameterizedMemory.parametersOf(component).nonEmpty ||
+      ParameterizedVerilogStructural.hasRegions(component) ||
+      ParameterizedVerilogProcesses.hasLoops(component)
 
   /**
     * Preserve the publication order that existed before Increment 42:
