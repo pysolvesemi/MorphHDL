@@ -9,10 +9,13 @@ constructors or routes memory rewriting through the native Verilog phase.
 - `morphhdl.frontend.Mem` delegates construction to the ordinary native Mem
   factory, then records only bounded depth metadata in a weak object-identity
   registry.
-- `ExternalParameterizedMemoryRegistry` discovers symbolic element geometry
-  from the existing external HardType/width registry after normal elaboration
-  and inherited validation. It also reads the temporary StreamFifo library-depth
-  tags that remain until Increment 45.
+- `morphhdl.frontend.HardType` captures symbolic leaf geometry in a weak,
+  frontend-owned HardType identity registry at construction. Native-memory
+  discovery reads that retained geometry without evaluating the HardType
+  generator again after ordinary elaboration has completed.
+- `ExternalParameterizedMemoryRegistry` associates the retained element geometry
+  with ordinary native memories and also reads the temporary StreamFifo
+  library-depth tags that remain until Increment 45.
 - Generic width inference resolves native `MemReadSync` result geometry through
   that external registry, so read results and their downstream assignments retain
   the symbolic element-width expression instead of the concrete witness width.
