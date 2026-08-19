@@ -39,15 +39,17 @@ jobs:
 
           path = Path("morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala")
           text = path.read_text(encoding="utf-8")
-          old = '''  private def hasParameterizedMetadata(component: Component): Boolean =
-            componentParameters(component).nonEmpty
-          '''
-          new = '''  private def hasParameterizedMetadata(component: Component): Boolean =
-            ParameterizedWidth.parametersOf(component).nonEmpty ||
-              ParameterizedMemory.parametersOf(component).nonEmpty ||
-              ParameterizedVerilogStructural.hasRegions(component) ||
-              ParameterizedVerilogProcesses.hasLoops(component)
-          '''
+          old = (
+              "  private def hasParameterizedMetadata(component: Component): Boolean =\n"
+              "    componentParameters(component).nonEmpty"
+          )
+          new = (
+              "  private def hasParameterizedMetadata(component: Component): Boolean =\n"
+              "    ParameterizedWidth.parametersOf(component).nonEmpty ||\n"
+              "      ParameterizedMemory.parametersOf(component).nonEmpty ||\n"
+              "      ParameterizedVerilogStructural.hasRegions(component) ||\n"
+              "      ParameterizedVerilogProcesses.hasLoops(component)"
+          )
           if old in text:
               text = text.replace(old, new, 1)
               path.write_text(text, encoding="utf-8")
@@ -58,7 +60,7 @@ jobs:
           rm -f morphhdl/.increment-42-validation-status
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala morphhdl/.increment-42-validation-status
+          git add -A morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala morphhdl/.increment-42-validation-status
           git diff --cached --check
           if ! git diff --cached --quiet; then
             git commit -m "Restore structural continuation diagnostic ordering"
