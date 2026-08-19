@@ -95,6 +95,26 @@ private[core] final class RetainedWidthIdentityRef(
   }
 }
 
+/** Weak key for one externally retained native HardType shape. */
+private[core] final class RetainedHardTypeIdentityRef(
+    value: HardType[_],
+    queue: ReferenceQueue[HardType[_]]
+) extends WeakReference[HardType[_]](value, queue) {
+  private val identityHash = System.identityHashCode(value)
+
+  override def hashCode(): Int = identityHash
+
+  override def equals(other: Any): Boolean = other match {
+    case that: RetainedHardTypeIdentityRef =>
+      (this eq that) || {
+        val left = get()
+        val right = that.get()
+        (left ne null) && (right ne null) && (left eq right)
+      }
+    case _ => false
+  }
+}
+
 /**
   * MorphHDL-owned symbolic-width registry and native-factory adapters.
   *
@@ -106,6 +126,12 @@ private[core] final class RetainedWidthIdentityRef(
 object ParameterizedWidth {
   private val queue = new ReferenceQueue[BaseType]()
   private val retained = mutable.HashMap.empty[RetainedWidthIdentityRef, RetainedWidth]
+  private val hardTypeQueue = new ReferenceQueue[HardType[_]]()
+  private val retainedHardTypes =
+    mutable.HashMap.empty[
+      RetainedHardTypeIdentityRef,
+      Vector[ElaborationIntegerExpression]
+    ]
 
   private def reap(): Unit = {
     var reference = queue.poll().asInstanceOf[RetainedWidthIdentityRef]
@@ -124,6 +150,43 @@ object ParameterizedWidth {
     reap()
     retained.update(new RetainedWidthIdentityRef(data, queue), metadata)
   }
+
+  private def reapHardTypes(): Unit = {
+    var reference =
+      hardTypeQueue.poll().asInstanceOf[RetainedHardTypeIdentityRef]
+    while (reference != null) {
+      retainedHardTypes.remove(reference)
+      reference =
+        hardTypeQueue.poll().asInstanceOf[RetainedHardTypeIdentityRef]
+    }
+  }
+
+  private def hardTypeMetadataOf(
+      dataType: HardType[_]
+  ): Option[Vector[ElaborationIntegerExpression]] = synchronized {
+    reapHardTypes()
+    retainedHardTypes.get(new RetainedHardTypeIdentityRef(dataType, null))
+  }
+
+  private def retainHardType(
+      dataType: HardType[_],
+      expressions: Vector[ElaborationIntegerExpression]
+  ): Unit = synchronized {
+    reapHardTypes()
+    retainedHardTypes.update(
+      new RetainedHardTypeIdentityRef(dataType, hardTypeQueue),
+      expressions
+    )
+  }
+
+  private def literalExpression(value: Int): ElaborationIntegerExpression =
+    ElaborationIntegerExpression(
+      verilog = value.toString,
+      default = BigInt(value),
+      minimum = BigInt(value),
+      maximum = BigInt(value),
+      parameters = Vector.empty
+    )
 
   private def retainedExpression(width: ParameterizedBitCount): Option[ElaborationIntegerExpression] =
     width.expression.orElse {
@@ -217,7 +280,14 @@ object ParameterizedWidth {
     */
   def HardType[T <: Data](dataType: => T): spinal.core.HardType[T] = {
     val template = dataType
-    new spinal.core.HardType[T](cloneOf(template))
+    val expressions = template.flatten.toVector.map { leaf =>
+      expressionOf(leaf).getOrElse(literalExpression(leaf.getBitsWidth))
+    }
+    val hardType = new spinal.core.HardType[T](cloneOf(template))
+    if (expressions.exists(_.parameters.nonEmpty)) {
+      retainHardType(hardType, expressions)
+    }
+    hardType
   }
 
   /** Untouched native register algorithm driven by the retained HardType. */
@@ -226,6 +296,11 @@ object ParameterizedWidth {
   /** Untouched native Vec algorithm driven by the retained HardType. */
   def Vec[T <: Data](dataType: => T, size: Int): spinal.core.Vec[T] =
     spinal.core.Vec(HardType(dataType), size)
+
+  private[core] def hardTypeExpressionsOf(
+      dataType: HardType[_]
+  ): Option[Vector[ElaborationIntegerExpression]] =
+    if (dataType == null) None else hardTypeMetadataOf(dataType)
 
   def isRetained(data: BaseType): Boolean = metadataOf(data).nonEmpty
 
