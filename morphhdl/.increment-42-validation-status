@@ -1,24 +1,0 @@
-focused-dual-scala=failed
-failed-gate=install pinned Mill
-exit-code=22
---- validation log tail ---
-
-=== external ownership boundary ===
-External structural/process ownership boundary is valid
-PASS: external ownership boundary
-
-=== install pinned Mill ===
-  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-                                 Dload  Upload   Total   Spent    Left  Speed
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    96    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-curl: (22) The requested URL returned error: 429
-Warning: Problem : HTTP error. Will retry in 1 seconds. 3 retries left.
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    96    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-curl: (22) The requested URL returned error: 429
-Warning: Problem : HTTP error. Will retry in 2 seconds. 2 retries left.
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    96    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-curl: (22) The requested URL returned error: 429
-Warning: Problem : HTTP error. Will retry in 4 seconds. 1 retries left.
-  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0  0    96    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0
-curl: (22) The requested URL returned error: 429
-FAIL(22): install pinned Mill
