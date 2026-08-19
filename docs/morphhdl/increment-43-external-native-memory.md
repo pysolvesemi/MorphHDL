@@ -37,3 +37,6 @@ The dual-Scala proof retains the complete Increment 35 policy:
 - parameterized element width and depth without specializing the module; and
 - concrete-default parity, deterministic Verilog-2001, simulation, lint and
   synthesis gates.
+
+The permanent `MorphHDL external native memory` workflow enforces the ownership
+boundary and these contracts on Scala 2.12.18 and Scala 2.13.12 before merge.
