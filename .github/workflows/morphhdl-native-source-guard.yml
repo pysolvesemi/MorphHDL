@@ -53,6 +53,6 @@ jobs:
           ref: agent/increment-42-external-structural-process-capture
           fetch-depth: 0
 
-      - name: Implement, validate and clean up Increment 42 bootstrap
+      - name: Implement and validate Increment 42 without workflow mutation
         shell: bash
-        run: bash morphhdl/scripts/increment-42-bootstrap.sh
+        run: bash morphhdl/scripts/increment-42-bootstrap-v2.sh
