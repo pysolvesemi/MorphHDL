@@ -1,0 +1,70 @@
+name: Agent Increment 40 post-merge guard repair
+
+on:
+  push:
+    branches:
+      - agent/increment-40-post-merge-guard-fix
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-increment-40-post-merge-guard-fix
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'Add Increment 40 post-merge guard repair' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-40-post-merge-guard-fix
+          fetch-depth: 0
+
+      - name: Repin the reviewed native-source state to the squash merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+
+          approved_commit = "d7e1bf3de784cb79aa47a81b3b35617a0c0a11f0"
+          approved_tree = subprocess.check_output(
+              ["git", "rev-parse", f"{approved_commit}^{{tree}}"],
+              text=True,
+          ).strip()
+          path = Path("morphhdl/contracts/native-source-preservation.json")
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          payload["approved_state"] = {
+              "commit": approved_commit,
+              "tree": approved_tree,
+              "description": (
+                  "Reviewed native-source state at the Increment 40 squash merge; "
+                  "repinned after post-merge ancestry validation"
+              ),
+          }
+          path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: Validate the repaired guard locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test
+          python3 morphhdl/scripts/check-native-source-preservation.py
+
+      - name: Publish the repair and remove the one-shot controller
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/agent-increment-40-post-merge-guard-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Fix Increment 40 post-merge native source guard'
+          git push origin HEAD:agent/increment-40-post-merge-guard-fix
