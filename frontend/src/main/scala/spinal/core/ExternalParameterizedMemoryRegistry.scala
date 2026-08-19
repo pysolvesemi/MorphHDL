@@ -121,10 +121,10 @@ object ExternalParameterizedMemoryRegistry {
   private[core] def discover(component: Component): Unit = {
     allMemoriesOf(component).foreach { memory =>
       if (metadataOf(memory).isEmpty) {
-        val leaves = memory.wordType().asInstanceOf[Data].flatten.toVector
-        val symbolic = leaves.exists { leaf =>
-          ParameterizedWidth.expressionOf(leaf).exists(_.parameters.nonEmpty)
-        }
+        val symbolic =
+          ParameterizedWidth
+            .hardTypeExpressionsOf(memory.wordType)
+            .exists(_.exists(_.parameters.nonEmpty))
         if (symbolic) {
           val elementWidth = elementWidthOf(memory, sourceLocation = None)
           retain(
@@ -238,17 +238,38 @@ object ExternalParameterizedMemoryRegistry {
       memory: Mem[_],
       sourceLocation: Option[String]
   ): ElaborationIntegerExpression = {
-    val leaves = memory.wordType().asInstanceOf[Data].flatten.toVector
-    if (leaves.isEmpty) {
+    val concreteWidths = memory._widths
+    if (concreteWidths.isEmpty) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-TYPE-UNSUPPORTED",
         "native symbolic memory element type has no flattened data leaves",
         sourceLocation
       )
     }
-    val elementWidth = leaves.map { leaf =>
-      ParameterizedWidth.expressionOf(leaf).getOrElse(literal(leaf.getBitsWidth))
-    }.reduce(add)
+    val expressions =
+      ParameterizedWidth
+        .hardTypeExpressionsOf(memory.wordType)
+        .getOrElse(concreteWidths.map(literal))
+    if (expressions.size != concreteWidths.size) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-TYPE-UNSUPPORTED",
+        s"native memory element shape changed from ${concreteWidths.size} concrete leaves to ${expressions.size} retained HardType leaves",
+        sourceLocation
+      )
+    }
+    expressions.zip(concreteWidths).zipWithIndex.foreach {
+      case ((expression, concreteWidth), index)
+          if expression.default != BigInt(concreteWidth) ||
+            expression.minimum < 1 ||
+            expression.maximum < expression.minimum =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID",
+          s"native memory element leaf $index has concrete width $concreteWidth but retained expression '${expression.verilog}' has witness ${expression.default} in [${expression.minimum}, ${expression.maximum}]",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      case _ =>
+    }
+    val elementWidth = expressions.reduce(add)
     if (
       elementWidth.default != BigInt(memory.getWidth) ||
       elementWidth.minimum < 1 || elementWidth.maximum < elementWidth.minimum
