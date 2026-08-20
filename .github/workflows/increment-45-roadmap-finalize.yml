@@ -1,0 +1,48 @@
+name: Increment 45 roadmap finalizer
+
+on:
+  push:
+    branches:
+      - agent/increment-45-native-mem-auto-provenance
+    paths:
+      - .github/workflows/increment-45-roadmap-finalize.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize-roadmap:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Increment 45 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-45-native-mem-auto-provenance
+          fetch-depth: 0
+
+      - name: Mark Increment 45 complete and remove finalizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          text = path.read_text(encoding="utf-8")
+          old = "- [ ] **Increment 45 — Automatic native `Mem` symbolic-depth provenance**"
+          new = "- [x] **Increment 45 — Automatic native `Mem` symbolic-depth provenance**"
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f"expected one unchecked Increment 45 entry, found {count}")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+
+          rm -- .github/workflows/increment-45-roadmap-finalize.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- docs/morphhdl/parameterized-verilog-todo.md
+          git add -u -- .github/workflows/increment-45-roadmap-finalize.yml
+          git commit -m "Complete Increment 45 roadmap"
+          git push origin HEAD:agent/increment-45-native-mem-auto-provenance
