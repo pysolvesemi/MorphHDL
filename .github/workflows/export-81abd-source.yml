@@ -12,23 +12,65 @@ jobs:
   export:
     if: github.event.pull_request.head.ref == 'agent/export-81abd-source'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/export-81abd-source
           fetch-depth: 0
-      - name: Verify pinned parent and package source
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: sbt
+
+      - uses: sbt/setup-sbt@v1
+
+      - name: Verify pinned source ancestry
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "81abd25518551b8a452ecf038e409331e646f726"
-          git archive --format=tar.gz --output=/tmp/MorphHDL-81abd.tar.gz 81abd25518551b8a452ecf038e409331e646f726
+          git merge-base --is-ancestor 81abd25518551b8a452ecf038e409331e646f726 HEAD
+          mapfile -t changed < <(git diff --name-only 81abd25518551b8a452ecf038e409331e646f726..HEAD | sort)
+          printf '%s\n' "${changed[@]}" > /tmp/changed.actual
+          printf '%s\n' \
+            .github/workflows/export-81abd-source.yml \
+            project/ExportClasspathBundle.scala \
+            | sort > /tmp/changed.expected
+          diff -u /tmp/changed.expected /tmp/changed.actual
+
+      - name: Package exact source and self-contained classpath
+        shell: bash
+        run: |
+          set -euo pipefail
+          git archive --format=tar.gz --output=/tmp/MorphHDL-81abd.tar.gz \
+            81abd25518551b8a452ecf038e409331e646f726
           sha256sum /tmp/MorphHDL-81abd.tar.gz > /tmp/MorphHDL-81abd.tar.gz.sha256
+
+          sbt --batch --no-server \
+            'core/exportClasspathBundle' \
+            'lib/exportClasspathBundle' \
+            'morph/exportClasspathBundle' \
+            'idslplugin/exportClasspathBundle'
+
+          test -f export-classpath/core/core.jar
+          test -f export-classpath/lib/lib.jar
+          test -f export-classpath/morph/morph.jar
+          test -f export-classpath/idslplugin/idslplugin.jar
+          find export-classpath -type f -name '*.jar' -print0 | sort -z | xargs -0 sha256sum \
+            > /tmp/MorphHDL-81abd-classpath.sha256
+          tar -czf /tmp/MorphHDL-81abd-classpath.tar.gz export-classpath
+          sha256sum /tmp/MorphHDL-81abd-classpath.tar.gz \
+            > /tmp/MorphHDL-81abd-classpath.tar.gz.sha256
+
       - uses: actions/upload-artifact@v4
         with:
-          name: MorphHDL-81abd-source
+          name: MorphHDL-81abd-offline-bundle
           path: |
             /tmp/MorphHDL-81abd.tar.gz
             /tmp/MorphHDL-81abd.tar.gz.sha256
+            /tmp/MorphHDL-81abd-classpath.tar.gz
+            /tmp/MorphHDL-81abd-classpath.tar.gz.sha256
+            /tmp/MorphHDL-81abd-classpath.sha256
           if-no-files-found: error
