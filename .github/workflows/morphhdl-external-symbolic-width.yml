@@ -1,4 +1,4 @@
-name: Apply Increment 44 focused fix
+name: Increment 44 source snapshot
 
 on:
   pull_request:
@@ -6,14 +6,14 @@ on:
       - parameterized-verilog
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: apply-increment-44-focused-fix
-  cancel-in-progress: false
+  group: increment-44-source-snapshot-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  apply:
+  snapshot:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -21,18 +21,18 @@ jobs:
         with:
           ref: agent/increment-44-native-counter-stream-flow-reuse
           fetch-depth: 0
-      - name: Apply reviewed fix and restore workflow
+      - name: Package exact branch checkout
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/agent/increment-44-fix.patch.b64.* | base64 --decode > /tmp/increment-44-fix.patch
-          echo '8f4601b33667364af0d48558ac3caff74d795f8dab139ce5055a77dad7a1e0eb  /tmp/increment-44-fix.patch' | sha256sum --check
-          git apply --index /tmp/increment-44-fix.patch
-          git show 11c877d0dc11b13178bb391ffc3bf1ac951dd76c:.github/workflows/morphhdl-external-symbolic-width.yml > .github/workflows/morphhdl-external-symbolic-width.yml
-          rm -f .github/agent/increment-44-fix.patch.b64.*
-          git add -A
-          git diff --cached --check
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'Complete Increment 44 native library reuse lowering'
-          git push origin HEAD:agent/increment-44-native-counter-stream-flow-reuse
+          git rev-parse HEAD > increment-44-source-head.txt
+          tar --exclude=.git --exclude=increment-44-source.tar.gz -czf increment-44-source.tar.gz .
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-44-source-${{ github.sha }}
+          path: |
+            increment-44-source.tar.gz
+            increment-44-source-head.txt
+          if-no-files-found: error
+          retention-days: 1
