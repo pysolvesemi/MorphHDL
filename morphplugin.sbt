@@ -1,9 +1,9 @@
-morph / Compile / scalacOptions += (morphplugin / Compile / packageBin / artifactPath).map { file =>
+LocalProject("morph") / Compile / scalacOptions += (LocalProject("morphplugin") / Compile / packageBin / artifactPath).map { file =>
   s"-Xplugin:${file.getAbsolutePath}"
 }.value
 
-morph / Test / scalacOptions += (morphplugin / Compile / packageBin / artifactPath).map { file =>
+LocalProject("morph") / Test / scalacOptions += (LocalProject("morphplugin") / Compile / packageBin / artifactPath).map { file =>
   s"-Xplugin:${file.getAbsolutePath}"
 }.value
 
-morph / Test / scalacOptions += "-Xplugin-require:morphhdl"
+LocalProject("morph") / Test / scalacOptions += "-Xplugin-require:morphhdl"
