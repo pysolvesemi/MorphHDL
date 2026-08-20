@@ -47,7 +47,7 @@ val defaultSettings = Defaults.coreDefaultSettings ++ xerial.sbt.Sonatype.sonaty
       <licenses>
         <license>
           <name>LGPL3</name>
-          <url>https://www.gnu.org/licenses/lgpl.html</url>
+          <url>https://spdx.org/licenses/LGPL-3.0-or-later.html</url>
         </license>
       </licenses>
       <scm>
@@ -58,8 +58,8 @@ val defaultSettings = Defaults.coreDefaultSettings ++ xerial.sbt.Sonatype.sonaty
       <developers>
         <developer>
           <id>Dolu1990</id>
-          <name>Dolu1990</name>
-          <url>none</url>
+          <name>SpinalHDL</name>
+          <url>https://github.com/SpinalHDL</url>
         </developer>
       </developers>
   },
@@ -81,7 +81,7 @@ lazy val all = (project in file("."))
     publishLocal := {},
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(lib, core)
   )
-  .aggregate(sim, idslpayload, idslplugin, core, lib, tester, paramrtl, frontend, verilogBackend, morph)
+  .aggregate(sim, idslpayload, idslplugin, morphplugin, core, lib, tester, paramrtl, frontend, verilogBackend, morph)
 
 
 import sys.process._
@@ -112,6 +112,15 @@ lazy val idslplugin = (project in file("idslplugin"))
     )
   )
 
+lazy val morphplugin = (project in file("morphplugin"))
+  .settings(
+    defaultSettings,
+    name := "MorphHDL-compiler-plugin",
+    exportJars := true,
+    libraryDependencies += "org.scala-lang" % "scala-compiler" % scalaVersion.value,
+    publish / skip := true
+  )
+
 lazy val sim = (project in file("sim"))
   .settings(
     defaultSettings,
@@ -140,6 +149,9 @@ lazy val frontend = (project in file("frontend"))
     scalacOptions += (idslplugin / Compile / packageBin / artifactPath).map { file =>
       s"-Xplugin:${file.getAbsolutePath}"
     }.value,
+    scalacOptions += (morphplugin / Compile / packageBin / artifactPath).map { file =>
+      s"-Xplugin:${file.getAbsolutePath}"
+    }.value,
     libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.3.0",
     publish / skip := true
   )
@@ -155,6 +167,9 @@ lazy val verilogBackend = (project in file("backends/verilog"))
 
 val defaultSettingsWithPlugin = defaultSettings ++ Seq(
   scalacOptions += (idslplugin / Compile / packageBin / artifactPath).map { file =>
+    s"-Xplugin:${file.getAbsolutePath}"
+  }.value,
+  scalacOptions += (morphplugin / Compile / packageBin / artifactPath).map { file =>
     s"-Xplugin:${file.getAbsolutePath}"
   }.value
 )
