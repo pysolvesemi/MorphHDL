@@ -1,0 +1,74 @@
+name: Increment 45 base synchronizer
+
+on:
+  push:
+    branches:
+      - agent/increment-45-native-mem-auto-provenance
+    paths:
+      - .github/workflows/increment-45-base-sync.yml
+
+permissions:
+  contents: write
+
+jobs:
+  synchronize-base:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Increment 45 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-45-native-mem-auto-provenance
+          fetch-depth: 0
+
+      - name: Merge current parameterized-verilog and preserve Increment 45 completion
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin parameterized-verilog
+
+          set +e
+          git merge --no-commit --no-ff origin/parameterized-verilog
+          merge_status=$?
+          set -e
+
+          if [[ ${merge_status} -ne 0 ]]; then
+            mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
+            if [[ ${#conflicts[@]} -ne 1 || "${conflicts[0]}" != "docs/morphhdl/parameterized-verilog-todo.md" ]]; then
+              printf 'Unexpected merge conflicts:\n'
+              printf '  %s\n' "${conflicts[@]}"
+              exit 1
+            fi
+            git checkout --theirs -- docs/morphhdl/parameterized-verilog-todo.md
+          fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          text = path.read_text(encoding="utf-8")
+          checked = "- [x] **Increment 45 — Automatic native `Mem` symbolic-depth provenance**"
+          unchecked = "- [ ] **Increment 45 — Automatic native `Mem` symbolic-depth provenance**"
+          if text.count(checked) == 1 and text.count(unchecked) == 0:
+              updated = text
+          elif text.count(checked) == 0 and text.count(unchecked) == 1:
+              updated = text.replace(unchecked, checked)
+          else:
+              raise SystemExit(
+                  "expected exactly one checked or unchecked Increment 45 entry"
+              )
+          path.write_text(updated, encoding="utf-8")
+          PY
+
+          rm -- .github/workflows/increment-45-base-sync.yml
+          git add -- docs/morphhdl/parameterized-verilog-todo.md
+          git add -u -- .github/workflows/increment-45-base-sync.yml
+          if git diff --name-only --diff-filter=U | grep -q .; then
+            git diff --name-only --diff-filter=U
+            exit 1
+          fi
+          git diff --check
+          git commit -m "Merge latest parameterized-verilog into Increment 45"
+          git push origin HEAD:agent/increment-45-native-mem-auto-provenance
