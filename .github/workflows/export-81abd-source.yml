@@ -49,15 +49,17 @@ jobs:
           sha256sum /tmp/MorphHDL-81abd.tar.gz > /tmp/MorphHDL-81abd.tar.gz.sha256
 
           sbt --batch --no-server \
+            'idslpayload/exportClasspathBundle' \
+            'idslplugin/exportClasspathBundle' \
             'core/exportClasspathBundle' \
             'lib/exportClasspathBundle' \
-            'morph/exportClasspathBundle' \
-            'idslplugin/exportClasspathBundle'
+            'morph/exportClasspathBundle'
 
+          test -f export-classpath/idslpayload/idslpayload.jar
+          test -f export-classpath/idslplugin/idslplugin.jar
           test -f export-classpath/core/core.jar
           test -f export-classpath/lib/lib.jar
           test -f export-classpath/morph/morph.jar
-          test -f export-classpath/idslplugin/idslplugin.jar
           find export-classpath -type f -name '*.jar' -print0 | sort -z | xargs -0 sha256sum \
             > /tmp/MorphHDL-81abd-classpath.sha256
           tar -czf /tmp/MorphHDL-81abd-classpath.tar.gz export-classpath
