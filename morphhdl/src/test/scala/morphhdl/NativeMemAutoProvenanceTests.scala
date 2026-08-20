@@ -25,7 +25,7 @@ class NativeMemAutoProvenanceTests extends AnyFunSuite {
 
     val read_enable = in(Bool())
     val write_enable = in(Bool())
-    val address = in(UInt(4 bits))
+    val address = in(UInt(3 bits))
     val write_data = in(Bits(8 bits))
     val read_data = out(Bits(8 bits))
 
@@ -50,7 +50,7 @@ class NativeMemAutoProvenanceTests extends AnyFunSuite {
 
     val read_enable = in(Bool())
     val write_enable = in(Bool())
-    val address = in(UInt(4 bits))
+    val address = in(UInt(3 bits))
     val write_data = in(Bits(8 bits))
     val read_data_a = out(Bits(8 bits))
     val read_data_b = out(Bits(8 bits))
@@ -78,14 +78,19 @@ class NativeMemAutoProvenanceTests extends AnyFunSuite {
     read_data_b := readB
   }
 
-  private final class LiteralNativeMemory extends Component {
+  private final class LiteralNativeMemory(probeWidth: HdlInt)
+      extends Component {
     setDefinitionName("LiteralNativeMemory")
 
+    val probe_in = in(morphhdl.frontend.Bits(probeWidth bits))
+    val probe_out = out(morphhdl.frontend.Bits(probeWidth bits))
     val read_enable = in(Bool())
     val write_enable = in(Bool())
     val address = in(UInt(3 bits))
     val write_data = in(Bits(8 bits))
     val read_data = out(Bits(8 bits))
+
+    probe_out := probe_in
 
     val memory = spinal.core
       .Mem(HardType(Bits(8 bits)), 5)
@@ -115,14 +120,17 @@ class NativeMemAutoProvenanceTests extends AnyFunSuite {
     }
   }
 
-  test("literal native Mem depth remains concrete and creates no symbolic parameter") {
+  test("literal native Mem depth remains concrete and creates no depth parameter") {
     withTemporaryDirectory { directory =>
+      val probeWidth =
+        HdlInt.param("PROBE_WIDTH", default = 2, min = 1, max = 4)
       val verilog = emitMorph(
         directory,
         "literal_native_mem.v",
-        new LiteralNativeMemory
+        new LiteralNativeMemory(probeWidth)
       )
 
+      assert(verilog.contains("parameter integer PROBE_WIDTH = 2"))
       assert(!verilog.contains("parameter integer DEPTH"))
       assert(verilog.contains("reg [7:0] memory [0:4];"))
       assert(verilog.contains("if (address < 5) begin"))
