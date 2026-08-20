@@ -1,0 +1,34 @@
+name: Export pinned MorphHDL source
+
+on:
+  pull_request:
+    branches: [parameterized-verilog]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    if: github.event.pull_request.head.ref == 'agent/export-81abd-source'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/export-81abd-source
+          fetch-depth: 0
+      - name: Verify pinned parent and package source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "81abd25518551b8a452ecf038e409331e646f726"
+          git archive --format=tar.gz --output=/tmp/MorphHDL-81abd.tar.gz 81abd25518551b8a452ecf038e409331e646f726
+          sha256sum /tmp/MorphHDL-81abd.tar.gz > /tmp/MorphHDL-81abd.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MorphHDL-81abd-source
+          path: |
+            /tmp/MorphHDL-81abd.tar.gz
+            /tmp/MorphHDL-81abd.tar.gz.sha256
+          if-no-files-found: error
