@@ -200,7 +200,7 @@ After Increment 44 is implemented and merged:
 Dependencies are transitive. Two increments with no dependency edge between
 them are intentionally eligible for parallel implementation and review.
 
-- [ ] **Increment 45 — Automatic native `Mem` symbolic-depth provenance**
+- [x] **Increment 45 — Automatic native `Mem` symbolic-depth provenance**
 
   **Dependencies:** Increment 44 implemented and merged.
 
