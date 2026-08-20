@@ -46,7 +46,7 @@ jobs:
           git apply --check "$patch_file"
           git apply "$patch_file"
           git diff --check
-          git rm -- "$patch_file" "$workflow_file"
+          git rm -f -- "$patch_file" "$workflow_file"
           git add -- \
             frontend/src/main/scala/spinal/lib/ExternalParameterizedCounterRegistry.scala \
             morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala \
