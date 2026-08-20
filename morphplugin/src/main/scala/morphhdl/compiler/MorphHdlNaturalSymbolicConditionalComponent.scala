@@ -101,7 +101,7 @@ final class MorphHdlNaturalSymbolicConditionalComponent(val global: Global) exte
         val sourceFile = Option(unit.source)
           .flatMap(source => Option(source.file))
           .map(_.path)
-          .filter(_.nonEmpty)
+          .filter(value => value != "")
           .getOrElse("<symbolic-if>")
         val sourceLine = if (original.pos != null && original.pos.isDefined) math.max(1, original.pos.line) else 1
         val rewritten = Apply(
