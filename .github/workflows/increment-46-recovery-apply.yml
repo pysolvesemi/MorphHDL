@@ -1,0 +1,43 @@
+name: Temporary Increment 46 recovery apply
+
+on:
+  push:
+    branches:
+      - agent/increment-46-formal-parameter-identity
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-46-formal-parameter-identity
+          fetch-depth: 0
+
+      - name: Apply reviewed Increment 46 recovery delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d .github/increment-46.patch.gz.b64 | gzip -dc > /tmp/inc46.patch
+          git apply --check /tmp/inc46.patch
+          git apply /tmp/inc46.patch
+          rm .github/increment-46.patch.gz.b64
+          rm .github/workflows/increment-46-recovery-apply.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- \
+            frontend/src/main/scala/morphhdl/frontend/HdlInt.scala \
+            frontend/src/main/scala/morphhdl/frontend/package.scala \
+            frontend/src/main/scala/spinal/core/ExternalFormalParameterRegistry.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala \
+            morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala \
+            morphhdl/src/test/scala/morphhdl/FormalParameterIdentityTests.scala \
+            .github/increment-46.patch.gz.b64 \
+            .github/workflows/increment-46-recovery-apply.yml
+          git commit -m "Implement Increment 46 formal parameter identity"
+          git push origin HEAD:agent/increment-46-formal-parameter-identity
