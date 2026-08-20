@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/display-controller-offline-toolchain
+  pull_request:
+    branches:
+      - agent/display-controller-toolchain-base
   workflow_dispatch:
 
 permissions:
