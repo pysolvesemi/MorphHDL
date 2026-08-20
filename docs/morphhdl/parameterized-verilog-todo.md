@@ -165,7 +165,7 @@ recorded in
   Increment 35 capacity, enable, read-first collision, out-of-range and
   concrete-parity contracts.
 
-- [ ] **Increment 44 — Native Counter, Stream and Flow reuse with zero library changes**
+- [x] **Increment 44 — Native Counter, Stream and Flow reuse with zero library changes**
 
   Restore native `Counter.scala` and the Increment 36 changes in `Stream.scala`.
   Retain symbolic Counter and payload geometry externally while executing the
