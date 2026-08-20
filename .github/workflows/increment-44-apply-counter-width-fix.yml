@@ -1,0 +1,43 @@
+name: Increment 44 apply guarded Counter width repair
+
+on:
+  push:
+    branches:
+      - agent/increment-44-native-counter-stream-flow-reuse
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-44-apply-counter-width-fix
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply reviewed Counter provenance patch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply patch and remove one-shot files
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch_file=.github/increment-44-counter-width.patch
+          workflow_file=.github/workflows/increment-44-apply-counter-width-fix.yml
+
+          git apply --check "$patch_file"
+          git apply "$patch_file"
+          git rm -- "$patch_file" "$workflow_file"
+          git add -- \
+            frontend/src/main/scala/spinal/lib/ExternalParameterizedCounterRegistry.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala \
+            morphhdl/src/test/scala/morphhdl/NativeLibraryReuseTests.scala
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "Fix native Counter witness-width provenance"
+          git push origin HEAD:${GITHUB_REF_NAME}
