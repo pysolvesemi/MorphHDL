@@ -7,8 +7,13 @@ with this roadmap.
 
 ## Roadmap discipline
 
-- The first unchecked increment is the next increment. Work must not skip ahead
-  unless this file is changed in a reviewed architecture decision.
+- The first unchecked increment remains the default sequential integration
+  target. Explicitly declared parallel successors may start once every listed
+  dependency is `[x]` on `parameterized-verilog`; increment numbering alone
+  does not create a dependency.
+- Every parallel branch must start from a merged dependency state and must
+  incorporate the latest `parameterized-verilog` before final validation. An
+  open branch or pull request never satisfies another increment dependency.
 - Parameterizable values remain typed symbolic objects through elaboration;
   they must not be replaced by their concrete defaults before symbolic RTL is
   captured.
@@ -31,8 +36,9 @@ with this roadmap.
 - An increment checkbox may change from `[ ]` to `[x]` only after its
   implementation and review are complete and the full applicable local gates
   pass. Updating this checkbox is the final source change before publication.
-- The suggested next increment after every completed increment must be taken
-  from the first unchecked entry in this file.
+- The suggested next sequential increment after completion is the first
+  unchecked entry whose dependencies are satisfied. Independently eligible
+  siblings may additionally be identified as parallel candidates.
 
 The source audit and classification behind Increments 38 through 56 are
 recorded in
@@ -174,26 +180,52 @@ recorded in
   concrete-default parity and override tests without component-specific RTL
   reconstruction.
 
+### Dependency graph and parallel execution for Increments 45 through 56
+
+After Increment 44 is implemented and merged:
+
+- Increments 45, 46 and 48 are independent parallel starts.
+- Increment 47 depends only on Increment 46 and may overlap unfinished work on
+  Increments 45 and 48.
+- Increment 49 depends only on Increment 47; Increment 50 depends only on
+  Increment 49. This native-`Int` chain may continue while 45 or 48 remains in
+  progress.
+- Increment 51 joins the explicit-condition path and native-`Int` path; it
+  depends on Increments 48 and 50.
+- Increment 52 depends only on Increment 51.
+- Increment 53 joins memory provenance and symbolic control flow; it depends
+  on Increments 45 and 52.
+- Increments 54, 55 and 56 then form a strict sequential closure chain.
+
+Dependencies are transitive. Two increments with no dependency edge between
+them are intentionally eligible for parallel implementation and review.
+
 - [ ] **Increment 45 — Automatic native `Mem` symbolic-depth provenance**
+
+  **Dependencies:** Increment 44 implemented and merged.
 
   Allow ordinary native-looking `Mem(HardType(...), depth)` construction to
   pass only the concrete witness to untouched SpinalHDL while retaining the
   exact originating `HdlInt` depth expression externally, without requiring
-  `morphhdl.frontend.Mem`. Associate provenance by deterministic call-site,
-  formal-slot and object identity; never infer it by matching a concrete
-  integer value alone. Prove that literal `Mem(..., 5)` remains concrete,
-  `Mem(..., DEPTH)` emits `[0:DEPTH-1]`, compound depth expressions retain
+  `morphhdl.frontend.Mem`. Associate provenance by a deterministic
+  source/call-site token and exact native-object identity; never infer it by
+  matching a concrete integer value alone. Increment 45 must not depend on the
+  Increment 46 formal-parameter identity API, but its retained provenance must
+  remain composable with that later API. Prove that literal `Mem(..., 5)`
+  remains concrete, while `Mem(..., DEPTH)` emits `[0:DEPTH-1]`, compound depth expressions retain
   their symbolic bounds, and equal witnesses with distinct symbolic origins
   remain distinguishable. Reject ambiguous or conflicting provenance
   explicitly. Preserve byte-for-byte native `Mem.scala`, ordinary concrete
   `SpinalVerilog`, all Increment 43 memory contracts, deterministic replay and
   both supported Scala versions.
 
-The formalization and symbolic-control-flow increments below are strict ordered
-prerequisites. Increment 53 must not start until Increments 46 through 52 are
-implemented, reviewed and merged.
+The formalization and symbolic-control-flow increments below follow the explicit
+dependency graph above; they are not globally serial. Increment 53 must not
+start until Increments 45 through 52 are implemented, reviewed and merged.
 
 - [ ] **Increment 46 — Formal parameter identity and canonical child modules**
+
+  **Dependencies:** Increment 44 implemented and merged.
 
   Separate component-definition formals from parent-instance actual
   expressions. Add an explicit deterministic formal API such as
@@ -208,6 +240,8 @@ implemented, reviewed and merged.
 
 - [ ] **Increment 47 — External formalization boundary for native `Int` APIs**
 
+  **Dependencies:** Increment 46 implemented and merged.
+
   Introduce MorphHDL-owned `formalComponent`, `formalRegion` or equivalent
   adapters that pass only concrete witnesses to untouched SpinalHDL
   constructors and algorithms while retaining formal-to-actual symbolic
@@ -218,6 +252,8 @@ implemented, reviewed and merged.
   unselected Scala control-flow branches.
 
 - [ ] **Increment 48 — Natural symbolic conditionals for explicit `HdlInt`/`HdlBool`**
+
+  **Dependencies:** Increment 44 implemented and merged.
 
   Add a compiler-plugin or equivalently typed frontend transformation for
   conditionals whose condition is explicitly proven to be MorphHDL symbolic.
@@ -231,6 +267,8 @@ implemented, reviewed and merged.
 
 - [ ] **Increment 49 — Native `Int` symbolic provenance propagation**
 
+  **Dependencies:** Increment 47 implemented and merged.
+
   At an Increment 47 formalization boundary, associate each selected native
   `Int` constructor argument or local value with both its concrete Scala
   witness and its MorphHDL symbolic actual. Preserve that shadow provenance
@@ -241,6 +279,8 @@ implemented, reviewed and merged.
 
 - [ ] **Increment 50 — Shadow native `Int` expressions and predicates**
 
+  **Dependencies:** Increment 49 implemented and merged.
+
   Propagate proven symbolic provenance through the bounded operations needed by
   native library code: addition, subtraction, multiplication, division,
   remainder, comparisons, min/max, address/log2 helpers and power-of-two
@@ -249,6 +289,8 @@ implemented, reviewed and merged.
   unsupported calls, boxing, mutable escape or ambiguous aliasing explicitly.
 
 - [ ] **Increment 51 — Symbolic native-`Int` branch capture**
+
+  **Dependencies:** Increments 48 and 50 implemented and merged.
 
   Transform `if`/`else if`/`else` only when its ordinary Scala Boolean
   predicate is proven to depend on shadow-symbolic native `Int` values from
@@ -260,6 +302,8 @@ implemented, reviewed and merged.
 
 - [ ] **Increment 52 — Nested symbolic control flow and side-effect safety**
 
+  **Dependencies:** Increment 51 implemented and merged.
+
   Extend native symbolic branch capture to the bounded constructs required by
   real library algorithms: nested conditionals, loops inside alternatives,
   local vals, registers, memories, Areas/ClockingAreas, naming and supported
@@ -269,6 +313,8 @@ implemented, reviewed and merged.
   driver/latch/clock/reset validation and nested generate legality.
 
 - [ ] **Increment 53 — Native StreamFifo parameter structure without source edits**
+
+  **Dependencies:** Increments 45 and 52 implemented and merged.
 
   Apply Increments 46 through 52 to the real, untouched `StreamFifo` source.
   Restore the Increment 37 `Stream.scala` overload and pointer edits and remove
@@ -282,6 +328,8 @@ implemented, reviewed and merged.
 
 - [ ] **Increment 54 — MorphHDL module extraction and native-tree cleanup**
 
+  **Dependencies:** Increment 53 implemented and merged.
+
   Move remaining MorphHDL-specific parameter metadata, capture and lowering
   files out of native `core`, `lib` and `idslplugin` source trees into
   MorphHDL-owned modules/packages. Remove build coupling that requires a forked
@@ -292,14 +340,18 @@ implemented, reviewed and merged.
 
 - [ ] **Increment 55 — Upstream parity and complete zero-diff proof**
 
+  **Dependencies:** Increment 54 implemented and merged.
+
   Restore every upstream-owned runtime, library, emitter, phase and compiler
   plugin file identified by the audit to the selected upstream snapshot. Add an
   exact native-source manifest gate with no exception unless previously
   approved. Run the complete inherited validation inventory and all concrete,
   parameter-override, simulation, lint, synthesis, mutation and determinism
-  gates for Increments 29 through 53.
+  gates for Increments 29 through 54.
 
 - [ ] **Increment 56 — Migration and adapter retirement**
+
+  **Dependencies:** Increment 55 implemented and merged.
 
   Migrate the existing reviewed artifacts to the zero-native-edit single-source
   lowering path, preserve their simulation, lint, synthesis, mutation and
