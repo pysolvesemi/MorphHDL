@@ -1,0 +1,58 @@
+name: Increment 44 fix Counter provenance regression
+
+on:
+  push:
+    branches:
+      - agent/increment-44-native-counter-stream-flow-reuse
+  pull_request:
+    branches:
+      - parameterized-verilog
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-44-fix-provenance-test
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply Counter provenance regression correction
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-44-native-counter-stream-flow-reuse
+          fetch-depth: 0
+
+      - name: Permit the deliberate override before testing MorphHDL width rejection
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphhdl/src/test/scala/morphhdl/NativeLibraryReuseTests.scala")
+          text = path.read_text(encoding="utf-8")
+          old = """    val counter = MorphCounter(width bits)
+              counter.valueNext := forcedNext
+              count := counter.value
+          """
+          new = """    val counter = MorphCounter(width bits)
+              counter.valueNext.allowOverride()
+              counter.valueNext := forcedNext
+              count := counter.value
+          """
+          if text.count(old) != 1:
+              raise SystemExit(f"expected one Counter regression fixture, found {text.count(old)}")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
+          git diff --check
+          git rm -- .github/workflows/increment-44-fix-provenance-test.yml
+          git add -- morphhdl/src/test/scala/morphhdl/NativeLibraryReuseTests.scala
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "Fix native Counter provenance regression fixture"
+          git push origin HEAD:agent/increment-44-native-counter-stream-flow-reuse
