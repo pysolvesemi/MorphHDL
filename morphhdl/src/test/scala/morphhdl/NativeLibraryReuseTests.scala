@@ -92,6 +92,7 @@ class NativeLibraryReuseTests extends AnyFunSuite {
     val count = out(morphhdl.frontend.UInt(width bits))
 
     val counter = MorphCounter(width bits)
+    counter.valueNext.allowOverride()
     counter.valueNext := forcedNext
     count := counter.value
   }
