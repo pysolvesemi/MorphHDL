@@ -40,7 +40,7 @@ with this roadmap.
   unchecked entry whose dependencies are satisfied. Independently eligible
   siblings may additionally be identified as parallel candidates.
 
-The source audit and classification behind Increments 38 through 56 are
+The source audit and classification behind Increments 38 through 58 are
 recorded in
 [Native SpinalHDL source-preservation audit](native-spinal-source-preservation-audit.md).
 
@@ -180,7 +180,7 @@ recorded in
   concrete-default parity and override tests without component-specific RTL
   reconstruction.
 
-### Dependency graph and parallel execution for Increments 45 through 56
+### Dependency graph and parallel execution for Increments 45 through 58
 
 After Increment 44 is implemented and merged:
 
@@ -195,12 +195,21 @@ After Increment 44 is implemented and merged:
 - Increment 52 depends only on Increment 51.
 - Increment 53 joins memory provenance and symbolic control flow; it depends
   on Increments 45 and 52.
-- Increments 54, 55 and 56 then form a strict sequential closure chain.
+- Increments 54 through 58 then form a strict sequential closure chain.
 
 Dependencies are transitive. Two increments with no dependency edge between
 them are intentionally eligible for parallel implementation and review.
 
-- [ ] **Increment 45 — Automatic native `Mem` symbolic-depth provenance**
+Native-looking source compatibility is a closure requirement. Temporary
+MorphHDL constructor aliases such as `MorphCounter`, `MorphStream` and
+`MorphFlow` may remain as regression scaffolding while Increments 45 through 55
+stabilize the generic provenance and zero-native-diff architecture, but they
+must not become the required application-facing migration surface. Increments
+56 through 58 replace that temporary construction surface with ordinary-looking
+SpinalHDL library calls and retire the compatibility path only after parity is
+proven.
+
+- [x] **Increment 45 — Automatic native `Mem` symbolic-depth provenance**
 
   **Dependencies:** Increment 44 implemented and merged.
 
@@ -349,16 +358,54 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   parameter-override, simulation, lint, synthesis, mutation and determinism
   gates for Increments 29 through 54.
 
-- [ ] **Increment 56 — Migration and adapter retirement**
+- [ ] **Increment 56 — Native-looking SpinalHDL library-call provenance bridge**
 
   **Dependencies:** Increment 55 implemented and merged.
 
-  Migrate the existing reviewed artifacts to the zero-native-edit single-source
-  lowering path, preserve their simulation, lint, synthesis, mutation and
-  determinism gates, and deprecate the dual-factory/component-specific
-  production path. Keep the old contracts only as explicit compatibility and
-  regression oracles. Finalize the stable post-parameterization, pre-emission
-  production handoff used by optional MorphHDL-owned IR passes.
+  Make the application source call the ordinary-looking imported SpinalHDL
+  constructors directly, for example `Counter(width bits)`,
+  `Stream(Bits(width bits))` and `Flow(Bits(width bits))`, while keeping the
+  returned objects exactly `spinal.lib.Counter`, `spinal.lib.Stream` and
+  `spinal.lib.Flow`. Implement the symbolic call boundary in MorphHDL-owned
+  code, using a typed compiler transformation, deterministic call-site token or
+  equivalent mechanism that passes only the concrete witness into the
+  untouched native constructor and then associates the exact symbolic origin
+  with the returned native object. Do not add a provenance-losing implicit
+  `ParameterizedBitCount`-to-`BitCount` conversion, modify `Counter.scala` or
+  `Stream.scala`, recognize emitted signal/component names, or reconstruct a
+  library algorithm. Ordinary concrete `Counter`, `Stream` and `Flow` calls
+  must remain unchanged when no MorphHDL symbolic value is present. Prove the
+  bridge on Scala 2.12.18 and 2.13.12 and fail closed if a symbolic call cannot
+  be associated unambiguously with one native result object.
+
+- [ ] **Increment 57 — Native-looking Counter, Stream and Flow migration proof**
+
+  **Dependencies:** Increment 56 implemented and merged.
+
+  Migrate the production-facing Increment 44 fixtures and examples from
+  `MorphCounter`, `MorphStream` and `MorphFlow` constructor aliases to ordinary
+  `spinal.lib` imports and native-looking constructor calls. Prove that the
+  resulting source still executes the untouched native Counter and Stream/Flow
+  pipeline methods, that the concrete-default `SpinalVerilog` result preserves
+  parity, and that non-default parameter overrides produce the same legal
+  Verilog-2001 behavior. Include Counter increment/clear/wrap/completion,
+  Stream `m2sPipe`/`s2mPipe`/`halfPipe`, Flow `m2sPipe`, static-depth FIFO
+  payload propagation, and negative provenance tests showing that unrelated
+  fixed-width user assignments are not treated as native-library internals.
+  The test source must not require MorphHDL-prefixed library constructor names.
+
+- [ ] **Increment 58 — Migration and adapter retirement**
+
+  **Dependencies:** Increment 57 implemented and merged.
+
+  Migrate the remaining reviewed artifacts to the zero-native-edit,
+  native-looking single-source lowering path, preserve their simulation, lint,
+  synthesis, mutation and determinism gates, and deprecate the dual-factory,
+  component-specific and MorphHDL-prefixed library-constructor production
+  paths. Keep old aliases and atomic contracts only as explicit compatibility
+  and regression oracles where removal would unnecessarily break historical
+  tests. Finalize the stable post-parameterization, pre-emission production
+  handoff used by optional MorphHDL-owned IR passes.
 
 ## Completion target
 
@@ -367,4 +414,7 @@ source can retain typed public parameters through MorphHDL-owned integration,
 including parameter-dependent native Scala expressions and structural
 alternatives, producing one readable parameterized Verilog-2001 definition per
 logical component without separately handwritten ParamRTL implementations,
-component-name rewrites or unapproved native-source modifications.
+component-name rewrites or unapproved native-source modifications. Application
+RTL must be able to use native-looking SpinalHDL library construction without
+requiring `MorphCounter`, `MorphStream`, `MorphFlow` or equivalent
+MorphHDL-prefixed constructor aliases.

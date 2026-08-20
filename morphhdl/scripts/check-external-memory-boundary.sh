@@ -11,6 +11,8 @@ core_lowerer=core/src/main/scala/spinal/core/internals/ParameterizedVerilogMemor
 morph_lowerer=morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
 registry=frontend/src/main/scala/spinal/core/ExternalParameterizedMemoryRegistry.scala
 adapter=frontend/src/main/scala/morphhdl/frontend/Memory.scala
+auto_provenance=frontend/src/main/scala/morphhdl/frontend/NativeMemAutoProvenance.scala
+frontend_package=frontend/src/main/scala/morphhdl/frontend/package.scala
 external=morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
 manifest=morphhdl/contracts/native-source-preservation.json
 
@@ -20,12 +22,19 @@ test ! -e "$core_lowerer"
 test -f "$morph_lowerer"
 test -f "$registry"
 test -f "$adapter"
+test -f "$auto_provenance"
+test -f "$frontend_package"
 ! grep -Fq 'ParameterizedMemoryDepth' "$mem"
 ! grep -Fq 'ParameterizedMemory.attach' "$mem"
 ! grep -Fq 'ParameterizedVerilogMemories' "$phase"
 grep -Fq 'ExternalParameterizedMemoryRegistry.discover' "$external"
 grep -Fq 'ParameterizedVerilogMemories.rewrite' "$external"
 grep -Fq 'ExternalParameterizedMemoryRegistry.create' "$adapter"
+grep -Fq 'implicit final class NativeMemFactoryOps' "$frontend_package"
+grep -Fq 'NativeMemAutoProvenance.create' "$frontend_package"
+grep -Fq 'ExternalParameterizedMemoryRegistry.attach' "$auto_provenance"
+grep -Fq 'System.identityHashCode' "$auto_provenance"
+grep -Fq 'NativeMemIdentityReference' "$auto_provenance"
 
 python3 - <<'PY'
 import json
@@ -41,6 +50,23 @@ order = [
 ]
 if order != sorted(order):
     raise SystemExit("external memory/process/structure/expression publication order is invalid")
+
+auto = Path("frontend/src/main/scala/morphhdl/frontend/NativeMemAutoProvenance.scala").read_text()
+for forbidden in (
+    "HashMap.empty[Int",
+    "HashMap.empty[BigInt",
+    "Map[Int,",
+    "Map[BigInt,",
+    "groupBy(_.value)",
+    "find(_.value",
+    "find(_._2.value",
+):
+    if forbidden in auto:
+        raise SystemExit(
+            f"automatic native-memory provenance contains concrete-value lookup: {forbidden}"
+        )
+if "the concrete witness is deliberately not part of the token" not in auto.lower():
+    raise SystemExit("automatic native-memory token must explicitly exclude the witness")
 
 manifest = json.loads(Path("morphhdl/contracts/native-source-preservation.json").read_text())
 paths = {entry["path"] for entry in manifest["entries"]}

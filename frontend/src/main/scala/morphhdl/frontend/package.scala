@@ -11,15 +11,15 @@ package object frontend {
     * SpinalHDL factories.
     */
   def Bits(width: ParameterizedBitCount): spinal.core.Bits =
-    ExternalFormalParameterRegistry.attach(ParameterizedWidth.Bits(width), width)
+    ParameterizedWidth.Bits(width)
   def Bits(width: BitCount): spinal.core.Bits = spinal.core.Bits(width)
 
   def UInt(width: ParameterizedBitCount): spinal.core.UInt =
-    ExternalFormalParameterRegistry.attach(ParameterizedWidth.UInt(width), width)
+    ParameterizedWidth.UInt(width)
   def UInt(width: BitCount): spinal.core.UInt = spinal.core.UInt(width)
 
   def SInt(width: ParameterizedBitCount): spinal.core.SInt =
-    ExternalFormalParameterRegistry.attach(ParameterizedWidth.SInt(width), width)
+    ParameterizedWidth.SInt(width)
   def SInt(width: BitCount): spinal.core.SInt = spinal.core.SInt(width)
 
   def cloneOf[T <: Data](data: T): T = ParameterizedWidth.cloneOf(data)
@@ -29,36 +29,23 @@ package object frontend {
   def Vec[T <: Data](dataType: => T, size: Int): spinal.core.Vec[T] =
     ParameterizedWidth.Vec(dataType, size)
 
-  private val DefaultFormalPackedWidthMaximum = BigInt(4096)
-
   /**
-    * Declare one deterministic child-definition formal while retaining the
-    * supplied expression as this child instance's parent-scope actual.
-    *
-    * The short form uses MorphHDL's portable default packed-width domain
-    * `[1, 4096]`, matching the default SpinalConfig bit-vector limit. Use the
-    * bounded overload when the child contract is intentionally narrower.
+    * Adds an HdlInt overload to the untouched native Mem companion. The native
+    * constructor receives only the checked concrete witness; exact symbolic
+    * provenance is retained externally against the returned Mem identity.
     */
-  def formalParam(actual: HdlInt, name: String)(implicit
-      file: sourcecode.File,
-      line: sourcecode.Line
-  ): HdlInt =
-    HdlInt.formal(
-      actual,
-      name,
-      minimum = BigInt(1),
-      maximum = DefaultFormalPackedWidthMaximum,
-      origin = SourceOrigin.capture
-    )
-
-  /** Explicitly bounded child-definition formal parameter. */
-  def formalParam(
-      actual: HdlInt,
-      name: String,
-      minimum: BigInt,
-      maximum: BigInt
-  )(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
-    HdlInt.formal(actual, name, minimum, maximum, SourceOrigin.capture)
+  implicit final class NativeMemFactoryOps(
+      private val factory: spinal.core.Mem.type
+  ) extends AnyVal {
+    def apply[T <: Data](
+        wordType: spinal.core.HardType[T],
+        wordCount: HdlInt
+    )(implicit
+        file: sourcecode.File,
+        line: sourcecode.Line
+    ): spinal.core.Mem[T] =
+      NativeMemAutoProvenance.create(factory, wordType, wordCount)
+  }
 
   implicit def intToHdlInt(value: Int)(implicit
       file: sourcecode.File,
