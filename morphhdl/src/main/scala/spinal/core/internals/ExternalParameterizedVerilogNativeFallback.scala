@@ -101,9 +101,13 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       .split("\\n", -1)
       .map(line => rewriteDeclarationLine(line, widthsByName))
       .mkString("\n")
+    val rewrittenCounterBoundaries = rewriteSymbolicCounterBoundaryComparisons(
+      rewrittenDeclarations,
+      analysis.symbolicCounterBoundaryWidths
+    )
     if (isCanonicalDirectSurface(component))
-      canonicalizeDeclarations(component, rewrittenDeclarations)
-    else rewrittenDeclarations
+      canonicalizeDeclarations(component, rewrittenCounterBoundaries)
+    else rewrittenCounterBoundaries
   }
 
   private def ensureParameterHeader(
@@ -232,6 +236,82 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               matched.group(1) + range + " " + matched.group(2)
             }
           }
+        )
+      }
+    }
+  }
+
+  /**
+    * Preserve the untouched native full-range Counter boundary comparison when
+    * its concrete witness state is widened externally. Only state leaves whose
+    * provenance was retained by ExternalParameterizedCounterRegistry are
+    * eligible; fixed-width literals written by users are intentionally left
+    * unchanged.
+    */
+  private def rewriteSymbolicCounterBoundaryComparisons(
+      verilog: String,
+      boundaries: Vector[(String, ElaborationIntegerExpression)]
+  ): String = {
+    val literalSyntax = "[0-9]+'[sS]?[bBoOdDhH][0-9a-fA-F_xXzZ_]+"
+    val literalParser =
+      "(?i)^([0-9]+)'([s]?)([bodh])([0-9a-f_xz_]+)$".r
+
+    def literalValue(digits: String, radix: String): Option[BigInt] = {
+      if (digits.exists(character =>
+            character == 'x' || character == 'X' ||
+              character == 'z' || character == 'Z')) None
+      else {
+        val base = radix.toLowerCase match {
+          case "b" => 2
+          case "o" => 8
+          case "d" => 10
+          case "h" => 16
+        }
+        Some(BigInt(digits.replace("_", ""), base))
+      }
+    }
+
+    def isWitnessAllOnes(
+        literal: String,
+        width: ElaborationIntegerExpression
+    ): Boolean = literal match {
+      case literalParser(sizeText, _, radix, digits)
+          if width.default.isValidInt && width.default > 0 =>
+        val size = BigInt(sizeText)
+        size == width.default &&
+          literalValue(digits, radix).contains((BigInt(1) << size.toInt) - 1)
+      case _ => false
+    }
+
+    boundaries.distinct.foldLeft(verilog) { case (current, (name, width)) =>
+      if (width.parameters.isEmpty || !width.default.isValidInt || width.default < 1) current
+      else {
+        val repeatCount =
+          if ("[A-Za-z_][A-Za-z0-9_$]*".r.pattern.matcher(width.verilog).matches())
+            width.verilog
+          else s"(${width.verilog})"
+        val replacement = s"{$repeatCount{1'b1}}"
+        val signal = Pattern.quote(name)
+        val left =
+          ("(^|[^A-Za-z0-9_$])(" + signal +
+            "\\s*(?:===|!==|==|!=)\\s*)(" + literalSyntax + ")").r
+        val right =
+          ("(^|[^A-Za-z0-9_$])(" + literalSyntax +
+            ")(\\s*(?:===|!==|==|!=)\\s*" + signal +
+            ")(?=$|[^A-Za-z0-9_$])").r
+        val afterLeft = left.replaceAllIn(
+          current,
+          matched =>
+            if (isWitnessAllOnes(matched.group(3), width))
+              matched.group(1) + matched.group(2) + replacement
+            else matched.matched
+        )
+        right.replaceAllIn(
+          afterLeft,
+          matched =>
+            if (isWitnessAllOnes(matched.group(2), width))
+              matched.group(1) + replacement + matched.group(3)
+            else matched.matched
         )
       }
     }
@@ -455,6 +535,18 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case _ => None
       }
 
+    lazy val symbolicCounterBoundaryWidths
+        : Vector[(String, ElaborationIntegerExpression)] =
+      declarations.distinct.toVector.flatMap {
+        case bitVector: BitVector =>
+          spinal.lib.ExternalParameterizedCounterRegistry
+            .boundaryWidthOf(bitVector)
+            .flatMap { expression =>
+              Option(bitVector.getName()).filter(_.nonEmpty).map(_ -> expression)
+            }
+        case _ => None
+      }
+
     lazy val parameters: Vector[ElaborationIntegerParameter] = {
       val referenced =
         symbolicDeclarationWidths.flatMap(_._2.parameters) ++ hierarchyParameters
@@ -593,7 +685,16 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 if assignment.target == target && assignment.source.isInstanceOf[WidthProvider] =>
               val targetWidth = widthInference.ofBase(target)
               val sourceWidth = widthInference.ofExpression(assignment.source)
-              if (targetWidth.isSymbolic && sourceWidth.isSymbolic && targetWidth != sourceWidth) {
+              val nativeCounterNext = isNativeCounterNextAssignment(
+                assignment,
+                target,
+                targetWidth,
+                sourceWidth
+              )
+              if (
+                targetWidth.isSymbolic && sourceWidth.isSymbolic &&
+                targetWidth != sourceWidth && !nativeCounterNext
+              ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
                   s"assignment to '${target.getName()}' crosses symbolic width expressions '${targetWidth.render}' and '${sourceWidth.render}'",
@@ -602,7 +703,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               }
               if (
                 targetWidth.isSymbolic && !sourceWidth.isSymbolic &&
-                !isUnfixedLiteral(assignment.source)
+                !isUnfixedLiteral(assignment.source) && !nativeCounterNext
               ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
@@ -615,6 +716,35 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         }
       }
     }
+
+    /**
+      * Native Counter elaboration intentionally uses the concrete witness width
+      * in its arithmetic and zero-valued clear path. Accept that widening only
+      * for statements captured by exact object identity at Counter construction;
+      * user-authored assignments to the public valueNext signal are not covered.
+      */
+    private def isNativeCounterNextAssignment(
+        assignment: DataAssignmentStatement,
+        target: BitVector,
+        targetWidth: WidthExpr,
+        sourceWidth: WidthExpr
+    ): Boolean =
+      spinal.lib.ExternalParameterizedCounterRegistry
+        .nativeNextAssignmentWidthOf(target, assignment)
+        .exists { expression =>
+          val retained = WidthRetained(
+            expression.verilog,
+            expression.default,
+            expression.minimum,
+            expression.maximum,
+            expression.parameters.distinct.sortBy(_.name)
+          )
+          targetWidth == retained &&
+          sourceWidth.default == targetWidth.default &&
+          sourceWidth.minimum >= targetWidth.minimum &&
+          sourceWidth.maximum <= targetWidth.maximum &&
+          sourceWidth.parameters.forall(targetWidth.parameters.contains)
+        }
 
     private def isUnfixedLiteral(expression: Expression): Boolean =
       expression match {

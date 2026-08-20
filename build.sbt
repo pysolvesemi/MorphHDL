@@ -132,7 +132,7 @@ lazy val paramrtl = (project in file("paramrtl"))
   )
 
 lazy val frontend = (project in file("frontend"))
-  .dependsOn(paramrtl, core)
+  .dependsOn(paramrtl, core, lib)
   .settings(
     defaultSettings,
     name := "MorphHDL-frontend",

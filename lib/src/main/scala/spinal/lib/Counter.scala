@@ -202,8 +202,6 @@ abstract class BoundedCounter[T <: BitVector](
 object CounterFreeRun {
   def apply(stateCount: BigInt): Counter = Counter(stateCount).freeRun()
   def apply(bitCount: BitCount): Counter = Counter(bitCount).freeRun()
-  def apply(bitCount: ParameterizedBitCount): Counter =
-    Counter(bitCount).freeRun()
 }
 
 /** Creates a counter
@@ -250,17 +248,6 @@ object Counter {
   /** Create a counter on `[0, 2^bitCount-1]` */
   def apply(bitCount: BitCount): Counter = new Counter(0, (BigInt(1) << bitCount.value) - 1)
 
-  /**
-    * Create a full-range counter whose ordinary UInt state retains a bounded
-    * symbolic packed width.
-    */
-  def apply(bitCount: ParameterizedBitCount): Counter =
-    new Counter(
-      0,
-      (BigInt(1) << bitCount.value) - 1,
-      retainedBitCount = Some(bitCount)
-    )
-
   /** Create a counter on `[start, end]` with `inc` signal as increment enable */
   def apply(start: BigInt, end: BigInt, inc: Bool): Counter = {
     val c = apply(start, end)
@@ -279,13 +266,6 @@ object Counter {
 
   /** Create a counter on `[0, 2^bitCount-1]` with `inc` signal as increment enable */
   def apply(bitCount: BitCount, inc: Bool): Counter = apply(0, (BigInt(1) << bitCount.value) - 1, inc)
-
-  /** Create a symbolic-width full-range counter with `inc` as increment enable. */
-  def apply(bitCount: ParameterizedBitCount, inc: Bool): Counter = {
-    val c = apply(bitCount)
-    when(inc) { c.increment() }
-    c
-  }
 
   /** Create a counter on `[0, Clocks for given Time]` */
   def apply(time: TimeNumber): Counter = apply(
@@ -324,53 +304,19 @@ class Counter(
   direction: CounterDirection = CounterDirection.Up,
   upper: BoundaryPolicy = BoundaryPolicy.Wrap,
   lower: BoundaryPolicy = BoundaryPolicy.Wrap,
-  val handleOverflow: Boolean = true,
-  private[lib] val retainedBitCount: Option[ParameterizedBitCount] = None
+  val handleOverflow: Boolean = true
 ) extends BoundedCounter[UInt](direction, upper, lower) {
 
   require(start <= end)
-  retainedBitCount.foreach { bitCount =>
-    require(
-      start == 0 && end == (BigInt(1) << bitCount.value) - 1,
-      "a symbolic-width Counter must cover the complete unsigned bit-count range"
-    )
-  }
 
   private val initVal: BigInt = if (direction == CounterDirection.Down) end else start
   private val w = log2Up(end + 1)
 
-  val valueNext: UInt = retainedBitCount match {
-    case Some(bitCount) => ParameterizedWidth.UInt(bitCount)
-    case None           => UInt(w bit)
-  }
+  val valueNext = UInt(w bit)
   val value = RegNext(valueNext) init(initVal)
 
-  val willOverflowIfInc = retainedBitCount match {
-    case Some(_) => value.andR
-    case None    => value === end
-  }
-  val willUnderflowIfDec = retainedBitCount match {
-    case Some(_) => !value.orR
-    case None    => value === start
-  }
-
-  private def stepValue(enable: Bool): UInt = retainedBitCount match {
-    case Some(bitCount) =>
-      // Keep the increment/decrement operand on the same retained width as the
-      // state.  The ordinary concrete Counter widens Bool.asUInt to its Scala
-      // witness before addition; carrying the shared symbolic shape here avoids
-      // baking that witness into the reusable Verilog arithmetic.
-      val step = ParameterizedWidth.UInt(bitCount)
-      step := 0
-      step(0) := enable
-      step
-    case None => U(enable)
-  }
-
-  private def stateLiteral(value: BigInt): UInt = retainedBitCount match {
-    case Some(_) => U(value)
-    case None    => U(value, w bits)
-  }
+  val willOverflowIfInc  = value === end
+  val willUnderflowIfDec = value === start
 
   def stepOne(arith: UInt, boundary: Bool, policy: BoundaryPolicy,
               wrapTo: BigInt, pinTo: BigInt): Unit = {
@@ -378,15 +324,15 @@ class Counter(
     val naturalWrap = policy == BoundaryPolicy.Wrap && isPow2(end + 1) && start == 0
     if (!naturalWrap) {
       val pin = if (policy == BoundaryPolicy.Wrap) wrapTo else pinTo
-      when(boundary) { valueNext := stateLiteral(pin) }
+      when(boundary) { valueNext := U(pin, w bits) }
     }
   }
 
   direction match {
     case CounterDirection.Up =>
-      stepOne(value + stepValue(effectiveInc), willOverflow,  upper, wrapTo = start, pinTo = end)
+      stepOne(value + U(effectiveInc), willOverflow,  upper, wrapTo = start, pinTo = end)
     case CounterDirection.Down =>
-      stepOne(value - stepValue(effectiveDec), willUnderflow, lower, wrapTo = end,   pinTo = start)
+      stepOne(value - U(effectiveDec), willUnderflow, lower, wrapTo = end,   pinTo = start)
     case CounterDirection.Both =>
       val bothWrap = upper == BoundaryPolicy.Wrap && lower == BoundaryPolicy.Wrap
       val span = end - start + 1
@@ -407,7 +353,7 @@ class Counter(
       }
   }
 
-  when(willClear) { valueNext := stateLiteral(initVal) }
+  when(willClear) { valueNext := U(initVal, w bits) }
 
   enableStandardPruning()
   willOverflow.setCompositeName(this, "willOverflow", true)

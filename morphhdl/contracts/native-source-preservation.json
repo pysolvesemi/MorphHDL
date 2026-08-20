@@ -8,9 +8,9 @@
     "description": "Increment 0 repository baseline"
   },
   "approved_state": {
-    "commit": "6c19f70dd2145afc80c3d0246d9e5c675e5afcc2",
-    "tree": "9dbae2bc8bbc2c6950d25a14768a0dd944664e8c",
-    "description": "Reviewed native-source state at the Increment 43 squash merge; repinned after post-merge ancestry validation"
+    "commit": "82af85094a53d8cd26832b768ca6b46801fc0786",
+    "tree": "82ce1916d5f168278d067c7cef2052b2b13cc531",
+    "description": "Reviewed native-source state for Increment 44 after restoring Counter.scala and the Increment 36 Stream and Flow paths while retaining only the approved Increment 37 FIFO delta"
   },
   "source_roots": [
     "core/src/main/scala/spinal/core",
@@ -84,15 +84,6 @@
       "reason": "Adds MorphHDL compiler-plugin transformation coupling to the native IDSL plugin."
     },
     {
-      "path": "lib/src/main/scala/spinal/lib/Counter.scala",
-      "change": "modified",
-      "classification": "direct_edit",
-      "introduced_by": [
-        "36"
-      ],
-      "reason": "Adds a symbolic-width Counter path and adjusts native counter state, arithmetic and boundary logic for it."
-    },
-    {
       "path": "lib/src/main/scala/spinal/lib/ParameterizedStreamFifoDepth.scala",
       "change": "added",
       "classification": "morphhdl_sidecar",
@@ -106,10 +97,9 @@
       "change": "modified",
       "classification": "direct_edit",
       "introduced_by": [
-        "36",
         "37"
       ],
-      "reason": "Adds symbolic-depth StreamFifo construction, pointer resizing and an explicit synchronous-memory collision policy."
+      "reason": "Retains the Increment 37 symbolic-depth StreamFifo construction, pointer resizing and explicit synchronous-memory collision policy."
     }
   ]
 }
