@@ -202,6 +202,10 @@ lazy val morph = (project in file("morphhdl"))
     scalacOptions += (morphplugin / Compile / packageBin / artifactPath).map { file =>
       s"-Xplugin:${file.getAbsolutePath}"
     }.value,
+    Test / scalacOptions += (morphplugin / Compile / packageBin / artifactPath).map { file =>
+      s"-Xplugin:${file.getAbsolutePath}"
+    }.value,
+    Test / scalacOptions += "-Xplugin-require:morphhdl",
     name := "MorphHDL-orchestration",
     version := SpinalVersion.core,
     libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.3.0",
