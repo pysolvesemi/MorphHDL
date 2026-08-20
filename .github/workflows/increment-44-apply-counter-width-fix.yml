@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/increment-44-native-counter-stream-flow-reuse
+  pull_request:
+    branches:
+      - parameterized-verilog
 
 permissions:
   contents: write
@@ -20,6 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: agent/increment-44-native-counter-stream-flow-reuse
           fetch-depth: 0
 
       - name: Apply patch and remove one-shot files
@@ -40,4 +44,4 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git commit -m "Fix native Counter witness-width provenance"
-          git push origin HEAD:${GITHUB_REF_NAME}
+          git push origin HEAD:agent/increment-44-native-counter-stream-flow-reuse
