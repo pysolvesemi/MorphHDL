@@ -212,8 +212,7 @@ them are intentionally eligible for parallel implementation and review.
   matching a concrete integer value alone. Increment 45 must not depend on the
   Increment 46 formal-parameter identity API, but its retained provenance must
   remain composable with that later API. Prove that literal `Mem(..., 5)`
-  remains concrete,
-  `Mem(..., DEPTH)` emits `[0:DEPTH-1]`, compound depth expressions retain
+  remains concrete, while `Mem(..., DEPTH)` emits `[0:DEPTH-1]`, compound depth expressions retain
   their symbolic bounds, and equal witnesses with distinct symbolic origins
   remain distinguishable. Reject ambiguous or conflicting provenance
   explicitly. Preserve byte-for-byte native `Mem.scala`, ordinary concrete
@@ -348,7 +347,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   exact native-source manifest gate with no exception unless previously
   approved. Run the complete inherited validation inventory and all concrete,
   parameter-override, simulation, lint, synthesis, mutation and determinism
-  gates for Increments 29 through 53.
+  gates for Increments 29 through 54.
 
 - [ ] **Increment 56 — Migration and adapter retirement**
 
