@@ -8,9 +8,9 @@
     "description": "Increment 0 repository baseline"
   },
   "approved_state": {
-    "commit": "82af85094a53d8cd26832b768ca6b46801fc0786",
-    "tree": "82ce1916d5f168278d067c7cef2052b2b13cc531",
-    "description": "Reviewed native-source state for Increment 44 after restoring Counter.scala and the Increment 36 Stream and Flow paths while retaining only the approved Increment 37 FIFO delta"
+    "commit": "8a14d1660c551d0b01fa02f9b601aa68cda2fe03",
+    "tree": "d6d9ac2fc49b66fe297ed20e4786739abea6089a",
+    "description": "Reviewed native-source state at the squashed Increment 44 merge, with Counter.scala restored and only the approved Increment 37 FIFO delta retained"
   },
   "source_roots": [
     "core/src/main/scala/spinal/core",
