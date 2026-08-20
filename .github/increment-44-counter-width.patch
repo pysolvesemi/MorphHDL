@@ -33,7 +33,7 @@ diff --git a/frontend/src/main/scala/spinal/lib/ExternalParameterizedCounterRegi
      val expectedEnd = (BigInt(1) << width.value) - 1
      require(
        counter.start == 0 && counter.end == expectedEnd,
-@@ -101,9 +110,21 @@ object ExternalParameterizedCounterRegistry {
+@@ -101,9 +110,20 @@ object ExternalParameterizedCounterRegistry {
        "native Counter witness width does not match the retained symbolic width default"
      )
  
@@ -58,7 +58,7 @@ diff --git a/frontend/src/main/scala/spinal/lib/ExternalParameterizedCounterRegi
      )
      synchronized {
        reap()
-@@ -128,6 +149,26 @@ object ExternalParameterizedCounterRegistry {
+@@ -128,6 +148,26 @@ object ExternalParameterizedCounterRegistry {
      }
    }
  
