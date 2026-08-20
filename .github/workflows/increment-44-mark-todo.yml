@@ -1,0 +1,51 @@
+name: Increment 44 mark roadmap complete
+
+on:
+  push:
+    branches:
+      - agent/increment-44-native-counter-stream-flow-reuse
+  pull_request:
+    branches:
+      - parameterized-verilog
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-44-mark-todo
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Mark Increment 44 complete
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-44-native-counter-stream-flow-reuse
+          fetch-depth: 0
+
+      - name: Update roadmap and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          text = path.read_text(encoding="utf-8")
+          old = "- [ ] **Increment 44 — Native Counter, Stream and Flow reuse with zero library changes**"
+          new = "- [x] **Increment 44 — Native Counter, Stream and Flow reuse with zero library changes**"
+          if text.count(old) != 1:
+              raise SystemExit(f"expected one unchecked Increment 44 item, found {text.count(old)}")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
+          git diff --check
+          git rm -- .github/workflows/increment-44-mark-todo.yml
+          git add -- docs/morphhdl/parameterized-verilog-todo.md
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "Mark Increment 44 complete"
+          git push origin HEAD:agent/increment-44-native-counter-stream-flow-reuse
