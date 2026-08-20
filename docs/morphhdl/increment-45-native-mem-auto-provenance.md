@@ -74,13 +74,17 @@ Null word type, null symbolic depth and null native object paths fail before pub
 
 Because association is immediate and object-specific, repeated source calls that construct different native memories are not ambiguous. Each returned object receives its own record. Equal witnesses from `DEPTH_A` and `DEPTH_B` remain separate because their structural signatures and parameter schemas differ.
 
-## Parameter grouping
+## Parameter grouping and the reviewed emitter boundary
 
-Increment 45 does not add a new grouping rule. The existing backend collects the parameter schemas referenced by each retained expression:
+Increment 45 does not add a new grouping rule and does not widen Increment 35's reviewed one-symbolic-memory-per-component emission contract.
 
-- two memories using `DEPTH` publish one compatible `DEPTH` formal;
-- memories using `DEPTH_A` and `DEPTH_B`, even when both default to `5`, publish two formals;
+Each retained native-memory record carries the parameter schemas referenced by its exact depth expression:
+
+- two exact native `Mem` objects constructed from the same `DEPTH` value retain the same `DEPTH` structural signature;
+- native memories constructed from `DEPTH_A` and `DEPTH_B`, even when both default to `5`, retain distinct signatures;
 - incompatible schemas with the same name still fail through the existing schema-conflict validation.
+
+Where a supported backend contract combines compatible retained expressions, the existing schema collector can publish one compatible formal. Increment 45 proves the prerequisite identity and signature behavior without bypassing the current explicit rejection of multiple symbolic memories in one component.
 
 ## Increment 46 composability
 
@@ -106,8 +110,8 @@ The implementation changes only MorphHDL-owned frontend, tests, workflow, script
 | automatic direct depth | `DEPTH` memory range and guard |
 | concrete literal fallback | `[0:4]`, no depth parameter |
 | compound expression | `(BASE + 1)` retained in range and guard |
-| same-expression grouping | one `DEPTH` declaration for two memories |
-| equal-witness separation | `DEPTH_A` and `DEPTH_B` remain distinct |
+| same-expression grouping prerequisite | two exact native objects retain the same `DEPTH` formal signature |
+| equal-witness separation | equal concrete defaults retain distinct `DEPTH_A` and `DEPTH_B` signatures |
 | exact-object provenance | records inspected by native object identity |
 | conflicting association | explicit frontend failure |
 | invalid paths | null and nonpositive-domain failures |
