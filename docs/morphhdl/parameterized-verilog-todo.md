@@ -209,7 +209,7 @@ must not become the required application-facing migration surface. Increments
 SpinalHDL library calls and retire the compatibility path only after parity is
 proven.
 
-- [ ] **Increment 45 — Automatic native `Mem` symbolic-depth provenance**
+- [x] **Increment 45 — Automatic native `Mem` symbolic-depth provenance**
 
   **Dependencies:** Increment 44 implemented and merged.
 
