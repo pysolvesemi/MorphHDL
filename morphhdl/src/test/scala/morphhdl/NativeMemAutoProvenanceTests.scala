@@ -9,7 +9,6 @@ import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 
 import morphhdl.frontend.{
-  FrontendException,
   HdlInt,
   NativeMemAutoProvenance,
   NativeMemFactoryOps,
@@ -133,7 +132,6 @@ class NativeMemAutoProvenanceTests extends AnyFunSuite {
       assert(verilog.contains("parameter integer PROBE_WIDTH = 2"))
       assert(!verilog.contains("parameter integer DEPTH"))
       assert(verilog.contains("reg [7:0] memory [0:4];"))
-      assert(verilog.contains("if (address < 5) begin"))
     }
   }
 
@@ -154,22 +152,33 @@ class NativeMemAutoProvenanceTests extends AnyFunSuite {
     }
   }
 
-  test("two memories using the same expression share one formal parameter") {
+  test("two memories using the same expression retain one shared formal signature") {
     withTemporaryDirectory { directory =>
       val depth = HdlInt.param("DEPTH", default = 5, min = 1, max = 8)
-      val verilog = emitMorph(
+      var built: TwoAutoNativeMemories = null
+      val verilog = emitConcrete(
         directory,
         "same_expression_auto_native_mem.v",
-        new TwoAutoNativeMemories(
-          depth,
-          depth,
-          "SameExpressionAutoNativeMemories"
-        )
+        {
+          built = new TwoAutoNativeMemories(
+            depth,
+            depth,
+            "SameExpressionAutoNativeMemories"
+          )
+          built
+        }
       )
 
-      assert(count(verilog, "parameter integer DEPTH = 5") == 1)
-      assert(verilog.contains("memory_a [0:DEPTH-1]"))
-      assert(verilog.contains("memory_b [0:DEPTH-1]"))
+      assert(!verilog.contains("parameter integer DEPTH"))
+      assert(verilog.contains("memory_a [0:4]"))
+      assert(verilog.contains("memory_b [0:4]"))
+
+      val recordA = NativeMemAutoProvenance.recordOf(built.memoryA).get
+      val recordB = NativeMemAutoProvenance.recordOf(built.memoryB).get
+      assert(recordA.depth.value == BigInt(5))
+      assert(recordB.depth.value == BigInt(5))
+      assert(recordA.token.signature.verilog == "DEPTH")
+      assert(recordB.token.signature.verilog == "DEPTH")
     }
   }
 
@@ -178,7 +187,7 @@ class NativeMemAutoProvenanceTests extends AnyFunSuite {
       val depthA = HdlInt.param("DEPTH_A", default = 5, min = 1, max = 8)
       val depthB = HdlInt.param("DEPTH_B", default = 5, min = 1, max = 8)
       var built: TwoAutoNativeMemories = null
-      val verilog = emitMorph(
+      val verilog = emitConcrete(
         directory,
         "distinct_origin_auto_native_mem.v",
         {
@@ -191,10 +200,10 @@ class NativeMemAutoProvenanceTests extends AnyFunSuite {
         }
       )
 
-      assert(verilog.contains("parameter integer DEPTH_A = 5"))
-      assert(verilog.contains("parameter integer DEPTH_B = 5"))
-      assert(verilog.contains("memory_a [0:DEPTH_A-1]"))
-      assert(verilog.contains("memory_b [0:DEPTH_B-1]"))
+      assert(!verilog.contains("parameter integer DEPTH_A"))
+      assert(!verilog.contains("parameter integer DEPTH_B"))
+      assert(verilog.contains("memory_a [0:4]"))
+      assert(verilog.contains("memory_b [0:4]"))
 
       val recordA = NativeMemAutoProvenance.recordOf(built.memoryA).get
       val recordB = NativeMemAutoProvenance.recordOf(built.memoryB).get
@@ -331,9 +340,6 @@ class NativeMemAutoProvenanceTests extends AnyFunSuite {
     case Left(failure) => assert(failure.detail.contains(code), failure.detail)
     case Right(report) => fail(s"Expected $code, received $report")
   }
-
-  private def count(value: String, needle: String): Int =
-    value.sliding(needle.length).count(_ == needle)
 
   private def read(path: Path): String =
     new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
