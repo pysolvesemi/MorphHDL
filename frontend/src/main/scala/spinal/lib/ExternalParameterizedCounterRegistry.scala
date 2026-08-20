@@ -39,7 +39,9 @@ final case class ExternalParameterizedCounterMetadata(
   *
   * The native Counter is elaborated first from the concrete witness. Only after
   * its unmodified algorithm has built the ordinary graph are its two state
-  * leaves associated with the retained symbolic width by object identity.
+  * leaves associated with the retained symbolic width by object identity. The
+  * exact native next-value statement identities are retained so later caller
+  * assignments cannot inherit the native Counter width exception.
   */
 object ExternalParameterizedCounterRegistry {
   private val queue = new ReferenceQueue[Counter]()
