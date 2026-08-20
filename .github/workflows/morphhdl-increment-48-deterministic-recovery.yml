@@ -1,0 +1,293 @@
+name: Deterministic recovery for Increment 48
+
+on:
+  pull_request:
+    branches: [parameterized-verilog]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: increment-48-diagnostic-recovery-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  recover:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/increment-48-natural-symbolic-conditionals'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      SBT_TEST_PARALLEL: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-48-natural-symbolic-conditionals
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: sbt
+
+      - uses: sbt/setup-sbt@v1
+
+      - name: Install strict Verilog-2001 validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+          iverilog -V
+
+      - name: Verify branch dependency and deterministic driver
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin parameterized-verilog
+          test "$(git merge-base HEAD origin/parameterized-verilog)" = "$(git rev-parse origin/parameterized-verilog)"
+          test -f .github/increment48/deterministic_recover.py
+          python3 -m py_compile .github/increment48/deterministic_recover.py
+          test ! -e tmp-increment48-publication-ready.txt
+
+      - name: Generate and behaviorally select the existing structural delegate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/increment48/deterministic_recover.py
+          test -s /tmp/increment48-selected-delegate.txt
+          test -f frontend/src/main/scala/morphhdl/frontend/NaturalSymbolicConditional.scala
+          test -f morphhdl/src/test/scala/morphhdl/NaturalSymbolicConditionalTests.scala
+          test -f .github/workflows/morphhdl-natural-symbolic-conditionals.yml
+
+      - name: Clean validation on Scala 2.12.18
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt --batch --no-server \
+            '++2.12.18' \
+            'idslplugin/clean' \
+            'frontend/clean' \
+            'morph/clean' \
+            'morph/testOnly morphhdl.NaturalSymbolicConditionalTests'
+
+      - name: Clean validation on Scala 2.13.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt --batch --no-server \
+            '++2.13.12' \
+            'idslplugin/clean' \
+            'frontend/clean' \
+            'morph/clean' \
+            'morph/testOnly morphhdl.NaturalSymbolicConditionalTests'
+
+      - name: Reject implicit witness conversion and unsafe non-local return
+        shell: bash
+        run: |
+          set -euo pipefail
+          negative=morphhdl/src/test/scala/morphhdl/Increment48NegativeContract.scala
+          cleanup() {
+            rm -f "${negative}"
+          }
+          trap cleanup EXIT
+
+          for scala_version in 2.12.18 2.13.12; do
+            cat > "${negative}" <<'SCALA'
+          package morphhdl
+          import morphhdl.frontend.HdlInt
+          object Increment48NegativeContract {
+            val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
+            val forbidden: Boolean = width > 8
+          }
+          SCALA
+            sed -i 's/^          //' "${negative}"
+            implicit_log="/tmp/increment48-implicit-${scala_version}.log"
+            set +e
+            sbt --batch --no-server "++${scala_version}" 'morph/Test/compile' > "${implicit_log}" 2>&1
+            implicit_rc=$?
+            set -e
+            cat "${implicit_log}"
+            test "${implicit_rc}" -ne 0
+            grep -E 'type mismatch|Found:.*HdlBool|found.*HdlBool|required.*Boolean' "${implicit_log}"
+            rm -f "${negative}"
+            sbt --batch --no-server "++${scala_version}" 'morph/Test/clean'
+
+            cat > "${negative}" <<'SCALA'
+          package morphhdl
+          import morphhdl.frontend.HdlInt
+          object Increment48NegativeContract {
+            def forbidden(width: HdlInt): Int = {
+              if (width > 8) return 1 else 0
+            }
+          }
+          SCALA
+            sed -i 's/^          //' "${negative}"
+            return_log="/tmp/increment48-return-${scala_version}.log"
+            set +e
+            sbt --batch --no-server "++${scala_version}" 'morph/Test/compile' > "${return_log}" 2>&1
+            return_rc=$?
+            set -e
+            cat "${return_log}"
+            test "${return_rc}" -ne 0
+            grep 'MORPHDL-SYMBOLIC-CONDITIONAL-UNSAFE-EFFECT' "${return_log}"
+            rm -f "${negative}"
+            sbt --batch --no-server "++${scala_version}" 'morph/Test/clean'
+          done
+          trap - EXIT
+          cleanup
+
+      - name: Run inherited structural and native-reuse regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala_version in 2.12.18 2.13.12; do
+            sbt --batch --no-server \
+              "++${scala_version}" \
+              'morph/testOnly morphhdl.StructuralGenerateControlTests morphhdl.GenericProcessLoweringTests morphhdl.MorphSingleSourceVerilogTests morphhdl.NativeLibraryReuseTests morphhdl.NativeSymbolicMemoryTests morphhdl.ParameterizedStreamFifoDepthTests'
+          done
+
+      - name: Verify ownership, witness, and final implementation scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git diff --name-only origin/parameterized-verilog...HEAD -- core/src/main/scala lib/src/main/scala | wc -l)" -eq 0
+          test "$(git diff --name-only -- core/src/main/scala lib/src/main/scala | wc -l)" -eq 0
+          ! grep -RInE 'implicit[[:space:]]+(def|val|object).*HdlBool.*Boolean|implicit[[:space:]]+conversion.*HdlBool' \
+            frontend/src/main/scala idslplugin/src/main/scala
+          mapfile -t worktree_paths < <(git diff --name-only)
+          printf 'Validated Increment 48 worktree paths:\n'
+          printf '  %s\n' "${worktree_paths[@]}"
+          for path in "${worktree_paths[@]}"; do
+            case "${path}" in
+              .github/increment48/*|\
+              .github/workflows/morphhdl-increment-48-*|\
+              .github/workflows/morphhdl-natural-symbolic-conditionals.yml|\
+              tmp-tool-probe.txt|tmp-tool-probe-2.txt|tmp-increment48-completion-trigger.txt|\
+              docs/morphhdl/increment-48-natural-symbolic-conditionals.md|\
+              frontend/src/main/scala/morphhdl/frontend/NaturalSymbolicConditional.scala|\
+              morphhdl/scripts/check-natural-symbolic-conditional-boundary.sh|\
+              morphhdl/src/test/scala/morphhdl/NaturalSymbolicConditionalTests.scala|\
+              idslplugin/src/main/scala/*)
+                ;;
+              docs/morphhdl/parameterized-verilog-todo.md)
+                grep -qE '^- \[x\] \*\*Increment 48\b' "${path}"
+                ;;
+              *)
+                echo "Unexpected Increment 48 path: ${path}" >&2
+                exit 1
+                ;;
+            esac
+          done
+          git diff --check
+
+      - name: Remove every temporary implementation artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f \
+            .github/increment48/implement.py \
+            .github/increment48/deterministic_recover.py \
+            .github/workflows/morphhdl-increment-48-deterministic-recovery.yml \
+            .github/workflows/morphhdl-increment-48-diagnostic-recovery.yml \
+            .github/workflows/morphhdl-increment-48-recovery.yml \
+            .github/workflows/morphhdl-increment-48-implementation.yml \
+            .github/workflows/morphhdl-increment-48-complete.yml \
+            .github/workflows/morphhdl-increment-48-offline-export.yml \
+            .github/workflows/morphhdl-increment-48-merge-guard.yml \
+            tmp-tool-probe.txt \
+            tmp-tool-probe-2.txt \
+            tmp-increment48-completion-trigger.txt
+          rmdir .github/increment48 2>/dev/null || true
+          test "$(git diff --name-only -- core/src/main/scala lib/src/main/scala | wc -l)" -eq 0
+          git diff --check
+
+      - name: Commit and publish the validated implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          roadmap=docs/morphhdl/parameterized-verilog-todo.md
+          roadmap_was_checked=0
+          if grep -qE '^- \[x\] \*\*Increment 48\b' "${roadmap}"; then
+            roadmap_was_checked=1
+          fi
+
+          mapfile -t changed < <(git diff --name-only)
+          test "${#changed[@]}" -gt 0
+          for path in "${changed[@]}"; do
+            case "${path}" in
+              .github/increment48/*|\
+              .github/workflows/morphhdl-increment-48-*|\
+              .github/workflows/morphhdl-natural-symbolic-conditionals.yml|\
+              tmp-tool-probe.txt|tmp-tool-probe-2.txt|tmp-increment48-completion-trigger.txt|\
+              docs/morphhdl/increment-48-natural-symbolic-conditionals.md|\
+              frontend/src/main/scala/morphhdl/frontend/NaturalSymbolicConditional.scala|\
+              morphhdl/scripts/check-natural-symbolic-conditional-boundary.sh|\
+              morphhdl/src/test/scala/morphhdl/NaturalSymbolicConditionalTests.scala|\
+              idslplugin/src/main/scala/*)
+                ;;
+              "${roadmap}")
+                test "${roadmap_was_checked}" -eq 1
+                ;;
+              *)
+                echo "Unexpected publication path: ${path}" >&2
+                exit 1
+                ;;
+            esac
+          done
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if [[ "${roadmap_was_checked}" -eq 0 ]]; then
+            git reset -- "${roadmap}"
+          fi
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m 'Implement Increment 48 natural symbolic conditionals'
+            git push origin HEAD:agent/increment-48-natural-symbolic-conditionals
+          fi
+
+          if [[ "${roadmap_was_checked}" -eq 0 ]]; then
+            python3 - <<'PY'
+          import re
+          from pathlib import Path
+          path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = path.read_text()
+          updated, count = re.subn(
+              r'(?m)^- \[ \] (\*\*Increment 48\b)',
+              r'- [x] \1',
+              text,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit('Increment 48 unchecked roadmap entry not found')
+          path.write_text(updated)
+          PY
+            test "$(git diff --name-only | paste -sd ' ' -)" = "${roadmap}"
+            git diff --check
+            git add -- "${roadmap}"
+            git diff --cached --check
+            git commit -m 'Complete Increment 48 roadmap'
+            git push origin HEAD:agent/increment-48-natural-symbolic-conditionals
+          fi
+
+      - name: Publish an externally removable final-head trigger
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          test ! -e .github/increment48/implement.py
+          test ! -e .github/increment48/deterministic_recover.py
+          test ! -e .github/workflows/morphhdl-increment-48-deterministic-recovery.yml
+          grep -qE '^- \[x\] \*\*Increment 48\b' docs/morphhdl/parameterized-verilog-todo.md
+          printf 'Delete this temporary marker with an external GitHub app to trigger final-head checks.\n' > tmp-increment48-publication-ready.txt
+          git add -- tmp-increment48-publication-ready.txt
+          git diff --cached --check
+          git commit -m 'Signal Increment 48 publication readiness'
+          git push origin HEAD:agent/increment-48-natural-symbolic-conditionals
