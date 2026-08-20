@@ -199,12 +199,14 @@ lazy val morph = (project in file("morphhdl"))
   .dependsOn(core, frontend, verilogBackend, lib % "test->compile")
   .settings(
     defaultSettingsWithPlugin,
-    scalacOptions += (morphplugin / Compile / packageBin / artifactPath).map { file =>
+    scalacOptions += {
+      val file = (morphplugin / Compile / packageBin).value
       s"-Xplugin:${file.getAbsolutePath}"
-    }.value,
-    Test / scalacOptions += (morphplugin / Compile / packageBin / artifactPath).map { file =>
+    },
+    Test / scalacOptions += {
+      val file = (morphplugin / Compile / packageBin).value
       s"-Xplugin:${file.getAbsolutePath}"
-    }.value,
+    },
     Test / scalacOptions += "-Xplugin-require:morphhdl",
     name := "MorphHDL-orchestration",
     version := SpinalVersion.core,
