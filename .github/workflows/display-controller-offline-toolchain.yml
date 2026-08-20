@@ -1,0 +1,113 @@
+name: Display controller offline validation toolchain
+
+on:
+  pull_request:
+    branches:
+      - agent/display-controller-toolchain-base
+
+permissions:
+  contents: read
+
+jobs:
+  scala-toolchain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out exact MorphHDL source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Verify target base
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git merge-base HEAD 81abd25518551b8a452ecf038e409331e646f726)" = "81abd25518551b8a452ecf038e409331e646f726"
+
+      - name: Populate SBT dependency and compiler caches
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch ++2.12.18 \
+            idslplugin/compile \
+            core/compile \
+            lib/compile \
+            morph/compile
+
+      - name: Populate pinned Mill dependency and compiler caches
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+          /tmp/morphhdl-mill idslplugin[2.12.18].compile
+          /tmp/morphhdl-mill core[2.12.18].compile
+          /tmp/morphhdl-mill lib[2.12.18].compile
+          /tmp/morphhdl-mill morph[2.12.18].compile
+
+      - name: Package relocatable offline inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/offline/bin /tmp/offline/home /tmp/offline/source
+          cp "$(command -v sbt)" /tmp/offline/bin/sbt
+          cp /tmp/morphhdl-mill /tmp/offline/bin/morphhdl-mill
+          cp -a /root/.cache /tmp/offline/home/cache
+          if test -d /root/.ivy2; then cp -a /root/.ivy2 /tmp/offline/home/ivy2; fi
+          if test -d /root/.sbt; then cp -a /root/.sbt /tmp/offline/home/sbt; fi
+          cp -a /tmp/morphhdl-cache /tmp/offline/home/xdg-cache
+          git archive --format=tar 81abd25518551b8a452ecf038e409331e646f726 | tar -xf - -C /tmp/offline/source
+          printf '%s\n' '81abd25518551b8a452ecf038e409331e646f726' > /tmp/offline/source/MORPHDL_COMMIT
+          tar --numeric-owner --sort=name --mtime='UTC 2026-08-20' \
+            -C /tmp/offline -czf "${GITHUB_WORKSPACE}/morphhdl-offline-toolchain.tar.gz" .
+          sha256sum morphhdl-offline-toolchain.tar.gz > morphhdl-offline-toolchain.tar.gz.sha256
+
+      - name: Upload Scala toolchain
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-offline-toolchain
+          path: |
+            morphhdl-offline-toolchain.tar.gz
+            morphhdl-offline-toolchain.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 3
+
+  hdl-rootfs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Build a minimal Ubuntu HDL validation rootfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends debootstrap zstd
+          sudo debootstrap --variant=minbase noble /tmp/hdl-rootfs http://archive.ubuntu.com/ubuntu
+          sudo chroot /tmp/hdl-rootfs apt-get update -qq
+          sudo chroot /tmp/hdl-rootfs apt-get install -y --no-install-recommends \
+            bash coreutils findutils grep sed gawk diffutils make \
+            iverilog verilator yosys
+          sudo chroot /tmp/hdl-rootfs apt-get clean
+          sudo rm -rf /tmp/hdl-rootfs/var/lib/apt/lists/* /tmp/hdl-rootfs/tmp/*
+          sudo tar --numeric-owner --sort=name --mtime='UTC 2026-08-20' \
+            -C /tmp/hdl-rootfs -I 'zstd -19 -T0' \
+            -cf hdl-validation-rootfs.tar.zst .
+          sha256sum hdl-validation-rootfs.tar.zst > hdl-validation-rootfs.tar.zst.sha256
+
+      - name: Upload HDL validation rootfs
+        uses: actions/upload-artifact@v4
+        with:
+          name: hdl-validation-rootfs
+          path: |
+            hdl-validation-rootfs.tar.zst
+            hdl-validation-rootfs.tar.zst.sha256
+          if-no-files-found: error
+          retention-days: 3
