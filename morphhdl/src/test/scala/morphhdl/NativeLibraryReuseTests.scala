@@ -21,6 +21,8 @@ class NativeLibraryReuseTests extends AnyFunSuite {
     val clear = in(Bool())
     val count = out(morphhdl.frontend.UInt(width bits))
     val willComplete = out(Bool())
+    val fixedLiteralInput = in(morphhdl.frontend.UInt(width bits))
+    val fixedLiteralMatch = out(Bool())
 
     val streamInValid = in(Bool())
     val streamInReady = out(Bool())
@@ -39,6 +41,7 @@ class NativeLibraryReuseTests extends AnyFunSuite {
     when(clear) { counter.clear() }
     count := counter.value
     willComplete := counter.willComplete
+    fixedLiteralMatch := fixedLiteralInput === U(255, 8 bits)
 
     val stream = MorphStream(morphhdl.frontend.Bits(width bits))
     stream.valid := streamInValid
@@ -91,13 +94,16 @@ class NativeLibraryReuseTests extends AnyFunSuite {
       assert(module(concretize(parameterized, "NativeCounterAndPipes", 8), "NativeCounterAndPipes") ==
         module(concrete, "NativeCounterAndPipes"))
       assert(parameterized.contains("parameter integer WIDTH = 8"))
-      Vector("count", "streamInPayload", "streamOutPayload", "flowInPayload", "flowOutPayload")
+      Vector("count", "fixedLiteralInput", "streamInPayload", "streamOutPayload", "flowInPayload", "flowOutPayload")
         .foreach(name => assert(hasWidth(parameterized, name, "[WIDTH-1:0]")))
       assert(parameterized.contains("always @(posedge clk)"))
       assert(parameterized.contains("increment") && parameterized.contains("clear"))
+      assert(parameterized.contains("{WIDTH{1'b1}}"))
+      assert(parameterized.contains("(fixedLiteralInput == 8'hff)"))
       assert(parameterized.contains("streamInReady") && parameterized.contains("streamOutReady"))
       assert(!parameterized.contains("ParamRTL"))
       compileOverride(directory, directory.resolve("native_counter_pipes.v"), "NativeCounterAndPipes")
+      simulateCounterOverride(directory, directory.resolve("native_counter_pipes.v"))
     }
   }
 
@@ -152,7 +158,9 @@ class NativeLibraryReuseTests extends AnyFunSuite {
 
   private def concretize(verilog: String, name: String, width: Int): String = {
     val header: Regex = ("(?s)module " + java.util.regex.Pattern.quote(name) + " #\\(.*?\\n\\) \\(").r
-    header.replaceFirstIn(verilog, s"module $name (").replace("[WIDTH-1:0]", s"[${width - 1}:0]")
+    header.replaceFirstIn(verilog, s"module $name (")
+      .replace("[WIDTH-1:0]", s"[${width - 1}:0]")
+      .replace("{WIDTH{1'b1}}", s"${width}'h${((BigInt(1) << width) - 1).toString(16)}")
   }
 
   private def hasWidth(verilog: String, name: String, range: String): Boolean =
@@ -174,6 +182,106 @@ class NativeLibraryReuseTests extends AnyFunSuite {
       directory.toFile
     ).!(ProcessLogger(line => log.append(line).append('\n')))
     assert(status == 0, log.toString)
+  }
+
+  private def simulateCounterOverride(directory: Path, verilog: Path): Unit = {
+    val testbench = directory.resolve("NativeCounterAndPipesBehaviorTb.v")
+    val executable = directory.resolve("native_counter_behavior.out")
+    val source = """`timescale 1ns/1ps
+      |module NativeCounterAndPipesBehaviorTb;
+      |  localparam integer WIDTH = 5;
+      |  reg clk = 1'b0;
+      |  reg reset = 1'b1;
+      |  reg increment = 1'b0;
+      |  reg clear = 1'b0;
+      |  wire [WIDTH-1:0] count;
+      |  wire willComplete;
+      |  integer index;
+      |
+      |  always #5 clk = ~clk;
+      |
+      |  NativeCounterAndPipes #(.WIDTH(WIDTH)) dut (
+      |    .increment(increment),
+      |    .clear(clear),
+      |    .count(count),
+      |    .willComplete(willComplete),
+      |    .fixedLiteralInput({WIDTH{1'b0}}),
+      |    .streamInValid(1'b0),
+      |    .streamInPayload({WIDTH{1'b0}}),
+      |    .streamOutReady(1'b0),
+      |    .flowInValid(1'b0),
+      |    .flowInPayload({WIDTH{1'b0}}),
+      |    .clk(clk),
+      |    .reset(reset)
+      |  );
+      |
+      |  task tick;
+      |    begin
+      |      @(posedge clk);
+      |      #1;
+      |    end
+      |  endtask
+      |
+      |  task fail;
+      |    input [255:0] reason;
+      |    begin
+      |      $display("FAIL: %0s count=%0d willComplete=%b", reason, count, willComplete);
+      |      $finish(2);
+      |    end
+      |  endtask
+      |
+      |  initial begin
+      |    repeat (3) tick;
+      |    reset = 1'b0;
+      |    tick;
+      |    if (count !== 0) fail("reset count mismatch");
+      |
+      |    increment = 1'b1;
+      |    for (index = 0; index < 31; index = index + 1) tick;
+      |    if (count !== 31) fail("pre-wrap count mismatch");
+      |    if (willComplete !== 1'b1) fail("symbolic all-ones completion mismatch");
+      |    tick;
+      |    if (count !== 0) fail("full-range wrap mismatch");
+      |    if (willComplete !== 1'b0) fail("completion did not clear after wrap");
+      |
+      |    repeat (3) tick;
+      |    increment = 1'b0;
+      |    if (count !== 3) fail("post-wrap increment mismatch");
+      |    clear = 1'b1;
+      |    tick;
+      |    clear = 1'b0;
+      |    if (count !== 0) fail("clear mismatch");
+      |
+      |    $display("PASS native Counter WIDTH=%0d", WIDTH);
+      |    $finish;
+      |  end
+      |endmodule
+      |""".stripMargin
+    Files.write(testbench, source.getBytes(StandardCharsets.UTF_8))
+
+    val compileLog = new StringBuilder
+    val compileStatus = scala.sys.process.Process(
+      Seq(
+        "iverilog",
+        "-g2001",
+        "-s",
+        "NativeCounterAndPipesBehaviorTb",
+        "-o",
+        executable.toString,
+        verilog.toString,
+        testbench.toString
+      ),
+      directory.toFile
+    ).!(ProcessLogger(line => compileLog.append(line).append('\n')))
+    assert(compileStatus == 0, compileLog.toString)
+
+    val runLog = new StringBuilder
+    val runStatus = scala.sys.process.Process(
+      Seq("vvp", executable.toString),
+      directory.toFile
+    ).!(ProcessLogger(line => runLog.append(line).append('\n')))
+    assert(runStatus == 0, runLog.toString)
+    assert(runLog.toString.contains("PASS native Counter WIDTH=5"), runLog.toString)
   }
 
   private def read(path: Path): String = new String(Files.readAllBytes(path), StandardCharsets.UTF_8)

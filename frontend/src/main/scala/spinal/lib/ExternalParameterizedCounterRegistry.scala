@@ -129,4 +129,26 @@ object ExternalParameterizedCounterRegistry {
       retained.get(new ExternalCounterIdentityRef(counter, null))
     }
   }
+
+  /**
+    * Return the retained symbolic width only for the native registered state
+    * whose full-range boundary comparison must remain width-polymorphic.
+    * Ordinary symbolic-width signals and user-authored fixed literals are not
+    * included in this provenance query.
+    */
+  private[spinal] def boundaryWidthOf(
+      data: BaseType
+  ): Option[ElaborationIntegerExpression] = synchronized {
+    if (data == null) None
+    else {
+      reap()
+      retained.iterator.collectFirst {
+        case (reference, metadata) if {
+              val counter = reference.get()
+              counter != null && (counter.value eq data)
+            } =>
+          metadata.width
+      }
+    }
+  }
 }

@@ -10,6 +10,8 @@ import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 import spinal.lib._
 
+import morphhdl.frontend.{StreamFifo => MorphStreamFifo}
+
 class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
   test("one native StreamFifo definition preserves behavior at depths 1, 3, 5 and 8") {
     withTemporaryDirectory { directory =>
@@ -40,13 +42,13 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       val parameterizedConfig = synchronousResetConfig(parameterizedDirectory)
       parameterizedConfig.netlistFileName = "stream_fifo_parameterized_depth.v"
       val parameterizedReport =
-        MorphVerilog(parameterizedConfig)(StreamFifo(morphhdl.frontend.HardType(morphhdl.frontend.Bits(8 bits)), symbolicDepth))
+        MorphVerilog(parameterizedConfig)(MorphStreamFifo(morphhdl.frontend.HardType(morphhdl.frontend.Bits(8 bits)), symbolicDepth))
       val parameterized =
         read(parameterizedDirectory.resolve("stream_fifo_parameterized_depth.v"))
 
       val concreteConfig = synchronousResetConfig(concreteDirectory)
       concreteConfig.netlistFileName = "stream_fifo_parameterized_depth.v"
-      SpinalVerilog(concreteConfig)(StreamFifo(morphhdl.frontend.HardType(morphhdl.frontend.Bits(8 bits)), symbolicDepth))
+      SpinalVerilog(concreteConfig)(MorphStreamFifo(morphhdl.frontend.HardType(morphhdl.frontend.Bits(8 bits)), symbolicDepth))
       val concrete =
         read(concreteDirectory.resolve("stream_fifo_parameterized_depth.v"))
 

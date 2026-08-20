@@ -1,7 +1,7 @@
 package morphhdl.frontend
 
 import spinal.core._
-import spinal.lib.{Counter => NativeCounter, Flow => NativeFlow, Stream => NativeStream}
+import spinal.lib.{Counter => NativeCounter, Flow => NativeFlow, Stream => NativeStream, StreamFifo => NativeStreamFifo}
 
 /** External MorphHDL adapters that return and execute ordinary SpinalHDL library objects. */
 object Counter {
@@ -50,6 +50,14 @@ object Stream {
 
   def apply[T <: Data](payloadType: => T): NativeStream[T] =
     apply(ExternalParameterizedHardTypeRegistry.create(payloadType))
+}
+
+object StreamFifo {
+  def apply[T <: Data](
+      dataType: HardType[T],
+      depth: ParameterizedMemoryDepth
+  ): NativeStreamFifo[T] =
+    spinal.lib.ExternalParameterizedStreamFifoDepthRegistry.create(dataType, depth)
 }
 
 object Flow {
