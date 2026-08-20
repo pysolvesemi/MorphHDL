@@ -54,7 +54,7 @@ jobs:
           test ! -e tmp-increment48-retrigger.txt
           test "$(git diff --name-only origin/parameterized-verilog...HEAD -- core/src/main/scala lib/src/main/scala idslplugin/src/main/scala | wc -l)" -eq 0
           mapfile -t changed < <(git diff --name-only origin/parameterized-verilog...HEAD)
-          morphhdl/scripts/check-natural-symbolic-conditional-boundary.sh "${changed[@]}"
+          bash morphhdl/scripts/check-natural-symbolic-conditional-boundary.sh "${changed[@]}"
           git diff --check origin/parameterized-verilog...HEAD
 
       - name: Install strict Verilog-2001 validator
