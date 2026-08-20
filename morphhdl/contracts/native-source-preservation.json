@@ -10,7 +10,7 @@
   "approved_state": {
     "commit": "82af85094a53d8cd26832b768ca6b46801fc0786",
     "tree": "82ce1916d5f168278d067c7cef2052b2b13cc531",
-    "description": "Reviewed native-source state for Increment 44 after restoring Counter.scala and the Increment 36 Stream and Flow changes"
+    "description": "Reviewed native-source state for Increment 44 after restoring Counter.scala and the Increment 36 Stream and Flow paths while retaining only the approved Increment 37 FIFO delta"
   },
   "source_roots": [
     "core/src/main/scala/spinal/core",
