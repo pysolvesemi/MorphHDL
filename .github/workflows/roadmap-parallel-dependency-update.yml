@@ -1,0 +1,197 @@
+name: Roadmap parallel dependency update
+
+on:
+  push:
+    branches:
+      - agent/roadmap-parallel-dependencies
+
+permissions:
+  contents: write
+
+jobs:
+  update-roadmaps:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/roadmap-parallel-dependencies
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update parameterized-Verilog and pass dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          pv_path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          pv = pv_path.read_text()
+
+          def replace_once(text, old, new, role):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{role}: expected exactly one match, found {count}')
+              return text.replace(old, new, 1)
+
+          pv = replace_once(
+              pv,
+              '- The first unchecked increment is the next increment. Work must not skip ahead\n'
+              '  unless this file is changed in a reviewed architecture decision.\n',
+              '- The first unchecked increment remains the default sequential integration\n'
+              '  target. Explicitly declared parallel successors may start once every listed\n'
+              '  dependency is `[x]` on `parameterized-verilog`; increment numbering alone\n'
+              '  does not create a dependency.\n'
+              '- Every parallel branch must start from a merged dependency state and must\n'
+              '  incorporate the latest `parameterized-verilog` before final validation. An\n'
+              '  open branch or pull request never satisfies another increment dependency.\n',
+              'roadmap discipline parallel rule'
+          )
+          pv = replace_once(
+              pv,
+              '- The suggested next increment after every completed increment must be taken\n'
+              '  from the first unchecked entry in this file.\n',
+              '- The suggested next sequential increment after completion is the first\n'
+              '  unchecked entry whose dependencies are satisfied. Independently eligible\n'
+              '  siblings may additionally be identified as parallel candidates.\n',
+              'roadmap next-increment rule'
+          )
+
+          marker = (
+              '  concrete-default parity and override tests without component-specific RTL\n'
+              '  reconstruction.\n\n'
+              '- [ ] **Increment 45 — Automatic native `Mem` symbolic-depth provenance**\n'
+          )
+          graph = (
+              '  concrete-default parity and override tests without component-specific RTL\n'
+              '  reconstruction.\n\n'
+              '### Dependency graph and parallel execution for Increments 45 through 56\n\n'
+              'After Increment 44 is implemented and merged:\n\n'
+              '- Increments 45, 46 and 48 are independent parallel starts.\n'
+              '- Increment 47 depends only on Increment 46 and may overlap unfinished work on\n'
+              '  Increments 45 and 48.\n'
+              '- Increment 49 depends only on Increment 47; Increment 50 depends only on\n'
+              '  Increment 49. This native-`Int` chain may continue while 45 or 48 remains in\n'
+              '  progress.\n'
+              '- Increment 51 joins the explicit-condition path and native-`Int` path; it\n'
+              '  depends on Increments 48 and 50.\n'
+              '- Increment 52 depends only on Increment 51.\n'
+              '- Increment 53 joins memory provenance and symbolic control flow; it depends\n'
+              '  on Increments 45 and 52.\n'
+              '- Increments 54, 55 and 56 then form a strict sequential closure chain.\n\n'
+              'Dependencies are transitive. Two increments with no dependency edge between\n'
+              'them are intentionally eligible for parallel implementation and review.\n\n'
+              '- [ ] **Increment 45 — Automatic native `Mem` symbolic-depth provenance**\n'
+          )
+          pv = replace_once(pv, marker, graph, 'parallel dependency graph insertion')
+
+          dependencies = {
+              45: 'Increment 44',
+              46: 'Increment 44',
+              47: 'Increment 46',
+              48: 'Increment 44',
+              49: 'Increment 47',
+              50: 'Increment 49',
+              51: 'Increments 48 and 50',
+              52: 'Increment 51',
+              53: 'Increments 45 and 52',
+              54: 'Increment 53',
+              55: 'Increment 54',
+              56: 'Increment 55',
+          }
+          titles = {
+              45: 'Automatic native `Mem` symbolic-depth provenance',
+              46: 'Formal parameter identity and canonical child modules',
+              47: 'External formalization boundary for native `Int` APIs',
+              48: 'Natural symbolic conditionals for explicit `HdlInt`/`HdlBool`',
+              49: 'Native `Int` symbolic provenance propagation',
+              50: 'Shadow native `Int` expressions and predicates',
+              51: 'Symbolic native-`Int` branch capture',
+              52: 'Nested symbolic control flow and side-effect safety',
+              53: 'Native StreamFifo parameter structure without source edits',
+              54: 'MorphHDL module extraction and native-tree cleanup',
+              55: 'Upstream parity and complete zero-diff proof',
+              56: 'Migration and adapter retirement',
+          }
+          for number in range(45, 57):
+              heading = f'- [ ] **Increment {number} — {titles[number]}**\n\n'
+              replacement = heading + f'  **Dependencies:** {dependencies[number]} implemented and merged.\n\n'
+              pv = replace_once(pv, heading, replacement, f'Increment {number} dependency')
+
+          pv = replace_once(
+              pv,
+              '  `morphhdl.frontend.Mem`. Associate provenance by deterministic call-site,\n'
+              '  formal-slot and object identity; never infer it by matching a concrete\n'
+              '  integer value alone. Prove that literal `Mem(..., 5)` remains concrete,\n',
+              '  `morphhdl.frontend.Mem`. Associate provenance by a deterministic\n'
+              '  source/call-site token and exact native-object identity; never infer it by\n'
+              '  matching a concrete integer value alone. Increment 45 must not depend on the\n'
+              '  Increment 46 formal-parameter identity API, but its retained provenance must\n'
+              '  remain composable with that later API. Prove that literal `Mem(..., 5)`\n'
+              '  remains concrete,\n',
+              'Increment 45 independence wording'
+          )
+          pv = replace_once(
+              pv,
+              'The formalization and symbolic-control-flow increments below are strict ordered\n'
+              'prerequisites. Increment 53 must not start until Increments 46 through 52 are\n'
+              'implemented, reviewed and merged.\n',
+              'The formalization and symbolic-control-flow increments below follow the explicit\n'
+              'dependency graph above; they are not globally serial. Increment 53 must not\n'
+              'start until Increments 45 through 52 are implemented, reviewed and merged.\n',
+              'formalization dependency paragraph'
+          )
+
+          required = [
+              '**Dependencies:** Increment 44 implemented and merged.',
+              '**Dependencies:** Increments 48 and 50 implemented and merged.',
+              '**Dependencies:** Increments 45 and 52 implemented and merged.',
+              'Increments 45, 46 and 48 are independent parallel starts.',
+              'Increment 45 must not depend on the',
+          ]
+          for value in required:
+              if value not in pv:
+                  raise SystemExit(f'missing required parameterized-Verilog dependency text: {value}')
+          pv_path.write_text(pv)
+
+          passes_path = Path('morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md')
+          passes = passes_path.read_text()
+          passes = replace_once(
+              passes,
+              '- `PV-N` means Increment N in\n'
+              '  `docs/morphhdl/parameterized-verilog-todo.md`.\n',
+              '- `PV-N` means Increment N in\n'
+              '  `docs/morphhdl/parameterized-verilog-todo.md`. The numbering includes the\n'
+              '  inserted native-memory provenance Increment 45.\n'
+              '- The canonical-IR adapter gate is PV-54 and the final production-handoff gate\n'
+              '  is PV-56; these pass-roadmap dependencies are unaffected by parallel work on\n'
+              '  independent earlier PV increments.\n',
+              'pass roadmap numbering note'
+          )
+          replacements = {
+              'after WA-06 and PV-55 are checked': 'after WA-06 and PV-56 are checked',
+              '**Dependencies:** WA-01 and PV-53 implemented and merged.':
+                  '**Dependencies:** WA-01 and PV-54 implemented and merged.',
+              '**Status:** `BLOCKED` by PV-53.': '**Status:** `BLOCKED` by PV-54.',
+              '**Dependencies:** WA-06 and PV-55 implemented and merged.':
+                  '**Dependencies:** WA-06 and PV-56 implemented and merged.',
+              '**Status:** `BLOCKED` by WA-06 and PV-55.':
+                  '**Status:** `BLOCKED` by WA-06 and PV-56.',
+          }
+          for old, new in replacements.items():
+              passes = replace_once(passes, old, new, f'pass roadmap reference {old}')
+          stale = ['PV-53 implemented and merged', 'BLOCKED` by PV-53', 'PV-55']
+          remaining = [value for value in stale if value in passes]
+          if remaining:
+              raise SystemExit(f'stale pass-roadmap dependencies remain: {remaining}')
+          passes_path.write_text(passes)
+          PY
+
+          rm -- .github/workflows/roadmap-parallel-dependency-update.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- docs/morphhdl/parameterized-verilog-todo.md morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md .github/workflows/roadmap-parallel-dependency-update.yml
+          git commit -m 'docs: define parallel roadmap dependencies'
+          git push origin HEAD:agent/roadmap-parallel-dependencies
