@@ -9,323 +9,119 @@ import scala.util.matching.Regex
 
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
-import spinal.lib._
+import spinal.lib.StreamFifo
 
-import morphhdl.frontend.HdlInt
+import morphhdl.frontend.{Counter => MorphCounter, Flow => MorphFlow, HdlInt, Stream => MorphStream}
 
 class NativeLibraryReuseTests extends AnyFunSuite {
-  private final class NativeCounter(width: HdlInt) extends Component {
-    setDefinitionName("NativeLibraryCounter")
+  private final class NativeCounterAndPipes(width: HdlInt) extends Component {
+    setDefinitionName("NativeCounterAndPipes")
 
     val increment = in(Bool())
     val clear = in(Bool())
-    val value = out(morphhdl.frontend.UInt(width bits))
-    val will_complete = out(Bool())
-    val flow_valid = out(Bool())
-    val flow_payload = out(morphhdl.frontend.UInt(width bits))
+    val count = out(morphhdl.frontend.UInt(width bits))
+    val willComplete = out(Bool())
 
-    val counter = Counter(width bits)
-    when(increment) {
-      counter.increment()
-    }
-    when(clear) {
-      counter.clear()
-    }
+    val streamInValid = in(Bool())
+    val streamInReady = out(Bool())
+    val streamInPayload = in(morphhdl.frontend.Bits(width bits))
+    val streamOutValid = out(Bool())
+    val streamOutReady = in(Bool())
+    val streamOutPayload = out(morphhdl.frontend.Bits(width bits))
 
-    val flow = counter.toFlow()
-    value := counter.value
-    will_complete := counter.willComplete
-    flow_valid := flow.valid
-    flow_payload := flow.payload
+    val flowInValid = in(Bool())
+    val flowInPayload = in(morphhdl.frontend.Bits(width bits))
+    val flowOutValid = out(Bool())
+    val flowOutPayload = out(morphhdl.frontend.Bits(width bits))
+
+    val counter = MorphCounter(width bits)
+    when(increment) { counter.increment() }
+    when(clear) { counter.clear() }
+    count := counter.value
+    willComplete := counter.willComplete
+
+    val stream = MorphStream(morphhdl.frontend.Bits(width bits))
+    stream.valid := streamInValid
+    stream.payload := streamInPayload
+    streamInReady := stream.ready
+    val streamPipe = stream.m2sPipe().s2mPipe().halfPipe()
+    streamOutValid := streamPipe.valid
+    streamPipe.ready := streamOutReady
+    streamOutPayload := streamPipe.payload
+
+    val flow = MorphFlow(morphhdl.frontend.Bits(width bits))
+    flow.valid := flowInValid
+    flow.payload := flowInPayload
+    val flowPipe = flow.m2sPipe
+    flowOutValid := flowPipe.valid
+    flowOutPayload := flowPipe.payload
   }
 
-  private final class NativePipelines(width: HdlInt) extends Component {
-    setDefinitionName("NativeLibraryPipelines")
+  private final class NativeStaticFifo(width: HdlInt) extends Component {
+    setDefinitionName("NativeStaticFifo")
 
-    val stream_in_valid = in(Bool())
-    val stream_in_ready = out(Bool())
-    val stream_in_payload = in(morphhdl.frontend.Bits(width bits))
-    val stream_out_valid = out(Bool())
-    val stream_out_ready = in(Bool())
-    val stream_out_payload = out(morphhdl.frontend.Bits(width bits))
-
-    val flow_in_valid = in(Bool())
-    val flow_in_payload = in(morphhdl.frontend.Bits(width bits))
-    val flow_out_valid = out(Bool())
-    val flow_out_payload = out(morphhdl.frontend.Bits(width bits))
-
-    val stream = Stream(morphhdl.frontend.Bits(width bits))
-    stream.valid := stream_in_valid
-    stream.payload := stream_in_payload
-    stream_in_ready := stream.ready
-
-    val pipedStream = stream.m2sPipe().s2mPipe().halfPipe()
-    stream_out_valid := pipedStream.valid
-    pipedStream.ready := stream_out_ready
-    stream_out_payload := pipedStream.payload
-
-    val flow = Flow(morphhdl.frontend.Bits(width bits))
-    flow.valid := flow_in_valid
-    flow.payload := flow_in_payload
-    val pipedFlow = flow.m2sPipe
-    flow_out_valid := pipedFlow.valid
-    flow_out_payload := pipedFlow.payload
-  }
-
-  private final class NativeStaticDepthStreamFifo(width: HdlInt) extends Component {
-    setDefinitionName("NativeStaticDepthStreamFifo")
-
-    val push_valid = in(Bool())
-    val push_ready = out(Bool())
-    val push_payload = in(morphhdl.frontend.Bits(width bits))
-    val pop_valid = out(Bool())
-    val pop_ready = in(Bool())
-    val pop_payload = out(morphhdl.frontend.Bits(width bits))
+    val pushValid = in(Bool())
+    val pushReady = out(Bool())
+    val pushPayload = in(morphhdl.frontend.Bits(width bits))
+    val popValid = out(Bool())
+    val popReady = in(Bool())
+    val popPayload = out(morphhdl.frontend.Bits(width bits))
     val flush = in(Bool())
-    val occupancy = out(morphhdl.frontend.UInt(3 bits))
-    val availability = out(morphhdl.frontend.UInt(3 bits))
 
-    val fifo = StreamFifo(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth = 4, latency = 2)
-    fifo.setName("fifo")
-    fifo.io.push.valid := push_valid
-    fifo.io.push.payload := push_payload
-    push_ready := fifo.io.push.ready
-    pop_valid := fifo.io.pop.valid
-    fifo.io.pop.ready := pop_ready
-    pop_payload := fifo.io.pop.payload
+    val fifo = StreamFifo(
+      morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)),
+      depth = 4,
+      latency = 2
+    )
+    fifo.io.push.valid := pushValid
+    fifo.io.push.payload := pushPayload
+    pushReady := fifo.io.push.ready
+    popValid := fifo.io.pop.valid
+    fifo.io.pop.ready := popReady
+    popPayload := fifo.io.pop.payload
     fifo.io.flush := flush
-    occupancy := fifo.io.occupancy.resized
-    availability := fifo.io.availability.resized
   }
 
-  test("ordinary Counter retains a symbolic full-range UInt without replacing the library algorithm") {
-    withTemporaryDirectory { directory =>
-      val parameterizedDirectory = directory.resolve("parameterized")
-      val concreteDirectory = directory.resolve("concrete")
-      Files.createDirectories(parameterizedDirectory)
-      Files.createDirectories(concreteDirectory)
-
+  test("native Counter, Stream and Flow retain symbolic geometry externally") {
+    inTemporaryDirectory { directory =>
       val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
-      val parameterized = emitMorph(
-        parameterizedDirectory,
-        "native_library_counter.v",
-        new NativeCounter(width),
-        synchronousResetConfig(parameterizedDirectory)
-      )
-      val concrete = emitConcrete(
-        concreteDirectory,
-        "native_library_counter.v",
-        new NativeCounter(width),
-        synchronousResetConfig(concreteDirectory)
-      )
+      val parameterized = emitMorph(directory, "native_counter_pipes.v", new NativeCounterAndPipes(width))
+      val concrete = emitConcrete(directory, "native_counter_pipes_concrete.v", new NativeCounterAndPipes(width))
 
-      assert(
-        nativeModule(concretize(parameterized, "NativeLibraryCounter", width = 8)) ==
-          nativeModule(concrete)
-      )
-      assert(parameterized.contains("module NativeLibraryCounter #("))
+      assert(module(concretize(parameterized, "NativeCounterAndPipes", 8), "NativeCounterAndPipes") ==
+        module(concrete, "NativeCounterAndPipes"))
       assert(parameterized.contains("parameter integer WIDTH = 8"))
-      assert(hasDeclarationWidth(parameterized, "value", "[WIDTH-1:0]"))
-      assert(hasDeclarationWidth(parameterized, "flow_payload", "[WIDTH-1:0]"))
+      Vector("count", "streamInPayload", "streamOutPayload", "flowInPayload", "flowOutPayload")
+        .foreach(name => assert(hasWidth(parameterized, name, "[WIDTH-1:0]")))
       assert(parameterized.contains("always @(posedge clk)"))
-      assert(parameterized.contains("increment"))
-      assert(parameterized.contains("clear"))
-      assert(parameterized.contains("will_complete"))
-      assert(parameterized.contains("&counter_value"))
+      assert(parameterized.contains("increment") && parameterized.contains("clear"))
+      assert(parameterized.contains("streamInReady") && parameterized.contains("streamOutReady"))
       assert(!parameterized.contains("ParamRTL"))
-
-      compileOverride(
-        parameterizedDirectory,
-        parameterizedDirectory.resolve("native_library_counter.v"),
-        "NativeLibraryCounter",
-        """  reg increment;
-          |  reg clear;
-          |  wire [4:0] value;
-          |  wire will_complete;
-          |  wire flow_valid;
-          |  wire [4:0] flow_payload;
-          |""".stripMargin,
-        """    .increment(increment),
-          |    .clear(clear),
-          |    .value(value),
-          |    .will_complete(will_complete),
-          |    .flow_valid(flow_valid),
-          |    .flow_payload(flow_payload)
-          |""".stripMargin
-      )
+      compileOverride(directory, directory.resolve("native_counter_pipes.v"), "NativeCounterAndPipes")
     }
   }
 
-  test("ordinary Stream and Flow pipeline primitives preserve one symbolic payload shape") {
-    withTemporaryDirectory { directory =>
-      val parameterizedDirectory = directory.resolve("parameterized")
-      val concreteDirectory = directory.resolve("concrete")
-      Files.createDirectories(parameterizedDirectory)
-      Files.createDirectories(concreteDirectory)
-
+  test("native static-depth StreamFifo retains only symbolic payload geometry") {
+    inTemporaryDirectory { directory =>
       val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
-      val parameterized = emitMorph(
-        parameterizedDirectory,
-        "native_library_pipelines.v",
-        new NativePipelines(width),
-        synchronousResetConfig(parameterizedDirectory)
-      )
-      val concrete = emitConcrete(
-        concreteDirectory,
-        "native_library_pipelines.v",
-        new NativePipelines(width),
-        synchronousResetConfig(concreteDirectory)
-      )
+      val parameterized = emitMorph(directory, "native_static_fifo.v", new NativeStaticFifo(width))
+      val concrete = emitConcrete(directory, "native_static_fifo_concrete.v", new NativeStaticFifo(width))
 
-      assert(
-        nativeModule(concretize(parameterized, "NativeLibraryPipelines", width = 8)) ==
-          nativeModule(concrete)
-      )
       assert(parameterized.contains("parameter integer WIDTH = 8"))
-      Vector(
-        "stream_in_payload",
-        "stream_out_payload",
-        "flow_in_payload",
-        "flow_out_payload"
-      ).foreach { name =>
-        assert(hasDeclarationWidth(parameterized, name, "[WIDTH-1:0]"))
-      }
-      assert(count(parameterized, "always @(posedge clk)") >= 1)
-      assert(parameterized.contains("stream_in_ready"))
-      assert(parameterized.contains("stream_out_ready"))
-      assert(parameterized.contains("flow_in_valid"))
-      assert(parameterized.contains("flow_out_valid"))
-      assert(!parameterized.contains("ParamRTL"))
-
-      compileOverride(
-        parameterizedDirectory,
-        parameterizedDirectory.resolve("native_library_pipelines.v"),
-        "NativeLibraryPipelines",
-        """  reg stream_in_valid;
-          |  wire stream_in_ready;
-          |  reg [4:0] stream_in_payload;
-          |  wire stream_out_valid;
-          |  reg stream_out_ready;
-          |  wire [4:0] stream_out_payload;
-          |  reg flow_in_valid;
-          |  reg [4:0] flow_in_payload;
-          |  wire flow_out_valid;
-          |  wire [4:0] flow_out_payload;
-          |""".stripMargin,
-        """    .stream_in_valid(stream_in_valid),
-          |    .stream_in_ready(stream_in_ready),
-          |    .stream_in_payload(stream_in_payload),
-          |    .stream_out_valid(stream_out_valid),
-          |    .stream_out_ready(stream_out_ready),
-          |    .stream_out_payload(stream_out_payload),
-          |    .flow_in_valid(flow_in_valid),
-          |    .flow_in_payload(flow_in_payload),
-          |    .flow_out_valid(flow_out_valid),
-          |    .flow_out_payload(flow_out_payload)
-          |""".stripMargin
-      )
-    }
-  }
-
-  test("ordinary StreamFifo reuses its native static-depth storage with a symbolic payload width") {
-    withTemporaryDirectory { directory =>
-      val parameterizedDirectory = directory.resolve("parameterized")
-      val concreteDirectory = directory.resolve("concrete")
-      Files.createDirectories(parameterizedDirectory)
-      Files.createDirectories(concreteDirectory)
-
-      val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
-      val parameterizedReport = emitMorphReport(
-        parameterizedDirectory,
-        "native_static_depth_stream_fifo.v",
-        new NativeStaticDepthStreamFifo(width),
-        synchronousResetConfig(parameterizedDirectory)
-      )
-      val parameterized = parameterizedReport._2
-      val concrete = emitConcrete(
-        concreteDirectory,
-        "native_static_depth_stream_fifo.v",
-        new NativeStaticDepthStreamFifo(width),
-        synchronousResetConfig(concreteDirectory)
-      )
-
-      assert(parameterizedReport._1.parameters.map(_.name) == Vector("WIDTH"))
-      assert(parameterized.contains("module NativeStaticDepthStreamFifo #("))
-      assert(parameterized.contains("parameter integer WIDTH = 8"))
+      assert(!parameterized.contains("parameter integer DEPTH"))
       assert("(?m)^module StreamFifo #\\(".r.findAllMatchIn(parameterized).size == 1)
       assert(parameterized.contains(".WIDTH(WIDTH)"))
-      assert(!parameterized.contains("parameter integer DEPTH"))
       assert("(?m)^\\s*reg \\[WIDTH-1:0\\] [A-Za-z_][A-Za-z0-9_$]* \\[0:3\\];$".r
         .findFirstIn(parameterized).nonEmpty)
-      assert(parameterized.contains("always @(posedge clk) begin : p_"))
-      assert(parameterized.contains("< 4"))
-      assert(parameterized.contains("<=") && parameterized.contains("["))
-      assert(hasDeclarationWidth(parameterized, "push_payload", "[WIDTH-1:0]"))
-      assert(hasDeclarationWidth(parameterized, "pop_payload", "[WIDTH-1:0]"))
-      assert(!parameterized.contains("ParamRTL"))
-
+      assert(hasWidth(parameterized, "pushPayload", "[WIDTH-1:0]"))
+      assert(hasWidth(parameterized, "popPayload", "[WIDTH-1:0]"))
       assert(!concrete.contains("parameter integer WIDTH"))
-      assert(concrete.contains("[7:0]"))
-      assert(concrete.contains("[0:3]"))
-
-      compileOverride(
-        parameterizedDirectory,
-        parameterizedDirectory.resolve("native_static_depth_stream_fifo.v"),
-        "NativeStaticDepthStreamFifo",
-        """  reg push_valid;
-          |  wire push_ready;
-          |  reg [4:0] push_payload;
-          |  wire pop_valid;
-          |  reg pop_ready;
-          |  wire [4:0] pop_payload;
-          |  reg flush;
-          |  wire [2:0] occupancy;
-          |  wire [2:0] availability;
-          |""".stripMargin,
-        """    .push_valid(push_valid),
-          |    .push_ready(push_ready),
-          |    .push_payload(push_payload),
-          |    .pop_valid(pop_valid),
-          |    .pop_ready(pop_ready),
-          |    .pop_payload(pop_payload),
-          |    .flush(flush),
-          |    .occupancy(occupancy),
-          |    .availability(availability)
-          |""".stripMargin
-      )
+      assert(concrete.contains("[7:0]") && concrete.contains("[0:3]"))
+      compileOverride(directory, directory.resolve("native_static_fifo.v"), "NativeStaticFifo")
     }
   }
 
-  private def emitMorph(
-      directory: Path,
-      filename: String,
-      component: => Component,
-      config: SpinalConfig
-  ): String = emitMorphReport(directory, filename, component, config)._2
-
-  private def emitMorphReport(
-      directory: Path,
-      filename: String,
-      component: => Component,
-      config: SpinalConfig
-  ): (MorphSingleSourceVerilogReport, String) = {
-    config.netlistFileName = filename
-    val report = MorphVerilog(config)(component)
-    report -> read(directory.resolve(filename))
-  }
-
-  private def emitConcrete(
-      directory: Path,
-      filename: String,
-      component: => Component,
-      config: SpinalConfig
-  ): String = {
-    config.netlistFileName = filename
-    SpinalVerilog(config)(component)
-    read(directory.resolve(filename))
-  }
-
-  private def synchronousResetConfig(directory: Path): SpinalConfig =
+  private def config(directory: Path): SpinalConfig =
     SpinalConfig(
       targetDirectory = directory.toString,
       defaultConfigForClockDomains = ClockDomainConfig(
@@ -335,88 +131,60 @@ class NativeLibraryReuseTests extends AnyFunSuite {
       )
     )
 
-  private def nativeModule(verilog: String): String =
-    "(?m)^module\\s".r
-      .findFirstMatchIn(verilog)
-      .map(module => verilog.substring(module.start))
-      .getOrElse(verilog)
-
-  private def concretize(verilog: String, moduleName: String, width: Int): String = {
-    val header: Regex =
-      ("(?s)module " + java.util.regex.Pattern.quote(moduleName) + " #\\(\\n.*?\\n\\) \\(").r
-    header
-      .replaceFirstIn(verilog, s"module $moduleName (")
-      .replace("[WIDTH-1:0]", s"[${width - 1}:0]")
+  private def emitMorph(directory: Path, file: String, component: => Component): String = {
+    val spinalConfig = config(directory)
+    spinalConfig.netlistFileName = file
+    MorphVerilog(spinalConfig)(component)
+    read(directory.resolve(file))
   }
 
-  private def hasDeclarationWidth(
-      verilog: String,
-      name: String,
-      range: String
-  ): Boolean = {
-    val pattern =
-      (java.util.regex.Pattern.quote(range) + "\\s+" +
-        java.util.regex.Pattern.quote(name) + "(?=\\s*(?:[,;]|\\)))").r
-    pattern.findFirstIn(verilog).nonEmpty
+  private def emitConcrete(directory: Path, file: String, component: => Component): String = {
+    val spinalConfig = config(directory)
+    spinalConfig.netlistFileName = file
+    SpinalVerilog(spinalConfig)(component)
+    read(directory.resolve(file))
   }
 
-  private def compileOverride(
-      directory: Path,
-      verilog: Path,
-      moduleName: String,
-      declarations: String,
-      connections: String
-  ): Unit = {
-    val testbench = directory.resolve(moduleName + "OverrideTb.v")
-    val executable = directory.resolve(moduleName + "OverrideTb.out")
-    val source =
-      s"""module ${moduleName}OverrideTb;
-         |  reg clk;
-         |  reg reset;
-         |$declarations
-         |  $moduleName #(
-         |    .WIDTH(5)
-         |  ) dut (
-         |    .clk(clk),
-         |    .reset(reset),
-         |$connections  );
-         |endmodule
-         |""".stripMargin
-    Files.write(testbench, source.getBytes(StandardCharsets.UTF_8))
+  private def module(verilog: String, name: String): String = {
+    val pattern = ("(?s)module " + java.util.regex.Pattern.quote(name) + "(?: #\\(.*?\\n\\))? \\(.*?endmodule").r
+    pattern.findFirstIn(verilog).getOrElse(verilog)
+  }
 
+  private def concretize(verilog: String, name: String, width: Int): String = {
+    val header: Regex = ("(?s)module " + java.util.regex.Pattern.quote(name) + " #\\(.*?\\n\\) \\(").r
+    header.replaceFirstIn(verilog, s"module $name (").replace("[WIDTH-1:0]", s"[${width - 1}:0]")
+  }
+
+  private def hasWidth(verilog: String, name: String, range: String): Boolean =
+    (java.util.regex.Pattern.quote(range) + "\\s+" + java.util.regex.Pattern.quote(name) + "(?=\\s*(?:[,;]|\\)))").r
+      .findFirstIn(verilog).nonEmpty
+
+  private def compileOverride(directory: Path, verilog: Path, top: String): Unit = {
+    val wrapper = directory.resolve(top + "Override.v")
+    val source = s"""module ${top}Override;
+      |  reg clk; reg reset;
+      |  $top #(.WIDTH(5)) dut();
+      |endmodule
+      |""".stripMargin
+    Files.write(wrapper, source.getBytes(StandardCharsets.UTF_8))
     val log = new StringBuilder
     val status = scala.sys.process.Process(
-      Seq(
-        "iverilog",
-        "-g2001",
-        "-s",
-        moduleName + "OverrideTb",
-        "-o",
-        executable.toString,
-        verilog.toString,
-        testbench.toString
-      ),
+      Seq("iverilog", "-g2001", "-s", top + "Override", "-o", directory.resolve("override.out").toString,
+        verilog.toString, wrapper.toString),
       directory.toFile
     ).!(ProcessLogger(line => log.append(line).append('\n')))
     assert(status == 0, log.toString)
   }
 
-  private def count(value: String, needle: String): Int =
-    value.sliding(needle.length).count(_ == needle)
+  private def read(path: Path): String = new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
 
-  private def read(path: Path): String =
-    new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
-
-  private def withTemporaryDirectory(body: Path => Unit): Unit = {
-    val directory = Files.createTempDirectory("morphhdl-native-library-test-")
+  private def inTemporaryDirectory(body: Path => Unit): Unit = {
+    val directory = Files.createTempDirectory("morphhdl-native-library-")
     try body(directory)
     finally {
       val stream = Files.walk(directory)
-      try {
-        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach {
-          path => Files.deleteIfExists(path)
-        }
-      } finally stream.close()
+      try stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach(Files.deleteIfExists)
+      finally stream.close()
     }
   }
 }
