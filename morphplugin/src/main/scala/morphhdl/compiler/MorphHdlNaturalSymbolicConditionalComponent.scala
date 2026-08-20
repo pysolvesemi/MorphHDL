@@ -9,9 +9,9 @@ import scala.tools.nsc.plugins.PluginComponent
   * Parser bridge for natural Scala `if` syntax with explicit MorphHDL symbolic operands.
   *
   * This phase intentionally runs before typer because a raw Scala `if` requires Boolean and
-  * therefore an `HdlBool` condition would otherwise be rejected before overload resolution can
-  * reach NaturalSymbolicConditional.select. To preserve ordinary Scala control flow, the bridge
-  * rewrites only conditions that reference identifiers explicitly declared as HdlBool or HdlInt.
+  * therefore an `HdlBool` condition would otherwise be rejected before the typed MorphHDL
+  * bridge can see it. To preserve ordinary Scala control flow, the bridge rewrites only
+  * conditions that reference identifiers explicitly declared as HdlBool or HdlInt.
   */
 final class MorphHdlNaturalSymbolicConditionalComponent(val global: Global) extends PluginComponent {
   import global._
@@ -68,7 +68,7 @@ final class MorphHdlNaturalSymbolicConditionalComponent(val global: Global) exte
     val morphhdl = Select(root, TermName("morphhdl"))
     val frontend = Select(morphhdl, TermName("frontend"))
     val helper = Select(frontend, TermName("NaturalSymbolicConditional"))
-    Select(helper, TermName("select"))
+    Select(helper, TermName("selectSymbolic"))
   }
 
   private final class NaturalIfTransformer(symbolicNames: Set[TermName]) extends Transformer {
