@@ -11,15 +11,15 @@ package object frontend {
     * SpinalHDL factories.
     */
   def Bits(width: ParameterizedBitCount): spinal.core.Bits =
-    ParameterizedWidth.Bits(width)
+    ExternalFormalParameterRegistry.attach(ParameterizedWidth.Bits(width), width)
   def Bits(width: BitCount): spinal.core.Bits = spinal.core.Bits(width)
 
   def UInt(width: ParameterizedBitCount): spinal.core.UInt =
-    ParameterizedWidth.UInt(width)
+    ExternalFormalParameterRegistry.attach(ParameterizedWidth.UInt(width), width)
   def UInt(width: BitCount): spinal.core.UInt = spinal.core.UInt(width)
 
   def SInt(width: ParameterizedBitCount): spinal.core.SInt =
-    ParameterizedWidth.SInt(width)
+    ExternalFormalParameterRegistry.attach(ParameterizedWidth.SInt(width), width)
   def SInt(width: BitCount): spinal.core.SInt = spinal.core.SInt(width)
 
   def cloneOf[T <: Data](data: T): T = ParameterizedWidth.cloneOf(data)
@@ -28,6 +28,37 @@ package object frontend {
   def Reg[T <: Data](dataType: => T): T = ParameterizedWidth.Reg(dataType)
   def Vec[T <: Data](dataType: => T, size: Int): spinal.core.Vec[T] =
     ParameterizedWidth.Vec(dataType, size)
+
+  private val DefaultFormalPackedWidthMaximum = BigInt(4096)
+
+  /**
+    * Declare one deterministic child-definition formal while retaining the
+    * supplied expression as this child instance's parent-scope actual.
+    *
+    * The short form uses MorphHDL's portable default packed-width domain
+    * `[1, 4096]`, matching the default SpinalConfig bit-vector limit. Use the
+    * bounded overload when the child contract is intentionally narrower.
+    */
+  def formalParam(actual: HdlInt, name: String)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): HdlInt =
+    HdlInt.formal(
+      actual,
+      name,
+      minimum = BigInt(1),
+      maximum = DefaultFormalPackedWidthMaximum,
+      origin = SourceOrigin.capture
+    )
+
+  /** Explicitly bounded child-definition formal parameter. */
+  def formalParam(
+      actual: HdlInt,
+      name: String,
+      minimum: BigInt,
+      maximum: BigInt
+  )(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
+    HdlInt.formal(actual, name, minimum, maximum, SourceOrigin.capture)
 
   implicit def intToHdlInt(value: Int)(implicit
       file: sourcecode.File,

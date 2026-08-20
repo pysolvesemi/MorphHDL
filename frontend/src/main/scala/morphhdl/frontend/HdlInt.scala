@@ -27,7 +27,10 @@ import morphhdl.paramrtl.IntExpr.{
 }
 import morphhdl.paramrtl.{IntConstraint, IntExpr, IntegerLocalParameter, IntegerParameter}
 import spinal.core.{
+  Component,
   ElaborationIntegerParameter,
+  ExternalFormalParameterBinding,
+  ExternalFormalParameterRegistry,
   ParameterizedBitCount,
   ParameterizedMemoryDepth
 }
@@ -42,7 +45,8 @@ final class HdlInt private[frontend] (
     private[frontend] val localParameters: Set[LocalParameterToken],
     private[frontend] val booleanLocalParameters: Set[BooleanLocalParameterToken],
     private[frontend] val scope: Option[ScopeToken],
-    private[frontend] val origin: SourceOrigin
+    private[frontend] val origin: SourceOrigin,
+    private[frontend] val formalBinding: Option[ExternalFormalParameterBinding] = None
 ) extends scala.math.ScalaNumber {
   /**
     * Supply the concrete witness to ordinary SpinalHDL while retaining either
@@ -60,7 +64,7 @@ final class HdlInt private[frontend] (
         if (
           value != witness || parameters.nonEmpty || booleanParameters.nonEmpty ||
           localDeclaration.nonEmpty || localParameters.nonEmpty ||
-          booleanLocalParameters.nonEmpty || scope.nonEmpty
+          booleanLocalParameters.nonEmpty || scope.nonEmpty || formalBinding.nonEmpty
         ) {
           FrontendException.failAt(
             "MORPH-FRONTEND-SPINAL-WIDTH-PROVENANCE-UNSUPPORTED",
@@ -124,7 +128,7 @@ final class HdlInt private[frontend] (
             useOrigin
           )
         }
-        ParameterizedBitCount(
+        val width = ParameterizedBitCount(
           parameter.default.toInt,
           parameter = Some(
             ElaborationIntegerParameter(
@@ -136,7 +140,18 @@ final class HdlInt private[frontend] (
           ),
           sourceLocation = Some(useOrigin.rendered)
         )
+        formalBinding match {
+          case Some(binding) => ExternalFormalParameterRegistry.retain(width, binding)
+          case None          => width
+        }
       case _ =>
+        if (formalBinding.nonEmpty) {
+          FrontendException.failAt(
+            "MORPH-FRONTEND-FORMAL-PARAMETER-NOT-DIRECT",
+            "a formal packed-width slot must remain one direct explicit formal parameter",
+            useOrigin
+          )
+        }
         val retained = StructuralExpressionBridge.width(
           this,
           "SpinalHDL packed width"
@@ -568,6 +583,105 @@ object HdlInt {
       booleanLocalParameters = Set.empty,
       scope = None,
       origin = token.origin
+    )
+  }
+
+  private[frontend] def formal(
+      actual: HdlInt,
+      name: String,
+      minimum: BigInt,
+      maximum: BigInt,
+      origin: SourceOrigin
+  ): HdlInt = {
+    if (actual eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-FORMAL-PARAMETER-ACTUAL-NULL",
+        "formalParam requires one non-null instance actual expression",
+        origin
+      )
+    }
+    if (
+      name == null ||
+      !PortableIdentifier.pattern.matcher(name).matches()
+    ) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-FORMAL-PARAMETER-NAME-INVALID",
+        s"formal parameter name '$name' is not a portable Verilog identifier",
+        origin
+      )
+    }
+    if (minimum < 1 || maximum < minimum || maximum > BigInt(Int.MaxValue)) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-FORMAL-PARAMETER-DOMAIN-INVALID",
+        s"formal parameter '$name' requires a positive non-empty Int-sized domain, received [$minimum, $maximum]",
+        origin
+      )
+    }
+    if (actual.formalBinding.nonEmpty) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-FORMAL-PARAMETER-NESTED",
+        s"formal parameter '$name' cannot use another component-definition formal as its instance actual",
+        origin
+      )
+    }
+
+    actual.requireLoopInvariant(s"formal parameter '$name' actual")
+    val owner = Option(Component.current).getOrElse {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-FORMAL-PARAMETER-OWNER-MISSING",
+        s"formal parameter '$name' must be declared inside one active Component definition",
+        origin
+      )
+    }
+    val ownerClassName = owner.getClass.getName
+    val retainedActual = StructuralExpressionBridge.width(
+      actual,
+      s"formal parameter '$name' actual"
+    )
+    if (
+      retainedActual.default != actual.witness ||
+      retainedActual.minimum < minimum || retainedActual.maximum > maximum ||
+      retainedActual.minimum < 1 || retainedActual.maximum < retainedActual.minimum ||
+      !retainedActual.default.isValidInt
+    ) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-FORMAL-PARAMETER-ACTUAL-DOMAIN-UNSUPPORTED",
+        s"actual expression '${retainedActual.verilog}' in [${retainedActual.minimum}, ${retainedActual.maximum}] with default ${retainedActual.default} is incompatible with formal '$name' in [$minimum, $maximum]",
+        origin
+      )
+    }
+
+    val declaration = IntegerParameter(
+      name,
+      retainedActual.default,
+      Vector[IntConstraint](MinInclusive(minimum), MaxInclusive(maximum))
+    )
+    val token = new ParameterToken(declaration, origin)
+    val formal = ElaborationIntegerParameter(
+      name,
+      retainedActual.default,
+      minimum,
+      maximum
+    )
+    val binding = ExternalFormalParameterBinding(
+      formal = formal,
+      actual = retainedActual,
+      declarationKey = s"$ownerClassName@${origin.rendered}::$name",
+      ownerClassName = ownerClassName,
+      sourceLocation = Some(origin.rendered)
+    )
+    new HdlInt(
+      retainedActual.default,
+      ParameterRef(name),
+      declaration = Some(token),
+      parameters = Set(token),
+      booleanParameters = Set.empty,
+      localDeclaration = None,
+      localParameters = Set.empty,
+      booleanLocalParameters = Set.empty,
+      scope = None,
+      origin = origin,
+      formalBinding = Some(binding)
     )
   }
 

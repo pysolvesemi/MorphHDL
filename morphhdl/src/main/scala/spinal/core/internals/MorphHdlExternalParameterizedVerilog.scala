@@ -35,6 +35,20 @@ object MorphHdlExternalParameterizedVerilog {
       parameters: Vector[ElaborationIntegerParameter]
   )
 
+  private final case class FormalPort(
+      name: String,
+      binding: ExternalFormalParameterBinding
+  )
+
+  private final case class FormalSlot(
+      name: String,
+      formal: ElaborationIntegerParameter,
+      declarationKey: String,
+      ownerClassName: String,
+      ports: Vector[String],
+      sourceLocation: Option[String]
+  )
+
   def rewrite(pc: PhaseContext): Unit = {
     if (!pc.config.parameterizedVerilog) return
     if (pc.config.oneFilePerComponent) {
@@ -73,8 +87,10 @@ object MorphHdlExternalParameterizedVerilog {
 
     val components = componentGraph(top)
     components.foreach(ExternalParameterizedMemoryRegistry.discover)
+    validateFormalDeclarations(components)
     val groups = components.groupBy(componentName)
     val canonicalByName = groups.toVector.map { case (name, candidates) =>
+      validateFormalCanonicalGroup(name, candidates)
       val schemas = candidates.map(componentSchema).distinct
       if (schemas.size != 1) {
         fail(
@@ -194,6 +210,190 @@ object MorphHdlExternalParameterizedVerilog {
         "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-DEFINITION-NAME-MISSING",
         s"native component ${component.getClass.getName} has no definition name"
       )
+    }
+
+  /**
+    * Validate source-stable formal declarations across the complete concrete
+    * component graph before native module-name grouping. This catches a changed
+    * default or explicit domain even when the ordinary emitter specialized the
+    * unequal concrete witnesses under different native definition names.
+    */
+  private def validateFormalDeclarations(components: Vector[Component]): Unit = {
+    val declarations = components.flatMap(formalPorts)
+      .groupBy(_.binding.declarationKey)
+    declarations.foreach { case (key, occurrences) =>
+      val names = occurrences.map(_.binding.formal.name).distinct
+      if (names.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS",
+          s"formal declaration identity '$key' maps to multiple names: ${names.sorted.mkString(", ")}",
+          occurrences.flatMap(_.binding.sourceLocation).headOption
+        )
+      }
+      val name = names.head
+      val defaults = occurrences.map(_.binding.formal.default).distinct
+      if (defaults.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-DEFAULT-CONFLICT",
+          s"formal declaration '$name' has incompatible defaults ${defaults.sorted.mkString(", ")} across component instances",
+          occurrences.flatMap(_.binding.sourceLocation).headOption
+        )
+      }
+      val domains = occurrences.map { value =>
+        value.binding.formal.minimum -> value.binding.formal.maximum
+      }.distinct
+      if (domains.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-DOMAIN-CONFLICT",
+          s"formal declaration '$name' has incompatible domains ${domains.sortBy(identity).map { case (minimum, maximum) => s"[$minimum, $maximum]" }.mkString(", ")} across component instances",
+          occurrences.flatMap(_.binding.sourceLocation).headOption
+        )
+      }
+      val owners = occurrences.map(_.binding.ownerClassName).distinct
+      if (owners.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+          s"formal declaration '$name' identity '$key' maps to multiple component-definition owners",
+          occurrences.flatMap(_.binding.sourceLocation).headOption
+        )
+      }
+    }
+  }
+
+  /**
+    * Prove that every concrete instance mapped to one native module identity
+    * exposes the same explicit formal slots. Instance actual expressions are
+    * intentionally excluded from this canonical schema comparison.
+    */
+  private def validateFormalCanonicalGroup(
+      definitionName: String,
+      candidates: Vector[Component]
+  ): Unit = {
+    val slotsByCandidate = candidates.map(componentFormalSlots)
+    val slotNames = slotsByCandidate.map(_.map(_.name).toSet).distinct
+    if (slotNames.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-LAYOUT-CONFLICT",
+        s"native module identity '$definitionName' maps to incompatible explicit formal slot sets"
+      )
+    }
+
+    slotNames.headOption.getOrElse(Set.empty).toVector.sorted.foreach { name =>
+      val slots = slotsByCandidate.map(_.find(_.name == name).get)
+      val defaults = slots.map(_.formal.default).distinct
+      if (defaults.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-DEFAULT-CONFLICT",
+          s"formal slot '$name' of native module '$definitionName' has incompatible defaults ${defaults.sorted.mkString(", ")}",
+          slots.flatMap(_.sourceLocation).headOption
+        )
+      }
+      val domains = slots.map(slot => slot.formal.minimum -> slot.formal.maximum).distinct
+      if (domains.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-DOMAIN-CONFLICT",
+          s"formal slot '$name' of native module '$definitionName' has incompatible domains ${domains.sortBy(identity).map { case (minimum, maximum) => s"[$minimum, $maximum]" }.mkString(", ")}",
+          slots.flatMap(_.sourceLocation).headOption
+        )
+      }
+      if (slots.map(_.declarationKey).distinct.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+          s"formal slot '$name' of native module '$definitionName' was declared at multiple deterministic source identities",
+          slots.flatMap(_.sourceLocation).headOption
+        )
+      }
+      if (slots.map(_.ownerClassName).distinct.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+          s"formal slot '$name' of native module '$definitionName' maps to multiple component-definition owners",
+          slots.flatMap(_.sourceLocation).headOption
+        )
+      }
+      if (slots.map(_.ports).distinct.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-LAYOUT-CONFLICT",
+          s"formal slot '$name' of native module '$definitionName' is exposed on incompatible packed-port sets",
+          slots.flatMap(_.sourceLocation).headOption
+        )
+      }
+    }
+  }
+
+  private def componentFormalSlots(component: Component): Vector[FormalSlot] = {
+    val grouped = formalPorts(component).groupBy(_.binding.formal.name)
+    grouped.toVector.map { case (name, occurrences) =>
+      val keys = occurrences.map(_.binding.declarationKey).distinct
+      if (keys.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-DUPLICATE-DECLARATION",
+          s"component '${componentName(component)}' declares formal slot '$name' through ${keys.size} explicit formalParam call sites",
+          occurrences.flatMap(_.binding.sourceLocation).headOption
+        )
+      }
+      val schemas = occurrences.map(_.binding.formal).distinct
+      if (schemas.map(_.default).distinct.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-DEFAULT-CONFLICT",
+          s"component '${componentName(component)}' declares incompatible defaults for formal slot '$name'",
+          occurrences.flatMap(_.binding.sourceLocation).headOption
+        )
+      }
+      if (schemas.map(value => value.minimum -> value.maximum).distinct.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-DOMAIN-CONFLICT",
+          s"component '${componentName(component)}' declares incompatible domains for formal slot '$name'",
+          occurrences.flatMap(_.binding.sourceLocation).headOption
+        )
+      }
+      if (schemas.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS",
+          s"component '${componentName(component)}' has an ambiguous schema for formal slot '$name'",
+          occurrences.flatMap(_.binding.sourceLocation).headOption
+        )
+      }
+      val actuals = occurrences.map(value =>
+        ExternalFormalParameterRegistry.normalizedExpression(value.binding.actual)
+      ).distinct
+      if (actuals.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS",
+          s"component '${componentName(component)}' maps formal slot '$name' to multiple instance actual expressions: ${actuals.map(_.verilog).sorted.mkString(", ")}",
+          occurrences.flatMap(_.binding.sourceLocation).headOption
+        )
+      }
+      val owners = occurrences.map(_.binding.ownerClassName).distinct
+      if (owners.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+          s"component '${componentName(component)}' maps formal slot '$name' to multiple definition owners",
+          occurrences.flatMap(_.binding.sourceLocation).headOption
+        )
+      }
+      FormalSlot(
+        name = name,
+        formal = schemas.head,
+        declarationKey = keys.head,
+        ownerClassName = owners.head,
+        ports = occurrences.map(_.name).distinct.sorted,
+        sourceLocation = occurrences.flatMap(_.binding.sourceLocation).headOption
+      )
+    }.sortBy(_.name)
+  }
+
+  private def formalPorts(component: Component): Vector[FormalPort] =
+    component.getOrdredNodeIo.toVector.filterNot(_.isSuffix).flatMap { port =>
+      ExternalFormalParameterRegistry.bindingOf(port).map { binding =>
+        val name = Option(port.getName()).filter(_.nonEmpty).getOrElse {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-PORT-NAME-MISSING",
+            s"component '${componentName(component)}' has one unnamed formal packed port",
+            binding.sourceLocation
+          )
+        }
+        FormalPort(name, binding)
+      }
     }
 
   private def componentSchema(component: Component): ComponentSchema = {
@@ -369,6 +569,10 @@ object MorphHdlExternalParameterizedVerilog {
     } finally Files.deleteIfExists(temporary)
   }
 
-  private def fail(code: String, detail: String): Nothing =
-    ParameterizedVerilogException.fail(code, detail)
+  private def fail(
+      code: String,
+      detail: String,
+      sourceLocation: Option[String] = None
+  ): Nothing =
+    ParameterizedVerilogException.fail(code, detail, sourceLocation)
 }
