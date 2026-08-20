@@ -199,10 +199,6 @@ lazy val morph = (project in file("morphhdl"))
   .dependsOn(core, frontend, verilogBackend, lib % "test->compile")
   .settings(
     defaultSettingsWithPlugin,
-    scalacOptions += {
-      val file = (morphplugin / Compile / packageBin).value
-      s"-Xplugin:${file.getAbsolutePath}"
-    },
     Test / scalacOptions += {
       val file = (morphplugin / Compile / packageBin).value
       s"-Xplugin:${file.getAbsolutePath}"
