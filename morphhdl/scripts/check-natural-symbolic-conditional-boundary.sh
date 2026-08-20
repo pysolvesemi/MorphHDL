@@ -10,7 +10,16 @@ for path in "$@"; do
       ;;
   esac
 done
-if grep -RInE 'implicit[[:space:]]+(def|val|object).*HdlBool.*Boolean|implicit[[:space:]]+conversion.*HdlBool' frontend/src/main/scala morphplugin/src/main/scala; then
-  echo 'Implicit HdlBool-to-Boolean witness conversion is forbidden' >&2
-  exit 1
-fi
+python3 <<'PY'
+from pathlib import Path
+import re
+pattern = re.compile(
+    r'implicit\s+def\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*:\s*HdlBool\b[^)]*\)'
+    r'\s*(?:\([^)]*\)\s*)*:\s*Boolean\b',
+    re.S,
+)
+for root in (Path('frontend/src/main/scala'), Path('morphplugin/src/main/scala')):
+    for path in root.rglob('*.scala'):
+        if pattern.search(path.read_text()):
+            raise SystemExit(f'Implicit HdlBool-to-Boolean witness conversion is forbidden: {path}')
+PY
