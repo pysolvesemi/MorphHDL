@@ -1,14 +1,16 @@
 name: Apply Increment 44 focused fix
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/increment-44-native-counter-stream-flow-reuse
-    paths:
-      - .github/workflows/morphhdl-external-symbolic-width.yml
+      - parameterized-verilog
 
 permissions:
   contents: write
+
+concurrency:
+  group: apply-increment-44-focused-fix
+  cancel-in-progress: false
 
 jobs:
   apply:
@@ -17,6 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: agent/increment-44-native-counter-stream-flow-reuse
           fetch-depth: 0
       - name: Apply reviewed fix and restore workflow
         shell: bash
