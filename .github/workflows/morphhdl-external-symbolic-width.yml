@@ -57,14 +57,61 @@ jobs:
           chmod +x /tmp/morphhdl-mill
 
       - name: Validate external width and data-shape contracts
+        id: validate
+        continue-on-error: true
         shell: bash
         run: |
-          /tmp/morphhdl-mill frontend[${{ matrix.scala_version }}].testOnly \
-            morphhdl.frontend.HdlIntTests
-          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
-            spinal.core.internals.ParameterizedVerilogTests \
-            spinal.core.internals.ParameterizedDataShapeTests \
-            morphhdl.MorphSingleSourceVerilogTests \
-            morphhdl.NativeLibraryReuseTests \
-            morphhdl.NativeSymbolicMemoryTests \
-            morphhdl.ParameterizedStreamFifoDepthTests
+          set -uo pipefail
+          diagnostics=/tmp/increment-44-diagnostics.txt
+          : > "$diagnostics"
+
+          run_logged() {
+            label="$1"
+            shift
+            log="/tmp/increment-44-${label}.log"
+            echo "===== ${label} =====" >> "$diagnostics"
+            set +e
+            "$@" > "$log" 2>&1
+            status=$?
+            set -e
+            if [ "$status" -eq 0 ]; then
+              echo "PASS" >> "$diagnostics"
+              return 0
+            fi
+            echo "FAIL status=${status}" >> "$diagnostics"
+            grep -n -E -C 5 '\[error\]|error:|Compilation failed|type mismatch|not found:|Exception|AssertionError|FAILED|FAIL:' "$log" \
+              | tail -n 300 >> "$diagnostics" || true
+            echo "----- final log lines -----" >> "$diagnostics"
+            tail -n 160 "$log" >> "$diagnostics"
+            return "$status"
+          }
+
+          status=0
+          run_logged frontend \
+            /tmp/morphhdl-mill frontend[${{ matrix.scala_version }}].testOnly \
+              morphhdl.frontend.HdlIntTests || status=$?
+          if [ "$status" -eq 0 ]; then
+            run_logged morph \
+              /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+                spinal.core.internals.ParameterizedVerilogTests \
+                spinal.core.internals.ParameterizedDataShapeTests \
+                morphhdl.MorphSingleSourceVerilogTests \
+                morphhdl.NativeLibraryReuseTests \
+                morphhdl.NativeSymbolicMemoryTests \
+                morphhdl.ParameterizedStreamFifoDepthTests || status=$?
+          fi
+          exit "$status"
+
+      - name: Upload Increment 44 diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-44-focused-${{ matrix.scala_version }}
+          path: /tmp/increment-44-diagnostics.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Propagate validation failure
+        if: steps.validate.outcome == 'failure'
+        shell: bash
+        run: exit 1
