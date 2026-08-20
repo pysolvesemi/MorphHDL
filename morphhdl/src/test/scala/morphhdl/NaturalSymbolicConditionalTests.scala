@@ -10,14 +10,14 @@ import morphhdl.frontend._
 object NaturalSymbolicConditionalSmoke {
   final class Sink extends Component {
     setDefinitionName("NaturalConditionalSink")
-    val din = in(Bits(8 bits))
+    val din = in(spinal.core.Bits(8 bits))
     val observed = out(Bool())
     observed := din.orR
   }
 
   final class Top(width: HdlInt, enabled: HdlBool) extends Component {
     setDefinitionName("NaturalSymbolicConditionalTop")
-    val din = in(Bits(8 bits))
+    val din = in(spinal.core.Bits(8 bits))
     val alive = out(Bool())
     alive := din.orR
 
@@ -27,8 +27,8 @@ object NaturalSymbolicConditionalSmoke {
     else if (width > 8) attach(~din)
     else attach(din)
 
-    private def attach(value: Bits): Unit = {
-      val branch = Bits(8 bits)
+    private def attach(value: spinal.core.Bits): Unit = {
+      val branch = spinal.core.Bits(8 bits)
       branch := value
       val sink = new Sink
       sink.din := branch
