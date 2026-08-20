@@ -60,9 +60,7 @@ jobs:
           mkdir -p /tmp/offline/bin /tmp/offline/home /tmp/offline/source
           cp "$(command -v sbt)" /tmp/offline/bin/sbt
           cp /tmp/morphhdl-mill /tmp/offline/bin/morphhdl-mill
-          cp -a /root/.cache /tmp/offline/home/cache
-          if test -d /root/.ivy2; then cp -a /root/.ivy2 /tmp/offline/home/ivy2; fi
-          if test -d /root/.sbt; then cp -a /root/.sbt /tmp/offline/home/sbt; fi
+          cp -a /sbt /tmp/offline/sbt-home
           cp -a /tmp/morphhdl-cache /tmp/offline/home/xdg-cache
           git archive --format=tar 81abd25518551b8a452ecf038e409331e646f726 | tar -xf - -C /tmp/offline/source
           printf '%s\n' '81abd25518551b8a452ecf038e409331e646f726' > /tmp/offline/source/MORPHDL_COMMIT
