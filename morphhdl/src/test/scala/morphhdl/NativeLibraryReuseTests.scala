@@ -85,6 +85,17 @@ class NativeLibraryReuseTests extends AnyFunSuite {
     fifo.io.flush := flush
   }
 
+  private final class NativeCounterUnsafeExternalAssignment(width: HdlInt) extends Component {
+    setDefinitionName("NativeCounterUnsafeExternalAssignment")
+
+    val forcedNext = in(UInt(8 bits))
+    val count = out(morphhdl.frontend.UInt(width bits))
+
+    val counter = MorphCounter(width bits)
+    counter.valueNext := forcedNext
+    count := counter.value
+  }
+
   test("native Counter, Stream and Flow retain symbolic geometry externally") {
     inTemporaryDirectory { directory =>
       val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
@@ -104,6 +115,20 @@ class NativeLibraryReuseTests extends AnyFunSuite {
       assert(!parameterized.contains("ParamRTL"))
       compileOverride(directory, directory.resolve("native_counter_pipes.v"), "NativeCounterAndPipes")
       simulateCounterOverride(directory, directory.resolve("native_counter_pipes.v"))
+    }
+  }
+
+  test("native Counter provenance excludes later user-authored width crossings") {
+    inTemporaryDirectory { directory =>
+      val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
+      val failure = intercept[MorphVerilogException] {
+        emitMorph(
+          directory,
+          "native_counter_unsafe_external_assignment.v",
+          new NativeCounterUnsafeExternalAssignment(width)
+        )
+      }
+      assert(failure.getMessage.contains("SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH"))
     }
   }
 

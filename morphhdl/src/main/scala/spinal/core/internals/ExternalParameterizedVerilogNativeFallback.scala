@@ -685,7 +685,16 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 if assignment.target == target && assignment.source.isInstanceOf[WidthProvider] =>
               val targetWidth = widthInference.ofBase(target)
               val sourceWidth = widthInference.ofExpression(assignment.source)
-              if (targetWidth.isSymbolic && sourceWidth.isSymbolic && targetWidth != sourceWidth) {
+              val nativeCounterNext = isNativeCounterNextAssignment(
+                assignment,
+                target,
+                targetWidth,
+                sourceWidth
+              )
+              if (
+                targetWidth.isSymbolic && sourceWidth.isSymbolic &&
+                targetWidth != sourceWidth && !nativeCounterNext
+              ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
                   s"assignment to '${target.getName()}' crosses symbolic width expressions '${targetWidth.render}' and '${sourceWidth.render}'",
@@ -694,7 +703,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               }
               if (
                 targetWidth.isSymbolic && !sourceWidth.isSymbolic &&
-                !isUnfixedLiteral(assignment.source)
+                !isUnfixedLiteral(assignment.source) && !nativeCounterNext
               ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
@@ -707,6 +716,35 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         }
       }
     }
+
+    /**
+      * Native Counter elaboration intentionally uses the concrete witness width
+      * in its arithmetic and zero-valued clear path. Accept that widening only
+      * for statements captured by exact object identity at Counter construction;
+      * user-authored assignments to the public valueNext signal are not covered.
+      */
+    private def isNativeCounterNextAssignment(
+        assignment: DataAssignmentStatement,
+        target: BitVector,
+        targetWidth: WidthExpr,
+        sourceWidth: WidthExpr
+    ): Boolean =
+      spinal.lib.ExternalParameterizedCounterRegistry
+        .nativeNextAssignmentWidthOf(target, assignment)
+        .exists { expression =>
+          val retained = WidthRetained(
+            expression.verilog,
+            expression.default,
+            expression.minimum,
+            expression.maximum,
+            expression.parameters.distinct.sortBy(_.name)
+          )
+          targetWidth == retained &&
+          sourceWidth.default == targetWidth.default &&
+          sourceWidth.minimum >= targetWidth.minimum &&
+          sourceWidth.maximum <= targetWidth.maximum &&
+          sourceWidth.parameters.forall(targetWidth.parameters.contains)
+        }
 
     private def isUnfixedLiteral(expression: Expression): Boolean =
       expression match {

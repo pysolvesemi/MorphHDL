@@ -5,6 +5,7 @@ import java.lang.ref.{ReferenceQueue, WeakReference}
 import scala.collection.mutable
 
 import spinal.core._
+import spinal.core.internals.DataAssignmentStatement
 
 /** Weak key with native Counter object-identity semantics. */
 private[lib] final class ExternalCounterIdentityRef(
@@ -29,7 +30,8 @@ private[lib] final class ExternalCounterIdentityRef(
 /** Symbolic geometry retained beside one ordinary native full-range Counter. */
 final case class ExternalParameterizedCounterMetadata(
     width: ElaborationIntegerExpression,
-    sourceLocation: Option[String]
+    sourceLocation: Option[String],
+    private[spinal] nativeNextAssignments: Vector[DataAssignmentStatement]
 )
 
 /**
@@ -94,6 +96,13 @@ object ExternalParameterizedCounterRegistry {
     if (width.value < 1)
       throw new IllegalArgumentException("symbolic Counter bit count must be positive")
 
+    require(
+      counter.direction == CounterDirection.Up &&
+        counter.upper == BoundaryPolicy.Wrap &&
+        counter.lower == BoundaryPolicy.Wrap && counter.handleOverflow,
+      "external symbolic Counter retention supports the native Counter(BitCount) profile only"
+    )
+
     val expectedEnd = (BigInt(1) << width.value) - 1
     require(
       counter.start == 0 && counter.end == expectedEnd,
@@ -105,9 +114,23 @@ object ExternalParameterizedCounterRegistry {
       "native Counter witness width does not match the retained symbolic width default"
     )
 
+    val nativeNextAssignments = mutable.ArrayBuffer.empty[DataAssignmentStatement]
+    counter.valueNext.foreachStatements {
+      case assignment: DataAssignmentStatement
+          if assignment.target == counter.valueNext &&
+            assignment.finalTarget == counter.valueNext =>
+        nativeNextAssignments += assignment
+      case _ =>
+    }
+    require(
+      nativeNextAssignments.nonEmpty,
+      "native Counter did not expose its expected next-value assignments"
+    )
+
     val metadata = ExternalParameterizedCounterMetadata(
       expressionOf(width),
-      width.sourceLocation
+      width.sourceLocation,
+      nativeNextAssignments.toVector
     )
     synchronized {
       reap()
@@ -127,6 +150,29 @@ object ExternalParameterizedCounterRegistry {
     else {
       reap()
       retained.get(new ExternalCounterIdentityRef(counter, null))
+    }
+  }
+
+  /**
+    * Return the retained width only when `assignment` is one of the exact
+    * next-value statements created by the untouched native Counter constructor.
+    * Statements added by callers after construction are deliberately excluded.
+    */
+  private[spinal] def nativeNextAssignmentWidthOf(
+      data: BaseType,
+      assignment: DataAssignmentStatement
+  ): Option[ElaborationIntegerExpression] = synchronized {
+    if (data == null || assignment == null) None
+    else {
+      reap()
+      retained.iterator.collectFirst {
+        case (reference, metadata) if {
+              val counter = reference.get()
+              counter != null && (counter.valueNext eq data) &&
+                metadata.nativeNextAssignments.exists(_ eq assignment)
+            } =>
+          metadata.width
+      }
     }
   }
 
