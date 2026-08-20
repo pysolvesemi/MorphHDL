@@ -51,12 +51,14 @@ jobs:
           sbt --batch --no-server \
             'idslpayload/exportClasspathBundle' \
             'idslplugin/exportClasspathBundle' \
+            'sim/exportClasspathBundle' \
             'core/exportClasspathBundle' \
             'lib/exportClasspathBundle' \
             'morph/exportClasspathBundle'
 
           test -f export-classpath/idslpayload/idslpayload.jar
           test -f export-classpath/idslplugin/idslplugin.jar
+          test -f export-classpath/sim/sim.jar
           test -f export-classpath/core/core.jar
           test -f export-classpath/lib/lib.jar
           test -f export-classpath/morph/morph.jar
