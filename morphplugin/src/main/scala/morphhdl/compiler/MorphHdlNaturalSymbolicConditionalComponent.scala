@@ -63,6 +63,19 @@ final class MorphHdlNaturalSymbolicConditionalComponent(val global: Global) exte
     found
   }
 
+  private def unsafeAlternativeEffect(tree: Tree): Option[(Position, String)] = {
+    var finding: Option[(Position, String)] = None
+    object Finder extends Traverser {
+      override def traverse(current: Tree): Unit = if (finding.isEmpty) current match {
+        case Return(_) => finding = Some(current.pos -> "return")
+        case Throw(_)  => finding = Some(current.pos -> "throw")
+        case _         => super.traverse(current)
+      }
+    }
+    Finder.traverse(tree)
+    finding
+  }
+
   private def helperSelect: Tree = {
     val root = Ident(termNames.ROOTPKG)
     val morphhdl = Select(root, TermName("morphhdl"))
@@ -71,12 +84,36 @@ final class MorphHdlNaturalSymbolicConditionalComponent(val global: Global) exte
     Select(helper, TermName("selectSymbolic"))
   }
 
-  private final class NaturalIfTransformer(symbolicNames: Set[TermName]) extends Transformer {
+  private final class NaturalIfTransformer(unit: CompilationUnit, symbolicNames: Set[TermName])
+      extends Transformer {
+    private def reportUnsafe(tree: Tree): Unit =
+      unsafeAlternativeEffect(tree).foreach { case (position, effect) =>
+        global.reporter.error(
+          position,
+          s"MORPHDL-SYMBOLIC-CONDITIONAL-UNSAFE-EFFECT: '$effect' is not supported inside an explicit symbolic alternative"
+        )
+      }
+
     override def transform(tree: Tree): Tree = tree match {
       case original @ If(condition, ifTrue, ifFalse) if referencesSymbolic(condition, symbolicNames) =>
+        reportUnsafe(ifTrue)
+        reportUnsafe(ifFalse)
+        val sourceFile = Option(unit.source)
+          .flatMap(source => Option(source.file))
+          .map(_.path)
+          .filter(_.nonEmpty)
+          .getOrElse("<symbolic-if>")
+        val sourceLine = if (original.pos != null && original.pos.isDefined) math.max(1, original.pos.line) else 1
         val rewritten = Apply(
           Apply(
-            Apply(helperSelect, List(transform(condition))),
+            Apply(
+              helperSelect,
+              List(
+                transform(condition),
+                Literal(Constant(sourceFile)),
+                Literal(Constant(sourceLine))
+              )
+            ),
             List(transform(ifTrue))
           ),
           List(transform(ifFalse))
@@ -90,7 +127,8 @@ final class MorphHdlNaturalSymbolicConditionalComponent(val global: Global) exte
     override def apply(unit: CompilationUnit): Unit =
       if (eligible(unit)) {
         val symbolicNames = declaredSymbolicNames(unit.body)
-        if (symbolicNames.nonEmpty) unit.body = new NaturalIfTransformer(symbolicNames).transform(unit.body)
+        if (symbolicNames.nonEmpty)
+          unit.body = new NaturalIfTransformer(unit, symbolicNames).transform(unit.body)
       }
   }
 }
