@@ -13,6 +13,8 @@ import morphhdl.frontend.{formalParam, HdlInt}
 object FormalParameterIdentitySmoke {
   final class Leaf(actualWidth: HdlInt) extends Component {
     setDefinitionName("FormalIdentityLeaf")
+
+    @dontName
     private val width = formalParam(actualWidth, "WIDTH")
 
     val din = in(morphhdl.frontend.Bits(width bits))
@@ -83,6 +85,8 @@ class FormalParameterIdentityTests extends AnyFunSuite {
   private final class BoundedLeaf(actualWidth: HdlInt, formalMaximum: BigInt)
       extends Component {
     setDefinitionName("FormalBoundedLeaf")
+
+    @dontName
     private val width = formalParam(
       actualWidth,
       "WIDTH",
@@ -118,8 +122,13 @@ class FormalParameterIdentityTests extends AnyFunSuite {
 
   private final class DuplicateFormalLeaf(actualWidth: HdlInt) extends Component {
     setDefinitionName("DuplicateFormalLeaf")
+
+    @dontName
     private val inputWidth = formalParam(actualWidth, "WIDTH")
+
+    @dontName
     private val outputWidth = formalParam(actualWidth, "WIDTH")
+
     val din = in(morphhdl.frontend.Bits(inputWidth bits))
     val dout = out(morphhdl.frontend.Bits(outputWidth bits))
     dout := din
