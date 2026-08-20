@@ -47,7 +47,7 @@ val defaultSettings = Defaults.coreDefaultSettings ++ xerial.sbt.Sonatype.sonaty
       <licenses>
         <license>
           <name>LGPL3</name>
-          <url>https://spdx.org/licenses/LGPL-3.0-or-later.html</url>
+          <url>https://www.gnu.org/licenses/lgpl.html</url>
         </license>
       </licenses>
       <scm>
@@ -58,8 +58,8 @@ val defaultSettings = Defaults.coreDefaultSettings ++ xerial.sbt.Sonatype.sonaty
       <developers>
         <developer>
           <id>Dolu1990</id>
-          <name>SpinalHDL</name>
-          <url>https://github.com/SpinalHDL</url>
+          <name>Dolu1990</name>
+          <url>none</url>
         </developer>
       </developers>
   },
@@ -149,9 +149,6 @@ lazy val frontend = (project in file("frontend"))
     scalacOptions += (idslplugin / Compile / packageBin / artifactPath).map { file =>
       s"-Xplugin:${file.getAbsolutePath}"
     }.value,
-    scalacOptions += (morphplugin / Compile / packageBin / artifactPath).map { file =>
-      s"-Xplugin:${file.getAbsolutePath}"
-    }.value,
     libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.3.0",
     publish / skip := true
   )
@@ -167,9 +164,6 @@ lazy val verilogBackend = (project in file("backends/verilog"))
 
 val defaultSettingsWithPlugin = defaultSettings ++ Seq(
   scalacOptions += (idslplugin / Compile / packageBin / artifactPath).map { file =>
-    s"-Xplugin:${file.getAbsolutePath}"
-  }.value,
-  scalacOptions += (morphplugin / Compile / packageBin / artifactPath).map { file =>
     s"-Xplugin:${file.getAbsolutePath}"
   }.value
 )
@@ -205,6 +199,9 @@ lazy val morph = (project in file("morphhdl"))
   .dependsOn(core, frontend, verilogBackend, lib % "test->compile")
   .settings(
     defaultSettingsWithPlugin,
+    scalacOptions += (morphplugin / Compile / packageBin / artifactPath).map { file =>
+      s"-Xplugin:${file.getAbsolutePath}"
+    }.value,
     name := "MorphHDL-orchestration",
     version := SpinalVersion.core,
     libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.3.0",
