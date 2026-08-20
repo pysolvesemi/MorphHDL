@@ -5,12 +5,12 @@ import scala.reflect.macros.whitebox
 
 /** Typed bridge introduced by the MorphHDL compiler plugin for natural Scala `if` syntax. */
 object NaturalSymbolicConditional {
-  /** Ordinary Scala Boolean remains ordinary witness-selected Scala control flow. */
-  def select[T](condition: Boolean)(ifTrue: => T)(ifFalse: => T): T =
-    if (condition) ifTrue else ifFalse
-
-  /** Explicit HdlBool is proven by overload resolution and captures both hardware alternatives. */
-  def select[T](condition: HdlBool)(ifTrue: => T)(ifFalse: => T): T =
+  /**
+    * Compiler-plugin entry point for an explicitly proven symbolic condition.
+    * Ordinary Scala Boolean conditionals are deliberately left as raw Scala `if`
+    * expressions by the compiler plugin and never pass through this method.
+    */
+  def selectSymbolic[T](condition: HdlBool)(ifTrue: => T)(ifFalse: => T): T =
     macro NaturalSymbolicConditionalMacro.selectSymbolicImpl[T]
 
   private[frontend] def runtime[T](
