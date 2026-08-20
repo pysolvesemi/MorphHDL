@@ -23,7 +23,7 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
     val write_data = in(morphhdl.frontend.Bits(width bits))
     val read_data = out(morphhdl.frontend.Bits(width bits))
 
-    val memory = Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
+    val memory = morphhdl.frontend.Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
     val read_word = memory.readSync(
       address,
       enable = read_enable,
@@ -46,7 +46,7 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
     val write_data = in(morphhdl.frontend.Bits(width bits))
     val read_data = out(morphhdl.frontend.Bits(width bits))
 
-    val memory = Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
+    val memory = morphhdl.frontend.Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
     val read_word = memory.readSync(
       read_address,
       enable = read_enable,
@@ -136,6 +136,41 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
     }
   }
 
+  test("ordinary native Mem with static depth discovers symbolic element width externally") {
+    withTemporaryDirectory { directory =>
+      val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
+      val verilog = emitMorph(
+        directory,
+        "native_static_depth_memory.v",
+        new Component {
+          setDefinitionName("NativeStaticDepthMemory")
+          val read_enable = in(Bool())
+          val write_enable = in(Bool())
+          val address = in(morphhdl.frontend.UInt(3 bits))
+          val write_data = in(morphhdl.frontend.Bits(width bits))
+          val read_data = out(morphhdl.frontend.Bits(width bits))
+          val memory = spinal.core.Mem(
+            morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)),
+            5
+          ).setName("memory")
+          val read_word = memory.readSync(
+            address,
+            enable = read_enable,
+            readUnderWrite = readFirst
+          )
+          memory.write(address, write_data, enable = write_enable)
+          read_data := read_word
+        }
+      )
+
+      assert(verilog.contains("parameter integer WIDTH = 8"))
+      assert(!verilog.contains("parameter integer DEPTH"))
+      assert(verilog.contains("reg [WIDTH-1:0] memory [0:4];"))
+      assert(verilog.contains("if (address < 5) begin"))
+      assert(verilog.contains("memory[address] <= write_data;"))
+    }
+  }
+
   test("ordinary SpinalVerilog remains concrete and ignores retained memory metadata") {
     withTemporaryDirectory { directory =>
       val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
@@ -165,7 +200,7 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
           val address = in(morphhdl.frontend.UInt(depth.addressWidth bits))
           val write_data = in(morphhdl.frontend.Bits(width bits))
           val read_data = out(morphhdl.frontend.Bits(width bits))
-          val memory = Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
+          val memory = morphhdl.frontend.Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
           val read_word = memory.readSync(address, enable = read_enable)
           memory.write(address, write_data, enable = write_enable)
           read_data := read_word
@@ -189,7 +224,7 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
           val address = in(morphhdl.frontend.UInt(depth.addressWidth bits))
           val write_data = in(morphhdl.frontend.Bits(width bits))
           val read_data = out(morphhdl.frontend.Bits(width bits))
-          val memory = Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
+          val memory = morphhdl.frontend.Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
           val read_word = memory.readSync(
             address,
             readUnderWrite = readFirst
@@ -217,7 +252,7 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
           val address = in(morphhdl.frontend.UInt(3 bits))
           val write_data = in(morphhdl.frontend.Bits(width bits))
           val read_data = out(morphhdl.frontend.Bits(width bits))
-          val memory = Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
+          val memory = morphhdl.frontend.Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
           val read_word = memory.readSync(
             address,
             enable = read_enable,
@@ -246,7 +281,7 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
           val address = in(morphhdl.frontend.UInt(depth.addressWidth bits))
           val write_data = in(morphhdl.frontend.Bits(width bits))
           val read_data = out(morphhdl.frontend.Bits(width bits))
-          val memory = Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
+          val memory = morphhdl.frontend.Mem(morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)), depth).setName("memory")
           val read_word = memory.readSync(
             address,
             enable = read_enable,

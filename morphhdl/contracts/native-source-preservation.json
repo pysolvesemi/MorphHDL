@@ -8,9 +8,9 @@
     "description": "Increment 0 repository baseline"
   },
   "approved_state": {
-    "commit": "a5d6505f245e101d3e024dce554e41735b0f7a3a",
-    "tree": "58f25f9eb85f017ea2bbd6e9421633715c4a5d21",
-    "description": "Reviewed native-source state at the Increment 42 squash merge; repinned after post-merge ancestry validation"
+    "commit": "937a6875d6fba18131dc8470ea38dae1407e86ae",
+    "tree": "3602b973c6b206d283d93b68fa4fd48271408657",
+    "description": "Reviewed native-source state after Increment 43 external native-memory reuse"
   },
   "source_roots": [
     "core/src/main/scala/spinal/core",
@@ -24,16 +24,6 @@
   ],
   "entries": [
     {
-      "path": "core/src/main/scala/spinal/core/Mem.scala",
-      "change": "modified",
-      "classification": "direct_edit",
-      "introduced_by": [
-        "35",
-        "36"
-      ],
-      "reason": "Adds symbolic-depth construction and automatic symbolic element-shape attachment to native Mem constructors."
-    },
-    {
       "path": "core/src/main/scala/spinal/core/ParameterizedMemory.scala",
       "change": "added",
       "classification": "morphhdl_sidecar",
@@ -42,7 +32,7 @@
         "36",
         "37"
       ],
-      "reason": "Stores MorphHDL symbolic memory geometry and library-depth override metadata inside the native core source tree."
+      "reason": "Retains temporary StreamFifo library-depth override metadata until Increment 45; direct native Mem geometry is now associated externally."
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
@@ -67,16 +57,6 @@
       "reason": "Adds MorphHDL parameterized generation and phase-planning integration to the native entrypoint."
     },
     {
-      "path": "core/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala",
-      "change": "added",
-      "classification": "generated_backend_coupling",
-      "introduced_by": [
-        "35",
-        "37"
-      ],
-      "reason": "Rewrites emitted native memories and currently contains the StreamFifo-specific depth reconstruction."
-    },
-    {
       "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
       "change": "modified",
       "classification": "generated_backend_coupling",
@@ -84,15 +64,6 @@
         "platform"
       ],
       "reason": "Changes native phase behavior for MorphHDL validation and publication integration."
-    },
-    {
-      "path": "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
-      "change": "modified",
-      "classification": "generated_backend_coupling",
-      "introduced_by": [
-        "35"
-      ],
-      "reason": "Routes only the still-pending MorphHDL memory lowering through the native Verilog phase."
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/SpinalVerilogPhasePlan.scala",

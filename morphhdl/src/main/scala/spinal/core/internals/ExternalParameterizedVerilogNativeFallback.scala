@@ -43,7 +43,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     eligibleGateFailures.contains(failure.code) &&
       (
         ParameterizedWidth.parametersOf(component).nonEmpty ||
-          ParameterizedMemory.parametersOf(component).nonEmpty ||
+          ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
           ParameterizedProcess.parametersOf(component).nonEmpty ||
           ParameterizedStructure.parametersOf(component).nonEmpty ||
           component.children.exists(
@@ -65,7 +65,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       component,
       pc,
       hierarchy.parameters ++
-        ParameterizedMemory.parametersOf(component) ++
+        ExternalParameterizedMemoryRegistry.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component),
       hierarchy.hasParameterizedInstances
@@ -278,7 +278,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       val assignments = ArrayBuffer.empty[DataAssignmentStatement]
       var unsupported =
         component.children.nonEmpty ||
-          ParameterizedMemory.parametersOf(component).nonEmpty ||
+          ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
           ParameterizedProcess.parametersOf(component).nonEmpty ||
           ParameterizedStructure.parametersOf(component).nonEmpty
 
@@ -796,7 +796,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case literal: BitVectorLiteral => WidthLiteral(literal.getWidth)
         case _: BoolLiteral            => WidthLiteral(1)
         case port: MemReadSync =>
-          ParameterizedMemory.metadataOf(port.mem) match {
+          ExternalParameterizedMemoryRegistry.metadataOf(port.mem) match {
             case Some(metadata) =>
               WidthRetained(
                 metadata.elementWidth.verilog,

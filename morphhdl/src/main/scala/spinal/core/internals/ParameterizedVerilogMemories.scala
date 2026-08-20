@@ -8,7 +8,7 @@ import scala.collection.mutable.ArrayBuffer
 import spinal.core._
 
 /**
-  * Increment 35 lowering for one ordinary bounded Spinal Mem.
+  * MorphHDL-owned external lowering for one ordinary bounded Spinal Mem.
   *
   * The normal emitter still owns naming, declarations, read-port wiring and
   * every inherited validation phase. This pass validates one reviewed 1R1W
@@ -42,7 +42,7 @@ private[internals] object ParameterizedVerilogMemories {
 
   def rewrite(component: Component, verilog: String, pc: PhaseContext): String = {
     if (!pc.config.parameterizedVerilog) return verilog
-    val memories = ParameterizedMemory.memoriesOf(component)
+    val memories = ExternalParameterizedMemoryRegistry.memoriesOf(component)
     if (memories.isEmpty) return verilog
     if (pc.config.isSystemVerilog) {
       fail(
@@ -140,7 +140,7 @@ private[internals] object ParameterizedVerilogMemories {
       component: Component,
       pc: PhaseContext
   ): MemoryPlan = {
-    val metadata = ParameterizedMemory.metadataOf(memory).get
+    val metadata = ExternalParameterizedMemoryRegistry.metadataOf(memory).get
     val source = metadata.sourceLocation
     val reads = ArrayBuffer.empty[MemReadSync]
     val writes = ArrayBuffer.empty[MemWrite]

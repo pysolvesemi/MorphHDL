@@ -156,7 +156,7 @@ recorded in
   procedural-for behavior. If native AST ownership prevents an external
   implementation, apply the native-change approval gate before proceeding.
 
-- [ ] **Increment 43 — Native memory reuse with zero `Mem.scala` changes**
+- [x] **Increment 43 — Native memory reuse with zero `Mem.scala` changes**
 
   Restore the ordinary `Mem` constructors and remove automatic symbolic
   attachment from native memory creation. Discover and associate symbolic

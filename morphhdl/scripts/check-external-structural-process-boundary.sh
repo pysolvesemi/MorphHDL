@@ -17,7 +17,8 @@ for path in \
   frontend/src/main/scala/spinal/core/ParameterizedStructure.scala \
   frontend/src/main/scala/spinal/core/ParameterizedProcess.scala \
   morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
-  morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogProcesses.scala
+  morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogProcesses.scala \
+  morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
 do
   test -f "$path"
 done
@@ -32,7 +33,8 @@ test "$(grep -Fc 'final case class ElaborationBooleanExpression(' "$width")" = 1
 ! grep -Fq 'final case class ElaborationIntegerExpression(' "$structure"
 ! grep -Fq 'ParameterizedVerilogProcesses' "$phase"
 ! grep -Fq 'ParameterizedVerilogStructural' "$phase"
-grep -Fq 'ParameterizedVerilogMemories.rewrite' "$phase"
+! grep -Fq 'ParameterizedVerilogMemories' "$phase"
+grep -Fq 'ParameterizedVerilogMemories.rewrite' "$external"
 grep -Fq 'ParameterizedVerilogProcesses.rewrite' "$external"
 grep -Fq 'ParameterizedVerilogStructural.rewrite' "$external"
 grep -Fq 'requiresPublicationRewrite' "$external"
@@ -48,6 +50,7 @@ removed = {
     "core/src/main/scala/spinal/core/ParameterizedProcess.scala",
     "core/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala",
     "core/src/main/scala/spinal/core/internals/ParameterizedVerilogProcesses.scala",
+    "core/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala",
 }
 remaining = sorted(paths.intersection(removed))
 if remaining:

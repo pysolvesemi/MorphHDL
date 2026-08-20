@@ -176,16 +176,6 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
       romCache                    = romCache
     )
 
-    // Increment 42 moves structural and procedural publication behind the
-    // MorphHDL-owned external final phase. Increment 35 memory lowering remains
-    // here until its dedicated zero-Mem.scala corrective increment.
-    val componentResult = () =>
-      ParameterizedVerilogMemories.rewrite(
-        component,
-        componentBuilderVerilog.result,
-        pc
-      )
-
     if(component.parentScope == null && pc.config.dumpWave != null) {
       componentBuilderVerilog.logics ++=
         s"""
@@ -203,7 +193,7 @@ class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc 
       assert(!usedDefinitionNames.contains(component.definitionName) || component.isInBlackBoxTree, s"Component '${component}' with definition name '${component.definitionName}' was already used once for a different layout\n${component.getScalaLocationLong}")
       usedDefinitionNames += component.definitionName
       emitedComponent += (trace -> component)
-      componentResult
+      () => componentBuilderVerilog.result
     } else {
       emitedComponentRef.put(component, oldComponent)
       val originalName = component.definitionName
