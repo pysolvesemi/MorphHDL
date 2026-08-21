@@ -28,19 +28,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tar \
-            --exclude='.git' \
-            --exclude='morphhdl-increment-47-source.tar.gz' \
-            -czf morphhdl-increment-47-source.tar.gz .
-          sha256sum morphhdl-increment-47-source.tar.gz \
-            > morphhdl-increment-47-source.tar.gz.sha256
+          archive="${RUNNER_TEMP}/morphhdl-increment-47-source.tar.gz"
+          checksum="${archive}.sha256"
+          tar --exclude='.git' -czf "${archive}" .
+          sha256sum "${archive}" > "${checksum}"
 
       - uses: actions/upload-artifact@v4
         with:
           name: morphhdl-increment-47-source-${{ github.sha }}
           path: |
-            morphhdl-increment-47-source.tar.gz
-            morphhdl-increment-47-source.tar.gz.sha256
+            ${{ runner.temp }}/morphhdl-increment-47-source.tar.gz
+            ${{ runner.temp }}/morphhdl-increment-47-source.tar.gz.sha256
           if-no-files-found: error
           compression-level: 0
           retention-days: 1
