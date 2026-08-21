@@ -200,6 +200,9 @@ private[internals] object ParameterizedVerilogStructural {
     val mergedRanges = mergeRanges(ranges.toVector)
     val selectedLines = mergedRanges.flatMap(_.indices.map(lines))
     var body = stripCommonIndent(selectedLines.mkString("\n").trim)
+    if (body.isEmpty && ParameterizedStructuralSynthetic.isSyntheticEmpty(block)) {
+      return BlockPlan(block, mergedRanges, "")
+    }
     if (body.isEmpty) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-BODY-NOT-FOUND",
@@ -518,112 +521,91 @@ private[internals] object ParameterizedVerilogStructural {
       }
       if (portNames(parameter.name)) {
         fail(
-          "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-PORT-NAME-COLLISION",
-          s"structural parameter '${parameter.name}' collides with a port of '${component.definitionName}'"
+          "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-PORT-COLLISION",
+          s"structural parameter '${parameter.name}' collides with a module port"
         )
       }
       if (signalNames.contains(parameter.name)) {
         fail(
-          "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-SIGNAL-NAME-COLLISION",
-          s"structural parameter '${parameter.name}' collides with a signal of '${component.definitionName}'"
+          "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-SIGNAL-COLLISION",
+          s"structural parameter '${parameter.name}' collides with a native signal"
         )
       }
     }
   }
 
-  private def fixedSlicePattern(
-      slice: ParameterizedStructure.StructuralSlice
-  ): Pattern = {
-    val name = requiredName(slice.source, "slice source", slice.sourceLocation)
+  private def fixedSlicePattern(slice: ParameterizedStructure.StructuralSlice): Pattern = {
+    val sourceName = requiredName(slice.source, "structural slice source", slice.sourceLocation)
     val low = slice.offset.default
     val high = low + slice.width.default - 1
-    Pattern.compile(
-      "\\b" + Pattern.quote(name) + "\\s*\\[\\s*" + high +
-        "\\s*:\\s*" + low + "\\s*\\]"
-    )
+    Pattern.compile("\\b" + Pattern.quote(sourceName) + "\\s*\\[\\s*" + high + "\\s*:\\s*" + low + "\\s*\\]")
   }
 
-  private def connectionActualNames(instance: String): Set[String] = {
-    val result = mutable.Set.empty[String]
-    val connection = "\\.[A-Za-z_][A-Za-z0-9_$]*\\s*\\(([^)]*)\\)".r
-    connection.findAllMatchIn(instance).foreach { matched =>
-      identifiers(matched.group(1)).foreach(result += _)
-    }
-    result.toSet
+  private def connectionActualNames(instanceText: String): Vector[String] = {
+    val pattern = "\\.[A-Za-z_][A-Za-z0-9_]*\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*\\)".r
+    pattern.findAllMatchIn(instanceText).map(_.group(1)).toVector
   }
+
+  private def mergeRanges(ranges: Vector[LineRange]): Vector[LineRange] = {
+    val sorted = ranges.sortBy(_.start)
+    val merged = ArrayBuffer.empty[LineRange]
+    sorted.foreach { range =>
+      merged.lastOption match {
+        case Some(previous) if range.start <= previous.end + 1 =>
+          merged.update(merged.size - 1, LineRange(previous.start, math.max(previous.end, range.end)))
+        case _ => merged += range
+      }
+    }
+    merged.toVector
+  }
+
+  private def stripCommonIndent(value: String): String = {
+    val bodyLines = value.split("\n", -1).toVector
+    val nonEmpty = bodyLines.filter(_.trim.nonEmpty)
+    if (nonEmpty.isEmpty) value
+    else {
+      val prefix = nonEmpty.map(_.takeWhile(_.isWhitespace).length).min
+      bodyLines.map { line =>
+        if (line.length >= prefix) line.drop(prefix) else line
+      }.mkString("\n")
+    }
+  }
+
+  private def indent(value: String, levels: Int): String = {
+    val spaces = "  " * levels
+    value.split("\n", -1).map(spaces + _).mkString("\n")
+  }
+
+  private val VerilogWords = Set(
+    "assign", "wire", "reg", "input", "output", "inout", "module", "endmodule",
+    "begin", "end", "generate", "endgenerate", "if", "else", "for", "case", "endcase"
+  )
+
+  private def isDeclarationLine(value: String): Boolean =
+    value.startsWith("wire ") || value.startsWith("reg ") || value.startsWith("integer ")
+
+  private def identifiers(value: String): Vector[String] =
+    "[A-Za-z_][A-Za-z0-9_]*".r.findAllIn(value).toVector
+
+  private def containsName(value: String, name: String): Boolean =
+    ("(?<![A-Za-z0-9_$])" + Pattern.quote(name) + "(?![A-Za-z0-9_$])").r.findFirstIn(value).nonEmpty
+
+  private def replaceName(value: String, from: String, to: String): String =
+    ("(?<![A-Za-z0-9_$])" + Pattern.quote(from) + "(?![A-Za-z0-9_$])").r
+      .replaceAllIn(value, Matcher.quoteReplacement(to))
 
   private def requiredName(
-      value: BaseType,
+      value: Nameable,
       role: String,
       sourceLocation: Option[String]
   ): String =
     Option(value.getName()).filter(_.nonEmpty).getOrElse {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-NAME-MISSING",
-        s"$role has no stable native Verilog name",
+        s"$role has no stable native name",
         sourceLocation
       )
     }
-
-  private def isDeclarationLine(trimmed: String): Boolean =
-    trimmed.startsWith("wire ") || trimmed.startsWith("reg ") ||
-      trimmed.startsWith("logic ") || trimmed.startsWith("integer ")
-
-  private def identifiers(value: String): Vector[String] =
-    "[A-Za-z_][A-Za-z0-9_$]*".r.findAllIn(value).toVector
-
-  private def containsName(value: String, name: String): Boolean =
-    ("(?<![A-Za-z0-9_$])" + Pattern.quote(name) + "(?![A-Za-z0-9_$])").r
-      .findFirstIn(value)
-      .nonEmpty
-
-  private def replaceName(value: String, from: String, to: String): String =
-    ("(?<![A-Za-z0-9_$])" + Pattern.quote(from) + "(?![A-Za-z0-9_$])").r
-      .replaceAllIn(value, Matcher.quoteReplacement(to))
-
-  private def mergeRanges(values: Vector[LineRange]): Vector[LineRange] = {
-    val sorted = values.distinct.sortBy(_.start)
-    sorted.foldLeft(Vector.empty[LineRange]) {
-      case (Vector(), value) => Vector(value)
-      case (acc, value) if value.start <= acc.last.end + 1 =>
-        acc.dropRight(1) :+ LineRange(acc.last.start, math.max(acc.last.end, value.end))
-      case (acc, value) => acc :+ value
-    }
-  }
-
-  private def stripCommonIndent(value: String): String = {
-    val lines = value.split("\n", -1).toVector
-    val nonEmpty = lines.filter(_.trim.nonEmpty)
-    val common =
-      if (nonEmpty.isEmpty) 0
-      else nonEmpty.map(_.takeWhile(_ == ' ').length).min
-    lines.map(line => if (line.length >= common) line.drop(common) else line).mkString("\n")
-  }
-
-  private def indent(value: String, level: Int): String = {
-    val prefix = "  " * level
-    value.split("\n", -1).map(line => if (line.nonEmpty) prefix + line else line).mkString("\n")
-  }
-
-  private val VerilogWords = Set(
-    "assign",
-    "begin",
-    "case",
-    "default",
-    "else",
-    "end",
-    "endcase",
-    "for",
-    "generate",
-    "if",
-    "input",
-    "integer",
-    "module",
-    "output",
-    "parameter",
-    "reg",
-    "wire"
-  )
 
   private def fail(
       code: String,
