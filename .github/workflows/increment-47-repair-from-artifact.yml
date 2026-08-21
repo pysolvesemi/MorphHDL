@@ -1,0 +1,81 @@
+name: Apply recovered Increment 47 production repair
+
+on:
+  push:
+    branches:
+      - agent/increment-47-completion-repair
+    paths:
+      - .github/workflows/increment-47-repair-from-artifact.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: increment-47-completion-repair
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      FEATURE_BRANCH: agent/increment-47-completion-repair
+      ARTIFACT_ID: '9465654157'
+      PATCH_SHA256: cd72957a690603120560a2d289fda9884ed5d408f553b3d0df85dcba3f22a289
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/increment-47-completion-repair
+
+      - name: Apply exact reviewed production patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "/repos/${REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > /tmp/increment-47-reviewed.zip
+          mkdir -p /tmp/increment-47-reviewed
+          unzip -q /tmp/increment-47-reviewed.zip -d /tmp/increment-47-reviewed
+          patch=/tmp/increment-47-reviewed/increment-47-reviewed.patch
+          test -s "${patch}"
+          test "$(sha256sum "${patch}" | awk '{print $1}')" = "${PATCH_SHA256}"
+          git apply --check "${patch}"
+          git apply --index "${patch}"
+
+          rm -rf \
+            .github/increment-47-payload
+          rm -f \
+            .github/increment-47-ci-trigger \
+            .github/workflows/increment-47-apply-reviewed-patch.yml \
+            .github/workflows/increment-47-clean-first-ci-trigger.yml \
+            .github/workflows/increment-47-complete-roadmap.yml \
+            .github/workflows/increment-47-source-export.yml \
+            .github/workflows/increment-47-repair-from-artifact.yml
+
+          git add -u -- \
+            .github/increment-47-ci-trigger \
+            .github/increment-47-payload \
+            .github/workflows/increment-47-apply-reviewed-patch.yml \
+            .github/workflows/increment-47-clean-first-ci-trigger.yml \
+            .github/workflows/increment-47-complete-roadmap.yml \
+            .github/workflows/increment-47-source-export.yml \
+            .github/workflows/increment-47-repair-from-artifact.yml
+
+          git diff --cached --check
+          if git diff --cached --name-only | grep -E '^(core|lib|idslplugin)/src/'; then
+            echo 'Increment 47 repair unexpectedly modifies upstream-owned native source.' >&2
+            exit 1
+          fi
+          grep -Fxq -- '- [ ] **Increment 47 — External formalization boundary for native `Int` APIs**' docs/morphhdl/parameterized-verilog-todo.md
+          test -z "$(git diff --cached --name-only | grep -E '^\.github/(increment-47-|workflows/increment-47-(apply|clean|complete|repair|source))' || true)" || {
+            echo 'Temporary Increment 47 delivery files remain staged as additions.' >&2
+            exit 1
+          }
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Repair Increment 47 external native Int formalization'
+          git push origin HEAD:"${FEATURE_BRANCH}"
