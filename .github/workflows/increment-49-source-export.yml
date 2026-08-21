@@ -1,6 +1,11 @@
 name: Increment 49 source export
 
 on:
+  pull_request:
+    branches:
+      - parameterized-verilog
+    paths:
+      - .github/workflows/increment-49-source-export.yml
   push:
     branches:
       - agent/increment-49-native-int-provenance
