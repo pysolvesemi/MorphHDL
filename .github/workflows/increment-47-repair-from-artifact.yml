@@ -58,15 +58,7 @@ jobs:
             .github/workflows/increment-47-complete-roadmap.yml \
             .github/workflows/increment-47-source-export.yml \
             .github/workflows/increment-47-repair-from-artifact.yml
-
-          git add -u -- \
-            .github/increment-47-ci-trigger \
-            .github/increment-47-payload \
-            .github/workflows/increment-47-apply-reviewed-patch.yml \
-            .github/workflows/increment-47-clean-first-ci-trigger.yml \
-            .github/workflows/increment-47-complete-roadmap.yml \
-            .github/workflows/increment-47-source-export.yml \
-            .github/workflows/increment-47-repair-from-artifact.yml
+          git add -u -- .github
 
           git diff --cached --check
           if git diff --cached --name-only | grep -E '^(core|lib|idslplugin)/src/'; then
@@ -74,7 +66,7 @@ jobs:
             exit 1
           fi
           grep -Fxq -- '- [ ] **Increment 47 — External formalization boundary for native `Int` APIs**' docs/morphhdl/parameterized-verilog-todo.md
-          test -z "$(git diff --cached --name-only | grep -E '^\.github/(increment-47-|workflows/increment-47-(apply|clean|complete|repair|source))' || true)" || {
+          test -z "$(git diff --cached --diff-filter=AM --name-only | grep -E '^\.github/(increment-47-|workflows/increment-47-(apply|clean|complete|repair|source))' || true)" || {
             echo 'Temporary Increment 47 delivery files remain staged as additions.' >&2
             exit 1
           }
