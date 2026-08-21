@@ -1,0 +1,40 @@
+name: Increment 49 SBT launcher export
+
+on:
+  push:
+    branches:
+      - agent/increment-49-native-int-provenance
+    paths:
+      - .github/workflows/increment-49-export-sbt-launcher.yml
+  pull_request:
+    branches:
+      - parameterized-verilog
+    paths:
+      - .github/workflows/increment-49-export-sbt-launcher.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download pinned SBT launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/1.10.0/sbt-launch-1.10.0.jar \
+            --output sbt-launch-1.10.0.jar
+          sha256sum sbt-launch-1.10.0.jar > sbt-launch-1.10.0.jar.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: increment-49-sbt-launcher-${{ github.sha }}
+          path: |
+            sbt-launch-1.10.0.jar
+            sbt-launch-1.10.0.jar.sha256
+          if-no-files-found: error
+          retention-days: 1
