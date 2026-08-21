@@ -129,7 +129,7 @@ object ExternalFormalParameterRegistry {
   ]
   private val instanceBindings = mutable.HashMap.empty[
     ExternalFormalComponentIdentityRef,
-    mutable.HashMap[String, ExternalFormalParameterBinding]
+    mutable.HashMap[String, Vector[ExternalFormalParameterBinding]]
   ]
 
   private def reapBitCounts(): Unit = {
@@ -298,23 +298,17 @@ object ExternalFormalParameterRegistry {
     reapComponents()
     val lookup = new ExternalFormalComponentIdentityRef(component, null)
     val byKey = instanceBindings.get(lookup).getOrElse {
-      val created = mutable.HashMap.empty[String, ExternalFormalParameterBinding]
+      val created =
+        mutable.HashMap.empty[String, Vector[ExternalFormalParameterBinding]]
       instanceBindings.update(
         new ExternalFormalComponentIdentityRef(component, componentQueue),
         created
       )
       created
     }
-    byKey.get(binding.declarationKey) match {
-      case Some(existing) if !equivalentBinding(existing, binding) =>
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-METADATA-CONFLICT",
-          s"component instance '${component.definitionName}' carries conflicting actuals " +
-            s"for formal slot '${binding.formal.name}'",
-          binding.sourceLocation.orElse(existing.sourceLocation)
-        )
-      case Some(_) =>
-      case None    => byKey.update(binding.declarationKey, binding)
+    val existing = byKey.getOrElse(binding.declarationKey, Vector.empty)
+    if (!existing.exists(candidate => equivalentBinding(candidate, binding))) {
+      byKey.update(binding.declarationKey, existing :+ binding)
     }
   }
 
@@ -335,7 +329,9 @@ object ExternalFormalParameterRegistry {
         instanceBindings
           .get(new ExternalFormalComponentIdentityRef(component, null))
           .toVector
-          .flatMap(_.values)
+          .flatMap { byKey =>
+            byKey.valuesIterator.flatMap(_.iterator)
+          }
           .filter { binding =>
             binding.ownerClassName == component.getClass.getName &&
             equivalentExpression(
