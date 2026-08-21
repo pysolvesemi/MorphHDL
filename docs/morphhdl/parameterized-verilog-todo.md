@@ -260,7 +260,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   increment establishes identity and lifetime only; it does not recover
   unselected Scala control-flow branches.
 
-- [ ] **Increment 48 — Natural symbolic conditionals for explicit `HdlInt`/`HdlBool`**
+- [x] **Increment 48 — Natural symbolic conditionals for explicit `HdlInt`/`HdlBool`**
 
   **Dependencies:** Increment 44 implemented and merged.
 
