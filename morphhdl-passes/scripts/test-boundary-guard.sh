@@ -4,6 +4,7 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/../.." && pwd)"
 checker="${script_dir}/check-boundary.sh"
+workflow="${repo_root}/.github/workflows/morphhdl-passes.yml"
 
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_dir}"' EXIT
@@ -38,6 +39,31 @@ expect_failure() {
   fi
 }
 
+python3 - "${workflow}" <<'PY'
+from pathlib import Path
+import sys
+
+workflow = Path(sys.argv[1]).read_text(encoding="utf-8")
+try:
+    push_scope = workflow.split("  push:\n", 1)[1].split("  workflow_dispatch:\n", 1)[0]
+except IndexError as error:
+    raise SystemExit("unable to locate the MorphHDL pass push trigger") from error
+
+for required_path in ('"morphhdl-passes/**"', '".github/workflows/morphhdl-passes.yml"'):
+    if required_path not in push_scope:
+        raise SystemExit(f"missing required pass-workspace push path: {required_path}")
+if '"morphhdl/**"' in push_scope:
+    raise SystemExit("push trigger must not classify ordinary MorphHDL changes as pass-workspace changes")
+
+required_step = """      - name: Resolve boundary source branch
+        id: source
+"""
+if required_step not in workflow:
+    raise SystemExit("workflow must resolve the merged PR source branch before enforcing the push boundary")
+if "MORPHDL_PASSES_HEAD_REF: ${{ steps.source.outputs.head_ref }}" not in workflow:
+    raise SystemExit("boundary enforcement must consume the resolved source branch")
+PY
+
 allowed_manifest="${tmp_dir}/allowed.txt"
 printf '%s\n' \
   '.github/workflows/morphhdl-passes.yml' \
@@ -63,7 +89,42 @@ expect_failure \
 wa07_manifest="${tmp_dir}/wa07.txt"
 printf '%s\n' 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala' >"${wa07_manifest}"
 expect_failure \
-  'WA-07 handoff is rejected while WA-06 and PV-55 are unchecked' \
+  'WA-07 handoff is rejected while WA-06 and PV-56 are unchecked' \
   run_checker agent/wa-07-final-handoff "${wa07_manifest}"
+
+tmp_repo="${tmp_dir}/dependency-repo"
+mkdir -p \
+  "${tmp_repo}/.github/workflows" \
+  "${tmp_repo}/docs/morphhdl" \
+  "${tmp_repo}/morphhdl-passes/scripts"
+cp "${checker}" "${tmp_repo}/morphhdl-passes/scripts/check-boundary.sh"
+cp "${workflow}" "${tmp_repo}/.github/workflows/morphhdl-passes.yml"
+cat > "${tmp_repo}/morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md" <<'ROADMAP'
+- [x] **WA-06 — Ordered two-pass pipeline and regression closure**
+ROADMAP
+cat > "${tmp_repo}/docs/morphhdl/parameterized-verilog-todo.md" <<'PV55'
+- [x] **Increment 55 — Legacy facade retirement**
+- [ ] **Increment 56 — Native-looking library construction**
+PV55
+printf '%s\n' 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala' > "${tmp_repo}/changed.txt"
+expect_failure \
+  'WA-07 handoff is not enabled by PV-55 alone' \
+  env \
+    MORPHDL_PASSES_REPO_ROOT="${tmp_repo}" \
+    MORPHDL_PASSES_HEAD_REF=agent/wa-07-final-handoff \
+    MORPHDL_PASSES_CHANGED_FILES_FILE="${tmp_repo}/changed.txt" \
+    "${tmp_repo}/morphhdl-passes/scripts/check-boundary.sh"
+
+cat > "${tmp_repo}/docs/morphhdl/parameterized-verilog-todo.md" <<'PV56'
+- [x] **Increment 55 — Legacy facade retirement**
+- [x] **Increment 56 — Native-looking library construction**
+PV56
+expect_success \
+  'WA-07 handoff requires and accepts completed PV-56' \
+  env \
+    MORPHDL_PASSES_REPO_ROOT="${tmp_repo}" \
+    MORPHDL_PASSES_HEAD_REF=agent/wa-07-final-handoff \
+    MORPHDL_PASSES_CHANGED_FILES_FILE="${tmp_repo}/changed.txt" \
+    "${tmp_repo}/morphhdl-passes/scripts/check-boundary.sh"
 
 printf 'MorphHDL pass boundary self-tests passed.\n'
