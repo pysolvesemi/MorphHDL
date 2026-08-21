@@ -80,6 +80,26 @@ private[core] final class ExternalFormalRootIdentityRef(
   }
 }
 
+/** Weak identity key for one concrete component instance. */
+private[core] final class ExternalFormalComponentIdentityRef(
+    value: Component,
+    queue: ReferenceQueue[Component]
+) extends WeakReference[Component](value, queue) {
+  private val identityHash = System.identityHashCode(value)
+
+  override def hashCode(): Int = identityHash
+
+  override def equals(other: Any): Boolean = other match {
+    case that: ExternalFormalComponentIdentityRef =>
+      (this eq that) || {
+        val left = get()
+        val right = that.get()
+        (left ne null) && (right ne null) && (left eq right)
+      }
+    case _ => false
+  }
+}
+
 /**
   * MorphHDL-owned formal-to-actual sidecar registry.
   *
@@ -93,6 +113,7 @@ object ExternalFormalParameterRegistry {
   private val bitCountQueue = new ReferenceQueue[ParameterizedBitCount]()
   private val leafQueue = new ReferenceQueue[BaseType]()
   private val rootQueue = new ReferenceQueue[Component]()
+  private val componentQueue = new ReferenceQueue[Component]()
 
   private val pending = mutable.HashMap.empty[
     ExternalFormalBitCountIdentityRef,
@@ -104,6 +125,10 @@ object ExternalFormalParameterRegistry {
   ]
   private val declarations = mutable.HashMap.empty[
     ExternalFormalRootIdentityRef,
+    mutable.HashMap[String, ExternalFormalParameterBinding]
+  ]
+  private val instanceBindings = mutable.HashMap.empty[
+    ExternalFormalComponentIdentityRef,
     mutable.HashMap[String, ExternalFormalParameterBinding]
   ]
 
@@ -128,6 +153,16 @@ object ExternalFormalParameterRegistry {
     while (reference != null) {
       declarations.remove(reference)
       reference = rootQueue.poll().asInstanceOf[ExternalFormalRootIdentityRef]
+    }
+  }
+
+  private def reapComponents(): Unit = {
+    var reference =
+      componentQueue.poll().asInstanceOf[ExternalFormalComponentIdentityRef]
+    while (reference != null) {
+      instanceBindings.remove(reference)
+      reference =
+        componentQueue.poll().asInstanceOf[ExternalFormalComponentIdentityRef]
     }
   }
 
@@ -186,11 +221,18 @@ object ExternalFormalParameterRegistry {
 
     reapBitCounts()
     pending.get(new ExternalFormalBitCountIdentityRef(width, null)).foreach { binding =>
-      val currentOwner = Option(Component.current).map(_.getClass.getName)
-      if (!currentOwner.contains(binding.ownerClassName)) {
+      val currentComponent = Option(Component.current).getOrElse {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-OWNER-MISSING",
+          s"formal slot '${binding.formal.name}' was attached without one active Component owner",
+          binding.sourceLocation
+        )
+      }
+      val currentOwner = currentComponent.getClass.getName
+      if (currentOwner != binding.ownerClassName) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-FORMAL-OWNER-MISMATCH",
-          s"formal slot '${binding.formal.name}' was declared for '${binding.ownerClassName}' but its packed leaf was constructed in '${currentOwner.getOrElse("<no component>")}'",
+          s"formal slot '${binding.formal.name}' was declared for '${binding.ownerClassName}' but its packed leaf was constructed in '$currentOwner'",
           binding.sourceLocation
         )
       }
@@ -211,6 +253,7 @@ object ExternalFormalParameterRegistry {
         )
       }
 
+      retainInstanceBinding(currentComponent, binding)
       reapLeaves()
       val lookup = new ExternalFormalLeafIdentityRef(data, null)
       retained.get(lookup) match {
@@ -236,7 +279,89 @@ object ExternalFormalParameterRegistry {
     if (data == null) None
     else {
       reapLeaves()
-      retained.get(new ExternalFormalLeafIdentityRef(data, null))
+      retained
+        .get(new ExternalFormalLeafIdentityRef(data, null))
+        .orElse(recoverBinding(data))
+    }
+  }
+
+  /**
+    * Retain each actual expression against the exact concrete component
+    * instance that materialized its explicit formal. This prevents one child
+    * instance from inheriting another instance's actual when both share the
+    * same deterministic declaration identity.
+    */
+  private def retainInstanceBinding(
+      component: Component,
+      binding: ExternalFormalParameterBinding
+  ): Unit = {
+    reapComponents()
+    val lookup = new ExternalFormalComponentIdentityRef(component, null)
+    val byKey = instanceBindings.get(lookup).getOrElse {
+      val created = mutable.HashMap.empty[String, ExternalFormalParameterBinding]
+      instanceBindings.update(
+        new ExternalFormalComponentIdentityRef(component, componentQueue),
+        created
+      )
+      created
+    }
+    byKey.get(binding.declarationKey) match {
+      case Some(existing) if !equivalentBinding(existing, binding) =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-METADATA-CONFLICT",
+          s"component instance '${component.definitionName}' carries conflicting actuals " +
+            s"for formal slot '${binding.formal.name}'",
+          binding.sourceLocation.orElse(existing.sourceLocation)
+        )
+      case Some(_) =>
+      case None    => byKey.update(binding.declarationKey, binding)
+    }
+  }
+
+  /**
+    * Recover a binding for clone-derived leaves from the symbolic width copied
+    * by ParameterizedWidth and the exact owning component instance. No concrete
+    * integer witness or emitted name participates in this lookup.
+    */
+  private def recoverBinding(
+      data: BaseType
+  ): Option[ExternalFormalParameterBinding] = {
+    val component = data.component
+    if (component == null) None
+    else {
+      reapComponents()
+      val expression = ParameterizedWidth.expressionOf(data)
+      val candidates = expression.toVector.flatMap { retainedWidth =>
+        instanceBindings
+          .get(new ExternalFormalComponentIdentityRef(component, null))
+          .toVector
+          .flatMap(_.values)
+          .filter { binding =>
+            binding.ownerClassName == component.getClass.getName &&
+            equivalentExpression(
+              retainedWidth,
+              formalExpression(binding.formal, retainedWidth.sourceLocation)
+            )
+          }
+      }.toVector
+
+      candidates.distinct match {
+        case Vector() => None
+        case Vector(binding) =>
+          retained.update(
+            new ExternalFormalLeafIdentityRef(data, leafQueue),
+            binding
+          )
+          Some(binding)
+        case ambiguous =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS",
+            s"clone-derived leaf in component '${component.definitionName}' matches " +
+              "multiple explicit formal declarations: " +
+              ambiguous.map(_.formal.name).distinct.sorted.mkString(", "),
+            ambiguous.flatMap(_.sourceLocation).headOption
+          )
+      }
     }
   }
 
