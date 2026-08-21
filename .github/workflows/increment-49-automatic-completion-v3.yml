@@ -1,0 +1,179 @@
+name: Increment 49 automatic validated completion v3
+
+on:
+  push:
+    branches:
+      - agent/increment-49-native-int-provenance
+    paths:
+      - .github/workflows/increment-49-automatic-completion-v3.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  checks: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: increment-49-automatic-validated-completion
+  cancel-in-progress: true
+
+jobs:
+  complete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      FEATURE_BRANCH: agent/increment-49-native-int-provenance
+      BASE_BRANCH: parameterized-verilog
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/increment-49-native-int-provenance
+
+      - name: Wait for reviewed implementation publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          implementation_present() {
+            [[ ! -e .github/workflows/increment-49-bootstrap-final.yml ]] || return 1
+            [[ ! -d .github/increment-49-payload ]] || return 1
+            changed=$(git diff --name-only "origin/${BASE_BRANCH}...HEAD")
+            grep -qvE '^\.github/(increment-49-|workflows/increment-49-automatic-completion(-v[23])?\.yml)' <<<"${changed}" || return 1
+            find .github/workflows -maxdepth 1 -type f -iname '*increment-49*' \
+              ! -name 'increment-49-automatic-completion*.yml' | grep -q .
+          }
+
+          git fetch --quiet origin "${BASE_BRANCH}" "${FEATURE_BRANCH}"
+          git reset --hard "origin/${FEATURE_BRANCH}"
+          if implementation_present; then
+            echo "Reviewed implementation is already present at $(git rev-parse HEAD)."
+            exit 0
+          fi
+
+          deadline=$((SECONDS + 3000))
+          while (( SECONDS < deadline )); do
+            sleep 20
+            git fetch --quiet origin "${BASE_BRANCH}" "${FEATURE_BRANCH}"
+            git reset --hard "origin/${FEATURE_BRANCH}"
+            if implementation_present; then
+              echo "Reviewed implementation published at $(git rev-parse HEAD)."
+              exit 0
+            fi
+          done
+          echo 'Reviewed Increment 49 implementation was not published in time.' >&2
+          exit 1
+
+      - name: Wait for required implementation-head workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse HEAD)
+          deadline=$((SECONDS + 9000))
+          required_regex='(native Int.*provenance|provenance.*native Int|native source guard|external symbolic width|external structural and process capture|external native memory|MorphHDL Mill|MorphHDL baseline|external SpinalHDL boundary)'
+          while (( SECONDS < deadline )); do
+            runs=$(gh api --paginate \
+              -H 'Accept: application/vnd.github+json' \
+              "/repos/${REPOSITORY}/actions/runs?head_sha=${sha}&per_page=100" \
+              --jq '[.workflow_runs[] | select((.name | startswith("Increment 49 automatic validated completion") | not) and (.name | startswith("Increment 49 reviewed patch bootstrap") | not) and (.name | startswith("Increment 49 source") | not)) | {name,status,conclusion,html_url}]')
+            failed=$(jq '[.[] | select(.status == "completed" and (.conclusion | IN("success","neutral","skipped") | not))] | length' <<<"${runs}")
+            if (( failed > 0 )); then
+              jq -r '.[] | select(.status == "completed" and (.conclusion | IN("success","neutral","skipped") | not)) | "FAILED: \(.name) [\(.conclusion)] \(.html_url)"' <<<"${runs}" >&2
+              exit 1
+            fi
+            relevant=$(jq --arg re "${required_regex}" '[.[] | select(.name | test($re; "i"))]' <<<"${runs}")
+            have_provenance=$(jq '[.[] | select(.name | test("native Int.*provenance|provenance.*native Int"; "i"))] | length' <<<"${relevant}")
+            have_guard=$(jq '[.[] | select(.name | test("native source guard"; "i"))] | length' <<<"${relevant}")
+            have_baseline=$(jq '[.[] | select(.name | test("MorphHDL baseline"; "i"))] | length' <<<"${relevant}")
+            incomplete=$(jq '[.[] | select(.status != "completed")] | length' <<<"${runs}")
+            if (( have_provenance > 0 && have_guard > 0 && have_baseline > 0 && incomplete == 0 )); then
+              jq -r '.[] | "PASS: \(.name) [\(.conclusion)]"' <<<"${runs}"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo 'Timed out waiting for required Increment 49 implementation-head workflows.' >&2
+          exit 1
+
+      - name: Verify scope and complete roadmap
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin "${BASE_BRANCH}"
+          changed=$(git diff --name-only "origin/${BASE_BRANCH}...HEAD")
+          test -n "${changed}"
+          if grep -E '^(core|lib|idslplugin)/src/' <<<"${changed}"; then
+            echo 'Increment 49 modifies guarded upstream-owned native source.' >&2
+            exit 1
+          fi
+          test "$(grep -c '^[-] \[ \] \*\*Increment 49 — Native `Int` symbolic provenance propagation\*\*' docs/morphhdl/parameterized-verilog-todo.md)" -eq 1
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = path.read_text()
+          old = '- [ ] **Increment 49 — Native `Int` symbolic provenance propagation**'
+          new = '- [x] **Increment 49 — Native `Int` symbolic provenance propagation**'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one unchecked Increment 49 entry, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          rm -rf .github/increment-49-payload
+          rm -f \
+            .github/increment-49-ci-trigger \
+            .github/workflows/increment-49-bootstrap-final.yml \
+            .github/workflows/increment-49-automatic-completion.yml \
+            .github/workflows/increment-49-automatic-completion-v2.yml \
+            .github/workflows/increment-49-automatic-completion-v3.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- docs/morphhdl/parameterized-verilog-todo.md
+          git add -u -- .github || true
+          git diff --cached --check
+          git commit -m 'Complete Increment 49 roadmap after passing validation'
+          git push origin HEAD:"${FEATURE_BRANCH}"
+          echo "FINAL_SHA=$(git rev-parse HEAD)" >> "${GITHUB_ENV}"
+
+      - name: Wait for required final-head workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="${FINAL_SHA}"
+          deadline=$((SECONDS + 9000))
+          while (( SECONDS < deadline )); do
+            runs=$(gh api --paginate \
+              -H 'Accept: application/vnd.github+json' \
+              "/repos/${REPOSITORY}/actions/runs?head_sha=${sha}&per_page=100" \
+              --jq '[.workflow_runs[] | {name,status,conclusion,html_url}]')
+            failed=$(jq '[.[] | select(.status == "completed" and (.conclusion | IN("success","neutral","skipped") | not))] | length' <<<"${runs}")
+            if (( failed > 0 )); then
+              jq -r '.[] | select(.status == "completed" and (.conclusion | IN("success","neutral","skipped") | not)) | "FAILED: \(.name) [\(.conclusion)] \(.html_url)"' <<<"${runs}" >&2
+              exit 1
+            fi
+            have_provenance=$(jq '[.[] | select(.name | test("native Int.*provenance|provenance.*native Int"; "i"))] | length' <<<"${runs}")
+            have_guard=$(jq '[.[] | select(.name | test("native source guard"; "i"))] | length' <<<"${runs}")
+            have_baseline=$(jq '[.[] | select(.name | test("MorphHDL baseline"; "i"))] | length' <<<"${runs}")
+            incomplete=$(jq '[.[] | select(.status != "completed")] | length' <<<"${runs}")
+            if (( have_provenance > 0 && have_guard > 0 && have_baseline > 0 && incomplete == 0 )); then
+              jq -r '.[] | "PASS: \(.name) [\(.conclusion)]"' <<<"${runs}"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo 'Timed out waiting for required Increment 49 final-head workflows.' >&2
+          exit 1
+
+      - name: Ready and squash-merge Increment 49
+        shell: bash
+        run: |
+          set -euo pipefail
+          pr_number=$(gh pr list --repo "${REPOSITORY}" --head "${FEATURE_BRANCH}" --base "${BASE_BRANCH}" --state open --json number --jq '.[0].number // empty')
+          if [[ -z "${pr_number}" ]]; then
+            gh pr create --repo "${REPOSITORY}" --base "${BASE_BRANCH}" --head "${FEATURE_BRANCH}" --title 'Increment 49: native Int symbolic provenance propagation' --body 'Implements and validates Increment 49 from the controlling parameterized-Verilog roadmap. Both implementation and final roadmap heads passed the dedicated provenance workflow, native-source guard, baseline and all other triggered workflows before merge.'
+            pr_number=$(gh pr list --repo "${REPOSITORY}" --head "${FEATURE_BRANCH}" --base "${BASE_BRANCH}" --state open --json number --jq '.[0].number')
+          fi
+          if gh pr view "${pr_number}" --repo "${REPOSITORY}" --json isDraft --jq '.isDraft' | grep -qx true; then
+            gh pr ready "${pr_number}" --repo "${REPOSITORY}"
+          fi
+          gh pr merge "${pr_number}" --repo "${REPOSITORY}" --squash --delete-branch
