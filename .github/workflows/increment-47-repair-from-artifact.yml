@@ -6,6 +6,11 @@ on:
       - agent/increment-47-completion-repair
     paths:
       - .github/workflows/increment-47-repair-from-artifact.yml
+  pull_request:
+    branches:
+      - parameterized-verilog
+    paths:
+      - .github/workflows/increment-47-repair-from-artifact.yml
   workflow_dispatch:
 
 permissions:
@@ -45,8 +50,7 @@ jobs:
           git apply --check "${patch}"
           git apply --index "${patch}"
 
-          rm -rf \
-            .github/increment-47-payload
+          rm -rf .github/increment-47-payload
           rm -f \
             .github/increment-47-ci-trigger \
             .github/workflows/increment-47-apply-reviewed-patch.yml \
