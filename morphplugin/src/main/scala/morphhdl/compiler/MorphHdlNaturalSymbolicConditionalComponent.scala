@@ -76,12 +76,26 @@ final class MorphHdlNaturalSymbolicConditionalComponent(val global: Global) exte
     finding
   }
 
-  private def helperSelect: Tree = {
+  private def helperMethod(name: String): Tree = {
     val root = Ident(termNames.ROOTPKG)
     val morphhdl = Select(root, TermName("morphhdl"))
     val frontend = Select(morphhdl, TermName("frontend"))
     val helper = Select(frontend, TermName("NaturalSymbolicConditional"))
-    Select(helper, TermName("selectSymbolic"))
+    Select(helper, TermName(name))
+  }
+
+  private def scalaSeqApply: Tree = {
+    val root = Ident(termNames.ROOTPKG)
+    val scalaPkg = Select(root, TermName("scala"))
+    val seq = Select(scalaPkg, TermName("Seq"))
+    Select(seq, TermName("apply"))
+  }
+
+  private def tuple4Apply: Tree = {
+    val root = Ident(termNames.ROOTPKG)
+    val scalaPkg = Select(root, TermName("scala"))
+    val tuple4 = Select(scalaPkg, TermName("Tuple4"))
+    Select(tuple4, TermName("apply"))
   }
 
   private final class NaturalIfTransformer(unit: CompilationUnit, symbolicNames: Set[TermName])
@@ -94,31 +108,105 @@ final class MorphHdlNaturalSymbolicConditionalComponent(val global: Global) exte
         )
       }
 
-    override def transform(tree: Tree): Tree = tree match {
-      case original @ If(condition, ifTrue, ifFalse) if referencesSymbolic(condition, symbolicNames) =>
-        reportUnsafe(ifTrue)
-        reportUnsafe(ifFalse)
-        val sourceFile = Option(unit.source)
-          .flatMap(source => Option(source.file))
-          .map(_.path)
-          .filter(value => value != "")
-          .getOrElse("<symbolic-if>")
-        val sourceLine = if (original.pos != null && original.pos.isDefined) math.max(1, original.pos.line) else 1
-        val rewritten = Apply(
-          Apply(
-            Apply(
-              helperSelect,
-              List(
-                transform(condition),
-                Literal(Constant(sourceFile)),
-                Literal(Constant(sourceLine))
-              )
-            ),
-            List(transform(ifTrue))
-          ),
-          List(transform(ifFalse))
+    private def sourceFile: String =
+      Option(unit.source)
+        .flatMap(source => Option(source.file))
+        .map(_.path)
+        .filter(value => value != "")
+        .getOrElse("<symbolic-if>")
+
+    private def sourceLine(tree: Tree): Int =
+      if (tree.pos != null && tree.pos.isDefined) math.max(1, tree.pos.line) else 1
+
+    private def symbolicIf(tree: Tree): Boolean = tree match {
+      case If(condition, _, _) => referencesSymbolic(condition, symbolicNames)
+      case _                   => false
+    }
+
+    private def collectChain(tree: Tree): (Vector[(Tree, Tree, Int)], Tree) = {
+      val alternatives = Vector.newBuilder[(Tree, Tree, Int)]
+      var current = tree
+      var done = false
+      var otherwise: Tree = EmptyTree
+      while (!done) {
+        current match {
+          case branch @ If(condition, ifTrue, ifFalse) if referencesSymbolic(condition, symbolicNames) =>
+            alternatives += ((condition, ifTrue, sourceLine(branch)))
+            if (symbolicIf(ifFalse)) current = ifFalse
+            else {
+              otherwise = ifFalse
+              done = true
+            }
+          case other =>
+            otherwise = other
+            done = true
+        }
+      }
+      alternatives.result() -> otherwise
+    }
+
+    private def function0(body: Tree): Tree =
+      Function(Nil, transform(body))
+
+    private def chainAlternative(condition: Tree, body: Tree, line: Int): Tree =
+      Apply(
+        tuple4Apply,
+        List(
+          transform(condition),
+          function0(body),
+          Literal(Constant(sourceFile)),
+          Literal(Constant(line))
         )
-        rewritten.setPos(original.pos)
+      )
+
+    private def rewriteChain(original: Tree): Tree = {
+      val (alternatives, otherwise) = collectChain(original)
+      alternatives.foreach { case (_, body, _) => reportUnsafe(body) }
+      reportUnsafe(otherwise)
+      val sequence = Apply(
+        scalaSeqApply,
+        alternatives.map { case (condition, body, line) =>
+          chainAlternative(condition, body, line)
+        }.toList
+      )
+      val defaultLine = sourceLine(otherwise)
+      val rewritten = Apply(
+        helperMethod("selectSymbolicChain"),
+        List(
+          sequence,
+          function0(otherwise),
+          Literal(Constant(sourceFile)),
+          Literal(Constant(defaultLine))
+        )
+      )
+      rewritten.setPos(original.pos)
+    }
+
+    private def rewriteSingle(original: If): Tree = {
+      reportUnsafe(original.thenp)
+      reportUnsafe(original.elsep)
+      val rewritten = Apply(
+        Apply(
+          Apply(
+            helperMethod("selectSymbolic"),
+            List(
+              transform(original.cond),
+              Literal(Constant(sourceFile)),
+              Literal(Constant(sourceLine(original)))
+            )
+          ),
+          List(transform(original.thenp))
+        ),
+        List(transform(original.elsep))
+      )
+      rewritten.setPos(original.pos)
+    }
+
+    override def transform(tree: Tree): Tree = tree match {
+      case original: If if referencesSymbolic(original.cond, symbolicNames) && symbolicIf(original.elsep) =>
+        rewriteChain(original)
+      case original: If if referencesSymbolic(original.cond, symbolicNames) =>
+        rewriteSingle(original)
       case _ => super.transform(tree)
     }
   }
