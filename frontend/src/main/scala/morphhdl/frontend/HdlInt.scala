@@ -593,10 +593,98 @@ object HdlInt {
       maximum: BigInt,
       origin: SourceOrigin
   ): HdlInt = {
+    val owner = Option(Component.current).getOrElse {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-FORMAL-PARAMETER-OWNER-MISSING",
+        s"formal parameter '$name' must be declared inside one active Component definition",
+        origin
+      )
+    }
+    val ownerClassName = owner.getClass.getName
+    val binding = formalBindingForOwner(
+      actual,
+      name,
+      minimum,
+      maximum,
+      ownerClassName,
+      declarationKey = s"$ownerClassName@${origin.rendered}::$name",
+      origin = origin
+    )
+
+    val declaration = IntegerParameter(
+      name,
+      binding.formal.default,
+      Vector[IntConstraint](MinInclusive(minimum), MaxInclusive(maximum))
+    )
+    val token = new ParameterToken(declaration, origin)
+    new HdlInt(
+      binding.formal.default,
+      ParameterRef(name),
+      declaration = Some(token),
+      parameters = Set(token),
+      booleanParameters = Set.empty,
+      localDeclaration = None,
+      localParameters = Set.empty,
+      booleanLocalParameters = Set.empty,
+      scope = None,
+      origin = origin,
+      formalBinding = Some(binding)
+    )
+  }
+
+  /**
+    * Prove one HdlInt can cross an untouched native Int API as a positive,
+    * bounded concrete witness while retaining its complete symbolic geometry.
+    */
+  private[frontend] def nativeIntExpression(
+      actual: HdlInt,
+      role: String,
+      origin: SourceOrigin
+  ): spinal.core.ElaborationIntegerExpression = {
+    if (actual eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-NATIVE-INT-ACTUAL-NULL",
+        s"$role requires one non-null HdlInt expression",
+        origin
+      )
+    }
+    actual.requireLoopInvariant(role)
+    val retained = StructuralExpressionBridge.width(actual, role)
+    if (
+      retained.default != actual.witness ||
+      retained.minimum < 1 || retained.maximum < retained.minimum ||
+      retained.maximum > BigInt(Int.MaxValue) ||
+      retained.default < retained.minimum || retained.default > retained.maximum ||
+      !retained.default.isValidInt
+    ) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-NATIVE-INT-GEOMETRY-DOMAIN-INVALID",
+        s"$role expression '${retained.verilog}' must have concrete witness ${actual.witness} and a finite positive Int-sized domain, received default ${retained.default} in [${retained.minimum}, ${retained.maximum}]",
+        origin
+      )
+    }
+    retained
+  }
+
+  /**
+    * Build a definition-side formal for an explicitly supplied component
+    * owner. Unlike `formalParam`, this helper does not depend on
+    * `Component.current`; it is used after an untouched native Int constructor
+    * has returned its exact component object.
+    */
+  private[frontend] def formalBindingForOwner(
+      actual: HdlInt,
+      name: String,
+      minimum: BigInt,
+      maximum: BigInt,
+      ownerClassName: String,
+      declarationKey: String,
+      origin: SourceOrigin
+  ): ExternalFormalParameterBinding = {
     if (actual eq null) {
       FrontendException.failAt(
         "MORPH-FRONTEND-FORMAL-PARAMETER-ACTUAL-NULL",
-        "formalParam requires one non-null instance actual expression",
+        "formal parameter construction requires one non-null instance actual expression",
         origin
       )
     }
@@ -617,6 +705,20 @@ object HdlInt {
         origin
       )
     }
+    if (ownerClassName == null || ownerClassName.isEmpty) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-FORMAL-PARAMETER-OWNER-MISSING",
+        s"formal parameter '$name' requires one component-definition owner identity",
+        origin
+      )
+    }
+    if (declarationKey == null || declarationKey.isEmpty) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-FORMAL-PARAMETER-IDENTITY-MISSING",
+        s"formal parameter '$name' requires one deterministic declaration identity",
+        origin
+      )
+    }
     if (actual.formalBinding.nonEmpty) {
       FrontendException.failAt(
         "MORPH-FRONTEND-FORMAL-PARAMETER-NESTED",
@@ -625,24 +727,13 @@ object HdlInt {
       )
     }
 
-    actual.requireLoopInvariant(s"formal parameter '$name' actual")
-    val owner = Option(Component.current).getOrElse {
-      FrontendException.failAt(
-        "MORPH-FRONTEND-FORMAL-PARAMETER-OWNER-MISSING",
-        s"formal parameter '$name' must be declared inside one active Component definition",
-        origin
-      )
-    }
-    val ownerClassName = owner.getClass.getName
-    val retainedActual = StructuralExpressionBridge.width(
+    val retainedActual = nativeIntExpression(
       actual,
-      s"formal parameter '$name' actual"
+      s"formal parameter '$name' actual",
+      origin
     )
     if (
-      retainedActual.default != actual.witness ||
-      retainedActual.minimum < minimum || retainedActual.maximum > maximum ||
-      retainedActual.minimum < 1 || retainedActual.maximum < retainedActual.minimum ||
-      !retainedActual.default.isValidInt
+      retainedActual.minimum < minimum || retainedActual.maximum > maximum
     ) {
       FrontendException.failAt(
         "MORPH-FRONTEND-FORMAL-PARAMETER-ACTUAL-DOMAIN-UNSUPPORTED",
@@ -651,37 +742,17 @@ object HdlInt {
       )
     }
 
-    val declaration = IntegerParameter(
-      name,
-      retainedActual.default,
-      Vector[IntConstraint](MinInclusive(minimum), MaxInclusive(maximum))
-    )
-    val token = new ParameterToken(declaration, origin)
-    val formal = ElaborationIntegerParameter(
-      name,
-      retainedActual.default,
-      minimum,
-      maximum
-    )
-    val binding = ExternalFormalParameterBinding(
-      formal = formal,
+    ExternalFormalParameterBinding(
+      formal = ElaborationIntegerParameter(
+        name,
+        retainedActual.default,
+        minimum,
+        maximum
+      ),
       actual = retainedActual,
-      declarationKey = s"$ownerClassName@${origin.rendered}::$name",
+      declarationKey = declarationKey,
       ownerClassName = ownerClassName,
       sourceLocation = Some(origin.rendered)
-    )
-    new HdlInt(
-      retainedActual.default,
-      ParameterRef(name),
-      declaration = Some(token),
-      parameters = Set(token),
-      booleanParameters = Set.empty,
-      localDeclaration = None,
-      localParameters = Set.empty,
-      booleanLocalParameters = Set.empty,
-      scope = None,
-      origin = origin,
-      formalBinding = Some(binding)
     )
   }
 
