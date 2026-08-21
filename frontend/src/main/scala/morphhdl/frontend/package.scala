@@ -11,15 +11,15 @@ package object frontend {
     * SpinalHDL factories.
     */
   def Bits(width: ParameterizedBitCount): spinal.core.Bits =
-    ParameterizedWidth.Bits(width)
+    ExternalFormalParameterRegistry.attach(ParameterizedWidth.Bits(width), width)
   def Bits(width: BitCount): spinal.core.Bits = spinal.core.Bits(width)
 
   def UInt(width: ParameterizedBitCount): spinal.core.UInt =
-    ParameterizedWidth.UInt(width)
+    ExternalFormalParameterRegistry.attach(ParameterizedWidth.UInt(width), width)
   def UInt(width: BitCount): spinal.core.UInt = spinal.core.UInt(width)
 
   def SInt(width: ParameterizedBitCount): spinal.core.SInt =
-    ParameterizedWidth.SInt(width)
+    ExternalFormalParameterRegistry.attach(ParameterizedWidth.SInt(width), width)
   def SInt(width: BitCount): spinal.core.SInt = spinal.core.SInt(width)
 
   def cloneOf[T <: Data](data: T): T = ParameterizedWidth.cloneOf(data)

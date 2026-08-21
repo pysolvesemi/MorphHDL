@@ -44,6 +44,25 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     override def parameters: Vector[ElaborationIntegerParameter] = Vector.empty
   }
 
+  private final case class ExpressionBinding(
+      expression: ElaborationIntegerExpression
+  ) extends BindingExpr {
+    override def render: String = expression.verilog
+    override def default: BigInt = expression.default
+    override def minimum: BigInt = expression.minimum
+    override def maximum: BigInt = expression.maximum
+    override def parameters: Vector[ElaborationIntegerParameter] =
+      expression.parameters.distinct.sortBy(_.name)
+  }
+
+  private final case class BindingSignature(
+      render: String,
+      default: BigInt,
+      minimum: BigInt,
+      maximum: BigInt,
+      parameters: Vector[ElaborationIntegerParameter]
+  )
+
   private final case class PortRewrite(name: String, width: BindingExpr)
 
   private final case class InstancePlan(
@@ -271,7 +290,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         }
       }
 
-      val evidence = parameterPorts.flatMap { name =>
+      val connectionBindings = distinctBindings(parameterPorts.flatMap { name =>
         connectionEvidence(
           parent,
           child,
@@ -279,21 +298,91 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           assignments,
           s"port '$name' of instance '$instanceName'"
         )
+      })
+      val canonicalFormals = parameterPorts.flatMap { name =>
+        ExternalFormalParameterRegistry.bindingOf(canonicalByName(name))
       }
-      val distinct = evidence.groupBy(_.render).toVector.map(_._2.head)
-      if (distinct.isEmpty) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
-          s"no direct parent connection constrains parameter '${parameter.name}' of instance '$instanceName'"
-        )
+      val actualFormals = parameterPorts.flatMap { name =>
+        ExternalFormalParameterRegistry.bindingOf(actualByName(name))
       }
-      if (distinct.size != 1) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-CONFLICT",
-          s"connections of instance '$instanceName' constrain parameter '${parameter.name}' with ${distinct.map(_.render).sorted.mkString(", ")}"
-        )
-      }
-      val expression = distinct.head
+      val hasExplicitFormal = canonicalFormals.nonEmpty || actualFormals.nonEmpty
+
+      val expression =
+        if (hasExplicitFormal) {
+          if (
+            canonicalFormals.size != parameterPorts.size ||
+            actualFormals.size != parameterPorts.size
+          ) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-FORMAL-LAYOUT-CONFLICT",
+              s"formal slot '${parameter.name}' of instance '$instanceName' is not retained on every canonical and actual packed port"
+            )
+          }
+          (canonicalFormals ++ actualFormals).foreach { binding =>
+            if (binding.formal != parameter) {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SCHEMA-CONFLICT",
+                s"formal slot '${binding.formal.name}' does not match canonical child parameter '${parameter.name}' of '$definitionName'",
+                binding.sourceLocation
+              )
+            }
+          }
+          val canonicalKeys = canonicalFormals.map(_.declarationKey).distinct
+          val actualKeys = actualFormals.map(_.declarationKey).distinct
+          if (
+            canonicalKeys.size != 1 || actualKeys.size != 1 ||
+            canonicalKeys.head != actualKeys.head
+          ) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+              s"formal slot '${parameter.name}' of instance '$instanceName' does not map to one canonical declaration identity",
+              actualFormals.flatMap(_.sourceLocation).headOption
+            )
+          }
+          val actualExpressions = actualFormals.map(binding =>
+            ExternalFormalParameterRegistry.normalizedExpression(binding.actual)
+          ).distinct
+          if (actualExpressions.size != 1) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS",
+              s"formal slot '${parameter.name}' of instance '$instanceName' maps to multiple actual expressions: ${actualExpressions.map(_.verilog).sorted.mkString(", ")}",
+              actualFormals.flatMap(_.sourceLocation).headOption
+            )
+          }
+          val explicit = ExpressionBinding(actualExpressions.head)
+          if (connectionBindings.isEmpty) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
+              s"no direct parent connection validates actual '${explicit.render}' for formal '${parameter.name}' of instance '$instanceName'"
+            )
+          }
+          if (
+            connectionBindings.size != 1 ||
+            bindingSignature(connectionBindings.head) != bindingSignature(explicit)
+          ) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-FORMAL-ACTUAL-CONNECTION-CONFLICT",
+              s"connections of instance '$instanceName' constrain formal '${parameter.name}' with ${connectionBindings.map(_.render).sorted.mkString(", ")}, but explicit actual is '${explicit.render}'",
+              actualFormals.flatMap(_.sourceLocation).headOption
+            )
+          }
+          explicit
+        } else {
+          if (connectionBindings.isEmpty) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
+              s"no direct parent connection constrains parameter '${parameter.name}' of instance '$instanceName'"
+            )
+          }
+          if (connectionBindings.size != 1) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-CONFLICT",
+              s"connections of instance '$instanceName' constrain parameter '${parameter.name}' with ${connectionBindings.map(_.render).sorted.mkString(", ")}"
+            )
+          }
+          connectionBindings.head
+        }
+
       if (expression.default != parameter.default) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-WITNESS-MISMATCH",
@@ -444,8 +533,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
   ): BindingExpr = expression match {
     case value: Bool => LiteralBinding(1)
     case value: BitVector if value.component == parent =>
-      ParameterizedWidth.parameterOf(value) match {
-        case Some(parameter) => ParameterBinding(parameter)
+      ParameterizedWidth.expressionOf(value) match {
+        case Some(expression) => ExpressionBinding(expression)
         case None if value.isIo => LiteralBinding(value.getBitsWidth)
         case None =>
           fail(
@@ -462,6 +551,22 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       )
   }
 
+  private def distinctBindings(values: Vector[BindingExpr]): Vector[BindingExpr] =
+    values.groupBy(bindingSignature).toVector
+      .sortBy { case (signature, _) =>
+        (signature.render, signature.minimum, signature.maximum, signature.default)
+      }
+      .map(_._2.head)
+
+  private def bindingSignature(value: BindingExpr): BindingSignature =
+    BindingSignature(
+      render = value.render,
+      default = value.default,
+      minimum = value.minimum,
+      maximum = value.maximum,
+      parameters = value.parameters.distinct.sortBy(_.name)
+    )
+
   private def references(expression: Expression, target: Expression): Boolean = {
     var found = false
     def visit(current: Expression): Unit = {
@@ -474,6 +579,10 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     found
   }
 
-  private def fail(code: String, detail: String): Nothing =
-    ParameterizedVerilogException.fail(code, detail)
+  private def fail(
+      code: String,
+      detail: String,
+      sourceLocation: Option[String] = None
+  ): Nothing =
+    ParameterizedVerilogException.fail(code, detail, sourceLocation)
 }
