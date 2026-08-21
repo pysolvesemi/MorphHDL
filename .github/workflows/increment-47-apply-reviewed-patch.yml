@@ -1,0 +1,73 @@
+name: Apply reviewed Increment 47 patch
+
+on:
+  push:
+    branches:
+      - agent/increment-47-external-formalization-boundary
+    paths:
+      - .github/workflows/increment-47-apply-reviewed-patch.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-47-reviewed-patch
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/increment-47-external-formalization-boundary
+
+      - name: Apply exact reviewed patch and remove temporary delivery workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch_url='https://paste.c-net.org/morphhdl-inc47-pr83-payload-20260821-a7f3'
+          curl --fail --silent --show-error --location "${patch_url}" --output /tmp/increment-47-reviewed.patch
+          test -s /tmp/increment-47-reviewed.patch
+
+          mapfile -t patch_paths < <(git apply --numstat /tmp/increment-47-reviewed.patch | awk '{print $3}')
+          test "${#patch_paths[@]}" -gt 0
+
+          if git apply --reverse --check /tmp/increment-47-reviewed.patch; then
+            echo 'Reviewed Increment 47 patch is already present.'
+          else
+            git apply --check /tmp/increment-47-reviewed.patch
+            git apply /tmp/increment-47-reviewed.patch
+          fi
+
+          rm -f \
+            .github/workflows/increment-47-source-export.yml \
+            .github/workflows/increment-47-apply-reviewed-patch.yml
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- "${patch_paths[@]}"
+          git add -u -- \
+            .github/workflows/increment-47-source-export.yml \
+            .github/workflows/increment-47-apply-reviewed-patch.yml
+
+          if git diff --cached --quiet; then
+            echo 'No publication changes remain.'
+            exit 0
+          fi
+
+          git diff --cached --check
+          if git diff --cached --name-only | grep -E '^(core|lib|idslplugin)/src/'; then
+            echo 'Reviewed patch unexpectedly modifies upstream-owned native source.' >&2
+            exit 1
+          fi
+          if git diff --cached -- docs/morphhdl/parameterized-verilog-todo.md | grep -q '^+.*\[x\].*Increment 47'; then
+            echo 'Roadmap checkbox must remain unchecked for the first remote CI pass.' >&2
+            exit 1
+          fi
+
+          git commit -m 'Implement Increment 47 external native Int formalization'
+          git push origin HEAD:agent/increment-47-external-formalization-boundary
