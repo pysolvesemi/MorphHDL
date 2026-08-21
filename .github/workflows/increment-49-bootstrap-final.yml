@@ -1,0 +1,82 @@
+name: Increment 49 reviewed patch bootstrap
+
+on:
+  push:
+    branches:
+      - agent/increment-49-native-int-provenance
+    paths:
+      - .github/workflows/increment-49-bootstrap-final.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-49-reviewed-patch-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/increment-49-native-int-provenance
+
+      - name: Reconstruct and apply reviewed Increment 49 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          parts=(.github/increment-49-payload/part-*)
+          if (( ${#parts[@]} == 0 )); then
+            echo 'Increment 49 payload parts are missing.' >&2
+            exit 1
+          fi
+
+          LC_ALL=C printf '%s\n' "${parts[@]}" | sort > /tmp/increment-49-parts.txt
+          while IFS= read -r part; do
+            tr -d '\r\n' < "${part}"
+          done < /tmp/increment-49-parts.txt \
+            | base64 --decode \
+            | gzip --decompress \
+            > /tmp/increment-49-reviewed.patch
+
+          test -s /tmp/increment-49-reviewed.patch
+          mapfile -t patch_paths < <(git apply --numstat /tmp/increment-49-reviewed.patch | awk '{print $3}')
+          test "${#patch_paths[@]}" -gt 0
+
+          if git apply --reverse --check /tmp/increment-49-reviewed.patch; then
+            echo 'Reviewed Increment 49 patch is already present.'
+          else
+            git apply --check /tmp/increment-49-reviewed.patch
+            git apply /tmp/increment-49-reviewed.patch
+          fi
+
+          rm -rf .github/increment-49-payload
+          rm -f .github/workflows/increment-49-bootstrap-final.yml
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- "${patch_paths[@]}"
+          git add -u -- .github/increment-49-payload .github/workflows/increment-49-bootstrap-final.yml
+
+          if git diff --cached --quiet; then
+            echo 'No Increment 49 publication changes remain.'
+            exit 0
+          fi
+
+          git diff --cached --check
+          if git diff --cached --name-only | grep -E '^(core|lib|idslplugin)/src/'; then
+            echo 'Increment 49 unexpectedly modifies upstream-owned native source.' >&2
+            exit 1
+          fi
+          if git diff --cached -- docs/morphhdl/parameterized-verilog-todo.md | grep -q '^+.*\[x\].*Increment 49'; then
+            echo 'Increment 49 roadmap checkbox must remain unchecked until permanent CI passes.' >&2
+            exit 1
+          fi
+
+          git commit -m 'Implement Increment 49 native Int provenance propagation'
+          git push origin HEAD:agent/increment-49-native-int-provenance
