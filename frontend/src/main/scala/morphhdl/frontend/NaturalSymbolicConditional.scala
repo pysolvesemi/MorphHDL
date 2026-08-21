@@ -1,6 +1,7 @@
 package morphhdl.frontend
 
 import morphhdl.paramrtl.BoolExpr.{And, Literal, Not}
+import spinal.core.{ParameterizedStructuralSynthetic, ParameterizedStructure}
 
 /** Typed bridge introduced by the MorphHDL compiler plugin for natural Scala `if` syntax. */
 object NaturalSymbolicConditional {
@@ -15,7 +16,7 @@ object NaturalSymbolicConditional {
       sourceLine: Int
   )(ifTrue: => T)(ifFalse: => T): T = {
     val origin = SourceOrigin(sourceFile, sourceLine)
-    if (spinal.core.ParameterizedStructure.captureEnabled) {
+    if (ParameterizedStructure.captureEnabled) {
       var trueValue: Option[T] = None
       var falseValue: Option[T] = None
       val builder = NativeStructuralFrontend.startGenerateIf(
@@ -51,7 +52,7 @@ object NaturalSymbolicConditional {
         SourceOrigin(otherwiseFile, otherwiseLine)
       )
 
-    if (!spinal.core.ParameterizedStructure.captureEnabled) {
+    if (!ParameterizedStructure.captureEnabled) {
       alternatives.collectFirst { case (condition, body, _, _) if condition.witness => body() }
         .getOrElse(otherwise())
     } else {
@@ -68,7 +69,7 @@ object NaturalSymbolicConditional {
           { values(index) = Some(body()); () },
           origin
         )
-        builder.nativeToken.otherwise((), origin)
+        completeWithSyntheticOtherwise(builder.nativeToken, origin)
         remaining = andAt(remaining, notAt(condition, origin), origin)
       }
 
@@ -79,7 +80,7 @@ object NaturalSymbolicConditional {
         { otherwiseValue = Some(otherwise()); () },
         defaultOrigin
       )
-      defaultBuilder.nativeToken.otherwise((), defaultOrigin)
+      completeWithSyntheticOtherwise(defaultBuilder.nativeToken, defaultOrigin)
 
       alternatives.indexWhere(_._1.witness) match {
         case index if index >= 0 => values(index).get
@@ -87,6 +88,20 @@ object NaturalSymbolicConditional {
       }
     }
   }
+
+  private def completeWithSyntheticOtherwise(
+      token: NativeGenerateIfToken,
+      origin: SourceOrigin
+  ): Unit =
+    ParameterizedStructure.registerIf(
+      token.pending,
+      token.expression,
+      token.names.whenTrue,
+      token.names.whenFalse,
+      token.whenTrueBlock,
+      ParameterizedStructuralSynthetic.emptyBlock(Some(origin.rendered)),
+      Some(token.origin.rendered)
+    )
 
   private def literalAt(value: Boolean, origin: SourceOrigin): HdlBool =
     new HdlBool(
