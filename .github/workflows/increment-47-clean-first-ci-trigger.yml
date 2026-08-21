@@ -1,0 +1,91 @@
+name: Increment 47 first-pass cleanup
+
+on:
+  push:
+    branches:
+      - agent/increment-47-external-formalization-boundary
+    paths:
+      - .github/workflows/increment-47-clean-first-ci-trigger.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: increment-47-first-pass-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          ref: agent/increment-47-external-formalization-boundary
+
+      - name: Wait for the reviewed implementation head to become fully green
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          checked_sha=$(git rev-parse HEAD^)
+          required=(
+            'MorphHDL native source guard'
+            'MorphHDL external symbolic width'
+            'MorphHDL external structural and process capture'
+            'MorphHDL external native memory'
+            'MorphHDL Mill'
+            'MorphHDL baseline'
+            'MorphHDL external SpinalHDL boundary'
+          )
+
+          for attempt in $(seq 1 240); do
+            gh api \
+              -H 'Accept: application/vnd.github+json' \
+              "/repos/${GH_REPO}/actions/runs?head_sha=${checked_sha}&per_page=100" \
+              > /tmp/runs.json
+
+            names=$(jq -r '.workflow_runs[].name' /tmp/runs.json | sort -u)
+            missing=0
+            for name in "${required[@]}"; do
+              if ! grep -Fxq "${name}" <<<"${names}"; then
+                missing=$((missing + 1))
+              fi
+            done
+
+            pending=$(jq '[.workflow_runs[] | select(.status != "completed")] | length' /tmp/runs.json)
+            bad=$(jq '[.workflow_runs[] | select(.status == "completed" and (.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral"))] | length' /tmp/runs.json)
+
+            if [[ "${missing}" -eq 0 && "${pending}" -eq 0 ]]; then
+              if [[ "${bad}" -ne 0 ]]; then
+                jq -r '.workflow_runs[] | select(.status == "completed" and (.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral")) | "FAILED: \(.name) \(.html_url) conclusion=\(.conclusion)"' /tmp/runs.json >&2
+                exit 1
+              fi
+              exit 0
+            fi
+            sleep 15
+          done
+          echo 'Timed out waiting for complete Increment 47 first-pass checks.' >&2
+          exit 1
+
+      - name: Remove temporary CI trigger and this cleanup workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f \
+            .github/increment-47-ci-trigger \
+            .github/workflows/increment-47-clean-first-ci-trigger.yml
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -u -- \
+            .github/increment-47-ci-trigger \
+            .github/workflows/increment-47-clean-first-ci-trigger.yml
+          git diff --cached --check
+          git commit -m 'ci: remove Increment 47 first-pass triggers'
+          git push origin HEAD:agent/increment-47-external-formalization-boundary
