@@ -1,9 +1,9 @@
-name: Apply reviewed Increment 47 patch
+name: Publish recovered Increment 47 implementation
 
 on:
   push:
     branches:
-      - agent/increment-47-external-formalization-boundary
+      - agent/increment-47-recovery-complete
     paths:
       - .github/workflows/increment-47-apply-reviewed-patch.yml
   workflow_dispatch:
@@ -12,62 +12,97 @@ permissions:
   contents: write
 
 concurrency:
-  group: increment-47-reviewed-patch
+  group: increment-47-recovery-publication
   cancel-in-progress: false
 
 jobs:
-  apply:
+  publish:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: agent/increment-47-external-formalization-boundary
+          ref: agent/increment-47-recovery-complete
 
-      - name: Apply exact reviewed patch and remove temporary delivery workflows
+      - name: Verify and publish the exact reviewed implementation
         shell: bash
         run: |
           set -euo pipefail
-          patch_url='https://paste.c-net.org/morphhdl-inc47-pr83-payload-20260821-a7f3'
-          curl --fail --silent --show-error --location "${patch_url}" --output /tmp/increment-47-reviewed.patch
-          test -s /tmp/increment-47-reviewed.patch
 
-          mapfile -t patch_paths < <(git apply --numstat /tmp/increment-47-reviewed.patch | awk '{print $3}')
-          test "${#patch_paths[@]}" -gt 0
+          payload_dir='.github/increment-47-payload'
+          encoded='/tmp/increment-47-recovery.patch.gz.b64'
+          archive='/tmp/increment-47-recovery.patch.gz'
+          patch='/tmp/increment-47-recovery.patch'
 
-          if git apply --reverse --check /tmp/increment-47-reviewed.patch; then
-            echo 'Reviewed Increment 47 patch is already present.'
-          else
-            git apply --check /tmp/increment-47-reviewed.patch
-            git apply /tmp/increment-47-reviewed.patch
-          fi
+          test "$(find "${payload_dir}" -maxdepth 1 -type f -name 'part-*' | wc -l)" -eq 6
+          cat "${payload_dir}"/part-* > "${encoded}"
+          base64 --decode "${encoded}" > "${archive}"
+          echo '2f4dc9896d5effcadd59543c0c0f7deb20f65b04a2424b907bf4c5a15c2cfe6f  /tmp/increment-47-recovery.patch.gz' | sha256sum -c -
+          gzip -dc "${archive}" > "${patch}"
+          echo 'cd72957a690603120560a2d289fda9884ed5d408f553b3d0df85dcba3f22a289  /tmp/increment-47-recovery.patch' | sha256sum -c -
 
+          mapfile -t patch_paths < <(git apply --numstat "${patch}" | awk '{print $3}')
+          test "${#patch_paths[@]}" -eq 11
+          git apply --check "${patch}"
+          git apply "${patch}"
+
+          rm -rf "${payload_dir}"
           rm -f \
-            .github/workflows/increment-47-source-export.yml \
-            .github/workflows/increment-47-apply-reviewed-patch.yml
+            .github/increment-47-ci-trigger \
+            .github/workflows/increment-47-apply-reviewed-patch.yml \
+            .github/workflows/increment-47-clean-first-ci-trigger.yml \
+            .github/workflows/increment-47-source-export.yml
+
+          grep -Fq -- '- [ ] **Increment 47 — External formalization boundary for native `Int` APIs**' \
+            docs/morphhdl/parameterized-verilog-todo.md
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- "${patch_paths[@]}"
-          git add -u -- \
-            .github/workflows/increment-47-source-export.yml \
-            .github/workflows/increment-47-apply-reviewed-patch.yml
-
-          if git diff --cached --quiet; then
-            echo 'No publication changes remain.'
-            exit 0
-          fi
-
+          git add -A
           git diff --cached --check
+
           if git diff --cached --name-only | grep -E '^(core|lib|idslplugin)/src/'; then
-            echo 'Reviewed patch unexpectedly modifies upstream-owned native source.' >&2
-            exit 1
-          fi
-          if git diff --cached -- docs/morphhdl/parameterized-verilog-todo.md | grep -q '^+.*\[x\].*Increment 47'; then
-            echo 'Roadmap checkbox must remain unchecked for the first remote CI pass.' >&2
+            echo 'Recovery unexpectedly modifies upstream-owned native source.' >&2
             exit 1
           fi
 
-          git commit -m 'Implement Increment 47 external native Int formalization'
-          git push origin HEAD:agent/increment-47-external-formalization-boundary
+          python3 - <<'PY'
+          import subprocess
+          patch_paths = set(subprocess.check_output(
+              ['git', 'apply', '--numstat', '/tmp/increment-47-recovery.patch'],
+              text=True,
+          ).splitlines())
+          patch_paths = {line.split('\t', 2)[2] for line in patch_paths}
+          staged = set(subprocess.check_output(
+              ['git', 'diff', '--cached', '--name-only'],
+              text=True,
+          ).splitlines())
+          allowed = patch_paths | {
+              '.github/increment-47-ci-trigger',
+              '.github/workflows/increment-47-apply-reviewed-patch.yml',
+              '.github/workflows/increment-47-clean-first-ci-trigger.yml',
+          }
+          allowed.update(
+              f'.github/increment-47-payload/part-{index:02d}'
+              for index in range(6)
+          )
+          unexpected = staged - allowed
+          if unexpected:
+              raise SystemExit('Unexpected staged paths: ' + ', '.join(sorted(unexpected)))
+          required = {
+              '.github/workflows/morphhdl-external-formalization.yml',
+              'docs/morphhdl/increment-47-external-formalization-boundary.md',
+              'frontend/src/main/scala/morphhdl/frontend/formalComponent.scala',
+              'frontend/src/main/scala/morphhdl/frontend/formalRegion.scala',
+              'frontend/src/main/scala/spinal/core/ExternalNativeIntFormalizationRegistry.scala',
+              'morphhdl/scripts/check-external-formalization-boundary.sh',
+              'morphhdl/src/test/scala/morphhdl/ExternalNativeIntFormalizationTests.scala',
+          }
+          missing = required - staged
+          if missing:
+              raise SystemExit('Missing permanent Increment 47 paths: ' + ', '.join(sorted(missing)))
+          PY
+
+          git commit -m 'Complete Increment 47 external native Int formalization'
+          git push origin HEAD:agent/increment-47-recovery-complete
