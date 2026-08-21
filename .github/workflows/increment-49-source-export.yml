@@ -1,0 +1,44 @@
+name: Increment 49 source export
+
+on:
+  push:
+    branches:
+      - agent/increment-49-native-int-provenance
+    paths:
+      - .github/workflows/increment-49-source-export.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-49-source-export-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Package exact branch source
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/morphhdl-increment-49-source.tar.gz"
+          checksum="${archive}.sha256"
+          git archive --format=tar.gz --output="${archive}" HEAD
+          sha256sum "${archive}" > "${checksum}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-increment-49-source-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/morphhdl-increment-49-source.tar.gz
+            ${{ runner.temp }}/morphhdl-increment-49-source.tar.gz.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
