@@ -1,0 +1,84 @@
+name: Finalize Increment 47 roadmap
+
+on:
+  push:
+    branches:
+      - agent/increment-47-external-formalization-boundary
+    paths:
+      - .github/workflows/increment-47-complete-roadmap.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: increment-47-roadmap-completion
+  cancel-in-progress: false
+
+jobs:
+  complete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/increment-47-external-formalization-boundary
+
+      - name: Verify first-pass integration evidence and finalize the checkbox
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for path in \
+            .github/increment-47-ci-trigger \
+            .github/workflows/increment-47-source-export.yml \
+            .github/workflows/increment-47-apply-reviewed-patch.yml \
+            .github/workflows/increment-47-clean-first-ci-trigger.yml; do
+            if [[ -e "${path}" ]]; then
+              echo "Temporary Increment 47 delivery artifact remains: ${path}" >&2
+              exit 1
+            fi
+          done
+
+          gh api \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/${GH_REPO}/actions/workflows/increment-47-clean-first-ci-trigger.yml/runs?branch=agent%2Fincrement-47-external-formalization-boundary&per_page=5" \
+            > /tmp/cleanup-runs.json
+          if [[ "$(jq -r '.workflow_runs[0].conclusion // ""' /tmp/cleanup-runs.json)" != success ]]; then
+            echo 'The first-pass cleanup did not record a successful fully-green parent head.' >&2
+            exit 1
+          fi
+
+          roadmap=docs/morphhdl/parameterized-verilog-todo.md
+          before=$(grep -c '^- \[ \] \*\*Increment 47 — External formalization boundary for native `Int` APIs\*\*' "${roadmap}")
+          [[ "${before}" -eq 1 ]]
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = path.read_text()
+          old = '- [ ] **Increment 47 — External formalization boundary for native `Int` APIs**'
+          new = '- [x] **Increment 47 — External formalization boundary for native `Int` APIs**'
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one unchecked Increment 47 roadmap entry')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
+          rm -f .github/workflows/increment-47-complete-roadmap.yml
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- "${roadmap}"
+          git add -u -- .github/workflows/increment-47-complete-roadmap.yml
+          git diff --cached --check
+
+          changed_sources=$(git diff --cached --name-only | grep -v '^\.github/workflows/increment-47-complete-roadmap.yml$' || true)
+          [[ "${changed_sources}" == "${roadmap}" ]]
+          git diff --cached -- "${roadmap}" | grep -q '^+- \[x\] \*\*Increment 47 — External formalization boundary for native `Int` APIs\*\*'
+
+          git commit -m 'Complete Increment 47 roadmap item'
+          git push origin HEAD:agent/increment-47-external-formalization-boundary
