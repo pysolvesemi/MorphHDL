@@ -232,7 +232,7 @@ The formalization and symbolic-control-flow increments below follow the explicit
 dependency graph above; they are not globally serial. Increment 53 must not
 start until Increments 45 through 52 are implemented, reviewed and merged.
 
-- [ ] **Increment 46 — Formal parameter identity and canonical child modules**
+- [x] **Increment 46 — Formal parameter identity and canonical child modules**
 
   **Dependencies:** Increment 44 implemented and merged.
 
