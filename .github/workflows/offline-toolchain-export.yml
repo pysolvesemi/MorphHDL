@@ -1,0 +1,102 @@
+name: Offline MorphHDL toolchain export
+
+on:
+  push:
+    branches:
+      - agent/offline-toolchain-export
+    paths:
+      - .github/workflows/offline-toolchain-export.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offline-morphhdl-toolchain-export
+  cancel-in-progress: true
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: sbt
+
+      - uses: sbt/setup-sbt@v1
+
+      - name: Resolve and compile the exact pinned toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch \
+            'idslpayload/Compile/compile' \
+            'idslplugin/Compile/packageBin' \
+            'sim/Compile/compile' \
+            'core/Compile/compile' \
+            'lib/Compile/compile' \
+            'paramrtl/Compile/compile' \
+            'frontend/Compile/compile' \
+            'verilogBackend/Compile/compile' \
+            'morph/Compile/compile'
+
+      - name: Build a portable offline bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="${GITHUB_WORKSPACE}/offline-bundle"
+          rm -rf "${bundle}"
+          mkdir -p "${bundle}/workspace" "${bundle}/home" "${bundle}/bin"
+
+          tar \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='offline-bundle' \
+            -C "${GITHUB_WORKSPACE}" -cf - . \
+            | tar -C "${bundle}/workspace" -xf -
+
+          for item in .cache/coursier .ivy2 .sbt; do
+            if [[ -e "${HOME}/${item}" ]]; then
+              mkdir -p "${bundle}/home/$(dirname "${item}")"
+              cp -a "${HOME}/${item}" "${bundle}/home/${item}"
+            fi
+          done
+
+          sbt_path=$(command -v sbt)
+          cp -a "${sbt_path}" "${bundle}/bin/sbt"
+          printf '%s\n' "${sbt_path}" > "${bundle}/sbt-original-path.txt"
+          find "${HOME}" -type f -name 'sbt-launch*.jar' -print \
+            | sort > "${bundle}/sbt-launchers.txt"
+
+          cat > "${bundle}/run-offline-sbt.sh" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          root=$(cd "$(dirname "$0")" && pwd)
+          export HOME="${root}/home"
+          export COURSIER_CACHE="${HOME}/.cache/coursier"
+          export SBT_OPTS="${SBT_OPTS:-} -Dsbt.offline=true -Dsbt.override.build.repos=false"
+          exec "${root}/bin/sbt" -offline "$@"
+          EOF
+          chmod +x "${bundle}/run-offline-sbt.sh"
+
+          tar -C "${GITHUB_WORKSPACE}" -czf morphhdl-offline-toolchain.tar.gz offline-bundle
+          sha256sum morphhdl-offline-toolchain.tar.gz > morphhdl-offline-toolchain.tar.gz.sha256
+          du -h morphhdl-offline-toolchain.tar.gz
+          cat morphhdl-offline-toolchain.tar.gz.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-offline-toolchain-81abd255
+          path: |
+            morphhdl-offline-toolchain.tar.gz
+            morphhdl-offline-toolchain.tar.gz.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
