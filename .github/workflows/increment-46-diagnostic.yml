@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/increment-46-formal-parameter-identity
+  pull_request:
+    branches:
+      - parameterized-verilog
   workflow_dispatch:
 
 permissions:
