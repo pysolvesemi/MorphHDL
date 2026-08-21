@@ -1,0 +1,44 @@
+name: Recover reviewed Increment 47 patch
+
+on:
+  push:
+    branches:
+      - agent/increment-49-native-int-provenance
+    paths:
+      - .github/workflows/increment-49-recover-increment-47.yml
+  pull_request:
+    branches:
+      - parameterized-verilog
+    paths:
+      - .github/workflows/increment-49-recover-increment-47.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download reviewed Increment 47 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://paste.c-net.org/morphhdl-inc47-pr83-payload-20260821-a7f3'
+          curl --fail --silent --show-error --location "$url" --output increment-47-reviewed.patch
+          test -s increment-47-reviewed.patch
+          git apply --numstat increment-47-reviewed.patch > increment-47-reviewed.numstat
+          sha256sum increment-47-reviewed.patch > increment-47-reviewed.patch.sha256
+          cat increment-47-reviewed.numstat
+          cat increment-47-reviewed.patch.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: increment-47-reviewed-patch-${{ github.sha }}
+          path: |
+            increment-47-reviewed.patch
+            increment-47-reviewed.patch.sha256
+            increment-47-reviewed.numstat
+          if-no-files-found: error
+          retention-days: 1
