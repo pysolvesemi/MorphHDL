@@ -1,0 +1,47 @@
+name: Increment 46 Diagnostic
+
+on:
+  push:
+    branches:
+      - agent/increment-46-formal-parameter-identity
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-46-diagnostic-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  formal-parameter-identity:
+    name: Formal parameter identity Scala 2.13
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Capture focused failure
+        shell: bash
+        run: |
+          set +e
+          /tmp/morphhdl-mill morph[2.13.12].test > /tmp/increment-46-test.log 2>&1
+          status=$?
+          echo "=== Increment 46 failure markers ==="
+          grep -nE 'FormalParameterIdentity|AssertionError|Exception|FAILED|FAILURE|error:|Conflicting formal declaration|assertion failed' /tmp/increment-46-test.log | tail -n 240 || true
+          echo "=== Increment 46 final test tail ==="
+          tail -n 320 /tmp/increment-46-test.log
+          exit "$status"
