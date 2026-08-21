@@ -21,13 +21,42 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Download reviewed Increment 47 patch
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct reviewed Increment 47 patch from immutable blobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
-          url='https://paste.c-net.org/morphhdl-inc47-pr83-payload-20260821-a7f3'
-          curl --fail --silent --show-error --location "$url" --output increment-47-reviewed.patch
+          blobs=(
+            2d5a797794ea1ff72f7eec8d92258f824c4978c9
+            cee9bb3e911e00566a3375a77a7c09851eda6b0f
+            56609fbf25d303bcdcd16352640add9501ca4c0e
+            882b35c9ef8b274c368589bb728d04674746faed
+            7aeb2d7b9156f3567e1768d8ce87c33d15b7f855
+            bdb24e643dc2f8df1940d33ec1ef4815d5cdbb20
+          )
+
+          : > increment-47-reviewed.patch.b64
+          for sha in "${blobs[@]}"; do
+            gh api \
+              -H 'Accept: application/vnd.github+json' \
+              "/repos/${GH_REPO}/git/blobs/${sha}" \
+              --jq '.content' \
+              | tr -d '\n' \
+              | base64 --decode \
+              >> increment-47-reviewed.patch.b64
+          done
+
+          base64 --decode increment-47-reviewed.patch.b64 \
+            | gzip --decompress \
+            > increment-47-reviewed.patch
           test -s increment-47-reviewed.patch
+          git apply --check increment-47-reviewed.patch
           git apply --numstat increment-47-reviewed.patch > increment-47-reviewed.numstat
           sha256sum increment-47-reviewed.patch > increment-47-reviewed.patch.sha256
           cat increment-47-reviewed.numstat
