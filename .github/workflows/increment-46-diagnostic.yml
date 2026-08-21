@@ -41,7 +41,6 @@ jobs:
           chmod +x /tmp/morphhdl-mill
 
       - name: Apply candidate source repair
-        if: github.event_name == 'push'
         shell: bash
         run: |
           python3 - <<'PY'
@@ -115,7 +114,6 @@ jobs:
           exit "$status"
 
       - name: Publish validated source repair
-        if: github.event_name == 'push'
         shell: bash
         run: |
           if git diff --quiet -- \
