@@ -1,5 +1,7 @@
 package spinal.core
 
+import java.util.{Collections, IdentityHashMap, Set => JavaSet}
+
 /**
   * Synthetic structural blocks used by MorphHDL-owned frontend transforms.
   *
@@ -12,8 +14,15 @@ package spinal.core
   * structural region shape expected by the external lowering pipeline.
   */
 object ParameterizedStructuralSynthetic {
-  def emptyBlock(sourceLocation: Option[String]): ParameterizedStructuralBlock =
-    new ParameterizedStructuralBlock(
+  private val syntheticEmpty: JavaSet[ParameterizedStructuralBlock] =
+    Collections.synchronizedSet(
+      Collections.newSetFromMap(
+        new IdentityHashMap[ParameterizedStructuralBlock, java.lang.Boolean]()
+      )
+    )
+
+  def emptyBlock(sourceLocation: Option[String]): ParameterizedStructuralBlock = {
+    val block = new ParameterizedStructuralBlock(
       statements = Vector.empty,
       declarations = Vector.empty,
       assignments = Vector.empty,
@@ -22,4 +31,10 @@ object ParameterizedStructuralSynthetic {
       vecIndices = Vector.empty,
       sourceLocation = sourceLocation
     )
+    syntheticEmpty.add(block)
+    block
+  }
+
+  def isSyntheticEmpty(block: ParameterizedStructuralBlock): Boolean =
+    block != null && syntheticEmpty.contains(block)
 }
