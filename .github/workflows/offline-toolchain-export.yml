@@ -6,13 +6,18 @@ on:
       - agent/offline-toolchain-export
     paths:
       - .github/workflows/offline-toolchain-export.yml
+  pull_request:
+    branches:
+      - agent/offline-toolchain-base
+    paths:
+      - .github/workflows/offline-toolchain-export.yml
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: offline-morphhdl-toolchain-export
+  group: offline-morphhdl-toolchain-export-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
