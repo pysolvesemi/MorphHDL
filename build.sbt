@@ -81,7 +81,7 @@ lazy val all = (project in file("."))
     publishLocal := {},
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(lib, core)
   )
-  .aggregate(sim, idslpayload, idslplugin, core, lib, tester, paramrtl, frontend, verilogBackend, morph)
+  .aggregate(sim, idslpayload, idslplugin, morphplugin, core, lib, tester, paramrtl, frontend, verilogBackend, morph)
 
 
 import sys.process._
@@ -110,6 +110,15 @@ lazy val idslplugin = (project in file("idslplugin"))
     libraryDependencies ++= Seq(
       "org.scala-lang" % "scala-compiler" % scalaVersion.value
     )
+  )
+
+lazy val morphplugin = (project in file("morphplugin"))
+  .settings(
+    defaultSettings,
+    name := "MorphHDL-compiler-plugin",
+    exportJars := true,
+    libraryDependencies += "org.scala-lang" % "scala-compiler" % scalaVersion.value,
+    publish / skip := true
   )
 
 lazy val sim = (project in file("sim"))
@@ -190,6 +199,11 @@ lazy val morph = (project in file("morphhdl"))
   .dependsOn(core, frontend, verilogBackend, lib % "test->compile")
   .settings(
     defaultSettingsWithPlugin,
+    Test / scalacOptions += {
+      val file = (morphplugin / Compile / packageBin).value
+      s"-Xplugin:${file.getAbsolutePath}"
+    },
+    Test / scalacOptions += "-Xplugin-require:morphhdl",
     name := "MorphHDL-orchestration",
     version := SpinalVersion.core,
     libraryDependencies += "com.lihaoyi" %% "sourcecode" % "0.3.0",
