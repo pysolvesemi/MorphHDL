@@ -58,11 +58,12 @@ class NaturalSymbolicConditionalTests extends AnyFunSuite {
 
   test("natural HdlBool and HdlInt predicates retain parameter-controlled alternatives") {
     val verilog = emit()
-    assert(verilog.contains("parameter ENABLED"))
+    val compact = verilog.replaceAll("\\s+", "")
+    assert(verilog.contains("parameter integer ENABLED"))
     assert(verilog.contains("parameter integer WIDTH"))
-    assert(verilog.contains("if (ENABLED)"))
-    assert(verilog.contains("WIDTH > 16") || verilog.contains("(WIDTH > 16)"))
-    assert(verilog.contains("WIDTH > 8") || verilog.contains("(WIDTH > 8)"))
+    assert(compact.contains("(ENABLED==1)"))
+    assert(compact.contains("(WIDTH)>(16)"))
+    assert(compact.contains("(WIDTH)>(8)"))
     assert("(?m)^\\s*if\\s*\\(".r.findAllMatchIn(verilog).size >= 3)
   }
 
