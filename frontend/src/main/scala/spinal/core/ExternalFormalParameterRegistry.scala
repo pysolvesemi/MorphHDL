@@ -289,6 +289,18 @@ object ExternalFormalParameterRegistry {
       declarations.update(new ExternalFormalRootIdentityRef(root, rootQueue), created)
       created
     }
+    byKey.values.find { existing =>
+      existing.ownerClassName == binding.ownerClassName &&
+      existing.formal.name == binding.formal.name &&
+      existing.declarationKey != binding.declarationKey
+    }.foreach { existing =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-DUPLICATE-DECLARATION",
+        s"component definition '${binding.ownerClassName}' declares formal slot '${binding.formal.name}' at multiple explicit call sites",
+        binding.sourceLocation.orElse(existing.sourceLocation)
+      )
+    }
+
     byKey.get(binding.declarationKey) match {
       case Some(existing) if existing.formal.default != binding.formal.default =>
         fail(
