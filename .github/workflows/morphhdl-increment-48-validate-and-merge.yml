@@ -57,13 +57,14 @@ jobs:
           bash morphhdl/scripts/check-natural-symbolic-conditional-boundary.sh "${changed[@]}"
           git diff --check origin/parameterized-verilog...HEAD
 
-      - name: Install strict Verilog-2001 validator
+      - name: Install strict Verilog validators
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y iverilog
+          sudo apt-get install -y iverilog yosys
           iverilog -V
+          yosys -V
 
       - name: Validate Increment 48 on Scala 2.12.18
         run: >-
