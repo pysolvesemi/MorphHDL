@@ -1,0 +1,37 @@
+name: Increment 51 source export
+
+on:
+  push:
+    branches:
+      - agent/increment-51-native-int-branch-capture
+    paths:
+      - .github/workflows/inc51-source-export.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-51-native-int-branch-capture
+          fetch-depth: 0
+      - name: Archive exact branch source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git archive --format=tar.gz --output="$RUNNER_TEMP/inc51-source.tar.gz" HEAD
+          sha256sum "$RUNNER_TEMP/inc51-source.tar.gz" > "$RUNNER_TEMP/inc51-source.tar.gz.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: inc51-source-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/inc51-source.tar.gz
+            ${{ runner.temp }}/inc51-source.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
