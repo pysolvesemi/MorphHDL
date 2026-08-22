@@ -290,7 +290,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   deterministic identity, cleanup, replay and conflict diagnostics. Do not yet
   transform arbitrary arithmetic or control flow.
 
-- [ ] **Increment 50 — Shadow native `Int` expressions and predicates**
+- [x] **Increment 50 — Shadow native `Int` expressions and predicates**
 
   **Dependencies:** Increment 49 implemented and merged.
 
