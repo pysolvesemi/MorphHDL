@@ -1,10 +1,11 @@
-name: Apply Increment 50 compiler-path exclusion fix
+name: Apply Increment 50 closure fixes
 
 on:
   push:
     branches:
       - agent/increment-50-native-int-expressions
     paths:
+      - .github/increment-50-plugin-path-fix.patch
       - .github/workflows/increment-50-apply-plugin-path-fix.yml
   workflow_dispatch:
 
@@ -12,7 +13,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: increment-50-apply-plugin-path-fix
+  group: increment-50-apply-closure-fixes
   cancel-in-progress: false
 
 jobs:
@@ -25,7 +26,7 @@ jobs:
           ref: agent/increment-50-native-int-expressions
           fetch-depth: 0
 
-      - name: Apply fix and remove delivery scaffolding
+      - name: Apply reviewed fixes and remove delivery scaffolding
         shell: bash
         run: |
           set -euo pipefail
@@ -33,11 +34,12 @@ jobs:
           git apply .github/increment-50-plugin-path-fix.patch
           rm -f \
             .github/increment-50-plugin-path-fix.patch \
-            .github/workflows/increment-50-apply-plugin-path-fix.yml
+            .github/workflows/increment-50-apply-plugin-path-fix.yml \
+            .github/workflows/inc50-current-source-export.yml
 
           git config user.name "pysolvesemi"
           git config user.email "pysolvesemi@gmail.com"
           git add -A
           git diff --cached --check
-          git commit -m "Exclude MorphHDL implementation sources from Increment 50 instrumentation"
+          git commit -m "Close Increment 50 native Int expression regressions"
           git push origin HEAD:agent/increment-50-native-int-expressions
