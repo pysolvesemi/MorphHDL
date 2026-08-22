@@ -24,13 +24,12 @@ object NativeIntSymbolicConditionalSmoke {
 
     val din = in(Bits(width bits))
     val dout = out(Bits(width bits))
+    val control = in(Bits(8 bits))
     dout := din
 
-    protected final def attach(value: Int): Unit = {
-      val branch = Bits(8 bits)
-      branch := B(value, 8 bits)
+    protected final def attach(): Unit = {
       val sink = new Sink
-      sink.din := branch
+      sink.din := control
     }
   }
 
@@ -39,36 +38,36 @@ object NativeIntSymbolicConditionalSmoke {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
     @dontName val medium = root > 8
 
-    if (root > 16) attach(0x11)
-    else if (medium) attach(0x22)
-    else attach(0x33)
+    if (root > 16) attach()
+    else if (medium) attach()
+    else attach()
   }
 
   final class OrdinaryLeaf(width: Int, chooseInverted: Boolean)
       extends ConditionalLeaf(width, "NativeIntOrdinaryConditionalLeaf") {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
-    if (chooseInverted) attach(0x44) else attach(0x55)
+    if (chooseInverted) attach() else attach()
   }
 
   final class PowerOfTwoLeaf(width: Int)
       extends ConditionalLeaf(width, "NativeIntPowerOfTwoConditionalLeaf") {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
-    if (isPow2(root)) attach(0x66) else attach(0x77)
+    if (isPow2(root)) attach() else attach()
   }
 
   final class NestedLeaf(width: Int)
       extends ConditionalLeaf(width, "NativeIntNestedConditionalLeaf") {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
     if (root > 16) {
-      if (root > 24) attach(0x88) else attach(0x99)
-    } else attach(0xaa)
+      if (root > 24) attach() else attach()
+    } else attach()
   }
 
   final class UnsupportedPredicateLeaf(width: Int)
       extends ConditionalLeaf(width, "NativeIntUnsupportedPredicateLeaf") {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
     @dontName val wide = root > 8
-    if (!wide) attach(0xbb) else attach(0xcc)
+    if (!wide) attach() else attach()
   }
 
   final class Top(leftWidth: HdlInt, rightWidth: HdlInt) extends Component {
@@ -78,6 +77,7 @@ object NativeIntSymbolicConditionalSmoke {
     val leftOut = out(morphhdl.frontend.Bits(leftWidth bits))
     val rightIn = in(morphhdl.frontend.Bits(rightWidth bits))
     val rightOut = out(morphhdl.frontend.Bits(rightWidth bits))
+    val control = in(Bits(8 bits))
 
     val left = formalComponent(
       leftWidth,
@@ -104,8 +104,10 @@ object NativeIntSymbolicConditionalSmoke {
     right.setName("right")
 
     left.din := leftIn.resized
+    left.control := control
     leftOut := left.dout.resized
     right.din := rightIn.resized
+    right.control := control
     rightOut := right.dout.resized
   }
 
@@ -114,6 +116,7 @@ object NativeIntSymbolicConditionalSmoke {
 
     val din = in(morphhdl.frontend.Bits(width bits))
     val dout = out(morphhdl.frontend.Bits(width bits))
+    val control = in(Bits(8 bits))
 
     val leaf = mode match {
       case "ordinary" =>
@@ -136,6 +139,7 @@ object NativeIntSymbolicConditionalSmoke {
     }
 
     leaf.din := din.resized
+    leaf.control := control
     dout := leaf.dout.resized
   }
 }
