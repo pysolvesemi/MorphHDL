@@ -247,7 +247,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   first; Scala source-name inference may be added only as validated sugar on
   both supported Scala versions.
 
-- [ ] **Increment 47 — External formalization boundary for native `Int` APIs**
+- [x] **Increment 47 — External formalization boundary for native `Int` APIs**
 
   **Dependencies:** Increment 46 implemented and merged.
 
