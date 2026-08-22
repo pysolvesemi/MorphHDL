@@ -26,9 +26,9 @@ object NativeIntSymbolicConditionalSmoke {
     val dout = out(Bits(width bits))
     dout := din
 
-    protected final def attach(value: Bits): Unit = {
+    protected final def attach(value: Int): Unit = {
       val branch = Bits(8 bits)
-      branch := value.resized
+      branch := B(value, 8 bits)
       val sink = new Sink
       sink.din := branch
     }
@@ -39,36 +39,36 @@ object NativeIntSymbolicConditionalSmoke {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
     @dontName val medium = root > 8
 
-    if (root > 16) attach(din)
-    else if (medium) attach(~din)
-    else attach(din)
+    if (root > 16) attach(0x11)
+    else if (medium) attach(0x22)
+    else attach(0x33)
   }
 
   final class OrdinaryLeaf(width: Int, chooseInverted: Boolean)
       extends ConditionalLeaf(width, "NativeIntOrdinaryConditionalLeaf") {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
-    if (chooseInverted) attach(~din) else attach(din)
+    if (chooseInverted) attach(0x44) else attach(0x55)
   }
 
   final class PowerOfTwoLeaf(width: Int)
       extends ConditionalLeaf(width, "NativeIntPowerOfTwoConditionalLeaf") {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
-    if (isPow2(root)) attach(din) else attach(~din)
+    if (isPow2(root)) attach(0x66) else attach(0x77)
   }
 
   final class NestedLeaf(width: Int)
       extends ConditionalLeaf(width, "NativeIntNestedConditionalLeaf") {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
     if (root > 16) {
-      if (root > 24) attach(din) else attach(~din)
-    } else attach(din)
+      if (root > 24) attach(0x88) else attach(0x99)
+    } else attach(0xaa)
   }
 
   final class UnsupportedPredicateLeaf(width: Int)
       extends ConditionalLeaf(width, "NativeIntUnsupportedPredicateLeaf") {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
     @dontName val wide = root > 8
-    if (!wide) attach(din) else attach(~din)
+    if (!wide) attach(0xbb) else attach(0xcc)
   }
 
   final class Top(leftWidth: HdlInt, rightWidth: HdlInt) extends Component {
