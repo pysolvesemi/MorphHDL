@@ -96,9 +96,11 @@ before the Increment 48 symbolic-conditional phase. It instruments only source
 units containing an explicit native shadow marker. Unrelated Scala `Int` code
 is left untouched. MorphHDL implementation sources in `frontend` and
 `morphplugin` are excluded with path normalization that works for both absolute
-and repository-relative compiler source paths. The MorphHDL plugin entrypoint
-registers the expression phase before the natural symbolic-conditional phase on
-both supported Scala versions.
+and repository-relative compiler source paths. String emptiness predicates use
+explicit JVM `length` checks so the parser plugin compiles without ambiguous
+name conversions on both Scala 2.12 and Scala 2.13. The MorphHDL plugin
+entrypoint registers the expression phase before the natural
+symbolic-conditional phase on both supported Scala versions.
 
 The parser-phase transformation is intentionally bounded. It recognizes only
 the reviewed operation set and safe direct aliases. It does not reinterpret
