@@ -78,7 +78,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       Option(unit.source)
         .flatMap(source => Option(source.file))
         .map(_.path)
-        .filter(_.nonEmpty)
+        .filter(value => value.length != 0)
         .getOrElse("<native-int-shadow>")
 
     private def sourceLine(tree: Tree): Int =
@@ -184,7 +184,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         requested: Option[String],
         operation: String,
         tree: Tree
-    ): String = requested.filter(_.nonEmpty).getOrElse {
+    ): String = requested.filter(value => value.length != 0).getOrElse {
       val cleaned = operation.map {
         case value if value.isLetterOrDigit => value
         case _                              => '_'
