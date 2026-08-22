@@ -29,15 +29,8 @@ jobs:
 
           path = Path('frontend/src/main/scala/spinal/core/ParameterizedProcess.scala')
           text = path.read_text()
-          old = '''        state.slices.toVector,
-                state.vecIndices.toVector,
-                sourceLocation
-          )'''
-          new = '''        state.slices.toVector,
-                state.vecIndices.toVector,
-                Vector.empty,
-                sourceLocation
-          )'''
+          old = "state.vecIndices.toVector,\n        sourceLocation"
+          new = "state.vecIndices.toVector,\n        Vector.empty,\n        sourceLocation"
           if text.count(old) != 1:
               raise RuntimeError(
                   f'expected one process structural-block constructor, found {text.count(old)}'
