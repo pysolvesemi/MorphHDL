@@ -272,7 +272,11 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   `Boolean` witness conversion, and leave ordinary Scala `Boolean`
   conditionals unchanged. Cover simple `if`/`else`, chained `else if`,
   diagnostics and dual-Scala behavior before handling native `Int`
-  provenance.
+  provenance. The Increment 48 closure repair must retain a single
+  source-ordered Verilog `if / else if / else` chain without dominance-mask
+  sibling generates, and support nested conditionals for already-explicit
+  `HdlInt`/`HdlBool` predicates. Native-`Int` nested control flow remains
+  governed by Increments 51 and 52.
 
 - [ ] **Increment 49 — Native `Int` symbolic provenance propagation**
 

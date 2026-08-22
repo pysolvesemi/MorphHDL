@@ -18,6 +18,7 @@ final class ParameterizedStructuralBlock private[core] (
     private[core] val children: Vector[Component],
     private[core] val slices: Vector[ParameterizedStructure.StructuralSlice],
     private[core] val vecIndices: Vector[ParameterizedStructure.StructuralVecIndex],
+    private[core] val regions: Vector[ParameterizedStructure.StructuralRegion],
     private[core] val sourceLocation: Option[String]
 )
 
@@ -26,6 +27,7 @@ final class ParameterizedStructuralPending private[core] (
     private[core] val component: Component,
     private[core] val id: Long,
     private[core] val kind: String,
+    private[core] val captureId: Option[Long],
     private[core] val sourceLocation: Option[String]
 )
 
@@ -47,14 +49,17 @@ object ParameterizedStructure {
     val pending = mutable.LinkedHashMap.empty[Long, ParameterizedStructuralPending]
     val labels = mutable.LinkedHashMap.empty[String, Option[String]]
     var nextPendingId = 0L
+    var nextCaptureId = 0L
   }
 
   private final class CaptureState(
       val component: Component,
-      val sourceLocation: Option[String]
+      val sourceLocation: Option[String],
+      val id: Long
   ) {
     val slices = ArrayBuffer.empty[StructuralSlice]
     val vecIndices = ArrayBuffer.empty[StructuralVecIndex]
+    val regions = ArrayBuffer.empty[StructuralRegion]
   }
 
   private[core] final case class StructuralSlice(
@@ -149,17 +154,24 @@ object ParameterizedStructure {
         sourceLocation
       )
     }
-    if (activeCapture.get() ne null) {
+    val previousCapture = activeCapture.get()
+    if ((previousCapture ne null) && (previousCapture.component ne component)) {
       fail(
-        "SPINAL-PARAMETERIZED-VERILOG-NESTED-STRUCTURAL-GENERATE-UNSUPPORTED",
-        "nested structural generate capture is deferred; move the inner generate into a child Component",
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-COMPONENT-MISMATCH",
+        "nested structural capture crossed an active Component boundary",
         sourceLocation
       )
     }
 
     val beforeStatements = component.dslBody.statementIterable.toVector
     val beforeChildren = component.children.toVector
-    val state = new CaptureState(component, sourceLocation)
+    val storage = storageOf(component)
+    storage.nextCaptureId += 1
+    val state = new CaptureState(
+      component,
+      sourceLocation,
+      storage.nextCaptureId
+    )
     activeCapture.set(state)
 
     var completed = false
@@ -167,20 +179,27 @@ object ParameterizedStructure {
       body
       completed = true
     } finally {
-      activeCapture.remove()
+      if (previousCapture eq null) activeCapture.remove()
+      else activeCapture.set(previousCapture)
       if (!completed) {
         rollbackNewStatements(component, beforeStatements)
         rollbackNewChildren(component, beforeChildren)
       }
     }
 
+    val nestedBlocks =
+      state.regions.toVector.flatMap(region => allBlocks(region))
+    val nestedStatements = nestedBlocks.flatMap(_.statements)
+    val nestedChildren = nestedBlocks.flatMap(_.children)
     val statements =
       component.dslBody.statementIterable.toVector.filterNot(value =>
-        beforeStatements.exists(_ eq value)
+        beforeStatements.exists(_ eq value) ||
+        nestedStatements.exists(_ eq value)
       )
     val children =
       component.children.toVector.filterNot(value =>
-        beforeChildren.exists(_ eq value)
+        beforeChildren.exists(_ eq value) ||
+        nestedChildren.exists(_ eq value)
       )
 
     val declarations = statements.collect { case value: BaseType => value }
@@ -209,7 +228,7 @@ object ParameterizedStructure {
     }
     if (
       declarations.isEmpty && assignments.isEmpty && children.isEmpty &&
-      state.slices.isEmpty && state.vecIndices.isEmpty
+      state.slices.isEmpty && state.vecIndices.isEmpty && state.regions.isEmpty
     ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALA-SIDE-EFFECT-UNSUPPORTED",
@@ -225,6 +244,7 @@ object ParameterizedStructure {
       children,
       state.slices.toVector,
       state.vecIndices.toVector,
+      state.regions.toVector,
       sourceLocation
     )
   }
@@ -344,11 +364,16 @@ object ParameterizedStructure {
         sourceLocation
       )
     }
-    storage.regions += StructuralFor(
-      label,
-      indexName,
-      count,
-      body,
+    registerRegion(
+      component,
+      currentCaptureId(component, sourceLocation),
+      StructuralFor(
+        label,
+        indexName,
+        count,
+        body,
+        sourceLocation
+      ),
       sourceLocation
     )
   }
@@ -364,6 +389,7 @@ object ParameterizedStructure {
       component,
       storage.nextPendingId,
       kind,
+      currentCaptureId(component, sourceLocation),
       sourceLocation
     )
     storage.pending(token.id) = token
@@ -384,12 +410,17 @@ object ParameterizedStructure {
     reserveName(storage, whenTrueLabel, "generate-if true label", sourceLocation)
     reserveName(storage, whenFalseLabel, "generate-if false label", sourceLocation)
     validateParameters(condition.parameters, sourceLocation)
-    storage.regions += StructuralIf(
-      condition,
-      whenTrueLabel,
-      whenFalseLabel,
-      whenTrue,
-      whenFalse,
+    registerRegion(
+      pending.component,
+      pending.captureId,
+      StructuralIf(
+        condition,
+        whenTrueLabel,
+        whenFalseLabel,
+        whenTrue,
+        whenFalse,
+        sourceLocation
+      ),
       sourceLocation
     )
     storage.pending.remove(pending.id)
@@ -426,13 +457,18 @@ object ParameterizedStructure {
       reserveName(storage, label, "generate-case choice label", sourceLocation)
     }
     reserveName(storage, defaultLabel, "generate-case default label", sourceLocation)
-    storage.regions += StructuralCase(
-      selector,
-      choices.map { case (value, label, body) =>
-        StructuralCaseChoice(value, label, body)
-      },
-      defaultLabel,
-      defaultBody,
+    registerRegion(
+      pending.component,
+      pending.captureId,
+      StructuralCase(
+        selector,
+        choices.map { case (value, label, body) =>
+          StructuralCaseChoice(value, label, body)
+        },
+        defaultLabel,
+        defaultBody,
+        sourceLocation
+      ),
       sourceLocation
     )
     storage.pending.remove(pending.id)
@@ -440,7 +476,9 @@ object ParameterizedStructure {
 
   /** Public structural parameter inventory for MorphVerilog reports. */
   def parametersOf(component: Component): Vector[ElaborationIntegerParameter] = {
-    val values = storageOption(component).toVector.flatMap(_.regions).flatMap(_.parameters)
+    val values = storageOption(component).toVector
+      .flatMap(_.regions)
+      .flatMap(region => regionParameters(region))
     validateParameterVector(values, None)
   }
 
@@ -467,7 +505,9 @@ object ParameterizedStructure {
       component: Component,
       expression: Expression
   ): Option[ElaborationIntegerExpression] = {
-    val slices = regionsOf(component).flatMap(_.blocks).flatMap(_.slices)
+    val slices = regionsOf(component)
+      .flatMap(region => allBlocks(region))
+      .flatMap(_.slices)
     val found = ArrayBuffer.empty[ElaborationIntegerExpression]
     val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
 
@@ -496,6 +536,63 @@ object ParameterizedStructure {
       component: Component,
       expression: Expression
   ): Boolean = structuralWidthOf(component, expression).nonEmpty
+
+  private[core] def allBlocks(
+      region: StructuralRegion
+  ): Vector[ParameterizedStructuralBlock] =
+    region.blocks.flatMap { block =>
+      block +: block.regions.flatMap(nested => allBlocks(nested))
+    }
+
+  private def regionParameters(
+      region: StructuralRegion
+  ): Vector[ElaborationIntegerParameter] =
+    region.parameters ++ region.blocks
+      .flatMap(_.regions)
+      .flatMap(nested => regionParameters(nested))
+
+  private def currentCaptureId(
+      component: Component,
+      sourceLocation: Option[String]
+  ): Option[Long] = {
+    val capture = activeCapture.get()
+    if ((capture ne null) && (capture.component ne component)) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-COMPONENT-MISMATCH",
+        "structural region registration crossed an active Component boundary",
+        sourceLocation
+      )
+    }
+    Option(capture).map(_.id)
+  }
+
+  private def registerRegion(
+      component: Component,
+      expectedCaptureId: Option[Long],
+      region: StructuralRegion,
+      sourceLocation: Option[String]
+  ): Unit = {
+    val capture = activeCapture.get()
+    val actualCaptureId = Option(capture).map(_.id)
+    if (actualCaptureId != expectedCaptureId) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-CONTEXT-MISMATCH",
+        s"structural region expected capture ${expectedCaptureId.getOrElse("root")} but active capture is ${actualCaptureId.getOrElse("root")}",
+        sourceLocation
+      )
+    }
+    if (capture eq null) storageOf(component).regions += region
+    else {
+      if (capture.component ne component) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-COMPONENT-MISMATCH",
+          "nested structural region belongs to a different Component",
+          sourceLocation
+        )
+      }
+      capture.regions += region
+    }
+  }
 
   private def requireCapture(
       operation: String,

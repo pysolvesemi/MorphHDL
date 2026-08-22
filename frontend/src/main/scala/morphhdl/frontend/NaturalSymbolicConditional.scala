@@ -1,7 +1,6 @@
 package morphhdl.frontend
 
-import morphhdl.paramrtl.BoolExpr.{And, Literal, Not}
-import spinal.core.{ParameterizedStructuralSynthetic, ParameterizedStructure}
+import spinal.core.ParameterizedStructure
 
 /** Typed bridge introduced by the MorphHDL compiler plugin for natural Scala `if` syntax. */
 object NaturalSymbolicConditional {
@@ -33,11 +32,10 @@ object NaturalSymbolicConditional {
   }
 
   /**
-    * Lowers a source-level symbolic `if / else if / ... / else` chain without
-    * nesting structural captures. Each source alternative becomes a sibling
-    * generate-if guarded by the original condition and the negation of all
-    * preceding conditions. The guards are therefore mutually exclusive and
-    * preserve source-order branch selection.
+    * Lowers a source-level symbolic `if / else if / ... / else` chain as
+    * one recursively nested structural region. The Verilog backend may
+    * therefore emit the original source-order `else if` syntax directly,
+    * without sibling generate regions or accumulated dominance guards.
     */
   def selectSymbolicChain[T](
       alternatives: Seq[(HdlBool, () => T, String, Int)],
@@ -45,7 +43,8 @@ object NaturalSymbolicConditional {
       otherwiseFile: String,
       otherwiseLine: Int
   ): T = {
-    if (alternatives.isEmpty)
+    val ordered = alternatives.toVector
+    if (ordered.isEmpty)
       FrontendException.failAt(
         "MORPH-FRONTEND-SYMBOLIC-CONDITIONAL-CHAIN-EMPTY",
         "a symbolic else-if chain requires at least one guarded alternative",
@@ -53,92 +52,40 @@ object NaturalSymbolicConditional {
       )
 
     if (!ParameterizedStructure.captureEnabled) {
-      alternatives.collectFirst { case (condition, body, _, _) if condition.witness => body() }
+      ordered.collectFirst { case (condition, body, _, _) if condition.witness => body() }
         .getOrElse(otherwise())
     } else {
-      val values = Array.fill[Option[T]](alternatives.size)(None)
-      var otherwiseValue: Option[T] = None
-      var remaining = literalAt(true, SourceOrigin(otherwiseFile, otherwiseLine))
-
-      alternatives.zipWithIndex.foreach { case ((condition, body, file, line), index) =>
+      def capture(index: Int): T = {
+        val (condition, body, file, line) = ordered(index)
         val origin = SourceOrigin(file, line)
-        val effective = if (index == 0) condition else andAt(remaining, condition, origin)
+        val falseOrigin =
+          if (index + 1 < ordered.size) {
+            val (_, _, nextFile, nextLine) = ordered(index + 1)
+            SourceOrigin(nextFile, nextLine)
+          } else SourceOrigin(otherwiseFile, otherwiseLine)
+        var trueValue: Option[T] = None
+        var falseValue: Option[T] = None
         val builder = NativeStructuralFrontend.startGenerateIf(
-          effective,
+          condition,
           None,
-          { values(index) = Some(body()); () },
+          { trueValue = Some(body()); () },
           origin
         )
-        completeWithSyntheticOtherwise(builder.nativeToken, origin)
-        remaining = andAt(remaining, notAt(condition, origin), origin)
+        builder.nativeToken.otherwise(
+          {
+            falseValue = Some(
+              if (index + 1 < ordered.size) capture(index + 1)
+              else otherwise()
+            )
+            ()
+          },
+          falseOrigin
+        )
+        if (condition.witness) trueValue.get
+        else falseValue.get
       }
 
-      val defaultOrigin = SourceOrigin(otherwiseFile, otherwiseLine)
-      val defaultBuilder = NativeStructuralFrontend.startGenerateIf(
-        remaining,
-        None,
-        { otherwiseValue = Some(otherwise()); () },
-        defaultOrigin
-      )
-      completeWithSyntheticOtherwise(defaultBuilder.nativeToken, defaultOrigin)
-
-      alternatives.indexWhere(_._1.witness) match {
-        case index if index >= 0 => values(index).get
-        case _                   => otherwiseValue.get
-      }
+      capture(0)
     }
   }
-
-  private def completeWithSyntheticOtherwise(
-      token: NativeGenerateIfToken,
-      origin: SourceOrigin
-  ): Unit =
-    ParameterizedStructure.registerIf(
-      token.pending,
-      token.expression,
-      token.names.whenTrue,
-      token.names.whenFalse,
-      token.whenTrueBlock,
-      ParameterizedStructuralSynthetic.emptyBlock(Some(origin.rendered)),
-      Some(token.origin.rendered)
-    )
-
-  private def literalAt(value: Boolean, origin: SourceOrigin): HdlBool =
-    new HdlBool(
-      witness = value,
-      expression = Literal(value),
-      declaration = None,
-      localDeclaration = None,
-      parameters = Set.empty,
-      integerParameters = Set.empty,
-      localParameters = Set.empty,
-      booleanLocalParameters = Set.empty,
-      origin = origin
-    )
-
-  private def notAt(value: HdlBool, origin: SourceOrigin): HdlBool =
-    new HdlBool(
-      witness = !value.witness,
-      expression = Not(value.expression),
-      declaration = None,
-      localDeclaration = None,
-      parameters = value.parameters,
-      integerParameters = value.integerParameters,
-      localParameters = value.localParameters,
-      booleanLocalParameters = value.booleanLocalParameters,
-      origin = origin
-    )
-
-  private def andAt(left: HdlBool, right: HdlBool, origin: SourceOrigin): HdlBool =
-    new HdlBool(
-      witness = left.witness && right.witness,
-      expression = And(left.expression, right.expression),
-      declaration = None,
-      localDeclaration = None,
-      parameters = left.parameters ++ right.parameters,
-      integerParameters = left.integerParameters ++ right.integerParameters,
-      localParameters = left.localParameters ++ right.localParameters,
-      booleanLocalParameters = left.booleanLocalParameters ++ right.booleanLocalParameters,
-      origin = origin
-    )
 }

@@ -29,6 +29,7 @@ object ParameterizedStructuralSynthetic {
       children = Vector.empty,
       slices = Vector.empty,
       vecIndices = Vector.empty,
+      regions = Vector.empty,
       sourceLocation = sourceLocation
     )
     syntheticEmpty.add(block)
