@@ -1,0 +1,112 @@
+name: Reconstruct reviewed Increment 52 implementation
+
+on:
+  push:
+    branches:
+      - agent/increment-52-nested-symbolic-control-flow
+    paths:
+      - .github/workflows/increment-52-reconstruct-reviewed.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-52-reviewed-reconstruction
+  cancel-in-progress: false
+
+jobs:
+  reconstruct:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-52-nested-symbolic-control-flow
+          fetch-depth: 0
+
+      - name: Rebuild the permanent production tree from reviewed history
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch='agent/increment-52-nested-symbolic-control-flow'
+          reviewed='a3b520c8398e0ce04cf96a7cb1f4c95ab8125949'
+          base='origin/parameterized-verilog'
+          work="${RUNNER_TEMP}/increment-52-recovery"
+          mkdir -p "$work"
+
+          git fetch origin parameterized-verilog
+          git fetch origin "$reviewed"
+
+          for name in implementation closure-fix portability-hardening; do
+            path=".github/increment-52-${name}.patch"
+            git show "${reviewed}:${path}" > "${work}/${name}.patch"
+            test -s "${work}/${name}.patch"
+          done
+
+          git reset --hard "$base"
+          git clean -fdx
+
+          for name in implementation closure-fix portability-hardening; do
+            patch="${work}/${name}.patch"
+            git apply --check "$patch"
+            git apply "$patch"
+          done
+
+          rm -f \
+            .github/increment-52-*.patch \
+            .github/increment-52-*.patch.gz.b64 \
+            .github/increment-52-finalize-v4.sh \
+            .github/workflows/increment-52-apply-*.yml \
+            .github/workflows/increment-52-finalize*.yml \
+            .github/workflows/increment-52-source-export.yml \
+            .github/workflows/increment-52-validation-closure*.yml \
+            .github/workflows/increment-52-recover*.yml \
+            .github/workflows/increment-52-idempotent-recovery.yml \
+            .github/workflows/increment-52-reconstruct-reviewed.yml \
+            .github/workflows/.increment-52-wait-for-checks.sh
+
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = path.read_text()
+          text = text.replace(
+              '- [x] **Increment 52 — Nested symbolic control flow and side-effect safety**',
+              '- [ ] **Increment 52 — Nested symbolic control flow and side-effect safety**',
+          )
+          path.write_text(text)
+          PY
+
+          test -f .github/workflows/morphhdl-native-int-nested-control-flow.yml
+          test -f docs/morphhdl/increment-52-nested-symbolic-control-flow.md
+          test -f morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
+          test -f morphhdl/src/test/scala/morphhdl/NativeIntNestedSymbolicControlFlowTests.scala
+          test -f frontend/src/main/scala/morphhdl/frontend/NativeIntSymbolicConditional.scala
+          test -f morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          grep -Fq 'MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-DEPTH-EXCEEDED' \
+            frontend/src/main/scala/morphhdl/frontend/NativeIntSymbolicConditional.scala
+          grep -Fq 'NativeIntNestedSymbolicControlFlowTests' \
+            .github/workflows/morphhdl-native-int-nested-control-flow.yml
+          grep -Fq -- '- [ ] **Increment 52 — Nested symbolic control flow and side-effect safety**' \
+            docs/morphhdl/parameterized-verilog-todo.md
+          if find .github -type f \( \
+              -name '*increment-52-apply*' -o \
+              -name '*increment-52-finalize*' -o \
+              -name '*increment-52-source-export*' -o \
+              -name '*increment-52-recover*' -o \
+              -name '*increment-52-reconstruct*' -o \
+              -name 'increment-52-*.patch*' \
+            \) | grep -q .; then
+            echo 'Temporary Increment 52 delivery files remain' >&2
+            exit 1
+          fi
+
+          git diff --check
+          bash morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
+
+          git config user.name 'pysolvesemi'
+          git config user.email 'pysolvesemi@gmail.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Implement Increment 52 nested symbolic control flow'
+          git push --force-with-lease origin HEAD:"$branch"
