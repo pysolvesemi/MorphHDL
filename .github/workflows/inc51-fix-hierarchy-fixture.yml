@@ -1,0 +1,93 @@
+name: Fix Increment 51 hierarchy proof fixture
+
+on:
+  push:
+    branches:
+      - agent/increment-51-native-int-branch-capture
+    paths:
+      - .github/workflows/inc51-fix-hierarchy-fixture.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-51-fix-hierarchy-fixture
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-51-native-int-branch-capture
+          fetch-depth: 0
+
+      - name: Connect conditional sink ports to direct parent packed leaves
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphhdl/src/test/scala/morphhdl/NativeIntSymbolicConditionalTests.scala")
+          text = path.read_text()
+
+          replacements = [
+              (
+                  """    val din = in(Bits(width bits))\n    val dout = out(Bits(width bits))\n    dout := din\n\n    protected final def attach(value: Int): Unit = {\n      val branch = Bits(8 bits)\n      branch := B(value, 8 bits)\n      val sink = new Sink\n      sink.din := branch\n    }\n""",
+                  """    val din = in(Bits(width bits))\n    val dout = out(Bits(width bits))\n    val control = in(Bits(8 bits))\n    dout := din\n\n    protected final def attach(): Unit = {\n      val sink = new Sink\n      sink.din := control\n    }\n""",
+              ),
+              ("attach(0x11)", "attach()"),
+              ("attach(0x22)", "attach()"),
+              ("attach(0x33)", "attach()"),
+              ("attach(0x44)", "attach()"),
+              ("attach(0x55)", "attach()"),
+              ("attach(0x66)", "attach()"),
+              ("attach(0x77)", "attach()"),
+              ("attach(0x88)", "attach()"),
+              ("attach(0x99)", "attach()"),
+              ("attach(0xaa)", "attach()"),
+              ("attach(0xbb)", "attach()"),
+              ("attach(0xcc)", "attach()"),
+              (
+                  """    val rightIn = in(morphhdl.frontend.Bits(rightWidth bits))\n    val rightOut = out(morphhdl.frontend.Bits(rightWidth bits))\n""",
+                  """    val rightIn = in(morphhdl.frontend.Bits(rightWidth bits))\n    val rightOut = out(morphhdl.frontend.Bits(rightWidth bits))\n    val control = in(Bits(8 bits))\n""",
+              ),
+              (
+                  """    left.din := leftIn.resized\n    leftOut := left.dout.resized\n    right.din := rightIn.resized\n    rightOut := right.dout.resized\n""",
+                  """    left.din := leftIn.resized\n    left.control := control\n    leftOut := left.dout.resized\n    right.din := rightIn.resized\n    right.control := control\n    rightOut := right.dout.resized\n""",
+              ),
+              (
+                  """    val din = in(morphhdl.frontend.Bits(width bits))\n    val dout = out(morphhdl.frontend.Bits(width bits))\n\n    val leaf = mode match {\n""",
+                  """    val din = in(morphhdl.frontend.Bits(width bits))\n    val dout = out(morphhdl.frontend.Bits(width bits))\n    val control = in(Bits(8 bits))\n\n    val leaf = mode match {\n""",
+              ),
+              (
+                  """    leaf.din := din.resized\n    dout := leaf.dout.resized\n""",
+                  """    leaf.din := din.resized\n    leaf.control := control\n    dout := leaf.dout.resized\n""",
+              ),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected exactly one occurrence, found {count}: {old[:80]!r}")
+              text = text.replace(old, new, 1)
+
+          path.write_text(text)
+          PY
+
+          rm -f \
+            .github/inc51-implementation.patch.gz.b64 \
+            .github/workflows/inc51-apply-implementation.yml \
+            .github/workflows/inc51-fix-hierarchy-fixture.yml
+
+          git config user.name "pysolvesemi"
+          git config user.email "pysolvesemi@gmail.com"
+          git add -A
+          git diff --cached --check
+          git diff --cached --name-status
+          git commit -m "Fix Increment 51 hierarchy proof fixture"
+          git push origin HEAD:agent/increment-51-native-int-branch-capture
