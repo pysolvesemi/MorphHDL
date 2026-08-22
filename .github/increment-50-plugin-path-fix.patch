@@ -1,0 +1,16 @@
+diff --git a/morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala b/morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+index 1cb98d37c..12a68871b 100644
+--- a/morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
++++ b/morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+@@ -29,10 +29,11 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
+       .flatMap(source => Option(source.file))
+       .map(_.path.replace('\\', '/'))
+       .getOrElse("")
++    val normalizedPath = "/" + path.stripPrefix("/")
+     val content = Option(unit.source).map(_.content.mkString).getOrElse("")
+-    !path.contains("/frontend/src/main/scala/") &&
+-      !path.contains("/morphplugin/src/main/scala/") &&
++    !normalizedPath.contains("/frontend/src/main/scala/") &&
++      !normalizedPath.contains("/morphplugin/src/main/scala/") &&
+       (content.contains("NativeIntShadow") || content.contains("shadowInt"))
+   }
