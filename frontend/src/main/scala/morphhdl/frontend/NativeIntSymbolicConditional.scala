@@ -1,0 +1,140 @@
+package morphhdl.frontend
+
+import spinal.core.{ExternalNativeIntShadowRegistry, ParameterizedStructure}
+
+/**
+  * Compiler-plugin bridge for ordinary Scala `if` syntax whose Boolean
+  * predicate is proven to originate from an Increment 50 shadow-native `Int`
+  * expression.
+  *
+  * The ordinary Scala Boolean remains the concrete SpinalHDL witness. During
+  * MorphVerilog capture, the exact predicate reference is resolved in the
+  * active Increment 47 boundary and both source alternatives are retained as
+  * structural Verilog-2001 regions.
+  */
+object NativeIntSymbolicConditional {
+  private val activeCaptureDepth = new ThreadLocal[java.lang.Integer]
+
+  def selectSymbolic[T](
+      condition: Boolean,
+      predicateReference: String,
+      sourceFile: String,
+      sourceLine: Int
+  )(ifTrue: => T)(ifFalse: => T): T = {
+    val origin = SourceOrigin(sourceFile, sourceLine)
+    if (!ParameterizedStructure.captureEnabled) {
+      if (condition) ifTrue else ifFalse
+    } else withTopLevelCapture(origin) {
+      captureOne(
+        condition,
+        predicateReference,
+        origin,
+        origin,
+        () => ifTrue,
+        () => ifFalse
+      )
+    }
+  }
+
+  /**
+    * Retain one source-ordered `if / else if / ... / else` chain. Consecutive
+    * proven native predicates become one recursively nested structural region;
+    * an ordinary Scala conditional in the final else body remains concrete.
+    */
+  def selectSymbolicChain[T](
+      alternatives: Seq[(() => Boolean, String, () => T, String, Int)],
+      otherwise: () => T,
+      otherwiseFile: String,
+      otherwiseLine: Int
+  ): T = {
+    val ordered = alternatives.toVector
+    val defaultOrigin = SourceOrigin(otherwiseFile, otherwiseLine)
+    if (ordered.isEmpty) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-CHAIN-EMPTY",
+        "a native symbolic else-if chain requires at least one proven predicate",
+        defaultOrigin
+      )
+    }
+
+    if (!ParameterizedStructure.captureEnabled) {
+      def select(index: Int): T = {
+        val (condition, _, body, _, _) = ordered(index)
+        if (condition()) body()
+        else if (index + 1 < ordered.size) select(index + 1)
+        else otherwise()
+      }
+      select(0)
+    } else withTopLevelCapture(SourceOrigin(ordered.head._4, ordered.head._5)) {
+      def capture(index: Int): T = {
+        val (conditionThunk, reference, body, file, line) = ordered(index)
+        val origin = SourceOrigin(file, line)
+        val falseOrigin =
+          if (index + 1 < ordered.size) {
+            val (_, _, _, nextFile, nextLine) = ordered(index + 1)
+            SourceOrigin(nextFile, nextLine)
+          } else defaultOrigin
+        val falseBody = () => {
+          if (index + 1 < ordered.size) capture(index + 1)
+          else otherwise()
+        }
+        captureOne(
+          conditionThunk(),
+          reference,
+          origin,
+          falseOrigin,
+          body,
+          falseBody
+        )
+      }
+      capture(0)
+    }
+  }
+
+  private def captureOne[T](
+      condition: Boolean,
+      predicateReference: String,
+      origin: SourceOrigin,
+      falseOrigin: SourceOrigin,
+      ifTrue: () => T,
+      ifFalse: () => T
+  ): T = {
+    val expression = ExternalNativeIntShadowRegistry.definitionPredicateTracked(
+      predicateReference,
+      condition,
+      origin.rendered
+    )
+    var trueValue: Option[T] = None
+    var falseValue: Option[T] = None
+    val builder = NativeStructuralFrontend.startGenerateIfExpression(
+      condition,
+      expression,
+      names = None,
+      whenTrue = { trueValue = Some(ifTrue()); () },
+      origin = origin
+    )
+    builder.nativeToken.otherwise(
+      { falseValue = Some(ifFalse()); () },
+      falseOrigin
+    )
+    if (condition) trueValue.get else falseValue.get
+  }
+
+  private def withTopLevelCapture[T](origin: SourceOrigin)(body: => T): T = {
+    val current = activeCaptureDepth.get()
+    val previous = if (current == null) 0 else current.intValue()
+    if (previous != 0) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-NESTED-DEFERRED",
+        "nested native symbolic control flow is introduced by Increment 52; Increment 51 accepts only one source-level native conditional chain",
+        origin
+      )
+    }
+    activeCaptureDepth.set(java.lang.Integer.valueOf(1))
+    try body
+    finally {
+      if (previous == 0) activeCaptureDepth.remove()
+      else activeCaptureDepth.set(java.lang.Integer.valueOf(previous))
+    }
+  }
+}

@@ -667,6 +667,69 @@ object HdlInt {
   }
 
   /**
+    * Build the provisional canonical definition root used while an untouched
+    * native child constructor is still executing. Final component attachment
+    * revalidates this expression against the owner-specific formal binding.
+    */
+  private[frontend] def provisionalFormalExpression(
+      actual: spinal.core.ElaborationIntegerExpression,
+      name: String,
+      minimum: BigInt,
+      maximum: BigInt,
+      origin: SourceOrigin
+  ): spinal.core.ElaborationIntegerExpression = {
+    if (actual eq null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-FORMAL-PARAMETER-ACTUAL-NULL",
+        "formal parameter construction requires one non-null instance actual expression",
+        origin
+      )
+    }
+    if (
+      name == null ||
+      !PortableIdentifier.pattern.matcher(name).matches()
+    ) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-FORMAL-PARAMETER-NAME-INVALID",
+        s"formal parameter name '$name' is not a portable Verilog identifier",
+        origin
+      )
+    }
+    if (minimum < 1 || maximum < minimum || maximum > BigInt(Int.MaxValue)) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-FORMAL-PARAMETER-DOMAIN-INVALID",
+        s"formal parameter '$name' requires a positive non-empty Int-sized domain, received [$minimum, $maximum]",
+        origin
+      )
+    }
+    if (
+      actual.minimum < minimum || actual.maximum > maximum ||
+      actual.default < minimum || actual.default > maximum
+    ) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-FORMAL-PARAMETER-ACTUAL-DOMAIN-UNSUPPORTED",
+        s"actual expression '${actual.verilog}' in [${actual.minimum}, ${actual.maximum}] with default ${actual.default} is incompatible with formal '$name' in [$minimum, $maximum]",
+        origin
+      )
+    }
+    spinal.core.ElaborationIntegerExpression(
+      verilog = name,
+      default = actual.default,
+      minimum = minimum,
+      maximum = maximum,
+      parameters = Vector(
+        spinal.core.ElaborationIntegerParameter(
+          name,
+          actual.default,
+          minimum,
+          maximum
+        )
+      ),
+      sourceLocation = Some(origin.rendered)
+    )
+  }
+
+  /**
     * Build a definition-side formal for an explicitly supplied component
     * owner. Unlike `formalParam`, this helper does not depend on
     * `Component.current`; it is used after an untouched native Int constructor

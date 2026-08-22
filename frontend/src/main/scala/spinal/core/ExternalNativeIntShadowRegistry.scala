@@ -19,6 +19,7 @@ import ExternalNativeIntRelativePredicate.{Comparison, PowerOfTwo}
 final class ExternalNativeIntShadowCapture[A] private[core] (
     val result: A,
     private[core] val expression: ElaborationIntegerExpression,
+    private[core] val definitionExpression: ElaborationIntegerExpression,
     private[core] val token: ExternalNativeIntFormalizationToken,
     private[core] val parentToken: Option[ExternalNativeIntFormalizationToken],
     private[core] val pendingSlots: Vector[ExternalNativeIntShadowPendingSlot],
@@ -103,6 +104,7 @@ private[core] final class ExternalNativeIntShadowRegionIdentityRef(
 object ExternalNativeIntShadowRegistry {
   private final class ActiveBoundary(
       val expression: ElaborationIntegerExpression,
+      val definitionExpression: ElaborationIntegerExpression,
       val token: ExternalNativeIntFormalizationToken,
       val parentToken: Option[ExternalNativeIntFormalizationToken]
   ) {
@@ -137,13 +139,41 @@ object ExternalNativeIntShadowRegistry {
       expression: ElaborationIntegerExpression,
       token: ExternalNativeIntFormalizationToken,
       argumentName: String
+  )(body: => A): ExternalNativeIntShadowCapture[A] =
+    captureWithDefinition(
+      expression = expression,
+      definitionExpression = expression,
+      token = token,
+      argumentName = argumentName
+    )(body)
+
+  /**
+    * Execute a native child constructor while retaining separate definition
+    * and instance roots. Increment 51 uses the definition root immediately for
+    * structural branch capture; final attachment proves it matches the
+    * canonical formal created for the returned child Component.
+    */
+  def captureWithDefinition[A](
+      expression: ElaborationIntegerExpression,
+      definitionExpression: ElaborationIntegerExpression,
+      token: ExternalNativeIntFormalizationToken,
+      argumentName: String
   )(body: => A): ExternalNativeIntShadowCapture[A] = {
     validateBoundaryExpression(expression, token)
+    validateBoundaryExpression(definitionExpression, token)
+    if (definitionExpression.default != expression.default) {
+      fail(
+        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-DEFINITION-DEFAULT-MISMATCH",
+        s"native Int boundary '${token.role}' definition default ${definitionExpression.default} disagrees with actual default ${expression.default}",
+        sourceOf(token)
+      )
+    }
     validateName(argumentName, token.callSite, "constructor argument")
 
     val previous = Option(active.get()).getOrElse(Nil)
     val boundary = new ActiveBoundary(
       expression = expression,
+      definitionExpression = definitionExpression,
       token = token,
       parentToken = previous.headOption.map(_.token)
     )
@@ -160,6 +190,7 @@ object ExternalNativeIntShadowRegistry {
       new ExternalNativeIntShadowCapture[A](
         result = result,
         expression = expression,
+        definitionExpression = definitionExpression,
         token = token,
         parentToken = boundary.parentToken,
         pendingSlots = boundary.slots.values.toVector,
@@ -488,6 +519,54 @@ object ExternalNativeIntShadowRegistry {
     }
   }
 
+  /**
+    * Resolve one proven native Boolean predicate in canonical definition scope.
+    * Increment 51 consumes this only while the exact formalization boundary is
+    * active, before the native child constructor returns.
+    */
+  def definitionPredicateTracked(
+      reference: String,
+      witness: Boolean,
+      sourceLocation: String
+  ): ElaborationBooleanExpression = currentBoundary match {
+    case None =>
+      fail(
+        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-BOUNDARY-MISSING",
+        s"native symbolic conditional predicate '$reference' was evaluated outside an active formalization boundary",
+        Option(sourceLocation).filter(_.nonEmpty)
+      )
+    case Some(boundary) =>
+      validateReference(reference, sourceLocation, "symbolic conditional predicate")
+      boundary.predicates.get(reference) match {
+        case Some(pending) if pending.witness == witness =>
+          val definition = lowerFinalPredicate(
+            pending.predicate,
+            boundary.definitionExpression,
+            sourceLocation
+          )
+          if (definition.default != witness) {
+            fail(
+              "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-DEFAULT-MISMATCH",
+              s"native symbolic conditional witness $witness disagrees with definition predicate default ${definition.default}",
+              Option(sourceLocation).filter(_.nonEmpty).orElse(definition.sourceLocation)
+            )
+          }
+          definition
+        case Some(pending) =>
+          fail(
+            "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-WITNESS-MISMATCH",
+            s"native symbolic conditional witness $witness disagrees with retained predicate witness ${pending.witness}",
+            Option(sourceLocation).filter(_.nonEmpty).orElse(sourceOf(boundary.token))
+          )
+        case None =>
+          fail(
+            "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-REFERENCE-UNRESOLVED",
+            s"native symbolic conditional uses unbound or foreign predicate reference '$reference'",
+            Option(sourceLocation).filter(_.nonEmpty).orElse(sourceOf(boundary.token))
+          )
+      }
+  }
+
   /** Fail-closed hook for compiler-proven unsupported escape or mutation. */
   def rejectTracked(
       reference: String,
@@ -544,6 +623,13 @@ object ExternalNativeIntShadowRegistry {
     }
 
     val definition = formalExpression(binding.formal)
+    if (!equivalentExpression(capture.definitionExpression, definition)) {
+      fail(
+        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-DEFINITION-MISMATCH",
+        s"shadow capture '${capture.token.role}' retained definition root '${capture.definitionExpression.verilog}' but canonical formal is '${definition.verilog}'",
+        binding.sourceLocation.orElse(sourceOf(capture.token))
+      )
+    }
     val slots = finalizeSlots(capture, definition, binding.actual)
     val predicates = finalizePredicates(capture, definition, binding.actual)
     val incoming = ExternalNativeIntComponentShadowRecord(
@@ -598,7 +684,14 @@ object ExternalNativeIntShadowRegistry {
 
     val definition = formalBinding match {
       case Some(binding) => formalExpression(binding.formal)
-      case None          => capture.expression
+      case None          => capture.definitionExpression
+    }
+    if (!equivalentExpression(capture.definitionExpression, definition)) {
+      fail(
+        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-DEFINITION-MISMATCH",
+        s"shadow capture '${capture.token.role}' retained definition root '${capture.definitionExpression.verilog}' but attached region definition is '${definition.verilog}'",
+        formalBinding.flatMap(_.sourceLocation).orElse(sourceOf(capture.token))
+      )
     }
     val actual = formalBinding.map(_.actual).getOrElse(capture.expression)
     val incoming = ExternalNativeIntRegionShadowRecord(
