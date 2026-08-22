@@ -4,6 +4,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import spinal.core.{
   Component,
+  ElaborationBooleanExpression,
   ParameterizedProcess,
   ParameterizedStructuralBlock,
   ParameterizedStructuralPending,
@@ -86,7 +87,6 @@ private[frontend] object NativeStructuralFrontend {
       whenTrue: => Unit,
       origin: SourceOrigin
   ): GenerateIfBuilder = {
-    val component = requireComponent("generateIf", origin)
     if (condition eq null) {
       FrontendException.failAt(
         "MORPH-FRONTEND-BOOLEAN-CONDITION-NULL",
@@ -94,12 +94,51 @@ private[frontend] object NativeStructuralFrontend {
         origin
       )
     }
+    val expression =
+      if (ParameterizedStructure.captureEnabled)
+        StructuralExpressionBridge.boolean(
+          condition,
+          "native structural generate-if condition"
+        )
+      else null
+    startGenerateIfExpression(
+      condition.witness,
+      expression,
+      names,
+      whenTrue,
+      origin
+    )
+  }
+
+  /**
+    * Increment 51 entry point for a proven shadow-native Boolean predicate.
+    * The caller supplies the already resolved canonical definition expression;
+    * the runtime Boolean remains the ordinary witness used by SpinalHDL.
+    */
+  private[frontend] def startGenerateIfExpression(
+      conditionWitness: Boolean,
+      expression: ElaborationBooleanExpression,
+      names: Option[GenerateIfNames],
+      whenTrue: => Unit,
+      origin: SourceOrigin
+  ): GenerateIfBuilder = {
+    val component = requireComponent("generateIf", origin)
     val resolved = names.getOrElse(generatedIfNames(origin))
     if (ParameterizedStructure.captureEnabled) {
-      val expression = StructuralExpressionBridge.boolean(
-        condition,
-        "native structural generate-if condition"
-      )
+      if (expression eq null) {
+        FrontendException.failAt(
+          "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-EXPRESSION-MISSING",
+          "native symbolic conditional requires one retained definition predicate",
+          origin
+        )
+      }
+      if (expression.default != conditionWitness) {
+        FrontendException.failAt(
+          "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-DEFAULT-MISMATCH",
+          s"native symbolic conditional witness $conditionWitness disagrees with retained definition default ${expression.default}",
+          origin
+        )
+      }
       val whenTrueBlock = ParameterizedStructure.captureBlock(
         component,
         Some(origin.rendered)
@@ -113,7 +152,7 @@ private[frontend] object NativeStructuralFrontend {
         new NativeGenerateIfToken(
           component,
           pending,
-          condition,
+          conditionWitness,
           expression,
           resolved,
           whenTrueBlock,
@@ -122,12 +161,12 @@ private[frontend] object NativeStructuralFrontend {
         )
       )
     } else {
-      if (condition.witness) whenTrue
+      if (conditionWitness) whenTrue
       new GenerateIfBuilder(
         new NativeGenerateIfToken(
           component = component,
           pending = null,
-          condition = condition,
+          conditionWitness = conditionWitness,
           expression = null,
           names = resolved,
           whenTrueBlock = null,
@@ -232,7 +271,7 @@ private[frontend] object NativeStructuralFrontend {
 private[frontend] final class NativeGenerateIfToken(
     val component: Component,
     val pending: ParameterizedStructuralPending,
-    val condition: HdlBool,
+    val conditionWitness: Boolean,
     val expression: spinal.core.ElaborationBooleanExpression,
     val names: GenerateIfNames,
     val whenTrueBlock: ParameterizedStructuralBlock,
@@ -263,7 +302,7 @@ private[frontend] final class NativeGenerateIfToken(
         whenFalse,
         Some(origin.rendered)
       )
-    } else if (!condition.witness) {
+    } else if (!conditionWitness) {
       body
     }
     completed = true

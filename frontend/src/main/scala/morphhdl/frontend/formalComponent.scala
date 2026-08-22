@@ -77,13 +77,21 @@ object formalComponent {
       s"formalComponent '$name' native constructor argument",
       origin
     )
+    val definitionExpression = HdlInt.provisionalFormalExpression(
+      actual = actualExpression,
+      name = name,
+      minimum = minimum,
+      maximum = maximum,
+      origin = origin
+    )
     val token = ExternalNativeIntFormalizationToken(
       callSite = origin.rendered,
       valueOrigin = actual.origin.rendered,
       role = s"formalComponent($name)"
     )
-    val shadow = ExternalNativeIntShadowRegistry.capture(
+    val shadow = ExternalNativeIntShadowRegistry.captureWithDefinition(
       expression = actualExpression,
+      definitionExpression = definitionExpression,
       token = token,
       argumentName = name
     ) {

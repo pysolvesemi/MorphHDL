@@ -12,8 +12,10 @@ import scala.tools.nsc.plugins.PluginComponent
   * The transformation starts only from an explicit Increment 49 selection
   * (`NativeIntShadow.captureArgument`, `NativeIntShadow.captureLocal`, or
   * `shadowInt`). It then propagates a deterministic source reference through
-  * bounded native integer operations. Ordinary Int code with no proven source
-  * reference is left byte-for-byte equivalent after typing.
+  * bounded native integer operations. Increment 51 additionally consumes only
+  * the proven Boolean references produced by those operations to retain native
+  * Scala conditional alternatives. Ordinary Int and Boolean code with no
+  * proven source reference is left equivalent after typing.
   */
 final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     extends PluginComponent {
@@ -42,6 +44,28 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     val frontend = Select(morphhdl, TermName("frontend"))
     val helper = Select(frontend, TermName("NativeIntShadow"))
     Select(helper, TermName(name))
+  }
+
+  private def conditionalHelperMethod(name: String): Tree = {
+    val root = Ident(termNames.ROOTPKG)
+    val morphhdl = Select(root, TermName("morphhdl"))
+    val frontend = Select(morphhdl, TermName("frontend"))
+    val helper = Select(frontend, TermName("NativeIntSymbolicConditional"))
+    Select(helper, TermName(name))
+  }
+
+  private def scalaSeqApply: Tree = {
+    val root = Ident(termNames.ROOTPKG)
+    val scalaPkg = Select(root, TermName("scala"))
+    val seq = Select(scalaPkg, TermName("Seq"))
+    Select(seq, TermName("apply"))
+  }
+
+  private def tuple5Apply: Tree = {
+    val root = Ident(termNames.ROOTPKG)
+    val scalaPkg = Select(root, TermName("scala"))
+    val tuple5 = Select(scalaPkg, TermName("Tuple5"))
+    Select(tuple5, TermName("apply"))
   }
 
   private final case class Rewrite(
@@ -575,6 +599,184 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       finding
     }
 
+    private def firstTrackedBoolean(tree: Tree): Option[String] = {
+      var finding: Option[String] = None
+      object Finder extends Traverser {
+        override def traverse(current: Tree): Unit =
+          if (finding.isEmpty) {
+            trackedBoolean(current) match {
+              case Some(value) => finding = Some(value)
+              case None        => super.traverse(current)
+            }
+          }
+      }
+      Finder.traverse(tree)
+      finding
+    }
+
+    private def unsafeAlternativeEffect(tree: Tree): Option[(Position, String)] = {
+      var finding: Option[(Position, String)] = None
+      object Finder extends Traverser {
+        override def traverse(current: Tree): Unit = if (finding.isEmpty) current match {
+          case Return(_) => finding = Some(current.pos -> "return")
+          case Throw(_)  => finding = Some(current.pos -> "throw")
+          case _         => super.traverse(current)
+        }
+      }
+      Finder.traverse(tree)
+      finding
+    }
+
+    private def reportUnsafeAlternative(tree: Tree): Unit =
+      unsafeAlternativeEffect(tree).foreach { case (position, effect) =>
+        global.reporter.error(
+          position,
+          s"MORPHDL-NATIVE-INT-SYMBOLIC-CONDITIONAL-UNSAFE-EFFECT: '$effect' is not supported inside a native symbolic alternative"
+        )
+      }
+
+    private final case class NativeConditionalAlternative(
+        condition: Tree,
+        reference: String,
+        body: Tree,
+        line: Int
+    )
+
+    private def function0(body: Tree): Tree =
+      Function(Nil, withScope(transform(body)))
+
+    private def collectNativeConditionalChain(
+        original: If,
+        firstCondition: Rewrite
+    ): (Vector[NativeConditionalAlternative], Tree) = {
+      val alternatives = Vector.newBuilder[NativeConditionalAlternative]
+      var current = original
+      var condition = firstCondition
+      var otherwise: Tree = original.elsep
+      var done = false
+      while (!done) {
+        condition.booleanReference match {
+          case Some(reference) =>
+            alternatives += NativeConditionalAlternative(
+              condition.tree,
+              reference,
+              current.thenp,
+              sourceLine(current)
+            )
+            current.elsep match {
+              case next: If =>
+                val nextCondition = rewriteExpression(next.cond, None)
+                nextCondition.booleanReference match {
+                  case Some(_) =>
+                    current = next
+                    condition = nextCondition
+                  case None =>
+                    otherwise = current.elsep
+                    done = true
+                }
+              case other =>
+                otherwise = other
+                done = true
+            }
+          case None =>
+            otherwise = current
+            done = true
+        }
+      }
+      alternatives.result() -> otherwise
+    }
+
+    private def rewriteNativeConditionalSingle(
+        original: If,
+        alternative: NativeConditionalAlternative,
+        otherwise: Tree
+    ): Tree = {
+      reportUnsafeAlternative(alternative.body)
+      reportUnsafeAlternative(otherwise)
+      val rewritten = Apply(
+        Apply(
+          Apply(
+            conditionalHelperMethod("selectSymbolic"),
+            List(
+              alternative.condition,
+              Literal(Constant(alternative.reference)),
+              Literal(Constant(sourceFile)),
+              Literal(Constant(alternative.line))
+            )
+          ),
+          List(withScope(transform(alternative.body)))
+        ),
+        List(withScope(transform(otherwise)))
+      )
+      rewritten.setPos(original.pos)
+    }
+
+    private def rewriteNativeConditionalChain(
+        original: If,
+        alternatives: Vector[NativeConditionalAlternative],
+        otherwise: Tree
+    ): Tree = {
+      alternatives.foreach(value => reportUnsafeAlternative(value.body))
+      reportUnsafeAlternative(otherwise)
+      val sequence = Apply(
+        scalaSeqApply,
+        alternatives.map { value =>
+          Apply(
+            tuple5Apply,
+            List(
+              Function(Nil, value.condition),
+              Literal(Constant(value.reference)),
+              function0(value.body),
+              Literal(Constant(sourceFile)),
+              Literal(Constant(value.line))
+            )
+          )
+        }.toList
+      )
+      val rewritten = Apply(
+        conditionalHelperMethod("selectSymbolicChain"),
+        List(
+          sequence,
+          function0(otherwise),
+          Literal(Constant(sourceFile)),
+          Literal(Constant(sourceLine(otherwise)))
+        )
+      )
+      rewritten.setPos(original.pos)
+    }
+
+    private def rewriteIf(original: If): Tree = {
+      val condition = rewriteExpression(original.cond, None)
+      condition.booleanReference match {
+        case Some(_) =>
+          val (alternatives, otherwise) =
+            collectNativeConditionalChain(original, condition)
+          if (alternatives.size == 1)
+            rewriteNativeConditionalSingle(original, alternatives.head, otherwise)
+          else rewriteNativeConditionalChain(original, alternatives, otherwise)
+        case None =>
+          val unsupportedReference =
+            firstTrackedBoolean(original.cond).orElse(firstTrackedInteger(original.cond))
+          val retainedCondition = unsupportedReference match {
+            case Some(reference) =>
+              unsupportedBoolean(
+                reference,
+                "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-PREDICATE-UNSUPPORTED",
+                "native symbolic conditional predicate is outside the bounded Increment 51 comparison/isPow2 set",
+                original.cond,
+                condition.tree
+              ).tree
+            case None => condition.tree
+          }
+          treeCopy.If(
+            original,
+            retainedCondition,
+            withScope(transform(original.thenp)),
+            withScope(transform(original.elsep))
+          )
+      }
+    }
+
     private def boxingCall(tree: Tree): Boolean = tree match {
       case Apply(fun, _) =>
         val rendered = path(fun)
@@ -694,6 +896,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       case block: Block       => withScope(super.transform(block))
       case function: Function => withScope(super.transform(function))
       case definition: DefDef => withScope(super.transform(definition))
+      case conditional: If    => rewriteIf(conditional)
       case value: ValDef =>
         val mutable = value.mods.hasFlag(Flag.MUTABLE)
         val requested = if (mutable) None else Some(decoded(value.name))
