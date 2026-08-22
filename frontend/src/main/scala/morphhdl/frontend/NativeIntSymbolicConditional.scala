@@ -4,16 +4,19 @@ import spinal.core.{ExternalNativeIntShadowRegistry, ParameterizedStructure}
 
 /**
   * Compiler-plugin bridge for ordinary Scala `if` syntax whose Boolean
-  * predicate is proven to originate from an Increment 50 shadow-native `Int`
-  * expression.
+  * predicate is proven to originate from a shadow-native `Int` expression.
   *
   * The ordinary Scala Boolean remains the concrete SpinalHDL witness. During
   * MorphVerilog capture, the exact predicate reference is resolved in the
-  * active Increment 47 boundary and both source alternatives are retained as
-  * structural Verilog-2001 regions.
+  * active formalization boundary and every source alternative is retained as a
+  * structural Verilog-2001 region. Increment 52 permits recursive capture and
+  * provides runtime guards for Scala effects that are unsafe when every source
+  * alternative is elaborated.
   */
 object NativeIntSymbolicConditional {
-  private val activeCaptureDepth = new ThreadLocal[java.lang.Integer]
+  private final case class CaptureFrame(origin: SourceOrigin)
+
+  private val activeCaptures = new ThreadLocal[List[CaptureFrame]]
 
   def selectSymbolic[T](
       condition: Boolean,
@@ -24,7 +27,7 @@ object NativeIntSymbolicConditional {
     val origin = SourceOrigin(sourceFile, sourceLine)
     if (!ParameterizedStructure.captureEnabled) {
       if (condition) ifTrue else ifFalse
-    } else withTopLevelCapture(origin) {
+    } else withCapture(origin) {
       captureOne(
         condition,
         predicateReference,
@@ -65,7 +68,7 @@ object NativeIntSymbolicConditional {
         else otherwise()
       }
       select(0)
-    } else withTopLevelCapture(SourceOrigin(ordered.head._4, ordered.head._5)) {
+    } else withCapture(SourceOrigin(ordered.head._4, ordered.head._5)) {
       def capture(index: Int): T = {
         val (conditionThunk, reference, body, file, line) = ordered(index)
         val origin = SourceOrigin(file, line)
@@ -89,6 +92,28 @@ object NativeIntSymbolicConditional {
       }
       capture(0)
     }
+  }
+
+  /**
+    * Preserve the ordinary Scala behavior outside structural capture, but fail
+    * before an unsafe effect executes while MorphVerilog is elaborating every
+    * source alternative. The compiler inserts this guard only inside a proven
+    * native symbolic alternative.
+    */
+  def rejectEffect[T](
+      code: String,
+      detail: String,
+      sourceFile: String,
+      sourceLine: Int
+  )(nativeValue: => T): T = {
+    if (ParameterizedStructure.captureEnabled && captureActive) {
+      FrontendException.failAt(
+        code,
+        detail,
+        SourceOrigin(sourceFile, sourceLine)
+      )
+    }
+    nativeValue
   }
 
   private def captureOne[T](
@@ -120,21 +145,16 @@ object NativeIntSymbolicConditional {
     if (condition) trueValue.get else falseValue.get
   }
 
-  private def withTopLevelCapture[T](origin: SourceOrigin)(body: => T): T = {
-    val current = activeCaptureDepth.get()
-    val previous = if (current == null) 0 else current.intValue()
-    if (previous != 0) {
-      FrontendException.failAt(
-        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-NESTED-DEFERRED",
-        "nested native symbolic control flow is introduced by Increment 52; Increment 51 accepts only one source-level native conditional chain",
-        origin
-      )
-    }
-    activeCaptureDepth.set(java.lang.Integer.valueOf(1))
+  private def captureActive: Boolean =
+    Option(activeCaptures.get()).exists(_.nonEmpty)
+
+  private def withCapture[T](origin: SourceOrigin)(body: => T): T = {
+    val previous = Option(activeCaptures.get()).getOrElse(Nil)
+    activeCaptures.set(CaptureFrame(origin) :: previous)
     try body
     finally {
-      if (previous == 0) activeCaptureDepth.remove()
-      else activeCaptureDepth.set(java.lang.Integer.valueOf(previous))
+      if (previous.isEmpty) activeCaptures.remove()
+      else activeCaptures.set(previous)
     }
   }
 }
