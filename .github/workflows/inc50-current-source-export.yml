@@ -1,6 +1,11 @@
 name: Increment 50 current source export
 
 on:
+  pull_request:
+    branches:
+      - parameterized-verilog
+    paths:
+      - .github/workflows/inc50-current-source-export.yml
   push:
     branches:
       - agent/increment-50-native-int-expressions
