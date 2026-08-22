@@ -1,0 +1,57 @@
+name: Complete Increment 50 roadmap entry
+
+on:
+  push:
+    branches:
+      - agent/increment-50-native-int-expressions
+    paths:
+      - .github/workflows/increment-50-roadmap-closure.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-50-roadmap-closure
+  cancel-in-progress: false
+
+jobs:
+  close-roadmap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-50-native-int-expressions
+          fetch-depth: 0
+
+      - name: Mark Increment 50 complete and remove delivery workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          roadmap=docs/morphhdl/parameterized-verilog-todo.md
+          unchecked='- [ ] **Increment 50 — Shadow native `Int` expressions and predicates**'
+          checked='- [x] **Increment 50 — Shadow native `Int` expressions and predicates**'
+
+          test "$(grep -Fxc -- "$unchecked" "$roadmap")" -eq 1
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          text = path.read_text()
+          old = '- [ ] **Increment 50 — Shadow native `Int` expressions and predicates**'
+          new = '- [x] **Increment 50 — Shadow native `Int` expressions and predicates**'
+          assert text.count(old) == 1
+          path.write_text(text.replace(old, new, 1))
+          PY
+
+          test "$(grep -Fxc -- "$checked" "$roadmap")" -eq 1
+          rm -f .github/workflows/increment-50-roadmap-closure.yml
+
+          git config user.name "pysolvesemi"
+          git config user.email "pysolvesemi@gmail.com"
+          git add -A
+          git diff --cached --check
+          git diff --cached --name-status
+          test "$(git diff --cached --name-only | wc -l)" -eq 2
+          git commit -m "Complete Increment 50 roadmap entry"
+          git push origin HEAD:agent/increment-50-native-int-expressions
