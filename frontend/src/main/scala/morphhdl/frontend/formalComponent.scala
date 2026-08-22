@@ -4,7 +4,8 @@ import spinal.core.{
   Component,
   Data,
   ExternalNativeIntFormalizationRegistry,
-  ExternalNativeIntFormalizationToken
+  ExternalNativeIntFormalizationToken,
+  ExternalNativeIntShadowRegistry
 }
 
 /**
@@ -76,7 +77,19 @@ object formalComponent {
       s"formalComponent '$name' native constructor argument",
       origin
     )
-    val component = constructor(actualExpression.default.toInt)
+    val token = ExternalNativeIntFormalizationToken(
+      callSite = origin.rendered,
+      valueOrigin = actual.origin.rendered,
+      role = s"formalComponent($name)"
+    )
+    val shadow = ExternalNativeIntShadowRegistry.capture(
+      expression = actualExpression,
+      token = token,
+      argumentName = name
+    ) {
+      constructor(actualExpression.default.toInt)
+    }
+    val component = shadow.result
     if (component == null) {
       FrontendException.failAt(
         "MORPH-FRONTEND-FORMAL-COMPONENT-RESULT-NULL",
@@ -102,11 +115,12 @@ object formalComponent {
       component = component,
       geometry = selected,
       binding = binding,
-      token = ExternalNativeIntFormalizationToken(
-        callSite = origin.rendered,
-        valueOrigin = actual.origin.rendered,
-        role = s"formalComponent($name)"
-      )
+      token = token
+    )
+    ExternalNativeIntShadowRegistry.attachComponent(
+      component = component,
+      binding = binding,
+      capture = shadow
     )
   }
 }

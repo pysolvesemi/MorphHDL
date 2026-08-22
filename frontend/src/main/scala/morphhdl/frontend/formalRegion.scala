@@ -4,7 +4,8 @@ import spinal.core.{
   Component,
   Data,
   ExternalNativeIntFormalizationRegistry,
-  ExternalNativeIntFormalizationToken
+  ExternalNativeIntFormalizationToken,
+  ExternalNativeIntShadowRegistry
 }
 
 /**
@@ -45,17 +46,31 @@ object formalRegion {
       "formalRegion native Int geometry",
       origin
     )
-    val result = constructor(expression.default.toInt)
+    val token = ExternalNativeIntFormalizationToken(
+      callSite = origin.rendered,
+      valueOrigin = actual.origin.rendered,
+      role = "formalRegion"
+    )
+    val shadow = ExternalNativeIntShadowRegistry.capture(
+      expression = expression,
+      token = token,
+      argumentName = "regionArgument"
+    ) {
+      constructor(expression.default.toInt)
+    }
+    val result = shadow.result
     ExternalNativeIntFormalizationRegistry.attachRegion(
       owner = owner,
       data = result,
       expression = expression,
-      token = ExternalNativeIntFormalizationToken(
-        callSite = origin.rendered,
-        valueOrigin = actual.origin.rendered,
-        role = "formalRegion"
-      ),
+      token = token,
       formalBinding = actual.formalBinding
+    )
+    ExternalNativeIntShadowRegistry.attachRegion(
+      owner = owner,
+      data = result,
+      formalBinding = actual.formalBinding,
+      capture = shadow
     )
   }
 }

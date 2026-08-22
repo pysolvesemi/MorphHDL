@@ -278,7 +278,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   `HdlInt`/`HdlBool` predicates. Native-`Int` nested control flow remains
   governed by Increments 51 and 52.
 
-- [ ] **Increment 49 — Native `Int` symbolic provenance propagation**
+- [x] **Increment 49 — Native `Int` symbolic provenance propagation**
 
   **Dependencies:** Increment 47 implemented and merged.
 
