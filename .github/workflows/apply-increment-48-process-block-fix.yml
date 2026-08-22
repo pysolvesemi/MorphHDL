@@ -1,0 +1,52 @@
+name: Apply Increment 48 process block compatibility fix
+
+on:
+  pull_request:
+    branches:
+      - parameterized-verilog
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    name: Add empty nested-region inventory to process block
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Check out repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/increment-48-structured-conditional-chains
+          fetch-depth: 0
+
+      - name: Patch, commit and push source file
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('frontend/src/main/scala/spinal/core/ParameterizedProcess.scala')
+          text = path.read_text()
+          old = '''        state.slices.toVector,
+                state.vecIndices.toVector,
+                sourceLocation
+          )'''
+          new = '''        state.slices.toVector,
+                state.vecIndices.toVector,
+                Vector.empty,
+                sourceLocation
+          )'''
+          if text.count(old) != 1:
+              raise RuntimeError(
+                  f'expected one process structural-block constructor, found {text.count(old)}'
+              )
+          path.write_text(text.replace(old, new))
+          PY
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/main/scala/spinal/core/ParameterizedProcess.scala
+          git commit -m "Fix nested-region process block construction"
+          git push origin HEAD:fix/increment-48-structured-conditional-chains
