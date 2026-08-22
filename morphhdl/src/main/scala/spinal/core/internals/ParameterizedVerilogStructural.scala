@@ -50,7 +50,7 @@ private[internals] object ParameterizedVerilogStructural {
 
     val normalized = verilog.replace("\r\n", "\n").replace('\r', '\n')
     val lines = normalized.split("\n", -1).toVector
-    val allBlocks = regions.flatMap(_.blocks)
+    val allBlocks = regions.flatMap(region => ParameterizedStructure.allBlocks(region))
     val duplicateBlocks = allBlocks.groupBy(identity).collectFirst {
       case (block, values) if values.size != 1 => block
     }
@@ -200,7 +200,10 @@ private[internals] object ParameterizedVerilogStructural {
     val mergedRanges = mergeRanges(ranges.toVector)
     val selectedLines = mergedRanges.flatMap(_.indices.map(lines))
     var body = stripCommonIndent(selectedLines.mkString("\n").trim)
-    if (body.isEmpty && ParameterizedStructuralSynthetic.isSyntheticEmpty(block)) {
+    if (
+      body.isEmpty &&
+      (ParameterizedStructuralSynthetic.isSyntheticEmpty(block) || block.regions.nonEmpty)
+    ) {
       return BlockPlan(block, mergedRanges, "")
     }
     if (body.isEmpty) {
@@ -380,40 +383,120 @@ private[internals] object ParameterizedVerilogStructural {
   private def renderRegion(
       region: ParameterizedStructure.StructuralRegion,
       plans: Map[ParameterizedStructuralBlock, BlockPlan]
+  ): String = {
+    val declarations = generateIndices(region).map(name => s"  genvar $name;")
+    (
+      declarations ++
+        Vector(
+          "  generate",
+          renderNestedRegion(region, plans, level = 2),
+          "  endgenerate"
+        )
+    ).mkString("\n")
+  }
+
+  private def generateIndices(
+      region: ParameterizedStructure.StructuralRegion
+  ): Vector[String] = {
+    val current = region match {
+      case value: ParameterizedStructure.StructuralFor => Vector(value.indexName)
+      case _                                           => Vector.empty[String]
+    }
+    current ++ region.blocks
+      .flatMap(_.regions)
+      .flatMap(nested => generateIndices(nested))
+  }
+
+  private def renderNestedRegion(
+      region: ParameterizedStructure.StructuralRegion,
+      plans: Map[ParameterizedStructuralBlock, BlockPlan],
+      level: Int
   ): String = region match {
     case value: ParameterizedStructure.StructuralFor =>
-      val body = plans(value.body).body
-      s"  genvar ${value.indexName};\n" +
-        "  generate\n" +
-        s"    for (${value.indexName} = 0; ${value.indexName} < ${value.count.verilog}; " +
-        s"${value.indexName} = ${value.indexName} + 1) begin : ${value.label}\n" +
-        indent(body, 3) + "\n" +
-        "    end\n" +
-        "  endgenerate"
-
+      renderFor(value, plans, level)
     case value: ParameterizedStructure.StructuralIf =>
-      s"  generate\n" +
-        s"    if (${value.condition.verilog}) begin : ${value.whenTrueLabel}\n" +
-        indent(plans(value.whenTrue).body, 3) + "\n" +
-        s"    end else begin : ${value.whenFalseLabel}\n" +
-        indent(plans(value.whenFalse).body, 3) + "\n" +
-        "    end\n" +
-        "  endgenerate"
-
+      renderIf(value, plans, level, includePrefix = true)
     case value: ParameterizedStructure.StructuralCase =>
-      val choices = value.choices.map { choice =>
-        s"      ${choice.value}: begin : ${choice.label}\n" +
-          indent(plans(choice.body).body, 4) + "\n" +
-          "      end"
-      }.mkString("\n")
-      s"  generate\n" +
-        s"    case (${value.selector.verilog})\n" +
-        choices + "\n" +
-        s"      default: begin : ${value.defaultLabel}\n" +
-        indent(plans(value.defaultBody).body, 4) + "\n" +
-        "      end\n" +
-        "    endcase\n" +
-        "  endgenerate"
+      renderCase(value, plans, level)
+  }
+
+  private def renderFor(
+      value: ParameterizedStructure.StructuralFor,
+      plans: Map[ParameterizedStructuralBlock, BlockPlan],
+      level: Int
+  ): String = {
+    val prefix = "  " * level
+    s"${prefix}for (${value.indexName} = 0; ${value.indexName} < ${value.count.verilog}; " +
+      s"${value.indexName} = ${value.indexName} + 1) begin : ${value.label}\n" +
+      renderBlock(value.body, plans, level + 1) + "\n" +
+      s"${prefix}end"
+  }
+
+  private def renderIf(
+      value: ParameterizedStructure.StructuralIf,
+      plans: Map[ParameterizedStructuralBlock, BlockPlan],
+      level: Int,
+      includePrefix: Boolean
+  ): String = {
+    val prefix = "  " * level
+    val startPrefix = if (includePrefix) prefix else ""
+    val start =
+      s"${startPrefix}if (${value.condition.verilog}) begin : ${value.whenTrueLabel}\n" +
+        renderBlock(value.whenTrue, plans, level + 1) + "\n" +
+        s"${prefix}end else "
+    chainedElseIf(value.whenFalse, plans) match {
+      case Some(next) =>
+        start + renderIf(next, plans, level, includePrefix = false)
+      case None =>
+        start + s"begin : ${value.whenFalseLabel}\n" +
+          renderBlock(value.whenFalse, plans, level + 1) + "\n" +
+          s"${prefix}end"
+    }
+  }
+
+  private def chainedElseIf(
+      block: ParameterizedStructuralBlock,
+      plans: Map[ParameterizedStructuralBlock, BlockPlan]
+  ): Option[ParameterizedStructure.StructuralIf] =
+    if (plans(block).body.trim.isEmpty && block.regions.size == 1) {
+      block.regions.head match {
+        case value: ParameterizedStructure.StructuralIf => Some(value)
+        case _                                          => None
+      }
+    } else None
+
+  private def renderCase(
+      value: ParameterizedStructure.StructuralCase,
+      plans: Map[ParameterizedStructuralBlock, BlockPlan],
+      level: Int
+  ): String = {
+    val prefix = "  " * level
+    val choices = value.choices.map { choice =>
+      s"${prefix}  ${choice.value}: begin : ${choice.label}\n" +
+        renderBlock(choice.body, plans, level + 2) + "\n" +
+        s"${prefix}  end"
+    }.mkString("\n")
+    s"${prefix}case (${value.selector.verilog})\n" +
+      choices + "\n" +
+      s"${prefix}  default: begin : ${value.defaultLabel}\n" +
+      renderBlock(value.defaultBody, plans, level + 2) + "\n" +
+      s"${prefix}  end\n" +
+      s"${prefix}endcase"
+  }
+
+  private def renderBlock(
+      block: ParameterizedStructuralBlock,
+      plans: Map[ParameterizedStructuralBlock, BlockPlan],
+      level: Int
+  ): String = {
+    val direct = Option(plans(block).body)
+      .filter(_.trim.nonEmpty)
+      .map(value => indent(value, level))
+      .toVector
+    val nested = block.regions.map(region =>
+      renderNestedRegion(region, plans, level)
+    )
+    (direct ++ nested).mkString("\n")
   }
 
   private def ensureParameterHeader(
