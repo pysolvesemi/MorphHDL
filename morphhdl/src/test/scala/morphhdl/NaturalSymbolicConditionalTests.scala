@@ -59,10 +59,39 @@ object NaturalSymbolicConditionalSmoke {
     }
   }
 
+  final class NamedNestedTop(width: HdlInt, enabled: HdlBool) extends Component {
+    setDefinitionName("NaturalNamedNestedSymbolicConditionalTop")
+    val din = in(spinal.core.Bits(8 bits))
+    val alive = out(Bool())
+    alive := din.orR
+
+    if (enabled.named("g_feature_enabled", "g_feature_disabled")) {
+      if ((width > 16).named("g_width_wide")) attach(din)
+      else if ((width > 8).named("g_width_medium", "g_width_narrow")) attach(~din)
+      else attach(din)
+    } else {
+      if ((width > 4).named("g_disabled_large", "g_disabled_small")) attach(~din)
+      else attach(din)
+    }
+
+    private def attach(value: spinal.core.Bits): Unit = {
+      val branch = spinal.core.Bits(8 bits)
+      branch := value
+      val sink = new Sink
+      sink.din := branch
+    }
+  }
+
   def component(): Component = {
     val width = HdlInt.param("WIDTH", default = 12, min = 1, max = 32)
     val enabled = HdlBool.param("ENABLED", default = true)
     new Top(width, enabled)
+  }
+
+  def namedNestedComponent(): Component = {
+    val width = HdlInt.param("WIDTH", default = 12, min = 1, max = 32)
+    val enabled = HdlBool.param("ENABLED", default = true)
+    new NamedNestedTop(width, enabled)
   }
 
   def nestedComponent(): Component = {
@@ -83,6 +112,13 @@ object NaturalSymbolicConditionalSmoke {
       "morphhdl-inc48-nested-",
       "natural_nested_symbolic_conditionals.v",
       nestedComponent()
+    )
+
+  def emitNamedNested(): String =
+    emitComponent(
+      "morphhdl-inc48-named-nested-",
+      "natural_named_nested_symbolic_conditionals.v",
+      namedNestedComponent()
     )
 
   private def emitComponent(
@@ -131,6 +167,56 @@ class NaturalSymbolicConditionalTests extends AnyFunSuite {
     assert(occurrences(compact, "(WIDTH)>(4)") == 1)
     assert(generateCount(verilog) == 1)
     assert(instanceCount(verilog, "NaturalConditionalSink") == 5)
+  }
+
+  test("natural symbolic conditionals allow custom generate block labels") {
+    val verilog = emitNamedNested()
+    val compact = verilog.replaceAll("\\s+", "")
+    Vector(
+      "g_feature_enabled",
+      "g_feature_disabled",
+      "g_width_wide",
+      "g_width_medium",
+      "g_width_narrow",
+      "g_disabled_large",
+      "g_disabled_small"
+    ).foreach { label =>
+      assert(verilog.contains(s"begin : $label"), s"missing custom label $label")
+    }
+    assert(compact.contains("endelseif(((WIDTH)>(8)))begin:g_width_medium"))
+    assert(compact.contains("endelsebegin:g_feature_disabled"))
+    assert(!verilog.contains("morphhdl_else_if_"))
+    assert(generateCount(verilog) == 1)
+    assert(instanceCount(verilog, "NaturalConditionalSink") == 5)
+  }
+
+  test("non-final chained predicates reject a false-label override") {
+    val width = HdlInt.param("WIDTH", default = 12, min = 1, max = 32)
+    val error = intercept[FrontendException] {
+      NaturalSymbolicConditional.selectSymbolicChain[Int](
+        Seq(
+          (
+            (width > 16).named("g_wide", "g_not_wide"),
+            () => 1,
+            "NamedConditional.scala",
+            10
+          ),
+          (
+            (width > 8).named("g_medium", "g_narrow"),
+            () => 2,
+            "NamedConditional.scala",
+            11
+          )
+        ),
+        () => 3,
+        "NamedConditional.scala",
+        12
+      )
+    }
+    assert(
+      error.code ==
+        "MORPH-FRONTEND-SYMBOLIC-CONDITIONAL-NONTERMINAL-FALSE-LABEL"
+    )
   }
 
   test("ordinary Scala Boolean conditionals remain ordinary Scala control flow") {
