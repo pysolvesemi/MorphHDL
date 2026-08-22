@@ -1,0 +1,44 @@
+name: Increment 49 debug source export
+
+on:
+  push:
+    branches:
+      - agent/increment-49-debug-source-export
+    paths:
+      - .github/workflows/increment-49-debug-source-export.yml
+  pull_request:
+    branches:
+      - agent/increment-49-native-int-provenance-v2
+    paths:
+      - .github/workflows/increment-49-debug-source-export.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/increment-49-debug-source-export
+
+      - name: Package exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git archive --format=tar.gz --output="${RUNNER_TEMP}/morphhdl-inc49-pr86.tar.gz" 6b321d048599df69593b0368fd28ccc31e578179
+          sha256sum "${RUNNER_TEMP}/morphhdl-inc49-pr86.tar.gz" > "${RUNNER_TEMP}/morphhdl-inc49-pr86.tar.gz.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-inc49-pr86-source
+          path: |
+            ${{ runner.temp }}/morphhdl-inc49-pr86.tar.gz
+            ${{ runner.temp }}/morphhdl-inc49-pr86.tar.gz.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
