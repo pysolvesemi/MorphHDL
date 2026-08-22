@@ -301,7 +301,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   expression, prove their default agreement and domain safety, and reject
   unsupported calls, boxing, mutable escape or ambiguous aliasing explicitly.
 
-- [ ] **Increment 51 — Symbolic native-`Int` branch capture**
+- [x] **Increment 51 — Symbolic native-`Int` branch capture**
 
   **Dependencies:** Increments 48 and 50 implemented and merged.
 
