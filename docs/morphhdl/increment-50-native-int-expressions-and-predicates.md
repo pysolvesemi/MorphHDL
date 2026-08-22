@@ -30,6 +30,10 @@ The relative expression is lowered independently against the canonical child
 formal and the parent instance actual. For example, `root + 2` retains
 `(WIDTH + 2)` in the child definition and `(TOP_WIDTH + 2)` for the instance
 actual while its ordinary Scala value remains `10` when the default is `8`.
+Definition-side interval bounds therefore follow the complete child-formal
+domain, while actual-side bounds follow the complete parent-actual domain. The
+proofs check both domains independently rather than applying the tighter parent
+bounds to the canonical child definition.
 
 No registry is keyed by `Int`, `BigInt`, emitted RTL names, or inferred signal
 names. Equal witnesses with different source references remain distinct.
@@ -76,6 +80,11 @@ The compiler and runtime reject:
 - stale, foreign, missing, or conflicting source references; and
 - concrete/symbolic default disagreement.
 
+A mutable declaration is rejected against an already retained source
+reference before its by-name native right-hand side is evaluated. This prevents
+a rejected declaration from manufacturing an alias/result reference that was
+never retained and preserves the stable mutable-escape diagnostic.
+
 Outside an active formalization boundary, compiler-inserted hooks preserve the
 ordinary native operation result. Concrete `SpinalVerilog` therefore remains
 unchanged.
@@ -85,9 +94,11 @@ unchanged.
 `MorphHdlNativeIntShadowExpressionComponent` runs after the Scala parser and
 before the Increment 48 symbolic-conditional phase. It instruments only source
 units containing an explicit native shadow marker. Unrelated Scala `Int` code
-is left untouched. The MorphHDL plugin entrypoint registers the expression
-phase before the natural symbolic-conditional phase on both supported Scala
-versions.
+is left untouched. MorphHDL implementation sources in `frontend` and
+`morphplugin` are excluded with path normalization that works for both absolute
+and repository-relative compiler source paths. The MorphHDL plugin entrypoint
+registers the expression phase before the natural symbolic-conditional phase on
+both supported Scala versions.
 
 The parser-phase transformation is intentionally bounded. It recognizes only
 the reviewed operation set and safe direct aliases. It does not reinterpret
@@ -99,7 +110,7 @@ arbitrary method calls or infer provenance from type-erased values.
 
 | Contract | Evidence |
 |---|---|
-| arithmetic | every supported operator retains witness, child formal expression, parent actual and complete interval |
+| arithmetic | every supported operator retains witness, child formal expression, parent actual and independently bounded complete intervals |
 | helpers | address/log2 helpers retain monotonic bounded expressions and positive-domain validation |
 | predicates | all comparisons and `isPow2` retain witness plus definition/actual predicates |
 | aliases | exact source references propagate through direct and explicitly selected locals |
@@ -107,7 +118,7 @@ arbitrary method calls or infer provenance from type-erased values.
 | safety | overflow, zero-divisor domains and invalid helper domains fail before publication |
 | escape handling | unsupported calls, boxing, mutable state and unproven operands fail with stable codes |
 | parity | ordinary concrete SpinalHDL generation and native runtime values remain unchanged |
-| determinism | repeated elaboration produces identical expression and predicate signatures |
+| determinism | repeated elaboration produces identical expression and predicate signatures, including both interval domains |
 | compatibility | Increment 49 formalization, hierarchy, replay and weak-identity suites remain green |
 
 The permanent `MorphHDL native Int shadow expressions` workflow runs the new
