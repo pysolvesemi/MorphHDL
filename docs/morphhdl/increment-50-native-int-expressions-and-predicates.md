@@ -85,7 +85,9 @@ unchanged.
 `MorphHdlNativeIntShadowExpressionComponent` runs after the Scala parser and
 before the Increment 48 symbolic-conditional phase. It instruments only source
 units containing an explicit native shadow marker. Unrelated Scala `Int` code
-is left untouched.
+is left untouched. The MorphHDL plugin entrypoint registers the expression
+phase before the natural symbolic-conditional phase on both supported Scala
+versions.
 
 The parser-phase transformation is intentionally bounded. It recognizes only
 the reviewed operation set and safe direct aliases. It does not reinterpret
