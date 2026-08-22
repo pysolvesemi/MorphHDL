@@ -1,0 +1,53 @@
+name: Display controller offline MorphHDL toolkit
+
+on:
+  push:
+    branches:
+      - 'agent/display-controller-offline-kit-81abd255'
+    paths:
+      - '.github/workflows/display-controller-offline-kit.yml'
+      - '.github/scripts/display-controller-offline-kit/**'
+  pull_request:
+    branches:
+      - parameterized-verilog
+    paths:
+      - '.github/workflows/display-controller-offline-kit.yml'
+      - '.github/scripts/display-controller-offline-kit/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: display-controller-offline-kit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-offline-kit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      PINNED_MORPHDL_COMMIT: 81abd25518551b8a452ecf038e409331e646f726
+      SCALA_VERSION: 2.12.18
+    steps:
+      - name: Check out toolkit branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Build and self-test exact pinned offline toolkit
+        shell: bash
+        run: bash .github/scripts/display-controller-offline-kit/build.sh
+
+      - name: Upload offline toolkit
+        uses: actions/upload-artifact@v4
+        with:
+          name: display-controller-offline-kit-${{ github.sha }}
+          path: |
+            /tmp/display-controller-offline-kit.tar.gz
+            /tmp/display-controller-offline-kit.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
