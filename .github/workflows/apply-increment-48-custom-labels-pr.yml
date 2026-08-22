@@ -33,11 +33,13 @@ jobs:
           if source.count(start) != 1 or source.count(end) != 1:
               raise RuntimeError('unable to locate embedded Increment 48 patch script')
           embedded = source.split(start, 1)[1].split(end, 1)[0]
-          lines = embedded.splitlines()
           prefix = "          "
-          if not lines or any(line and not line.startswith(prefix) for line in lines):
-              raise RuntimeError('embedded Increment 48 patch indentation changed')
-          script = "\n".join(line[len(prefix):] if line else "" for line in lines) + "\n"
+          script = "\n".join(
+              line[len(prefix):] if line.startswith(prefix) else line
+              for line in embedded.splitlines()
+          ) + "\n"
+          if not script.startswith("from pathlib import Path\n"):
+              raise RuntimeError('embedded Increment 48 patch start changed')
           Path('/tmp/apply_inc48_custom_labels.py').write_text(script)
           PY
           python3 /tmp/apply_inc48_custom_labels.py
