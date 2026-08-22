@@ -6,6 +6,11 @@ on:
       - agent/increment-49-debug-source-export
     paths:
       - .github/workflows/increment-49-debug-source-export.yml
+  pull_request:
+    branches:
+      - agent/increment-49-native-int-provenance-v2
+    paths:
+      - .github/workflows/increment-49-debug-source-export.yml
   workflow_dispatch:
 
 permissions:
