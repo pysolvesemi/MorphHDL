@@ -1,6 +1,11 @@
 name: Increment 51 source export
 
 on:
+  pull_request:
+    branches:
+      - parameterized-verilog
+    paths:
+      - .github/workflows/inc51-source-export.yml
   push:
     branches:
       - agent/increment-51-native-int-branch-capture
