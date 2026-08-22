@@ -1,5 +1,6 @@
 name: Apply reviewed Increment 51 implementation
 
+# Temporary delivery workflow; it removes itself after applying the reviewed patch.
 on:
   push:
     branches:
