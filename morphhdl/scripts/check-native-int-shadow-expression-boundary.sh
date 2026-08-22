@@ -41,7 +41,7 @@ for required in \
   test -f "$required"
 done
 
-grep -Fq "ExternalNativeIntShadowExpression" "$expression_file"
+grep -Fq "ExternalNativeIntRelativeExpression" "$expression_file"
 grep -Fq "ExternalNativeIntShadowPredicate" "$expression_file"
 grep -Fq "complete domain" "$expression_file"
 grep -Fq "compilerBinary" "$frontend_file"
