@@ -349,6 +349,7 @@ object ParameterizedProcess {
         children,
         state.slices.toVector,
         state.vecIndices.toVector,
+        Vector.empty,
         sourceLocation
       )
       ParameterizedStructure.registerFor(
