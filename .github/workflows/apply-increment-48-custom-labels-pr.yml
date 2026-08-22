@@ -13,6 +13,8 @@ jobs:
     name: Apply reviewed custom-label source patch
     if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    env:
+      PATCH_B64: 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
     steps:
       - name: Check out repair branch
         uses: actions/checkout@v4
@@ -20,29 +22,20 @@ jobs:
           ref: fix/increment-48-custom-generate-labels
           fetch-depth: 0
 
-      - name: Extract and run reviewed patch
+      - name: Decode and run reviewed patch
         shell: bash
         run: |
           set -euo pipefail
           python3 <<'PY'
           from pathlib import Path
+          import base64
+          import gzip
+          import os
 
-          source = Path('.github/workflows/apply-increment-48-custom-generate-labels.yml').read_text()
-          start = "          python3 <<'PY'\n"
-          end = "\n          PY\n\n          git diff --check"
-          if source.count(start) != 1 or source.count(end) != 1:
-              raise RuntimeError('unable to locate embedded Increment 48 patch script')
-          embedded = source.split(start, 1)[1].split(end, 1)[0]
-          prefix = "          "
-          script = "\n".join(
-              line[len(prefix):] if line.startswith(prefix) else line
-              for line in embedded.splitlines()
-          ) + "\n"
-          if not script.startswith("from pathlib import Path\n"):
-              raise RuntimeError('embedded Increment 48 patch start changed')
-          Path('/tmp/apply_inc48_custom_labels.py').write_text(script)
+          payload = base64.b64decode(os.environ["PATCH_B64"])
+          Path('/tmp/patch_inc48_labels.py').write_bytes(gzip.decompress(payload))
           PY
-          python3 /tmp/apply_inc48_custom_labels.py
+          python3 /tmp/patch_inc48_labels.py
           git diff --check
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -50,8 +43,6 @@ jobs:
             frontend/src/main/scala/morphhdl/frontend/HdlBool.scala \
             frontend/src/main/scala/morphhdl/frontend/NaturalSymbolicConditional.scala \
             frontend/src/main/scala/morphhdl/frontend/NativeStructuralFrontend.scala \
-            frontend/src/main/scala/morphhdl/frontend/FrontendException.scala \
-            frontend/src/main/scala/spinal/core/ParameterizedStructure.scala \
             morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
             morphhdl/src/test/scala/morphhdl/NaturalSymbolicConditionalTests.scala \
             docs/morphhdl/increment-48-natural-symbolic-conditionals.md \
