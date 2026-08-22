@@ -30,20 +30,18 @@ jobs:
           ref: agent/increment-51-native-int-branch-capture
           fetch-depth: 0
 
-      - name: Decode, verify, apply and remove delivery files
+      - name: Decode, verify and apply non-workflow implementation
         shell: bash
         run: |
           set -euo pipefail
           payload=.github/inc51-implementation.patch.xz.b64
           patch="$RUNNER_TEMP/inc51-implementation.patch"
+          excluded=.github/workflows/morphhdl-native-int-symbolic-conditionals.yml
           base64 --decode "$payload" | xz --decompress --stdout > "$patch"
           echo 'b7b7aea671fb799bca98a847023f123874a7f5b8b7c4e435fee92ee95ec4946a  '"$patch" | sha256sum --check
-          git apply --check "$patch"
-          git apply "$patch"
-          rm -f \
-            "$payload" \
-            .github/workflows/inc51-apply-implementation.yml \
-            .github/workflows/inc51-source-export.yml
+          git apply --check --exclude="$excluded" "$patch"
+          git apply --exclude="$excluded" "$patch"
+          rm -f "$payload"
 
           git config user.name "pysolvesemi"
           git config user.email "pysolvesemi@gmail.com"
