@@ -29,9 +29,10 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       .flatMap(source => Option(source.file))
       .map(_.path.replace('\\', '/'))
       .getOrElse("")
+    val normalizedPath = "/" + path.stripPrefix("/")
     val content = Option(unit.source).map(_.content.mkString).getOrElse("")
-    !path.contains("/frontend/src/main/scala/") &&
-      !path.contains("/morphplugin/src/main/scala/") &&
+    !normalizedPath.contains("/frontend/src/main/scala/") &&
+      !normalizedPath.contains("/morphplugin/src/main/scala/") &&
       (content.contains("NativeIntShadow") || content.contains("shadowInt"))
   }
 
@@ -694,11 +695,15 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       case function: Function => withScope(super.transform(function))
       case definition: DefDef => withScope(super.transform(definition))
       case value: ValDef =>
-        val requested = Some(decoded(value.name))
+        val mutable = value.mods.hasFlag(Flag.MUTABLE)
+        val requested = if (mutable) None else Some(decoded(value.name))
         val rewritten = rewriteExpression(value.rhs, requested)
         val rhs =
-          if (value.mods.hasFlag(Flag.MUTABLE)) {
-            rewritten.intReference match {
+          if (mutable) {
+            // A mutable declaration is rejected against an already retained
+            // source reference. Do not manufacture an alias/result reference
+            // that cannot exist until the rejected RHS is evaluated.
+            firstTrackedInteger(value.rhs).orElse(rewritten.intReference) match {
               case Some(reference) =>
                 curriedCall(
                   "compilerMutableInt",
@@ -712,7 +717,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
               case None => rewritten.tree
             }
           } else rewritten.tree
-        if (!value.mods.hasFlag(Flag.MUTABLE)) {
+        if (!mutable) {
           rewritten.intReference.foreach(bindInteger(value.name, _))
           rewritten.booleanReference.foreach(bindBoolean(value.name, _))
         }

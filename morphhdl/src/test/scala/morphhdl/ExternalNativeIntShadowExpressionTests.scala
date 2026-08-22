@@ -135,22 +135,23 @@ class ExternalNativeIntShadowExpressionTests extends AnyFunSuite {
       assert(verilog.contains(".WIDTH(TOP_WIDTH)"))
 
       val record = oneRecord(top.leaf)
-      assert(slot(record, "root").definitionExpression.verilog == "WIDTH")
-      assert(slot(record, "root").actualExpression.verilog == "TOP_WIDTH")
-      assert(slot(record, "selectedAlias").definitionExpression.verilog == "WIDTH")
-      assert(slot(record, "alias").definitionExpression.verilog == "WIDTH")
+      assertExpression(record, "root", 8, "WIDTH", "TOP_WIDTH", 1, 32, 2, 16)
+      assertExpression(record, "selectedAlias", 8, "WIDTH", "TOP_WIDTH", 1, 32, 2, 16)
+      assertExpression(record, "alias", 8, "WIDTH", "TOP_WIDTH", 1, 32, 2, 16)
 
-      assertExpression(record, "plus", 10, "(WIDTH + 2)", "(TOP_WIDTH + 2)", 4, 18)
-      assertExpression(record, "minus", 5, "(WIDTH - 3)", "(TOP_WIDTH - 3)", -1, 13)
-      assertExpression(record, "times", 16, "(WIDTH * 2)", "(TOP_WIDTH * 2)", 4, 32)
-      assertExpression(record, "divide", 4, "(WIDTH / 2)", "(TOP_WIDTH / 2)", 1, 8)
-      assertExpression(record, "remainder", 2, "(WIDTH % 3)", "(TOP_WIDTH % 3)", 0, 2)
+      assertExpression(record, "plus", 10, "(WIDTH + 2)", "(TOP_WIDTH + 2)", 3, 34, 4, 18)
+      assertExpression(record, "minus", 5, "(WIDTH - 3)", "(TOP_WIDTH - 3)", -2, 29, -1, 13)
+      assertExpression(record, "times", 16, "(WIDTH * 2)", "(TOP_WIDTH * 2)", 2, 64, 4, 32)
+      assertExpression(record, "divide", 4, "(WIDTH / 2)", "(TOP_WIDTH / 2)", 0, 16, 1, 8)
+      assertExpression(record, "remainder", 2, "(WIDTH % 3)", "(TOP_WIDTH % 3)", 0, 2, 0, 2)
       assertExpression(
         record,
         "minimum",
         6,
         "((WIDTH) < (6) ? (WIDTH) : (6))",
         "((TOP_WIDTH) < (6) ? (TOP_WIDTH) : (6))",
+        1,
+        6,
         2,
         6
       )
@@ -161,15 +162,19 @@ class ExternalNativeIntShadowExpressionTests extends AnyFunSuite {
         "((WIDTH) > (12) ? (WIDTH) : (12))",
         "((TOP_WIDTH) > (12) ? (TOP_WIDTH) : (12))",
         12,
+        32,
+        12,
         16
       )
-      assertExpression(record, "negated", -8, "(-WIDTH)", "(-TOP_WIDTH)", -16, -2)
+      assertExpression(record, "negated", -8, "(-WIDTH)", "(-TOP_WIDTH)", -32, -1, -16, -2)
       assertExpression(
         record,
         "address",
         3,
         "morphhdl_address_width(WIDTH)",
         "morphhdl_address_width(TOP_WIDTH)",
+        1,
+        5,
         1,
         4
       )
@@ -179,6 +184,8 @@ class ExternalNativeIntShadowExpressionTests extends AnyFunSuite {
         3,
         "morphhdl_ceil_log2(WIDTH)",
         "morphhdl_ceil_log2(TOP_WIDTH)",
+        0,
+        5,
         1,
         4
       )
@@ -188,6 +195,8 @@ class ExternalNativeIntShadowExpressionTests extends AnyFunSuite {
         3,
         "morphhdl_ceil_log2(WIDTH)",
         "morphhdl_ceil_log2(TOP_WIDTH)",
+        0,
+        5,
         1,
         4
       )
@@ -197,6 +206,8 @@ class ExternalNativeIntShadowExpressionTests extends AnyFunSuite {
         3,
         "morphhdl_log2_down(WIDTH)",
         "morphhdl_log2_down(TOP_WIDTH)",
+        0,
+        5,
         1,
         4
       )
@@ -206,6 +217,8 @@ class ExternalNativeIntShadowExpressionTests extends AnyFunSuite {
         18,
         "((WIDTH + 1) * 2)",
         "((TOP_WIDTH + 1) * 2)",
+        4,
+        66,
         6,
         34
       )
@@ -397,15 +410,19 @@ class ExternalNativeIntShadowExpressionTests extends AnyFunSuite {
       witness: Int,
       definition: String,
       actual: String,
-      minimum: BigInt,
-      maximum: BigInt
+      definitionMinimum: BigInt,
+      definitionMaximum: BigInt,
+      actualMinimum: BigInt,
+      actualMaximum: BigInt
   ): Unit = {
     val value = slot(record, name)
     assert(value.witness == witness)
     assert(value.definitionExpression.verilog == definition)
     assert(value.actualExpression.verilog == actual)
-    assert(value.definitionExpression.minimum == minimum)
-    assert(value.definitionExpression.maximum == maximum)
+    assert(value.definitionExpression.minimum == definitionMinimum)
+    assert(value.definitionExpression.maximum == definitionMaximum)
+    assert(value.actualExpression.minimum == actualMinimum)
+    assert(value.actualExpression.maximum == actualMaximum)
   }
 
   private def assertPredicate(
@@ -438,7 +455,11 @@ class ExternalNativeIntShadowExpressionTests extends AnyFunSuite {
         value.token.name,
         value.witness.toString,
         value.definitionExpression.verilog,
-        value.actualExpression.verilog
+        value.definitionExpression.minimum.toString,
+        value.definitionExpression.maximum.toString,
+        value.actualExpression.verilog,
+        value.actualExpression.minimum.toString,
+        value.actualExpression.maximum.toString
       ).mkString("|")
     }
     val predicates = record.predicates.map { value =>
