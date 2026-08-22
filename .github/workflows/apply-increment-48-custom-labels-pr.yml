@@ -1,0 +1,54 @@
+name: Apply Increment 48 custom labels on pull request
+
+on:
+  pull_request:
+    branches:
+      - parameterized-verilog
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    name: Apply reviewed custom-label source patch
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/increment-48-custom-generate-labels
+          fetch-depth: 0
+
+      - name: Extract and run reviewed patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          source = Path('.github/workflows/apply-increment-48-custom-generate-labels.yml').read_text()
+          start = "          python3 <<'PY'\n"
+          end = "\n          PY\n\n          git diff --check"
+          if source.count(start) != 1 or source.count(end) != 1:
+              raise RuntimeError('unable to locate embedded Increment 48 patch script')
+          script = source.split(start, 1)[1].split(end, 1)[0]
+          Path('/tmp/apply_inc48_custom_labels.py').write_text(textwrap.dedent(script))
+          PY
+          python3 /tmp/apply_inc48_custom_labels.py
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            frontend/src/main/scala/morphhdl/frontend/HdlBool.scala \
+            frontend/src/main/scala/morphhdl/frontend/NaturalSymbolicConditional.scala \
+            frontend/src/main/scala/morphhdl/frontend/NativeStructuralFrontend.scala \
+            frontend/src/main/scala/morphhdl/frontend/FrontendException.scala \
+            frontend/src/main/scala/spinal/core/ParameterizedStructure.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
+            morphhdl/src/test/scala/morphhdl/NaturalSymbolicConditionalTests.scala \
+            docs/morphhdl/increment-48-natural-symbolic-conditionals.md \
+            docs/morphhdl/parameterized-verilog-todo.md
+          git commit -m "Add custom labels to natural symbolic conditionals"
+          git push origin HEAD:fix/increment-48-custom-generate-labels
