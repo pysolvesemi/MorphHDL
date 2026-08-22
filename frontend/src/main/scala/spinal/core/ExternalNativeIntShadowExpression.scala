@@ -90,6 +90,8 @@ private[core] object ExternalNativeIntRelativeExpression {
       extends ExternalNativeIntRelativeExpression
   final case class AddressWidth(value: ExternalNativeIntRelativeExpression)
       extends ExternalNativeIntRelativeExpression
+  final case class Log2Down(value: ExternalNativeIntRelativeExpression)
+      extends ExternalNativeIntRelativeExpression
 
   final case class Facts(
       verilog: String,
@@ -116,20 +118,20 @@ private[core] object ExternalNativeIntRelativeExpression {
 
   final case class DivisorMayBeZero(operator: String, minimum: BigInt, maximum: BigInt)
       extends Failure {
-    override val code: String = "MORPH-FRONTEND-NATIVE-INT-SHADOW-DIVISOR-MAY-BE-ZERO"
+    override val code: String = "MORPH-FRONTEND-NATIVE-INT-EXPRESSION-DIVISOR-ZERO-DOMAIN"
     override val detail: String =
       s"native Int '$operator' divisor domain [$minimum, $maximum] includes zero"
   }
 
   final case class OperandMustBePositive(operation: String, minimum: BigInt) extends Failure {
-    override val code: String = "MORPH-FRONTEND-NATIVE-INT-SHADOW-OPERAND-NONPOSITIVE"
+    override val code: String = "MORPH-FRONTEND-NATIVE-INT-EXPRESSION-HELPER-DOMAIN-NONPOSITIVE"
     override val detail: String =
       s"native Int helper '$operation' requires a positive complete domain, but minimum is $minimum"
   }
 
   final case class DomainOutsideInt(operation: String, minimum: BigInt, maximum: BigInt)
       extends Failure {
-    override val code: String = "MORPH-FRONTEND-NATIVE-INT-SHADOW-DOMAIN-OUTSIDE-INT"
+    override val code: String = "MORPH-FRONTEND-NATIVE-INT-EXPRESSION-DOMAIN-OVERFLOW"
     override val detail: String =
       s"native Int operation '$operation' has complete domain [$minimum, $maximum] outside Scala Int"
   }
@@ -154,8 +156,9 @@ private[core] object ExternalNativeIntRelativeExpression {
       value: ExternalNativeIntRelativeExpression
   ): ExternalNativeIntRelativeExpression = operation match {
     case "negate"       => Negate(value)
-    case "ceilLog2"     => CeilLog2(value)
-    case "addressWidth" => AddressWidth(value)
+    case "ceilLog2" | "log2Up" => CeilLog2(value)
+    case "addressWidth"          => AddressWidth(value)
+    case "log2Down"              => Log2Down(value)
     case other => throw new IllegalArgumentException(s"unsupported native Int shadow unary operation '$other'")
   }
 
@@ -287,7 +290,7 @@ private[core] object ExternalNativeIntRelativeExpression {
           out <- checked(
             "min",
             Facts(
-              s"((${l.verilog} < ${r.verilog}) ? ${l.verilog} : ${r.verilog})",
+              s"((${l.verilog}) < (${r.verilog}) ? (${l.verilog}) : (${r.verilog}))",
               l.default.min(r.default),
               l.minimum.min(r.minimum),
               l.maximum.min(r.maximum),
@@ -302,7 +305,7 @@ private[core] object ExternalNativeIntRelativeExpression {
           out <- checked(
             "max",
             Facts(
-              s"((${l.verilog} > ${r.verilog}) ? ${l.verilog} : ${r.verilog})",
+              s"((${l.verilog}) > (${r.verilog}) ? (${l.verilog}) : (${r.verilog}))",
               l.default.max(r.default),
               l.minimum.max(r.minimum),
               l.maximum.max(r.maximum),
@@ -329,7 +332,7 @@ private[core] object ExternalNativeIntRelativeExpression {
           if (value.minimum < 1) Left(OperandMustBePositive("ceilLog2", value.minimum))
           else {
             val out = Facts(
-              s"clog2(${value.verilog})",
+              s"morphhdl_ceil_log2(${value.verilog})",
               ceilLog2(value.default),
               ceilLog2(value.minimum),
               ceilLog2(value.maximum),
@@ -343,13 +346,27 @@ private[core] object ExternalNativeIntRelativeExpression {
           if (value.minimum < 1) Left(OperandMustBePositive("addressWidth", value.minimum))
           else {
             val out = Facts(
-              s"((clog2(${value.verilog}) < 1) ? 1 : clog2(${value.verilog}))",
+              s"morphhdl_address_width(${value.verilog})",
               addressWidth(value.default),
               addressWidth(value.minimum),
               addressWidth(value.maximum),
               value.parameters
             )
             checked("addressWidth", out)
+          }
+        }
+      case Log2Down(operand) =>
+        loop(operand).flatMap { value =>
+          if (value.minimum < 1) Left(OperandMustBePositive("log2Down", value.minimum))
+          else {
+            val out = Facts(
+              s"morphhdl_log2_down(${value.verilog})",
+              log2Down(value.default),
+              log2Down(value.minimum),
+              log2Down(value.maximum),
+              value.parameters
+            )
+            checked("log2Down", out)
           }
         }
     }
@@ -359,6 +376,7 @@ private[core] object ExternalNativeIntRelativeExpression {
 
   private def ceilLog2(value: BigInt): BigInt = BigInt((value - 1).bitLength)
   private def addressWidth(value: BigInt): BigInt = ceilLog2(value).max(BigInt(1))
+  private def log2Down(value: BigInt): BigInt = BigInt(value.bitLength - 1)
 }
 
 private[core] sealed trait ExternalNativeIntRelativePredicate

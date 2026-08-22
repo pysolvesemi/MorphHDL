@@ -87,7 +87,18 @@ private[core] final class ExternalNativeIntShadowRegionIdentityRef(
   * A boundary keeps a thread-local stack only while an untouched constructor is
   * executing. Ordinary `Int` and `Boolean` values stay unchanged. The compiler
   * supplies deterministic source references for proven values, so this registry
-  * never discovers provenance by matching equal numeric witnesses.
+  * never discovers provenance by matching equal numeric witnesses. The ordinary
+  * `Int` value is never boxed, replaced or used as a discovery key. Increment 49
+  * deliberately accepts only direct aliases; Increment 50 extends that contract
+  * only for compiler-proven expressions.
+  * The ordinary `Int` value is never boxed, replaced or used as a lookup key.
+  * Increment 49 deliberately accepts only direct aliases of the boundary witness.
+  *
+  * Stable domain diagnostics include
+  * MORPH-FRONTEND-NATIVE-INT-EXPRESSION-DOMAIN-OVERFLOW and
+  * MORPH-FRONTEND-NATIVE-INT-EXPRESSION-DIVISOR-ZERO-DOMAIN. Escape diagnostics
+  * include MORPH-FRONTEND-NATIVE-INT-EXPRESSION-BOXING-UNSUPPORTED and
+  * MORPH-FRONTEND-NATIVE-INT-EXPRESSION-MUTABLE-ESCAPE.
   */
 object ExternalNativeIntShadowRegistry {
   private final class ActiveBoundary(
@@ -320,7 +331,7 @@ object ExternalNativeIntShadowRegistry {
         rightValue.expression == ExternalNativeIntRelativeExpression.Literal(BigInt(right))
       ) {
         fail(
-          "MORPH-FRONTEND-NATIVE-INT-SHADOW-OPERANDS-UNPROVEN",
+          "MORPH-FRONTEND-NATIVE-INT-EXPRESSION-OPERAND-UNPROVEN",
           s"native Int operation '$operation' has no proven symbolic operand",
           Option(sourceLocation).filter(_.nonEmpty)
         )
@@ -736,7 +747,7 @@ object ExternalNativeIntShadowRegistry {
   ): Unit = boundary.trackedValues.get(reference) match {
     case Some(existing) if existing != incoming =>
       fail(
-        "MORPH-FRONTEND-NATIVE-INT-SHADOW-REFERENCE-CONFLICT",
+        "MORPH-FRONTEND-NATIVE-INT-EXPRESSION-ALIAS-CONFLICT",
         s"one compiler provenance reference '$reference' mapped to conflicting native Int expressions",
         Option(incoming.sourceLocation).filter(_.nonEmpty).orElse(sourceOf(boundary.token))
       )
@@ -791,7 +802,7 @@ object ExternalNativeIntShadowRegistry {
       )
     } else {
       fail(
-        "MORPH-FRONTEND-NATIVE-INT-SHADOW-OPERAND-UNPROVEN",
+        "MORPH-FRONTEND-NATIVE-INT-EXPRESSION-OPERAND-UNPROVEN",
         s"$role is neither a compiler-proven shadow value nor an integer literal",
         Option(sourceLocation).filter(_.nonEmpty).orElse(sourceOf(boundary.token))
       )
@@ -965,9 +976,10 @@ object ExternalNativeIntShadowRegistry {
       sourceLocation: String
   ): Int = operation match {
     case "negate" => -value
-    case "ceilLog2" if value > 0 => (BigInt(value) - 1).bitLength
+    case "ceilLog2" | "log2Up" if value > 0 => (BigInt(value) - 1).bitLength
     case "addressWidth" if value > 0 => math.max(1, (BigInt(value) - 1).bitLength)
-    case "ceilLog2" | "addressWidth" =>
+    case "log2Down" if value > 0 => BigInt(value).bitLength - 1
+    case "ceilLog2" | "log2Up" | "log2Down" | "addressWidth" =>
       fail(
         "MORPH-FRONTEND-NATIVE-INT-SHADOW-OPERAND-NONPOSITIVE",
         s"native Int helper '$operation' requires a positive witness, but found $value",

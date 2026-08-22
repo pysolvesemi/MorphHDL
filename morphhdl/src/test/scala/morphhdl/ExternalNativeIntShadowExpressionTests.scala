@@ -10,6 +10,15 @@ import spinal.core._
 import morphhdl.frontend.{formalComponent, HdlInt, NativeIntShadow, shadowInt}
 
 object ExternalNativeIntShadowExpressionSmoke {
+  private def addressWidth(value: Int): Int =
+    math.max(1, (BigInt(value) - 1).bitLength)
+
+  private def ceilLog2(value: Int): Int =
+    (BigInt(value) - 1).bitLength
+
+  private def log2Down(value: Int): Int =
+    BigInt(value).bitLength - 1
+
   final class Leaf(width: Int) extends Component {
     setDefinitionName("ExternalNativeIntShadowExpressionLeaf")
 
@@ -289,7 +298,7 @@ class ExternalNativeIntShadowExpressionTests extends AnyFunSuite {
 
   test("one exact result reference cannot alias conflicting symbolic expressions") {
     val source = Some("ExternalNativeIntShadowExpressionTests.scala:conflict")
-    val parameter = ElaborationIntegerParameter("WIDTH", 8, 1, 16, source)
+    val parameter = ElaborationIntegerParameter("WIDTH", 8, 1, 16)
     val expression = ElaborationIntegerExpression(
       "WIDTH",
       default = 8,
