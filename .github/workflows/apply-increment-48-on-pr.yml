@@ -1,0 +1,50 @@
+name: Apply Increment 48 repair on pull request
+
+on:
+  pull_request:
+    branches:
+      - parameterized-verilog
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    name: Apply reviewed Increment 48 repair
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - name: Check out repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/increment-48-structured-conditional-chains
+          fetch-depth: 0
+
+      - name: Apply and commit reviewed repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import base64
+          import gzip
+          import re
+
+          source = Path('.github/workflows/apply-increment-48-structured-conditionals.yml')
+          match = re.search(r'^\s*PATCH_B64:\s+(\S+)\s*$', source.read_text(), re.MULTILINE)
+          if match is None:
+              raise RuntimeError('Increment 48 patch payload was not found')
+          Path('/tmp/patcher_inc48.py').write_bytes(
+              gzip.decompress(base64.b64decode(match.group(1)))
+          )
+          PY
+          python3 /tmp/patcher_inc48.py
+          rm \
+            .github/workflows/apply-increment-48-structured-conditionals.yml \
+            .github/workflows/apply-increment-48-on-pr.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Repair Increment 48 conditional chain lowering"
+          git push origin HEAD:fix/increment-48-structured-conditional-chains
