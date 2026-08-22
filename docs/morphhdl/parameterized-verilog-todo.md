@@ -274,7 +274,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   diagnostics and dual-Scala behavior before handling native `Int`
   provenance.
 
-- [ ] **Increment 49 — Native `Int` symbolic provenance propagation**
+- [x] **Increment 49 — Native `Int` symbolic provenance propagation**
 
   **Dependencies:** Increment 47 implemented and merged.
 
