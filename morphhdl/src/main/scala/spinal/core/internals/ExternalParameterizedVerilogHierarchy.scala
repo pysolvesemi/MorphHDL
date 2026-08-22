@@ -83,28 +83,62 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
 
       instances.filter(_.bindings.nonEmpty).foreach { instance =>
         val lines = current.split("\\n", -1).toVector
-        val startPattern =
+        val plainStartPattern =
           ("^(\\s*)" + Pattern.quote(instance.definitionName) + "\\s+" +
             Pattern.quote(instance.instanceName) + "\\s*\\(\\s*$").r
-        val starts = lines.zipWithIndex.collect {
-          case (line, index) if startPattern.findFirstIn(line).nonEmpty => index
+        val parameterizedStartPattern =
+          ("^(\\s*)" + Pattern.quote(instance.definitionName) +
+            "\\s*#\\s*\\(\\s*$").r
+        val parameterizedTerminatorPattern =
+          ("^\\s*\\)\\s+" + Pattern.quote(instance.instanceName) +
+            "\\s*\\(\\s*$").r
+        val anyParameterizedTerminatorPattern =
+          "^\\s*\\)\\s+[A-Za-z_][A-Za-z0-9_$]*\\s*\\(\\s*$".r
+
+        val plainStarts = lines.zipWithIndex.collect {
+          case (line, index)
+              if plainStartPattern.findFirstIn(line).nonEmpty =>
+            val indent = plainStartPattern.findFirstMatchIn(line).get.group(1)
+            (index, index, indent)
         }
+        val parameterizedStarts = lines.zipWithIndex.flatMap {
+          case (line, index)
+              if parameterizedStartPattern.findFirstIn(line).nonEmpty =>
+            val terminator =
+              (index + 1 until lines.size).find(candidate =>
+                anyParameterizedTerminatorPattern
+                  .findFirstIn(lines(candidate))
+                  .nonEmpty
+              )
+            terminator.collect {
+              case bodyStart
+                  if parameterizedTerminatorPattern
+                    .findFirstIn(lines(bodyStart))
+                    .nonEmpty =>
+                val indent =
+                  parameterizedStartPattern.findFirstMatchIn(line).get.group(1)
+                (index, bodyStart, indent)
+            }
+          case _ => None
+        }
+        val starts = plainStarts ++ parameterizedStarts
         if (starts.size != 1) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-INSTANCE-NOT-FOUND",
             s"normal Verilog emission contains ${starts.size} instances matching '${instance.definitionName} ${instance.instanceName}'"
           )
         }
-        val start = starts.head
-        val end = (start + 1 until lines.size).find(index => lines(index).trim == ");")
-          .getOrElse {
+        val (start, bodyStart, indent) = starts.head
+        val end =
+          (bodyStart + 1 until lines.size)
+            .find(index => lines(index).trim == ");")
+            .getOrElse {
             fail(
               "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-INSTANCE-NOT-FOUND",
               s"normal Verilog emission did not terminate instance '${instance.instanceName}'"
             )
           }
-        var block = lines.slice(start, end + 1)
-        val indent = startPattern.findFirstMatchIn(block.head).get.group(1)
+        var block = lines.slice(bodyStart, end + 1)
 
         instance.ports.foreach { port =>
           val marker = ("\\." + Pattern.quote(port.name) + "\\s*\\(").r
@@ -299,12 +333,28 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           s"port '$name' of instance '$instanceName'"
         )
       })
-      val canonicalFormals = parameterPorts.flatMap { name =>
+      val canonicalPortFormals = parameterPorts.flatMap { name =>
         ExternalFormalParameterRegistry.bindingOf(canonicalByName(name))
       }
-      val actualFormals = parameterPorts.flatMap { name =>
+      val actualPortFormals = parameterPorts.flatMap { name =>
         ExternalFormalParameterRegistry.bindingOf(actualByName(name))
       }
+      val canonicalFormals = retainedFormals(
+        component = canonical,
+        portFormals = canonicalPortFormals,
+        parameterPorts = parameterPorts,
+        parameter = parameter,
+        role = "canonical",
+        instanceName = instanceName
+      )
+      val actualFormals = retainedFormals(
+        component = child,
+        portFormals = actualPortFormals,
+        parameterPorts = parameterPorts,
+        parameter = parameter,
+        role = "actual",
+        instanceName = instanceName
+      )
       val hasExplicitFormal = canonicalFormals.nonEmpty || actualFormals.nonEmpty
 
       val expression =
@@ -449,6 +499,58 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         }
     }
     InstancePlan(definitionName, instanceName, bindings, ports)
+  }
+
+  /**
+    * Prefer exact per-port metadata. If a later native transformation has
+    * removed it from every selected port, recover only from the exact owning
+    * component identity retained by the external formal registry. A partial
+    * loss remains an error because it cannot prove one complete slot layout.
+    */
+  private def retainedFormals(
+      component: Component,
+      portFormals: Vector[ExternalFormalParameterBinding],
+      parameterPorts: Vector[String],
+      parameter: ElaborationIntegerParameter,
+      role: String,
+      instanceName: String
+  ): Vector[ExternalFormalParameterBinding] = {
+    if (portFormals.size == parameterPorts.size) portFormals
+    else if (portFormals.nonEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-LAYOUT-CONFLICT",
+        s"formal slot '${parameter.name}' of instance '$instanceName' is retained on only ${portFormals.size} of ${parameterPorts.size} $role packed ports"
+      )
+    } else {
+      val componentBindings =
+        ExternalFormalParameterRegistry
+          .bindingsOf(component)
+          .filter(_.formal == parameter)
+      if (componentBindings.isEmpty) Vector.empty
+      else {
+        val declarationKeys = componentBindings.map(_.declarationKey).distinct
+        if (declarationKeys.size != 1) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+            s"formal slot '${parameter.name}' of instance '$instanceName' maps to multiple $role component declaration identities",
+            componentBindings.flatMap(_.sourceLocation).headOption
+          )
+        }
+        val expressions = componentBindings
+          .map(binding =>
+            ExternalFormalParameterRegistry.normalizedExpression(binding.actual)
+          )
+          .distinct
+        if (expressions.size != 1) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS",
+            s"formal slot '${parameter.name}' of instance '$instanceName' maps to multiple $role component actual expressions: ${expressions.map(_.verilog).sorted.mkString(", ")}",
+            componentBindings.flatMap(_.sourceLocation).headOption
+          )
+        }
+        Vector.fill(parameterPorts.size)(componentBindings.head)
+      }
+    }
   }
 
   private def indexedPorts(
