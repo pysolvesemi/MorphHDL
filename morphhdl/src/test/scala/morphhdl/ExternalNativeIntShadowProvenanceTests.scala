@@ -92,13 +92,14 @@ object ExternalNativeIntShadowProvenanceSmoke {
   final class RegionTop(width: HdlInt) extends Component {
     setDefinitionName("ExternalNativeIntShadowRegionTop")
 
+    val source = in(morphhdl.frontend.UInt(width bits))
     val payload = out(
       formalRegion(width) { value =>
         val local = shadowInt(value, "regionLocal")
         UInt(local bits)
       }
     )
-    payload := 0
+    payload := source
   }
 
   final class NestedOuter(width: Int) extends Component {
@@ -109,6 +110,7 @@ object ExternalNativeIntShadowProvenanceSmoke {
     @dontName
     val beforeNested = shadowInt(width, "outerBefore")
 
+    @dontName
     val innerWidth = HdlInt.param(
       "INNER_WIDTH",
       default = 4,
@@ -130,11 +132,12 @@ object ExternalNativeIntShadowProvenanceSmoke {
     dout := din
   }
 
-  final class NestedTop(width: HdlInt) extends Component {
+  final class NestedTop(width: HdlInt, innerWidth: HdlInt) extends Component {
     setDefinitionName("ExternalNativeIntShadowNestedTop")
 
     val din = in(morphhdl.frontend.UInt(width bits))
     val dout = out(morphhdl.frontend.UInt(width bits))
+    val innerOut = out(morphhdl.frontend.UInt(innerWidth bits))
     val outer = formalComponent(
       width,
       "OUTER_WIDTH",
@@ -147,6 +150,7 @@ object ExternalNativeIntShadowProvenanceSmoke {
     )
     outer.din := din
     dout := outer.dout
+    innerOut := outer.inner
   }
 }
 
@@ -218,7 +222,9 @@ class ExternalNativeIntShadowProvenanceTests extends AnyFunSuite {
       var top: NestedTop = null
       emitMorph(directory, "native_int_shadow_nested.v") {
         val width = HdlInt.param("TOP_WIDTH", default = 8, min = 1, max = 16)
-        top = new NestedTop(width)
+        val innerWidth =
+          HdlInt.param("TOP_INNER_WIDTH", default = 4, min = 1, max = 8)
+        top = new NestedTop(width, innerWidth)
         top
       }
 
