@@ -26,15 +26,19 @@ jobs:
           set -euo pipefail
           python3 <<'PY'
           from pathlib import Path
-          import textwrap
 
           source = Path('.github/workflows/apply-increment-48-custom-generate-labels.yml').read_text()
           start = "          python3 <<'PY'\n"
           end = "\n          PY\n\n          git diff --check"
           if source.count(start) != 1 or source.count(end) != 1:
               raise RuntimeError('unable to locate embedded Increment 48 patch script')
-          script = source.split(start, 1)[1].split(end, 1)[0]
-          Path('/tmp/apply_inc48_custom_labels.py').write_text(textwrap.dedent(script))
+          embedded = source.split(start, 1)[1].split(end, 1)[0]
+          lines = embedded.splitlines()
+          prefix = "          "
+          if not lines or any(line and not line.startswith(prefix) for line in lines):
+              raise RuntimeError('embedded Increment 48 patch indentation changed')
+          script = "\n".join(line[len(prefix):] if line else "" for line in lines) + "\n"
+          Path('/tmp/apply_inc48_custom_labels.py').write_text(script)
           PY
           python3 /tmp/apply_inc48_custom_labels.py
           git diff --check
