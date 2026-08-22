@@ -20,7 +20,7 @@ jobs:
           ref: fix/increment-48-structured-conditional-chains
           fetch-depth: 0
 
-      - name: Apply and commit reviewed repair
+      - name: Apply and commit reviewed source repair
         shell: bash
         run: |
           set -euo pipefail
@@ -39,12 +39,16 @@ jobs:
           )
           PY
           python3 /tmp/patcher_inc48.py
-          rm \
-            .github/workflows/apply-increment-48-structured-conditionals.yml \
-            .github/workflows/apply-increment-48-on-pr.yml
+          git checkout -- .github/workflows/morphhdl-external-structural-process.yml
           git diff --check
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add \
+            frontend/src/main/scala/morphhdl/frontend/NaturalSymbolicConditional.scala \
+            frontend/src/main/scala/spinal/core/ParameterizedStructure.scala \
+            frontend/src/main/scala/spinal/core/ParameterizedStructuralSynthetic.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
+            morphhdl/src/test/scala/morphhdl/NaturalSymbolicConditionalTests.scala \
+            docs/morphhdl/parameterized-verilog-todo.md
           git commit -m "Repair Increment 48 conditional chain lowering"
           git push origin HEAD:fix/increment-48-structured-conditional-chains
