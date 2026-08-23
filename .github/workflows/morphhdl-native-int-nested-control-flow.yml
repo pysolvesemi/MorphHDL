@@ -54,6 +54,40 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Instrument memory declaration lookup locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala')
+          text = path.read_text()
+          old = '''    if (candidates.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEMORY-DECLARATION-NOT-FOUND",
+        s"native Verilog contains ${candidates.size} declaration lines for captured memory '$name'",
+        sourceLocation
+      )
+    }
+'''
+          new = '''    if (candidates.size != 1) {
+      Console.err.println("MORPH_DEBUG_MEMORY_VERILOG_BEGIN")
+      lines.zipWithIndex.foreach { case (line, index) =>
+        Console.err.println(s"${index + 1}:$line")
+      }
+      Console.err.println("MORPH_DEBUG_MEMORY_VERILOG_END")
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEMORY-DECLARATION-NOT-FOUND",
+        s"native Verilog contains ${candidates.size} declaration lines for captured memory '$name'",
+        sourceLocation
+      )
+    }
+'''
+          if old not in text:
+              raise SystemExit('target memory lookup block not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
       - name: Install pinned Mill bootstrap
         shell: bash
         run: |
