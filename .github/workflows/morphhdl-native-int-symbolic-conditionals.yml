@@ -1,23 +1,22 @@
-name: MorphHDL native Int symbolic conditionals
+name: MorphHDL Increment 52 repair controller
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/increment-52-nested-control-flow-clean
-    paths:
-      - .github/workflows/morphhdl-native-int-symbolic-conditionals.yml
+      - parameterized-verilog
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: increment-52-memory-fix-controller
+  group: morphhdl-increment-52-repair-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   repair:
-    name: Repair and prove Increment 52 memory relocation
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'agent/increment-52-nested-control-flow-clean'
+    name: Repair and prove native memory relocation
     runs-on: ubuntu-latest
     timeout-minutes: 90
     container:
@@ -25,13 +24,13 @@ jobs:
     env:
       XDG_CACHE_HOME: /tmp/morphhdl-cache
     steps:
-      - name: Check out feature branch
+      - name: Check out the exact feature branch
         uses: actions/checkout@v4
         with:
           ref: agent/increment-52-nested-control-flow-clean
           fetch-depth: 0
 
-      - name: Apply fail-closed native memory declaration resolution
+      - name: Apply fail-closed emitted-memory resolution
         shell: bash
         run: |
           set -euo pipefail
@@ -42,147 +41,141 @@ jobs:
           text = path.read_text()
 
           old_case = '''  private final case class BlockPlan(
-      block: ParameterizedStructuralBlock,
-      ranges: Vector[LineRange],
-      body: String
-  )
-'''
+              block: ParameterizedStructuralBlock,
+              ranges: Vector[LineRange],
+              body: String
+          )
+          '''
           new_case = '''  private final case class MemoryDeclaration(
-      ranges: Vector[LineRange],
-      emittedNames: Vector[String]
-  )
+              ranges: Vector[LineRange],
+              emittedNames: Vector[String]
+          )
 
-  private final case class BlockPlan(
-      block: ParameterizedStructuralBlock,
-      ranges: Vector[LineRange],
-      body: String
-  )
-'''
-          if text.count(old_case) != 1:
-              raise SystemExit('BlockPlan insertion point is not unique')
-          text = text.replace(old_case, new_case, 1)
+            private final case class BlockPlan(
+              block: ParameterizedStructuralBlock,
+              ranges: Vector[LineRange],
+              body: String
+          )
+          '''
+          # Use exact source indentation rather than the YAML indentation above.
+          old_case = old_case.replace('          ', '')
+          new_case = new_case.replace('          ', '')
+          if 'private final case class MemoryDeclaration(' not in text:
+              if text.count(old_case) != 1:
+                  raise SystemExit('BlockPlan insertion point is not unique')
+              text = text.replace(old_case, new_case, 1)
 
           old_call = '''      ownedTargetNames += name
-      trackedInternalNames += name
-      ranges += findMemoryDeclarationLine(
-        lines,
-        memory,
-        name,
-        block.sourceLocation
-      )
-'''
+              trackedInternalNames += name
+              ranges += findMemoryDeclarationLine(
+                lines,
+                memory,
+                name,
+                block.sourceLocation
+              )
+          '''.replace('          ', '')
           new_call = '''      ownedTargetNames += name
-      trackedInternalNames += name
-      val declaration = findMemoryDeclaration(
-        lines,
-        memory,
-        name,
-        block.sourceLocation
-      )
-      declaration.emittedNames.foreach { emittedName =>
-        ownedTargetNames += emittedName
-        trackedInternalNames += emittedName
-      }
-      ranges ++= declaration.ranges
-'''
-          if text.count(old_call) != 1:
-              raise SystemExit('memory declaration call site is not unique')
-          text = text.replace(old_call, new_call, 1)
+              trackedInternalNames += name
+              val declaration = findMemoryDeclaration(
+                lines,
+                memory,
+                name,
+                block.sourceLocation
+              )
+              declaration.emittedNames.foreach { emittedName =>
+                ownedTargetNames += emittedName
+                trackedInternalNames += emittedName
+              }
+              ranges ++= declaration.ranges
+          '''.replace('          ', '')
+          if 'ranges += findMemoryDeclarationLine(' in text:
+              if text.count(old_call) != 1:
+                  raise SystemExit('memory declaration call site is not unique')
+              text = text.replace(old_call, new_call, 1)
 
-          old_helper = '''  private def findMemoryDeclarationLine(
-      lines: Vector[String],
-      memory: Mem[_],
-      name: String,
-      sourceLocation: Option[String]
-  ): LineRange = {
-    val concreteRange =
-      ("\\\\[0\\\\s*:\\\\s*" + (memory.wordCount - 1) + "\\\\]").r
-    val candidates = lines.zipWithIndex.collect {
-      case (line, index)
-          if isDeclarationLine(line.trim) && line.contains("reg") &&
-            containsName(line, name) && concreteRange.findFirstIn(line).nonEmpty =>
-        index
-    }
-    if (candidates.size != 1) {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEMORY-DECLARATION-NOT-FOUND",
-        s"native Verilog contains ${candidates.size} declaration lines for captured memory '$name'",
-        sourceLocation
-      )
-    }
-    LineRange(candidates.head, candidates.head)
-  }
-'''
-          new_helper = '''  private def findMemoryDeclaration(
-      lines: Vector[String],
-      memory: Mem[_],
-      name: String,
-      sourceLocation: Option[String]
-  ): MemoryDeclaration = {
-    val concreteRange =
-      ("\\\\[0\\\\s*:\\\\s*" + (memory.wordCount - 1) + "\\\\]").r
-    val identifier = "[A-Za-z_][A-Za-z0-9_$]*".r
-    val candidates = lines.zipWithIndex.flatMap { case (line, index) =>
-      val trimmed = line.trim
-      if (
-        isDeclarationLine(trimmed) && line.contains("reg") &&
-        concreteRange.findFirstIn(line).nonEmpty
-      ) {
-        concreteRange.findFirstMatchIn(line).flatMap { range =>
-          identifier
-            .findAllIn(line.substring(0, range.start))
-            .toVector
-            .lastOption
-            .map(emittedName => (index, emittedName))
-        }
-      } else None
-    }
+          helper_start = text.find('  private def findMemoryDeclarationLine(')
+          helper_end = text.find('\n  private def findInstanceRange(', helper_start)
+          if helper_start >= 0:
+              if helper_end < 0:
+                  raise SystemExit('memory declaration helper end was not found')
+              new_helper = r'''  private def findMemoryDeclaration(
+              lines: Vector[String],
+              memory: Mem[_],
+              name: String,
+              sourceLocation: Option[String]
+          ): MemoryDeclaration = {
+            val concreteRange =
+              ("\\[0\\s*:\\s*" + (memory.wordCount - 1) + "\\]").r
+            val identifier = "[A-Za-z_][A-Za-z0-9_$]*".r
+            val candidates = lines.zipWithIndex.flatMap { case (line, index) =>
+              val trimmed = line.trim
+              if (
+                isDeclarationLine(trimmed) && line.contains("reg") &&
+                concreteRange.findFirstIn(line).nonEmpty
+              ) {
+                concreteRange.findFirstMatchIn(line).flatMap { range =>
+                  identifier
+                    .findAllIn(line.substring(0, range.start))
+                    .toVector
+                    .lastOption
+                    .map(emittedName => (index, emittedName))
+                }
+              } else None
+            }
 
-    val symbolCount = memory.getMemSymbolCount()
-    val expectedNames =
-      if (symbolCount == 1) Vector(name)
-      else (0 until symbolCount).map(index => s"${name}_symbol$index").toVector
-    val exact = candidates.filter { case (_, emittedName) =>
-      expectedNames.contains(emittedName)
-    }
-    val prefixed = candidates.filter { case (_, emittedName) =>
-      emittedName == name || emittedName.startsWith(name + "_")
-    }
-    val selected =
-      if (
-        exact.size == expectedNames.size &&
-        exact.map(_._2).toSet == expectedNames.toSet
-      ) exact
-      else if (prefixed.size == expectedNames.size) prefixed
-      else if (candidates.size == expectedNames.size) candidates
-      else {
-        val emitted = candidates.map(_._2).mkString(", ")
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEMORY-DECLARATION-NOT-FOUND",
-          s"native Verilog contains ${candidates.size} compatible array declarations for captured memory '$name' (expected $symbolCount; candidates: $emitted)",
-          sourceLocation
-        )
-      }
+            val symbolCount = memory.getMemSymbolCount()
+            val expectedNames =
+              if (symbolCount == 1) Vector(name)
+              else (0 until symbolCount).map(index => s"${name}_symbol$index").toVector
+            val exact = candidates.filter { case (_, emittedName) =>
+              expectedNames.contains(emittedName)
+            }
+            val prefixed = candidates.filter { case (_, emittedName) =>
+              emittedName == name || emittedName.startsWith(name + "_")
+            }
+            val selected =
+              if (
+                exact.size == expectedNames.size &&
+                exact.map(_._2).toSet == expectedNames.toSet
+              ) exact
+              else if (prefixed.size == expectedNames.size) prefixed
+              else if (candidates.size == expectedNames.size) candidates
+              else {
+                val emitted = candidates.map(_._2).mkString(", ")
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEMORY-DECLARATION-NOT-FOUND",
+                  s"native Verilog contains ${candidates.size} compatible array declarations for captured memory '$name' (expected $symbolCount; candidates: $emitted)",
+                  sourceLocation
+                )
+              }
 
-    val distinctNames = selected.map(_._2).distinct
-    if (selected.size != expectedNames.size || distinctNames.size != selected.size) {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEMORY-DECLARATION-AMBIGUOUS",
-        s"captured memory '$name' resolved to a non-unique native declaration set '${selected.map(_._2).mkString(", ")}'",
-        sourceLocation
-      )
-    }
-    MemoryDeclaration(
-      selected.sortBy(_._1).map { case (index, _) => LineRange(index, index) },
-      distinctNames
-    )
-  }
-'''
-          if text.count(old_helper) != 1:
-              raise SystemExit('memory declaration helper is not unique')
-          text = text.replace(old_helper, new_helper, 1)
+            val distinctNames = selected.map(_._2).distinct
+            if (selected.size != expectedNames.size || distinctNames.size != selected.size) {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEMORY-DECLARATION-AMBIGUOUS",
+                s"captured memory '$name' resolved to a non-unique native declaration set '${selected.map(_._2).mkString(", ")}'",
+                sourceLocation
+              )
+            }
+            MemoryDeclaration(
+              selected.sortBy(_._1).map { case (index, _) => LineRange(index, index) },
+              distinctNames
+            )
+          }
+          '''
+              # Remove only the YAML block indentation retained in this literal.
+              new_helper = '\n'.join(
+                  line[10:] if line.startswith('          ') else line
+                  for line in new_helper.splitlines()
+              ) + '\n'
+              text = text[:helper_start] + new_helper + text[helper_end + 1:]
+
+          if 'findMemoryDeclarationLine' in text:
+              raise SystemExit('legacy memory declaration matcher remains after patch')
           path.write_text(text)
           PY
+          git diff --check
+          git diff -- morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
 
       - name: Install pinned Mill bootstrap
         shell: bash
@@ -193,240 +186,32 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Prove focused repair on Scala 2.12 and 2.13
-        id: prove
-        shell: bash
-        run: |
-          set +e
-          {
-            /tmp/morphhdl-mill morph[2.12.18].testOnly \
-              morphhdl.NativeIntNestedSymbolicControlFlowTests
-            first=$?
-            if [ "$first" -eq 0 ]; then
-              /tmp/morphhdl-mill morph[2.13.12].testOnly \
-                morphhdl.NativeIntNestedSymbolicControlFlowTests
-              second=$?
-            else
-              second=99
-            fi
-            echo "SCALA_212_STATUS=$first"
-            echo "SCALA_213_STATUS=$second"
-            exit $(( first != 0 || second != 0 ))
-          } 2>&1 | tee /tmp/increment-52-memory-fix.log
-          status=${PIPESTATUS[0]}
-          set -e
-          echo "status=$status" >> "$GITHUB_OUTPUT"
-          exit 0
-
-      - name: Publish failure evidence without retriggering CI
-        if: steps.prove.outputs.status != '0'
+      - name: Prove the focused contract on Scala 2.12.18
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import subprocess
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests
 
-          log = Path('/tmp/increment-52-memory-fix.log').read_text(errors='replace')
-          diff = subprocess.run(
-              ['git', 'diff', '--', 'morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala'],
-              check=True,
-              text=True,
-              stdout=subprocess.PIPE,
-          ).stdout
-          Path('docs/morphhdl/increment-52-controller-failure.txt').write_text(
-              'PATCH DIFF\n==========\n' + diff +
-              '\n\nTEST LOG (TAIL)\n===============\n' + log[-80000:]
-          )
-          PY
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add docs/morphhdl/increment-52-controller-failure.txt
-          git commit -m "[skip ci] debug: record Increment 52 repair failure"
-          git push origin HEAD:agent/increment-52-nested-control-flow-clean
-
-      - name: Restore production workflows and commit the proven repair
-        if: steps.prove.outputs.status == '0'
+      - name: Prove the focused contract on Scala 2.13.12
         shell: bash
         run: |
           set -euo pipefail
-          cat > .github/workflows/morphhdl-native-int-symbolic-conditionals.yml <<'EOF'
-          name: MorphHDL native Int symbolic conditionals
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests
 
-          on:
-            push:
-              branches:
-                - main
-                - parameterized-verilog
-            pull_request:
-              branches:
-                - main
-                - parameterized-verilog
-            workflow_dispatch:
-
-          permissions:
-            contents: read
-
-          concurrency:
-            group: morphhdl-native-int-conditionals-${{ github.workflow }}-${{ github.ref }}
-            cancel-in-progress: true
-
-          jobs:
-            source-boundary:
-              name: Native Int conditional source boundary
-              runs-on: ubuntu-latest
-              timeout-minutes: 10
-              steps:
-                - name: Check out complete history
-                  uses: actions/checkout@v4
-                  with:
-                    fetch-depth: 0
-
-                - name: Prove exact predicate ownership and zero native diff
-                  shell: bash
-                  run: bash morphhdl/scripts/check-native-int-symbolic-conditional-boundary.sh
-
-            contracts:
-              name: Native Int conditional proof Scala ${{ matrix.scala_version }}
-              needs: source-boundary
-              runs-on: ubuntu-latest
-              timeout-minutes: 60
-              container:
-                image: ghcr.io/spinalhdl/docker:latest
-              env:
-                XDG_CACHE_HOME: /tmp/morphhdl-cache
-              strategy:
-                fail-fast: false
-                matrix:
-                  scala_version:
-                    - "2.12.18"
-                    - "2.13.12"
-              steps:
-                - name: Check out sources
-                  uses: actions/checkout@v4
-                  with:
-                    fetch-depth: 0
-
-                - name: Install pinned Mill bootstrap
-                  shell: bash
-                  run: |
-                    set -euo pipefail
-                    curl --fail --location --retry 5 --retry-all-errors \
-                      https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
-                      --output /tmp/morphhdl-mill
-                    chmod +x /tmp/morphhdl-mill
-
-                - name: Validate native branch capture and inherited contracts
-                  shell: bash
-                  run: |
-                    set -euo pipefail
-                    /tmp/morphhdl-mill frontend[${{ matrix.scala_version }}].testOnly \
-                      morphhdl.frontend.HdlIntTests
-                    /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
-                      morphhdl.NativeIntSymbolicConditionalTests \
-                      morphhdl.NaturalSymbolicConditionalTests \
-                      morphhdl.ExternalNativeIntShadowExpressionTests \
-                      morphhdl.ExternalNativeIntShadowProvenanceTests \
-                      morphhdl.ExternalNativeIntFormalizationTests \
-                      morphhdl.FormalParameterIdentityTests \
-                      morphhdl.FormalParameterClonePropagationTests \
-                      morphhdl.HierarchyParameterBindingTests \
-                      morphhdl.MorphSingleSourceVerilogTests \
-                      morphhdl.integration.ExternalSpinalVerilogBaselineTests
-          EOF
-          sed -i 's/^          //' .github/workflows/morphhdl-native-int-symbolic-conditionals.yml
-
-          cat > .github/workflows/morphhdl-native-int-nested-control-flow.yml <<'EOF'
-          name: MorphHDL native Int nested symbolic control flow
-
-          on:
-            push:
-              branches:
-                - main
-                - parameterized-verilog
-            pull_request:
-              branches:
-                - main
-                - parameterized-verilog
-            workflow_dispatch:
-
-          permissions:
-            contents: read
-
-          concurrency:
-            group: morphhdl-native-int-nested-${{ github.workflow }}-${{ github.ref }}
-            cancel-in-progress: true
-
-          jobs:
-            source-boundary:
-              name: Native Int nested-control source boundary
-              runs-on: ubuntu-latest
-              timeout-minutes: 10
-              steps:
-                - name: Check out complete history
-                  uses: actions/checkout@v4
-                  with:
-                    fetch-depth: 0
-
-                - name: Prove safe nested capture and zero native diff
-                  shell: bash
-                  run: bash morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
-
-            contracts:
-              name: Native Int nested-control proof Scala ${{ matrix.scala_version }}
-              needs: source-boundary
-              runs-on: ubuntu-latest
-              timeout-minutes: 60
-              container:
-                image: ghcr.io/spinalhdl/docker:latest
-              env:
-                XDG_CACHE_HOME: /tmp/morphhdl-cache
-              strategy:
-                fail-fast: false
-                matrix:
-                  scala_version:
-                    - "2.12.18"
-                    - "2.13.12"
-              steps:
-                - name: Check out sources
-                  uses: actions/checkout@v4
-                  with:
-                    fetch-depth: 0
-
-                - name: Install pinned Mill bootstrap
-                  shell: bash
-                  run: |
-                    set -euo pipefail
-                    curl --fail --location --retry 5 --retry-all-errors \
-                      https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
-                      --output /tmp/morphhdl-mill
-                    chmod +x /tmp/morphhdl-mill
-
-                - name: Validate nested control flow safety and inherited contracts
-                  shell: bash
-                  run: |
-                    set -euo pipefail
-                    /tmp/morphhdl-mill frontend[${{ matrix.scala_version }}].testOnly \
-                      morphhdl.frontend.HdlIntTests
-                    /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
-                      morphhdl.NativeIntNestedSymbolicControlFlowTests \
-                      morphhdl.NativeIntSymbolicConditionalTests \
-                      morphhdl.NaturalSymbolicConditionalTests \
-                      morphhdl.ExternalNativeIntShadowExpressionTests \
-                      morphhdl.ExternalNativeIntShadowProvenanceTests \
-                      morphhdl.ExternalNativeIntFormalizationTests \
-                      morphhdl.FormalParameterIdentityTests \
-                      morphhdl.FormalParameterClonePropagationTests \
-                      morphhdl.HierarchyParameterBindingTests \
-                      morphhdl.MorphSingleSourceVerilogTests \
-                      morphhdl.integration.ExternalSpinalVerilogBaselineTests
-          EOF
-          sed -i 's/^          //' .github/workflows/morphhdl-native-int-nested-control-flow.yml
-
-          rm -f .github/workflows/increment-52-debug-memory.yml
-          rm -f docs/morphhdl/increment-52-memory-diagnostic.txt
-          rm -f docs/morphhdl/increment-52-controller-failure.txt
-
+      - name: Restore production CI and publish the proven repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show 503b8c894997ea8eab80a6cf2f7bf83586b06ea2:.github/workflows/morphhdl-native-int-symbolic-conditionals.yml \
+            > .github/workflows/morphhdl-native-int-symbolic-conditionals.yml
+          git show 503b8c894997ea8eab80a6cf2f7bf83586b06ea2:.github/workflows/morphhdl-native-int-nested-control-flow.yml \
+            > .github/workflows/morphhdl-native-int-nested-control-flow.yml
+          git rm -f --ignore-unmatch .github/workflows/increment-52-debug-memory.yml
+          git rm -f --ignore-unmatch docs/morphhdl/increment-52-memory-diagnostic.txt
+          git rm -f --ignore-unmatch docs/morphhdl/increment-52-controller-failure.txt
+          git diff --check
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
