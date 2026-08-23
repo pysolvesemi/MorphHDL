@@ -225,6 +225,7 @@ object ParameterizedStructure {
       value.setAsVital()
       value.dontSimplifyIt()
     }
+    memories.foreach(_.preventAsBlackBox())
     memoryPorts.foreach(port => port.isVital = true)
 
     val unsupported = statements.filterNot {

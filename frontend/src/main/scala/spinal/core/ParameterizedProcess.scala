@@ -354,6 +354,10 @@ object ParameterizedProcess {
         )
       }
 
+      // Structural range bodies must retain inferred memories as native
+      // declarations until MorphHDL relocates them into the generate region.
+      memories.foreach(_.preventAsBlackBox())
+
       val block = new ParameterizedStructuralBlock(
         statements,
         declarations,
