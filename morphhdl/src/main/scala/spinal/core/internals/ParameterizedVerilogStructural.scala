@@ -814,8 +814,21 @@ private[internals] object ParameterizedVerilogStructural {
     "begin", "end", "generate", "endgenerate", "if", "else", "for", "case", "endcase"
   )
 
-  private def isDeclarationLine(value: String): Boolean =
-    value.startsWith("wire ") || value.startsWith("reg ") || value.startsWith("integer ")
+  private def stripLeadingVerilogAttributes(value: String): String = {
+    var remaining = value.trim
+    while (remaining.startsWith("(*")) {
+      val end = remaining.indexOf("*)")
+      if (end < 0) return remaining
+      remaining = remaining.substring(end + 2).trim
+    }
+    remaining
+  }
+
+  private def isDeclarationLine(value: String): Boolean = {
+    val declaration = stripLeadingVerilogAttributes(value)
+    declaration.startsWith("wire ") || declaration.startsWith("reg ") ||
+      declaration.startsWith("integer ")
+  }
 
   private def identifiers(value: String): Vector[String] =
     "[A-Za-z_][A-Za-z0-9_]*".r.findAllIn(value).toVector
