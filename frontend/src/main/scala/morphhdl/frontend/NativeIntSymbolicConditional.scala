@@ -14,6 +14,7 @@ import spinal.core.{ExternalNativeIntShadowRegistry, ParameterizedStructure}
   */
 object NativeIntSymbolicConditional {
   private val activeCaptureDepth = new ThreadLocal[java.lang.Integer]
+  private val MaximumCaptureDepth = 64
 
   def selectSymbolic[T](
       condition: Boolean,
@@ -24,7 +25,7 @@ object NativeIntSymbolicConditional {
     val origin = SourceOrigin(sourceFile, sourceLine)
     if (!ParameterizedStructure.captureEnabled) {
       if (condition) ifTrue else ifFalse
-    } else withTopLevelCapture(origin) {
+    } else withCapture(origin) {
       captureOne(
         condition,
         predicateReference,
@@ -65,7 +66,7 @@ object NativeIntSymbolicConditional {
         else otherwise()
       }
       select(0)
-    } else withTopLevelCapture(SourceOrigin(ordered.head._4, ordered.head._5)) {
+    } else withCapture(SourceOrigin(ordered.head._4, ordered.head._5)) {
       def capture(index: Int): T = {
         val (conditionThunk, reference, body, file, line) = ordered(index)
         val origin = SourceOrigin(file, line)
@@ -120,17 +121,39 @@ object NativeIntSymbolicConditional {
     if (condition) trueValue.get else falseValue.get
   }
 
-  private def withTopLevelCapture[T](origin: SourceOrigin)(body: => T): T = {
+  /**
+    * Guard one compiler-classified Scala side effect. Ordinary concrete
+    * SpinalHDL keeps its source behavior. MorphVerilog rejects the effect
+    * before evaluating the retained alternative, so rejected capture cannot
+    * mutate external state or perform I/O while discovering source branches.
+    */
+  def guardAlternative[T](
+      code: String,
+      detail: String,
+      sourceFile: String,
+      sourceLine: Int
+  )(body: => T): T = {
+    if (ParameterizedStructure.captureEnabled) {
+      FrontendException.failAt(
+        code,
+        detail,
+        SourceOrigin(sourceFile, sourceLine)
+      )
+    }
+    body
+  }
+
+  private def withCapture[T](origin: SourceOrigin)(body: => T): T = {
     val current = activeCaptureDepth.get()
     val previous = if (current == null) 0 else current.intValue()
-    if (previous != 0) {
+    if (previous >= MaximumCaptureDepth) {
       FrontendException.failAt(
-        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-NESTED-DEFERRED",
-        "nested native symbolic control flow is introduced by Increment 52; Increment 51 accepts only one source-level native conditional chain",
+        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-DEPTH-EXCEEDED",
+        s"native symbolic control-flow nesting exceeds the bounded depth $MaximumCaptureDepth",
         origin
       )
     }
-    activeCaptureDepth.set(java.lang.Integer.valueOf(1))
+    activeCaptureDepth.set(java.lang.Integer.valueOf(previous + 1))
     try body
     finally {
       if (previous == 0) activeCaptureDepth.remove()
