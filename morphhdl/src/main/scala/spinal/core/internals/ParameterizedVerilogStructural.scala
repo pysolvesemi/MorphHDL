@@ -514,51 +514,51 @@ private[internals] object ParameterizedVerilogStructural {
   }
 
   private def renderIf(
-    value: ParameterizedStructure.StructuralIf,
-    plans: Map[ParameterizedStructuralBlock, BlockPlan],
-    level: Int,
-    includePrefix: Boolean
-): String = {
-  val prefix = "  " * level
-  val startPrefix = if (includePrefix) prefix else ""
-  val start =
-    s"${startPrefix}if (${value.condition.verilog}) begin : ${value.whenTrueLabel}\n" +
-      renderBlock(value.whenTrue, plans, level + 1) + "\n" +
-      s"${prefix}end else "
-  chainedElseIf(value, plans) match {
-    case Some(next) =>
-      start + renderIf(next, plans, level, includePrefix = false)
-    case None =>
-      start + s"begin : ${value.whenFalseLabel}\n" +
-        renderBlock(value.whenFalse, plans, level + 1) + "\n" +
-        s"${prefix}end"
-  }
-}
-
-private def chainedElseIf(
-    value: ParameterizedStructure.StructuralIf,
-    plans: Map[ParameterizedStructuralBlock, BlockPlan]
-): Option[ParameterizedStructure.StructuralIf] = {
-  if (!value.whenFalseLabel.startsWith("morphhdl_else_if_")) return None
-  val block = value.whenFalse
-  if (plans(block).body.trim.isEmpty && block.regions.size == 1) {
-    block.regions.head match {
-      case nested: ParameterizedStructure.StructuralIf => Some(nested)
-      case _ =>
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-ELSE-IF-CONTINUATION-INVALID",
-          "marked else-if continuation is not a structural if",
-          value.sourceLocation
-        )
+      value: ParameterizedStructure.StructuralIf,
+      plans: Map[ParameterizedStructuralBlock, BlockPlan],
+      level: Int,
+      includePrefix: Boolean
+  ): String = {
+    val prefix = "  " * level
+    val startPrefix = if (includePrefix) prefix else ""
+    val start =
+      s"${startPrefix}if (${value.condition.verilog}) begin : ${value.whenTrueLabel}\n" +
+        renderBlock(value.whenTrue, plans, level + 1) + "\n" +
+        s"${prefix}end else "
+    chainedElseIf(value, plans) match {
+      case Some(next) =>
+        start + renderIf(next, plans, level, includePrefix = false)
+      case None =>
+        start + s"begin : ${value.whenFalseLabel}\n" +
+          renderBlock(value.whenFalse, plans, level + 1) + "\n" +
+          s"${prefix}end"
     }
-  } else {
-    fail(
-      "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-ELSE-IF-CONTINUATION-INVALID",
-      "marked else-if continuation contains direct hardware or multiple nested regions",
-      value.sourceLocation
-    )
   }
-}
+
+  private def chainedElseIf(
+      value: ParameterizedStructure.StructuralIf,
+      plans: Map[ParameterizedStructuralBlock, BlockPlan]
+  ): Option[ParameterizedStructure.StructuralIf] = {
+    if (!value.whenFalseLabel.startsWith("morphhdl_else_if_")) return None
+    val block = value.whenFalse
+    if (plans(block).body.trim.isEmpty && block.regions.size == 1) {
+      block.regions.head match {
+        case nested: ParameterizedStructure.StructuralIf => Some(nested)
+        case _ =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-ELSE-IF-CONTINUATION-INVALID",
+            "marked else-if continuation is not a structural if",
+            value.sourceLocation
+          )
+      }
+    } else {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-ELSE-IF-CONTINUATION-INVALID",
+        "marked else-if continuation contains direct hardware or multiple nested regions",
+        value.sourceLocation
+      )
+    }
+  }
 
   private def renderCase(
       value: ParameterizedStructure.StructuralCase,
