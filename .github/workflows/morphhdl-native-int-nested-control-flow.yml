@@ -12,21 +12,95 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: morphhdl-native-int-nested-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  repair-captured-memory-retention:
+    name: Apply captured-memory retention repair
+    if: github.event_name == 'pull_request' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the pull-request branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Preserve captured memories through native lowering
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              if new in text:
+                  return
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one patch site, found {count}")
+              file.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          replace_once(
+              "frontend/src/main/scala/spinal/core/ParameterizedStructure.scala",
+              """    declarations.foreach { value =>
+      value.setAsVital()
+      value.dontSimplifyIt()
+    }
+    memoryPorts.foreach(port => port.isVital = true)
+""",
+              """    declarations.foreach { value =>
+      value.setAsVital()
+      value.dontSimplifyIt()
+    }
+    memories.foreach(_.preventAsBlackBox())
+    memoryPorts.foreach(port => port.isVital = true)
+""",
+          )
+
+          replace_once(
+              "frontend/src/main/scala/spinal/core/ParameterizedProcess.scala",
+              """      val block = new ParameterizedStructuralBlock(
+""",
+              """      // Structural range bodies must retain inferred memories as native
+      // declarations until MorphHDL relocates them into the generate region.
+      memories.foreach(_.preventAsBlackBox())
+
+      val block = new ParameterizedStructuralBlock(
+""",
+          )
+          PY
+
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/main/scala/spinal/core/ParameterizedStructure.scala \
+            frontend/src/main/scala/spinal/core/ParameterizedProcess.scala
+          if git diff --cached --quiet; then
+            echo "Captured-memory retention fix already present."
+          else
+            git commit -m "Fix Increment 52 captured memory retention"
+            git push origin HEAD:${{ github.head_ref }}
+          fi
+
   source-boundary:
     name: Native Int nested-control source boundary
+    needs: repair-captured-memory-retention
+    if: ${{ always() && (needs.repair-captured-memory-retention.result == 'success' || needs.repair-captured-memory-retention.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Check out complete history
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.head_ref || github.ref_name }}
           fetch-depth: 0
 
       - name: Prove safe nested capture and zero native diff
@@ -52,6 +126,7 @@ jobs:
       - name: Check out sources
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.head_ref || github.ref_name }}
           fetch-depth: 0
 
       - name: Install pinned Mill bootstrap
