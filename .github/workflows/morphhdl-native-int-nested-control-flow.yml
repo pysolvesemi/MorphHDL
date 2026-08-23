@@ -81,3 +81,14 @@ jobs:
             morphhdl.HierarchyParameterBindingTests \
             morphhdl.MorphSingleSourceVerilogTests \
             morphhdl.integration.ExternalSpinalVerilogBaselineTests
+
+      - name: Upload generated diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nested-control-generated-${{ matrix.scala_version }}
+          path: |
+            /tmp/morphhdl-single-source-*
+            /tmp/morphhdl-native-int-nested-*
+          if-no-files-found: warn
+          include-hidden-files: true
