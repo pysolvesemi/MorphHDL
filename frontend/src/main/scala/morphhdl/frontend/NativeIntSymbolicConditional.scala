@@ -13,6 +13,7 @@ import spinal.core.{ExternalNativeIntShadowRegistry, ParameterizedStructure}
   * structural Verilog-2001 regions.
   */
 object NativeIntSymbolicConditional {
+  private val ElseIfMarkerPrefix = "morphhdl_else_if_"
   private val activeCaptureDepth = new ThreadLocal[java.lang.Integer]
   private val MaximumCaptureDepth = 64
 
@@ -31,6 +32,7 @@ object NativeIntSymbolicConditional {
         predicateReference,
         origin,
         origin,
+        None,
         () => ifTrue,
         () => ifFalse
       )
@@ -70,22 +72,27 @@ object NativeIntSymbolicConditional {
       def capture(index: Int): T = {
         val (conditionThunk, reference, body, file, line) = ordered(index)
         val origin = SourceOrigin(file, line)
+        val continuation = index + 1 < ordered.size
         val falseOrigin =
-          if (index + 1 < ordered.size) {
-            val (_, _, _, nextFile, nextLine) = ordered(index + 1)
-            SourceOrigin(nextFile, nextLine)
-          } else defaultOrigin
+if (continuation) {
+  val (_, _, _, nextFile, nextLine) = ordered(index + 1)
+  SourceOrigin(nextFile, nextLine)
+} else defaultOrigin
         val falseBody = () => {
-          if (index + 1 < ordered.size) capture(index + 1)
-          else otherwise()
+if (continuation) capture(index + 1)
+else otherwise()
         }
+        val names =
+if (continuation) Some(elseIfContinuationNames(origin))
+else None
         captureOne(
-          conditionThunk(),
-          reference,
-          origin,
-          falseOrigin,
-          body,
-          falseBody
+conditionThunk(),
+reference,
+origin,
+falseOrigin,
+names,
+body,
+falseBody
         )
       }
       capture(0)
@@ -97,6 +104,7 @@ object NativeIntSymbolicConditional {
       predicateReference: String,
       origin: SourceOrigin,
       falseOrigin: SourceOrigin,
+      names: Option[GenerateIfNames],
       ifTrue: () => T,
       ifFalse: () => T
   ): T = {
@@ -110,7 +118,7 @@ object NativeIntSymbolicConditional {
     val builder = NativeStructuralFrontend.startGenerateIfExpression(
       condition,
       expression,
-      names = None,
+      names = names,
       whenTrue = { trueValue = Some(ifTrue()); () },
       origin = origin
     )
@@ -119,6 +127,14 @@ object NativeIntSymbolicConditional {
       falseOrigin
     )
     if (condition) trueValue.get else falseValue.get
+  }
+
+  private def elseIfContinuationNames(origin: SourceOrigin): GenerateIfNames = {
+    val generated = NativeStructuralFrontend.generatedIfNames(origin)
+    GenerateIfNames(
+      generated.whenTrue,
+      ElseIfMarkerPrefix + generated.whenFalse
+    )
   }
 
   /**

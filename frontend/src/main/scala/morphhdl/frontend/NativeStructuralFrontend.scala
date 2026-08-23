@@ -251,7 +251,7 @@ private[frontend] object NativeStructuralFrontend {
     }
   }
 
-  private def generatedIfNames(origin: SourceOrigin): GenerateIfNames = {
+  private[frontend] def generatedIfNames(origin: SourceOrigin): GenerateIfNames = {
     val normalized = origin.file.replace('\\', '/')
     val fileName = normalized.substring(normalized.lastIndexOf('/') + 1)
     val stem = fileName.lastIndexOf('.') match {
