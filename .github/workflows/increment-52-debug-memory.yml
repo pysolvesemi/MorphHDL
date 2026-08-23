@@ -1,0 +1,79 @@
+name: Increment 52 memory relocation diagnostic
+
+on:
+  push:
+    branches:
+      - agent/increment-52-nested-control-flow-clean
+    paths:
+      - .github/workflows/increment-52-debug-memory.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-52-memory-diagnostic
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Instrument memory declaration lookup locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala')
+          text = path.read_text()
+          old = '''    if (candidates.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEMORY-DECLARATION-NOT-FOUND",
+        s"native Verilog contains ${candidates.size} declaration lines for captured memory '$name'",
+        sourceLocation
+      )
+    }
+'''
+          new = '''    if (candidates.size != 1) {
+      Console.err.println("MORPH_DEBUG_MEMORY_VERILOG_BEGIN")
+      lines.zipWithIndex.foreach { case (line, index) =>
+        Console.err.println(s"${index + 1}:$line")
+      }
+      Console.err.println("MORPH_DEBUG_MEMORY_VERILOG_END")
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEMORY-DECLARATION-NOT-FOUND",
+        s"native Verilog contains ${candidates.size} declaration lines for captured memory '$name'",
+        sourceLocation
+      )
+    }
+'''
+          if old not in text:
+              raise SystemExit('target memory lookup block not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Reproduce the focused failure
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests
