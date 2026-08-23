@@ -20,7 +20,7 @@ object NaturalSymbolicConditional {
       var falseValue: Option[T] = None
       val builder = NativeStructuralFrontend.startGenerateIf(
         condition,
-        None,
+        Some(resolvedNames(condition, origin, elseIfContinuation = false)),
         { trueValue = Some(ifTrue); () },
         origin
       )
@@ -51,6 +51,8 @@ object NaturalSymbolicConditional {
         SourceOrigin(otherwiseFile, otherwiseLine)
       )
 
+    validateChainNames(ordered)
+
     if (!ParameterizedStructure.captureEnabled) {
       ordered.collectFirst { case (condition, body, _, _) if condition.witness => body() }
         .getOrElse(otherwise())
@@ -65,9 +67,10 @@ object NaturalSymbolicConditional {
           } else SourceOrigin(otherwiseFile, otherwiseLine)
         var trueValue: Option[T] = None
         var falseValue: Option[T] = None
+        val continuation = index + 1 < ordered.size
         val builder = NativeStructuralFrontend.startGenerateIf(
           condition,
-          None,
+          Some(resolvedNames(condition, origin, continuation)),
           { trueValue = Some(body()); () },
           origin
         )
@@ -88,4 +91,35 @@ object NaturalSymbolicConditional {
       capture(0)
     }
   }
+
+  private val ElseIfMarkerPrefix = "morphhdl_else_if_"
+
+  private def resolvedNames(
+      condition: HdlBool,
+      origin: SourceOrigin,
+      elseIfContinuation: Boolean
+  ): GenerateIfNames = {
+    val defaults = NativeStructuralFrontend.generatedIfNames(origin)
+    val requested = condition.naturalGenerateNames
+    val whenTrue = requested.map(_.whenTrue).getOrElse(defaults.whenTrue)
+    val whenFalse =
+      if (elseIfContinuation) ElseIfMarkerPrefix + defaults.whenFalse
+      else requested.flatMap(_.whenFalse).getOrElse(defaults.whenFalse)
+    GenerateIfNames(whenTrue, whenFalse)
+  }
+
+  private def validateChainNames[T](
+      alternatives: Vector[(HdlBool, () => T, String, Int)]
+  ): Unit =
+    alternatives.dropRight(1).foreach { case (condition, _, _, _) =>
+      condition.naturalGenerateNames.flatMap(_.whenFalse).foreach { label =>
+        val names = condition.naturalGenerateNames.get
+        FrontendException.failAt(
+          "MORPH-FRONTEND-SYMBOLIC-CONDITIONAL-NONTERMINAL-FALSE-LABEL",
+          s"non-final else-if predicate cannot assign false label '$label'; " +
+            "that continuation is emitted directly as `else if`",
+          names.origin
+        )
+      }
+    }
 }
