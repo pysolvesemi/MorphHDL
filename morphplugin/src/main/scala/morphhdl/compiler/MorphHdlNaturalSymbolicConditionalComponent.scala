@@ -126,6 +126,9 @@ final class MorphHdlNaturalSymbolicConditionalComponent(val global: Global) exte
     private def sourcePoint(tree: Tree): Int =
       if (tree.pos != null && tree.pos.isDefined) tree.pos.point else -1
 
+    private def sourceEnd(tree: Tree): Int =
+      if (tree.pos != null && tree.pos.isDefined) tree.pos.end else -1
+
     /**
       * Tokenize just enough source text to distinguish a direct `else if` from a braced
       * nested conditional. The Scala parser can erase an otherwise empty `Block`, making
@@ -209,7 +212,7 @@ final class MorphHdlNaturalSymbolicConditionalComponent(val global: Global) exte
 
     private def directElseIf(parent: If, child: If): Boolean = {
       val from = sourcePoint(parent)
-      val until = sourcePoint(child.cond)
+      val until = math.max(sourceEnd(child.cond), sourcePoint(child.thenp))
       if (from < 0 || until <= from) true
       else {
         val tokens = sourceTokens(from, until)
