@@ -3,88 +3,55 @@ name: MorphHDL Mill
 on:
   push:
     branches:
-      - agent/increment-52-nested-control-flow-clean
+      - main
+      - parameterized-verilog
+  pull_request:
+    branches:
+      - main
+      - parameterized-verilog
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: morphhdl-mill-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  repair-increment-52:
-    name: Repair Increment 52 attributed declaration capture
-    if: github.actor != 'github-actions[bot]'
+  test:
+    name: Test Scala ${{ matrix.scala_version }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
     steps:
-      - name: Check out current Increment 52 branch
+      - name: Check out sources
         uses: actions/checkout@v4
-        with:
-          ref: agent/increment-52-nested-control-flow-clean
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Apply production repair and restore validation workflows
+      - name: Install pinned Mill bootstrap
         shell: bash
         run: |
-          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
 
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path("morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala")
-          text = path.read_text(encoding="utf-8")
-          old = '''  private def isDeclarationLine(value: String): Boolean =
-    value.startsWith("wire ") || value.startsWith("reg ") || value.startsWith("integer ")
-'''
-          new = '''  private def stripLeadingVerilogAttributes(value: String): String = {
-    var remaining = value.trim
-    while (remaining.startsWith("(*")) {
-      val end = remaining.indexOf("*)")
-      if (end < 0) return remaining
-      remaining = remaining.substring(end + 2).trim
-    }
-    remaining
-  }
-
-  private def isDeclarationLine(value: String): Boolean = {
-    val declaration = stripLeadingVerilogAttributes(value)
-    declaration.startsWith("wire ") || declaration.startsWith("reg ") ||
-      declaration.startsWith("integer ")
-  }
-'''
-          if new not in text:
-            count = text.count(old)
-            if count != 1:
-              raise SystemExit(f"expected one declaration-recognition patch site, found {count}")
-            path.write_text(text.replace(old, new, 1), encoding="utf-8")
-          PY
-
-          git fetch origin parameterized-verilog
-          git show 5c996653e9e8ea7ce6efdf657727647523cd422a:.github/workflows/morphhdl-native-int-nested-control-flow.yml \
-            > .github/workflows/morphhdl-native-int-nested-control-flow.yml
-          git show origin/parameterized-verilog:.github/workflows/morphhdl-mill.yml \
-            > .github/workflows/morphhdl-mill.yml
-          rm -f .github/workflows/increment-52-apply-memory-retention-fix.yml
-          rm -f .github/workflows/increment-52-memory-retention-repair.yml
-
-          git diff --check
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
-                  .github/workflows/morphhdl-native-int-nested-control-flow.yml \
-                  .github/workflows/morphhdl-mill.yml
-          git add -u .github/workflows
-
-          if git diff --cached --quiet; then
-            echo "Increment 52 attributed declaration repair is already present."
-            exit 0
-          fi
-
-          git commit -m 'fix: retain attributed structural declarations'
-          for attempt in 1 2 3; do
-            if git push origin HEAD:agent/increment-52-nested-control-flow-clean; then
-              exit 0
-            fi
-            git fetch origin agent/increment-52-nested-control-flow-clean
-            git rebase origin/agent/increment-52-nested-control-flow-clean
-          done
-          exit 1
+      - name: Test frontend, native single-source bridge, ParamRTL and Verilog-2001 backends
+        shell: bash
+        run: |
+          /tmp/morphhdl-mill idslplugin[${{ matrix.scala_version }}].test
+          /tmp/morphhdl-mill paramrtl[${{ matrix.scala_version }}].test
+          /tmp/morphhdl-mill frontend[${{ matrix.scala_version }}].test
+          /tmp/morphhdl-mill verilogBackend[${{ matrix.scala_version }}].test
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].test
+          /tmp/morphhdl-mill core[${{ matrix.scala_version }}].testOnly \
+            spinal.core.internals.SpinalVerilogPhasePlanTests
