@@ -43,3 +43,5 @@ jobs:
           git diff --cached --check
           git commit -m "Implement Increment 52 nested symbolic control flow"
           git push origin HEAD:agent/increment-52-nested-control-flow-clean
+
+# Trigger the one-shot application after the workflow exists on the branch.
