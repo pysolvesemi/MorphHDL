@@ -6,18 +6,15 @@ on:
       - agent/increment-52-nested-control-flow-clean
     paths:
       - .github/workflows/increment-52-debug-memory.yml
-  pull_request:
-    branches:
-      - parameterized-verilog
-    paths:
-      - .github/workflows/increment-52-debug-memory.yml
   workflow_dispatch:
 
 permissions:
   contents: read
+  issues: write
+  pull-requests: write
 
 concurrency:
-  group: increment-52-memory-diagnostic-${{ github.event_name }}-${{ github.ref }}
+  group: increment-52-memory-diagnostic-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -76,9 +73,51 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Reproduce the focused failure
+      - name: Reproduce and publish the focused failure
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
+          set +e
           /tmp/morphhdl-mill morph[2.12.18].testOnly \
-            morphhdl.NativeIntNestedSymbolicControlFlowTests
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            > /tmp/increment-52-memory-diagnostic.log 2>&1
+          status=$?
+          set -e
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import urllib.request
+          from pathlib import Path
+
+          log = Path('/tmp/increment-52-memory-diagnostic.log').read_text(errors='replace')
+          matches = re.findall(
+              r'MORPH_DEBUG_MEMORY_VERILOG_BEGIN\n(.*?)\nMORPH_DEBUG_MEMORY_VERILOG_END',
+              log,
+              flags=re.S,
+          )
+          excerpt = matches[0] if matches else 'No diagnostic marker was found.\n\n' + log[-12000:]
+          body = (
+              'Increment 52 memory relocation diagnostic from the exact PR head:\n\n'
+              '```verilog\n' + excerpt[:50000] + '\n```'
+          )
+          api = os.environ['GITHUB_API_URL']
+          repo = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          request = urllib.request.Request(
+              f'{api}/repos/{repo}/issues/95/comments',
+              data=json.dumps({'body': body}).encode(),
+              headers={
+                  'Accept': 'application/vnd.github+json',
+                  'Authorization': f'Bearer {token}',
+                  'X-GitHub-Api-Version': '2022-11-28',
+                  'Content-Type': 'application/json',
+              },
+              method='POST',
+          )
+          with urllib.request.urlopen(request) as response:
+              print(response.status)
+          PY
+          cat /tmp/increment-52-memory-diagnostic.log
+          exit "$status"
