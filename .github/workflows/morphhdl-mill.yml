@@ -1,9 +1,9 @@
 name: MorphHDL Mill
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/increment-52-nested-control-flow-clean
+      - parameterized-verilog
 
 permissions:
   contents: write
@@ -18,7 +18,7 @@ jobs:
       - name: Check out current Increment 52 branch
         uses: actions/checkout@v4
         with:
-          ref: agent/increment-52-nested-control-flow-clean
+          ref: ${{ github.head_ref }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -74,4 +74,4 @@ jobs:
                   .github/workflows/morphhdl-native-int-nested-control-flow.yml
           git add -u .github/workflows
           git commit -m 'fix: retain attributed structural declarations'
-          git push origin HEAD:agent/increment-52-nested-control-flow-clean
+          git push origin HEAD:${{ github.head_ref }}
