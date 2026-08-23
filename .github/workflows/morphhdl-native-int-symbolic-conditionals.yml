@@ -40,41 +40,29 @@ jobs:
           path = Path('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala')
           text = path.read_text()
 
-          old_case = '''  private final case class BlockPlan(
-              block: ParameterizedStructuralBlock,
-              ranges: Vector[LineRange],
-              body: String
-          )
-          '''
-          new_case = '''  private final case class MemoryDeclaration(
+          if 'private final case class MemoryDeclaration(' not in text:
+              insertion = text.index('  private final case class BlockPlan(')
+              memory_case = '''  private final case class MemoryDeclaration(
               ranges: Vector[LineRange],
               emittedNames: Vector[String]
           )
 
-            private final case class BlockPlan(
-              block: ParameterizedStructuralBlock,
-              ranges: Vector[LineRange],
-              body: String
-          )
           '''
-          # Use exact source indentation rather than the YAML indentation above.
-          old_case = old_case.replace('          ', '')
-          new_case = new_case.replace('          ', '')
-          if 'private final case class MemoryDeclaration(' not in text:
-              if text.count(old_case) != 1:
-                  raise SystemExit('BlockPlan insertion point is not unique')
-              text = text.replace(old_case, new_case, 1)
+              memory_case = '\n'.join(
+                  line[10:] if line.startswith('          ') else line
+                  for line in memory_case.splitlines()
+              ) + '\n'
+              text = text[:insertion] + memory_case + text[insertion:]
 
-          old_call = '''      ownedTargetNames += name
-              trackedInternalNames += name
-              ranges += findMemoryDeclarationLine(
-                lines,
-                memory,
-                name,
-                block.sourceLocation
+          legacy_call = '      ranges += findMemoryDeclarationLine('
+          if legacy_call in text:
+              call_start = text.index(
+                  '      ownedTargetNames += name\n'
+                  '      trackedInternalNames += name\n'
+                  '      ranges += findMemoryDeclarationLine('
               )
-          '''.replace('          ', '')
-          new_call = '''      ownedTargetNames += name
+              call_end = text.index('\n    }\n\n    block.assignments', call_start)
+              replacement = '''      ownedTargetNames += name
               trackedInternalNames += name
               val declaration = findMemoryDeclaration(
                 lines,
@@ -87,11 +75,12 @@ jobs:
                 trackedInternalNames += emittedName
               }
               ranges ++= declaration.ranges
-          '''.replace('          ', '')
-          if 'ranges += findMemoryDeclarationLine(' in text:
-              if text.count(old_call) != 1:
-                  raise SystemExit('memory declaration call site is not unique')
-              text = text.replace(old_call, new_call, 1)
+          '''
+              replacement = '\n'.join(
+                  line[10:] if line.startswith('          ') else line
+                  for line in replacement.splitlines()
+              )
+              text = text[:call_start] + replacement + text[call_end:]
 
           helper_start = text.find('  private def findMemoryDeclarationLine(')
           helper_end = text.find('\n  private def findInstanceRange(', helper_start)
@@ -163,7 +152,6 @@ jobs:
             )
           }
           '''
-              # Remove only the YAML block indentation retained in this literal.
               new_helper = '\n'.join(
                   line[10:] if line.startswith('          ') else line
                   for line in new_helper.splitlines()
@@ -172,6 +160,10 @@ jobs:
 
           if 'findMemoryDeclarationLine' in text:
               raise SystemExit('legacy memory declaration matcher remains after patch')
+          if text.count('private final case class MemoryDeclaration(') != 1:
+              raise SystemExit('memory declaration plan type is not unique')
+          if text.count('private def findMemoryDeclaration(') != 1:
+              raise SystemExit('memory declaration resolver is not unique')
           path.write_text(text)
           PY
           git diff --check
