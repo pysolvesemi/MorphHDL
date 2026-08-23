@@ -123,6 +123,101 @@ final class MorphHdlNaturalSymbolicConditionalComponent(val global: Global) exte
       case _                   => false
     }
 
+    private def sourcePoint(tree: Tree): Int =
+      if (tree.pos != null && tree.pos.isDefined) tree.pos.point else -1
+
+    /**
+      * Tokenize just enough source text to distinguish a direct `else if` from a braced
+      * nested conditional. The Scala parser can erase an otherwise empty `Block`, making
+      * `else { if (...) ... }` and `else if (...) ...` structurally identical in the raw AST.
+      */
+    private def sourceTokens(from: Int, until: Int): Vector[String] = {
+      val content = Option(unit.source).map(_.content).getOrElse(Array.empty[Char])
+      val start = math.max(0, math.min(from, content.length))
+      val end = math.max(start, math.min(until, content.length))
+      val tokens = Vector.newBuilder[String]
+      var index = start
+
+      def has(offset: Int): Boolean = index + offset < end
+
+      while (index < end) {
+        val current = content(index)
+        if (Character.isWhitespace(current)) {
+          index += 1
+        } else if (current == '/' && has(1) && content(index + 1) == '/') {
+          index += 2
+          while (index < end && content(index) != '\n' && content(index) != '\r') index += 1
+        } else if (current == '/' && has(1) && content(index + 1) == '*') {
+          index += 2
+          var depth = 1
+          while (index < end && depth > 0) {
+            if (index + 1 < end && content(index) == '/' && content(index + 1) == '*') {
+              depth += 1
+              index += 2
+            } else if (index + 1 < end && content(index) == '*' && content(index + 1) == '/') {
+              depth -= 1
+              index += 2
+            } else {
+              index += 1
+            }
+          }
+        } else if (current == '"') {
+          tokens += "<string>"
+          if (index + 2 < end && content(index + 1) == '"' && content(index + 2) == '"') {
+            index += 3
+            while (
+              index + 2 < end &&
+              !(content(index) == '"' && content(index + 1) == '"' && content(index + 2) == '"')
+            ) index += 1
+            index = math.min(end, index + 3)
+          } else {
+            index += 1
+            var escaped = false
+            var closed = false
+            while (index < end && !closed) {
+              val value = content(index)
+              if (escaped) escaped = false
+              else if (value == '\\') escaped = true
+              else if (value == '"') closed = true
+              index += 1
+            }
+          }
+        } else if (current == '\'') {
+          tokens += "<char>"
+          index += 1
+          var escaped = false
+          var closed = false
+          while (index < end && !closed) {
+            val value = content(index)
+            if (escaped) escaped = false
+            else if (value == '\\') escaped = true
+            else if (value == '\'') closed = true
+            index += 1
+          }
+        } else if (Character.isJavaIdentifierStart(current)) {
+          val tokenStart = index
+          index += 1
+          while (index < end && Character.isJavaIdentifierPart(content(index))) index += 1
+          tokens += new String(content, tokenStart, index - tokenStart)
+        } else {
+          tokens += current.toString
+          index += 1
+        }
+      }
+      tokens.result()
+    }
+
+    private def directElseIf(parent: If, child: If): Boolean = {
+      val from = sourcePoint(parent)
+      val until = sourcePoint(child.cond)
+      if (from < 0 || until <= from) true
+      else {
+        val tokens = sourceTokens(from, until)
+        val childIf = tokens.lastIndexOf("if")
+        childIf > 0 && tokens(childIf - 1) == "else"
+      }
+    }
+
     private def collectChain(tree: Tree): (Vector[(Tree, Tree, Int)], Tree) = {
       val alternatives = Vector.newBuilder[(Tree, Tree, Int)]
       var current = tree
@@ -132,10 +227,12 @@ final class MorphHdlNaturalSymbolicConditionalComponent(val global: Global) exte
         current match {
           case branch @ If(condition, ifTrue, ifFalse) if referencesSymbolic(condition, symbolicNames) =>
             alternatives += ((condition, ifTrue, sourceLine(branch)))
-            if (symbolicIf(ifFalse)) current = ifFalse
-            else {
-              otherwise = ifFalse
-              done = true
+            ifFalse match {
+              case next: If if referencesSymbolic(next.cond, symbolicNames) && directElseIf(branch, next) =>
+                current = next
+              case _ =>
+                otherwise = ifFalse
+                done = true
             }
           case other =>
             otherwise = other
@@ -204,7 +301,10 @@ final class MorphHdlNaturalSymbolicConditionalComponent(val global: Global) exte
 
     override def transform(tree: Tree): Tree = tree match {
       case original: If if referencesSymbolic(original.cond, symbolicNames) && symbolicIf(original.elsep) =>
-        rewriteChain(original)
+        original.elsep match {
+          case next: If if directElseIf(original, next) => rewriteChain(original)
+          case _                                        => rewriteSingle(original)
+        }
       case original: If if referencesSymbolic(original.cond, symbolicNames) =>
         rewriteSingle(original)
       case _ => super.transform(tree)
