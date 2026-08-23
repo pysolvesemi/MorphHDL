@@ -1,0 +1,84 @@
+name: Increment 52 apply captured-memory retention fix
+
+on:
+  push:
+    branches:
+      - agent/increment-52-nested-control-flow-clean
+    paths:
+      - .github/workflows/increment-52-apply-memory-retention-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Increment 52 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-52-nested-control-flow-clean
+          fetch-depth: 0
+
+      - name: Preserve captured memories through native lowering
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one patch site, found {count}")
+              file.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          replace_once(
+              "frontend/src/main/scala/spinal/core/ParameterizedStructure.scala",
+              """    declarations.foreach { value =>
+      value.setAsVital()
+      value.dontSimplifyIt()
+    }
+    memoryPorts.foreach(port => port.isVital = true)
+""",
+              """    declarations.foreach { value =>
+      value.setAsVital()
+      value.dontSimplifyIt()
+    }
+    memories.foreach(_.preventAsBlackBox())
+    memoryPorts.foreach(port => port.isVital = true)
+""",
+          )
+
+          replace_once(
+              "frontend/src/main/scala/spinal/core/ParameterizedProcess.scala",
+              """      val block = new ParameterizedStructuralBlock(
+""",
+              """      // Structural range bodies must retain inferred memories as native
+      // declarations until MorphHDL relocates them into the generate region.
+      memories.foreach(_.preventAsBlackBox())
+
+      val block = new ParameterizedStructuralBlock(
+""",
+          )
+          PY
+
+          git diff --check
+          git diff -- frontend/src/main/scala/spinal/core/ParameterizedStructure.scala \
+            frontend/src/main/scala/spinal/core/ParameterizedProcess.scala
+
+      - name: Commit source fix and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/increment-52-apply-memory-retention-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/main/scala/spinal/core/ParameterizedStructure.scala \
+            frontend/src/main/scala/spinal/core/ParameterizedProcess.scala \
+            .github/workflows/increment-52-apply-memory-retention-fix.yml
+          git commit -m "Fix Increment 52 captured memory retention"
+          git push origin HEAD:agent/increment-52-nested-control-flow-clean
