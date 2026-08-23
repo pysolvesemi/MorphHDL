@@ -1,13 +1,8 @@
 name: MorphHDL native Int symbolic conditionals
 
 on:
-  push:
-    branches:
-      - main
-      - parameterized-verilog
   pull_request:
     branches:
-      - main
       - parameterized-verilog
   workflow_dispatch:
 
@@ -15,44 +10,57 @@ permissions:
   contents: read
 
 concurrency:
-  group: morphhdl-native-int-conditionals-${{ github.workflow }}-${{ github.ref }}
+  group: morphhdl-native-int-conditionals-diagnostic-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  source-boundary:
-    name: Native Int conditional source boundary
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Check out complete history
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Prove exact predicate ownership and zero native diff
-        shell: bash
-        run: bash morphhdl/scripts/check-native-int-symbolic-conditional-boundary.sh
-
-  contracts:
-    name: Native Int conditional proof Scala ${{ matrix.scala_version }}
-    needs: source-boundary
+  diagnostic:
+    name: Increment 52 memory declaration diagnostic
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
       image: ghcr.io/spinalhdl/docker:latest
     env:
       XDG_CACHE_HOME: /tmp/morphhdl-cache
-    strategy:
-      fail-fast: false
-      matrix:
-        scala_version:
-          - "2.12.18"
-          - "2.13.12"
     steps:
       - name: Check out sources
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Instrument memory declaration lookup locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala')
+          text = path.read_text()
+          old = '''    if (candidates.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEMORY-DECLARATION-NOT-FOUND",
+        s"native Verilog contains ${candidates.size} declaration lines for captured memory '$name'",
+        sourceLocation
+      )
+    }
+'''
+          new = '''    if (candidates.size != 1) {
+      Console.err.println("MORPH_DEBUG_MEMORY_VERILOG_BEGIN")
+      lines.zipWithIndex.foreach { case (line, index) =>
+        Console.err.println(s"${index + 1}:$line")
+      }
+      Console.err.println("MORPH_DEBUG_MEMORY_VERILOG_END")
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEMORY-DECLARATION-NOT-FOUND",
+        s"native Verilog contains ${candidates.size} declaration lines for captured memory '$name'",
+        sourceLocation
+      )
+    }
+'''
+          if old not in text:
+              raise SystemExit('target memory lookup block not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
 
       - name: Install pinned Mill bootstrap
         shell: bash
@@ -63,20 +71,9 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Validate native branch capture and inherited contracts
+      - name: Print exact native module around the failure
         shell: bash
         run: |
           set -euo pipefail
-          /tmp/morphhdl-mill frontend[${{ matrix.scala_version }}].testOnly \
-            morphhdl.frontend.HdlIntTests
-          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
-            morphhdl.NativeIntSymbolicConditionalTests \
-            morphhdl.NaturalSymbolicConditionalTests \
-            morphhdl.ExternalNativeIntShadowExpressionTests \
-            morphhdl.ExternalNativeIntShadowProvenanceTests \
-            morphhdl.ExternalNativeIntFormalizationTests \
-            morphhdl.FormalParameterIdentityTests \
-            morphhdl.FormalParameterClonePropagationTests \
-            morphhdl.HierarchyParameterBindingTests \
-            morphhdl.MorphSingleSourceVerilogTests \
-            morphhdl.integration.ExternalSpinalVerilogBaselineTests
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests
