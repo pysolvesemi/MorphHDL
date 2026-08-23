@@ -37,6 +37,11 @@ These operations are executed independently while each structural alternative
 is captured, then relocated into the corresponding MorphHDL-owned block. The
 ordinary concrete graph continues to retain only the default-witness path.
 
+Captured declarations are marked vital and non-simplifiable, and captured
+memory ports are marked vital, until the MorphHDL relocation pass consumes the
+native Verilog. This keeps non-witness alternatives available without weakening
+the strict missing-declaration diagnostic or changing ordinary SpinalHDL mode.
+
 ## Rejected Scala effects
 
 The compiler classifies effects from the source AST before an alternative is
@@ -61,6 +66,15 @@ The scanner does not infer safety from a concrete witness or from generated
 names. Unsupported source effects remain rejected even when the default
 witness would not select that alternative, because MorphVerilog must capture
 every source branch.
+
+## Compatibility with Increment 48 labels
+
+Compiler-proven source `else if` continuations retain the Increment 48 marker
+labels used by the structural renderer. Only a marked, hardware-empty false
+block containing exactly one nested structural `if` is flattened into a
+canonical Verilog `else if`. A genuine nested `if` inside an `else` block keeps
+its hierarchy and labels, so recursive Increment 52 capture does not regress the
+custom-label and nested-else guarantees already merged on the base branch.
 
 ## Validation boundaries
 
