@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  repair-captured-memory-retention:
+  repair:
     name: Apply captured-memory retention repair
     if: github.event_name == 'pull_request' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
@@ -92,8 +92,8 @@ jobs:
 
   source-boundary:
     name: Native Int nested-control source boundary
-    needs: repair-captured-memory-retention
-    if: ${{ always() && (needs.repair-captured-memory-retention.result == 'success' || needs.repair-captured-memory-retention.result == 'skipped') }}
+    needs: repair
+    if: ${{ always() && (needs.repair.result == 'success' || needs.repair.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
