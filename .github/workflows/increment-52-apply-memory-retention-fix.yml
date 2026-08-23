@@ -21,7 +21,7 @@ jobs:
           ref: agent/increment-52-nested-control-flow-clean
           fetch-depth: 0
 
-      - name: Preserve captured memories and remove repair scaffolding
+      - name: Preserve captured memories through native lowering
         shell: bash
         run: |
           set -euo pipefail
@@ -68,19 +68,17 @@ jobs:
           )
           PY
 
-          rm -f .github/workflows/increment-52-memory-retention-repair.yml
-          rm -f .github/workflows/increment-52-apply-memory-retention-fix.yml
           git diff --check
+          git diff -- frontend/src/main/scala/spinal/core/ParameterizedStructure.scala \
+            frontend/src/main/scala/spinal/core/ParameterizedProcess.scala
 
-      - name: Commit repair atomically
+      - name: Commit production fix
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add frontend/src/main/scala/spinal/core/ParameterizedStructure.scala \
-            frontend/src/main/scala/spinal/core/ParameterizedProcess.scala \
-            .github/workflows/increment-52-memory-retention-repair.yml \
-            .github/workflows/increment-52-apply-memory-retention-fix.yml
+            frontend/src/main/scala/spinal/core/ParameterizedProcess.scala
           git commit -m "Fix Increment 52 captured memory retention"
           git push origin HEAD:agent/increment-52-nested-control-flow-clean
