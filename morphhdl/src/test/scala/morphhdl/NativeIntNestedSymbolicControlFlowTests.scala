@@ -26,6 +26,7 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     val payloadIn = in(Bits(width bits))
     val payloadOut = out(Bits(width bits))
     val control = in(Bits(8 bits))
+    val observed = out(Bool())
     payloadOut := payloadIn
 
     protected final def attach(name: String): Unit =
@@ -35,6 +36,7 @@ object NativeIntNestedSymbolicControlFlowSmoke {
       val sink = new Sink
       sink.setName(name)
       sink.din := value
+      observed := sink.observed
     }
   }
 
@@ -135,6 +137,7 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     val payloadIn = in(morphhdl.frontend.Bits(width bits))
     val payloadOut = out(morphhdl.frontend.Bits(width bits))
     val control = in(Bits(8 bits))
+    val observed = out(Bool())
 
     val leaf = formalComponent(width, "WIDTH", BigInt(1), BigInt(32))(
       value => new NestedHardwareLeaf(value)
@@ -142,6 +145,7 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     leaf.payloadIn := payloadIn
     leaf.control := control
     payloadOut := leaf.payloadOut
+    observed := leaf.observed
   }
 
   final class UnsafeTop(width: HdlInt, mode: String) extends Component {
@@ -149,6 +153,7 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     val payloadIn = in(morphhdl.frontend.Bits(width bits))
     val payloadOut = out(morphhdl.frontend.Bits(width bits))
     val control = in(Bits(8 bits))
+    val observed = out(Bool())
 
     val leaf: LeafBase = mode match {
       case "mutation" => formalComponent(width, "WIDTH", BigInt(1), BigInt(16))(
@@ -175,6 +180,7 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     leaf.payloadIn := payloadIn
     leaf.control := control
     payloadOut := leaf.payloadOut
+    observed := leaf.observed
   }
 }
 
