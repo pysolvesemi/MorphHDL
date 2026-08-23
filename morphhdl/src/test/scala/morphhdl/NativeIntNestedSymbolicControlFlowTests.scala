@@ -47,12 +47,14 @@ object NativeIntNestedSymbolicControlFlowSmoke {
       if (adjusted > 20) {
         val memoryArea = new Area {
           val storage = Mem(Bits(8 bits), 2)
+          storage.setName("nested_storage")
+          val address = control(0).asUInt
           storage.write(
-            address = U(0, 1 bits),
+            address = address,
             data = control,
             enable = True
           )
-          val read = storage.readAsync(U(0, 1 bits))
+          val read = storage.readAsync(address)
           read.setName("nested_storage_read")
 
           val clocked = new ClockingArea(ClockDomain.current) {
@@ -197,6 +199,7 @@ class NativeIntNestedSymbolicControlFlowTests extends AnyFunSuite {
       assert(verilog.contains("nested_loop_sink_1"))
       assert(verilog.contains("nested_memory_sink"))
       assert(verilog.contains("nested_fallback_sink"))
+      assert(verilog.contains("nested_storage"))
       assert(verilog.contains("nested_storage_read"))
       assert(verilog.contains("always @"))
     }
