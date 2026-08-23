@@ -216,6 +216,14 @@ object ParameterizedStructure {
         sourceLocation
       )
     }
+
+    // Every source alternative must remain available to the native emitter even
+    // when it is not selected by the concrete witness. Preserve the exact
+    // declarations and memory ports until the MorphHDL relocation pass extracts
+    // them into their parameterized structural region.
+    declarations.foreach(_.setAsVital())
+    memoryPorts.foreach(_.isVital = true)
+
     val unsupported = statements.filterNot {
       case _: BaseType                => true
       case _: DataAssignmentStatement => true
