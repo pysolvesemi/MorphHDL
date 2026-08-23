@@ -94,7 +94,7 @@ recognition and native-source modifications.
 | bounded loops | finite immutable loops inside alternatives retain every hardware instance |
 | locals | a derived native local controls a nested predicate without witness matching |
 | sequential hardware | branch-local registers and ClockingAreas remain in their structural region |
-| memories | a branch-local memory declaration, write and read path are retained |
+| memories | a branch-local declaration, write and read path survive native pruning and relocate together |
 | Areas and naming | branch-local Areas and explicit instance/data names survive lowering |
 | assignments | SpinalHDL connections and memory ports remain legal after relocation |
 | effect safety | mutation, I/O, reflection, nondeterminism and arbitrary Scala effects fail before execution |
