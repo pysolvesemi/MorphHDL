@@ -614,26 +614,194 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       finding
     }
 
-    private def unsafeAlternativeEffect(tree: Tree): Option[(Position, String)] = {
-      var finding: Option[(Position, String)] = None
+    private final case class UnsafeAlternativeEffect(
+        code: String,
+        detail: String,
+        tree: Tree
+    )
+
+    private val ioEffectMethods = Set(
+      "print",
+      "println",
+      "printf",
+      "readLine",
+      "flush"
+    )
+    private val reflectionEffectMethods = Set(
+      "getClass",
+      "forName",
+      "getDeclaredField",
+      "getDeclaredFields",
+      "getDeclaredMethod",
+      "getDeclaredMethods",
+      "getField",
+      "getFields",
+      "getMethod",
+      "getMethods",
+      "newInstance",
+      "setAccessible"
+    )
+    private val nondeterministicEffectMethods = Set(
+      "currentTimeMillis",
+      "nanoTime",
+      "randomUUID",
+      "nextBoolean",
+      "nextBytes",
+      "nextDouble",
+      "nextFloat",
+      "nextGaussian",
+      "nextInt",
+      "nextLong",
+      "now"
+    )
+    private val arbitraryEffectMethods = Set(
+      "synchronized",
+      "wait",
+      "notify",
+      "notifyAll",
+      "sleep",
+      "start",
+      "join",
+      "exit",
+      "exec",
+      "load",
+      "loadLibrary"
+    )
+
+    private def effect(
+        code: String,
+        detail: String,
+        tree: Tree
+    ): UnsafeAlternativeEffect =
+      UnsafeAlternativeEffect(code, detail, tree)
+
+    private def unsafeCallEffect(
+        fun: Tree,
+        original: Tree
+    ): Option[UnsafeAlternativeEffect] = {
+      val rendered = path(fun)
+      val method = terminalName(fun)
+      if (method.endsWith("_=") || method.endsWith("+=")) Some(effect(
+        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-MUTABLE-STATE-UNSUPPORTED",
+        s"setter or update call '$rendered' mutates Scala state and is not permitted inside a captured native symbolic alternative",
+        original
+      ))
+      else if (
+        ioEffectMethods.contains(method) || rendered.contains("Console") ||
+        rendered.contains("java.io") || rendered.contains("java.nio.file") ||
+        rendered.contains("scala.io") || rendered.contains("Socket") ||
+        rendered.contains("InputStream") || rendered.contains("OutputStream")
+      ) Some(effect(
+        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-IO-UNSUPPORTED",
+        s"I/O call '$rendered' is not permitted while capturing a native symbolic alternative",
+        original
+      ))
+      else if (
+        reflectionEffectMethods.contains(method) ||
+        rendered.contains("scala.reflect") || rendered.contains("java.lang.reflect")
+      ) Some(effect(
+        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-REFLECTION-UNSUPPORTED",
+        s"reflection call '$rendered' is not permitted while capturing a native symbolic alternative",
+        original
+      ))
+      else if (
+        nondeterministicEffectMethods.contains(method) &&
+        (rendered.contains("Random") || rendered.contains("System") ||
+          rendered.contains("UUID") || rendered.contains("Instant") ||
+          rendered.contains("LocalDate") || rendered.contains("ZonedDate"))
+      ) Some(effect(
+        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-NONDETERMINISM-UNSUPPORTED",
+        s"nondeterministic call '$rendered' is not permitted while capturing a native symbolic alternative",
+        original
+      ))
+      else if (arbitraryEffectMethods.contains(method)) Some(effect(
+        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-ARBITRARY-EFFECT-UNSUPPORTED",
+        s"Scala effect '$rendered' is outside the Increment 52 safe structural contract",
+        original
+      ))
+      else None
+    }
+
+    private def unsafeAlternativeEffect(
+        tree: Tree
+    ): Option[UnsafeAlternativeEffect] = {
+      var finding: Option[UnsafeAlternativeEffect] = None
       object Finder extends Traverser {
         override def traverse(current: Tree): Unit = if (finding.isEmpty) current match {
-          case Return(_) => finding = Some(current.pos -> "return")
-          case Throw(_)  => finding = Some(current.pos -> "throw")
-          case _         => super.traverse(current)
+          case value: ValDef if value.mods.hasFlag(Flag.MUTABLE) =>
+            finding = Some(effect(
+              "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-MUTABLE-STATE-UNSUPPORTED",
+              s"mutable Scala variable '${decoded(value.name)}' is not permitted inside a captured native symbolic alternative",
+              current
+            ))
+          case _: Assign =>
+            finding = Some(effect(
+              "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-MUTABLE-STATE-UNSUPPORTED",
+              "assignment to Scala mutable state is not permitted inside a captured native symbolic alternative",
+              current
+            ))
+          case _: Return =>
+            finding = Some(effect(
+              "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-CONTROL-EFFECT-UNSUPPORTED",
+              "return is outside the safe native symbolic alternative contract",
+              current
+            ))
+          case _: Throw =>
+            finding = Some(effect(
+              "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-CONTROL-EFFECT-UNSUPPORTED",
+              "throw is outside the safe native symbolic alternative contract",
+              current
+            ))
+          case _: Try =>
+            finding = Some(effect(
+              "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-CONTROL-EFFECT-UNSUPPORTED",
+              "try/catch/finally is outside the safe native symbolic alternative contract",
+              current
+            ))
+          case _: LabelDef =>
+            finding = Some(effect(
+              "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-UNBOUNDED-LOOP-UNSUPPORTED",
+              "while/do-style mutable loops are not permitted; use a finite immutable range loop",
+              current
+            ))
+          case application @ Apply(fun, _) =>
+            unsafeCallEffect(fun, application) match {
+              case value @ Some(_) => finding = value
+              case None            => super.traverse(current)
+            }
+          case selection @ Select(_, _) =>
+            unsafeCallEffect(selection, selection) match {
+              case value @ Some(_) => finding = value
+              case None            => super.traverse(current)
+            }
+          case _ => super.traverse(current)
         }
       }
       Finder.traverse(tree)
       finding
     }
 
-    private def reportUnsafeAlternative(tree: Tree): Unit =
-      unsafeAlternativeEffect(tree).foreach { case (position, effect) =>
-        global.reporter.error(
-          position,
-          s"MORPHDL-NATIVE-INT-SYMBOLIC-CONDITIONAL-UNSAFE-EFFECT: '$effect' is not supported inside a native symbolic alternative"
-        )
+    private def transformAlternative(tree: Tree): Tree = {
+      val unsafe = unsafeAlternativeEffect(tree)
+      val transformed = withScope(transform(tree))
+      unsafe match {
+        case None => transformed
+        case Some(value) =>
+          val guarded = Apply(
+            Apply(
+              conditionalHelperMethod("guardAlternative"),
+              List(
+                Literal(Constant(value.code)),
+                Literal(Constant(value.detail)),
+                Literal(Constant(sourceFile)),
+                Literal(Constant(sourceLine(value.tree)))
+              )
+            ),
+            List(transformed)
+          )
+          guarded.setPos(tree.pos)
       }
+    }
 
     private final case class NativeConditionalAlternative(
         condition: Tree,
@@ -643,7 +811,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     )
 
     private def function0(body: Tree): Tree =
-      Function(Nil, withScope(transform(body)))
+      Function(Nil, transformAlternative(body))
 
     private def collectNativeConditionalChain(
         original: If,
@@ -691,8 +859,6 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         alternative: NativeConditionalAlternative,
         otherwise: Tree
     ): Tree = {
-      reportUnsafeAlternative(alternative.body)
-      reportUnsafeAlternative(otherwise)
       val rewritten = Apply(
         Apply(
           Apply(
@@ -704,9 +870,9 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
               Literal(Constant(alternative.line))
             )
           ),
-          List(withScope(transform(alternative.body)))
+          List(transformAlternative(alternative.body))
         ),
-        List(withScope(transform(otherwise)))
+        List(transformAlternative(otherwise))
       )
       rewritten.setPos(original.pos)
     }
@@ -716,8 +882,6 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         alternatives: Vector[NativeConditionalAlternative],
         otherwise: Tree
     ): Tree = {
-      alternatives.foreach(value => reportUnsafeAlternative(value.body))
-      reportUnsafeAlternative(otherwise)
       val sequence = Apply(
         scalaSeqApply,
         alternatives.map { value =>

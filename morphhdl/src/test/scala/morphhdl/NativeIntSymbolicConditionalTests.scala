@@ -215,9 +215,17 @@ class NativeIntSymbolicConditionalTests extends AnyFunSuite {
     }
   }
 
-  test("nested native symbolic conditionals remain fail closed until Increment 52") {
-    val failure = failureFor("nested")
-    assert(failure.contains("MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-NESTED-DEFERRED"))
+  test("nested native symbolic conditionals lower recursively after Increment 52") {
+    withTemporaryDirectory { directory =>
+      val verilog = emitMorph(directory, "native_int_nested_conditional.v") {
+        val width = HdlInt.param("WIDTH", default = 20, min = 1, max = 32)
+        new SingleLeafTop(width, "nested")
+      }
+      val compact = verilog.replaceAll("\\s+", "")
+      assert(compact.contains("WIDTH>16") || compact.contains("(WIDTH)>(16)"))
+      assert(compact.contains("WIDTH>24") || compact.contains("(WIDTH)>(24)"))
+      assert(instanceCount(verilog, "NativeIntConditionalSink") == 3)
+    }
   }
 
   test("unsupported compound native predicate is rejected instead of collapsing") {
