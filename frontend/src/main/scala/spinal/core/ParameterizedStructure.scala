@@ -221,8 +221,8 @@ object ParameterizedStructure {
     // when it is not selected by the concrete witness. Preserve the exact
     // declarations and memory ports until the MorphHDL relocation pass extracts
     // them into their parameterized structural region.
-    declarations.foreach(_.setAsVital())
-    memoryPorts.foreach(_.isVital = true)
+    declarations.foreach(value => value.setAsVital())
+    memoryPorts.foreach(port => port.isVital = true)
 
     val unsupported = statements.filterNot {
       case _: BaseType                => true
