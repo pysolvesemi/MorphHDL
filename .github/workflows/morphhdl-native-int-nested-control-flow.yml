@@ -11,7 +11,6 @@ permissions:
 jobs:
   repair:
     name: Apply captured-memory retention repair
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -40,31 +39,26 @@ jobs:
 
           replace_once(
               "frontend/src/main/scala/spinal/core/ParameterizedStructure.scala",
-              """    declarations.foreach { value =>
-      value.setAsVital()
-      value.dontSimplifyIt()
-    }
-    memoryPorts.foreach(port => port.isVital = true)
-""",
-              """    declarations.foreach { value =>
-      value.setAsVital()
-      value.dontSimplifyIt()
-    }
-    memories.foreach(_.preventAsBlackBox())
-    memoryPorts.foreach(port => port.isVital = true)
-""",
+              "    declarations.foreach { value =>\n"
+              "      value.setAsVital()\n"
+              "      value.dontSimplifyIt()\n"
+              "    }\n"
+              "    memoryPorts.foreach(port => port.isVital = true)\n",
+              "    declarations.foreach { value =>\n"
+              "      value.setAsVital()\n"
+              "      value.dontSimplifyIt()\n"
+              "    }\n"
+              "    memories.foreach(_.preventAsBlackBox())\n"
+              "    memoryPorts.foreach(port => port.isVital = true)\n",
           )
 
           replace_once(
               "frontend/src/main/scala/spinal/core/ParameterizedProcess.scala",
-              """      val block = new ParameterizedStructuralBlock(
-""",
-              """      // Structural range bodies must retain inferred memories as native
-      // declarations until MorphHDL relocates them into the generate region.
-      memories.foreach(_.preventAsBlackBox())
-
-      val block = new ParameterizedStructuralBlock(
-""",
+              "      val block = new ParameterizedStructuralBlock(\n",
+              "      // Structural range bodies must retain inferred memories as native\n"
+              "      // declarations until MorphHDL relocates them into the generate region.\n"
+              "      memories.foreach(_.preventAsBlackBox())\n\n"
+              "      val block = new ParameterizedStructuralBlock(\n",
           )
           PY
 
