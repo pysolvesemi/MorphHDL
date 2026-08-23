@@ -1,0 +1,49 @@
+name: Increment 52 renderer formatting recovery
+
+on:
+  push:
+    branches:
+      - agent/increment-52-nested-control-flow-clean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-52-renderer-format
+  cancel-in-progress: false
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out Increment 52 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-52-nested-control-flow-clean
+          fetch-depth: 0
+
+      - name: Normalize merged renderer block
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python3 <<'PY'
+          import base64
+          from pathlib import Path
+
+          path = Path("morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala")
+          text = path.read_text()
+          start = text.index("  private def renderIf(")
+          end = text.index("  private def renderCase(", start)
+          replacement = base64.b64decode(
+              "ICBwcml2YXRlIGRlZiByZW5kZXJJZigKICAgICAgdmFsdWU6IFBhcmFtZXRlcml6ZWRTdHJ1Y3R1cmUuU3RydWN0dXJhbElmLAogICAgICBwbGFuczogTWFwW1BhcmFtZXRlcml6ZWRTdHJ1Y3R1cmFsQmxvY2ssIEJsb2NrUGxhbl0sCiAgICAgIGxldmVsOiBJbnQsCiAgICAgIGluY2x1ZGVQcmVmaXg6IEJvb2xlYW4KICApOiBTdHJpbmcgPSB7CiAgICB2YWwgcHJlZml4ID0gIiAgIiAqIGxldmVsCiAgICB2YWwgc3RhcnRQcmVmaXggPSBpZiAoaW5jbHVkZVByZWZpeCkgcHJlZml4IGVsc2UgIiIKICAgIHZhbCBzdGFydCA9CiAgICAgIHMiJHtzdGFydFByZWZpeH1pZiAoJHt2YWx1ZS5jb25kaXRpb24udmVyaWxvZ30pIGJlZ2luIDogJHt2YWx1ZS53aGVuVHJ1ZUxhYmVsfVxuIiArCiAgICAgICAgcmVuZGVyQmxvY2sodmFsdWUud2hlblRydWUsIHBsYW5zLCBsZXZlbCArIDEpICsgIlxuIiArCiAgICAgICAgcyIke3ByZWZpeH1lbmQgZWxzZSAiCiAgICBjaGFpbmVkRWxzZUlmKHZhbHVlLCBwbGFucykgbWF0Y2ggewogICAgICBjYXNlIFNvbWUobmV4dCkgPT4KICAgICAgICBzdGFydCArIHJlbmRlcklmKG5leHQsIHBsYW5zLCBsZXZlbCwgaW5jbHVkZVByZWZpeCA9IGZhbHNlKQogICAgICBjYXNlIE5vbmUgPT4KICAgICAgICBzdGFydCArIHMiYmVnaW4gOiAke3ZhbHVlLndoZW5GYWxzZUxhYmVsfVxuIiArCiAgICAgICAgICByZW5kZXJCbG9jayh2YWx1ZS53aGVuRmFsc2UsIHBsYW5zLCBsZXZlbCArIDEpICsgIlxuIiArCiAgICAgICAgICBzIiR7cHJlZml4fWVuZCIKICAgIH0KICB9CgogIHByaXZhdGUgZGVmIGNoYWluZWRFbHNlSWYoCiAgICAgIHZhbHVlOiBQYXJhbWV0ZXJpemVkU3RydWN0dXJlLlN0cnVjdHVyYWxJZiwKICAgICAgcGxhbnM6IE1hcFtQYXJhbWV0ZXJpemVkU3RydWN0dXJhbEJsb2NrLCBCbG9ja1BsYW5dCiAgKTogT3B0aW9uW1BhcmFtZXRlcml6ZWRTdHJ1Y3R1cmUuU3RydWN0dXJhbElmXSA9IHsKICAgIGlmICghdmFsdWUud2hlbkZhbHNlTGFiZWwuc3RhcnRzV2l0aCgibW9ycGhoZGxfZWxzZV9pZl8iKSkgcmV0dXJuIE5vbmUKICAgIHZhbCBibG9jayA9IHZhbHVlLndoZW5GYWxzZQogICAgaWYgKHBsYW5zKGJsb2NrKS5ib2R5LnRyaW0uaXNFbXB0eSAmJiBibG9jay5yZWdpb25zLnNpemUgPT0gMSkgewogICAgICBibG9jay5yZWdpb25zLmhlYWQgbWF0Y2ggewogICAgICAgIGNhc2UgbmVzdGVkOiBQYXJhbWV0ZXJpemVkU3RydWN0dXJlLlN0cnVjdHVyYWxJZiA9PiBTb21lKG5lc3RlZCkKICAgICAgICBjYXNlIF8gPT4KICAgICAgICAgIGZhaWwoCiAgICAgICAgICAgICJTUElOQUwtUEFSQU1FVEVSSVpFRC1WRVJJTE9HLVNUUlVDVFVSQUwtRUxTRS1JRi1DT05USU5VQVRJT04tSU5WQUxJRCIsCiAgICAgICAgICAgICJtYXJrZWQgZWxzZS1pZiBjb250aW51YXRpb24gaXMgbm90IGEgc3RydWN0dXJhbCBpZiIsCiAgICAgICAgICAgIHZhbHVlLnNvdXJjZUxvY2F0aW9uCiAgICAgICAgICApCiAgICAgIH0KICAgIH0gZWxzZSB7CiAgICAgIGZhaWwoCiAgICAgICAgIlNQSU5BTC1QQVJBTUVURVJJWkVELVZFUklMT0ctU1RSVUNUVVJBTC1FTFNFLUlGLUNPTlRJTlVBVElPTi1JTlZBTElEIiwKICAgICAgICAibWFya2VkIGVsc2UtaWYgY29udGludWF0aW9uIGNvbnRhaW5zIGRpcmVjdCBoYXJkd2FyZSBvciBtdWx0aXBsZSBuZXN0ZWQgcmVnaW9ucyIsCiAgICAgICAgdmFsdWUuc291cmNlTG9jYXRpb24KICAgICAgKQogICAgfQogIH0KCg=="
+          ).decode()
+          path.write_text(text[:start] + replacement + text[end:])
+          PY
+          rm .github/workflows/increment-52-format-recovery.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "Normalize merged Increment 52 renderer formatting"
+          git push origin HEAD:agent/increment-52-nested-control-flow-clean
