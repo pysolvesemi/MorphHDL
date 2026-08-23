@@ -9,9 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  issues: write
-  pull-requests: write
+  contents: write
 
 concurrency:
   group: increment-52-memory-diagnostic-${{ github.ref }}
@@ -85,9 +83,11 @@ jobs:
           status=$?
           set -e
           python3 - <<'PY'
+          import base64
           import json
           import os
           import re
+          import urllib.error
           import urllib.request
           from pathlib import Path
 
@@ -97,26 +97,46 @@ jobs:
               log,
               flags=re.S,
           )
-          excerpt = matches[0] if matches else 'No diagnostic marker was found.\n\n' + log[-12000:]
-          body = (
-              'Increment 52 memory relocation diagnostic from the exact PR head:\n\n'
-              '```verilog\n' + excerpt[:50000] + '\n```'
-          )
+          if matches:
+              content = '\n\n===== NEXT CAPTURE =====\n\n'.join(matches)
+          else:
+              content = 'No diagnostic marker was found.\n\n' + log[-50000:]
           api = os.environ['GITHUB_API_URL']
           repo = os.environ['GITHUB_REPOSITORY']
           token = os.environ['GH_TOKEN']
-          request = urllib.request.Request(
-              f'{api}/repos/{repo}/issues/95/comments',
-              data=json.dumps({'body': body}).encode(),
-              headers={
-                  'Accept': 'application/vnd.github+json',
-                  'Authorization': f'Bearer {token}',
-                  'X-GitHub-Api-Version': '2022-11-28',
-                  'Content-Type': 'application/json',
-              },
-              method='POST',
+          branch = 'agent/increment-52-nested-control-flow-clean'
+          path = 'docs/morphhdl/increment-52-memory-diagnostic.txt'
+          headers = {
+              'Accept': 'application/vnd.github+json',
+              'Authorization': f'Bearer {token}',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'Content-Type': 'application/json',
+          }
+          sha = None
+          get = urllib.request.Request(
+              f'{api}/repos/{repo}/contents/{path}?ref={branch}',
+              headers=headers,
           )
-          with urllib.request.urlopen(request) as response:
+          try:
+              with urllib.request.urlopen(get) as response:
+                  sha = json.load(response)['sha']
+          except urllib.error.HTTPError as error:
+              if error.code != 404:
+                  raise
+          payload = {
+              'message': 'debug: publish Increment 52 memory declaration trace',
+              'content': base64.b64encode(content.encode()).decode(),
+              'branch': branch,
+          }
+          if sha:
+              payload['sha'] = sha
+          put = urllib.request.Request(
+              f'{api}/repos/{repo}/contents/{path}',
+              data=json.dumps(payload).encode(),
+              headers=headers,
+              method='PUT',
+          )
+          with urllib.request.urlopen(put) as response:
               print(response.status)
           PY
           cat /tmp/increment-52-memory-diagnostic.log
