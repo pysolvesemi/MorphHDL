@@ -31,21 +31,11 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          replacements = {
-            Path('frontend/src/main/scala/spinal/core/ParameterizedStructure.scala'): (
-              '    memoryPorts.foreach(port => port.isVital = true)\n',
-              '    memories.foreach(_.preventAsBlackBox())\n    memoryPorts.foreach(port => port.isVital = true)\n',
-            ),
-            Path('frontend/src/main/scala/spinal/core/ParameterizedProcess.scala'): (
-              '    memoryPorts.foreach(port => port.isVital = true)\n',
-              '    memories.foreach(_.preventAsBlackBox())\n    memoryPorts.foreach(port => port.isVital = true)\n',
-            ),
-          }
-
-          for path, (old, new) in replacements.items():
-            text = path.read_text()
-            if new in text:
-              continue
+          path = Path('frontend/src/main/scala/spinal/core/ParameterizedStructure.scala')
+          old = '    memoryPorts.foreach(port => port.isVital = true)\n'
+          new = '    memories.foreach(_.preventAsBlackBox())\n    memoryPorts.foreach(port => port.isVital = true)\n'
+          text = path.read_text()
+          if new not in text:
             count = text.count(old)
             if count != 1:
               raise SystemExit(f'{path}: expected exactly one retention anchor, found {count}')
@@ -85,7 +75,6 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add frontend/src/main/scala/spinal/core/ParameterizedStructure.scala \
-                  frontend/src/main/scala/spinal/core/ParameterizedProcess.scala \
                   .github/workflows/increment-52-memory-retention-repair.yml
           git commit -m 'fix: preserve captured memories through native lowering'
           git push origin HEAD:agent/increment-52-nested-control-flow-clean
