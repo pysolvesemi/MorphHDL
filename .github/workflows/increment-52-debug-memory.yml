@@ -6,13 +6,18 @@ on:
       - agent/increment-52-nested-control-flow-clean
     paths:
       - .github/workflows/increment-52-debug-memory.yml
+  pull_request:
+    branches:
+      - parameterized-verilog
+    paths:
+      - .github/workflows/increment-52-debug-memory.yml
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: increment-52-memory-diagnostic
+  group: increment-52-memory-diagnostic-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
