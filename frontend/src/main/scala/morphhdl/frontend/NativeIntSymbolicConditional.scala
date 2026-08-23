@@ -74,25 +74,25 @@ object NativeIntSymbolicConditional {
         val origin = SourceOrigin(file, line)
         val continuation = index + 1 < ordered.size
         val falseOrigin =
-if (continuation) {
-  val (_, _, _, nextFile, nextLine) = ordered(index + 1)
-  SourceOrigin(nextFile, nextLine)
-} else defaultOrigin
+          if (continuation) {
+            val (_, _, _, nextFile, nextLine) = ordered(index + 1)
+            SourceOrigin(nextFile, nextLine)
+          } else defaultOrigin
         val falseBody = () => {
-if (continuation) capture(index + 1)
-else otherwise()
+          if (continuation) capture(index + 1)
+          else otherwise()
         }
         val names =
-if (continuation) Some(elseIfContinuationNames(origin))
-else None
+          if (continuation) Some(elseIfContinuationNames(origin))
+          else None
         captureOne(
-conditionThunk(),
-reference,
-origin,
-falseOrigin,
-names,
-body,
-falseBody
+          conditionThunk(),
+          reference,
+          origin,
+          falseOrigin,
+          names,
+          body,
+          falseBody
         )
       }
       capture(0)
