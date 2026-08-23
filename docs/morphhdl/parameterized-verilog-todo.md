@@ -275,8 +275,11 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   provenance. The Increment 48 closure repair must retain a single
   source-ordered Verilog `if / else if / else` chain without dominance-mask
   sibling generates, and support nested conditionals for already-explicit
-  `HdlInt`/`HdlBool` predicates. Native-`Int` nested control flow remains
-  governed by Increments 51 and 52.
+  `HdlInt`/`HdlBool` predicates. Natural explicit predicates may override
+  generated block labels with `.named("g_true")` on a non-final chain condition
+  and `.named("g_true", "g_false")` on a simple conditional or the final chain
+  condition; a nested source `else` preserves its custom false-block label.
+  Native-`Int` nested control flow remains governed by Increments 51 and 52.
 
 - [x] **Increment 49 — Native `Int` symbolic provenance propagation**
 

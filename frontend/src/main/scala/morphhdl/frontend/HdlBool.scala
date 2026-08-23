@@ -4,6 +4,12 @@ import morphhdl.paramrtl.BoolExpr
 import morphhdl.paramrtl.BoolExpr.{And, Literal, LocalParameterRef, Not, Or, ParameterRef}
 import morphhdl.paramrtl.{BooleanLocalParameter, BooleanParameter}
 
+private[frontend] final case class NaturalGenerateIfNames(
+    whenTrue: String,
+    whenFalse: Option[String],
+    origin: SourceOrigin
+)
+
 /** A Boolean concrete witness paired with a guarded symbolic expression. */
 final class HdlBool private[frontend] (
     private[frontend] val witness: Boolean,
@@ -14,6 +20,7 @@ final class HdlBool private[frontend] (
     private[frontend] val integerParameters: Set[ParameterToken],
     private[frontend] val localParameters: Set[LocalParameterToken],
     private[frontend] val booleanLocalParameters: Set[BooleanLocalParameterToken],
+    private[frontend] val naturalGenerateNames: Option[NaturalGenerateIfNames],
     private[frontend] val origin: SourceOrigin
 ) {
   def unary_!(implicit file: sourcecode.File, line: sourcecode.Line): HdlBool =
@@ -26,6 +33,7 @@ final class HdlBool private[frontend] (
       integerParameters = integerParameters,
       localParameters = localParameters,
       booleanLocalParameters = booleanLocalParameters,
+      naturalGenerateNames = None,
       origin = SourceOrigin.capture
     )
 
@@ -46,6 +54,56 @@ final class HdlBool private[frontend] (
   ): HdlInt =
     HdlInt.select(this, whenTrue, whenFalse, SourceOrigin.capture)
 
+  /** Names the true block of a non-final natural `if / else if` condition. */
+  def named(whenTrueLabel: String)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): HdlBool =
+    withGenerateNames(whenTrueLabel, None, SourceOrigin.capture)
+
+  /**
+    * Names both blocks of a simple natural `if / else`, or the true block and
+    * terminal `else` block of the final predicate in an `else if` chain.
+    */
+  def named(whenTrueLabel: String, whenFalseLabel: String)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): HdlBool =
+    withGenerateNames(whenTrueLabel, Some(whenFalseLabel), SourceOrigin.capture)
+
+  private def withGenerateNames(
+      whenTrueLabel: String,
+      whenFalseLabel: Option[String],
+      namedOrigin: SourceOrigin
+  ): HdlBool = {
+    HdlRange.requireIdentifier(
+      whenTrueLabel,
+      "natural generate-if true label",
+      namedOrigin
+    )
+    whenFalseLabel.foreach { label =>
+      HdlRange.requireIdentifier(
+        label,
+        "natural generate-if false label",
+        namedOrigin
+      )
+    }
+    new HdlBool(
+      witness = witness,
+      expression = expression,
+      declaration = declaration,
+      localDeclaration = localDeclaration,
+      parameters = parameters,
+      integerParameters = integerParameters,
+      localParameters = localParameters,
+      booleanLocalParameters = booleanLocalParameters,
+      naturalGenerateNames = Some(
+        NaturalGenerateIfNames(whenTrueLabel, whenFalseLabel, namedOrigin)
+      ),
+      origin = origin
+    )
+  }
+
   private def binary(
       that: HdlBool,
       operation: (BoolExpr, BoolExpr) => BoolExpr
@@ -62,6 +120,7 @@ final class HdlBool private[frontend] (
       integerParameters = integerParameters ++ that.integerParameters,
       localParameters = localParameters ++ that.localParameters,
       booleanLocalParameters = booleanLocalParameters ++ that.booleanLocalParameters,
+      naturalGenerateNames = None,
       origin = SourceOrigin.capture
     )
 
@@ -96,6 +155,7 @@ object HdlBool {
       integerParameters = Set.empty,
       localParameters = Set.empty,
       booleanLocalParameters = Set.empty,
+      naturalGenerateNames = None,
       origin = SourceOrigin.capture
     )
 
@@ -114,6 +174,7 @@ object HdlBool {
       integerParameters = Set.empty,
       localParameters = Set.empty,
       booleanLocalParameters = Set.empty,
+      naturalGenerateNames = None,
       origin = token.origin
     )
   }
@@ -136,6 +197,7 @@ object HdlBool {
       integerParameters = integerParameters,
       localParameters = localParameters,
       booleanLocalParameters = booleanLocalParameters,
+      naturalGenerateNames = None,
       origin = origin
     )
 
@@ -160,6 +222,7 @@ object HdlBool {
       integerParameters = value.integerParameters,
       localParameters = value.localParameters,
       booleanLocalParameters = value.booleanLocalParameters + token,
+      naturalGenerateNames = None,
       origin = origin
     )
   }
