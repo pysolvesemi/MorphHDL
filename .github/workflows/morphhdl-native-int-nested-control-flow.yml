@@ -63,6 +63,22 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
+      - name: Instrument native memory declaration diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala")
+          text = path.read_text()
+          old = '''        s"native Verilog contains ${candidates.size} declaration lines for captured memory '$name'",'''
+          new = '''        s"native Verilog contains ${candidates.size} declaration lines for captured memory '$name'; native reg declarations: ${lines.zipWithIndex.collect { case (line, index) if line.trim.startsWith(\"reg \") => s\"${index + 1}:${line.trim}\" }.mkString(\" || \")}",'''
+          if text.count(old) != 1:
+              raise SystemExit("expected one Increment 52 memory diagnostic site")
+          path.write_text(text.replace(old, new))
+          PY
+
       - name: Validate nested control flow safety and inherited contracts
         shell: bash
         run: |
@@ -81,14 +97,3 @@ jobs:
             morphhdl.HierarchyParameterBindingTests \
             morphhdl.MorphSingleSourceVerilogTests \
             morphhdl.integration.ExternalSpinalVerilogBaselineTests
-
-      - name: Upload generated diagnostics on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: nested-control-generated-${{ matrix.scala_version }}
-          path: |
-            /tmp/morphhdl-single-source-*
-            /tmp/morphhdl-native-int-nested-*
-          if-no-files-found: warn
-          include-hidden-files: true
