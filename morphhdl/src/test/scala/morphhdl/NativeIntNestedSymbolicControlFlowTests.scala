@@ -26,17 +26,16 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     val payloadIn = in(Bits(width bits))
     val payloadOut = out(Bits(width bits))
     val control = in(Bits(8 bits))
-    val observed = out(Bool())
     payloadOut := payloadIn
 
-    protected final def attach(name: String): Unit =
+    protected final def attach(name: String): Bool =
       attach(name, control)
 
-    protected final def attach(name: String, value: Bits): Unit = {
+    protected final def attach(name: String, value: Bits): Bool = {
       val sink = new Sink
       sink.setName(name)
       sink.din := value
-      observed := sink.observed
+      sink.observed
     }
   }
 
@@ -63,17 +62,17 @@ object NativeIntNestedSymbolicControlFlowSmoke {
             val delayed = RegNext(read)
             delayed.setName("nested_delayed")
           }
-          attach("nested_memory_sink", clocked.delayed)
+          payloadOut(0) := attach("nested_memory_sink", clocked.delayed)
         }
       } else {
         for (index <- 0 until 2) {
           val selected = control
-          attach(s"nested_loop_sink_$index", selected)
+          payloadOut(index) := attach(s"nested_loop_sink_$index", selected)
         }
       }
     } else {
       val fallbackArea = new Area {
-        attach("nested_fallback_sink", control)
+        payloadOut(0) := attach("nested_fallback_sink", control)
       }
     }
   }
@@ -83,8 +82,8 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
     if (root > 8) {
       ExternalState.count = ExternalState.count + 1
-      attach("mutation_sink")
-    } else attach("mutation_else_sink")
+      payloadOut(0) := attach("mutation_sink")
+    } else payloadOut(0) := attach("mutation_else_sink")
   }
 
   final class IoLeaf(width: Int)
@@ -92,8 +91,8 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
     if (root > 8) {
       println("unsafe native symbolic capture I/O")
-      attach("io_sink")
-    } else attach("io_else_sink")
+      payloadOut(0) := attach("io_sink")
+    } else payloadOut(0) := attach("io_else_sink")
   }
 
   final class ReflectionLeaf(width: Int)
@@ -101,8 +100,8 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
     if (root > 8) {
       @dontName val reflected = classOf[String].getDeclaredMethods.length
-      attach("reflection_sink")
-    } else attach("reflection_else_sink")
+      payloadOut(0) := attach("reflection_sink")
+    } else payloadOut(0) := attach("reflection_else_sink")
   }
 
   final class NondeterministicLeaf(width: Int)
@@ -110,8 +109,8 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
     if (root > 8) {
       @dontName val randomValue = scala.util.Random.nextInt()
-      attach("random_sink")
-    } else attach("random_else_sink")
+      payloadOut(0) := attach("random_sink")
+    } else payloadOut(0) := attach("random_else_sink")
   }
 
   final class ControlEffectLeaf(width: Int)
@@ -119,7 +118,7 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
     if (root > 8) {
       throw new IllegalStateException("unsafe captured throw")
-    } else attach("control_else_sink")
+    } else payloadOut(0) := attach("control_else_sink")
   }
 
   final class ArbitraryEffectLeaf(width: Int)
@@ -127,9 +126,9 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
     if (root > 8) {
       this.synchronized {
-        attach("synchronized_sink")
+        payloadOut(0) := attach("synchronized_sink")
       }
-    } else attach("synchronized_else_sink")
+    } else payloadOut(0) := attach("synchronized_else_sink")
   }
 
   final class NestedTop(width: HdlInt) extends Component {
@@ -137,7 +136,6 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     val payloadIn = in(morphhdl.frontend.Bits(width bits))
     val payloadOut = out(morphhdl.frontend.Bits(width bits))
     val control = in(Bits(8 bits))
-    val observed = out(Bool())
 
     val leaf = formalComponent(width, "WIDTH", BigInt(1), BigInt(32))(
       value => new NestedHardwareLeaf(value)
@@ -145,7 +143,6 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     leaf.payloadIn := payloadIn
     leaf.control := control
     payloadOut := leaf.payloadOut
-    observed := leaf.observed
   }
 
   final class UnsafeTop(width: HdlInt, mode: String) extends Component {
@@ -153,7 +150,6 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     val payloadIn = in(morphhdl.frontend.Bits(width bits))
     val payloadOut = out(morphhdl.frontend.Bits(width bits))
     val control = in(Bits(8 bits))
-    val observed = out(Bool())
 
     val leaf: LeafBase = mode match {
       case "mutation" => formalComponent(width, "WIDTH", BigInt(1), BigInt(16))(
@@ -180,7 +176,6 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     leaf.payloadIn := payloadIn
     leaf.control := control
     payloadOut := leaf.payloadOut
-    observed := leaf.observed
   }
 }
 
