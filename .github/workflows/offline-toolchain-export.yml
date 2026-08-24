@@ -77,8 +77,13 @@ jobs:
           sbt_path=$(command -v sbt)
           cp -a "${sbt_path}" "${bundle}/bin/sbt"
           printf '%s\n' "${sbt_path}" > "${bundle}/sbt-original-path.txt"
-          find "${HOME}" -type f -name 'sbt-launch*.jar' -print \
-            | sort > "${bundle}/sbt-launchers.txt"
+
+          launcher=$(find "$(dirname "$(dirname "$(readlink -f "${sbt_path}")")")" \
+            -type f -name 'sbt-launch.jar' -print -quit)
+          test -n "${launcher}"
+          cp -a "${launcher}" "${bundle}/bin/sbt-launch.jar"
+          sha256sum "${bundle}/bin/sbt-launch.jar" \
+            > "${bundle}/bin/sbt-launch.jar.sha256"
 
           cat > "${bundle}/run-offline-sbt.sh" <<'EOF'
           #!/usr/bin/env bash
@@ -86,8 +91,14 @@ jobs:
           root=$(cd "$(dirname "$0")" && pwd)
           export HOME="${root}/home"
           export COURSIER_CACHE="${HOME}/.cache/coursier"
-          export SBT_OPTS="${SBT_OPTS:-} -Dsbt.offline=true -Dsbt.override.build.repos=false"
-          exec "${root}/bin/sbt" -offline "$@"
+          exec java \
+            -Dsbt.offline=true \
+            -Dsbt.override.build.repos=false \
+            -Dsbt.boot.directory="${HOME}/.sbt/boot" \
+            -Dsbt.global.base="${HOME}/.sbt/1.0" \
+            -Dsbt.ivy.home="${HOME}/.ivy2" \
+            -Dcoursier.cache="${COURSIER_CACHE}" \
+            -jar "${root}/bin/sbt-launch.jar" "$@"
           EOF
           chmod +x "${bundle}/run-offline-sbt.sh"
 
