@@ -1,0 +1,209 @@
+name: Increment 52 final merger
+
+on:
+  push:
+    branches:
+      - agent/increment-52-nested-control-flow-backup
+    paths:
+      - .github/workflows/increment-52-final-merger.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: write
+  checks: read
+
+concurrency:
+  group: increment-52-final-merger
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPOSITORY: ${{ github.repository }}
+      PR_NUMBER: "95"
+      HEAD_BRANCH: agent/increment-52-nested-control-flow-clean
+      BASE_BRANCH: parameterized-verilog
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Wait for verified final PR head
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 480); do
+            pr=$(curl --fail --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER")
+            if python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("merged") else 1)' <<<"$pr"; then
+              echo "ALREADY_MERGED=true" >> "$GITHUB_ENV"
+              exit 0
+            fi
+
+            git fetch --quiet origin "$HEAD_BRANCH"
+            ref="origin/$HEAD_BRANCH"
+            todo=$(git show "$ref:docs/morphhdl/parameterized-verilog-todo.md" 2>/dev/null || true)
+            checked=$(printf '%s\n' "$todo" | grep 'Increment 52' | grep -c '\[x\]' || true)
+            temporary=$(git ls-tree -r --name-only "$ref" .github/workflows | grep -c '^.github/workflows/increment-52-' || true)
+            if [ "$checked" = "1" ] && [ "$temporary" = "0" ]; then
+              echo "FINAL_SHA=$(git rev-parse "$ref")" >> "$GITHUB_ENV"
+              echo "ALREADY_MERGED=false" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "Verified Increment 52 final head did not appear" >&2
+          exit 1
+
+      - name: Mark PR ready and enable squash auto-merge
+        if: env.ALREADY_MERGED != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="${REPOSITORY%%/*}"
+          repo="${REPOSITORY#*/}"
+          response=$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/graphql \
+            --data-binary @- <<JSON
+          {"query":"query { repository(owner: \"$owner\", name: \"$repo\") { pullRequest(number: $PR_NUMBER) { id isDraft merged } } }"}
+          JSON
+          )
+          pr_id=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["repository"]["pullRequest"]["id"])' <<<"$response")
+          is_draft=$(python3 -c 'import json,sys; print(str(json.load(sys.stdin)["data"]["repository"]["pullRequest"]["isDraft"]).lower())' <<<"$response")
+          if [ "$is_draft" = "true" ]; then
+            curl --fail --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Content-Type: application/json" \
+              https://api.github.com/graphql \
+              --data-binary @- >/tmp/ready.json <<JSON
+          {"query":"mutation { markPullRequestReadyForReview(input: {pullRequestId: \"$pr_id\"}) { pullRequest { isDraft } } }"}
+          JSON
+          fi
+
+          # Auto-merge is preferred when branch protection requires hosted
+          # contexts. If repository policy disables it, the explicit merge loop
+          # below remains authoritative.
+          curl --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/graphql \
+            --data-binary @- >/tmp/auto-merge.json <<JSON || true
+          {"query":"mutation { enablePullRequestAutoMerge(input: {pullRequestId: \"$pr_id\", mergeMethod: SQUASH, commitHeadline: \"Complete Increment 52 nested symbolic control flow (#95)\"}) { pullRequest { autoMergeRequest { enabledAt } } } }"}
+          JSON
+
+      - name: Dispatch required final-head validation workflows
+        if: env.ALREADY_MERGED != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for workflow in \
+            .github/workflows/morphhdl-native-int-nested-control-flow.yml \
+            .github/workflows/morphhdl-mill.yml; do
+            encoded=$(python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$workflow")
+            code=$(curl --silent --show-error -o /tmp/dispatch.json -w '%{http_code}' \
+              -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/$REPOSITORY/actions/workflows/$encoded/dispatches" \
+              -d "{\"ref\":\"$HEAD_BRANCH\"}")
+            if [ "$code" != "204" ]; then
+              echo "Failed to dispatch $workflow (HTTP $code)" >&2
+              cat /tmp/dispatch.json >&2 || true
+              exit 1
+            fi
+          done
+
+      - name: Wait for exact-head checks and merge
+        if: env.ALREADY_MERGED != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            "Native Int nested-control source boundary"
+            "Native Int nested-control proof Scala 2.12.18"
+            "Native Int nested-control proof Scala 2.13.12"
+            "Test Scala 2.12.18"
+            "Test Scala 2.13.12"
+          )
+
+          for attempt in $(seq 1 480); do
+            pr=$(curl --fail --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER")
+            if python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("merged") else 1)' <<<"$pr"; then
+              exit 0
+            fi
+
+            checks=$(curl --fail --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPOSITORY/commits/$FINAL_SHA/check-runs?per_page=100")
+            state=$(CHECKS="$checks" python3 - "${required[@]}" <<'PY'
+          import json, os, sys
+          data = json.loads(os.environ["CHECKS"])
+          required = sys.argv[1:]
+          latest = {}
+          for run in data.get("check_runs", []):
+              latest[run.get("name", "")] = run
+          missing = [name for name in required if name not in latest]
+          bad_values = {"failure", "cancelled", "timed_out", "action_required", "startup_failure", "stale"}
+          bad = [name for name in required if name in latest and latest[name].get("conclusion") in bad_values]
+          pending = [name for name in required if name in latest and latest[name].get("status") != "completed"]
+          if bad:
+              print("bad:" + ",".join(bad))
+          elif missing or pending:
+              print("wait")
+          else:
+              print("green")
+          PY
+            )
+            case "$state" in
+              bad:*) echo "Required final-head check failure: ${state#bad:}" >&2; exit 1 ;;
+              green)
+                code=$(curl --silent --show-error -o /tmp/merge.json -w '%{http_code}' \
+                  -X PUT \
+                  -H "Authorization: Bearer $GH_TOKEN" \
+                  -H "Accept: application/vnd.github+json" \
+                  -H "Content-Type: application/json" \
+                  "https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER/merge" \
+                  -d "{\"commit_title\":\"Complete Increment 52 nested symbolic control flow (#95)\",\"merge_method\":\"squash\",\"sha\":\"$FINAL_SHA\"}")
+                if [ "$code" = "200" ] && python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("merged") else 1)' </tmp/merge.json; then
+                  exit 0
+                fi
+                ;;
+            esac
+            sleep 30
+          done
+          echo "Timed out waiting for the protected Increment 52 merge" >&2
+          exit 1
+
+      - name: Verify merged base and clean final tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "$BASE_BRANCH"
+          base="origin/$BASE_BRANCH"
+          todo=$(git show "$base:docs/morphhdl/parameterized-verilog-todo.md")
+          checked=$(printf '%s\n' "$todo" | grep 'Increment 52' | grep -c '\[x\]' || true)
+          if [ "$checked" -ne 1 ]; then
+            echo "Increment 52 is not checked on the merged base" >&2
+            exit 1
+          fi
+          temporary=$(git ls-tree -r --name-only "$base" .github/workflows | grep -c '^.github/workflows/increment-52-' || true)
+          if [ "$temporary" -ne 0 ]; then
+            echo "Temporary Increment 52 workflow files remain on the base" >&2
+            exit 1
+          fi
