@@ -1,9 +1,9 @@
 name: Increment 53 apply clean production candidate
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/increment-53-native-streamfifo-clean
+      - parameterized-verilog
     paths:
       - morphhdl/scripts/dispatch-increment-53-production-*.txt
 
@@ -12,10 +12,11 @@ permissions:
 
 concurrency:
   group: increment-53-apply-production
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   apply:
+    if: github.event.pull_request.head.ref == 'agent/increment-53-native-streamfifo-clean'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -31,6 +32,12 @@ jobs:
           branch=agent/increment-53-native-streamfifo-clean
           git config user.name 'MorphHDL Increment Agent'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          if [[ ! -e morphhdl/.increment53-patch/chunk-00 ]]; then
+            test -e morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
+            echo 'Increment 53 production delta is already applied.'
+            exit 0
+          fi
 
           cat morphhdl/.increment53-patch/chunk-* > /tmp/inc53.patch.gz.b64
           printf '%s  %s\n' \
