@@ -1,0 +1,69 @@
+name: Increment 53 clean diagnostic
+
+on:
+  push:
+    branches:
+      - agent/increment-53-native-streamfifo-structure
+    paths:
+      - .github/workflows/increment-53-clean-diagnostic.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  retain-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      BRANCH: agent/increment-53-native-streamfifo-structure
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-structure
+          fetch-depth: 0
+      - name: Wait for bootstrap v2 and retain only actionable evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repository="$GITHUB_REPOSITORY"
+          workflow_id="$(gh api --paginate "repos/$repository/actions/workflows?per_page=100" --jq '.workflows[] | select(.path == ".github/workflows/increment-53-clean-bootstrap-v2.yml") | .id' | head -n 1)"
+          [[ -n "$workflow_id" ]] || { echo 'bootstrap v2 workflow not found' >&2; exit 2; }
+          run_id="$(gh api "repos/$repository/actions/workflows/$workflow_id/runs?branch=$BRANCH&event=push&per_page=20" --jq '.workflow_runs[0].id // empty')"
+          [[ -n "$run_id" ]] || { echo 'bootstrap v2 run not found' >&2; exit 3; }
+          for _ in $(seq 1 1800); do
+            status="$(gh run view "$run_id" --repo "$repository" --json status --jq .status)"
+            [[ "$status" == completed ]] && break
+            sleep 10
+          done
+          conclusion="$(gh run view "$run_id" --repo "$repository" --json conclusion --jq '.conclusion // "unknown"')"
+
+          git fetch origin "$BRANCH"
+          git checkout -B "$BRANCH" "origin/$BRANCH"
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          if [[ "$conclusion" == success ]]; then
+            rm -f .github/workflows/increment-53-clean-diagnostic.yml
+            git add -A
+            git commit -m 'chore: remove Increment 53 diagnostic bootstrap' || exit 0
+            git pull --rebase origin "$BRANCH"
+            git push origin HEAD:"$BRANCH"
+            exit 0
+          fi
+
+          mkdir -p morphhdl/.increment-status/increment-53-clean
+          gh run view "$run_id" --repo "$repository" --json databaseId,workflowName,headSha,status,conclusion,url \
+            > morphhdl/.increment-status/increment-53-clean/run.json
+          gh run view "$run_id" --repo "$repository" --log-failed \
+            > morphhdl/.increment-status/increment-53-clean/failed.log 2>&1 || true
+          gh api "repos/$repository/actions/runs/$run_id/jobs?per_page=100" \
+            > morphhdl/.increment-status/increment-53-clean/jobs.json
+          git add morphhdl/.increment-status/increment-53-clean
+          git commit -m 'chore: retain clean Increment 53 failure evidence'
+          git pull --rebase origin "$BRANCH"
+          git push origin HEAD:"$BRANCH"
+          exit 1
