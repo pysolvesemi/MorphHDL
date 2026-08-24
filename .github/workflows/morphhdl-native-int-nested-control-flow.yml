@@ -1,437 +1,58 @@
-name: Increment 52 exact branch-evidence repair carrier
+name: MorphHDL native Int nested symbolic control flow
 
 on:
+  push:
+    branches:
+      - main
+      - parameterized-verilog
   pull_request:
     branches:
+      - main
       - parameterized-verilog
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: morphhdl-native-int-nested-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  repair:
-    if: github.event.pull_request.head.ref == 'agent/increment-52-nested-control-flow-clean' && github.actor != 'github-actions[bot]'
+  source-boundary:
+    name: Native Int nested-control source boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove safe nested capture and zero native diff
+        shell: bash
+        run: bash morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
+
+  contracts:
+    name: Native Int nested-control proof Scala ${{ matrix.scala_version }}
+    needs: source-boundary
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
       image: ghcr.io/spinalhdl/docker:latest
     env:
       XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
     steps:
-      - name: Check out Increment 52 branch
+      - name: Check out sources
         uses: actions/checkout@v4
         with:
-          ref: agent/increment-52-nested-control-flow-clean
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Apply exact branch-unique shared-process repair
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala')
-          text = path.read_text(encoding='utf-8')
-
-          def replace_once(old: str, new: str, label: str) -> None:
-              global text
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'{label}: expected exactly one site, found {count}')
-              text = text.replace(old, new, 1)
-
-          replace_once(
-          """  private final case class BlockPlan(
-              block: ParameterizedStructuralBlock,
-              ranges: Vector[LineRange],
-              body: String
-          )
-          """,
-          """  private final case class BlockPlan(
-              block: ParameterizedStructuralBlock,
-              ranges: Vector[LineRange],
-              body: String,
-              ownedNames: Set[String]
-          )
-
-          private final case class AlternativeStep(
-              region: ParameterizedStructure.StructuralRegion,
-              branch: Int
-          )
-          """,
-          'BlockPlan extension')
-
-          replace_once(
-          """    val plans = allBlocks.map { block =>
-              planBlock(
-                component,
-                block,
-                lines,
-                portNames,
-                parameters.map(_.name).toSet,
-                canonicalOf
-              )
-            }
-            val allRanges = plans.flatMap(_.ranges)
-            allRanges.combinations(2).foreach {
-              case Vector(left, right) if left.overlaps(right) =>
-                fail(
-                  \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-OVERLAP\",
-                  s\"captured native module-item ranges ${left.start}-${left.end} and ${right.start}-${right.end} overlap\"
-                )
-              case _ =>
-            }
-          """,
-          """    val rawPlans = allBlocks.map { block =>
-              planBlock(
-                component,
-                block,
-                lines,
-                portNames,
-                parameters.map(_.name).toSet,
-                canonicalOf
-              )
-            }
-            val alternativePaths = structuralAlternativePaths(regions)
-            val (resolvedPlans, sharedProcessRanges) =
-              resolveSharedProceduralProcesses(rawPlans, lines, alternativePaths)
-            val plans = resolvedPlans.map(finalizePlan)
-            val allRanges = plans.flatMap(_.ranges)
-            allRanges.combinations(2).foreach {
-              case Vector(left, right)
-                  if left.overlaps(right) &&
-                    !(left == right && sharedProcessRanges(left)) =>
-                fail(
-                  \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-OVERLAP\",
-                  s\"captured native module-item ranges ${left.start}-${left.end} and ${right.start}-${right.end} overlap\"
-                )
-              case _ =>
-            }
-          """,
-          'rewrite planning')
-
-          replace_once(
-          """      return BlockPlan(block, mergedRanges, \"\")
-          """,
-          """      return BlockPlan(
-                block,
-                mergedRanges,
-                \"\",
-                (trackedInternalNames ++ ownedTargetNames).toSet
-              )
-          """,
-          'empty BlockPlan')
-
-          replace_once(
-          """    body = rewriteSlices(body, block.slices)
-            body = rewriteVecSelections(body, block.vecIndices, block.sourceLocation)
-            BlockPlan(block, mergedRanges, body)
-          }
-
-          private def findDeclarationLine(
-          """,
-          """    BlockPlan(
-              block,
-              mergedRanges,
-              body,
-              (trackedInternalNames ++ ownedTargetNames).toSet
-            )
-          }
-
-          private def finalizePlan(plan: BlockPlan): BlockPlan = {
-            if (plan.body.trim.isEmpty) plan
-            else {
-              var body = rewriteSlices(plan.body, plan.block.slices)
-              body = rewriteVecSelections(
-                body,
-                plan.block.vecIndices,
-                plan.block.sourceLocation
-              )
-              plan.copy(body = body)
-            }
-          }
-
-          private def structuralAlternativePaths(
-              regions: Vector[ParameterizedStructure.StructuralRegion]
-          ): Map[ParameterizedStructuralBlock, Vector[AlternativeStep]] = {
-            val paths = mutable.LinkedHashMap.empty[
-              ParameterizedStructuralBlock,
-              Vector[AlternativeStep]
-            ]
-
-            object Walker {
-              def visitBlock(
-                  block: ParameterizedStructuralBlock,
-                  path: Vector[AlternativeStep]
-              ): Unit = {
-                paths(block) = path
-                block.regions.foreach(region => visitRegion(region, path))
-              }
-
-              def visitRegion(
-                  region: ParameterizedStructure.StructuralRegion,
-                  path: Vector[AlternativeStep]
-              ): Unit = region match {
-                case value: ParameterizedStructure.StructuralFor =>
-                  visitBlock(value.body, path)
-                case value: ParameterizedStructure.StructuralIf =>
-                  visitBlock(
-                    value.whenTrue,
-                    path :+ AlternativeStep(value, branch = 0)
-                  )
-                  visitBlock(
-                    value.whenFalse,
-                    path :+ AlternativeStep(value, branch = 1)
-                  )
-                case value: ParameterizedStructure.StructuralCase =>
-                  value.choices.zipWithIndex.foreach { case (choice, index) =>
-                    visitBlock(
-                      choice.body,
-                      path :+ AlternativeStep(value, branch = index)
-                    )
-                  }
-                  visitBlock(
-                    value.defaultBody,
-                    path :+ AlternativeStep(value, branch = value.choices.size)
-                  )
-              }
-            }
-
-            regions.foreach(region => Walker.visitRegion(region, Vector.empty))
-            paths.toMap
-          }
-
-          private def mutuallyExclusive(
-              left: Vector[AlternativeStep],
-              right: Vector[AlternativeStep]
-          ): Boolean =
-            left.exists { leftStep =>
-              right.exists { rightStep =>
-                (leftStep.region eq rightStep.region) &&
-                leftStep.branch != rightStep.branch
-              }
-            }
-
-          private val DirectProceduralAssignment =
-            \"\"\"^\\s*([A-Za-z_][A-Za-z0-9_$]*)(\\s*\\[[^\\]]+\\])?\\s*(?:<=|=(?!=))\\s*(.*?)\\s*;\\s*$\"\"\".r
-
-          private val VerilogIdentifier =
-            \"[A-Za-z_][A-Za-z0-9_$]*\".r
-
-          private def identifierTokens(value: String): Set[String] =
-            VerilogIdentifier.findAllIn(value).filterNot(VerilogWords).toSet
-
-          private def removeUniqueProcess(
-              body: String,
-              process: String,
-              range: LineRange,
-              sourceLocation: Option[String]
-          ): String = {
-            val first = body.indexOf(process)
-            val second =
-              if (first < 0) -1
-              else body.indexOf(process, first + process.length)
-            if (first < 0 || second >= 0) {
-              fail(
-                \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-TEXT-NOT-UNIQUE\",
-                s\"native process ${range.start}-${range.end} maps ${if (first < 0) 0 else 2} times into one captured body\",
-                sourceLocation
-              )
-            }
-            body.substring(0, first) + body.substring(first + process.length)
-          }
-
-          private def resolveSharedProceduralProcesses(
-              plans: Vector[BlockPlan],
-              lines: Vector[String],
-              paths: Map[ParameterizedStructuralBlock, Vector[AlternativeStep]]
-          ): (Vector[BlockPlan], Set[LineRange]) = {
-            val claims = mutable.LinkedHashMap.empty[LineRange, ArrayBuffer[BlockPlan]]
-            plans.foreach { plan =>
-              plan.ranges.foreach { range =>
-                claims.getOrElseUpdate(range, ArrayBuffer.empty) += plan
-              }
-            }
-
-            val current = mutable.LinkedHashMap.empty[
-              ParameterizedStructuralBlock,
-              BlockPlan
-            ]
-            plans.foreach(plan => current(plan.block) = plan)
-            val sharedProcessRanges = mutable.LinkedHashSet.empty[LineRange]
-
-            claims.toVector
-              .filter(_._2.size > 1)
-              .sortBy(_._1.start)
-              .foreach { case (range, claimed) =>
-                val claimants = claimed.toVector
-                val processLines = range.indices.map(lines).toVector
-                val normalized = processLines.map(line => stripLineComment(line).trim)
-                if (
-                  normalized.isEmpty ||
-                  !normalized.head.startsWith(\"always @\") ||
-                  !normalized.head.contains(\"begin\") ||
-                  normalized.last != \"end\"
-                ) {
-                  fail(
-                    \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-RANGE-UNSUPPORTED\",
-                    s\"captured native range ${range.start}-${range.end} is shared by multiple structural alternatives but is not one simple always block\"
-                  )
-                }
-
-                claimants.combinations(2).foreach { pair =>
-                  val left = pair(0)
-                  val right = pair(1)
-                  val leftPath = paths.getOrElse(left.block, Vector.empty)
-                  val rightPath = paths.getOrElse(right.block, Vector.empty)
-                  if (!mutuallyExclusive(leftPath, rightPath)) {
-                    fail(
-                      \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-NONEXCLUSIVE\",
-                      s\"native process ${range.start}-${range.end} is shared by structural blocks that are not proven mutually exclusive\",
-                      left.block.sourceLocation.orElse(right.block.sourceLocation)
-                    )
-                  }
-                }
-
-                val completeProcess =
-                  stripCommonIndent(processLines.mkString(\"\\n\").trim)
-                val rawEvidence = claimants.map { plan =>
-                  val outsideProcess = removeUniqueProcess(
-                    plan.body,
-                    completeProcess,
-                    range,
-                    plan.block.sourceLocation
-                  )
-                  plan.block -> (plan.ownedNames ++ identifierTokens(outsideProcess))
-                }.toMap
-                val frequency = mutable.LinkedHashMap.empty[String, Int]
-                  .withDefaultValue(0)
-                rawEvidence.values.foreach { names =>
-                  names.foreach { name =>
-                    frequency(name) = frequency(name) + 1
-                  }
-                }
-                val uniqueEvidence = rawEvidence.map { case (block, names) =>
-                  block -> names.filter(name => frequency(name) == 1)
-                }
-
-                val commonIndices = mutable.LinkedHashSet.empty[Int]
-                val ownedIndices = mutable.LinkedHashMap.empty[
-                  ParameterizedStructuralBlock,
-                  mutable.LinkedHashSet[Int]
-                ]
-                claimants.foreach { plan =>
-                  ownedIndices(plan.block) = mutable.LinkedHashSet.empty[Int]
-                }
-
-                (range.start + 1 until range.end).foreach { index =>
-                  val original = lines(index)
-                  val stripped = stripLineComment(original).trim
-                  if (stripped.isEmpty) commonIndices += index
-                  else {
-                    DirectProceduralAssignment.findFirstMatchIn(stripped) match {
-                      case None =>
-                        fail(
-                          \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-SHAPE-UNSUPPORTED\",
-                          s\"shared native process ${range.start}-${range.end} contains non-flat statement '$stripped'\"
-                        )
-                      case Some(statement) =>
-                        val assignmentNames = identifierTokens(stripped)
-                        val owners = claimants.filter { plan =>
-                          uniqueEvidence(plan.block).exists(name => assignmentNames(name))
-                        }
-                        owners match {
-                          case Vector(owner) =>
-                            ownedIndices(owner.block) += index
-                          case Vector() =>
-                            val selectedTarget =
-                              Option(statement.group(2)).exists(_.trim.nonEmpty)
-                            if (selectedTarget) {
-                              fail(
-                                \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-ASSIGNMENT-UNOWNED\",
-                                s\"shared native process ${range.start}-${range.end} contains selected assignment '$stripped' without branch-unique source evidence\"
-                              )
-                            }
-                            commonIndices += index
-                          case _ =>
-                            fail(
-                              \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-OWNER-AMBIGUOUS\",
-                              s\"shared native process ${range.start}-${range.end} assignment '$stripped' references multiple branch owners\"
-                            )
-                        }
-                    }
-                  }
-                }
-
-                claimants.foreach { claimant =>
-                  val owned = ownedIndices(claimant.block)
-                  if (owned.isEmpty) {
-                    fail(
-                      \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-OWNER-EMPTY\",
-                      s\"structural block sharing native process ${range.start}-${range.end} owns no emitted assignment\",
-                      claimant.block.sourceLocation
-                    )
-                  }
-                  val selected =
-                    (Vector(range.start) ++ commonIndices.toVector ++
-                      owned.toVector ++ Vector(range.end)).distinct.sorted
-                  val fragment =
-                    stripCommonIndent(selected.map(lines).mkString(\"\\n\").trim)
-                  val plan = current(claimant.block)
-                  current(claimant.block) = plan.copy(
-                    body = replaceUniqueProcess(
-                      plan.body,
-                      completeProcess,
-                      fragment,
-                      range,
-                      claimant.block.sourceLocation
-                    )
-                  )
-                }
-                sharedProcessRanges += range
-              }
-
-            (
-              plans.map(plan => current(plan.block)),
-              sharedProcessRanges.toSet
-            )
-          }
-
-          private def replaceUniqueProcess(
-              body: String,
-              process: String,
-              replacement: String,
-              range: LineRange,
-              sourceLocation: Option[String]
-          ): String = {
-            val first = body.indexOf(process)
-            val second =
-              if (first < 0) -1
-              else body.indexOf(process, first + process.length)
-            if (first < 0 || second >= 0) {
-              fail(
-                \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-TEXT-NOT-UNIQUE\",
-                s\"native process ${range.start}-${range.end} maps ${if (first < 0) 0 else 2} times into one captured body\",
-                sourceLocation
-              )
-            }
-            body.substring(0, first) + replacement +
-              body.substring(first + process.length)
-          }
-
-          private def findDeclarationLine(
-          """,
-          'shared process helpers')
-
-          path.write_text(text, encoding='utf-8')
-          PY
-
-          git show c37cfba9e8ed0d5ffa64cb0d631a35b986a30632:.github/workflows/morphhdl-native-int-nested-control-flow.yml \
-            > .github/workflows/morphhdl-native-int-nested-control-flow.yml
-          rm -f .github/workflows/increment-52-overlap-debug.yml
-          git diff --check
 
       - name: Install pinned Mill bootstrap
         shell: bash
@@ -442,24 +63,21 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Validate source boundary and focused Increment 52 contracts
+      - name: Validate nested control flow safety and inherited contracts
         shell: bash
         run: |
           set -euo pipefail
-          bash morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
-          /tmp/morphhdl-mill morph[2.12.18].testOnly \
-            morphhdl.NativeIntNestedSymbolicControlFlowTests
-          /tmp/morphhdl-mill morph[2.13.12].testOnly \
-            morphhdl.NativeIntNestedSymbolicControlFlowTests
-
-      - name: Commit repaired production tree
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
-                  .github/workflows/morphhdl-native-int-nested-control-flow.yml
-          git add -u .github/workflows
-          git commit -m 'fix: partition shared native processes by branch evidence'
-          git push origin HEAD:agent/increment-52-nested-control-flow-clean
+          /tmp/morphhdl-mill frontend[${{ matrix.scala_version }}].testOnly \
+            morphhdl.frontend.HdlIntTests
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
+            morphhdl.NaturalSymbolicConditionalTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowProvenanceTests \
+            morphhdl.ExternalNativeIntFormalizationTests \
+            morphhdl.FormalParameterIdentityTests \
+            morphhdl.FormalParameterClonePropagationTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.integration.ExternalSpinalVerilogBaselineTests
