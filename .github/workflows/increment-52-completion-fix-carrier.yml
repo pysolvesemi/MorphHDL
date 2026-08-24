@@ -1,0 +1,166 @@
+name: Increment 52 completion-fix carrier
+
+on:
+  push:
+    branches:
+      - agent/increment-52-completion-fix
+    paths:
+      - .github/workflows/increment-52-completion-fix-carrier.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out completion branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-52-completion-fix
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply reviewed shared-process repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import textwrap
+
+          carrier = Path('.github/workflows/morphhdl-native-int-nested-control-flow.yml')
+          workflow = carrier.read_text(encoding='utf-8')
+          marker = "          python3 - <<'PY'\n"
+          start = workflow.index(marker) + len(marker)
+          end = workflow.index("\n          PY\n", start)
+          script = textwrap.dedent(workflow[start:end])
+
+          function_start = script.index(
+              'def replace_once(old: str, new: str, label: str) -> None:'
+          )
+          function_end = script.index('\n\nreplace_once(', function_start)
+          replacement = r'''def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              if text.count(old) == 1:
+                  text = text.replace(old, new, 1)
+                  return
+              lines = old.splitlines()
+              pieces = []
+              for line in lines:
+                  if line.strip():
+                      pieces.append(r'^[ \t]*' + re.escape(line.strip()) + r'[ \t]*$')
+                  else:
+                      pieces.append(r'^[ \t]*$')
+              pattern_text = r'\n'.join(pieces)
+              if old.endswith('\n'):
+                  pattern_text += r'\n'
+              matches = list(re.finditer(pattern_text, text, re.MULTILINE))
+              if len(matches) != 1:
+                  raise SystemExit(
+                      f'{label}: expected one whitespace-normalized site, found {len(matches)}'
+                  )
+              match = matches[0]
+              text = text[:match.start()] + new + text[match.end():]
+          '''
+          script = (
+              script[:function_start]
+              + replacement
+              + script[function_end:]
+          )
+          script = 'import re\n' + script
+          exec(compile(script, str(carrier), 'exec'), {})
+          PY
+
+          git diff --check
+          grep -Fq 'resolveSharedProceduralProcesses' \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate Increment 52 focused and inherited contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
+          for scala_version in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill frontend[$scala_version].testOnly \
+              morphhdl.frontend.HdlIntTests
+            /tmp/morphhdl-mill morph[$scala_version].testOnly \
+              morphhdl.NativeIntNestedSymbolicControlFlowTests \
+              morphhdl.NativeIntSymbolicConditionalTests \
+              morphhdl.NaturalSymbolicConditionalTests \
+              morphhdl.ExternalNativeIntShadowExpressionTests \
+              morphhdl.ExternalNativeIntShadowProvenanceTests \
+              morphhdl.ExternalNativeIntFormalizationTests \
+              morphhdl.FormalParameterIdentityTests \
+              morphhdl.FormalParameterClonePropagationTests \
+              morphhdl.HierarchyParameterBindingTests \
+              morphhdl.MorphSingleSourceVerilogTests \
+              morphhdl.integration.ExternalSpinalVerilogBaselineTests
+          done
+
+      - name: Run complete MorphHDL regression on both Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala_version in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill idslplugin[$scala_version].test
+            /tmp/morphhdl-mill paramrtl[$scala_version].test
+            /tmp/morphhdl-mill frontend[$scala_version].test
+            /tmp/morphhdl-mill verilogBackend[$scala_version].test
+            /tmp/morphhdl-mill morph[$scala_version].test
+            /tmp/morphhdl-mill core[$scala_version].testOnly \
+              spinal.core.internals.SpinalVerilogPhasePlanTests
+          done
+
+      - name: Publish clean validated completion head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show c37cfba9e8ed0d5ffa64cb0d631a35b986a30632:.github/workflows/morphhdl-native-int-nested-control-flow.yml \
+            > .github/workflows/morphhdl-native-int-nested-control-flow.yml
+
+          rm -f .github/workflows/increment-52-complete.yml
+          rm -f .github/workflows/increment-52-final-clean-head.yml
+          rm -f .github/workflows/increment-52-overlap-debug.yml
+          rm -f .github/workflows/increment-52-range-coalesce-repair.yml
+          rm -f .github/workflows/increment-52-completion-fix-carrier.yml
+
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = path.read_text(encoding='utf-8')
+          old = '- [ ] **Increment 52 — Nested symbolic control flow and side-effect safety**'
+          new = '- [x] **Increment 52 — Nested symbolic control flow and side-effect safety**'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one unchecked Increment 52 item, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+          git diff --check
+          test ! -e .github/workflows/increment-52-completion-fix-carrier.yml
+          grep -Fq 'name: MorphHDL native Int nested symbolic control flow' \
+            .github/workflows/morphhdl-native-int-nested-control-flow.yml
+          grep -Fq -- '- [x] **Increment 52 — Nested symbolic control flow and side-effect safety**' \
+            docs/morphhdl/parameterized-verilog-todo.md
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Fix Increment 52 shared native process lowering'
+          git push origin HEAD:agent/increment-52-completion-fix
