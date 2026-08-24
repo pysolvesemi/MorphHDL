@@ -1,18 +1,16 @@
 name: Increment 52 current ownership diagnostic
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/increment-52-post-merge-overlap-fix
-    paths:
-      - .github/workflows/increment-52-current-ownership-diagnostic.yml
+      - parameterized-verilog
 
 permissions:
   contents: write
 
 jobs:
   diagnostic:
-    if: github.actor != 'github-actions[bot]'
+    if: github.event.pull_request.head.ref == 'agent/increment-52-post-merge-overlap-fix' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     container:
