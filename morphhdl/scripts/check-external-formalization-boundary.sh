@@ -6,8 +6,8 @@ cd "$root"
 
 region_adapter=frontend/src/main/scala/morphhdl/frontend/formalRegion.scala
 component_adapter=frontend/src/main/scala/morphhdl/frontend/formalComponent.scala
-registry=frontend/src/main/scala/spinal/core/ExternalNativeIntFormalizationRegistry.scala
-formal_registry=frontend/src/main/scala/spinal/core/ExternalFormalParameterRegistry.scala
+registry=morphruntime/src/main/scala/spinal/core/ExternalNativeIntFormalizationRegistry.scala
+formal_registry=morphruntime/src/main/scala/spinal/core/ExternalFormalParameterRegistry.scala
 hdl_int=frontend/src/main/scala/morphhdl/frontend/HdlInt.scala
 hierarchy=morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
 test_file=morphhdl/src/test/scala/morphhdl/ExternalNativeIntFormalizationTests.scala
@@ -52,7 +52,7 @@ python3 - <<'PY'
 from pathlib import Path
 
 registry = Path(
-    "frontend/src/main/scala/spinal/core/ExternalNativeIntFormalizationRegistry.scala"
+    "morphruntime/src/main/scala/spinal/core/ExternalNativeIntFormalizationRegistry.scala"
 ).read_text()
 component = Path(
     "frontend/src/main/scala/morphhdl/frontend/formalComponent.scala"

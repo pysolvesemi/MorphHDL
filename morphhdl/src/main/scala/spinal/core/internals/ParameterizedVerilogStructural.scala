@@ -82,6 +82,7 @@ private[internals] object ParameterizedVerilogStructural {
     val parameters = mergeParameters(
       ParameterizedWidth.parametersOf(component) ++
         ExternalParameterizedMemoryRegistry.parametersOf(component) ++
+        ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component)
     )

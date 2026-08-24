@@ -441,6 +441,7 @@ object MorphHdlExternalParameterizedVerilog {
     val values =
       ParameterizedWidth.parametersOf(component) ++
         ExternalParameterizedMemoryRegistry.parametersOf(component) ++
+        ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component)
     val grouped = values.groupBy(_.name)
@@ -458,6 +459,7 @@ object MorphHdlExternalParameterizedVerilog {
   private def hasParameterizedMetadata(component: Component): Boolean =
     ParameterizedWidth.parametersOf(component).nonEmpty ||
       ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
+      ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
       ParameterizedVerilogStructural.hasRegions(component) ||
       ParameterizedVerilogProcesses.hasLoops(component)
 
@@ -478,10 +480,12 @@ object MorphHdlExternalParameterizedVerilog {
   ): Boolean =
     ParameterizedWidth.parametersOf(component).nonEmpty ||
       ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
+      ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
       ParameterizedProcess.parametersOf(component).nonEmpty ||
       component.children.exists { child =>
         ParameterizedWidth.parametersOf(child).nonEmpty ||
-          ExternalParameterizedMemoryRegistry.parametersOf(child).nonEmpty
+          ExternalParameterizedMemoryRegistry.parametersOf(child).nonEmpty ||
+          ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty
       }
 
   private def moduleBlocks(lines: Vector[String]): Vector[ModuleBlock] = {

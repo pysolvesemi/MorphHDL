@@ -44,6 +44,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       (
         ParameterizedWidth.parametersOf(component).nonEmpty ||
           ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
+          ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
           ParameterizedProcess.parametersOf(component).nonEmpty ||
           ParameterizedStructure.parametersOf(component).nonEmpty ||
           component.children.exists(
@@ -66,6 +67,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       pc,
       hierarchy.parameters ++
         ExternalParameterizedMemoryRegistry.parametersOf(component) ++
+        ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component),
       hierarchy.hasParameterizedInstances
@@ -105,9 +107,13 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       rewrittenDeclarations,
       analysis.symbolicCounterBoundaryWidths
     )
+    val rewrittenValues = rewriteRetainedValueAssignments(
+      component,
+      rewrittenCounterBoundaries
+    )
     if (isCanonicalDirectSurface(component))
-      canonicalizeDeclarations(component, rewrittenCounterBoundaries)
-    else rewrittenCounterBoundaries
+      canonicalizeDeclarations(component, rewrittenValues)
+    else rewrittenValues
   }
 
   private def ensureParameterHeader(
@@ -242,6 +248,65 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
   }
 
   /**
+    * Replace only the concrete witness assignment of compiler-created UInt
+    * carriers. The carrier was retained by exact object identity; its final
+    * emitted name is read from that object after normal Spinal naming. No port,
+    * component or user signal name is used as a discovery key.
+    */
+  private def rewriteRetainedValueAssignments(
+      component: Component,
+      verilog: String
+  ): String = {
+    val records = ExternalParameterizedValueRegistry.valuesOf(component)
+    if (records.isEmpty) return verilog
+
+    val named = records.map { record =>
+      val name = Option(record.value.getName()).filter(_.nonEmpty).getOrElse {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-VALUE-NAME-MISSING",
+          "one retained native UInt carrier has no final emitted name",
+          record.sourceLocation.orElse(record.expression.sourceLocation)
+        )
+      }
+      name -> record
+    }
+    named.groupBy(_._1).collectFirst {
+      case (name, values) if values.map(_._2).distinct.size != 1 => name
+    }.foreach { name =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-VALUE-NAME-CONFLICT",
+        s"multiple retained native UInt carriers resolved to emitted name '$name'"
+      )
+    }
+
+    var lines = verilog.split("\n", -1).toVector
+    named.distinct.sortBy { case (name, _) => -name.length }.foreach {
+      case (name, record) =>
+        val pattern = (
+          "^(\\s*assign\\s+" + Pattern.quote(name) +
+            "\\s*=\\s*)(.*?)(;\\s*)$"
+        ).r
+        var count = 0
+        lines = lines.map { line =>
+          line match {
+            case pattern(prefix, _, suffix) =>
+              count += 1
+              prefix + "(" + record.expression.verilog + ")" + suffix
+            case _ => line
+          }
+        }
+        if (count != 1) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-VALUE-ASSIGNMENT-NOT-UNIQUE",
+            s"retained native UInt carrier '$name' maps to $count continuous assignments",
+            record.sourceLocation.orElse(record.expression.sourceLocation)
+          )
+        }
+    }
+    lines.mkString("\n")
+  }
+
+  /**
     * Preserve the untouched native full-range Counter boundary comparison when
     * its concrete witness state is widened externally. Only state leaves whose
     * provenance was retained by ExternalParameterizedCounterRegistry are
@@ -359,6 +424,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       var unsupported =
         component.children.nonEmpty ||
           ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
+          ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
           ParameterizedProcess.parametersOf(component).nonEmpty ||
           ParameterizedStructure.parametersOf(component).nonEmpty
 

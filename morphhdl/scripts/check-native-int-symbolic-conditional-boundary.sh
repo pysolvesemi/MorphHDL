@@ -24,7 +24,7 @@ if [[ -n "$forbidden_native_changes" ]]; then
   exit 1
 fi
 
-registry_file="frontend/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala"
+registry_file="morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala"
 formal_file="frontend/src/main/scala/morphhdl/frontend/formalComponent.scala"
 structural_file="frontend/src/main/scala/morphhdl/frontend/NativeStructuralFrontend.scala"
 bridge_file="frontend/src/main/scala/morphhdl/frontend/NativeIntSymbolicConditional.scala"

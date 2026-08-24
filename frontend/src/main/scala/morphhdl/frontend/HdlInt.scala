@@ -529,6 +529,40 @@ object HdlInt {
       value.toParameterizedBitCount(file, line)
   }
 
+  /** Convert the legacy direct bounded memory-depth parameter into HdlInt. */
+  def fromParameterizedMemoryDepth(
+      value: ParameterizedMemoryDepth
+  )(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): HdlInt = {
+    if (value == null)
+      throw new IllegalArgumentException(
+        "symbolic StreamFifo depth must not be null"
+      )
+    val parameters = value.expression.parameters.distinct
+    if (
+      parameters.size != 1 ||
+      value.expression.verilog.trim != parameters.head.name
+    ) {
+      throw new IllegalArgumentException(
+        "ParameterizedMemoryDepth compatibility accepts one direct bounded parameter; use the HdlInt overload for compound depth expressions"
+      )
+    }
+    val schema = parameters.head
+    if (!schema.default.isValidInt || schema.default.toInt != value.value) {
+      throw new IllegalArgumentException(
+        s"symbolic StreamFifo depth witness ${value.value} disagrees with parameter '${schema.name}' default ${schema.default}"
+      )
+    }
+    param(
+      name = schema.name,
+      default = schema.default,
+      min = schema.minimum,
+      max = schema.maximum
+    )
+  }
+
   def literal(value: BigInt)(implicit file: sourcecode.File, line: sourcecode.Line): HdlInt =
     new HdlInt(
       value,

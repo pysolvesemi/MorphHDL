@@ -24,8 +24,8 @@ if [[ -n "$forbidden_native_changes" ]]; then
   exit 1
 fi
 
-expression_file="frontend/src/main/scala/spinal/core/ExternalNativeIntShadowExpression.scala"
-registry_file="frontend/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala"
+expression_file="morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowExpression.scala"
+registry_file="morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala"
 frontend_file="frontend/src/main/scala/morphhdl/frontend/NativeIntShadow.scala"
 plugin_file="morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala"
 test_file="morphhdl/src/test/scala/morphhdl/ExternalNativeIntShadowExpressionTests.scala"
