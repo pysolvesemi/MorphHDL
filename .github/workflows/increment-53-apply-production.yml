@@ -1,4 +1,4 @@
-name: Increment 53 apply clean production candidate
+name: Increment 53 clean candidate repair carrier
 
 on:
   pull_request:
@@ -11,11 +11,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: increment-53-apply-production
+  group: increment-53-clean-repair
   cancel-in-progress: true
 
 jobs:
-  apply:
+  repair:
     if: github.event.pull_request.head.ref == 'agent/increment-53-native-streamfifo-clean'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -25,63 +25,57 @@ jobs:
           ref: agent/increment-53-native-streamfifo-clean
           fetch-depth: 0
 
-      - name: Verify and apply reviewed production delta
+      - name: Wire compiler runtime and repair source boundary
         shell: bash
         run: |
           set -euo pipefail
           branch=agent/increment-53-native-streamfifo-clean
           git config user.name 'MorphHDL Increment Agent'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-
-          if [[ ! -e morphhdl/.increment53-patch/chunk-00 ]]; then
-            test -e morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
-            echo 'Increment 53 production delta is already applied.'
-            exit 0
-          fi
-
-          cat morphhdl/.increment53-patch/chunk-* > /tmp/inc53.patch.gz.b64
-          printf '%s  %s\n' \
-            bf7bf4db59fdfc46ea3ff6cc8299b8c212fe40d56b7374ddf98b780eefff369c \
-            /tmp/inc53.patch.gz.b64 | sha256sum -c -
-          base64 -d /tmp/inc53.patch.gz.b64 > /tmp/inc53.patch.gz
-          printf '%s  %s\n' \
-            84c948c29028375b78a6cf18518ed3c4650c35e2b0363359c807eab9ea773ee1 \
-            /tmp/inc53.patch.gz | sha256sum -c -
-          gzip -dc /tmp/inc53.patch.gz > /tmp/inc53.patch
-          printf '%s  %s\n' \
-            59394cba4b67214227d1ec443254af75a490fee87bd8d1bff191e7b516056cc6 \
-            /tmp/inc53.patch | sha256sum -c -
+          test -e morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
 
           python3 - <<'PY'
-          import re
           from pathlib import Path
 
-          source = Path('/tmp/inc53.patch').read_text()
-          chunks = re.split(r'(?=^diff --git )', source, flags=re.MULTILINE)
-          kept = []
-          for chunk in chunks:
-              if not chunk:
-                  continue
-              first = chunk.splitlines()[0]
-              if first.startswith('diff --git a/.github/workflows/'):
-                  continue
-              kept.append(chunk)
-          Path('/tmp/inc53-code.patch').write_text(''.join(kept))
+          sbt = Path('build.sbt')
+          text = sbt.read_text()
+          old = '''lazy val morphplugin = (project in file("morphplugin"))
+            .settings('''.replace('          ', '')
+          new = '''lazy val morphplugin = (project in file("morphplugin"))
+            .dependsOn(morphruntime)
+            .settings('''.replace('          ', '')
+          if old not in text and new not in text:
+              raise SystemExit('build.sbt morphplugin anchor changed')
+          text = text.replace(old, new, 1)
+          sbt.write_text(text)
+
+          mill = Path('build.mill')
+          text = mill.read_text()
+          old = '''trait MorphPlugin extends SpinalModule {
+            override def mvnDeps'''.replace('          ', '')
+          new = '''trait MorphPlugin extends SpinalModule {
+            def moduleDeps = Seq(morphruntime(crossScalaVersion))
+            override def mvnDeps'''.replace('          ', '')
+          if old not in text and new not in text:
+              raise SystemExit('build.mill morphplugin anchor changed')
+          text = text.replace(old, new, 1)
+          mill.write_text(text)
+
+          boundary = Path('morphhdl/scripts/check-native-streamfifo-structure-boundary.sh')
+          text = boundary.read_text()
+          old = '''base_ref="$(sed -n 's/^ref=//p' morphhdl/upstream-base.conf)"
+          git diff --exit-code "$base_ref" -- lib/src/main/scala/spinal/lib/Stream.scala'''.replace('          ', '')
+          new = '''base_ref="$(sed -n 's/^UPSTREAM_COMMIT=//p' morphhdl/upstream-base.conf)"
+          [[ -n "$base_ref" ]]
+          git diff --exit-code "$base_ref" -- lib/src/main/scala/spinal/lib/Stream.scala'''.replace('          ', '')
+          if old not in text and new not in text:
+              raise SystemExit('StreamFifo boundary base anchor changed')
+          text = text.replace(old, new, 1)
+          boundary.write_text(text)
           PY
-          git apply --index --3way /tmp/inc53-code.patch
 
-          rm -rf morphhdl/.increment53-patch
-          rm -f morphhdl/scripts/dispatch-increment-53-production-*.txt
-          rm -f morphhdl/scripts/dispatch-increment-53-clean-*.txt
-          rm -f morphhdl/.increment-status/clean-*
-
-          git add -A
+          git add build.sbt build.mill morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
           git diff --cached --check
-          test ! -e lib/src/main/scala/spinal/lib/ParameterizedStreamFifoDepth.scala
-          ! grep -R --line-number --fixed-strings rewriteParameterizedStreamFifoDepth \
-            morphhdl/src/main/scala frontend/src/main/scala lib/src/main/scala
-          test -e .github/workflows/morphhdl-native-streamfifo-structure.yml
-
-          git commit -m 'feat(morphhdl): implement Increment 53 native StreamFifo structure'
+          git commit -m 'fix(morphhdl): wire Increment 53 compiler runtime'
           git pull --rebase origin "$branch"
           git push origin HEAD:"$branch"
