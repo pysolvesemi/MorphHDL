@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/increment-52-post-merge-overlap-fix
+  pull_request:
+    branches:
+      - parameterized-verilog
   workflow_dispatch:
 
 permissions:
@@ -81,5 +84,5 @@ jobs:
             morphhdl.NativeIntNestedSymbolicControlFlowTests 2>&1 | tee /tmp/increment52.log
           status=${PIPESTATUS[0]}
           echo '===== Increment 52 diagnostic tail ====='
-          tail -n 400 /tmp/increment52.log
+          tail -n 500 /tmp/increment52.log
           exit "$status"
