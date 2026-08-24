@@ -29,6 +29,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/scripts/apply_increment52_shared_process_fix.py')
+          text = path.read_text(encoding='utf-8')
+          old = 'mkString("\\n")'
+          new = 'mkString("\\\\n")'
+          count = text.count(old)
+          if count != 2:
+              raise SystemExit(f'expected two Scala newline escape sites, found {count}')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
           python3 .github/scripts/apply_increment52_shared_process_fix.py
           git show c37cfba9e8ed0d5ffa64cb0d631a35b986a30632:.github/workflows/morphhdl-native-int-nested-control-flow.yml \
             > .github/workflows/morphhdl-native-int-nested-control-flow.yml
