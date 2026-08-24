@@ -1,4 +1,4 @@
-name: Increment 52 shared-process repair carrier
+name: Increment 52 residual-ownership repair carrier
 
 on:
   pull_request:
@@ -29,7 +29,7 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Apply shared-process partition and restore permanent workflow
+      - name: Materialize reviewed candidate and add residual ownership
         shell: bash
         run: |
           set -euo pipefail
@@ -47,175 +47,95 @@ jobs:
           python3 .github/scripts/apply_increment52_shared_process_fix.py
 
           python3 - <<'PY'
+          import subprocess
           from pathlib import Path
 
-          path = Path('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala')
-          text = path.read_text(encoding='utf-8')
-
-          def replace_once(old: str, new: str, label: str) -> None:
-              global text
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'{label}: expected one site, found {count}')
-              text = text.replace(old, new, 1)
-
-          replace_once(
-              'import java.util.regex.{Matcher, Pattern}\n',
-              'import java.util.IdentityHashMap\nimport java.util.regex.{Matcher, Pattern}\n',
-              'identity import',
+          previous = subprocess.check_output(
+              [
+                  'git',
+                  'show',
+                  'a5f39bc0cb253df65f19e17bd78ed6a403133d20:'
+                  '.github/workflows/morphhdl-native-int-nested-control-flow.yml',
+              ],
+              text=True,
           )
-
-          replace_once(
-              '  private final case class BlockPlan(\n',
-              '  private final case class AssignmentEvidence(\n' +
-              '      target: String,\n' +
-              '      sourceNames: Set[String]\n' +
-              '  )\n\n' +
-              '  private final case class BlockPlan(\n',
-              'AssignmentEvidence declaration',
+          lines = previous.splitlines()
+          starts = [
+              index + 1
+              for index, line in enumerate(lines)
+              if line == "          python3 - <<'PY'"
+          ]
+          if len(starts) < 2:
+              raise SystemExit(
+                  f'expected two Python carriers in reviewed predecessor, found {len(starts)}'
+              )
+          start = starts[1]
+          end = next(
+              index
+              for index in range(start, len(lines))
+              if lines[index] == '          PY'
           )
-
-          replace_once(
-              '      ownedNames: Set[String]\n  )\n\n  private final case class AlternativeStep(',
-              '      ownedNames: Set[String],\n' +
-              '      childOutputActualNames: Set[String],\n' +
-              '      assignmentEvidence: Vector[AssignmentEvidence]\n' +
-              '  )\n\n  private final case class AlternativeStep(',
-              'BlockPlan ownership evidence fields',
+          script = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in lines[start:end]
           )
+          exec(compile(script, '/tmp/increment-52-reviewed-child-output-patch.py', 'exec'))
 
-          replace_once(
-              '    val ownedTargetNames = mutable.LinkedHashSet.empty[String]\n',
-              '    val ownedTargetNames = mutable.LinkedHashSet.empty[String]\n' +
-              '    val childOutputActualNames = mutable.LinkedHashSet.empty[String]\n' +
-              '    val assignmentEvidence = ArrayBuffer.empty[AssignmentEvidence]\n' +
-              '    val emittedActualByExpression = new IdentityHashMap[Expression, String]()\n',
-              'ownership evidence buffers',
+          source = Path(
+              'morphhdl/src/main/scala/spinal/core/internals/'
+              'ParameterizedVerilogStructural.scala'
           )
-
-          replace_once(
-              '      val instanceText = range.indices.map(lines).mkString("\\n")\n' +
-              '      connectionActualNames(instanceText).foreach { name =>\n',
-              '      val instanceText = range.indices.map(lines).mkString("\\n")\n' +
-              '      val actualByPort = connectionActualByPort(instanceText)\n' +
-              '      child.getOrdredNodeIo.toVector.foreach { port =>\n' +
-              '        Option(port.getName()).flatMap(actualByPort.get).foreach { actual =>\n' +
-              '          emittedActualByExpression.put(port, actual)\n' +
-              '          if (port.dir == out) childOutputActualNames += actual\n' +
-              '        }\n' +
-              '      }\n' +
-              '      connectionActualNames(instanceText).foreach { name =>\n',
-              'child output actual evidence',
-          )
-
-          replace_once(
-              '    val fixedSlicePatterns = block.slices.map(fixedSlicePattern)\n',
-              '    block.assignments.foreach { assignment =>\n' +
-              '      Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>\n' +
-              '        assignmentEvidence += AssignmentEvidence(\n' +
-              '          name,\n' +
-              '          expressionNames(assignment.source) ++\n' +
-              '            emittedActualNames(assignment.source, emittedActualByExpression)\n' +
-              '        )\n' +
-              '      }\n' +
-              '    }\n\n' +
-              '    val fixedSlicePatterns = block.slices.map(fixedSlicePattern)\n',
-              'captured assignment evidence',
-          )
-
-          constructor_site = '(trackedInternalNames ++ ownedTargetNames).toSet\n'
-          constructor_count = text.count(constructor_site)
-          if constructor_count != 2:
-              raise SystemExit(f'BlockPlan constructor evidence: expected two sites, found {constructor_count}')
-          text = text.replace(
-              constructor_site,
-              '(trackedInternalNames ++ ownedTargetNames).toSet,\n' +
-              '      childOutputActualNames.toSet,\n' +
-              '      assignmentEvidence.toVector\n',
-          )
-
-          helper_anchor = '  private def finalizePlan(plan: BlockPlan): BlockPlan = {\n'
-          helper = (
-              '  private def expressionNames(root: Expression): Set[String] = {\n'
-              '    val names = mutable.LinkedHashSet.empty[String]\n'
-              '    val visited = new IdentityHashMap[Expression, java.lang.Boolean]()\n\n'
-              '    def visit(value: Expression): Unit = {\n'
-              '      if ((value ne null) && !visited.containsKey(value)) {\n'
-              '        visited.put(value, java.lang.Boolean.TRUE)\n'
-              '        value match {\n'
-              '          case named: Nameable =>\n'
-              '            Option(named.getName()).filter(_.nonEmpty).foreach(names += _)\n'
-              '          case _ =>\n'
-              '        }\n'
-              '        value.foreachExpression(visit)\n'
-              '      }\n'
-              '    }\n\n'
-              '    visit(root)\n'
-              '    names.toSet\n'
-              '  }\n\n'
-              '  private def emittedActualNames(\n'
-              '      root: Expression,\n'
-              '      actualByExpression: IdentityHashMap[Expression, String]\n'
-              '  ): Set[String] = {\n'
-              '    val names = mutable.LinkedHashSet.empty[String]\n'
-              '    val visited = new IdentityHashMap[Expression, java.lang.Boolean]()\n\n'
-              '    def visit(value: Expression): Unit = {\n'
-              '      if ((value ne null) && !visited.containsKey(value)) {\n'
-              '        visited.put(value, java.lang.Boolean.TRUE)\n'
-              '        Option(actualByExpression.get(value)).foreach(names += _)\n'
-              '        value.foreachExpression(visit)\n'
-              '      }\n'
-              '    }\n\n'
-              '    visit(root)\n'
-              '    names.toSet\n'
-              '  }\n\n'
-          )
-          replace_once(helper_anchor, helper + helper_anchor, 'expression evidence helpers')
-
-          ownership_old = (
-              '                val assignmentNames = identifierTokens(stripped)\n'
-              '                val owners = claimants.filter { plan =>\n'
-              '                  uniqueEvidence(plan.block).exists(name => assignmentNames(name))\n'
-              '                }\n'
-              '                owners match {\n'
-          )
-          ownership_new = (
-              '                val targetName = statement.group(1)\n'
-              '                val rhsNames = identifierTokens(statement.group(3))\n'
-              '                val childOutputOwners = claimants.filter { plan =>\n'
-              '                  plan.childOutputActualNames.exists(rhsNames.contains)\n'
-              '                }\n'
-              '                val exactOwners = claimants.filter { plan =>\n'
-              '                  plan.assignmentEvidence.exists { evidence =>\n'
-              '                    evidence.target == targetName &&\n'
-              '                    evidence.sourceNames.exists(rhsNames.contains)\n'
-              '                  }\n'
-              '                }\n'
-              '                val owners =\n'
-              '                  if (childOutputOwners.nonEmpty) childOutputOwners\n'
-              '                  else if (exactOwners.nonEmpty) exactOwners\n'
-              '                  else {\n'
-              '                    val assignmentNames = identifierTokens(stripped)\n'
-              '                    claimants.filter { plan =>\n'
-              '                      uniqueEvidence(plan.block).exists(name => assignmentNames(name))\n'
-              '                    }\n'
-              '                  }\n'
-              '                owners match {\n'
-          )
-          replace_once(ownership_old, ownership_new, 'emitted child-output assignment ownership')
-
-          connection_anchor = '  private def connectionActualNames(instanceText: String): Vector[String] = {\n'
-          connection_helper = (
-              '  private def connectionActualByPort(instanceText: String): Map[String, String] = {\n'
-              '    val pattern = "\\\\.([A-Za-z_][A-Za-z0-9_]*)\\\\s*\\\\(\\\\s*([A-Za-z_][A-Za-z0-9_]*)\\\\s*\\\\)".r\n'
-              '    pattern.findAllMatchIn(instanceText).map { matched =>\n'
-              '      matched.group(1) -> matched.group(2)\n'
-              '    }.toMap\n'
-              '  }\n\n'
-          )
-          replace_once(connection_anchor, connection_helper + connection_anchor, 'connection actual mapping')
-
-          path.write_text(text, encoding='utf-8')
+          text = source.read_text(encoding='utf-8')
+          old = '''                val owners =
+                  if (childOutputOwners.nonEmpty) childOutputOwners
+                  else if (exactOwners.nonEmpty) exactOwners
+                  else {
+                    val assignmentNames = identifierTokens(stripped)
+                    claimants.filter { plan =>
+                      uniqueEvidence(plan.block).exists(name => assignmentNames(name))
+                    }
+                  }
+                owners match {
+'''
+          new = '''                val evidenceOwners: Vector[BlockPlan] =
+                  if (childOutputOwners.nonEmpty) childOutputOwners
+                  else if (exactOwners.nonEmpty) exactOwners
+                  else {
+                    val assignmentNames = identifierTokens(stripped)
+                    claimants.filter { plan =>
+                      uniqueEvidence(plan.block).exists(name => assignmentNames(name))
+                    }
+                  }
+                val isSelectedTarget =
+                  Option(statement.group(2)).exists(_.trim.nonEmpty)
+                val residualOwners: Vector[BlockPlan] =
+                  if (!isSelectedTarget || evidenceOwners.nonEmpty) Vector.empty
+                  else
+                    claimants.filter { plan =>
+                      val expected = plan.block.assignments.count { assignment =>
+                        Option(assignment.finalTarget.getName()).contains(targetName)
+                      }
+                      val alreadyOwned = ownedIndices(plan.block).count { ownedIndex =>
+                        DirectProceduralAssignment
+                          .findFirstMatchIn(
+                            stripLineComment(lines(ownedIndex)).trim
+                          )
+                          .exists(matched => matched.group(1) == targetName)
+                      }
+                      expected > alreadyOwned
+                    }
+                val owners: Vector[BlockPlan] =
+                  if (evidenceOwners.nonEmpty) evidenceOwners
+                  else if (residualOwners.size == 1) residualOwners
+                  else Vector.empty
+                owners match {
+'''
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(
+                  f'residual ownership insertion expected one site, found {count}'
+              )
+          source.write_text(text.replace(old, new, 1), encoding='utf-8')
           PY
 
           git show c37cfba9e8ed0d5ffa64cb0d631a35b986a30632:.github/workflows/morphhdl-native-int-nested-control-flow.yml \
@@ -250,12 +170,12 @@ jobs:
           if [ "$status" -ne 0 ]; then
             echo '===== Increment 52 focused diagnostic ====='
             grep -E 'FAILED|SPINAL-PARAMETERIZED|MorphVerilogException|ParameterizedVerilogException|error\]|Exception|Tests: succeeded|TESTS FAILED' \
-              /tmp/increment52-focused.log | tail -n 160 || true
+              /tmp/increment52-focused.log | tail -n 180 || true
             echo '===== Increment 52 focused tail ====='
-            tail -n 120 /tmp/increment52-focused.log
+            tail -n 140 /tmp/increment52-focused.log
             exit "$status"
           fi
-          tail -n 40 /tmp/increment52-focused.log
+          tail -n 50 /tmp/increment52-focused.log
           /tmp/morphhdl-mill morph[2.13.12].testOnly \
             morphhdl.NativeIntNestedSymbolicControlFlowTests
 
@@ -268,5 +188,5 @@ jobs:
           git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
                   .github/workflows/morphhdl-native-int-nested-control-flow.yml
           git add -u .github/workflows .github/scripts .github
-          git commit -m 'fix: partition shared native processes by captured child-output evidence'
+          git commit -m 'fix: partition shared native processes by residual captured assignment ownership'
           git push origin HEAD:agent/increment-52-post-merge-overlap-fix
