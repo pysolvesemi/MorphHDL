@@ -22,6 +22,7 @@ grep -q 'formalComponent' \
 base_ref="$(sed -n 's/^UPSTREAM_COMMIT=//p' morphhdl/upstream-base.conf)"
 [[ -n "$base_ref" ]]
 git diff --exit-code "$base_ref" -- lib/src/main/scala/spinal/lib/Stream.scala
-bash morphhdl/scripts/check-native-source-guard.sh
+python3 morphhdl/scripts/check-native-source-preservation.py \
+  --manifest morphhdl/contracts/native-source-preservation.json
 
 printf 'Increment 53 native StreamFifo source boundary passed.\n'
