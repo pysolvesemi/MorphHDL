@@ -1,0 +1,89 @@
+name: Increment 53 clean supervisor
+
+on:
+  push:
+    branches:
+      - agent/increment-53-native-streamfifo-clean
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: increment-53-clean-supervisor
+  cancel-in-progress: false
+
+jobs:
+  finalize-clean-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      BRANCH: agent/increment-53-native-streamfifo-clean
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-clean
+          fetch-depth: 0
+
+      - name: Wait for a completed bootstrap source state
+        id: ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          if [[ -e .github/workflows/increment-53-clean-bootstrap.yml ]]; then
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo 'Bootstrap workflow is still present; no supervisor mutation is permitted.'
+            exit 0
+          fi
+          if ! grep -Fq -- '- [x] **Increment 53 — Native StreamFifo parameter structure without source edits**' \
+            docs/morphhdl/parameterized-verilog-todo.md; then
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo 'Increment 53 roadmap entry is not yet complete.'
+            exit 0
+          fi
+          echo 'ready=true' >> "$GITHUB_OUTPUT"
+
+      - name: Validate and remove all temporary handoff artifacts
+        if: steps.ready.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+          test ! -e lib/src/main/scala/spinal/lib/ParameterizedStreamFifoDepth.scala
+          ! grep -R --line-number --fixed-strings 'rewriteParameterizedStreamFifoDepth' \
+            morphhdl/src/main/scala frontend/src/main/scala lib/src/main/scala
+          bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+          bash morphhdl/scripts/check-native-source-guard.sh
+
+          for scala_version in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill -i "morph[$scala_version].testOnly" \
+              morphhdl.ParameterizedStreamFifoDepthTests \
+              morphhdl.NativeIntSymbolicConditionalTests \
+              morphhdl.NativeIntNestedSymbolicControlFlowTests \
+              morphhdl.AutomaticNativeMemDepthProvenanceTests
+          done
+
+          rm -f \
+            morphhdl/.increment-status/clean-bootstrap-requested.txt \
+            morphhdl/.increment-status/clean-pr-requested.txt
+          rm -f .github/workflows/increment-53-clean-supervisor.yml
+          git diff --check
+
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'chore: remove Increment 53 bootstrap handoff artifacts'
+          git pull --rebase origin "$BRANCH"
+          git push origin HEAD:"$BRANCH"
