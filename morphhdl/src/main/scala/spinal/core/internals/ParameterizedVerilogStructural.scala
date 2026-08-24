@@ -514,10 +514,16 @@ private def resolveSharedProceduralProcesses(
                 s"shared native process ${range.start}-${range.end} contains non-flat statement '$stripped'"
               )
             case Some(statement) =>
-              val assignmentNames = identifierTokens(stripped)
-              val owners = claimants.filter { plan =>
-                uniqueEvidence(plan.block).exists(name => assignmentNames(name))
+              val sourceNames = identifierTokens(statement.group(3))
+              val directOwners = claimants.filter { plan =>
+                plan.ownedNames.exists(name => sourceNames(name))
               }
+              val owners =
+                if (directOwners.nonEmpty) directOwners
+                else
+                  claimants.filter { plan =>
+                    uniqueEvidence(plan.block).exists(name => sourceNames(name))
+                  }
               owners match {
                 case Vector(owner) =>
                   ownedIndices(owner.block) += index
