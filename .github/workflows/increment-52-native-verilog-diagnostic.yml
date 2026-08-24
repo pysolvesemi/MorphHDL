@@ -1,4 +1,4 @@
-name: Increment 52 native Verilog diagnostic
+name: Increment 52 residual ownership repair
 
 on:
   pull_request:
@@ -6,22 +6,44 @@ on:
       - parameterized-verilog
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: increment-52-residual-ownership-repair
+  cancel-in-progress: true
 
 jobs:
-  diagnose:
-    if: github.event.pull_request.head.ref == 'agent/increment-52-post-merge-overlap-fix'
+  repair:
+    if: github.event.pull_request.head.ref == 'agent/increment-52-post-merge-overlap-fix' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     container:
       image: ghcr.io/spinalhdl/docker:latest
     env:
       XDG_CACHE_HOME: /tmp/morphhdl-cache
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out Increment 52 closure branch
+        uses: actions/checkout@v4
         with:
           ref: agent/increment-52-post-merge-overlap-fix
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Materialize residual ownership repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/apply_increment52_residual_ownership.py
+
+          git show c37cfba9e8ed0d5ffa64cb0d631a35b986a30632:.github/workflows/morphhdl-native-int-nested-control-flow.yml \
+            > .github/workflows/morphhdl-native-int-nested-control-flow.yml
+          rm -f .github/workflows/increment-52-overlap-diagnostic.yml
+          rm -f .github/workflows/increment-52-native-verilog-diagnostic.yml
+          rm -f .github/workflows/increment-52-current-ownership-diagnostic.yml
+          rm -f .github/increment-52-current-ownership.txt
+          rm -f .github/scripts/apply_increment52_shared_process_fix.py
+          rm -f .github/scripts/apply_increment52_residual_ownership.py
+          git diff --check
 
       - name: Install pinned Mill bootstrap
         shell: bash
@@ -32,29 +54,37 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Capture native nested-control Verilog
+      - name: Validate Increment 52 on both Scala lanes
         shell: bash
         run: |
-          set +e
-          /tmp/morphhdl-mill morph[2.12.18].testOnly \
-            morphhdl.NativeIntNestedSymbolicControlFlowTests \
-            > /tmp/increment52-native.log 2>&1
-          status=$?
-          set -e
-          echo "focused status=$status"
-          echo '===== native files containing nested_fallback_sink ====='
-          found=0
-          while IFS= read -r file; do
-            if grep -q 'nested_fallback_sink' "$file"; then
-              found=1
-              echo "===== $file ====="
-              nl -ba "$file" | sed -n '1,180p'
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
+          for scala_version in 2.12.18 2.13.12; do
+            set +e
+            /tmp/morphhdl-mill morph[$scala_version].testOnly \
+              morphhdl.NativeIntNestedSymbolicControlFlowTests \
+              > /tmp/increment52-$scala_version.log 2>&1
+            status=$?
+            set -e
+            if [ "$status" -ne 0 ]; then
+              echo "===== Increment 52 Scala $scala_version diagnostic ====="
+              grep -E 'FAILED|SPINAL-PARAMETERIZED|MorphVerilogException|ParameterizedVerilogException|error\]|Exception|Tests: succeeded|TESTS FAILED|capacities=' \
+                /tmp/increment52-$scala_version.log | tail -n 200 || true
+              echo "===== Increment 52 Scala $scala_version tail ====="
+              tail -n 160 /tmp/increment52-$scala_version.log
+              exit "$status"
             fi
-          done < <(find /tmp -type f -name '*.v' -print | sort)
-          if [ "$found" -eq 0 ]; then
-            echo 'No retained native Verilog file contained nested_fallback_sink.'
-            find /tmp -type f -name '*.v' -print | sort
-          fi
-          echo '===== focused diagnostic ====='
-          grep -E 'FAILED|SPINAL-PARAMETERIZED|MorphVerilogException|Tests: succeeded|TESTS FAILED' \
-            /tmp/increment52-native.log | tail -n 80 || true
+            tail -n 50 /tmp/increment52-$scala_version.log
+          done
+
+      - name: Commit repaired production tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
+                  .github/workflows/morphhdl-native-int-nested-control-flow.yml
+          git add -u .github
+          git commit -m 'fix: partition shared native processes by residual captured assignment ownership'
+          git push origin HEAD:agent/increment-52-post-merge-overlap-fix
