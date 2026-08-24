@@ -1,0 +1,50 @@
+name: Increment 52 overlap diagnostic
+
+on:
+  push:
+    branches:
+      - agent/increment-52-nested-control-flow-clean
+    paths:
+      - .github/workflows/increment-52-overlap-debug.yml
+
+permissions:
+  contents: write
+
+jobs:
+  instrument:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-52-nested-control-flow-clean
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add bounded overlap diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala')
+          text = path.read_text(encoding='utf-8')
+          old = '''          s"captured native module-item ranges ${left.start}-${left.end} and ${right.start}-${right.end} overlap"
+'''
+          new = '''          s"captured native module-item ranges ${left.start}-${left.end} and ${right.start}-${right.end} overlap\\n" +
+            s"overlap text:\\n${lines.slice(math.min(left.start, right.start), math.max(left.end, right.end) + 1).mkString("\\n")}" 
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one overlap diagnostic site, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          rm .github/workflows/increment-52-overlap-debug.yml
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+          git add -u .github/workflows
+          git commit -m 'test: expose Increment 52 overlap process text'
+          git push origin HEAD:agent/increment-52-nested-control-flow-clean
