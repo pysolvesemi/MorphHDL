@@ -29,12 +29,12 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Materialize residual ownership repair
+      - name: Materialize containing-range ownership repair
         shell: bash
         run: |
           set -euo pipefail
           python3 .github/scripts/apply_increment52_residual_ownership.py
-          python3 .github/scripts/instrument_increment52_plan_diagnostic.py
+          python3 .github/scripts/fix_increment52_containing_claimant.py
 
           git show c37cfba9e8ed0d5ffa64cb0d631a35b986a30632:.github/workflows/morphhdl-native-int-nested-control-flow.yml \
             > .github/workflows/morphhdl-native-int-nested-control-flow.yml
@@ -44,6 +44,7 @@ jobs:
           rm -f .github/increment-52-current-ownership.txt
           rm -f .github/scripts/apply_increment52_shared_process_fix.py
           rm -f .github/scripts/apply_increment52_residual_ownership.py
+          rm -f .github/scripts/fix_increment52_containing_claimant.py
           rm -f .github/scripts/instrument_increment52_plan_diagnostic.py
           git diff --check
 
@@ -70,7 +71,7 @@ jobs:
             set -e
             if [ "$status" -ne 0 ]; then
               echo "===== Increment 52 Scala $scala_version diagnostic ====="
-              grep -E 'FAILED|SPINAL-PARAMETERIZED|MorphVerilogException|ParameterizedVerilogException|error\]|Exception|Tests: succeeded|TESTS FAILED|capacities=|plans=' \
+              grep -E 'FAILED|SPINAL-PARAMETERIZED|MorphVerilogException|ParameterizedVerilogException|error\]|Exception|Tests: succeeded|TESTS FAILED|capacities=' \
                 /tmp/increment52-$scala_version.log | tail -n 200 || true
               echo "===== Increment 52 Scala $scala_version tail ====="
               tail -n 160 /tmp/increment52-$scala_version.log
@@ -88,5 +89,5 @@ jobs:
           git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
                   .github/workflows/morphhdl-native-int-nested-control-flow.yml
           git add -u .github
-          git commit -m 'fix: partition shared native processes by residual captured assignment ownership'
+          git commit -m 'fix: split containing shared-process ranges by structural owner'
           git push origin HEAD:agent/increment-52-post-merge-overlap-fix
