@@ -103,6 +103,7 @@ object morphplugin extends Cross[MorphPlugin](SpinalVersion.compilers) {
   def defaultCrossSegments = Seq(SpinalVersion.compilers.head)
 }
 trait MorphPlugin extends SpinalModule {
+  def moduleDeps = Seq(morphruntime(crossScalaVersion))
   override def mvnDeps = super.mvnDeps() ++ Seq(
     mvn"org.scala-lang:scala-compiler:${scalaVersion}"
   )

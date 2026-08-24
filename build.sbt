@@ -113,6 +113,7 @@ lazy val idslplugin = (project in file("idslplugin"))
   )
 
 lazy val morphplugin = (project in file("morphplugin"))
+  .dependsOn(morphruntime)
   .settings(
     defaultSettings,
     name := "MorphHDL-compiler-plugin",

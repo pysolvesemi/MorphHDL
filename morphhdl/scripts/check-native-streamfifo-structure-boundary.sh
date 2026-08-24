@@ -19,7 +19,8 @@ grep -q '/lib/src/main/scala/spinal/lib/Stream.scala' \
 grep -q 'formalComponent' \
   frontend/src/main/scala/spinal/lib/ExternalParameterizedStreamFifoDepthRegistry.scala
 
-base_ref="$(sed -n 's/^ref=//p' morphhdl/upstream-base.conf)"
+base_ref="$(sed -n 's/^UPSTREAM_COMMIT=//p' morphhdl/upstream-base.conf)"
+[[ -n "$base_ref" ]]
 git diff --exit-code "$base_ref" -- lib/src/main/scala/spinal/lib/Stream.scala
 bash morphhdl/scripts/check-native-source-guard.sh
 
