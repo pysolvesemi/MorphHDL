@@ -1,0 +1,35 @@
+name: Export Yosys ABC companion
+
+on:
+  push:
+    branches:
+      - agent/offline-toolchain-export
+    paths:
+      - .github/workflows/export-yosys-abc.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Download Yosys ABC Debian package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/yosys-abc
+          cd /tmp/yosys-abc
+          sudo apt-get update
+          apt-get download yosys-abc
+          sha256sum -- *.deb > SHA256SUMS
+          dpkg-deb -f ./*.deb Package Version Architecture Depends > package-metadata.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yosys-abc-ubuntu-24.04
+          path: /tmp/yosys-abc
+          if-no-files-found: error
+          retention-days: 3
