@@ -8,11 +8,15 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: increment-52-shared-process-repair
+  cancel-in-progress: true
+
 jobs:
   repair:
     if: github.event.pull_request.head.ref == 'agent/increment-52-post-merge-overlap-fix' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     container:
       image: ghcr.io/spinalhdl/docker:latest
     env:
@@ -41,6 +45,110 @@ jobs:
           path.write_text(text.replace(old, new), encoding='utf-8')
           PY
           python3 .github/scripts/apply_increment52_shared_process_fix.py
+
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path(
+              'morphhdl/src/main/scala/spinal/core/internals/'
+              'ParameterizedVerilogStructural.scala'
+          )
+          text = path.read_text(encoding='utf-8')
+
+          old = '''    val trackedInternalNames = mutable.LinkedHashSet.empty[String]
+              val ownedTargetNames = mutable.LinkedHashSet.empty[String]
+          '''
+          new = '''    val trackedInternalNames = mutable.LinkedHashSet.empty[String]
+              val ownedTargetNames = mutable.LinkedHashSet.empty[String]
+              val ownedSourceNames = mutable.LinkedHashSet.empty[String]
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(
+                  f'expected one ownership declaration site, found {text.count(old)}'
+              )
+          text = text.replace(old, new, 1)
+
+          old = '''    block.assignments.foreach { assignment =>
+              Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
+                ownedTargetNames += name
+              }
+            }
+          '''
+          new = '''    block.assignments.foreach { assignment =>
+              Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
+                ownedTargetNames += name
+              }
+              sourceExpressionNames(assignment.source).foreach(ownedSourceNames += _)
+            }
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(
+                  f'expected one captured-assignment site, found {text.count(old)}'
+              )
+          text = text.replace(old, new, 1)
+
+          old = '(trackedInternalNames ++ ownedTargetNames).toSet'
+          new = '(trackedInternalNames ++ ownedTargetNames ++ ownedSourceNames).toSet'
+          if text.count(old) != 2:
+              raise SystemExit(
+                  f'expected two BlockPlan ownership sites, found {text.count(old)}'
+              )
+          text = text.replace(old, new)
+
+          marker = '  private def planBlock(\n'
+          if text.count(marker) != 1:
+              raise SystemExit(
+                  f'expected one planBlock marker, found {text.count(marker)}'
+              )
+          helper = '''  private def sourceExpressionNames(
+              expression: Expression
+          ): Set[String] = {
+            val names = mutable.LinkedHashSet.empty[String]
+            val visited =
+              new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
+
+            def visit(value: Expression): Unit = {
+              if ((value ne null) && !visited.containsKey(value)) {
+                visited.put(value, java.lang.Boolean.TRUE)
+                value match {
+                  case baseType: BaseType =>
+                    Option(baseType.getName()).filter(_.nonEmpty).foreach(names += _)
+                  case _ =>
+                }
+                value.foreachExpression(visit)
+              }
+            }
+
+            visit(expression)
+            names.toSet
+          }
+
+          '''
+          text = text.replace(marker, helper + marker, 1)
+
+          old = '''                val assignmentNames = identifierTokens(stripped)
+                val owners = claimants.filter { plan =>
+                  uniqueEvidence(plan.block).exists(name => assignmentNames(name))
+                }
+          '''
+          new = '''                val sourceNames = identifierTokens(statement.group(3))
+                val directOwners = claimants.filter { plan =>
+                  plan.ownedNames.exists(name => sourceNames(name))
+                }
+                val owners =
+                  if (directOwners.nonEmpty) directOwners
+                  else
+                    claimants.filter { plan =>
+                      uniqueEvidence(plan.block).exists(name => sourceNames(name))
+                    }
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(
+                  f'expected one process-owner inference site, found {text.count(old)}'
+              )
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
           git show c37cfba9e8ed0d5ffa64cb0d631a35b986a30632:.github/workflows/morphhdl-native-int-nested-control-flow.yml \
             > .github/workflows/morphhdl-native-int-nested-control-flow.yml
           rm -f .github/workflows/increment-52-overlap-diagnostic.yml
@@ -75,5 +183,5 @@ jobs:
           git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
                   .github/workflows/morphhdl-native-int-nested-control-flow.yml
           git add -u .github/workflows .github/scripts
-          git commit -m 'fix: partition shared native processes by branch evidence'
+          git commit -m 'fix: partition shared native processes by exact branch evidence'
           git push origin HEAD:agent/increment-52-post-merge-overlap-fix
