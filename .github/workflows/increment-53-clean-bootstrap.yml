@@ -1,0 +1,282 @@
+name: Increment 53 clean bootstrap
+
+on:
+  push:
+    branches:
+      - agent/increment-53-native-streamfifo-clean
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53-clean-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      BRANCH: agent/increment-53-native-streamfifo-clean
+      RECOVERY_BRANCH: agent/increment-53-native-streamfifo-structure
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-clean
+          fetch-depth: 0
+
+      - name: Reconstruct the bounded Increment 53 candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git fetch origin "$RECOVERY_BRANCH:refs/remotes/origin/$RECOVERY_BRANCH"
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          mkdir -p /tmp/inc53-tools
+          while IFS= read -r path; do
+            mkdir -p "$(dirname "$path")"
+            git show "origin/$RECOVERY_BRANCH:$path" > "$path"
+            cp "$path" /tmp/inc53-tools/"$(basename "$path")"
+          done < <(
+            git ls-tree -r --name-only "origin/$RECOVERY_BRANCH" |
+              grep -E '^morphhdl/scripts/.*increment-53.*\.py$' |
+              sort
+          )
+
+          # Reuse only deterministic source generators and evidence-bounded
+          # compatibility repairs from the abandoned recovery history.
+          for script in \
+            implement-increment-53-real.py \
+            augment-increment-53-native-ops.py \
+            rebuild-increment-53-depth-bridge.py \
+            rebuild-increment-53-formalcomponent-call.py \
+            normalize-increment-53-native-guard.py; do
+            if [[ -f "morphhdl/scripts/$script" ]]; then
+              python3 "morphhdl/scripts/$script" >/tmp/"$script".log 2>&1 || true
+            fi
+          done
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          old = "origin/agent/increment-53-native-streamfifo-structure"
+
+          def show(rev: str, path: str):
+              result = subprocess.run(
+                  ["git", "show", f"{rev}:{path}"],
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.DEVNULL,
+              )
+              return result.stdout.decode() if result.returncode == 0 else None
+
+          def revisions(path: str):
+              result = subprocess.run(
+                  ["git", "rev-list", old, "--", path],
+                  check=True,
+                  stdout=subprocess.PIPE,
+                  text=True,
+              )
+              return [line for line in result.stdout.splitlines() if line]
+
+          def recover(path: str, predicate, required=True):
+              current_path = Path(path)
+              current = current_path.read_text() if current_path.exists() else None
+              if current is not None and predicate(current):
+                  return
+              for revision in revisions(path):
+                  content = show(revision, path)
+                  if content is not None and predicate(content):
+                      current_path.parent.mkdir(parents=True, exist_ok=True)
+                      current_path.write_text(content)
+                      return
+              if required:
+                  raise SystemExit(f"no valid historical Increment 53 candidate for {path}")
+
+          recover(
+              "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeFormalizedSourceComponent.scala",
+              lambda text: "final class MorphHdlNativeFormalizedSourceComponent" in text,
+          )
+          recover(
+              "frontend/src/main/scala/spinal/lib/ExternalParameterizedStreamFifoDepthRegistry.scala",
+              lambda text: "formalComponent" in text and "ParameterizedStreamFifoDepth.attach" not in text,
+          )
+          recover(
+              "frontend/src/main/scala/morphhdl/frontend/HdlInt.scala",
+              lambda text: "fromParameterizedMemoryDepth" in text,
+          )
+          recover(
+              "frontend/src/main/scala/morphhdl/frontend/Library.scala",
+              lambda text: "depth: HdlInt" in text and "ExternalParameterizedStreamFifoDepthRegistry.create" in text,
+          )
+          recover(
+              "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala",
+              lambda text: "Stream.scala" in text and "NativeIntShadow" in text,
+          )
+          recover(
+              "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala",
+              lambda text: "MorphHdlNativeFormalizedSourceComponent" in text,
+          )
+          recover(
+              "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala",
+              lambda text: "rewriteParameterizedStreamFifoDepth" not in text,
+          )
+          recover(
+              "morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala",
+              lambda text: "NativeParameterizedStreamFifoHarness" in text and "DEPTH" in text,
+          )
+          recover(
+              "morphhdl/scripts/check-native-streamfifo-structure-boundary.sh",
+              lambda text: "StreamFifo" in text and "Stream.scala" in text,
+          )
+          recover(
+              "docs/morphhdl/increment-53-native-streamfifo-parameter-structure.md",
+              lambda text: "Increment 53" in text and "StreamFifo" in text,
+          )
+          recover(
+              ".github/workflows/morphhdl-native-streamfifo-structure.yml",
+              lambda text: "ParameterizedStreamFifoDepthTests" in text,
+          )
+          PY
+
+          rm -f lib/src/main/scala/spinal/lib/ParameterizedStreamFifoDepth.scala
+
+          # Apply all narrowly bounded compatibility repairs once before the
+          # first proof run. They are forbidden from touching native Stream.scala
+          # or restoring the deleted sidecar/rewrite.
+          : > /tmp/inc53-empty.log
+          for script in \
+            repair-increment-53.py \
+            repair-increment-53-v2.py \
+            repair-increment-53-v4.py \
+            rebuild-increment-53-depth-bridge.py \
+            rebuild-increment-53-formalcomponent-call.py \
+            normalize-increment-53-native-guard.py; do
+            if [[ -f "morphhdl/scripts/$script" ]]; then
+              python3 "morphhdl/scripts/$script" /tmp/inc53-empty.log >/tmp/repair-"$script".log 2>&1 || true
+            fi
+          done
+
+          test ! -e lib/src/main/scala/spinal/lib/ParameterizedStreamFifoDepth.scala
+          ! grep -R --line-number --fixed-strings 'rewriteParameterizedStreamFifoDepth' \
+            morphhdl/src/main/scala frontend/src/main/scala lib/src/main/scala
+          git diff --check
+          bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+          bash morphhdl/scripts/check-native-source-guard.sh
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Prove and repair the candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/inc53-proof
+
+          prove() {
+            local attempt="$1"
+            local ok=0
+            : > "/tmp/inc53-proof/attempt-$attempt.log"
+            set +e
+            for scala_version in 2.12.18 2.13.12; do
+              /tmp/morphhdl-mill -i "morph[$scala_version].testOnly" \
+                morphhdl.ParameterizedStreamFifoDepthTests \
+                morphhdl.NativeIntSymbolicConditionalTests \
+                morphhdl.NativeIntNestedSymbolicControlFlowTests \
+                morphhdl.AutomaticNativeMemDepthProvenanceTests \
+                2>&1 | tee -a "/tmp/inc53-proof/attempt-$attempt.log"
+              status=${PIPESTATUS[0]}
+              if [[ "$status" -ne 0 ]]; then
+                ok=1
+                break
+              fi
+            done
+            set -e
+            return "$ok"
+          }
+
+          success=0
+          for attempt in 1 2 3 4; do
+            if prove "$attempt"; then
+              success=1
+              break
+            fi
+            log="/tmp/inc53-proof/attempt-$attempt.log"
+            for script in \
+              repair-increment-53.py \
+              repair-increment-53-v2.py \
+              repair-increment-53-v4.py \
+              rebuild-increment-53-depth-bridge.py \
+              rebuild-increment-53-formalcomponent-call.py \
+              normalize-increment-53-native-guard.py; do
+              if [[ -f "morphhdl/scripts/$script" ]]; then
+                python3 "morphhdl/scripts/$script" "$log" | tee -a "/tmp/inc53-proof/repairs-$attempt.log" || true
+              fi
+            done
+            test ! -e lib/src/main/scala/spinal/lib/ParameterizedStreamFifoDepth.scala
+            ! grep -R --line-number --fixed-strings 'rewriteParameterizedStreamFifoDepth' \
+              morphhdl/src/main/scala frontend/src/main/scala lib/src/main/scala
+            git diff --check
+            bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+            bash morphhdl/scripts/check-native-source-guard.sh
+          done
+
+          if [[ "$success" != 1 ]]; then
+            mkdir -p morphhdl/.increment-status/increment-53-clean
+            cp /tmp/inc53-proof/* morphhdl/.increment-status/increment-53-clean/
+            count="$(find morphhdl/.increment-status/increment-53-clean -maxdepth 1 -name 'failed-cycle-*' | wc -l)"
+            touch "morphhdl/.increment-status/increment-53-clean/failed-cycle-$((count + 1))"
+            git add -A
+            git commit -m 'chore: retain clean Increment 53 failure evidence' || true
+            if [[ "$count" -lt 2 ]]; then
+              git pull --rebase origin "$BRANCH"
+              git push origin HEAD:"$BRANCH"
+            fi
+            exit 1
+          fi
+
+      - name: Finalize the clean source delta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # The checkbox is the final source edit, after the complete focused
+          # dual-Scala proof above.
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          text = path.read_text()
+          old = "- [ ] **Increment 53 — Native StreamFifo parameter structure without source edits**"
+          new = "- [x] **Increment 53 — Native StreamFifo parameter structure without source edits**"
+          if old not in text and new not in text:
+              raise SystemExit("Increment 53 roadmap entry not found")
+          path.write_text(text.replace(old, new, 1))
+          PY
+
+          rm -rf morphhdl/.increment-status/increment-53-clean
+          find morphhdl/scripts -maxdepth 1 -type f -name '*increment-53*.py' -delete
+          rm -f .github/workflows/increment-53-clean-bootstrap.yml
+
+          test ! -e lib/src/main/scala/spinal/lib/ParameterizedStreamFifoDepth.scala
+          ! grep -R --line-number --fixed-strings 'rewriteParameterizedStreamFifoDepth' \
+            morphhdl/src/main/scala frontend/src/main/scala lib/src/main/scala
+          git diff --check
+          bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+          bash morphhdl/scripts/check-native-source-guard.sh
+
+          git add -A
+          git commit -m 'feat(morphhdl): complete native StreamFifo parameter structure'
+          git pull --rebase origin "$BRANCH"
+          git push origin HEAD:"$BRANCH"
