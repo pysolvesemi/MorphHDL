@@ -48,6 +48,7 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
+          from textwrap import dedent
 
           path = Path('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala')
           text = path.read_text(encoding='utf-8')
@@ -66,153 +67,165 @@ jobs:
           )
 
           replace_once(
-              '''  private final case class BlockPlan(
-              block: ParameterizedStructuralBlock,
-              ranges: Vector[LineRange],
-              body: String,
-              ownedNames: Set[String]
-          )
+              dedent('''\
+              private final case class BlockPlan(
+                block: ParameterizedStructuralBlock,
+                ranges: Vector[LineRange],
+                body: String,
+                ownedNames: Set[String]
+              )
 
-          private final case class AlternativeStep(
-          ''',
-              '''  private final case class AssignmentEvidence(
-              target: String,
-              sourceNames: Set[String]
-          )
+              private final case class AlternativeStep(
+              '''),
+              dedent('''\
+              private final case class AssignmentEvidence(
+                target: String,
+                sourceNames: Set[String]
+              )
 
-          private final case class BlockPlan(
-              block: ParameterizedStructuralBlock,
-              ranges: Vector[LineRange],
-              body: String,
-              ownedNames: Set[String],
-              assignmentEvidence: Vector[AssignmentEvidence]
-          )
+              private final case class BlockPlan(
+                block: ParameterizedStructuralBlock,
+                ranges: Vector[LineRange],
+                body: String,
+                ownedNames: Set[String],
+                assignmentEvidence: Vector[AssignmentEvidence]
+              )
 
-          private final case class AlternativeStep(
-          ''',
+              private final case class AlternativeStep(
+              '''),
               'BlockPlan assignment evidence',
           )
 
           replace_once(
-              '''    val trackedInternalNames = mutable.LinkedHashSet.empty[String]
-              val ownedTargetNames = mutable.LinkedHashSet.empty[String]
-          ''',
-              '''    val trackedInternalNames = mutable.LinkedHashSet.empty[String]
-              val ownedTargetNames = mutable.LinkedHashSet.empty[String]
-              val assignmentEvidence = ArrayBuffer.empty[AssignmentEvidence]
-          ''',
+              dedent('''\
+                  val trackedInternalNames = mutable.LinkedHashSet.empty[String]
+                  val ownedTargetNames = mutable.LinkedHashSet.empty[String]
+              '''),
+              dedent('''\
+                  val trackedInternalNames = mutable.LinkedHashSet.empty[String]
+                  val ownedTargetNames = mutable.LinkedHashSet.empty[String]
+                  val assignmentEvidence = ArrayBuffer.empty[AssignmentEvidence]
+              '''),
               'assignment evidence buffer',
           )
 
           replace_once(
-              '''    block.assignments.foreach { assignment =>
-              Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
-                ownedTargetNames += name
-              }
-            }
-          ''',
-              '''    block.assignments.foreach { assignment =>
-              Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
-                ownedTargetNames += name
-                assignmentEvidence += AssignmentEvidence(
-                  name,
-                  expressionNames(assignment.source)
-                )
-              }
-            }
-          ''',
+              dedent('''\
+                  block.assignments.foreach { assignment =>
+                    Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
+                      ownedTargetNames += name
+                    }
+                  }
+              '''),
+              dedent('''\
+                  block.assignments.foreach { assignment =>
+                    Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
+                      ownedTargetNames += name
+                      assignmentEvidence += AssignmentEvidence(
+                        name,
+                        expressionNames(assignment.source)
+                      )
+                    }
+                  }
+              '''),
               'captured assignment evidence',
           )
 
           replace_once(
-              '''      return BlockPlan(
-                block,
-                mergedRanges,
-                "",
-                (trackedInternalNames ++ ownedTargetNames).toSet
-              )
-          ''',
-              '''      return BlockPlan(
-                block,
-                mergedRanges,
-                "",
-                (trackedInternalNames ++ ownedTargetNames).toSet,
-                assignmentEvidence.toVector
-              )
-          ''',
+              dedent('''\
+                    return BlockPlan(
+                      block,
+                      mergedRanges,
+                      "",
+                      (trackedInternalNames ++ ownedTargetNames).toSet
+                    )
+              '''),
+              dedent('''\
+                    return BlockPlan(
+                      block,
+                      mergedRanges,
+                      "",
+                      (trackedInternalNames ++ ownedTargetNames).toSet,
+                      assignmentEvidence.toVector
+                    )
+              '''),
               'empty BlockPlan evidence',
           )
 
           replace_once(
-              '''    BlockPlan(
-              block,
-              mergedRanges,
-              body,
-              (trackedInternalNames ++ ownedTargetNames).toSet
-            )
-          }
-
-          private def finalizePlan(plan: BlockPlan): BlockPlan = {
-          ''',
-              '''    BlockPlan(
-              block,
-              mergedRanges,
-              body,
-              (trackedInternalNames ++ ownedTargetNames).toSet,
-              assignmentEvidence.toVector
-            )
-          }
-
-          private def expressionNames(root: Expression): Set[String] = {
-            val names = mutable.LinkedHashSet.empty[String]
-            val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
-
-            def visit(value: Expression): Unit = {
-              if ((value ne null) && !visited.containsKey(value)) {
-                visited.put(value, java.lang.Boolean.TRUE)
-                value match {
-                  case named: Nameable =>
-                    Option(named.getName()).filter(_.nonEmpty).foreach(names += _)
-                  case _ =>
+              dedent('''\
+                  BlockPlan(
+                    block,
+                    mergedRanges,
+                    body,
+                    (trackedInternalNames ++ ownedTargetNames).toSet
+                  )
                 }
-                value.foreachExpression(visit)
-              }
-            }
 
-            visit(root)
-            names.toSet
-          }
+                private def finalizePlan(plan: BlockPlan): BlockPlan = {
+              '''),
+              dedent('''\
+                  BlockPlan(
+                    block,
+                    mergedRanges,
+                    body,
+                    (trackedInternalNames ++ ownedTargetNames).toSet,
+                    assignmentEvidence.toVector
+                  )
+                }
 
-          private def finalizePlan(plan: BlockPlan): BlockPlan = {
-          ''',
+                private def expressionNames(root: Expression): Set[String] = {
+                  val names = mutable.LinkedHashSet.empty[String]
+                  val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
+
+                  def visit(value: Expression): Unit = {
+                    if ((value ne null) && !visited.containsKey(value)) {
+                      visited.put(value, java.lang.Boolean.TRUE)
+                      value match {
+                        case named: Nameable =>
+                          Option(named.getName()).filter(_.nonEmpty).foreach(names += _)
+                        case _ =>
+                      }
+                      value.foreachExpression(visit)
+                    }
+                  }
+
+                  visit(root)
+                  names.toSet
+                }
+
+                private def finalizePlan(plan: BlockPlan): BlockPlan = {
+              '''),
               'expression evidence helper',
           )
 
           replace_once(
-              '''                val assignmentNames = identifierTokens(stripped)
-                    val owners = claimants.filter { plan =>
-                      uniqueEvidence(plan.block).exists(name => assignmentNames(name))
-                    }
-                    owners match {
-          ''',
-              '''                val targetName = statement.group(1)
-                    val rhsNames = identifierTokens(statement.group(3))
-                    val exactOwners = claimants.filter { plan =>
-                      plan.assignmentEvidence.exists { evidence =>
-                        evidence.target == targetName &&
-                        evidence.sourceNames.exists(rhsNames.contains)
-                      }
-                    }
-                    val owners =
-                      if (exactOwners.nonEmpty) exactOwners
-                      else {
-                        val assignmentNames = identifierTokens(stripped)
-                        claimants.filter { plan =>
-                          uniqueEvidence(plan.block).exists(name => assignmentNames(name))
-                        }
-                      }
-                    owners match {
-          ''',
+              dedent('''\
+                            val assignmentNames = identifierTokens(stripped)
+                            val owners = claimants.filter { plan =>
+                              uniqueEvidence(plan.block).exists(name => assignmentNames(name))
+                            }
+                            owners match {
+              '''),
+              dedent('''\
+                            val targetName = statement.group(1)
+                            val rhsNames = identifierTokens(statement.group(3))
+                            val exactOwners = claimants.filter { plan =>
+                              plan.assignmentEvidence.exists { evidence =>
+                                evidence.target == targetName &&
+                                evidence.sourceNames.exists(rhsNames.contains)
+                              }
+                            }
+                            val owners =
+                              if (exactOwners.nonEmpty) exactOwners
+                              else {
+                                val assignmentNames = identifierTokens(stripped)
+                                claimants.filter { plan =>
+                                  uniqueEvidence(plan.block).exists(name => assignmentNames(name))
+                                }
+                              }
+                            owners match {
+              '''),
               'AST assignment ownership',
           )
 
