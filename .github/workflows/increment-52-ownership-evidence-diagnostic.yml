@@ -1,0 +1,78 @@
+name: Increment 52 ownership evidence diagnostic
+
+on:
+  push:
+    branches:
+      - agent/increment-52-ownership-evidence-diagnostic
+    paths:
+      - .github/workflows/increment-52-ownership-evidence-diagnostic.yml
+
+permissions:
+  contents: write
+
+jobs:
+  diagnostic:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out diagnostic branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-52-ownership-evidence-diagnostic
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enrich only the unowned-assignment diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala')
+          text = path.read_text(encoding='utf-8')
+          old = '''                      s"shared native process ${range.start}-${range.end} contains selected assignment '$stripped' without branch-unique source evidence"
+'''
+          new = '''                      s"shared native process ${range.start}-${range.end} contains selected assignment '$stripped' without branch-unique source evidence; rhs=${sourceNames.toVector.sorted.mkString(",")}; direct=${claimants.zipWithIndex.map { case (plan, claimIndex) => s"$claimIndex:${plan.ownedNames.toVector.sorted.mkString("[", ",", "]")}" }.mkString(";")}; inferred=${claimants.zipWithIndex.map { case (plan, claimIndex) => s"$claimIndex:${uniqueEvidence(plan.block).toVector.sorted.mkString("[", ",", "]")}" }.mkString(";")}"
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one diagnostic site, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run one failing suite and publish exact evidence
+        shell: bash
+        run: |
+          set +e
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            > /tmp/increment52-evidence.log 2>&1
+          status=$?
+          {
+            echo "status=$status"
+            grep -F 'SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-ASSIGNMENT-UNOWNED' \
+              /tmp/increment52-evidence.log | tail -n 4
+            echo '--- tail ---'
+            tail -n 120 /tmp/increment52-evidence.log
+          } > .github/increment-52-ownership-evidence.txt
+
+          git checkout -- morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/increment-52-ownership-evidence.txt
+          git commit -m "Record Increment 52 ownership evidence status $status"
+          git push origin HEAD:agent/increment-52-ownership-evidence-diagnostic
+          exit 0
