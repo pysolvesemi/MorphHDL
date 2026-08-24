@@ -6,6 +6,11 @@ on:
       - agent/p1-ddr-read-rtl-01-toolchain
     paths:
       - '.github/workflows/p1-ddr-read-toolchain-export.yml'
+  pull_request:
+    branches:
+      - parameterized-verilog
+    paths:
+      - '.github/workflows/p1-ddr-read-toolchain-export.yml'
   workflow_dispatch:
 
 permissions:
