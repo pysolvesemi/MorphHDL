@@ -1,0 +1,113 @@
+name: Increment 52 final verification
+
+on:
+  push:
+    branches:
+      - agent/increment-52-nested-control-flow-clean
+    paths:
+      - .github/workflows/increment-52-final-verification.yml
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-52-nested-control-flow-clean
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify source boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Verify Scala 2.12.18 contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill frontend[2.12.18].testOnly morphhdl.frontend.HdlIntTests
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
+            morphhdl.NaturalSymbolicConditionalTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowProvenanceTests \
+            morphhdl.ExternalNativeIntFormalizationTests \
+            morphhdl.FormalParameterIdentityTests \
+            morphhdl.FormalParameterClonePropagationTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.integration.ExternalSpinalVerilogBaselineTests
+
+      - name: Verify Scala 2.13.12 contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill frontend[2.13.12].testOnly morphhdl.frontend.HdlIntTests
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
+            morphhdl.NaturalSymbolicConditionalTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowProvenanceTests \
+            morphhdl.ExternalNativeIntFormalizationTests \
+            morphhdl.FormalParameterIdentityTests \
+            morphhdl.FormalParameterClonePropagationTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.integration.ExternalSpinalVerilogBaselineTests
+
+      - name: Commit verified roadmap closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          todo = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = todo.read_text(encoding='utf-8')
+          updated, count = re.subn(
+              r'(?m)^(\s*[-*]?\s*)\[ \](\s+.*Increment\s+52\b.*)$',
+              r'\1[x]\2',
+              text,
+              count=1,
+          )
+          if count:
+              todo.write_text(updated, encoding='utf-8')
+          elif not re.search(r'(?m)^\s*[-*]?\s*\[x\]\s+.*Increment\s+52\b', text):
+              raise SystemExit('Increment 52 roadmap entry not found')
+          PY
+          rm -f .github/workflows/increment-52-contract-closure.yml
+          rm -f .github/workflows/increment-52-final-verification.yml
+          rm -f .github/workflows/increment-52-exact-range-normalization.yml
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/morphhdl/parameterized-verilog-todo.md
+          git add -u .github/workflows
+          if ! git diff --cached --quiet; then
+            git commit -m 'docs: close Increment 52 after dual-Scala verification'
+            git push origin HEAD:agent/increment-52-nested-control-flow-clean
+          fi
