@@ -6,11 +6,6 @@ on:
       - agent/p1-ddr-read-rtl-01-toolchain
     paths:
       - '.github/workflows/p1-ddr-read-toolchain-export.yml'
-  pull_request:
-    branches:
-      - parameterized-verilog
-    paths:
-      - '.github/workflows/p1-ddr-read-toolchain-export.yml'
   workflow_dispatch:
 
 permissions:
@@ -28,6 +23,7 @@ jobs:
       - name: Check out exact MorphHDL source
         uses: actions/checkout@v4
         with:
+          ref: agent/p1-ddr-read-rtl-01-toolchain
           fetch-depth: 0
 
       - name: Verify pinned source identity
