@@ -130,6 +130,7 @@ private[internals] object ParameterizedVerilogStructural {
   ): BlockPlan = {
     val ranges = ArrayBuffer.empty[LineRange]
     val trackedInternalNames = mutable.LinkedHashSet.empty[String]
+    val ownedTargetNames = mutable.LinkedHashSet.empty[String]
 
     // Normal Spinal transforms may forward or prune captured temporaries before
     // native emission. Such values have no emitted declaration (and therefore
@@ -137,8 +138,45 @@ private[internals] object ParameterizedVerilogStructural {
     // recover the concrete wrapper nets that remain in Verilog.
     block.declarations.foreach { declaration =>
       Option(declaration.getName()).filter(_.nonEmpty).foreach { name =>
+        ownedTargetNames += name
         trackedInternalNames += name
         ranges += findDeclarationLine(lines, name, block.sourceLocation)
+      }
+    }
+
+    block.memories.foreach { memory =>
+      val name = requiredName(
+        memory,
+        "captured native memory",
+        block.sourceLocation
+      )
+      if (memory.initialContent != null) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEMORY-INITIALIZATION-UNSUPPORTED",
+          s"captured native memory '$name' uses initialization; nested structural capture currently retains inferred runtime storage only",
+          block.sourceLocation
+        )
+      }
+      if (memory.forceMemToBlackboxTranslation) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEMORY-BLACKBOX-UNSUPPORTED",
+          s"captured native memory '$name' requests black-box translation",
+          block.sourceLocation
+        )
+      }
+      ownedTargetNames += name
+      trackedInternalNames += name
+      ranges += findMemoryDeclarationLine(
+        lines,
+        memory,
+        name,
+        block.sourceLocation
+      )
+    }
+
+    block.assignments.foreach { assignment =>
+      Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
+        ownedTargetNames += name
       }
     }
 
@@ -197,6 +235,25 @@ private[internals] object ParameterizedVerilogStructural {
       }
     }
 
+    proceduralBlocks(lines, block.sourceLocation).foreach { processRange =>
+      if (!ranges.exists(_.overlaps(processRange))) {
+        val processText = processRange.indices.map(lines).mkString("\n")
+        val targets = proceduralAssignmentTargets(processText)
+        val capturedTargets = targets.filter(ownedTargetNames)
+        if (capturedTargets.nonEmpty) {
+          val foreignTargets = targets.filterNot(ownedTargetNames)
+          if (foreignTargets.nonEmpty) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-PROCESS-MIXED-OWNERSHIP",
+              s"one native process assigns captured targets ${capturedTargets.mkString(", ")} and non-captured targets ${foreignTargets.mkString(", ")}; split the clocked logic before placing it in a symbolic alternative",
+              block.sourceLocation
+            )
+          }
+          ranges += processRange
+        }
+      }
+    }
+
     val mergedRanges = mergeRanges(ranges.toVector)
     val selectedLines = mergedRanges.flatMap(_.indices.map(lines))
     var body = stripCommonIndent(selectedLines.mkString("\n").trim)
@@ -232,6 +289,30 @@ private[internals] object ParameterizedVerilogStructural {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-DECLARATION-NOT-FOUND",
         s"native Verilog contains ${candidates.size} declaration lines for captured signal '$name'",
+        sourceLocation
+      )
+    }
+    LineRange(candidates.head, candidates.head)
+  }
+
+  private def findMemoryDeclarationLine(
+      lines: Vector[String],
+      memory: Mem[_],
+      name: String,
+      sourceLocation: Option[String]
+  ): LineRange = {
+    val concreteRange =
+      ("\\[0\\s*:\\s*" + (memory.wordCount - 1) + "\\]").r
+    val candidates = lines.zipWithIndex.collect {
+      case (line, index)
+          if isDeclarationLine(line.trim) && line.contains("reg") &&
+            containsName(line, name) && concreteRange.findFirstIn(line).nonEmpty =>
+        index
+    }
+    if (candidates.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEMORY-DECLARATION-NOT-FOUND",
+        s"native Verilog contains ${candidates.size} declaration lines for captured memory '$name'",
         sourceLocation
       )
     }
@@ -631,6 +712,61 @@ private[internals] object ParameterizedVerilogStructural {
     }
   }
 
+  private val ProceduralAssignmentTarget =
+    """^\s*([A-Za-z_][A-Za-z0-9_$]*)(?:\s*\[[^\]]+\])?\s*(?:<=|=(?!=))""".r
+
+  private def proceduralBlocks(
+      lines: Vector[String],
+      sourceLocation: Option[String]
+  ): Vector[LineRange] = {
+    val blocks = Vector.newBuilder[LineRange]
+    var index = 0
+    while (index < lines.size) {
+      val trimmed = stripLineComment(lines(index)).trim
+      if (
+        trimmed.startsWith("always @") || trimmed == "initial" ||
+        trimmed.startsWith("initial ")
+      ) {
+        var cursor = index
+        var depth = 0
+        var sawBegin = false
+        var complete = false
+        while (cursor < lines.size && !complete) {
+          val line = stripLineComment(lines(cursor))
+          val begins = "\\bbegin\\b".r.findAllMatchIn(line).size
+          val ends = "\\bend\\b".r.findAllMatchIn(line).size
+          if (begins != 0) sawBegin = true
+          depth += begins - ends
+          if (sawBegin) complete = depth == 0
+          else complete = line.trim.endsWith(";")
+          cursor += 1
+        }
+        if (!complete) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-PROCESS-MALFORMED",
+            s"native Verilog contains an unterminated procedural block at line ${index + 1}",
+            sourceLocation
+          )
+        }
+        blocks += LineRange(index, cursor - 1)
+        index = cursor
+      } else index += 1
+    }
+    blocks.result()
+  }
+
+  private def proceduralAssignmentTargets(value: String): Vector[String] =
+    value.split("\n", -1).toVector.flatMap { line =>
+      ProceduralAssignmentTarget
+        .findFirstMatchIn(stripLineComment(line))
+        .map(_.group(1))
+    }.distinct
+
+  private def stripLineComment(value: String): String = {
+    val index = value.indexOf("//")
+    if (index < 0) value else value.substring(0, index)
+  }
+
   private def fixedSlicePattern(slice: ParameterizedStructure.StructuralSlice): Pattern = {
     val sourceName = requiredName(slice.source, "structural slice source", slice.sourceLocation)
     val low = slice.offset.default
@@ -678,8 +814,21 @@ private[internals] object ParameterizedVerilogStructural {
     "begin", "end", "generate", "endgenerate", "if", "else", "for", "case", "endcase"
   )
 
-  private def isDeclarationLine(value: String): Boolean =
-    value.startsWith("wire ") || value.startsWith("reg ") || value.startsWith("integer ")
+  private def stripLeadingVerilogAttributes(value: String): String = {
+    var remaining = value.trim
+    while (remaining.startsWith("(*")) {
+      val end = remaining.indexOf("*)")
+      if (end < 0) return remaining
+      remaining = remaining.substring(end + 2).trim
+    }
+    remaining
+  }
+
+  private def isDeclarationLine(value: String): Boolean = {
+    val declaration = stripLeadingVerilogAttributes(value)
+    declaration.startsWith("wire ") || declaration.startsWith("reg ") ||
+      declaration.startsWith("integer ")
+  }
 
   private def identifiers(value: String): Vector[String] =
     "[A-Za-z_][A-Za-z0-9_]*".r.findAllIn(value).toVector

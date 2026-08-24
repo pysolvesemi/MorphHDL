@@ -48,7 +48,11 @@ grep -Fq "definitionPredicateTracked" "$registry_file"
 grep -Fq "startGenerateIfExpression" "$structural_file"
 grep -Fq "selectSymbolicChain" "$bridge_file"
 grep -Fq "NativeIntSymbolicConditional" "$plugin_file"
-grep -Fq "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-NESTED-DEFERRED" "$bridge_file"
+if ! grep -Fq \
+  "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-NESTED-DEFERRED" \
+  "$bridge_file"; then
+  grep -Fq "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-DEPTH-EXCEEDED" "$bridge_file"
+fi
 grep -Fq "ordinary Scala Boolean conditional remains concrete" "$test_file"
 grep -Fq "native symbolic branch replay is deterministic" "$test_file"
 

@@ -15,6 +15,7 @@ final class ParameterizedStructuralBlock private[core] (
     private[core] val statements: Vector[Statement],
     private[core] val declarations: Vector[BaseType],
     private[core] val assignments: Vector[DataAssignmentStatement],
+    private[core] val memories: Vector[Mem[_]],
     private[core] val children: Vector[Component],
     private[core] val slices: Vector[ParameterizedStructure.StructuralSlice],
     private[core] val vecIndices: Vector[ParameterizedStructure.StructuralVecIndex],
@@ -138,9 +139,9 @@ object ParameterizedStructure {
   /**
     * Capture one representative ordinary SpinalHDL body.
     *
-    * Only top-level declarations, concurrent data assignments and ordinary
-    * child Components are accepted. Runtime tree statements, memories and
-    * arbitrary statement kinds are rejected explicitly instead of silently
+    * Only top-level declarations, concurrent data assignments, ordinary
+    * native memories and child Components are accepted. Runtime tree statements
+    * and arbitrary statement kinds are rejected explicitly instead of silently
     * changing Scala semantics.
     */
   def captureBlock(
@@ -206,16 +207,39 @@ object ParameterizedStructure {
     val assignments = statements.collect {
       case value: DataAssignmentStatement => value
     }
+    val memories = statements.collect { case value: Mem[_] => value }
+    val memoryPorts = statements.collect { case value: MemPortStatement => value }
+    memoryPorts.find(port => !memories.exists(_ eq port.mem)).foreach { port =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FOREIGN-MEMORY-PORT-UNSUPPORTED",
+        s"structural body emitted a memory port for '${Option(port.mem).flatMap(value => Option(value.getName())).getOrElse("<unnamed>")}' without declaring that memory inside the same captured block",
+        sourceLocation
+      )
+    }
+
+    // Every source alternative must remain available to the native emitter even
+    // when it is not selected by the concrete witness. Preserve the exact
+    // declarations and memory ports until the MorphHDL relocation pass extracts
+    // them into their parameterized structural region.
+    declarations.foreach { value =>
+      value.setAsVital()
+      value.dontSimplifyIt()
+    }
+    memories.foreach(_.preventAsBlackBox())
+    memoryPorts.foreach(port => port.isVital = true)
+
     val unsupported = statements.filterNot {
-      case _: BaseType                => true
-      case _: DataAssignmentStatement => true
-      case _                          => false
+      case _: BaseType                 => true
+      case _: DataAssignmentStatement  => true
+      case _: Mem[_]                   => true
+      case _: MemPortStatement         => true
+      case _                           => false
     }
 
     unsupported.headOption.foreach { value =>
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALA-SIDE-EFFECT-UNSUPPORTED",
-        s"structural body emitted unsupported native statement '${value.getClass.getSimpleName}'; only declarations, concurrent assignments and child Components may be captured",
+        s"structural body emitted unsupported native statement '${value.getClass.getSimpleName}'; only declarations, concurrent assignments, native memories and child Components may be captured",
         sourceLocation
       )
     }
@@ -227,8 +251,9 @@ object ParameterizedStructure {
       )
     }
     if (
-      declarations.isEmpty && assignments.isEmpty && children.isEmpty &&
-      state.slices.isEmpty && state.vecIndices.isEmpty && state.regions.isEmpty
+      declarations.isEmpty && assignments.isEmpty && memories.isEmpty &&
+      memoryPorts.isEmpty && children.isEmpty && state.slices.isEmpty &&
+      state.vecIndices.isEmpty && state.regions.isEmpty
     ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALA-SIDE-EFFECT-UNSUPPORTED",
@@ -241,6 +266,7 @@ object ParameterizedStructure {
       statements,
       declarations,
       assignments,
+      memories,
       children,
       state.slices.toVector,
       state.vecIndices.toVector,

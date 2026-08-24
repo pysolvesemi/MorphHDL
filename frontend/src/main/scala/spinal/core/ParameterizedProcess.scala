@@ -281,6 +281,15 @@ object ParameterizedProcess {
     val assignments = statements.collect {
       case value: DataAssignmentStatement => value
     }
+    val memories = statements.collect { case value: Mem[_] => value }
+    val memoryPorts = statements.collect { case value: MemPortStatement => value }
+    memoryPorts.find(port => !memories.exists(_ eq port.mem)).foreach { port =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FOREIGN-MEMORY-PORT-UNSUPPORTED",
+        s"structural range body emitted a memory port for '${Option(port.mem).flatMap(value => Option(value.getName())).getOrElse("<unnamed>")}' without declaring that memory inside the same captured block",
+        sourceLocation
+      )
+    }
     val processAssignments = assignments.filterNot { assignment =>
       state.slices.exists { slice =>
         assignment.finalTarget eq slice.result
@@ -289,6 +298,8 @@ object ParameterizedProcess {
     val unsupported = statements.filterNot {
       case _: BaseType                => true
       case _: DataAssignmentStatement => true
+      case _: Mem[_]                  => true
+      case _: MemPortStatement        => true
       case _                          => false
     }
 
@@ -303,11 +314,11 @@ object ParameterizedProcess {
       )
     }
 
-    if (children.nonEmpty || structuralDeclarations.nonEmpty) {
+    if (children.nonEmpty || structuralDeclarations.nonEmpty || memories.nonEmpty || memoryPorts.nonEmpty) {
       unsupported.headOption.foreach { value =>
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALA-SIDE-EFFECT-UNSUPPORTED",
-          s"structural body emitted unsupported native statement '${value.getClass.getSimpleName}'; only declarations, concurrent assignments and child Components may be captured",
+          s"structural body emitted unsupported native statement '${value.getClass.getSimpleName}'; only declarations, concurrent assignments, native memories and child Components may be captured",
           sourceLocation
         )
       }
@@ -332,8 +343,9 @@ object ParameterizedProcess {
         )
       }
       if (
-        declarations.isEmpty && assignments.isEmpty && children.isEmpty &&
-        state.slices.isEmpty && state.vecIndices.isEmpty
+        declarations.isEmpty && assignments.isEmpty && memories.isEmpty &&
+        memoryPorts.isEmpty && children.isEmpty && state.slices.isEmpty &&
+        state.vecIndices.isEmpty
       ) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALA-SIDE-EFFECT-UNSUPPORTED",
@@ -342,10 +354,15 @@ object ParameterizedProcess {
         )
       }
 
+      // Structural range bodies must retain inferred memories as native
+      // declarations until MorphHDL relocates them into the generate region.
+      memories.foreach(_.preventAsBlackBox())
+
       val block = new ParameterizedStructuralBlock(
         statements,
         declarations,
         assignments,
+        memories,
         children,
         state.slices.toVector,
         state.vecIndices.toVector,
