@@ -1,0 +1,60 @@
+name: Increment 52 native Verilog diagnostic
+
+on:
+  pull_request:
+    branches:
+      - parameterized-verilog
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.event.pull_request.head.ref == 'agent/increment-52-post-merge-overlap-fix'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-52-post-merge-overlap-fix
+          fetch-depth: 0
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Capture native nested-control Verilog
+        shell: bash
+        run: |
+          set +e
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            > /tmp/increment52-native.log 2>&1
+          status=$?
+          set -e
+          echo "focused status=$status"
+          echo '===== native files containing nested_fallback_sink ====='
+          found=0
+          while IFS= read -r file; do
+            if grep -q 'nested_fallback_sink' "$file"; then
+              found=1
+              echo "===== $file ====="
+              nl -ba "$file" | sed -n '1,180p'
+            fi
+          done < <(find /tmp -type f -name '*.v' -print | sort)
+          if [ "$found" -eq 0 ]; then
+            echo 'No retained native Verilog file contained nested_fallback_sink.'
+            find /tmp -type f -name '*.v' -print | sort
+          fi
+          echo '===== focused diagnostic ====='
+          grep -E 'FAILED|SPINAL-PARAMETERIZED|MorphVerilogException|Tests: succeeded|TESTS FAILED' \
+            /tmp/increment52-native.log | tail -n 80 || true
