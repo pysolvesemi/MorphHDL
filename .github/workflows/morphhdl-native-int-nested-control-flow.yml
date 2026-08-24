@@ -46,6 +46,179 @@ jobs:
           PY
           python3 .github/scripts/apply_increment52_shared_process_fix.py
 
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala')
+          text = path.read_text(encoding='utf-8')
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one site, found {count}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              'import java.util.regex.{Matcher, Pattern}\n',
+              'import java.util.IdentityHashMap\nimport java.util.regex.{Matcher, Pattern}\n',
+              'identity import',
+          )
+
+          replace_once(
+              '''  private final case class BlockPlan(
+              block: ParameterizedStructuralBlock,
+              ranges: Vector[LineRange],
+              body: String,
+              ownedNames: Set[String]
+          )
+
+          private final case class AlternativeStep(
+          ''',
+              '''  private final case class AssignmentEvidence(
+              target: String,
+              sourceNames: Set[String]
+          )
+
+          private final case class BlockPlan(
+              block: ParameterizedStructuralBlock,
+              ranges: Vector[LineRange],
+              body: String,
+              ownedNames: Set[String],
+              assignmentEvidence: Vector[AssignmentEvidence]
+          )
+
+          private final case class AlternativeStep(
+          ''',
+              'BlockPlan assignment evidence',
+          )
+
+          replace_once(
+              '''    val trackedInternalNames = mutable.LinkedHashSet.empty[String]
+              val ownedTargetNames = mutable.LinkedHashSet.empty[String]
+          ''',
+              '''    val trackedInternalNames = mutable.LinkedHashSet.empty[String]
+              val ownedTargetNames = mutable.LinkedHashSet.empty[String]
+              val assignmentEvidence = ArrayBuffer.empty[AssignmentEvidence]
+          ''',
+              'assignment evidence buffer',
+          )
+
+          replace_once(
+              '''    block.assignments.foreach { assignment =>
+              Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
+                ownedTargetNames += name
+              }
+            }
+          ''',
+              '''    block.assignments.foreach { assignment =>
+              Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
+                ownedTargetNames += name
+                assignmentEvidence += AssignmentEvidence(
+                  name,
+                  expressionNames(assignment.source)
+                )
+              }
+            }
+          ''',
+              'captured assignment evidence',
+          )
+
+          replace_once(
+              '''      return BlockPlan(
+                block,
+                mergedRanges,
+                "",
+                (trackedInternalNames ++ ownedTargetNames).toSet
+              )
+          ''',
+              '''      return BlockPlan(
+                block,
+                mergedRanges,
+                "",
+                (trackedInternalNames ++ ownedTargetNames).toSet,
+                assignmentEvidence.toVector
+              )
+          ''',
+              'empty BlockPlan evidence',
+          )
+
+          replace_once(
+              '''    BlockPlan(
+              block,
+              mergedRanges,
+              body,
+              (trackedInternalNames ++ ownedTargetNames).toSet
+            )
+          }
+
+          private def finalizePlan(plan: BlockPlan): BlockPlan = {
+          ''',
+              '''    BlockPlan(
+              block,
+              mergedRanges,
+              body,
+              (trackedInternalNames ++ ownedTargetNames).toSet,
+              assignmentEvidence.toVector
+            )
+          }
+
+          private def expressionNames(root: Expression): Set[String] = {
+            val names = mutable.LinkedHashSet.empty[String]
+            val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
+
+            def visit(value: Expression): Unit = {
+              if ((value ne null) && !visited.containsKey(value)) {
+                visited.put(value, java.lang.Boolean.TRUE)
+                value match {
+                  case named: Nameable =>
+                    Option(named.getName()).filter(_.nonEmpty).foreach(names += _)
+                  case _ =>
+                }
+                value.foreachExpression(visit)
+              }
+            }
+
+            visit(root)
+            names.toSet
+          }
+
+          private def finalizePlan(plan: BlockPlan): BlockPlan = {
+          ''',
+              'expression evidence helper',
+          )
+
+          replace_once(
+              '''                val assignmentNames = identifierTokens(stripped)
+                    val owners = claimants.filter { plan =>
+                      uniqueEvidence(plan.block).exists(name => assignmentNames(name))
+                    }
+                    owners match {
+          ''',
+              '''                val targetName = statement.group(1)
+                    val rhsNames = identifierTokens(statement.group(3))
+                    val exactOwners = claimants.filter { plan =>
+                      plan.assignmentEvidence.exists { evidence =>
+                        evidence.target == targetName &&
+                        evidence.sourceNames.exists(rhsNames.contains)
+                      }
+                    }
+                    val owners =
+                      if (exactOwners.nonEmpty) exactOwners
+                      else {
+                        val assignmentNames = identifierTokens(stripped)
+                        claimants.filter { plan =>
+                          uniqueEvidence(plan.block).exists(name => assignmentNames(name))
+                        }
+                      }
+                    owners match {
+          ''',
+              'AST assignment ownership',
+          )
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
           git show c37cfba9e8ed0d5ffa64cb0d631a35b986a30632:.github/workflows/morphhdl-native-int-nested-control-flow.yml \
             > .github/workflows/morphhdl-native-int-nested-control-flow.yml
           rm -f .github/workflows/increment-52-overlap-diagnostic.yml
@@ -72,12 +245,17 @@ jobs:
             > /tmp/increment52-focused.log 2>&1
           status=$?
           set -e
-          echo '===== Increment 52 focused diagnostic ====='
-          grep -E 'FAILED|SPINAL-PARAMETERIZED|MorphVerilogException|ParameterizedVerilogException|error\]|Exception|Tests: succeeded|TESTS FAILED' \
-            /tmp/increment52-focused.log | tail -n 160 || true
-          echo '===== Increment 52 focused tail ====='
-          tail -n 120 /tmp/increment52-focused.log
-          exit "$status"
+          if [ "$status" -ne 0 ]; then
+            echo '===== Increment 52 focused diagnostic ====='
+            grep -E 'FAILED|SPINAL-PARAMETERIZED|MorphVerilogException|ParameterizedVerilogException|error\]|Exception|Tests: succeeded|TESTS FAILED' \
+              /tmp/increment52-focused.log | tail -n 160 || true
+            echo '===== Increment 52 focused tail ====='
+            tail -n 120 /tmp/increment52-focused.log
+            exit "$status"
+          fi
+          tail -n 40 /tmp/increment52-focused.log
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests
 
       - name: Commit repaired production tree
         shell: bash
@@ -88,5 +266,5 @@ jobs:
           git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
                   .github/workflows/morphhdl-native-int-nested-control-flow.yml
           git add -u .github/workflows .github/scripts
-          git commit -m 'fix: partition shared native processes by branch evidence'
+          git commit -m 'fix: partition shared native processes by captured assignment evidence'
           git push origin HEAD:agent/increment-52-post-merge-overlap-fix
