@@ -1,0 +1,111 @@
+name: Increment 53 clean bootstrap
+
+on:
+  push:
+    branches:
+      - agent/increment-53-native-streamfifo-structure
+    paths:
+      - morphhdl/scripts/apply-increment-53-clean.py
+      - .github/workflows/increment-53-clean-bootstrap.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53-clean-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  materialize-test-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      BRANCH: agent/increment-53-native-streamfifo-structure
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-structure
+          fetch-depth: 0
+      - name: Normalize temporary generator portability
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          path = Path('morphhdl/scripts/apply-increment-53-clean.py')
+          text = path.read_text()
+          text = re.sub(
+              r'\n\s*case Apply\(fun, List\(value\)\) if decoded\(fun\.symbolOption[\s\S]*?Some\(fun -> value\)\n',
+              '\n',
+              text,
+              count=1,
+          )
+          path.write_text(text)
+          PY
+      - name: Materialize candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/apply-increment-53-clean.py
+          git diff --check
+          bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+          bash morphhdl/scripts/check-native-source-guard.sh
+      - name: Compile MorphHDL on both supported Scala versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mill -i 'morph[2.12.18].compile'
+          mill -i 'morph[2.13.12].compile'
+      - name: Focused Increment 53 contracts on Scala 2.12.18
+        shell: bash
+        run: |
+          set -euo pipefail
+          mill -i 'morph[2.12.18].testOnly' \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.AutomaticNativeMemDepthProvenanceTests
+      - name: Focused Increment 53 contracts on Scala 2.13.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          mill -i 'morph[2.13.12].testOnly' \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.AutomaticNativeMemDepthProvenanceTests
+      - name: Finalize roadmap and remove bootstrap machinery
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = path.read_text()
+          old = '- [ ] **Increment 53 — Native StreamFifo parameter structure without source edits**'
+          new = '- [x] **Increment 53 — Native StreamFifo parameter structure without source edits**'
+          if text.count(old) != 1:
+              raise SystemExit('Increment 53 unchecked roadmap entry was not found exactly once')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          rm -f morphhdl/scripts/apply-increment-53-clean.py
+          rm -f .github/workflows/increment-53-clean-bootstrap.yml
+          git diff --check
+          bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+          bash morphhdl/scripts/check-native-source-guard.sh
+      - name: Publish clean candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat(morphhdl): complete native StreamFifo parameter structure'
+          git pull --rebase origin "$BRANCH"
+          git push origin HEAD:"$BRANCH"
