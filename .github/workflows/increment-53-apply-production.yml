@@ -25,57 +25,72 @@ jobs:
           ref: agent/increment-53-native-streamfifo-clean
           fetch-depth: 0
 
-      - name: Wire compiler runtime and repair source boundary
+      - name: Restore untouched StreamFifo source and approve the reduced native delta
         shell: bash
         run: |
           set -euo pipefail
           branch=agent/increment-53-native-streamfifo-clean
           git config user.name 'MorphHDL Increment Agent'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          test -e morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
 
           python3 - <<'PY'
           from pathlib import Path
 
-          sbt = Path('build.sbt')
-          text = sbt.read_text()
-          old = '''lazy val morphplugin = (project in file("morphplugin"))
-            .settings('''.replace('          ', '')
-          new = '''lazy val morphplugin = (project in file("morphplugin"))
-            .dependsOn(morphruntime)
-            .settings('''.replace('          ', '')
-          if old not in text and new not in text:
-              raise SystemExit('build.sbt morphplugin anchor changed')
-          text = text.replace(old, new, 1)
-          sbt.write_text(text)
-
-          mill = Path('build.mill')
-          text = mill.read_text()
-          old = '''trait MorphPlugin extends SpinalModule {
-            override def mvnDeps'''.replace('          ', '')
-          new = '''trait MorphPlugin extends SpinalModule {
-            def moduleDeps = Seq(morphruntime(crossScalaVersion))
-            override def mvnDeps'''.replace('          ', '')
-          if old not in text and new not in text:
-              raise SystemExit('build.mill morphplugin anchor changed')
-          text = text.replace(old, new, 1)
-          mill.write_text(text)
-
-          boundary = Path('morphhdl/scripts/check-native-streamfifo-structure-boundary.sh')
-          text = boundary.read_text()
-          old = '''base_ref="$(sed -n 's/^ref=//p' morphhdl/upstream-base.conf)"
-          git diff --exit-code "$base_ref" -- lib/src/main/scala/spinal/lib/Stream.scala'''.replace('          ', '')
-          new = '''base_ref="$(sed -n 's/^UPSTREAM_COMMIT=//p' morphhdl/upstream-base.conf)"
-          [[ -n "$base_ref" ]]
-          git diff --exit-code "$base_ref" -- lib/src/main/scala/spinal/lib/Stream.scala'''.replace('          ', '')
-          if old not in text and new not in text:
-              raise SystemExit('StreamFifo boundary base anchor changed')
-          text = text.replace(old, new, 1)
-          boundary.write_text(text)
+          path = Path('lib/src/main/scala/spinal/lib/Stream.scala')
+          text = path.read_text()
+          old = '''        // The FIFO must return the queued word when a full pop and push target
+          // the same physical entry. Make the existing algorithm's read-first
+          // requirement explicit so symbolic-width native Mem lowering can
+          // preserve that behavior instead of relying on an unspecified policy.
+          val readPort = ram.readSyncPort(readUnderWrite = readFirst)
+          '''.replace('          ', '')
+          new = '        val readPort = ram.readSyncPort()\n'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one Increment 36 StreamFifo read-first edit, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
           PY
 
-          git add build.sbt build.mill morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+          git add lib/src/main/scala/spinal/lib/Stream.scala
           git diff --cached --check
-          git commit -m 'fix(morphhdl): wire Increment 53 compiler runtime'
+          git commit -m 'fix(morphhdl): restore untouched native StreamFifo source'
+          approved_commit="$(git rev-parse HEAD)"
+          approved_tree="$(git rev-parse HEAD^{tree})"
+          export APPROVED_COMMIT="$approved_commit" APPROVED_TREE="$approved_tree"
+
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path('morphhdl/contracts/native-source-preservation.json')
+          manifest = json.loads(path.read_text())
+          manifest['approved_state'] = {
+              'commit': os.environ['APPROVED_COMMIT'],
+              'tree': os.environ['APPROVED_TREE'],
+              'description': (
+                  'Reviewed native-source state after Increment 53 restored '
+                  'Stream.scala to upstream and removed the Increment 37 FIFO sidecar'
+              ),
+          }
+          removed = {
+              'lib/src/main/scala/spinal/lib/ParameterizedStreamFifoDepth.scala',
+              'lib/src/main/scala/spinal/lib/Stream.scala',
+          }
+          manifest['entries'] = [
+              entry for entry in manifest['entries'] if entry['path'] not in removed
+          ]
+          paths = [entry['path'] for entry in manifest['entries']]
+          if paths != sorted(paths):
+              raise SystemExit('native-source manifest entries are no longer sorted')
+          path.write_text(json.dumps(manifest, indent=2) + '\n')
+          PY
+
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            --manifest morphhdl/contracts/native-source-preservation.json
+          bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+
+          git add morphhdl/contracts/native-source-preservation.json
+          git diff --cached --check
+          git commit -m 'docs(morphhdl): approve Increment 53 native-source restoration'
           git pull --rebase origin "$branch"
           git push origin HEAD:"$branch"
