@@ -239,6 +239,18 @@ replace_once(
 )
 
 replace_once(
+    '''  ): BindingExpr = expression match {
+    case value: Bool => LiteralBinding(1)
+''',
+    '''  ): BindingExpr = expression match {
+    case _: BitVectorBitAccessFixed if allowConcreteInternal =>
+      LiteralBinding(1)
+    case value: Bool => LiteralBinding(1)
+''',
+    'fixed selected bit binding',
+)
+
+replace_once(
     '''        case None if value.isIo => LiteralBinding(value.getBitsWidth)
         case None =>
 ''',
