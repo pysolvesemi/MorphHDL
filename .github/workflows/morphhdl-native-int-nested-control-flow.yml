@@ -1,5 +1,7 @@
 name: MorphHDL native Int nested symbolic control flow
 
+# Increment 52 closure covers shared native-process partitioning and concrete
+# fixed-bit hierarchy evidence without weakening symbolic hierarchy contracts.
 on:
   push:
     branches:
