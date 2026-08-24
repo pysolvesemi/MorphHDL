@@ -1,0 +1,85 @@
+name: Increment 52 overlap diagnostic
+
+on:
+  push:
+    branches:
+      - agent/increment-52-post-merge-overlap-fix
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add temporary overlap detail
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala')
+          text = path.read_text(encoding='utf-8')
+          old = '''    val allRanges = plans.flatMap(_.ranges)
+    allRanges.combinations(2).foreach {
+      case Vector(left, right) if left.overlaps(right) =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-OVERLAP",
+          s"captured native module-item ranges ${left.start}-${left.end} and ${right.start}-${right.end} overlap"
+        )
+      case _ =>
+    }
+'''
+          new = '''    val allRanges = plans.flatMap(_.ranges)
+    plans.zipWithIndex.combinations(2).foreach {
+      case Vector((leftPlan, leftIndex), (rightPlan, rightIndex)) =>
+        leftPlan.ranges.foreach { left =>
+          rightPlan.ranges.foreach { right =>
+            if (left.overlaps(right)) {
+              val overlapStart = math.max(left.start, right.start)
+              val overlapEnd = math.min(left.end, right.end)
+              val overlapText = (overlapStart to overlapEnd).map(index => s"${index + 1}: ${lines(index)}").mkString("\\n")
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-OVERLAP",
+                s"captured native module-item ranges ${left.start}-${left.end} and ${right.start}-${right.end} overlap; leftPlan=$leftIndex origin=${leftPlan.block.sourceLocation.getOrElse("<none>")} ranges=${leftPlan.ranges.mkString(",")} body=\\n${leftPlan.body}\\nrightPlan=$rightIndex origin=${rightPlan.block.sourceLocation.getOrElse("<none>")} ranges=${rightPlan.ranges.mkString(",")} body=\\n${rightPlan.body}\\noverlap=\\n$overlapText"
+              )
+            }
+          }
+        }
+      case _ =>
+    }
+'''
+          if text.count(old) != 1:
+              raise SystemExit('overlap patch site not found exactly once')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Install Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run focused failing suite
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests 2>&1 | tee /tmp/increment52.log
+          status=${PIPESTATUS[0]}
+          echo '===== Increment 52 diagnostic tail ====='
+          tail -n 400 /tmp/increment52.log
+          exit "$status"
