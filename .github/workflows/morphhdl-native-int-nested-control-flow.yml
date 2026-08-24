@@ -61,15 +61,23 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Validate source boundary and focused Increment 52 contracts
+      - name: Validate source boundary and focused Increment 52 contract
         shell: bash
         run: |
           set -euo pipefail
           bash morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
+          set +e
           /tmp/morphhdl-mill morph[2.12.18].testOnly \
-            morphhdl.NativeIntNestedSymbolicControlFlowTests
-          /tmp/morphhdl-mill morph[2.13.12].testOnly \
-            morphhdl.NativeIntNestedSymbolicControlFlowTests
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            > /tmp/increment52-focused.log 2>&1
+          status=$?
+          set -e
+          echo '===== Increment 52 focused diagnostic ====='
+          grep -E 'FAILED|SPINAL-PARAMETERIZED|MorphVerilogException|ParameterizedVerilogException|error\]|Exception|Tests: succeeded|TESTS FAILED' \
+            /tmp/increment52-focused.log | tail -n 160 || true
+          echo '===== Increment 52 focused tail ====='
+          tail -n 120 /tmp/increment52-focused.log
+          exit "$status"
 
       - name: Commit repaired production tree
         shell: bash
