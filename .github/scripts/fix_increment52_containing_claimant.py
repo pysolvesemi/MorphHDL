@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Teach the materialized Increment 52 resolver about containing process ranges."""
+"""Close containing shared-process ownership and concrete hierarchy evidence."""
 
 from pathlib import Path
+import subprocess
 
-path = Path(
+structural_path = Path(
     'morphhdl/src/main/scala/spinal/core/internals/'
     'ParameterizedVerilogStructural.scala'
 )
-text = path.read_text(encoding='utf-8')
+text = structural_path.read_text(encoding='utf-8')
 
 old_candidates = '''        val initialBlocks = initialClaimants.map(_.block).toSet
         val missingCandidates = plans.filterNot(plan => initialBlocks(plan.block)).filter { plan =>
@@ -97,4 +98,125 @@ if count != 1:
     raise SystemExit(f'expected one recovered-claimant materialization site, found {count}')
 text = text.replace(old_selection, new_selection, 1)
 
-path.write_text(text, encoding='utf-8')
+structural_path.write_text(text, encoding='utf-8')
+
+hierarchy_path = Path(
+    'morphhdl/src/main/scala/spinal/core/internals/'
+    'ExternalParameterizedVerilogHierarchy.scala'
+)
+hierarchy = hierarchy_path.read_text(encoding='utf-8')
+
+
+def replace_once(old: str, new: str, label: str) -> None:
+    global hierarchy
+    count = hierarchy.count(old)
+    if count != 1:
+        raise SystemExit(f'{label}: expected one site, found {count}')
+    hierarchy = hierarchy.replace(old, new, 1)
+
+
+replace_once(
+    '''          connectionEvidence(
+            parent,
+            child,
+            actualByName(name),
+            assignments,
+            s"concrete port '$name' of instance '$instanceName'"
+          ).foreach { expression =>
+''',
+    '''          connectionEvidence(
+            parent,
+            child,
+            actualByName(name),
+            assignments,
+            s"concrete port '$name' of instance '$instanceName'",
+            allowConcreteInternal = true
+          ).foreach { expression =>
+''',
+    'concrete-port hierarchy evidence',
+)
+
+replace_once(
+    '''  private def connectionEvidence(
+      parent: Component,
+      child: Component,
+      port: BaseType,
+      assignments: Vector[DataAssignmentStatement],
+      context: String
+  ): Vector[BindingExpr] = {
+''',
+    '''  private def connectionEvidence(
+      parent: Component,
+      child: Component,
+      port: BaseType,
+      assignments: Vector[DataAssignmentStatement],
+      context: String,
+      allowConcreteInternal: Boolean = false
+  ): Vector[BindingExpr] = {
+''',
+    'connectionEvidence concrete-internal flag',
+)
+
+replace_once(
+    '''          Vector(bindingOf(parent, assignment.source, context))
+''',
+    '''          Vector(
+            bindingOf(
+              parent,
+              assignment.source,
+              context,
+              allowConcreteInternal
+            )
+          )
+''',
+    'child-input binding flag',
+)
+
+replace_once(
+    '''          Vector(bindingOf(parent, assignment.finalTarget, context))
+''',
+    '''          Vector(
+            bindingOf(
+              parent,
+              assignment.finalTarget,
+              context,
+              allowConcreteInternal
+            )
+          )
+''',
+    'child-output binding flag',
+)
+
+replace_once(
+    '''  private def bindingOf(
+      parent: Component,
+      expression: Expression,
+      context: String
+  ): BindingExpr = expression match {
+''',
+    '''  private def bindingOf(
+      parent: Component,
+      expression: Expression,
+      context: String,
+      allowConcreteInternal: Boolean
+  ): BindingExpr = expression match {
+''',
+    'bindingOf concrete-internal flag',
+)
+
+replace_once(
+    '''        case None if value.isIo => LiteralBinding(value.getBitsWidth)
+        case None =>
+''',
+    '''        case None if value.isIo || allowConcreteInternal =>
+          LiteralBinding(value.getBitsWidth)
+        case None =>
+''',
+    'concrete internal binding acceptance',
+)
+
+hierarchy_path.write_text(hierarchy, encoding='utf-8')
+
+# The historical repair workflow stages only the structural file explicitly.
+# Stage the hierarchy fix here so its later commit includes both production files.
+subprocess.run(['git', 'add', str(hierarchy_path)], check=True)
