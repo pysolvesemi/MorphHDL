@@ -67,8 +67,15 @@ jobs:
           sbt -batch \
             '++2.12.18' \
             'clean' \
-            'morph/Compile/packageBin' \
-            'lib/Compile/packageBin'
+            'idslpayload/Compile/packageBin' \
+            'idslplugin/Compile/packageBin' \
+            'sim/Compile/packageBin' \
+            'paramrtl/Compile/packageBin' \
+            'core/Compile/packageBin' \
+            'lib/Compile/packageBin' \
+            'frontend/Compile/packageBin' \
+            'verilogBackend/Compile/packageBin' \
+            'morph/Compile/packageBin'
 
       - name: Collect module products and resolved runtime jars
         shell: bash
@@ -121,14 +128,33 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import json
+          import zipfile
+
           root = Path('/tmp/p1-ddr-read-toolchain')
+          modules = list((root / 'modules').glob('*.jar'))
+          required_entries = {
+              'spinal/core/Component.class': False,
+              'spinal/lib/Stream.class': False,
+              'spinal/idslplugin/IdslPlugin.class': False,
+              'morphhdl/MorphVerilog.class': False,
+          }
+          for jar in modules:
+              with zipfile.ZipFile(jar) as archive:
+                  names = set(archive.namelist())
+                  for entry in required_entries:
+                      required_entries[entry] |= entry in names
+          missing = sorted(entry for entry, present in required_entries.items() if not present)
+          if missing:
+              raise SystemExit(f'missing required runtime classes: {missing}')
+
           manifest = {
               'schema': 'morphhdl-offline-toolchain/v1',
               'morphhdl_commit': '81abd25518551b8a452ecf038e409331e646f726',
               'scala': '2.12.18',
-              'module_jars': len(list((root / 'modules').glob('*.jar'))),
+              'module_jars': len(modules),
               'external_jars': len(list((root / 'external').glob('*.jar'))),
               'debian_packages': len(list((root / 'debs').glob('*.deb'))),
+              'required_runtime_classes': required_entries,
           }
           (root / 'toolchain.json').write_text(json.dumps(manifest, sort_keys=True, indent=2) + '\n')
           PY
