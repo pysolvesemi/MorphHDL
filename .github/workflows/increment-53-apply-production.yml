@@ -33,26 +33,14 @@ jobs:
           git config user.name 'MorphHDL Increment Agent'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('lib/src/main/scala/spinal/lib/Stream.scala')
-          text = path.read_text()
-          old = '''        // The FIFO must return the queued word when a full pop and push target
-          // the same physical entry. Make the existing algorithm's read-first
-          // requirement explicit so symbolic-width native Mem lowering can
-          // preserve that behavior instead of relying on an unspecified policy.
-          val readPort = ram.readSyncPort(readUnderWrite = readFirst)
-          '''.replace('          ', '')
-          new = '        val readPort = ram.readSyncPort()\n'
-          if text.count(old) != 1:
-              raise SystemExit(f'expected one Increment 36 StreamFifo read-first edit, found {text.count(old)}')
-          path.write_text(text.replace(old, new, 1))
-          PY
-
-          git add lib/src/main/scala/spinal/lib/Stream.scala
+          upstream_commit="$(sed -n 's/^UPSTREAM_COMMIT=//p' morphhdl/upstream-base.conf)"
+          [[ -n "$upstream_commit" ]]
+          git checkout "$upstream_commit" -- lib/src/main/scala/spinal/lib/Stream.scala
           git diff --cached --check
-          git commit -m 'fix(morphhdl): restore untouched native StreamFifo source'
+          git diff --cached --quiet && {
+            echo 'Stream.scala is already byte-for-byte upstream.'
+          } || git commit -m 'fix(morphhdl): restore untouched native StreamFifo source'
+
           approved_commit="$(git rev-parse HEAD)"
           approved_tree="$(git rev-parse HEAD^{tree})"
           export APPROVED_COMMIT="$approved_commit" APPROVED_TREE="$approved_tree"
@@ -91,6 +79,7 @@ jobs:
 
           git add morphhdl/contracts/native-source-preservation.json
           git diff --cached --check
-          git commit -m 'docs(morphhdl): approve Increment 53 native-source restoration'
+          git diff --cached --quiet || \
+            git commit -m 'docs(morphhdl): approve Increment 53 native-source restoration'
           git pull --rebase origin "$branch"
           git push origin HEAD:"$branch"
