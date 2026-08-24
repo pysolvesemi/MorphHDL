@@ -188,6 +188,50 @@ replace_once(
 )
 
 replace_once(
+    '''        } else if (
+          assignment.source == port && assignment.target == assignment.finalTarget &&
+          assignment.finalTarget.component == parent
+        ) {
+          Vector(
+            bindingOf(
+              parent,
+              assignment.finalTarget,
+              context,
+              allowConcreteInternal
+            )
+          )
+        } else {
+''',
+    '''        } else if (
+          assignment.source == port && assignment.target == assignment.finalTarget &&
+          assignment.finalTarget.component == parent
+        ) {
+          Vector(
+            bindingOf(
+              parent,
+              assignment.finalTarget,
+              context,
+              allowConcreteInternal
+            )
+          )
+        } else if (
+          allowConcreteInternal && assignment.source == port &&
+          assignment.finalTarget.component == parent
+        ) {
+          Vector(
+            bindingOf(
+              parent,
+              assignment.target,
+              context,
+              allowConcreteInternal
+            )
+          )
+        } else {
+''',
+    'concrete selected child-output target',
+)
+
+replace_once(
     '''  private def bindingOf(
       parent: Component,
       expression: Expression,
