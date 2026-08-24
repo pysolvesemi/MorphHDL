@@ -1,0 +1,333 @@
+name: Increment 52 closure controller
+
+on:
+  push:
+    branches:
+      - agent/increment-52-nested-control-flow-backup
+    paths:
+      - .github/workflows/increment-52-controller.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+  checks: read
+
+concurrency:
+  group: increment-52-controller
+  cancel-in-progress: false
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPOSITORY: ${{ github.repository }}
+      PR_NUMBER: "95"
+      HEAD_BRANCH: agent/increment-52-nested-control-flow-clean
+      BASE_BRANCH: parameterized-verilog
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve current PR state
+        id: state
+        shell: bash
+        run: |
+          set -euo pipefail
+          pr=$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER")
+          merged=$(python3 -c 'import json,sys; print(str(json.load(sys.stdin).get("merged", False)).lower())' <<<"$pr")
+          echo "merged=$merged" >> "$GITHUB_OUTPUT"
+          git fetch origin "$HEAD_BRANCH" "$BASE_BRANCH"
+
+      - name: Prepare the current PR head
+        if: steps.state.outputs.merged != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout -B "$HEAD_BRANCH" "origin/$HEAD_BRANCH"
+          find .github/workflows -maxdepth 1 -type f -name 'increment-52-*.yml' -delete
+          git reset
+
+      - name: Apply the strict exact-shared-range repair
+        if: steps.state.outputs.merged != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          source = Path("morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala")
+          text = source.read_text(encoding="utf-8")
+          diagnostic = "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-OVERLAP"
+          pos = text.find(diagnostic)
+          if pos < 0:
+              raise SystemExit("strict structural overlap diagnostic is missing")
+
+          # Locate the nearest pattern-match guard whose body raises the overlap
+          # diagnostic.  This avoids tying the repair to line numbers or local
+          # variable names.
+          arrow = text.rfind("=>", 0, pos)
+          case_start = text.rfind("case ", 0, arrow)
+          if arrow < 0 or case_start < 0:
+              raise SystemExit("overlap case guard was not found")
+          header = text[case_start:arrow]
+          if_match = list(re.finditer(r"\bif\b", header))
+          if not if_match:
+              raise SystemExit(f"overlap case has no guard: {header!r}")
+          if_start = if_match[-1].start()
+          pattern = header[len("case "):if_start].strip()
+          condition = header[if_start + len("if"):].strip()
+
+          # Recover the two range objects and their endpoint members from the
+          # diagnostic interpolation first, then fall back to the guard itself.
+          body = text[arrow:pos + 1500]
+          refs = re.findall(r"\$\{\s*([A-Za-z_]\w*)\.([A-Za-z_]\w*)[^}]*\}", body)
+          vars_in_refs = []
+          fields = {}
+          for variable, field in refs:
+              if variable not in vars_in_refs:
+                  vars_in_refs.append(variable)
+              fields.setdefault(variable, []).append(field)
+
+          pattern_vars = []
+          for variable in re.findall(r"\b([a-z_][A-Za-z0-9_]*)\b", pattern):
+              if variable not in {"case", "if"} and variable not in pattern_vars:
+                  pattern_vars.append(variable)
+          pair = vars_in_refs[:2] if len(vars_in_refs) >= 2 else pattern_vars[-2:]
+          if len(pair) != 2:
+              raise SystemExit(f"cannot identify adjacent capture ranges from {pattern!r} / {refs!r}")
+          left, right = pair
+
+          all_fields = []
+          for variable in pair:
+              for field in fields.get(variable, []):
+                  if field not in all_fields:
+                      all_fields.append(field)
+          starts = [field for field in all_fields if any(token in field.lower() for token in ("start", "from", "first", "begin"))]
+          ends = [field for field in all_fields if any(token in field.lower() for token in ("end", "until", "last", "to"))]
+          if starts and ends:
+              start_field, end_field = starts[0], ends[0]
+          else:
+              # Current capture records use start/end; require those members to
+              # already be present in the local guard/body before using them.
+              local = header + body
+              if not all(f"{v}.start" in local and f"{v}.end" in local for v in pair):
+                  raise SystemExit(f"cannot identify range endpoints from {refs!r}")
+              start_field, end_field = "start", "end"
+
+          exact = (
+              f"{left}.{start_field} == {right}.{start_field} && "
+              f"{left}.{end_field} == {right}.{end_field}"
+          )
+          normalized = re.sub(r"\s+", "", condition)
+          exact_normalized = re.sub(r"\s+", "", exact)
+          if exact_normalized not in normalized:
+              replacement = f"case {pattern} if ({condition}) && !({exact}) "
+              text = text[:case_start] + replacement + text[arrow:]
+              source.write_text(text, encoding="utf-8")
+
+          todo = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          lines = todo.read_text(encoding="utf-8").splitlines(True)
+          matches = [i for i, line in enumerate(lines) if "Increment 52" in line]
+          if len(matches) != 1:
+              raise SystemExit(f"expected one Increment 52 roadmap entry, got {len(matches)}")
+          index = matches[0]
+          if "[x]" not in lines[index]:
+              if "[ ]" not in lines[index]:
+                  raise SystemExit("Increment 52 roadmap entry has no checkbox")
+              lines[index] = lines[index].replace("[ ]", "[x]", 1)
+          todo.write_text("".join(lines), encoding="utf-8")
+          PY
+          git diff --check
+
+      - name: Install pinned Mill
+        if: steps.state.outputs.merged != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run focused and inherited dual-Scala proof
+        if: steps.state.outputs.merged != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
+          for scala_version in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill "frontend[$scala_version].testOnly" morphhdl.frontend.HdlIntTests
+            /tmp/morphhdl-mill "morph[$scala_version].testOnly" \
+              morphhdl.NativeIntNestedSymbolicControlFlowTests \
+              morphhdl.NativeIntSymbolicConditionalTests \
+              morphhdl.NaturalSymbolicConditionalTests \
+              morphhdl.ExternalNativeIntShadowExpressionTests \
+              morphhdl.ExternalNativeIntShadowProvenanceTests \
+              morphhdl.ExternalNativeIntFormalizationTests \
+              morphhdl.FormalParameterIdentityTests \
+              morphhdl.FormalParameterClonePropagationTests \
+              morphhdl.HierarchyParameterBindingTests \
+              morphhdl.MorphSingleSourceVerilogTests \
+              morphhdl.integration.ExternalSpinalVerilogBaselineTests
+          done
+
+      - name: Run complete MorphHDL matrix
+        if: steps.state.outputs.merged != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala_version in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill "idslplugin[$scala_version].test"
+            /tmp/morphhdl-mill "paramrtl[$scala_version].test"
+            /tmp/morphhdl-mill "frontend[$scala_version].test"
+            /tmp/morphhdl-mill "verilogBackend[$scala_version].test"
+            /tmp/morphhdl-mill "morph[$scala_version].test"
+            /tmp/morphhdl-mill "core[$scala_version].testOnly" spinal.core.internals.SpinalVerilogPhasePlanTests
+          done
+
+      - name: Publish the verified final PR head
+        if: steps.state.outputs.merged != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
+                  docs/morphhdl/parameterized-verilog-todo.md
+          git add -u .github/workflows
+          if git diff --cached --quiet; then
+            echo "No new production delta is required"
+          else
+            git commit -m "Complete Increment 52 nested symbolic control flow"
+            git push origin HEAD:"$HEAD_BRANCH"
+          fi
+          final_sha=$(git rev-parse HEAD)
+          echo "FINAL_SHA=$final_sha" >> "$GITHUB_ENV"
+
+      - name: Mark PR ready
+        if: steps.state.outputs.merged != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="${REPOSITORY%%/*}"
+          repo="${REPOSITORY#*/}"
+          response=$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/graphql \
+            --data-binary @- <<JSON
+          {"query":"query { repository(owner: \"$owner\", name: \"$repo\") { pullRequest(number: $PR_NUMBER) { id isDraft } } }"}
+          JSON
+          )
+          pr_id=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["repository"]["pullRequest"]["id"])' <<<"$response")
+          is_draft=$(python3 -c 'import json,sys; print(str(json.load(sys.stdin)["data"]["repository"]["pullRequest"]["isDraft"]).lower())' <<<"$response")
+          if [ "$is_draft" = "true" ]; then
+            curl --fail --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Content-Type: application/json" \
+              https://api.github.com/graphql \
+              --data-binary @- >/tmp/ready.json <<JSON
+          {"query":"mutation { markPullRequestReadyForReview(input: {pullRequestId: \"$pr_id\"}) { pullRequest { isDraft } } }"}
+          JSON
+          fi
+
+      - name: Dispatch final-head workflows
+        if: steps.state.outputs.merged != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "$HEAD_BRANCH"
+          ref="origin/$HEAD_BRANCH"
+          dispatched=0
+          while IFS= read -r workflow; do
+            [ -n "$workflow" ] || continue
+            content=$(git show "$ref:$workflow")
+            if ! printf '%s\n' "$content" | grep -q 'workflow_dispatch'; then
+              continue
+            fi
+            encoded=$(python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$workflow")
+            code=$(curl --silent --show-error -o /tmp/dispatch.json -w '%{http_code}' \
+              -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/$REPOSITORY/actions/workflows/$encoded/dispatches" \
+              -d "{\"ref\":\"$HEAD_BRANCH\"}")
+            if [ "$code" = "204" ]; then dispatched=$((dispatched + 1)); fi
+          done < <(git ls-tree -r --name-only "$ref" .github/workflows | sort)
+          echo "Dispatched $dispatched final-head workflows"
+
+      - name: Wait for exact final SHA and squash-merge
+        if: steps.state.outputs.merged != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 480); do
+            pr=$(curl --fail --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER")
+            if python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("merged") else 1)' <<<"$pr"; then
+              exit 0
+            fi
+
+            checks=$(curl --fail --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPOSITORY/commits/$FINAL_SHA/check-runs?per_page=100")
+            bad=$(python3 -c 'import json,sys; d=json.load(sys.stdin); bad={"failure","cancelled","timed_out","action_required","startup_failure","stale"}; print(sum(1 for r in d.get("check_runs",[]) if r.get("conclusion") in bad))' <<<"$checks")
+            pending=$(python3 -c 'import json,sys; d=json.load(sys.stdin); print(sum(1 for r in d.get("check_runs",[]) if r.get("status") != "completed"))' <<<"$checks")
+            count=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("total_count",0))' <<<"$checks")
+            if [ "$bad" -gt 0 ]; then
+              echo "A final-head hosted check failed" >&2
+              exit 1
+            fi
+            if [ "$count" -gt 0 ] && [ "$pending" -eq 0 ]; then
+              code=$(curl --silent --show-error -o /tmp/merge.json -w '%{http_code}' \
+                -X PUT \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                -H "Content-Type: application/json" \
+                "https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER/merge" \
+                -d "{\"commit_title\":\"Complete Increment 52 nested symbolic control flow (#95)\",\"merge_method\":\"squash\",\"sha\":\"$FINAL_SHA\"}")
+              if [ "$code" = "200" ] && python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("merged") else 1)' </tmp/merge.json; then
+                exit 0
+              fi
+            fi
+            sleep 30
+          done
+          echo "Timed out waiting for protected Increment 52 squash merge" >&2
+          cat /tmp/merge.json >&2 2>/dev/null || true
+          exit 1
+
+      - name: Verify merged base state
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "$BASE_BRANCH"
+          base="origin/$BASE_BRANCH"
+          todo=$(git show "$base:docs/morphhdl/parameterized-verilog-todo.md")
+          matches=$(printf '%s\n' "$todo" | grep 'Increment 52' | grep -c '\[x\]' || true)
+          if [ "$matches" -ne 1 ]; then
+            echo "Merged base does not mark Increment 52 complete" >&2
+            exit 1
+          fi
+          temporary=$(git ls-tree -r --name-only "$base" .github/workflows | grep -c '^.github/workflows/increment-52-' || true)
+          if [ "$temporary" -ne 0 ]; then
+            echo "Temporary Increment 52 workflows remain in the merged base" >&2
+            exit 1
+          fi
