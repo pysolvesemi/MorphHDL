@@ -1,0 +1,110 @@
+name: Increment 52 verified auto merge
+
+on:
+  push:
+    branches:
+      - agent/increment-52-nested-control-flow-clean
+    paths:
+      - .github/workflows/increment-52-verified-auto-merge.yml
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-52-nested-control-flow-clean
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Source-boundary proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
+
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Dual-Scala Increment 52 proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill frontend[$scala].testOnly morphhdl.frontend.HdlIntTests
+            /tmp/morphhdl-mill morph[$scala].testOnly \
+              morphhdl.NativeIntNestedSymbolicControlFlowTests \
+              morphhdl.NativeIntSymbolicConditionalTests \
+              morphhdl.NaturalSymbolicConditionalTests \
+              morphhdl.ExternalNativeIntShadowExpressionTests \
+              morphhdl.ExternalNativeIntShadowProvenanceTests \
+              morphhdl.ExternalNativeIntFormalizationTests \
+              morphhdl.FormalParameterIdentityTests \
+              morphhdl.FormalParameterClonePropagationTests \
+              morphhdl.HierarchyParameterBindingTests \
+              morphhdl.MorphSingleSourceVerilogTests \
+              morphhdl.integration.ExternalSpinalVerilogBaselineTests
+          done
+
+      - name: Publish verified closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          todo = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = todo.read_text(encoding='utf-8')
+          updated, count = re.subn(
+              r'(?m)^(\s*[-*]?\s*)\[ \](\s+.*Increment\s+52\b.*)$',
+              r'\1[x]\2', text, count=1,
+          )
+          if count:
+              todo.write_text(updated, encoding='utf-8')
+          elif not re.search(r'(?m)^\s*[-*]?\s*\[x\]\s+.*Increment\s+52\b', text):
+              raise SystemExit('Increment 52 roadmap entry not found')
+          PY
+          rm -f .github/workflows/increment-52-contract-closure.yml
+          rm -f .github/workflows/increment-52-final-verification.yml
+          rm -f .github/workflows/increment-52-exact-range-normalization.yml
+          rm -f .github/workflows/increment-52-verified-auto-merge.yml
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/morphhdl/parameterized-verilog-todo.md
+          git add -u .github/workflows
+          if ! git diff --cached --quiet; then
+            git commit -m 'docs: close Increment 52 after verified contracts'
+            git push origin HEAD:agent/increment-52-nested-control-flow-clean
+          fi
+
+  enable-auto-merge:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Mark PR ready and enable squash auto-merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh pr ready 95 --repo pysolvesemi/MorphHDL || true
+          gh pr merge 95 --repo pysolvesemi/MorphHDL --auto --squash --delete-branch
