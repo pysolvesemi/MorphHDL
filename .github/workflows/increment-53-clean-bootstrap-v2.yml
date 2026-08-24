@@ -1,0 +1,141 @@
+name: Increment 53 clean bootstrap v2
+
+on:
+  push:
+    branches:
+      - agent/increment-53-native-streamfifo-structure
+    paths:
+      - .github/workflows/increment-53-clean-bootstrap-v2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53-clean-bootstrap
+  cancel-in-progress: true
+
+jobs:
+  materialize-test-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      BRANCH: agent/increment-53-native-streamfifo-structure
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-structure
+          fetch-depth: 0
+      - name: Normalize generator and materialize
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          path = Path('morphhdl/scripts/apply-increment-53-clean.py')
+          text = path.read_text()
+          text = re.sub(
+              r'\n\s*case Apply\(fun, List\(value\)\) if decoded\(fun\.symbolOption[\s\S]*?Some\(fun -> value\)\n',
+              '\n',
+              text,
+              count=1,
+          )
+          text = text.replace(
+              'super.transform(value.impl.self),',
+              'super.transform(value.impl.self).asInstanceOf[ValDef],',
+          )
+          path.write_text(text)
+          PY
+          python3 morphhdl/scripts/apply-increment-53-clean.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, re
+          root = Path('.')
+          generated = root / 'core/src/main/scala/spinal/core/ExternalNativeStreamFifoRuntime.scala'
+          matches = [
+              path for path in (root / 'core/src/main/scala').rglob('*.scala')
+              if path != generated and 'object ExternalNativeIntShadowRegistry' in path.read_text(errors='ignore')
+          ]
+          if len(matches) != 1:
+              raise SystemExit(f'expected one native shadow registry source, found {matches}')
+          target = matches[0]
+          runtime = generated.read_text()
+          runtime = re.sub(r'^package\s+spinal\.core\s*', '', runtime, count=1)
+          text = target.read_text()
+          if 'object ExternalNativeIntShadowRuntime' not in text:
+              target.write_text(text.rstrip() + '\n\n' + runtime.lstrip())
+          generated.unlink()
+
+          digest = hashlib.sha256(target.read_bytes()).hexdigest()
+          rel = target.as_posix()
+          for manifest in list((root / 'morphhdl').rglob('*')) + list((root / 'docs/morphhdl').rglob('*')):
+              if not manifest.is_file() or manifest.suffix.lower() not in {'.json','.yml','.yaml','.md','.txt'}:
+                  continue
+              source = manifest.read_text(errors='ignore')
+              if rel not in source:
+                  continue
+              updated = re.sub(
+                  rf'({re.escape(rel)}[\s\S]{{0,600}}?(?:sha256|sha-256|current_hash|current_sha256)[\"\']?\s*[:=]\s*[\"\']?)[0-9a-f]{{64}}',
+                  rf'\g<1>{digest}',
+                  source,
+                  flags=re.I,
+              )
+              if updated != source:
+                  manifest.write_text(updated)
+          PY
+          git diff --check
+          bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+      - name: Compile both supported Scala versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mill -i 'morph[2.12.18].compile'
+          mill -i 'morph[2.13.12].compile'
+      - name: Run Increment 53 and inherited contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala_version in 2.12.18 2.13.12; do
+            mill -i "morph[$scala_version].testOnly" \
+              morphhdl.ParameterizedStreamFifoDepthTests \
+              morphhdl.NativeIntSymbolicConditionalTests \
+              morphhdl.NativeIntNestedSymbolicControlFlowTests \
+              morphhdl.AutomaticNativeMemDepthProvenanceTests
+          done
+      - name: Native-source and final source boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-source-guard.sh
+          bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+      - name: Finalize and publish clean candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = path.read_text()
+          old = '- [ ] **Increment 53 — Native StreamFifo parameter structure without source edits**'
+          new = '- [x] **Increment 53 — Native StreamFifo parameter structure without source edits**'
+          if text.count(old) != 1:
+              raise SystemExit('Increment 53 unchecked roadmap entry was not found exactly once')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          rm -f morphhdl/scripts/apply-increment-53-clean.py
+          rm -f .github/workflows/increment-53-clean-bootstrap.yml
+          rm -f .github/workflows/increment-53-clean-bootstrap-v2.yml
+          git diff --check
+          bash morphhdl/scripts/check-native-source-guard.sh
+          bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat(morphhdl): complete native StreamFifo parameter structure'
+          git pull --rebase origin "$BRANCH"
+          git push origin HEAD:"$BRANCH"
