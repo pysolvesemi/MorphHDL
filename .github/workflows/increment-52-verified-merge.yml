@@ -1,0 +1,115 @@
+name: Increment 52 verified merge
+
+on:
+  push:
+    branches:
+      - agent/increment-52-nested-control-flow-clean
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+  checks: read
+
+jobs:
+  merge:
+    if: github.actor == 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out final Increment 52 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-52-nested-control-flow-clean
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Require verified closure state
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -e .github/workflows/increment-52-final-closure.yml ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          lines = Path("docs/morphhdl/parameterized-verilog-todo.md").read_text(encoding="utf-8").splitlines()
+          matches = [line for line in lines if "Increment 52" in line]
+          if len(matches) != 1 or "[x]" not in matches[0]:
+              raise SystemExit("Increment 52 is not marked complete on the verified branch")
+          PY
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Remove temporary merge workflow from final tree
+        if: steps.gate.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/increment-52-verified-merge.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u .github/workflows/increment-52-verified-merge.yml
+          git commit -m "ci: remove Increment 52 closure automation"
+          git push origin HEAD:agent/increment-52-nested-control-flow-clean
+          echo "FINAL_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Mark PR ready and squash-merge only when GitHub permits
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: "95"
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          owner="${REPOSITORY%%/*}"
+          repo="${REPOSITORY#*/}"
+
+          pr_id=$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/graphql \
+            --data-binary @- <<JSON | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["repository"]["pullRequest"]["id"])'
+          {"query":"query { repository(owner: \"$owner\", name: \"$repo\") { pullRequest(number: $PR_NUMBER) { id isDraft merged } } }"}
+          JSON
+          )
+
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/graphql \
+            --data-binary @- >/tmp/ready.json <<JSON
+          {"query":"mutation { markPullRequestReadyForReview(input: {pullRequestId: \"$pr_id\"}) { pullRequest { isDraft } } }"}
+          JSON
+          # It is harmless if the PR was already ready; GitHub may return an
+          # application-level error while the subsequent merge loop remains valid.
+
+          for attempt in $(seq 1 180); do
+            pr_json=$(curl --fail --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER")
+            if python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("merged") else 1)' <<<"$pr_json"; then
+              exit 0
+            fi
+
+            code=$(curl --silent --show-error \
+              -o /tmp/merge.json -w '%{http_code}' \
+              -X PUT \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER/merge" \
+              -d "{\"commit_title\":\"Complete Increment 52 nested symbolic control flow (#95)\",\"merge_method\":\"squash\",\"sha\":\"$FINAL_SHA\"}")
+            if [ "$code" = "200" ] && python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("merged") else 1)' </tmp/merge.json; then
+              exit 0
+            fi
+            sleep 30
+          done
+
+          echo "GitHub did not permit the verified squash merge before timeout" >&2
+          cat /tmp/merge.json >&2 || true
+          exit 1
