@@ -78,17 +78,19 @@ jobs:
           replace_once(
               '      ownedNames: Set[String]\n  )\n\n  private final case class AlternativeStep(',
               '      ownedNames: Set[String],\n' +
+              '      childOutputActualNames: Set[String],\n' +
               '      assignmentEvidence: Vector[AssignmentEvidence]\n' +
               '  )\n\n  private final case class AlternativeStep(',
-              'BlockPlan assignmentEvidence field',
+              'BlockPlan ownership evidence fields',
           )
 
           replace_once(
               '    val ownedTargetNames = mutable.LinkedHashSet.empty[String]\n',
               '    val ownedTargetNames = mutable.LinkedHashSet.empty[String]\n' +
+              '    val childOutputActualNames = mutable.LinkedHashSet.empty[String]\n' +
               '    val assignmentEvidence = ArrayBuffer.empty[AssignmentEvidence]\n' +
               '    val emittedActualByExpression = new IdentityHashMap[Expression, String]()\n',
-              'assignment evidence buffers',
+              'ownership evidence buffers',
           )
 
           replace_once(
@@ -99,6 +101,7 @@ jobs:
               '      child.getOrdredNodeIo.toVector.foreach { port =>\n' +
               '        Option(port.getName()).flatMap(actualByPort.get).foreach { actual =>\n' +
               '          emittedActualByExpression.put(port, actual)\n' +
+              '          if (port.dir == out) childOutputActualNames += actual\n' +
               '        }\n' +
               '      }\n' +
               '      connectionActualNames(instanceText).foreach { name =>\n',
@@ -127,6 +130,7 @@ jobs:
           text = text.replace(
               constructor_site,
               '(trackedInternalNames ++ ownedTargetNames).toSet,\n' +
+              '      childOutputActualNames.toSet,\n' +
               '      assignmentEvidence.toVector\n',
           )
 
@@ -178,6 +182,9 @@ jobs:
           ownership_new = (
               '                val targetName = statement.group(1)\n'
               '                val rhsNames = identifierTokens(statement.group(3))\n'
+              '                val childOutputOwners = claimants.filter { plan =>\n'
+              '                  plan.childOutputActualNames.exists(rhsNames.contains)\n'
+              '                }\n'
               '                val exactOwners = claimants.filter { plan =>\n'
               '                  plan.assignmentEvidence.exists { evidence =>\n'
               '                    evidence.target == targetName &&\n'
@@ -185,7 +192,8 @@ jobs:
               '                  }\n'
               '                }\n'
               '                val owners =\n'
-              '                  if (exactOwners.nonEmpty) exactOwners\n'
+              '                  if (childOutputOwners.nonEmpty) childOutputOwners\n'
+              '                  else if (exactOwners.nonEmpty) exactOwners\n'
               '                  else {\n'
               '                    val assignmentNames = identifierTokens(stripped)\n'
               '                    claimants.filter { plan =>\n'
@@ -194,7 +202,7 @@ jobs:
               '                  }\n'
               '                owners match {\n'
           )
-          replace_once(ownership_old, ownership_new, 'AST assignment ownership')
+          replace_once(ownership_old, ownership_new, 'emitted child-output assignment ownership')
 
           connection_anchor = '  private def connectionActualNames(instanceText: String): Vector[String] = {\n'
           connection_helper = (
@@ -213,6 +221,9 @@ jobs:
           git show c37cfba9e8ed0d5ffa64cb0d631a35b986a30632:.github/workflows/morphhdl-native-int-nested-control-flow.yml \
             > .github/workflows/morphhdl-native-int-nested-control-flow.yml
           rm -f .github/workflows/increment-52-overlap-diagnostic.yml
+          rm -f .github/workflows/increment-52-native-verilog-diagnostic.yml
+          rm -f .github/workflows/increment-52-current-ownership-diagnostic.yml
+          rm -f .github/increment-52-current-ownership.txt
           rm -f .github/scripts/apply_increment52_shared_process_fix.py
           git diff --check
 
@@ -256,6 +267,6 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
                   .github/workflows/morphhdl-native-int-nested-control-flow.yml
-          git add -u .github/workflows .github/scripts
+          git add -u .github/workflows .github/scripts .github
           git commit -m 'fix: partition shared native processes by captured child-output evidence'
           git push origin HEAD:agent/increment-52-post-merge-overlap-fix
