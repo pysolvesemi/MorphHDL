@@ -7,13 +7,19 @@ on:
     paths:
       - display-controller-toolchain-export.sbt
       - .github/workflows/display-controller-ddr-toolchain-export.yml
+  pull_request:
+    branches:
+      - parameterized-verilog
+    paths:
+      - display-controller-toolchain-export.sbt
+      - .github/workflows/display-controller-ddr-toolchain-export.yml
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: display-controller-ddr-toolchain-export
+  group: display-controller-ddr-toolchain-export-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -21,7 +27,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
-      - name: Check out exact export branch
+      - name: Check out exact export revision
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
