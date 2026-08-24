@@ -6,6 +6,11 @@ on:
       - agent/offline-toolchain-export
     paths:
       - .github/workflows/export-yosys-abc.yml
+  pull_request:
+    branches:
+      - agent/offline-toolchain-base
+    paths:
+      - .github/workflows/export-yosys-abc.yml
   workflow_dispatch:
 
 permissions:
