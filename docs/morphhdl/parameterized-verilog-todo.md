@@ -316,7 +316,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   Verilog-2001 lowering. Preserve source order, names and diagnostics; ordinary
   Scala conditionals without symbolic provenance remain untouched.
 
-- [ ] **Increment 52 — Nested symbolic control flow and side-effect safety**
+- [x] **Increment 52 — Nested symbolic control flow and side-effect safety**
 
   **Dependencies:** Increment 51 implemented and merged.
 
