@@ -85,7 +85,7 @@ private[internals] object ParameterizedVerilogStructural {
     }
     val allRanges = plans.flatMap(_.ranges)
     allRanges.combinations(2).foreach {
-      case Vector(left, right) if left.overlaps(right) =>
+      case Vector(left, right) if (left.overlaps(right)) && !(left.start == right.start && left.end == right.end) /* exact duplicate structural capture range */ =>
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-OVERLAP",
           s"captured native module-item ranges ${left.start}-${left.end} and ${right.start}-${right.end} overlap"
