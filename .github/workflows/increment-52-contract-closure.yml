@@ -1,0 +1,100 @@
+name: Increment 52 contract closure
+
+on:
+  push:
+    branches:
+      - agent/increment-52-nested-control-flow-clean
+    paths:
+      - .github/workflows/increment-52-contract-closure.yml
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-close:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out Increment 52 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-52-nested-control-flow-clean
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run Increment 52 and inherited contracts on Scala 2.12.18
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill frontend[2.12.18].testOnly morphhdl.frontend.HdlIntTests
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
+            morphhdl.NaturalSymbolicConditionalTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowProvenanceTests \
+            morphhdl.ExternalNativeIntFormalizationTests \
+            morphhdl.FormalParameterIdentityTests \
+            morphhdl.FormalParameterClonePropagationTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.integration.ExternalSpinalVerilogBaselineTests
+
+      - name: Run Increment 52 and inherited contracts on Scala 2.13.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill frontend[2.13.12].testOnly morphhdl.frontend.HdlIntTests
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
+            morphhdl.NaturalSymbolicConditionalTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowProvenanceTests \
+            morphhdl.ExternalNativeIntFormalizationTests \
+            morphhdl.FormalParameterIdentityTests \
+            morphhdl.FormalParameterClonePropagationTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.integration.ExternalSpinalVerilogBaselineTests
+
+      - name: Mark Increment 52 complete and remove closure workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = path.read_text(encoding='utf-8')
+          pattern = re.compile(r'(?m)^(\s*[-*]?\s*)\[ \](\s+.*Increment\s+52\b.*)$')
+          updated, count = pattern.subn(r'\1[x]\2', text, count=1)
+          if count == 0:
+              if not re.search(r'(?m)^\s*[-*]?\s*\[x\]\s+.*Increment\s+52\b', text):
+                  raise SystemExit('Increment 52 roadmap entry not found')
+          else:
+              path.write_text(updated, encoding='utf-8')
+          PY
+          rm .github/workflows/increment-52-contract-closure.yml
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/morphhdl/parameterized-verilog-todo.md
+          git add -u .github/workflows
+          git commit -m 'docs: mark Increment 52 complete'
+          git push origin HEAD:agent/increment-52-nested-control-flow-clean
