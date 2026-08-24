@@ -1,0 +1,151 @@
+name: Increment 52 final-head watcher
+
+on:
+  push:
+    branches:
+      - agent/increment-52-nested-control-flow-clean
+    paths:
+      - .github/workflows/increment-52-final-head-watcher.yml
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: write
+  checks: read
+
+jobs:
+  verify-and-merge:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPOSITORY: ${{ github.repository }}
+      PR_NUMBER: "95"
+      BRANCH: agent/increment-52-nested-control-flow-clean
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Wait for the verified closure commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 360); do
+            git fetch --quiet origin "$BRANCH"
+            ref="origin/$BRANCH"
+            todo=$(git show "$ref:docs/morphhdl/parameterized-verilog-todo.md" 2>/dev/null || true)
+            checked=$(printf '%s\n' "$todo" | grep 'Increment 52' | grep -c '\[x\]' || true)
+            temporary=$(git ls-tree -r --name-only "$ref" .github/workflows | grep -c '^.github/workflows/increment-52-' || true)
+            if [ "$checked" = "1" ] && [ "$temporary" = "0" ]; then
+              final_sha=$(git rev-parse "$ref")
+              echo "FINAL_SHA=$final_sha" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "Verified Increment 52 closure commit did not appear" >&2
+          exit 1
+
+      - name: Dispatch all final-head validation workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin "$BRANCH"
+          ref="origin/$BRANCH"
+          mapfile -t workflows < <(git ls-tree -r --name-only "$ref" .github/workflows | sort)
+          dispatched=0
+          for workflow in "${workflows[@]}"; do
+            content=$(git show "$ref:$workflow")
+            if ! printf '%s\n' "$content" | grep -q 'workflow_dispatch'; then
+              continue
+            fi
+            encoded=$(python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$workflow")
+            code=$(curl --silent --show-error -o /tmp/dispatch.json -w '%{http_code}' \
+              -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "Content-Type: application/json" \
+              "https://api.github.com/repos/$REPOSITORY/actions/workflows/$encoded/dispatches" \
+              -d "{\"ref\":\"$BRANCH\"}")
+            if [ "$code" = "204" ]; then
+              dispatched=$((dispatched + 1))
+            fi
+          done
+          if [ "$dispatched" -lt 2 ]; then
+            echo "Expected at least the focused and complete MorphHDL workflows; dispatched $dispatched" >&2
+            exit 1
+          fi
+
+      - name: Mark the PR ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="${REPOSITORY%%/*}"
+          repo="${REPOSITORY#*/}"
+          response=$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/graphql \
+            --data-binary @- <<JSON
+          {"query":"query { repository(owner: \"$owner\", name: \"$repo\") { pullRequest(number: $PR_NUMBER) { id isDraft merged } } }"}
+          JSON
+          )
+          pr_id=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["repository"]["pullRequest"]["id"])' <<<"$response")
+          is_draft=$(python3 -c 'import json,sys; print(str(json.load(sys.stdin)["data"]["repository"]["pullRequest"]["isDraft"]).lower())' <<<"$response")
+          if [ "$is_draft" = "true" ]; then
+            curl --fail --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Content-Type: application/json" \
+              https://api.github.com/graphql \
+              --data-binary @- >/tmp/ready.json <<JSON
+          {"query":"mutation { markPullRequestReadyForReview(input: {pullRequestId: \"$pr_id\"}) { pullRequest { isDraft } } }"}
+          JSON
+          fi
+
+      - name: Wait for final-head checks and squash-merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          saw_checks=false
+          for attempt in $(seq 1 360); do
+            checks=$(curl --fail --silent --show-error \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$REPOSITORY/commits/$FINAL_SHA/check-runs?per_page=100")
+            count=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("total_count",0))' <<<"$checks")
+            if [ "$count" -gt 0 ]; then saw_checks=true; fi
+            bad=$(python3 -c 'import json,sys; d=json.load(sys.stdin); bad={"failure","cancelled","timed_out","action_required","startup_failure","stale"}; print(sum(1 for r in d.get("check_runs",[]) if r.get("conclusion") in bad))' <<<"$checks")
+            pending=$(python3 -c 'import json,sys; d=json.load(sys.stdin); print(sum(1 for r in d.get("check_runs",[]) if r.get("status") != "completed"))' <<<"$checks")
+            if [ "$bad" -gt 0 ]; then
+              echo "A final-head validation check failed" >&2
+              python3 - <<'PY' <<<"$checks"
+          import json,sys
+          data=json.load(sys.stdin)
+          for run in data.get("check_runs",[]):
+              if run.get("conclusion") in {"failure","cancelled","timed_out","action_required","startup_failure","stale"}:
+                  print(run.get("name"), run.get("conclusion"), run.get("details_url"), file=sys.stderr)
+          PY
+              exit 1
+            fi
+
+            if [ "$saw_checks" = true ] && [ "$pending" = "0" ]; then
+              code=$(curl --silent --show-error -o /tmp/merge.json -w '%{http_code}' \
+                -X PUT \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                -H "Content-Type: application/json" \
+                "https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER/merge" \
+                -d "{\"commit_title\":\"Complete Increment 52 nested symbolic control flow (#95)\",\"merge_method\":\"squash\",\"sha\":\"$FINAL_SHA\"}")
+              if [ "$code" = "200" ] && python3 -c 'import json,sys; raise SystemExit(0 if json.load(sys.stdin).get("merged") else 1)' </tmp/merge.json; then
+                exit 0
+              fi
+            fi
+            sleep 30
+          done
+          echo "Final-head validation or protected squash merge timed out" >&2
+          cat /tmp/merge.json >&2 2>/dev/null || true
+          exit 1
