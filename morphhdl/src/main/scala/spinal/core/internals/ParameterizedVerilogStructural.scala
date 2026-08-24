@@ -1,5 +1,6 @@
 package spinal.core.internals
 
+import java.util.IdentityHashMap
 import java.util.regex.{Matcher, Pattern}
 
 import scala.collection.mutable
@@ -24,10 +25,23 @@ private[internals] object ParameterizedVerilogStructural {
     def overlaps(that: LineRange): Boolean = start <= that.end && that.start <= end
   }
 
+  private final case class AssignmentEvidence(
+      target: String,
+      sourceNames: Set[String]
+  )
+
   private final case class BlockPlan(
       block: ParameterizedStructuralBlock,
       ranges: Vector[LineRange],
-      body: String
+      body: String,
+      ownedNames: Set[String],
+      childOutputActualNames: Set[String],
+      assignmentEvidence: Vector[AssignmentEvidence]
+  )
+
+  private final case class AlternativeStep(
+      region: ParameterizedStructure.StructuralRegion,
+      branch: Int
   )
 
   def hasRegions(component: Component): Boolean =
@@ -73,7 +87,7 @@ private[internals] object ParameterizedVerilogStructural {
     )
     validateParameters(component, parameters, portNames, pc)
 
-    val plans = allBlocks.map { block =>
+    val rawPlans = allBlocks.map { block =>
       planBlock(
         component,
         block,
@@ -83,9 +97,15 @@ private[internals] object ParameterizedVerilogStructural {
         canonicalOf
       )
     }
+    val alternativePaths = structuralAlternativePaths(regions)
+    val (resolvedPlans, sharedProcessRanges) =
+      resolveSharedProceduralProcesses(rawPlans, lines, alternativePaths)
+    val plans = resolvedPlans.map(finalizePlan)
     val allRanges = plans.flatMap(_.ranges)
     allRanges.combinations(2).foreach {
-      case Vector(left, right) if left.overlaps(right) =>
+      case Vector(left, right)
+          if left.overlaps(right) &&
+            !(left == right && sharedProcessRanges(left)) =>
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-OVERLAP",
           s"captured native module-item ranges ${left.start}-${left.end} and ${right.start}-${right.end} overlap"
@@ -131,6 +151,9 @@ private[internals] object ParameterizedVerilogStructural {
     val ranges = ArrayBuffer.empty[LineRange]
     val trackedInternalNames = mutable.LinkedHashSet.empty[String]
     val ownedTargetNames = mutable.LinkedHashSet.empty[String]
+    val childOutputActualNames = mutable.LinkedHashSet.empty[String]
+    val assignmentEvidence = ArrayBuffer.empty[AssignmentEvidence]
+    val emittedActualByExpression = new IdentityHashMap[Expression, String]()
 
     // Normal Spinal transforms may forward or prune captured temporaries before
     // native emission. Such values have no emitted declaration (and therefore
@@ -204,8 +227,25 @@ private[internals] object ParameterizedVerilogStructural {
       )
       ranges += range
       val instanceText = range.indices.map(lines).mkString("\n")
+      val actualByPort = connectionActualByPort(instanceText)
+      child.getOrdredNodeIo.toVector.foreach { port =>
+        Option(port.getName()).flatMap(actualByPort.get).foreach { actual =>
+          emittedActualByExpression.put(port, actual)
+          if (port.dir == out) childOutputActualNames += actual
+        }
+      }
       connectionActualNames(instanceText).foreach { name =>
         if (!portNames(name) && !parameterNames(name)) trackedInternalNames += name
+      }
+    }
+
+    block.assignments.foreach { assignment =>
+      Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
+        assignmentEvidence += AssignmentEvidence(
+          name,
+          expressionNames(assignment.source) ++
+            emittedActualNames(assignment.source, emittedActualByExpression)
+        )
       }
     }
 
@@ -261,7 +301,14 @@ private[internals] object ParameterizedVerilogStructural {
       body.isEmpty &&
       (ParameterizedStructuralSynthetic.isSyntheticEmpty(block) || block.regions.nonEmpty)
     ) {
-      return BlockPlan(block, mergedRanges, "")
+      return BlockPlan(
+        block,
+        mergedRanges,
+        "",
+        (trackedInternalNames ++ ownedTargetNames).toSet,
+      childOutputActualNames.toSet,
+      assignmentEvidence.toVector
+      )
     }
     if (body.isEmpty) {
       fail(
@@ -270,9 +317,465 @@ private[internals] object ParameterizedVerilogStructural {
         block.sourceLocation
       )
     }
-    body = rewriteSlices(body, block.slices)
-    body = rewriteVecSelections(body, block.vecIndices, block.sourceLocation)
-    BlockPlan(block, mergedRanges, body)
+    BlockPlan(
+      block,
+      mergedRanges,
+      body,
+      (trackedInternalNames ++ ownedTargetNames).toSet,
+      childOutputActualNames.toSet,
+      assignmentEvidence.toVector
+    )
+  }
+
+  private def expressionNames(root: Expression): Set[String] = {
+    val names = mutable.LinkedHashSet.empty[String]
+    val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
+
+    def visit(value: Expression): Unit = {
+      if ((value ne null) && !visited.containsKey(value)) {
+        visited.put(value, java.lang.Boolean.TRUE)
+        value match {
+          case named: Nameable =>
+            Option(named.getName()).filter(_.nonEmpty).foreach(names += _)
+          case _ =>
+        }
+        value.foreachExpression(visit)
+      }
+    }
+
+    visit(root)
+    names.toSet
+  }
+
+  private def emittedActualNames(
+      root: Expression,
+      actualByExpression: IdentityHashMap[Expression, String]
+  ): Set[String] = {
+    val names = mutable.LinkedHashSet.empty[String]
+    val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
+
+    def visit(value: Expression): Unit = {
+      if ((value ne null) && !visited.containsKey(value)) {
+        visited.put(value, java.lang.Boolean.TRUE)
+        Option(actualByExpression.get(value)).foreach(names += _)
+        value.foreachExpression(visit)
+      }
+    }
+
+    visit(root)
+    names.toSet
+  }
+
+  private def finalizePlan(plan: BlockPlan): BlockPlan = {
+    if (plan.body.trim.isEmpty) plan
+    else {
+      var body = rewriteSlices(plan.body, plan.block.slices)
+      body = rewriteVecSelections(
+        body,
+        plan.block.vecIndices,
+        plan.block.sourceLocation
+      )
+      plan.copy(body = body)
+    }
+  }
+
+  private def structuralAlternativePaths(
+      regions: Vector[ParameterizedStructure.StructuralRegion]
+  ): Map[ParameterizedStructuralBlock, Vector[AlternativeStep]] = {
+    val paths = mutable.LinkedHashMap.empty[
+      ParameterizedStructuralBlock,
+      Vector[AlternativeStep]
+    ]
+
+    object Walker {
+      def visitBlock(
+          block: ParameterizedStructuralBlock,
+          path: Vector[AlternativeStep]
+      ): Unit = {
+        paths(block) = path
+        block.regions.foreach(region => visitRegion(region, path))
+      }
+
+      def visitRegion(
+          region: ParameterizedStructure.StructuralRegion,
+          path: Vector[AlternativeStep]
+      ): Unit = region match {
+        case value: ParameterizedStructure.StructuralFor =>
+          visitBlock(value.body, path)
+        case value: ParameterizedStructure.StructuralIf =>
+          visitBlock(
+            value.whenTrue,
+            path :+ AlternativeStep(value, branch = 0)
+          )
+          visitBlock(
+            value.whenFalse,
+            path :+ AlternativeStep(value, branch = 1)
+          )
+        case value: ParameterizedStructure.StructuralCase =>
+          value.choices.zipWithIndex.foreach { case (choice, index) =>
+            visitBlock(
+              choice.body,
+              path :+ AlternativeStep(value, branch = index)
+            )
+          }
+          visitBlock(
+            value.defaultBody,
+            path :+ AlternativeStep(value, branch = value.choices.size)
+          )
+      }
+    }
+
+    regions.foreach(region => Walker.visitRegion(region, Vector.empty))
+    paths.toMap
+  }
+
+  private def mutuallyExclusive(
+      left: Vector[AlternativeStep],
+      right: Vector[AlternativeStep]
+  ): Boolean =
+    left.exists { leftStep =>
+      right.exists { rightStep =>
+        (leftStep.region eq rightStep.region) &&
+        leftStep.branch != rightStep.branch
+      }
+    }
+
+  private val DirectProceduralAssignment =
+    """^\s*([A-Za-z_][A-Za-z0-9_$]*)(\s*\[[^\]]+\])?\s*(?:<=|=(?!=))\s*(.*?)\s*;\s*$""".r
+
+  private val VerilogIdentifier =
+    "[A-Za-z_][A-Za-z0-9_$]*".r
+
+  private def identifierTokens(value: String): Set[String] =
+    VerilogIdentifier.findAllIn(value).filterNot(VerilogWords).toSet
+
+  private def removeUniqueProcess(
+      body: String,
+      process: String,
+      range: LineRange,
+      sourceLocation: Option[String]
+  ): String = {
+    val first = body.indexOf(process)
+    val second =
+      if (first < 0) -1
+      else body.indexOf(process, first + process.length)
+    if (first < 0 || second >= 0) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-TEXT-NOT-UNIQUE",
+        s"native process ${range.start}-${range.end} maps ${if (first < 0) 0 else 2} times into one captured body",
+        sourceLocation
+      )
+    }
+    body.substring(0, first) + body.substring(first + process.length)
+  }
+
+  private def resolveSharedProceduralProcesses(
+      plans: Vector[BlockPlan],
+      lines: Vector[String],
+      paths: Map[ParameterizedStructuralBlock, Vector[AlternativeStep]]
+  ): (Vector[BlockPlan], Set[LineRange]) = {
+    val claims = mutable.LinkedHashMap.empty[LineRange, ArrayBuffer[BlockPlan]]
+    plans.foreach { plan =>
+      plan.ranges.foreach { range =>
+        claims.getOrElseUpdate(range, ArrayBuffer.empty) += plan
+      }
+    }
+
+    val current = mutable.LinkedHashMap.empty[
+      ParameterizedStructuralBlock,
+      BlockPlan
+    ]
+    plans.foreach(plan => current(plan.block) = plan)
+    val sharedProcessRanges = mutable.LinkedHashSet.empty[LineRange]
+
+    claims.toVector
+      .filter(_._2.size > 1)
+      .sortBy(_._1.start)
+      .foreach { case (range, claimed) =>
+        val initialClaimants = claimed.toVector
+        val processLines = range.indices.map(lines).toVector
+        val normalized = processLines.map(line => stripLineComment(line).trim)
+        if (
+          normalized.isEmpty ||
+          !normalized.head.startsWith("always @") ||
+          !normalized.head.contains("begin") ||
+          normalized.last != "end"
+        ) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-RANGE-UNSUPPORTED",
+            s"captured native range ${range.start}-${range.end} is shared by multiple structural alternatives but is not one simple always block"
+          )
+        }
+
+        val completeProcess =
+          stripCommonIndent(processLines.mkString("\n").trim)
+        val selectedTargetCounts =
+          mutable.LinkedHashMap.empty[String, Int].withDefaultValue(0)
+        (range.start + 1 until range.end).foreach { index =>
+          val stripped = stripLineComment(lines(index)).trim
+          DirectProceduralAssignment.findFirstMatchIn(stripped).foreach { statement =>
+            if (Option(statement.group(2)).exists(_.trim.nonEmpty)) {
+              val target = statement.group(1)
+              selectedTargetCounts(target) = selectedTargetCounts(target) + 1
+            }
+          }
+        }
+        val selectedTargets = selectedTargetCounts.keys.toVector.sorted
+        val expectedTargetCounts =
+          selectedTargets.map(target => target -> selectedTargetCounts(target)).toMap
+        def capturedTargetCounts(values: Vector[BlockPlan]): Map[String, Int] =
+          selectedTargets.map { target =>
+            target -> values.map { plan =>
+              plan.block.assignments.count { assignment =>
+                Option(assignment.finalTarget.getName()).contains(target)
+              }
+            }.sum
+          }.toMap
+
+        val initialBlocks = initialClaimants.map(_.block).toSet
+        val missingCandidates = plans.filterNot(plan => initialBlocks(plan.block)).filter { plan =>
+          val touchesSelectedTarget = plan.block.assignments.exists { assignment =>
+            Option(assignment.finalTarget.getName()).exists(selectedTargetCounts.contains)
+          }
+          val exclusiveFromInitial = initialClaimants.forall { owner =>
+            mutuallyExclusive(
+              paths.getOrElse(plan.block, Vector.empty),
+              paths.getOrElse(owner.block, Vector.empty)
+            )
+          }
+          val containsProcess = plan.ranges.exists { candidateRange =>
+            candidateRange.start <= range.start && candidateRange.end >= range.end
+          }
+          touchesSelectedTarget && exclusiveFromInitial && containsProcess
+        }
+        val initialTargetCounts = capturedTargetCounts(initialClaimants)
+        val selectedMissing: Vector[BlockPlan] =
+          if (initialTargetCounts == expectedTargetCounts) Vector.empty
+          else {
+            val combinedTargetCounts =
+              capturedTargetCounts(initialClaimants ++ missingCandidates)
+            if (combinedTargetCounts != expectedTargetCounts) {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-CLAIMANT-COVERAGE",
+                s"shared native process ${range.start}-${range.end} selected assignment counts ${expectedTargetCounts.toVector.sortBy(_._1).mkString(",")} do not match initial captured counts ${initialTargetCounts.toVector.sortBy(_._1).mkString(",")} or exact mutually-exclusive candidate counts ${combinedTargetCounts.toVector.sortBy(_._1).mkString(",")}"
+              )
+            }
+            missingCandidates
+          }
+        selectedMissing.foreach { plan =>
+          val containingRanges = plan.ranges.filter { candidateRange =>
+            candidateRange.start <= range.start && candidateRange.end >= range.end
+          }
+          if (containingRanges.size != 1) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-CONTAINING-RANGE-AMBIGUOUS",
+              s"native process ${range.start}-${range.end} has ${containingRanges.size} containing ranges in one recovered claimant",
+              plan.block.sourceLocation
+            )
+          }
+          val containing = containingRanges.head
+          val splitRanges = plan.ranges.flatMap { candidateRange =>
+            if (candidateRange != containing) Vector(candidateRange)
+            else {
+              val before =
+                if (candidateRange.start < range.start)
+                  Vector(LineRange(candidateRange.start, range.start - 1))
+                else Vector.empty[LineRange]
+              val after =
+                if (range.end < candidateRange.end)
+                  Vector(LineRange(range.end + 1, candidateRange.end))
+                else Vector.empty[LineRange]
+              before ++ Vector(range) ++ after
+            }
+          }.distinct.sortBy(_.start)
+          current(plan.block) = plan.copy(ranges = splitRanges)
+        }
+        val claimants =
+          (initialClaimants ++ selectedMissing).map(plan => current(plan.block))
+
+        claimants.combinations(2).foreach { pair =>
+          val left = pair(0)
+          val right = pair(1)
+          val leftPath = paths.getOrElse(left.block, Vector.empty)
+          val rightPath = paths.getOrElse(right.block, Vector.empty)
+          if (!mutuallyExclusive(leftPath, rightPath)) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-NONEXCLUSIVE",
+              s"native process ${range.start}-${range.end} is shared by structural blocks that are not proven mutually exclusive",
+              left.block.sourceLocation.orElse(right.block.sourceLocation)
+            )
+          }
+        }
+
+        val rawEvidence = claimants.map { plan =>
+          val outsideProcess = removeUniqueProcess(
+            plan.body,
+            completeProcess,
+            range,
+            plan.block.sourceLocation
+          )
+          plan.block -> (plan.ownedNames ++ identifierTokens(outsideProcess))
+        }.toMap
+        val frequency = mutable.LinkedHashMap.empty[String, Int]
+          .withDefaultValue(0)
+        rawEvidence.values.foreach { names =>
+          names.foreach { name =>
+            frequency(name) = frequency(name) + 1
+          }
+        }
+        val uniqueEvidence = rawEvidence.map { case (block, names) =>
+          block -> names.filter(name => frequency(name) == 1)
+        }
+
+        val commonIndices = mutable.LinkedHashSet.empty[Int]
+        val ownedIndices = mutable.LinkedHashMap.empty[
+          ParameterizedStructuralBlock,
+          mutable.LinkedHashSet[Int]
+        ]
+        claimants.foreach { plan =>
+          ownedIndices(plan.block) = mutable.LinkedHashSet.empty[Int]
+        }
+
+        (range.start + 1 until range.end).foreach { index =>
+          val original = lines(index)
+          val stripped = stripLineComment(original).trim
+          if (stripped.isEmpty) commonIndices += index
+          else {
+            DirectProceduralAssignment.findFirstMatchIn(stripped) match {
+              case None =>
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-SHAPE-UNSUPPORTED",
+                  s"shared native process ${range.start}-${range.end} contains non-flat statement '$stripped'"
+                )
+              case Some(statement) =>
+                val targetName = statement.group(1)
+                val rhsNames = identifierTokens(statement.group(3))
+                val childOutputOwners = claimants.filter { plan =>
+                  plan.childOutputActualNames.exists(rhsNames.contains)
+                }
+                val exactOwners = claimants.filter { plan =>
+                  plan.assignmentEvidence.exists { evidence =>
+                    evidence.target == targetName &&
+                    evidence.sourceNames.exists(rhsNames.contains)
+                  }
+                }
+                val evidenceOwners: Vector[BlockPlan] =
+                  if (childOutputOwners.nonEmpty) childOutputOwners
+                  else if (exactOwners.nonEmpty) exactOwners
+                  else {
+                    val assignmentNames = identifierTokens(stripped)
+                    claimants.filter { plan =>
+                      uniqueEvidence(plan.block).exists(name => assignmentNames(name))
+                    }
+                  }
+                val isSelectedTarget =
+                  Option(statement.group(2)).exists(_.trim.nonEmpty)
+                def targetCapacity(plan: BlockPlan): (Int, Int) = {
+                  val expected = plan.block.assignments.count { assignment =>
+                    Option(assignment.finalTarget.getName()).contains(targetName)
+                  }
+                  val alreadyOwned = ownedIndices(plan.block).count { ownedIndex =>
+                    DirectProceduralAssignment
+                      .findFirstMatchIn(
+                        stripLineComment(lines(ownedIndex)).trim
+                      )
+                      .exists(matched => matched.group(1) == targetName)
+                  }
+                  alreadyOwned -> expected
+                }
+                val residualOwners: Vector[BlockPlan] =
+                  if (!isSelectedTarget || evidenceOwners.nonEmpty) Vector.empty
+                  else
+                    claimants.filter { plan =>
+                      val (alreadyOwned, expected) = targetCapacity(plan)
+                      expected > alreadyOwned
+                    }
+                val residualCapacitySummary =
+                  claimants.zipWithIndex.map { case (plan, claimantIndex) =>
+                    val (alreadyOwned, expected) = targetCapacity(plan)
+                    s"$claimantIndex:$alreadyOwned/$expected"
+                  }.mkString(",")
+                val owners: Vector[BlockPlan] =
+                  if (evidenceOwners.nonEmpty) evidenceOwners
+                  else if (residualOwners.size == 1) residualOwners
+                  else Vector.empty
+                owners match {
+                  case Vector(owner) =>
+                    ownedIndices(owner.block) += index
+                  case Vector() =>
+                    val selectedTarget =
+                      Option(statement.group(2)).exists(_.trim.nonEmpty)
+                    if (selectedTarget) {
+                      fail(
+                        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-ASSIGNMENT-UNOWNED",
+                        s"shared native process ${range.start}-${range.end} contains selected assignment '$stripped' without branch-unique source evidence; target=$targetName evidenceOwners=${evidenceOwners.size} residualOwners=${residualOwners.size} capacities=$residualCapacitySummary"
+                      )
+                    }
+                    commonIndices += index
+                  case _ =>
+                    fail(
+                      "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-OWNER-AMBIGUOUS",
+                      s"shared native process ${range.start}-${range.end} assignment '$stripped' references multiple branch owners"
+                    )
+                }
+            }
+          }
+        }
+
+        claimants.foreach { claimant =>
+          val owned = ownedIndices(claimant.block)
+          if (owned.isEmpty) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-OWNER-EMPTY",
+              s"structural block sharing native process ${range.start}-${range.end} owns no emitted assignment",
+              claimant.block.sourceLocation
+            )
+          }
+          val selected =
+            (Vector(range.start) ++ commonIndices.toVector ++
+              owned.toVector ++ Vector(range.end)).distinct.sorted
+          val fragment =
+            stripCommonIndent(selected.map(lines).mkString("\n").trim)
+          val plan = current(claimant.block)
+          current(claimant.block) = plan.copy(
+            body = replaceUniqueProcess(
+              plan.body,
+              completeProcess,
+              fragment,
+              range,
+              claimant.block.sourceLocation
+            )
+          )
+        }
+        sharedProcessRanges += range
+      }
+
+    (
+      plans.map(plan => current(plan.block)),
+      sharedProcessRanges.toSet
+    )
+  }
+
+  private def replaceUniqueProcess(
+      body: String,
+      process: String,
+      replacement: String,
+      range: LineRange,
+      sourceLocation: Option[String]
+  ): String = {
+    val first = body.indexOf(process)
+    val second =
+      if (first < 0) -1
+      else body.indexOf(process, first + process.length)
+    if (first < 0 || second >= 0) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-TEXT-NOT-UNIQUE",
+        s"native process ${range.start}-${range.end} maps ${if (first < 0) 0 else 2} times into one captured body",
+        sourceLocation
+      )
+    }
+    body.substring(0, first) + replacement +
+      body.substring(first + process.length)
   }
 
   private def findDeclarationLine(
@@ -772,6 +1275,13 @@ private[internals] object ParameterizedVerilogStructural {
     val low = slice.offset.default
     val high = low + slice.width.default - 1
     Pattern.compile("\\b" + Pattern.quote(sourceName) + "\\s*\\[\\s*" + high + "\\s*:\\s*" + low + "\\s*\\]")
+  }
+
+  private def connectionActualByPort(instanceText: String): Map[String, String] = {
+    val pattern = "\\.([A-Za-z_][A-Za-z0-9_]*)\\s*\\(\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*\\)".r
+    pattern.findAllMatchIn(instanceText).map { matched =>
+      matched.group(1) -> matched.group(2)
+    }.toMap
   }
 
   private def connectionActualNames(instanceText: String): Vector[String] = {

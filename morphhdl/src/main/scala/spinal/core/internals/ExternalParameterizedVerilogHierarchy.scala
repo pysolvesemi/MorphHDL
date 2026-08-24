@@ -470,7 +470,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
             child,
             actualByName(name),
             assignments,
-            s"concrete port '$name' of instance '$instanceName'"
+            s"concrete port '$name' of instance '$instanceName'",
+            allowConcreteInternal = true
           ).foreach { expression =>
             if (expression.isSymbolic || expression.default != BigInt(expectedPort.getBitsWidth)) {
               fail(
@@ -589,14 +590,22 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       child: Component,
       port: BaseType,
       assignments: Vector[DataAssignmentStatement],
-      context: String
+      context: String,
+      allowConcreteInternal: Boolean = false
   ): Vector[BindingExpr] = {
     if (port.isInput) {
       assignments.flatMap { assignment =>
         val touches = references(assignment.target, port) || assignment.finalTarget == port
         if (!touches) Vector.empty
         else if (assignment.target == port && assignment.finalTarget == port) {
-          Vector(bindingOf(parent, assignment.source, context))
+          Vector(
+            bindingOf(
+              parent,
+              assignment.source,
+              context,
+              allowConcreteInternal
+            )
+          )
         } else {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED",
@@ -612,7 +621,26 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           assignment.source == port && assignment.target == assignment.finalTarget &&
           assignment.finalTarget.component == parent
         ) {
-          Vector(bindingOf(parent, assignment.finalTarget, context))
+          Vector(
+            bindingOf(
+              parent,
+              assignment.finalTarget,
+              context,
+              allowConcreteInternal
+            )
+          )
+        } else if (
+          allowConcreteInternal && assignment.source == port &&
+          assignment.finalTarget.component == parent
+        ) {
+          Vector(
+            bindingOf(
+              parent,
+              assignment.target,
+              context,
+              allowConcreteInternal
+            )
+          )
         } else {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED",
@@ -631,13 +659,19 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
   private def bindingOf(
       parent: Component,
       expression: Expression,
-      context: String
+      context: String,
+      allowConcreteInternal: Boolean
   ): BindingExpr = expression match {
+    case _: BitAssignmentFixed if allowConcreteInternal =>
+      LiteralBinding(1)
+    case _: BitVectorBitAccessFixed if allowConcreteInternal =>
+      LiteralBinding(1)
     case value: Bool => LiteralBinding(1)
     case value: BitVector if value.component == parent =>
       ParameterizedWidth.expressionOf(value) match {
         case Some(expression) => ExpressionBinding(expression)
-        case None if value.isIo => LiteralBinding(value.getBitsWidth)
+        case None if value.isIo || allowConcreteInternal =>
+          LiteralBinding(value.getBitsWidth)
         case None =>
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
