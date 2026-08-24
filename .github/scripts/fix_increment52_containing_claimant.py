@@ -187,34 +187,21 @@ replace_once(
     'child-output binding flag',
 )
 
-replace_once(
-    '''        } else if (
-          assignment.source == port && assignment.target == assignment.finalTarget &&
-          assignment.finalTarget.component == parent
-        ) {
-          Vector(
-            bindingOf(
-              parent,
-              assignment.finalTarget,
-              context,
-              allowConcreteInternal
-            )
-          )
-        } else {
-''',
-    '''        } else if (
-          assignment.source == port && assignment.target == assignment.finalTarget &&
-          assignment.finalTarget.component == parent
-        ) {
-          Vector(
-            bindingOf(
-              parent,
-              assignment.finalTarget,
-              context,
-              allowConcreteInternal
-            )
-          )
-        } else if (
+# Insert the concrete-only selected-output path by position inside the output
+# arm. The earlier child-output replacement intentionally changes formatting,
+# so matching the whole transformed block is brittle.
+output_start = hierarchy.index('    } else if (port.isOutput) {')
+output_error = (
+    '            s"$context uses a sliced, indexed, converted or '
+    'expression-wrapped child-output connection; direct full packed '
+    'connections are required"\n'
+)
+error_index = hierarchy.index(output_error, output_start)
+else_token = '        } else {\n'
+else_index = hierarchy.rfind(else_token, output_start, error_index)
+if else_index < 0:
+    raise SystemExit('concrete selected child-output fail arm was not found')
+selected_output = '''        } else if (
           allowConcreteInternal && assignment.source == port &&
           assignment.finalTarget.component == parent
         ) {
@@ -227,8 +214,11 @@ replace_once(
             )
           )
         } else {
-''',
-    'concrete selected child-output target',
+'''
+hierarchy = (
+    hierarchy[:else_index]
+    + selected_output
+    + hierarchy[else_index + len(else_token):]
 )
 
 replace_once(
