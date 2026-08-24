@@ -52,6 +52,21 @@ jobs:
             'verilogBackend/Compile/compile' \
             'morph/Compile/compile'
 
+      - name: Cache exact downstream SBT and plugin runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe=$(mktemp -d)
+          mkdir -p "${probe}/project"
+          printf '%s\n' 'sbt.version=1.10.2' > "${probe}/project/build.properties"
+          printf '%s\n' 'addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.4.6")' > "${probe}/project/plugins.sbt"
+          printf '%s\n' 'ThisBuild / scalaVersion := "2.12.18"' > "${probe}/build.sbt"
+          (
+            cd "${probe}"
+            sbt -batch about
+          )
+          test -s "${HOME}/.sbt/boot/scala-2.12.19/org.scala-sbt/sbt/1.10.2/sbt-1.10.2.jar"
+
       - name: Build a portable offline bundle
         shell: bash
         run: |
