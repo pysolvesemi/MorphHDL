@@ -29,12 +29,131 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Materialize containing-range ownership repair
+      - name: Materialize structural ownership and concrete hierarchy repairs
         shell: bash
         run: |
           set -euo pipefail
           python3 .github/scripts/apply_increment52_residual_ownership.py
           python3 .github/scripts/fix_increment52_containing_claimant.py
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              'morphhdl/src/main/scala/spinal/core/internals/'
+              'ExternalParameterizedVerilogHierarchy.scala'
+          )
+          text = path.read_text(encoding='utf-8')
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one site, found {count}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              '''          connectionEvidence(
+            parent,
+            child,
+            actualByName(name),
+            assignments,
+            s"concrete port '$name' of instance '$instanceName'"
+          ).foreach { expression =>
+''',
+              '''          connectionEvidence(
+            parent,
+            child,
+            actualByName(name),
+            assignments,
+            s"concrete port '$name' of instance '$instanceName'",
+            allowConcreteInternal = true
+          ).foreach { expression =>
+''',
+              'concrete-port hierarchy evidence',
+          )
+
+          replace_once(
+              '''  private def connectionEvidence(
+      parent: Component,
+      child: Component,
+      port: BaseType,
+      assignments: Vector[DataAssignmentStatement],
+      context: String
+  ): Vector[BindingExpr] = {
+''',
+              '''  private def connectionEvidence(
+      parent: Component,
+      child: Component,
+      port: BaseType,
+      assignments: Vector[DataAssignmentStatement],
+      context: String,
+      allowConcreteInternal: Boolean = false
+  ): Vector[BindingExpr] = {
+''',
+              'connectionEvidence concrete-internal flag',
+          )
+
+          replace_once(
+              '''          Vector(bindingOf(parent, assignment.source, context))
+''',
+              '''          Vector(
+            bindingOf(
+              parent,
+              assignment.source,
+              context,
+              allowConcreteInternal
+            )
+          )
+''',
+              'child-input binding flag',
+          )
+
+          replace_once(
+              '''          Vector(bindingOf(parent, assignment.finalTarget, context))
+''',
+              '''          Vector(
+            bindingOf(
+              parent,
+              assignment.finalTarget,
+              context,
+              allowConcreteInternal
+            )
+          )
+''',
+              'child-output binding flag',
+          )
+
+          replace_once(
+              '''  private def bindingOf(
+      parent: Component,
+      expression: Expression,
+      context: String
+  ): BindingExpr = expression match {
+''',
+              '''  private def bindingOf(
+      parent: Component,
+      expression: Expression,
+      context: String,
+      allowConcreteInternal: Boolean
+  ): BindingExpr = expression match {
+''',
+              'bindingOf concrete-internal flag',
+          )
+
+          replace_once(
+              '''        case None if value.isIo => LiteralBinding(value.getBitsWidth)
+        case None =>
+''',
+              '''        case None if value.isIo || allowConcreteInternal =>
+          LiteralBinding(value.getBitsWidth)
+        case None =>
+''',
+              'concrete internal binding acceptance',
+          )
+
+          path.write_text(text, encoding='utf-8')
+          PY
 
           git show c37cfba9e8ed0d5ffa64cb0d631a35b986a30632:.github/workflows/morphhdl-native-int-nested-control-flow.yml \
             > .github/workflows/morphhdl-native-int-nested-control-flow.yml
@@ -57,7 +176,7 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Validate Increment 52 on both Scala lanes
+      - name: Validate Increment 52 and inherited hierarchy contracts on both Scala lanes
         shell: bash
         run: |
           set -euo pipefail
@@ -66,18 +185,19 @@ jobs:
             set +e
             /tmp/morphhdl-mill morph[$scala_version].testOnly \
               morphhdl.NativeIntNestedSymbolicControlFlowTests \
+              morphhdl.HierarchyParameterBindingTests \
               > /tmp/increment52-$scala_version.log 2>&1
             status=$?
             set -e
             if [ "$status" -ne 0 ]; then
               echo "===== Increment 52 Scala $scala_version diagnostic ====="
               grep -E 'FAILED|SPINAL-PARAMETERIZED|MorphVerilogException|ParameterizedVerilogException|error\]|Exception|Tests: succeeded|TESTS FAILED|capacities=' \
-                /tmp/increment52-$scala_version.log | tail -n 200 || true
+                /tmp/increment52-$scala_version.log | tail -n 240 || true
               echo "===== Increment 52 Scala $scala_version tail ====="
-              tail -n 160 /tmp/increment52-$scala_version.log
+              tail -n 200 /tmp/increment52-$scala_version.log
               exit "$status"
             fi
-            tail -n 50 /tmp/increment52-$scala_version.log
+            tail -n 60 /tmp/increment52-$scala_version.log
           done
 
       - name: Commit repaired production tree
@@ -87,7 +207,8 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
+                  morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala \
                   .github/workflows/morphhdl-native-int-nested-control-flow.yml
           git add -u .github
-          git commit -m 'fix: split containing shared-process ranges by structural owner'
+          git commit -m 'fix: close nested structural ownership and concrete hierarchy binding'
           git push origin HEAD:agent/increment-52-post-merge-overlap-fix
