@@ -1,0 +1,194 @@
+name: Increment 52 AST source ownership closure
+
+on:
+  push:
+    branches:
+      - agent/increment-52-post-merge-closure
+    paths:
+      - .github/workflows/increment-52-ast-source-ownership-closure.yml
+
+permissions:
+  contents: write
+
+jobs:
+  close:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out closure branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-52-post-merge-closure
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply exact AST-source ownership repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path(
+              'morphhdl/src/main/scala/spinal/core/internals/'
+              'ParameterizedVerilogStructural.scala'
+          )
+          text = path.read_text(encoding='utf-8')
+
+          declarations = '''    val trackedInternalNames = mutable.LinkedHashSet.empty[String]
+              val ownedTargetNames = mutable.LinkedHashSet.empty[String]
+          '''
+          declarations_new = '''    val trackedInternalNames = mutable.LinkedHashSet.empty[String]
+              val ownedTargetNames = mutable.LinkedHashSet.empty[String]
+              val ownedSourceNames = mutable.LinkedHashSet.empty[String]
+          '''
+          if text.count(declarations) != 1:
+              raise SystemExit(
+                  f'expected one ownership declaration site, found {text.count(declarations)}'
+              )
+          text = text.replace(declarations, declarations_new, 1)
+
+          assignment_start = text.index('    block.assignments.foreach { assignment =>')
+          assignment_end = text.index('\n\n    block.children.foreach', assignment_start)
+          assignment_block = text[assignment_start:assignment_end]
+          old_tail = '''      Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
+                ownedTargetNames += name
+              }
+            }
+          '''
+          new_tail = '''      Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
+                ownedTargetNames += name
+              }
+              sourceExpressionNames(assignment.source).foreach(ownedSourceNames += _)
+            }
+          '''
+          if assignment_block.count(old_tail) != 1:
+              raise SystemExit('unable to locate captured assignment ownership tail')
+          assignment_block = assignment_block.replace(old_tail, new_tail, 1)
+          text = text[:assignment_start] + assignment_block + text[assignment_end:]
+
+          old_names = 'trackedInternalNames.toSet ++ ownedTargetNames.toSet'
+          new_names = (
+              'trackedInternalNames.toSet ++ ownedTargetNames.toSet ++ '
+              'ownedSourceNames.toSet'
+          )
+          if text.count(old_names) != 2:
+              raise SystemExit(
+                  f'expected two BlockPlan ownership sites, found {text.count(old_names)}'
+              )
+          text = text.replace(old_names, new_names)
+
+          helper_marker = '  private def planBlock(\n'
+          helper_pos = text.index(helper_marker)
+          helper = '''  private def sourceExpressionNames(
+              expression: Expression
+          ): Set[String] = {
+            val names = mutable.LinkedHashSet.empty[String]
+            val visited =
+              new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
+
+            def visit(value: Expression): Unit = {
+              if ((value ne null) && !visited.containsKey(value)) {
+                visited.put(value, java.lang.Boolean.TRUE)
+                value match {
+                  case baseType: BaseType =>
+                    Option(baseType.getName()).filter(_.nonEmpty).foreach(names += _)
+                  case _ =>
+                }
+                value.foreachExpression(visit)
+              }
+            }
+
+            visit(expression)
+            names.toSet
+          }
+
+          '''
+          text = text[:helper_pos] + helper + text[helper_pos:]
+          path.write_text(text, encoding='utf-8')
+          PY
+          git diff --check
+
+      - name: Commit repaired candidate before validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+          git commit -m 'Fix Increment 52 AST source ownership'
+          git push origin HEAD:agent/increment-52-post-merge-closure
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate focused Increment 52 and inherited contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
+          for scala_version in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill frontend[$scala_version].testOnly \
+              morphhdl.frontend.HdlIntTests
+            /tmp/morphhdl-mill morph[$scala_version].testOnly \
+              morphhdl.NativeIntNestedSymbolicControlFlowTests \
+              morphhdl.NativeIntSymbolicConditionalTests \
+              morphhdl.NaturalSymbolicConditionalTests \
+              morphhdl.ExternalNativeIntShadowExpressionTests \
+              morphhdl.ExternalNativeIntShadowProvenanceTests \
+              morphhdl.ExternalNativeIntFormalizationTests \
+              morphhdl.FormalParameterIdentityTests \
+              morphhdl.FormalParameterClonePropagationTests \
+              morphhdl.HierarchyParameterBindingTests \
+              morphhdl.MorphSingleSourceVerilogTests \
+              morphhdl.integration.ExternalSpinalVerilogBaselineTests
+          done
+
+      - name: Run complete MorphHDL regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala_version in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill idslplugin[$scala_version].test
+            /tmp/morphhdl-mill paramrtl[$scala_version].test
+            /tmp/morphhdl-mill frontend[$scala_version].test
+            /tmp/morphhdl-mill verilogBackend[$scala_version].test
+            /tmp/morphhdl-mill morph[$scala_version].test
+            /tmp/morphhdl-mill core[$scala_version].testOnly \
+              spinal.core.internals.SpinalVerilogPhasePlanTests
+          done
+
+      - name: Publish completed roadmap state
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = path.read_text(encoding='utf-8')
+          old = '- [ ] **Increment 52 — Nested symbolic control flow and side-effect safety**'
+          new = '- [x] **Increment 52 — Nested symbolic control flow and side-effect safety**'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one unchecked Increment 52 item, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+          rm -f .github/workflows/increment-52-post-merge-closure-v2.yml
+          rm -f .github/workflows/increment-52-rhs-ownership-closure.yml
+          rm -f .github/workflows/increment-52-rhs-ownership-closure-v2.yml
+          rm -f .github/workflows/increment-52-ast-source-ownership-closure.yml
+          git diff --check
+          git add docs/morphhdl/parameterized-verilog-todo.md
+          git add -u .github/workflows
+          git commit -m 'Complete Increment 52 post-merge closure'
+          git push origin HEAD:agent/increment-52-post-merge-closure
