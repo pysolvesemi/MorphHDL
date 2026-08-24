@@ -86,20 +86,37 @@ jobs:
           replace_once(
               '    val ownedTargetNames = mutable.LinkedHashSet.empty[String]\n',
               '    val ownedTargetNames = mutable.LinkedHashSet.empty[String]\n' +
-              '    val assignmentEvidence = ArrayBuffer.empty[AssignmentEvidence]\n',
-              'assignmentEvidence buffer',
+              '    val assignmentEvidence = ArrayBuffer.empty[AssignmentEvidence]\n' +
+              '    val emittedActualByExpression = new IdentityHashMap[Expression, String]()\n',
+              'assignment evidence buffers',
           )
 
           replace_once(
-              '        ownedTargetNames += name\n      }\n    }\n\n    block.children.foreach { child =>',
-              '        ownedTargetNames += name\n' +
+              '      val instanceText = range.indices.map(lines).mkString("\\n")\n' +
+              '      connectionActualNames(instanceText).foreach { name =>\n',
+              '      val instanceText = range.indices.map(lines).mkString("\\n")\n' +
+              '      val actualByPort = connectionActualByPort(instanceText)\n' +
+              '      child.getOrdredNodeIo.toVector.foreach { port =>\n' +
+              '        Option(port.getName()).flatMap(actualByPort.get).foreach { actual =>\n' +
+              '          emittedActualByExpression.put(port, actual)\n' +
+              '        }\n' +
+              '      }\n' +
+              '      connectionActualNames(instanceText).foreach { name =>\n',
+              'child output actual evidence',
+          )
+
+          replace_once(
+              '    val fixedSlicePatterns = block.slices.map(fixedSlicePattern)\n',
+              '    block.assignments.foreach { assignment =>\n' +
+              '      Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>\n' +
               '        assignmentEvidence += AssignmentEvidence(\n' +
               '          name,\n' +
-              '          expressionNames(assignment.source)\n' +
+              '          expressionNames(assignment.source) ++\n' +
+              '            emittedActualNames(assignment.source, emittedActualByExpression)\n' +
               '        )\n' +
               '      }\n' +
               '    }\n\n' +
-              '    block.children.foreach { child =>',
+              '    val fixedSlicePatterns = block.slices.map(fixedSlicePattern)\n',
               'captured assignment evidence',
           )
 
@@ -132,8 +149,24 @@ jobs:
               '    visit(root)\n'
               '    names.toSet\n'
               '  }\n\n'
+              '  private def emittedActualNames(\n'
+              '      root: Expression,\n'
+              '      actualByExpression: IdentityHashMap[Expression, String]\n'
+              '  ): Set[String] = {\n'
+              '    val names = mutable.LinkedHashSet.empty[String]\n'
+              '    val visited = new IdentityHashMap[Expression, java.lang.Boolean]()\n\n'
+              '    def visit(value: Expression): Unit = {\n'
+              '      if ((value ne null) && !visited.containsKey(value)) {\n'
+              '        visited.put(value, java.lang.Boolean.TRUE)\n'
+              '        Option(actualByExpression.get(value)).foreach(names += _)\n'
+              '        value.foreachExpression(visit)\n'
+              '      }\n'
+              '    }\n\n'
+              '    visit(root)\n'
+              '    names.toSet\n'
+              '  }\n\n'
           )
-          replace_once(helper_anchor, helper + helper_anchor, 'expression evidence helper')
+          replace_once(helper_anchor, helper + helper_anchor, 'expression evidence helpers')
 
           ownership_old = (
               '                val assignmentNames = identifierTokens(stripped)\n'
@@ -162,6 +195,17 @@ jobs:
               '                owners match {\n'
           )
           replace_once(ownership_old, ownership_new, 'AST assignment ownership')
+
+          connection_anchor = '  private def connectionActualNames(instanceText: String): Vector[String] = {\n'
+          connection_helper = (
+              '  private def connectionActualByPort(instanceText: String): Map[String, String] = {\n'
+              '    val pattern = "\\\\.([A-Za-z_][A-Za-z0-9_]*)\\\\s*\\\\(\\\\s*([A-Za-z_][A-Za-z0-9_]*)\\\\s*\\\\)".r\n'
+              '    pattern.findAllMatchIn(instanceText).map { matched =>\n'
+              '      matched.group(1) -> matched.group(2)\n'
+              '    }.toMap\n'
+              '  }\n\n'
+          )
+          replace_once(connection_anchor, connection_helper + connection_anchor, 'connection actual mapping')
 
           path.write_text(text, encoding='utf-8')
           PY
@@ -213,5 +257,5 @@ jobs:
           git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
                   .github/workflows/morphhdl-native-int-nested-control-flow.yml
           git add -u .github/workflows .github/scripts
-          git commit -m 'fix: partition shared native processes by captured assignment evidence'
+          git commit -m 'fix: partition shared native processes by captured child-output evidence'
           git push origin HEAD:agent/increment-52-post-merge-overlap-fix
