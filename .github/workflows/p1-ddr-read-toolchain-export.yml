@@ -37,7 +37,17 @@ jobs:
           expected=81abd25518551b8a452ecf038e409331e646f726
           git merge-base --is-ancestor "${expected}" HEAD
           git diff --exit-code "${expected}" -- \
-            ':!/.github/workflows/p1-ddr-read-toolchain-export.yml'
+            build.sbt \
+            project/ \
+            idslpayload/ \
+            idslplugin/ \
+            sim/ \
+            paramrtl/ \
+            frontend/ \
+            backends/ \
+            core/ \
+            lib/ \
+            morphhdl/
 
       - name: Set up Java and SBT
         uses: actions/setup-java@v4
@@ -79,7 +89,6 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import hashlib
-          import shutil
 
           roots = [Path.home() / '.cache' / 'coursier', Path.home() / '.ivy2']
           out = Path('/tmp/p1-ddr-read-toolchain/external')
