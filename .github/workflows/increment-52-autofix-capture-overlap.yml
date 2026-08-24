@@ -1,0 +1,297 @@
+name: Increment 52 capture-overlap repair and completion
+
+on:
+  push:
+    branches:
+      - agent/increment-52-nested-control-flow-clean
+    paths:
+      - .github/workflows/increment-52-autofix-capture-overlap.yml
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+  checks: read
+
+concurrency:
+  group: increment-52-finalize
+  cancel-in-progress: false
+
+jobs:
+  repair-validate-and-merge:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      PR_NUMBER: "95"
+      HEAD_BRANCH: agent/increment-52-nested-control-flow-clean
+    steps:
+      - name: Check out Increment 52 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-52-nested-control-flow-clean
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Coalesce exact native module-item spans
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala")
+          text = path.read_text(encoding="utf-8")
+          marker = "Increment 52: one native Verilog module item can represent multiple captured AST statements"
+          if marker in text:
+              raise SystemExit("capture-overlap repair was already applied")
+
+          code = "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-OVERLAP"
+          error_pos = text.find(code)
+          if error_pos < 0:
+              raise SystemExit(f"missing {code}")
+
+          sliding_pos = text.rfind(".sliding(2)", 0, error_pos)
+          if sliding_pos < 0:
+              raise SystemExit("could not locate overlap sliding-window validation")
+
+          window_start = max(0, sliding_pos - 800)
+          window = text[window_start:sliding_pos]
+          compact = re.sub(r"\s+", " ", window)
+          base_match = re.search(
+              r"([A-Za-z_][A-Za-z0-9_]*)\s*(?:\.sortBy\s*\([^)]*\))?\s*$",
+              compact,
+          )
+          if not base_match:
+              raise SystemExit("could not identify captured-range collection")
+          base = base_match.group(1)
+
+          # Recover the two coordinate members directly from the overlap diagnostic.
+          diagnostic = text[error_pos:error_pos + 700]
+          refs = re.findall(r"\$\{[A-Za-z_][A-Za-z0-9_]*\.([A-Za-z_][A-Za-z0-9_]*)\}", diagnostic)
+          field_pair = None
+          for left, right in (("start", "end"), ("startLine", "endLine"), ("from", "to"), ("first", "last")):
+              if left in refs and right in refs:
+                  field_pair = (left, right)
+                  break
+          if field_pair is None:
+              # The current implementation uses start/end; retain a guarded fallback
+              # so a formatting-only diagnostic change cannot make this repair unsafe.
+              nearby = text[max(0, sliding_pos - 300):error_pos + 500]
+              for left, right in (("start", "end"), ("startLine", "endLine"), ("from", "to"), ("first", "last")):
+                  if f".{left}" in nearby and f".{right}" in nearby:
+                      field_pair = (left, right)
+                      break
+          if field_pair is None:
+              raise SystemExit("could not identify captured-range coordinates")
+          start_field, end_field = field_pair
+
+          definitions = list(re.finditer(
+              rf"(?m)^(?P<indent>[ \t]*)val[ \t]+{re.escape(base)}[ \t]*=",
+              text[:sliding_pos],
+          ))
+          if not definitions:
+              raise SystemExit(f"could not locate val definition for {base}")
+          definition = definitions[-1]
+          raw = "raw" + base[:1].upper() + base[1:]
+          if re.search(rf"\b{re.escape(raw)}\b", text):
+              raise SystemExit(f"temporary name {raw} already exists")
+
+          # Rename the producer, then reintroduce the original name immediately
+          # before its first overlap-sensitive use.  Keeping the original name means
+          # every downstream validation and rewrite path consumes the coalesced set.
+          text = text[:definition.start()] + re.sub(
+              rf"\bval[ \t]+{re.escape(base)}\b",
+              f"val {raw}",
+              text[definition.start():definition.end()],
+              count=1,
+          ) + text[definition.end():]
+
+          # The rename length can shift the original location; find the overlap code again.
+          error_pos = text.find(code)
+          sliding_pos = text.rfind(".sliding(2)", 0, error_pos)
+          chain_line_start = text.rfind("\n", 0, sliding_pos) + 1
+          # Walk upward to the line that starts the fluent chain.
+          search_start = max(0, chain_line_start - 1000)
+          preceding = text[search_start:chain_line_start]
+          line_matches = list(re.finditer(rf"(?m)^[ \t]*{re.escape(base)}\b", preceding))
+          if line_matches:
+              insert_at = search_start + line_matches[-1].start()
+          else:
+              # One-line form: ranges.sortBy(...).sliding(2)
+              line_start = text.rfind("\n", 0, sliding_pos) + 1
+              if not re.search(rf"\b{re.escape(base)}\b", text[line_start:sliding_pos]):
+                  raise SystemExit("could not locate overlap-chain insertion point")
+              insert_at = line_start
+
+          indent_match = re.match(r"[ \t]*", text[insert_at:])
+          indent = indent_match.group(0) if indent_match else "  "
+          addition = f'''{indent}// {marker}.
+{indent}// Coalesce only exact physical spans.  A partial overlap remains a hard
+{indent}// error below; moving one emitted item twice would otherwise corrupt the
+{indent}// source rewrite.  This is required for memories/processes where SpinalHDL
+{indent}// merges several captured AST statements into the same Verilog module item.
+{indent}val {base} = {raw}.foldLeft({raw}.take(0).toVector) {{ (kept, candidate) =>
+{indent}  val alreadyOwned = kept.exists(existing =>
+{indent}    existing.{start_field} == candidate.{start_field} &&
+{indent}      existing.{end_field} == candidate.{end_field}
+{indent}  )
+{indent}  if (alreadyOwned) kept else kept :+ candidate
+{indent}}}
+
+'''
+          text = text[:insert_at] + addition + text[insert_at:]
+          path.write_text(text, encoding="utf-8")
+          PY
+          git diff --check
+          grep -n -A16 -B4 "one native Verilog module item" \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run source-boundary proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
+
+      - name: Run Increment 52 and inherited contracts on both Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala_version in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill "frontend[$scala_version].testOnly" \
+              morphhdl.frontend.HdlIntTests
+            /tmp/morphhdl-mill "morph[$scala_version].testOnly" \
+              morphhdl.NativeIntNestedSymbolicControlFlowTests \
+              morphhdl.NativeIntSymbolicConditionalTests \
+              morphhdl.NaturalSymbolicConditionalTests \
+              morphhdl.ExternalNativeIntShadowExpressionTests \
+              morphhdl.ExternalNativeIntShadowProvenanceTests \
+              morphhdl.ExternalNativeIntFormalizationTests \
+              morphhdl.FormalParameterIdentityTests \
+              morphhdl.FormalParameterClonePropagationTests \
+              morphhdl.HierarchyParameterBindingTests \
+              morphhdl.MorphSingleSourceVerilogTests \
+              morphhdl.integration.ExternalSpinalVerilogBaselineTests
+          done
+
+      - name: Mark roadmap complete and remove repair workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          text = path.read_text(encoding="utf-8")
+          if re.search(r"(?mi)^\s*[-*]\s*\[x\].*Increment\s+52\b", text):
+              pass
+          else:
+              updated, count = re.subn(
+                  r"(?mi)^(\s*[-*]\s*)\[\s*\](\s*(?:\*\*)?Increment\s+52\b)",
+                  r"\1[x]\2",
+                  text,
+                  count=1,
+              )
+              if count != 1:
+                  raise SystemExit("could not locate unchecked Increment 52 roadmap entry")
+              path.write_text(updated, encoding="utf-8")
+          PY
+          rm .github/workflows/increment-52-autofix-capture-overlap.yml
+          git diff --check
+
+      - name: Commit final Increment 52 tree
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
+                  docs/morphhdl/parameterized-verilog-todo.md
+          git add -u .github/workflows/increment-52-autofix-capture-overlap.yml
+          git commit -m "Complete Increment 52 nested symbolic control flow"
+          git push origin HEAD:${HEAD_BRANCH}
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for final hosted checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha='${{ steps.commit.outputs.sha }}'
+          repo='${{ github.repository }}'
+          required=(
+            'Native Int nested-control source boundary'
+            'Native Int nested-control proof Scala 2.12.18'
+            'Native Int nested-control proof Scala 2.13.12'
+            'Test Scala 2.12.18'
+            'Test Scala 2.13.12'
+          )
+          deadline=$(( $(date +%s) + 5400 ))
+          while :; do
+            json=$(gh api -H 'Accept: application/vnd.github+json' \
+              "/repos/$repo/commits/$sha/check-runs?per_page=100")
+            names=$(printf '%s' "$json" | jq -r '.check_runs[].name')
+            missing=0
+            for name in "${required[@]}"; do
+              if ! grep -Fxq "$name" <<<"$names"; then
+                missing=1
+              fi
+            done
+            bad=$(printf '%s' "$json" | jq -r '[.check_runs[] | select(.status == "completed" and (.conclusion | IN("success","neutral","skipped") | not))] | length')
+            active=$(printf '%s' "$json" | jq -r '[.check_runs[] | select(.status != "completed")] | length')
+            if (( bad > 0 )); then
+              printf '%s' "$json" | jq -r '.check_runs[] | select(.status == "completed" and (.conclusion | IN("success","neutral","skipped") | not)) | "FAILED: \(.name): \(.conclusion)"'
+              exit 1
+            fi
+            if (( missing == 0 && active == 0 )); then
+              printf '%s' "$json" | jq -r '.check_runs[] | "\(.name): \(.status)/\(.conclusion)"'
+              break
+            fi
+            if (( $(date +%s) >= deadline )); then
+              echo "timed out waiting for final hosted checks" >&2
+              printf '%s' "$json" | jq -r '.check_runs[] | "\(.name): \(.status)/\(.conclusion)"'
+              exit 1
+            fi
+            sleep 20
+          done
+
+      - name: Ready and squash-merge PR 95
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha='${{ steps.commit.outputs.sha }}'
+          repo='${{ github.repository }}'
+          gh api -X PATCH "/repos/$repo/pulls/$PR_NUMBER" -f draft=false >/dev/null
+          result=$(gh api -X PUT "/repos/$repo/pulls/$PR_NUMBER/merge" \
+            -f merge_method=squash -f sha="$sha")
+          merged=$(printf '%s' "$result" | jq -r '.merged')
+          if [[ "$merged" != true ]]; then
+            printf '%s\n' "$result" >&2
+            exit 1
+          fi
+          gh api -X DELETE "/repos/$repo/git/refs/heads/${HEAD_BRANCH//\//%2F}" || true
+
+      - name: Verify merged roadmap state
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo='${{ github.repository }}'
+          merged=$(gh api "/repos/$repo/pulls/$PR_NUMBER" --jq '.merged')
+          [[ "$merged" == true ]]
+          content=$(gh api "/repos/$repo/contents/docs/morphhdl/parameterized-verilog-todo.md?ref=parameterized-verilog" --jq '.content' | base64 -d)
+          grep -Eqi '^\s*[-*]\s*\[x\].*Increment[[:space:]]+52\b' <<<"$content"
