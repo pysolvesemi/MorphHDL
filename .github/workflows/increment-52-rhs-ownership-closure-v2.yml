@@ -1,0 +1,138 @@
+name: Increment 52 RHS ownership closure v2
+
+on:
+  push:
+    branches:
+      - agent/increment-52-post-merge-closure
+    paths:
+      - .github/workflows/increment-52-rhs-ownership-closure-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  close:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out closure branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-52-post-merge-closure
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply position-based RHS ownership repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path(
+              'morphhdl/src/main/scala/spinal/core/internals/'
+              'ParameterizedVerilogStructural.scala'
+          )
+          text = path.read_text(encoding='utf-8')
+          start_token = '              val assignmentNames = identifierTokens(stripped)\n'
+          end_token = '              owners match {\n'
+          start = text.index(start_token)
+          end = text.index(end_token, start)
+          replacement = (
+              '              val sourceNames = identifierTokens(statement.group(3))\n'
+              '              val directOwners = claimants.filter { plan =>\n'
+              '                plan.ownedNames.exists(name => sourceNames(name))\n'
+              '              }\n'
+              '              val owners =\n'
+              '                if (directOwners.nonEmpty) directOwners\n'
+              '                else\n'
+              '                  claimants.filter { plan =>\n'
+              '                    uniqueEvidence(plan.block).exists(name => sourceNames(name))\n'
+              '                  }\n'
+          )
+          path.write_text(text[:start] + replacement + text[end:], encoding='utf-8')
+          PY
+          git diff --check
+
+      - name: Commit repaired candidate before validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+          git commit -m 'Fix Increment 52 RHS branch ownership evidence'
+          git push origin HEAD:agent/increment-52-post-merge-closure
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate focused Increment 52 and inherited contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
+          for scala_version in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill frontend[$scala_version].testOnly \
+              morphhdl.frontend.HdlIntTests
+            /tmp/morphhdl-mill morph[$scala_version].testOnly \
+              morphhdl.NativeIntNestedSymbolicControlFlowTests \
+              morphhdl.NativeIntSymbolicConditionalTests \
+              morphhdl.NaturalSymbolicConditionalTests \
+              morphhdl.ExternalNativeIntShadowExpressionTests \
+              morphhdl.ExternalNativeIntShadowProvenanceTests \
+              morphhdl.ExternalNativeIntFormalizationTests \
+              morphhdl.FormalParameterIdentityTests \
+              morphhdl.FormalParameterClonePropagationTests \
+              morphhdl.HierarchyParameterBindingTests \
+              morphhdl.MorphSingleSourceVerilogTests \
+              morphhdl.integration.ExternalSpinalVerilogBaselineTests
+          done
+
+      - name: Run complete MorphHDL regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala_version in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill idslplugin[$scala_version].test
+            /tmp/morphhdl-mill paramrtl[$scala_version].test
+            /tmp/morphhdl-mill frontend[$scala_version].test
+            /tmp/morphhdl-mill verilogBackend[$scala_version].test
+            /tmp/morphhdl-mill morph[$scala_version].test
+            /tmp/morphhdl-mill core[$scala_version].testOnly \
+              spinal.core.internals.SpinalVerilogPhasePlanTests
+          done
+
+      - name: Publish completed roadmap state
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = path.read_text(encoding='utf-8')
+          old = '- [ ] **Increment 52 — Nested symbolic control flow and side-effect safety**'
+          new = '- [x] **Increment 52 — Nested symbolic control flow and side-effect safety**'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one unchecked Increment 52 item, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+          rm -f .github/workflows/increment-52-post-merge-closure-v2.yml
+          rm -f .github/workflows/increment-52-rhs-ownership-closure.yml
+          rm -f .github/workflows/increment-52-rhs-ownership-closure-v2.yml
+          git diff --check
+          git add docs/morphhdl/parameterized-verilog-todo.md
+          git add -u .github/workflows
+          git commit -m 'Complete Increment 52 post-merge closure'
+          git push origin HEAD:agent/increment-52-post-merge-closure
