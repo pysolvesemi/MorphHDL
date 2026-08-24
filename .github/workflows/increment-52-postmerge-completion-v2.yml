@@ -1,0 +1,141 @@
+name: Complete remaining Increment 52 after merge v2
+
+on:
+  push:
+    branches:
+      - agent/increment-52-completion-fix
+    paths:
+      - .github/workflows/increment-52-postmerge-completion-v2.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-52-postmerge-completion-v2
+  cancel-in-progress: false
+
+jobs:
+  repair-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out corrective branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-52-completion-fix
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Apply corrected production repair and clean stale carriers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/complete-increment-52-shared-process.py
+          git show c37cfba9e8ed0d5ffa64cb0d631a35b986a30632:.github/workflows/morphhdl-native-int-nested-control-flow.yml \
+            > .github/workflows/morphhdl-native-int-nested-control-flow.yml
+          rm -f .github/workflows/increment-52-complete.yml
+          rm -f .github/workflows/increment-52-final-clean-head.yml
+          rm -f .github/workflows/increment-52-overlap-debug.yml
+          rm -f .github/workflows/increment-52-range-coalesce-repair.yml
+          rm -f .github/workflows/increment-52-finalize-attributed-declarations.yml
+          rm -f .github/workflows/increment-52-apply-memory-retention-fix.yml
+          rm -f .github/workflows/increment-52-memory-retention-repair.yml
+          rm -f .github/increment-52-final-validation.marker
+          git diff --check
+
+      - name: Validate focused Increment 52 contracts on Scala 2.12.18
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
+          /tmp/morphhdl-mill frontend[2.12.18].testOnly \
+            morphhdl.frontend.HdlIntTests
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
+            morphhdl.NaturalSymbolicConditionalTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowProvenanceTests \
+            morphhdl.ExternalNativeIntFormalizationTests \
+            morphhdl.FormalParameterIdentityTests \
+            morphhdl.FormalParameterClonePropagationTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.integration.ExternalSpinalVerilogBaselineTests
+
+      - name: Validate focused Increment 52 contracts on Scala 2.13.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill frontend[2.13.12].testOnly \
+            morphhdl.frontend.HdlIntTests
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
+            morphhdl.NaturalSymbolicConditionalTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowProvenanceTests \
+            morphhdl.ExternalNativeIntFormalizationTests \
+            morphhdl.FormalParameterIdentityTests \
+            morphhdl.FormalParameterClonePropagationTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.integration.ExternalSpinalVerilogBaselineTests
+
+      - name: Run complete applicable Mill regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala_version in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill idslplugin[$scala_version].test
+            /tmp/morphhdl-mill paramrtl[$scala_version].test
+            /tmp/morphhdl-mill frontend[$scala_version].test
+            /tmp/morphhdl-mill verilogBackend[$scala_version].test
+            /tmp/morphhdl-mill morph[$scala_version].test
+            /tmp/morphhdl-mill core[$scala_version].testOnly \
+              spinal.core.internals.SpinalVerilogPhasePlanTests
+          done
+
+      - name: Mark roadmap complete and publish corrective head
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = path.read_text(encoding='utf-8')
+          unchecked = '- [ ] **Increment 52 — Nested symbolic control flow and side-effect safety**'
+          checked = '- [x] **Increment 52 — Nested symbolic control flow and side-effect safety**'
+          if unchecked in text:
+              if text.count(unchecked) != 1:
+                  raise SystemExit('Increment 52 unchecked roadmap entry is ambiguous')
+              text = text.replace(unchecked, checked, 1)
+          elif text.count(checked) != 1:
+              raise SystemExit('Increment 52 roadmap entry is missing or ambiguous')
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          rm -f .github/workflows/increment-52-postmerge-completion.yml
+          rm -f .github/workflows/increment-52-postmerge-completion-v2.yml
+          rm -f morphhdl/scripts/complete-increment-52-shared-process.py
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Complete Increment 52 shared-process lowering'
+          git push origin HEAD:agent/increment-52-completion-fix
