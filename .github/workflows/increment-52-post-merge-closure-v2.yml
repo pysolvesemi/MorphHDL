@@ -1,0 +1,165 @@
+name: Increment 52 post-merge closure v2
+
+on:
+  push:
+    branches:
+      - agent/increment-52-post-merge-closure
+    paths:
+      - .github/workflows/increment-52-post-merge-closure-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  close-increment-52:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out closure branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-52-post-merge-closure
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Materialize reviewed production repair robustly
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+
+          carrier = Path('.github/workflows/increment-52-post-merge-closure.yml')
+          lines = carrier.read_text(encoding='utf-8').splitlines()
+          start = next(
+              index for index, line in enumerate(lines)
+              if line == "          python3 - <<'PY'"
+          ) + 1
+          end = next(
+              index for index in range(start, len(lines))
+              if lines[index] == '          PY'
+          )
+          script = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in lines[start:end]
+          )
+
+          tree = ast.parse(script)
+          first_replace = next(
+              node for node in ast.walk(tree)
+              if isinstance(node, ast.Call)
+              and isinstance(node.func, ast.Name)
+              and node.func.id == 'replace_once'
+              and len(node.args) >= 2
+          )
+          expected = ast.literal_eval(first_replace.args[0])
+
+          source = Path(
+              'morphhdl/src/main/scala/spinal/core/internals/'
+              'ParameterizedVerilogStructural.scala'
+          )
+          text = source.read_text(encoding='utf-8')
+          block_start = text.index('  private final case class BlockPlan(')
+          block_end = text.index('\n\n  def hasRegions', block_start)
+          text = text[:block_start] + expected.rstrip('\n') + text[block_end:]
+          source.write_text(text, encoding='utf-8')
+
+          exec(compile(script, '/tmp/increment-52-production-patch.py', 'exec'))
+          PY
+
+          git show c37cfba9e8ed0d5ffa64cb0d631a35b986a30632:.github/workflows/morphhdl-native-int-nested-control-flow.yml \
+            > .github/workflows/morphhdl-native-int-nested-control-flow.yml
+          grep -q 'Native Int nested-control proof Scala' \
+            .github/workflows/morphhdl-native-int-nested-control-flow.yml
+
+          rm -f .github/workflows/increment-52-complete.yml
+          rm -f .github/workflows/increment-52-final-clean-head.yml
+          rm -f .github/workflows/increment-52-overlap-debug.yml
+          rm -f .github/workflows/increment-52-range-coalesce-repair.yml
+          rm -f .github/workflows/increment-52-post-merge-closure.yml
+          git diff --check
+
+      - name: Commit candidate production tree before validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
+                  .github/workflows/morphhdl-native-int-nested-control-flow.yml
+          git add -u .github/workflows
+          git commit -m 'Fix Increment 52 shared native process ownership'
+          git push origin HEAD:agent/increment-52-post-merge-closure
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate Increment 52 and inherited contracts on both Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
+          for scala_version in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill frontend[$scala_version].testOnly \
+              morphhdl.frontend.HdlIntTests
+            /tmp/morphhdl-mill morph[$scala_version].testOnly \
+              morphhdl.NativeIntNestedSymbolicControlFlowTests \
+              morphhdl.NativeIntSymbolicConditionalTests \
+              morphhdl.NaturalSymbolicConditionalTests \
+              morphhdl.ExternalNativeIntShadowExpressionTests \
+              morphhdl.ExternalNativeIntShadowProvenanceTests \
+              morphhdl.ExternalNativeIntFormalizationTests \
+              morphhdl.FormalParameterIdentityTests \
+              morphhdl.FormalParameterClonePropagationTests \
+              morphhdl.HierarchyParameterBindingTests \
+              morphhdl.MorphSingleSourceVerilogTests \
+              morphhdl.integration.ExternalSpinalVerilogBaselineTests
+          done
+
+      - name: Run complete MorphHDL Mill regression on both Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala_version in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill idslplugin[$scala_version].test
+            /tmp/morphhdl-mill paramrtl[$scala_version].test
+            /tmp/morphhdl-mill frontend[$scala_version].test
+            /tmp/morphhdl-mill verilogBackend[$scala_version].test
+            /tmp/morphhdl-mill morph[$scala_version].test
+            /tmp/morphhdl-mill core[$scala_version].testOnly \
+              spinal.core.internals.SpinalVerilogPhasePlanTests
+          done
+
+      - name: Mark roadmap complete and remove closure carrier
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = path.read_text(encoding='utf-8')
+          old = '- [ ] **Increment 52 — Nested symbolic control flow and side-effect safety**'
+          new = '- [x] **Increment 52 — Nested symbolic control flow and side-effect safety**'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one unchecked Increment 52 item, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+          rm .github/workflows/increment-52-post-merge-closure-v2.yml
+          git diff --check
+          git add docs/morphhdl/parameterized-verilog-todo.md
+          git add -u .github/workflows/increment-52-post-merge-closure-v2.yml
+          git commit -m 'Complete Increment 52 post-merge closure'
+          git push origin HEAD:agent/increment-52-post-merge-closure
