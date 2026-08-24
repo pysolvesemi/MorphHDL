@@ -1,5 +1,3 @@
-import java.security.MessageDigest
-
 lazy val exportDisplayControllerToolchain = taskKey[File](
   "Export the pinned MorphHDL/Scala compile and runtime classpath for the Display Controller closure"
 )
@@ -9,25 +7,35 @@ Global / exportDisplayControllerToolchain := {
   IO.delete(output)
   IO.createDirectory(output)
 
+  val idslPayloadRef = LocalProject("idslpayload")
+  val idslPluginRef = LocalProject("idslplugin")
+  val simRef = LocalProject("sim")
+  val paramRtlRef = LocalProject("paramrtl")
+  val coreRef = LocalProject("core")
+  val libRef = LocalProject("lib")
+  val frontendRef = LocalProject("frontend")
+  val verilogBackendRef = LocalProject("verilogBackend")
+  val morphRef = LocalProject("morph")
+
   val projectJars = Seq(
-    (idslpayload / Compile / packageBin).value,
-    (idslplugin / Compile / packageBin).value,
-    (sim / Compile / packageBin).value,
-    (paramrtl / Compile / packageBin).value,
-    (core / Compile / packageBin).value,
-    (lib / Compile / packageBin).value,
-    (frontend / Compile / packageBin).value,
-    (verilogBackend / Compile / packageBin).value,
-    (morph / Compile / packageBin).value
+    (idslPayloadRef / Compile / packageBin).value,
+    (idslPluginRef / Compile / packageBin).value,
+    (simRef / Compile / packageBin).value,
+    (paramRtlRef / Compile / packageBin).value,
+    (coreRef / Compile / packageBin).value,
+    (libRef / Compile / packageBin).value,
+    (frontendRef / Compile / packageBin).value,
+    (verilogBackendRef / Compile / packageBin).value,
+    (morphRef / Compile / packageBin).value
   )
 
   val externalJars = (
-    (idslplugin / Compile / externalDependencyClasspath).value ++
-      (core / Compile / externalDependencyClasspath).value ++
-      (lib / Compile / externalDependencyClasspath).value ++
-      (frontend / Compile / externalDependencyClasspath).value ++
-      (verilogBackend / Compile / externalDependencyClasspath).value ++
-      (morph / Compile / externalDependencyClasspath).value
+    (idslPluginRef / Compile / externalDependencyClasspath).value ++
+      (coreRef / Compile / externalDependencyClasspath).value ++
+      (libRef / Compile / externalDependencyClasspath).value ++
+      (frontendRef / Compile / externalDependencyClasspath).value ++
+      (verilogBackendRef / Compile / externalDependencyClasspath).value ++
+      (morphRef / Compile / externalDependencyClasspath).value
   ).map(_.data)
 
   val files = (projectJars ++ externalJars)
