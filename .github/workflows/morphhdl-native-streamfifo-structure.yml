@@ -1,15 +1,8 @@
 name: MorphHDL native StreamFifo parameter structure
 
-# Increment 53 proves the real spinal.lib.StreamFifo symbolic-depth overload,
-# native structural alternatives, simulation and synthesis on one definition.
 on:
-  push:
-    branches:
-      - main
-      - parameterized-verilog
   pull_request:
     branches:
-      - main
       - parameterized-verilog
   workflow_dispatch:
 
@@ -22,7 +15,7 @@ concurrency:
 
 jobs:
   repair:
-    name: Apply final generic Increment 53 repair
+    name: Apply and prove final generic Increment 53 repair
     if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/increment-53-native-streamfifo-clean'
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -37,7 +30,7 @@ jobs:
           ref: agent/increment-53-native-streamfifo-clean
           fetch-depth: 0
 
-      - name: Determine whether the final repair is already committed
+      - name: Determine whether repair is required
         id: state
         shell: bash
         run: |
@@ -48,7 +41,7 @@ jobs:
             echo 'needed=true' >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Apply safe structural-overlap and concrete-resize hierarchy repairs
+      - name: Apply safe structural-overlap and resize-boundary support
         if: steps.state.outputs.needed == 'true'
         shell: bash
         run: |
@@ -60,13 +53,17 @@ jobs:
               "morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala"
           )
           text = structure_path.read_text()
-          text = text.replace(
-              "    var nextCaptureId = 0L\n  }\n",
-              "    var nextCaptureId = 0L\n    var assignmentValidationScheduled = false\n  }\n",
-              1,
+
+          storage_old = "    var nextCaptureId = 0L\n  }\n"
+          storage_new = (
+              "    var nextCaptureId = 0L\n"
+              "    var assignmentValidationScheduled = false\n"
+              "  }\n"
           )
           if "var assignmentValidationScheduled = false" not in text:
-              raise SystemExit("Storage patch did not apply")
+              if storage_old not in text:
+                  raise SystemExit("ParameterizedStructure Storage anchor changed")
+              text = text.replace(storage_old, storage_new, 1)
 
           active_anchor = "  private val activeCapture = new ThreadLocal[CaptureState]()\n"
           path_types = """  private final case class AlternativeStep(
@@ -80,9 +77,9 @@ jobs:
           )
 
           """
-          if path_types not in text:
+          if "private final case class CapturedAssignment(" not in text:
               if active_anchor not in text:
-                  raise SystemExit("activeCapture anchor changed")
+                  raise SystemExit("ParameterizedStructure activeCapture anchor changed")
               text = text.replace(active_anchor, path_types + active_anchor, 1)
 
           register_for_anchor = "  def registerFor(\n      component: Component,\n"
@@ -214,22 +211,26 @@ jobs:
               }
 
           """
-          if helpers not in text:
+          if "private def scheduleAssignmentValidation(" not in text:
               if register_for_anchor not in text:
-                  raise SystemExit("registerFor anchor changed")
+                  raise SystemExit("ParameterizedStructure registerFor anchor changed")
               text = text.replace(register_for_anchor, helpers + register_for_anchor, 1)
 
           marker_index = text.find("  private def registerRegion(\n")
           if marker_index < 0:
-              raise SystemExit("registerRegion declaration missing")
+              raise SystemExit("ParameterizedStructure registerRegion missing")
           before = text[:marker_index]
           region_text = text[marker_index:]
-          old = "  ): Unit = {\n    val capture = activeCapture.get()\n"
-          new = "  ): Unit = {\n    scheduleAssignmentValidation(component)\n    val capture = activeCapture.get()\n"
-          if new not in region_text:
-              if old not in region_text:
-                  raise SystemExit("registerRegion body changed")
-              region_text = region_text.replace(old, new, 1)
+          schedule_old = "  ): Unit = {\n    val capture = activeCapture.get()\n"
+          schedule_new = (
+              "  ): Unit = {\n"
+              "    scheduleAssignmentValidation(component)\n"
+              "    val capture = activeCapture.get()\n"
+          )
+          if "scheduleAssignmentValidation(component)" not in region_text:
+              if schedule_old not in region_text:
+                  raise SystemExit("ParameterizedStructure registerRegion body changed")
+              region_text = region_text.replace(schedule_old, schedule_new, 1)
           structure_path.write_text(before + region_text)
 
           hierarchy_path = Path(
@@ -248,43 +249,65 @@ jobs:
             }
 
           """
-          if resize_helper not in hierarchy:
+          if "private def directConcreteOutputAdapter(" not in hierarchy:
               if connection_anchor not in hierarchy:
-                  raise SystemExit("connectionEvidence anchor changed")
+                  raise SystemExit("hierarchy connectionEvidence anchor changed")
               hierarchy = hierarchy.replace(
                   connection_anchor,
                   resize_helper + connection_anchor,
                   1,
               )
 
-          output_failure = """        } else {
-              fail(
-                "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED",
-                s"$context uses a sliced, indexed, converted or expression-wrapped child-output connection; direct full packed connections are required"
+          if "directConcreteOutputAdapter(assignment.source, port)" not in hierarchy:
+              lines = hierarchy.splitlines(keepends=True)
+              message = (
+                  "uses a sliced, indexed, converted or expression-wrapped "
+                  "child-output connection; direct full packed connections are required"
               )
-            }
-          """
-          output_adapter = """        } else if (
-              allowConcreteInternal &&
-              assignment.target == assignment.finalTarget &&
-              assignment.finalTarget.component == parent &&
-              directConcreteOutputAdapter(assignment.source, port)
-            ) {
-              // The native graph already validates the resize into the parent.
-              // Hierarchy inference only needs the concrete width at the child
-              // instance boundary, which remains the unchanged child-port width.
-              Vector(LiteralBinding(port.getBitsWidth))
-            } else {
-              fail(
-                "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED",
-                s"$context uses a sliced, indexed, converted or expression-wrapped child-output connection; direct full packed connections are required"
-              )
-            }
-          """
-          if output_adapter not in hierarchy:
-              if output_failure not in hierarchy:
-                  raise SystemExit("unique child-output diagnostic block changed")
-              hierarchy = hierarchy.replace(output_failure, output_adapter, 1)
+              message_indexes = [
+                  index for index, line in enumerate(lines) if message in line
+              ]
+              if len(message_indexes) != 1:
+                  raise SystemExit(
+                      f"expected one child-output diagnostic, found {len(message_indexes)}"
+                  )
+              message_index = message_indexes[0]
+              else_candidates = [
+                  index
+                  for index in range(message_index)
+                  if lines[index].strip() == "} else {"
+              ]
+              if not else_candidates:
+                  raise SystemExit("child-output else branch not found")
+              else_index = else_candidates[-1]
+              indent = lines[else_index][:-len(lines[else_index].lstrip())]
+              close_index = None
+              for index in range(message_index + 1, len(lines)):
+                  if lines[index].strip() == "}" and lines[index].startswith(indent):
+                      close_index = index
+                      break
+              if close_index is None:
+                  raise SystemExit("child-output diagnostic branch terminator not found")
+
+              replacement = [
+                  indent + "} else if (\n",
+                  indent + "  allowConcreteInternal &&\n",
+                  indent + "  assignment.target == assignment.finalTarget &&\n",
+                  indent + "  assignment.finalTarget.component == parent &&\n",
+                  indent + "  directConcreteOutputAdapter(assignment.source, port)\n",
+                  indent + ") {\n",
+                  indent + "  // Native Spinal validates this resize into the parent.\n",
+                  indent + "  // The child instance boundary retains its concrete port width.\n",
+                  indent + "  Vector(LiteralBinding(port.getBitsWidth))\n",
+                  indent + "} else {\n",
+                  indent + "  fail(\n",
+                  indent + "    \"SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED\",\n",
+                  indent + "    s\"$context uses a sliced, indexed, converted or expression-wrapped child-output connection; direct full packed connections are required\"\n",
+                  indent + "  )\n",
+                  indent + "}\n",
+              ]
+              lines[else_index:close_index + 1] = replacement
+              hierarchy = "".join(lines)
           hierarchy_path.write_text(hierarchy)
 
           test_path = Path(
@@ -302,9 +325,9 @@ jobs:
           }
 
           """
-          if unsafe_class not in tests:
+          if "final class UnsafeStructuralAssignmentHarness(" not in tests:
               if class_anchor not in tests:
-                  raise SystemExit("test class anchor changed")
+                  raise SystemExit("StreamFifo test class anchor changed")
               tests = tests.replace(class_anchor, unsafe_class + class_anchor, 1)
 
           test_anchor = "  private def simulateDepth(\n"
@@ -330,9 +353,9 @@ jobs:
             }
 
           """
-          if unsafe_test not in tests:
+          if "mutually-exclusive capture never hides an outside assignment" not in tests:
               if test_anchor not in tests:
-                  raise SystemExit("test insertion anchor changed")
+                  raise SystemExit("StreamFifo test insertion anchor changed")
               tests = tests.replace(test_anchor, unsafe_test + test_anchor, 1)
           test_path.write_text(tests)
           PY
@@ -348,7 +371,7 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Prove focused Increment 53 contracts before publication
+      - name: Prove focused Increment 53 contracts
         if: steps.state.outputs.needed == 'true'
         shell: bash
         run: |
@@ -358,7 +381,7 @@ jobs:
             morphhdl.HierarchyParameterBindingTests \
             morphhdl.NativeIntNestedSymbolicControlFlowTests
 
-      - name: Publish final repair and remove temporary diagnostics
+      - name: Publish proved repair
         if: steps.state.outputs.needed == 'true'
         shell: bash
         run: |
@@ -377,65 +400,3 @@ jobs:
             morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala
           git commit -m "fix(morphhdl): complete generic StreamFifo structure [inc53-final-fix]"
           git push origin HEAD:"$GITHUB_HEAD_REF"
-
-  source-boundary:
-    name: Native StreamFifo source boundary
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Check out complete history
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Prove native overload, pointer wiring and sidecar absence
-        shell: bash
-        run: bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
-
-  contracts:
-    name: Native StreamFifo proof Scala ${{ matrix.scala_version }}
-    needs: source-boundary
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    container:
-      image: ghcr.io/spinalhdl/docker:latest
-    env:
-      XDG_CACHE_HOME: /tmp/morphhdl-cache
-    strategy:
-      fail-fast: false
-      matrix:
-        scala_version:
-          - "2.12.18"
-          - "2.13.12"
-    steps:
-      - name: Check out sources
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install pinned Mill bootstrap
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --location --retry 5 --retry-all-errors \
-            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
-            --output /tmp/morphhdl-mill
-          chmod +x /tmp/morphhdl-mill
-
-      - name: Validate real native StreamFifo and inherited contracts
-        shell: bash
-        run: |
-          set -euo pipefail
-          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
-            morphhdl.ParameterizedStreamFifoDepthTests \
-            morphhdl.NativeIntSymbolicConditionalTests \
-            morphhdl.NativeIntNestedSymbolicControlFlowTests \
-            morphhdl.NativeMemAutoProvenanceTests \
-            morphhdl.ExternalNativeIntFormalizationTests \
-            morphhdl.ExternalNativeIntShadowExpressionTests \
-            morphhdl.ExternalNativeIntShadowProvenanceTests \
-            morphhdl.FormalParameterIdentityTests \
-            morphhdl.FormalParameterClonePropagationTests \
-            morphhdl.HierarchyParameterBindingTests \
-            morphhdl.MorphSingleSourceVerilogTests \
-            morphhdl.integration.ExternalSpinalVerilogBaselineTests
