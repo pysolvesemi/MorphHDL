@@ -1,0 +1,109 @@
+name: Increment 53 carrier-shape repair
+
+on:
+  push:
+    branches:
+      - agent/increment-53-native-streamfifo-clean
+
+permissions:
+  contents: write
+
+jobs:
+  apply-carrier-shape-repair:
+    if: ${{ !contains(github.event.head_commit.message, '[increment-53-carrier-shape-fixed]') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out Increment 53 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-clean
+          fetch-depth: 0
+
+      - name: Apply exact carrier-shape repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path("morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala")
+          text = path.read_text()
+
+          anchor = '''  /**
+            * Build an exact, named UInt carrier for one symbolic Scala integer used by
+            * an ordinary hardware operator. This method is called only from the active
+            * side of a compiler-generated boundary check; concrete SpinalHDL evaluates
+            * the original source expression instead.
+            */
+          '''
+          helper = '''  private def parameterizedUIntShapeSource(prototype: UInt): UInt = {
+            if (ParameterizedWidth.expressionOf(prototype).exists(_.parameters.nonEmpty)) prototype
+            else {
+              var selected: UInt = null
+
+              def visit(expression: spinal.core.internals.Expression): Unit = {
+                if (selected == null) {
+                  expression match {
+                    case value: UInt
+                        if value.getBitsWidth == prototype.getBitsWidth &&
+                          ParameterizedWidth.expressionOf(value).exists(_.parameters.nonEmpty) =>
+                      selected = value
+                    case _ =>
+                  }
+                  if (selected == null) expression.foreachExpression(visit)
+                }
+              }
+
+              prototype.foreachStatements {
+                case spinal.core.internals.AssignmentStatement(_, source)
+                    if selected == null =>
+                  visit(source)
+                case _ =>
+              }
+              Option(selected).getOrElse(prototype)
+            }
+          }
+
+          '''
+          if helper not in text:
+              if anchor not in text:
+                  raise SystemExit("carrier helper insertion anchor not found")
+              text = text.replace(anchor, helper + anchor, 1)
+
+          old = '''    val domainWidth = if (expression.maximum == 0) 1 else expression.maximum.bitLength
+            val carrierWidth = math.max(prototype.getBitsWidth, domainWidth)
+            val result = UInt(carrierWidth bits)
+            result.setName(stableName)
+            result := U(BigInt(value), carrierWidth bits)
+          '''
+          new = '''    val shapeSource = parameterizedUIntShapeSource(prototype)
+            val carrierWidth = prototype.getBitsWidth
+            val result = UInt(carrierWidth bits)
+            ParameterizedWidth.copyShape(shapeSource, result)
+            result.setName(stableName)
+            result := U(BigInt(value), carrierWidth bits)
+          '''
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit("carrier-width replacement target not found")
+
+          path.write_text(text)
+          PY
+
+          git diff --check
+          git diff -- morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
+
+      - name: Commit carrier-shape repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
+          if git diff --cached --quiet; then
+            echo "Carrier-shape repair is already applied."
+            exit 0
+          fi
+          git commit -m "fix(morphhdl): preserve native FIFO carrier shape [increment-53-carrier-shape-fixed]"
+          git push origin HEAD:agent/increment-53-native-streamfifo-clean
