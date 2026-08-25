@@ -49,6 +49,6 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name pysolvesemi
           git config user.email pysolvesemi@gmail.com
-          git add docs/morphhdl/increment-53-focused-diagnostic.log
+          git add -f docs/morphhdl/increment-53-focused-diagnostic.log
           git commit -m "diagnostic(morphhdl): capture Increment 53 focused result [inc53-diagnostic]"
           git push origin HEAD:"$GITHUB_REF_NAME"
