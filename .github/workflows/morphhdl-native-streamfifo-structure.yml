@@ -38,60 +38,64 @@ jobs:
           path = Path("morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala")
           text = path.read_text()
 
-          anchor = '''  /**
-            * Build an exact, named UInt carrier for one symbolic Scala integer used by
-            * an ordinary hardware operator. This method is called only from the active
-            * side of a compiler-generated boundary check; concrete SpinalHDL evaluates
-            * the original source expression instead.
-            */
-          '''
-          helper = '''  private def parameterizedUIntShapeSource(prototype: UInt): UInt = {
-            if (ParameterizedWidth.expressionOf(prototype).exists(_.parameters.nonEmpty)) prototype
-            else {
-              var selected: UInt = null
-
-              def visit(expression: spinal.core.internals.Expression): Unit = {
-                if (selected == null) {
-                  expression match {
-                    case value: UInt
-                        if value.getBitsWidth == prototype.getBitsWidth &&
-                          ParameterizedWidth.expressionOf(value).exists(_.parameters.nonEmpty) =>
-                      selected = value
-                    case _ =>
-                  }
-                  if (selected == null) expression.foreachExpression(visit)
-                }
-              }
-
-              prototype.foreachStatements {
-                case spinal.core.internals.AssignmentStatement(_, source)
-                    if selected == null =>
-                  visit(source)
-                case _ =>
-              }
-              Option(selected).getOrElse(prototype)
-            }
-          }
-
-          '''
-          if helper not in text:
+          anchor = (
+              "  /**\n"
+              "    * Build an exact, named UInt carrier for one symbolic Scala integer used by\n"
+              "    * an ordinary hardware operator. This method is called only from the active\n"
+              "    * side of a compiler-generated boundary check; concrete SpinalHDL evaluates\n"
+              "    * the original source expression instead.\n"
+              "    */\n"
+          )
+          helper = (
+              "  private def parameterizedUIntShapeSource(prototype: UInt): UInt = {\n"
+              "    if (ParameterizedWidth.expressionOf(prototype).exists(_.parameters.nonEmpty)) prototype\n"
+              "    else {\n"
+              "      var selected: UInt = null\n"
+              "\n"
+              "      def visit(expression: spinal.core.internals.Expression): Unit = {\n"
+              "        if (selected == null) {\n"
+              "          expression match {\n"
+              "            case value: UInt\n"
+              "                if value.getBitsWidth == prototype.getBitsWidth &&\n"
+              "                  ParameterizedWidth.expressionOf(value).exists(_.parameters.nonEmpty) =>\n"
+              "              selected = value\n"
+              "            case _ =>\n"
+              "          }\n"
+              "          if (selected == null) expression.foreachExpression(visit)\n"
+              "        }\n"
+              "      }\n"
+              "\n"
+              "      prototype.foreachStatements {\n"
+              "        case spinal.core.internals.AssignmentStatement(_, source)\n"
+              "            if selected == null =>\n"
+              "          visit(source)\n"
+              "        case _ =>\n"
+              "      }\n"
+              "      Option(selected).getOrElse(prototype)\n"
+              "    }\n"
+              "  }\n"
+              "\n"
+          )
+          if "private def parameterizedUIntShapeSource" not in text:
               if anchor not in text:
                   raise SystemExit("carrier helper insertion anchor not found")
               text = text.replace(anchor, helper + anchor, 1)
 
-          old = '''    val domainWidth = if (expression.maximum == 0) 1 else expression.maximum.bitLength
-            val carrierWidth = math.max(prototype.getBitsWidth, domainWidth)
-            val result = UInt(carrierWidth bits)
-            result.setName(stableName)
-            result := U(BigInt(value), carrierWidth bits)
-          '''
-          new = '''    val shapeSource = parameterizedUIntShapeSource(prototype)
-            val carrierWidth = prototype.getBitsWidth
-            val result = UInt(carrierWidth bits)
-            ParameterizedWidth.copyShape(shapeSource, result)
-            result.setName(stableName)
-            result := U(BigInt(value), carrierWidth bits)
-          '''
+          old = (
+              "    val domainWidth = if (expression.maximum == 0) 1 else expression.maximum.bitLength\n"
+              "    val carrierWidth = math.max(prototype.getBitsWidth, domainWidth)\n"
+              "    val result = UInt(carrierWidth bits)\n"
+              "    result.setName(stableName)\n"
+              "    result := U(BigInt(value), carrierWidth bits)\n"
+          )
+          new = (
+              "    val shapeSource = parameterizedUIntShapeSource(prototype)\n"
+              "    val carrierWidth = prototype.getBitsWidth\n"
+              "    val result = UInt(carrierWidth bits)\n"
+              "    ParameterizedWidth.copyShape(shapeSource, result)\n"
+              "    result.setName(stableName)\n"
+              "    result := U(BigInt(value), carrierWidth bits)\n"
+          )
           if old in text:
               text = text.replace(old, new, 1)
           elif new not in text:
