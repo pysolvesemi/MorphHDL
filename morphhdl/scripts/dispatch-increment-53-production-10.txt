@@ -1,1 +1,0 @@
-validate StreamFifo procedural parameter predicates on the exact repaired head

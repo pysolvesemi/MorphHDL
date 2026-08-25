@@ -1459,6 +1459,21 @@ object StreamFifo{
       initPayload = initPayload
     )
   }
+
+  /**
+    * Retain a bounded symbolic FIFO depth while executing the ordinary native
+    * `StreamFifo` constructor and implementation.
+    */
+  def apply[T <: Data](
+      dataType: HardType[T],
+      depth: ParameterizedMemoryDepth
+  ): StreamFifo[T] =
+    ExternalNativeIntFormalComponent.parameter(
+      actual = depth,
+      name = "DEPTH",
+      minimum = BigInt(1),
+      maximum = BigInt(4096)
+    )(witness => new StreamFifo(dataType, witness))
 }
 
 /** First-In-First-Out queue with a `push` and `pop` [[Stream]]
@@ -1588,17 +1603,17 @@ class StreamFifo[T <: Data](val dataType: HardType[T],
 
 
       when(doPush){
-        push := push + 1
+        push := (push + 1).resized
         if(!isPow2(depth)) when(push === depth - 1){ push := 0 }
       }
       when(doPop){
-        pop := pop + 1
+        pop := (pop + 1).resized
         if(!isPow2(depth)) when(pop === depth - 1){ pop := 0 }
       }
 
       when(io.flush){
-        push := 0
-        pop := 0
+        push := U(0).resized
+        pop := U(0).resized
       }
 
 

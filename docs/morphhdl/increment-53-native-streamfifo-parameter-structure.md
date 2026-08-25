@@ -1,21 +1,34 @@
-# Increment 53 — Native StreamFifo parameter structure without source edits
+# Increment 53 — Native StreamFifo parameter structure
 
 ## Objective
 
 Apply the generic native-`Int` formalization, expression-provenance and nested
 symbolic-control-flow path from Increments 46 through 52 to the real
 `spinal.lib.StreamFifo` implementation. One ordinary native FIFO definition
-must cover depths 1, 3, 5 and 8 while `lib/src/main/scala/spinal/lib/Stream.scala`
-remains byte-for-byte unchanged.
+must cover depths 1, 3, 5 and 8.
+
+Increment 53 intentionally restores the minimal Increment 37 native source
+surface required by the roadmap: the `ParameterizedMemoryDepth` companion
+object overload and the pointer-width-safe assignments in `Stream.scala`. It
+does not restore the old FIFO sidecar or any emitted-name recognizer.
 
 ## Architecture
 
-The MorphHDL compiler plugin is enabled while compiling the native `lib`
-module. It selects only the exact `StreamFifo` class and its ordinary `depth:
-Int` constructor argument. The source tree is instrumented in memory; the
-source file is not patched.
+The public call enters the real native companion overload:
 
-The existing native-`Int` shadow machinery then retains:
+```scala
+spinal.lib.StreamFifo(dataType, depth: ParameterizedMemoryDepth)
+```
+
+That overload delegates only the scalar formal boundary to the generic
+`ExternalNativeIntFormalComponent.parameter` runtime helper and then executes
+the ordinary `new StreamFifo(dataType, witness)` constructor. The helper is not
+FIFO-specific and does not treat the scalar as a packed child-port width.
+
+The MorphHDL compiler plugin is enabled while compiling the native `lib`
+module. It selects the exact `StreamFifo` class and its ordinary `depth: Int`
+constructor argument in memory. The existing native-`Int` shadow machinery
+then retains:
 
 - depth arithmetic and comparisons;
 - `log2Up` and `isPow2` results;
@@ -27,52 +40,51 @@ The existing native-`Int` shadow machinery then retains:
 
 A small MorphHDL runtime module is shared by `lib` and `frontend` so
 compiler-inserted hooks are available without a `lib -> frontend -> lib`
-dependency cycle. The runtime reuses the same formal, shadow, memory and
-structural registries established by Increments 45 through 52; it does not
-contain a FIFO implementation.
+dependency cycle. It reuses the formal, shadow, memory, value and structural
+registries established by Increments 45 through 52; it contains no FIFO RTL
+implementation.
 
 When a symbolic Scala integer enters an ordinary native `UInt` operation, the
 compiler creates an exact identity-retained UInt carrier. Publication rewrites
-only that carrier's concrete witness assignment using its final emitted name
-obtained from the retained object identity. No StreamFifo module, port or user
-signal name is used for discovery.
+only that carrier's concrete witness assignment using its retained object
+identity. No StreamFifo module, port or user signal name is used for discovery.
 
 ### Scalar component formal boundary
 
 `DEPTH` controls storage and structural alternatives, but it is not the packed
 width of `io.occupancy` or `io.availability`. Those ports use the derived width
-`log2Up(DEPTH + 1)`. Treating either port as a direct `DEPTH` region therefore
-fails correctly for the witness depth 5, where the port width is 3.
+`log2Up(DEPTH + 1)`. The generic scalar component boundary therefore retains
+the exact formal-to-actual hierarchy binding on component identity without
+attaching `DEPTH` to either packed port.
 
-`formalComponent.parameter` retains the exact component-level formal-to-actual
-binding without attaching `DEPTH` to a packed child port. Definition-side proof
-still comes only from the compiler shadow plus memory, value, structural and
-process registries. Hierarchy lowering resolves the scalar formal from exact
-component identity and canonical declaration identity, while the existing
-packed-width `formalComponent` path remains unchanged for parameters that are
-actually exposed on packed leaves.
+Definition-side proof still comes from compiler shadow plus memory, value,
+structural and process registries. Hierarchy lowering resolves the scalar
+formal from exact component identity and canonical declaration identity.
 
-## Removed Increment 37 compatibility path
+## Removed compatibility path
 
 Increment 53 removes:
 
 - `lib/src/main/scala/spinal/lib/ParameterizedStreamFifoDepth.scala`;
+- `frontend/src/main/scala/spinal/lib/ExternalParameterizedStreamFifoDepthRegistry.scala`;
 - `rewriteParameterizedStreamFifoDepth`;
-- the emitted `io_push_*` / `io_pop_*` / occupancy / availability recognizer.
+- the emitted `io_push_*`, `io_pop_*`, occupancy and availability recognizer;
+- the `HdlInt.fromParameterizedMemoryDepth` round-trip conversion.
 
-The public MorphHDL adapter now enters the ordinary native constructor through
-`formalComponent.parameter`. The legacy direct `ParameterizedMemoryDepth`
-overload is retained as compatibility sugar; compound depth expressions use
-`HdlInt`.
+The MorphHDL frontend adapter delegates directly to the real native overload.
+Both a direct bounded parameter and a compound bounded `HdlInt` expression
+cross the same `ParameterizedMemoryDepth` contract.
 
 ## Proof boundary
 
 The dedicated contract proves on Scala 2.12.18 and 2.13.12 that:
 
+- the test instantiates the real `spinal.lib.StreamFifo` overload;
 - there is one parameterized native `StreamFifo` definition;
 - the definition retains depth-one, power-of-two and non-power-of-two structure;
 - the same definition simulates and synthesizes at depths 1, 3, 5 and 8;
 - concrete `SpinalVerilog` remains concrete;
 - inherited native memory, formalization, provenance, expression and nested
   control-flow tests remain green;
-- native `Stream.scala` is unchanged and the sidecar/rewrite cannot return.
+- the minimal reviewed `Stream.scala` edits are present and the sidecar/rewrite
+  cannot return.

@@ -10,7 +10,8 @@ import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 import spinal.lib._
 
-import morphhdl.frontend.{HdlInt, StreamFifo => MorphStreamFifo}
+import morphhdl.frontend.HdlInt
+import morphhdl.frontend.HdlInt.hdlIntToParameterizedMemoryDepth
 
 final class NativeParameterizedStreamFifoHarness(depth: HdlInt)
     extends Component {
@@ -24,8 +25,8 @@ final class NativeParameterizedStreamFifoHarness(depth: HdlInt)
     val availability = out UInt (4 bits)
   }
 
-  val fifo = MorphStreamFifo(
-    morphhdl.frontend.HardType(morphhdl.frontend.Bits(8 bits)),
+  val fifo = spinal.lib.StreamFifo(
+    HardType(Bits(8 bits)),
     depth
   )
   fifo.setName("fifo")
@@ -47,7 +48,7 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
     new NativeParameterizedStreamFifoHarness(depth)
   }
 
-  test("one untouched native StreamFifo definition preserves depths 1, 3, 5 and 8") {
+  test("one native StreamFifo definition preserves depths 1, 3, 5 and 8") {
     withTemporaryDirectory { directory =>
       val parameterizedDirectory = directory.resolve("parameterized")
       val concreteDirectory = directory.resolve("concrete")

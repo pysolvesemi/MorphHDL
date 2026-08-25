@@ -1,1 +1,0 @@
-restore untouched StreamFifo source and approve reduced native-source state

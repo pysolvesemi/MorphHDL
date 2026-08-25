@@ -60,7 +60,7 @@ object StreamFifo {
       file: sourcecode.File,
       line: sourcecode.Line
   ): NativeStreamFifo[T] =
-    spinal.lib.ExternalParameterizedStreamFifoDepthRegistry.create(dataType, depth)
+    spinal.lib.StreamFifo(dataType, depth.toParameterizedMemoryDepth(file, line))
 
   def apply[T <: Data](
       dataType: HardType[T],
@@ -69,7 +69,7 @@ object StreamFifo {
       file: sourcecode.File,
       line: sourcecode.Line
   ): NativeStreamFifo[T] =
-    apply(dataType, HdlInt.fromParameterizedMemoryDepth(depth))
+    spinal.lib.StreamFifo(dataType, depth)
 }
 
 object Flow {
