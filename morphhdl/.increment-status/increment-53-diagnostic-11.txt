@@ -1,0 +1,407 @@
+HEAD=5d92fe4fa266edab24386f015aaefba08e909057
+SOURCE_GUARD_STATUS=0
+SCALA_2_13_STATUS=1
+
+=== SOURCE GUARD ===
+Native-source preservation manifest is valid
+  baseline commit : 8c4241396cd718a36227dcd89a2e6a29d9077f11
+  baseline tree   : 34018854da821367a6af566e5034a86cd955d5b2
+  approved commit : f4c5f432f5563653f351efd878d8325fd6621753
+  approved tree   : 54fe1c8a08d62fbad34a851549a633f765bc916e
+  checked HEAD    : 5d92fe4fa266edab24386f015aaefba08e909057
+  classified paths: 6
+    direct_edit: 1
+    generated_backend_coupling: 3
+    morphhdl_sidecar: 2
+Increment 53 native StreamFifo source boundary passed.
+
+=== IMPORTANT TEST LINES ===
+733-3] ExternalNativeIntShadowExpressionTests:
+733-0] ParameterizedStreamFifoDepthTests:
+733-1] NativeIntNestedSymbolicControlFlowTests:
+733-2] NativeIntSymbolicConditionalTests:
+733-0] spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-0] - one untouched native StreamFifo definition preserves depths 1, 3, 5 and 8 *** FAILED ***
+733-0]   morphhdl.MorphVerilogException: MorphVerilog single-source-generation failed: [MORPH-FRONTEND-FORMAL-REGION-WITNESS-MISMATCH] /__w/MorphHDL/MorphHDL/morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala:27: formalComponent(DEPTH) selected a 3-bit native leaf, but the checked Int witness is 5
+733-0]   Cause: spinal.core.ParameterizedVerilogException: [MORPH-FRONTEND-FORMAL-REGION-WITNESS-MISMATCH] /__w/MorphHDL/MorphHDL/morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala:27: formalComponent(DEPTH) selected a 3-bit native leaf, but the checked Int witness is 5
+733-0]   at spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-0] ExternalNativeIntFormalizationTests:
+733-3] spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-3] spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-3] spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-3] spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-3] spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-3] spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-1] morphhdl.frontend.FrontendException$.failAt(FrontendException.scala:23)
+733-1] morphhdl.frontend.FrontendException$.failAt(FrontendException.scala:23)
+733-2] spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-3] Tests: succeeded 10, failed 0, canceled 0, ignored 0, pending 0
+733-3] All tests passed.
+733-1] morphhdl.frontend.FrontendException$.failAt(FrontendException.scala:23)
+733-1] morphhdl.frontend.FrontendException$.failAt(FrontendException.scala:23)
+733-1] morphhdl.frontend.FrontendException$.failAt(FrontendException.scala:23)
+733-1] morphhdl.frontend.FrontendException$.failAt(FrontendException.scala:23)
+733-2] Tests: succeeded 7, failed 0, canceled 0, ignored 0, pending 0
+733-2] All tests passed.
+733-0] spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-0] spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-0] spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-0] spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-0] Tests: succeeded 8, failed 1, canceled 0, ignored 0, pending 0
+733-0] *** 1 TEST FAILED ***
+733-1] Tests: succeeded 7, failed 0, canceled 0, ignored 0, pending 0
+733-1] All tests passed.
+733/733, 1 FAILED] mill morph[2.13.12].testOnly morphhd...ernalNativeIntShadowExpressionTests 140s
+733] [error] morph.2_13_12.test.testOnly 1 tests failed: 
+
+=== TEST LOG TAIL ===
+733-1] [Runtime] JVM max memory : 3998.0MiB
+733-1] [Runtime] Current date : 2026.08.25 07:28:46
+733-2] [Progress] at 2.785 : Generate Verilog to /tmp/morphhdl-single-source-9050372383625952997
+733-1] [Progress] at 3.042 : Elaborate components
+733-1] morphhdl.frontend.FrontendException$.failAt(FrontendException.scala:23)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.guardAlternative(NativeIntSymbolicConditional.scala:156)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$ReflectionLeaf.$anonfun$new$12(NativeIntNestedSymbolicControlFlowTests.scala:101)
+733-1] scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.scala:18)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.$anonfun$captureOne$1(NativeIntSymbolicConditional.scala:122)
+733-1] spinal.core.ParameterizedStructure$.captureBlock(ParameterizedStructure.scala:180)
+733-1] morphhdl.frontend.NativeStructuralFrontend$.startGenerateIfExpression(NativeStructuralFrontend.scala:145)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.captureOne(NativeIntSymbolicConditional.scala:123)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.$anonfun$selectSymbolic$1(NativeIntSymbolicConditional.scala:37)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.withCapture(NativeIntSymbolicConditional.scala:173)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.selectSymbolic(NativeIntSymbolicConditional.scala:30)
+733-0] [Done] at 3.058
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$ReflectionLeaf.<init>(NativeIntNestedSymbolicControlFlowTests.scala:104)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$UnsafeTop.$anonfun$leaf$7(NativeIntNestedSymbolicControlFlowTests.scala:162)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$UnsafeTop.$anonfun$leaf$7$adapted(NativeIntNestedSymbolicControlFlowTests.scala:162)
+733-1] morphhdl.frontend.formalComponent$.$anonfun$apply$2(formalComponent.scala:98)
+733-1] spinal.core.ExternalNativeIntShadowRegistry$.captureWithDefinition(ExternalNativeIntShadowRegistry.scala:189)
+733-1] morphhdl.frontend.formalComponent$.apply(formalComponent.scala:98)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$UnsafeTop.<init>(NativeIntNestedSymbolicControlFlowTests.scala:163)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowTests.$anonfun$failureFor$2(NativeIntNestedSymbolicControlFlowTests.scala:283)
+733-1] morphhdl.MorphVerilog$.$anonfun$runSingleSourceNative$1(MorphVerilog.scala:214)
+733-1] morphhdl.integration.ExternalSpinalVerilog$.$anonfun$run$3(ExternalSpinalVerilog.scala:210)
+733-1] spinal.core.internals.PhaseCreateComponent.$anonfun$impl$329(Phase.scala:3177)
+733-1] spinal.core.fiber.Engine$.$anonfun$create$1(AsyncCtrl.scala:174)
+733-1] spinal.core.fiber.AsyncThread.$anonfun$jvmThread$1(AsyncThread.scala:60)
+733-1] spinal.core.fiber.EngineContext.$anonfun$newJvmThread$1(AsyncCtrl.scala:39)
+733-1] spinal.sim.JvmThread.run(SimManager.scala:51)
+733-1] 
+733-1] **********************************************************************************************
+733-1] [Warning] Elaboration failed (0 error).
+733-1]           Spinal will restart with scala trace to help you to find the problem.
+733-0] - native Int adapters retain exact formal geometry and canonical hierarchy
+733-1] **********************************************************************************************
+733-1] 
+733-1] [Progress] at 3.089 : Elaborate components
+733-1] [Runtime] SpinalHDL dev    git head : 5d92fe4fa266edab24386f015aaefba08e909057
+733-1] [Runtime] JVM max memory : 3998.0MiB
+733-1] [Runtime] Current date : 2026.08.25 07:28:46
+733-1] [Progress] at 3.115 : Elaborate components
+733-0] [Runtime] SpinalHDL dev    git head : 5d92fe4fa266edab24386f015aaefba08e909057
+733-1] morphhdl.frontend.FrontendException$.failAt(FrontendException.scala:23)
+733-0] [Runtime] JVM max memory : 3998.0MiB
+733-0] [Runtime] Current date : 2026.08.25 07:28:46
+733-0] [Progress] at 3.103 : Elaborate components
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.guardAlternative(NativeIntSymbolicConditional.scala:156)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$NondeterministicLeaf.$anonfun$new$15(NativeIntNestedSymbolicControlFlowTests.scala:110)
+733-1] scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.scala:18)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.$anonfun$captureOne$1(NativeIntSymbolicConditional.scala:122)
+733-1] spinal.core.ParameterizedStructure$.captureBlock(ParameterizedStructure.scala:180)
+733-1] morphhdl.frontend.NativeStructuralFrontend$.startGenerateIfExpression(NativeStructuralFrontend.scala:145)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.captureOne(NativeIntSymbolicConditional.scala:123)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.$anonfun$selectSymbolic$1(NativeIntSymbolicConditional.scala:37)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.withCapture(NativeIntSymbolicConditional.scala:173)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.selectSymbolic(NativeIntSymbolicConditional.scala:30)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$NondeterministicLeaf.<init>(NativeIntNestedSymbolicControlFlowTests.scala:113)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$UnsafeTop.$anonfun$leaf$9(NativeIntNestedSymbolicControlFlowTests.scala:165)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$UnsafeTop.$anonfun$leaf$9$adapted(NativeIntNestedSymbolicControlFlowTests.scala:165)
+733-1] morphhdl.frontend.formalComponent$.$anonfun$apply$2(formalComponent.scala:98)
+733-1] spinal.core.ExternalNativeIntShadowRegistry$.captureWithDefinition(ExternalNativeIntShadowRegistry.scala:189)
+733-1] morphhdl.frontend.formalComponent$.apply(formalComponent.scala:98)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$UnsafeTop.<init>(NativeIntNestedSymbolicControlFlowTests.scala:166)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowTests.$anonfun$failureFor$2(NativeIntNestedSymbolicControlFlowTests.scala:283)
+733-1] morphhdl.MorphVerilog$.$anonfun$runSingleSourceNative$1(MorphVerilog.scala:214)
+733-1] morphhdl.integration.ExternalSpinalVerilog$.$anonfun$run$3(ExternalSpinalVerilog.scala:210)
+733-1] spinal.core.internals.PhaseCreateComponent.$anonfun$impl$329(Phase.scala:3177)
+733-1] spinal.core.fiber.Engine$.$anonfun$create$1(AsyncCtrl.scala:174)
+733-1] spinal.core.fiber.AsyncThread.$anonfun$jvmThread$1(AsyncThread.scala:60)
+733-1] spinal.core.fiber.EngineContext.$anonfun$newJvmThread$1(AsyncCtrl.scala:39)
+733-1] spinal.sim.JvmThread.run(SimManager.scala:51)
+733-1] 
+733-1] **********************************************************************************************
+733-1] [Warning] Elaboration failed (0 error).
+733-1]           Spinal will restart with scala trace to help you to find the problem.
+733-1] **********************************************************************************************
+733-1] 
+733-1] [Progress] at 3.133 : Elaborate components
+733-1] - captured alternatives reject I/O reflection and nondeterminism
+733-1] [Runtime] SpinalHDL dev    git head : 5d92fe4fa266edab24386f015aaefba08e909057
+733-1] [Runtime] JVM max memory : 3998.0MiB
+733-1] [Runtime] Current date : 2026.08.25 07:28:46
+733-1] [Progress] at 3.153 : Elaborate components
+733-1] morphhdl.frontend.FrontendException$.failAt(FrontendException.scala:23)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.guardAlternative(NativeIntSymbolicConditional.scala:156)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$ControlEffectLeaf.$anonfun$new$18(NativeIntNestedSymbolicControlFlowTests.scala:120)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.$anonfun$captureOne$1(NativeIntSymbolicConditional.scala:122)
+733-1] spinal.core.ParameterizedStructure$.captureBlock(ParameterizedStructure.scala:180)
+733-1] morphhdl.frontend.NativeStructuralFrontend$.startGenerateIfExpression(NativeStructuralFrontend.scala:145)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.captureOne(NativeIntSymbolicConditional.scala:123)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.$anonfun$selectSymbolic$1(NativeIntSymbolicConditional.scala:37)
+733-2] [Warning] 14 signals were pruned. You can call printPruned on the backend report to get more informations.
+733-2] [Done] at 2.889
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.withCapture(NativeIntSymbolicConditional.scala:173)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.selectSymbolic(NativeIntSymbolicConditional.scala:30)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$ControlEffectLeaf.<init>(NativeIntNestedSymbolicControlFlowTests.scala:121)
+733-2] [Runtime] SpinalHDL dev    git head : 5d92fe4fa266edab24386f015aaefba08e909057
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$UnsafeTop.$anonfun$leaf$11(NativeIntNestedSymbolicControlFlowTests.scala:168)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$UnsafeTop.$anonfun$leaf$11$adapted(NativeIntNestedSymbolicControlFlowTests.scala:168)
+733-2] [Runtime] JVM max memory : 3998.0MiB
+733-1] morphhdl.frontend.formalComponent$.$anonfun$apply$2(formalComponent.scala:98)
+733-1] spinal.core.ExternalNativeIntShadowRegistry$.captureWithDefinition(ExternalNativeIntShadowRegistry.scala:189)
+733-0] [Progress] at 3.159 : Checks and transforms
+733-1] morphhdl.frontend.formalComponent$.apply(formalComponent.scala:98)
+733-2] [Runtime] Current date : 2026.08.25 07:28:46
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$UnsafeTop.<init>(NativeIntNestedSymbolicControlFlowTests.scala:169)
+733-2] [Progress] at 2.903 : Elaborate components
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowTests.$anonfun$failureFor$2(NativeIntNestedSymbolicControlFlowTests.scala:283)
+733-1] morphhdl.MorphVerilog$.$anonfun$runSingleSourceNative$1(MorphVerilog.scala:214)
+733-1] morphhdl.integration.ExternalSpinalVerilog$.$anonfun$run$3(ExternalSpinalVerilog.scala:210)
+733-1] spinal.core.internals.PhaseCreateComponent.$anonfun$impl$329(Phase.scala:3177)
+733-0] [Progress] at 3.176 : Generate Verilog to /tmp/morphhdl-single-source-8049776053544668654
+733-1] spinal.core.fiber.Engine$.$anonfun$create$1(AsyncCtrl.scala:174)
+733-1] spinal.core.fiber.AsyncThread.$anonfun$jvmThread$1(AsyncThread.scala:60)
+733-1] spinal.core.fiber.EngineContext.$anonfun$newJvmThread$1(AsyncCtrl.scala:39)
+733-1] spinal.sim.JvmThread.run(SimManager.scala:51)
+733-1] 
+733-1] **********************************************************************************************
+733-1] [Warning] Elaboration failed (0 error).
+733-1]           Spinal will restart with scala trace to help you to find the problem.
+733-1] **********************************************************************************************
+733-1] 
+733-1] [Progress] at 3.173 : Elaborate components
+733-1] [Runtime] SpinalHDL dev    git head : 5d92fe4fa266edab24386f015aaefba08e909057
+733-1] [Runtime] JVM max memory : 3998.0MiB
+733-1] [Runtime] Current date : 2026.08.25 07:28:46
+733-1] [Progress] at 3.192 : Elaborate components
+733-1] morphhdl.frontend.FrontendException$.failAt(FrontendException.scala:23)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.guardAlternative(NativeIntSymbolicConditional.scala:156)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$ArbitraryEffectLeaf.$anonfun$new$21(NativeIntNestedSymbolicControlFlowTests.scala:128)
+733-1] scala.runtime.java8.JFunction0$mcV$sp.apply(JFunction0$mcV$sp.scala:18)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.$anonfun$captureOne$1(NativeIntSymbolicConditional.scala:122)
+733-2] [Progress] at 2.937 : Checks and transforms
+733-1] spinal.core.ParameterizedStructure$.captureBlock(ParameterizedStructure.scala:180)
+733-1] morphhdl.frontend.NativeStructuralFrontend$.startGenerateIfExpression(NativeStructuralFrontend.scala:145)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.captureOne(NativeIntSymbolicConditional.scala:123)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.$anonfun$selectSymbolic$1(NativeIntSymbolicConditional.scala:37)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.withCapture(NativeIntSymbolicConditional.scala:173)
+733-1] morphhdl.frontend.NativeIntSymbolicConditional$.selectSymbolic(NativeIntSymbolicConditional.scala:30)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$ArbitraryEffectLeaf.<init>(NativeIntNestedSymbolicControlFlowTests.scala:131)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$UnsafeTop.$anonfun$leaf$13(NativeIntNestedSymbolicControlFlowTests.scala:171)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$UnsafeTop.$anonfun$leaf$13$adapted(NativeIntNestedSymbolicControlFlowTests.scala:171)
+733-1] morphhdl.frontend.formalComponent$.$anonfun$apply$2(formalComponent.scala:98)
+733-1] spinal.core.ExternalNativeIntShadowRegistry$.captureWithDefinition(ExternalNativeIntShadowRegistry.scala:189)
+733-2] [Progress] at 2.957 : Generate Verilog to /tmp/morphhdl-single-source-8652819007381399620
+733-1] morphhdl.frontend.formalComponent$.apply(formalComponent.scala:98)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowSmoke$UnsafeTop.<init>(NativeIntNestedSymbolicControlFlowTests.scala:172)
+733-1] morphhdl.NativeIntNestedSymbolicControlFlowTests.$anonfun$failureFor$2(NativeIntNestedSymbolicControlFlowTests.scala:283)
+733-1] morphhdl.MorphVerilog$.$anonfun$runSingleSourceNative$1(MorphVerilog.scala:214)
+733-1] morphhdl.integration.ExternalSpinalVerilog$.$anonfun$run$3(ExternalSpinalVerilog.scala:210)
+733-1] spinal.core.internals.PhaseCreateComponent.$anonfun$impl$329(Phase.scala:3177)
+733-1] spinal.core.fiber.Engine$.$anonfun$create$1(AsyncCtrl.scala:174)
+733-1] spinal.core.fiber.AsyncThread.$anonfun$jvmThread$1(AsyncThread.scala:60)
+733-1] spinal.core.fiber.EngineContext.$anonfun$newJvmThread$1(AsyncCtrl.scala:39)
+733-1] spinal.sim.JvmThread.run(SimManager.scala:51)
+733-1] 
+733-1] **********************************************************************************************
+733-1] [Warning] Elaboration failed (0 error).
+733-1]           Spinal will restart with scala trace to help you to find the problem.
+733-1] **********************************************************************************************
+733-1] 
+733-1] [Progress] at 3.215 : Elaborate components
+733-1] - captured alternatives reject control and arbitrary Scala effects
+733-1] [Runtime] SpinalHDL dev    git head : 5d92fe4fa266edab24386f015aaefba08e909057
+733-1] [Runtime] JVM max memory : 3998.0MiB
+733-1] [Runtime] Current date : 2026.08.25 07:28:46
+733-1] [Progress] at 3.239 : Elaborate components
+733-1] [Progress] at 3.262 : Checks and transforms
+733-1] [Progress] at 3.275 : Generate Verilog to /tmp/morphhdl-native-int-nested-15555860619361014397
+733-0] [Done] at 3.266
+733-1] [Done] at 3.304
+733-0] - equal concrete witnesses with distinct symbolic actuals never alias
+733-1] - rejected effects remain ordinary concrete behavior when their branch is not selected
+733-0] [Runtime] SpinalHDL dev    git head : 5d92fe4fa266edab24386f015aaefba08e909057
+733-2] [Warning] 14 signals were pruned. You can call printPruned on the backend report to get more informations.
+733-2] [Done] at 3.021
+733-0] [Runtime] JVM max memory : 3998.0MiB
+733-1] [Runtime] SpinalHDL dev    git head : 5d92fe4fa266edab24386f015aaefba08e909057
+733-2] - native symbolic branch replay is deterministic
+733-0] [Runtime] Current date : 2026.08.25 07:28:46
+733-1] [Runtime] JVM max memory : 3998.0MiB
+733-0] [Progress] at 3.285 : Elaborate components
+733-1] [Runtime] Current date : 2026.08.25 07:28:46
+733-1] [Progress] at 3.319 : Elaborate components
+733-2] Run completed in 5 seconds, 332 milliseconds.
+733-2] Total number of tests run: 7
+733-2] Suites: completed 1, aborted 0
+733-2] Tests: succeeded 7, failed 0, canceled 0, ignored 0, pending 0
+733-2] All tests passed.
+733-0] [Progress] at 3.318 : Checks and transforms
+733-1] [Progress] at 3.354 : Checks and transforms
+733-0] [Progress] at 3.326 : Generate Verilog to /tmp/morphhdl-single-source-11535219342937424484
+733-0] [Done] at 3.369
+733-1] [Progress] at 3.404 : Generate Verilog to /tmp/morphhdl-single-source-10735514162740859543
+733-0] - literal actuals keep a parameterized child but bind it to a literal
+733-0] [Runtime] SpinalHDL dev    git head : 5d92fe4fa266edab24386f015aaefba08e909057
+733-0] [Runtime] JVM max memory : 3998.0MiB
+733-0] [Runtime] Current date : 2026.08.25 07:28:46
+733-0] [Progress] at 3.385 : Elaborate components
+733-1] [Warning] toplevel/leaf/nested_storage : Mem[2*8 bits].readAsync can only be write first into Verilog
+733-0] [Progress] at 3.406 : Checks and transforms
+733-0] [Progress] at 3.413 : Generate Verilog to /tmp/morphhdl-native-int-formal-test-7981409505514854164
+733-0] [Done] at 3.429
+733-0] - ordinary SpinalVerilog ignores external metadata and remains concrete
+733-0] [Runtime] SpinalHDL dev    git head : 5d92fe4fa266edab24386f015aaefba08e909057
+733-0] [Runtime] JVM max memory : 3998.0MiB
+733-0] [Runtime] Current date : 2026.08.25 07:28:46
+733-0] [Progress] at 3.444 : Elaborate components
+733-0] spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.fail(ExternalNativeIntFormalizationRegistry.scala:541)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.$anonfun$prepareRegion$3(ExternalNativeIntFormalizationRegistry.scala:346)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.$anonfun$prepareRegion$3$adapted(ExternalNativeIntFormalizationRegistry.scala:322)
+733-0] scala.collection.immutable.Vector.foreach(Vector.scala:2124)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.prepareRegion(ExternalNativeIntFormalizationRegistry.scala:322)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.$anonfun$attachComponent$4(ExternalNativeIntFormalizationRegistry.scala:225)
+733-0] scala.collection.immutable.Vector1.map(Vector.scala:2140)
+733-0] scala.collection.immutable.Vector1.map(Vector.scala:385)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.attachComponent(ExternalNativeIntFormalizationRegistry.scala:218)
+733-0] morphhdl.frontend.formalComponent$.apply(formalComponent.scala:126)
+733-0] morphhdl.ExternalNativeIntFormalizationTests$MismatchedTop.<init>(ExternalNativeIntFormalizationTests.scala:116)
+733-0] morphhdl.ExternalNativeIntFormalizationTests.$anonfun$new$14(ExternalNativeIntFormalizationTests.scala:276)
+733-0] morphhdl.MorphVerilog$.$anonfun$runSingleSourceNative$1(MorphVerilog.scala:214)
+733-0] morphhdl.integration.ExternalSpinalVerilog$.$anonfun$run$3(ExternalSpinalVerilog.scala:210)
+733-0] spinal.core.internals.PhaseCreateComponent.$anonfun$impl$329(Phase.scala:3177)
+733-0] spinal.core.fiber.Engine$.$anonfun$create$1(AsyncCtrl.scala:174)
+733-0] spinal.core.fiber.AsyncThread.$anonfun$jvmThread$1(AsyncThread.scala:60)
+733-0] spinal.core.fiber.EngineContext.$anonfun$newJvmThread$1(AsyncCtrl.scala:39)
+733-0] spinal.sim.JvmThread.run(SimManager.scala:51)
+733-0] 
+733-0] **********************************************************************************************
+733-0] [Warning] Elaboration failed (0 error).
+733-0]           Spinal will restart with scala trace to help you to find the problem.
+733-0] **********************************************************************************************
+733-0] 
+733-0] [Progress] at 3.463 : Elaborate components
+733-0] - formalComponent rejects selected geometry whose witness disagrees
+733-0] [Runtime] SpinalHDL dev    git head : 5d92fe4fa266edab24386f015aaefba08e909057
+733-0] [Runtime] JVM max memory : 3998.0MiB
+733-0] [Runtime] Current date : 2026.08.25 07:28:46
+733-0] [Progress] at 3.486 : Elaborate components
+733-0] spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.fail(ExternalNativeIntFormalizationRegistry.scala:541)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.attachComponent(ExternalNativeIntFormalizationRegistry.scala:201)
+733-0] morphhdl.frontend.formalComponent$.apply(formalComponent.scala:126)
+733-0] morphhdl.ExternalNativeIntFormalizationTests$EmptySelectionTop.<init>(ExternalNativeIntFormalizationTests.scala:126)
+733-0] morphhdl.ExternalNativeIntFormalizationTests.$anonfun$new$17(ExternalNativeIntFormalizationTests.scala:289)
+733-0] morphhdl.MorphVerilog$.$anonfun$runSingleSourceNative$1(MorphVerilog.scala:214)
+733-0] morphhdl.integration.ExternalSpinalVerilog$.$anonfun$run$3(ExternalSpinalVerilog.scala:210)
+733-0] spinal.core.internals.PhaseCreateComponent.$anonfun$impl$329(Phase.scala:3177)
+733-0] spinal.core.fiber.Engine$.$anonfun$create$1(AsyncCtrl.scala:174)
+733-0] spinal.core.fiber.AsyncThread.$anonfun$jvmThread$1(AsyncThread.scala:60)
+733-0] spinal.core.fiber.EngineContext.$anonfun$newJvmThread$1(AsyncCtrl.scala:39)
+733-0] spinal.sim.JvmThread.run(SimManager.scala:51)
+733-0] 
+733-0] **********************************************************************************************
+733-0] [Warning] Elaboration failed (0 error).
+733-0]           Spinal will restart with scala trace to help you to find the problem.
+733-0] **********************************************************************************************
+733-1] [Done] at 3.580
+733-0] 
+733-0] [Progress] at 3.507 : Elaborate components
+733-0] - formalComponent rejects an empty exact-geometry selection
+733-0] [Runtime] SpinalHDL dev    git head : 5d92fe4fa266edab24386f015aaefba08e909057
+733-0] [Runtime] JVM max memory : 3998.0MiB
+733-0] [Runtime] Current date : 2026.08.25 07:28:46
+733-1] [Runtime] SpinalHDL dev    git head : 5d92fe4fa266edab24386f015aaefba08e909057
+733-1] [Runtime] JVM max memory : 3998.0MiB
+733-0] [Progress] at 3.538 : Elaborate components
+733-1] [Runtime] Current date : 2026.08.25 07:28:46
+733-1] [Progress] at 3.592 : Elaborate components
+733-0] spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.fail(ExternalNativeIntFormalizationRegistry.scala:541)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.$anonfun$prepareRegion$3(ExternalNativeIntFormalizationRegistry.scala:329)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.$anonfun$prepareRegion$3$adapted(ExternalNativeIntFormalizationRegistry.scala:322)
+733-0] scala.collection.immutable.Vector.foreach(Vector.scala:2124)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.prepareRegion(ExternalNativeIntFormalizationRegistry.scala:322)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.$anonfun$attachComponent$4(ExternalNativeIntFormalizationRegistry.scala:225)
+733-0] scala.collection.immutable.Vector1.map(Vector.scala:2140)
+733-0] scala.collection.immutable.Vector1.map(Vector.scala:385)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.attachComponent(ExternalNativeIntFormalizationRegistry.scala:218)
+733-0] morphhdl.frontend.formalComponent$.apply(formalComponent.scala:126)
+733-0] morphhdl.ExternalNativeIntFormalizationTests$ForeignSelectionTop.<init>(ExternalNativeIntFormalizationTests.scala:137)
+733-0] morphhdl.ExternalNativeIntFormalizationTests.$anonfun$new$20(ExternalNativeIntFormalizationTests.scala:302)
+733-0] morphhdl.MorphVerilog$.$anonfun$runSingleSourceNative$1(MorphVerilog.scala:214)
+733-0] morphhdl.integration.ExternalSpinalVerilog$.$anonfun$run$3(ExternalSpinalVerilog.scala:210)
+733-0] spinal.core.internals.PhaseCreateComponent.$anonfun$impl$329(Phase.scala:3177)
+733-0] spinal.core.fiber.Engine$.$anonfun$create$1(AsyncCtrl.scala:174)
+733-0] spinal.core.fiber.AsyncThread.$anonfun$jvmThread$1(AsyncThread.scala:60)
+733-0] spinal.core.fiber.EngineContext.$anonfun$newJvmThread$1(AsyncCtrl.scala:39)
+733-0] spinal.sim.JvmThread.run(SimManager.scala:51)
+733-0] 
+733-0] **********************************************************************************************
+733-0] [Warning] Elaboration failed (0 error).
+733-0]           Spinal will restart with scala trace to help you to find the problem.
+733-0] **********************************************************************************************
+733-0] 
+733-0] [Progress] at 3.559 : Elaborate components
+733-0] - formalComponent rejects Data owned by another component identity
+733-0] [Runtime] SpinalHDL dev    git head : 5d92fe4fa266edab24386f015aaefba08e909057
+733-0] [Runtime] JVM max memory : 3998.0MiB
+733-0] [Runtime] Current date : 2026.08.25 07:28:46
+733-0] [Progress] at 3.580 : Elaborate components
+733-1] [Progress] at 3.621 : Checks and transforms
+733-0] spinal.core.ParameterizedVerilogException$.fail(ParameterizedWidth.scala:286)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.fail(ExternalNativeIntFormalizationRegistry.scala:541)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.$anonfun$preflightRegions$2(ExternalNativeIntFormalizationRegistry.scala:404)
+733-1] [Progress] at 3.636 : Generate Verilog to /tmp/morphhdl-single-source-17611337255790870706
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.$anonfun$preflightRegions$2$adapted(ExternalNativeIntFormalizationRegistry.scala:399)
+733-0] scala.Option.foreach(Option.scala:437)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.$anonfun$preflightRegions$1(ExternalNativeIntFormalizationRegistry.scala:399)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.$anonfun$preflightRegions$1$adapted(ExternalNativeIntFormalizationRegistry.scala:396)
+733-0] scala.collection.immutable.Vector.foreach(Vector.scala:2124)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.preflightRegions(ExternalNativeIntFormalizationRegistry.scala:396)
+733-0] spinal.core.ExternalNativeIntFormalizationRegistry$.attachComponent(ExternalNativeIntFormalizationRegistry.scala:229)
+733-1] [Warning] toplevel/leaf/nested_storage : Mem[2*8 bits].readAsync can only be write first into Verilog
+733-0] morphhdl.frontend.formalComponent$.apply(formalComponent.scala:126)
+733-0] morphhdl.ExternalNativeIntFormalizationTests$ConflictingFormalizationTop.<init>(ExternalNativeIntFormalizationTests.scala:163)
+733-0] morphhdl.ExternalNativeIntFormalizationTests.$anonfun$new$23(ExternalNativeIntFormalizationTests.scala:318)
+733-0] morphhdl.MorphVerilog$.$anonfun$runSingleSourceNative$1(MorphVerilog.scala:214)
+733-0] morphhdl.integration.ExternalSpinalVerilog$.$anonfun$run$3(ExternalSpinalVerilog.scala:210)
+733-0] spinal.core.internals.PhaseCreateComponent.$anonfun$impl$329(Phase.scala:3177)
+733-0] spinal.core.fiber.Engine$.$anonfun$create$1(AsyncCtrl.scala:174)
+733-0] spinal.core.fiber.AsyncThread.$anonfun$jvmThread$1(AsyncThread.scala:60)
+733-0] spinal.core.fiber.EngineContext.$anonfun$newJvmThread$1(AsyncCtrl.scala:39)
+733-0] spinal.sim.JvmThread.run(SimManager.scala:51)
+733-0] 
+733-0] **********************************************************************************************
+733-0] [Warning] Elaboration failed (0 error).
+733-0]           Spinal will restart with scala trace to help you to find the problem.
+733-0] **********************************************************************************************
+733-0] 
+733-0] [Progress] at 3.598 : Elaborate components
+733-0] - one exact component rejects conflicting actuals for one formal slot
+733-0] Run completed in 5 seconds, 682 milliseconds.
+733-0] Total number of tests run: 9
+733-1] [Done] at 3.693
+733-0] Suites: completed 2, aborted 0
+733-0] Tests: succeeded 8, failed 1, canceled 0, ignored 0, pending 0
+733-1] - nested symbolic control-flow replay is deterministic
+733-0] *** 1 TEST FAILED ***
+733-1] Run completed in 5 seconds, 728 milliseconds.
+733-1] Total number of tests run: 7
+733-1] Suites: completed 1, aborted 0
+733-1] Tests: succeeded 7, failed 0, canceled 0, ignored 0, pending 0
+733-1] All tests passed.
+733/733, 1 FAILED] mill morph[2.13.12].testOnly morphhd...ernalNativeIntShadowExpressionTests 140s
+733] [error] morph.2_13_12.test.testOnly 1 tests failed: 
+  morphhdl.ParameterizedStreamFifoDepthTests one untouched native StreamFifo definition preserves depths 1, 3, 5 and 8
