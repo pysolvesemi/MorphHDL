@@ -1,0 +1,41 @@
+name: Increment 53 apply scalar component formal
+
+on:
+  push:
+    branches:
+      - agent/increment-53-native-streamfifo-clean
+    paths:
+      - morphhdl/scripts/increment-53-scalar-formal.patch
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53-scalar-formal-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-clean
+          fetch-depth: 0
+      - name: Apply reviewed scalar-formal correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch=morphhdl/scripts/increment-53-scalar-formal.patch
+          workflow=.github/workflows/increment-53-apply-scalar-formal.yml
+          [[ -s "$patch" ]]
+          git apply --index "$patch"
+          git rm "$patch" "$workflow"
+          git diff --cached --check
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(morphhdl): retain scalar native component formals'
+          git pull --rebase origin agent/increment-53-native-streamfifo-clean
+          git push origin HEAD:agent/increment-53-native-streamfifo-clean
