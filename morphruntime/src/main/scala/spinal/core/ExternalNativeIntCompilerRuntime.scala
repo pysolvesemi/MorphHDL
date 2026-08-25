@@ -315,6 +315,34 @@ object ExternalNativeIntCompilerRuntime {
     memory
   }
 
+  private def parameterizedUIntShapeSource(prototype: UInt): UInt = {
+    if (ParameterizedWidth.expressionOf(prototype).exists(_.parameters.nonEmpty)) prototype
+    else {
+      var selected: UInt = null
+
+      def visit(expression: spinal.core.internals.Expression): Unit = {
+        if (selected == null) {
+          expression match {
+            case value: UInt
+                if value.getBitsWidth == prototype.getBitsWidth &&
+                  ParameterizedWidth.expressionOf(value).exists(_.parameters.nonEmpty) =>
+              selected = value
+            case _ =>
+          }
+          if (selected == null) expression.foreachExpression(visit)
+        }
+      }
+
+      prototype.foreachStatements {
+        case spinal.core.internals.AssignmentStatement(_, source)
+            if selected == null =>
+          visit(source)
+        case _ =>
+      }
+      Option(selected).getOrElse(prototype)
+    }
+  }
+
   /**
     * Build an exact, named UInt carrier for one symbolic Scala integer used by
     * an ordinary hardware operator. This method is called only from the active
@@ -345,9 +373,10 @@ object ExternalNativeIntCompilerRuntime {
           "active native formalization boundary lost a tracked UInt value"
         )
       }
-    val domainWidth = if (expression.maximum == 0) 1 else expression.maximum.bitLength
-    val carrierWidth = math.max(prototype.getBitsWidth, domainWidth)
+    val shapeSource = parameterizedUIntShapeSource(prototype)
+    val carrierWidth = prototype.getBitsWidth
     val result = UInt(carrierWidth bits)
+    ParameterizedWidth.copyShape(shapeSource, result)
     result.setName(stableName)
     result := U(BigInt(value), carrierWidth bits)
     ExternalParameterizedValueRegistry.attach(
