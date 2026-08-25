@@ -1,0 +1,1 @@
+validate typed native StreamFifo Reg and Unit conditional bridge
