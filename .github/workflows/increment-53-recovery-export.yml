@@ -11,6 +11,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: increment-53-recovery-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   apply-reviewed-patch:
     if: github.actor != 'github-actions[bot]'
@@ -39,7 +43,8 @@ jobs:
           git diff --cached --check
           git config user.name 'MorphHDL Increment Agent'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'fix(morphhdl): retain omitted native structural branches'
+          git commit -m 'fix(morphhdl): retain scalar native component formals'
+          git pull --rebase origin agent/increment-53-native-streamfifo-clean
           git push origin HEAD:agent/increment-53-native-streamfifo-clean
 
   export:
