@@ -1,4 +1,4 @@
-name: Increment 53 focused diagnostic
+name: Increment 53 focused repair
 
 on:
   push:
@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  diagnose:
-    if: "${{ !contains(github.event.head_commit.message, '[inc53-diagnostic]') }}"
+  repair:
+    if: "${{ !contains(github.event.head_commit.message, '[inc53-overlap-fix]') }}"
     runs-on: ubuntu-latest
     timeout-minutes: 90
     container:
@@ -22,6 +22,53 @@ jobs:
         with:
           ref: agent/increment-53-native-streamfifo-clean
           fetch-depth: 0
+      - name: Mark only sibling structural alternatives as mutually exclusive
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala")
+          text = path.read_text()
+          anchor = """  def registerIf(
+              pending: ParameterizedStructuralPending,
+          """
+          helper = """  private def assignmentTargets(
+              block: ParameterizedStructuralBlock
+          ): Vector[BaseType] =
+            (Vector(block) ++ block.regions.flatMap(region => allBlocks(region)))
+              .flatMap(_.assignments.map(_.finalTarget))
+
+            private def allowMutuallyExclusiveAssignments(
+              whenTrue: ParameterizedStructuralBlock,
+              whenFalse: ParameterizedStructuralBlock
+          ): Unit = {
+            val falseTargets = assignmentTargets(whenFalse)
+            assignmentTargets(whenTrue).foreach { target =>
+              if (falseTargets.exists(_ eq target)) target.allowOverride()
+            }
+          }
+
+          """
+          if helper not in text:
+              if anchor not in text:
+                  raise SystemExit("registerIf anchor changed")
+              text = text.replace(anchor, helper + anchor, 1)
+          old = """    validateParameters(condition.parameters, sourceLocation)
+              registerRegion(
+          """
+          new = """    validateParameters(condition.parameters, sourceLocation)
+              allowMutuallyExclusiveAssignments(whenTrue, whenFalse)
+              registerRegion(
+          """
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit("registerIf body changed")
+          path.write_text(text)
+          PY
+          git diff --check
+          git diff -- morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala
       - name: Install pinned Mill
         shell: bash
         run: |
@@ -30,25 +77,21 @@ jobs:
             https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
-      - name: Capture focused failure
+      - name: Prove focused native StreamFifo contract
         shell: bash
         run: |
-          set +e
+          set -euo pipefail
           /tmp/morphhdl-mill morph[2.13.12].testOnly \
-            morphhdl.ParameterizedStreamFifoDepthTests \
-            > /tmp/inc53-focused.log 2>&1
-          status=$?
-          set -e
-          {
-            echo "Increment 53 focused diagnostic"
-            echo "exit_status=$status"
-            echo "head=$(git rev-parse HEAD)"
-            echo "--- final 1200 lines ---"
-            tail -n 1200 /tmp/inc53-focused.log
-          } > docs/morphhdl/increment-53-focused-diagnostic.log
+            morphhdl.ParameterizedStreamFifoDepthTests
+      - name: Commit proved repair and remove diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name pysolvesemi
           git config user.email pysolvesemi@gmail.com
-          git add -f docs/morphhdl/increment-53-focused-diagnostic.log
-          git commit -m "diagnostic(morphhdl): capture Increment 53 focused result [inc53-diagnostic]"
+          git add morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala
+          git rm -f .github/workflows/increment-53-focused-diagnostic.yml
+          git rm -f docs/morphhdl/increment-53-focused-diagnostic.log
+          git commit -m "fix(morphhdl): allow mutually exclusive structural assignments [inc53-overlap-fix]"
           git push origin HEAD:"$GITHUB_REF_NAME"
