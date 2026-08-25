@@ -1,0 +1,150 @@
+--- a/morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
++++ b/morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
+@@ -447,15 +447,18 @@
+     * still has Unit type because it has no explicit else branch.
+     */
+   def selectSymbolicUnit(
+       condition: Boolean,
+       predicateReference: String,
+       sourceFile: String,
+       sourceLine: Int
+   )(ifTrue: => Any)(ifFalse: => Any): Unit = {
+-    selectSymbolic[Any](condition, predicateReference, sourceFile, sourceLine)(
+-      ifTrue
+-    )(ifFalse)
+-    ()
++    if (!ParameterizedStructure.captureEnabled) {
++      if (condition) ifTrue else ifFalse
++      ()
++    } else withCapture(sourceFile, sourceLine) {
++      captureOneUnit(
++        condition,
++        predicateReference,
++        sourceFile,
++        sourceLine,
++        sourceFile,
++        sourceLine,
++        ifTrue
++      )
++    }
+   }
+@@ -503,20 +506,55 @@
+   }
+ 
+   /** Unit-preserving counterpart for an else-if chain with no final else. */
+   def selectSymbolicChainUnit(
+       alternatives: Seq[(() => Boolean, String, () => Any, String, Int)],
+       otherwise: () => Any,
+       otherwiseFile: String,
+       otherwiseLine: Int
+   ): Unit = {
+-    selectSymbolicChain[Any](
+-      alternatives,
+-      otherwise,
+-      otherwiseFile,
+-      otherwiseLine
+-    )
+-    ()
++    val ordered = alternatives.toVector
++    if (ordered.isEmpty) {
++      fail(
++        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-CHAIN-EMPTY",
++        "a native symbolic else-if chain requires at least one proven predicate",
++        otherwiseFile,
++        otherwiseLine
++      )
++    }
++    if (!ParameterizedStructure.captureEnabled) {
++      selectSymbolicChain[Any](ordered, otherwise, otherwiseFile, otherwiseLine)
++      ()
++    } else withCapture(ordered.head._4, ordered.head._5) {
++      def capture(index: Int): Unit = {
++        val (conditionThunk, reference, body, file, line) = ordered(index)
++        if (index + 1 < ordered.size) {
++          val next = ordered(index + 1)
++          captureOne[Any](
++            conditionThunk(),
++            reference,
++            file,
++            line,
++            next._4,
++            next._5,
++            body(),
++            {
++              capture(index + 1)
++              ()
++            }
++          )
++          ()
++        } else {
++          captureOneUnit(
++            conditionThunk(),
++            reference,
++            file,
++            line,
++            otherwiseFile,
++            otherwiseLine,
++            body()
++          )
++        }
++      }
++      capture(0)
++    }
+   }
++
++  /**
++    * Capture a compiler-proven no-else conditional. The omitted continuation is
++    * an explicit synthetic empty structural block, not a user-authored body;
++    * ordinary empty bodies and Scala-only side effects remain rejected by
++    * ParameterizedStructure.captureBlock.
++    */
++  private def captureOneUnit(
++      condition: Boolean,
++      predicateReference: String,
++      sourceFile: String,
++      sourceLine: Int,
++      falseFile: String,
++      falseLine: Int,
++      ifTrue: => Any
++  ): Unit = {
++    val component = Option(Component.current).getOrElse {
++      fail(
++        "MORPH-FRONTEND-SESSION-MISSING",
++        "native symbolic conditional requires an active Component",
++        sourceFile,
++        sourceLine
++      )
++    }
++    val expression = ExternalNativeIntShadowRegistry.definitionPredicateTracked(
++      predicateReference,
++      condition,
++      rendered(sourceFile, sourceLine)
++    )
++    val trueBlock = ParameterizedStructure.captureBlock(
++      component,
++      Some(rendered(sourceFile, sourceLine))
++    ) {
++      ifTrue
++      ()
++    }
++    val pending = ParameterizedStructure.beginPending(
++      component,
++      "generate-if",
++      Some(rendered(sourceFile, sourceLine))
++    )
++    val falseBlock = ParameterizedStructuralSynthetic.emptyBlock(
++      Some(rendered(falseFile, falseLine))
++    )
++    val base = generatedIfBase(sourceFile, sourceLine)
++    ParameterizedStructure.registerIf(
++      pending,
++      expression,
++      base + "_true",
++      base + "_false",
++      trueBlock,
++      falseBlock,
++      Some(rendered(sourceFile, sourceLine))
++    )
++  }
+ 
+   private def captureOne[T](
