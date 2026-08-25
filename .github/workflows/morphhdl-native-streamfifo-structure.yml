@@ -51,7 +51,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
+          python3 - <<'PY'
           from pathlib import Path
 
           path = Path("morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala")
