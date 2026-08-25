@@ -1,0 +1,177 @@
+name: Increment 53 memory policy repair
+
+on:
+  push:
+    branches:
+      - agent/increment-53-native-streamfifo-clean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53-memory-policy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    if: "${{ !contains(github.event.head_commit.message, '[inc53-memory-policy-fix]') }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-clean
+          fetch-depth: 0
+
+      - name: Admit only distinct-address dontCare synchronous reads
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source_path = Path(
+              "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala"
+          )
+          text = source_path.read_text()
+
+          old_doc = """  * policy, rewrites the retained array geometry and replaces only the native
+            * memory process with the existing guarded read-first contract.
+          """
+          new_doc = """  * policy, rewrites the retained array geometry and replaces only the native
+            * memory process with the existing guarded contract. Explicit readFirst is
+            * preserved. A distinct-address simple-dual-port dontCare read is lowered
+            * deterministically as read-first, which is one legal dontCare outcome.
+          """
+          if new_doc not in text:
+              if old_doc not in text:
+                  raise SystemExit("ParameterizedVerilogMemories documentation anchor changed")
+              text = text.replace(old_doc, new_doc, 1)
+
+          old_policy = """    if (read.readUnderWrite ne readFirst) {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-MEMORY-COLLISION-POLICY-UNSUPPORTED",
+                s"memory '${memory.getName()}' must select readUnderWrite = readFirst",
+                source
+              )
+            }
+          """
+          if old_policy in text:
+              text = text.replace(old_policy, "", 1)
+          elif "val independentDontCare" not in text:
+              raise SystemExit("ParameterizedVerilogMemories collision-policy anchor changed")
+
+          names_anchor = """    val readAddress = stableName(read.address, "read address", source)
+              val writeAddress = stableName(write.address, "write address", source)
+              val readEnable = stableName(read.readEnable, "read enable", source)
+          """
+          names_replacement = """    val readAddress = stableName(read.address, "read address", source)
+              val writeAddress = stableName(write.address, "write address", source)
+              val independentDontCare =
+                (read.readUnderWrite eq dontCare) && readAddress != writeAddress
+              if ((read.readUnderWrite ne readFirst) && !independentDontCare) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-MEMORY-COLLISION-POLICY-UNSUPPORTED",
+                  s"memory '${memory.getName()}' must select readUnderWrite = readFirst; only distinct-address simple-dual-port dontCare reads are admitted",
+                  source
+                )
+              }
+              val readEnable = stableName(read.readEnable, "read enable", source)
+          """
+          if "val independentDontCare" not in text:
+              if names_anchor not in text:
+                  raise SystemExit("ParameterizedVerilogMemories stable-name anchor changed")
+              text = text.replace(names_anchor, names_replacement, 1)
+          source_path.write_text(text)
+
+          test_path = Path(
+              "morphhdl/src/test/scala/morphhdl/NativeSymbolicMemoryTests.scala"
+          )
+          tests = test_path.read_text()
+          test_anchor = """  test("ordinary SpinalVerilog remains concrete and ignores retained memory metadata") {
+          """
+          positive_test = """  test("distinct-address dontCare retains one deterministic legal collision outcome") {
+              withTemporaryDirectory { directory =>
+                val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
+                val depth = HdlInt.param("DEPTH", default = 5, min = 1, max = 8)
+                val verilog = emitMorph(
+                  directory,
+                  "native_simple_dual_port_dont_care.v",
+                  new Component {
+                    setDefinitionName("NativeSimpleDualPortDontCare")
+                    val read_enable = in(Bool())
+                    val write_enable = in(Bool())
+                    val read_address = in(morphhdl.frontend.UInt(depth.addressWidth bits))
+                    val write_address = in(morphhdl.frontend.UInt(depth.addressWidth bits))
+                    val write_data = in(morphhdl.frontend.Bits(width bits))
+                    val read_data = out(morphhdl.frontend.Bits(width bits))
+                    val memory = morphhdl.frontend.Mem(
+                      morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)),
+                      depth
+                    ).setName("memory")
+                    val read_word = memory.readSync(
+                      read_address,
+                      enable = read_enable
+                    )
+                    memory.write(
+                      write_address,
+                      write_data,
+                      enable = write_enable
+                    )
+                    read_data := read_word
+                  }
+                )
+
+                assert(verilog.contains("<= memory[read_address];"))
+                assert(verilog.contains("memory[write_address] <= write_data;"))
+                val readIndex = verilog.indexOf("<= memory[read_address];")
+                val writeIndex = verilog.indexOf("memory[write_address] <= write_data;")
+                assert(readIndex >= 0 && writeIndex > readIndex)
+                assert(count(verilog, "always @(posedge clk)") == 1)
+              }
+            }
+
+          """
+          if "distinct-address dontCare retains one deterministic legal collision outcome" not in tests:
+              if test_anchor not in tests:
+                  raise SystemExit("NativeSymbolicMemoryTests insertion anchor changed")
+              tests = tests.replace(test_anchor, positive_test + test_anchor, 1)
+          test_path.write_text(tests)
+          PY
+          git diff --check
+
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Prove native memory contracts on both supported Scala versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.NativeSymbolicMemoryTests
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.NativeSymbolicMemoryTests
+
+      - name: Publish memory-policy repair and remove this diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name pysolvesemi
+          git config user.email pysolvesemi@gmail.com
+          git add \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala \
+            morphhdl/src/test/scala/morphhdl/NativeSymbolicMemoryTests.scala
+          git rm -f .github/workflows/increment-53-memory-policy-repair.yml
+          git commit -m "fix(morphhdl): retain distinct-address dontCare memory policy [inc53-memory-policy-fix]"
+          git push origin HEAD:"$GITHUB_REF_NAME"
