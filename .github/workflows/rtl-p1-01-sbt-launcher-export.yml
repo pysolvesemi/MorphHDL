@@ -38,10 +38,12 @@ jobs:
           printf 'ThisBuild / scalaVersion := "2.12.18"\n' > "${tmp}/build.sbt"
           (cd "${tmp}" && sbt -batch -Dsbt.supershell=false 'show sbtVersion') | tee "${out}/sbt-version.log"
           grep -F '1.10.2' "${out}/sbt-version.log"
-          launcher="${HOME}/.cache/sbt/boot/sbt-launch/1.10.2/sbt-launch-1.10.2.jar"
+          launcher="$(find /sbt /github/home /root -type f -name 'sbt-launch-1.10.2.jar' 2>/dev/null | head -1)"
+          test -n "${launcher}"
           test -s "${launcher}"
           cp "${launcher}" "${out}/launcher/sbt-launch-1.10.2.jar"
-          sha256sum "${out}/bin/sbt" "${out}/launcher/sbt-launch-1.10.2.jar" "${out}/sbt-version.log" > "${out}/SHA256SUMS"
+          printf 'launcher_source=%s\n' "${launcher}" > "${out}/launcher-origin.txt"
+          sha256sum "${out}/bin/sbt" "${out}/launcher/sbt-launch-1.10.2.jar" "${out}/sbt-version.log" "${out}/launcher-origin.txt" > "${out}/SHA256SUMS"
           find "${out}" -type f -printf '%P %s bytes\n' | sort
 
       - name: Upload launcher state
