@@ -156,7 +156,8 @@ object lib extends Cross[Lib](SpinalVersion.compilers){
 }
 trait Lib extends SpinalModule with SpinalPublishModule {
   def mainClass = Some("spinal.lib")
-  def moduleDeps = Seq(moduleRefs("core"), moduleRefs("sim"), morphruntime(crossScalaVersion))
+  def moduleDeps: Seq[JavaModule] =
+    Seq(moduleRefs("core"), moduleRefs("sim"), morphruntime(crossScalaVersion))
   def scalacOptions = super.scalacOptions() ++ modulePluginOptions() ++ morphplugin(crossScalaVersion).pluginOptions()
   def mvnDeps = super.mvnDeps() ++ Seq(mvn"commons-io:commons-io:2.11.0", mvn"org.scalatest::scalatest:${scalatestVersion}",
     mvn"io.github.zhaokunhu::ipxactscalacases:0.0.3")
