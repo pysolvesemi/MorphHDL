@@ -1,0 +1,78 @@
+name: PR36 open-source EDA tools export
+
+on:
+  push:
+    branches:
+      - agent/offline-toolchain-export
+    paths:
+      - .github/workflows/pr36-eda-tools-export.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Install exact open-source validation tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y iverilog verilator yosys yosys-abc
+          iverilog -V | head -2
+          verilator --version
+          yosys -V
+
+      - name: Build portable rootfs bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          work=/tmp/pr36-eda
+          rm -rf "${work}"
+          mkdir -p "${work}/rootfs" "${work}/meta"
+          packages=(iverilog verilator yosys yosys-abc)
+          : > "${work}/meta/package-files.txt"
+          for package in "${packages[@]}"; do
+            dpkg-query -W -f='${Package} ${Version} ${Architecture}\n' "${package}" \
+              >> "${work}/meta/packages.txt"
+            dpkg -L "${package}" | sed '/^\/$/d' \
+              >> "${work}/meta/package-files.txt"
+          done
+          sort -u -o "${work}/meta/package-files.txt" "${work}/meta/package-files.txt"
+
+          # Include non-base shared-library dependencies of all ELF executables.
+          while IFS= read -r path; do
+            [[ -f "${path}" ]] || continue
+            if file "${path}" | grep -q 'ELF'; then
+              ldd "${path}" 2>/dev/null \
+                | awk '/=> \/|^\// {for(i=1;i<=NF;i++) if($i ~ /^\//) print $i}' \
+                >> "${work}/meta/library-files.txt" || true
+            fi
+          done < "${work}/meta/package-files.txt"
+          sort -u -o "${work}/meta/library-files.txt" "${work}/meta/library-files.txt"
+
+          cat "${work}/meta/package-files.txt" "${work}/meta/library-files.txt" \
+            | sort -u > "${work}/meta/all-files.txt"
+          while IFS= read -r path; do
+            [[ -e "${path}" || -L "${path}" ]] || continue
+            target="${work}/rootfs${path}"
+            mkdir -p "$(dirname "${target}")"
+            cp -a "${path}" "${target}"
+          done < "${work}/meta/all-files.txt"
+
+          tar -C "${work}" -czf pr36-open-source-eda-rootfs.tar.gz rootfs meta
+          sha256sum pr36-open-source-eda-rootfs.tar.gz \
+            > pr36-open-source-eda-rootfs.tar.gz.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr36-open-source-eda-ubuntu-24.04
+          path: |
+            /tmp/pr36-eda/pr36-open-source-eda-rootfs.tar.gz
+            /tmp/pr36-eda/pr36-open-source-eda-rootfs.tar.gz.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
