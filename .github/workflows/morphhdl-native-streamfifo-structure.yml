@@ -257,33 +257,14 @@ jobs:
                   1,
               )
 
-          old_output = """        } else if (
-              allowConcreteInternal && assignment.source == port &&
-              assignment.finalTarget.component == parent
-            ) {
-              Vector(
-                bindingOf(
-                  parent,
-                  assignment.target,
-                  context,
-                  allowConcreteInternal
-                )
+          output_failure = """        } else {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED",
+                s"$context uses a sliced, indexed, converted or expression-wrapped child-output connection; direct full packed connections are required"
               )
-            } else {
+            }
           """
-          new_output = """        } else if (
-              allowConcreteInternal && assignment.source == port &&
-              assignment.finalTarget.component == parent
-            ) {
-              Vector(
-                bindingOf(
-                  parent,
-                  assignment.target,
-                  context,
-                  allowConcreteInternal
-                )
-              )
-            } else if (
+          output_adapter = """        } else if (
               allowConcreteInternal &&
               assignment.target == assignment.finalTarget &&
               assignment.finalTarget.component == parent &&
@@ -294,11 +275,16 @@ jobs:
               // instance boundary, which remains the unchanged child-port width.
               Vector(LiteralBinding(port.getBitsWidth))
             } else {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED",
+                s"$context uses a sliced, indexed, converted or expression-wrapped child-output connection; direct full packed connections are required"
+              )
+            }
           """
-          if new_output not in hierarchy:
-              if old_output not in hierarchy:
-                  raise SystemExit("child-output connection branch changed")
-              hierarchy = hierarchy.replace(old_output, new_output, 1)
+          if output_adapter not in hierarchy:
+              if output_failure not in hierarchy:
+                  raise SystemExit("unique child-output diagnostic block changed")
+              hierarchy = hierarchy.replace(output_failure, output_adapter, 1)
           hierarchy_path.write_text(hierarchy)
 
           test_path = Path(
