@@ -11,7 +11,7 @@ permissions:
 jobs:
   mill-toolchain:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Check out exact public toolchain branch
         uses: actions/checkout@v4
@@ -26,13 +26,13 @@ jobs:
           test "$(git merge-base HEAD 81abd25518551b8a452ecf038e409331e646f726)" = "81abd25518551b8a452ecf038e409331e646f726"
           ! git grep -n -E 'DisplayControllerCore|RTL-P1-01' -- ':!:.github/workflows/display-controller-offline-toolchain.yml'
 
-      - name: Download and authenticate Mill 0.11.11 assembly
+      - name: Download exact Mill and prime offline ScalaModule cache
         shell: bash
         run: |
           set -euo pipefail
           out=/tmp/rtl-p1-01-mill
           rm -rf "${out}"
-          mkdir -p "${out}"
+          mkdir -p "${out}/cache"
           curl --fail --location --retry 5 --retry-delay 2 \
             https://github.com/com-lihaoyi/mill/releases/download/0.11.11/0.11.11-1-066ea7-assembly \
             --output "${out}/mill-0.11.11"
@@ -40,12 +40,35 @@ jobs:
           "${out}/mill-0.11.11" --version | tee "${out}/version.txt"
           grep -E 'Mill Build Tool version 0\.11\.11(-1-066ea7)?' "${out}/version.txt"
           printf 'release_tag=0.11.11\nasset=0.11.11-1-066ea7-assembly\n' > "${out}/origin.txt"
-          sha256sum "${out}/mill-0.11.11" "${out}/version.txt" "${out}/origin.txt" > "${out}/SHA256SUMS"
 
-      - name: Upload exact Mill assembly
+          probe=/tmp/rtl-p1-01-mill-probe
+          rm -rf "${probe}"
+          mkdir -p "${probe}/src"
+          cat > "${probe}/build.sc" <<'SCALA'
+          import mill._, scalalib._
+          object probe extends ScalaModule {
+            def scalaVersion = "2.12.18"
+            def sources = T.sources(millSourcePath / "src")
+          }
+          SCALA
+          cat > "${probe}/src/Probe.scala" <<'SCALA'
+          object Probe { def main(args: Array[String]): Unit = println("MILL_PROBE_PASS") }
+          SCALA
+          (cd "${probe}" && "${out}/mill-0.11.11" --no-server probe.compile)
+
+          for path in "$HOME/.cache/coursier" "$HOME/.ivy2" "$HOME/.mill" "$HOME/.cache/mill"; do
+            if test -e "${path}"; then
+              name="$(basename "${path}")-$(basename "$(dirname "${path}")")"
+              cp -a "${path}" "${out}/cache/${name}"
+            fi
+          done
+          sha256sum "${out}/mill-0.11.11" "${out}/version.txt" "${out}/origin.txt" > "${out}/SHA256SUMS"
+          find "${out}" -type f -printf '%P %s bytes\n' | sort | head -200
+
+      - name: Upload exact Mill assembly and offline cache
         uses: actions/upload-artifact@v4
         with:
-          name: rtl-p1-01-mill-0.11.11
+          name: rtl-p1-01-mill-0.11.11-offline
           path: /tmp/rtl-p1-01-mill
           if-no-files-found: error
           retention-days: 7
