@@ -21,12 +21,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify MorphHDL source parent
+      - name: Verify exact MorphHDL source ancestry and public-only delta
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "81abd25518551b8a452ecf038e409331e646f726"
-          git diff --name-only HEAD^ HEAD | grep -Fx '.github/workflows/rtl-p1-01-toolchain-export.yml'
+          base=81abd25518551b8a452ecf038e409331e646f726
+          test "$(git merge-base HEAD "${base}")" = "${base}"
+          mapfile -t changed < <(git diff --name-only "${base}" HEAD | sort -u)
+          printf '%s\n' "${changed[@]}"
+          test "${#changed[@]}" -eq 1
+          test "${changed[0]}" = '.github/workflows/rtl-p1-01-toolchain-export.yml'
 
       - name: Build exact Scala 2.12 MorphHDL classpath
         shell: bash
@@ -46,7 +50,7 @@ jobs:
             'lib/Compile/packageBin' \
             'morph/Compile/packageBin'
 
-      - name: Export self-contained compiler and runtime classpath
+      - name: Export self-contained compiler, runtime classpath, and exact source
         shell: bash
         run: |
           set -euo pipefail
@@ -57,7 +61,6 @@ jobs:
           python3 - <<'PY'
           import hashlib
           import json
-          import shutil
           from pathlib import Path
 
           root = Path.cwd()
@@ -65,8 +68,15 @@ jobs:
           candidates = []
           candidates.extend(root.glob('*/target/scala-2.12/*.jar'))
           candidates.extend(root.glob('backends/*/target/scala-2.12/*.jar'))
-          candidates.extend(Path('/tmp/rtl-p1-01-coursier').rglob('*.jar'))
-          candidates.extend(Path('/root/.ivy2/cache').rglob('*.jar'))
+          for cache in (
+              Path('/tmp/rtl-p1-01-coursier'),
+              Path('/sbt/.cache/coursier'),
+              Path('/sbt/.ivy2/cache'),
+              Path('/root/.cache/coursier'),
+              Path('/root/.ivy2/cache'),
+          ):
+              if cache.exists():
+                  candidates.extend(cache.rglob('*.jar'))
 
           selected = {}
           for path in sorted({p.resolve() for p in candidates if p.is_file()}, key=str):
@@ -83,28 +93,31 @@ jobs:
                   'sha256': digest,
               }
 
-          required_names = {
+          names = [Path(row['source']).name.casefold() for row in selected.values()]
+          required_exact = {
               'scala-library-2.12.18.jar',
               'scala-compiler-2.12.18.jar',
               'scala-reflect-2.12.18.jar',
           }
-          observed_names = {Path(row['source']).name for row in selected.values()}
-          missing = sorted(required_names - observed_names)
+          missing = sorted(required_exact - set(names))
           if missing:
               raise SystemExit('missing required compiler jars: ' + ','.join(missing))
-          if not any('spinalhdl-idsl-plugin' in Path(row['source']).name for row in selected.values()):
-              raise SystemExit('missing idsl plugin jar')
-          if not any('SpinalHDL-core' in Path(row['source']).name for row in selected.values()):
-              raise SystemExit('missing core package jar')
-          if not any('SpinalHDL-lib' in Path(row['source']).name for row in selected.values()):
-              raise SystemExit('missing lib package jar')
-          if not any('MorphHDL-orchestration' in Path(row['source']).name for row in selected.values()):
-              raise SystemExit('missing morph orchestration package jar')
+
+          requirements = {
+              'idsl plugin': lambda name: 'idsl-plugin' in name or 'idslplugin' in name,
+              'core package': lambda name: 'spinalhdl-core' in name,
+              'lib package': lambda name: 'spinalhdl-lib' in name,
+              'morph orchestration package': lambda name: 'morphhdl' in name and ('orchestration' in name or name.startswith('morphhdl_')),
+          }
+          for description, predicate in requirements.items():
+              if not any(predicate(name) for name in names):
+                  raise SystemExit(f'missing {description} jar; observed project jars=' + ','.join(sorted(name for name in names if 'spinal' in name or 'morph' in name)))
 
           manifest = {
               'schema': 'rtl-p1-01-morphhdl-toolchain-export/v1',
               'source_parent_commit': '81abd25518551b8a452ecf038e409331e646f726',
               'scala_version': '2.12.18',
+              'jar_count': len(selected),
               'jars': sorted(selected.values(), key=lambda row: row['path']),
           }
           (out / 'manifest.json').write_text(
@@ -115,9 +128,14 @@ jobs:
               ':'.join(row['path'] for row in manifest['jars']) + '\n',
               encoding='utf-8',
           )
+          print('EXPORT_JAR_COUNT', len(selected))
+          print('EXPORT_PROJECT_JARS')
+          for name in sorted(name for name in names if 'spinal' in name or 'morph' in name):
+              print(name)
           PY
 
-          git archive --format=tar HEAD^ | gzip -n > "${out}/source/MorphHDL-81abd25518551b8a452ecf038e409331e646f726.tar.gz"
+          git archive --format=tar 81abd25518551b8a452ecf038e409331e646f726 \
+            | gzip -n > "${out}/source/MorphHDL-81abd25518551b8a452ecf038e409331e646f726.tar.gz"
           sha256sum "${out}/manifest.json" "${out}/classpath.txt" "${out}/source/"*.tar.gz \
             > "${out}/SHA256SUMS"
           find "${out}" -type f -printf '%P %s bytes\n' | sort
