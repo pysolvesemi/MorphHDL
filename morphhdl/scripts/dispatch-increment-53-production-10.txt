@@ -1,1 +1,1 @@
-validate full-domain retained UInt carrier sizing for native StreamFifo
+validate native StreamFifo structural retention on the exact repaired head
