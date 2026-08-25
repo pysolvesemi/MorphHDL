@@ -1,0 +1,46 @@
+name: RTL-P1-01 SBT launcher export
+
+on:
+  push:
+    branches:
+      - agent/rtl-p1-01-toolchain-export
+    paths:
+      - .github/workflows/rtl-p1-01-sbt-launcher-export.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - name: Check out public toolchain branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Stage launcher and boot state
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=/tmp/rtl-p1-01-sbt-launcher
+          rm -rf "${out}"
+          mkdir -p "${out}/bin" "${out}/sbt-home/.cache"
+          cp "$(command -v sbt)" "${out}/bin/sbt"
+          if test -d /sbt/.cache/sbt; then cp -a /sbt/.cache/sbt "${out}/sbt-home/.cache/sbt"; fi
+          if test -d /sbt/.sbt; then cp -a /sbt/.sbt "${out}/sbt-home/.sbt"; fi
+          if test -f /sbt/repositories; then cp /sbt/repositories "${out}/sbt-home/repositories"; fi
+          sha256sum "${out}/bin/sbt" > "${out}/SHA256SUMS"
+          find "${out}" -type f -printf '%P %s bytes\n' | sort
+
+      - name: Upload launcher state
+        uses: actions/upload-artifact@v4
+        with:
+          name: rtl-p1-01-sbt-launcher-state
+          path: /tmp/rtl-p1-01-sbt-launcher
+          if-no-files-found: error
+          retention-days: 7
