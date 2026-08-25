@@ -49,11 +49,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
       - name: Focused Increment 53 and inherited contracts
         shell: bash
         run: |
           set -euo pipefail
-          mill -i "morph[${{ matrix.scala_version }}].testOnly" \
+          /tmp/morphhdl-mill -i "morph[${{ matrix.scala_version }}].testOnly" \
             morphhdl.ParameterizedStreamFifoDepthTests \
             morphhdl.NativeIntSymbolicConditionalTests \
             morphhdl.NativeIntNestedSymbolicControlFlowTests \
