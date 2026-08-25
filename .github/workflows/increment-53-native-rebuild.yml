@@ -1,0 +1,40 @@
+name: Increment 53 native StreamFifo rebuild
+
+on:
+  push:
+    branches:
+      - agent/increment-53-native-streamfifo-clean
+    paths:
+      - morphhdl/scripts/increment-53-native-rebuild.py
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53-native-rebuild
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-clean
+          fetch-depth: 0
+      - name: Apply reviewed native rebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/increment-53-native-rebuild.py
+          git rm morphhdl/scripts/increment-53-native-rebuild.py
+          git rm .github/workflows/increment-53-native-rebuild.yml
+          git add -A
+          git diff --cached --check
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'refactor(morphhdl): rebuild Increment 53 on native StreamFifo'
+          git pull --rebase origin agent/increment-53-native-streamfifo-clean
+          git push origin HEAD:agent/increment-53-native-streamfifo-clean
