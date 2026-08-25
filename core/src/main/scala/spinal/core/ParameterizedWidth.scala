@@ -223,12 +223,6 @@ object ParameterizedWidth {
   /** Untouched native register algorithm driven by the retained HardType. */
   def Reg[T <: Data](dataType: => T): T = spinal.core.Reg(HardType(dataType))
 
-  /**
-    * Preserve a native HardType constructor without forcing the compiler bridge
-    * to treat the HardType wrapper itself as hardware Data.
-    */
-  def Reg[T <: Data](dataType: spinal.core.HardType[T]): T = Reg(dataType())
-
   /** Untouched native Vec algorithm driven by the retained HardType. */
   def Vec[T <: Data](dataType: => T, size: Int): spinal.core.Vec[T] =
     spinal.core.Vec(HardType(dataType), size)

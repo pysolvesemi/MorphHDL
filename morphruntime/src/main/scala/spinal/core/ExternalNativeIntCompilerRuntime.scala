@@ -275,7 +275,7 @@ object ExternalNativeIntCompilerRuntime {
   def compilerRegHardType[T <: Data](
       dataType: => HardType[T]
   )(native: => T): T =
-    if (boundaryActive) ParameterizedWidth.Reg(dataType) else native
+    if (boundaryActive) ParameterizedWidth.Reg(dataType()) else native
 
   def compilerCloneOf[T <: Data](data: T)(native: => T): T =
     if (boundaryActive) ParameterizedWidth.cloneOf(data) else native
