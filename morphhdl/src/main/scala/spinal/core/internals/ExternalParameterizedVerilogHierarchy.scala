@@ -295,7 +295,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
 
     val actualByName = actualPorts.toMap
     val canonicalByName = canonicalPorts.toMap
-    val canonicalParameters = ParameterizedWidth.parametersOf(canonical)
+    val canonicalParameters = componentParameters(canonical)
     val bindings = canonicalParameters.map { parameter =>
       val parameterPorts = canonicalPorts.collect {
         case (name, port)
@@ -303,13 +303,17 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           name
       }
       if (parameterPorts.isEmpty) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
-          s"parameter '${parameter.name}' of canonical child '$definitionName' is not exposed directly on a packed leaf port"
+        val expression = componentOnlyBinding(
+          canonical = canonical,
+          child = child,
+          parameter = parameter,
+          definitionName = definitionName,
+          instanceName = instanceName
         )
-      }
-
-      parameterPorts.foreach { name =>
+        validateParameterBinding(expression, parameter, instanceName, pc)
+        parameter.name -> expression
+      } else {
+        parameterPorts.foreach { name =>
         val actualSchema = ParameterizedWidth.parameterOf(actualByName(name)).getOrElse {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
@@ -433,24 +437,9 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           connectionBindings.head
         }
 
-      if (expression.default != parameter.default) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-WITNESS-MISMATCH",
-          s"binding '${expression.render}' has concrete default ${expression.default}, but child parameter '${parameter.name}' was elaborated with ${parameter.default}"
-        )
+        validateParameterBinding(expression, parameter, instanceName, pc)
+        parameter.name -> expression
       }
-      if (
-        expression.minimum < parameter.minimum ||
-        expression.maximum > parameter.maximum ||
-        expression.minimum < 1 ||
-        expression.maximum > BigInt(pc.config.bitVectorWidthMax)
-      ) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-DOMAIN-UNSUPPORTED",
-          s"binding '${expression.render}' reaches [${expression.minimum}, ${expression.maximum}], outside child parameter '${parameter.name}' domain [${parameter.minimum}, ${parameter.maximum}] or SpinalConfig.bitVectorWidthMax=${pc.config.bitVectorWidthMax}"
-        )
-      }
-      parameter.name -> expression
     }.sortBy(_._1)
 
     val canonicalParameterNames = canonicalParameters.map(_.name).toSet
@@ -483,7 +472,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         }
     }
 
-    val actualParameterNames = ParameterizedWidth.parametersOf(child).map(_.name).toSet
+    val actualParameterNames = componentParameters(child).map(_.name).toSet
     if (actualParameterNames != canonicalParameterNames) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
@@ -500,6 +489,114 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         }
     }
     InstancePlan(definitionName, instanceName, bindings, ports)
+  }
+
+  private def componentParameters(
+      component: Component
+  ): Vector[ElaborationIntegerParameter] = {
+    val values =
+      ParameterizedWidth.parametersOf(component) ++
+        ExternalParameterizedMemoryRegistry.parametersOf(component) ++
+        ExternalParameterizedValueRegistry.parametersOf(component) ++
+        ParameterizedStructure.parametersOf(component) ++
+        ParameterizedProcess.parametersOf(component)
+    val grouped = values.groupBy(_.name)
+    grouped.collectFirst {
+      case (name, declarations) if declarations.distinct.size != 1 => name
+    }.foreach { name =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
+        s"component '${component.definitionName}' has conflicting hierarchy parameter declarations for '$name'"
+      )
+    }
+    grouped.toVector.map(_._2.head).sortBy(_.name)
+  }
+
+  private def componentOnlyBinding(
+      canonical: Component,
+      child: Component,
+      parameter: ElaborationIntegerParameter,
+      definitionName: String,
+      instanceName: String
+  ): BindingExpr = {
+    val canonicalBindings =
+      ExternalFormalParameterRegistry
+        .bindingsOf(canonical)
+        .filter(_.formal == parameter)
+    val actualBindings =
+      ExternalFormalParameterRegistry
+        .bindingsOf(child)
+        .filter(_.formal == parameter)
+
+    if (canonicalBindings.isEmpty || actualBindings.isEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
+        s"scalar parameter '${parameter.name}' of canonical child '$definitionName' requires one exact formalComponent.parameter binding on canonical and actual instance '$instanceName'"
+      )
+    }
+
+    val all = canonicalBindings ++ actualBindings
+    if (all.exists(_.formal != parameter)) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SCHEMA-CONFLICT",
+        s"scalar formal of instance '$instanceName' does not match canonical child parameter '${parameter.name}' of '$definitionName'",
+        all.flatMap(_.sourceLocation).headOption
+      )
+    }
+    val declarationKeys = all.map(_.declarationKey).distinct
+    if (declarationKeys.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+        s"scalar formal '${parameter.name}' of instance '$instanceName' does not map to one canonical declaration identity",
+        all.flatMap(_.sourceLocation).headOption
+      )
+    }
+    val owners = all.map(_.ownerClassName).distinct
+    if (owners.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+        s"scalar formal '${parameter.name}' of instance '$instanceName' maps to multiple definition owners",
+        all.flatMap(_.sourceLocation).headOption
+      )
+    }
+    val actualExpressions = actualBindings
+      .map(binding =>
+        ExternalFormalParameterRegistry.normalizedExpression(binding.actual)
+      )
+      .distinct
+    if (actualExpressions.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS",
+        s"scalar formal '${parameter.name}' of instance '$instanceName' maps to multiple actual expressions: ${actualExpressions.map(_.verilog).sorted.mkString(", ")}",
+        actualBindings.flatMap(_.sourceLocation).headOption
+      )
+    }
+    ExpressionBinding(actualExpressions.head)
+  }
+
+  private def validateParameterBinding(
+      expression: BindingExpr,
+      parameter: ElaborationIntegerParameter,
+      instanceName: String,
+      pc: PhaseContext
+  ): Unit = {
+    if (expression.default != parameter.default) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-WITNESS-MISMATCH",
+        s"binding '${expression.render}' has concrete default ${expression.default}, but child parameter '${parameter.name}' of instance '$instanceName' was elaborated with ${parameter.default}"
+      )
+    }
+    if (
+      expression.minimum < parameter.minimum ||
+      expression.maximum > parameter.maximum ||
+      expression.minimum < 1 ||
+      expression.maximum > BigInt(pc.config.bitVectorWidthMax)
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-DOMAIN-UNSUPPORTED",
+        s"binding '${expression.render}' reaches [${expression.minimum}, ${expression.maximum}], outside child parameter '${parameter.name}' domain [${parameter.minimum}, ${parameter.maximum}] or SpinalConfig.bitVectorWidthMax=${pc.config.bitVectorWidthMax}"
+      )
+    }
   }
 
   /**

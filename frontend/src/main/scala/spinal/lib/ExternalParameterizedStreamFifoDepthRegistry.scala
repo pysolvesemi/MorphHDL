@@ -22,15 +22,13 @@ object ExternalParameterizedStreamFifoDepthRegistry {
         "symbolic StreamFifo depth must not be null"
       )
 
-    formalComponent(
+    formalComponent.parameter(
       actual = depth,
       name = "DEPTH",
       minimum = BigInt(1),
       maximum = BigInt(4096)
     )(
       witness => spinal.lib.StreamFifo(dataType, witness)
-    ) { fifo =>
-      Vector(fifo.io.occupancy, fifo.io.availability)
-    }
+    )
   }
 }
