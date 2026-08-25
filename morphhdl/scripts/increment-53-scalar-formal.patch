@@ -1,0 +1,485 @@
+diff --git a/frontend/src/main/scala/morphhdl/frontend/formalComponent.scala b/frontend/src/main/scala/morphhdl/frontend/formalComponent.scala
+index 5eb433e..8b389ab 100644
+--- a/frontend/src/main/scala/morphhdl/frontend/formalComponent.scala
++++ b/frontend/src/main/scala/morphhdl/frontend/formalComponent.scala
+@@ -48,6 +48,50 @@ object formalComponent {
+   )(constructor: Int => C)(geometry: C => Iterable[Data])(implicit
+       file: sourcecode.File,
+       line: sourcecode.Line
++  ): C =
++    build(
++      actual,
++      name,
++      minimum,
++      maximum,
++      constructor,
++      Some(geometry)
++    )
++
++  /**
++    * Retain one exact component-level formal whose native `Int` controls
++    * storage or structural choices but is not itself a packed child-port width.
++    * Internal symbolic metadata must still prove the definition dependency;
++    * this method supplies only the exact formal-to-actual hierarchy binding.
++    */
++  def parameter[C <: Component](
++      actual: HdlInt,
++      name: String,
++      minimum: BigInt,
++      maximum: BigInt
++  )(constructor: Int => C)(implicit
++      file: sourcecode.File,
++      line: sourcecode.Line
++  ): C =
++    build(
++      actual,
++      name,
++      minimum,
++      maximum,
++      constructor,
++      None
++    )
++
++  private def build[C <: Component](
++      actual: HdlInt,
++      name: String,
++      minimum: BigInt,
++      maximum: BigInt,
++      constructor: Int => C,
++      geometry: Option[C => Iterable[Data]]
++  )(implicit
++      file: sourcecode.File,
++      line: sourcecode.Line
+   ): C = {
+     val origin = SourceOrigin.capture
+     if (constructor eq null) {
+@@ -57,12 +101,14 @@ object formalComponent {
+         origin
+       )
+     }
+-    if (geometry eq null) {
+-      FrontendException.failAt(
+-        "MORPH-FRONTEND-FORMAL-COMPONENT-SELECTOR-NULL",
+-        s"formalComponent slot '$name' requires one non-null exact-geometry selector",
+-        origin
+-      )
++    geometry.foreach { selector =>
++      if (selector eq null) {
++        FrontendException.failAt(
++          "MORPH-FRONTEND-FORMAL-COMPONENT-SELECTOR-NULL",
++          s"formalComponent slot '$name' requires one non-null exact-geometry selector",
++          origin
++        )
++      }
+     }
+ 
+     val parent = Option(Component.current).getOrElse {
+@@ -87,7 +133,9 @@ object formalComponent {
+     val token = ExternalNativeIntFormalizationToken(
+       callSite = origin.rendered,
+       valueOrigin = actual.origin.rendered,
+-      role = s"formalComponent($name)"
++      role =
++        if (geometry.isDefined) s"formalComponent($name)"
++        else s"formalComponent.parameter($name)"
+     )
+     val shadow = ExternalNativeIntShadowRegistry.captureWithDefinition(
+       expression = actualExpression,
+@@ -116,15 +164,23 @@ object formalComponent {
+       declarationKey = s"external-native-int::$ownerClassName::$name",
+       origin = origin
+     )
+-    val selected = geometry(component)
+-
+-    ExternalNativeIntFormalizationRegistry.attachComponent(
+-      parent = parent,
+-      component = component,
+-      geometry = selected,
+-      binding = binding,
+-      token = token
+-    )
++    geometry match {
++      case Some(selector) =>
++        ExternalNativeIntFormalizationRegistry.attachComponent(
++          parent = parent,
++          component = component,
++          geometry = selector(component),
++          binding = binding,
++          token = token
++        )
++      case None =>
++        ExternalNativeIntFormalizationRegistry.attachComponentParameter(
++          parent = parent,
++          component = component,
++          binding = binding,
++          token = token
++        )
++    }
+     ExternalNativeIntShadowRegistry.attachComponent(
+       component = component,
+       binding = binding,
+diff --git a/frontend/src/main/scala/spinal/lib/ExternalParameterizedStreamFifoDepthRegistry.scala b/frontend/src/main/scala/spinal/lib/ExternalParameterizedStreamFifoDepthRegistry.scala
+index eb04c9f..d6d8c96 100644
+--- a/frontend/src/main/scala/spinal/lib/ExternalParameterizedStreamFifoDepthRegistry.scala
++++ b/frontend/src/main/scala/spinal/lib/ExternalParameterizedStreamFifoDepthRegistry.scala
+@@ -22,15 +22,13 @@ object ExternalParameterizedStreamFifoDepthRegistry {
+         "symbolic StreamFifo depth must not be null"
+       )
+ 
+-    formalComponent(
++    formalComponent.parameter(
+       actual = depth,
+       name = "DEPTH",
+       minimum = BigInt(1),
+       maximum = BigInt(4096)
+     )(
+       witness => spinal.lib.StreamFifo(dataType, witness)
+-    ) { fifo =>
+-      Vector(fifo.io.occupancy, fifo.io.availability)
+-    }
++    )
+   }
+ }
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala b/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+index fe872fd..76ccc67 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+@@ -295,7 +295,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
+ 
+     val actualByName = actualPorts.toMap
+     val canonicalByName = canonicalPorts.toMap
+-    val canonicalParameters = ParameterizedWidth.parametersOf(canonical)
++    val canonicalParameters = componentParameters(canonical)
+     val bindings = canonicalParameters.map { parameter =>
+       val parameterPorts = canonicalPorts.collect {
+         case (name, port)
+@@ -303,13 +303,17 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
+           name
+       }
+       if (parameterPorts.isEmpty) {
+-        fail(
+-          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
+-          s"parameter '${parameter.name}' of canonical child '$definitionName' is not exposed directly on a packed leaf port"
++        val expression = componentOnlyBinding(
++          canonical = canonical,
++          child = child,
++          parameter = parameter,
++          definitionName = definitionName,
++          instanceName = instanceName
+         )
+-      }
+-
+-      parameterPorts.foreach { name =>
++        validateParameterBinding(expression, parameter, instanceName, pc)
++        parameter.name -> expression
++      } else {
++        parameterPorts.foreach { name =>
+         val actualSchema = ParameterizedWidth.parameterOf(actualByName(name)).getOrElse {
+           fail(
+             "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
+@@ -433,24 +437,9 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
+           connectionBindings.head
+         }
+ 
+-      if (expression.default != parameter.default) {
+-        fail(
+-          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-WITNESS-MISMATCH",
+-          s"binding '${expression.render}' has concrete default ${expression.default}, but child parameter '${parameter.name}' was elaborated with ${parameter.default}"
+-        )
++        validateParameterBinding(expression, parameter, instanceName, pc)
++        parameter.name -> expression
+       }
+-      if (
+-        expression.minimum < parameter.minimum ||
+-        expression.maximum > parameter.maximum ||
+-        expression.minimum < 1 ||
+-        expression.maximum > BigInt(pc.config.bitVectorWidthMax)
+-      ) {
+-        fail(
+-          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-DOMAIN-UNSUPPORTED",
+-          s"binding '${expression.render}' reaches [${expression.minimum}, ${expression.maximum}], outside child parameter '${parameter.name}' domain [${parameter.minimum}, ${parameter.maximum}] or SpinalConfig.bitVectorWidthMax=${pc.config.bitVectorWidthMax}"
+-        )
+-      }
+-      parameter.name -> expression
+     }.sortBy(_._1)
+ 
+     val canonicalParameterNames = canonicalParameters.map(_.name).toSet
+@@ -483,7 +472,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
+         }
+     }
+ 
+-    val actualParameterNames = ParameterizedWidth.parametersOf(child).map(_.name).toSet
++    val actualParameterNames = componentParameters(child).map(_.name).toSet
+     if (actualParameterNames != canonicalParameterNames) {
+       fail(
+         "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
+@@ -502,6 +491,114 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
+     InstancePlan(definitionName, instanceName, bindings, ports)
+   }
+ 
++  private def componentParameters(
++      component: Component
++  ): Vector[ElaborationIntegerParameter] = {
++    val values =
++      ParameterizedWidth.parametersOf(component) ++
++        ExternalParameterizedMemoryRegistry.parametersOf(component) ++
++        ExternalParameterizedValueRegistry.parametersOf(component) ++
++        ParameterizedStructure.parametersOf(component) ++
++        ParameterizedProcess.parametersOf(component)
++    val grouped = values.groupBy(_.name)
++    grouped.collectFirst {
++      case (name, declarations) if declarations.distinct.size != 1 => name
++    }.foreach { name =>
++      fail(
++        "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
++        s"component '${component.definitionName}' has conflicting hierarchy parameter declarations for '$name'"
++      )
++    }
++    grouped.toVector.map(_._2.head).sortBy(_.name)
++  }
++
++  private def componentOnlyBinding(
++      canonical: Component,
++      child: Component,
++      parameter: ElaborationIntegerParameter,
++      definitionName: String,
++      instanceName: String
++  ): BindingExpr = {
++    val canonicalBindings =
++      ExternalFormalParameterRegistry
++        .bindingsOf(canonical)
++        .filter(_.formal == parameter)
++    val actualBindings =
++      ExternalFormalParameterRegistry
++        .bindingsOf(child)
++        .filter(_.formal == parameter)
++
++    if (canonicalBindings.isEmpty || actualBindings.isEmpty) {
++      fail(
++        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
++        s"scalar parameter '${parameter.name}' of canonical child '$definitionName' requires one exact formalComponent.parameter binding on canonical and actual instance '$instanceName'"
++      )
++    }
++
++    val all = canonicalBindings ++ actualBindings
++    if (all.exists(_.formal != parameter)) {
++      fail(
++        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SCHEMA-CONFLICT",
++        s"scalar formal of instance '$instanceName' does not match canonical child parameter '${parameter.name}' of '$definitionName'",
++        all.flatMap(_.sourceLocation).headOption
++      )
++    }
++    val declarationKeys = all.map(_.declarationKey).distinct
++    if (declarationKeys.size != 1) {
++      fail(
++        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
++        s"scalar formal '${parameter.name}' of instance '$instanceName' does not map to one canonical declaration identity",
++        all.flatMap(_.sourceLocation).headOption
++      )
++    }
++    val owners = all.map(_.ownerClassName).distinct
++    if (owners.size != 1) {
++      fail(
++        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
++        s"scalar formal '${parameter.name}' of instance '$instanceName' maps to multiple definition owners",
++        all.flatMap(_.sourceLocation).headOption
++      )
++    }
++    val actualExpressions = actualBindings
++      .map(binding =>
++        ExternalFormalParameterRegistry.normalizedExpression(binding.actual)
++      )
++      .distinct
++    if (actualExpressions.size != 1) {
++      fail(
++        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS",
++        s"scalar formal '${parameter.name}' of instance '$instanceName' maps to multiple actual expressions: ${actualExpressions.map(_.verilog).sorted.mkString(", ")}",
++        actualBindings.flatMap(_.sourceLocation).headOption
++      )
++    }
++    ExpressionBinding(actualExpressions.head)
++  }
++
++  private def validateParameterBinding(
++      expression: BindingExpr,
++      parameter: ElaborationIntegerParameter,
++      instanceName: String,
++      pc: PhaseContext
++  ): Unit = {
++    if (expression.default != parameter.default) {
++      fail(
++        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-WITNESS-MISMATCH",
++        s"binding '${expression.render}' has concrete default ${expression.default}, but child parameter '${parameter.name}' of instance '$instanceName' was elaborated with ${parameter.default}"
++      )
++    }
++    if (
++      expression.minimum < parameter.minimum ||
++      expression.maximum > parameter.maximum ||
++      expression.minimum < 1 ||
++      expression.maximum > BigInt(pc.config.bitVectorWidthMax)
++    ) {
++      fail(
++        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-DOMAIN-UNSUPPORTED",
++        s"binding '${expression.render}' reaches [${expression.minimum}, ${expression.maximum}], outside child parameter '${parameter.name}' domain [${parameter.minimum}, ${parameter.maximum}] or SpinalConfig.bitVectorWidthMax=${pc.config.bitVectorWidthMax}"
++      )
++    }
++  }
++
+   /**
+     * Prefer exact per-port metadata. If a later native transformation has
+     * removed it from every selected port, recover only from the exact owning
+diff --git a/morphruntime/src/main/scala/spinal/core/ExternalNativeIntFormalizationRegistry.scala b/morphruntime/src/main/scala/spinal/core/ExternalNativeIntFormalizationRegistry.scala
+index f8c544e..c7d81cb 100644
+--- a/morphruntime/src/main/scala/spinal/core/ExternalNativeIntFormalizationRegistry.scala
++++ b/morphruntime/src/main/scala/spinal/core/ExternalNativeIntFormalizationRegistry.scala
+@@ -228,45 +228,67 @@ object ExternalNativeIntFormalizationRegistry {
+     rejectDuplicateIdentity(prepared)
+     preflightRegions(prepared)
+ 
+-    reapComponents()
+-    val componentLookup =
+-      new ExternalNativeIntComponentIdentityRef(component, null)
+-    val incoming = ExternalNativeIntComponentRecord(
+-      token = token,
++    retainComponentBinding(
++      component = component,
+       binding = binding,
++      token = token,
+       regionCount = prepared.size,
+       packedLeafCount = prepared.map(_.leaves.size).sum
+     )
+-    val existing = components.getOrElse(componentLookup, Vector.empty)
+-    existing.find(_.binding.formal.name == binding.formal.name) match {
+-      case Some(value)
+-          if !ExternalFormalParameterRegistry.equivalentBinding(
+-            value.binding,
+-            binding
+-          ) || value.token != token ||
+-            value.regionCount != incoming.regionCount ||
+-            value.packedLeafCount != incoming.packedLeafCount =>
+-        fail(
+-          "MORPH-FRONTEND-FORMAL-COMPONENT-CONFLICT",
+-          s"one exact component object received conflicting formalization for slot '${binding.formal.name}'",
+-          binding.sourceLocation.orElse(sourceOf(token))
+-        )
+-      case _ =>
+-    }
+-
+-    ExternalFormalParameterRegistry.retainComponent(component, binding)
+     prepared.foreach(attachPrepared(component, _))
+     retainRegions(prepared)
+-    if (!existing.exists(value =>
+-          ExternalFormalParameterRegistry.equivalentBinding(value.binding, binding) &&
+-            value.token == token
+-        )) {
+-      val updated = existing :+ incoming
+-      components.update(
+-        new ExternalNativeIntComponentIdentityRef(component, componentQueue),
+-        updated
++    component
++  }
++
++  /**
++    * Retain a native component formal that controls storage or structural
++    * choices without pretending that the scalar value is a packed port width.
++    * The child constructor's shadow capture and internal symbolic registries
++    * remain responsible for proving the definition-side parameter dependency.
++    */
++  def attachComponentParameter[C <: Component](
++      parent: Component,
++      component: C,
++      binding: ExternalFormalParameterBinding,
++      token: ExternalNativeIntFormalizationToken
++  ): C = synchronized {
++    if (parent == null) {
++      fail(
++        "MORPH-FRONTEND-FORMAL-COMPONENT-PARENT-MISSING",
++        "formalComponent.parameter requires one active parent Component",
++        sourceOf(token)
++      )
++    }
++    if (component == null) {
++      fail(
++        "MORPH-FRONTEND-FORMAL-COMPONENT-RESULT-NULL",
++        "formalComponent.parameter constructor returned null",
++        sourceOf(token)
++      )
++    }
++    if (binding == null) {
++      throw new IllegalArgumentException("formal component binding must not be null")
++    }
++    if (component.parent ne parent) {
++      val actualParent =
++        Option(component.parent).map(_.getClass.getName).getOrElse("<none>")
++      fail(
++        "MORPH-FRONTEND-FORMAL-COMPONENT-PARENT-MISMATCH",
++        s"formalComponent.parameter returned a component owned by '$actualParent' instead of the exact active parent '${parent.getClass.getName}'",
++        sourceOf(token)
+       )
+     }
++
++    val expression = formalExpression(binding.formal, sourceLocation = None)
++    validateCommon(component, expression, token)
++    validateFormal(component, expression, binding)
++    retainComponentBinding(
++      component = component,
++      binding = binding,
++      token = token,
++      regionCount = 0,
++      packedLeafCount = 0
++    )
+     component
+   }
+ 
+@@ -295,6 +317,51 @@ object ExternalNativeIntFormalizationRegistry {
+     }
+   }
+ 
++  private def retainComponentBinding(
++      component: Component,
++      binding: ExternalFormalParameterBinding,
++      token: ExternalNativeIntFormalizationToken,
++      regionCount: Int,
++      packedLeafCount: Int
++  ): Unit = {
++    reapComponents()
++    val componentLookup =
++      new ExternalNativeIntComponentIdentityRef(component, null)
++    val incoming = ExternalNativeIntComponentRecord(
++      token = token,
++      binding = binding,
++      regionCount = regionCount,
++      packedLeafCount = packedLeafCount
++    )
++    val existing = components.getOrElse(componentLookup, Vector.empty)
++    existing.find(_.binding.formal.name == binding.formal.name) match {
++      case Some(value)
++          if !ExternalFormalParameterRegistry.equivalentBinding(
++            value.binding,
++            binding
++          ) || value.token != token ||
++            value.regionCount != incoming.regionCount ||
++            value.packedLeafCount != incoming.packedLeafCount =>
++        fail(
++          "MORPH-FRONTEND-FORMAL-COMPONENT-CONFLICT",
++          s"one exact component object received conflicting formalization for slot '${binding.formal.name}'",
++          binding.sourceLocation.orElse(sourceOf(token))
++        )
++      case _ =>
++    }
++
++    ExternalFormalParameterRegistry.retainComponent(component, binding)
++    if (!existing.exists(value =>
++          ExternalFormalParameterRegistry.equivalentBinding(value.binding, binding) &&
++            value.token == token
++        )) {
++      components.update(
++        new ExternalNativeIntComponentIdentityRef(component, componentQueue),
++        existing :+ incoming
++      )
++    }
++  }
++
+   private def prepareRegion(
+       owner: Component,
+       root: Data,
