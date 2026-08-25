@@ -23,13 +23,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve and stage exact SBT 1.10.2 launcher
+      - name: Resolve and stage exact SBT 1.10.2 launcher and boot cache
         shell: bash
         run: |
           set -euo pipefail
           out=/tmp/rtl-p1-01-sbt-launcher
           rm -rf "${out}"
-          mkdir -p "${out}/bin" "${out}/launcher"
+          mkdir -p "${out}/bin" "${out}/launcher" "${out}/sbt-home"
           cp "$(command -v sbt)" "${out}/bin/sbt"
           tmp=/tmp/rtl-p1-01-sbt-probe
           rm -rf "${tmp}"
@@ -43,13 +43,20 @@ jobs:
           test -s "${launcher}"
           cp "${launcher}" "${out}/launcher/sbt-launch-1.10.2.jar"
           printf 'launcher_source=%s\n' "${launcher}" > "${out}/launcher-origin.txt"
+          for path in /sbt/.sbt/boot /sbt/.sbt/cache /sbt/.ivy2 /sbt/.cache/coursier; do
+            if test -e "${path}"; then
+              rel="${path#/sbt/}"
+              mkdir -p "${out}/sbt-home/$(dirname "${rel}")"
+              cp -a "${path}" "${out}/sbt-home/${rel}"
+            fi
+          done
           sha256sum "${out}/bin/sbt" "${out}/launcher/sbt-launch-1.10.2.jar" "${out}/sbt-version.log" "${out}/launcher-origin.txt" > "${out}/SHA256SUMS"
-          find "${out}" -type f -printf '%P %s bytes\n' | sort
+          find "${out}" -type f -printf '%P %s bytes\n' | sort | head -200
 
-      - name: Upload launcher state
+      - name: Upload launcher and boot state
         uses: actions/upload-artifact@v4
         with:
-          name: rtl-p1-01-sbt-launcher-state-v2
+          name: rtl-p1-01-sbt-launcher-state-v3
           path: /tmp/rtl-p1-01-sbt-launcher
           if-no-files-found: error
           retention-days: 7
