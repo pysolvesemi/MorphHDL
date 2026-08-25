@@ -1,0 +1,54 @@
+name: Increment 53 focused diagnostic
+
+on:
+  push:
+    branches:
+      - agent/increment-53-native-streamfifo-clean
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    if: "${{ !contains(github.event.head_commit.message, '[inc53-diagnostic]') }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-clean
+          fetch-depth: 0
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+      - name: Capture focused failure
+        shell: bash
+        run: |
+          set +e
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            > /tmp/inc53-focused.log 2>&1
+          status=$?
+          set -e
+          {
+            echo "Increment 53 focused diagnostic"
+            echo "exit_status=$status"
+            echo "head=$(git rev-parse HEAD)"
+            echo "--- final 1200 lines ---"
+            tail -n 1200 /tmp/inc53-focused.log
+          } > docs/morphhdl/increment-53-focused-diagnostic.log
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name pysolvesemi
+          git config user.email pysolvesemi@gmail.com
+          git add docs/morphhdl/increment-53-focused-diagnostic.log
+          git commit -m "diagnostic(morphhdl): capture Increment 53 focused result [inc53-diagnostic]"
+          git push origin HEAD:"$GITHUB_REF_NAME"
