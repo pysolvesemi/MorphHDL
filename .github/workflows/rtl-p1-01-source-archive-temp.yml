@@ -17,7 +17,7 @@ jobs:
       - name: Check out exact source
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Authenticate source revision and build archive
         shell: bash
