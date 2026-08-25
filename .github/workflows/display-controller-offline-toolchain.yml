@@ -26,7 +26,7 @@ jobs:
           test "$(git merge-base HEAD 81abd25518551b8a452ecf038e409331e646f726)" = "81abd25518551b8a452ecf038e409331e646f726"
           ! git grep -n -E 'DisplayControllerCore|RTL-P1-01' -- ':!:.github/workflows/display-controller-offline-toolchain.yml'
 
-      - name: Download and authenticate Mill 0.11.11
+      - name: Download and authenticate Mill 0.11.11 assembly
         shell: bash
         run: |
           set -euo pipefail
@@ -34,14 +34,15 @@ jobs:
           rm -rf "${out}"
           mkdir -p "${out}"
           curl --fail --location --retry 5 --retry-delay 2 \
-            https://github.com/com-lihaoyi/mill/releases/download/0.11.11/0.11.11 \
+            https://github.com/com-lihaoyi/mill/releases/download/0.11.11/0.11.11-1-066ea7-assembly \
             --output "${out}/mill-0.11.11"
           chmod 0755 "${out}/mill-0.11.11"
           "${out}/mill-0.11.11" --version | tee "${out}/version.txt"
-          grep -F 'Mill Build Tool version 0.11.11' "${out}/version.txt"
-          sha256sum "${out}/mill-0.11.11" "${out}/version.txt" > "${out}/SHA256SUMS"
+          grep -E 'Mill Build Tool version 0\.11\.11(-1-066ea7)?' "${out}/version.txt"
+          printf 'release_tag=0.11.11\nasset=0.11.11-1-066ea7-assembly\n' > "${out}/origin.txt"
+          sha256sum "${out}/mill-0.11.11" "${out}/version.txt" "${out}/origin.txt" > "${out}/SHA256SUMS"
 
-      - name: Upload exact Mill launcher
+      - name: Upload exact Mill assembly
         uses: actions/upload-artifact@v4
         with:
           name: rtl-p1-01-mill-0.11.11
