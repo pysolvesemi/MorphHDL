@@ -1,1 +1,185 @@
-PLACEHOLDER
+diff --git a/core/src/main/scala/spinal/core/ParameterizedWidth.scala b/core/src/main/scala/spinal/core/ParameterizedWidth.scala
+index 96db2dc..3e20609 100644
+--- a/core/src/main/scala/spinal/core/ParameterizedWidth.scala
++++ b/core/src/main/scala/spinal/core/ParameterizedWidth.scala
+@@ -223,6 +223,12 @@ object ParameterizedWidth {
+   /** Untouched native register algorithm driven by the retained HardType. */
+   def Reg[T <: Data](dataType: => T): T = spinal.core.Reg(HardType(dataType))
+ 
++  /**
++    * Preserve a native HardType constructor without forcing the compiler bridge
++    * to treat the HardType wrapper itself as hardware Data.
++    */
++  def Reg[T <: Data](dataType: spinal.core.HardType[T]): T = Reg(dataType())
++
+   /** Untouched native Vec algorithm driven by the retained HardType. */
+   def Vec[T <: Data](dataType: => T, size: Int): spinal.core.Vec[T] =
+     spinal.core.Vec(HardType(dataType), size)
+diff --git a/morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala b/morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+index 9fdc38f..d87d605 100644
+--- a/morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
++++ b/morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+@@ -82,6 +82,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
+     private var booleanScopes =
+       List(mutable.LinkedHashMap.empty[TermName, String])
+ 
++    private var nativeStreamFifoDataTypeName: Option[TermName] = None
+     private var nativeStreamFifoDepthName: Option[TermName] = None
+     private var nativeStreamFifoDepthReference: Option[String] = None
+     private var nativeStreamFifoDepthLine: Int = 1
+@@ -187,6 +188,13 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
+     private def inNativeStreamFifo: Boolean =
+       nativeStreamFifoDepthReference.nonEmpty
+ 
++    private def nativeStreamFifoDataType(tree: Tree): Boolean = tree match {
++      case Ident(name: TermName) => nativeStreamFifoDataTypeName.contains(name)
++      case Select(This(_), name: TermName) =>
++        nativeStreamFifoDataTypeName.contains(name)
++      case _ => false
++    }
++
+     private def nativeStreamFifoDepth(tree: Tree): Boolean = tree match {
+       case Ident(name: TermName) => nativeStreamFifoDepthName.contains(name)
+       case Select(This(_), name: TermName) =>
+@@ -772,9 +780,12 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
+       val transformedType = transform(dataType)
+       val native = Apply(super.transform(fun), List(transformedType))
+       native.setPos(original.pos)
++      val helper =
++        if (nativeStreamFifoDataType(dataType)) "compilerRegHardType"
++        else "compilerReg"
+       Rewrite(
+         curriedCall(
+-          "compilerReg",
++          helper,
+           List(transformedType),
+           native,
+           original
+@@ -1280,6 +1291,11 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
+       alternatives.result() -> otherwise
+     }
+ 
++    private def isUnitLiteral(tree: Tree): Boolean = tree match {
++      case Literal(Constant(value)) if value == () => true
++      case _                                        => false
++    }
++
+     private def rewriteNativeConditionalSingle(
+         original: If,
+         alternative: NativeConditionalAlternative,
+@@ -1288,7 +1304,10 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
+       val rewritten = Apply(
+         Apply(
+           Apply(
+-            conditionalHelperMethod("selectSymbolic"),
++            conditionalHelperMethod(
++              if (isUnitLiteral(otherwise)) "selectSymbolicUnit"
++              else "selectSymbolic"
++            ),
+             List(
+               alternative.condition,
+               Literal(Constant(alternative.reference)),
+@@ -1324,7 +1343,10 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
+         }.toList
+       )
+       val rewritten = Apply(
+-        conditionalHelperMethod("selectSymbolicChain"),
++        conditionalHelperMethod(
++          if (isUnitLiteral(otherwise)) "selectSymbolicChainUnit"
++          else "selectSymbolicChain"
++        ),
+         List(
+           sequence,
+           function0(otherwise),
+@@ -1550,6 +1572,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
+ 
+     private def transformNativeStreamFifo(value: ClassDef): Tree = {
+       val parameters = nativeStreamFifoConstructorParameters(value)
++      val dataType = parameters.find(parameter => decoded(parameter.name) == "dataType")
+       val depth = parameters.find(parameter => decoded(parameter.name) == "depth")
+       depth match {
+         case None =>
+@@ -1559,10 +1582,12 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
+           )
+           super.transform(value)
+         case Some(depthParameter) =>
++          val previousDataTypeName = nativeStreamFifoDataTypeName
+           val previousName = nativeStreamFifoDepthName
+           val previousReference = nativeStreamFifoDepthReference
+           val previousLine = nativeStreamFifoDepthLine
+           val previousBooleans = nativeStreamFifoStaticBooleans
++          nativeStreamFifoDataTypeName = dataType.map(_.name)
+           nativeStreamFifoDepthName = Some(depthParameter.name)
+           nativeStreamFifoDepthReference = Some(
+             sourceReference(depthParameter, "argument:DEPTH")
+@@ -1575,6 +1600,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
+           }.toSet
+           try super.transform(value)
+           finally {
++            nativeStreamFifoDataTypeName = previousDataTypeName
+             nativeStreamFifoDepthName = previousName
+             nativeStreamFifoDepthReference = previousReference
+             nativeStreamFifoDepthLine = previousLine
+diff --git a/morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala b/morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
+index 92e2c89..2805228 100644
+--- a/morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
++++ b/morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
+@@ -272,6 +272,11 @@ object ExternalNativeIntCompilerRuntime {
+   def compilerReg[T <: Data](dataType: => T)(native: => T): T =
+     if (boundaryActive) ParameterizedWidth.Reg(dataType) else native
+ 
++  def compilerRegHardType[T <: Data](
++      dataType: => HardType[T]
++  )(native: => T): T =
++    if (boundaryActive) ParameterizedWidth.Reg(dataType) else native
++
+   def compilerCloneOf[T <: Data](data: T)(native: => T): T =
+     if (boundaryActive) ParameterizedWidth.cloneOf(data) else native
+ 
+@@ -435,6 +440,23 @@ object ExternalNativeIntCompilerRuntime {
+     }
+   }
+ 
++  /**
++    * Preserve Scala's `if (condition) statement` result type. The true branch
++    * may return a fluent hardware context while the source-level conditional
++    * still has Unit type because it has no explicit else branch.
++    */
++  def selectSymbolicUnit(
++      condition: Boolean,
++      predicateReference: String,
++      sourceFile: String,
++      sourceLine: Int
++  )(ifTrue: => Any)(ifFalse: => Any): Unit = {
++    selectSymbolic[Any](condition, predicateReference, sourceFile, sourceLine)(
++      ifTrue
++    )(ifFalse)
++    ()
++  }
++
+   def selectSymbolicChain[T](
+       alternatives: Seq[(() => Boolean, String, () => T, String, Int)],
+       otherwise: () => T,
+@@ -479,6 +501,22 @@ object ExternalNativeIntCompilerRuntime {
+     }
+   }
+ 
++  /** Unit-preserving counterpart for an else-if chain with no final else. */
++  def selectSymbolicChainUnit(
++      alternatives: Seq[(() => Boolean, String, () => Any, String, Int)],
++      otherwise: () => Any,
++      otherwiseFile: String,
++      otherwiseLine: Int
++  ): Unit = {
++    selectSymbolicChain[Any](
++      alternatives,
++      otherwise,
++      otherwiseFile,
++      otherwiseLine
++    )
++    ()
++  }
++
+   private def captureOne[T](
+       condition: Boolean,
+       predicateReference: String,
