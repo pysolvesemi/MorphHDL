@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   repair:
-    name: Apply proved generic sibling-alternative repair
+    name: Apply final generic Increment 53 repair
     if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/increment-53-native-streamfifo-clean'
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -36,17 +36,19 @@ jobs:
         with:
           ref: agent/increment-53-native-streamfifo-clean
           fetch-depth: 0
-      - name: Determine whether repair is already committed
+
+      - name: Determine whether the final repair is already committed
         id: state
         shell: bash
         run: |
           set -euo pipefail
-          if git log -1 --pretty=%B | grep -Fq '[inc53-overlap-fix]'; then
+          if git log -1 --pretty=%B | grep -Fq '[inc53-final-fix]'; then
             echo 'needed=false' >> "$GITHUB_OUTPUT"
           else
             echo 'needed=true' >> "$GITHUB_OUTPUT"
           fi
-      - name: Apply exact mutually-exclusive assignment proof and regression
+
+      - name: Apply safe structural-overlap and concrete-resize hierarchy repairs
         if: steps.state.outputs.needed == 'true'
         shell: bash
         run: |
@@ -54,8 +56,10 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path("morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala")
-          text = path.read_text()
+          structure_path = Path(
+              "morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala"
+          )
+          text = structure_path.read_text()
           text = text.replace(
               "    var nextCaptureId = 0L\n  }\n",
               "    var nextCaptureId = 0L\n    var assignmentValidationScheduled = false\n  }\n",
@@ -226,7 +230,76 @@ jobs:
               if old not in region_text:
                   raise SystemExit("registerRegion body changed")
               region_text = region_text.replace(old, new, 1)
-          path.write_text(before + region_text)
+          structure_path.write_text(before + region_text)
+
+          hierarchy_path = Path(
+              "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala"
+          )
+          hierarchy = hierarchy_path.read_text()
+          connection_anchor = "  private def connectionEvidence(\n"
+          resize_helper = """  private def directConcreteOutputAdapter(
+              expression: Expression,
+              port: BaseType
+          ): Boolean = expression match {
+              case value if value eq port => true
+              case value: Resize =>
+                directConcreteOutputAdapter(value.input, port)
+              case _ => false
+            }
+
+          """
+          if resize_helper not in hierarchy:
+              if connection_anchor not in hierarchy:
+                  raise SystemExit("connectionEvidence anchor changed")
+              hierarchy = hierarchy.replace(
+                  connection_anchor,
+                  resize_helper + connection_anchor,
+                  1,
+              )
+
+          old_output = """        } else if (
+              allowConcreteInternal && assignment.source == port &&
+              assignment.finalTarget.component == parent
+            ) {
+              Vector(
+                bindingOf(
+                  parent,
+                  assignment.target,
+                  context,
+                  allowConcreteInternal
+                )
+              )
+            } else {
+          """
+          new_output = """        } else if (
+              allowConcreteInternal && assignment.source == port &&
+              assignment.finalTarget.component == parent
+            ) {
+              Vector(
+                bindingOf(
+                  parent,
+                  assignment.target,
+                  context,
+                  allowConcreteInternal
+                )
+              )
+            } else if (
+              allowConcreteInternal &&
+              assignment.target == assignment.finalTarget &&
+              assignment.finalTarget.component == parent &&
+              directConcreteOutputAdapter(assignment.source, port)
+            ) {
+              // The native graph already validates the resize into the parent.
+              // Hierarchy inference only needs the concrete width at the child
+              // instance boundary, which remains the unchanged child-port width.
+              Vector(LiteralBinding(port.getBitsWidth))
+            } else {
+          """
+          if new_output not in hierarchy:
+              if old_output not in hierarchy:
+                  raise SystemExit("child-output connection branch changed")
+              hierarchy = hierarchy.replace(old_output, new_output, 1)
+          hierarchy_path.write_text(hierarchy)
 
           test_path = Path(
               "morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala"
@@ -278,6 +351,7 @@ jobs:
           test_path.write_text(tests)
           PY
           git diff --check
+
       - name: Install pinned Mill bootstrap
         if: steps.state.outputs.needed == 'true'
         shell: bash
@@ -287,14 +361,18 @@ jobs:
             https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
-      - name: Prove focused contract before publication
+
+      - name: Prove focused Increment 53 contracts before publication
         if: steps.state.outputs.needed == 'true'
         shell: bash
         run: |
           set -euo pipefail
           /tmp/morphhdl-mill morph[2.13.12].testOnly \
-            morphhdl.ParameterizedStreamFifoDepthTests
-      - name: Publish repair and remove temporary diagnostics
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests
+
+      - name: Publish final repair and remove temporary diagnostics
         if: steps.state.outputs.needed == 'true'
         shell: bash
         run: |
@@ -304,13 +382,14 @@ jobs:
           git config user.email pysolvesemi@gmail.com
           git show 3a0c1e0118db85cd7522ed51df7e471a584b0dae:.github/workflows/morphhdl-native-streamfifo-structure.yml \
             > .github/workflows/morphhdl-native-streamfifo-structure.yml
-          git rm -f .github/workflows/increment-53-focused-diagnostic.yml
-          git rm -f docs/morphhdl/increment-53-focused-diagnostic.log
+          git rm -f --ignore-unmatch .github/workflows/increment-53-focused-diagnostic.yml
+          git rm -f --ignore-unmatch docs/morphhdl/increment-53-focused-diagnostic.log
           git add \
             .github/workflows/morphhdl-native-streamfifo-structure.yml \
             morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala \
             morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala
-          git commit -m "fix(morphhdl): prove safe mutually-exclusive structural assignments [inc53-overlap-fix]"
+          git commit -m "fix(morphhdl): complete generic StreamFifo structure [inc53-final-fix]"
           git push origin HEAD:"$GITHUB_HEAD_REF"
 
   source-boundary:
@@ -322,6 +401,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Prove native overload, pointer wiring and sidecar absence
         shell: bash
         run: bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
@@ -346,6 +426,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Install pinned Mill bootstrap
         shell: bash
         run: |
@@ -354,6 +435,7 @@ jobs:
             https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
+
       - name: Validate real native StreamFifo and inherited contracts
         shell: bash
         run: |
