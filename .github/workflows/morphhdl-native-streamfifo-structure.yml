@@ -1,122 +1,84 @@
 name: MorphHDL native StreamFifo parameter structure
 
+# Increment 53 proves the real spinal.lib.StreamFifo symbolic-depth overload,
+# native structural alternatives, simulation and synthesis on one definition.
 on:
   push:
     branches:
-      - agent/increment-53-native-streamfifo-clean
+      - main
+      - parameterized-verilog
   pull_request:
     branches:
+      - main
       - parameterized-verilog
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: morphhdl-native-streamfifo-repair-${{ github.ref }}
+  group: morphhdl-native-streamfifo-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  publish-carrier-shape-repair:
-    name: Publish native FIFO carrier-shape repair
+  source-boundary:
+    name: Native StreamFifo source boundary
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out Increment 53 branch
+      - name: Check out complete history
         uses: actions/checkout@v4
         with:
-          ref: agent/increment-53-native-streamfifo-clean
           fetch-depth: 0
 
-      - name: Apply exact generic carrier-shape repair
+      - name: Prove native overload, pointer wiring and sidecar absence
+        shell: bash
+        run: bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+
+  contracts:
+    name: Native StreamFifo proof Scala ${{ matrix.scala_version }}
+    needs: source-boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pinned Mill bootstrap
         shell: bash
         run: |
           set -euo pipefail
-          python3 <<'PY'
-          from pathlib import Path
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
 
-          path = Path("morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala")
-          text = path.read_text()
-
-          anchor = (
-              "  /**\n"
-              "    * Build an exact, named UInt carrier for one symbolic Scala integer used by\n"
-              "    * an ordinary hardware operator. This method is called only from the active\n"
-              "    * side of a compiler-generated boundary check; concrete SpinalHDL evaluates\n"
-              "    * the original source expression instead.\n"
-              "    */\n"
-          )
-          helper = (
-              "  private def parameterizedUIntShapeSource(prototype: UInt): UInt = {\n"
-              "    if (ParameterizedWidth.expressionOf(prototype).exists(_.parameters.nonEmpty)) prototype\n"
-              "    else {\n"
-              "      var selected: UInt = null\n"
-              "\n"
-              "      def visit(expression: spinal.core.internals.Expression): Unit = {\n"
-              "        if (selected == null) {\n"
-              "          expression match {\n"
-              "            case value: UInt\n"
-              "                if value.getBitsWidth == prototype.getBitsWidth &&\n"
-              "                  ParameterizedWidth.expressionOf(value).exists(_.parameters.nonEmpty) =>\n"
-              "              selected = value\n"
-              "            case _ =>\n"
-              "          }\n"
-              "          if (selected == null) expression.foreachExpression(visit)\n"
-              "        }\n"
-              "      }\n"
-              "\n"
-              "      prototype.foreachStatements {\n"
-              "        case spinal.core.internals.AssignmentStatement(_, source)\n"
-              "            if selected == null =>\n"
-              "          visit(source)\n"
-              "        case _ =>\n"
-              "      }\n"
-              "      Option(selected).getOrElse(prototype)\n"
-              "    }\n"
-              "  }\n"
-              "\n"
-          )
-          if "private def parameterizedUIntShapeSource" not in text:
-              if anchor not in text:
-                  raise SystemExit("carrier helper insertion anchor not found")
-              text = text.replace(anchor, helper + anchor, 1)
-
-          old = (
-              "    val domainWidth = if (expression.maximum == 0) 1 else expression.maximum.bitLength\n"
-              "    val carrierWidth = math.max(prototype.getBitsWidth, domainWidth)\n"
-              "    val result = UInt(carrierWidth bits)\n"
-              "    result.setName(stableName)\n"
-              "    result := U(BigInt(value), carrierWidth bits)\n"
-          )
-          new = (
-              "    val shapeSource = parameterizedUIntShapeSource(prototype)\n"
-              "    val carrierWidth = prototype.getBitsWidth\n"
-              "    val result = UInt(carrierWidth bits)\n"
-              "    ParameterizedWidth.copyShape(shapeSource, result)\n"
-              "    result.setName(stableName)\n"
-              "    result := U(BigInt(value), carrierWidth bits)\n"
-          )
-          if old in text:
-              text = text.replace(old, new, 1)
-          elif new not in text:
-              raise SystemExit("carrier-width replacement target not found")
-
-          path.write_text(text)
-          PY
-
-          git diff --check
-          git diff -- morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
-
-      - name: Commit and push repair
+      - name: Validate real native StreamFifo and inherited contracts
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
-          if git diff --cached --quiet; then
-            echo "Carrier-shape repair is already present."
-            exit 0
-          fi
-          git commit -m "fix(morphhdl): preserve native FIFO carrier shape [increment-53-carrier-shape-fixed]"
-          git push origin HEAD:agent/increment-53-native-streamfifo-clean
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.NativeMemAutoProvenanceTests \
+            morphhdl.ExternalNativeIntFormalizationTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowProvenanceTests \
+            morphhdl.FormalParameterIdentityTests \
+            morphhdl.FormalParameterClonePropagationTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.integration.ExternalSpinalVerilogBaselineTests
