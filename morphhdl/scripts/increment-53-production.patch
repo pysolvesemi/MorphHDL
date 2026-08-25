@@ -1,11 +1,6 @@
 --- a/morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
 +++ b/morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
-@@ -447,15 +447,18 @@
-     * still has Unit type because it has no explicit else branch.
-     */
-   def selectSymbolicUnit(
-       condition: Boolean,
-       predicateReference: String,
+@@ -453,10 +453,20 @@
        sourceFile: String,
        sourceLine: Int
    )(ifTrue: => Any)(ifFalse: => Any): Unit = {
@@ -28,13 +23,9 @@
 +      )
 +    }
    }
-@@ -503,20 +506,55 @@
-   }
  
-   /** Unit-preserving counterpart for an else-if chain with no final else. */
-   def selectSymbolicChainUnit(
-       alternatives: Seq[(() => Boolean, String, () => Any, String, Int)],
-       otherwise: () => Any,
+   def selectSymbolicChain[T](
+@@ -510,13 +520,106 @@
        otherwiseFile: String,
        otherwiseLine: Int
    ): Unit = {
@@ -43,8 +34,6 @@
 -      otherwise,
 -      otherwiseFile,
 -      otherwiseLine
--    )
--    ()
 +    val ordered = alternatives.toVector
 +    if (ordered.isEmpty) {
 +      fail(
@@ -90,7 +79,7 @@
 +      }
 +      capture(0)
 +    }
-   }
++  }
 +
 +  /**
 +    * Capture a compiler-proven no-else conditional. The omitted continuation is
@@ -144,8 +133,8 @@
 +      trueBlock,
 +      falseBlock,
 +      Some(rendered(sourceFile, sourceLine))
-+    )
-+  }
+     )
+-    ()
+   }
  
    private def captureOne[T](
-
