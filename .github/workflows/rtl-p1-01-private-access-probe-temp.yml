@@ -1,0 +1,28 @@
+name: RTL-P1-01 temporary private access probe
+
+on:
+  push:
+    branches:
+      - agent/rtl-p1-01-source-archive-temp
+    paths:
+      - .github/workflows/rtl-p1-01-private-access-probe-temp.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PRIVATE_TOKEN: ${{ secrets.DISPLAY_CONTROLLER_TOKEN || secrets.GH_PAT || secrets.PAT || '' }}
+    steps:
+      - name: Verify private repository access without exposing credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${PRIVATE_TOKEN}"
+          GH_TOKEN="${PRIVATE_TOKEN}" gh api repos/pysolvesemi/display_controller --jq '.full_name + " private=" + (.private|tostring)'
+          GH_TOKEN="${PRIVATE_TOKEN}" gh api repos/pysolvesemi/display-controller-verilog --jq '.full_name + " private=" + (.private|tostring)'
+          echo '[PASS] private downstream repositories are accessible'
