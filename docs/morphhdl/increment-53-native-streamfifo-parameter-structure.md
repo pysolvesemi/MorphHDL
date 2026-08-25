@@ -37,6 +37,21 @@ only that carrier's concrete witness assignment using its final emitted name
 obtained from the retained object identity. No StreamFifo module, port or user
 signal name is used for discovery.
 
+### Scalar component formal boundary
+
+`DEPTH` controls storage and structural alternatives, but it is not the packed
+width of `io.occupancy` or `io.availability`. Those ports use the derived width
+`log2Up(DEPTH + 1)`. Treating either port as a direct `DEPTH` region therefore
+fails correctly for the witness depth 5, where the port width is 3.
+
+`formalComponent.parameter` retains the exact component-level formal-to-actual
+binding without attaching `DEPTH` to a packed child port. Definition-side proof
+still comes only from the compiler shadow plus memory, value, structural and
+process registries. Hierarchy lowering resolves the scalar formal from exact
+component identity and canonical declaration identity, while the existing
+packed-width `formalComponent` path remains unchanged for parameters that are
+actually exposed on packed leaves.
+
 ## Removed Increment 37 compatibility path
 
 Increment 53 removes:
@@ -46,8 +61,9 @@ Increment 53 removes:
 - the emitted `io_push_*` / `io_pop_*` / occupancy / availability recognizer.
 
 The public MorphHDL adapter now enters the ordinary native constructor through
-`formalComponent`. The legacy direct `ParameterizedMemoryDepth` overload is
-retained as compatibility sugar; compound depth expressions use `HdlInt`.
+`formalComponent.parameter`. The legacy direct `ParameterizedMemoryDepth`
+overload is retained as compatibility sugar; compound depth expressions use
+`HdlInt`.
 
 ## Proof boundary
 
