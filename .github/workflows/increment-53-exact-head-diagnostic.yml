@@ -1,0 +1,79 @@
+name: Increment 53 exact-head diagnostic
+
+on:
+  push:
+    branches:
+      - agent/increment-53-native-streamfifo-clean
+    paths:
+      - morphhdl/scripts/dispatch-increment-53-diagnostic-11.txt
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-clean
+          fetch-depth: 0
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+      - name: Run exact-head source and Scala 2.13 contracts
+        shell: bash
+        run: |
+          set +e
+          guard_log=/tmp/inc53-guard.log
+          test_log=/tmp/inc53-test-213.log
+          bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh >"$guard_log" 2>&1
+          guard_status=$?
+          /tmp/morphhdl-mill -i "morph[2.13.12].testOnly" \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.AutomaticNativeMemDepthProvenanceTests \
+            morphhdl.ExternalNativeIntFormalizationTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            >"$test_log" 2>&1
+          test_status=$?
+          report=morphhdl/.increment-status/increment-53-diagnostic-11.txt
+          mkdir -p "$(dirname "$report")"
+          {
+            echo "HEAD=$(git rev-parse HEAD)"
+            echo "SOURCE_GUARD_STATUS=$guard_status"
+            echo "SCALA_2_13_STATUS=$test_status"
+            echo
+            echo "=== SOURCE GUARD ==="
+            cat "$guard_log"
+            echo
+            echo "=== IMPORTANT TEST LINES ==="
+            grep -E "(FAILED|\\[error\\]|Exception|MORPH-|SPINAL-|Compilation failed|Tests:|All tests passed|SUCCESS)" "$test_log" | tail -n 300 || true
+            echo
+            echo "=== TEST LOG TAIL ==="
+            tail -n 350 "$test_log"
+          } >"$report"
+          sed -i -r 's/\x1B\[[0-9;]*[mK]//g' "$report"
+          exit 0
+      - name: Publish diagnostic report
+        shell: bash
+        run: |
+          set -euo pipefail
+          report=morphhdl/.increment-status/increment-53-diagnostic-11.txt
+          git add "$report"
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'test(morphhdl): record Increment 53 exact-head diagnostic'
+          git pull --rebase origin agent/increment-53-native-streamfifo-clean
+          git push origin HEAD:agent/increment-53-native-streamfifo-clean
