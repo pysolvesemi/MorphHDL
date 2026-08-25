@@ -14,7 +14,7 @@ permissions:
 jobs:
   export:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - name: Install exact open-source validation tools
         shell: bash
@@ -26,46 +26,69 @@ jobs:
           verilator --version
           yosys -V
 
-      - name: Build portable rootfs bundle
+      - name: Build compact portable rootfs bundle
         shell: bash
         run: |
           set -euo pipefail
           work=/tmp/pr36-eda
+          root="${work}/rootfs"
           rm -rf "${work}"
-          mkdir -p "${work}/rootfs" "${work}/meta"
-          packages=(iverilog verilator yosys yosys-abc)
-          : > "${work}/meta/package-files.txt"
-          for package in "${packages[@]}"; do
-            dpkg-query -W -f='${Package} ${Version} ${Architecture}\n' "${package}" \
-              >> "${work}/meta/packages.txt"
-            dpkg -L "${package}" | sed '/^\/$/d' \
-              >> "${work}/meta/package-files.txt"
-          done
-          sort -u -o "${work}/meta/package-files.txt" "${work}/meta/package-files.txt"
+          mkdir -p "${root}" "${work}/meta"
 
-          # Include non-base shared-library dependencies of all ELF executables.
-          while IFS= read -r path; do
-            [[ -f "${path}" ]] || continue
-            if file "${path}" | grep -q 'ELF'; then
-              ldd "${path}" 2>/dev/null \
-                | awk '/=> \/|^\// {for(i=1;i<=NF;i++) if($i ~ /^\//) print $i}' \
-                >> "${work}/meta/library-files.txt" || true
-            fi
-          done < "${work}/meta/package-files.txt"
-          sort -u -o "${work}/meta/library-files.txt" "${work}/meta/library-files.txt"
+          required=(
+            /usr/bin/iverilog
+            /usr/bin/vvp
+            /usr/bin/verilator
+            /usr/bin/verilator_bin
+            /usr/bin/verilator_coverage
+            /usr/bin/verilator_coverage_bin
+            /usr/bin/verilator_gantt
+            /usr/bin/verilator_profcfunc
+            /usr/bin/yosys
+            /usr/bin/yosys-abc
+            /usr/bin/yosys-config
+            /usr/share/iverilog
+            /usr/share/verilator
+            /usr/share/yosys
+            /usr/lib/x86_64-linux-gnu/ivl
+          )
 
-          cat "${work}/meta/package-files.txt" "${work}/meta/library-files.txt" \
-            | sort -u > "${work}/meta/all-files.txt"
-          while IFS= read -r path; do
-            [[ -e "${path}" || -L "${path}" ]] || continue
-            target="${work}/rootfs${path}"
+          copy_path() {
+            local source=$1
+            [[ -e "${source}" || -L "${source}" ]] || return 0
+            local target="${root}${source}"
             mkdir -p "$(dirname "${target}")"
-            cp -a "${path}" "${target}"
-          done < "${work}/meta/all-files.txt"
+            cp -a "${source}" "${target}"
+          }
 
-          tar -C "${work}" -czf pr36-open-source-eda-rootfs.tar.gz rootfs meta
-          sha256sum pr36-open-source-eda-rootfs.tar.gz \
-            > pr36-open-source-eda-rootfs.tar.gz.sha256
+          for path in "${required[@]}"; do
+            copy_path "${path}"
+          done
+
+          : > "${work}/meta/libraries.txt"
+          for binary in \
+            /usr/bin/iverilog /usr/bin/vvp /usr/bin/verilator_bin \
+            /usr/bin/verilator_coverage_bin /usr/bin/yosys /usr/bin/yosys-abc; do
+            [[ -x "${binary}" ]] || continue
+            ldd "${binary}" \
+              | awk '/=> \/|^\// {for(i=1;i<=NF;i++) if($i ~ /^\//) print $i}' \
+              >> "${work}/meta/libraries.txt" || true
+          done
+          sort -u -o "${work}/meta/libraries.txt" "${work}/meta/libraries.txt"
+          while IFS= read -r library; do
+            copy_path "${library}"
+            if [[ -L "${library}" ]]; then
+              target=$(readlink -f "${library}")
+              copy_path "${target}"
+            fi
+          done < "${work}/meta/libraries.txt"
+
+          dpkg-query -W -f='${Package} ${Version} ${Architecture}\n' \
+            iverilog verilator yosys yosys-abc > "${work}/meta/packages.txt"
+          tar -C "${work}" -czf "${work}/pr36-open-source-eda-rootfs.tar.gz" rootfs meta
+          sha256sum "${work}/pr36-open-source-eda-rootfs.tar.gz" \
+            > "${work}/pr36-open-source-eda-rootfs.tar.gz.sha256"
+          du -h "${work}/pr36-open-source-eda-rootfs.tar.gz"
 
       - uses: actions/upload-artifact@v4
         with:
