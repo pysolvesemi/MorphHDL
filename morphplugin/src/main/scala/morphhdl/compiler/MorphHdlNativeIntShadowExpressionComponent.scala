@@ -50,8 +50,20 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     Select(helper, TermName(name))
   }
 
-  private def conditionalHelperMethod(name: String): Tree = {
-    helperMethod(name)
+  private def frontendHelperMethod(name: String): Tree = {
+    val root = Ident(termNames.ROOTPKG)
+    val morphhdl = Select(root, TermName("morphhdl"))
+    val frontend = Select(morphhdl, TermName("frontend"))
+    val helper = Select(frontend, TermName("NativeIntShadow"))
+    Select(helper, TermName(name))
+  }
+
+  private def frontendConditionalHelperMethod(name: String): Tree = {
+    val root = Ident(termNames.ROOTPKG)
+    val morphhdl = Select(root, TermName("morphhdl"))
+    val frontend = Select(morphhdl, TermName("frontend"))
+    val helper = Select(frontend, TermName("NativeIntSymbolicConditional"))
+    Select(helper, TermName(name))
   }
 
   private def scalaSeqApply: Tree = {
@@ -327,8 +339,15 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       case _ => None
     }
 
+    private def selectedHelperMethod(name: String): Tree =
+      if (inNativeStreamFifo) helperMethod(name) else frontendHelperMethod(name)
+
+    private def selectedConditionalHelperMethod(name: String): Tree =
+      if (inNativeStreamFifo) helperMethod(name)
+      else frontendConditionalHelperMethod(name)
+
     private def call(name: String, arguments: List[Tree], original: Tree): Tree = {
-      val rewritten = Apply(helperMethod(name), arguments)
+      val rewritten = Apply(selectedHelperMethod(name), arguments)
       rewritten.setPos(original.pos)
     }
 
@@ -338,7 +357,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         body: Tree,
         original: Tree
     ): Tree = {
-      val rewritten = Apply(Apply(helperMethod(name), arguments), List(body))
+      val rewritten = Apply(Apply(selectedHelperMethod(name), arguments), List(body))
       rewritten.setPos(original.pos)
     }
 
@@ -1226,7 +1245,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         case Some(value) =>
           val guarded = Apply(
             Apply(
-              conditionalHelperMethod("guardAlternative"),
+              selectedConditionalHelperMethod("guardAlternative"),
               List(
                 Literal(Constant(value.code)),
                 Literal(Constant(value.detail)),
@@ -1304,8 +1323,8 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       val rewritten = Apply(
         Apply(
           Apply(
-            conditionalHelperMethod(
-              if (isUnitLiteral(otherwise)) "selectSymbolicUnit"
+            selectedConditionalHelperMethod(
+              if (inNativeStreamFifo && isUnitLiteral(otherwise)) "selectSymbolicUnit"
               else "selectSymbolic"
             ),
             List(
@@ -1343,8 +1362,8 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         }.toList
       )
       val rewritten = Apply(
-        conditionalHelperMethod(
-          if (isUnitLiteral(otherwise)) "selectSymbolicChainUnit"
+        selectedConditionalHelperMethod(
+          if (inNativeStreamFifo && isUnitLiteral(otherwise)) "selectSymbolicChainUnit"
           else "selectSymbolicChain"
         ),
         List(
@@ -1456,7 +1475,8 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
 
       tree match {
         case Apply(Select(left, operatorName), List(right))
-            if decoded(operatorName) == "&&" || decoded(operatorName) == "||" =>
+            if inNativeStreamFifo &&
+              (decoded(operatorName) == "&&" || decoded(operatorName) == "||") =>
           rewriteBooleanBinary(
             tree,
             left,
@@ -1466,23 +1486,25 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
             requestedName
           )
         case Apply(Select(value, operatorName), Nil)
-            if decoded(operatorName) == "unary_!" =>
+            if inNativeStreamFifo && decoded(operatorName) == "unary_!" =>
           rewriteBooleanNot(tree, value, requestedName)
-        case Select(value, operatorName) if decoded(operatorName) == "unary_!" =>
+        case Select(value, operatorName)
+            if inNativeStreamFifo && decoded(operatorName) == "unary_!" =>
           rewriteBooleanNot(tree, value, requestedName)
         case Apply(Select(value, methodName), Nil)
-            if decoded(methodName) == "toInt" =>
+            if inNativeStreamFifo && decoded(methodName) == "toInt" =>
           rewriteBooleanToInt(tree, value, requestedName)
-        case Select(value, methodName) if decoded(methodName) == "toInt" =>
+        case Select(value, methodName)
+            if inNativeStreamFifo && decoded(methodName) == "toInt" =>
           rewriteBooleanToInt(tree, value, requestedName)
         case Apply(fun, List(bitCount))
-            if terminalName(fun) == "UInt" =>
+            if inNativeStreamFifo && terminalName(fun) == "UInt" =>
           rewriteBitVectorFactory(tree, fun, bitCount, "compilerUInt")
         case Apply(fun, List(bitCount))
-            if terminalName(fun) == "Bits" =>
+            if inNativeStreamFifo && terminalName(fun) == "Bits" =>
           rewriteBitVectorFactory(tree, fun, bitCount, "compilerBits")
         case Apply(fun, List(bitCount))
-            if terminalName(fun) == "SInt" =>
+            if inNativeStreamFifo && terminalName(fun) == "SInt" =>
           rewriteBitVectorFactory(tree, fun, bitCount, "compilerSInt")
         case Apply(fun, List(dataType, depth))
             if inNativeStreamFifo && terminalName(fun) == "Mem" =>

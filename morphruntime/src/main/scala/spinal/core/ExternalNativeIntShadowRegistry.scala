@@ -1030,6 +1030,17 @@ object ExternalNativeIntShadowRegistry {
       expression
     )
     boundary.slots.get(key) match {
+      case Some(existing)
+          if kind == ExternalNativeIntShadowKind.ConstructorArgument &&
+            existing.witness == incoming.witness &&
+            existing.expression == incoming.expression &&
+            existing.token.sourceLocation == boundary.token.callSite =>
+        // `captureWithDefinition` seeds the public formal at the external call
+        // site before the untouched constructor executes. When parser-phase
+        // instrumentation later reaches the exact native constructor argument,
+        // replace only that seed with the authoritative definition-source
+        // identity. Other duplicate slot identities still fail closed.
+        boundary.slots.update(key, incoming)
       case Some(existing) if existing != incoming =>
         fail(
           "MORPH-FRONTEND-NATIVE-INT-SHADOW-SLOT-CONFLICT",
