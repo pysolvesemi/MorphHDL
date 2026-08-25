@@ -457,15 +457,45 @@ object ExternalNativeIntCompilerRuntime {
       if (condition) ifTrue else ifFalse
       ()
     } else withCapture(sourceFile, sourceLine) {
-      captureOneUnit(
-        condition,
+      val component = Option(Component.current).getOrElse {
+        fail(
+          "MORPH-FRONTEND-SESSION-MISSING",
+          "native symbolic conditional requires an active Component",
+          sourceFile,
+          sourceLine
+        )
+      }
+      val expression = ExternalNativeIntShadowRegistry.definitionPredicateTracked(
         predicateReference,
-        sourceFile,
-        sourceLine,
-        sourceFile,
-        sourceLine,
-        ifTrue
+        condition,
+        rendered(sourceFile, sourceLine)
       )
+      val witness = if (condition) BigInt(1) else BigInt(0)
+      val retained = ElaborationIntegerExpression(
+        verilog = expression.verilog,
+        default = witness,
+        minimum = BigInt(0),
+        maximum = BigInt(1),
+        parameters = expression.parameters,
+        sourceLocation = expression.sourceLocation.orElse(
+          Some(rendered(sourceFile, sourceLine))
+        )
+      )
+      val carrier = component.rework {
+        val value = UInt(1 bits)
+        value := U(witness, 1 bits)
+        ExternalParameterizedValueRegistry.attach(
+          value,
+          retained,
+          witness,
+          retained.sourceLocation
+        )
+      }
+      when(carrier.asBool) {
+        ifTrue
+        ()
+      }
+      ()
     }
   }
 
