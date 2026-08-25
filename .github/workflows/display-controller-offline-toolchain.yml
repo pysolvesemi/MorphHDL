@@ -1,4 +1,4 @@
-name: Display controller offline validation toolchain
+name: Display controller offline Mill 0.11.11 export
 
 on:
   pull_request:
@@ -9,117 +9,42 @@ permissions:
   contents: read
 
 jobs:
-  scala-toolchain:
+  mill-toolchain:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    container:
-      image: ghcr.io/spinalhdl/docker:v1.2.0
-    env:
-      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    timeout-minutes: 30
     steps:
-      - name: Check out exact MorphHDL source
+      - name: Check out exact public toolchain branch
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-          submodules: recursive
 
-      - name: Verify target base
+      - name: Verify no Display Controller product source is present
         shell: bash
         run: |
           set -euo pipefail
           test "$(git merge-base HEAD 81abd25518551b8a452ecf038e409331e646f726)" = "81abd25518551b8a452ecf038e409331e646f726"
+          ! git grep -n -E 'DisplayControllerCore|RTL-P1-01' -- ':!:.github/workflows/display-controller-offline-toolchain.yml'
 
-      - name: Populate SBT dependency and compiler caches
+      - name: Download and authenticate Mill 0.11.11
         shell: bash
         run: |
           set -euo pipefail
-          sbt -batch ++2.12.18 \
-            idslplugin/compile \
-            core/compile \
-            lib/compile \
-            morph/compile
+          out=/tmp/rtl-p1-01-mill
+          rm -rf "${out}"
+          mkdir -p "${out}"
+          curl --fail --location --retry 5 --retry-delay 2 \
+            https://github.com/com-lihaoyi/mill/releases/download/0.11.11/0.11.11 \
+            --output "${out}/mill-0.11.11"
+          chmod 0755 "${out}/mill-0.11.11"
+          "${out}/mill-0.11.11" --version | tee "${out}/version.txt"
+          grep -F 'Mill Build Tool version 0.11.11' "${out}/version.txt"
+          sha256sum "${out}/mill-0.11.11" "${out}/version.txt" > "${out}/SHA256SUMS"
 
-      - name: Populate pinned Mill dependency and compiler caches
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --location --retry 3 \
-            https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0-mill.sh \
-            --output /tmp/morphhdl-mill
-          chmod +x /tmp/morphhdl-mill
-          /tmp/morphhdl-mill idslplugin[2.12.18].compile
-          /tmp/morphhdl-mill core[2.12.18].compile
-          /tmp/morphhdl-mill lib[2.12.18].compile
-          /tmp/morphhdl-mill morph[2.12.18].compile
-
-      - name: Stage split offline inputs
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p \
-            /tmp/offline-launch/bin \
-            /tmp/offline-launch/sbt-home/.cache \
-            /tmp/offline-coursier/sbt-home/.cache \
-            /tmp/offline-ivy/sbt-home \
-            /tmp/offline-mill/bin \
-            /tmp/offline-mill/home
-
-          cp "$(command -v sbt)" /tmp/offline-launch/bin/sbt
-          cp -a /sbt/.cache/sbt /tmp/offline-launch/sbt-home/.cache/sbt
-          cp -a /sbt/.sbt /tmp/offline-launch/sbt-home/.sbt
-          if test -f /sbt/repositories; then cp /sbt/repositories /tmp/offline-launch/sbt-home/repositories; fi
-
-          cp -a /sbt/.cache/coursier /tmp/offline-coursier/sbt-home/.cache/coursier
-          cp -a /sbt/.ivy2 /tmp/offline-ivy/sbt-home/.ivy2
-
-          cp /tmp/morphhdl-mill /tmp/offline-mill/bin/morphhdl-mill
-          cp -a /tmp/morphhdl-cache /tmp/offline-mill/home/xdg-cache
-
-          for part in launch coursier ivy mill; do
-            tar --numeric-owner --sort=name --mtime='UTC 2026-08-20' \
-              -C "/tmp/offline-${part}" -czf "${GITHUB_WORKSPACE}/morphhdl-offline-${part}.tar.gz" .
-            sha256sum "morphhdl-offline-${part}.tar.gz" \
-              > "morphhdl-offline-${part}.tar.gz.sha256"
-            du -h "morphhdl-offline-${part}.tar.gz"
-          done
-
-      - name: Upload SBT launcher and state
+      - name: Upload exact Mill launcher
         uses: actions/upload-artifact@v4
         with:
-          name: morphhdl-offline-launch
-          path: |
-            morphhdl-offline-launch.tar.gz
-            morphhdl-offline-launch.tar.gz.sha256
+          name: rtl-p1-01-mill-0.11.11
+          path: /tmp/rtl-p1-01-mill
           if-no-files-found: error
-          retention-days: 3
-
-      - name: Upload Coursier cache
-        uses: actions/upload-artifact@v4
-        with:
-          name: morphhdl-offline-coursier
-          path: |
-            morphhdl-offline-coursier.tar.gz
-            morphhdl-offline-coursier.tar.gz.sha256
-          if-no-files-found: error
-          retention-days: 3
-
-      - name: Upload Ivy cache
-        uses: actions/upload-artifact@v4
-        with:
-          name: morphhdl-offline-ivy
-          path: |
-            morphhdl-offline-ivy.tar.gz
-            morphhdl-offline-ivy.tar.gz.sha256
-          if-no-files-found: error
-          retention-days: 3
-
-      - name: Upload Mill launcher/cache
-        uses: actions/upload-artifact@v4
-        with:
-          name: morphhdl-offline-mill
-          path: |
-            morphhdl-offline-mill.tar.gz
-            morphhdl-offline-mill.tar.gz.sha256
-          if-no-files-found: error
-          retention-days: 3
+          retention-days: 7
