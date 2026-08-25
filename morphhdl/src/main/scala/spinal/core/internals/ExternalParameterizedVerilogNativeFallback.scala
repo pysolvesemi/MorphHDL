@@ -260,8 +260,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     val records = ExternalParameterizedValueRegistry.valuesOf(component)
     if (records.isEmpty) return verilog
 
-    val named = records.map { record =>
-      val name = Option(record.value.getName()).filter(_.nonEmpty).getOrElse {
+    val named = records.map { case (value, record) =>
+      val name = Option(value.getName()).filter(_.nonEmpty).getOrElse {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-VALUE-NAME-MISSING",
           "one retained native UInt carrier has no final emitted name",
