@@ -16,12 +16,12 @@ jobs:
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     steps:
-      - name: Check out exact export branch
+      - name: Check out export branch history
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Verify exact MorphHDL source ancestry and public-only delta
+      - name: Verify public-only workflow delta and create exact detached source tree
         shell: bash
         run: |
           set -euo pipefail
@@ -31,14 +31,19 @@ jobs:
           printf '%s\n' "${changed[@]}"
           test "${#changed[@]}" -eq 1
           test "${changed[0]}" = '.github/workflows/rtl-p1-01-toolchain-export.yml'
+          rm -rf /tmp/morphhdl-exact-81abd
+          git worktree add --detach /tmp/morphhdl-exact-81abd "${base}"
+          test "$(git -C /tmp/morphhdl-exact-81abd rev-parse HEAD)" = "${base}"
+          test -z "$(git -C /tmp/morphhdl-exact-81abd status --porcelain)"
 
-      - name: Build exact Scala 2.12 MorphHDL classpath
+      - name: Build exact Scala 2.12 MorphHDL classpath from detached 81abd source
         shell: bash
         env:
           SBT_TEST_PARALLEL: '0'
         run: |
           set -euo pipefail
           export COURSIER_CACHE=/tmp/rtl-p1-01-coursier
+          cd /tmp/morphhdl-exact-81abd
           sbt -batch -Dsbt.supershell=false \
             'idslpayload/Compile/packageBin' \
             'idslplugin/Compile/packageBin' \
@@ -55,6 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           out=/tmp/rtl-p1-01-morphhdl-toolchain
+          root=/tmp/morphhdl-exact-81abd
           rm -rf "${out}"
           mkdir -p "${out}/jars" "${out}/source"
 
@@ -63,7 +69,7 @@ jobs:
           import json
           from pathlib import Path
 
-          root = Path.cwd()
+          root = Path('/tmp/morphhdl-exact-81abd')
           out = Path('/tmp/rtl-p1-01-morphhdl-toolchain')
           candidates = []
           candidates.extend(root.glob('*/target/scala-2.12/*.jar'))
@@ -114,8 +120,9 @@ jobs:
                   raise SystemExit(f'missing {description} jar; observed project jars=' + ','.join(sorted(name for name in names if 'spinal' in name or 'morph' in name)))
 
           manifest = {
-              'schema': 'rtl-p1-01-morphhdl-toolchain-export/v1',
-              'source_parent_commit': '81abd25518551b8a452ecf038e409331e646f726',
+              'schema': 'rtl-p1-01-morphhdl-toolchain-export/v2',
+              'source_commit': '81abd25518551b8a452ecf038e409331e646f726',
+              'build_checkout_commit': '81abd25518551b8a452ecf038e409331e646f726',
               'scala_version': '2.12.18',
               'jar_count': len(selected),
               'jars': sorted(selected.values(), key=lambda row: row['path']),
@@ -134,7 +141,7 @@ jobs:
               print(name)
           PY
 
-          git archive --format=tar 81abd25518551b8a452ecf038e409331e646f726 \
+          git -C "${root}" archive --format=tar 81abd25518551b8a452ecf038e409331e646f726 \
             | gzip -n > "${out}/source/MorphHDL-81abd25518551b8a452ecf038e409331e646f726.tar.gz"
           sha256sum "${out}/manifest.json" "${out}/classpath.txt" "${out}/source/"*.tar.gz \
             > "${out}/SHA256SUMS"
@@ -143,7 +150,7 @@ jobs:
       - name: Upload exact reusable toolchain
         uses: actions/upload-artifact@v4
         with:
-          name: rtl-p1-01-morphhdl-toolchain-81abd255
+          name: rtl-p1-01-morphhdl-toolchain-81abd255-v2
           path: /tmp/rtl-p1-01-morphhdl-toolchain
           if-no-files-found: error
           retention-days: 7
