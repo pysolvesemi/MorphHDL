@@ -1,0 +1,28 @@
+name: PR36 private repository access probe
+
+on:
+  push:
+    branches:
+      - agent/offline-toolchain-export
+    paths:
+      - .github/workflows/pr36-private-access-probe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.DISPLAY_CONTROLLER_TOKEN || secrets.GH_PAT || secrets.PAT || github.token }}
+    steps:
+      - name: Verify private repository access without exposing credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN}"
+          gh api repos/pysolvesemi/display_controller --jq '.full_name + " private=" + (.private|tostring)'
+          gh api repos/pysolvesemi/display-controller-verilog --jq '.full_name + " private=" + (.private|tostring)'
+          echo '[PASS] cross-repository access is available'
