@@ -1,1 +1,1 @@
-validate native StreamFifo structural retention on the exact repaired head
+validate StreamFifo procedural parameter predicates on the exact repaired head
