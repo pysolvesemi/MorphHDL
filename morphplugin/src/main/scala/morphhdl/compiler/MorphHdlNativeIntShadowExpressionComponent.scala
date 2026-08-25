@@ -82,6 +82,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     private var booleanScopes =
       List(mutable.LinkedHashMap.empty[TermName, String])
 
+    private var nativeStreamFifoDataTypeName: Option[TermName] = None
     private var nativeStreamFifoDepthName: Option[TermName] = None
     private var nativeStreamFifoDepthReference: Option[String] = None
     private var nativeStreamFifoDepthLine: Int = 1
@@ -186,6 +187,13 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
 
     private def inNativeStreamFifo: Boolean =
       nativeStreamFifoDepthReference.nonEmpty
+
+    private def nativeStreamFifoDataType(tree: Tree): Boolean = tree match {
+      case Ident(name: TermName) => nativeStreamFifoDataTypeName.contains(name)
+      case Select(This(_), name: TermName) =>
+        nativeStreamFifoDataTypeName.contains(name)
+      case _ => false
+    }
 
     private def nativeStreamFifoDepth(tree: Tree): Boolean = tree match {
       case Ident(name: TermName) => nativeStreamFifoDepthName.contains(name)
@@ -772,9 +780,12 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       val transformedType = transform(dataType)
       val native = Apply(super.transform(fun), List(transformedType))
       native.setPos(original.pos)
+      val helper =
+        if (nativeStreamFifoDataType(dataType)) "compilerRegHardType"
+        else "compilerReg"
       Rewrite(
         curriedCall(
-          "compilerReg",
+          helper,
           List(transformedType),
           native,
           original
@@ -1280,6 +1291,11 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       alternatives.result() -> otherwise
     }
 
+    private def isUnitLiteral(tree: Tree): Boolean = tree match {
+      case Literal(Constant(value)) if value == () => true
+      case _                                        => false
+    }
+
     private def rewriteNativeConditionalSingle(
         original: If,
         alternative: NativeConditionalAlternative,
@@ -1288,7 +1304,10 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       val rewritten = Apply(
         Apply(
           Apply(
-            conditionalHelperMethod("selectSymbolic"),
+            conditionalHelperMethod(
+              if (isUnitLiteral(otherwise)) "selectSymbolicUnit"
+              else "selectSymbolic"
+            ),
             List(
               alternative.condition,
               Literal(Constant(alternative.reference)),
@@ -1324,7 +1343,10 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         }.toList
       )
       val rewritten = Apply(
-        conditionalHelperMethod("selectSymbolicChain"),
+        conditionalHelperMethod(
+          if (isUnitLiteral(otherwise)) "selectSymbolicChainUnit"
+          else "selectSymbolicChain"
+        ),
         List(
           sequence,
           function0(otherwise),
@@ -1550,6 +1572,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
 
     private def transformNativeStreamFifo(value: ClassDef): Tree = {
       val parameters = nativeStreamFifoConstructorParameters(value)
+      val dataType = parameters.find(parameter => decoded(parameter.name) == "dataType")
       val depth = parameters.find(parameter => decoded(parameter.name) == "depth")
       depth match {
         case None =>
@@ -1559,10 +1582,12 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
           )
           super.transform(value)
         case Some(depthParameter) =>
+          val previousDataTypeName = nativeStreamFifoDataTypeName
           val previousName = nativeStreamFifoDepthName
           val previousReference = nativeStreamFifoDepthReference
           val previousLine = nativeStreamFifoDepthLine
           val previousBooleans = nativeStreamFifoStaticBooleans
+          nativeStreamFifoDataTypeName = dataType.map(_.name)
           nativeStreamFifoDepthName = Some(depthParameter.name)
           nativeStreamFifoDepthReference = Some(
             sourceReference(depthParameter, "argument:DEPTH")
@@ -1575,6 +1600,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
           }.toSet
           try super.transform(value)
           finally {
+            nativeStreamFifoDataTypeName = previousDataTypeName
             nativeStreamFifoDepthName = previousName
             nativeStreamFifoDepthReference = previousReference
             nativeStreamFifoDepthLine = previousLine

@@ -272,6 +272,11 @@ object ExternalNativeIntCompilerRuntime {
   def compilerReg[T <: Data](dataType: => T)(native: => T): T =
     if (boundaryActive) ParameterizedWidth.Reg(dataType) else native
 
+  def compilerRegHardType[T <: Data](
+      dataType: => HardType[T]
+  )(native: => T): T =
+    if (boundaryActive) ParameterizedWidth.Reg(dataType) else native
+
   def compilerCloneOf[T <: Data](data: T)(native: => T): T =
     if (boundaryActive) ParameterizedWidth.cloneOf(data) else native
 
@@ -435,6 +440,23 @@ object ExternalNativeIntCompilerRuntime {
     }
   }
 
+  /**
+    * Preserve Scala's `if (condition) statement` result type. The true branch
+    * may return a fluent hardware context while the source-level conditional
+    * still has Unit type because it has no explicit else branch.
+    */
+  def selectSymbolicUnit(
+      condition: Boolean,
+      predicateReference: String,
+      sourceFile: String,
+      sourceLine: Int
+  )(ifTrue: => Any)(ifFalse: => Any): Unit = {
+    selectSymbolic[Any](condition, predicateReference, sourceFile, sourceLine)(
+      ifTrue
+    )(ifFalse)
+    ()
+  }
+
   def selectSymbolicChain[T](
       alternatives: Seq[(() => Boolean, String, () => T, String, Int)],
       otherwise: () => T,
@@ -477,6 +499,22 @@ object ExternalNativeIntCompilerRuntime {
       }
       capture(0)
     }
+  }
+
+  /** Unit-preserving counterpart for an else-if chain with no final else. */
+  def selectSymbolicChainUnit(
+      alternatives: Seq[(() => Boolean, String, () => Any, String, Int)],
+      otherwise: () => Any,
+      otherwiseFile: String,
+      otherwiseLine: Int
+  ): Unit = {
+    selectSymbolicChain[Any](
+      alternatives,
+      otherwise,
+      otherwiseFile,
+      otherwiseLine
+    )
+    ()
   }
 
   private def captureOne[T](
