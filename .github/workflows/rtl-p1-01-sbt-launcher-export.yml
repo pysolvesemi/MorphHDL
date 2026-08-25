@@ -23,24 +23,31 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Stage launcher and boot state
+      - name: Resolve and stage exact SBT 1.10.2 launcher
         shell: bash
         run: |
           set -euo pipefail
           out=/tmp/rtl-p1-01-sbt-launcher
           rm -rf "${out}"
-          mkdir -p "${out}/bin" "${out}/sbt-home/.cache"
+          mkdir -p "${out}/bin" "${out}/launcher"
           cp "$(command -v sbt)" "${out}/bin/sbt"
-          if test -d /sbt/.cache/sbt; then cp -a /sbt/.cache/sbt "${out}/sbt-home/.cache/sbt"; fi
-          if test -d /sbt/.sbt; then cp -a /sbt/.sbt "${out}/sbt-home/.sbt"; fi
-          if test -f /sbt/repositories; then cp /sbt/repositories "${out}/sbt-home/repositories"; fi
-          sha256sum "${out}/bin/sbt" > "${out}/SHA256SUMS"
+          tmp=/tmp/rtl-p1-01-sbt-probe
+          rm -rf "${tmp}"
+          mkdir -p "${tmp}/project"
+          printf 'sbt.version=1.10.2\n' > "${tmp}/project/build.properties"
+          printf 'ThisBuild / scalaVersion := "2.12.18"\n' > "${tmp}/build.sbt"
+          (cd "${tmp}" && sbt -batch -Dsbt.supershell=false 'show sbtVersion') | tee "${out}/sbt-version.log"
+          grep -F '1.10.2' "${out}/sbt-version.log"
+          launcher="${HOME}/.cache/sbt/boot/sbt-launch/1.10.2/sbt-launch-1.10.2.jar"
+          test -s "${launcher}"
+          cp "${launcher}" "${out}/launcher/sbt-launch-1.10.2.jar"
+          sha256sum "${out}/bin/sbt" "${out}/launcher/sbt-launch-1.10.2.jar" "${out}/sbt-version.log" > "${out}/SHA256SUMS"
           find "${out}" -type f -printf '%P %s bytes\n' | sort
 
       - name: Upload launcher state
         uses: actions/upload-artifact@v4
         with:
-          name: rtl-p1-01-sbt-launcher-state
+          name: rtl-p1-01-sbt-launcher-state-v2
           path: /tmp/rtl-p1-01-sbt-launcher
           if-no-files-found: error
           retention-days: 7
