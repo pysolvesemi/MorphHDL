@@ -1,0 +1,39 @@
+name: RTL-P1-01 temporary MorphHDL source archive
+
+on:
+  push:
+    branches:
+      - agent/rtl-p1-01-source-archive-temp
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Authenticate source revision and build archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "81abd25518551b8a452ecf038e409331e646f726"
+          mkdir -p /tmp/rtl-p1-01-source
+          git archive --format=tar --prefix=MorphHDL-81abd255/ 81abd25518551b8a452ecf038e409331e646f726 \
+            | gzip -n -9 > /tmp/rtl-p1-01-source/MorphHDL-81abd255.tar.gz
+          sha256sum /tmp/rtl-p1-01-source/MorphHDL-81abd255.tar.gz \
+            > /tmp/rtl-p1-01-source/MorphHDL-81abd255.tar.gz.sha256
+
+      - name: Upload public source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: MorphHDL-81abd255-source
+          path: /tmp/rtl-p1-01-source/
+          if-no-files-found: error
+          retention-days: 1
