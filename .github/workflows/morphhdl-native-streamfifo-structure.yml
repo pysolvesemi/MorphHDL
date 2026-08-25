@@ -14,13 +14,305 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: morphhdl-native-streamfifo-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  repair:
+    name: Apply proved generic sibling-alternative repair
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/increment-53-native-streamfifo-clean'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out Increment 53 head
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-clean
+          fetch-depth: 0
+      - name: Determine whether repair is already committed
+        id: state
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git log -1 --pretty=%B | grep -Fq '[inc53-overlap-fix]'; then
+            echo 'needed=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'needed=true' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Apply exact mutually-exclusive assignment proof and regression
+        if: steps.state.outputs.needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala")
+          text = path.read_text()
+          text = text.replace(
+              "    var nextCaptureId = 0L\n  }\n",
+              "    var nextCaptureId = 0L\n    var assignmentValidationScheduled = false\n  }\n",
+              1,
+          )
+          if "var assignmentValidationScheduled = false" not in text:
+              raise SystemExit("Storage patch did not apply")
+
+          active_anchor = "  private val activeCapture = new ThreadLocal[CaptureState]()\n"
+          path_types = """  private final case class AlternativeStep(
+              region: StructuralRegion,
+              branch: Int
+          )
+
+            private final case class CapturedAssignment(
+              statement: DataAssignmentStatement,
+              path: Vector[AlternativeStep]
+          )
+
+          """
+          if path_types not in text:
+              if active_anchor not in text:
+                  raise SystemExit("activeCapture anchor changed")
+              text = text.replace(active_anchor, path_types + active_anchor, 1)
+
+          register_for_anchor = "  def registerFor(\n      component: Component,\n"
+          helpers = """  private def scheduleAssignmentValidation(component: Component): Unit = {
+              val storage = storageOf(component)
+              if (!storage.assignmentValidationScheduled) {
+                storage.assignmentValidationScheduled = true
+                component.addPrePopTask(() =>
+                  authorizeMutuallyExclusiveAssignments(component)
+                )
+              }
+            }
+
+            private def authorizeMutuallyExclusiveAssignments(
+              component: Component
+          ): Unit = {
+              val regions = storageOption(component).toVector
+                .flatMap(_.regions)
+                .toVector
+              val captured = capturedAssignments(regions)
+              if (captured.size < 2) return
+
+              val byTarget = new IdentityHashMap[
+                BaseType,
+                ArrayBuffer[CapturedAssignment]
+              ]()
+              captured.foreach { value =>
+                val target = value.statement.finalTarget
+                var entries = byTarget.get(target)
+                if (entries eq null) {
+                  entries = ArrayBuffer.empty[CapturedAssignment]
+                  byTarget.put(target, entries)
+                }
+                entries += value
+              }
+
+              val graphAssignments = ArrayBuffer.empty[DataAssignmentStatement]
+              component.dslBody.walkStatements {
+                case value: DataAssignmentStatement => graphAssignments += value
+                case _                              =>
+              }
+
+              val targets = byTarget.entrySet().iterator()
+              while (targets.hasNext) {
+                val entry = targets.next()
+                val target = entry.getKey
+                val entries = entry.getValue.toVector
+                if (entries.size > 1) {
+                  val capturedStatements =
+                    new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+                  entries.foreach(value =>
+                    capturedStatements.put(value.statement, java.lang.Boolean.TRUE)
+                  )
+                  val targetAssignments = graphAssignments
+                    .filter(value => value.finalTarget eq target)
+                    .toVector
+                  val completeCapture =
+                    targetAssignments.size == entries.size &&
+                    targetAssignments.forall(capturedStatements.containsKey) &&
+                    entries.forall(value =>
+                      targetAssignments.exists(_ eq value.statement)
+                    )
+                  val pairwiseExclusive = entries.indices.forall { left =>
+                    (left + 1 until entries.size).forall { right =>
+                      mutuallyExclusive(entries(left).path, entries(right).path)
+                    }
+                  }
+                  if (completeCapture && pairwiseExclusive) target.allowOverride()
+                }
+              }
+            }
+
+            private def capturedAssignments(
+              regions: Vector[StructuralRegion]
+          ): Vector[CapturedAssignment] = {
+              val values = ArrayBuffer.empty[CapturedAssignment]
+
+              def visitBlock(
+                  block: ParameterizedStructuralBlock,
+                  path: Vector[AlternativeStep]
+              ): Unit = {
+                block.assignments.foreach(value =>
+                  values += CapturedAssignment(value, path)
+                )
+                block.regions.foreach(value => visitRegion(value, path))
+              }
+
+              def visitRegion(
+                  region: StructuralRegion,
+                  path: Vector[AlternativeStep]
+              ): Unit = region match {
+                case value: StructuralFor =>
+                  visitBlock(value.body, path)
+                case value: StructuralIf =>
+                  visitBlock(
+                    value.whenTrue,
+                    path :+ AlternativeStep(value, branch = 0)
+                  )
+                  visitBlock(
+                    value.whenFalse,
+                    path :+ AlternativeStep(value, branch = 1)
+                  )
+                case value: StructuralCase =>
+                  value.choices.zipWithIndex.foreach { case (choice, index) =>
+                    visitBlock(
+                      choice.body,
+                      path :+ AlternativeStep(value, branch = index)
+                    )
+                  }
+                  visitBlock(
+                    value.defaultBody,
+                    path :+ AlternativeStep(value, branch = value.choices.size)
+                  )
+              }
+
+              regions.foreach(value => visitRegion(value, Vector.empty))
+              values.toVector
+            }
+
+            private def mutuallyExclusive(
+              left: Vector[AlternativeStep],
+              right: Vector[AlternativeStep]
+          ): Boolean =
+              left.exists { leftStep =>
+                right.exists { rightStep =>
+                  (leftStep.region eq rightStep.region) &&
+                  leftStep.branch != rightStep.branch
+                }
+              }
+
+          """
+          if helpers not in text:
+              if register_for_anchor not in text:
+                  raise SystemExit("registerFor anchor changed")
+              text = text.replace(register_for_anchor, helpers + register_for_anchor, 1)
+
+          marker_index = text.find("  private def registerRegion(\n")
+          if marker_index < 0:
+              raise SystemExit("registerRegion declaration missing")
+          before = text[:marker_index]
+          region_text = text[marker_index:]
+          old = "  ): Unit = {\n    val capture = activeCapture.get()\n"
+          new = "  ): Unit = {\n    scheduleAssignmentValidation(component)\n    val capture = activeCapture.get()\n"
+          if new not in region_text:
+              if old not in region_text:
+                  raise SystemExit("registerRegion body changed")
+              region_text = region_text.replace(old, new, 1)
+          path.write_text(before + region_text)
+
+          test_path = Path(
+              "morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala"
+          )
+          tests = test_path.read_text()
+          class_anchor = "class ParameterizedStreamFifoDepthTests extends AnyFunSuite {\n"
+          unsafe_class = """final class UnsafeStructuralAssignmentHarness(depth: HdlInt)
+              extends Component {
+            setDefinitionName("UnsafeStructuralAssignmentHarness")
+            val observed = out(Bool())
+            observed := False
+            if (depth > 1) observed := True
+            else observed := False
+          }
+
+          """
+          if unsafe_class not in tests:
+              if class_anchor not in tests:
+                  raise SystemExit("test class anchor changed")
+              tests = tests.replace(class_anchor, unsafe_class + class_anchor, 1)
+
+          test_anchor = "  private def simulateDepth(\n"
+          unsafe_test = """  test("mutually-exclusive capture never hides an outside assignment") {
+              withTemporaryDirectory { directory =>
+                val config = synchronousResetConfig(directory)
+                config.netlistFileName = "unsafe_structural_assignment.v"
+                MorphVerilog.tryGenerate(config) {
+                  val depth = HdlInt.param(
+                    "DEPTH",
+                    default = BigInt(5),
+                    min = BigInt(1),
+                    max = BigInt(8)
+                  )
+                  new UnsafeStructuralAssignmentHarness(depth)
+                } match {
+                  case Left(failure) =>
+                    assert(failure.detail.contains("ASSIGNMENT OVERLAP"))
+                  case Right(report) =>
+                    fail(s"Expected inherited overlap failure, received $report")
+                }
+              }
+            }
+
+          """
+          if unsafe_test not in tests:
+              if test_anchor not in tests:
+                  raise SystemExit("test insertion anchor changed")
+              tests = tests.replace(test_anchor, unsafe_test + test_anchor, 1)
+          test_path.write_text(tests)
+          PY
+          git diff --check
+      - name: Install pinned Mill bootstrap
+        if: steps.state.outputs.needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+      - name: Prove focused contract before publication
+        if: steps.state.outputs.needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.ParameterizedStreamFifoDepthTests
+      - name: Publish repair and remove temporary diagnostics
+        if: steps.state.outputs.needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name pysolvesemi
+          git config user.email pysolvesemi@gmail.com
+          git show 3a0c1e0118db85cd7522ed51df7e471a584b0dae:.github/workflows/morphhdl-native-streamfifo-structure.yml \
+            > .github/workflows/morphhdl-native-streamfifo-structure.yml
+          git rm -f .github/workflows/increment-53-focused-diagnostic.yml
+          git rm -f docs/morphhdl/increment-53-focused-diagnostic.log
+          git add \
+            .github/workflows/morphhdl-native-streamfifo-structure.yml \
+            morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala
+          git commit -m "fix(morphhdl): prove safe mutually-exclusive structural assignments [inc53-overlap-fix]"
+          git push origin HEAD:"$GITHUB_HEAD_REF"
+
   source-boundary:
     name: Native StreamFifo source boundary
     runs-on: ubuntu-latest
@@ -30,7 +322,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Prove native overload, pointer wiring and sidecar absence
         shell: bash
         run: bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
@@ -55,7 +346,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Install pinned Mill bootstrap
         shell: bash
         run: |
@@ -64,7 +354,6 @@ jobs:
             https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
-
       - name: Validate real native StreamFifo and inherited contracts
         shell: bash
         run: |
