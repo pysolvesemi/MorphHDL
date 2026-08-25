@@ -333,9 +333,6 @@ object ExternalNativeIntCompilerRuntime {
       throw new IllegalStateException(
         "compilerUIntValueLike requires an active native formalization boundary"
       )
-    val result = ParameterizedWidth.cloneOf(prototype)
-    result.setName(stableName)
-    result := U(BigInt(value), result.getBitsWidth bits)
     val expression = ExternalNativeIntShadowRegistry
       .definitionExpressionTracked(
         reference,
@@ -348,6 +345,11 @@ object ExternalNativeIntCompilerRuntime {
           "active native formalization boundary lost a tracked UInt value"
         )
       }
+    val domainWidth = if (expression.maximum == 0) 1 else expression.maximum.bitLength
+    val carrierWidth = math.max(prototype.getBitsWidth, domainWidth)
+    val result = UInt(carrierWidth bits)
+    result.setName(stableName)
+    result := U(BigInt(value), carrierWidth bits)
     ExternalParameterizedValueRegistry.attach(
       result,
       expression,
