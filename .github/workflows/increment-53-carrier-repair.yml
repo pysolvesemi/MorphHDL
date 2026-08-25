@@ -37,32 +37,34 @@ jobs:
 
           runtime = Path("morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala")
           text = runtime.read_text()
-          old = '''    val domainWidth = if (expression.maximum == 0) 1 else expression.maximum.bitLength
-              val carrierWidth = math.max(prototype.getBitsWidth, domainWidth)
-              val result = UInt(carrierWidth bits)
-              result.setName(stableName)
-              result := U(BigInt(value), carrierWidth bits)
-              ExternalParameterizedValueRegistry.attach(
-          '''
-          new = '''    val carrierWidth = prototype.getBitsWidth
-              if (carrierWidth < 1)
-                throw new IllegalStateException(
-                  "compilerUIntValueLike requires a positive-width UInt prototype"
-                )
-              if (ParameterizedWidth.expressionOf(prototype).isEmpty)
-                throw new ParameterizedVerilogException(
-                  "MORPH-FRONTEND-NATIVE-INT-CARRIER-PROTOTYPE-UNRETAINED",
-                  "a symbolic native Int hardware carrier requires one exact UInt prototype with retained symbolic width",
-                  Some(rendered(file, line))
-                )
-              val result = ParameterizedWidth.copyShape(
-                prototype,
-                UInt(carrierWidth bits)
-              )
-              result.setName(stableName)
-              result := U(BigInt(value), carrierWidth bits)
-              ExternalParameterizedValueRegistry.attach(
-          '''
+          old = "\n".join([
+              "    val domainWidth = if (expression.maximum == 0) 1 else expression.maximum.bitLength",
+              "    val carrierWidth = math.max(prototype.getBitsWidth, domainWidth)",
+              "    val result = UInt(carrierWidth bits)",
+              "    result.setName(stableName)",
+              "    result := U(BigInt(value), carrierWidth bits)",
+              "    ExternalParameterizedValueRegistry.attach(",
+          ])
+          new = "\n".join([
+              "    val carrierWidth = prototype.getBitsWidth",
+              "    if (carrierWidth < 1)",
+              "      throw new IllegalStateException(",
+              "        \"compilerUIntValueLike requires a positive-width UInt prototype\"",
+              "      )",
+              "    if (ParameterizedWidth.expressionOf(prototype).isEmpty)",
+              "      throw new ParameterizedVerilogException(",
+              "        \"MORPH-FRONTEND-NATIVE-INT-CARRIER-PROTOTYPE-UNRETAINED\"",
+              "        \"a symbolic native Int hardware carrier requires one exact UInt prototype with retained symbolic width\"",
+              "        Some(rendered(file, line))",
+              "      )",
+              "    val result = ParameterizedWidth.copyShape(",
+              "      prototype,",
+              "      UInt(carrierWidth bits)",
+              "    )",
+              "    result.setName(stableName)",
+              "    result := U(BigInt(value), carrierWidth bits)",
+              "    ExternalParameterizedValueRegistry.attach(",
+          ])
           if old in text:
               runtime.write_text(text.replace(old, new, 1))
           elif new not in text:
@@ -70,34 +72,34 @@ jobs:
 
           plugin = Path("morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala")
           text = plugin.read_text()
-          anchor = '''    private def nativeValueCarrier(
-                  value: Rewrite,
-                  prototype: Tree,
-                  original: Tree,
-                  role: String
-              ): Tree = {
-          '''
-          helper = '''    private def nativeValuePrototype(tree: Tree): Tree = tree match {
-                case Apply(Select(left, _), List(right))
-                    if looksNativeHardware(left) || looksNativeHardware(right) =>
-                  if (looksNativeHardware(left)) nativeValuePrototype(left)
-                  else nativeValuePrototype(right)
-                case TypeApply(value, _) if looksNativeHardware(value) =>
-                  nativeValuePrototype(value)
-                case Typed(value, _) if looksNativeHardware(value) =>
-                  nativeValuePrototype(value)
-                case _ => tree
-              }
-
-          '''
+          anchor = "\n".join([
+              "    private def nativeValueCarrier(",
+              "        value: Rewrite,",
+              "        prototype: Tree,",
+              "        original: Tree,",
+              "        role: String",
+              "    ): Tree = {",
+          ])
+          helper = "\n".join([
+              "    private def nativeValuePrototype(tree: Tree): Tree = tree match {",
+              "      case Apply(Select(left, _), List(right))",
+              "          if looksNativeHardware(left) || looksNativeHardware(right) =>",
+              "        if (looksNativeHardware(left)) nativeValuePrototype(left)",
+              "        else nativeValuePrototype(right)",
+              "      case TypeApply(value, _) if looksNativeHardware(value) =>",
+              "        nativeValuePrototype(value)",
+              "      case Typed(value, _) if looksNativeHardware(value) =>",
+              "        nativeValuePrototype(value)",
+              "      case _ => tree",
+              "    }",
+              "",
+          ])
           if helper not in text:
               if anchor not in text:
                   raise SystemExit("Increment 53 native carrier anchor no longer matches the reviewed head")
-              text = text.replace(anchor, helper + anchor, 1)
-          old_call = '''          transform(prototype),
-          '''
-          new_call = '''          transform(nativeValuePrototype(prototype)),
-          '''
+              text = text.replace(anchor, helper + "\n" + anchor, 1)
+          old_call = "          transform(prototype),"
+          new_call = "          transform(nativeValuePrototype(prototype)),"
           if old_call in text:
               text = text.replace(old_call, new_call, 1)
           elif new_call not in text:
