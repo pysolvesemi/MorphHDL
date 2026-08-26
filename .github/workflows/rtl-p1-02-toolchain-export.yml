@@ -24,8 +24,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "81abd25518551b8a452ecf038e409331e646f726"
-          printf '%s\n' "$(git rev-parse HEAD^)" > /tmp/morphhdl-source-commit.txt
+          source_commit="81abd25518551b8a452ecf038e409331e646f726"
+          test "$(git merge-base HEAD "${source_commit}")" = "${source_commit}"
+          test "$(git diff --name-only "${source_commit}"...HEAD)" = \
+            ".github/workflows/rtl-p1-02-toolchain-export.yml"
+          printf '%s\n' "${source_commit}" > /tmp/morphhdl-source-commit.txt
           printf '%s\n' "$(git rev-parse HEAD)" > /tmp/export-workflow-commit.txt
 
       - name: Set up Java and SBT
@@ -69,10 +72,11 @@ jobs:
           set -euo pipefail
           out="$RUNNER_TEMP/rtl-p1-02-toolchain"
           rm -rf "$out"
-          mkdir -p "$out/jars" "$out/bin" "$out/lib" "$out/share" "$out/evidence"
+          mkdir -p "$out/jars" "$out/rootfs" "$out/evidence"
 
-          # Preserve paths to avoid same-basename collisions. The consumer builds
-          # its classpath with find, so no repository or private source is needed.
+          # Preserve original paths to avoid same-basename collisions. The
+          # consumer constructs the classpath with find, so no private source
+          # repository or live package resolver is needed.
           while IFS= read -r -d '' jar; do
             rel="${jar#/}"
             mkdir -p "$out/jars/$(dirname "$rel")"
@@ -80,21 +84,29 @@ jobs:
           done < <(find "$HOME/.cache/coursier" "$GITHUB_WORKSPACE" \
             -type f -name '*.jar' -print0)
 
-          for tool in iverilog vvp verilator verilator_bin yosys yosys-config yosys-smtbmc; do
-            path="$(command -v "$tool" 2>/dev/null || true)"
-            if [ -n "$path" ]; then
-              cp -L "$path" "$out/bin/"
-            fi
+          # Preserve package-owned paths for Icarus helper programs, Verilator
+          # includes/data, Yosys share files, ABC, binaries and their support
+          # files. The local consumer overlays rootfs onto an isolated runtime.
+          for package in iverilog verilator yosys yosys-abc; do
+            dpkg-query -L "$package" | while IFS= read -r file; do
+              if [ -f "$file" ]; then
+                mkdir -p "$out/rootfs$(dirname "$file")"
+                cp -L "$file" "$out/rootfs$file"
+              fi
+            done
           done
-          cp -a /usr/share/verilator "$out/share/"
-          cp -a /usr/share/yosys "$out/share/"
 
-          # Bundle shared-library dependencies used by the copied executables.
-          for exe in "$out"/bin/*; do
+          # Add dynamically linked libraries needed by package executables.
+          while IFS= read -r -d '' exe; do
             [ -x "$exe" ] || continue
-            ldd "$exe" 2>/dev/null | awk '/=> \/|^\// {for (i=1;i<=NF;i++) if ($i ~ /^\//) print $i}'
-          done | sort -u | while read -r lib; do
-            [ -f "$lib" ] && cp -L "$lib" "$out/lib/"
+            { ldd "$exe" 2>/dev/null || true; } | \
+              awk '/=> \/|^\// {for (i=1;i<=NF;i++) if ($i ~ /^\//) print $i}'
+          done < <(find "$out/rootfs/usr/bin" "$out/rootfs/usr/lib" \
+            -type f -print0 2>/dev/null) | sort -u | while IFS= read -r lib; do
+            if [ -f "$lib" ]; then
+              mkdir -p "$out/rootfs$(dirname "$lib")"
+              cp -L "$lib" "$out/rootfs$lib"
+            fi
           done
 
           cp /tmp/morphhdl-source-commit.txt "$out/evidence/"
@@ -106,9 +118,20 @@ jobs:
           cp /tmp/java-version.txt "$out/evidence/"
           cp /tmp/sbt-version.txt "$out/evidence/"
 
-          find "$out" -type f -print0 | sort -z | xargs -0 sha256sum \
-            > "$out/evidence/SHA256SUMS"
-          find "$out" -type f | sort > "$out/evidence/FILES"
+          find "$out" -type f \
+            ! -path "$out/evidence/SHA256SUMS" \
+            ! -path "$out/evidence/FILES" \
+            -print | sort > "$out/evidence/FILES"
+          while IFS= read -r file; do
+            sha256sum "$file"
+          done < "$out/evidence/FILES" > "$out/evidence/SHA256SUMS"
+
+          test -s "$out/evidence/SHA256SUMS"
+          test -n "$(find "$out/jars" -type f -name '*.jar' -print -quit)"
+          test -x "$out/rootfs/usr/bin/iverilog"
+          test -x "$out/rootfs/usr/bin/vvp"
+          test -x "$out/rootfs/usr/bin/verilator"
+          test -x "$out/rootfs/usr/bin/yosys"
           du -sh "$out"
 
       - name: Upload exact reusable toolchain bundle
