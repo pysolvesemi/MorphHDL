@@ -78,6 +78,13 @@ jobs:
               "component.dslBody.walkStatements",
           )
 
+          # The repair script is itself generated from a Python string. Keep
+          # the two backslashes required by the emitted Scala regex literal.
+          script = script.replace(
+              'replaceAll("\\\\s+", " ")',
+              'replaceAll("\\\\\\\\s+", " ")',
+          )
+
           # Replace only the obsolete whitespace-sensitive hierarchy anchor.
           start_marker = "output_anchor = '''"
           end_marker = "hierarchy_path.write_text(hierarchy)"
