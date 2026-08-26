@@ -1,3 +1,4 @@
+# Packaging-only helper: no MorphHDL production source is changed.
 name: RTL-P1-02 offline open-source CAD tools
 
 on:
