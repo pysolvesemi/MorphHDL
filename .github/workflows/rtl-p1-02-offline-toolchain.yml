@@ -1,0 +1,98 @@
+name: RTL-P1-02 offline MorphHDL toolchain bundle
+
+on:
+  push:
+    branches:
+      - agent/rtl-p1-02-offline-toolchain
+    paths:
+      - .github/workflows/rtl-p1-02-offline-toolchain.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rtl-p1-02-offline-morphhdl-toolchain
+  cancel-in-progress: false
+
+jobs:
+  bundle-scala-212:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - name: Check out exact target source plus this packaging workflow
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Verify target source parent
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "81abd25518551b8a452ecf038e409331e646f726"
+          git diff --exit-code HEAD^ -- . ':(exclude).github/workflows/rtl-p1-02-offline-toolchain.yml'
+
+      - name: Compile and package MorphHDL for Scala 2.12.18
+        shell: bash
+        env:
+          SBT_OPTS: -Xmx4G -Dsbt.supershell=false
+        run: |
+          set -euo pipefail
+          sbt -batch \
+            "++2.12.18" \
+            clean \
+            compile \
+            package
+
+      - name: Assemble self-contained offline classpath bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="$GITHUB_WORKSPACE/rtl-p1-02-offline-toolchain"
+          rm -rf "$bundle"
+          mkdir -p "$bundle/project-jars" "$bundle/dependency-cache" "$bundle/meta"
+
+          while IFS= read -r -d '' jar; do
+            rel="${jar#./}"
+            mkdir -p "$bundle/project-jars/$(dirname "$rel")"
+            cp "$jar" "$bundle/project-jars/$rel"
+          done < <(find . -type f -path '*/target/scala-2.12/*.jar' -print0 | sort -z)
+
+          for cache_root in "$HOME/.cache/coursier" "$HOME/.ivy2/cache"; do
+            if [[ -d "$cache_root" ]]; then
+              cache_name="$(basename "$cache_root")"
+              while IFS= read -r -d '' jar; do
+                rel="${jar#${cache_root}/}"
+                mkdir -p "$bundle/dependency-cache/$cache_name/$(dirname "$rel")"
+                cp "$jar" "$bundle/dependency-cache/$cache_name/$rel"
+              done < <(find "$cache_root" -type f -name '*.jar' -print0 | sort -z)
+            fi
+          done
+
+          test -n "$(find "$bundle/project-jars" -type f -name '*.jar' -print -quit)"
+          test -n "$(find "$bundle/dependency-cache" -type f -name 'scala-compiler-2.12.18.jar' -print -quit)"
+          test -n "$(find "$bundle/dependency-cache" -type f -name 'scala-library-2.12.18.jar' -print -quit)"
+          test -n "$(find "$bundle/dependency-cache" -type f -name 'scala-reflect-2.12.18.jar' -print -quit)"
+          test -n "$(find "$bundle/project-jars" -type f -name '*idsl-plugin*2.12*.jar' -o -name '*idslplugin*.jar' -print -quit)" || \
+            test -n "$(find "$bundle/project-jars" -type f -path '*/idslplugin/target/scala-2.12/*.jar' -print -quit)"
+
+          printf '%s\n' '81abd25518551b8a452ecf038e409331e646f726' > "$bundle/meta/morphhdl-source-commit.txt"
+          printf '%s\n' '2.12.18' > "$bundle/meta/scala-version.txt"
+          java -version 2> "$bundle/meta/java-version.txt"
+          sbt -batch 'show sbtVersion' > "$bundle/meta/sbt-version.txt"
+          find "$bundle" -type f -name '*.jar' -print | sort > "$bundle/meta/jar-paths.txt"
+          (cd "$bundle" && sha256sum $(find . -type f -name '*.jar' -print | sort) > meta/jar-sha256.txt)
+          printf 'project_jars=%s\n' "$(find "$bundle/project-jars" -type f -name '*.jar' | wc -l)" > "$bundle/meta/counts.txt"
+          printf 'dependency_jars=%s\n' "$(find "$bundle/dependency-cache" -type f -name '*.jar' | wc -l)" >> "$bundle/meta/counts.txt"
+          du -sh "$bundle" | tee "$bundle/meta/size.txt"
+
+      - name: Upload exact offline toolchain bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-81abd255-scala-2.12.18-offline
+          path: rtl-p1-02-offline-toolchain
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 6
