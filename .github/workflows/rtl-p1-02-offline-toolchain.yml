@@ -22,17 +22,20 @@ jobs:
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     steps:
-      - name: Check out exact target source plus this packaging workflow
+      - name: Check out exact target source plus packaging-only workflows
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
-      - name: Verify target source parent
+      - name: Verify exact target source and packaging-only delta
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "81abd25518551b8a452ecf038e409331e646f726"
-          git diff --exit-code HEAD^ -- . ':(exclude).github/workflows/rtl-p1-02-offline-toolchain.yml'
+          target='81abd25518551b8a452ecf038e409331e646f726'
+          git merge-base --is-ancestor "${target}" HEAD
+          git diff --exit-code "${target}" -- . \
+            ':(exclude).github/workflows/rtl-p1-02-offline-toolchain.yml' \
+            ':(exclude).github/workflows/rtl-p1-02-offline-cad-tools.yml'
 
       - name: Compile and package MorphHDL for Scala 2.12.18
         shell: bash
@@ -60,30 +63,41 @@ jobs:
             cp "$jar" "$bundle/project-jars/$rel"
           done < <(find . -type f -path '*/target/scala-2.12/*.jar' -print0 | sort -z)
 
-          for cache_root in "$HOME/.cache/coursier" "$HOME/.ivy2/cache"; do
-            if [[ -d "$cache_root" ]]; then
-              cache_name="$(basename "$cache_root")"
-              while IFS= read -r -d '' jar; do
-                rel="${jar#${cache_root}/}"
-                mkdir -p "$bundle/dependency-cache/$cache_name/$(dirname "$rel")"
-                cp "$jar" "$bundle/dependency-cache/$cache_name/$rel"
-              done < <(find "$cache_root" -type f -name '*.jar' -print0 | sort -z)
-            fi
-          done
+          copy_cache() {
+            local label="$1"
+            local cache_root="$2"
+            [[ -n "$cache_root" && -d "$cache_root" ]] || return 0
+            while IFS= read -r -d '' jar; do
+              rel="${jar#${cache_root}/}"
+              mkdir -p "$bundle/dependency-cache/$label/$(dirname "$rel")"
+              cp "$jar" "$bundle/dependency-cache/$label/$rel"
+            done < <(find "$cache_root" -type f -name '*.jar' -print0 | sort -z)
+          }
+
+          copy_cache coursier-env "${COURSIER_CACHE:-}"
+          copy_cache coursier-sbt /sbt/.cache/coursier
+          copy_cache ivy-sbt /sbt/.ivy2
+          copy_cache sbt-boot /sbt/.sbt/boot
+          copy_cache sbt-cache /sbt/.sbt/cache
+          copy_cache coursier-home "$HOME/.cache/coursier"
+          copy_cache ivy-home "$HOME/.ivy2"
 
           test -n "$(find "$bundle/project-jars" -type f -name '*.jar' -print -quit)"
           test -n "$(find "$bundle/dependency-cache" -type f -name 'scala-compiler-2.12.18.jar' -print -quit)"
           test -n "$(find "$bundle/dependency-cache" -type f -name 'scala-library-2.12.18.jar' -print -quit)"
           test -n "$(find "$bundle/dependency-cache" -type f -name 'scala-reflect-2.12.18.jar' -print -quit)"
-          test -n "$(find "$bundle/project-jars" -type f -name '*idsl-plugin*2.12*.jar' -o -name '*idslplugin*.jar' -print -quit)" || \
-            test -n "$(find "$bundle/project-jars" -type f -path '*/idslplugin/target/scala-2.12/*.jar' -print -quit)"
+          test -n "$(find "$bundle/project-jars" -type f -path '*/idslplugin/target/scala-2.12/*.jar' -print -quit)"
 
           printf '%s\n' '81abd25518551b8a452ecf038e409331e646f726' > "$bundle/meta/morphhdl-source-commit.txt"
           printf '%s\n' '2.12.18' > "$bundle/meta/scala-version.txt"
           java -version 2> "$bundle/meta/java-version.txt"
           sbt -batch 'show sbtVersion' > "$bundle/meta/sbt-version.txt"
           find "$bundle" -type f -name '*.jar' -print | sort > "$bundle/meta/jar-paths.txt"
-          (cd "$bundle" && sha256sum $(find . -type f -name '*.jar' -print | sort) > meta/jar-sha256.txt)
+          (
+            cd "$bundle"
+            find . -type f -name '*.jar' -print0 | sort -z \
+              | xargs -0 sha256sum > meta/jar-sha256.txt
+          )
           printf 'project_jars=%s\n' "$(find "$bundle/project-jars" -type f -name '*.jar' | wc -l)" > "$bundle/meta/counts.txt"
           printf 'dependency_jars=%s\n' "$(find "$bundle/dependency-cache" -type f -name '*.jar' | wc -l)" >> "$bundle/meta/counts.txt"
           du -sh "$bundle" | tee "$bundle/meta/size.txt"
