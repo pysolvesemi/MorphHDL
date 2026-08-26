@@ -184,6 +184,33 @@ jobs:
               ),
           )
 
+          indexed_anchor = "\n".join((
+              "  private def containsIndexedReference(value: String, name: String): Boolean =",
+              '    ("(?<![A-Za-z0-9_$])" + Pattern.quote(name) + "\\\\s*\\\\[").r',
+              "      .findFirstIn(value)",
+              "      .nonEmpty",
+          )) + "\n"
+          indexed_replacement = indexed_anchor + "\n" + "\n".join((
+              "  private def containsIndexedAccess(",
+              "      value: String,",
+              "      name: String,",
+              "      index: String",
+              "  ): Boolean =",
+              '    ("(?<![A-Za-z0-9_$])" + Pattern.quote(name) + "\\\\s*\\\\[\\\\s*" +',
+              '      Pattern.quote(index) + "\\\\s*\\\\]").r',
+              "      .findFirstIn(value)",
+              "      .nonEmpty",
+          )) + "\n"
+          script = replace_definitions(
+              script,
+              "indexed_anchor = '''",
+              'if "private def containsIndexedAccess(" not in memory:',
+              (
+                  ("indexed_anchor", indexed_anchor),
+                  ("indexed_replacement", indexed_replacement),
+              ),
+          )
+
           Path("/tmp/inc53-source-repair.py").write_text(script)
           PY
           python3 /tmp/inc53-source-repair.py
