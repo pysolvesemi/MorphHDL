@@ -1,0 +1,121 @@
+name: RTL-P1-02 exact toolchain export
+
+on:
+  push:
+    branches:
+      - agent/rtl-p1-02-toolchain-export
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Checkout exact MorphHDL source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Prove exact source commitment
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "81abd25518551b8a452ecf038e409331e646f726"
+          printf '%s\n' "$(git rev-parse HEAD^)" > /tmp/morphhdl-source-commit.txt
+          printf '%s\n' "$(git rev-parse HEAD)" > /tmp/export-workflow-commit.txt
+
+      - name: Set up Java and SBT
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: sbt
+
+      - name: Set up SBT launcher
+        uses: sbt/setup-sbt@v1
+
+      - name: Compile and package exact Scala 2.12 closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          export COURSIER_CACHE="$HOME/.cache/coursier"
+          sbt -batch \
+            "project idslplugin" compile packageBin \
+            "project core" compile packageBin \
+            "project lib" compile packageBin \
+            "project morph" compile packageBin \
+            | tee /tmp/morphhdl-toolchain-build.log
+
+      - name: Install portable open-source RTL tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            iverilog verilator yosys jq python3
+          iverilog -V 2>&1 | head -n 2 | tee /tmp/iverilog-version.txt
+          verilator --version | tee /tmp/verilator-version.txt
+          yosys -V | tee /tmp/yosys-version.txt
+          java -version 2>&1 | tee /tmp/java-version.txt
+          sbt -batch "show sbtVersion" | tee /tmp/sbt-version.txt
+
+      - name: Assemble self-contained classpath and tool bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/rtl-p1-02-toolchain"
+          rm -rf "$out"
+          mkdir -p "$out/jars" "$out/bin" "$out/lib" "$out/share" "$out/evidence"
+
+          # Preserve paths to avoid same-basename collisions. The consumer builds
+          # its classpath with find, so no repository or private source is needed.
+          while IFS= read -r -d '' jar; do
+            rel="${jar#/}"
+            mkdir -p "$out/jars/$(dirname "$rel")"
+            cp "$jar" "$out/jars/$rel"
+          done < <(find "$HOME/.cache/coursier" "$GITHUB_WORKSPACE" \
+            -type f -name '*.jar' -print0)
+
+          for tool in iverilog vvp verilator verilator_bin yosys yosys-config yosys-smtbmc; do
+            path="$(command -v "$tool" 2>/dev/null || true)"
+            if [ -n "$path" ]; then
+              cp -L "$path" "$out/bin/"
+            fi
+          done
+          cp -a /usr/share/verilator "$out/share/"
+          cp -a /usr/share/yosys "$out/share/"
+
+          # Bundle shared-library dependencies used by the copied executables.
+          for exe in "$out"/bin/*; do
+            [ -x "$exe" ] || continue
+            ldd "$exe" 2>/dev/null | awk '/=> \/|^\// {for (i=1;i<=NF;i++) if ($i ~ /^\//) print $i}'
+          done | sort -u | while read -r lib; do
+            [ -f "$lib" ] && cp -L "$lib" "$out/lib/"
+          done
+
+          cp /tmp/morphhdl-source-commit.txt "$out/evidence/"
+          cp /tmp/export-workflow-commit.txt "$out/evidence/"
+          cp /tmp/morphhdl-toolchain-build.log "$out/evidence/"
+          cp /tmp/iverilog-version.txt "$out/evidence/"
+          cp /tmp/verilator-version.txt "$out/evidence/"
+          cp /tmp/yosys-version.txt "$out/evidence/"
+          cp /tmp/java-version.txt "$out/evidence/"
+          cp /tmp/sbt-version.txt "$out/evidence/"
+
+          find "$out" -type f -print0 | sort -z | xargs -0 sha256sum \
+            > "$out/evidence/SHA256SUMS"
+          find "$out" -type f | sort > "$out/evidence/FILES"
+          du -sh "$out"
+
+      - name: Upload exact reusable toolchain bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: rtl-p1-02-morphhdl-81abd-toolchain
+          path: ${{ runner.temp }}/rtl-p1-02-toolchain
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 6
