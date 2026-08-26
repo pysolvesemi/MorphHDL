@@ -13,10 +13,13 @@ jobs:
   export:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    env:
+      EXACT_MORPHDL_COMMIT: 81abd25518551b8a452ecf038e409331e646f726
     steps:
       - name: Checkout exact MorphHDL source
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.EXACT_MORPHDL_COMMIT }}
           fetch-depth: 0
           submodules: false
 
@@ -24,12 +27,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          source_commit="81abd25518551b8a452ecf038e409331e646f726"
-          test "$(git merge-base HEAD "${source_commit}")" = "${source_commit}"
-          test "$(git diff --name-only "${source_commit}"...HEAD)" = \
-            ".github/workflows/rtl-p1-02-toolchain-export.yml"
-          printf '%s\n' "${source_commit}" > /tmp/morphhdl-source-commit.txt
-          printf '%s\n' "$(git rev-parse HEAD)" > /tmp/export-workflow-commit.txt
+          test "$(git rev-parse HEAD)" = "${EXACT_MORPHDL_COMMIT}"
+          printf '%s\n' "${EXACT_MORPHDL_COMMIT}" > /tmp/morphhdl-source-commit.txt
+          printf '%s\n' "${GITHUB_SHA}" > /tmp/export-workflow-commit.txt
 
       - name: Set up Java and SBT
         uses: actions/setup-java@v4
