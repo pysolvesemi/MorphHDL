@@ -1,4 +1,4 @@
-name: RTL-P1-02 offline MorphHDL toolchain bundle
+name: RTL-P1-02 offline MorphHDL and CAD bundles
 
 on:
   push:
@@ -35,7 +35,9 @@ jobs:
           git merge-base --is-ancestor "${target}" HEAD
           git diff --exit-code "${target}" -- . \
             ':(exclude).github/workflows/rtl-p1-02-offline-toolchain.yml' \
-            ':(exclude).github/workflows/rtl-p1-02-offline-cad-tools.yml'
+            ':(exclude).github/workflows/rtl-p1-02-offline-cad-tools.yml' \
+            ':(exclude).github/workflows/rtl-p1-02-offline-cad-tools-v2.yml' \
+            ':(exclude).github/rtl-p1-02-cad-packaging-trigger.txt'
 
       - name: Compile and package MorphHDL for Scala 2.12.18
         shell: bash
@@ -107,6 +109,94 @@ jobs:
         with:
           name: morphhdl-81abd255-scala-2.12.18-offline
           path: rtl-p1-02-offline-toolchain
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 6
+
+  bundle-cad-tools:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify packaging-only branch delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='81abd25518551b8a452ecf038e409331e646f726'
+          git merge-base --is-ancestor "${target}" HEAD
+          git diff --exit-code "${target}" -- . \
+            ':(exclude).github/workflows/rtl-p1-02-offline-toolchain.yml' \
+            ':(exclude).github/workflows/rtl-p1-02-offline-cad-tools.yml' \
+            ':(exclude).github/workflows/rtl-p1-02-offline-cad-tools-v2.yml' \
+            ':(exclude).github/rtl-p1-02-cad-packaging-trigger.txt'
+
+      - name: Install open-source validation tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            iverilog verilator yosys z3 jq python3 perl make g++
+          iverilog -V 2>&1 | head -n 2
+          verilator --version
+          yosys -V
+          z3 --version
+
+      - name: Assemble exact package payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="$GITHUB_WORKSPACE/rtl-p1-02-open-source-cad-tools"
+          rootfs="$bundle/rootfs"
+          rm -rf "$bundle"
+          mkdir -p "$rootfs" "$bundle/meta"
+
+          copy_file() {
+            local path="$1"
+            if [[ -f "$path" || -L "$path" ]]; then
+              cp -a --parents "$path" "$rootfs"
+            fi
+          }
+
+          for package in iverilog verilator yosys yosys-abc z3; do
+            dpkg-query -W "$package" >/dev/null
+            while IFS= read -r path; do
+              copy_file "$path"
+            done < <(dpkg-query -L "$package")
+          done
+
+          test -x "$rootfs/usr/bin/iverilog"
+          test -x "$rootfs/usr/bin/vvp"
+          test -x "$rootfs/usr/bin/verilator"
+          test -x "$rootfs/usr/bin/verilator_bin"
+          test -x "$rootfs/usr/bin/yosys"
+          test -x "$rootfs/usr/bin/z3"
+          test -d "$rootfs/usr/share/verilator"
+          test -d "$rootfs/usr/share/yosys"
+          test -d "$rootfs/usr/lib/x86_64-linux-gnu/ivl"
+
+          iverilog -V > "$bundle/meta/iverilog-version.txt" 2>&1
+          verilator --version > "$bundle/meta/verilator-version.txt"
+          yosys -V > "$bundle/meta/yosys-version.txt"
+          z3 --version > "$bundle/meta/z3-version.txt"
+          dpkg-query -W -f='${Package}=${Version}\n' \
+            iverilog verilator yosys yosys-abc z3 \
+            > "$bundle/meta/package-versions.txt"
+          (
+            cd "$bundle"
+            find rootfs \( -type f -o -type l \) -print0 | sort -z \
+              | xargs -0 sha256sum > meta/file-sha256.txt
+          )
+          du -sh "$bundle" | tee "$bundle/meta/size.txt"
+
+      - name: Upload open-source CAD payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: rtl-p1-02-open-source-cad-tools
+          path: rtl-p1-02-open-source-cad-tools
           if-no-files-found: error
           retention-days: 1
           compression-level: 6
