@@ -1,0 +1,164 @@
+name: Increment 53 integrate reviewed repair v3
+
+on:
+  push:
+    branches:
+      - agent/increment-53-native-streamfifo-clean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53-integrate-reviewed-repair-v3-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integrate:
+    if: "${{ !contains(github.event.head_commit.message, '[inc53-integrated-repair]') }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-clean
+          fetch-depth: 0
+
+      - name: Pre-integrate concrete output adapter structurally
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala"
+          )
+          text = path.read_text()
+
+          helper = '''  private def directConcreteOutputAdapter(
+              expression: Expression,
+              port: BaseType
+          ): Boolean = expression match {
+            case value if value eq port => true
+            case value: Resize => directConcreteOutputAdapter(value.input, port)
+            case _ => false
+          }
+
+          '''
+          if "private def directConcreteOutputAdapter(" not in text:
+              anchor = "  private def connectionEvidence(\n"
+              if text.count(anchor) != 1:
+                  raise SystemExit(
+                      "expected one connectionEvidence declaration, found " +
+                      str(text.count(anchor))
+                  )
+              text = text.replace(anchor, helper + anchor, 1)
+
+          marker = "directConcreteOutputAdapter(assignment.source, port)"
+          if marker not in text:
+              lines = text.splitlines(keepends=True)
+              condition_line = (
+                  "allowConcreteInternal && assignment.source == port &&"
+              )
+              candidates = [
+                  index for index, line in enumerate(lines)
+                  if line.strip() == condition_line
+              ]
+              if len(candidates) != 1:
+                  raise SystemExit(
+                      "expected one concrete child-output condition, found " +
+                      str(len(candidates))
+                  )
+              condition_index = candidates[0]
+              branch_start = condition_index - 1
+              if lines[branch_start].strip() != "} else if (":
+                  raise SystemExit("concrete child-output branch start changed")
+              if (
+                  condition_index + 1 >= len(lines) or
+                  lines[condition_index + 1].strip() !=
+                  "assignment.finalTarget.component == parent"
+              ):
+                  raise SystemExit("concrete child-output branch condition changed")
+              branch_indent = lines[branch_start][
+                  : len(lines[branch_start]) - len(lines[branch_start].lstrip())
+              ]
+              inner = branch_indent + "  "
+              replacement = [
+                  branch_indent + "} else if (\n",
+                  inner + "allowConcreteInternal &&\n",
+                  inner + "assignment.target == assignment.finalTarget &&\n",
+                  inner + "assignment.finalTarget.component == parent &&\n",
+                  inner + marker + "\n",
+                  branch_indent + ") {\n",
+                  inner + "Vector(LiteralBinding(port.getBitsWidth))\n",
+              ]
+              lines[branch_start:branch_start] = replacement
+              text = "".join(lines)
+
+          required = (
+              "private def directConcreteOutputAdapter(",
+              marker,
+              "case value: Resize => directConcreteOutputAdapter(value.input, port)",
+          )
+          missing = [value for value in required if value not in text]
+          if missing:
+              raise SystemExit(
+                  "hierarchy repair incomplete: " + ", ".join(missing)
+              )
+          path.write_text(text)
+          PY
+          git diff --check
+
+      - name: Apply remaining reviewed ownership and memory repairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          workflow = Path(
+              ".github/workflows/increment-53-integrate-reviewed-repair.yml"
+          )
+          lines = workflow.read_text().splitlines()
+          starts = [
+              index for index, line in enumerate(lines)
+              if line.strip() == "python3 - <<'PY'"
+          ]
+          if len(starts) != 1:
+              raise SystemExit(
+                  f"expected one embedded repair script, found {len(starts)}"
+              )
+          start = starts[0]
+          end = next(
+              index for index in range(start + 1, len(lines))
+              if lines[index].strip() == "PY"
+          )
+          body = lines[start + 1:end]
+          indent = min(
+              len(line) - len(line.lstrip())
+              for line in body if line.strip()
+          )
+          script = "\n".join(
+              line[indent:] if line.strip() else "" for line in body
+          ) + "\n"
+          Path("/tmp/inc53-integrate-reviewed.py").write_text(script)
+          PY
+          python3 /tmp/inc53-integrate-reviewed.py
+          git diff --check
+
+      - name: Publish integrated source repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "Reviewed repair is already integrated."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
+          git commit -m "fix: integrate reviewed native StreamFifo repair [inc53-integrated-repair]"
+          git push origin HEAD:agent/increment-53-native-streamfifo-clean
