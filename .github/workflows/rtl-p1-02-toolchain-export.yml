@@ -72,21 +72,25 @@ jobs:
           set -euo pipefail
           out="$RUNNER_TEMP/rtl-p1-02-toolchain"
           rm -rf "$out"
-          mkdir -p "$out/jars" "$out/rootfs" "$out/evidence"
+          mkdir -p "$out/jars/coursier" "$out/jars/workspace" \
+            "$out/rootfs" "$out/evidence"
 
-          # Preserve original paths to avoid same-basename collisions. The
-          # consumer constructs the classpath with find, so no private source
-          # repository or live package resolver is needed.
+          # Copy the resolved dependency cache into a non-hidden artifact path
+          # so upload-artifact cannot silently omit the .cache directory.
           while IFS= read -r -d '' jar; do
-            rel="${jar#/}"
-            mkdir -p "$out/jars/$(dirname "$rel")"
-            cp "$jar" "$out/jars/$rel"
-          done < <(find "$HOME/.cache/coursier" "$GITHUB_WORKSPACE" \
-            -type f -name '*.jar' -print0)
+            rel="${jar#"$HOME/.cache/coursier/"}"
+            mkdir -p "$out/jars/coursier/$(dirname "$rel")"
+            cp "$jar" "$out/jars/coursier/$rel"
+          done < <(find "$HOME/.cache/coursier" -type f -name '*.jar' -print0)
+
+          while IFS= read -r -d '' jar; do
+            rel="${jar#"$GITHUB_WORKSPACE/"}"
+            mkdir -p "$out/jars/workspace/$(dirname "$rel")"
+            cp "$jar" "$out/jars/workspace/$rel"
+          done < <(find "$GITHUB_WORKSPACE" -type f -name '*.jar' -print0)
 
           # Preserve package-owned paths for Icarus helper programs, Verilator
-          # includes/data, Yosys share files, ABC, binaries and their support
-          # files. The local consumer overlays rootfs onto an isolated runtime.
+          # includes/data, Yosys share files, ABC, binaries and support files.
           for package in iverilog verilator yosys yosys-abc; do
             dpkg-query -L "$package" | while IFS= read -r file; do
               if [ -f "$file" ]; then
@@ -127,7 +131,7 @@ jobs:
           done < "$out/evidence/FILES" > "$out/evidence/SHA256SUMS"
 
           test -s "$out/evidence/SHA256SUMS"
-          test -n "$(find "$out/jars" -type f -name '*.jar' -print -quit)"
+          test "$(find "$out/jars" -type f -name '*.jar' | wc -l)" -gt 100
           test -x "$out/rootfs/usr/bin/iverilog"
           test -x "$out/rootfs/usr/bin/vvp"
           test -x "$out/rootfs/usr/bin/verilator"
@@ -142,3 +146,4 @@ jobs:
           if-no-files-found: error
           retention-days: 1
           compression-level: 6
+          include-hidden-files: true
