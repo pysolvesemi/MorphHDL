@@ -1,0 +1,189 @@
+name: Increment 53 source repair
+
+on:
+  push:
+    branches:
+      - agent/increment-53-native-streamfifo-clean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53-source-repair-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    if: "${{ !contains(github.event.head_commit.message, '[inc53-source-repair]') }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out Increment 53 head
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-clean
+          fetch-depth: 0
+
+      - name: Apply reviewed generic source repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          workflow = Path(
+              ".github/workflows/increment-53-memory-policy-repair.yml"
+          )
+          lines = workflow.read_text().splitlines()
+          start = next(
+              index
+              for index, line in enumerate(lines)
+              if line.strip() == "python3 - <<'PY'"
+          )
+          end = next(
+              index
+              for index in range(start + 1, len(lines))
+              if lines[index].strip() == "PY"
+          )
+          body = lines[start + 1:end]
+          indent = min(
+              len(line) - len(line.lstrip())
+              for line in body
+              if line.strip()
+          )
+          script = "\n".join(
+              line[indent:] if line.strip() else ""
+              for line in body
+          ) + "\n"
+
+          # The focused diagnostic proved walkStatements on both Scala lines.
+          script = script.replace(
+              "component.dslBody.walkLeafStatements",
+              "component.dslBody.walkStatements",
+          )
+
+          # Replace only the obsolete whitespace-sensitive hierarchy anchor.
+          start_marker = "output_anchor = '''"
+          end_marker = "hierarchy_path.write_text(hierarchy)"
+          patch_start = script.find(start_marker)
+          patch_end = script.find(end_marker, patch_start)
+          if patch_start < 0 or patch_end < 0:
+              raise SystemExit("Increment 53 hierarchy repair anchors changed")
+
+          robust_hierarchy = '''output_message = (
+              "uses a sliced, indexed, converted or expression-wrapped "
+              "child-output connection; direct full packed connections are required"
+          )
+          if "directConcreteOutputAdapter(assignment.source, port)" not in hierarchy:
+              hierarchy_lines = hierarchy.splitlines(keepends=True)
+              message_indexes = [
+                  index
+                  for index, line in enumerate(hierarchy_lines)
+                  if output_message in line
+              ]
+              if len(message_indexes) != 1:
+                  raise SystemExit(
+                      f"expected one child-output diagnostic, found {len(message_indexes)}"
+                  )
+              message_index = message_indexes[0]
+              else_candidates = [
+                  index
+                  for index in range(message_index)
+                  if hierarchy_lines[index].strip() == "} else {"
+              ]
+              if not else_candidates:
+                  raise SystemExit("child-output fallback branch not found")
+              else_index = else_candidates[-1]
+              branch_indent = hierarchy_lines[else_index][
+                  : len(hierarchy_lines[else_index])
+                  - len(hierarchy_lines[else_index].lstrip())
+              ]
+              replacement = [
+                  branch_indent + "} else if (\n",
+                  branch_indent + "  allowConcreteInternal &&\n",
+                  branch_indent + "  assignment.target == assignment.finalTarget &&\n",
+                  branch_indent + "  assignment.finalTarget.component == parent &&\n",
+                  branch_indent + "  directConcreteOutputAdapter(assignment.source, port)\n",
+                  branch_indent + ") {\n",
+                  branch_indent + "  Vector(LiteralBinding(port.getBitsWidth))\n",
+                  branch_indent + "} else {\n",
+              ]
+              hierarchy_lines[else_index:else_index + 1] = replacement
+              hierarchy = "".join(hierarchy_lines)
+
+          '''
+          script = script[:patch_start] + robust_hierarchy + script[patch_end:]
+          Path("/tmp/inc53-source-repair.py").write_text(script)
+          PY
+          python3 /tmp/inc53-source-repair.py
+          git diff --check
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Prove Increment 53 on Scala 2.13.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.NativeSymbolicMemoryTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.ParameterizedStreamFifoDepthTests
+
+      - name: Prove Increment 53 on Scala 2.12.18
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.NativeSymbolicMemoryTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.ParameterizedStreamFifoDepthTests
+
+      - name: Publish proved source repair and close the roadmap item
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          text = path.read_text()
+          text, count = re.subn(
+              r"(?m)^- \[ \] (\*\*Increment 53\b.*)$",
+              r"- [x] \1",
+              text,
+              count=1,
+          )
+          if count != 1 and not re.search(
+              r"(?m)^- \[x\] \*\*Increment 53\b",
+              text,
+          ):
+              raise SystemExit("Increment 53 roadmap checkbox anchor changed")
+          path.write_text(text)
+          PY
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name pysolvesemi
+          git config user.email pysolvesemi@gmail.com
+          git add \
+            morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala \
+            morphhdl/src/test/scala/morphhdl/NativeSymbolicMemoryTests.scala \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala \
+            docs/morphhdl/parameterized-verilog-todo.md
+          git diff --cached --check
+          git commit -m "fix(morphhdl): complete native StreamFifo lowering [inc53-source-repair] [inc53-final-repair] [inc53-final-fix]"
+          git push origin HEAD:"$GITHUB_REF_NAME"
