@@ -5,8 +5,6 @@ on:
   push:
     branches:
       - agent/rtl-p1-02-offline-toolchain
-    paths:
-      - .github/workflows/rtl-p1-02-offline-cad-tools.yml
   workflow_dispatch:
 
 permissions:
