@@ -1,0 +1,123 @@
+name: RTL-P1-02 offline open-source CAD tools
+
+on:
+  push:
+    branches:
+      - agent/rtl-p1-02-offline-toolchain
+    paths:
+      - .github/workflows/rtl-p1-02-offline-cad-tools.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rtl-p1-02-offline-cad-tools
+  cancel-in-progress: false
+
+jobs:
+  bundle-cad-tools:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Install exact open-source validation tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            iverilog verilator yosys z3 jq python3 perl make g++
+          iverilog -V 2>&1 | head -n 2
+          verilator --version
+          yosys -V
+          z3 --version
+
+      - name: Assemble relocatable rootfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="$GITHUB_WORKSPACE/rtl-p1-02-offline-cad-tools"
+          rootfs="$bundle/rootfs"
+          rm -rf "$bundle"
+          mkdir -p "$rootfs" "$bundle/meta"
+
+          copy_path() {
+            local path="$1"
+            if [[ -f "$path" || -L "$path" ]]; then
+              cp -a --parents "$path" "$rootfs"
+            elif [[ -d "$path" ]]; then
+              cp -a --parents "$path" "$rootfs"
+            fi
+          }
+
+          for package in iverilog verilator yosys z3 berkeley-abc; do
+            if dpkg-query -W "$package" >/dev/null 2>&1; then
+              dpkg-query -L "$package" | while IFS= read -r path; do
+                copy_path "$path"
+              done
+            fi
+          done
+
+          for binary in \
+            /usr/bin/iverilog /usr/bin/vvp /usr/lib/x86_64-linux-gnu/ivl/ivl \
+            /usr/bin/verilator /usr/bin/verilator_bin /usr/bin/yosys \
+            /usr/bin/yosys-smtbmc /usr/bin/berkeley-abc /usr/bin/z3; do
+            [[ -e "$binary" ]] || continue
+            copy_path "$binary"
+            if file "$binary" | grep -q 'ELF'; then
+              ldd "$binary" | awk '/=> \/|^\// {for (i=1;i<=NF;i++) if ($i ~ /^\//) print $i}' \
+                | sort -u | while IFS= read -r library; do
+                    copy_path "$library"
+                    real="$(readlink -f "$library" || true)"
+                    [[ -n "$real" ]] && copy_path "$real"
+                  done
+            fi
+          done
+
+          # Scripts use the host Perl/Python; retain modules and tool data shipped
+          # by the packages, while the local Debian runtime supplies standard
+          # interpreters and libc.
+          test -x "$rootfs/usr/bin/iverilog"
+          test -x "$rootfs/usr/bin/vvp"
+          test -x "$rootfs/usr/bin/verilator"
+          test -x "$rootfs/usr/bin/verilator_bin"
+          test -x "$rootfs/usr/bin/yosys"
+          test -x "$rootfs/usr/bin/z3"
+          test -d "$rootfs/usr/share/verilator"
+          test -d "$rootfs/usr/share/yosys"
+
+          printf '%s\n' 'ubuntu-24.04 apt packages' > "$bundle/meta/origin.txt"
+          iverilog -V > "$bundle/meta/iverilog-version.txt" 2>&1
+          verilator --version > "$bundle/meta/verilator-version.txt"
+          yosys -V > "$bundle/meta/yosys-version.txt"
+          z3 --version > "$bundle/meta/z3-version.txt"
+          dpkg-query -W -f='${Package}=${Version}\n' iverilog verilator yosys z3 berkeley-abc \
+            > "$bundle/meta/package-versions.txt"
+          (cd "$bundle" && find rootfs -type f -print0 | sort -z | xargs -0 sha256sum > meta/file-sha256.txt)
+          du -sh "$bundle" | tee "$bundle/meta/size.txt"
+
+          cat > "$bundle/activate.sh" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          bundle_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          rootfs="$bundle_root/rootfs"
+          export PATH="$rootfs/usr/bin:$rootfs/usr/lib/x86_64-linux-gnu/ivl:$PATH"
+          export VERILATOR_ROOT="$rootfs/usr/share/verilator"
+          export YOSYS_DATDIR="$rootfs/usr/share/yosys"
+          library_dirs=$(find "$rootfs" -type f -name '*.so*' -printf '%h\n' | sort -u | paste -sd: -)
+          export LD_LIBRARY_PATH="${library_dirs}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          EOF
+          chmod +x "$bundle/activate.sh"
+
+      - name: Upload relocatable CAD tool bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: rtl-p1-02-open-source-cad-tools
+          path: rtl-p1-02-offline-cad-tools
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 6
