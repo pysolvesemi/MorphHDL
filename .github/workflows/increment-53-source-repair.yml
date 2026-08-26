@@ -60,6 +60,18 @@ jobs:
               for line in body
           ) + "\n"
 
+          def replace_definitions(text, start_marker, end_marker, definitions):
+              section_start = text.find(start_marker)
+              section_end = text.find(end_marker, section_start)
+              if section_start < 0 or section_end < 0:
+                  raise SystemExit(
+                      f"Increment 53 repair section changed: {start_marker}"
+                  )
+              replacement = "".join(
+                  f"{name} = {value!r}\n" for name, value in definitions
+              ) + "\n"
+              return text[:section_start] + replacement + text[section_end:]
+
           # The focused diagnostic proved walkStatements on both Scala lines.
           script = script.replace(
               "component.dslBody.walkLeafStatements",
@@ -118,6 +130,60 @@ jobs:
 
           '''
           script = script[:patch_start] + robust_hierarchy + script[patch_end:]
+
+          constructor_anchor = "\n".join((
+              "      sharedAddress = readAddress == writeAddress,",
+              "      readAddressWidth,",
+          )) + "\n"
+          constructor_replacement = "\n".join((
+              "      sharedAddress = readAddress == writeAddress,",
+              "      independentDontCare = independentDontCare,",
+              "      readAddressWidth,",
+          )) + "\n"
+          script = replace_definitions(
+              script,
+              "constructor_anchor = '''",
+              'if "independentDontCare = independentDontCare" not in memory:',
+              (
+                  ("constructor_anchor", constructor_anchor),
+                  ("constructor_replacement", constructor_replacement),
+              ),
+          )
+
+          blocks_anchor = "\n".join((
+              "    if (memoryBlocks.size != 1) {",
+              "      fail(",
+              '        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-PROCESS-NOT-FOUND",',
+              '        s"normal Verilog emission contains ${memoryBlocks.size} clocked processes for memory \'${plan.memoryName}\'; expected exactly one",',
+              "        plan.sourceLocation",
+              "      )",
+              "    }",
+          )) + "\n"
+          blocks_replacement = "\n".join((
+              "    val acceptedMemoryBlocks =",
+              "      memoryBlocks.size == 1 ||",
+              "        independentDontCareProcessesAreComplete(lines, memoryBlocks, plan)",
+              "    if (!acceptedMemoryBlocks) {",
+              "      val expected =",
+              '        if (plan.independentDontCare) "one combined process or one proven read process plus one proven write process"',
+              '        else "exactly one process"',
+              "      fail(",
+              '        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-PROCESS-NOT-FOUND",',
+              '        s"normal Verilog emission contains ${memoryBlocks.size} clocked processes for memory \'${plan.memoryName}\'; expected $expected",',
+              "        plan.sourceLocation",
+              "      )",
+              "    }",
+          )) + "\n"
+          script = replace_definitions(
+              script,
+              "blocks_anchor = '''",
+              'if "val acceptedMemoryBlocks" not in memory:',
+              (
+                  ("blocks_anchor", blocks_anchor),
+                  ("blocks_replacement", blocks_replacement),
+              ),
+          )
+
           Path("/tmp/inc53-source-repair.py").write_text(script)
           PY
           python3 /tmp/inc53-source-repair.py
