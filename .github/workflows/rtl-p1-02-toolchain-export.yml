@@ -47,7 +47,9 @@ jobs:
           set -euo pipefail
           export COURSIER_CACHE="$HOME/.cache/coursier"
           sbt -batch \
+            "project idslpayload" compile packageBin \
             "project idslplugin" compile packageBin \
+            "project sim" compile packageBin \
             "project core" compile packageBin \
             "project lib" compile packageBin \
             "project morph" compile packageBin \
@@ -132,6 +134,8 @@ jobs:
 
           test -s "$out/evidence/SHA256SUMS"
           test "$(find "$out/jars" -type f -name '*.jar' | wc -l)" -gt 100
+          test -n "$(find "$out/jars/workspace" -name 'spinalhdl-idsl-payload_2.12-*.jar' -print -quit)"
+          test -n "$(find "$out/jars/workspace" -name 'spinalhdl-sim_2.12-*.jar' -print -quit)"
           test -x "$out/rootfs/usr/bin/iverilog"
           test -x "$out/rootfs/usr/bin/vvp"
           test -x "$out/rootfs/usr/bin/verilator"
