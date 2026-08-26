@@ -1,4 +1,4 @@
-name: Increment 53 integrate reviewed repair
+name: Increment 53 source finalization
 
 on:
   push:
@@ -9,12 +9,12 @@ permissions:
   contents: write
 
 concurrency:
-  group: increment-53-integrate-reviewed-repair-${{ github.ref }}
+  group: increment-53-source-finalization-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  integrate:
-    if: "${{ !contains(github.event.head_commit.message, '[inc53-integrated-repair]') }}"
+  finalize:
+    if: "${{ !contains(github.event.head_commit.message, '[inc53-source-finalized]') }}"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -23,68 +23,94 @@ jobs:
           ref: agent/increment-53-native-streamfifo-clean
           fetch-depth: 0
 
-      - name: Integrate reviewed generic repair into checked-in source
+      - name: Apply reviewed source repairs
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
-          def replace_once(text, old, new, label):
-              if new in text:
+          def replace_exact(text, old, new, label):
+              count = text.count(old)
+              if count == 0 and new in text:
                   return text
-              if old not in text:
-                  raise SystemExit(f"{label} anchor changed")
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one exact anchor, found {count}")
               return text.replace(old, new, 1)
 
-          def replace_braced_block(text, start_marker, replacement, required, label):
-              lines = text.splitlines(keepends=True)
-              matches = [
-                  index for index, line in enumerate(lines)
-                  if line.strip() == start_marker
-              ]
-              if not matches:
+          def insert_before(text, anchor, payload, marker, label):
+              if marker in text:
                   return text
-              if len(matches) != 1:
-                  raise SystemExit(
-                      f"{label}: expected one start marker, found {len(matches)}"
-                  )
-              start = matches[0]
-              depth = 0
-              end = None
-              for index in range(start, len(lines)):
-                  depth += lines[index].count("{") - lines[index].count("}")
-                  if depth == 0:
-                      end = index
-                      break
-              if end is None:
-                  raise SystemExit(f"{label}: unterminated block")
-              block = "".join(lines[start:end + 1])
-              missing = [marker for marker in required if marker not in block]
-              if missing:
-                  raise SystemExit(
-                      f"{label}: refusing unreviewed replacement; missing " +
-                      ", ".join(missing)
-                  )
-              lines[start:end + 1] = [replacement]
-              return "".join(lines)
+              count = text.count(anchor)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one insertion anchor, found {count}")
+              return text.replace(anchor, payload + anchor, 1)
 
-          # Authorize only assignments whose complete captured ownership is
-          # pairwise mutually exclusive. Any outside assignment keeps Spinal's
-          # inherited overlap diagnostic.
+          runtime_path = Path(
+              "morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala"
+          )
+          runtime = runtime_path.read_text()
+          runtime = replace_exact(
+              runtime,
+              '''  ): UInt = {
+              if (!boundaryActive)
+                throw new IllegalStateException(
+                  "compilerUIntValueLike requires an active native formalization boundary"
+                )
+              val expression = ExternalNativeIntShadowRegistry
+          ''',
+              '''  ): UInt = {
+              val carrierWidth = prototype.getBitsWidth
+              if (!boundaryActive) return U(BigInt(value), carrierWidth bits)
+              val expression = ExternalNativeIntShadowRegistry
+          ''',
+              "compilerUIntValueLike concrete fallback",
+          )
+          runtime = replace_exact(
+              runtime,
+              '''    val shapeSource = parameterizedUIntShapeSource(prototype)
+              val carrierWidth = prototype.getBitsWidth
+              val result = UInt(carrierWidth bits)
+          ''',
+              '''    val shapeSource = parameterizedUIntShapeSource(prototype)
+              val result = UInt(carrierWidth bits)
+          ''',
+              "compilerUIntValueLike carrier width",
+          )
+          concrete_guard = "if (!ParameterizedStructure.captureEnabled) {"
+          guarded = "if (!boundaryActive || !ParameterizedStructure.captureEnabled) {"
+          if guarded not in runtime:
+              count = runtime.count(concrete_guard)
+              if count != 4:
+                  raise SystemExit(
+                      "symbolic conditional concrete guards: expected four anchors, "
+                      f"found {count}"
+                  )
+              runtime = runtime.replace(concrete_guard, guarded)
+          elif runtime.count(guarded) != 4:
+              raise SystemExit(
+                  "symbolic conditional concrete guards are only partially applied"
+              )
+          runtime = replace_exact(
+              runtime,
+              "    if (ParameterizedStructure.captureEnabled)\n      fail(code, detail, sourceFile, sourceLine)\n",
+              "    if (boundaryActive && ParameterizedStructure.captureEnabled)\n      fail(code, detail, sourceFile, sourceLine)\n",
+              "guardAlternative concrete fallback",
+          )
+          runtime_path.write_text(runtime)
+
           structure_path = Path(
               "morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala"
           )
           structure = structure_path.read_text()
-          if "var assignmentValidationScheduled = false" not in structure:
-              structure = replace_once(
-                  structure,
-                  "    var nextCaptureId = 0L\n",
-                  "    var nextCaptureId = 0L\n"
-                  "    var assignmentValidationScheduled = false\n",
-                  "ParameterizedStructure storage",
-              )
-
+          structure = replace_exact(
+              structure,
+              "    var nextCaptureId = 0L\n",
+              "    var nextCaptureId = 0L\n"
+              "    var assignmentValidationScheduled = false\n",
+              "ParameterizedStructure storage flag",
+          )
           path_types = '''  private final case class AlternativeStep(
               region: StructuralRegion,
               branch: Int
@@ -96,16 +122,14 @@ jobs:
           )
 
           '''
-          if "private final case class CapturedAssignment(" not in structure:
-              structure = replace_once(
-                  structure,
-                  "  private val activeCapture = new ThreadLocal[CaptureState]()\n",
-                  path_types +
-                  "  private val activeCapture = new ThreadLocal[CaptureState]()\n",
-                  "ParameterizedStructure capture path types",
-              )
-
-          helpers = '''  private def scheduleAssignmentValidation(component: Component): Unit = {
+          structure = insert_before(
+              structure,
+              "  private val activeCapture = new ThreadLocal[CaptureState]()\n",
+              path_types,
+              "private final case class CapturedAssignment(",
+              "ParameterizedStructure path types",
+          )
+          assignment_helpers = '''  private def scheduleAssignmentValidation(component: Component): Unit = {
               val storage = storageOf(component)
               if (!storage.assignmentValidationScheduled) {
                 storage.assignmentValidationScheduled = true
@@ -233,43 +257,37 @@ jobs:
               }
 
           '''
-          if "private def scheduleAssignmentValidation(" not in structure:
-              structure = replace_once(
-                  structure,
-                  "  def registerFor(\n",
-                  helpers + "  def registerFor(\n",
-                  "ParameterizedStructure validation helpers",
-              )
+          structure = insert_before(
+              structure,
+              "  def registerFor(\n",
+              assignment_helpers,
+              "private def scheduleAssignmentValidation(",
+              "ParameterizedStructure assignment validation",
+          )
           structure = structure.replace(
               "component.dslBody.walkLeafStatements",
               "component.dslBody.walkStatements",
           )
-
-          register_marker = "  private def registerRegion(\n"
-          register_start = structure.find(register_marker)
-          if register_start < 0:
-              raise SystemExit("ParameterizedStructure registerRegion declaration missing")
-          body_marker = "  ): Unit = {\n"
-          body_start = structure.find(body_marker, register_start)
-          if body_start < 0:
-              raise SystemExit("ParameterizedStructure registerRegion body missing")
-          body_start += len(body_marker)
-          next_segment = structure[body_start:body_start + 160]
-          if "scheduleAssignmentValidation(component)" not in next_segment:
-              structure = (
-                  structure[:body_start] +
-                  "    scheduleAssignmentValidation(component)\n" +
-                  structure[body_start:]
-              )
+          structure = replace_exact(
+              structure,
+              '''  ): Unit = {
+              val capture = activeCapture.get()
+              val actualCaptureId = Option(capture).map(_.id)
+          ''',
+              '''  ): Unit = {
+              scheduleAssignmentValidation(component)
+              val capture = activeCapture.get()
+              val actualCaptureId = Option(capture).map(_.id)
+          ''',
+              "ParameterizedStructure registerRegion scheduling",
+          )
           structure_path.write_text(structure)
 
-          # Admit only a direct native Resize wrapper on a complete concrete
-          # child-output connection.
           hierarchy_path = Path(
               "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala"
           )
           hierarchy = hierarchy_path.read_text()
-          resize_helper = '''  private def directConcreteOutputAdapter(
+          hierarchy_helper = '''  private def directConcreteOutputAdapter(
               expression: Expression,
               port: BaseType
           ): Boolean = expression match {
@@ -279,15 +297,21 @@ jobs:
           }
 
           '''
-          if "private def directConcreteOutputAdapter(" not in hierarchy:
-              hierarchy = replace_once(
-                  hierarchy,
-                  "  private def connectionEvidence(\n",
-                  resize_helper + "  private def connectionEvidence(\n",
-                  "hierarchy connectionEvidence",
-              )
-
-          direct_adapter_branch = '''        } else if (
+          hierarchy = insert_before(
+              hierarchy,
+              "  private def connectionEvidence(\n",
+              hierarchy_helper,
+              "private def directConcreteOutputAdapter(",
+              "hierarchy concrete output helper",
+          )
+          hierarchy = replace_exact(
+              hierarchy,
+              '''        } else if (
+              allowConcreteInternal && assignment.source == port &&
+              assignment.finalTarget.component == parent
+            ) {
+          ''',
+              '''        } else if (
               allowConcreteInternal &&
               assignment.target == assignment.finalTarget &&
               assignment.finalTarget.component == parent &&
@@ -298,98 +322,90 @@ jobs:
               allowConcreteInternal && assignment.source == port &&
               assignment.finalTarget.component == parent
             ) {
-          '''
-          if "directConcreteOutputAdapter(assignment.source, port)" not in hierarchy:
-              existing_concrete_branch = '''        } else if (
-              allowConcreteInternal && assignment.source == port &&
-              assignment.finalTarget.component == parent
-            ) {
-          '''
-              hierarchy = replace_once(
-                  hierarchy,
-                  existing_concrete_branch,
-                  direct_adapter_branch,
-                  "hierarchy concrete-output branch",
-              )
+          ''',
+              "hierarchy direct concrete output adapter",
+          )
           hierarchy_path.write_text(hierarchy)
 
-          # Preserve explicit readFirst and admit dontCare only for independent
-          # read/write address roles whose two native processes are proved.
           memory_path = Path(
               "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala"
           )
           memory = memory_path.read_text()
-          memory = memory.replace(
+          memory = replace_exact(
+              memory,
               "  * memory process with the existing guarded read-first contract.\n",
               "  * memory process with the existing guarded contract. Explicit readFirst is\n"
               "  * preserved. An independent-address simple-dual-port dontCare read is lowered\n"
               "  * deterministically as read-first, which is one legal dontCare outcome.\n",
-              1,
+              "memory policy documentation",
           )
-          if "independentDontCare: Boolean" not in memory:
-              memory = replace_once(
-                  memory,
-                  "      sharedAddress: Boolean,\n"
-                  "      readAddressWidth: ElaborationIntegerExpression,\n",
-                  "      sharedAddress: Boolean,\n"
-                  "      independentDontCare: Boolean,\n"
-                  "      readAddressWidth: ElaborationIntegerExpression,\n",
-                  "ParameterizedVerilogMemories MemoryPlan",
-              )
-
-          memory = replace_braced_block(
+          memory = replace_exact(
               memory,
-              "if (read.readUnderWrite ne readFirst) {",
-              "",
-              (
-                  "SPINAL-PARAMETERIZED-VERILOG-MEMORY-COLLISION-POLICY-UNSUPPORTED",
-                  "must select readUnderWrite = readFirst",
-              ),
-              "obsolete unconditional collision policy",
+              "      sharedAddress: Boolean,\n"
+              "      readAddressWidth: ElaborationIntegerExpression,\n",
+              "      sharedAddress: Boolean,\n"
+              "      independentDontCare: Boolean,\n"
+              "      readAddressWidth: ElaborationIntegerExpression,\n",
+              "MemoryPlan independent dontCare field",
           )
-
-          policy = '''    val independentDontCare =
-              (read.readUnderWrite eq dontCare) && readAddress != writeAddress
-            if ((read.readUnderWrite ne readFirst) && !independentDontCare) {
+          policy_anchor = '''    val readAddress = stableName(read.address, "read address", source)
+              val writeAddress = stableName(write.address, "write address", source)
+          '''
+          policy = '''    val readAddress = stableName(read.address, "read address", source)
+              val writeAddress = stableName(write.address, "write address", source)
+              val independentDontCare =
+                (read.readUnderWrite eq dontCare) && readAddress != writeAddress
+              if ((read.readUnderWrite ne readFirst) && !independentDontCare) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-MEMORY-COLLISION-POLICY-UNSUPPORTED",
+                  s"memory '${memory.getName()}' must select readUnderWrite = readFirst; only independent-address simple-dual-port dontCare reads are admitted",
+                  source
+                )
+              }
+          '''
+          memory = replace_exact(
+              memory,
+              policy_anchor,
+              policy,
+              "memory collision policy",
+          )
+          constructor_pattern = re.compile(
+              r"(?m)^(\s*)sharedAddress = readAddress == writeAddress,\n"
+              r"(\s*)readAddressWidth,"
+          )
+          if "independentDontCare = independentDontCare" not in memory:
+              memory, count = constructor_pattern.subn(
+                  lambda match: (
+                      match.group(1) +
+                      "sharedAddress = readAddress == writeAddress,\n" +
+                      match.group(1) +
+                      "independentDontCare = independentDontCare,\n" +
+                      match.group(2) +
+                      "readAddressWidth,"
+                  ),
+                  memory,
+                  count=1,
+              )
+              if count != 1:
+                  raise SystemExit(
+                      "MemoryPlan constructor: expected one semantic anchor, "
+                      f"found {count}"
+                  )
+          process_block = '''    if (memoryBlocks.size != 1) {
               fail(
-                "SPINAL-PARAMETERIZED-VERILOG-MEMORY-COLLISION-POLICY-UNSUPPORTED",
-                s"memory '${memory.getName()}' must select readUnderWrite = readFirst; only independent-address simple-dual-port dontCare reads are admitted",
-                source
+                "SPINAL-PARAMETERIZED-VERILOG-MEMORY-PROCESS-NOT-FOUND",
+                s"normal Verilog emission contains ${memoryBlocks.size} clocked processes for memory '${plan.memoryName}'; expected exactly one",
+                plan.sourceLocation
               )
             }
           '''
-          if "val independentDontCare" not in memory:
-              names_anchor = '''    val readAddress = stableName(read.address, "read address", source)
-              val writeAddress = stableName(write.address, "write address", source)
-          '''
-              memory = replace_once(
-                  memory,
-                  names_anchor,
-                  names_anchor + policy,
-                  "ParameterizedVerilogMemories stable-name policy",
-              )
-
-          if "independentDontCare = independentDontCare" not in memory:
-              constructor_anchor = '''      sharedAddress = readAddress == writeAddress,
-              readAddressWidth,
-          '''
-              constructor_replacement = '''      sharedAddress = readAddress == writeAddress,
-              independentDontCare = independentDontCare,
-              readAddressWidth,
-          '''
-              memory = replace_once(
-                  memory,
-                  constructor_anchor,
-                  constructor_replacement,
-                  "ParameterizedVerilogMemories constructor",
-              )
-
           accepted_blocks = '''    val acceptedMemoryBlocks =
               memoryBlocks.size == 1 ||
                 independentDontCareProcessesAreComplete(lines, memoryBlocks, plan)
             if (!acceptedMemoryBlocks) {
               val expected =
-                if (plan.independentDontCare) "one combined process or one proven read process plus one proven write process"
+                if (plan.independentDontCare)
+                  "one combined process or one proven read process plus one proven write process"
                 else "exactly one process"
               fail(
                 "SPINAL-PARAMETERIZED-VERILOG-MEMORY-PROCESS-NOT-FOUND",
@@ -398,19 +414,13 @@ jobs:
               )
             }
           '''
-          if "val acceptedMemoryBlocks" not in memory:
-              memory = replace_braced_block(
-                  memory,
-                  "if (memoryBlocks.size != 1) {",
-                  accepted_blocks,
-                  (
-                      "SPINAL-PARAMETERIZED-VERILOG-MEMORY-PROCESS-NOT-FOUND",
-                      "expected exactly one",
-                  ),
-                  "ParameterizedVerilogMemories process count",
-              )
-
-          block_validator = r'''  private def independentDontCareProcessesAreComplete(
+          memory = replace_exact(
+              memory,
+              process_block,
+              accepted_blocks,
+              "memory process count proof",
+          )
+          process_validator = r'''  private def independentDontCareProcessesAreComplete(
               lines: Vector[String],
               blocks: Vector[LineRange],
               plan: MemoryPlan
@@ -418,7 +428,7 @@ jobs:
             if (!plan.independentDontCare || blocks.size != 2) return false
             val expectedHeader = s"always @(posedge ${plan.clock})"
             val texts = blocks.map { block =>
-              val header = lines(block.start).replaceAll("\s+", " ").trim
+              val header = lines(block.start).replaceAll("\\s+", " ").trim
               if (!header.startsWith(expectedHeader)) return false
               lines.slice(block.start, block.endInclusive + 1).mkString("\n")
             }
@@ -439,40 +449,42 @@ jobs:
           }
 
           '''
-          if "private def independentDontCareProcessesAreComplete(" not in memory:
-              memory = replace_once(
-                  memory,
-                  "  private def alwaysBlocks(lines: Vector[String]): Vector[LineRange] = {\n",
-                  block_validator +
-                  "  private def alwaysBlocks(lines: Vector[String]): Vector[LineRange] = {\n",
-                  "ParameterizedVerilogMemories always-block validator",
-              )
-
+          memory = insert_before(
+              memory,
+              "  private def alwaysBlocks(lines: Vector[String]): Vector[LineRange] = {\n",
+              process_validator,
+              "private def independentDontCareProcessesAreComplete(",
+              "independent dontCare process validator",
+          )
           indexed_access = r'''  private def containsIndexedAccess(
               value: String,
               name: String,
               index: String
           ): Boolean =
-              ("(?<![A-Za-z0-9_$])" + Pattern.quote(name) + "\s*\[\s*" +
-                Pattern.quote(index) + "\s*\]").r
+              ("(?<![A-Za-z0-9_$])" + Pattern.quote(name) + "\\s*\\[\\s*" +
+                Pattern.quote(index) + "\\s*\\]").r
                 .findFirstIn(value)
                 .nonEmpty
 
           '''
-          if "private def containsIndexedAccess(" not in memory:
-              memory = replace_once(
-                  memory,
-                  "  private def fail(\n",
-                  indexed_access + "  private def fail(\n",
-                  "ParameterizedVerilogMemories indexed access helper",
-              )
+          memory = insert_before(
+              memory,
+              "  private def fail(\n",
+              indexed_access,
+              "private def containsIndexedAccess(",
+              "indexed memory access proof",
+          )
           memory_path.write_text(memory)
 
           required = {
+              runtime_path: (
+                  "if (!boundaryActive) return U(BigInt(value), carrierWidth bits)",
+                  "if (!boundaryActive || !ParameterizedStructure.captureEnabled)",
+                  "if (boundaryActive && ParameterizedStructure.captureEnabled)",
+              ),
               structure_path: (
                   "assignmentValidationScheduled",
                   "private def authorizeMutuallyExclusiveAssignments(",
-                  "component.dslBody.walkStatements",
                   "scheduleAssignmentValidation(component)",
               ),
               hierarchy_path: (
@@ -483,7 +495,6 @@ jobs:
                   "independentDontCare: Boolean",
                   "val independentDontCare =",
                   "independentDontCare = independentDontCare",
-                  "val acceptedMemoryBlocks =",
                   "private def independentDontCareProcessesAreComplete(",
                   "private def containsIndexedAccess(",
               ),
@@ -493,24 +504,23 @@ jobs:
               missing = [marker for marker in markers if marker not in current]
               if missing:
                   raise SystemExit(
-                      f"{path} repair incomplete: " + ", ".join(missing)
+                      f"{path}: source repair incomplete: {', '.join(missing)}"
                   )
           PY
           git diff --check
 
-      - name: Publish integrated source repair
+      - name: Publish finalized Increment 53 source
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet; then
-            echo "Reviewed repair is already integrated."
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/increment-53-source-finalize.yml
           git add \
+            morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala \
             morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala \
             morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala \
             morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
-          git commit -m "fix: integrate reviewed native StreamFifo repair [inc53-integrated-repair]"
+          git diff --cached --check
+          git commit -m "fix: finalize Increment 53 source semantics [inc53-source-finalized]"
           git push origin HEAD:agent/increment-53-native-streamfifo-clean
