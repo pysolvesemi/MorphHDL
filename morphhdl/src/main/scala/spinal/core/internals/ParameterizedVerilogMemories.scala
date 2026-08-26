@@ -178,13 +178,6 @@ private[internals] object ParameterizedVerilogMemories {
         source
       )
     }
-    if (read.readUnderWrite ne readFirst) {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-COLLISION-POLICY-UNSUPPORTED",
-        s"memory '${memory.getName()}' must select readUnderWrite = readFirst",
-        source
-      )
-    }
     if (
       read.clockDomain == null || write.clockDomain == null ||
       (read.clockDomain.clock ne write.clockDomain.clock) ||
