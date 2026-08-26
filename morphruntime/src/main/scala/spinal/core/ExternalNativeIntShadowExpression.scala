@@ -92,6 +92,8 @@ private[core] object ExternalNativeIntRelativeExpression {
       extends ExternalNativeIntRelativeExpression
   final case class Log2Down(value: ExternalNativeIntRelativeExpression)
       extends ExternalNativeIntRelativeExpression
+  final case class BooleanToInt(value: ExternalNativeIntRelativePredicate)
+      extends ExternalNativeIntRelativeExpression
 
   final case class Facts(
       verilog: String,
@@ -160,6 +162,37 @@ private[core] object ExternalNativeIntRelativeExpression {
     case "addressWidth"          => AddressWidth(value)
     case "log2Down"              => Log2Down(value)
     case other => throw new IllegalArgumentException(s"unsupported native Int shadow unary operation '$other'")
+  }
+
+  def booleanToInt(
+      value: ExternalNativeIntRelativePredicate
+  ): ExternalNativeIntRelativeExpression = BooleanToInt(value)
+
+  /**
+    * A native helper such as `log2Up(depth)` has witness zero at depth one even
+    * when the declaration using it exists only in a `depth > 1` alternative.
+    * The concrete Spinal graph already proved that alternative. Retain a
+    * portable one-bit minimum for declaration geometry without changing the
+    * arithmetic expression used in comparisons or values.
+    */
+  def positiveWidth(
+      expression: ExternalNativeIntRelativeExpression
+  ): ExternalNativeIntRelativeExpression = expression match {
+    case Root | _: Literal => expression
+    case Add(left, right) => Add(positiveWidth(left), positiveWidth(right))
+    case Subtract(left, right) =>
+      Subtract(positiveWidth(left), positiveWidth(right))
+    case Multiply(left, right) =>
+      Multiply(positiveWidth(left), positiveWidth(right))
+    case Divide(left, right) => Divide(positiveWidth(left), positiveWidth(right))
+    case Modulo(left, right) => Modulo(positiveWidth(left), positiveWidth(right))
+    case Min(left, right) => Min(positiveWidth(left), positiveWidth(right))
+    case Max(left, right) => Max(positiveWidth(left), positiveWidth(right))
+    case Negate(value) => Negate(positiveWidth(value))
+    case CeilLog2(value) => AddressWidth(positiveWidth(value))
+    case AddressWidth(value) => AddressWidth(positiveWidth(value))
+    case Log2Down(value) => Log2Down(positiveWidth(value))
+    case BooleanToInt(value) => BooleanToInt(value)
   }
 
   def lower(
@@ -369,6 +402,21 @@ private[core] object ExternalNativeIntRelativeExpression {
             checked("log2Down", out)
           }
         }
+      case BooleanToInt(predicate) =>
+        ExternalNativeIntRelativePredicate
+          .lower(predicate, root, root.sourceLocation.getOrElse("<native-int-shadow>"))
+          .flatMap { value =>
+            checked(
+              "boolean-to-int",
+              Facts(
+                s"((${value.verilog}) ? 1 : 0)",
+                if (value.default) BigInt(1) else BigInt(0),
+                BigInt(0),
+                BigInt(1),
+                value.parameters
+              )
+            )
+          }
     }
 
     loop(expression)
@@ -392,6 +440,37 @@ private[core] object ExternalNativeIntRelativePredicate {
 
   final case class PowerOfTwo(value: ExternalNativeIntRelativeExpression)
       extends ExternalNativeIntRelativePredicate
+
+  final case class Constant(value: Boolean)
+      extends ExternalNativeIntRelativePredicate
+
+  final case class And(
+      left: ExternalNativeIntRelativePredicate,
+      right: ExternalNativeIntRelativePredicate
+  ) extends ExternalNativeIntRelativePredicate
+
+  final case class Or(
+      left: ExternalNativeIntRelativePredicate,
+      right: ExternalNativeIntRelativePredicate
+  ) extends ExternalNativeIntRelativePredicate
+
+  final case class Not(value: ExternalNativeIntRelativePredicate)
+      extends ExternalNativeIntRelativePredicate
+
+  def binary(
+      operation: String,
+      left: ExternalNativeIntRelativePredicate,
+      right: ExternalNativeIntRelativePredicate
+  ): ExternalNativeIntRelativePredicate = operation match {
+    case "&&" => And(left, right)
+    case "||" => Or(left, right)
+    case other => throw new IllegalArgumentException(
+      s"unsupported native Boolean shadow operation '$other'"
+    )
+  }
+
+  def not(value: ExternalNativeIntRelativePredicate): ExternalNativeIntRelativePredicate =
+    Not(value)
 
   def lower(
       predicate: ExternalNativeIntRelativePredicate,
@@ -439,10 +518,54 @@ private[core] object ExternalNativeIntRelativePredicate {
           sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
         )
       }
+    case Constant(value) =>
+      Right(
+        ElaborationBooleanExpression(
+          verilog = if (value) "1'b1" else "1'b0",
+          default = value,
+          parameters = Vector.empty,
+          sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
+        )
+      )
+    case And(left, right) =>
+      for {
+        l <- lower(left, root, sourceLocation)
+        r <- lower(right, root, sourceLocation)
+      } yield ElaborationBooleanExpression(
+        verilog = s"((${l.verilog}) && (${r.verilog}))",
+        default = l.default && r.default,
+        parameters = mergeParameters(l.parameters, r.parameters),
+        sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
+      )
+    case Or(left, right) =>
+      for {
+        l <- lower(left, root, sourceLocation)
+        r <- lower(right, root, sourceLocation)
+      } yield ElaborationBooleanExpression(
+        verilog = s"((${l.verilog}) || (${r.verilog}))",
+        default = l.default || r.default,
+        parameters = mergeParameters(l.parameters, r.parameters),
+        sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
+      )
+    case Not(value) =>
+      lower(value, root, sourceLocation).map { operand =>
+        ElaborationBooleanExpression(
+          verilog = s"(!(${operand.verilog}))",
+          default = !operand.default,
+          parameters = operand.parameters,
+          sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
+        )
+      }
   }
 
   private def mergeParameters(left: Facts, right: Facts): Vector[ElaborationIntegerParameter] =
-    (left.parameters ++ right.parameters)
+    mergeParameters(left.parameters, right.parameters)
+
+  private def mergeParameters(
+      left: Vector[ElaborationIntegerParameter],
+      right: Vector[ElaborationIntegerParameter]
+  ): Vector[ElaborationIntegerParameter] =
+    (left ++ right)
       .groupBy(_.name)
       .toVector
       .sortBy(_._1)

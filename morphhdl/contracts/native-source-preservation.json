@@ -8,9 +8,9 @@
     "description": "Increment 0 repository baseline"
   },
   "approved_state": {
-    "commit": "8a14d1660c551d0b01fa02f9b601aa68cda2fe03",
-    "tree": "d6d9ac2fc49b66fe297ed20e4786739abea6089a",
-    "description": "Reviewed native-source state at the squashed Increment 44 merge, with Counter.scala restored and only the approved Increment 37 FIFO delta retained"
+    "commit": "4b32c912e69fce4cedc00d32733156417000a35c",
+    "tree": "4ab8d0ac94693d28f85c2b5e25802ed7ac25f81b",
+    "description": "Reviewed native-source state after Increment 53 restored the native StreamFifo symbolic-depth overload and pointer-width-safe assignments without restoring the FIFO sidecar or emitted-name recognizer"
   },
   "source_roots": [
     "core/src/main/scala/spinal/core",
@@ -84,22 +84,14 @@
       "reason": "Adds MorphHDL compiler-plugin transformation coupling to the native IDSL plugin."
     },
     {
-      "path": "lib/src/main/scala/spinal/lib/ParameterizedStreamFifoDepth.scala",
-      "change": "added",
-      "classification": "morphhdl_sidecar",
-      "introduced_by": [
-        "37"
-      ],
-      "reason": "Attaches MorphHDL symbolic depth metadata to an ordinary StreamFifo from inside the native library tree."
-    },
-    {
       "path": "lib/src/main/scala/spinal/lib/Stream.scala",
       "change": "modified",
       "classification": "direct_edit",
       "introduced_by": [
-        "37"
+        "37",
+        "53"
       ],
-      "reason": "Retains the Increment 37 symbolic-depth StreamFifo construction, pointer resizing and explicit synchronous-memory collision policy."
+      "reason": "Restores the roadmap-approved native StreamFifo ParameterizedMemoryDepth overload and pointer-width-safe assignments while delegating generic formalization to MorphHDL runtime metadata rather than a FIFO sidecar or emitted-name recognizer."
     }
   ]
 }

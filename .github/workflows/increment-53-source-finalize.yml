@@ -1,0 +1,526 @@
+name: Increment 53 source finalization
+
+on:
+  push:
+    branches:
+      - agent/increment-53-native-streamfifo-clean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53-source-finalization-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    if: "${{ !contains(github.event.head_commit.message, '[inc53-source-finalized]') }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-clean
+          fetch-depth: 0
+
+      - name: Apply reviewed source repairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_exact(text, old, new, label):
+              count = text.count(old)
+              if count == 0 and new in text:
+                  return text
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one exact anchor, found {count}")
+              return text.replace(old, new, 1)
+
+          def insert_before(text, anchor, payload, marker, label):
+              if marker in text:
+                  return text
+              count = text.count(anchor)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one insertion anchor, found {count}")
+              return text.replace(anchor, payload + anchor, 1)
+
+          runtime_path = Path(
+              "morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala"
+          )
+          runtime = runtime_path.read_text()
+          runtime = replace_exact(
+              runtime,
+              '''  ): UInt = {
+              if (!boundaryActive)
+                throw new IllegalStateException(
+                  "compilerUIntValueLike requires an active native formalization boundary"
+                )
+              val expression = ExternalNativeIntShadowRegistry
+          ''',
+              '''  ): UInt = {
+              val carrierWidth = prototype.getBitsWidth
+              if (!boundaryActive) return U(BigInt(value), carrierWidth bits)
+              val expression = ExternalNativeIntShadowRegistry
+          ''',
+              "compilerUIntValueLike concrete fallback",
+          )
+          runtime = replace_exact(
+              runtime,
+              '''    val shapeSource = parameterizedUIntShapeSource(prototype)
+              val carrierWidth = prototype.getBitsWidth
+              val result = UInt(carrierWidth bits)
+          ''',
+              '''    val shapeSource = parameterizedUIntShapeSource(prototype)
+              val result = UInt(carrierWidth bits)
+          ''',
+              "compilerUIntValueLike carrier width",
+          )
+          concrete_guard = "if (!ParameterizedStructure.captureEnabled) {"
+          guarded = "if (!boundaryActive || !ParameterizedStructure.captureEnabled) {"
+          if guarded not in runtime:
+              count = runtime.count(concrete_guard)
+              if count != 4:
+                  raise SystemExit(
+                      "symbolic conditional concrete guards: expected four anchors, "
+                      f"found {count}"
+                  )
+              runtime = runtime.replace(concrete_guard, guarded)
+          elif runtime.count(guarded) != 4:
+              raise SystemExit(
+                  "symbolic conditional concrete guards are only partially applied"
+              )
+          runtime = replace_exact(
+              runtime,
+              "    if (ParameterizedStructure.captureEnabled)\n      fail(code, detail, sourceFile, sourceLine)\n",
+              "    if (boundaryActive && ParameterizedStructure.captureEnabled)\n      fail(code, detail, sourceFile, sourceLine)\n",
+              "guardAlternative concrete fallback",
+          )
+          runtime_path.write_text(runtime)
+
+          structure_path = Path(
+              "morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala"
+          )
+          structure = structure_path.read_text()
+          structure = replace_exact(
+              structure,
+              "    var nextCaptureId = 0L\n",
+              "    var nextCaptureId = 0L\n"
+              "    var assignmentValidationScheduled = false\n",
+              "ParameterizedStructure storage flag",
+          )
+          path_types = '''  private final case class AlternativeStep(
+              region: StructuralRegion,
+              branch: Int
+          )
+
+            private final case class CapturedAssignment(
+              statement: DataAssignmentStatement,
+              path: Vector[AlternativeStep]
+          )
+
+          '''
+          structure = insert_before(
+              structure,
+              "  private val activeCapture = new ThreadLocal[CaptureState]()\n",
+              path_types,
+              "private final case class CapturedAssignment(",
+              "ParameterizedStructure path types",
+          )
+          assignment_helpers = '''  private def scheduleAssignmentValidation(component: Component): Unit = {
+              val storage = storageOf(component)
+              if (!storage.assignmentValidationScheduled) {
+                storage.assignmentValidationScheduled = true
+                component.addPrePopTask(() =>
+                  authorizeMutuallyExclusiveAssignments(component)
+                )
+              }
+            }
+
+            private def authorizeMutuallyExclusiveAssignments(
+              component: Component
+          ): Unit = {
+              val regions = storageOption(component).toVector
+                .flatMap(_.regions)
+                .toVector
+              val captured = capturedAssignments(regions)
+              if (captured.size < 2) return
+
+              val byTarget = new IdentityHashMap[
+                BaseType,
+                ArrayBuffer[CapturedAssignment]
+              ]()
+              captured.foreach { value =>
+                val target = value.statement.finalTarget
+                var entries = byTarget.get(target)
+                if (entries eq null) {
+                  entries = ArrayBuffer.empty[CapturedAssignment]
+                  byTarget.put(target, entries)
+                }
+                entries += value
+              }
+
+              val graphAssignments = ArrayBuffer.empty[DataAssignmentStatement]
+              component.dslBody.walkStatements {
+                case value: DataAssignmentStatement => graphAssignments += value
+                case _                              =>
+              }
+
+              val targets = byTarget.entrySet().iterator()
+              while (targets.hasNext) {
+                val entry = targets.next()
+                val target = entry.getKey
+                val entries = entry.getValue.toVector
+                if (entries.size > 1) {
+                  val capturedStatements =
+                    new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+                  entries.foreach(value =>
+                    capturedStatements.put(value.statement, java.lang.Boolean.TRUE)
+                  )
+                  val targetAssignments = graphAssignments
+                    .filter(value => value.finalTarget eq target)
+                    .toVector
+                  val completeCapture =
+                    targetAssignments.size == entries.size &&
+                    targetAssignments.forall(capturedStatements.containsKey) &&
+                    entries.forall(value =>
+                      targetAssignments.exists(_ eq value.statement)
+                    )
+                  val pairwiseExclusive = entries.indices.forall { left =>
+                    (left + 1 until entries.size).forall { right =>
+                      mutuallyExclusive(entries(left).path, entries(right).path)
+                    }
+                  }
+                  if (completeCapture && pairwiseExclusive) target.allowOverride()
+                }
+              }
+            }
+
+            private def capturedAssignments(
+              regions: Vector[StructuralRegion]
+          ): Vector[CapturedAssignment] = {
+              val values = ArrayBuffer.empty[CapturedAssignment]
+
+              def visitBlock(
+                  block: ParameterizedStructuralBlock,
+                  path: Vector[AlternativeStep]
+              ): Unit = {
+                block.assignments.foreach(value =>
+                  values += CapturedAssignment(value, path)
+                )
+                block.regions.foreach(value => visitRegion(value, path))
+              }
+
+              def visitRegion(
+                  region: StructuralRegion,
+                  path: Vector[AlternativeStep]
+              ): Unit = region match {
+                case value: StructuralFor =>
+                  visitBlock(value.body, path)
+                case value: StructuralIf =>
+                  visitBlock(
+                    value.whenTrue,
+                    path :+ AlternativeStep(value, branch = 0)
+                  )
+                  visitBlock(
+                    value.whenFalse,
+                    path :+ AlternativeStep(value, branch = 1)
+                  )
+                case value: StructuralCase =>
+                  value.choices.zipWithIndex.foreach { case (choice, index) =>
+                    visitBlock(
+                      choice.body,
+                      path :+ AlternativeStep(value, branch = index)
+                    )
+                  }
+                  visitBlock(
+                    value.defaultBody,
+                    path :+ AlternativeStep(value, branch = value.choices.size)
+                  )
+              }
+
+              regions.foreach(value => visitRegion(value, Vector.empty))
+              values.toVector
+            }
+
+            private def mutuallyExclusive(
+              left: Vector[AlternativeStep],
+              right: Vector[AlternativeStep]
+          ): Boolean =
+              left.exists { leftStep =>
+                right.exists { rightStep =>
+                  (leftStep.region eq rightStep.region) &&
+                  leftStep.branch != rightStep.branch
+                }
+              }
+
+          '''
+          structure = insert_before(
+              structure,
+              "  def registerFor(\n",
+              assignment_helpers,
+              "private def scheduleAssignmentValidation(",
+              "ParameterizedStructure assignment validation",
+          )
+          structure = structure.replace(
+              "component.dslBody.walkLeafStatements",
+              "component.dslBody.walkStatements",
+          )
+          structure = replace_exact(
+              structure,
+              '''  ): Unit = {
+              val capture = activeCapture.get()
+              val actualCaptureId = Option(capture).map(_.id)
+          ''',
+              '''  ): Unit = {
+              scheduleAssignmentValidation(component)
+              val capture = activeCapture.get()
+              val actualCaptureId = Option(capture).map(_.id)
+          ''',
+              "ParameterizedStructure registerRegion scheduling",
+          )
+          structure_path.write_text(structure)
+
+          hierarchy_path = Path(
+              "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala"
+          )
+          hierarchy = hierarchy_path.read_text()
+          hierarchy_helper = '''  private def directConcreteOutputAdapter(
+              expression: Expression,
+              port: BaseType
+          ): Boolean = expression match {
+            case value if value eq port => true
+            case value: Resize => directConcreteOutputAdapter(value.input, port)
+            case _ => false
+          }
+
+          '''
+          hierarchy = insert_before(
+              hierarchy,
+              "  private def connectionEvidence(\n",
+              hierarchy_helper,
+              "private def directConcreteOutputAdapter(",
+              "hierarchy concrete output helper",
+          )
+          hierarchy = replace_exact(
+              hierarchy,
+              '''        } else if (
+              allowConcreteInternal && assignment.source == port &&
+              assignment.finalTarget.component == parent
+            ) {
+          ''',
+              '''        } else if (
+              allowConcreteInternal &&
+              assignment.target == assignment.finalTarget &&
+              assignment.finalTarget.component == parent &&
+              directConcreteOutputAdapter(assignment.source, port)
+            ) {
+              Vector(LiteralBinding(port.getBitsWidth))
+            } else if (
+              allowConcreteInternal && assignment.source == port &&
+              assignment.finalTarget.component == parent
+            ) {
+          ''',
+              "hierarchy direct concrete output adapter",
+          )
+          hierarchy_path.write_text(hierarchy)
+
+          memory_path = Path(
+              "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala"
+          )
+          memory = memory_path.read_text()
+          memory = replace_exact(
+              memory,
+              "  * memory process with the existing guarded read-first contract.\n",
+              "  * memory process with the existing guarded contract. Explicit readFirst is\n"
+              "  * preserved. An independent-address simple-dual-port dontCare read is lowered\n"
+              "  * deterministically as read-first, which is one legal dontCare outcome.\n",
+              "memory policy documentation",
+          )
+          memory = replace_exact(
+              memory,
+              "      sharedAddress: Boolean,\n"
+              "      readAddressWidth: ElaborationIntegerExpression,\n",
+              "      sharedAddress: Boolean,\n"
+              "      independentDontCare: Boolean,\n"
+              "      readAddressWidth: ElaborationIntegerExpression,\n",
+              "MemoryPlan independent dontCare field",
+          )
+          policy_anchor = '''    val readAddress = stableName(read.address, "read address", source)
+              val writeAddress = stableName(write.address, "write address", source)
+          '''
+          policy = '''    val readAddress = stableName(read.address, "read address", source)
+              val writeAddress = stableName(write.address, "write address", source)
+              val independentDontCare =
+                (read.readUnderWrite eq dontCare) && readAddress != writeAddress
+              if ((read.readUnderWrite ne readFirst) && !independentDontCare) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-MEMORY-COLLISION-POLICY-UNSUPPORTED",
+                  s"memory '${memory.getName()}' must select readUnderWrite = readFirst; only independent-address simple-dual-port dontCare reads are admitted",
+                  source
+                )
+              }
+          '''
+          memory = replace_exact(
+              memory,
+              policy_anchor,
+              policy,
+              "memory collision policy",
+          )
+          constructor_pattern = re.compile(
+              r"(?m)^(\s*)sharedAddress = readAddress == writeAddress,\n"
+              r"(\s*)readAddressWidth,"
+          )
+          if "independentDontCare = independentDontCare" not in memory:
+              memory, count = constructor_pattern.subn(
+                  lambda match: (
+                      match.group(1) +
+                      "sharedAddress = readAddress == writeAddress,\n" +
+                      match.group(1) +
+                      "independentDontCare = independentDontCare,\n" +
+                      match.group(2) +
+                      "readAddressWidth,"
+                  ),
+                  memory,
+                  count=1,
+              )
+              if count != 1:
+                  raise SystemExit(
+                      "MemoryPlan constructor: expected one semantic anchor, "
+                      f"found {count}"
+                  )
+          process_block = '''    if (memoryBlocks.size != 1) {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-MEMORY-PROCESS-NOT-FOUND",
+                s"normal Verilog emission contains ${memoryBlocks.size} clocked processes for memory '${plan.memoryName}'; expected exactly one",
+                plan.sourceLocation
+              )
+            }
+          '''
+          accepted_blocks = '''    val acceptedMemoryBlocks =
+              memoryBlocks.size == 1 ||
+                independentDontCareProcessesAreComplete(lines, memoryBlocks, plan)
+            if (!acceptedMemoryBlocks) {
+              val expected =
+                if (plan.independentDontCare)
+                  "one combined process or one proven read process plus one proven write process"
+                else "exactly one process"
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-MEMORY-PROCESS-NOT-FOUND",
+                s"normal Verilog emission contains ${memoryBlocks.size} clocked processes for memory '${plan.memoryName}'; expected $expected",
+                plan.sourceLocation
+              )
+            }
+          '''
+          memory = replace_exact(
+              memory,
+              process_block,
+              accepted_blocks,
+              "memory process count proof",
+          )
+          process_validator = r'''  private def independentDontCareProcessesAreComplete(
+              lines: Vector[String],
+              blocks: Vector[LineRange],
+              plan: MemoryPlan
+          ): Boolean = {
+            if (!plan.independentDontCare || blocks.size != 2) return false
+            val expectedHeader = s"always @(posedge ${plan.clock})"
+            val texts = blocks.map { block =>
+              val header = lines(block.start).replaceAll("\\s+", " ").trim
+              if (!header.startsWith(expectedHeader)) return false
+              lines.slice(block.start, block.endInclusive + 1).mkString("\n")
+            }
+            val readBlocks = texts.zipWithIndex.collect {
+              case (text, index)
+                  if containsIdentifier(text, plan.readTarget) &&
+                    containsIndexedAccess(text, plan.memoryName, plan.readAddress) =>
+                index
+            }
+            val writeBlocks = texts.zipWithIndex.collect {
+              case (text, index)
+                  if containsIdentifier(text, plan.writeData) &&
+                    containsIndexedAccess(text, plan.memoryName, plan.writeAddress) =>
+                index
+            }
+            readBlocks.size == 1 && writeBlocks.size == 1 &&
+              readBlocks.head != writeBlocks.head
+          }
+
+          '''
+          memory = insert_before(
+              memory,
+              "  private def alwaysBlocks(lines: Vector[String]): Vector[LineRange] = {\n",
+              process_validator,
+              "private def independentDontCareProcessesAreComplete(",
+              "independent dontCare process validator",
+          )
+          indexed_access = r'''  private def containsIndexedAccess(
+              value: String,
+              name: String,
+              index: String
+          ): Boolean =
+              ("(?<![A-Za-z0-9_$])" + Pattern.quote(name) + "\\s*\\[\\s*" +
+                Pattern.quote(index) + "\\s*\\]").r
+                .findFirstIn(value)
+                .nonEmpty
+
+          '''
+          memory = insert_before(
+              memory,
+              "  private def fail(\n",
+              indexed_access,
+              "private def containsIndexedAccess(",
+              "indexed memory access proof",
+          )
+          memory_path.write_text(memory)
+
+          required = {
+              runtime_path: (
+                  "if (!boundaryActive) return U(BigInt(value), carrierWidth bits)",
+                  "if (!boundaryActive || !ParameterizedStructure.captureEnabled)",
+                  "if (boundaryActive && ParameterizedStructure.captureEnabled)",
+              ),
+              structure_path: (
+                  "assignmentValidationScheduled",
+                  "private def authorizeMutuallyExclusiveAssignments(",
+                  "scheduleAssignmentValidation(component)",
+              ),
+              hierarchy_path: (
+                  "private def directConcreteOutputAdapter(",
+                  "directConcreteOutputAdapter(assignment.source, port)",
+              ),
+              memory_path: (
+                  "independentDontCare: Boolean",
+                  "val independentDontCare =",
+                  "independentDontCare = independentDontCare",
+                  "private def independentDontCareProcessesAreComplete(",
+                  "private def containsIndexedAccess(",
+              ),
+          }
+          for path, markers in required.items():
+              current = path.read_text()
+              missing = [marker for marker in markers if marker not in current]
+              if missing:
+                  raise SystemExit(
+                      f"{path}: source repair incomplete: {', '.join(missing)}"
+                  )
+          PY
+          git diff --check
+
+      - name: Publish finalized Increment 53 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/increment-53-source-finalize.yml
+          git add \
+            morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala \
+            morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
+          git diff --cached --check
+          git commit -m "fix: finalize Increment 53 source semantics [inc53-source-finalized]"
+          git push origin HEAD:agent/increment-53-native-streamfifo-clean

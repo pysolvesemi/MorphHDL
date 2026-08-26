@@ -1,0 +1,402 @@
+name: MorphHDL native StreamFifo parameter structure
+
+on:
+  pull_request:
+    branches:
+      - parameterized-verilog
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: morphhdl-native-streamfifo-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    name: Apply and prove final generic Increment 53 repair
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'agent/increment-53-native-streamfifo-clean'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out Increment 53 head
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-clean
+          fetch-depth: 0
+
+      - name: Determine whether repair is required
+        id: state
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git log -1 --pretty=%B | grep -Fq '[inc53-final-fix]'; then
+            echo 'needed=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'needed=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Apply safe structural-overlap and resize-boundary support
+        if: steps.state.outputs.needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          structure_path = Path(
+              "morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala"
+          )
+          text = structure_path.read_text()
+
+          storage_old = "    var nextCaptureId = 0L\n  }\n"
+          storage_new = (
+              "    var nextCaptureId = 0L\n"
+              "    var assignmentValidationScheduled = false\n"
+              "  }\n"
+          )
+          if "var assignmentValidationScheduled = false" not in text:
+              if storage_old not in text:
+                  raise SystemExit("ParameterizedStructure Storage anchor changed")
+              text = text.replace(storage_old, storage_new, 1)
+
+          active_anchor = "  private val activeCapture = new ThreadLocal[CaptureState]()\n"
+          path_types = """  private final case class AlternativeStep(
+              region: StructuralRegion,
+              branch: Int
+          )
+
+            private final case class CapturedAssignment(
+              statement: DataAssignmentStatement,
+              path: Vector[AlternativeStep]
+          )
+
+          """
+          if "private final case class CapturedAssignment(" not in text:
+              if active_anchor not in text:
+                  raise SystemExit("ParameterizedStructure activeCapture anchor changed")
+              text = text.replace(active_anchor, path_types + active_anchor, 1)
+
+          register_for_anchor = "  def registerFor(\n      component: Component,\n"
+          helpers = """  private def scheduleAssignmentValidation(component: Component): Unit = {
+              val storage = storageOf(component)
+              if (!storage.assignmentValidationScheduled) {
+                storage.assignmentValidationScheduled = true
+                component.addPrePopTask(() =>
+                  authorizeMutuallyExclusiveAssignments(component)
+                )
+              }
+            }
+
+            private def authorizeMutuallyExclusiveAssignments(
+              component: Component
+          ): Unit = {
+              val regions = storageOption(component).toVector
+                .flatMap(_.regions)
+                .toVector
+              val captured = capturedAssignments(regions)
+              if (captured.size < 2) return
+
+              val byTarget = new IdentityHashMap[
+                BaseType,
+                ArrayBuffer[CapturedAssignment]
+              ]()
+              captured.foreach { value =>
+                val target = value.statement.finalTarget
+                var entries = byTarget.get(target)
+                if (entries eq null) {
+                  entries = ArrayBuffer.empty[CapturedAssignment]
+                  byTarget.put(target, entries)
+                }
+                entries += value
+              }
+
+              val graphAssignments = ArrayBuffer.empty[DataAssignmentStatement]
+              component.dslBody.walkStatements {
+                case value: DataAssignmentStatement => graphAssignments += value
+                case _                              =>
+              }
+
+              val targets = byTarget.entrySet().iterator()
+              while (targets.hasNext) {
+                val entry = targets.next()
+                val target = entry.getKey
+                val entries = entry.getValue.toVector
+                if (entries.size > 1) {
+                  val capturedStatements =
+                    new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+                  entries.foreach(value =>
+                    capturedStatements.put(value.statement, java.lang.Boolean.TRUE)
+                  )
+                  val targetAssignments = graphAssignments
+                    .filter(value => value.finalTarget eq target)
+                    .toVector
+                  val completeCapture =
+                    targetAssignments.size == entries.size &&
+                    targetAssignments.forall(capturedStatements.containsKey) &&
+                    entries.forall(value =>
+                      targetAssignments.exists(_ eq value.statement)
+                    )
+                  val pairwiseExclusive = entries.indices.forall { left =>
+                    (left + 1 until entries.size).forall { right =>
+                      mutuallyExclusive(entries(left).path, entries(right).path)
+                    }
+                  }
+                  if (completeCapture && pairwiseExclusive) target.allowOverride()
+                }
+              }
+            }
+
+            private def capturedAssignments(
+              regions: Vector[StructuralRegion]
+          ): Vector[CapturedAssignment] = {
+              val values = ArrayBuffer.empty[CapturedAssignment]
+
+              def visitBlock(
+                  block: ParameterizedStructuralBlock,
+                  path: Vector[AlternativeStep]
+              ): Unit = {
+                block.assignments.foreach(value =>
+                  values += CapturedAssignment(value, path)
+                )
+                block.regions.foreach(value => visitRegion(value, path))
+              }
+
+              def visitRegion(
+                  region: StructuralRegion,
+                  path: Vector[AlternativeStep]
+              ): Unit = region match {
+                case value: StructuralFor =>
+                  visitBlock(value.body, path)
+                case value: StructuralIf =>
+                  visitBlock(
+                    value.whenTrue,
+                    path :+ AlternativeStep(value, branch = 0)
+                  )
+                  visitBlock(
+                    value.whenFalse,
+                    path :+ AlternativeStep(value, branch = 1)
+                  )
+                case value: StructuralCase =>
+                  value.choices.zipWithIndex.foreach { case (choice, index) =>
+                    visitBlock(
+                      choice.body,
+                      path :+ AlternativeStep(value, branch = index)
+                    )
+                  }
+                  visitBlock(
+                    value.defaultBody,
+                    path :+ AlternativeStep(value, branch = value.choices.size)
+                  )
+              }
+
+              regions.foreach(value => visitRegion(value, Vector.empty))
+              values.toVector
+            }
+
+            private def mutuallyExclusive(
+              left: Vector[AlternativeStep],
+              right: Vector[AlternativeStep]
+          ): Boolean =
+              left.exists { leftStep =>
+                right.exists { rightStep =>
+                  (leftStep.region eq rightStep.region) &&
+                  leftStep.branch != rightStep.branch
+                }
+              }
+
+          """
+          if "private def scheduleAssignmentValidation(" not in text:
+              if register_for_anchor not in text:
+                  raise SystemExit("ParameterizedStructure registerFor anchor changed")
+              text = text.replace(register_for_anchor, helpers + register_for_anchor, 1)
+
+          marker_index = text.find("  private def registerRegion(\n")
+          if marker_index < 0:
+              raise SystemExit("ParameterizedStructure registerRegion missing")
+          before = text[:marker_index]
+          region_text = text[marker_index:]
+          schedule_old = "  ): Unit = {\n    val capture = activeCapture.get()\n"
+          schedule_new = (
+              "  ): Unit = {\n"
+              "    scheduleAssignmentValidation(component)\n"
+              "    val capture = activeCapture.get()\n"
+          )
+          if "scheduleAssignmentValidation(component)" not in region_text:
+              if schedule_old not in region_text:
+                  raise SystemExit("ParameterizedStructure registerRegion body changed")
+              region_text = region_text.replace(schedule_old, schedule_new, 1)
+          structure_path.write_text(before + region_text)
+
+          hierarchy_path = Path(
+              "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala"
+          )
+          hierarchy = hierarchy_path.read_text()
+          connection_anchor = "  private def connectionEvidence(\n"
+          resize_helper = """  private def directConcreteOutputAdapter(
+              expression: Expression,
+              port: BaseType
+          ): Boolean = expression match {
+              case value if value eq port => true
+              case value: Resize =>
+                directConcreteOutputAdapter(value.input, port)
+              case _ => false
+            }
+
+          """
+          if "private def directConcreteOutputAdapter(" not in hierarchy:
+              if connection_anchor not in hierarchy:
+                  raise SystemExit("hierarchy connectionEvidence anchor changed")
+              hierarchy = hierarchy.replace(
+                  connection_anchor,
+                  resize_helper + connection_anchor,
+                  1,
+              )
+
+          if "directConcreteOutputAdapter(assignment.source, port)" not in hierarchy:
+              lines = hierarchy.splitlines(keepends=True)
+              message = (
+                  "uses a sliced, indexed, converted or expression-wrapped "
+                  "child-output connection; direct full packed connections are required"
+              )
+              message_indexes = [
+                  index for index, line in enumerate(lines) if message in line
+              ]
+              if len(message_indexes) != 1:
+                  raise SystemExit(
+                      f"expected one child-output diagnostic, found {len(message_indexes)}"
+                  )
+              message_index = message_indexes[0]
+              else_candidates = [
+                  index
+                  for index in range(message_index)
+                  if lines[index].strip() == "} else {"
+              ]
+              if not else_candidates:
+                  raise SystemExit("child-output else branch not found")
+              else_index = else_candidates[-1]
+              indent = lines[else_index][:-len(lines[else_index].lstrip())]
+              close_index = None
+              for index in range(message_index + 1, len(lines)):
+                  if lines[index].strip() == "}" and lines[index].startswith(indent):
+                      close_index = index
+                      break
+              if close_index is None:
+                  raise SystemExit("child-output diagnostic branch terminator not found")
+
+              replacement = [
+                  indent + "} else if (\n",
+                  indent + "  allowConcreteInternal &&\n",
+                  indent + "  assignment.target == assignment.finalTarget &&\n",
+                  indent + "  assignment.finalTarget.component == parent &&\n",
+                  indent + "  directConcreteOutputAdapter(assignment.source, port)\n",
+                  indent + ") {\n",
+                  indent + "  // Native Spinal validates this resize into the parent.\n",
+                  indent + "  // The child instance boundary retains its concrete port width.\n",
+                  indent + "  Vector(LiteralBinding(port.getBitsWidth))\n",
+                  indent + "} else {\n",
+                  indent + "  fail(\n",
+                  indent + "    \"SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED\",\n",
+                  indent + "    s\"$context uses a sliced, indexed, converted or expression-wrapped child-output connection; direct full packed connections are required\"\n",
+                  indent + "  )\n",
+                  indent + "}\n",
+              ]
+              lines[else_index:close_index + 1] = replacement
+              hierarchy = "".join(lines)
+          hierarchy_path.write_text(hierarchy)
+
+          test_path = Path(
+              "morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala"
+          )
+          tests = test_path.read_text()
+          class_anchor = "class ParameterizedStreamFifoDepthTests extends AnyFunSuite {\n"
+          unsafe_class = """final class UnsafeStructuralAssignmentHarness(depth: HdlInt)
+              extends Component {
+            setDefinitionName("UnsafeStructuralAssignmentHarness")
+            val observed = out(Bool())
+            observed := False
+            if (depth > 1) observed := True
+            else observed := False
+          }
+
+          """
+          if "final class UnsafeStructuralAssignmentHarness(" not in tests:
+              if class_anchor not in tests:
+                  raise SystemExit("StreamFifo test class anchor changed")
+              tests = tests.replace(class_anchor, unsafe_class + class_anchor, 1)
+
+          test_anchor = "  private def simulateDepth(\n"
+          unsafe_test = """  test("mutually-exclusive capture never hides an outside assignment") {
+              withTemporaryDirectory { directory =>
+                val config = synchronousResetConfig(directory)
+                config.netlistFileName = "unsafe_structural_assignment.v"
+                MorphVerilog.tryGenerate(config) {
+                  val depth = HdlInt.param(
+                    "DEPTH",
+                    default = BigInt(5),
+                    min = BigInt(1),
+                    max = BigInt(8)
+                  )
+                  new UnsafeStructuralAssignmentHarness(depth)
+                } match {
+                  case Left(failure) =>
+                    assert(failure.detail.contains("ASSIGNMENT OVERLAP"))
+                  case Right(report) =>
+                    fail(s"Expected inherited overlap failure, received $report")
+                }
+              }
+            }
+
+          """
+          if "mutually-exclusive capture never hides an outside assignment" not in tests:
+              if test_anchor not in tests:
+                  raise SystemExit("StreamFifo test insertion anchor changed")
+              tests = tests.replace(test_anchor, unsafe_test + test_anchor, 1)
+          test_path.write_text(tests)
+          PY
+          git diff --check
+
+      - name: Install pinned Mill bootstrap
+        if: steps.state.outputs.needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Prove focused Increment 53 contracts
+        if: steps.state.outputs.needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests
+
+      - name: Publish proved repair
+        if: steps.state.outputs.needed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name pysolvesemi
+          git config user.email pysolvesemi@gmail.com
+          git show 3a0c1e0118db85cd7522ed51df7e471a584b0dae:.github/workflows/morphhdl-native-streamfifo-structure.yml \
+            > .github/workflows/morphhdl-native-streamfifo-structure.yml
+          git rm -f --ignore-unmatch .github/workflows/increment-53-focused-diagnostic.yml
+          git rm -f --ignore-unmatch docs/morphhdl/increment-53-focused-diagnostic.log
+          git add \
+            .github/workflows/morphhdl-native-streamfifo-structure.yml \
+            morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala
+          git commit -m "fix(morphhdl): complete generic StreamFifo structure [inc53-final-fix]"
+          git push origin HEAD:"$GITHUB_HEAD_REF"

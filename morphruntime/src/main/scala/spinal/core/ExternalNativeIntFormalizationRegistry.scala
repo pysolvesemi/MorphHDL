@@ -228,45 +228,67 @@ object ExternalNativeIntFormalizationRegistry {
     rejectDuplicateIdentity(prepared)
     preflightRegions(prepared)
 
-    reapComponents()
-    val componentLookup =
-      new ExternalNativeIntComponentIdentityRef(component, null)
-    val incoming = ExternalNativeIntComponentRecord(
-      token = token,
+    retainComponentBinding(
+      component = component,
       binding = binding,
+      token = token,
       regionCount = prepared.size,
       packedLeafCount = prepared.map(_.leaves.size).sum
     )
-    val existing = components.getOrElse(componentLookup, Vector.empty)
-    existing.find(_.binding.formal.name == binding.formal.name) match {
-      case Some(value)
-          if !ExternalFormalParameterRegistry.equivalentBinding(
-            value.binding,
-            binding
-          ) || value.token != token ||
-            value.regionCount != incoming.regionCount ||
-            value.packedLeafCount != incoming.packedLeafCount =>
-        fail(
-          "MORPH-FRONTEND-FORMAL-COMPONENT-CONFLICT",
-          s"one exact component object received conflicting formalization for slot '${binding.formal.name}'",
-          binding.sourceLocation.orElse(sourceOf(token))
-        )
-      case _ =>
-    }
-
-    ExternalFormalParameterRegistry.retainComponent(component, binding)
     prepared.foreach(attachPrepared(component, _))
     retainRegions(prepared)
-    if (!existing.exists(value =>
-          ExternalFormalParameterRegistry.equivalentBinding(value.binding, binding) &&
-            value.token == token
-        )) {
-      val updated = existing :+ incoming
-      components.update(
-        new ExternalNativeIntComponentIdentityRef(component, componentQueue),
-        updated
+    component
+  }
+
+  /**
+    * Retain a native component formal that controls storage or structural
+    * choices without pretending that the scalar value is a packed port width.
+    * The child constructor's shadow capture and internal symbolic registries
+    * remain responsible for proving the definition-side parameter dependency.
+    */
+  def attachComponentParameter[C <: Component](
+      parent: Component,
+      component: C,
+      binding: ExternalFormalParameterBinding,
+      token: ExternalNativeIntFormalizationToken
+  ): C = synchronized {
+    if (parent == null) {
+      fail(
+        "MORPH-FRONTEND-FORMAL-COMPONENT-PARENT-MISSING",
+        "formalComponent.parameter requires one active parent Component",
+        sourceOf(token)
       )
     }
+    if (component == null) {
+      fail(
+        "MORPH-FRONTEND-FORMAL-COMPONENT-RESULT-NULL",
+        "formalComponent.parameter constructor returned null",
+        sourceOf(token)
+      )
+    }
+    if (binding == null) {
+      throw new IllegalArgumentException("formal component binding must not be null")
+    }
+    if (component.parent ne parent) {
+      val actualParent =
+        Option(component.parent).map(_.getClass.getName).getOrElse("<none>")
+      fail(
+        "MORPH-FRONTEND-FORMAL-COMPONENT-PARENT-MISMATCH",
+        s"formalComponent.parameter returned a component owned by '$actualParent' instead of the exact active parent '${parent.getClass.getName}'",
+        sourceOf(token)
+      )
+    }
+
+    val expression = formalExpression(binding.formal, sourceLocation = None)
+    validateCommon(component, expression, token)
+    validateFormal(component, expression, binding)
+    retainComponentBinding(
+      component = component,
+      binding = binding,
+      token = token,
+      regionCount = 0,
+      packedLeafCount = 0
+    )
     component
   }
 
@@ -292,6 +314,51 @@ object ExternalNativeIntFormalizationRegistry {
           Vector.empty
         )
         .sortBy(record => (record.binding.formal.name, record.binding.declarationKey))
+    }
+  }
+
+  private def retainComponentBinding(
+      component: Component,
+      binding: ExternalFormalParameterBinding,
+      token: ExternalNativeIntFormalizationToken,
+      regionCount: Int,
+      packedLeafCount: Int
+  ): Unit = {
+    reapComponents()
+    val componentLookup =
+      new ExternalNativeIntComponentIdentityRef(component, null)
+    val incoming = ExternalNativeIntComponentRecord(
+      token = token,
+      binding = binding,
+      regionCount = regionCount,
+      packedLeafCount = packedLeafCount
+    )
+    val existing = components.getOrElse(componentLookup, Vector.empty)
+    existing.find(_.binding.formal.name == binding.formal.name) match {
+      case Some(value)
+          if !ExternalFormalParameterRegistry.equivalentBinding(
+            value.binding,
+            binding
+          ) || value.token != token ||
+            value.regionCount != incoming.regionCount ||
+            value.packedLeafCount != incoming.packedLeafCount =>
+        fail(
+          "MORPH-FRONTEND-FORMAL-COMPONENT-CONFLICT",
+          s"one exact component object received conflicting formalization for slot '${binding.formal.name}'",
+          binding.sourceLocation.orElse(sourceOf(token))
+        )
+      case _ =>
+    }
+
+    ExternalFormalParameterRegistry.retainComponent(component, binding)
+    if (!existing.exists(value =>
+          ExternalFormalParameterRegistry.equivalentBinding(value.binding, binding) &&
+            value.token == token
+        )) {
+      components.update(
+        new ExternalNativeIntComponentIdentityRef(component, componentQueue),
+        existing :+ incoming
+      )
     }
   }
 

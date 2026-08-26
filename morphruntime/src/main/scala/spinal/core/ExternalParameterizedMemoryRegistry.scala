@@ -224,8 +224,74 @@ object ExternalParameterizedMemoryRegistry {
           )
         }
       }
+      metadataOf(memory).foreach { metadata =>
+        retainNativeAddressWidths(memory, metadata)
+      }
     }
   }
+
+  /**
+    * Recover the exact portable address width from retained memory geometry.
+    *
+    * Native library components often clone an address UInt after evaluating
+    * log2Up(depth) with the concrete witness. The clone remains the ordinary
+    * native object; this hook restores only its lost symbolic width identity.
+    * Already-retained or deliberately wider conservative addresses are left
+    * untouched.
+    */
+  private def retainNativeAddressWidths(
+      memory: Mem[_],
+      metadata: ParameterizedMemoryMetadata
+  ): Unit = {
+    if (metadata.depth.parameters.isEmpty) return
+    val width = nativeAddressWidth(
+      metadata.depth,
+      metadata.sourceLocation
+    )
+    memory.foreachStatements {
+      case read: MemReadSync =>
+        retainNativeAddressWidth(read.address, width)
+      case write: MemWrite =>
+        retainNativeAddressWidth(write.address, width)
+      case _ =>
+    }
+  }
+
+  private def retainNativeAddressWidth(
+      address: Expression with WidthProvider,
+      width: ElaborationIntegerExpression
+  ): Unit = address match {
+    case bitVector: BitVector
+        if ParameterizedWidth.expressionOf(bitVector).isEmpty &&
+          BigInt(bitVector.getBitsWidth) == width.default =>
+      ParameterizedWidth.attach(
+        bitVector,
+        ParameterizedBitCount(
+          value = bitVector.getBitsWidth,
+          parameter = None,
+          sourceLocation = width.sourceLocation,
+          expression = Some(width)
+        )
+      )
+    case _ =>
+  }
+
+  private def nativeAddressWidth(
+      depth: ElaborationIntegerExpression,
+      sourceLocation: Option[String]
+  ): ElaborationIntegerExpression =
+    ElaborationIntegerExpression(
+      verilog = s"clog2(${depth.verilog}, 1)",
+      default = portableAddressWidth(depth.default),
+      minimum = portableAddressWidth(depth.minimum),
+      maximum = portableAddressWidth(depth.maximum),
+      parameters = depth.parameters,
+      generateIndex = depth.generateIndex,
+      sourceLocation = sourceLocation.orElse(depth.sourceLocation)
+    )
+
+  private def portableAddressWidth(value: BigInt): BigInt =
+    BigInt(math.max(1, (value - 1).bitLength))
 
   private[core] def metadataOf(
       memory: Mem[_]

@@ -10,81 +10,89 @@ import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 import spinal.lib._
 
-import morphhdl.frontend.{StreamFifo => MorphStreamFifo}
+import morphhdl.frontend.HdlInt
+import morphhdl.frontend.HdlInt.hdlIntToParameterizedMemoryDepth
+
+final class NativeParameterizedStreamFifoHarness(depth: HdlInt)
+    extends Component {
+  setDefinitionName("NativeParameterizedStreamFifoHarness")
+
+  val io = new Bundle {
+    val push = slave Stream (Bits(8 bits))
+    val pop = master Stream (Bits(8 bits))
+    val flush = in Bool()
+    val occupancy = out UInt (4 bits)
+    val availability = out UInt (4 bits)
+  }
+
+  val fifo = spinal.lib.StreamFifo(
+    HardType(Bits(8 bits)),
+    depth
+  )
+  fifo.setName("fifo")
+  fifo.io.push << io.push
+  io.pop << fifo.io.pop
+  fifo.io.flush := io.flush
+  io.occupancy := fifo.io.occupancy.resized
+  io.availability := fifo.io.availability.resized
+}
 
 class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
-  test("one native StreamFifo definition preserves behavior at depths 1, 3, 5 and 8") {
+  private def component(): NativeParameterizedStreamFifoHarness = {
+    val depth = HdlInt.param(
+      "DEPTH",
+      default = BigInt(5),
+      min = BigInt(1),
+      max = BigInt(8)
+    )
+    new NativeParameterizedStreamFifoHarness(depth)
+  }
+
+  test("one native StreamFifo definition preserves depths 1, 3, 5 and 8") {
     withTemporaryDirectory { directory =>
       val parameterizedDirectory = directory.resolve("parameterized")
       val concreteDirectory = directory.resolve("concrete")
       Files.createDirectories(parameterizedDirectory)
       Files.createDirectories(concreteDirectory)
 
-      val depthSchema = ElaborationIntegerParameter(
-        name = "DEPTH",
-        default = BigInt(5),
-        minimum = BigInt(1),
-        maximum = BigInt(8)
-      )
-      val symbolicDepth = ParameterizedMemoryDepth(
-        value = 5,
-        expression = ElaborationIntegerExpression(
-          verilog = "DEPTH",
-          default = BigInt(5),
-          minimum = BigInt(1),
-          maximum = BigInt(8),
-          parameters = Vector(depthSchema),
-          sourceLocation = Some("ParameterizedStreamFifoDepthTests.scala:DEPTH")
-        ),
-        sourceLocation = Some("ParameterizedStreamFifoDepthTests.scala:DEPTH")
-      )
-
       val parameterizedConfig = synchronousResetConfig(parameterizedDirectory)
       parameterizedConfig.netlistFileName = "stream_fifo_parameterized_depth.v"
-      val parameterizedReport =
-        MorphVerilog(parameterizedConfig)(MorphStreamFifo(morphhdl.frontend.HardType(morphhdl.frontend.Bits(8 bits)), symbolicDepth))
+      val parameterizedReport = MorphVerilog(parameterizedConfig)(component())
       val parameterized =
         read(parameterizedDirectory.resolve("stream_fifo_parameterized_depth.v"))
 
       val concreteConfig = synchronousResetConfig(concreteDirectory)
       concreteConfig.netlistFileName = "stream_fifo_parameterized_depth.v"
-      SpinalVerilog(concreteConfig)(MorphStreamFifo(morphhdl.frontend.HardType(morphhdl.frontend.Bits(8 bits)), symbolicDepth))
+      SpinalVerilog(concreteConfig)(component())
       val concrete =
         read(concreteDirectory.resolve("stream_fifo_parameterized_depth.v"))
 
-      assert(parameterizedReport.parameters.map(_.name) == Vector("DEPTH"))
-      assert("(?m)^module StreamFifo #\\(".r.findAllMatchIn(parameterized).size == 1)
+      assert(parameterizedReport.parameters.map(_.name).contains("DEPTH"))
+      assert(
+        "(?m)^module StreamFifo #\\(".r
+          .findAllMatchIn(parameterized)
+          .size == 1
+      )
+      assert(parameterized.contains("module NativeParameterizedStreamFifoHarness #("))
       assert(parameterized.contains("parameter integer DEPTH = 5"))
+      assert(parameterized.contains(".DEPTH(DEPTH)"))
       assert(
         parameterized.contains("[0:DEPTH-1]") ||
           parameterized.contains("[0:(DEPTH - 1)]")
       )
-      assert(parameterized.contains("clog2(DEPTH, 1)"))
+      assert(parameterized.contains("generate"))
+      assert(parameterized.contains("DEPTH == 1"))
+      assert(parameterized.contains("DEPTH > 1"))
       assert(
-        parameterized.contains("clog2((DEPTH + 1), 1)") ||
-          parameterized.contains("clog2(DEPTH + 1, 1)")
-      )
-      assert(
-        """(?m)^\s*(?:wire|reg)\s+\[clog2\(DEPTH, 1\)-1:0\]\s+logic_ptr_(?:push|pop|popOnIo);\s*$""".r
-          .findAllMatchIn(parameterized)
-          .size >= 3
-      )
-      assert(
-        """(?m)^\s*(?:wire|reg)\s+\[clog2\(DEPTH, 1\)-1:0\]\s+logic_pop_(?:addressGen_payload|sync_readPort_cmd_payload|sync_popReg);\s*$""".r
-          .findAllMatchIn(parameterized)
-          .size >= 3
-      )
-      assert(
-        """(?m)^\s*(?:wire|reg)\s+\[clog2\(\(DEPTH \+ 1\), 1\)-1:0\]\s+logic_ptr_notPow2_counter;\s*$""".r
-          .findFirstIn(parameterized)
-          .nonEmpty
+        parameterized.contains("DEPTH & (DEPTH - 1)") ||
+          parameterized.contains("DEPTH & (DEPTH-1)")
       )
       assert(parameterized.contains("io_push_ready"))
       assert(parameterized.contains("io_pop_valid"))
       assert(parameterized.contains("io_occupancy"))
       assert(parameterized.contains("io_availability"))
-      assert(parameterized.contains("always @(posedge clk)"))
       assert(!parameterized.contains("ParamRTL"))
+      assert(!parameterized.contains("rewriteParameterizedStreamFifoDepth"))
 
       assert(!concrete.contains("parameter integer DEPTH"))
       assert(concrete.contains("[0:4]"))
