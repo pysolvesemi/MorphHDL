@@ -102,15 +102,16 @@ jobs:
                   : len(hierarchy_lines[else_index])
                   - len(hierarchy_lines[else_index].lstrip())
               ]
+              newline = chr(10)
               replacement = [
-                  branch_indent + "} else if (\n",
-                  branch_indent + "  allowConcreteInternal &&\n",
-                  branch_indent + "  assignment.target == assignment.finalTarget &&\n",
-                  branch_indent + "  assignment.finalTarget.component == parent &&\n",
-                  branch_indent + "  directConcreteOutputAdapter(assignment.source, port)\n",
-                  branch_indent + ") {\n",
-                  branch_indent + "  Vector(LiteralBinding(port.getBitsWidth))\n",
-                  branch_indent + "} else {\n",
+                  branch_indent + "} else if (" + newline,
+                  branch_indent + "  allowConcreteInternal &&" + newline,
+                  branch_indent + "  assignment.target == assignment.finalTarget &&" + newline,
+                  branch_indent + "  assignment.finalTarget.component == parent &&" + newline,
+                  branch_indent + "  directConcreteOutputAdapter(assignment.source, port)" + newline,
+                  branch_indent + ") {" + newline,
+                  branch_indent + "  Vector(LiteralBinding(port.getBitsWidth))" + newline,
+                  branch_indent + "} else {" + newline,
               ]
               hierarchy_lines[else_index:else_index + 1] = replacement
               hierarchy = "".join(hierarchy_lines)
