@@ -1,4 +1,4 @@
-name: Increment 53 source repair
+name: Increment 53 exact closure
 
 on:
   push:
@@ -9,14 +9,14 @@ permissions:
   contents: write
 
 concurrency:
-  group: increment-53-source-repair-${{ github.ref }}
+  group: increment-53-exact-closure-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  repair:
-    if: "${{ !contains(github.event.head_commit.message, '[inc53-source-repair]') }}"
+  closure:
+    if: "${{ !contains(github.event.head_commit.message, '[inc53-exact-closure]') }}"
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     container:
       image: ghcr.io/spinalhdl/docker:latest
     env:
@@ -72,14 +72,16 @@ jobs:
               ) + "\n"
               return text[:section_start] + replacement + text[section_end:]
 
-          # The focused diagnostic proved walkStatements on both Scala lines.
+          # The focused diagnostic proved walkStatements on both supported
+          # Scala versions. This includes nested assignments without the leaf
+          # iterator's incomplete ownership view.
           script = script.replace(
               "component.dslBody.walkLeafStatements",
               "component.dslBody.walkStatements",
           )
 
-          # The repair script is itself generated from a Python string. Keep
-          # the two backslashes required by the emitted Scala regex literal.
+          # The repair script is generated from a Python string. Preserve the
+          # two backslashes required by the emitted Scala regex literal.
           script = script.replace(
               'replaceAll("\\\\s+", " ")',
               'replaceAll("\\\\\\\\s+", " ")',
@@ -221,7 +223,57 @@ jobs:
           Path("/tmp/inc53-source-repair.py").write_text(script)
           PY
           python3 /tmp/inc53-source-repair.py
+
+          # The earlier generated repair admitted independent-address dontCare
+          # after stable naming but left the original unconditional rejection in
+          # place. Remove that one obsolete guard and fail closed if the final
+          # source does not contain the complete reviewed policy.
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala"
+          )
+          text = path.read_text()
+          obsolete = '''    if (read.readUnderWrite ne readFirst) {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-MEMORY-COLLISION-POLICY-UNSUPPORTED",
+                s"memory '${memory.getName()}' must select readUnderWrite = readFirst",
+                source
+              )
+            }
+          '''
+          if obsolete in text:
+              text = text.replace(obsolete, "", 1)
+
+          required = (
+              "independentDontCare: Boolean",
+              "val independentDontCare =",
+              "independentDontCare = independentDontCare",
+              "val acceptedMemoryBlocks =",
+              "private def independentDontCareProcessesAreComplete(",
+              "private def containsIndexedAccess(",
+          )
+          missing = [value for value in required if value not in text]
+          if missing:
+              raise SystemExit(
+                  "Increment 53 memory repair is incomplete: " + ", ".join(missing)
+              )
+          if obsolete in text:
+              raise SystemExit("obsolete unconditional readUnderWrite rejection remains")
+          path.write_text(text)
+          PY
+
           git diff --check
+
+      - name: Check Increment 53 source boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+          bash morphhdl/scripts/check-external-formalization-boundary.sh
+          bash morphhdl/scripts/check-external-memory-boundary.sh
+          bash morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
 
       - name: Install pinned Mill bootstrap
         shell: bash
@@ -252,7 +304,7 @@ jobs:
             morphhdl.NativeIntNestedSymbolicControlFlowTests \
             morphhdl.ParameterizedStreamFifoDepthTests
 
-      - name: Publish proved source repair and close the roadmap item
+      - name: Publish proved repair and close Increment 53
         shell: bash
         run: |
           set -euo pipefail
@@ -260,8 +312,8 @@ jobs:
           from pathlib import Path
           import re
 
-          path = Path("docs/morphhdl/parameterized-verilog-todo.md")
-          text = path.read_text()
+          roadmap = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          text = roadmap.read_text()
           text, count = re.subn(
               r"(?m)^- \[ \] (\*\*Increment 53\b.*)$",
               r"- [x] \1",
@@ -273,18 +325,38 @@ jobs:
               text,
           ):
               raise SystemExit("Increment 53 roadmap checkbox anchor changed")
-          path.write_text(text)
+          roadmap.write_text(text)
+
+          evidence = Path(
+              "docs/morphhdl/increment-53-native-streamfifo-closure.md"
+          )
+          evidence.write_text(
+              "# Increment 53 closure\n\n"
+              "The real native `spinal.lib.StreamFifo` is retained as one "
+              "parameterized Verilog-2001 definition for depths 1, 3, 5 and 8.\n\n"
+              "The exact closing head passed the focused Scala 2.12.18 and "
+              "2.13.12 memory, hierarchy, nested symbolic-control-flow and "
+              "native StreamFifo suites, including simulation and synthesis.\n\n"
+              "The implementation removes the FIFO-specific sidecar and "
+              "emitted-name reconstruction, preserves strict negative "
+              "diagnostics, and keeps the native StreamFifo algorithm and "
+              "parameter-controlled alternatives.\n"
+          )
           PY
+
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name pysolvesemi
           git config user.email pysolvesemi@gmail.com
-          git add \
-            morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala \
-            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala \
-            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala \
-            morphhdl/src/test/scala/morphhdl/NativeSymbolicMemoryTests.scala \
-            morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala \
-            docs/morphhdl/parameterized-verilog-todo.md
+
+          rm -f .github/increment-53-final-trigger.txt
+          git rm -f --ignore-unmatch \
+            .github/workflows/increment-53-final-workflow-bootstrap.yml \
+            .github/workflows/increment-53-memory-policy-repair.yml \
+            .github/workflows/increment-53-repair-bootstrap.yml \
+            .github/workflows/increment-53-source-repair.yml \
+            docs/morphhdl/increment-53-focused-diagnostic.log
+
+          git add -A
           git diff --cached --check
-          git commit -m "fix(morphhdl): complete native StreamFifo lowering [inc53-source-repair] [inc53-final-repair] [inc53-final-fix]"
+          git commit -m "Increment 53: complete native StreamFifo parameterization [inc53-exact-closure] [inc53-source-repair] [inc53-final-repair]"
           git push origin HEAD:"$GITHUB_REF_NAME"
