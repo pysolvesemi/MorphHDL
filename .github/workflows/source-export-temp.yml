@@ -1,0 +1,29 @@
+name: Temporary Increment 53 source export
+
+on:
+  push:
+    branches:
+      - agent/increment-53-source-export-temp
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Archive repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar --exclude=.git --exclude=out --exclude=target -czf /tmp/MorphHDL-inc53-source.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MorphHDL-inc53-source
+          path: /tmp/MorphHDL-inc53-source.tar.gz
+          if-no-files-found: error
+          retention-days: 1
