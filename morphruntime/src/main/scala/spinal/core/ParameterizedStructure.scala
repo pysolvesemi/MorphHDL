@@ -254,14 +254,16 @@ object ParameterizedStructure {
       case value => hardwareStatements += value
     }
 
-    val declarations = hardwareStatements.collect { case value: BaseType => value }
+    val declarations = hardwareStatements.collect {
+      case value: BaseType => value
+    }.toVector
     val assignments = hardwareStatements.collect {
       case value: DataAssignmentStatement => value
-    }
-    val memories = hardwareStatements.collect { case value: Mem[_] => value }
+    }.toVector
+    val memories = hardwareStatements.collect { case value: Mem[_] => value }.toVector
     val memoryPorts = hardwareStatements.collect {
       case value: MemPortStatement => value
-    }
+    }.toVector
     memoryPorts.find(port => !memories.exists(_ eq port.mem)).foreach { port =>
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FOREIGN-MEMORY-PORT-UNSUPPORTED",
