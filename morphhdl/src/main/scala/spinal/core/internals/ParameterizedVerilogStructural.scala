@@ -690,7 +690,7 @@ private[internals] object ParameterizedVerilogStructural {
         ) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-RANGE-UNSUPPORTED",
-            s"captured native range ${range.start}-${range.end} is shared by multiple structural alternatives but is not one simple always block"
+            s"captured native range ${range.start}-${range.end} is shared by multiple structural alternatives but is not one simple always block: '${normalized.mkString(" | ")}'"
           )
         }
 

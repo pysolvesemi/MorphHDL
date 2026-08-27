@@ -85,14 +85,23 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       intReference: Option[String] = None,
       booleanReference: Option[String] = None,
       intLiteral: Boolean = false,
-      booleanConcrete: Boolean = false
+    booleanConcrete: Boolean = false
   )
+
+  private sealed trait SyntacticShape
+  private case object UnknownShape extends SyntacticShape
+  private case object UIntShape extends SyntacticShape
+  private final case class RecordShape(
+      members: Map[TermName, SyntacticShape]
+  ) extends SyntacticShape
 
   private final class ShadowTransformer(unit: CompilationUnit) extends Transformer {
     private var integerScopes =
       List(mutable.LinkedHashMap.empty[TermName, String])
     private var booleanScopes =
       List(mutable.LinkedHashMap.empty[TermName, String])
+    private var shapeScopes =
+      List(mutable.LinkedHashMap.empty[TermName, SyntacticShape])
 
     private var nativeStreamFifoDataTypeName: Option[TermName] = None
     private var nativeStreamFifoDepthName: Option[TermName] = None
@@ -107,20 +116,6 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       "forFMax",
       "useVec"
     )
-    private val NativeHardwareNames = Set(
-      "push",
-      "pop",
-      "popOnIo",
-      "occupancy",
-      "availability",
-      "full",
-      "empty",
-      "addressGen",
-      "readArbitration",
-      "readPort",
-      "io"
-    )
-
     private val binaryOperations = Set("+", "-", "*", "/", "%", "min", "max")
     private val comparisonOperations = Set("<", "<=", ">", ">=", "==", "!=")
     private val helperOperations = Set("addressWidth", "ceilLog2", "log2Up", "log2Down")
@@ -236,20 +231,81 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       case _ => false
     }
 
-    private def looksNativeHardware(tree: Tree): Boolean = {
-      var found = false
-      object Finder extends Traverser {
-        override def traverse(current: Tree): Unit = if (!found) current match {
-          case Ident(name: TermName) if NativeHardwareNames(decoded(name)) =>
-            found = true
-          case Select(_, name: TermName) if NativeHardwareNames(decoded(name)) =>
-            found = true
-          case _ => super.traverse(current)
+    private def lookupShape(
+        name: TermName,
+        scopes: List[scala.collection.Map[TermName, SyntacticShape]] = shapeScopes
+    ): SyntacticShape =
+      scopes.collectFirst {
+        case scope if scope.contains(name) => scope(name)
+      }.getOrElse(UnknownShape)
+
+    private def anonymousTemplate(tree: Tree): Option[Template] = tree match {
+      case Block(
+            statements,
+            Apply(Select(New(Ident(created: TypeName)), constructor), _)
+          ) if decoded(constructor) == "<init>" =>
+        statements.collectFirst {
+          case ClassDef(_, name, _, implementation) if name == created =>
+            implementation
         }
-      }
-      Finder.traverse(tree)
-      found
+      case _ => None
     }
+
+    private def recordShape(
+        template: Template,
+        inherited: List[scala.collection.Map[TermName, SyntacticShape]]
+    ): SyntacticShape = {
+      val local = mutable.LinkedHashMap.empty[TermName, SyntacticShape]
+      template.body.foreach {
+        case value: ValDef
+            if !value.mods.hasFlag(Flag.MUTABLE) && value.rhs != EmptyTree =>
+          val shape = inferShape(value.rhs, local :: inherited)
+          local.update(value.name, shape)
+        case _ =>
+      }
+      if (local.values.exists(_ != UnknownShape)) RecordShape(local.toMap)
+      else UnknownShape
+    }
+
+    private def inferShape(
+        tree: Tree,
+        scopes: List[scala.collection.Map[TermName, SyntacticShape]] = shapeScopes
+    ): SyntacticShape =
+      anonymousTemplate(tree)
+        .map(recordShape(_, scopes))
+        .getOrElse {
+          tree match {
+            case Ident(name: TermName) => lookupShape(name, scopes)
+            case Select(This(_), name: TermName) => lookupShape(name, scopes)
+            case Select(base, name: TermName) =>
+              inferShape(base, scopes) match {
+                case RecordShape(members) =>
+                  members.getOrElse(name, UnknownShape)
+                case UIntShape
+                    if Set("resized", "resize", "asUInt").contains(decoded(name)) =>
+                  UIntShape
+                case _ => UnknownShape
+              }
+            case Apply(fun, List(_)) if terminalName(fun) == "UInt" =>
+              UIntShape
+            case Apply(fun, List(value))
+                if Set("Reg", "cloneOf", "in", "out").contains(
+                  terminalName(fun)
+                ) && inferShape(value, scopes) == UIntShape =>
+              UIntShape
+            case Apply(Select(base, name), _)
+                if decoded(name) == "init" &&
+                  inferShape(base, scopes) == UIntShape =>
+              UIntShape
+            case Apply(Select(left, name), List(right))
+                if decoded(name) == "^" &&
+                  inferShape(left, scopes) == UIntShape &&
+                  inferShape(right, scopes) == UIntShape =>
+              UIntShape
+            case Typed(value, _) => inferShape(value, scopes)
+            case _               => UnknownShape
+          }
+        }
 
     private def lookupInteger(name: TermName): Option[String] =
       integerScopes.collectFirst {
@@ -267,13 +323,19 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     private def bindBoolean(name: TermName, reference: String): Unit =
       booleanScopes.head.update(name, reference)
 
+    private def bindShape(name: TermName, shape: SyntacticShape): Unit =
+      shapeScopes.head.update(name, shape)
+
     private def withScope[A](body: => A): A = {
       integerScopes = mutable.LinkedHashMap.empty[TermName, String] :: integerScopes
       booleanScopes = mutable.LinkedHashMap.empty[TermName, String] :: booleanScopes
+      shapeScopes =
+        mutable.LinkedHashMap.empty[TermName, SyntacticShape] :: shapeScopes
       try body
       finally {
         integerScopes = integerScopes.tail
         booleanScopes = booleanScopes.tail
+        shapeScopes = shapeScopes.tail
       }
     }
 
@@ -902,10 +964,10 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       if (!inNativeStreamFifo) return None
       val left = rewriteExpression(leftTree, None)
       val right = rewriteExpression(rightTree, None)
-      if (left.intReference.nonEmpty && looksNativeHardware(rightTree)) {
+      if (left.intReference.nonEmpty && inferShape(rightTree) == UIntShape) {
         val carrier = nativeValueCarrier(left, rightTree, original, "left")
         Some(Rewrite(nativeBinaryTree(original, carrier, operatorName, transform(rightTree))))
-      } else if (right.intReference.nonEmpty && looksNativeHardware(leftTree)) {
+      } else if (right.intReference.nonEmpty && inferShape(leftTree) == UIntShape) {
         val carrier = nativeValueCarrier(right, leftTree, original, "right")
         Some(Rewrite(nativeBinaryTree(original, transform(leftTree), operatorName, carrier)))
       } else None
@@ -1677,6 +1739,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       case value: ValDef =>
         val mutable = value.mods.hasFlag(Flag.MUTABLE)
         val requested = if (mutable) None else Some(decoded(value.name))
+        val syntacticShape = inferShape(value.rhs)
         val rewritten = rewriteExpression(value.rhs, requested)
         val rhs =
           if (mutable) {
@@ -1700,6 +1763,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         if (!mutable) {
           rewritten.intReference.foreach(bindInteger(value.name, _))
           rewritten.booleanReference.foreach(bindBoolean(value.name, _))
+          bindShape(value.name, syntacticShape)
         }
         treeCopy.ValDef(
           value,

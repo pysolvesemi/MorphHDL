@@ -47,6 +47,20 @@ final class UnsafeStructuralAssignmentHarness(depth: HdlInt)
 }
 
 class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
+  private val ExpectedStreamFifoModuleInventory =
+    Vector("NativeParameterizedStreamFifoHarness", "StreamFifo").sorted
+
+  private val ModuleDeclaration =
+    """(?m)^\s*module\s+([A-Za-z_][A-Za-z0-9_$]*)\b""".r
+
+  private def streamFifoModuleInventory(verilog: String): Vector[String] =
+    ModuleDeclaration
+      .findAllMatchIn(verilog)
+      .map(_.group(1))
+      .filter(_.contains("StreamFifo"))
+      .toVector
+      .sorted
+
   private def component(): NativeParameterizedStreamFifoHarness = {
     val depth = HdlInt.param(
       "DEPTH",
@@ -67,8 +81,24 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       val parameterizedConfig = synchronousResetConfig(parameterizedDirectory)
       parameterizedConfig.netlistFileName = "stream_fifo_parameterized_depth.v"
       val parameterizedReport = MorphVerilog(parameterizedConfig)(component())
-      val parameterized =
-        read(parameterizedDirectory.resolve("stream_fifo_parameterized_depth.v"))
+      val parameterizedRtl =
+        parameterizedDirectory.resolve("stream_fifo_parameterized_depth.v")
+      val parameterized = read(parameterizedRtl)
+
+      val replayDirectory = directory.resolve("parameterized-replay")
+      Files.createDirectories(replayDirectory)
+      val replayConfig = synchronousResetConfig(replayDirectory)
+      replayConfig.netlistFileName = "stream_fifo_parameterized_depth.v"
+      MorphVerilog(replayConfig)(component())
+      val replayRtl =
+        replayDirectory.resolve("stream_fifo_parameterized_depth.v")
+      assert(
+        java.util.Arrays.equals(
+          Files.readAllBytes(parameterizedRtl),
+          Files.readAllBytes(replayRtl)
+        ),
+        "identical native StreamFifo generation was not byte deterministic"
+      )
 
       val concreteConfig = synchronousResetConfig(concreteDirectory)
       concreteConfig.netlistFileName = "stream_fifo_parameterized_depth.v"
@@ -85,10 +115,10 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
           paramrtl.IntConstraint.MaxInclusive(BigInt(8))
         )
       )
+      val streamFifoModules = streamFifoModuleInventory(parameterized)
       assert(
-        "(?m)^module StreamFifo #\\(".r
-          .findAllMatchIn(parameterized)
-          .size == 1
+        streamFifoModules == ExpectedStreamFifoModuleInventory,
+        s"Unexpected StreamFifo module inventory: ${streamFifoModules.mkString(", ")}"
       )
       assert(parameterized.contains("module NativeParameterizedStreamFifoHarness #("))
       assert(parameterized.contains("parameter integer DEPTH = 5"))
@@ -118,6 +148,7 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
 
       val rtl = parameterizedDirectory.resolve("stream_fifo_parameterized_depth.v")
       Vector(1, 3, 5, 8).foreach { selectedDepth =>
+        lintDepth(parameterizedDirectory, rtl, selectedDepth)
         simulateDepth(parameterizedDirectory, rtl, selectedDepth)
         synthesizeDepth(parameterizedDirectory, rtl, selectedDepth)
       }
@@ -164,10 +195,42 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       val compact = verilog.replaceAll("\\s+", "")
       assert(report.parameters.map(_.name) == Vector("BASE"))
       assert(compact.contains(".DEPTH((BASE+1))"))
+      val streamFifoModules = streamFifoModuleInventory(verilog)
       assert(
-        "(?m)^module StreamFifo #\\(".r.findAllMatchIn(verilog).size == 1
+        streamFifoModules == ExpectedStreamFifoModuleInventory,
+        s"Unexpected StreamFifo module inventory: ${streamFifoModules.mkString(", ")}"
       )
     }
+  }
+
+  private def lintDepth(
+      directory: Path,
+      rtl: Path,
+      selectedDepth: Int
+  ): Unit = {
+    val depthSpecificWarnings =
+      if (selectedDepth == 1) Seq("-Wno-CMPCONST")
+      else Seq.empty[String]
+    val command = Seq(
+      "verilator",
+      "--lint-only",
+      "--language",
+      "1364-2001",
+      "-Wall",
+      "-Wno-DECLFILENAME",
+      "-Wno-WIDTHEXPAND",
+      "-Wno-WIDTHTRUNC"
+    ) ++ depthSpecificWarnings ++ Seq(
+      "--top-module",
+      "NativeParameterizedStreamFifoHarness",
+      s"-GDEPTH=$selectedDepth",
+      rtl.toString
+    )
+    val result = run(directory, command)
+    assert(
+      result._1 == 0,
+      s"Verilator lint failed for DEPTH=$selectedDepth:\n${result._2}"
+    )
   }
 
   private def simulateDepth(

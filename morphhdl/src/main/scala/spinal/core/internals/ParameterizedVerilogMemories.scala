@@ -251,12 +251,16 @@ private[internals] object ParameterizedVerilogMemories {
     val readAddressWidth = selectAddressWidth(
       read.address,
       widthOf(read.address, source),
-      nativeAddressWidth
+      nativeAddressWidth,
+      memory.component,
+      source
     )
     val writeAddressWidth = selectAddressWidth(
       write.address,
       widthOf(write.address, source),
-      nativeAddressWidth
+      nativeAddressWidth,
+      memory.component,
+      source
     )
     validateAddressWidth(read.address, readAddressWidth, metadata.depth, "read", memory, pc, source)
     validateAddressWidth(write.address, writeAddressWidth, metadata.depth, "write", memory, pc, source)
@@ -374,17 +378,39 @@ private[internals] object ParameterizedVerilogMemories {
   private def selectAddressWidth(
       address: Expression with WidthProvider,
       retained: ElaborationIntegerExpression,
-      native: ElaborationIntegerExpression
+      native: ElaborationIntegerExpression,
+      component: Component,
+      source: Option[String]
   ): ElaborationIntegerExpression = {
     val retainedIsConcreteWitness =
       retained.parameters.isEmpty &&
       retained.default == BigInt(address.getWidth) &&
       retained.minimum == retained.default &&
       retained.maximum == retained.default
+    val driverProvesNativeWidth = address match {
+      case target: BaseType =>
+        val assignments = ArrayBuffer.empty[DataAssignmentStatement]
+        component.dslBody.walkLeafStatements {
+          case value: DataAssignmentStatement
+              if value.finalTarget eq target =>
+            assignments += value
+          case _ =>
+        }
+        val widths = assignments.toVector.flatMap { assignment =>
+          assignment.source match {
+            case value: Expression with WidthProvider =>
+              Some(widthOf(value, source))
+            case _ => None
+          }
+        }.distinct
+        widths.size == 1 && equivalentWidth(widths.head, native)
+      case _ => false
+    }
     if (
       native.parameters.nonEmpty &&
       retainedIsConcreteWitness &&
-      native.default == retained.default
+      native.default == retained.default &&
+      driverProvesNativeWidth
     ) native
     else retained
   }

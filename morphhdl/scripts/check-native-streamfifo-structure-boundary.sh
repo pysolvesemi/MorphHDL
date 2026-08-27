@@ -9,6 +9,10 @@ cd "$root"
 ! grep -R --line-number --fixed-strings 'rewriteParameterizedStreamFifoDepth'   morphhdl/src/main/scala frontend/src/main/scala morphruntime/src/main/scala lib/src/main/scala
 ! grep -R --line-number --fixed-strings 'fromParameterizedMemoryDepth'   frontend/src/main/scala
 ! grep -R --line-number -E   'io_push_(valid|ready|payload)|io_pop_(valid|ready|payload)|io_occupancy|io_availability'   morphhdl/src/main/scala/spinal/core/internals
+! grep -q -E 'NativeHardwareNames|looksNativeHardware' \
+  morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+! grep -q -E '"(push|pop|popOnIo|occupancy|availability|full|empty|addressGen|readArbitration|readPort|io)"' \
+  morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
 
 grep -q 'depth: ParameterizedMemoryDepth'   lib/src/main/scala/spinal/lib/Stream.scala
 grep -q 'ExternalNativeIntFormalComponent.parameter'   lib/src/main/scala/spinal/lib/Stream.scala
