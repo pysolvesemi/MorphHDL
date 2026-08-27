@@ -554,8 +554,52 @@ private[internals] object ParameterizedVerilogStructural {
   private val VerilogIdentifier =
     "[A-Za-z_][A-Za-z0-9_$]*".r
 
+  private val VerilogStringLiteral =
+    "\"(?:\\\\.|[^\"\\\\])*\"".r
+
+  private val VerilogBasedLiteral =
+    "(?i)(?:[0-9][0-9_]*)?'s?[bodh][0-9a-f_xz?]+".r
+
+  private val VerilogUnbasedLiteral =
+    "(?i)'[01xz]".r
+
+  private val VerilogSystemIdentifier =
+    "\\$([A-Za-z_][A-Za-z0-9_$]*)".r
+
+  private val VerilogCallIdentifier =
+    "([A-Za-z_][A-Za-z0-9_$]*)\\s*\\(".r
+
+  private val VerilogHierarchicalReference =
+    "[A-Za-z_][A-Za-z0-9_$]*(?:\\.[A-Za-z_][A-Za-z0-9_$]*)+".r
+
   private def identifierTokens(value: String): Set[String] =
     VerilogIdentifier.findAllIn(value).filterNot(VerilogWords).toSet
+
+  private def continuousAssignmentSourceTokens(
+      value: String,
+      target: String
+  ): Set[String] = {
+    if (value.contains('\\')) Set.empty
+    else {
+      val withoutStrings = VerilogStringLiteral.replaceAllIn(value, " ")
+      val withoutBased = VerilogBasedLiteral.replaceAllIn(withoutStrings, " ")
+      val sanitized = VerilogUnbasedLiteral.replaceAllIn(withoutBased, " ")
+      val excluded =
+        VerilogSystemIdentifier
+          .findAllMatchIn(sanitized)
+          .map(_.group(1))
+          .toSet ++
+          VerilogCallIdentifier
+            .findAllMatchIn(sanitized)
+            .map(_.group(1))
+            .toSet ++
+          VerilogHierarchicalReference
+            .findAllIn(sanitized)
+            .flatMap(identifierTokens)
+            .toSet
+      identifierTokens(sanitized) -- excluded - target
+    }
+  }
 
   private def sharedContinuousAssignmentOwners(
       plans: Vector[BlockPlan],
@@ -577,7 +621,10 @@ private[internals] object ParameterizedVerilogStructural {
             )
           }
           val target = statement.group(1)
-          val rhsNames = identifierTokens(statement.group(3))
+          val rhsNames = continuousAssignmentSourceTokens(
+            statement.group(3),
+            target
+          )
           val targetOwners = plans.filter { plan =>
             plan.assignmentEvidence.exists(_.target == target)
           }
@@ -585,6 +632,7 @@ private[internals] object ParameterizedVerilogStructural {
             plan.block -> plan.assignmentEvidence
               .filter(_.target == target)
               .flatMap(_.sourceNames)
+              .filterNot(_ == target)
               .toSet
           }.toMap
           val sourceFrequency = mutable.LinkedHashMap.empty[String, Int]
