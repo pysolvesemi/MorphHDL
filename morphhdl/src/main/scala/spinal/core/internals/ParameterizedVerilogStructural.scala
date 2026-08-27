@@ -663,7 +663,7 @@ private[internals] object ParameterizedVerilogStructural {
           )
           val evidenceOwners =
             if (targetEvidenceOwners.nonEmpty) targetEvidenceOwners
-            else sourceProvenOwners(targetOwners, _.directSourceNames)
+            else sourceProvenOwners(plans, _.directSourceNames)
           evidenceOwners match {
             case Vector(owner) =>
               if (!claimed.exists(plan => plan.block eq owner.block)) {
