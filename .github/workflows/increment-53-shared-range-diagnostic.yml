@@ -4,13 +4,10 @@ on:
   push:
     branches:
       - agent/increment-53-native-streamfifo-repair
-  pull_request:
-    branches:
-      - parameterized-verilog
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: increment-53-shared-range-diagnostic-${{ github.ref }}
@@ -18,6 +15,11 @@ concurrency:
 
 jobs:
   diagnostic:
+    if: >-
+      ${{
+        github.event_name != 'push' ||
+        !contains(github.event.head_commit.message, '[inc53-shared-diag]')
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     container:
@@ -171,11 +173,42 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Validate focused Increment 53 repair on Scala 2.12
+      - name: Validate and publish compact diagnostic result
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          mkdir -p docs/morphhdl
+          set +e
           /tmp/morphhdl-mill "morph[2.12.18].testOnly" \
             morphhdl.ParameterizedStreamFifoDepthTests \
             morphhdl.HierarchyParameterBindingTests \
-            morphhdl.NativeIntNestedSymbolicControlFlowTests
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            2>&1 | tee /tmp/increment-53-shared-diagnostic.log
+          status=${PIPESTATUS[0]}
+          set -e
+
+          {
+            echo "Increment 53 shared declaration diagnostic"
+            echo "source_commit=${GITHUB_SHA}"
+            echo "exit_status=${status}"
+            echo
+            tail -n 240 /tmp/increment-53-shared-diagnostic.log
+          } > docs/morphhdl/increment-53-shared-diagnostic-result.log
+
+          git restore \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala \
+            morphhdl/src/test/scala/morphhdl/HierarchyParameterBindingTests.scala \
+            morphhdl/src/test/scala/morphhdl/NativeIntNestedSymbolicControlFlowTests.scala \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/morphhdl/increment-53-shared-diagnostic-result.log
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: record Increment 53 shared diagnostic [inc53-shared-diag]"
+            git pull --rebase origin agent/increment-53-native-streamfifo-repair
+            git push origin HEAD:agent/increment-53-native-streamfifo-repair
+          fi
+          exit "${status}"
