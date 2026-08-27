@@ -687,9 +687,31 @@ private[internals] object ParameterizedVerilogStructural {
                     .mkString(",")
                   s"$ownerIndex:exact=[$exactSources]:direct=[$directSources]"
               }.mkString(";")
+              val claimantSummary = claimed.toVector.zipWithIndex.map {
+                case (plan, claimantIndex) =>
+                  val assignmentSummary = plan.assignmentEvidence.map { evidence =>
+                    s"${evidence.target}<-[${evidence.sourceNames.toVector.sorted.mkString(",")}]"
+                  }.mkString("|")
+                  val rhsOwned = plan.ownedNames.intersect(rhsNames).toVector.sorted
+                    .mkString(",")
+                  val location = plan.block.sourceLocation.getOrElse("<unknown>")
+                  s"$claimantIndex@$location:assign=[$assignmentSummary]:rhsOwned=[$rhsOwned]"
+              }.mkString(";")
+              val rhsDeclarationSummary = rhsNames.toVector.sorted.map { name =>
+                val declarationLines = lines.zipWithIndex.collect {
+                  case (line, declarationIndex)
+                      if isDeclarationLine(line.trim) &&
+                        containsName(line, name) =>
+                    val declarationClaimants = planClaimsByLine(plans)
+                      .getOrElse(declarationIndex, Vector.empty)
+                      .size
+                    s"${declarationIndex + 1}:$declarationClaimants"
+                }
+                s"$name=[${declarationLines.mkString(",")}]"
+              }.mkString(";")
               fail(
                 "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-CONTINUOUS-ASSIGNMENT-OWNER-UNPROVEN",
-                s"shared native continuous assignment at line ${index + 1} has ${evidenceOwners.size} source-proven owners; exact unique ownership is required; target='$target' rhs=[${rhsNames.toVector.sorted.mkString(",")}] targetOwners=${targetOwners.size} evidence={$ownershipSummary}"
+                s"shared native continuous assignment at line ${index + 1} has ${evidenceOwners.size} source-proven owners; exact unique ownership is required; target='$target' rhs=[${rhsNames.toVector.sorted.mkString(",")}] targetOwners=${targetOwners.size} evidence={$ownershipSummary} claimants={$claimantSummary} declarations={$rhsDeclarationSummary}"
               )
           }
         }
