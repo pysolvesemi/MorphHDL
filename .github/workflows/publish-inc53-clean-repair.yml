@@ -1,0 +1,109 @@
+name: Publish clean Increment 53 source repair
+
+on:
+  push:
+    branches:
+      - agent/increment-53-repair-publisher-temp
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-clean-inc53-repair
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out exact Increment 53 target
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-repair
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Materialize reviewed repair as ordinary source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          carrier_path = Path('.github/workflows/increment-53-repair-carrier.yml')
+          carrier = carrier_path.read_text(encoding='utf-8')
+          start = "          python3 - <<'PY'\n"
+          end = "\n          PY\n\n          git show"
+          if start not in carrier or end not in carrier:
+              raise SystemExit('Increment 53 repair carrier shape changed')
+          embedded = carrier.split(start, 1)[1].split(end, 1)[0]
+          exec(compile(textwrap.dedent(embedded), str(carrier_path) + ':embedded-python', 'exec'), {})
+
+          stream_path = Path('lib/src/main/scala/spinal/lib/Stream.scala')
+          stream = stream_path.read_text(encoding='utf-8')
+          old_domain = "      minimum = BigInt(1),\n      maximum = BigInt(4096)\n"
+          new_domain = "      minimum = depth.expression.minimum,\n      maximum = depth.expression.maximum\n"
+          if stream.count(old_domain) != 1:
+              raise SystemExit(f'StreamFifo formal-domain anchor count is {stream.count(old_domain)}')
+          stream_path.write_text(stream.replace(old_domain, new_domain, 1), encoding='utf-8')
+
+          test_path = Path('morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala')
+          tests = test_path.read_text(encoding='utf-8')
+          old_assert = '      assert(parameterizedReport.parameters.map(_.name).contains("DEPTH"))\n'
+          new_assert = (
+              old_assert
+              + '      val depthParameter = parameterizedReport.parameters.find(_.name == "DEPTH").get\n'
+              + '      assert(depthParameter.default == BigInt(5))\n'
+              + '      assert(depthParameter.minimum == BigInt(1))\n'
+              + '      assert(depthParameter.maximum == BigInt(8))\n'
+          )
+          if tests.count(old_assert) != 1:
+              raise SystemExit(f'StreamFifo report assertion anchor count is {tests.count(old_assert)}')
+          test_path.write_text(tests.replace(old_assert, new_assert, 1), encoding='utf-8')
+          PY
+
+          git show 3a0c1e0118db85cd7522ed51df7e471a584b0dae:.github/workflows/morphhdl-native-streamfifo-structure.yml \
+            > .github/workflows/morphhdl-native-streamfifo-structure.yml
+          git rm -f .github/workflows/increment-53-source-finalize.yml
+          git rm -f .github/workflows/increment-53-repair-carrier.yml
+          git rm -f --ignore-unmatch docs/morphhdl/increment-53-focused-diagnostic.log
+          git diff --check
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Prove focused contracts on both supported Scala versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala_version in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill "morph[$scala_version].testOnly" \
+              morphhdl.ParameterizedStreamFifoDepthTests \
+              morphhdl.HierarchyParameterBindingTests \
+              morphhdl.NativeIntNestedSymbolicControlFlowTests
+          done
+
+      - name: Publish source-only repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(morphhdl): complete native StreamFifo source repair"
+          git push origin HEAD:agent/increment-53-native-streamfifo-repair
