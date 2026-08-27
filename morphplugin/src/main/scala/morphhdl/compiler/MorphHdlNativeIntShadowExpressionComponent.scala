@@ -1587,6 +1587,14 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       }
 
       tree match {
+        // ValDef initializers are routed directly through rewriteExpression
+        // below, so the transform-level generate case never sees a native
+        // `val area = condition generate { ... }`.  Normalize it here as well
+        // to retain the complete structural alternative instead of silently
+        // elaborating only the concrete witness.
+        case application @ Apply(Select(condition, name), List(body))
+            if inNativeStreamFifo && decoded(name) == "generate" =>
+          Rewrite(normalizeGenerate(application, condition, body))
         case Apply(Select(left, operatorName), List(right))
             if inNativeStreamFifo &&
               (decoded(operatorName) == "&&" || decoded(operatorName) == "||") =>
