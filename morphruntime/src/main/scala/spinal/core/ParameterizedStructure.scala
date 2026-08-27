@@ -182,10 +182,10 @@ object ParameterizedStructure {
   /**
     * Capture one representative ordinary SpinalHDL body.
     *
-    * Only top-level declarations, concurrent data assignments, ordinary
-    * native memories and child Components are accepted. Runtime tree statements
-    * and arbitrary statement kinds are rejected explicitly instead of silently
-    * changing Scala semantics.
+    * Only declarations, data assignments, ordinary native memories, native
+    * when/switch hardware trees and child Components are accepted. Arbitrary
+    * statement kinds are rejected explicitly instead of silently changing
+    * Scala semantics.
     */
   def captureBlock(
       component: Component,
@@ -246,12 +246,22 @@ object ParameterizedStructure {
         nestedChildren.exists(_ eq value)
       )
 
-    val declarations = statements.collect { case value: BaseType => value }
-    val assignments = statements.collect {
+    val hardwareStatements = ArrayBuffer.empty[Statement]
+    statements.foreach {
+      case value: TreeStatement =>
+        hardwareStatements += value
+        value.walkStatements(hardwareStatements += _)
+      case value => hardwareStatements += value
+    }
+
+    val declarations = hardwareStatements.collect { case value: BaseType => value }
+    val assignments = hardwareStatements.collect {
       case value: DataAssignmentStatement => value
     }
-    val memories = statements.collect { case value: Mem[_] => value }
-    val memoryPorts = statements.collect { case value: MemPortStatement => value }
+    val memories = hardwareStatements.collect { case value: Mem[_] => value }
+    val memoryPorts = hardwareStatements.collect {
+      case value: MemPortStatement => value
+    }
     memoryPorts.find(port => !memories.exists(_ eq port.mem)).foreach { port =>
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FOREIGN-MEMORY-PORT-UNSUPPORTED",
@@ -271,18 +281,20 @@ object ParameterizedStructure {
     memories.foreach(_.preventAsBlackBox())
     memoryPorts.foreach(port => port.isVital = true)
 
-    val unsupported = statements.filterNot {
+    val unsupported = hardwareStatements.filterNot {
       case _: BaseType                 => true
       case _: DataAssignmentStatement  => true
       case _: Mem[_]                   => true
       case _: MemPortStatement         => true
+      case _: WhenStatement            => true
+      case _: SwitchStatement          => true
       case _                           => false
     }
 
     unsupported.headOption.foreach { value =>
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALA-SIDE-EFFECT-UNSUPPORTED",
-        s"structural body emitted unsupported native statement '${value.getClass.getSimpleName}'; only declarations, concurrent assignments, native memories and child Components may be captured",
+        s"structural body emitted unsupported native statement '${value.getClass.getSimpleName}'; only declarations, data assignments, native memories, native when/switch trees and child Components may be captured",
         sourceLocation
       )
     }
