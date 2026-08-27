@@ -485,6 +485,64 @@ object ExternalNativeIntCompilerRuntime {
   }
 
   /**
+    * Preserve the native `BooleanPimped.generate` contract while retaining its
+    * body as a structural generate-if alternative.  Unlike a source-level
+    * `if`, `generate` has an implicit empty false continuation and returns null
+    * when its concrete witness is false.  The empty continuation is therefore
+    * compiler-owned and must not pass through the user-body empty check.
+    */
+  def selectSymbolicGenerate[T](
+      condition: Boolean,
+      predicateReference: String,
+      sourceFile: String,
+      sourceLine: Int
+  )(body: => T): T = {
+    if (!boundaryActive || !ParameterizedStructure.captureEnabled) {
+      if (condition) body else null.asInstanceOf[T]
+    } else withCapture(sourceFile, sourceLine) {
+      val component = Option(Component.current).getOrElse {
+        fail(
+          "MORPH-FRONTEND-SESSION-MISSING",
+          "native symbolic generate requires an active Component",
+          sourceFile,
+          sourceLine
+        )
+      }
+      val expression = ExternalNativeIntShadowRegistry.definitionPredicateTracked(
+        predicateReference,
+        condition,
+        rendered(sourceFile, sourceLine)
+      )
+      var capturedValue: Option[T] = None
+      val trueBlock = ParameterizedStructure.captureBlock(
+        component,
+        Some(rendered(sourceFile, sourceLine))
+      ) {
+        capturedValue = Some(body)
+      }
+      val pending = ParameterizedStructure.beginPending(
+        component,
+        "generate-if",
+        Some(rendered(sourceFile, sourceLine))
+      )
+      val falseBlock = ParameterizedStructuralSynthetic.emptyBlock(
+        Some(rendered(sourceFile, sourceLine))
+      )
+      val base = generatedIfBase(sourceFile, sourceLine)
+      ParameterizedStructure.registerIf(
+        pending,
+        expression,
+        base + "_true",
+        base + "_false",
+        trueBlock,
+        falseBlock,
+        Some(rendered(sourceFile, sourceLine))
+      )
+      if (condition) capturedValue.get else null.asInstanceOf[T]
+    }
+  }
+
+  /**
     * Preserve Scala's `if (condition) statement` result type. The true branch
     * may return a fluent hardware context while the source-level conditional
     * still has Unit type because it has no explicit else branch.

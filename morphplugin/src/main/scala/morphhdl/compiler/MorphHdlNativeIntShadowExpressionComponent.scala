@@ -1587,11 +1587,8 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       }
 
       tree match {
-        // ValDef initializers are routed directly through rewriteExpression
-        // below, so the transform-level generate case never sees a native
-        // `val area = condition generate { ... }`.  Normalize it here as well
-        // to retain the complete structural alternative instead of silently
-        // elaborating only the concrete witness.
+        // ValDef initializers enter rewriteExpression directly and therefore
+        // do not reach the transform-level generate case below.
         case application @ Apply(Select(condition, name), List(body))
             if inNativeStreamFifo && decoded(name) == "generate" =>
           Rewrite(normalizeGenerate(application, condition, body))
@@ -1753,9 +1750,43 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     }
 
     private def normalizeGenerate(original: Tree, condition: Tree, body: Tree): Tree = {
-      val conditional = If(condition, body, Literal(Constant(null)))
-      conditional.setPos(original.pos)
-      rewriteIf(conditional)
+      val rewrittenCondition = rewriteExpression(condition, None)
+      rewrittenCondition.booleanReference match {
+        case Some(reference) =>
+          val rewritten = Apply(
+            Apply(
+              selectedConditionalHelperMethod("selectSymbolicGenerate"),
+              List(
+                rewrittenCondition.tree,
+                Literal(Constant(reference)),
+                Literal(Constant(sourceFile)),
+                Literal(Constant(sourceLine(original)))
+              )
+            ),
+            List(transformAlternative(body))
+          )
+          rewritten.setPos(original.pos)
+        case None =>
+          val unsupportedReference =
+            firstTrackedBoolean(condition).orElse(firstTrackedInteger(condition))
+          val retainedCondition = unsupportedReference match {
+            case Some(reference) =>
+              unsupportedBoolean(
+                reference,
+                "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-PREDICATE-UNSUPPORTED",
+                "native symbolic generate predicate is outside the bounded Increment 51 comparison/isPow2 set",
+                condition,
+                rewrittenCondition.tree
+              ).tree
+            case None => rewrittenCondition.tree
+          }
+          val conditional = If(
+            retainedCondition,
+            withScope(transform(body)),
+            Literal(Constant(null))
+          )
+          conditional.setPos(original.pos)
+      }
     }
 
     private def normalizeBooleanMatch(original: Match): Option[Tree] = {
