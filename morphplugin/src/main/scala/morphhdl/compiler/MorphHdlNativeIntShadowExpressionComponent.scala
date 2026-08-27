@@ -302,6 +302,10 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
                   inferShape(left, scopes) == UIntShape &&
                   inferShape(right, scopes) == UIntShape =>
               UIntShape
+            case Apply(Select(left, name), List(_))
+                if Set("+^", "-^").contains(decoded(name)) &&
+                  inferShape(left, scopes) == UIntShape =>
+              UIntShape
             case Typed(value, _) => inferShape(value, scopes)
             case _               => UnknownShape
           }
