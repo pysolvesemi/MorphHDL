@@ -1,0 +1,91 @@
+name: Increment 53 shared range diagnostic
+
+on:
+  push:
+    branches:
+      - agent/increment-53-native-streamfifo-repair
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-53-shared-range-diagnostic-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-repair
+          fetch-depth: 0
+
+      - name: Apply reviewed repair candidate and expose rejected range
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          carrier_path = Path(
+              ".github/workflows/increment-53-repair-carrier.yml"
+          )
+          carrier = carrier_path.read_text(encoding="utf-8")
+          start_marker = "          python3 - <<'PY'\n"
+          end_marker = "\n          PY\n\n          git show"
+          if start_marker not in carrier or end_marker not in carrier:
+              raise SystemExit("Increment 53 repair carrier shape changed")
+          script = carrier.split(start_marker, 1)[1].split(end_marker, 1)[0]
+          exec(
+              compile(
+                  textwrap.dedent(script),
+                  str(carrier_path) + ":embedded-python",
+                  "exec",
+              ),
+              {},
+          )
+
+          structural_path = Path(
+              "morphhdl/src/main/scala/spinal/core/internals/"
+              "ParameterizedVerilogStructural.scala"
+          )
+          structural = structural_path.read_text(encoding="utf-8")
+          old = '''            s"captured native range ${range.start}-${range.end} is shared by multiple structural alternatives but is not one simple always block"
+          '''
+          new = '''            s"captured native range ${range.start}-${range.end} is shared by multiple structural alternatives but is not one simple always block; lines=${processLines.mkString(" || ")}"
+          '''
+          count = structural.count(old)
+          if count != 1:
+              raise SystemExit(
+                  f"shared-range diagnostic anchor count was {count}, expected 1"
+              )
+          structural_path.write_text(
+              structural.replace(old, new, 1),
+              encoding="utf-8",
+          )
+          PY
+          git diff --check
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Reproduce focused StreamFifo failure with range text
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill "morph[2.12.18].testOnly" \
+            morphhdl.ParameterizedStreamFifoDepthTests
