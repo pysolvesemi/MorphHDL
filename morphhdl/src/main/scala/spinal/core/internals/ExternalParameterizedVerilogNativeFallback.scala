@@ -1,5 +1,6 @@
 package spinal.core.internals
 
+import java.util.IdentityHashMap
 import java.util.regex.{Matcher, Pattern}
 
 import scala.collection.mutable
@@ -763,9 +764,16 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 targetWidth,
                 sourceWidth
               )
+              val provenModularUpdate = isProvenModularUIntUpdate(
+                assignment,
+                target,
+                targetWidth,
+                sourceWidth
+              )
               if (
                 targetWidth.isSymbolic && sourceWidth.isSymbolic &&
-                targetWidth != sourceWidth && !nativeCounterNext && !provenAutoResize
+                targetWidth != sourceWidth && !nativeCounterNext &&
+                !provenAutoResize && !provenModularUpdate
               ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
@@ -776,7 +784,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               if (
                 targetWidth.isSymbolic && !sourceWidth.isSymbolic &&
                 !isUnfixedLiteral(assignment.source) && !nativeCounterNext &&
-                !provenAutoResize
+                !provenAutoResize && !provenModularUpdate
               ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
@@ -835,6 +843,89 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           targetWidth.isSymbolic &&
           sourceWidth.default == targetWidth.default &&
           ExternalParameterizedAutoResize.proves(component, assignment, uint)
+        case _ => false
+      }
+
+    private final case class ModularUIntFacts(
+        targetReferences: Int,
+        booleanValues: Int
+    )
+
+    /**
+      * A direct unsigned self-update made only from Add/Sub and Boolean values
+      * is stable modulo the symbolic target width. Native normalization may
+      * widen Boolean-to-UInt carriers to the concrete witness, but the whole
+      * assignment's LSB truncation/zero extension preserves the exact result
+      * for every positive legal target width.
+      */
+    private def isProvenModularUIntUpdate(
+        assignment: DataAssignmentStatement,
+        target: BitVector,
+        targetWidth: WidthExpr,
+        sourceWidth: WidthExpr
+    ): Boolean =
+      target match {
+        case uint: UInt
+            if targetWidth.isSymbolic &&
+              sourceWidth.default == targetWidth.default &&
+              (assignment.target eq uint) &&
+              (assignment.finalTarget eq uint) =>
+          val active = new IdentityHashMap[Expression, java.lang.Boolean]()
+
+          def combine(
+              left: Option[ModularUIntFacts],
+              right: Option[ModularUIntFacts]
+          ): Option[ModularUIntFacts] =
+            for {
+              leftFacts <- left
+              rightFacts <- right
+            } yield ModularUIntFacts(
+              leftFacts.targetReferences + rightFacts.targetReferences,
+              leftFacts.booleanValues + rightFacts.booleanValues
+            )
+
+          def visit(expression: Expression): Option[ModularUIntFacts] = {
+            if (expression == null || active.containsKey(expression)) return None
+            if (expression eq uint) return Some(ModularUIntFacts(1, 0))
+            active.put(expression, java.lang.Boolean.TRUE)
+            val result = expression match {
+              case operator: Operator.BitVector.Add
+                  if operator.getTypeObject == TypeUInt =>
+                combine(visit(operator.left), visit(operator.right))
+              case operator: Operator.BitVector.Sub
+                  if operator.getTypeObject == TypeUInt =>
+                combine(visit(operator.left), visit(operator.right))
+              case cast: CastBitsToUInt => visit(cast.input)
+              case cast: CastUIntToBits => visit(cast.input)
+              case _: CastBoolToBits => Some(ModularUIntFacts(0, 1))
+              case resize: Resize
+                  if resize.getTypeObject == TypeUInt ||
+                    resize.getTypeObject == TypeBits =>
+                visit(resize.input).filter(_.targetReferences == 0)
+              case value: BaseType
+                  if (value.getTypeObject == TypeUInt ||
+                    value.getTypeObject == TypeBits) &&
+                    value.isTypeNode && value.isComb &&
+                    value.isDirectionLess &&
+                    Statement.isSomethingToFullStatement(value) =>
+                value.head match {
+                  case driver: DataAssignmentStatement
+                      if (driver.target eq value) &&
+                        (driver.finalTarget eq value) &&
+                        widthInference.ofBase(value) ==
+                          widthInference.ofExpression(driver.source) =>
+                    visit(driver.source)
+                  case _ => None
+                }
+              case _ => None
+            }
+            active.remove(expression)
+            result
+          }
+
+          visit(assignment.source).exists { facts =>
+            facts.targetReferences == 1 && facts.booleanValues >= 1
+          }
         case _ => false
       }
 

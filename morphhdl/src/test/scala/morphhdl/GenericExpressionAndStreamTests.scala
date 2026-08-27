@@ -208,16 +208,30 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
 
   test("native UInt auto-resize provenance is exact and generation-local") {
     withTemporaryDirectory { directory =>
+      val parameterizedDirectory = directory.resolve("parameterized")
+      val concreteDirectory = directory.resolve("concrete")
+      Files.createDirectories(parameterizedDirectory)
+      Files.createDirectories(concreteDirectory)
+
       val width = HdlInt.param("WIDTH", default = 3, min = 1, max = 8)
       val parameterized = emitMorph(
-        directory,
+        parameterizedDirectory,
+        "native_auto_resized_increment.v",
+        new NativeAutoResizedIncrement(width)
+      )
+      val concrete = emitConcrete(
+        concreteDirectory,
         "native_auto_resized_increment.v",
         new NativeAutoResizedIncrement(width)
       )
 
       assert(parameterized.contains("parameter integer WIDTH = 3"))
       assert(hasDeclarationWidth(parameterized, "value", "[WIDTH-1:0]"))
-      assert(hasDeclarationWidth(parameterized, "nextValue", "[WIDTH-1:0]"))
+      assert(
+        nativeModule(
+          concretize(parameterized, "NativeAutoResizedIncrement", width = 3)
+        ) == nativeModule(concrete)
+      )
 
       val unsafeConfig = SpinalConfig(targetDirectory = directory.toString)
       unsafeConfig.netlistFileName = "native_unresized_fixed_increment.v"
