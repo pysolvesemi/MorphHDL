@@ -182,10 +182,10 @@ object ParameterizedStructure {
   /**
     * Capture one representative ordinary SpinalHDL body.
     *
-    * Only declarations, data assignments, ordinary native memories, native
-    * when/switch hardware trees and child Components are accepted. Arbitrary
-    * statement kinds are rejected explicitly instead of silently changing
-    * Scala semantics.
+    * Only declarations, data and declaration-local initialization assignments,
+    * ordinary native memories, native when/switch hardware trees and child
+    * Components are accepted. Arbitrary statement kinds are rejected explicitly
+    * instead of silently changing Scala semantics.
     */
   def captureBlock(
       component: Component,
@@ -274,6 +274,9 @@ object ParameterizedStructure {
       val assignments = hardwareStatements.collect {
         case value: DataAssignmentStatement => value
       }.toVector
+      val initializations = hardwareStatements.collect {
+        case value: InitAssignmentStatement => value
+      }.toVector
       val memories = hardwareStatements.collect { case value: Mem[_] => value }.toVector
       val memoryPorts = hardwareStatements.collect {
         case value: MemPortStatement => value
@@ -285,10 +288,20 @@ object ParameterizedStructure {
           sourceLocation
         )
       }
+      initializations
+        .find(value => !declarations.exists(_ eq value.finalTarget))
+        .foreach { value =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FOREIGN-INITIALIZATION-UNSUPPORTED",
+            s"structural body initialized '${Option(value.finalTarget).flatMap(target => Option(target.getName())).getOrElse("<unnamed>")}' without declaring that register inside the same captured block",
+            sourceLocation
+          )
+        }
 
       val unsupported = hardwareStatements.filterNot {
         case _: BaseType                 => true
         case _: DataAssignmentStatement  => true
+        case _: InitAssignmentStatement  => true
         case _: Mem[_]                   => true
         case _: MemPortStatement         => true
         case _: WhenStatement            => true
@@ -299,7 +312,7 @@ object ParameterizedStructure {
       unsupported.headOption.foreach { value =>
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALA-SIDE-EFFECT-UNSUPPORTED",
-          s"structural body emitted unsupported native statement '${value.getClass.getSimpleName}'; only declarations, data assignments, native memories, native when/switch trees and child Components may be captured",
+          s"structural body emitted unsupported native statement '${value.getClass.getSimpleName}'; only declarations, data and declaration-local initialization assignments, native memories, native when/switch trees and child Components may be captured",
           sourceLocation
         )
       }
