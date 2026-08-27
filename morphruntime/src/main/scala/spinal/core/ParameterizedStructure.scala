@@ -51,6 +51,7 @@ object ParameterizedStructure {
     val labels = mutable.LinkedHashMap.empty[String, Option[String]]
     var nextPendingId = 0L
     var nextCaptureId = 0L
+    var assignmentValidationScheduled = false
   }
 
   private final class CaptureState(
@@ -127,6 +128,16 @@ object ParameterizedStructure {
     override val parameters: Vector[ElaborationIntegerParameter] =
       selector.parameters
   }
+
+  private final case class AlternativeStep(
+      region: StructuralRegion,
+      branch: Int
+  )
+
+  private final case class CapturedAssignment(
+      statement: DataAssignmentStatement,
+      path: Vector[AlternativeStep]
+  )
 
   private val activeCapture = new ThreadLocal[CaptureState]()
 
@@ -364,6 +375,133 @@ object ParameterizedStructure {
       )
   }
 
+  private def scheduleAssignmentValidation(component: Component): Unit = {
+    val storage = storageOf(component)
+    if (!storage.assignmentValidationScheduled) {
+      storage.assignmentValidationScheduled = true
+      component.addPrePopTask(() =>
+        authorizeMutuallyExclusiveAssignments(component)
+      )
+    }
+  }
+
+  private def authorizeMutuallyExclusiveAssignments(
+      component: Component
+  ): Unit = {
+    val regions = storageOption(component).toVector
+      .flatMap(_.regions)
+      .toVector
+    val captured = capturedAssignments(regions)
+    if (captured.size < 2) return
+
+    val byTarget = new IdentityHashMap[
+      BaseType,
+      ArrayBuffer[CapturedAssignment]
+    ]()
+    captured.foreach { value =>
+      val target = value.statement.finalTarget
+      var entries = byTarget.get(target)
+      if (entries eq null) {
+        entries = ArrayBuffer.empty[CapturedAssignment]
+        byTarget.put(target, entries)
+      }
+      entries += value
+    }
+
+    val graphAssignments = ArrayBuffer.empty[DataAssignmentStatement]
+    component.dslBody.walkStatements {
+      case value: DataAssignmentStatement => graphAssignments += value
+      case _                              =>
+    }
+
+    val targets = byTarget.entrySet().iterator()
+    while (targets.hasNext) {
+      val entry = targets.next()
+      val target = entry.getKey
+      val entries = entry.getValue.toVector
+      if (entries.size > 1) {
+        val capturedStatements =
+          new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+        entries.foreach(value =>
+          capturedStatements.put(value.statement, java.lang.Boolean.TRUE)
+        )
+        val targetAssignments = graphAssignments
+          .filter(value => value.finalTarget eq target)
+          .toVector
+        val completeCapture =
+          targetAssignments.size == entries.size &&
+          targetAssignments.forall(capturedStatements.containsKey) &&
+          entries.forall(value =>
+            targetAssignments.exists(_ eq value.statement)
+          )
+        val pairwiseExclusive = entries.indices.forall { left =>
+          (left + 1 until entries.size).forall { right =>
+            mutuallyExclusive(entries(left).path, entries(right).path)
+          }
+        }
+        if (completeCapture && pairwiseExclusive) target.allowOverride()
+      }
+    }
+  }
+
+  private def capturedAssignments(
+      regions: Vector[StructuralRegion]
+  ): Vector[CapturedAssignment] = {
+    val values = ArrayBuffer.empty[CapturedAssignment]
+
+    def visitBlock(
+        block: ParameterizedStructuralBlock,
+        path: Vector[AlternativeStep]
+    ): Unit = {
+      block.assignments.foreach(value =>
+        values += CapturedAssignment(value, path)
+      )
+      block.regions.foreach(value => visitRegion(value, path))
+    }
+
+    def visitRegion(
+        region: StructuralRegion,
+        path: Vector[AlternativeStep]
+    ): Unit = region match {
+      case value: StructuralFor =>
+        visitBlock(value.body, path)
+      case value: StructuralIf =>
+        visitBlock(
+          value.whenTrue,
+          path :+ AlternativeStep(value, branch = 0)
+        )
+        visitBlock(
+          value.whenFalse,
+          path :+ AlternativeStep(value, branch = 1)
+        )
+      case value: StructuralCase =>
+        value.choices.zipWithIndex.foreach { case (choice, index) =>
+          visitBlock(
+            choice.body,
+            path :+ AlternativeStep(value, branch = index)
+          )
+        }
+        visitBlock(
+          value.defaultBody,
+          path :+ AlternativeStep(value, branch = value.choices.size)
+        )
+    }
+
+    regions.foreach(value => visitRegion(value, Vector.empty))
+    values.toVector
+  }
+
+  private def mutuallyExclusive(
+      left: Vector[AlternativeStep],
+      right: Vector[AlternativeStep]
+  ): Boolean =
+    left.exists { leftStep =>
+      right.exists { rightStep =>
+        (leftStep.region eq rightStep.region) &&
+        leftStep.branch != rightStep.branch
+      }
+    }
+
   def registerFor(
       component: Component,
       label: String,
@@ -598,6 +736,7 @@ object ParameterizedStructure {
       region: StructuralRegion,
       sourceLocation: Option[String]
   ): Unit = {
+    scheduleAssignmentValidation(component)
     val capture = activeCapture.get()
     val actualCaptureId = Option(capture).map(_.id)
     if (actualCaptureId != expectedCaptureId) {

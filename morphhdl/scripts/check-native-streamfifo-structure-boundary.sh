@@ -12,6 +12,9 @@ cd "$root"
 
 grep -q 'depth: ParameterizedMemoryDepth'   lib/src/main/scala/spinal/lib/Stream.scala
 grep -q 'ExternalNativeIntFormalComponent.parameter'   lib/src/main/scala/spinal/lib/Stream.scala
+grep -q 'minimum = depth.expression.minimum'   lib/src/main/scala/spinal/lib/Stream.scala
+grep -q 'maximum = depth.expression.maximum'   lib/src/main/scala/spinal/lib/Stream.scala
+! grep -q 'maximum = BigInt(4096)'   lib/src/main/scala/spinal/lib/Stream.scala
 grep -q 'push := (push + 1).resized'   lib/src/main/scala/spinal/lib/Stream.scala
 grep -q 'pop := (pop + 1).resized'   lib/src/main/scala/spinal/lib/Stream.scala
 grep -q 'push := U(0).resized'   lib/src/main/scala/spinal/lib/Stream.scala

@@ -357,10 +357,8 @@ object ExternalNativeIntCompilerRuntime {
       file: String,
       line: Int
   ): UInt = {
-    if (!boundaryActive)
-      throw new IllegalStateException(
-        "compilerUIntValueLike requires an active native formalization boundary"
-      )
+    val carrierWidth = prototype.getBitsWidth
+    if (!boundaryActive) return U(BigInt(value), carrierWidth bits)
     val expression = ExternalNativeIntShadowRegistry
       .definitionExpressionTracked(
         reference,
@@ -374,7 +372,6 @@ object ExternalNativeIntCompilerRuntime {
         )
       }
     val shapeSource = parameterizedUIntShapeSource(prototype)
-    val carrierWidth = prototype.getBitsWidth
     val result = UInt(carrierWidth bits)
     ParameterizedWidth.copyShape(shapeSource, result)
     result.setName(stableName)
@@ -455,7 +452,7 @@ object ExternalNativeIntCompilerRuntime {
       sourceFile: String,
       sourceLine: Int
   )(ifTrue: => T)(ifFalse: => T): T = {
-    if (!ParameterizedStructure.captureEnabled) {
+    if (!boundaryActive || !ParameterizedStructure.captureEnabled) {
       if (condition) ifTrue else ifFalse
     } else withCapture(sourceFile, sourceLine) {
       captureOne(
@@ -482,7 +479,7 @@ object ExternalNativeIntCompilerRuntime {
       sourceFile: String,
       sourceLine: Int
   )(ifTrue: => Any)(ifFalse: => Any): Unit = {
-    if (!ParameterizedStructure.captureEnabled) {
+    if (!boundaryActive || !ParameterizedStructure.captureEnabled) {
       if (condition) ifTrue else ifFalse
       ()
     } else withCapture(sourceFile, sourceLine) {
@@ -543,7 +540,7 @@ object ExternalNativeIntCompilerRuntime {
         otherwiseLine
       )
     }
-    if (!ParameterizedStructure.captureEnabled) {
+    if (!boundaryActive || !ParameterizedStructure.captureEnabled) {
       def select(index: Int): T = {
         val (condition, _, body, _, _) = ordered(index)
         if (condition()) body()
@@ -588,7 +585,7 @@ object ExternalNativeIntCompilerRuntime {
         otherwiseLine
       )
     }
-    if (!ParameterizedStructure.captureEnabled) {
+    if (!boundaryActive || !ParameterizedStructure.captureEnabled) {
       selectSymbolicChain[Any](ordered, otherwise, otherwiseFile, otherwiseLine)
       ()
     } else withCapture(ordered.head._4, ordered.head._5) {
@@ -742,7 +739,7 @@ object ExternalNativeIntCompilerRuntime {
       sourceFile: String,
       sourceLine: Int
   )(body: => T): T = {
-    if (ParameterizedStructure.captureEnabled)
+    if (boundaryActive && ParameterizedStructure.captureEnabled)
       fail(code, detail, sourceFile, sourceLine)
     body
   }

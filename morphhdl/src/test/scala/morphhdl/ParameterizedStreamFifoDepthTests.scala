@@ -37,6 +37,15 @@ final class NativeParameterizedStreamFifoHarness(depth: HdlInt)
   io.availability := fifo.io.availability.resized
 }
 
+final class UnsafeStructuralAssignmentHarness(depth: HdlInt)
+    extends Component {
+  setDefinitionName("UnsafeStructuralAssignmentHarness")
+  val observed = out(Bool())
+  observed := False
+  if (depth > 1) observed := True
+  else observed := False
+}
+
 class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
   private def component(): NativeParameterizedStreamFifoHarness = {
     val depth = HdlInt.param(
@@ -67,7 +76,15 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       val concrete =
         read(concreteDirectory.resolve("stream_fifo_parameterized_depth.v"))
 
-      assert(parameterizedReport.parameters.map(_.name).contains("DEPTH"))
+      val depthParameter = parameterizedReport.parameters.find(_.name == "DEPTH")
+      assert(depthParameter.nonEmpty)
+      assert(depthParameter.get.default == BigInt(5))
+      assert(
+        depthParameter.get.constraints == Vector(
+          paramrtl.IntConstraint.MinInclusive(BigInt(1)),
+          paramrtl.IntConstraint.MaxInclusive(BigInt(8))
+        )
+      )
       assert(
         "(?m)^module StreamFifo #\\(".r
           .findAllMatchIn(parameterized)
@@ -80,6 +97,7 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
         parameterized.contains("[0:DEPTH-1]") ||
           parameterized.contains("[0:(DEPTH - 1)]")
       )
+      assert(parameterized.contains("clog2(DEPTH, 1)"))
       assert(parameterized.contains("generate"))
       assert(parameterized.contains("DEPTH == 1"))
       assert(parameterized.contains("DEPTH > 1"))
@@ -103,6 +121,52 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
         simulateDepth(parameterizedDirectory, rtl, selectedDepth)
         synthesizeDepth(parameterizedDirectory, rtl, selectedDepth)
       }
+    }
+  }
+
+  test("mutually-exclusive capture never hides an outside assignment") {
+    withTemporaryDirectory { directory =>
+      val config = synchronousResetConfig(directory)
+      config.netlistFileName = "unsafe_structural_assignment.v"
+      MorphVerilog.tryGenerate(config) {
+        val depth = HdlInt.param(
+          "DEPTH",
+          default = BigInt(5),
+          min = BigInt(1),
+          max = BigInt(8)
+        )
+        new UnsafeStructuralAssignmentHarness(depth)
+      } match {
+        case Left(failure) =>
+          assert(failure.detail.contains("ASSIGNMENT OVERLAP"))
+        case Right(report) =>
+          fail(s"Expected inherited overlap failure, received $report")
+      }
+    }
+  }
+
+  test("compound bounded depth retains its exact formal actual") {
+    withTemporaryDirectory { directory =>
+      val config = synchronousResetConfig(directory)
+      config.netlistFileName = "stream_fifo_compound_depth.v"
+      val report = MorphVerilog(config) {
+        val base = HdlInt.param(
+          "BASE",
+          default = BigInt(4),
+          min = BigInt(1),
+          max = BigInt(7)
+        )
+        new NativeParameterizedStreamFifoHarness(
+          base + HdlInt.literal(BigInt(1))
+        )
+      }
+      val verilog = read(directory.resolve("stream_fifo_compound_depth.v"))
+      val compact = verilog.replaceAll("\\s+", "")
+      assert(report.parameters.map(_.name) == Vector("BASE"))
+      assert(compact.contains(".DEPTH((BASE+1))"))
+      assert(
+        "(?m)^module StreamFifo #\\(".r.findAllMatchIn(verilog).size == 1
+      )
     }
   }
 
@@ -283,11 +347,9 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       script,
       s"""read_verilog -defer ${rtl.toString}
          |chparam -set DEPTH $selectedDepth StreamFifo
-         |hierarchy -top StreamFifo
-         |proc
-         |memory
-         |opt
-         |check
+         |hierarchy -check -top StreamFifo
+         |synth -top StreamFifo
+         |check -assert
          |""".stripMargin.getBytes(StandardCharsets.UTF_8)
     )
     val result = run(directory, Seq("yosys", "-q", "-s", script.toString))

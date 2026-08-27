@@ -682,6 +682,15 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     else if (port.isInOut) "inout"
     else "directionless"
 
+  private def directConcreteOutputAdapter(
+      expression: Expression,
+      port: BaseType
+  ): Boolean = expression match {
+    case value if value eq port => true
+    case value: Resize          => directConcreteOutputAdapter(value.input, port)
+    case _                      => false
+  }
+
   private def connectionEvidence(
       parent: Component,
       child: Component,
@@ -726,6 +735,13 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
               allowConcreteInternal
             )
           )
+        } else if (
+          allowConcreteInternal &&
+          assignment.target == assignment.finalTarget &&
+          assignment.finalTarget.component == parent &&
+          directConcreteOutputAdapter(assignment.source, port)
+        ) {
+          Vector(LiteralBinding(port.getBitsWidth))
         } else if (
           allowConcreteInternal && assignment.source == port &&
           assignment.finalTarget.component == parent

@@ -56,6 +56,30 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
     read_data := read_word
   }
 
+  private final class NativeDontCareSimpleDualPortMemory(
+      width: HdlInt,
+      depth: HdlInt
+  ) extends Component {
+    setDefinitionName("NativeDontCareSimpleDualPortMemory")
+
+    val read_enable = in(Bool())
+    val write_enable = in(Bool())
+    val read_address = in(morphhdl.frontend.UInt(depth.addressWidth bits))
+    val write_address = in(morphhdl.frontend.UInt(depth.addressWidth bits))
+    val write_data = in(morphhdl.frontend.Bits(width bits))
+    val read_data = out(morphhdl.frontend.Bits(width bits))
+
+    val memory = morphhdl.frontend
+      .Mem(
+        morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)),
+        depth
+      )
+      .setName("memory")
+    val read_word = memory.readSync(read_address, enable = read_enable)
+    memory.write(write_address, write_data, enable = write_enable)
+    read_data := read_word
+  }
+
   test("ordinary Mem readSync and write emit the guarded native single-port contract") {
     withTemporaryDirectory { directory =>
       val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
@@ -132,6 +156,27 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
       assert(verilog.contains("memory[write_address] <= write_data;"))
       assert(verilog.contains("else if (read_enable == 1'b1) begin"))
       assert(verilog.contains("<= {WIDTH{1'b0}};"))
+      assert(count(verilog, "always @(posedge clk)") == 1)
+    }
+  }
+
+  test("independent-address dontCare retains one deterministic legal collision outcome") {
+    withTemporaryDirectory { directory =>
+      val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
+      val depth = HdlInt.param("DEPTH", default = 5, min = 1, max = 8)
+      val verilog = emitMorph(
+        directory,
+        "native_dontcare_simple_dual_port_memory.v",
+        new NativeDontCareSimpleDualPortMemory(width, depth)
+      )
+
+      assert(verilog.contains("if (read_address < DEPTH) begin"))
+      assert(verilog.contains("if (write_address < DEPTH) begin"))
+      assert(verilog.contains("<= memory[read_address];"))
+      assert(verilog.contains("memory[write_address] <= write_data;"))
+      val readIndex = verilog.indexOf("<= memory[read_address];")
+      val writeIndex = verilog.indexOf("memory[write_address] <= write_data;")
+      assert(readIndex >= 0 && writeIndex > readIndex)
       assert(count(verilog, "always @(posedge clk)") == 1)
     }
   }

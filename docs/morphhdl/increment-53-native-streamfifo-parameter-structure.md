@@ -73,7 +73,9 @@ Increment 53 removes:
 
 The MorphHDL frontend adapter delegates directly to the real native overload.
 Both a direct bounded parameter and a compound bounded `HdlInt` expression
-cross the same `ParameterizedMemoryDepth` contract.
+cross the same `ParameterizedMemoryDepth` contract. The definition-side
+`DEPTH` domain is the exact bounded domain of that actual expression; it is not
+widened beyond the supported values proved by the caller.
 
 ## Proof boundary
 

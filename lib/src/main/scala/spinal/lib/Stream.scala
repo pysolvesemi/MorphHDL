@@ -1471,8 +1471,8 @@ object StreamFifo{
     ExternalNativeIntFormalComponent.parameter(
       actual = depth,
       name = "DEPTH",
-      minimum = BigInt(1),
-      maximum = BigInt(4096)
+      minimum = depth.expression.minimum,
+      maximum = depth.expression.maximum
     )(witness => new StreamFifo(dataType, witness))
 }
 

@@ -258,12 +258,26 @@ private[internals] object ParameterizedVerilogStructural {
         if (!ranges.exists(_.indices.contains(index))) {
           val trimmed = line.trim
           val declaration = isDeclarationLine(trimmed)
-          val assignment = trimmed.startsWith("assign ") && trimmed.endsWith(";")
           val mentionsInternal = trackedInternalNames.exists(name => containsName(line, name))
           val mentionsSlice = fixedSlicePatterns.exists(_.matcher(line).find())
-          if ((declaration && mentionsInternal) || (assignment && (mentionsInternal || mentionsSlice))) {
+          val continuousAssignment =
+            DirectContinuousAssignment.findFirstMatchIn(trimmed)
+          val ownedContinuousAssignment = continuousAssignment.exists { value =>
+            val target = value.group(1)
+            ownedTargetNames(target) || trackedInternalNames(target) || mentionsSlice
+          }
+          if ((declaration && mentionsInternal) || ownedContinuousAssignment) {
             ranges += LineRange(index, index)
-            identifiers(line).foreach { name =>
+            val dependencies = continuousAssignment match {
+              case Some(value) =>
+                val target = value.group(1)
+                if (!portNames(target) && !parameterNames(target)) {
+                  if (trackedInternalNames.add(target)) changed = true
+                }
+                identifierTokens(value.group(3))
+              case None => identifiers(line).toSet
+            }
+            dependencies.foreach { name =>
               if (
                 !portNames(name) && !parameterNames(name) &&
                 !VerilogWords(name)
@@ -444,6 +458,9 @@ private[internals] object ParameterizedVerilogStructural {
   private val DirectProceduralAssignment =
     """^\s*([A-Za-z_][A-Za-z0-9_$]*)(\s*\[[^\]]+\])?\s*(?:<=|=(?!=))\s*(.*?)\s*;\s*$""".r
 
+  private val DirectContinuousAssignment =
+    """^\s*assign\s+([A-Za-z_][A-Za-z0-9_$]*)(\s*\[[^\]]+\])?\s*=\s*(.*?)\s*;\s*$""".r
+
   private val VerilogIdentifier =
     "[A-Za-z_][A-Za-z0-9_$]*".r
 
@@ -488,9 +505,104 @@ private[internals] object ParameterizedVerilogStructural {
     ]
     plans.foreach(plan => current(plan.block) = plan)
     val sharedProcessRanges = mutable.LinkedHashSet.empty[LineRange]
+    val factoredModuleRanges = mutable.LinkedHashSet.empty[LineRange]
+    val proceduralRanges = proceduralBlocks(lines, None)
+
+    def claimantPlans(
+        range: LineRange,
+        claimed: ArrayBuffer[BlockPlan],
+        kind: String
+    ): Vector[BlockPlan] = {
+      val claimants = claimed.toVector.map(plan => current(plan.block))
+      val foreignOverlaps = current.values.toVector.flatMap { plan =>
+        plan.ranges.collect {
+          case candidate if candidate != range && candidate.overlaps(range) =>
+            plan -> candidate
+        }
+      }
+      if (foreignOverlaps.nonEmpty) {
+        val (_, overlap) = foreignOverlaps.head
+        fail(
+          s"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-${kind}-RANGE-OVERLAP",
+          s"native ${kind.toLowerCase} range ${range.start}-${range.end} overlaps captured range ${overlap.start}-${overlap.end}; exact ownership is required"
+        )
+      }
+      claimants.foreach { claimant =>
+        if (!claimant.ranges.contains(range)) {
+          fail(
+            s"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-${kind}-RANGE-MISSING",
+            s"native ${kind.toLowerCase} range ${range.start}-${range.end} is absent from one proven claimant",
+            claimant.block.sourceLocation
+          )
+        }
+      }
+      claimants.combinations(2).foreach { pair =>
+        val left = pair(0)
+        val right = pair(1)
+        if (
+          !mutuallyExclusive(
+            paths.getOrElse(left.block, Vector.empty),
+            paths.getOrElse(right.block, Vector.empty)
+          )
+        ) {
+          fail(
+            s"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-${kind}-NONEXCLUSIVE",
+            s"native ${kind.toLowerCase} range ${range.start}-${range.end} is shared by structural blocks that are not proven mutually exclusive",
+            left.block.sourceLocation.orElse(right.block.sourceLocation)
+          )
+        }
+      }
+      claimants
+    }
+
+    def bodyFromRanges(ranges: Vector[LineRange]): String =
+      stripCommonIndent(
+        ranges.flatMap(_.indices.map(lines)).mkString("\n").trim
+      )
+
+    def factorAtModuleScope(
+        range: LineRange,
+        claimants: Vector[BlockPlan]
+    ): Unit = {
+      claimants.foreach { claimant =>
+        val plan = current(claimant.block)
+        val retainedRanges = plan.ranges.filterNot(_ == range)
+        current(claimant.block) = plan.copy(
+          ranges = retainedRanges,
+          body = bodyFromRanges(retainedRanges)
+        )
+      }
+      factoredModuleRanges += range
+    }
 
     claims.toVector
       .filter(_._2.size > 1)
+      .sortBy(_._1.start)
+      .foreach { case (range, claimed) =>
+        val rangeLines = range.indices.map(lines).toVector
+        val normalizedLines =
+          rangeLines.map(line => stripLineComment(line).trim)
+        val standaloneDeclarations =
+          normalizedLines.nonEmpty &&
+          normalizedLines.forall { line =>
+            line.nonEmpty && isStandaloneDeclarationLine(line)
+          }
+        if (standaloneDeclarations) {
+          if (proceduralRanges.exists(_.overlaps(range))) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-DECLARATION-SCOPE-UNSUPPORTED",
+              s"native declaration range ${range.start}-${range.end} is nested inside a procedural scope"
+            )
+          }
+          val claimants = claimantPlans(range, claimed, "DECLARATION")
+          factorAtModuleScope(range, claimants)
+        }
+      }
+
+    claims.toVector
+      .filter { case (range, claimed) =>
+        claimed.size > 1 && !factoredModuleRanges(range)
+      }
       .sortBy(_._1.start)
       .foreach { case (range, claimed) =>
         val initialClaimants = claimed.toVector
@@ -1339,6 +1451,14 @@ private[internals] object ParameterizedVerilogStructural {
     val declaration = stripLeadingVerilogAttributes(value)
     declaration.startsWith("wire ") || declaration.startsWith("reg ") ||
       declaration.startsWith("integer ")
+  }
+
+  private def isStandaloneDeclarationLine(value: String): Boolean = {
+    val declaration = stripLeadingVerilogAttributes(value)
+    isDeclarationLine(declaration) &&
+    declaration.endsWith(";") &&
+    declaration.count(_ == ';') == 1 &&
+    !declaration.dropRight(1).contains("=")
   }
 
   private def identifiers(value: String): Vector[String] =
