@@ -989,7 +989,11 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case access: BitVectorRangedAccessFloating => inferFloatingRange(access)
         case access: BitVectorBitAccessFixed => inferFixedBit(access)
         case _: BitVectorBitAccessFloating => WidthLiteral(1)
-        case literal: BitVectorLiteral => WidthLiteral(literal.getWidth)
+        case literal: BitVectorLiteral =>
+          WidthLiteral(
+            if (literal.hasSpecifiedBitCount) literal.getWidth
+            else literal.minimalValueBitWidth
+          )
         case _: BoolLiteral            => WidthLiteral(1)
         case port: MemReadSync =>
           ExternalParameterizedMemoryRegistry.metadataOf(port.mem) match {
