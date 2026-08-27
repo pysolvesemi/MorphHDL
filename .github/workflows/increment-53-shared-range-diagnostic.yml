@@ -19,7 +19,7 @@ concurrency:
 jobs:
   diagnostic:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     container:
       image: ghcr.io/spinalhdl/docker:latest
     env:
@@ -30,7 +30,7 @@ jobs:
           ref: agent/increment-53-native-streamfifo-repair
           fetch-depth: 0
 
-      - name: Apply reviewed repair candidate and expose rejected range
+      - name: Apply reviewed repair candidate and factor shared declarations
         shell: bash
         run: |
           set -euo pipefail
@@ -61,14 +61,86 @@ jobs:
               "ParameterizedVerilogStructural.scala"
           )
           structural = structural_path.read_text(encoding="utf-8")
-          old = '''            s"captured native range ${range.start}-${range.end} is shared by multiple structural alternatives but is not one simple always block"
+          old = '''    val sharedProcessRanges = mutable.LinkedHashSet.empty[LineRange]
+
+              claims.toVector
+                .filter(_._2.size > 1)
+                .sortBy(_._1.start)
           '''
-          new = '''            s"captured native range ${range.start}-${range.end} is shared by multiple structural alternatives but is not one simple always block; lines=${processLines.mkString(" || ")}"
+          new = '''    val sharedProcessRanges = mutable.LinkedHashSet.empty[LineRange]
+              val sharedNativeDeclarationRanges =
+                mutable.LinkedHashSet.empty[LineRange]
+
+              claims.toVector
+                .filter(_._2.size > 1)
+                .sortBy(_._1.start)
+                .foreach { case (range, claimed) =>
+                  val declarationLines = range.indices.map(lines).toVector
+                  val normalizedDeclarations =
+                    declarationLines.map(line => stripLineComment(line).trim)
+                  val isSharedNativeWireDeclarationRange =
+                    normalizedDeclarations.nonEmpty &&
+                    normalizedDeclarations.forall { line =>
+                      line.nonEmpty &&
+                      line.startsWith("wire ") &&
+                      line.endsWith(";")
+                    }
+                  if (isSharedNativeWireDeclarationRange) {
+                    val claimants =
+                      claimed.toVector.map(plan => current(plan.block))
+                    claimants.combinations(2).foreach { pair =>
+                      val left = pair(0)
+                      val right = pair(1)
+                      if (
+                        !mutuallyExclusive(
+                          paths.getOrElse(left.block, Vector.empty),
+                          paths.getOrElse(right.block, Vector.empty)
+                        )
+                      ) {
+                        fail(
+                          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-DECLARATION-NONEXCLUSIVE",
+                          s"native declaration range ${range.start}-${range.end} is shared by structural blocks that are not proven mutually exclusive",
+                          left.block.sourceLocation.orElse(right.block.sourceLocation)
+                        )
+                      }
+                    }
+                    val completeDeclarations =
+                      stripCommonIndent(declarationLines.mkString("\\n").trim)
+                    claimants.foreach { claimant =>
+                      val plan = current(claimant.block)
+                      if (!plan.ranges.contains(range)) {
+                        fail(
+                          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-DECLARATION-RANGE-MISSING",
+                          s"native declaration range ${range.start}-${range.end} is absent from one proven claimant",
+                          claimant.block.sourceLocation
+                        )
+                      }
+                      val withoutDeclarations = removeUniqueProcess(
+                        plan.body,
+                        completeDeclarations,
+                        range,
+                        claimant.block.sourceLocation
+                      )
+                      current(claimant.block) = plan.copy(
+                        ranges = plan.ranges.filterNot(_ == range),
+                        body = stripCommonIndent(withoutDeclarations.trim)
+                      )
+                    }
+                    sharedNativeDeclarationRanges += range
+                  }
+                }
+
+              claims.toVector
+                .filter { case (range, claimed) =>
+                  claimed.size > 1 &&
+                  !sharedNativeDeclarationRanges(range)
+                }
+                .sortBy(_._1.start)
           '''
           count = structural.count(old)
           if count != 1:
               raise SystemExit(
-                  f"shared-range diagnostic anchor count was {count}, expected 1"
+                  f"shared-declaration factoring anchor count was {count}, expected 1"
               )
           structural_path.write_text(
               structural.replace(old, new, 1),
@@ -86,9 +158,11 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Reproduce focused StreamFifo failure with range text
+      - name: Validate focused Increment 53 repair on Scala 2.12
         shell: bash
         run: |
           set -euo pipefail
           /tmp/morphhdl-mill "morph[2.12.18].testOnly" \
-            morphhdl.ParameterizedStreamFifoDepthTests
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests
