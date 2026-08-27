@@ -88,6 +88,25 @@ private[internals] object ParameterizedVerilogStructural {
     )
     validateParameters(component, parameters, portNames, pc)
 
+    val assignmentOwners = mutable.LinkedHashMap.empty[
+      String,
+      mutable.LinkedHashSet[ParameterizedStructuralBlock]
+    ]
+    allBlocks.foreach { block =>
+      block.assignments.foreach { assignment =>
+        Option(assignment.finalTarget.getName()).filter(_.nonEmpty).foreach { name =>
+          assignmentOwners
+            .getOrElseUpdate(
+              name,
+              mutable.LinkedHashSet.empty[ParameterizedStructuralBlock]
+            ) += block
+        }
+      }
+    }
+    val uniquelyOwnedAssignmentTargets = assignmentOwners.collect {
+      case (name, owners) if owners.size == 1 => name
+    }.toSet
+
     val rawPlans = allBlocks.map { block =>
       planBlock(
         component,
@@ -95,12 +114,14 @@ private[internals] object ParameterizedVerilogStructural {
         lines,
         portNames,
         parameters.map(_.name).toSet,
+        uniquelyOwnedAssignmentTargets,
         canonicalOf
       )
     }
     val alternativePaths = structuralAlternativePaths(regions)
     val (resolvedPlans, sharedProcessRanges) =
       resolveSharedProceduralProcesses(rawPlans, lines, alternativePaths)
+    validateBranchLocalReferences(resolvedPlans, lines)
     val plans = resolvedPlans.map(finalizePlan)
     val allRanges = plans.flatMap(_.ranges)
     allRanges.combinations(2).foreach {
@@ -147,6 +168,7 @@ private[internals] object ParameterizedVerilogStructural {
       lines: Vector[String],
       portNames: Set[String],
       parameterNames: Set[String],
+      uniquelyOwnedAssignmentTargets: Set[String],
       canonicalOf: Component => Component
   ): BlockPlan = {
     val ranges = ArrayBuffer.empty[LineRange]
@@ -255,7 +277,10 @@ private[internals] object ParameterizedVerilogStructural {
       processRange.indices.foreach { index =>
         val stripped = stripLineComment(lines(index)).trim
         DirectProceduralAssignment.findFirstMatchIn(stripped).foreach { value =>
-          if (ownedTargetNames(value.group(1))) {
+          if (
+            ownedTargetNames(value.group(1)) &&
+            uniquelyOwnedAssignmentTargets(value.group(1))
+          ) {
             identifierTokens(value.group(3)).foreach { name =>
               if (!portNames(name) && !parameterNames(name)) {
                 trackedInternalNames += name
@@ -356,6 +381,39 @@ private[internals] object ParameterizedVerilogStructural {
       childOutputActualNames.toSet,
       assignmentEvidence.toVector
     )
+  }
+
+  private def validateBranchLocalReferences(
+      plans: Vector[BlockPlan],
+      lines: Vector[String]
+  ): Unit = {
+    val removedIndices = plans.flatMap(_.ranges).flatMap(_.indices).toSet
+    val branchLocalNames = plans.flatMap { plan =>
+      plan.block.declarations.flatMap { declaration =>
+        Option(declaration.getName()).filter(_.nonEmpty).flatMap { name =>
+          val range = findDeclarationLine(
+            lines,
+            name,
+            plan.block.sourceLocation
+          )
+          if (range.indices.exists(removedIndices)) Some(name) else None
+        }
+      }
+    }.distinct.sorted
+
+    branchLocalNames.foreach { name =>
+      lines.zipWithIndex.collectFirst {
+        case (line, index)
+            if !removedIndices(index) &&
+              containsName(stripLineComment(line), name) =>
+          index -> stripLineComment(line).trim
+      }.foreach { case (index, line) =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-BRANCH-LOCAL-REFERENCE-ESCAPES",
+          s"native module-scope line ${index + 1} references branch-local '$name': '$line'"
+        )
+      }
+    }
   }
 
   private def expressionNames(root: Expression): Set[String] = {
