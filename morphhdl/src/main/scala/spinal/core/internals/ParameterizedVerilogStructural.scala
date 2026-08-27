@@ -1791,7 +1791,9 @@ private[internals] object ParameterizedVerilogStructural {
     val merged = ArrayBuffer.empty[LineRange]
     sorted.foreach { range =>
       merged.lastOption match {
-        case Some(previous) if range.start <= previous.end + 1 =>
+        // Exact module-item boundaries carry structural ownership.  Coalescing
+        // adjacent items can hide a shared process inside one claimant's range.
+        case Some(previous) if range.start <= previous.end =>
           merged.update(merged.size - 1, LineRange(previous.start, math.max(previous.end, range.end)))
         case _ => merged += range
       }
