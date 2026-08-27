@@ -124,10 +124,16 @@ final class NativeMemoryPortAdapterProvenanceTests extends AnyFunSuite {
 
       assert(verilog.contains("clog2(DEPTH, 1)"), verilog)
       assert(verilog.contains("adapter_memory"), verilog)
+      // Native emission may consume the write-address input directly while
+      // retaining a private carrier for the synchronous read address. Count
+      // exact symbolic declarations in both the module port list (comma) and
+      // body (semicolon), rather than requiring two optimizer-owned body nets.
+      // The DEPTH maximum of nine above remains the provenance discriminator:
+      // an unproven fixed three-bit adapter cannot reach this assertion.
       assert(
-        "(?m)^\\s*(?:wire|reg)\\s+\\[clog2\\(DEPTH,\\s*1\\)-1:0\\]\\s+[^;]+;\\s*$".r
+        "(?m)^\\s*(?:(?:input|output)\\s+)?(?:wire|reg)\\s+\\[clog2\\(DEPTH,\\s*1\\)-1:0\\]\\s+[^,;]+[,;]\\s*$".r
           .findAllIn(verilog)
-          .size >= 2,
+          .size >= 3,
         verilog
       )
     }

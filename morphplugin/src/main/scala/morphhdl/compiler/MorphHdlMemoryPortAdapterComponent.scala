@@ -29,8 +29,15 @@ final class MorphHdlMemoryPortAdapterComponent(val global: Global)
       extends TypingTransformer(unit) {
     private lazy val dataClass = rootMirror.staticClass("spinal.core.Data")
     private lazy val memClass = rootMirror.staticClass("spinal.core.Mem")
+    // The compiler-plugin unit tests intentionally compile fixtures without
+    // the SpinalHDL library module on their compiler classpath.  Treat that
+    // optional owner as absent; when the library is present, the exact typed
+    // owner identity below remains mandatory.
     private lazy val memPimpedClass =
-      rootMirror.staticClass("spinal.lib.MemPimped")
+      try rootMirror.staticClass("spinal.lib.MemPimped")
+      catch {
+        case _: scala.ScalaReflectionException => NoSymbol
+      }
     private lazy val libPackage = rootMirror.staticModule("spinal.lib.package")
     private lazy val memPimpedConversions: Set[Symbol] = {
       val member = libPackage.info.member(TermName("memPimped"))
@@ -62,6 +69,7 @@ final class MorphHdlMemoryPortAdapterComponent(val global: Global)
 
     private def exactAdapterMethod(symbol: Symbol): Boolean =
       symbol != null && symbol != NoSymbol &&
+        memPimpedClass != NoSymbol &&
         (symbol.owner eq memPimpedClass) && {
           val name = symbol.name.decodedName.toString
           name == "writePort" || name == "readSyncPort"
