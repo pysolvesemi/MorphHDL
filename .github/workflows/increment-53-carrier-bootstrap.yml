@@ -1,0 +1,151 @@
+name: Increment 53 carrier bootstrap
+
+on:
+  push:
+    branches:
+      - agent/increment-53-native-streamfifo-repair
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53-carrier-bootstrap
+  cancel-in-progress: true
+
+jobs:
+  patch-carrier:
+    if: ${{ !contains(github.event.head_commit.message, '[inc53-carrier-bootstrap]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53-native-streamfifo-repair
+          fetch-depth: 0
+
+      - name: Make carrier indentation-safe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/increment-53-repair-carrier.yml')
+          text = path.read_text(encoding='utf-8')
+
+          if '          import re\n' not in text:
+              anchor = '          import textwrap\n'
+              if text.count(anchor) != 1:
+                  raise SystemExit('repair carrier import anchor changed')
+              text = text.replace(
+                  anchor,
+                  '          import re\n          import textwrap\n',
+                  1,
+              )
+
+          helper_source = r'''def replace_exact(text, old, new, label):
+              count = text.count(old)
+              if count == 0 and new in text:
+                  return text
+              if count == 1:
+                  return text.replace(old, new, 1)
+              if count > 1:
+                  raise SystemExit(f"{label}: expected one exact anchor, found {count}")
+
+              def pattern_for(value):
+                  parts = []
+                  for line in value.splitlines(keepends=True):
+                      has_newline = line.endswith("\n")
+                      body = line[:-1] if has_newline else line
+                      if body.strip():
+                          parts.append(r"^[ \\t]*" + re.escape(body.strip()) + r"[ \\t]*")
+                      else:
+                          parts.append(r"^[ \\t]*")
+                      if has_newline:
+                          parts.append(r"\n")
+                  return "".join(parts)
+
+              matches = list(re.finditer(pattern_for(old), text, re.MULTILINE))
+              if not matches:
+                  if len(list(re.finditer(pattern_for(new), text, re.MULTILINE))) == 1:
+                      return text
+                  raise SystemExit(f"{label}: expected one exact anchor, found 0")
+              if len(matches) != 1:
+                  raise SystemExit(
+                      f"{label}: expected one indentation-normalized anchor, found {len(matches)}"
+                  )
+
+              match = matches[0]
+              actual_lines = match.group(0).splitlines()
+              old_lines = old.splitlines()
+              continuation_delta = 0
+              for index in range(1, min(len(actual_lines), len(old_lines))):
+                  if old_lines[index].strip():
+                      actual_indent = len(actual_lines[index]) - len(actual_lines[index].lstrip())
+                      old_indent = len(old_lines[index]) - len(old_lines[index].lstrip())
+                      continuation_delta = actual_indent - old_indent
+                      break
+              if continuation_delta:
+                  lines = new.splitlines(keepends=True)
+                  adjusted = [lines[0]] if lines else []
+                  for line in lines[1:]:
+                      if line.strip():
+                          adjusted.append(" " * continuation_delta + line)
+                      else:
+                          adjusted.append(line)
+                  new = "".join(adjusted)
+              return text[:match.start()] + new + text[match.end():]
+
+          '''
+
+          if 'robust_replace_exact_source' not in text:
+              helper_start = text.index('          def replace_exact(')
+              helper_end = text.index('          def insert_before(', helper_start)
+              assignment = (
+                  '          robust_replace_exact_source = ' + repr(helper_source) + '\n'
+                  '          exec(robust_replace_exact_source, globals())\n\n'
+              )
+              text = text[:helper_start] + assignment + text[helper_end:]
+
+          if 'helper_start = script.index("def replace_exact(")' not in text:
+              exec_start = text.index(
+                  '          script = finalize.split(start_marker, 1)[1].split(end_marker, 1)[0]\n'
+              )
+              exec_end = text.index('          memory_path = Path(', exec_start)
+              exec_lines = [
+                  '          script = finalize.split(start_marker, 1)[1].split(end_marker, 1)[0]',
+                  '          script = textwrap.dedent(script)',
+                  '          helper_start = script.index("def replace_exact(")',
+                  '          helper_end = script.index("def insert_before(", helper_start)',
+                  '          script = (',
+                  '              script[:helper_start] + robust_replace_exact_source +',
+                  '              script[helper_end:]',
+                  '          )',
+                  '          exec(',
+                  '              compile(',
+                  '                  script,',
+                  '                  str(finalize_path) + ":embedded-python",',
+                  '                  "exec",',
+                  '              ),',
+                  '              {},',
+                  '          )',
+                  '',
+              ]
+              text = text[:exec_start] + '\n'.join(exec_lines) + text[exec_end:]
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          git rm -f .github/workflows/increment-53-carrier-bootstrap.yml
+          git diff --check
+
+      - name: Publish carrier correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "ci: make Increment 53 repair carrier indentation-safe [inc53-carrier-bootstrap]"
+          git push origin HEAD:agent/increment-53-native-streamfifo-repair
