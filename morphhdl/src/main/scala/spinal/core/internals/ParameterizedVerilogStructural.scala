@@ -250,6 +250,22 @@ private[internals] object ParameterizedVerilogStructural {
       }
     }
 
+    val nativeProceduralBlocks = proceduralBlocks(lines, block.sourceLocation)
+    nativeProceduralBlocks.foreach { processRange =>
+      processRange.indices.foreach { index =>
+        val stripped = stripLineComment(lines(index)).trim
+        DirectProceduralAssignment.findFirstMatchIn(stripped).foreach { value =>
+          if (ownedTargetNames(value.group(1))) {
+            identifierTokens(value.group(3)).foreach { name =>
+              if (!portNames(name) && !parameterNames(name)) {
+                trackedInternalNames += name
+              }
+            }
+          }
+        }
+      }
+    }
+
     val fixedSlicePatterns = block.slices.map(fixedSlicePattern)
     var changed = true
     while (changed) {
@@ -290,7 +306,7 @@ private[internals] object ParameterizedVerilogStructural {
       }
     }
 
-    proceduralBlocks(lines, block.sourceLocation).foreach { processRange =>
+    nativeProceduralBlocks.foreach { processRange =>
       if (!ranges.exists(_.overlaps(processRange))) {
         val processText = processRange.indices.map(lines).mkString("\n")
         val targets = proceduralAssignmentTargets(processText)
