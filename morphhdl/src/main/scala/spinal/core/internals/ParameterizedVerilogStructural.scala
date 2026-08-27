@@ -107,7 +107,9 @@ private[internals] object ParameterizedVerilogStructural {
       case (name, owners) if owners.size == 1 => name
     }.toSet
 
-    val rawPlans = allBlocks.map { block =>
+    def plansWithContinuousOwners(
+        continuousOwners: Map[Int, ParameterizedStructuralBlock]
+    ): Vector[BlockPlan] = allBlocks.map { block =>
       planBlock(
         component,
         block,
@@ -115,9 +117,21 @@ private[internals] object ParameterizedVerilogStructural {
         portNames,
         parameters.map(_.name).toSet,
         uniquelyOwnedAssignmentTargets,
+        continuousOwners,
         canonicalOf
       )
     }
+    val preliminaryPlans = plansWithContinuousOwners(Map.empty)
+    val continuousOwners =
+      sharedContinuousAssignmentOwners(preliminaryPlans, lines)
+    val rawPlans =
+      if (continuousOwners.isEmpty) preliminaryPlans
+      else plansWithContinuousOwners(continuousOwners)
+    validateSharedContinuousAssignmentReplay(
+      rawPlans,
+      lines,
+      continuousOwners
+    )
     val alternativePaths = structuralAlternativePaths(regions)
     val (resolvedPlans, sharedProcessRanges) =
       resolveSharedProceduralProcesses(rawPlans, lines, alternativePaths)
@@ -169,6 +183,7 @@ private[internals] object ParameterizedVerilogStructural {
       portNames: Set[String],
       parameterNames: Set[String],
       uniquelyOwnedAssignmentTargets: Set[String],
+      continuousOwners: Map[Int, ParameterizedStructuralBlock],
       canonicalOf: Component => Component
   ): BlockPlan = {
     val ranges = ArrayBuffer.empty[LineRange]
@@ -305,7 +320,8 @@ private[internals] object ParameterizedVerilogStructural {
             DirectContinuousAssignment.findFirstMatchIn(trimmed)
           val ownedContinuousAssignment = continuousAssignment.exists { value =>
             val target = value.group(1)
-            ownedTargetNames(target) || trackedInternalNames(target) || mentionsSlice
+            continuousOwners.get(index).forall(_ eq block) &&
+            (ownedTargetNames(target) || trackedInternalNames(target) || mentionsSlice)
           }
           if ((declaration && mentionsInternal) || ownedContinuousAssignment) {
             ranges += LineRange(index, index)
@@ -540,6 +556,114 @@ private[internals] object ParameterizedVerilogStructural {
 
   private def identifierTokens(value: String): Set[String] =
     VerilogIdentifier.findAllIn(value).filterNot(VerilogWords).toSet
+
+  private def sharedContinuousAssignmentOwners(
+      plans: Vector[BlockPlan],
+      lines: Vector[String]
+  ): Map[Int, ParameterizedStructuralBlock] = {
+    val claims = planClaimsByLine(plans)
+    val proceduralRanges = proceduralBlocks(lines, None)
+    val owners = mutable.LinkedHashMap.empty[Int, ParameterizedStructuralBlock]
+    claims.toVector
+      .filter(_._2.size > 1)
+      .sortBy(_._1)
+      .foreach { case (index, claimed) =>
+        val normalized = stripLineComment(lines(index)).trim
+        DirectContinuousAssignment.findFirstMatchIn(normalized).foreach { statement =>
+          if (proceduralRanges.exists(_.indices.contains(index))) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-CONTINUOUS-ASSIGNMENT-SCOPE-UNSUPPORTED",
+              s"shared native continuous assignment at line ${index + 1} is nested inside a procedural scope"
+            )
+          }
+          val target = statement.group(1)
+          val rhsNames = identifierTokens(statement.group(3))
+          val targetOwners = plans.filter { plan =>
+            plan.assignmentEvidence.exists(_.target == target)
+          }
+          val sourceNamesByOwner = targetOwners.map { plan =>
+            plan.block -> plan.assignmentEvidence
+              .filter(_.target == target)
+              .flatMap(_.sourceNames)
+              .toSet
+          }.toMap
+          val sourceFrequency = mutable.LinkedHashMap.empty[String, Int]
+            .withDefaultValue(0)
+          sourceNamesByOwner.values.foreach { names =>
+            names.foreach { name =>
+              sourceFrequency(name) = sourceFrequency(name) + 1
+            }
+          }
+          val evidenceOwners = targetOwners.filter { plan =>
+            sourceNamesByOwner(plan.block).exists { name =>
+              sourceFrequency(name) == 1 && rhsNames(name)
+            }
+          }
+          evidenceOwners match {
+            case Vector(owner) =>
+              if (!claimed.exists(plan => plan.block eq owner.block)) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-CONTINUOUS-ASSIGNMENT-OWNER-NOT-CLAIMANT",
+                  s"shared native continuous assignment at line ${index + 1} has one source-proven owner that did not claim its emitted range",
+                  owner.block.sourceLocation
+                )
+              }
+              owners(index) = owner.block
+            case _ =>
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-CONTINUOUS-ASSIGNMENT-OWNER-UNPROVEN",
+                s"shared native continuous assignment at line ${index + 1} has ${evidenceOwners.size} source-proven owners; exact unique ownership is required"
+              )
+          }
+        }
+      }
+    owners.toMap
+  }
+
+  private def planClaimsByLine(
+      plans: Vector[BlockPlan]
+  ): Map[Int, Vector[BlockPlan]] = {
+    val claims = mutable.LinkedHashMap.empty[Int, ArrayBuffer[BlockPlan]]
+    plans.foreach { plan =>
+      plan.ranges.flatMap(_.indices).distinct.foreach { index =>
+        claims.getOrElseUpdate(index, ArrayBuffer.empty) += plan
+      }
+    }
+    claims.map { case (index, values) => index -> values.toVector }.toMap
+  }
+
+  private def validateSharedContinuousAssignmentReplay(
+      plans: Vector[BlockPlan],
+      lines: Vector[String],
+      owners: Map[Int, ParameterizedStructuralBlock]
+  ): Unit = {
+    val claims = planClaimsByLine(plans)
+    owners.toVector.sortBy(_._1).foreach { case (index, expectedOwner) =>
+      val actual = claims.getOrElse(index, Vector.empty)
+      if (actual.size != 1 || !(actual.head.block eq expectedOwner)) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-CONTINUOUS-ASSIGNMENT-REPLAY-MISMATCH",
+          s"source-proven continuous assignment at line ${index + 1} has ${actual.size} owners after replay; exactly its proven owner is required"
+        )
+      }
+    }
+    claims.toVector
+      .filter { case (index, values) =>
+        values.size > 1 &&
+        DirectContinuousAssignment
+          .findFirstMatchIn(stripLineComment(lines(index)).trim)
+          .nonEmpty &&
+        !owners.contains(index)
+      }
+      .sortBy(_._1)
+      .headOption
+      .foreach { case (index, values) =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-CONTINUOUS-ASSIGNMENT-OWNER-MISSING",
+          s"shared native continuous assignment at line ${index + 1} retained ${values.size} owners without a source-proven owner"
+        )
+      }
+  }
 
   private def removeUniqueProcess(
       body: String,
