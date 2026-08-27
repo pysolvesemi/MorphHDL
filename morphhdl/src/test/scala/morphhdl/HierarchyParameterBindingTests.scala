@@ -116,6 +116,93 @@ class HierarchyParameterBindingTests extends AnyFunSuite {
     rightOut := right.dout
   }
 
+  private final class DerivedWidthLeaf(depth: HdlInt) extends Component {
+    setDefinitionName("DerivedWidthHierarchyLeaf")
+    val direct = in(morphhdl.frontend.Bits(depth bits))
+    val occupancy = out(
+      morphhdl.frontend.UInt((depth + 1).ceilLog2 bits)
+    )
+    occupancy := 0
+  }
+
+  private final class DerivedWidthTop(depth: HdlInt) extends Component {
+    setDefinitionName("DerivedWidthHierarchyTop")
+    val direct = in(morphhdl.frontend.Bits(depth bits))
+    val occupancy = out(UInt(4 bits))
+    val lexicalMarker = Bool().setName("lexical_marker").dontSimplifyIt()
+    lexicalMarker := False
+    lexicalMarker.addAttribute(
+      "morphhdl_note",
+      "morphhdl_address_width(DEPTH) remains attribute text"
+    )
+    val leaf = new DerivedWidthLeaf(depth)
+    leaf.setName("leaf")
+    leaf.addComment("morphhdl_unknown_helper( remains comment text")
+    leaf.direct := direct
+    occupancy := leaf.occupancy.resized
+  }
+
+  private final class UnconsumedDerivedWidthTop(depth: HdlInt)
+      extends Component {
+    setDefinitionName("UnconsumedDerivedWidthHierarchyTop")
+    val direct = in(morphhdl.frontend.Bits(depth bits))
+    val observed = out(Bool())
+    val leaf = new DerivedWidthLeaf(depth)
+    leaf.setName("leaf")
+    leaf.direct := direct
+    observed := direct.orR
+  }
+
+  private final class PartiallyConsumedDerivedWidthTop(depth: HdlInt)
+      extends Component {
+    setDefinitionName("PartiallyConsumedDerivedWidthHierarchyTop")
+    val direct = in(morphhdl.frontend.Bits(depth bits))
+    val observed = out(Bool())
+    val leaf = new DerivedWidthLeaf(depth)
+    leaf.setName("leaf")
+    leaf.direct := direct
+    observed := leaf.occupancy(0)
+  }
+
+  private final class TwoUnconsumedDerivedWidthTop(
+      leftDepth: HdlInt,
+      rightDepth: HdlInt,
+      childDepth: HdlInt
+  ) extends Component {
+    setDefinitionName("TwoUnconsumedDerivedWidthHierarchyTop")
+    val leftDirect = in(morphhdl.frontend.Bits(leftDepth bits))
+    val rightDirect = in(morphhdl.frontend.Bits(rightDepth bits))
+    val observed = out(Bool())
+
+    val left = new DerivedWidthLeaf(childDepth)
+    left.setName("left")
+    left.direct := leftDirect
+    val right = new DerivedWidthLeaf(childDepth)
+    right.setName("right")
+    right.direct := rightDirect
+    observed := leftDirect.orR ^ rightDirect.orR
+  }
+
+  private final class DerivedInputLeaf(depth: HdlInt) extends Component {
+    setDefinitionName("DerivedInputHierarchyLeaf")
+    val direct = in(morphhdl.frontend.Bits(depth bits))
+    val address = in(morphhdl.frontend.UInt((depth + 1).ceilLog2 bits))
+    val observed = out(Bool())
+    observed := address.orR
+  }
+
+  private final class FixedDerivedInputTop(depth: HdlInt) extends Component {
+    setDefinitionName("FixedDerivedInputHierarchyTop")
+    val direct = in(morphhdl.frontend.Bits(depth bits))
+    val fixedAddress = in(UInt(3 bits))
+    val observed = out(Bool())
+    val leaf = new DerivedInputLeaf(depth)
+    leaf.setName("leaf")
+    leaf.direct := direct
+    leaf.address := fixedAddress
+    observed := leaf.observed
+  }
+
   test("ordinary hierarchy emits one canonical child with inferred named bindings") {
     withTemporaryDirectory { directory =>
       val verilog = emit(directory, "native_hierarchy.v")
@@ -166,6 +253,177 @@ class HierarchyParameterBindingTests extends AnyFunSuite {
       assert(verilog.contains("NativeHierarchyLeaf #("))
       assert(verilog.contains(".LEAF_WIDTH(8)"))
       assert(verilog.contains("module NativeHierarchyLeaf #("))
+    }
+  }
+
+  test("derived child-output width is instantiated in the parent connection") {
+    withTemporaryDirectory { directory =>
+      val depth =
+        HdlInt.param("PARENT_DEPTH", default = 5, min = 1, max = 8)
+      val verilog = emitComponent(
+        directory,
+        "derived_width_hierarchy.v",
+        new DerivedWidthTop(depth)
+      )
+      val top =
+        "(?ms)^module DerivedWidthHierarchyTop\\b.*?^endmodule\\b".r
+          .findFirstIn(verilog)
+          .getOrElse(fail("Derived-width hierarchy top is missing"))
+      val declarationRange =
+        "(?m)^\\s*wire\\s+\\[([^\\]]+)\\]\\s+leaf_occupancy\\s*;\\s*$".r
+          .findFirstMatchIn(top)
+          .map(_.group(1).trim)
+          .getOrElse(fail("Derived child-output declaration is missing"))
+      val connectionRange =
+        "(?s)\\.occupancy\\s*\\(\\s*leaf_occupancy\\[([^\\]]+)\\]".r
+          .findFirstMatchIn(top)
+          .map(_.group(1).trim)
+          .getOrElse(fail("Derived child-output instance connection is missing"))
+
+      assert(verilog.contains(".PARENT_DEPTH(PARENT_DEPTH)"))
+      assert(declarationRange == connectionRange)
+      assert(declarationRange.contains("PARENT_DEPTH"))
+      assert(declarationRange.contains("clog2"))
+      assert(hasDeclarationWidth(top, "occupancy", "[3:0]"))
+      assert(top.contains("assign occupancy ="))
+      assert(top.contains("morphhdl_unknown_helper( remains comment text"))
+      assert(
+        top.contains(
+          "morphhdl_address_width(DEPTH) remains attribute text"
+        )
+      )
+    }
+  }
+
+  test("an unconsumed derived child output rewrites its native private carrier") {
+    withTemporaryDirectory { directory =>
+      val depth =
+        HdlInt.param("PARENT_DEPTH", default = 5, min = 1, max = 8)
+      val verilog = emitComponent(
+        directory,
+        "unconsumed_derived_width_hierarchy.v",
+        new UnconsumedDerivedWidthTop(depth)
+      )
+      val top =
+        "(?ms)^module UnconsumedDerivedWidthHierarchyTop\\b.*?^endmodule\\b".r
+          .findFirstIn(verilog)
+          .getOrElse(fail("Unconsumed derived-width hierarchy top is missing"))
+
+      assert(verilog.contains(".PARENT_DEPTH(PARENT_DEPTH)"))
+      assert(top.contains("DerivedWidthHierarchyLeaf #("))
+      assert("(?s)\\.direct\\s*\\(".r.findFirstIn(top).nonEmpty)
+      val declarationRange =
+        "(?m)^\\s*wire\\s+\\[([^\\]]+)\\]\\s+leaf_occupancy\\s*;\\s*$".r
+          .findFirstMatchIn(top)
+          .map(_.group(1).trim)
+          .getOrElse(fail("Unconsumed child-output declaration is missing"))
+      val connectionRange =
+        "(?s)\\.occupancy\\s*\\(\\s*leaf_occupancy\\[([^\\]]+)\\]".r
+          .findFirstMatchIn(top)
+          .map(_.group(1).trim)
+          .getOrElse(fail("Unconsumed child-output connection is missing"))
+      assert(declarationRange == connectionRange)
+      assert(declarationRange.contains("PARENT_DEPTH"))
+      assert(declarationRange.contains("clog2"))
+    }
+  }
+
+  test("unconsumed canonical child outputs use each parent binding") {
+    withTemporaryDirectory { directory =>
+      val leftDepth =
+        HdlInt.param("LEFT_DEPTH", default = 5, min = 1, max = 8)
+      val rightDepth =
+        HdlInt.param("RIGHT_DEPTH", default = 5, min = 2, max = 16)
+      val childDepth =
+        HdlInt.param("CHILD_DEPTH", default = 5, min = 1, max = 16)
+      val verilog = emitComponent(
+        directory,
+        "two_unconsumed_derived_width_hierarchy.v",
+        new TwoUnconsumedDerivedWidthTop(
+          leftDepth,
+          rightDepth,
+          childDepth
+        )
+      )
+      val top =
+        "(?ms)^module TwoUnconsumedDerivedWidthHierarchyTop\\b.*?^endmodule\\b".r
+          .findFirstIn(verilog)
+          .getOrElse(fail("Two-child derived-width hierarchy top is missing"))
+
+      def rangeOf(signal: String): String =
+        ("(?m)^\\s*wire\\s+\\[([^\\]]+)\\]\\s+" +
+          java.util.regex.Pattern.quote(signal) + "\\s*;\\s*$").r
+          .findFirstMatchIn(top)
+          .map(_.group(1).trim)
+          .getOrElse(fail(s"Declaration for $signal is missing"))
+
+      val leftRange = rangeOf("left_occupancy")
+      val rightRange = rangeOf("right_occupancy")
+      assert(leftRange.contains("LEFT_DEPTH"))
+      assert(!leftRange.contains("RIGHT_DEPTH"))
+      assert(rightRange.contains("RIGHT_DEPTH"))
+      assert(!rightRange.contains("LEFT_DEPTH"))
+      assert(verilog.contains(".CHILD_DEPTH(LEFT_DEPTH)"))
+      assert(verilog.contains(".CHILD_DEPTH(RIGHT_DEPTH)"))
+      assert(
+        ("(?s)\\.occupancy\\s*\\(\\s*left_occupancy\\[" +
+          java.util.regex.Pattern.quote(leftRange) + "\\]").r
+          .findFirstIn(top)
+          .nonEmpty
+      )
+      assert(
+        ("(?s)\\.occupancy\\s*\\(\\s*right_occupancy\\[" +
+          java.util.regex.Pattern.quote(rightRange) + "\\]").r
+          .findFirstIn(top)
+          .nonEmpty
+      )
+    }
+  }
+
+  test("an unconsumed-output allowance never accepts a partial consumer") {
+    withTemporaryDirectory { directory =>
+      expectFailure(
+        directory,
+        "partially_consumed_derived_width_hierarchy.v",
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED"
+      ) {
+        val depth =
+          HdlInt.param("PARENT_DEPTH", default = 5, min = 1, max = 8)
+        new PartiallyConsumedDerivedWidthTop(depth)
+      }
+    }
+  }
+
+  test("derived widths preserve a helper-spelled formal as a value") {
+    withTemporaryDirectory { directory =>
+      val depth = HdlInt.param(
+        "morphhdl_ceil_log2",
+        default = 5,
+        min = 1,
+        max = 8
+      )
+      val verilog = emitComponent(
+        directory,
+        "derived_width_helper_name.v",
+        new DerivedWidthTop(depth)
+      )
+      assert(verilog.contains("parameter integer morphhdl_ceil_log2 = 5"))
+      assert(verilog.contains("clog2"))
+      assert(!verilog.contains("(morphhdl_ceil_log2)("))
+    }
+  }
+
+  test("a derived child input rejects a fixed direct parent connection") {
+    withTemporaryDirectory { directory =>
+      expectFailure(
+        directory,
+        "derived_input_fixed_parent.v",
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-WIDTH-MISMATCH"
+      ) {
+        val depth =
+          HdlInt.param("PARENT_DEPTH", default = 5, min = 1, max = 8)
+        new FixedDerivedInputTop(depth)
+      }
     }
   }
 

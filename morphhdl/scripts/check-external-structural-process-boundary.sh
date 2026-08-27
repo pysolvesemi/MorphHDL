@@ -18,7 +18,8 @@ for path in \
   frontend/src/main/scala/spinal/core/ParameterizedProcess.scala \
   morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
   morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogProcesses.scala \
-  morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
+  morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala \
+  morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedStructuralWitnessSizing.scala
 do
   test -f "$path"
 done
@@ -38,6 +39,8 @@ grep -Fq 'ParameterizedVerilogMemories.rewrite' "$external"
 grep -Fq 'ParameterizedVerilogProcesses.rewrite' "$external"
 grep -Fq 'ParameterizedVerilogStructural.rewrite' "$external"
 grep -Fq 'requiresPublicationRewrite' "$external"
+grep -Fq 'ExternalParameterizedStructuralWitnessSizing' \
+  morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
 
 python3 - <<'PY2'
 import json

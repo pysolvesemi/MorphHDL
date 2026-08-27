@@ -77,6 +77,20 @@ object NativeIntNestedSymbolicControlFlowSmoke {
     }
   }
 
+  final class PartialCoverageLeaf(width: Int)
+      extends LeafBase(width, "NativeIntPartialCoverageLeaf") {
+    @dontName val root = NativeIntShadow.captureArgument(width, "root")
+
+    if (root > 16) {
+      if (root > 20) payloadOut(0) := True
+      else payloadOut(1) := True
+    } else {
+      val marker = new Sink
+      marker.setName("partial_coverage_marker")
+      marker.din := control
+    }
+  }
+
   final class MutationLeaf(width: Int)
       extends LeafBase(width, "NativeIntMutationLeaf") {
     @dontName val root = NativeIntShadow.captureArgument(width, "root")
@@ -139,6 +153,20 @@ object NativeIntNestedSymbolicControlFlowSmoke {
 
     val leaf = formalComponent(width, "WIDTH", BigInt(1), BigInt(32))(
       value => new NestedHardwareLeaf(value)
+    )(value => Vector(value.payloadIn, value.payloadOut))
+    leaf.payloadIn := payloadIn
+    leaf.control := control
+    payloadOut := leaf.payloadOut
+  }
+
+  final class PartialCoverageTop(width: HdlInt) extends Component {
+    setDefinitionName("NativeIntPartialCoverageTop")
+    val payloadIn = in(morphhdl.frontend.Bits(width bits))
+    val payloadOut = out(morphhdl.frontend.Bits(width bits))
+    val control = in(Bits(8 bits))
+
+    val leaf = formalComponent(width, "WIDTH", BigInt(1), BigInt(32))(
+      value => new PartialCoverageLeaf(value)
     )(value => Vector(value.payloadIn, value.payloadOut))
     leaf.payloadIn := payloadIn
     leaf.control := control
@@ -271,6 +299,24 @@ class NativeIntNestedSymbolicControlFlowTests extends AnyFunSuite {
           new NestedTop(width)
         }
         assert(firstVerilog == secondVerilog)
+      }
+    }
+  }
+
+  test("common process assignments require complete outer alternative coverage") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "native_int_partial_coverage.v"
+      MorphVerilog.tryGenerate(config) {
+        val width = HdlInt.param("WIDTH", default = 18, min = 1, max = 32)
+        new PartialCoverageTop(width)
+      } match {
+        case Left(failure) =>
+          assert(failure.detail.contains(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-COMMON-COVERAGE-UNPROVEN"
+          ))
+        case Right(report) =>
+          fail(s"Expected incomplete outer-coverage failure, received $report")
       }
     }
   }

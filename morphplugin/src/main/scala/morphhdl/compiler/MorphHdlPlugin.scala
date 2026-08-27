@@ -11,6 +11,7 @@ final class MorphHdlPlugin(val global: Global) extends Plugin {
   override val components: List[PluginComponent] =
     List(
       new MorphHdlNativeIntShadowExpressionComponent(global),
-      new MorphHdlNaturalSymbolicConditionalComponent(global)
+      new MorphHdlNaturalSymbolicConditionalComponent(global),
+      new MorphHdlMemoryPortAdapterComponent(global)
     )
 }

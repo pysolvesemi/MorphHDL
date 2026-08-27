@@ -1,6 +1,7 @@
 package spinal.core
 
 import java.lang.ref.{ReferenceQueue, WeakReference}
+import java.util.IdentityHashMap
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -398,4 +399,177 @@ object ExternalParameterizedMemoryRegistry {
       sourceLocation: Option[String] = None
   ): Nothing =
     ParameterizedVerilogException.fail(code, detail, sourceLocation)
+}
+
+/**
+  * Construction-time provenance for native library memory-port adapters.
+  *
+  * The compiler plugin calls [[capture]] around the exact result of a typed
+  * `MemPimped.writePort` or `MemPimped.readSyncPort` invocation. No library
+  * class is referenced here: before evaluating the returned adapter, capture
+  * snapshots the exact native memory-port statements. It then retains only the
+  * one newly created port identity and its exact address when that address is
+  * also a leaf of the returned `Data` graph. Publication later requires the
+  * same port, address and `Mem` identities.
+  */
+object ExternalParameterizedMemoryPortAdapterRegistry {
+  private object StorageKey
+
+  private final case class Record(
+      memory: Mem[_],
+      adapter: Data,
+      port: MemPortStatement,
+      address: UInt
+  )
+
+  private final class Storage {
+    val byPort = new IdentityHashMap[MemPortStatement, Record]()
+  }
+
+  /**
+    * Retain one exact adapter result. Fixed-depth memories are deliberately a
+    * no-op, and the adapter itself is returned unchanged.
+    */
+  def capture[T <: Data](memory: Mem[_])(adapter: => T): T = {
+    if (memory == null)
+      throw new IllegalArgumentException("native memory must not be null")
+
+    ExternalParameterizedMemoryRegistry.metadataOf(memory) match {
+      case Some(metadata) if metadata.depth.parameters.nonEmpty =>
+        val component = memory.component
+        if (component == null) {
+          ParameterizedVerilogException.fail(
+            "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ADAPTER-COMPONENT-MISMATCH",
+            "symbolic native memory port adapter has no owning component",
+            metadata.sourceLocation
+          )
+        }
+
+        val before = new IdentityHashMap[MemPortStatement, java.lang.Boolean]()
+        memory.foreachStatements {
+          case port: MemPortStatement =>
+            before.put(port, java.lang.Boolean.TRUE)
+          case _ =>
+        }
+
+        val result = adapter
+        if (result == null)
+          throw new IllegalArgumentException(
+            "native memory port adapter must not be null"
+          )
+        if (result.component ne component) {
+          ParameterizedVerilogException.fail(
+            "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ADAPTER-COMPONENT-MISMATCH",
+            "native memory port adapter and symbolic memory must be constructed in the same component",
+            metadata.sourceLocation
+          )
+        }
+
+        val resultLeaves = new IdentityHashMap[UInt, java.lang.Boolean]()
+        result.flatten.foreach {
+          case value: UInt if value.component eq component =>
+            resultLeaves.put(value, java.lang.Boolean.TRUE)
+          case _ =>
+        }
+        val newPorts = ArrayBuffer.empty[MemPortStatement]
+        memory.foreachStatements {
+          case port: MemPortStatement if !before.containsKey(port) =>
+            newPorts += port
+          case _ =>
+        }
+        val records = newPorts.toVector.flatMap { port =>
+          val address = port match {
+            case value: MemReadSync => value.address
+            case value: MemWrite    => value.address
+            case _                  => null
+          }
+          address match {
+            case value: UInt if resultLeaves.containsKey(value) =>
+              Some(Record(memory, result, port, value))
+            case _ => None
+          }
+        }
+        if (newPorts.size != 1 || records.size != 1) {
+          ParameterizedVerilogException.fail(
+            "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ADAPTER-ADDRESS-UNPROVEN",
+            "typed native memory adapter call must create exactly one same-memory readSync/write port whose exact UInt address is a leaf of the returned Data graph",
+            metadata.sourceLocation
+          )
+        }
+
+        val storage = component.userCache
+          .getOrElseUpdate(StorageKey, new Storage)
+          .asInstanceOf[Storage]
+        val record = records.head
+        val previous = storage.byPort.get(record.port)
+        if (
+          previous != null &&
+          ((previous.memory ne memory) ||
+            (previous.adapter ne result) ||
+            (previous.address ne record.address))
+        ) {
+          ParameterizedVerilogException.fail(
+            "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ADAPTER-OWNER-CONFLICT",
+            "one native memory port was captured for multiple construction owners",
+            metadata.sourceLocation
+          )
+        }
+        storage.byPort.put(record.port, record)
+        result
+      case _ =>
+        adapter
+    }
+  }
+
+  /**
+    * Prove that the exact address object of one supported native memory port is
+    * an unsigned leaf of an adapter returned by the typed hook for that same
+    * memory. Driver names, widths and numeric witnesses are never consulted.
+    */
+  private[core] def provesAddress(port: MemPortStatement): Boolean = {
+    if (port == null || port.mem == null) return false
+    val address = port match {
+      case value: MemReadSync => value.address
+      case value: MemWrite    => value.address
+      case _                  => null
+    }
+    address match {
+      case leaf: UInt =>
+        val component = port.mem.component
+        if (component == null || (leaf.component ne component)) false
+        else {
+          component.userCache
+            .get(StorageKey)
+            .map(_.asInstanceOf[Storage])
+            .flatMap(storage => Option(storage.byPort.get(port)))
+            .exists(record => validRecord(component, leaf, port, record))
+        }
+      case _ => false
+    }
+  }
+
+  private def validRecord(
+      component: Component,
+      leaf: UInt,
+      port: MemPortStatement,
+      record: Record
+  ): Boolean = {
+    if (
+      component == null || leaf == null || port == null || port.mem == null ||
+      record == null || (record.memory ne port.mem) ||
+      (record.port ne port) || (record.address ne leaf) ||
+      record.adapter == null ||
+      (record.adapter.component ne component) ||
+      (record.memory.component ne component) ||
+      (port.mem.component ne component)
+    ) return false
+
+    val currentLeaves = record.adapter.flatten.toVector.collect {
+      case value: UInt => value
+    }
+    currentLeaves.exists(_ eq leaf) &&
+    ExternalParameterizedMemoryRegistry
+      .metadataOf(port.mem)
+      .exists(_.depth.parameters.nonEmpty)
+  }
 }

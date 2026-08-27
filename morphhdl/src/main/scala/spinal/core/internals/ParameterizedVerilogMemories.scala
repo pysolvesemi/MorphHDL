@@ -249,18 +249,14 @@ private[internals] object ParameterizedVerilogMemories {
     val nativeAddressWidth =
       nativeMemoryAddressWidth(metadata.depth, source)
     val readAddressWidth = selectAddressWidth(
-      read.address,
       widthOf(read.address, source),
       nativeAddressWidth,
-      memory.component,
-      source
+      ExternalParameterizedMemoryPortAdapterRegistry.provesAddress(read)
     )
     val writeAddressWidth = selectAddressWidth(
-      write.address,
       widthOf(write.address, source),
       nativeAddressWidth,
-      memory.component,
-      source
+      ExternalParameterizedMemoryPortAdapterRegistry.provesAddress(write)
     )
     validateAddressWidth(read.address, readAddressWidth, metadata.depth, "read", memory, pc, source)
     validateAddressWidth(write.address, writeAddressWidth, metadata.depth, "write", memory, pc, source)
@@ -376,41 +372,21 @@ private[internals] object ParameterizedVerilogMemories {
   }
 
   private def selectAddressWidth(
-      address: Expression with WidthProvider,
       retained: ElaborationIntegerExpression,
       native: ElaborationIntegerExpression,
-      component: Component,
-      source: Option[String]
+      exactNativeAdapter: Boolean
   ): ElaborationIntegerExpression = {
-    val retainedIsConcreteWitness =
+    val exactRetained =
+      retained.parameters.nonEmpty &&
+      equivalentWidth(retained, native)
+    val concreteWitness =
       retained.parameters.isEmpty &&
-      retained.default == BigInt(address.getWidth) &&
+      retained.default == native.default &&
       retained.minimum == retained.default &&
       retained.maximum == retained.default
-    val driverProvesNativeWidth = address match {
-      case target: BaseType =>
-        val assignments = ArrayBuffer.empty[DataAssignmentStatement]
-        component.dslBody.walkLeafStatements {
-          case value: DataAssignmentStatement
-              if value.finalTarget eq target =>
-            assignments += value
-          case _ =>
-        }
-        val widths = assignments.toVector.flatMap { assignment =>
-          assignment.source match {
-            case value: Expression with WidthProvider =>
-              Some(widthOf(value, source))
-            case _ => None
-          }
-        }.distinct
-        widths.size == 1 && equivalentWidth(widths.head, native)
-      case _ => false
-    }
     if (
-      native.parameters.nonEmpty &&
-      retainedIsConcreteWitness &&
-      native.default == retained.default &&
-      driverProvesNativeWidth
+      exactRetained ||
+      (exactNativeAdapter && native.parameters.nonEmpty && concreteWitness)
     ) native
     else retained
   }
@@ -497,10 +473,39 @@ private[internals] object ParameterizedVerilogMemories {
       left: ElaborationIntegerExpression,
       right: ElaborationIntegerExpression
   ): Boolean =
-    compact(left.verilog) == compact(right.verilog) &&
+    canonicalAddressWidth(left.verilog) == canonicalAddressWidth(right.verilog) &&
       left.default == right.default && left.minimum == right.minimum &&
       left.maximum == right.maximum &&
       left.parameters.sortBy(_.name) == right.parameters.sortBy(_.name)
+
+  /**
+    * The compiler shadow uses morphhdl_address_width(x) as internal IR while
+    * memory publication uses the portable clog2(x, 1) helper. Canonicalize
+    * only a complete top-level helper call.
+    */
+  private def canonicalAddressWidth(value: String): String = {
+    val normalized = compact(value)
+    val prefix = "morphhdl_address_width("
+    if (!normalized.startsWith(prefix) || !normalized.endsWith(")")) normalized
+    else {
+      val argumentStart = prefix.length
+      var index = argumentStart
+      var depth = 1
+      while (index < normalized.length && depth > 0) {
+        normalized.charAt(index) match {
+          case '(' => depth += 1
+          case ')' => depth -= 1
+          case _   =>
+        }
+        index += 1
+      }
+      if (depth != 0 || index != normalized.length) normalized
+      else {
+        val argument = normalized.substring(argumentStart, index - 1)
+        s"clog2($argument,1)"
+      }
+    }
+  }
 
   private def requireType(
       expression: Expression,

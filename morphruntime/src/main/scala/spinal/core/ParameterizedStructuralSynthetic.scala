@@ -26,6 +26,7 @@ object ParameterizedStructuralSynthetic {
       statements = Vector.empty,
       declarations = Vector.empty,
       assignments = Vector.empty,
+      initializations = Vector.empty,
       memories = Vector.empty,
       children = Vector.empty,
       slices = Vector.empty,

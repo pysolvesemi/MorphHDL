@@ -7,7 +7,11 @@ import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
 
 import spinal.core.{Component, SpinalConfig, SpinalReport, SpinalVerilog, SystemVerilog, VHDL, Verilog}
-import spinal.core.internals.{ExternalParameterizedAutoResize, MorphHdlExternalParameterizedVerilog}
+import spinal.core.internals.{
+  ExternalParameterizedAutoResize,
+  ExternalParameterizedStructuralWitnessSizing,
+  MorphHdlExternalParameterizedVerilog
+}
 
 import morphhdl.backend.verilog2001.{Verilog2001Capability => V2001Capability, Verilog2001Emitter}
 import morphhdl.integration.ExternalSpinalVerilog
@@ -631,6 +635,7 @@ object MorphVerilog {
   private def copyForSingleSource(config: SpinalConfig, workspace: Path): SpinalConfig = {
     val phaseInserters = config.phasesInserters.clone()
     phaseInserters += ExternalParameterizedAutoResize.install _
+    phaseInserters += ExternalParameterizedStructuralWitnessSizing.install _
     config.copy(
       mode = Verilog,
       flags = config.flags.clone(),
@@ -715,6 +720,8 @@ object MorphVerilog {
           .replace('\r', '\n')
         val lines = raw.split("\n", -1).toVector
         val declaration = """^module\s+([A-Za-z_][A-Za-z0-9_$]*)\b.*$""".r
+        val nativeReplacementComment =
+          """^\s*//([A-Za-z_][A-Za-z0-9_$]*)\s+replaced by\s+([A-Za-z_][A-Za-z0-9_$]*)\s*$""".r
         var insideModule = false
         var firstModule = -1
         var lastEndmodule = -1
@@ -779,7 +786,20 @@ object MorphVerilog {
             )
           )
         } else {
-          Right(lines.slice(firstModule, lastEndmodule + 1).mkString("\n") + "\n")
+          val definedNames = moduleNames.toSet
+          val modules = lines
+            .slice(firstModule, lastEndmodule + 1)
+            .filterNot {
+              // The native emitter records trace-based component deduplication
+              // as a module-level comment.  It is not RTL and leaks the
+              // discarded witness-specific definition name into the canonical
+              // one-definition output. Remove only the emitter's exact comment
+              // form when its replacement names a module defined in this file.
+              case nativeReplacementComment(_, replacement) =>
+                definedNames(replacement)
+              case _ => false
+            }
+          Right(modules.mkString("\n") + "\n")
         }
       }
     } catch {

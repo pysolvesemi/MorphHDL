@@ -10,6 +10,9 @@ phase=core/src/main/scala/spinal/core/internals/PhaseVerilog.scala
 core_lowerer=core/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
 morph_lowerer=morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
 registry=morphruntime/src/main/scala/spinal/core/ExternalParameterizedMemoryRegistry.scala
+port_adapter_plugin=morphplugin/src/main/scala/morphhdl/compiler/MorphHdlMemoryPortAdapterComponent.scala
+plugin_entry=morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala
+port_adapter_tests=morphhdl/src/test/scala/morphhdl/NativeMemoryPortAdapterProvenanceTests.scala
 adapter=frontend/src/main/scala/morphhdl/frontend/Memory.scala
 auto_provenance=frontend/src/main/scala/morphhdl/frontend/NativeMemAutoProvenance.scala
 frontend_package=frontend/src/main/scala/morphhdl/frontend/package.scala
@@ -21,6 +24,8 @@ test "$(git hash-object "$phase")" = "$(git rev-parse "${baseline}:${phase}")"
 test ! -e "$core_lowerer"
 test -f "$morph_lowerer"
 test -f "$registry"
+test -f "$port_adapter_plugin"
+test -f "$port_adapter_tests"
 test -f "$adapter"
 test -f "$auto_provenance"
 test -f "$frontend_package"
@@ -29,6 +34,22 @@ test -f "$frontend_package"
 ! grep -Fq 'ParameterizedVerilogMemories' "$phase"
 grep -Fq 'ExternalParameterizedMemoryRegistry.discover' "$external"
 grep -Fq 'ParameterizedVerilogMemories.rewrite' "$external"
+grep -Fq 'new MorphHdlMemoryPortAdapterComponent(global)' "$plugin_entry"
+grep -Fq '(symbol.owner eq memPimpedClass)' "$port_adapter_plugin"
+grep -Fq 'memPimpedConversions.contains(terminalSymbol(fun))' "$port_adapter_plugin"
+grep -Fq 'memory.symbol.isStable' "$port_adapter_plugin"
+grep -Fq 'ExternalParameterizedMemoryPortAdapterRegistry' "$port_adapter_plugin"
+grep -Fq 'object ExternalParameterizedMemoryPortAdapterRegistry' "$registry"
+grep -Fq 'record.address ne leaf' "$registry"
+grep -Fq 'record.port ne port' "$registry"
+grep -Fq 'record.memory ne port.mem' "$registry"
+grep -Fq 'ExternalParameterizedMemoryPortAdapterRegistry.provesAddress' "$morph_lowerer"
+grep -Fq 'caller-constructed fixed adapters do not acquire native memory provenance' "$port_adapter_tests"
+grep -Fq 'a captured UInt data leaf cannot prove another port address' "$port_adapter_tests"
+grep -Fq 'fixed three-bit witness cannot conservatively cover max=9' "$port_adapter_tests"
+grep -Fq 'morphhdl.NativeMemoryPortAdapterProvenanceTests' \
+  .github/workflows/morphhdl-external-memory.yml
+! grep -q -E 'StreamFifo|Stream\.scala|logic_ram|ptr\.(push|pop)' "$port_adapter_plugin"
 grep -Fq 'ExternalParameterizedMemoryRegistry.create' "$adapter"
 grep -Fq 'implicit final class NativeMemFactoryOps' "$frontend_package"
 grep -Fq 'NativeMemAutoProvenance.create' "$frontend_package"

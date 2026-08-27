@@ -54,6 +54,9 @@ increment_workflow=.github/workflows/morphhdl-native-streamfifo-structure.yml
 grep -q 'morphhdl.compiler.NativeIntConstructorSelectionTests' "$increment_workflow"
 grep -q 'spinal.core.StructuralPredicateDomainTests' "$increment_workflow"
 grep -q 'spinal.lib.GenericNativeIntGenerateTests' "$increment_workflow"
+grep -q 'morphhdl.StructuralWitnessSizingTests' "$increment_workflow"
+grep -q 'spinal.core.StructuralAddressWidthIdentityTests' "$increment_workflow"
+grep -q 'morphhdl.NativeMemoryPortAdapterProvenanceTests' "$increment_workflow"
 
 grep -q 'depth: ParameterizedMemoryDepth'   lib/src/main/scala/spinal/lib/Stream.scala
 grep -q 'ExternalNativeIntFormalComponent.parameter'   lib/src/main/scala/spinal/lib/Stream.scala
@@ -80,12 +83,20 @@ grep -q 'insertion into an existing process tree rolls back before graph reuse' 
 grep -q 'foreign memory ports roll back both scope and memory DLC ownership' "$process_tree_tests"
 grep -q 'detached new assignments and ports restore exact pre-capture DLC state' "$process_tree_tests"
 grep -q 'foreign component statements restore their original owner and order' "$process_tree_tests"
+grep -q 'fresh child statements retain their exact child process owner' "$process_tree_tests"
+grep -q 'detached fresh-child assignments still fail closed and roll back' "$process_tree_tests"
+grep -q 'mutually exclusive full-target constants retain exact assignment identity' "$process_tree_tests"
+grep -q 'nonexclusive declaration claimants cannot trigger module-scope hoisting' "$process_tree_tests"
 grep -q 'pre-existing statement order is validated and restored transactionally' "$process_tree_tests"
 grep -q 'cross-component capture entry fails before executing or mutating the body' "$process_tree_tests"
 grep -q 'rollback restores children and IO on every pre-existing component' "$process_tree_tests"
 grep -q 'failed nested registrations restore labels pending continuations and graph state' "$process_tree_tests"
 grep -q 'morphhdl.NativeProcessTreeCaptureTests' \
   .github/workflows/morphhdl-native-streamfifo-structure.yml
+grep -q 'morphhdl.StructuralWitnessSizingTests' \
+  .github/workflows/morphhdl-external-structural-process.yml
+grep -q 'morphhdl.NativeProcessTreeCaptureTests' \
+  .github/workflows/morphhdl-external-structural-process.yml
 
 python3 morphhdl/scripts/check-native-source-preservation.py   --manifest morphhdl/contracts/native-source-preservation.json
 

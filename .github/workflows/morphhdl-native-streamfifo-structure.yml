@@ -83,12 +83,15 @@ jobs:
             spinal.core.StructuralPredicateDomainTests \
             spinal.lib.GenericNativeIntGenerateTests \
             morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.StructuralWitnessSizingTests \
+            spinal.core.StructuralAddressWidthIdentityTests \
             morphhdl.NativeProcessTreeCaptureTests \
             morphhdl.StructureOnlyRetainedIntegerHelperTests \
             spinal.core.internals.RetainedIntegerHelperLoweringTests \
             spinal.core.internals.ParameterizedDataShapeTests \
             morphhdl.NativeIntSymbolicConditionalTests \
             morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.NativeMemoryPortAdapterProvenanceTests \
             morphhdl.NativeMemAutoProvenanceTests \
             morphhdl.ExternalNativeIntFormalizationTests \
             morphhdl.ExternalNativeIntShadowExpressionTests \

@@ -94,6 +94,62 @@ object NativeProcessTreeCaptureSmoke {
     }
   }
 
+  final class ExactAlternativeAssignmentTop(enabled: HdlBool)
+      extends Component {
+    setDefinitionName("ExactAlternativeAssignmentTop")
+
+    val condition = in(Bool())
+    val branchState = spinal.core.Reg(Bool())
+    branchState.setName("branchState")
+    val observed = out(Bool())
+    observed := branchState
+    enabled.generateIf("g_exact_zero", "g_exact_one") {
+      when(condition) {
+        branchState := False
+      }
+    }.otherwise {
+      when(condition) {
+        branchState := True
+      }
+    }
+  }
+
+  final class NonexclusiveDeclarationEscapeTop(
+      ownerEnabled: HdlBool,
+      consumerEnabled: HdlBool
+  ) extends Component {
+    setDefinitionName("NonexclusiveDeclarationEscapeTop")
+
+    val payload = in(morphhdl.frontend.Bits(8 bits))
+    val observed = out(morphhdl.frontend.Bits(8 bits))
+    observed := payload
+
+    var branchLocal: spinal.core.Bits = null
+    ownerEnabled.generateIf("g_owner_enabled", "g_owner_disabled") {
+      branchLocal = morphhdl.frontend.Bits(8 bits)
+      branchLocal.setName("branchLocalDeclaration")
+      branchLocal.setAsVital()
+      branchLocal.dontSimplifyIt()
+      branchLocal := payload
+    }.otherwise {
+      val ownerDisabled = morphhdl.frontend.Bits(8 bits)
+      ownerDisabled.setName("ownerDisabledValue")
+      ownerDisabled := payload
+    }
+
+    consumerEnabled.generateIf("g_consumer_enabled", "g_consumer_disabled") {
+      val consumer = morphhdl.frontend.Bits(8 bits)
+      consumer.setName("escapingDeclarationConsumer")
+      consumer.setAsVital()
+      consumer.dontSimplifyIt()
+      consumer := branchLocal
+    }.otherwise {
+      val consumerDisabled = morphhdl.frontend.Bits(8 bits)
+      consumerDisabled.setName("consumerDisabledValue")
+      consumerDisabled := payload
+    }
+  }
+
   final class NestedUnsupportedStatementTop(width: HdlInt) extends Component {
     setDefinitionName("NestedUnsupportedStatementTop")
     retainWidthMetadata(width)
@@ -546,6 +602,17 @@ object NativeProcessTreeCaptureSmoke {
     new ProcessTreeTop(enabled)
   }
 
+  def exactAlternativeAssignmentComponent(): Component = {
+    val enabled = HdlBool.param("ENABLED", default = true)
+    new ExactAlternativeAssignmentTop(enabled)
+  }
+
+  def nonexclusiveDeclarationEscapeComponent(): Component = {
+    val ownerEnabled = HdlBool.param("OWNER_ENABLED", default = true)
+    val consumerEnabled = HdlBool.param("CONSUMER_ENABLED", default = true)
+    new NonexclusiveDeclarationEscapeTop(ownerEnabled, consumerEnabled)
+  }
+
   def storageRollbackComponent(): Component = {
     val enabled = HdlBool.param("ENABLED", default = true)
     new StructuralStorageRollbackTop(enabled)
@@ -632,6 +699,49 @@ class NativeProcessTreeCaptureTests extends AnyFunSuite {
       assert(occurrences(disabledAlternative, "case(") == 1)
       assert(enabledAlternative.contains("always @(posedge "))
       assert(!disabledAlternative.contains("always @(posedge "))
+    }
+  }
+
+  test("mutually exclusive full-target constants retain exact assignment identity") {
+    withTemporaryDirectory { directory =>
+      val verilog = emit(
+        directory,
+        "exact_alternative_assignment.v",
+        exactAlternativeAssignmentComponent()
+      )
+      val trueStart = verilog.indexOf(
+        "if ((ENABLED == 1)) begin : g_exact_zero"
+      )
+      val falseStart = verilog.indexOf(
+        "end else begin : g_exact_one",
+        trueStart
+      )
+      val generateEnd = verilog.indexOf("  endgenerate", falseStart)
+      assert(trueStart >= 0 && falseStart > trueStart)
+      assert(generateEnd > falseStart)
+      val whenTrue = verilog.substring(trueStart, falseStart)
+      val whenFalse = verilog.substring(falseStart, generateEnd)
+      assert("(?m)^\\s*branchState\\s*<=\\s*1'b0;\\s*$".r.findFirstIn(whenTrue).nonEmpty)
+      assert("(?m)^\\s*branchState\\s*<=\\s*1'b1;\\s*$".r.findFirstIn(whenTrue).isEmpty)
+      assert("(?m)^\\s*branchState\\s*<=\\s*1'b1;\\s*$".r.findFirstIn(whenFalse).nonEmpty)
+      assert("(?m)^\\s*branchState\\s*<=\\s*1'b0;\\s*$".r.findFirstIn(whenFalse).isEmpty)
+    }
+  }
+
+  test("nonexclusive declaration claimants cannot trigger module-scope hoisting") {
+    withTemporaryDirectory { directory =>
+      val failure = intercept[MorphVerilogException] {
+        emit(
+          directory,
+          "nonexclusive_declaration_escape.v",
+          nonexclusiveDeclarationEscapeComponent()
+        )
+      }
+      assert(
+        failure.failure.detail.contains(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-DECLARATION-OWNER-ESCAPE"
+        )
+      )
     }
   }
 

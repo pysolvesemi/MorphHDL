@@ -64,6 +64,8 @@ jobs:
           /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
             spinal.core.internals.ParameterizedVerilogTests \
             spinal.core.internals.ParameterizedDataShapeTests \
+            morphhdl.StructuralWitnessSizingTests \
+            spinal.core.StructuralAddressWidthIdentityTests \
             morphhdl.MorphSingleSourceVerilogTests \
             morphhdl.NativeLibraryReuseTests \
             morphhdl.NativeSymbolicMemoryTests \

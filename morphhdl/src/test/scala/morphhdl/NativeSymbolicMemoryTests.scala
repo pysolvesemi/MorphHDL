@@ -319,6 +319,88 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
     }
   }
 
+  test("caller-owned resized address remains fixed for capacity validation") {
+    withTemporaryDirectory { directory =>
+      val result = MorphVerilog.tryGenerate(
+        config(directory, "caller_owned_resized_address.v")
+      ) {
+        val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
+        val depth = HdlInt.param("DEPTH", default = 5, min = 1, max = 9)
+        new Component {
+          setDefinitionName("CallerOwnedResizedMemoryAddress")
+          val read_enable = in(Bool())
+          val write_enable = in(Bool())
+          val wide_address = in(UInt(4 bits))
+          val write_data = in(morphhdl.frontend.Bits(width bits))
+          val read_data = out(morphhdl.frontend.Bits(width bits))
+
+          val address = UInt(3 bits)
+          address := wide_address.resized
+
+          val memory = morphhdl.frontend
+            .Mem(
+              morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)),
+              depth
+            )
+            .setName("memory")
+          val read_word = memory.readSync(
+            address,
+            enable = read_enable,
+            readUnderWrite = readFirst
+          )
+          memory.write(address, write_data, enable = write_enable)
+          read_data := read_word
+        }
+      }
+      assertFailure(
+        result,
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ADDRESS-CAPACITY-NOT-PROVEN"
+      )
+    }
+  }
+
+  test("caller-owned address is not widened from a symbolic driver") {
+    withTemporaryDirectory { directory =>
+      val result = MorphVerilog.tryGenerate(
+        config(directory, "caller_owned_symbolic_driver.v")
+      ) {
+        val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
+        val depth = HdlInt.param("DEPTH", default = 5, min = 1, max = 9)
+        new Component {
+          setDefinitionName("CallerOwnedSymbolicMemoryAddress")
+          val read_enable = in(Bool())
+          val write_enable = in(Bool())
+          val symbolic_address = in(
+            morphhdl.frontend.UInt(depth.addressWidth bits)
+          )
+          val write_data = in(morphhdl.frontend.Bits(width bits))
+          val read_data = out(morphhdl.frontend.Bits(width bits))
+
+          val address = UInt(3 bits)
+          address := symbolic_address
+
+          val memory = morphhdl.frontend
+            .Mem(
+              morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)),
+              depth
+            )
+            .setName("memory")
+          val read_word = memory.readSync(
+            address,
+            enable = read_enable,
+            readUnderWrite = readFirst
+          )
+          memory.write(address, write_data, enable = write_enable)
+          read_data := read_word
+        }
+      }
+      assertFailure(
+        result,
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ADDRESS-CAPACITY-NOT-PROVEN"
+      )
+    }
+  }
+
   test("write masks remain outside the whole-word Increment 35 contract") {
     withTemporaryDirectory { directory =>
       val result = MorphVerilog.tryGenerate(config(directory, "masked_write.v")) {

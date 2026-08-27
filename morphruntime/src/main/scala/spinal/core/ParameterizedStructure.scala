@@ -4,6 +4,7 @@ import java.util.IdentityHashMap
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+import scala.util.control.NonFatal
 
 import spinal.core.internals._
 
@@ -15,6 +16,7 @@ final class ParameterizedStructuralBlock private[core] (
     private[core] val statements: Vector[Statement],
     private[core] val declarations: Vector[BaseType],
     private[core] val assignments: Vector[DataAssignmentStatement],
+    private[core] val initializations: Vector[AssignmentStatement],
     private[core] val memories: Vector[Mem[_]],
     private[core] val children: Vector[Component],
     private[core] val slices: Vector[ParameterizedStructure.StructuralSlice],
@@ -45,6 +47,16 @@ final class ParameterizedStructuralPending private[core] (
 object ParameterizedStructure {
   private object StorageKey
 
+  private final case class StructuralWitnessSizing(
+      target: UInt,
+      targetWidth: ElaborationIntegerExpression,
+      originalSource: Expression,
+      sizedSource: Expression,
+      sourceWidth: Int,
+      var finalSource: Expression = null,
+      var finalSourceWidth: Int = -1
+  )
+
   private final class Storage {
     val regions = ArrayBuffer.empty[StructuralRegion]
     val pending = mutable.LinkedHashMap.empty[Long, ParameterizedStructuralPending]
@@ -52,6 +64,11 @@ object ParameterizedStructure {
     var nextPendingId = 0L
     var nextCaptureId = 0L
     var assignmentValidationScheduled = false
+    val witnessSizedAssignments =
+      new IdentityHashMap[
+        AssignmentStatement,
+        StructuralWitnessSizing
+      ]()
   }
 
   private final class CaptureState(
@@ -184,7 +201,9 @@ object ParameterizedStructure {
 
   private final case class CapturedAssignment(
       statement: DataAssignmentStatement,
-      path: Vector[AlternativeStep]
+      path: Vector[AlternativeStep],
+      block: ParameterizedStructuralBlock,
+      replicated: Boolean
   )
 
   private final case class StatementScopeSnapshot(
@@ -322,6 +341,21 @@ object ParameterizedStructure {
         }
         throw error
     }
+  }
+
+  /**
+    * Exact active domain for one identity-owned structural assignment whose
+    * contributing predicates all share one compiler-proven parameter root.
+    */
+  private[core] final case class StructuralAssignmentDomain(
+      parameter: ElaborationIntegerParameter,
+      values: Vector[StructuralPredicateInterval]
+  ) {
+    require(values.nonEmpty)
+    require(values == normalizePredicateIntervals(values))
+
+    val minimum: BigInt = values.head.minimum
+    val maximum: BigInt = values.last.maximum
   }
 
   private def finishCapture(
@@ -546,10 +580,11 @@ object ParameterizedStructure {
       )
     }
 
-    new ParameterizedStructuralBlock(
+    val result = new ParameterizedStructuralBlock(
       statements,
       declarations,
       assignments,
+      initializationAssignments.map(value => value: AssignmentStatement),
       memories,
       children,
       state.slices.toVector,
@@ -557,6 +592,7 @@ object ParameterizedStructure {
       state.regions.toVector,
       sourceLocation
     )
+    result
   }
 
   /** Record one symbolic fixed-width packed slice selected at its witness. */
@@ -648,6 +684,445 @@ object ParameterizedStructure {
       )
   }
 
+  /**
+    * Return the retained width for one exact concrete-witness sizing boundary.
+    * The pre-normalization phase records only a surviving captured statement
+    * whose independently fixed UInt source fits the symbolic target's complete
+    * legal width domain.
+    */
+  private[core] def witnessSizedWidthOf(
+      component: Component,
+      assignment: DataAssignmentStatement,
+      target: UInt,
+      currentSourceWidth: BigInt
+  ): Option[ElaborationIntegerExpression] = {
+    if (component == null || assignment == null || target == null) return None
+    storageOption(component)
+      .flatMap(storage =>
+        Option(storage.witnessSizedAssignments.get(assignment))
+      )
+      .filter { record =>
+        (record.target eq target) &&
+        (assignment.target eq target) &&
+        (assignment.finalTarget eq target) &&
+        record.finalSource != null &&
+        (assignment.source eq record.finalSource) &&
+        (target.component eq component) &&
+        BigInt(target.getBitsWidth) == record.targetWidth.default &&
+        record.sourceWidth >= 0 &&
+        record.finalSourceWidth >= 0 &&
+        currentSourceWidth == BigInt(record.finalSourceWidth) &&
+        BigInt(record.sourceWidth) <= record.targetWidth.minimum &&
+        validFinalWitnessSizedSource(component, record) &&
+        ParameterizedWidth.expressionOf(target).contains(record.targetWidth)
+      }
+      .map(_.targetWidth)
+  }
+
+  /**
+    * Size fixed UInt sources after native width inference and immediately
+    * before input normalization. Only assignments captured by exact structural
+    * identity are considered, and a source is accepted only when its width is
+    * no greater than the symbolic target's minimum over the full domain.
+    */
+  private[core] def prepareWitnessSizedAssignments(
+      component: Component
+  ): Unit = {
+    if (component == null) return
+    storageOption(component).foreach { storage =>
+      storage.witnessSizedAssignments.clear()
+
+      val liveAssignments =
+        new IdentityHashMap[AssignmentStatement, java.lang.Boolean]()
+      snapshotStatementGraph(component.dslBody, None).statements.foreach {
+        case assignment: AssignmentStatement =>
+          liveAssignments.put(assignment, java.lang.Boolean.TRUE)
+        case _ =>
+      }
+
+      val captured = identityDistinct(
+        storage.regions.toVector
+          .flatMap(region => allBlocks(region))
+          .flatMap(block =>
+            block.assignments.map(value => value: AssignmentStatement) ++
+              block.initializations
+          )
+      )
+      captured.foreach { assignment =>
+        assignment.finalTarget match {
+          case target: UInt
+              if (assignment.target eq target) &&
+                assignment.source.isInstanceOf[WidthProvider] &&
+                assignment.source.getTypeObject == TypeUInt =>
+            ParameterizedWidth
+              .expressionOf(target)
+              .filter(_.parameters.nonEmpty)
+              .foreach { width =>
+                val validInterval =
+                  width.minimum >= 1 &&
+                    width.minimum <= width.default &&
+                    width.default <= width.maximum &&
+                    width.default.isValidInt
+                var attachedToTarget = false
+                target.foreachStatements { statement =>
+                  if (statement eq assignment) attachedToTarget = true
+                }
+
+                if (
+                  (liveAssignments.containsKey(assignment) || attachedToTarget) &&
+                  (target.component eq component) &&
+                  ParameterizedWidth.expressionOf(target).contains(width) &&
+                  validInterval &&
+                  BigInt(target.getBitsWidth) == width.default
+                ) {
+                  assignment.source match {
+                    case source: Expression with WidthProvider
+                        if source.getTypeObject == TypeUInt =>
+                      fixedUIntSourceWidth(component, source).foreach {
+                        sourceWidth =>
+                          if (
+                            sourceWidth >= 0 &&
+                            BigInt(sourceWidth) <= width.minimum
+                          ) {
+                            val witnessWidth = width.default.toInt
+                            val sizedSource: Option[Expression] =
+                              fixedUIntLiteralOf(component, source) match {
+                                case Some(literal) =>
+                                  Some(
+                                    UIntLiteral(
+                                      literal.value,
+                                      literal.poisonMask,
+                                      witnessWidth
+                                    )
+                                  )
+                                case None if sourceWidth == witnessWidth =>
+                                  Some(source)
+                                case None
+                                    if sourceWidth > 0 && assignment
+                                      .isInstanceOf[DataAssignmentStatement] =>
+                                  val resize = target.resizeFactory
+                                  resize.input = source
+                                  resize.size = witnessWidth
+                                  Some(resize)
+                                case None => None
+                              }
+                            sizedSource.foreach { sized =>
+                              assignment.source = sized
+                              storage.witnessSizedAssignments.put(
+                                assignment,
+                                StructuralWitnessSizing(
+                                  target,
+                                  width,
+                                  source,
+                                  sized,
+                                  sourceWidth
+                                )
+                              )
+                            }
+                          }
+                      }
+                    case _ =>
+                  }
+                }
+              }
+          case _ =>
+        }
+      }
+    }
+  }
+
+  /**
+    * Remove only the temporary non-literal witness resize after every native
+    * validation/cleanup phase and immediately before Verilog emission. The
+    * final exact source identity is recorded for the external backend.
+    */
+  private[core] def restoreWitnessSizedAssignments(
+      component: Component
+  ): Unit = {
+    if (component == null) return
+    storageOption(component).foreach { storage =>
+      val liveAssignments =
+        new IdentityHashMap[AssignmentStatement, java.lang.Boolean]()
+      snapshotStatementGraph(component.dslBody, None).statements.foreach {
+        case assignment: AssignmentStatement =>
+          liveAssignments.put(assignment, java.lang.Boolean.TRUE)
+        case _ =>
+      }
+      val entries = storage.witnessSizedAssignments.entrySet().iterator()
+      while (entries.hasNext) {
+        val entry = entries.next()
+        val assignment = entry.getKey
+        val record = entry.getValue
+        record.finalSource = null
+        record.finalSourceWidth = -1
+
+        var attachedToTarget = false
+        if (assignment != null && record.target != null) {
+          record.target.foreachStatements { statement =>
+            if (statement eq assignment) attachedToTarget = true
+          }
+        }
+
+        if (
+          !liveAssignments.containsKey(assignment) && !attachedToTarget
+        ) {
+          val targetName = Option(record.target)
+            .flatMap(value => Option(value.getName()))
+            .filter(_.nonEmpty)
+            .getOrElse("<unnamed>")
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-WITNESS-SIZING-RESTORE-FAILED",
+            s"captured ${assignment.getClass.getSimpleName} for '$targetName' was removed before its exact validated witness-sizing boundary could be restored",
+            Option(record.target)
+              .flatMap(ParameterizedWidth.sourceLocationOf)
+          )
+        } else {
+
+          val targetStillValid =
+            (record.target ne null) &&
+              (assignment ne null) &&
+              (assignment.target eq record.target) &&
+              (assignment.finalTarget eq record.target) &&
+              (record.target.component eq component) &&
+              ParameterizedWidth
+                .expressionOf(record.target)
+                .contains(record.targetWidth) &&
+              BigInt(record.target.getBitsWidth) == record.targetWidth.default &&
+              record.targetWidth.minimum >= 1 &&
+              record.sourceWidth >= 0 &&
+              BigInt(record.sourceWidth) <= record.targetWidth.minimum
+
+          if (targetStillValid) {
+            record.sizedSource match {
+              case resize: ResizeUInt
+                  if (assignment.source eq resize) &&
+                    (resize.input eq record.originalSource) &&
+                    record.targetWidth.default.isValidInt &&
+                    resize.size == record.targetWidth.default.toInt =>
+                resize.input match {
+                  case source: Expression with WidthProvider
+                      if source.getTypeObject == TypeUInt &&
+                        fixedUIntSourceWidth(component, source)
+                          .contains(record.sourceWidth) =>
+                    assignment.source = source
+                    record.finalSource = source
+                    record.finalSourceWidth = record.sourceWidth
+                  case _ =>
+                }
+
+              case literal: UIntLiteral
+                  if (assignment.source eq literal) &&
+                    record.targetWidth.default.isValidInt &&
+                    literal.getWidth == record.targetWidth.default.toInt &&
+                    BigInt(literal.minimalValueBitWidth) <=
+                      record.targetWidth.minimum =>
+                val publicationWidth = Math.max(
+                  1,
+                  Math.max(record.sourceWidth, literal.minimalValueBitWidth)
+                )
+                if (BigInt(publicationWidth) <= record.targetWidth.minimum) {
+                  val publication = UIntLiteral(
+                    literal.value,
+                    literal.poisonMask,
+                    publicationWidth,
+                    true
+                  )
+                  assignment.source = publication
+                  record.finalSource = publication
+                  record.finalSourceWidth = publicationWidth
+                }
+
+              case _
+                  if record.sourceWidth == record.targetWidth.default &&
+                    (record.sizedSource eq record.originalSource) &&
+                    (assignment.source eq record.originalSource) &&
+                    assignment.source.isInstanceOf[WidthProvider] &&
+                    assignment.source.getTypeObject == TypeUInt =>
+                val source = assignment.source
+                  .asInstanceOf[Expression with WidthProvider]
+                if (
+                  fixedUIntSourceWidth(component, source)
+                    .contains(record.sourceWidth)
+                ) {
+                  record.finalSource = source
+                  record.finalSourceWidth = record.sourceWidth
+                }
+
+              case _ =>
+            }
+          }
+
+          val finalized =
+            targetStillValid && record.finalSource != null &&
+              (assignment.source eq record.finalSource) &&
+              validFinalWitnessSizedSource(component, record)
+          if (!finalized) {
+            val targetName = Option(record.target)
+              .flatMap(value => Option(value.getName()))
+              .filter(_.nonEmpty)
+              .getOrElse("<unnamed>")
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-WITNESS-SIZING-RESTORE-FAILED",
+              s"captured ${assignment.getClass.getSimpleName} for '$targetName' did not retain its exact validated witness-sizing boundary",
+              Option(record.target)
+                .flatMap(ParameterizedWidth.sourceLocationOf)
+            )
+          }
+        }
+      }
+    }
+  }
+
+  /**
+    * Resolve a literal only through exact, local, combinational type nodes.
+    * Registers, ports and user declarations are never followed.
+    */
+  private def fixedUIntLiteralOf(
+      component: Component,
+      source: Expression
+  ): Option[UIntLiteral] = {
+    val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
+
+    def loop(value: Expression): Option[UIntLiteral] = {
+      if (value == null || visited.containsKey(value)) return None
+      visited.put(value, java.lang.Boolean.TRUE)
+      value match {
+        case literal: UIntLiteral => Some(literal)
+        case uint: UInt
+            if (uint.component eq component) && uint.isComb &&
+              uint.isDirectionLess && uint.isTypeNode &&
+              uint.hasOnlyOneStatement =>
+          uint.head match {
+            case driver: DataAssignmentStatement
+                if (driver.target eq uint) &&
+                  (driver.finalTarget eq uint) =>
+              loop(driver.source)
+            case _ => None
+          }
+        case _ => None
+      }
+    }
+
+    loop(source)
+  }
+
+  private def validFinalWitnessSizedSource(
+      component: Component,
+      record: StructuralWitnessSizing
+  ): Boolean = {
+    if (
+      component == null || record == null || record.finalSource == null ||
+      record.finalSourceWidth < 0
+    ) return false
+    record.finalSource match {
+      case literal: UIntLiteral =>
+        (literal eq record.finalSource) &&
+        literal.getWidth == record.finalSourceWidth &&
+        BigInt(literal.getWidth) <= record.targetWidth.minimum &&
+        BigInt(literal.minimalValueBitWidth) <= record.targetWidth.minimum
+      case source: Expression with WidthProvider
+          if source.getTypeObject == TypeUInt &&
+            (source eq record.finalSource) =>
+        record.finalSourceWidth == record.sourceWidth &&
+        fixedUIntSourceWidth(component, source).contains(record.sourceWidth)
+      case _ => false
+    }
+  }
+
+  /** Return one fixed unsigned source width, rejecting every symbolic carrier. */
+  private def fixedUIntSourceWidth(
+      component: Component,
+      source: Expression with WidthProvider
+  ): Option[Int] = {
+    if (
+      component == null || source == null || source.getTypeObject != TypeUInt
+    ) return None
+    val structuralSliceResults = storageOption(component).toVector
+      .flatMap(_.regions)
+      .flatMap(region => allBlocks(region))
+      .flatMap(_.slices)
+      .map(_.result)
+    val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
+
+    def widthOf(value: Expression with WidthProvider): Option[Int] =
+      try {
+        val width = value.getWidth
+        if (width < 0) None else Some(width)
+      } catch {
+        case NonFatal(_) => None
+      }
+
+    def isSymbolic(baseType: BaseType): Boolean = {
+      val retainedWidth = ParameterizedWidth
+        .expressionOf(baseType)
+        .exists(_.parameters.nonEmpty)
+      val retainedValue = baseType match {
+        case uint: UInt =>
+          ExternalParameterizedValueRegistry.recordOf(uint).nonEmpty
+        case _ => false
+      }
+      structuralSliceResults.exists(_ eq baseType) ||
+      retainedWidth || retainedValue
+    }
+
+    def exactTypeNodeDriver(baseType: BaseType): Option[Expression] = {
+      val assignments = ArrayBuffer.empty[AssignmentStatement]
+      baseType.foreachStatements(assignments += _)
+      assignments.toVector match {
+        case Vector(driver: DataAssignmentStatement)
+            if (driver.target eq baseType) &&
+              (driver.finalTarget eq baseType) =>
+          Some(driver.source)
+        case _ => None
+      }
+    }
+
+    def visit(value: Expression): Option[Int] = {
+      if (value == null || visited.containsKey(value)) return None
+      visited.put(value, java.lang.Boolean.TRUE)
+      value match {
+        case literal: UIntLiteral => widthOf(literal)
+        case literal: BitsLiteral => widthOf(literal)
+        case _: BoolLiteral       => Some(1)
+
+        case cast: CastBitsToUInt => visit(cast.input)
+        case cast: CastUIntToBits => visit(cast.input)
+        case cast: CastBoolToBits =>
+          Option(cast.input).filter(_.getTypeObject == TypeBool).map(_ => 1)
+
+        case _: MemPortStatement => None
+
+        case baseType: BaseType
+            if (baseType.component ne component) || isSymbolic(baseType) =>
+          None
+        case baseType: BaseType
+            if baseType.isTypeNode && baseType.isComb &&
+              baseType.isDirectionLess =>
+          exactTypeNodeDriver(baseType).flatMap { driver =>
+            val driverWidth = visit(driver)
+            val declaredWidth = baseType match {
+              case widthProvider: WidthProvider => widthOf(widthProvider)
+              case _: Bool                      => Some(1)
+              case _                            => None
+            }
+            if (driverWidth == declaredWidth) driverWidth else None
+          }
+        case baseType: BaseType =>
+          baseType match {
+            case widthProvider: WidthProvider => widthOf(widthProvider)
+            case _: Bool                      => Some(1)
+            case _                            => None
+          }
+
+        // Every arithmetic, mux, range, resize, memory and other operator is
+        // deliberately outside this narrow lossless-cast allowlist.
+        case _ => None
+      }
+    }
+
+    visit(source)
+  }
+
   private def scheduleAssignmentValidation(component: Component): Unit = {
     val storage = storageOf(component)
     if (!storage.assignmentValidationScheduled) {
@@ -707,15 +1182,162 @@ object ParameterizedStructure {
           entries.forall(value =>
             targetAssignments.exists(_ eq value.statement)
           )
-        val pairwiseExclusive = entries.indices.forall { left =>
-          (left + 1 until entries.size).forall { right =>
-            mutuallyExclusive(entries(left).path, entries(right).path)
+        val wholeTargets = entries.forall(value =>
+          value.statement.target eq target
+        )
+        val hasStructuralConflict = entries.indices.exists { left =>
+          (left + 1 until entries.size).exists { right =>
+            !sameAlternativePath(entries(left).path, entries(right).path)
           }
         }
-        if (completeCapture && pairwiseExclusive) target.allowOverride()
+        val pairwiseSafe = entries.indices.forall { left =>
+          (left + 1 until entries.size).forall { right =>
+            if (sameAlternativePath(entries(left).path, entries(right).path)) {
+              (entries(left).block eq entries(right).block) &&
+              !entries(left).replicated &&
+              !entries(right).replicated &&
+              nativeScopeOrderCompatible(
+                entries(left).statement,
+                entries(right).statement
+              )
+            } else {
+              mutuallyExclusive(entries(left).path, entries(right).path)
+            }
+          }
+        }
+        if (
+          completeCapture && wholeTargets && hasStructuralConflict && pairwiseSafe
+        )
+          target.allowOverride()
       }
     }
   }
+
+  /**
+    * Preserve ordinary native override semantics within one structural path.
+    * Two full assignments in the same scope overlap. An ancestor-scope default
+    * may precede a nested conditional override, while a later ancestor full
+    * assignment would overlap the conditional's touched-target marker.
+    */
+  private def nativeScopeOrderCompatible(
+      left: DataAssignmentStatement,
+      right: DataAssignmentStatement
+  ): Boolean = {
+    val leftScope = left.parentScope
+    val rightScope = right.parentScope
+    if (leftScope == null || rightScope == null || (leftScope eq rightScope))
+      return false
+
+    def boundaryInAncestor(
+        descendant: ScopeStatement,
+        ancestor: ScopeStatement
+    ): Option[TreeStatement] = {
+      var current = descendant
+      while ((current ne null) && (current ne ancestor)) {
+        val tree = current.parentStatement
+        if (tree == null) return None
+        if (tree.parentScope eq ancestor) return Some(tree)
+        current = tree.parentScope
+      }
+      None
+    }
+
+    def precedes(first: Statement, second: Statement): Boolean = {
+      var current = first.nextScopeStatement
+      while (current != null) {
+        if (current eq second) return true
+        current = current.nextScopeStatement
+      }
+      false
+    }
+
+    boundaryInAncestor(leftScope, rightScope) match {
+      case Some(boundary) => return precedes(right, boundary)
+      case None           =>
+    }
+    boundaryInAncestor(rightScope, leftScope) match {
+      case Some(boundary) => precedes(left, boundary)
+      case None           => mutuallyExclusiveNativeBranches(leftScope, rightScope)
+    }
+  }
+
+  private def mutuallyExclusiveNativeBranches(
+      left: ScopeStatement,
+      right: ScopeStatement
+  ): Boolean = {
+    def whenBranches(
+        initial: ScopeStatement
+    ): Vector[(WhenStatement, Int)] = {
+      val values = ArrayBuffer.empty[(WhenStatement, Int)]
+      var current = initial
+      while ((current ne null) && (current.parentStatement ne null)) {
+        current.parentStatement match {
+          case value: WhenStatement =>
+            val branch =
+              if (current eq value.whenTrue) 0
+              else if (current eq value.whenFalse) 1
+              else -1
+            if (branch >= 0) values += value -> branch
+          case _ =>
+        }
+        current = current.parentStatement.parentScope
+      }
+      values.toVector
+    }
+
+    val leftBranches = whenBranches(left)
+    val rightBranches = whenBranches(right)
+    val exclusiveWhen = leftBranches.exists { case (leftWhen, leftBranch) =>
+      rightBranches.exists { case (rightWhen, rightBranch) =>
+        (leftWhen eq rightWhen) && leftBranch != rightBranch
+      }
+    }
+    if (exclusiveWhen) return true
+
+    def switchBranches(
+        initial: ScopeStatement
+    ): Vector[(SwitchStatement, Int)] = {
+      val values = ArrayBuffer.empty[(SwitchStatement, Int)]
+      var current = initial
+      while ((current ne null) && (current.parentStatement ne null)) {
+        current.parentStatement match {
+          case value: SwitchStatement =>
+            val elementBranch = value.elements.indexWhere(element =>
+              element.scopeStatement eq current
+            )
+            val branch =
+              if (elementBranch >= 0) elementBranch
+              else if (
+                (value.defaultScope ne null) &&
+                (value.defaultScope eq current)
+              ) value.elements.size
+              else -1
+            if (branch >= 0) values += value -> branch
+          case _ =>
+        }
+        current = current.parentStatement.parentScope
+      }
+      values.toVector
+    }
+
+    val leftSwitchBranches = switchBranches(left)
+    val rightSwitchBranches = switchBranches(right)
+    leftSwitchBranches.exists { case (leftSwitch, leftBranch) =>
+      rightSwitchBranches.exists { case (rightSwitch, rightBranch) =>
+        (leftSwitch eq rightSwitch) && leftBranch != rightBranch
+      }
+    }
+  }
+
+  private def sameAlternativePath(
+      left: Vector[AlternativeStep],
+      right: Vector[AlternativeStep]
+  ): Boolean =
+    left.size == right.size && left.zip(right).forall {
+      case (leftStep, rightStep) =>
+        (leftStep.region eq rightStep.region) &&
+        leftStep.branch == rightStep.branch
+    }
 
   private def capturedAssignments(
       regions: Vector[StructuralRegion]
@@ -724,43 +1346,49 @@ object ParameterizedStructure {
 
     def visitBlock(
         block: ParameterizedStructuralBlock,
-        path: Vector[AlternativeStep]
+        path: Vector[AlternativeStep],
+        replicated: Boolean
     ): Unit = {
       block.assignments.foreach(value =>
-        values += CapturedAssignment(value, path)
+        values += CapturedAssignment(value, path, block, replicated)
       )
-      block.regions.foreach(value => visitRegion(value, path))
+      block.regions.foreach(value => visitRegion(value, path, replicated))
     }
 
     def visitRegion(
         region: StructuralRegion,
-        path: Vector[AlternativeStep]
+        path: Vector[AlternativeStep],
+        replicated: Boolean
     ): Unit = region match {
       case value: StructuralFor =>
-        visitBlock(value.body, path)
+        visitBlock(value.body, path, replicated = true)
       case value: StructuralIf =>
         visitBlock(
           value.whenTrue,
-          path :+ AlternativeStep(value, branch = 0)
+          path :+ AlternativeStep(value, branch = 0),
+          replicated
         )
         visitBlock(
           value.whenFalse,
-          path :+ AlternativeStep(value, branch = 1)
+          path :+ AlternativeStep(value, branch = 1),
+          replicated
         )
       case value: StructuralCase =>
         value.choices.zipWithIndex.foreach { case (choice, index) =>
           visitBlock(
             choice.body,
-            path :+ AlternativeStep(value, branch = index)
+            path :+ AlternativeStep(value, branch = index),
+            replicated
           )
         }
         visitBlock(
           value.defaultBody,
-          path :+ AlternativeStep(value, branch = value.choices.size)
+          path :+ AlternativeStep(value, branch = value.choices.size),
+          replicated
         )
     }
 
-    regions.foreach(value => visitRegion(value, Vector.empty))
+    regions.foreach(value => visitRegion(value, Vector.empty, replicated = false))
     values.toVector
   }
 
@@ -816,6 +1444,56 @@ object ParameterizedStructure {
         rightDomains.get(root).exists(rightValues =>
           intersectPredicateIntervals(leftValues, rightValues).isEmpty
         )
+    }
+  }
+
+  /**
+    * Return exact single-parameter activity evidence for one captured data
+    * assignment. The result is available only when the assignment has one
+    * identity-exact, non-replicated structural owner and every contributing
+    * predicate domain shares the same compiler-proven root.
+    */
+  private[core] def activeSingleParameterDomainOf(
+      component: Component,
+      assignment: DataAssignmentStatement
+  ): Option[StructuralAssignmentDomain] = {
+    if (component == null || assignment == null) return None
+    val regions = storageOption(component).toVector.flatMap(_.regions).toVector
+    val entries = capturedAssignments(regions).filter(value =>
+      value.statement eq assignment
+    )
+    entries match {
+      case Vector(entry) if !entry.replicated =>
+        val domains = entry.path.flatMap {
+          case AlternativeStep(value: StructuralIf, branch) =>
+            value.predicateDomain.flatMap(domain =>
+              domain.valuesFor(branch).map(values => domain -> values)
+            )
+          case _ => None
+        }
+        domains.headOption.flatMap { first =>
+          val root = first._1.root
+          val oneRoot = domains.forall(value => value._1.root eq root)
+          root.parameters.distinct match {
+            case Vector(parameter)
+                if oneRoot && root.verilog.trim == parameter.name &&
+                  root.default == parameter.default &&
+                  root.minimum == parameter.minimum &&
+                  root.maximum == parameter.maximum =>
+              val universe = Vector(
+                StructuralPredicateInterval(root.minimum, root.maximum)
+              )
+              val active = domains.foldLeft(universe) {
+                case (values, (_, allowed)) =>
+                  intersectPredicateIntervals(values, allowed)
+              }
+              if (active.nonEmpty)
+                Some(StructuralAssignmentDomain(parameter, active))
+              else None
+            case _ => None
+          }
+        }
+      case _ => None
     }
   }
 

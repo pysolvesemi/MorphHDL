@@ -1468,7 +1468,19 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         )
       }
       val ports = declarations.distinct.filter(_.isIo)
-      if (!ports.exists(_.isInput) || !ports.exists(_.isOutput)) {
+      // A native hierarchy wrapper is legitimate without both port
+      // directions: canonicalization may leave it with only pulled clock/reset
+      // inputs and may already have consumed its live child list.  Require
+      // exact hierarchy evidence (or still-attached children plus a retained
+      // schema), and leave the ordinary width/assignment/process checks below
+      // authoritative for anything emitted in the wrapper itself.
+      val hierarchyOnlyWrapper =
+        hasParameterizedHierarchy || hierarchyParameters.nonEmpty ||
+          (component.children.nonEmpty && parameters.nonEmpty)
+      if (
+        !hierarchyOnlyWrapper &&
+        (!ports.exists(_.isInput) || !ports.exists(_.isOutput))
+      ) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-PORT-DIRECTIONS-UNSUPPORTED",
           s"component '${component.definitionName}' must expose at least one native input and one native output"
@@ -1515,14 +1527,24 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             parameterSourceLocation(parameter)
           )
         }
+        val isDirectPackedWidth = symbolicDeclarationWidths.exists {
+          case (_, expression) =>
+            expression.render == parameter.name &&
+              expression.parameters == Vector(parameter) &&
+              expression.default == parameter.default &&
+              expression.minimum == parameter.minimum &&
+              expression.maximum == parameter.maximum
+        }
         if (
           parameter.minimum < 0 || parameter.maximum < parameter.minimum ||
           parameter.default < parameter.minimum || parameter.default > parameter.maximum ||
-          parameter.maximum > BigInt(pc.config.bitVectorWidthMax)
+          parameter.maximum > BigInt(Int.MaxValue) ||
+          (isDirectPackedWidth &&
+            parameter.maximum > BigInt(pc.config.bitVectorWidthMax))
         ) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-DOMAIN-INVALID",
-            s"parameter '${parameter.name}' must have a non-negative bounded domain no larger than SpinalConfig.bitVectorWidthMax=${pc.config.bitVectorWidthMax}, with its default inside that domain",
+            s"parameter '${parameter.name}' has default=${parameter.default}, minimum=${parameter.minimum}, maximum=${parameter.maximum}; expected a non-negative finite Int-sized domain containing its default, and a direct packed-width parameter no larger than SpinalConfig.bitVectorWidthMax=${pc.config.bitVectorWidthMax}",
             parameterSourceLocation(parameter)
           )
         }
@@ -1593,10 +1615,24 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 targetWidth,
                 sourceWidth
               )
+              val provenStructuralWitnessSizing =
+                isProvenStructuralWitnessSizing(
+                  assignment,
+                  target,
+                  targetWidth,
+                  sourceWidth
+                )
+              val provenStructuralAddressWidthIdentity =
+                isProvenStructuralAddressWidthSuccessorIdentity(
+                  assignment,
+                  targetWidth,
+                  sourceWidth
+                )
               if (
                 targetWidth.isSymbolic && sourceWidth.isSymbolic &&
                 targetWidth != sourceWidth && !nativeCounterNext &&
-                !provenAutoResize && !provenModularUpdate
+                !provenAutoResize && !provenModularUpdate &&
+                !provenStructuralAddressWidthIdentity
               ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
@@ -1606,12 +1642,18 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               }
               if (
                 targetWidth.isSymbolic && !sourceWidth.isSymbolic &&
-                !isUnfixedLiteral(assignment.source) && !nativeCounterNext &&
-                !provenAutoResize && !provenModularUpdate
+                !isUnfixedLiteral(assignment.source) &&
+                !isDomainSafeFixedLiteral(
+                  assignment.source,
+                  target,
+                  targetWidth
+                ) && !nativeCounterNext &&
+                !provenAutoResize && !provenModularUpdate &&
+                !provenStructuralWitnessSizing
               ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
-                  s"assignment to symbolic signal '${target.getName()}' uses concrete-width expression ${sourceWidth.render}; explicit domain-safe conversion is required",
+                  s"assignment to symbolic signal '${target.getName()}' uses concrete-width expression ${sourceWidth.render} from ${assignment.source.getClass.getSimpleName}('${assignment.source.opName}'); explicit domain-safe conversion is required",
                   ParameterizedWidth.sourceLocationOf(target)
                 )
               }
@@ -1619,6 +1661,51 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           }
         }
       }
+    }
+
+    /**
+      * For every integer n > 1,
+      *
+      *   addressWidth(n + 1) == addressWidth(n) + (isPow2(n) ? 1 : 0)
+      *
+      * The expressions differ at n == 1 because addressWidth is clamped to
+      * one. Accept the identity only when exact compiler-captured structural
+      * evidence excludes that value. Matching is expression-generic and based
+      * on assignment identity; no component, signal or source name is used.
+      */
+    private def isProvenStructuralAddressWidthSuccessorIdentity(
+        assignment: DataAssignmentStatement,
+        targetWidth: WidthExpr,
+        sourceWidth: WidthExpr
+    ): Boolean = {
+      if (
+        targetWidth.default != sourceWidth.default ||
+        targetWidth.parameters.size != 1 ||
+        sourceWidth.parameters != targetWidth.parameters
+      ) return false
+
+      ParameterizedStructure
+        .activeSingleParameterDomainOf(component, assignment)
+        .exists { domain =>
+          val parameter = domain.parameter
+          if (
+            targetWidth.parameters != Vector(parameter) ||
+            domain.minimum <= 1 ||
+            domain.maximum >= BigInt(Int.MaxValue)
+          ) false
+          else {
+            def compact(value: String): String = value.replaceAll("\\s+", "")
+            val name = parameter.name
+            val powerOfTwo = s"(($name>0)&&(($name&($name-1))==0))"
+            val enabledPowerOfTwo = s"((1'b1)&&($powerOfTwo))"
+            val increment = s"(($enabledPowerOfTwo)?1:0)"
+            val expectedTarget = s"morphhdl_address_width(($name+1))"
+            val expectedSource =
+              s"(morphhdl_address_width($name)+$increment)"
+            compact(targetWidth.render) == expectedTarget &&
+            compact(sourceWidth.render) == expectedSource
+          }
+        }
     }
 
     /**
@@ -1666,6 +1753,41 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           targetWidth.isSymbolic &&
           sourceWidth.default == targetWidth.default &&
           ExternalParameterizedAutoResize.proves(component, assignment, uint)
+        case _ => false
+      }
+
+    /**
+      * A captured structural alternative may use a fixed unsigned source whose
+      * width fits the symbolic target for every legal parameter value. The
+      * pre-normalization phase inserts only the concrete-witness extension and
+      * records the exact surviving statement identity.
+      */
+    private def isProvenStructuralWitnessSizing(
+        assignment: DataAssignmentStatement,
+        target: BitVector,
+        targetWidth: WidthExpr,
+        sourceWidth: WidthExpr
+    ): Boolean =
+      target match {
+        case uint: UInt =>
+          targetWidth.isSymbolic &&
+          !sourceWidth.isSymbolic &&
+          ParameterizedStructure
+            .witnessSizedWidthOf(
+              component,
+              assignment,
+              uint,
+              sourceWidth.default
+            )
+            .exists { expression =>
+              targetWidth == WidthRetained(
+                expression.verilog,
+                expression.default,
+                expression.minimum,
+                expression.maximum,
+                expression.parameters.distinct.sortBy(_.name)
+              )
+            }
         case _ => false
       }
 
@@ -1758,6 +1880,27 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case resize: Resize            => isUnfixedLiteral(resize.input)
         case cast: CastBitVectorToBitVector =>
           isUnfixedLiteral(cast.input)
+        case _ => false
+      }
+
+    /**
+      * A concrete UInt/Bits literal whose defined value fits the symbolic
+      * target's narrowest legal width is invariant under Verilog's ordinary
+      * unsigned context sizing.  Prove that fact from the literal value and
+      * complete target domain; a poison mask, signed conversion, or wrapper
+      * expression remains unsupported without a separate identity proof.
+      */
+    private def isDomainSafeFixedLiteral(
+        expression: Expression,
+        target: BitVector,
+        targetWidth: WidthExpr
+    ): Boolean =
+      expression match {
+        case literal: BitVectorLiteral
+            if literal.getTypeObject == target.getTypeObject &&
+              literal.poisonMask == null && literal.value != null &&
+              literal.value >= 0 =>
+          BigInt(literal.value.bitLength) <= targetWidth.minimum
         case _ => false
       }
 
