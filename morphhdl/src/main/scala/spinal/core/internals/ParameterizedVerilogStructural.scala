@@ -628,25 +628,36 @@ private[internals] object ParameterizedVerilogStructural {
           val targetOwners = plans.filter { plan =>
             plan.assignmentEvidence.exists(_.target == target)
           }
-          val sourceNamesByOwner = targetOwners.map { plan =>
-            plan.block -> plan.assignmentEvidence
-              .filter(_.target == target)
-              .flatMap(_.sourceNames)
-              .filterNot(_ == target)
-              .toSet
-          }.toMap
-          val sourceFrequency = mutable.LinkedHashMap.empty[String, Int]
-            .withDefaultValue(0)
-          sourceNamesByOwner.values.foreach { names =>
-            names.foreach { name =>
-              sourceFrequency(name) = sourceFrequency(name) + 1
+          def sourceProvenOwners(
+              candidates: Vector[BlockPlan],
+              evidenceOf: BlockPlan => Vector[AssignmentEvidence]
+          ): Vector[BlockPlan] = {
+            val sourceNamesByOwner = candidates.map { plan =>
+              plan.block -> evidenceOf(plan)
+                .flatMap(_.sourceNames)
+                .filterNot(_ == target)
+                .toSet
+            }.toMap
+            val sourceFrequency = mutable.LinkedHashMap.empty[String, Int]
+              .withDefaultValue(0)
+            sourceNamesByOwner.values.foreach { names =>
+              names.foreach { name =>
+                sourceFrequency(name) = sourceFrequency(name) + 1
+              }
+            }
+            candidates.filter { plan =>
+              sourceNamesByOwner(plan.block).exists { name =>
+                sourceFrequency(name) == 1 && rhsNames(name)
+              }
             }
           }
-          val evidenceOwners = targetOwners.filter { plan =>
-            sourceNamesByOwner(plan.block).exists { name =>
-              sourceFrequency(name) == 1 && rhsNames(name)
-            }
-          }
+          val targetEvidenceOwners = sourceProvenOwners(
+            targetOwners,
+            _.assignmentEvidence.filter(_.target == target)
+          )
+          val evidenceOwners =
+            if (targetEvidenceOwners.nonEmpty) targetEvidenceOwners
+            else sourceProvenOwners(plans, _.assignmentEvidence)
           evidenceOwners match {
             case Vector(owner) =>
               if (!claimed.exists(plan => plan.block eq owner.block)) {
