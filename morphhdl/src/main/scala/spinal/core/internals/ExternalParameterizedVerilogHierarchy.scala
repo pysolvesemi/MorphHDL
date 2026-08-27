@@ -67,7 +67,19 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       name: String,
       width: BindingExpr,
       requiresIntermediate: Boolean,
-      forbiddenDirectSignals: Set[String]
+      forbiddenDirectSignals: Set[String],
+      outputAdapter: Option[OutputAdapter]
+  )
+
+  private final case class OutputAdapter(
+      targetName: String,
+      targetWidth: Int,
+      witnessSourceWidth: Int
+  )
+
+  private final case class AdapterEvidence(
+      forbiddenDirectSignals: Set[String],
+      outputAdapter: Option[OutputAdapter]
   )
 
   private final case class InstancePlan(
@@ -145,6 +157,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           }
         var block = lines.slice(bodyStart, end + 1)
 
+        val outputAdapters = ArrayBuffer.empty[(PortRewrite, String)]
         instance.ports.foreach { port =>
           val marker = ("\\." + Pattern.quote(port.name) + "\\s*\\(").r
           val matchingLines = block.zipWithIndex.collect {
@@ -189,6 +202,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
             )
           )
           declarationRanges += signalName -> port.width.range
+          port.outputAdapter.foreach(_ => outputAdapters += port -> signalName)
         }
 
         val bindingLines = instance.bindings.zipWithIndex.map {
@@ -203,6 +217,14 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         val rewrittenBlock = header ++ block.drop(1)
         current =
           (lines.take(start) ++ rewrittenBlock ++ lines.drop(end + 1)).mkString("\n")
+        outputAdapters.foreach { case (port, signalName) =>
+          current = rewriteOutputAdapter(
+            current,
+            instance,
+            port,
+            signalName
+          )
+        }
       }
 
       val grouped = declarationRanges.groupBy(_._1)
@@ -219,6 +241,97 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         grouped.toVector.map { case (name, values) => name -> values.head._2 }
       )
     }
+  }
+
+  private def rewriteOutputAdapter(
+      verilog: String,
+      instance: InstancePlan,
+      port: PortRewrite,
+      signalName: String
+  ): String = {
+    val adapter = port.outputAdapter.getOrElse {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-ADAPTER-UNPROVEN",
+        s"derived output port '${port.name}' of instance '${instance.instanceName}' has no exact adapter evidence"
+      )
+    }
+    val lines = verilog.split("\n", -1).toVector
+    val assignmentPattern =
+      ("^(\\s*)assign\\s+" + Pattern.quote(adapter.targetName) +
+        "\\s*=\\s*(.*?)\\s*;\\s*$").r
+    val matches = lines.zipWithIndex.flatMap { case (line, index) =>
+      assignmentPattern.findFirstMatchIn(line).map(index -> _)
+    }
+    if (matches.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-ADAPTER-NOT-FOUND",
+        s"derived output port '${port.name}' of instance '${instance.instanceName}' has ${matches.size} native assignments to exact parent target '${adapter.targetName}'"
+      )
+    }
+    val (index, matched) = matches.head
+    val witnessPadding = adapter.targetWidth - adapter.witnessSourceWidth
+    val directWitness = ("^" + Pattern.quote(signalName) + "$").r
+    val paddedWitness =
+      ("^\\{\\s*([0-9]+)'d0\\s*,\\s*" + Pattern.quote(signalName) +
+        "\\s*\\}$").r
+    val witnessMatches =
+      if (witnessPadding == 0)
+        directWitness.findFirstIn(matched.group(2)).nonEmpty
+      else
+        paddedWitness.findFirstMatchIn(matched.group(2)).exists(value =>
+          BigInt(value.group(1)) == BigInt(witnessPadding)
+        )
+    if (!witnessMatches) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-ADAPTER-SHAPE-MISMATCH",
+        s"derived output port '${port.name}' of instance '${instance.instanceName}' did not emit the exact ${adapter.witnessSourceWidth}-to-${adapter.targetWidth} unsigned witness adapter"
+      )
+    }
+
+    val labelBase =
+      s"g_width_adapter_${instance.instanceName}_${port.name}"
+    if (verilog.contains(s"begin : $labelBase")) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-ADAPTER-LABEL-CONFLICT",
+        s"derived output port '${port.name}' of instance '${instance.instanceName}' conflicts with generated label '$labelBase'"
+      )
+    }
+    val indent = matched.group(1)
+    val width = port.width.render
+    val padded =
+      s"${indent}assign ${adapter.targetName} = {{(${adapter.targetWidth} - ($width)){1'b0}}, $signalName};"
+    val replacement =
+      if (
+        port.width.minimum == BigInt(adapter.targetWidth) &&
+        port.width.maximum == BigInt(adapter.targetWidth)
+      ) s"${indent}assign ${adapter.targetName} = $signalName;"
+      else if (port.width.maximum < BigInt(adapter.targetWidth)) padded
+      else
+        {
+          val generateDepth = lines.take(index).foldLeft(0) { (depth, line) =>
+            line.replaceFirst("//.*$", "").trim match {
+              case "generate"    => depth + 1
+              case "endgenerate" => math.max(0, depth - 1)
+              case _             => depth
+            }
+          }
+          if (generateDepth != 0) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-ADAPTER-SCOPE-UNSUPPORTED",
+              s"derived output port '${port.name}' of instance '${instance.instanceName}' requires a conditional width adapter inside an existing generate region"
+            )
+          }
+          Vector(
+            s"${indent}generate",
+            s"${indent}  if (($width) < ${adapter.targetWidth}) begin : $labelBase",
+            s"${indent}    assign ${adapter.targetName} = {{(${adapter.targetWidth} - ($width)){1'b0}}, $signalName};",
+            s"${indent}  end else begin : ${labelBase}_exact",
+            s"${indent}    assign ${adapter.targetName} = $signalName;",
+            s"${indent}  end",
+            s"${indent}endgenerate"
+          ).mkString("\n")
+        }
+    lines.updated(index, replacement).mkString("\n")
   }
 
   def analyze(
@@ -515,6 +628,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
             val expression = instantiatePortWidth(
               definitionWidth,
               bindingMap,
+              actualPort,
               definitionName,
               instanceName,
               name
@@ -556,7 +670,10 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
                   name,
                   expression,
                   requiresIntermediate = adapter.nonEmpty,
-                  forbiddenDirectSignals = adapter.getOrElse(Set.empty)
+                  forbiddenDirectSignals = adapter
+                    .map(_.forbiddenDirectSignals)
+                    .getOrElse(Set.empty),
+                  outputAdapter = adapter.flatMap(_.outputAdapter)
                 )
               )
             } else None
@@ -578,6 +695,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
   private def instantiatePortWidth(
       definitionWidth: ElaborationIntegerExpression,
       bindings: Map[String, BindingExpr],
+      actualPort: BaseType,
       definitionName: String,
       instanceName: String,
       portName: String
@@ -665,17 +783,36 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       .distinct
       .sortBy(_.name)
     if (actualParameters.isEmpty) LiteralBinding(definitionWidth.default)
-    else
-      ExpressionBinding(
-        ElaborationIntegerExpression(
-          verilog = rendered,
-          default = definitionWidth.default,
-          minimum = definitionWidth.minimum,
-          maximum = definitionWidth.maximum,
-          parameters = actualParameters,
-          sourceLocation = definitionWidth.sourceLocation
-        )
+    else {
+      val textuallyInstantiated = ElaborationIntegerExpression(
+        verilog = rendered,
+        default = definitionWidth.default,
+        minimum = definitionWidth.minimum,
+        maximum = definitionWidth.maximum,
+        parameters = actualParameters,
+        sourceLocation = definitionWidth.sourceLocation
       )
+      ExternalNativeIntShadowRegistry.widthExpressionsOf(actualPort) match {
+        case Some((definition, actual))
+            if ExternalFormalParameterRegistry.equivalentExpression(
+              definition,
+              definitionWidth
+            ) && actual.default == definitionWidth.default &&
+              actual.minimum >= BigInt(1) &&
+              actual.minimum >= definitionWidth.minimum &&
+              actual.maximum <= definitionWidth.maximum &&
+              actual.parameters.distinct.sortBy(_.name) == actualParameters =>
+          ExpressionBinding(
+            actual.copy(sourceLocation = definitionWidth.sourceLocation)
+          )
+        case Some((definition, actual)) =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-DERIVED-WIDTH-ACTUAL-CONFLICT",
+            s"derived width of port '$portName' on instance '$instanceName' has canonical definition '${definition.verilog}' and exact native actual '${actual.verilog}', which do not match retained definition '${definitionWidth.verilog}' and binding parameters"
+          )
+        case None => ExpressionBinding(textuallyInstantiated)
+      }
+    }
   }
 
   private def widthSignature(
@@ -704,7 +841,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       expected: BindingExpr,
       instanceName: String,
       portName: String
-  ): Option[Set[String]] = {
+  ): Option[AdapterEvidence] = {
     val context = s"derived port '$portName' of instance '$instanceName'"
     val parentPorts = parent.getOrdredNodeIo.toVector.flatMap(value =>
       Option(value.getName()).filter(_.nonEmpty)
@@ -715,15 +852,18 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
 
     def resizeRoot(value: Expression): Option[Expression] = value match {
       case resize: Resize =>
-        def root(current: Expression): Expression = current match {
-          case nested: Resize => root(nested.input)
-          case other          => other
+        def root(current: Expression): Option[Expression] = current match {
+          case nested: Resize if nested.getWidth >= nested.input.getWidth =>
+            root(nested.input)
+          case _: Resize => None
+          case other     => Some(other)
         }
-        Some(root(resize.input))
+        if (resize.getWidth < resize.input.getWidth) None
+        else root(resize.input)
       case _ => None
     }
 
-    def requireMatching(value: BindingExpr): Option[Set[String]] = {
+    def requireMatching(value: BindingExpr): Option[AdapterEvidence] = {
       if (bindingSignature(value) != bindingSignature(expected)) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-WIDTH-MISMATCH",
@@ -742,7 +882,10 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
             if assignment.target == port && assignment.finalTarget == port =>
           resizeRoot(assignment.source) match {
             case Some(root: BaseType) if root.component == parent =>
-              Some(parentPorts ++ stableName(root))
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED",
+                s"$context fixed-parent resize requires symmetric input-adapter lowering, which is not yet proven"
+              )
             case Some(_) =>
               fail(
                 "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED",
@@ -779,9 +922,44 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           } else {
             resizeRoot(assignment.source) match {
               case Some(root) if root eq port =>
-                Some(
-                  parentPorts ++ stableName(assignment.finalTarget)
-                )
+                (port, assignment.finalTarget) match {
+                  case (source: UInt, target: UInt) =>
+                    val targetName = Option(target.getName()).filter(_.nonEmpty).getOrElse {
+                      fail(
+                        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-ADAPTER-TARGET-NAME-MISSING",
+                        s"$context exact parent resize target has no stable emitted name"
+                      )
+                    }
+                    val targetWidth = target.getBitsWidth
+                    if (
+                      targetWidth < 1 ||
+                      expected.minimum < 1 ||
+                      expected.maximum > BigInt(targetWidth) ||
+                      expected.default != BigInt(source.getBitsWidth)
+                    ) {
+                      fail(
+                        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-WIDTH-MISMATCH",
+                        s"$context unsigned width '${expected.render}' reaches [${expected.minimum}, ${expected.maximum}], which cannot be zero-extended into fixed ${targetWidth}-bit parent target '$targetName'"
+                      )
+                    }
+                    Some(
+                      AdapterEvidence(
+                        parentPorts ++ stableName(target),
+                        outputAdapter = Some(
+                          OutputAdapter(
+                            targetName,
+                            targetWidth,
+                            source.getBitsWidth
+                          )
+                        )
+                      )
+                    )
+                  case _ =>
+                    fail(
+                      "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED",
+                      s"$context whole-output Resize must connect one unsigned child port to one unsigned fixed parent target"
+                    )
+                }
               case _ =>
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED",

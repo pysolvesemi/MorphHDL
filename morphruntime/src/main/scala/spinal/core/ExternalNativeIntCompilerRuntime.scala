@@ -244,15 +244,14 @@ object ExternalNativeIntCompilerRuntime {
       line: Int
   ): T = {
     ExternalNativeIntShadowRegistry
-      .definitionExpressionTracked(
+      .widthExpressionsTracked(
         reference,
         value.getBitsWidth,
-        rendered(file, line),
-        positiveWidth = true
+        rendered(file, line)
       )
-      .foreach { expression =>
-        val direct = expression.parameters match {
-          case Vector(parameter) if expression.verilog.trim == parameter.name =>
+      .foreach { case (definition, actual) =>
+        val direct = definition.parameters match {
+          case Vector(parameter) if definition.verilog.trim == parameter.name =>
             Some(parameter)
           case _ => None
         }
@@ -262,31 +261,61 @@ object ExternalNativeIntCompilerRuntime {
             value = value.getBitsWidth,
             parameter = direct,
             sourceLocation = Some(rendered(file, line)),
-            expression = Some(expression)
+            expression = Some(definition)
           )
+        )
+        ExternalNativeIntShadowRegistry.attachWidthExpressions(
+          value,
+          definition,
+          actual
         )
       }
     value
   }
 
   def compilerReg[T <: Data](dataType: => T)(native: => T): T =
-    if (boundaryActive) ParameterizedWidth.Reg(dataType) else native
+    if (boundaryActive) {
+      val template = dataType
+      val value = ParameterizedWidth.Reg(template)
+      ExternalNativeIntShadowRegistry.copyWidthExpressions(template, value)
+      value
+    } else native
 
   def compilerRegHardType[T <: Data](
       dataType: => HardType[T]
   )(native: => T): T =
-    if (boundaryActive) ParameterizedWidth.Reg(dataType()) else native
+    if (boundaryActive) {
+      val template = dataType()
+      val value = ParameterizedWidth.Reg(template)
+      ExternalNativeIntShadowRegistry.copyWidthExpressions(template, value)
+      value
+    } else native
 
   def compilerCloneOf[T <: Data](data: T)(native: => T): T =
-    if (boundaryActive) ParameterizedWidth.cloneOf(data) else native
+    if (boundaryActive) {
+      val value = ParameterizedWidth.cloneOf(data)
+      ExternalNativeIntShadowRegistry.copyWidthExpressions(data, value)
+      value
+    } else native
 
   def compilerCopyShape[T <: Data](source: T)(native: => T): T = {
     val value = native
-    if (boundaryActive) ParameterizedWidth.copyShape(source, value) else value
+    if (boundaryActive) {
+      ParameterizedWidth.copyShape(source, value)
+      ExternalNativeIntShadowRegistry.copyWidthExpressions(source, value)
+      value
+    } else value
   }
 
   def compilerHardType[T <: Data](dataType: => T)(native: => HardType[T]): HardType[T] =
-    if (boundaryActive) ParameterizedWidth.HardType(dataType) else native
+    if (boundaryActive) {
+      val template = dataType
+      new HardType[T]({
+        val value = ParameterizedWidth.cloneOf(template)
+        ExternalNativeIntShadowRegistry.copyWidthExpressions(template, value)
+        value
+      })
+    } else native
 
   def compilerMem[T <: Data](
       depth: Int,

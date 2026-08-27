@@ -185,6 +185,8 @@ private[internals] object ParameterizedVerilogStructural {
       preliminaryPlans,
       lines,
       alternativePaths,
+      parentBlocks,
+      replicatedBlocks,
       portNames ++ parameters.map(_.name)
     )
     val rawPlans =
@@ -195,12 +197,58 @@ private[internals] object ParameterizedVerilogStructural {
       lines,
       continuousResolution
     )
+    val continuousDeclarationOwners = continuousResolution.owners.toVector
+      .flatMap { case (index, owner) =>
+        DirectContinuousAssignment
+          .findFirstMatchIn(stripLineComment(lines(index)).trim)
+          .map(_.group(1) -> owner)
+      }
+      .groupBy(_._1)
+      .map { case (name, values) =>
+        val owners = values.map(_._2).foldLeft(
+          Vector.empty[ParameterizedStructuralBlock]
+        ) { (known, candidate) =>
+          if (known.exists(_ eq candidate)) known else known :+ candidate
+        }
+        if (owners.size != 1) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-DECLARATION-OWNER-CONFLICT",
+            s"native continuous target '$name' has ${owners.size} structural owners"
+          )
+        }
+        name -> owners.head
+      }
+    continuousDeclarationOwners.foreach { case (name, owner) =>
+      uniquelyOwnedDeclarations.get(name).foreach { existing =>
+        if (!(existing eq owner)) {
+          val scalarDeclaration =
+            ("^(?:wire|reg)\\s+" + Pattern.quote(name) + "\\s*;\\s*$").r
+          val declarationCount = lines.count { line =>
+            scalarDeclaration
+              .findFirstIn(stripLineComment(line).trim)
+              .nonEmpty
+          }
+          val safeAncestorRelocation =
+            declarationCount == 1 &&
+              sameOrDescendantBlock(existing, owner, parentBlocks) &&
+              !replicatedBlocks(existing) && !replicatedBlocks(owner)
+          if (!safeAncestorRelocation) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-DECLARATION-OWNER-CONFLICT",
+              s"native continuous target '$name' has conflicting captured declaration and dependency owners"
+            )
+          }
+        }
+      }
+    }
+    val resolvedDeclarationOwners =
+      uniquelyOwnedDeclarations ++ continuousDeclarationOwners
     val (resolvedPlans, sharedProcessRanges) =
       resolveSharedProceduralProcesses(
         rawPlans,
         lines,
         alternativePaths,
-        uniquelyOwnedDeclarations,
+        resolvedDeclarationOwners,
         parentBlocks,
         replicatedBlocks
       )
@@ -683,6 +731,94 @@ private[internals] object ParameterizedVerilogStructural {
     false
   }
 
+  private def deepestClaimedCommonAncestor(
+      claimants: Vector[BlockPlan],
+      parents: Map[
+        ParameterizedStructuralBlock,
+        Option[ParameterizedStructuralBlock]
+      ],
+      replicated: Set[ParameterizedStructuralBlock]
+  ): Option[BlockPlan] = {
+    def depth(block: ParameterizedStructuralBlock): Int = {
+      var current = Option(block)
+      var value = 0
+      val visited = mutable.LinkedHashSet.empty[ParameterizedStructuralBlock]
+      while (current.nonEmpty && !visited(current.get)) {
+        val next = current.get
+        visited += next
+        value += 1
+        current = parents.getOrElse(next, None)
+      }
+      value
+    }
+
+    val candidates = claimants.filter { candidate =>
+      !replicated(candidate.block) && claimants.forall(plan =>
+        sameOrDescendantBlock(plan.block, candidate.block, parents)
+      )
+    }
+    if (candidates.isEmpty) None
+    else {
+      val maximumDepth = candidates.map(plan => depth(plan.block)).max
+      val deepest = candidates.filter(plan => depth(plan.block) == maximumDepth)
+      if (deepest.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-COMMON-ANCESTOR-AMBIGUOUS",
+          s"shared native continuous assignment has ${deepest.size} equally deep claimed structural ancestors"
+        )
+      }
+      Some(deepest.head)
+    }
+  }
+
+  private def exactlyCoversRootAlternativeTree(
+      claimants: Vector[ParameterizedStructuralBlock],
+      paths: Map[ParameterizedStructuralBlock, Vector[AlternativeStep]]
+  ): Boolean = {
+    val claimantPaths = claimants.map(block =>
+      paths.getOrElse(block, Vector.empty)
+    )
+
+    def sameStep(left: AlternativeStep, right: AlternativeStep): Boolean =
+      left.region.eq(right.region) && left.branch == right.branch
+
+    def samePath(
+        left: Vector[AlternativeStep],
+        right: Vector[AlternativeStep]
+    ): Boolean =
+      left.size == right.size && left.indices.forall(index =>
+        sameStep(left(index), right(index))
+      )
+
+    def exactlyCoversFrom(
+        candidates: Vector[Vector[AlternativeStep]],
+        index: Int
+    ): Boolean = {
+      if (candidates.isEmpty || candidates.exists(_.size <= index)) false
+      else {
+        val region = candidates.head(index).region
+        if (!candidates.forall(path => path(index).region.eq(region))) false
+        else {
+          val byBranch = candidates.groupBy(path => path(index).branch)
+          val expectedBranches = (0 until region.blocks.size).toSet
+          byBranch.keySet == expectedBranches && byBranch.forall {
+            case (_, branchPaths) =>
+              val completeAtBranch = branchPaths.filter(_.size == index + 1)
+              if (completeAtBranch.nonEmpty)
+                completeAtBranch.size == 1 && branchPaths.size == 1
+              else exactlyCoversFrom(branchPaths, index + 1)
+          }
+        }
+      }
+    }
+
+    claimantPaths.nonEmpty &&
+    !claimantPaths.combinations(2).exists { pair =>
+      samePath(pair(0), pair(1)) || !mutuallyExclusive(pair(0), pair(1))
+    } &&
+    exactlyCoversFrom(claimantPaths, index = 0)
+  }
+
   private def mutuallyExclusive(
       left: Vector[AlternativeStep],
       right: Vector[AlternativeStep]
@@ -1153,10 +1289,27 @@ private[internals] object ParameterizedVerilogStructural {
       plans: Vector[BlockPlan],
       lines: Vector[String],
       paths: Map[ParameterizedStructuralBlock, Vector[AlternativeStep]],
+      parentBlocks: Map[
+        ParameterizedStructuralBlock,
+        Option[ParameterizedStructuralBlock]
+      ],
+      replicatedBlocks: Set[ParameterizedStructuralBlock],
       moduleScopeNames: Set[String]
   ): ContinuousAssignmentResolution = {
     val claims = planClaimsByLine(plans)
     val proceduralRanges = proceduralBlocks(lines, None)
+    val continuousTargetCounts = lines.flatMap { line =>
+      DirectContinuousAssignment
+        .findFirstMatchIn(stripLineComment(line).trim)
+        .map(_.group(1))
+    }.groupBy(identity).map { case (target, values) => target -> values.size }
+    val proceduralTargets = proceduralRanges.flatMap { range =>
+      range.indices.flatMap { index =>
+        DirectProceduralAssignment
+          .findFirstMatchIn(stripLineComment(lines(index)).trim)
+          .map(_.group(1))
+      }
+    }.toSet
     val owners = mutable.LinkedHashMap.empty[Int, ParameterizedStructuralBlock]
     val moduleScopeLines = mutable.LinkedHashSet.empty[Int]
     claims.toVector
@@ -1209,8 +1362,24 @@ private[internals] object ParameterizedVerilogStructural {
           val evidenceOwners =
             if (targetEvidenceOwners.nonEmpty) targetEvidenceOwners
             else sourceProvenOwners(plans, _.directSourceNames)
-          evidenceOwners match {
-            case Vector(owner) =>
+          val commonAncestor = deepestClaimedCommonAncestor(
+            claimed.toVector,
+            parentBlocks,
+            replicatedBlocks
+          ).filter { _ =>
+            val allEvidenceClaimed = evidenceOwners.forall { evidence =>
+              claimed.exists(plan => plan.block eq evidence.block)
+            }
+            evidenceOwners.size <= 1 && allEvidenceClaimed &&
+            claimed.forall(plan => !replicatedBlocks(plan.block)) &&
+            continuousTargetCounts.getOrElse(target, 0) == 1 &&
+            !proceduralTargets(target) && rhsNames.nonEmpty &&
+            rhsNames.subsetOf(moduleScopeNames)
+          }
+          (commonAncestor, evidenceOwners) match {
+            case (Some(owner), _) =>
+              owners(index) = owner.block
+            case (None, Vector(owner)) =>
               if (!claimed.exists(plan => plan.block eq owner.block)) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-CONTINUOUS-ASSIGNMENT-OWNER-NOT-CLAIMANT",
@@ -1219,7 +1388,7 @@ private[internals] object ParameterizedVerilogStructural {
                 )
               }
               owners(index) = owner.block
-            case Vector()
+            case (None, Vector())
                 if targetOwners.isEmpty &&
                   plans.forall(plan => !plan.directSourceNames(target)) &&
                   commonModuleScopeContinuousAssignment(
@@ -1297,7 +1466,10 @@ private[internals] object ParameterizedVerilogStructural {
         paths.getOrElse(pair(1).block, Vector.empty)
       )
     }
-    if (!pairwiseExclusive) return false
+    if (
+      !pairwiseExclusive ||
+      !exactlyCoversRootAlternativeTree(claimed.map(_.block), paths)
+    ) return false
 
     def declarationClaims(name: String): Option[Set[ParameterizedStructuralBlock]] = {
       val declarationLines = lines.zipWithIndex.collect {

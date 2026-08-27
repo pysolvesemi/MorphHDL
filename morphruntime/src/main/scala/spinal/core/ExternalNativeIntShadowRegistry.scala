@@ -82,6 +82,25 @@ private[core] final class ExternalNativeIntShadowRegionIdentityRef(
   }
 }
 
+private[core] final class ExternalNativeIntShadowWidthIdentityRef(
+    value: BaseType,
+    queue: ReferenceQueue[BaseType]
+) extends WeakReference[BaseType](value, queue) {
+  private val identityHash = System.identityHashCode(value)
+
+  override def hashCode(): Int = identityHash
+
+  override def equals(other: Any): Boolean = other match {
+    case that: ExternalNativeIntShadowWidthIdentityRef =>
+      (this eq that) || {
+        val left = get()
+        val right = that.get()
+        (left ne null) && (right ne null) && (left eq right)
+      }
+    case _ => false
+  }
+}
+
 /**
   * MorphHDL-owned shadow provenance registry for native Scala `Int` values.
   *
@@ -132,6 +151,7 @@ object ExternalNativeIntShadowRegistry {
   private val active = new ThreadLocal[List[ActiveBoundary]]
   private val componentQueue = new ReferenceQueue[Component]()
   private val regionQueue = new ReferenceQueue[Data]()
+  private val widthQueue = new ReferenceQueue[BaseType]()
   private val components = mutable.HashMap.empty[
     ExternalNativeIntShadowComponentIdentityRef,
     Vector[ExternalNativeIntComponentShadowRecord]
@@ -139,6 +159,10 @@ object ExternalNativeIntShadowRegistry {
   private val regions = mutable.HashMap.empty[
     ExternalNativeIntShadowRegionIdentityRef,
     ExternalNativeIntRegionShadowRecord
+  ]
+  private val widths = mutable.HashMap.empty[
+    ExternalNativeIntShadowWidthIdentityRef,
+    (ElaborationIntegerExpression, ElaborationIntegerExpression)
   ]
 
   /** Execute one untouched constructor with an active shadow scope. */
@@ -732,6 +756,52 @@ object ExternalNativeIntShadowRegistry {
   }
 
   /**
+    * Resolve the same compiler-proven tracked integer against both the
+    * canonical definition root and this exact component instance root.
+    * Width publication retains the definition expression on the native data
+    * object and keeps the bounded actual alongside it by object identity.
+    */
+  private[core] def widthExpressionsTracked(
+      reference: String,
+      witness: Int,
+      sourceLocation: String
+  ): Option[(ElaborationIntegerExpression, ElaborationIntegerExpression)] =
+    currentBoundary.map { boundary =>
+      validateReference(reference, sourceLocation, "width expression")
+      val tracked = resolveTracked(
+        boundary,
+        witness,
+        reference,
+        literal = false,
+        sourceLocation,
+        role = "width expression"
+      )
+      val relative =
+        ExternalNativeIntRelativeExpression.positiveWidth(tracked.expression)
+      val definition = lowerFinalExpression(
+        relative,
+        boundary.definitionExpression,
+        sourceLocation
+      )
+      val actual = lowerFinalExpression(
+        relative,
+        boundary.expression,
+        sourceLocation
+      )
+      if (
+        definition.default != BigInt(witness) ||
+        actual.default != BigInt(witness)
+      ) {
+        fail(
+          "MORPH-FRONTEND-NATIVE-INT-SHADOW-DEFAULT-MISMATCH",
+          s"tracked width witness $witness disagrees with definition default ${definition.default} or actual default ${actual.default}",
+          Option(sourceLocation).filter(_.nonEmpty)
+        )
+      }
+      definition -> actual
+    }
+
+  /**
     * Resolve one proven native Boolean predicate in canonical definition scope.
     * Increment 51 consumes this only while the exact formalization boundary is
     * active, before the native child constructor returns.
@@ -988,6 +1058,73 @@ object ExternalNativeIntShadowRegistry {
       regions.get(new ExternalNativeIntShadowRegionIdentityRef(data, null))
     }
   }
+
+  private[core] def attachWidthExpressions[T <: BaseType](
+      data: T,
+      definition: ElaborationIntegerExpression,
+      actual: ElaborationIntegerExpression
+  ): T = synchronized {
+    if (data == null)
+      throw new IllegalArgumentException("native Int width target must not be null")
+    if (definition == null || actual == null)
+      throw new IllegalArgumentException("native Int width expressions must not be null")
+    reapWidths()
+    val lookup = new ExternalNativeIntShadowWidthIdentityRef(data, null)
+    val incoming = definition -> actual
+    widths.get(lookup) match {
+      case Some(existing)
+          if !ExternalFormalParameterRegistry.equivalentExpression(
+            existing._1,
+            definition
+          ) || !ExternalFormalParameterRegistry.equivalentExpression(
+            existing._2,
+            actual
+          ) =>
+        fail(
+          "MORPH-FRONTEND-NATIVE-INT-WIDTH-EXPRESSION-CONFLICT",
+          "one exact native data object received conflicting definition or actual width provenance",
+          definition.sourceLocation.orElse(actual.sourceLocation)
+        )
+      case Some(_) =>
+      case None =>
+        widths.update(
+          new ExternalNativeIntShadowWidthIdentityRef(data, widthQueue),
+          incoming
+        )
+    }
+    data
+  }
+
+  private[core] def widthExpressionsOf(
+      data: BaseType
+  ): Option[(ElaborationIntegerExpression, ElaborationIntegerExpression)] =
+    synchronized {
+      if (data == null) None
+      else {
+        reapWidths()
+        widths.get(new ExternalNativeIntShadowWidthIdentityRef(data, null))
+      }
+    }
+
+  private[core] def copyWidthExpressions(from: Data, to: Data): Unit =
+    synchronized {
+      if (from == null || to == null)
+        throw new IllegalArgumentException(
+          "native Int width copy requires non-null data"
+        )
+      val sourceLeaves = from.flatten.toVector
+      val targetLeaves = to.flatten.toVector
+      if (sourceLeaves.size != targetLeaves.size) {
+        throw new IllegalArgumentException(
+          s"native Int width copy changed leaf count ${sourceLeaves.size} -> ${targetLeaves.size}"
+        )
+      }
+      sourceLeaves.zip(targetLeaves).foreach { case (source, target) =>
+        widthExpressionsOf(source).foreach { case (definition, actual) =>
+          attachWidthExpressions(target, definition, actual)
+        }
+      }
+    }
 
   def liveRecordCounts: (Int, Int) = synchronized {
     reapComponents()
@@ -1469,6 +1606,18 @@ object ExternalNativeIntShadowRegistry {
       reference = regionQueue
         .poll()
         .asInstanceOf[ExternalNativeIntShadowRegionIdentityRef]
+    }
+  }
+
+  private def reapWidths(): Unit = {
+    var reference = widthQueue
+      .poll()
+      .asInstanceOf[ExternalNativeIntShadowWidthIdentityRef]
+    while (reference != null) {
+      widths.remove(reference)
+      reference = widthQueue
+        .poll()
+        .asInstanceOf[ExternalNativeIntShadowWidthIdentityRef]
     }
   }
 

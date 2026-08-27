@@ -142,6 +142,28 @@ class HierarchyParameterBindingTests extends AnyFunSuite {
     occupancy := leaf.occupancy.resized
   }
 
+  private final class TooNarrowDerivedWidthTop(depth: HdlInt)
+      extends Component {
+    setDefinitionName("TooNarrowDerivedWidthHierarchyTop")
+    val direct = in(morphhdl.frontend.Bits(depth bits))
+    val occupancy = out(UInt(3 bits))
+    val leaf = new DerivedWidthLeaf(depth)
+    leaf.setName("leaf")
+    leaf.direct := direct
+    occupancy := leaf.occupancy.resized
+  }
+
+  private final class NarrowingDerivedWidthTop(depth: HdlInt)
+      extends Component {
+    setDefinitionName("NarrowingDerivedWidthHierarchyTop")
+    val direct = in(morphhdl.frontend.Bits(depth bits))
+    val occupancy = out(UInt(4 bits))
+    val leaf = new DerivedWidthLeaf(depth)
+    leaf.setName("leaf")
+    leaf.direct := direct
+    occupancy := leaf.occupancy.resize(2).resize(4)
+  }
+
   private final class UnconsumedDerivedWidthTop(depth: HdlInt)
       extends Component {
     setDefinitionName("UnconsumedDerivedWidthHierarchyTop")
@@ -285,13 +307,48 @@ class HierarchyParameterBindingTests extends AnyFunSuite {
       assert(declarationRange.contains("PARENT_DEPTH"))
       assert(declarationRange.contains("clog2"))
       assert(hasDeclarationWidth(top, "occupancy", "[3:0]"))
-      assert(top.contains("assign occupancy ="))
+      assert(!top.contains("assign occupancy = {1'd0, leaf_occupancy};"))
+      assert(top.contains("begin : g_width_adapter_leaf_occupancy"))
+      assert(top.contains("begin : g_width_adapter_leaf_occupancy_exact"))
+      assert(
+        top.contains("4 - (clog2") &&
+          top.contains("{1'b0}}, leaf_occupancy}")
+      )
+      assert(top.contains("assign occupancy = leaf_occupancy;"))
       assert(top.contains("morphhdl_unknown_helper( remains comment text"))
       assert(
         top.contains(
           "morphhdl_address_width(DEPTH) remains attribute text"
         )
       )
+    }
+  }
+
+  test("a derived child output rejects a fixed target narrower than its domain") {
+    withTemporaryDirectory { directory =>
+      expectFailure(
+        directory,
+        "too_narrow_derived_width_hierarchy.v",
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-WIDTH-MISMATCH"
+      ) {
+        val depth =
+          HdlInt.param("PARENT_DEPTH", default = 5, min = 1, max = 8)
+        new TooNarrowDerivedWidthTop(depth)
+      }
+    }
+  }
+
+  test("a derived child output rejects narrowing before fixed-width extension") {
+    withTemporaryDirectory { directory =>
+      expectFailure(
+        directory,
+        "narrowing_derived_width_hierarchy.v",
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-CONNECTION-UNSUPPORTED"
+      ) {
+        val depth =
+          HdlInt.param("PARENT_DEPTH", default = 5, min = 1, max = 8)
+        new NarrowingDerivedWidthTop(depth)
+      }
     }
   }
 

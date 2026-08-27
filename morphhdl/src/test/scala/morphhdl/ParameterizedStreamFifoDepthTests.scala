@@ -178,6 +178,68 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       assert(!parameterized.contains("ParamRTL"))
       assert(!parameterized.contains("rewriteParameterizedStreamFifoDepth"))
 
+      val compactParameterized = parameterized.replaceAll("\\s+", "")
+      assert(
+        !compactParameterized.contains(
+          "assignio_occupancy={1'd0,fifo_io_occupancy};"
+        )
+      )
+      assert(
+        !compactParameterized.contains(
+          "assignio_availability={1'd0,fifo_io_availability};"
+        )
+      )
+      Vector("occupancy", "availability").foreach { port =>
+        assert(parameterized.contains(s"g_width_adapter_fifo_io_$port"))
+        assert(
+          parameterized.contains(s"g_width_adapter_fifo_io_${port}_exact")
+        )
+      }
+
+      val streamFifo =
+        "(?ms)^module StreamFifo #\\(.*?^endmodule\\b".r
+          .findFirstIn(parameterized)
+          .getOrElse(fail("Parameterized StreamFifo module is missing"))
+      val pushFireDeclaration =
+        "(?m)^\\s*wire\\s+io_push_fire\\s*;\\s*$".r
+          .findAllMatchIn(streamFifo)
+          .toVector
+      val pushFireAssignment =
+        "(?m)^\\s*assign\\s+io_push_fire\\s*=\\s*\\(\\s*io_push_valid\\s*&&\\s*io_push_ready\\s*\\)\\s*;\\s*$".r
+          .findAllMatchIn(streamFifo)
+          .toVector
+      assert(pushFireDeclaration.size == 1, streamFifo)
+      assert(pushFireAssignment.size == 1, streamFifo)
+      val depthGreater =
+        "(?m)^\\s*if \\(\\(DEPTH > 1\\)\\) begin : ([A-Za-z_][A-Za-z0-9_$]*)\\s*$".r
+          .findFirstMatchIn(streamFifo)
+          .getOrElse(fail("DEPTH > 1 structural alternative is missing"))
+      val trueLabel = depthGreater.group(1)
+      val falseLabel =
+        if (trueLabel.endsWith("_true")) trueLabel.stripSuffix("_true") + "_false"
+        else fail(s"Unexpected DEPTH > 1 label '$trueLabel'")
+      val outerStart = depthGreater.start
+      val outerEnd = streamFifo.indexOf(
+        s"end else begin : $falseLabel",
+        depthGreater.end
+      )
+      assert(outerEnd > outerStart, streamFifo)
+      val firstNested =
+        "(?m)^\\s*if \\(.*\\) begin : [A-Za-z_][A-Za-z0-9_$]*_true\\s*$".r
+          .findFirstMatchIn(streamFifo.substring(depthGreater.end, outerEnd))
+          .map(_.start + depthGreater.end)
+          .getOrElse(fail("nested StreamFifo structural alternative is missing"))
+      assert(
+        pushFireDeclaration.head.start > outerStart &&
+          pushFireDeclaration.head.start < firstNested,
+        streamFifo
+      )
+      assert(
+        pushFireAssignment.head.start > outerStart &&
+          pushFireAssignment.head.start < firstNested,
+        streamFifo
+      )
+
       Vector(
         "logic_ptr_push",
         "logic_ptr_pop",

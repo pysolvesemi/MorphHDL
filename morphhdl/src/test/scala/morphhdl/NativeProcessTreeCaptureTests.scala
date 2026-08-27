@@ -150,6 +150,52 @@ object NativeProcessTreeCaptureSmoke {
     }
   }
 
+  final class SharedContinuousAncestorTop(
+      outerEnabled: HdlBool,
+      innerEnabled: HdlBool
+  ) extends Component {
+    setDefinitionName("SharedContinuousAncestorTop")
+
+    val left = in(Bool())
+    val right = in(Bool())
+    val observed = out(Bool())
+    observed := left
+
+    val shared = Bool()
+    shared.setName("sharedAncestorValue")
+    shared.setAsVital()
+    shared.dontSimplifyIt()
+    shared := left && right
+
+    outerEnabled.generateIf("g_shared_outer_yes", "g_shared_outer_no") {
+      val outerUse = Bool()
+      outerUse.setName("sharedOuterUse")
+      outerUse.setAsVital()
+      outerUse.dontSimplifyIt()
+      outerUse := shared
+
+      innerEnabled.generateIf("g_shared_inner_yes", "g_shared_inner_no") {
+        val innerUse = Bool()
+        innerUse.setName("sharedInnerUse")
+        innerUse.setAsVital()
+        innerUse.dontSimplifyIt()
+        innerUse := shared
+      }.otherwise {
+        val innerDisabled = Bool()
+        innerDisabled.setName("sharedInnerDisabled")
+        innerDisabled.setAsVital()
+        innerDisabled.dontSimplifyIt()
+        innerDisabled := left
+      }
+    }.otherwise {
+      val outerDisabled = Bool()
+      outerDisabled.setName("sharedOuterDisabled")
+      outerDisabled.setAsVital()
+      outerDisabled.dontSimplifyIt()
+      outerDisabled := right
+    }
+  }
+
   final class NestedUnsupportedStatementTop(width: HdlInt) extends Component {
     setDefinitionName("NestedUnsupportedStatementTop")
     retainWidthMetadata(width)
@@ -613,6 +659,12 @@ object NativeProcessTreeCaptureSmoke {
     new NonexclusiveDeclarationEscapeTop(ownerEnabled, consumerEnabled)
   }
 
+  def sharedContinuousAncestorComponent(): Component = {
+    val outerEnabled = HdlBool.param("OUTER_ENABLED", default = true)
+    val innerEnabled = HdlBool.param("INNER_ENABLED", default = true)
+    new SharedContinuousAncestorTop(outerEnabled, innerEnabled)
+  }
+
   def storageRollbackComponent(): Component = {
     val enabled = HdlBool.param("ENABLED", default = true)
     new StructuralStorageRollbackTop(enabled)
@@ -741,6 +793,58 @@ class NativeProcessTreeCaptureTests extends AnyFunSuite {
         failure.failure.detail.contains(
           "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-DECLARATION-OWNER-ESCAPE"
         )
+      )
+    }
+  }
+
+  test("a single module-input helper localizes to its deepest claimed ancestor") {
+    withTemporaryDirectory { directory =>
+      val verilog = emit(
+        directory,
+        "shared_continuous_ancestor.v",
+        sharedContinuousAncestorComponent()
+      )
+      val outerStart = verilog.indexOf(
+        "begin : g_shared_outer_yes"
+      )
+      val outerEnd = verilog.indexOf(
+        "end else begin : g_shared_outer_no",
+        outerStart
+      )
+      assert(outerStart >= 0 && outerEnd > outerStart, verilog)
+      val beforeOuter = verilog.substring(0, outerStart)
+      val outerBody = verilog.substring(outerStart, outerEnd)
+      val innerStart = verilog.indexOf(
+        "begin : g_shared_inner_yes",
+        outerStart
+      )
+      assert(!beforeOuter.contains("sharedAncestorValue"), beforeOuter)
+      assert(innerStart > outerStart && innerStart < outerEnd, verilog)
+      assert(
+        occurrences(verilog, "wire                sharedAncestorValue;") == 1,
+        verilog
+      )
+      assert(
+        occurrences(verilog, "assign sharedAncestorValue =") == 1,
+        verilog
+      )
+      assert(outerBody.contains("wire                sharedAncestorValue;"))
+      assert(outerBody.contains("assign sharedAncestorValue ="))
+      val declarationStart = verilog.indexOf(
+        "wire                sharedAncestorValue;",
+        outerStart
+      )
+      val assignmentStart = verilog.indexOf(
+        "assign sharedAncestorValue =",
+        outerStart
+      )
+      assert(
+        declarationStart > outerStart && declarationStart < innerStart,
+        verilog
+      )
+      assert(
+        assignmentStart > outerStart && assignmentStart < innerStart,
+        verilog
       )
     }
   }
