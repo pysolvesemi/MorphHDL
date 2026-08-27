@@ -69,9 +69,9 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
     setDefinitionName("NativeAutoResizedIncrement")
 
     val value = in(morphhdl.frontend.UInt(width bits))
-    val next = out(morphhdl.frontend.UInt(width bits))
+    val nextValue = out(morphhdl.frontend.UInt(width bits))
 
-    next := (value + 1).resized
+    nextValue := (value + 1).resized
   }
 
   private final class NativeUnresizedFixedIncrement(width: HdlInt) extends Component {
@@ -91,6 +91,18 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
     val packed = out(morphhdl.frontend.UInt((width + 1) bits))
 
     packed := (prefix.asBits ## (value + 1).asBits).asUInt
+  }
+
+  private final class NativeReusedAutoResize(width: HdlInt) extends Component {
+    setDefinitionName("NativeReusedAutoResize")
+
+    val value = in(morphhdl.frontend.UInt(width bits))
+    val first = out(morphhdl.frontend.UInt(width bits))
+    val second = out(morphhdl.frontend.UInt(width bits))
+    val shared = (value + 1).resized
+
+    first := shared
+    second := shared ^ value
   }
 
   test("ordinary assignments muxes arithmetic concatenation slicing and resize reuse native Verilog emission") {
@@ -205,7 +217,7 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
 
       assert(parameterized.contains("parameter integer WIDTH = 3"))
       assert(hasDeclarationWidth(parameterized, "value", "[WIDTH-1:0]"))
-      assert(hasDeclarationWidth(parameterized, "next", "[WIDTH-1:0]"))
+      assert(hasDeclarationWidth(parameterized, "nextValue", "[WIDTH-1:0]"))
 
       val unsafeConfig = SpinalConfig(targetDirectory = directory.toString)
       unsafeConfig.netlistFileName = "native_unresized_fixed_increment.v"
@@ -237,6 +249,22 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
           )
         case Right(report) =>
           fail(s"Expected nested witness-width crossing failure, received $report")
+      }
+
+      val reusedConfig = SpinalConfig(targetDirectory = directory.toString)
+      reusedConfig.netlistFileName = "native_reused_auto_resize.v"
+      val reusedUnsafe = MorphVerilog.tryGenerate(reusedConfig) {
+        new NativeReusedAutoResize(width)
+      }
+      reusedUnsafe match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH"
+            )
+          )
+        case Right(report) =>
+          fail(s"Expected reused auto-resize provenance failure, received $report")
       }
     }
   }
