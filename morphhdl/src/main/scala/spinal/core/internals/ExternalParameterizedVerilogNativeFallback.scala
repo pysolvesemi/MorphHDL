@@ -112,9 +112,11 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       component,
       rewrittenCounterBoundaries
     )
-    if (isCanonicalDirectSurface(component))
-      canonicalizeDeclarations(component, rewrittenValues)
-    else rewrittenValues
+    val canonical =
+      if (isCanonicalDirectSurface(component))
+        canonicalizeDeclarations(component, rewrittenValues)
+      else rewrittenValues
+    lowerRetainedIntegerHelpers(canonical, component.definitionName)
   }
 
   private def ensureParameterHeader(
@@ -204,6 +206,199 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     }.mkString("\n")
     s"module $definitionName #(\n$declarations\n) ("
   }
+
+  private val NativeAddressWidthHelper = "morphhdl_address_width"
+  private val NativeCeilLog2Helper = "morphhdl_ceil_log2"
+  private val NativeIntegerHelper =
+    "(?<![A-Za-z0-9_$])morphhdl_[A-Za-z0-9_]+\\s*\\(".r
+  private val FunctionIntegerName =
+    "(?m)^\\s*function\\s+integer\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*;\\s*$".r
+
+  /**
+    * Compiler-shadow helper names are an internal expression IR, not Verilog
+    * functions. Lower the reviewed positive-width helpers after every other
+    * native rewrite so declarations, structural alternatives and memories all
+    * share one collision-safe IEEE-1364 implementation.
+    */
+  private def lowerRetainedIntegerHelpers(
+      verilog: String,
+      definitionName: String
+  ): String = {
+    val needsAddressWidth = verilog.contains(NativeAddressWidthHelper + "(")
+    val needsCeilLog2 = verilog.contains(NativeCeilLog2Helper + "(")
+    if (!needsAddressWidth && !needsCeilLog2) {
+      NativeIntegerHelper.findFirstIn(verilog).foreach { helper =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-UNSUPPORTED",
+          s"module '$definitionName' retains unsupported native Int helper '${helper.trim}'"
+        )
+      }
+      return verilog
+    }
+
+    val existingPortableHelpers =
+      FunctionIntegerName
+        .findAllMatchIn(verilog)
+        .map(_.group(1))
+        .filter(name => verilog.contains(renderPortableLogFunction(name).mkString("\n")))
+        .toVector
+        .distinct
+    if (existingPortableHelpers.size > 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-LOG-HELPER-AMBIGUOUS",
+        s"module '$definitionName' contains multiple portable logarithm helpers: ${existingPortableHelpers.sorted.mkString(", ")}"
+      )
+    }
+    val helperName = existingPortableHelpers.headOption.getOrElse {
+      firstAvailableIdentifier("clog2", identifiers(verilog))
+    }
+
+    val withAddressWidth =
+      replaceNativeUnaryCalls(
+        verilog,
+        NativeAddressWidthHelper,
+        argument => s"$helperName($argument, 1)",
+        definitionName
+      )
+    val lowered =
+      replaceNativeUnaryCalls(
+        withAddressWidth,
+        NativeCeilLog2Helper,
+        argument => s"$helperName($argument, 0)",
+        definitionName
+      )
+    NativeIntegerHelper.findFirstIn(lowered).foreach { helper =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-UNSUPPORTED",
+        s"module '$definitionName' retains unsupported native Int helper '${helper.trim}'"
+      )
+    }
+
+    if (existingPortableHelpers.nonEmpty) lowered
+    else insertPortableLogFunction(lowered, definitionName, helperName)
+  }
+
+  private def replaceNativeUnaryCalls(
+      value: String,
+      functionName: String,
+      replacement: String => String,
+      definitionName: String
+  ): String = {
+    val marker = functionName + "("
+    val out = new StringBuilder
+    var cursor = 0
+    var next = value.indexOf(marker, cursor)
+    while (next >= 0) {
+      val beforeIsIdentifier =
+        next > 0 && isIdentifierCharacter(value.charAt(next - 1))
+      if (beforeIsIdentifier) {
+        out.append(value.substring(cursor, next + marker.length))
+        cursor = next + marker.length
+      } else {
+        out.append(value.substring(cursor, next))
+        val argumentStart = next + marker.length
+        var depth = 1
+        var index = argumentStart
+        while (index < value.length && depth > 0) {
+          value.charAt(index) match {
+            case '(' => depth += 1
+            case ')' => depth -= 1
+            case _   =>
+          }
+          index += 1
+        }
+        if (depth != 0) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-MALFORMED",
+            s"module '$definitionName' contains an unterminated call to '$functionName'"
+          )
+        }
+        val argument = replaceNativeUnaryCalls(
+          value.substring(argumentStart, index - 1),
+          functionName,
+          replacement,
+          definitionName
+        )
+        out.append(replacement(argument))
+        cursor = index
+      }
+      next = value.indexOf(marker, cursor)
+    }
+    out.append(value.substring(cursor))
+    out.toString
+  }
+
+  private def insertPortableLogFunction(
+      verilog: String,
+      definitionName: String,
+      helperName: String
+  ): String = {
+    val lines = verilog.split("\n", -1).toVector
+    val modulePattern =
+      ("^\\s*module\\s+" + Pattern.quote(definitionName) + "\\b.*$").r
+    val moduleLines = lines.zipWithIndex.collect {
+      case (line, index) if modulePattern.findFirstIn(line).nonEmpty => index
+    }
+    if (moduleLines.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-NOT-FOUND",
+        s"normal Verilog emission contains ${moduleLines.size} module headers for '$definitionName'"
+      )
+    }
+    val moduleLine = moduleLines.head
+    val portEnd =
+      (moduleLine + 1 until lines.size)
+        .find(index => lines(index).trim == ");")
+        .getOrElse {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-NOT-FOUND",
+            s"normal Verilog emission did not contain a complete module header for '$definitionName'"
+          )
+        }
+    lines
+      .patch(
+        portEnd + 1,
+        Vector("") ++ renderPortableLogFunction(helperName) ++ Vector(""),
+        0
+      )
+      .mkString("\n")
+  }
+
+  private def renderPortableLogFunction(name: String): Vector[String] =
+    Vector(
+      s"  function integer $name;",
+      "    input integer value;",
+      "    input integer minimum_result;",
+      "    integer remaining;",
+      "    begin",
+      s"      $name = 0;",
+      "      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin",
+      s"        $name = $name + 1;",
+      "      end",
+      s"      if ($name < minimum_result) begin",
+      s"        $name = minimum_result;",
+      "      end",
+      "    end",
+      "  endfunction"
+    )
+
+  private def identifiers(value: String): Set[String] =
+    "[A-Za-z_][A-Za-z0-9_$]*".r.findAllIn(value).toSet
+
+  private def firstAvailableIdentifier(base: String, used: Set[String]): String =
+    if (!used(base)) base
+    else {
+      var suffix = 1
+      var candidate = s"${base}_$suffix"
+      while (used(candidate)) {
+        suffix += 1
+        candidate = s"${base}_$suffix"
+      }
+      candidate
+    }
+
+  private def isIdentifierCharacter(value: Char): Boolean =
+    value.isLetterOrDigit || value == '_' || value == '$'
 
   private def rewriteDeclarationLine(
       line: String,

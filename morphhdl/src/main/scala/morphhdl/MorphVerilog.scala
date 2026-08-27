@@ -648,6 +648,10 @@ object MorphVerilog {
       report: SpinalReport[T]
   ): Either[MorphVerilogFailure, Vector[morphhdl.paramrtl.IntegerParameter]] =
     try {
+      // A scalar child formal is not carried by any top-level packed width.
+      // Publish only parameters referenced by direct-child actuals: those are
+      // expressed in the top module's namespace. Recursing would leak an
+      // intermediate child definition's local formal into the public report.
       val hierarchyActualParameters =
         report.toplevel.children.toVector.flatMap { child =>
           spinal.core.ExternalFormalParameterRegistry

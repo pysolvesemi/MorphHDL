@@ -128,6 +128,9 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
           parameterized.contains("[0:(DEPTH - 1)]")
       )
       assert(parameterized.contains("clog2(DEPTH, 1)"))
+      assert(parameterized.contains("function integer clog2;"))
+      assert(!parameterized.contains("morphhdl_address_width"))
+      assert(!parameterized.contains("morphhdl_ceil_log2"))
       assert(parameterized.contains("generate"))
       assert(parameterized.contains("DEPTH == 1"))
       assert(parameterized.contains("DEPTH > 1"))
@@ -194,6 +197,14 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       val verilog = read(directory.resolve("stream_fifo_compound_depth.v"))
       val compact = verilog.replaceAll("\\s+", "")
       assert(report.parameters.map(_.name) == Vector("BASE"))
+      val baseParameter = report.parameters.head
+      assert(baseParameter.default == BigInt(4))
+      assert(
+        baseParameter.constraints == Vector(
+          paramrtl.IntConstraint.MinInclusive(BigInt(1)),
+          paramrtl.IntConstraint.MaxInclusive(BigInt(7))
+        )
+      )
       assert(compact.contains(".DEPTH((BASE+1))"))
       val streamFifoModules = streamFifoModuleInventory(verilog)
       assert(
