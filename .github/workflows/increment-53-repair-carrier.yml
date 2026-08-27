@@ -43,15 +43,84 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
           import textwrap
 
-          def replace_exact(text: str, old: str, new: str, label: str) -> str:
+          robust_replace_exact_source = r'''def replace_exact(text, old, new, label):
               count = text.count(old)
               if count == 0 and new in text:
                   return text
-              if count != 1:
-                  raise SystemExit(f"{label}: expected one exact anchor, found {count}")
-              return text.replace(old, new, 1)
+              if count == 1:
+                  return text.replace(old, new, 1)
+              if count > 1:
+                  raise SystemExit(
+                      f"{label}: expected one exact anchor, found {count}"
+                  )
+
+              def pattern_for(value):
+                  parts = []
+                  for line in value.splitlines(keepends=True):
+                      has_newline = line.endswith("\n")
+                      body = line[:-1] if has_newline else line
+                      if body.strip():
+                          parts.append(
+                              r"^[ \\t]*" + re.escape(body.strip()) +
+                              r"[ \\t]*"
+                          )
+                      else:
+                          parts.append(r"^[ \\t]*")
+                      if has_newline:
+                          parts.append(r"\n")
+                  return "".join(parts)
+
+              matches = list(
+                  re.finditer(pattern_for(old), text, re.MULTILINE)
+              )
+              if not matches:
+                  if len(list(re.finditer(
+                      pattern_for(new), text, re.MULTILINE
+                  ))) == 1:
+                      return text
+                  raise SystemExit(
+                      f"{label}: expected one exact anchor, found 0"
+                  )
+              if len(matches) != 1:
+                  raise SystemExit(
+                      f"{label}: expected one indentation-normalized anchor, "
+                      f"found {len(matches)}"
+                  )
+
+              match = matches[0]
+              actual_lines = match.group(0).splitlines()
+              old_lines = old.splitlines()
+              continuation_delta = 0
+              for index in range(1, min(len(actual_lines), len(old_lines))):
+                  if old_lines[index].strip():
+                      actual_indent = (
+                          len(actual_lines[index]) -
+                          len(actual_lines[index].lstrip())
+                      )
+                      old_indent = (
+                          len(old_lines[index]) -
+                          len(old_lines[index].lstrip())
+                      )
+                      continuation_delta = actual_indent - old_indent
+                      break
+              if continuation_delta:
+                  lines = new.splitlines(keepends=True)
+                  adjusted = [lines[0]] if lines else []
+                  for line in lines[1:]:
+                      if line.strip():
+                          adjusted.append(
+                              " " * continuation_delta + line
+                          )
+                      else:
+                          adjusted.append(line)
+                  new = "".join(adjusted)
+              return text[:match.start()] + new + text[match.end():]
+
+          '''
+          exec(robust_replace_exact_source, globals())
 
           def insert_before(
               text: str,
@@ -76,9 +145,16 @@ jobs:
           if start_marker not in finalize or end_marker not in finalize:
               raise SystemExit("Increment 53 source-finalize carrier shape changed")
           script = finalize.split(start_marker, 1)[1].split(end_marker, 1)[0]
+          script = textwrap.dedent(script)
+          helper_start = script.index("def replace_exact(")
+          helper_end = script.index("def insert_before(", helper_start)
+          script = (
+              script[:helper_start] + robust_replace_exact_source +
+              script[helper_end:]
+          )
           exec(
               compile(
-                  textwrap.dedent(script),
+                  script,
                   str(finalize_path) + ":embedded-python",
                   "exec",
               ),
