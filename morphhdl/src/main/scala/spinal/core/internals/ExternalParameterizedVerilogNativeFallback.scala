@@ -757,9 +757,15 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 targetWidth,
                 sourceWidth
               )
+              val provenAutoResize = isProvenAutoResizeAssignment(
+                assignment,
+                target,
+                targetWidth,
+                sourceWidth
+              )
               if (
                 targetWidth.isSymbolic && sourceWidth.isSymbolic &&
-                targetWidth != sourceWidth && !nativeCounterNext
+                targetWidth != sourceWidth && !nativeCounterNext && !provenAutoResize
               ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
@@ -769,7 +775,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               }
               if (
                 targetWidth.isSymbolic && !sourceWidth.isSymbolic &&
-                !isUnfixedLiteral(assignment.source) && !nativeCounterNext
+                !isUnfixedLiteral(assignment.source) && !nativeCounterNext &&
+                !provenAutoResize
               ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
@@ -811,6 +818,25 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           sourceWidth.maximum <= targetWidth.maximum &&
           sourceWidth.parameters.forall(targetWidth.parameters.contains)
         }
+
+    /**
+      * Native UInt `.resized` is an explicit whole-target sizing boundary.
+      * Authorize it only when pre-normalization capture and the surviving
+      * statement/target identities agree and no fixed Resize node remains.
+      */
+    private def isProvenAutoResizeAssignment(
+        assignment: DataAssignmentStatement,
+        target: BitVector,
+        targetWidth: WidthExpr,
+        sourceWidth: WidthExpr
+    ): Boolean =
+      target match {
+        case uint: UInt =>
+          targetWidth.isSymbolic &&
+          sourceWidth.default == targetWidth.default &&
+          ExternalParameterizedAutoResize.proves(component, assignment, uint)
+        case _ => false
+      }
 
     private def isUnfixedLiteral(expression: Expression): Boolean =
       expression match {
@@ -881,22 +907,28 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           case None if activeBases.contains(baseType) => WidthLiteral(baseType.getBitsWidth)
           case None =>
             activeBases += baseType
-            val result = ParameterizedWidth.expressionOf(baseType) match {
-              case Some(expression) =>
-                WidthRetained(
-                  expression.verilog,
-                  expression.default,
-                  expression.minimum,
-                  expression.maximum,
-                  expression.parameters.distinct.sortBy(_.name)
-                )
-              case None =>
-                baseType match {
-                  case _: Bool => WidthLiteral(1)
-                  case bitVector: BitVector => inferUntaggedBitVector(bitVector)
-                  case _ => WidthLiteral(baseType.getBitsWidth)
+            val result =
+              ExternalParameterizedAutoResize
+                .targetOfResizeSource(component, baseType)
+                .map(ofBase)
+                .getOrElse {
+                  ParameterizedWidth.expressionOf(baseType) match {
+                    case Some(expression) =>
+                      WidthRetained(
+                        expression.verilog,
+                        expression.default,
+                        expression.minimum,
+                        expression.maximum,
+                        expression.parameters.distinct.sortBy(_.name)
+                      )
+                    case None =>
+                      baseType match {
+                        case _: Bool => WidthLiteral(1)
+                        case bitVector: BitVector => inferUntaggedBitVector(bitVector)
+                        case _ => WidthLiteral(baseType.getBitsWidth)
+                      }
+                  }
                 }
-            }
             activeBases -= baseType
             baseCache(baseType) = result
             result
@@ -989,11 +1021,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case access: BitVectorRangedAccessFloating => inferFloatingRange(access)
         case access: BitVectorBitAccessFixed => inferFixedBit(access)
         case _: BitVectorBitAccessFloating => WidthLiteral(1)
-        case literal: BitVectorLiteral =>
-          WidthLiteral(
-            if (literal.hasSpecifiedBitCount) literal.getWidth
-            else literal.minimalValueBitWidth
-          )
+        case literal: BitVectorLiteral => WidthLiteral(literal.getWidth)
         case _: BoolLiteral            => WidthLiteral(1)
         case port: MemReadSync =>
           ExternalParameterizedMemoryRegistry.metadataOf(port.mem) match {

@@ -7,7 +7,7 @@ import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
 
 import spinal.core.{Component, SpinalConfig, SpinalReport, SpinalVerilog, SystemVerilog, VHDL, Verilog}
-import spinal.core.internals.MorphHdlExternalParameterizedVerilog
+import spinal.core.internals.{ExternalParameterizedAutoResize, MorphHdlExternalParameterizedVerilog}
 
 import morphhdl.backend.verilog2001.{Verilog2001Capability => V2001Capability, Verilog2001Emitter}
 import morphhdl.integration.ExternalSpinalVerilog
@@ -217,7 +217,8 @@ object MorphVerilog {
         }
         value
       } { pc =>
-        MorphHdlExternalParameterizedVerilog.rewrite(pc)
+        try MorphHdlExternalParameterizedVerilog.rewrite(pc)
+        finally ExternalParameterizedAutoResize.clearGraph(pc.topLevel)
       }
       Right(external.nativeReport)
     } catch {
@@ -627,18 +628,21 @@ object MorphVerilog {
       parameterizedVerilog = false
     )
 
-  private def copyForSingleSource(config: SpinalConfig, workspace: Path): SpinalConfig =
+  private def copyForSingleSource(config: SpinalConfig, workspace: Path): SpinalConfig = {
+    val phaseInserters = config.phasesInserters.clone()
+    phaseInserters += ExternalParameterizedAutoResize.install _
     config.copy(
       mode = Verilog,
       flags = config.flags.clone(),
       debugComponents = config.debugComponents.clone(),
       targetDirectory = workspace.toString,
-      phasesInserters = config.phasesInserters.clone(),
+      phasesInserters = phaseInserters,
       transformationPhases = config.transformationPhases.clone(),
       memBlackBoxers = config.memBlackBoxers.clone(),
       scopeProperties = config.scopeProperties.clone(),
       parameterizedVerilog = true
     )
+  }
 
   private def readSingleSourceParameters[T <: Component](
       report: SpinalReport[T]

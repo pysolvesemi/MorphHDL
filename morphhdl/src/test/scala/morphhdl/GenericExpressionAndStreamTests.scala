@@ -5,10 +5,12 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ArrayBuffer
 import scala.util.matching.Regex
 
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
+import spinal.core.internals.{ExternalParameterizedAutoResize, Phase, PhaseRemoveIntermediateUnnameds}
 import spinal.lib._
 
 import morphhdl.frontend.HdlInt
@@ -61,6 +63,34 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
     pop_valid := piped.valid
     piped.ready := pop_ready
     pop_data := piped.payload
+  }
+
+  private final class NativeAutoResizedIncrement(width: HdlInt) extends Component {
+    setDefinitionName("NativeAutoResizedIncrement")
+
+    val value = in(morphhdl.frontend.UInt(width bits))
+    val next = out(morphhdl.frontend.UInt(width bits))
+
+    next := (value + 1).resized
+  }
+
+  private final class NativeUnresizedFixedIncrement(width: HdlInt) extends Component {
+    setDefinitionName("NativeUnresizedFixedIncrement")
+
+    val value = in(morphhdl.frontend.UInt(width bits))
+    val next = out(morphhdl.frontend.UInt(width bits))
+
+    next := value + U(1, 3 bits)
+  }
+
+  private final class NativeUnsizedNestedIncrement(width: HdlInt) extends Component {
+    setDefinitionName("NativeUnsizedNestedIncrement")
+
+    val prefix = in(Bool())
+    val value = in(morphhdl.frontend.UInt(width bits))
+    val packed = out(morphhdl.frontend.UInt((width + 1) bits))
+
+    packed := (prefix.asBits ## (value + 1).asBits).asUInt
   }
 
   test("ordinary assignments muxes arithmetic concatenation slicing and resize reuse native Verilog emission") {
@@ -162,6 +192,66 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
         assert(oracle.contains(token), s"Increment 28 oracle lost '$token'")
       }
     }
+  }
+
+  test("native UInt auto-resize provenance is exact and generation-local") {
+    withTemporaryDirectory { directory =>
+      val width = HdlInt.param("WIDTH", default = 3, min = 1, max = 8)
+      val parameterized = emitMorph(
+        directory,
+        "native_auto_resized_increment.v",
+        new NativeAutoResizedIncrement(width)
+      )
+
+      assert(parameterized.contains("parameter integer WIDTH = 3"))
+      assert(hasDeclarationWidth(parameterized, "value", "[WIDTH-1:0]"))
+      assert(hasDeclarationWidth(parameterized, "next", "[WIDTH-1:0]"))
+
+      val unsafeConfig = SpinalConfig(targetDirectory = directory.toString)
+      unsafeConfig.netlistFileName = "native_unresized_fixed_increment.v"
+      val unsafe = MorphVerilog.tryGenerate(unsafeConfig) {
+        new NativeUnresizedFixedIncrement(width)
+      }
+      unsafe match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH"
+            )
+          )
+        case Right(report) =>
+          fail(s"Expected explicit fixed-width crossing failure, received $report")
+      }
+
+      val nestedConfig = SpinalConfig(targetDirectory = directory.toString)
+      nestedConfig.netlistFileName = "native_unsized_nested_increment.v"
+      val nestedUnsafe = MorphVerilog.tryGenerate(nestedConfig) {
+        new NativeUnsizedNestedIncrement(width)
+      }
+      nestedUnsafe match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH"
+            )
+          )
+        case Right(report) =>
+          fail(s"Expected nested witness-width crossing failure, received $report")
+      }
+    }
+  }
+
+  test("native auto-resize provenance is captured before unnamed intermediates are removed") {
+    val firstRemoval = new PhaseRemoveIntermediateUnnameds(true)
+    val laterRemoval = new PhaseRemoveIntermediateUnnameds(false)
+    val phases = ArrayBuffer[Phase](firstRemoval, laterRemoval)
+
+    ExternalParameterizedAutoResize.install(phases)
+
+    assert(phases.size == 3)
+    assert(phases(1) eq firstRemoval)
+    assert(phases(2) eq laterRemoval)
+    assert(!phases.head.isInstanceOf[PhaseRemoveIntermediateUnnameds])
   }
 
   test("derived packed widths are proven over the complete parameter domain") {
