@@ -208,6 +208,7 @@ object ParameterizedStructure {
     }
 
     val beforeStatements = component.dslBody.statementIterable.toVector
+    val beforeHardwareStatements = allStatementsOf(component)
     val beforeChildren = component.children.toVector
     val storage = storageOf(component)
     storage.nextCaptureId += 1
@@ -218,118 +219,139 @@ object ParameterizedStructure {
     )
     activeCapture.set(state)
 
-    var completed = false
+    var accepted = false
     try {
-      body
-      completed = true
+      try body
+      finally {
+        if (previousCapture eq null) activeCapture.remove()
+        else activeCapture.set(previousCapture)
+      }
+
+      val nestedBlocks =
+        state.regions.toVector.flatMap(region => allBlocks(region))
+      val nestedStatements = nestedBlocks.flatMap(_.statements)
+      val nestedChildren = nestedBlocks.flatMap(_.children)
+      val statements =
+        component.dslBody.statementIterable.toVector.filterNot(value =>
+          beforeStatements.exists(_ eq value) ||
+          nestedStatements.exists(_ eq value)
+        )
+      val children =
+        component.children.toVector.filterNot(value =>
+          beforeChildren.exists(_ eq value) ||
+          nestedChildren.exists(_ eq value)
+        )
+
+      val nestedStatementIdentities =
+        new IdentityHashMap[Statement, java.lang.Boolean]()
+      def recordNestedStatement(value: Statement): Unit = {
+        if (!nestedStatementIdentities.containsKey(value)) {
+          nestedStatementIdentities.put(value, java.lang.Boolean.TRUE)
+          value match {
+            case tree: TreeStatement => tree.foreachStatements(recordNestedStatement)
+            case _                   =>
+          }
+        }
+      }
+      nestedBlocks.flatMap(_.statements).foreach(recordNestedStatement)
+
+      val hardwareStatements = ArrayBuffer.empty[Statement]
+      def recordHardwareStatement(value: Statement): Unit = {
+        if (!nestedStatementIdentities.containsKey(value)) {
+          hardwareStatements += value
+          value match {
+            case tree: WhenStatement   => tree.foreachStatements(recordHardwareStatement)
+            case tree: SwitchStatement => tree.foreachStatements(recordHardwareStatement)
+            case _                     =>
+          }
+        }
+      }
+      statements.foreach(recordHardwareStatement)
+
+      val declarations = hardwareStatements.collect {
+        case value: BaseType => value
+      }.toVector
+      val assignments = hardwareStatements.collect {
+        case value: DataAssignmentStatement => value
+      }.toVector
+      val memories = hardwareStatements.collect { case value: Mem[_] => value }.toVector
+      val memoryPorts = hardwareStatements.collect {
+        case value: MemPortStatement => value
+      }.toVector
+      memoryPorts.find(port => !memories.exists(_ eq port.mem)).foreach { port =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FOREIGN-MEMORY-PORT-UNSUPPORTED",
+          s"structural body emitted a memory port for '${Option(port.mem).flatMap(value => Option(value.getName())).getOrElse("<unnamed>")}' without declaring that memory inside the same captured block",
+          sourceLocation
+        )
+      }
+
+      val unsupported = hardwareStatements.filterNot {
+        case _: BaseType                 => true
+        case _: DataAssignmentStatement  => true
+        case _: Mem[_]                   => true
+        case _: MemPortStatement         => true
+        case _: WhenStatement            => true
+        case _: SwitchStatement          => true
+        case _                           => false
+      }
+
+      unsupported.headOption.foreach { value =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALA-SIDE-EFFECT-UNSUPPORTED",
+          s"structural body emitted unsupported native statement '${value.getClass.getSimpleName}'; only declarations, data assignments, native memories, native when/switch trees and child Components may be captured",
+          sourceLocation
+        )
+      }
+      children.collectFirst { case value: BlackBox => value }.foreach { value =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-BLACKBOX-UNSUPPORTED",
+          s"structural body instantiated BlackBox '${value.getName()}'; Increment 33 covers ordinary Component instances",
+          sourceLocation
+        )
+      }
+      if (
+        declarations.isEmpty && assignments.isEmpty && memories.isEmpty &&
+        memoryPorts.isEmpty && children.isEmpty && state.slices.isEmpty &&
+        state.vecIndices.isEmpty && state.regions.isEmpty
+      ) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALA-SIDE-EFFECT-UNSUPPORTED",
+          "structural body produced no native hardware; Scala-only mutation, I/O or collection side effects cannot be lowered into a generate region",
+          sourceLocation
+        )
+      }
+
+      // Every source alternative must remain available to the native emitter even
+      // when it is not selected by the concrete witness. Preserve the exact
+      // declarations and memory ports until the MorphHDL relocation pass extracts
+      // them into their parameterized structural region.
+      declarations.foreach { value =>
+        value.setAsVital()
+        value.dontSimplifyIt()
+      }
+      memories.foreach(_.preventAsBlackBox())
+      memoryPorts.foreach(port => port.isVital = true)
+
+      val result = new ParameterizedStructuralBlock(
+        statements,
+        declarations,
+        assignments,
+        memories,
+        children,
+        state.slices.toVector,
+        state.vecIndices.toVector,
+        state.regions.toVector,
+        sourceLocation
+      )
+      accepted = true
+      result
     } finally {
-      if (previousCapture eq null) activeCapture.remove()
-      else activeCapture.set(previousCapture)
-      if (!completed) {
-        rollbackNewStatements(component, beforeStatements)
+      if (!accepted) {
+        rollbackNewStatements(component, beforeHardwareStatements)
         rollbackNewChildren(component, beforeChildren)
       }
     }
-
-    val nestedBlocks =
-      state.regions.toVector.flatMap(region => allBlocks(region))
-    val nestedStatements = nestedBlocks.flatMap(_.statements)
-    val nestedChildren = nestedBlocks.flatMap(_.children)
-    val statements =
-      component.dslBody.statementIterable.toVector.filterNot(value =>
-        beforeStatements.exists(_ eq value) ||
-        nestedStatements.exists(_ eq value)
-      )
-    val children =
-      component.children.toVector.filterNot(value =>
-        beforeChildren.exists(_ eq value) ||
-        nestedChildren.exists(_ eq value)
-      )
-
-    val hardwareStatements = ArrayBuffer.empty[Statement]
-    statements.foreach {
-      case value: TreeStatement =>
-        hardwareStatements += value
-        value.walkStatements(hardwareStatements += _)
-      case value => hardwareStatements += value
-    }
-
-    val declarations = hardwareStatements.collect {
-      case value: BaseType => value
-    }.toVector
-    val assignments = hardwareStatements.collect {
-      case value: DataAssignmentStatement => value
-    }.toVector
-    val memories = hardwareStatements.collect { case value: Mem[_] => value }.toVector
-    val memoryPorts = hardwareStatements.collect {
-      case value: MemPortStatement => value
-    }.toVector
-    memoryPorts.find(port => !memories.exists(_ eq port.mem)).foreach { port =>
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FOREIGN-MEMORY-PORT-UNSUPPORTED",
-        s"structural body emitted a memory port for '${Option(port.mem).flatMap(value => Option(value.getName())).getOrElse("<unnamed>")}' without declaring that memory inside the same captured block",
-        sourceLocation
-      )
-    }
-
-    // Every source alternative must remain available to the native emitter even
-    // when it is not selected by the concrete witness. Preserve the exact
-    // declarations and memory ports until the MorphHDL relocation pass extracts
-    // them into their parameterized structural region.
-    declarations.foreach { value =>
-      value.setAsVital()
-      value.dontSimplifyIt()
-    }
-    memories.foreach(_.preventAsBlackBox())
-    memoryPorts.foreach(port => port.isVital = true)
-
-    val unsupported = hardwareStatements.filterNot {
-      case _: BaseType                 => true
-      case _: DataAssignmentStatement  => true
-      case _: Mem[_]                   => true
-      case _: MemPortStatement         => true
-      case _: WhenStatement            => true
-      case _: SwitchStatement          => true
-      case _                           => false
-    }
-
-    unsupported.headOption.foreach { value =>
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALA-SIDE-EFFECT-UNSUPPORTED",
-        s"structural body emitted unsupported native statement '${value.getClass.getSimpleName}'; only declarations, data assignments, native memories, native when/switch trees and child Components may be captured",
-        sourceLocation
-      )
-    }
-    children.collectFirst { case value: BlackBox => value }.foreach { value =>
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-BLACKBOX-UNSUPPORTED",
-        s"structural body instantiated BlackBox '${value.getName()}'; Increment 33 covers ordinary Component instances",
-        sourceLocation
-      )
-    }
-    if (
-      declarations.isEmpty && assignments.isEmpty && memories.isEmpty &&
-      memoryPorts.isEmpty && children.isEmpty && state.slices.isEmpty &&
-      state.vecIndices.isEmpty && state.regions.isEmpty
-    ) {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALA-SIDE-EFFECT-UNSUPPORTED",
-        "structural body produced no native hardware; Scala-only mutation, I/O or collection side effects cannot be lowered into a generate region",
-        sourceLocation
-      )
-    }
-
-    new ParameterizedStructuralBlock(
-      statements,
-      declarations,
-      assignments,
-      memories,
-      children,
-      state.slices.toVector,
-      state.vecIndices.toVector,
-      state.regions.toVector,
-      sourceLocation
-    )
   }
 
   /** Record one symbolic fixed-width packed slice selected at its witness. */
@@ -988,10 +1010,20 @@ object ParameterizedStructure {
       component: Component,
       before: Vector[Statement]
   ): Unit = {
-    component.dslBody.statementIterable.toVector
-      .filterNot(value => before.exists(_ eq value))
+    val retained = new IdentityHashMap[Statement, java.lang.Boolean]()
+    before.foreach(value => retained.put(value, java.lang.Boolean.TRUE))
+    allStatementsOf(component)
+      .filterNot(retained.containsKey)
       .reverse
-      .foreach(_.removeStatement())
+      .foreach { value =>
+        if (value.parentScope ne null) value.removeStatement()
+      }
+  }
+
+  private def allStatementsOf(component: Component): Vector[Statement] = {
+    val values = ArrayBuffer.empty[Statement]
+    component.dslBody.walkStatements(value => values += value)
+    values.toVector
   }
 
   private def rollbackNewChildren(
