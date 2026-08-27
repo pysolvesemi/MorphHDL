@@ -30,7 +30,7 @@ jobs:
           ref: agent/increment-53-native-streamfifo-repair
           fetch-depth: 0
 
-      - name: Apply reviewed repair candidate and factor shared declarations
+      - name: Apply candidate and expose next shared native unit
         shell: bash
         run: |
           set -euo pipefail
@@ -142,10 +142,23 @@ jobs:
               raise SystemExit(
                   f"shared-declaration factoring anchor count was {count}, expected 1"
               )
-          structural_path.write_text(
-              structural.replace(old, new, 1),
-              encoding="utf-8",
+          structural = structural.replace(old, new, 1)
+
+          diagnostic_old = '''            s"captured native range ${range.start}-${range.end} is shared by multiple structural alternatives but is not one simple always block"
+          '''
+          diagnostic_new = '''            s"captured native range ${range.start}-${range.end} is shared by multiple structural alternatives but is not one simple always block; lines=${processLines.mkString(" || ")}"
+          '''
+          count = structural.count(diagnostic_old)
+          if count != 1:
+              raise SystemExit(
+                  f"shared-range diagnostic anchor count was {count}, expected 1"
+              )
+          structural = structural.replace(
+              diagnostic_old,
+              diagnostic_new,
+              1,
           )
+          structural_path.write_text(structural, encoding="utf-8")
           PY
           git diff --check
 
@@ -158,11 +171,9 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Validate focused Increment 53 repair on Scala 2.12
+      - name: Reproduce StreamFifo shared-range failure
         shell: bash
         run: |
           set -euo pipefail
           /tmp/morphhdl-mill "morph[2.12.18].testOnly" \
-            morphhdl.ParameterizedStreamFifoDepthTests \
-            morphhdl.HierarchyParameterBindingTests \
-            morphhdl.NativeIntNestedSymbolicControlFlowTests
+            morphhdl.ParameterizedStreamFifoDepthTests
