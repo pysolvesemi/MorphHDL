@@ -7,7 +7,11 @@ import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
 
 import spinal.core.{Component, SpinalConfig, SpinalReport, SpinalVerilog, SystemVerilog, VHDL, Verilog}
-import spinal.core.internals.MorphHdlExternalParameterizedVerilog
+import spinal.core.internals.{
+  ExternalParameterizedAutoResize,
+  ExternalParameterizedStructuralWitnessSizing,
+  MorphHdlExternalParameterizedVerilog
+}
 
 import morphhdl.backend.verilog2001.{Verilog2001Capability => V2001Capability, Verilog2001Emitter}
 import morphhdl.integration.ExternalSpinalVerilog
@@ -217,7 +221,8 @@ object MorphVerilog {
         }
         value
       } { pc =>
-        MorphHdlExternalParameterizedVerilog.rewrite(pc)
+        try MorphHdlExternalParameterizedVerilog.rewrite(pc)
+        finally ExternalParameterizedAutoResize.clearGraph(pc.topLevel)
       }
       Right(external.nativeReport)
     } catch {
@@ -627,28 +632,44 @@ object MorphVerilog {
       parameterizedVerilog = false
     )
 
-  private def copyForSingleSource(config: SpinalConfig, workspace: Path): SpinalConfig =
+  private def copyForSingleSource(config: SpinalConfig, workspace: Path): SpinalConfig = {
+    val phaseInserters = config.phasesInserters.clone()
+    phaseInserters += ExternalParameterizedAutoResize.install _
+    phaseInserters += ExternalParameterizedStructuralWitnessSizing.install _
     config.copy(
       mode = Verilog,
       flags = config.flags.clone(),
       debugComponents = config.debugComponents.clone(),
       targetDirectory = workspace.toString,
-      phasesInserters = config.phasesInserters.clone(),
+      phasesInserters = phaseInserters,
       transformationPhases = config.transformationPhases.clone(),
       memBlackBoxers = config.memBlackBoxers.clone(),
       scopeProperties = config.scopeProperties.clone(),
       parameterizedVerilog = true
     )
+  }
 
   private def readSingleSourceParameters[T <: Component](
       report: SpinalReport[T]
   ): Either[MorphVerilogFailure, Vector[morphhdl.paramrtl.IntegerParameter]] =
     try {
+      // A scalar child formal is not carried by any top-level packed width.
+      // Publish only parameters referenced by direct-child actuals: those are
+      // expressed in the top module's namespace. Recursing would leak an
+      // intermediate child definition's local formal into the public report.
+      val hierarchyActualParameters =
+        report.toplevel.children.toVector.flatMap { child =>
+          spinal.core.ExternalFormalParameterRegistry
+            .bindingsOf(child)
+            .flatMap(_.actual.parameters)
+        }
       val retained =
         spinal.core.ParameterizedWidth.parametersOf(report.toplevel) ++
           spinal.core.ParameterizedMemory.parametersOf(report.toplevel) ++
+          spinal.core.ExternalParameterizedValueRegistry.parametersOf(report.toplevel) ++
           spinal.core.ParameterizedStructure.parametersOf(report.toplevel) ++
-          spinal.core.ParameterizedProcess.parametersOf(report.toplevel)
+          spinal.core.ParameterizedProcess.parametersOf(report.toplevel) ++
+          hierarchyActualParameters
       val grouped = retained.groupBy(_.name)
       grouped.collectFirst {
         case (name, values) if values.distinct.size != 1 => name
@@ -699,6 +720,8 @@ object MorphVerilog {
           .replace('\r', '\n')
         val lines = raw.split("\n", -1).toVector
         val declaration = """^module\s+([A-Za-z_][A-Za-z0-9_$]*)\b.*$""".r
+        val nativeReplacementComment =
+          """^\s*//([A-Za-z_][A-Za-z0-9_$]*)\s+replaced by\s+([A-Za-z_][A-Za-z0-9_$]*)\s*$""".r
         var insideModule = false
         var firstModule = -1
         var lastEndmodule = -1
@@ -763,7 +786,20 @@ object MorphVerilog {
             )
           )
         } else {
-          Right(lines.slice(firstModule, lastEndmodule + 1).mkString("\n") + "\n")
+          val definedNames = moduleNames.toSet
+          val modules = lines
+            .slice(firstModule, lastEndmodule + 1)
+            .filterNot {
+              // The native emitter records trace-based component deduplication
+              // as a module-level comment.  It is not RTL and leaks the
+              // discarded witness-specific definition name into the canonical
+              // one-definition output. Remove only the emitter's exact comment
+              // form when its replacement names a module defined in this file.
+              case nativeReplacementComment(_, replacement) =>
+                definedNames(replacement)
+              case _ => false
+            }
+          Right(modules.mkString("\n") + "\n")
         }
       }
     } catch {

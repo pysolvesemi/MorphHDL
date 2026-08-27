@@ -72,6 +72,9 @@ jobs:
           /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
             morphhdl.integration.ExternalSpinalVerilogBaselineTests \
             morphhdl.StructuralGenerateControlTests \
+            morphhdl.StructuralWitnessSizingTests \
+            spinal.core.StructuralAddressWidthIdentityTests \
+            morphhdl.NativeProcessTreeCaptureTests \
             morphhdl.NaturalSymbolicConditionalTests \
             morphhdl.GenericProcessLoweringTests \
             morphhdl.GenericExpressionAndStreamTests \

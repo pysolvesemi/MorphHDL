@@ -5,6 +5,9 @@ import sbt.Tests._
 def parallelTest = scala.sys.env.getOrElse("SBT_TEST_PARALLEL", "1") == "1"
 
 val scalatestVersion = "3.2.14"
+lazy val verifyMorphRuntimePublication = taskKey[Unit](
+  "Verify that the published SpinalHDL-lib POM has one resolvable MorphHDL runtime dependency"
+)
 val defaultSettings = Defaults.coreDefaultSettings ++ xerial.sbt.Sonatype.sonatypeSettings ++ Seq(
   organization := "com.github.spinalhdl",
   version      := SpinalVersion.all,
@@ -81,7 +84,7 @@ lazy val all = (project in file("."))
     publishLocal := {},
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(lib, core)
   )
-  .aggregate(sim, idslpayload, idslplugin, morphplugin, core, lib, tester, paramrtl, frontend, verilogBackend, morph)
+  .aggregate(sim, idslpayload, idslplugin, morphplugin, core, lib, tester, paramrtl, morphruntime, frontend, verilogBackend, morph)
 
 
 import sys.process._
@@ -113,6 +116,7 @@ lazy val idslplugin = (project in file("idslplugin"))
   )
 
 lazy val morphplugin = (project in file("morphplugin"))
+  .dependsOn(morphruntime)
   .settings(
     defaultSettings,
     name := "MorphHDL-compiler-plugin",
@@ -140,8 +144,16 @@ lazy val paramrtl = (project in file("paramrtl"))
     publish / skip := true
   )
 
+lazy val morphruntime = (project in file("morphruntime"))
+  .dependsOn(core)
+  .settings(
+    defaultSettings,
+    name := "MorphHDL-runtime",
+    version := SpinalVersion.core
+  )
+
 lazy val frontend = (project in file("frontend"))
-  .dependsOn(paramrtl, core, lib)
+  .dependsOn(paramrtl, core, morphruntime, lib)
   .settings(
     defaultSettings,
     name := "MorphHDL-frontend",
@@ -214,10 +226,15 @@ lazy val lib = (project in file("lib"))
   .settings(
     defaultSettingsWithPlugin,
     name := "SpinalHDL-lib",
+    Compile / scalacOptions += {
+      val file = (morphplugin / Compile / packageBin).value
+      s"-Xplugin:${file.getAbsolutePath}"
+    },
+    Compile / scalacOptions += "-Xplugin-require:morphhdl",
     libraryDependencies += "commons-io" % "commons-io" % "2.11.0",
     version := SpinalVersion.lib,
   )
-  .dependsOn (sim, core)
+  .dependsOn (sim, core, morphruntime)
 
 
 
@@ -230,6 +247,43 @@ lazy val tester = (project in file("tester"))
     libraryDependencies += "org.scalatest" %% "scalatest" % scalatestVersion,
   )
   .dependsOn(sim, core, lib)
+
+all / verifyMorphRuntimePublication := {
+  val runtimePublishSkipped = (morphruntime / publish / skip).value
+  if (runtimePublishSkipped) {
+    sys.error("MorphHDL-runtime must be published because SpinalHDL-lib depends on it")
+  }
+
+  val runtimeModule = (morphruntime / moduleName).value
+  val runtimeArtifact =
+    if ((morphruntime / crossPaths).value)
+      s"${runtimeModule}_${(morphruntime / scalaBinaryVersion).value}"
+    else runtimeModule
+  val expected = (
+    (morphruntime / organization).value,
+    runtimeArtifact,
+    (morphruntime / version).value
+  )
+  val pom = scala.xml.XML.loadFile((lib / makePom).value)
+  val matches = (pom \\ "dependency").filter { dependency =>
+    val coordinate = (
+      (dependency \ "groupId").text.trim,
+      (dependency \ "artifactId").text.trim,
+      (dependency \ "version").text.trim
+    )
+    val scope = (dependency \ "scope").text.trim
+    val optional = (dependency \ "optional").text.trim
+    coordinate == expected &&
+    (scope.isEmpty || scope == "compile") &&
+    (optional.isEmpty || optional == "false")
+  }
+  if (matches.size != 1) {
+    sys.error(
+      s"SpinalHDL-lib POM must contain exactly one non-optional compile dependency on " +
+        s"${expected._1}:${expected._2}:${expected._3}; found ${matches.size}"
+    )
+  }
+}
 
 // Assembly
 

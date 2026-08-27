@@ -1,6 +1,7 @@
 package spinal.core.internals
 
-import java.util.regex.{Matcher, Pattern}
+import java.util.IdentityHashMap
+import java.util.regex.Pattern
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -44,10 +45,16 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       (
         ParameterizedWidth.parametersOf(component).nonEmpty ||
           ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
+          ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
           ParameterizedProcess.parametersOf(component).nonEmpty ||
           ParameterizedStructure.parametersOf(component).nonEmpty ||
           component.children.exists(
-            child => ParameterizedWidth.parametersOf(child).nonEmpty
+            child =>
+              ParameterizedWidth.parametersOf(child).nonEmpty ||
+                ExternalParameterizedMemoryRegistry.parametersOf(child).nonEmpty ||
+                ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty ||
+                ParameterizedStructure.parametersOf(child).nonEmpty ||
+                ParameterizedProcess.parametersOf(child).nonEmpty
           )
       )
 
@@ -66,6 +73,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       pc,
       hierarchy.parameters ++
         ExternalParameterizedMemoryRegistry.parametersOf(component) ++
+        ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component),
       hierarchy.hasParameterizedInstances
@@ -105,9 +113,15 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       rewrittenDeclarations,
       analysis.symbolicCounterBoundaryWidths
     )
-    if (isCanonicalDirectSurface(component))
-      canonicalizeDeclarations(component, rewrittenCounterBoundaries)
-    else rewrittenCounterBoundaries
+    val rewrittenValues = rewriteRetainedValueAssignments(
+      component,
+      rewrittenCounterBoundaries
+    )
+    val canonical =
+      if (isCanonicalDirectSurface(component))
+        canonicalizeDeclarations(component, rewrittenValues)
+      else rewrittenValues
+    lowerRetainedIntegerHelpers(canonical, component.definitionName)
   }
 
   private def ensureParameterHeader(
@@ -198,6 +212,822 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     s"module $definitionName #(\n$declarations\n) ("
   }
 
+  private val NativeAddressWidthHelper = "morphhdl_address_width"
+  private val NativeCeilLog2Helper = "morphhdl_ceil_log2"
+  private val VerilogPreprocessorDirectives = Set(
+    "begin_keywords",
+    "celldefine",
+    "default_nettype",
+    "define",
+    "else",
+    "elsif",
+    "end_keywords",
+    "endcelldefine",
+    "endif",
+    "ifdef",
+    "ifndef",
+    "include",
+    "line",
+    "nounconnected_drive",
+    "pragma",
+    "resetall",
+    "timescale",
+    "unconnected_drive",
+    "undef"
+  )
+  private val VerilogMacroNameDirectives =
+    Set("define", "undef", "ifdef", "ifndef", "elsif")
+
+  private final case class VerilogIdentifierToken(
+      name: String,
+      start: Int,
+      end: Int,
+      escaped: Boolean
+  )
+
+  private final case class VerilogNamedDeclaration(
+      kind: String,
+      name: String,
+      nameStart: Int,
+      headerBoundary: Int
+  )
+
+  private final case class VerilogFunctionDefinition(
+      name: String,
+      nameStart: Int,
+      start: Int,
+      end: Int
+  )
+
+  private final case class VerilogLexicalView(
+      value: String,
+      identifiers: Vector[VerilogIdentifierToken],
+      activeCharacters: scala.collection.immutable.BitSet,
+      opaqueExpressionStarts: scala.collection.immutable.BitSet,
+      closingParenthesis: Map[Int, Int],
+      reservedIdentifiers: Set[String],
+      declarations: Vector[VerilogNamedDeclaration],
+      functions: Vector[VerilogFunctionDefinition]
+  ) {
+    private val declarationNameStarts = declarations.map(_.nameStart).toSet
+
+    def nextActiveNonWhitespace(from: Int): Option[Int] = {
+      var index = math.max(0, from)
+      while (index < value.length) {
+        if (activeCharacters(index) && !value.charAt(index).isWhitespace)
+          return Some(index)
+        index += 1
+      }
+      None
+    }
+
+    def previousActiveNonWhitespace(from: Int): Option[Int] = {
+      var index = math.min(from, value.length - 1)
+      while (index >= 0) {
+        if (activeCharacters(index) && !value.charAt(index).isWhitespace)
+          return Some(index)
+        index -= 1
+      }
+      None
+    }
+
+    def isDeclarationName(token: VerilogIdentifierToken): Boolean =
+      declarationNameStarts(token.start)
+
+  }
+
+  private final case class NativeIntegerHelperCall(
+      name: String,
+      nameStart: Int,
+      nameEnd: Int,
+      openParenthesis: Int,
+      escaped: Boolean,
+      closeParenthesis: Option[Int]
+  )
+
+  private final case class TextEdit(
+      start: Int,
+      end: Int,
+      replacement: String
+  )
+
+  /**
+    * Compiler-shadow helper names are an internal expression IR, not Verilog
+    * functions. Lower the reviewed positive-width helpers after every other
+    * native rewrite so declarations, structural alternatives and memories all
+    * share one collision-safe IEEE-1364 implementation.
+    */
+  private[internals] def lowerRetainedIntegerHelpers(
+      verilog: String,
+      definitionName: String
+  ): String = {
+    val lexical = lexVerilog(verilog, definitionName)
+    val calls = nativeIntegerHelperCalls(lexical)
+    val declaredNames = lexical.declarations.map(_.name).toSet
+    val protectedNames = lexical.reservedIdentifiers ++
+      lexical.identifiers.filter(_.escaped).map(_.name)
+
+    calls.collectFirst {
+      case call
+          if call.escaped && !declaredNames(call.name) => call
+    }.foreach { call =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-ESCAPED-UNSUPPORTED",
+        s"module '$definitionName' uses escaped helper-like call '\\${call.name}', which cannot be compiler-owned retained native Int IR"
+      )
+    }
+
+    calls.collectFirst {
+      case call
+          if (declaredNames(call.name) || protectedNames(call.name)) &&
+            (call.name == NativeAddressWidthHelper ||
+              call.name == NativeCeilLog2Helper) =>
+        call.name -> declaredNames(call.name)
+    }.foreach { case (name, declared) =>
+      val role =
+        if (declared) "declares user function, task or module"
+        else "reserves user or preprocessor identifier"
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-NAME-COLLISION",
+        s"module '$definitionName' $role '$name', which collides with retained native Int helper IR"
+      )
+    }
+
+    val internalCalls = calls.filter(call =>
+      !call.escaped && !declaredNames(call.name)
+    )
+    internalCalls.collectFirst {
+      case call
+          if call.name != NativeAddressWidthHelper &&
+            call.name != NativeCeilLog2Helper => call
+    }.foreach { call =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-UNSUPPORTED",
+        s"module '$definitionName' retains unsupported native Int helper '${call.name}('"
+      )
+    }
+    val supportedCalls = internalCalls.filter(call =>
+      call.name == NativeAddressWidthHelper ||
+        call.name == NativeCeilLog2Helper
+    )
+    if (supportedCalls.isEmpty) return verilog
+
+    supportedCalls.collectFirst {
+      case call if call.closeParenthesis.isEmpty => call
+    }.foreach { call =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-MALFORMED",
+        s"module '$definitionName' contains an unterminated call to '${call.name}'"
+      )
+    }
+    supportedCalls.foreach(call =>
+      validateNativeUnaryHelperCall(lexical, call, definitionName)
+    )
+
+    val portableFunctions = lexical.functions
+      .filter(function => portableLogFunction(lexical, function))
+    if (portableFunctions.size > 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-LOG-HELPER-AMBIGUOUS",
+        s"module '$definitionName' contains multiple portable logarithm helpers: ${portableFunctions.map(_.name).sorted.mkString(", ")}"
+      )
+    }
+    val existingPortableHelpers = portableFunctions.map(_.name)
+    val helperName = existingPortableHelpers.headOption.getOrElse {
+      firstAvailableIdentifier(
+        "clog2",
+        lexical.identifiers.map(_.name).toSet ++ lexical.reservedIdentifiers
+      )
+    }
+
+    val edits = supportedCalls.flatMap { call =>
+      val minimum = if (call.name == NativeAddressWidthHelper) 1 else 0
+      Vector(
+        TextEdit(call.nameStart, call.nameEnd, helperName),
+        TextEdit(
+          call.closeParenthesis.get,
+          call.closeParenthesis.get,
+          s", $minimum"
+        )
+      )
+    }
+    val lowered = applyTextEdits(verilog, edits, definitionName)
+    val remainingLexical = lexVerilog(lowered, definitionName)
+    nativeIntegerHelperCalls(remainingLexical)
+      .filterNot(call =>
+        remainingLexical.declarations.exists(_.name == call.name) ||
+          call.escaped
+      )
+      .headOption
+      .foreach { helper =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-UNSUPPORTED",
+          s"module '$definitionName' retains unsupported native Int helper '${helper.name}('"
+        )
+      }
+
+    if (existingPortableHelpers.nonEmpty) lowered
+    else insertPortableLogFunction(lowered, definitionName, helperName)
+  }
+
+  private def lexVerilog(
+      value: String,
+      definitionName: String
+  ): VerilogLexicalView = {
+    val tokens = Vector.newBuilder[VerilogIdentifierToken]
+    val active = mutable.BitSet.empty
+    val opaqueExpressionStarts = mutable.BitSet.empty
+    val reservedIdentifiers = mutable.LinkedHashSet.empty[String]
+    val parenthesisStack = mutable.ArrayBuffer.empty[Int]
+    val closing = mutable.LinkedHashMap.empty[Int, Int]
+
+    def markActive(start: Int, end: Int): Unit = {
+      var cursor = start
+      while (cursor < end) {
+        active += cursor
+        cursor += 1
+      }
+    }
+
+    def logicalDirectiveEnd(from: Int): Int = {
+      var cursor = from
+      var complete = false
+      while (cursor < value.length && !complete) {
+        val newline = value.indexOf('\n', cursor)
+        if (newline < 0) cursor = value.length
+        else {
+          var previous = newline - 1
+          if (previous >= cursor && value.charAt(previous) == '\r') previous -= 1
+          if (previous >= cursor && value.charAt(previous) == '\\') {
+            if (newline + 1 >= value.length) {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-LEXICAL-ERROR",
+                s"module '$definitionName' contains an incomplete continued preprocessor directive"
+              )
+            }
+            cursor = newline + 1
+          } else {
+            cursor = newline
+            complete = true
+          }
+        }
+      }
+      cursor
+    }
+
+    def reserveDirectiveMacroName(from: Int, until: Int): Unit = {
+      var cursor = from
+      while (cursor < until && value.charAt(cursor).isWhitespace) cursor += 1
+      if (cursor < until && value.charAt(cursor) == '\\') {
+        cursor += 1
+        val start = cursor
+        while (cursor < until && !value.charAt(cursor).isWhitespace) cursor += 1
+        if (cursor > start) reservedIdentifiers += value.substring(start, cursor)
+      } else if (cursor < until && isIdentifierStart(value.charAt(cursor))) {
+        val start = cursor
+        cursor += 1
+        while (cursor < until && isIdentifierCharacter(value.charAt(cursor))) cursor += 1
+        reservedIdentifiers += value.substring(start, cursor)
+      }
+    }
+
+    def consumeMacroInvocation(from: Int, macroStart: Int): Int = {
+      var cursor = from
+      while (
+        cursor < value.length &&
+        (value.charAt(cursor) == ' ' || value.charAt(cursor) == '\t' ||
+          value.charAt(cursor) == '\r')
+      ) cursor += 1
+      if (cursor >= value.length || value.charAt(cursor) != '(') return from
+
+      opaqueExpressionStarts += macroStart
+      var depth = 0
+      var complete = false
+      while (cursor < value.length && !complete) {
+        val character = value.charAt(cursor)
+        if (
+          character == '/' && cursor + 1 < value.length &&
+          value.charAt(cursor + 1) == '/'
+        ) {
+          cursor += 2
+          while (cursor < value.length && value.charAt(cursor) != '\n') cursor += 1
+        } else if (
+          character == '/' && cursor + 1 < value.length &&
+          value.charAt(cursor + 1) == '*'
+        ) {
+          cursor += 2
+          while (
+            cursor + 1 < value.length &&
+            !(value.charAt(cursor) == '*' && value.charAt(cursor + 1) == '/')
+          ) cursor += 1
+          if (cursor + 1 >= value.length) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-LEXICAL-ERROR",
+              s"module '$definitionName' contains an unterminated block comment in a macro invocation"
+            )
+          }
+          cursor += 2
+        } else if (character == '"') {
+          cursor += 1
+          var escaped = false
+          var stringComplete = false
+          while (cursor < value.length && !stringComplete) {
+            val current = value.charAt(cursor)
+            if (escaped) escaped = false
+            else if (current == '\\') escaped = true
+            else if (current == '"') stringComplete = true
+            cursor += 1
+          }
+          if (!stringComplete) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-LEXICAL-ERROR",
+              s"module '$definitionName' contains an unterminated string in a macro invocation"
+            )
+          }
+        } else if (character == '\\') {
+          cursor += 1
+          while (cursor < value.length && !value.charAt(cursor).isWhitespace) {
+            cursor += 1
+          }
+        } else {
+          if (character == '(') depth += 1
+          else if (character == ')') {
+            depth -= 1
+            if (depth == 0) complete = true
+          }
+          cursor += 1
+        }
+      }
+      if (!complete) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-LEXICAL-ERROR",
+          s"module '$definitionName' contains an unterminated macro invocation"
+        )
+      }
+      cursor
+    }
+
+    var index = 0
+    while (index < value.length) {
+      val character = value.charAt(index)
+      if (character == '/' && index + 1 < value.length && value.charAt(index + 1) == '/') {
+        index += 2
+        while (index < value.length && value.charAt(index) != '\n') index += 1
+      } else if (
+        character == '/' && index + 1 < value.length && value.charAt(index + 1) == '*'
+      ) {
+        val commentStart = index
+        index += 2
+        while (
+          index + 1 < value.length &&
+          !(value.charAt(index) == '*' && value.charAt(index + 1) == '/')
+        ) index += 1
+        if (index + 1 >= value.length) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-LEXICAL-ERROR",
+            s"module '$definitionName' contains an unterminated block comment at offset $commentStart"
+          )
+        }
+        index += 2
+      } else if (character == '"') {
+        val stringStart = index
+        opaqueExpressionStarts += stringStart
+        index += 1
+        var escaped = false
+        var complete = false
+        while (index < value.length && !complete) {
+          val current = value.charAt(index)
+          if (escaped) escaped = false
+          else if (current == '\\') escaped = true
+          else if (current == '"') complete = true
+          index += 1
+        }
+        if (!complete) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-LEXICAL-ERROR",
+            s"module '$definitionName' contains an unterminated string literal at offset $stringStart"
+          )
+        }
+      } else if (character == '\\') {
+        val start = index
+        index += 1
+        val nameStart = index
+        while (index < value.length && !value.charAt(index).isWhitespace) index += 1
+        if (index == nameStart) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-LEXICAL-ERROR",
+            s"module '$definitionName' contains an empty escaped identifier at offset $start"
+          )
+        }
+        opaqueExpressionStarts += start
+        tokens += VerilogIdentifierToken(
+          value.substring(nameStart, index),
+          start,
+          index,
+          escaped = true
+        )
+      } else if (character == '`') {
+        val macroStart = index
+        val nameStart = index + 1
+        var nameEnd = nameStart
+        while (
+          nameEnd < value.length &&
+          isIdentifierCharacter(value.charAt(nameEnd))
+        ) nameEnd += 1
+        if (nameEnd == nameStart) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-LEXICAL-ERROR",
+            s"module '$definitionName' contains an empty preprocessor identifier at offset $macroStart"
+          )
+        }
+        val name = value.substring(nameStart, nameEnd)
+        if (VerilogPreprocessorDirectives(name)) {
+          val end = logicalDirectiveEnd(nameEnd)
+          if (VerilogMacroNameDirectives(name)) {
+            reserveDirectiveMacroName(nameEnd, end)
+          }
+          index = end
+        } else {
+          reservedIdentifiers += name
+          opaqueExpressionStarts += macroStart
+          index = consumeMacroInvocation(nameEnd, macroStart)
+        }
+      } else if (character == '$') {
+        val start = index
+        index += 1
+        while (index < value.length && isIdentifierCharacter(value.charAt(index))) index += 1
+        markActive(start, index)
+      } else if (isIdentifierStart(character)) {
+        val start = index
+        index += 1
+        while (index < value.length && isIdentifierCharacter(value.charAt(index))) index += 1
+        markActive(start, index)
+        tokens += VerilogIdentifierToken(
+          value.substring(start, index),
+          start,
+          index,
+          escaped = false
+        )
+      } else {
+        active += index
+        if (character == '(') parenthesisStack += index
+        else if (character == ')' && parenthesisStack.nonEmpty) {
+          val open = parenthesisStack.remove(parenthesisStack.size - 1)
+          closing(open) = index
+        }
+        index += 1
+      }
+    }
+
+    val tokenVector = tokens.result()
+    val activeSet = scala.collection.immutable.BitSet(active.toSeq: _*)
+    val opaqueSet = scala.collection.immutable.BitSet(
+      opaqueExpressionStarts.toSeq: _*
+    )
+    val provisional = VerilogLexicalView(
+      value,
+      tokenVector,
+      activeSet,
+      opaqueSet,
+      closing.toMap,
+      reservedIdentifiers.toSet,
+      Vector.empty,
+      Vector.empty
+    )
+    val (declarations, functions) = namedDeclarations(provisional)
+    provisional.copy(declarations = declarations, functions = functions)
+  }
+
+  private def namedDeclarations(
+      lexical: VerilogLexicalView
+  ): (Vector[VerilogNamedDeclaration], Vector[VerilogFunctionDefinition]) = {
+    val tokens = lexical.identifiers
+    val declarations = Vector.newBuilder[VerilogNamedDeclaration]
+    val functions = Vector.newBuilder[VerilogFunctionDefinition]
+    tokens.zipWithIndex.foreach { case (token, tokenIndex) =>
+      val declarationKind =
+        if (token.escaped) None
+        else token.name match {
+          case "function" => Some("function")
+          case "module"   => Some("module")
+          case "task"     => Some("task")
+          case _          => None
+        }
+      declarationKind match {
+        case None =>
+        case Some(kind) =>
+          val boundary = declarationHeaderBoundary(
+            lexical,
+            token.end,
+            kind
+          )
+          val headerTokens = tokens
+            .drop(tokenIndex + 1)
+            .takeWhile(_.start < boundary)
+          headerTokens.lastOption.foreach { nameToken =>
+            declarations += VerilogNamedDeclaration(
+              kind,
+              nameToken.name,
+              nameToken.start,
+              boundary
+            )
+            if (kind == "function") {
+              val endToken = tokens
+                .drop(tokenIndex + 1)
+                .find(candidate =>
+                  !candidate.escaped &&
+                    candidate.name == "endfunction" &&
+                    candidate.start > boundary
+                )
+              functions += VerilogFunctionDefinition(
+                nameToken.name,
+                nameToken.start,
+                token.start,
+                endToken.map(_.end).getOrElse(boundary + 1)
+              )
+            }
+          }
+      }
+    }
+    declarations.result() -> functions.result()
+  }
+
+  private def declarationHeaderBoundary(
+      lexical: VerilogLexicalView,
+      from: Int,
+      kind: String
+  ): Int = {
+    var cursor = from
+    var bracketDepth = 0
+    while (cursor < lexical.value.length) {
+      if (lexical.activeCharacters(cursor)) {
+        lexical.value.charAt(cursor) match {
+          case '[' => bracketDepth += 1
+          case ']' =>
+            bracketDepth -= 1
+            if (bracketDepth < 0) {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-LEXICAL-ERROR",
+                s"$kind declaration contains an unmatched closing packed-range bracket"
+              )
+            }
+          case '(' if bracketDepth == 0 => return cursor
+          case ';' if bracketDepth == 0 => return cursor
+          case ';' =>
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-LEXICAL-ERROR",
+              s"$kind declaration terminates with an unclosed packed range"
+            )
+          case _                        =>
+        }
+      }
+      cursor += 1
+    }
+    fail(
+      "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-LEXICAL-ERROR",
+      s"$kind declaration has no complete header"
+    )
+  }
+
+  private def nativeIntegerHelperCalls(
+      lexical: VerilogLexicalView
+  ): Vector[NativeIntegerHelperCall] =
+    lexical.identifiers.flatMap { token =>
+      if (
+        !token.name.startsWith("morphhdl_") ||
+        lexical.isDeclarationName(token)
+      ) None
+      else {
+        val qualified = lexical
+          .previousActiveNonWhitespace(token.start - 1)
+          .exists { index =>
+            val character = lexical.value.charAt(index)
+            val packageQualified =
+              character == ':' && lexical
+                .previousActiveNonWhitespace(index - 1)
+                .exists(previous => lexical.value.charAt(previous) == ':')
+            character == '.' || character == '`' || character == '$' ||
+              packageQualified
+          }
+        if (qualified) None
+        else {
+          lexical.nextActiveNonWhitespace(token.end) match {
+            case Some(open) if lexical.value.charAt(open) == '(' =>
+              Some(
+                NativeIntegerHelperCall(
+                  token.name,
+                  token.start,
+                  token.end,
+                  open,
+                  token.escaped,
+                  lexical.closingParenthesis.get(open)
+                )
+              )
+            case _ => None
+          }
+        }
+      }
+    }
+
+  private def validateNativeUnaryHelperCall(
+      lexical: VerilogLexicalView,
+      call: NativeIntegerHelperCall,
+      definitionName: String
+  ): Unit = {
+    val close = call.closeParenthesis.get
+    var cursor = call.openParenthesis + 1
+    val delimiterStack = mutable.ArrayBuffer.empty[Char]
+    var topLevelCommas = 0
+    var nonempty = false
+
+    def closeDelimiter(expected: Char, actual: Char): Unit = {
+      if (delimiterStack.isEmpty || delimiterStack.last != expected) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-MALFORMED",
+          s"module '$definitionName' contains crossed or unmatched delimiter '$actual' in call to '${call.name}'"
+        )
+      }
+      delimiterStack.remove(delimiterStack.size - 1)
+    }
+
+    while (cursor < close) {
+      if (lexical.opaqueExpressionStarts(cursor)) nonempty = true
+      if (lexical.activeCharacters(cursor)) {
+        val character = lexical.value.charAt(cursor)
+        character match {
+          case '(' =>
+            delimiterStack += '('
+          case ')' =>
+            closeDelimiter('(', ')')
+          case '[' =>
+            delimiterStack += '['
+          case ']' =>
+            closeDelimiter('[', ']')
+          case '{' =>
+            delimiterStack += '{'
+          case '}' =>
+            closeDelimiter('{', '}')
+          case ',' if delimiterStack.isEmpty =>
+            topLevelCommas += 1
+          case ','                          => ()
+          case value if !value.isWhitespace => nonempty = true
+          case _                            =>
+        }
+      }
+      cursor += 1
+    }
+
+    if (
+      delimiterStack.nonEmpty || !nonempty || topLevelCommas != 0
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-MALFORMED",
+        s"module '$definitionName' requires exactly one nonempty top-level argument in call to '${call.name}'"
+      )
+    }
+  }
+
+  private def portableLogFunction(
+      lexical: VerilogLexicalView,
+      function: VerilogFunctionDefinition
+  ): Boolean = {
+    val hasImmediateAttribute = lexical
+      .previousActiveNonWhitespace(function.start - 1)
+      .exists { close =>
+        lexical.value.charAt(close) == ')' &&
+        lexical
+          .previousActiveNonWhitespace(close - 1)
+          .exists(star => lexical.value.charAt(star) == '*')
+      }
+    val actual = lexical.value
+      .substring(function.start, function.end)
+      .filterNot(_.isWhitespace)
+    val expected = renderPortableLogFunction(function.name)
+      .mkString("\n")
+      .filterNot(_.isWhitespace)
+    !hasImmediateAttribute && actual == expected
+  }
+
+  private def applyTextEdits(
+      value: String,
+      edits: Vector[TextEdit],
+      definitionName: String
+  ): String = {
+    val ordered = edits.sortBy(edit => (-edit.start, -edit.end))
+    ordered.sliding(2).foreach {
+      case Vector(later, earlier) if earlier.end > later.start =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-EDIT-OVERLAP",
+          s"module '$definitionName' produced overlapping retained native Int helper edits"
+        )
+      case _ =>
+    }
+    ordered.foldLeft(value) { case (current, edit) =>
+      current.substring(0, edit.start) + edit.replacement + current.substring(edit.end)
+    }
+  }
+
+  private def insertPortableLogFunction(
+      verilog: String,
+      definitionName: String,
+      helperName: String
+  ): String = {
+    val lexical = lexVerilog(verilog, definitionName)
+    val modules = lexical.declarations.filter(declaration =>
+      declaration.kind == "module" && declaration.name == definitionName
+    )
+    if (modules.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-NOT-FOUND",
+        s"normal Verilog emission contains ${modules.size} active module headers for '$definitionName'"
+      )
+    }
+    val headerEnd = moduleHeaderEnd(lexical, modules.head, definitionName)
+    verilog.substring(0, headerEnd) +
+      "\n\n" + renderPortableLogFunction(helperName).mkString("\n") + "\n" +
+      verilog.substring(headerEnd)
+  }
+
+  private def moduleHeaderEnd(
+      lexical: VerilogLexicalView,
+      declaration: VerilogNamedDeclaration,
+      definitionName: String
+  ): Int = {
+    def malformed(detail: String): Nothing =
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-NOT-FOUND",
+        s"normal Verilog emission did not contain a complete active module header for '$definitionName': $detail"
+      )
+
+    def next(from: Int): Int =
+      lexical.nextActiveNonWhitespace(from).getOrElse {
+        malformed("unexpected end of input")
+      }
+
+    def close(open: Int, role: String): Int =
+      lexical.closingParenthesis.getOrElse(
+        open,
+        malformed(s"unterminated $role list")
+      )
+
+    var cursor = declaration.headerBoundary
+    lexical.value.charAt(cursor) match {
+      case ';' => cursor + 1
+      case '(' =>
+        val before = lexical
+          .previousActiveNonWhitespace(cursor - 1)
+          .map(lexical.value.charAt)
+        if (before.contains('#')) {
+          cursor = next(close(cursor, "parameter") + 1)
+          if (lexical.value.charAt(cursor) == ';') return cursor + 1
+          if (lexical.value.charAt(cursor) != '(')
+            malformed("parameter list is not followed by a port list")
+        }
+        cursor = close(cursor, "port") + 1
+        val terminator = next(cursor)
+        if (lexical.value.charAt(terminator) != ';')
+          malformed("port list is not terminated by a semicolon")
+        terminator + 1
+      case _ => malformed("unsupported header boundary")
+    }
+  }
+
+  private def renderPortableLogFunction(name: String): Vector[String] =
+    Vector(
+      s"  function integer $name;",
+      "    input integer value;",
+      "    input integer minimum_result;",
+      "    integer remaining;",
+      "    begin",
+      s"      $name = 0;",
+      "      for (remaining = value - 1; remaining > 0; remaining = remaining >> 1) begin",
+      s"        $name = $name + 1;",
+      "      end",
+      s"      if ($name < minimum_result) begin",
+      s"        $name = minimum_result;",
+      "      end",
+      "    end",
+      "  endfunction"
+    )
+
+  private def firstAvailableIdentifier(base: String, used: Set[String]): String =
+    if (!used(base)) base
+    else {
+      var suffix = 1
+      var candidate = s"${base}_$suffix"
+      while (used(candidate)) {
+        suffix += 1
+        candidate = s"${base}_$suffix"
+      }
+      candidate
+    }
+
+  private def isIdentifierCharacter(value: Char): Boolean =
+    value.isLetterOrDigit || value == '_' || value == '$'
+
+  private def isIdentifierStart(value: Char): Boolean =
+    value.isLetter || value == '_'
+
   private def rewriteDeclarationLine(
       line: String,
       widthsByName: Vector[(String, String)]
@@ -239,6 +1069,65 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         )
       }
     }
+  }
+
+  /**
+    * Replace only the concrete witness assignment of compiler-created UInt
+    * carriers. The carrier was retained by exact object identity; its final
+    * emitted name is read from that object after normal Spinal naming. No port,
+    * component or user signal name is used as a discovery key.
+    */
+  private def rewriteRetainedValueAssignments(
+      component: Component,
+      verilog: String
+  ): String = {
+    val records = ExternalParameterizedValueRegistry.valuesOf(component)
+    if (records.isEmpty) return verilog
+
+    val named = records.map { case (value, record) =>
+      val name = Option(value.getName()).filter(_.nonEmpty).getOrElse {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-VALUE-NAME-MISSING",
+          "one retained native UInt carrier has no final emitted name",
+          record.sourceLocation.orElse(record.expression.sourceLocation)
+        )
+      }
+      name -> record
+    }
+    named.groupBy(_._1).collectFirst {
+      case (name, values) if values.map(_._2).distinct.size != 1 => name
+    }.foreach { name =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-VALUE-NAME-CONFLICT",
+        s"multiple retained native UInt carriers resolved to emitted name '$name'"
+      )
+    }
+
+    var lines = verilog.split("\n", -1).toVector
+    named.distinct.sortBy { case (name, _) => -name.length }.foreach {
+      case (name, record) =>
+        val pattern = (
+          "^(\\s*assign\\s+" + Pattern.quote(name) +
+            "\\s*=\\s*)(.*?)(;\\s*)$"
+        ).r
+        var count = 0
+        lines = lines.map { line =>
+          line match {
+            case pattern(prefix, _, suffix) =>
+              count += 1
+              prefix + "(" + record.expression.verilog + ")" + suffix
+            case _ => line
+          }
+        }
+        if (count != 1) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-VALUE-ASSIGNMENT-NOT-UNIQUE",
+            s"retained native UInt carrier '$name' maps to $count continuous assignments",
+            record.sourceLocation.orElse(record.expression.sourceLocation)
+          )
+        }
+    }
+    lines.mkString("\n")
   }
 
   /**
@@ -359,6 +1248,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       var unsupported =
         component.children.nonEmpty ||
           ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
+          ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
           ParameterizedProcess.parametersOf(component).nonEmpty ||
           ParameterizedStructure.parametersOf(component).nonEmpty
 
@@ -578,7 +1468,19 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         )
       }
       val ports = declarations.distinct.filter(_.isIo)
-      if (!ports.exists(_.isInput) || !ports.exists(_.isOutput)) {
+      // A native hierarchy wrapper is legitimate without both port
+      // directions: canonicalization may leave it with only pulled clock/reset
+      // inputs and may already have consumed its live child list.  Require
+      // exact hierarchy evidence (or still-attached children plus a retained
+      // schema), and leave the ordinary width/assignment/process checks below
+      // authoritative for anything emitted in the wrapper itself.
+      val hierarchyOnlyWrapper =
+        hasParameterizedHierarchy || hierarchyParameters.nonEmpty ||
+          (component.children.nonEmpty && parameters.nonEmpty)
+      if (
+        !hierarchyOnlyWrapper &&
+        (!ports.exists(_.isInput) || !ports.exists(_.isOutput))
+      ) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-PORT-DIRECTIONS-UNSUPPORTED",
           s"component '${component.definitionName}' must expose at least one native input and one native output"
@@ -625,14 +1527,24 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             parameterSourceLocation(parameter)
           )
         }
+        val isDirectPackedWidth = symbolicDeclarationWidths.exists {
+          case (_, expression) =>
+            expression.render == parameter.name &&
+              expression.parameters == Vector(parameter) &&
+              expression.default == parameter.default &&
+              expression.minimum == parameter.minimum &&
+              expression.maximum == parameter.maximum
+        }
         if (
           parameter.minimum < 0 || parameter.maximum < parameter.minimum ||
           parameter.default < parameter.minimum || parameter.default > parameter.maximum ||
-          parameter.maximum > BigInt(pc.config.bitVectorWidthMax)
+          parameter.maximum > BigInt(Int.MaxValue) ||
+          (isDirectPackedWidth &&
+            parameter.maximum > BigInt(pc.config.bitVectorWidthMax))
         ) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-DOMAIN-INVALID",
-            s"parameter '${parameter.name}' must have a non-negative bounded domain no larger than SpinalConfig.bitVectorWidthMax=${pc.config.bitVectorWidthMax}, with its default inside that domain",
+            s"parameter '${parameter.name}' has default=${parameter.default}, minimum=${parameter.minimum}, maximum=${parameter.maximum}; expected a non-negative finite Int-sized domain containing its default, and a direct packed-width parameter no larger than SpinalConfig.bitVectorWidthMax=${pc.config.bitVectorWidthMax}",
             parameterSourceLocation(parameter)
           )
         }
@@ -691,9 +1603,36 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 targetWidth,
                 sourceWidth
               )
+              val provenAutoResize = isProvenAutoResizeAssignment(
+                assignment,
+                target,
+                targetWidth,
+                sourceWidth
+              )
+              val provenModularUpdate = isProvenModularUIntUpdate(
+                assignment,
+                target,
+                targetWidth,
+                sourceWidth
+              )
+              val provenStructuralWitnessSizing =
+                isProvenStructuralWitnessSizing(
+                  assignment,
+                  target,
+                  targetWidth,
+                  sourceWidth
+                )
+              val provenStructuralAddressWidthIdentity =
+                isProvenStructuralAddressWidthSuccessorIdentity(
+                  assignment,
+                  targetWidth,
+                  sourceWidth
+                )
               if (
                 targetWidth.isSymbolic && sourceWidth.isSymbolic &&
-                targetWidth != sourceWidth && !nativeCounterNext
+                targetWidth != sourceWidth && !nativeCounterNext &&
+                !provenAutoResize && !provenModularUpdate &&
+                !provenStructuralAddressWidthIdentity
               ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
@@ -703,11 +1642,18 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               }
               if (
                 targetWidth.isSymbolic && !sourceWidth.isSymbolic &&
-                !isUnfixedLiteral(assignment.source) && !nativeCounterNext
+                !isUnfixedLiteral(assignment.source) &&
+                !isDomainSafeFixedLiteral(
+                  assignment.source,
+                  target,
+                  targetWidth
+                ) && !nativeCounterNext &&
+                !provenAutoResize && !provenModularUpdate &&
+                !provenStructuralWitnessSizing
               ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
-                  s"assignment to symbolic signal '${target.getName()}' uses concrete-width expression ${sourceWidth.render}; explicit domain-safe conversion is required",
+                  s"assignment to symbolic signal '${target.getName()}' uses concrete-width expression ${sourceWidth.render} from ${assignment.source.getClass.getSimpleName}('${assignment.source.opName}'); explicit domain-safe conversion is required",
                   ParameterizedWidth.sourceLocationOf(target)
                 )
               }
@@ -715,6 +1661,51 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           }
         }
       }
+    }
+
+    /**
+      * For every integer n > 1,
+      *
+      *   addressWidth(n + 1) == addressWidth(n) + (isPow2(n) ? 1 : 0)
+      *
+      * The expressions differ at n == 1 because addressWidth is clamped to
+      * one. Accept the identity only when exact compiler-captured structural
+      * evidence excludes that value. Matching is expression-generic and based
+      * on assignment identity; no component, signal or source name is used.
+      */
+    private def isProvenStructuralAddressWidthSuccessorIdentity(
+        assignment: DataAssignmentStatement,
+        targetWidth: WidthExpr,
+        sourceWidth: WidthExpr
+    ): Boolean = {
+      if (
+        targetWidth.default != sourceWidth.default ||
+        targetWidth.parameters.size != 1 ||
+        sourceWidth.parameters != targetWidth.parameters
+      ) return false
+
+      ParameterizedStructure
+        .activeSingleParameterDomainOf(component, assignment)
+        .exists { domain =>
+          val parameter = domain.parameter
+          if (
+            targetWidth.parameters != Vector(parameter) ||
+            domain.minimum <= 1 ||
+            domain.maximum >= BigInt(Int.MaxValue)
+          ) false
+          else {
+            def compact(value: String): String = value.replaceAll("\\s+", "")
+            val name = parameter.name
+            val powerOfTwo = s"(($name>0)&&(($name&($name-1))==0))"
+            val enabledPowerOfTwo = s"((1'b1)&&($powerOfTwo))"
+            val increment = s"(($enabledPowerOfTwo)?1:0)"
+            val expectedTarget = s"morphhdl_address_width(($name+1))"
+            val expectedSource =
+              s"(morphhdl_address_width($name)+$increment)"
+            compact(targetWidth.render) == expectedTarget &&
+            compact(sourceWidth.render) == expectedSource
+          }
+        }
     }
 
     /**
@@ -746,12 +1737,170 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           sourceWidth.parameters.forall(targetWidth.parameters.contains)
         }
 
+    /**
+      * Native UInt `.resized` is an explicit whole-target sizing boundary.
+      * Authorize it only when pre-normalization capture and the surviving
+      * statement/target identities agree and no fixed Resize node remains.
+      */
+    private def isProvenAutoResizeAssignment(
+        assignment: DataAssignmentStatement,
+        target: BitVector,
+        targetWidth: WidthExpr,
+        sourceWidth: WidthExpr
+    ): Boolean =
+      target match {
+        case uint: UInt =>
+          targetWidth.isSymbolic &&
+          sourceWidth.default == targetWidth.default &&
+          ExternalParameterizedAutoResize.proves(component, assignment, uint)
+        case _ => false
+      }
+
+    /**
+      * A captured structural alternative may use a fixed unsigned source whose
+      * width fits the symbolic target for every legal parameter value. The
+      * pre-normalization phase inserts only the concrete-witness extension and
+      * records the exact surviving statement identity.
+      */
+    private def isProvenStructuralWitnessSizing(
+        assignment: DataAssignmentStatement,
+        target: BitVector,
+        targetWidth: WidthExpr,
+        sourceWidth: WidthExpr
+    ): Boolean =
+      target match {
+        case uint: UInt =>
+          targetWidth.isSymbolic &&
+          !sourceWidth.isSymbolic &&
+          ParameterizedStructure
+            .witnessSizedWidthOf(
+              component,
+              assignment,
+              uint,
+              sourceWidth.default
+            )
+            .exists { expression =>
+              targetWidth == WidthRetained(
+                expression.verilog,
+                expression.default,
+                expression.minimum,
+                expression.maximum,
+                expression.parameters.distinct.sortBy(_.name)
+              )
+            }
+        case _ => false
+      }
+
+    private final case class ModularUIntFacts(
+        targetReferences: Int,
+        booleanValues: Int
+    )
+
+    /**
+      * A direct unsigned self-update made only from Add/Sub and Boolean values
+      * is stable modulo the symbolic target width. Native normalization may
+      * widen Boolean-to-UInt carriers to the concrete witness, but the whole
+      * assignment's LSB truncation/zero extension preserves the exact result
+      * for every positive legal target width.
+      */
+    private def isProvenModularUIntUpdate(
+        assignment: DataAssignmentStatement,
+        target: BitVector,
+        targetWidth: WidthExpr,
+        sourceWidth: WidthExpr
+    ): Boolean =
+      target match {
+        case uint: UInt
+            if targetWidth.isSymbolic &&
+              sourceWidth.default == targetWidth.default &&
+              (assignment.target eq uint) &&
+              (assignment.finalTarget eq uint) =>
+          val active = new IdentityHashMap[Expression, java.lang.Boolean]()
+
+          def combine(
+              left: Option[ModularUIntFacts],
+              right: Option[ModularUIntFacts]
+          ): Option[ModularUIntFacts] =
+            for {
+              leftFacts <- left
+              rightFacts <- right
+            } yield ModularUIntFacts(
+              leftFacts.targetReferences + rightFacts.targetReferences,
+              leftFacts.booleanValues + rightFacts.booleanValues
+            )
+
+          def visit(expression: Expression): Option[ModularUIntFacts] = {
+            if (expression == null || active.containsKey(expression)) return None
+            if (expression eq uint) return Some(ModularUIntFacts(1, 0))
+            active.put(expression, java.lang.Boolean.TRUE)
+            val result = expression match {
+              case operator: Operator.BitVector.Add
+                  if operator.getTypeObject == TypeUInt =>
+                combine(visit(operator.left), visit(operator.right))
+              case operator: Operator.BitVector.Sub
+                  if operator.getTypeObject == TypeUInt =>
+                combine(visit(operator.left), visit(operator.right))
+              case cast: CastBitsToUInt => visit(cast.input)
+              case cast: CastUIntToBits => visit(cast.input)
+              case _: CastBoolToBits => Some(ModularUIntFacts(0, 1))
+              case resize: Resize
+                  if resize.getTypeObject == TypeUInt ||
+                    resize.getTypeObject == TypeBits =>
+                visit(resize.input).filter(_.targetReferences == 0)
+              case value: BaseType
+                  if (value.getTypeObject == TypeUInt ||
+                    value.getTypeObject == TypeBits) &&
+                    value.isTypeNode && value.isComb &&
+                    value.isDirectionLess &&
+                    Statement.isSomethingToFullStatement(value) =>
+                value.head match {
+                  case driver: DataAssignmentStatement
+                      if (driver.target eq value) &&
+                        (driver.finalTarget eq value) &&
+                        widthInference.ofBase(value) ==
+                          widthInference.ofExpression(driver.source) =>
+                    visit(driver.source)
+                  case _ => None
+                }
+              case _ => None
+            }
+            active.remove(expression)
+            result
+          }
+
+          visit(assignment.source).exists { facts =>
+            facts.targetReferences == 1 && facts.booleanValues >= 1
+          }
+        case _ => false
+      }
+
     private def isUnfixedLiteral(expression: Expression): Boolean =
       expression match {
         case literal: BitVectorLiteral => !literal.hasSpecifiedBitCount
         case resize: Resize            => isUnfixedLiteral(resize.input)
         case cast: CastBitVectorToBitVector =>
           isUnfixedLiteral(cast.input)
+        case _ => false
+      }
+
+    /**
+      * A concrete UInt/Bits literal whose defined value fits the symbolic
+      * target's narrowest legal width is invariant under Verilog's ordinary
+      * unsigned context sizing.  Prove that fact from the literal value and
+      * complete target domain; a poison mask, signed conversion, or wrapper
+      * expression remains unsupported without a separate identity proof.
+      */
+    private def isDomainSafeFixedLiteral(
+        expression: Expression,
+        target: BitVector,
+        targetWidth: WidthExpr
+    ): Boolean =
+      expression match {
+        case literal: BitVectorLiteral
+            if literal.getTypeObject == target.getTypeObject &&
+              literal.poisonMask == null && literal.value != null &&
+              literal.value >= 0 =>
+          BigInt(literal.value.bitLength) <= targetWidth.minimum
         case _ => false
       }
 
@@ -815,22 +1964,28 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           case None if activeBases.contains(baseType) => WidthLiteral(baseType.getBitsWidth)
           case None =>
             activeBases += baseType
-            val result = ParameterizedWidth.expressionOf(baseType) match {
-              case Some(expression) =>
-                WidthRetained(
-                  expression.verilog,
-                  expression.default,
-                  expression.minimum,
-                  expression.maximum,
-                  expression.parameters.distinct.sortBy(_.name)
-                )
-              case None =>
-                baseType match {
-                  case _: Bool => WidthLiteral(1)
-                  case bitVector: BitVector => inferUntaggedBitVector(bitVector)
-                  case _ => WidthLiteral(baseType.getBitsWidth)
+            val result =
+              ExternalParameterizedAutoResize
+                .targetOfResizeSource(component, baseType)
+                .map(ofBase)
+                .getOrElse {
+                  ParameterizedWidth.expressionOf(baseType) match {
+                    case Some(expression) =>
+                      WidthRetained(
+                        expression.verilog,
+                        expression.default,
+                        expression.minimum,
+                        expression.maximum,
+                        expression.parameters.distinct.sortBy(_.name)
+                      )
+                    case None =>
+                      baseType match {
+                        case _: Bool => WidthLiteral(1)
+                        case bitVector: BitVector => inferUntaggedBitVector(bitVector)
+                        case _ => WidthLiteral(baseType.getBitsWidth)
+                      }
+                  }
                 }
-            }
             activeBases -= baseType
             baseCache(baseType) = result
             result

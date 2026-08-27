@@ -362,6 +362,7 @@ object ParameterizedProcess {
         statements,
         declarations,
         assignments,
+        Vector.empty,
         memories,
         children,
         state.slices.toVector,

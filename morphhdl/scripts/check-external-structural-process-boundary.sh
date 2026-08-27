@@ -14,17 +14,18 @@ do
 done
 
 for path in \
-  frontend/src/main/scala/spinal/core/ParameterizedStructure.scala \
+  morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala \
   frontend/src/main/scala/spinal/core/ParameterizedProcess.scala \
   morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
   morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogProcesses.scala \
-  morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
+  morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala \
+  morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedStructuralWitnessSizing.scala
 do
   test -f "$path"
 done
 
 width=core/src/main/scala/spinal/core/ParameterizedWidth.scala
-structure=frontend/src/main/scala/spinal/core/ParameterizedStructure.scala
+structure=morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala
 phase=core/src/main/scala/spinal/core/internals/PhaseVerilog.scala
 external=morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
 
@@ -38,6 +39,8 @@ grep -Fq 'ParameterizedVerilogMemories.rewrite' "$external"
 grep -Fq 'ParameterizedVerilogProcesses.rewrite' "$external"
 grep -Fq 'ParameterizedVerilogStructural.rewrite' "$external"
 grep -Fq 'requiresPublicationRewrite' "$external"
+grep -Fq 'ExternalParameterizedStructuralWitnessSizing' \
+  morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
 
 python3 - <<'PY2'
 import json

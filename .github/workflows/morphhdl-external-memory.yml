@@ -71,9 +71,12 @@ jobs:
             morphhdl.frontend.HdlIntTests
           /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
             morphhdl.NativeSymbolicMemoryTests \
+            morphhdl.NativeMemoryPortAdapterProvenanceTests \
             morphhdl.NativeMemAutoProvenanceTests \
             morphhdl.NativeLibraryReuseTests \
             morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.StructuralWitnessSizingTests \
+            spinal.core.StructuralAddressWidthIdentityTests \
             morphhdl.GenericExpressionAndStreamTests \
             morphhdl.HierarchyParameterBindingTests \
             morphhdl.MorphSingleSourceVerilogTests
