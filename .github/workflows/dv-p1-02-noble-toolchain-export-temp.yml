@@ -1,0 +1,128 @@
+name: Temporary DV-P1-02 Noble toolchain export
+
+on:
+  push:
+    branches:
+      - agent/dv-p1-02-noble-toolchain-export-temp
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dv-p1-02-noble-toolchain-export-temp
+  cancel-in-progress: true
+
+jobs:
+  export-toolchain:
+    name: export locked Ubuntu 24.04 open-source toolchain
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out public utility branch
+        uses: actions/checkout@v4
+
+      - name: Verify host image
+        shell: bash
+        run: |
+          set -euo pipefail
+          . /etc/os-release
+          test "${ID}" = "ubuntu"
+          test "${VERSION_ID}" = "24.04"
+
+      - name: Build minimal Noble root filesystem
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y debootstrap
+
+          root="${RUNNER_TEMP}/dv-p1-02-noble-rootfs"
+          sudo rm -rf "${root}"
+          sudo debootstrap \
+            --variant=minbase \
+            --arch=amd64 \
+            noble \
+            "${root}" \
+            http://archive.ubuntu.com/ubuntu/
+
+          sudo tee "${root}/etc/apt/sources.list" >/dev/null <<'EOF'
+          deb http://archive.ubuntu.com/ubuntu noble main universe
+          deb http://archive.ubuntu.com/ubuntu noble-updates main universe
+          deb http://security.ubuntu.com/ubuntu noble-security main universe
+          EOF
+          sudo cp --remove-destination /etc/resolv.conf "${root}/etc/resolv.conf"
+
+          sudo chroot "${root}" /usr/bin/env \
+            DEBIAN_FRONTEND=noninteractive \
+            apt-get -o Acquire::Retries=3 update
+          sudo chroot "${root}" /usr/bin/env \
+            DEBIAN_FRONTEND=noninteractive \
+            apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
+              ca-certificates \
+              git \
+              make \
+              python3 \
+              iverilog=12.0-2build2 \
+              verilator=5.020-1
+
+      - name: Verify exact locked tuple
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/dv-p1-02-noble-rootfs"
+          mkdir -p export
+
+          iverilog_package="$(sudo chroot "${root}" dpkg-query -W -f='${Version}' iverilog)"
+          verilator_package="$(sudo chroot "${root}" dpkg-query -W -f='${Version}' verilator)"
+          test "${iverilog_package}" = "12.0-2build2"
+          test "${verilator_package}" = "5.020-1"
+
+          {
+            echo 'schema=dv-p1-02-noble-toolchain-rootfs-v1'
+            echo 'architecture=amd64'
+            echo "iverilog_package=${iverilog_package}"
+            echo "verilator_package=${verilator_package}"
+            echo
+            echo '[os-release]'
+            sudo chroot "${root}" cat /etc/os-release
+            echo
+            echo '[python]'
+            sudo chroot "${root}" python3 --version
+            echo
+            echo '[iverilog]'
+            sudo chroot "${root}" iverilog -V 2>&1
+            echo
+            echo '[verilator]'
+            sudo chroot "${root}" verilator --version
+          } > export/toolchain-manifest.txt
+
+      - name: Clean and archive root filesystem
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/dv-p1-02-noble-rootfs"
+          sudo chroot "${root}" apt-get clean
+          sudo rm -rf "${root}/var/lib/apt/lists/"*
+          sudo rm -f "${root}/etc/resolv.conf"
+
+          sudo tar \
+            --numeric-owner \
+            --xattrs \
+            --acls \
+            --one-file-system \
+            -C "${root}" \
+            -czf export/noble-rootfs-amd64.tar.gz \
+            .
+          sudo chown "$(id -u):$(id -g)" export/noble-rootfs-amd64.tar.gz
+          sha256sum export/noble-rootfs-amd64.tar.gz \
+            > export/noble-rootfs-amd64.tar.gz.sha256
+
+      - name: Upload toolchain root filesystem
+        uses: actions/upload-artifact@v4
+        with:
+          name: dv-p1-02-noble-toolchain-rootfs
+          path: export/
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 0
