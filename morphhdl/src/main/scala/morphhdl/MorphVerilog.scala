@@ -648,12 +648,19 @@ object MorphVerilog {
       report: SpinalReport[T]
   ): Either[MorphVerilogFailure, Vector[morphhdl.paramrtl.IntegerParameter]] =
     try {
+      val hierarchyActualParameters =
+        report.toplevel.children.toVector.flatMap { child =>
+          spinal.core.ExternalFormalParameterRegistry
+            .bindingsOf(child)
+            .flatMap(_.actual.parameters)
+        }
       val retained =
         spinal.core.ParameterizedWidth.parametersOf(report.toplevel) ++
           spinal.core.ParameterizedMemory.parametersOf(report.toplevel) ++
           spinal.core.ExternalParameterizedValueRegistry.parametersOf(report.toplevel) ++
           spinal.core.ParameterizedStructure.parametersOf(report.toplevel) ++
-          spinal.core.ParameterizedProcess.parametersOf(report.toplevel)
+          spinal.core.ParameterizedProcess.parametersOf(report.toplevel) ++
+          hierarchyActualParameters
       val grouped = retained.groupBy(_.name)
       grouped.collectFirst {
         case (name, values) if values.distinct.size != 1 => name
