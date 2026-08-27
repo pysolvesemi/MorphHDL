@@ -79,6 +79,33 @@ object ParameterizedStructure {
       sourceLocation: Option[String]
   )
 
+  private[core] final case class StructuralPredicateRoot(
+      verilog: String,
+      default: BigInt,
+      minimum: BigInt,
+      maximum: BigInt,
+      parameters: Vector[ElaborationIntegerParameter]
+  )
+
+  /**
+    * Exact truth set for one compiler-proven predicate over a bounded native
+    * constructor argument.  This evidence is optional and never inferred from
+    * rendered Verilog text.
+    */
+  private[core] final case class StructuralPredicateDomain(
+      root: StructuralPredicateRoot,
+      universe: Set[BigInt],
+      whenTrue: Set[BigInt]
+  ) {
+    require(whenTrue.subsetOf(universe))
+
+    def valuesFor(branch: Int): Option[Set[BigInt]] = branch match {
+      case 0 => Some(whenTrue)
+      case 1 => Some(universe -- whenTrue)
+      case _ => None
+    }
+  }
+
   private[core] sealed trait StructuralRegion {
     def blocks: Vector[ParameterizedStructuralBlock]
     def parameters: Vector[ElaborationIntegerParameter]
@@ -102,6 +129,7 @@ object ParameterizedStructure {
       whenFalseLabel: String,
       whenTrue: ParameterizedStructuralBlock,
       whenFalse: ParameterizedStructuralBlock,
+      predicateDomain: Option[StructuralPredicateDomain],
       sourceLocation: Option[String]
   ) extends StructuralRegion {
     override val blocks: Vector[ParameterizedStructuralBlock] =
@@ -494,13 +522,57 @@ object ParameterizedStructure {
   private def mutuallyExclusive(
       left: Vector[AlternativeStep],
       right: Vector[AlternativeStep]
-  ): Boolean =
-    left.exists { leftStep =>
-      right.exists { rightStep =>
-        (leftStep.region eq rightStep.region) &&
-        leftStep.branch != rightStep.branch
+  ): Boolean = mutuallyExclusiveAlternatives(
+    left.map(value => value.region -> value.branch),
+    right.map(value => value.region -> value.branch)
+  )
+
+  /** Shared fail-closed exclusivity proof used by graph validation and RTL relocation. */
+  private[core] def mutuallyExclusiveAlternatives(
+      left: Vector[(StructuralRegion, Int)],
+      right: Vector[(StructuralRegion, Int)]
+  ): Boolean = {
+    val siblingExclusive = left.exists { case (leftRegion, leftBranch) =>
+      right.exists { case (rightRegion, rightBranch) =>
+        (leftRegion eq rightRegion) && leftBranch != rightBranch
       }
     }
+    if (siblingExclusive) return true
+
+    def constrainedDomains(
+        path: Vector[(StructuralRegion, Int)]
+    ): (Boolean, Map[StructuralPredicateRoot, Set[BigInt]]) = {
+      val domains = mutable.LinkedHashMap.empty[
+        StructuralPredicateRoot,
+        Set[BigInt]
+      ]
+      var impossible = false
+      path.foreach {
+        case (value: StructuralIf, branch) =>
+          value.predicateDomain.foreach { domain =>
+            domain.valuesFor(branch).foreach { allowed =>
+              val constrained = domains
+                .get(domain.root)
+                .map(_ intersect allowed)
+                .getOrElse(allowed)
+              domains(domain.root) = constrained
+              if (constrained.isEmpty) impossible = true
+            }
+          }
+        case _ =>
+      }
+      impossible -> domains.toMap
+    }
+
+    val (leftImpossible, leftDomains) = constrainedDomains(left)
+    val (rightImpossible, rightDomains) = constrainedDomains(right)
+    leftImpossible || rightImpossible || leftDomains.exists {
+      case (root, leftValues) =>
+        rightDomains.get(root).exists(rightValues =>
+          (leftValues intersect rightValues).isEmpty
+        )
+    }
+  }
 
   def registerFor(
       component: Component,
@@ -567,7 +639,8 @@ object ParameterizedStructure {
       whenFalseLabel: String,
       whenTrue: ParameterizedStructuralBlock,
       whenFalse: ParameterizedStructuralBlock,
-      sourceLocation: Option[String]
+      sourceLocation: Option[String],
+      predicateDomain: Option[StructuralPredicateDomain] = None
   ): Unit = {
     val storage = storageOf(pending.component)
     requirePending(storage, pending)
@@ -583,6 +656,7 @@ object ParameterizedStructure {
         whenFalseLabel,
         whenTrue,
         whenFalse,
+        predicateDomain,
         sourceLocation
       ),
       sourceLocation

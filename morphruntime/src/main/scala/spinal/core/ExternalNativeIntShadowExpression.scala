@@ -422,6 +422,48 @@ private[core] object ExternalNativeIntRelativeExpression {
     loop(expression)
   }
 
+  /** Exact witness evaluation used only for bounded structural-domain proofs. */
+  private[core] def evaluate(
+      expression: ExternalNativeIntRelativeExpression,
+      root: BigInt
+  ): Option[BigInt] = expression match {
+    case Root           => Some(root)
+    case Literal(value) => Some(value)
+    case Add(left, right) =>
+      for (l <- evaluate(left, root); r <- evaluate(right, root)) yield l + r
+    case Subtract(left, right) =>
+      for (l <- evaluate(left, root); r <- evaluate(right, root)) yield l - r
+    case Multiply(left, right) =>
+      for (l <- evaluate(left, root); r <- evaluate(right, root)) yield l * r
+    case Divide(left, right) =>
+      for {
+        l <- evaluate(left, root)
+        r <- evaluate(right, root)
+        if r != 0
+      } yield l / r
+    case Modulo(left, right) =>
+      for {
+        l <- evaluate(left, root)
+        r <- evaluate(right, root)
+        if r != 0
+      } yield l % r
+    case Min(left, right) =>
+      for (l <- evaluate(left, root); r <- evaluate(right, root)) yield l.min(r)
+    case Max(left, right) =>
+      for (l <- evaluate(left, root); r <- evaluate(right, root)) yield l.max(r)
+    case Negate(value) => evaluate(value, root).map(-_)
+    case CeilLog2(value) =>
+      evaluate(value, root).filter(_ > 0).map(ceilLog2)
+    case AddressWidth(value) =>
+      evaluate(value, root).filter(_ > 0).map(addressWidth)
+    case Log2Down(value) =>
+      evaluate(value, root).filter(_ > 0).map(log2Down)
+    case BooleanToInt(value) =>
+      ExternalNativeIntRelativePredicate
+        .evaluate(value, root)
+        .map(result => if (result) BigInt(1) else BigInt(0))
+  }
+
   private def ceilLog2(value: BigInt): BigInt = BigInt((value - 1).bitLength)
   private def addressWidth(value: BigInt): BigInt = ceilLog2(value).max(BigInt(1))
   private def log2Down(value: BigInt): BigInt = BigInt(value.bitLength - 1)
@@ -556,6 +598,37 @@ private[core] object ExternalNativeIntRelativePredicate {
           sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
         )
       }
+  }
+
+  /** Exact witness evaluation used only for bounded structural-domain proofs. */
+  private[core] def evaluate(
+      predicate: ExternalNativeIntRelativePredicate,
+      root: BigInt
+  ): Option[Boolean] = predicate match {
+    case Comparison(operation, left, right) =>
+      for {
+        l <- ExternalNativeIntRelativeExpression.evaluate(left, root)
+        r <- ExternalNativeIntRelativeExpression.evaluate(right, root)
+        result <- operation match {
+          case "<"  => Some(l < r)
+          case "<=" => Some(l <= r)
+          case ">"  => Some(l > r)
+          case ">=" => Some(l >= r)
+          case "==" => Some(l == r)
+          case "!=" => Some(l != r)
+          case _    => None
+        }
+      } yield result
+    case PowerOfTwo(value) =>
+      ExternalNativeIntRelativeExpression
+        .evaluate(value, root)
+        .map(number => number > 0 && number.bitCount == 1)
+    case Constant(value) => Some(value)
+    case And(left, right) =>
+      for (l <- evaluate(left, root); r <- evaluate(right, root)) yield l && r
+    case Or(left, right) =>
+      for (l <- evaluate(left, root); r <- evaluate(right, root)) yield l || r
+    case Not(value) => evaluate(value, root).map(!_)
   }
 
   private def mergeParameters(left: Facts, right: Facts): Vector[ElaborationIntegerParameter] =

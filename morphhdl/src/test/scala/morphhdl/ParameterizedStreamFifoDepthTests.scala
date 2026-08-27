@@ -61,6 +61,11 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       .toVector
       .sorted
 
+  private def nativeStreamFifoDefinition(verilog: String): String =
+    "(?ms)^\\s*module\\s+StreamFifo\\b.*?^\\s*endmodule\\b".r
+      .findFirstIn(verilog)
+      .getOrElse(fail("Native StreamFifo module definition is missing"))
+
   private def component(): NativeParameterizedStreamFifoHarness = {
     val depth = HdlInt.param(
       "DEPTH",
@@ -131,13 +136,17 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       assert(parameterized.contains("function integer clog2;"))
       assert(!parameterized.contains("morphhdl_address_width"))
       assert(!parameterized.contains("morphhdl_ceil_log2"))
-      assert(parameterized.contains("generate"))
-      assert(parameterized.contains("DEPTH == 1"))
-      assert(parameterized.contains("DEPTH > 1"))
+      val nativeStreamFifo = nativeStreamFifoDefinition(parameterized)
+      assert(nativeStreamFifo.contains("generate"))
+      assert(nativeStreamFifo.contains("DEPTH == 1"))
+      assert(nativeStreamFifo.contains("DEPTH > 1"))
       assert(
-        parameterized.contains("DEPTH & (DEPTH - 1)") ||
-          parameterized.contains("DEPTH & (DEPTH-1)")
+        nativeStreamFifo.contains("DEPTH & (DEPTH - 1)") ||
+          nativeStreamFifo.contains("DEPTH & (DEPTH-1)")
       )
+      val logicAlternative = nativeStreamFifo.indexOf("DEPTH > 1")
+      val powerOfTwoAlternative = nativeStreamFifo.indexOf("DEPTH &")
+      assert(logicAlternative >= 0 && powerOfTwoAlternative > logicAlternative)
       assert(parameterized.contains("io_push_ready"))
       assert(parameterized.contains("io_pop_valid"))
       assert(parameterized.contains("io_occupancy"))

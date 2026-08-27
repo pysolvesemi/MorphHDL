@@ -508,11 +508,12 @@ object ExternalNativeIntCompilerRuntime {
           sourceLine
         )
       }
-      val expression = ExternalNativeIntShadowRegistry.definitionPredicateTracked(
-        predicateReference,
-        condition,
-        rendered(sourceFile, sourceLine)
-      )
+      val (expression, predicateDomain) =
+        ExternalNativeIntShadowRegistry.definitionPredicateEvidenceTracked(
+          predicateReference,
+          condition,
+          rendered(sourceFile, sourceLine)
+        )
       var capturedValue: Option[T] = None
       val trueBlock = ParameterizedStructure.captureBlock(
         component,
@@ -536,7 +537,8 @@ object ExternalNativeIntCompilerRuntime {
         base + "_false",
         trueBlock,
         falseBlock,
-        Some(rendered(sourceFile, sourceLine))
+        Some(rendered(sourceFile, sourceLine)),
+        predicateDomain
       )
       if (condition) capturedValue.get else null.asInstanceOf[T]
     }
@@ -720,11 +722,12 @@ object ExternalNativeIntCompilerRuntime {
         sourceLine
       )
     }
-    val expression = ExternalNativeIntShadowRegistry.definitionPredicateTracked(
-      predicateReference,
-      condition,
-      rendered(sourceFile, sourceLine)
-    )
+    val (expression, predicateDomain) =
+      ExternalNativeIntShadowRegistry.definitionPredicateEvidenceTracked(
+        predicateReference,
+        condition,
+        rendered(sourceFile, sourceLine)
+      )
     val trueBlock = ParameterizedStructure.captureBlock(
       component,
       Some(rendered(sourceFile, sourceLine))
@@ -748,7 +751,8 @@ object ExternalNativeIntCompilerRuntime {
       base + "_false",
       trueBlock,
       falseBlock,
-      Some(rendered(sourceFile, sourceLine))
+      Some(rendered(sourceFile, sourceLine)),
+      predicateDomain
     )
   }
 
@@ -770,11 +774,12 @@ object ExternalNativeIntCompilerRuntime {
         sourceLine
       )
     }
-    val expression = ExternalNativeIntShadowRegistry.definitionPredicateTracked(
-      predicateReference,
-      condition,
-      rendered(sourceFile, sourceLine)
-    )
+    val (expression, predicateDomain) =
+      ExternalNativeIntShadowRegistry.definitionPredicateEvidenceTracked(
+        predicateReference,
+        condition,
+        rendered(sourceFile, sourceLine)
+      )
     var trueValue: Option[T] = None
     var falseValue: Option[T] = None
     val trueBlock = ParameterizedStructure.captureBlock(
@@ -802,7 +807,8 @@ object ExternalNativeIntCompilerRuntime {
       base + "_false",
       trueBlock,
       falseBlock,
-      Some(rendered(sourceFile, sourceLine))
+      Some(rendered(sourceFile, sourceLine)),
+      predicateDomain
     )
     if (condition) trueValue.get else falseValue.get
   }

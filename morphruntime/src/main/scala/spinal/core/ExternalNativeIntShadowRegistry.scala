@@ -102,6 +102,8 @@ private[core] final class ExternalNativeIntShadowRegionIdentityRef(
   * MORPH-FRONTEND-NATIVE-INT-EXPRESSION-MUTABLE-ESCAPE.
   */
 object ExternalNativeIntShadowRegistry {
+  private val MaximumStructuralPredicateDomainSize = BigInt(65536)
+
   private final class ActiveBoundary(
       val expression: ElaborationIntegerExpression,
       val definitionExpression: ElaborationIntegerExpression,
@@ -733,7 +735,22 @@ object ExternalNativeIntShadowRegistry {
       reference: String,
       witness: Boolean,
       sourceLocation: String
-  ): ElaborationBooleanExpression = currentBoundary match {
+  ): ElaborationBooleanExpression =
+    definitionPredicateEvidenceTracked(reference, witness, sourceLocation)._1
+
+  /**
+    * Return the lowered predicate together with optional exact bounded-domain
+    * evidence.  Structural replay consumes the evidence only to prove that two
+    * independently captured alternatives cannot be active together.
+    */
+  private[core] def definitionPredicateEvidenceTracked(
+      reference: String,
+      witness: Boolean,
+      sourceLocation: String
+  ): (
+      ElaborationBooleanExpression,
+      Option[ParameterizedStructure.StructuralPredicateDomain]
+  ) = currentBoundary match {
     case None =>
       fail(
         "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-BOUNDARY-MISSING",
@@ -756,7 +773,7 @@ object ExternalNativeIntShadowRegistry {
               Option(sourceLocation).filter(_.nonEmpty).orElse(definition.sourceLocation)
             )
           }
-          definition
+          definition -> structuralPredicateDomain(boundary, pending.predicate)
         case Some(pending) =>
           fail(
             "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-WITNESS-MISMATCH",
@@ -770,6 +787,43 @@ object ExternalNativeIntShadowRegistry {
             Option(sourceLocation).filter(_.nonEmpty).orElse(sourceOf(boundary.token))
           )
       }
+  }
+
+  private def structuralPredicateDomain(
+      boundary: ActiveBoundary,
+      predicate: ExternalNativeIntRelativePredicate
+  ): Option[ParameterizedStructure.StructuralPredicateDomain] = {
+    val root = boundary.definitionExpression
+    val size = root.maximum - root.minimum + 1
+    if (size < 1 || size > MaximumStructuralPredicateDomainSize) return None
+
+    val universe = Set.newBuilder[BigInt]
+    val whenTrue = Set.newBuilder[BigInt]
+    var value = root.minimum
+    var complete = true
+    while (value <= root.maximum && complete) {
+      universe += value
+      ExternalNativeIntRelativePredicate.evaluate(predicate, value) match {
+        case Some(true)  => whenTrue += value
+        case Some(false) =>
+        case None        => complete = false
+      }
+      value += 1
+    }
+    if (!complete) None
+    else Some(
+      ParameterizedStructure.StructuralPredicateDomain(
+        root = ParameterizedStructure.StructuralPredicateRoot(
+          root.verilog,
+          root.default,
+          root.minimum,
+          root.maximum,
+          root.parameters
+        ),
+        universe = universe.result(),
+        whenTrue = whenTrue.result()
+      )
+    )
   }
 
   /** Fail-closed hook for compiler-proven unsupported escape or mutation. */

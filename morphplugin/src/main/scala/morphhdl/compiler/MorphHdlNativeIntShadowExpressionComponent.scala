@@ -1193,8 +1193,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       "print",
       "println",
       "printf",
-      "readLine",
-      "flush"
+      "readLine"
     )
     private val reflectionEffectMethods = Set(
       "getClass",
@@ -1257,6 +1256,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       ))
       else if (
         ioEffectMethods.contains(method) || rendered.contains("Console") ||
+        rendered.contains("System.out") || rendered.contains("System.err") ||
         rendered.contains("java.io") || rendered.contains("java.nio.file") ||
         rendered.contains("scala.io") || rendered.contains("Socket") ||
         rendered.contains("InputStream") || rendered.contains("OutputStream")

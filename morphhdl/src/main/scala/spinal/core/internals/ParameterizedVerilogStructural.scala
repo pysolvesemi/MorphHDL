@@ -560,13 +560,10 @@ private[internals] object ParameterizedVerilogStructural {
   private def mutuallyExclusive(
       left: Vector[AlternativeStep],
       right: Vector[AlternativeStep]
-  ): Boolean =
-    left.exists { leftStep =>
-      right.exists { rightStep =>
-        (leftStep.region eq rightStep.region) &&
-        leftStep.branch != rightStep.branch
-      }
-    }
+  ): Boolean = ParameterizedStructure.mutuallyExclusiveAlternatives(
+    left.map(value => value.region -> value.branch),
+    right.map(value => value.region -> value.branch)
+  )
 
   private val DirectProceduralAssignment =
     """^\s*([A-Za-z_][A-Za-z0-9_$]*)(\s*\[[^\]]+\])?\s*(?:<=|=(?!=))\s*(.*?)\s*;\s*$""".r
