@@ -8,9 +8,9 @@
     "description": "Increment 0 repository baseline"
   },
   "approved_state": {
-    "commit": "4b32c912e69fce4cedc00d32733156417000a35c",
-    "tree": "4ab8d0ac94693d28f85c2b5e25802ed7ac25f81b",
-    "description": "Reviewed native-source state after Increment 53 restored the native StreamFifo symbolic-depth overload and pointer-width-safe assignments without restoring the FIFO sidecar or emitted-name recognizer"
+    "commit": "acf91805ead6d17911c979c17315bc4ab1afb80d",
+    "tree": "a488170053f13c67a8582662e38b586d1d29accd",
+    "description": "Reviewed native-source state after Increment 53 restored the native StreamFifo symbolic-depth overload with its exact bounded actual domain and pointer-width-safe assignments, without restoring the FIFO sidecar or emitted-name recognizer"
   },
   "source_roots": [
     "core/src/main/scala/spinal/core",
