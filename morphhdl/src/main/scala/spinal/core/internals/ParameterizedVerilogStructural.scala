@@ -35,6 +35,7 @@ private[internals] object ParameterizedVerilogStructural {
       ranges: Vector[LineRange],
       body: String,
       ownedNames: Set[String],
+      directSourceNames: Set[String],
       childOutputActualNames: Set[String],
       assignmentEvidence: Vector[AssignmentEvidence]
   )
@@ -189,6 +190,7 @@ private[internals] object ParameterizedVerilogStructural {
     val ranges = ArrayBuffer.empty[LineRange]
     val trackedInternalNames = mutable.LinkedHashSet.empty[String]
     val ownedTargetNames = mutable.LinkedHashSet.empty[String]
+    val directSourceNames = mutable.LinkedHashSet.empty[String]
     val childOutputActualNames = mutable.LinkedHashSet.empty[String]
     val assignmentEvidence = ArrayBuffer.empty[AssignmentEvidence]
     val emittedActualByExpression = new IdentityHashMap[Expression, String]()
@@ -200,6 +202,7 @@ private[internals] object ParameterizedVerilogStructural {
     block.declarations.foreach { declaration =>
       Option(declaration.getName()).filter(_.nonEmpty).foreach { name =>
         ownedTargetNames += name
+        directSourceNames += name
         trackedInternalNames += name
         ranges += findDeclarationLine(lines, name, block.sourceLocation)
       }
@@ -226,6 +229,7 @@ private[internals] object ParameterizedVerilogStructural {
         )
       }
       ownedTargetNames += name
+      directSourceNames += name
       trackedInternalNames += name
       ranges += findMemoryDeclarationLine(
         lines,
@@ -378,8 +382,9 @@ private[internals] object ParameterizedVerilogStructural {
         mergedRanges,
         "",
         (trackedInternalNames ++ ownedTargetNames).toSet,
-      childOutputActualNames.toSet,
-      assignmentEvidence.toVector
+        (directSourceNames ++ childOutputActualNames).toSet,
+        childOutputActualNames.toSet,
+        assignmentEvidence.toVector
       )
     }
     if (body.isEmpty) {
@@ -394,6 +399,7 @@ private[internals] object ParameterizedVerilogStructural {
       mergedRanges,
       body,
       (trackedInternalNames ++ ownedTargetNames).toSet,
+      (directSourceNames ++ childOutputActualNames).toSet,
       childOutputActualNames.toSet,
       assignmentEvidence.toVector
     )
@@ -630,13 +636,10 @@ private[internals] object ParameterizedVerilogStructural {
           }
           def sourceProvenOwners(
               candidates: Vector[BlockPlan],
-              evidenceOf: BlockPlan => Vector[AssignmentEvidence]
+              sourceNamesOf: BlockPlan => Set[String]
           ): Vector[BlockPlan] = {
             val sourceNamesByOwner = candidates.map { plan =>
-              plan.block -> evidenceOf(plan)
-                .flatMap(_.sourceNames)
-                .filterNot(_ == target)
-                .toSet
+              plan.block -> (sourceNamesOf(plan) - target)
             }.toMap
             val sourceFrequency = mutable.LinkedHashMap.empty[String, Int]
               .withDefaultValue(0)
@@ -653,11 +656,14 @@ private[internals] object ParameterizedVerilogStructural {
           }
           val targetEvidenceOwners = sourceProvenOwners(
             targetOwners,
-            _.assignmentEvidence.filter(_.target == target)
+            _.assignmentEvidence
+              .filter(_.target == target)
+              .flatMap(_.sourceNames)
+              .toSet
           )
           val evidenceOwners =
             if (targetEvidenceOwners.nonEmpty) targetEvidenceOwners
-            else sourceProvenOwners(targetOwners, _.assignmentEvidence)
+            else sourceProvenOwners(targetOwners, _.directSourceNames)
           evidenceOwners match {
             case Vector(owner) =>
               if (!claimed.exists(plan => plan.block eq owner.block)) {
