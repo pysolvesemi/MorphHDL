@@ -675,9 +675,21 @@ private[internals] object ParameterizedVerilogStructural {
               }
               owners(index) = owner.block
             case _ =>
+              val ownershipSummary = targetOwners.zipWithIndex.map {
+                case (plan, ownerIndex) =>
+                  val exactSources = plan.assignmentEvidence
+                    .filter(_.target == target)
+                    .flatMap(_.sourceNames)
+                    .distinct
+                    .sorted
+                    .mkString(",")
+                  val directSources = plan.directSourceNames.toVector.sorted
+                    .mkString(",")
+                  s"$ownerIndex:exact=[$exactSources]:direct=[$directSources]"
+              }.mkString(";")
               fail(
                 "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-CONTINUOUS-ASSIGNMENT-OWNER-UNPROVEN",
-                s"shared native continuous assignment at line ${index + 1} has ${evidenceOwners.size} source-proven owners; exact unique ownership is required"
+                s"shared native continuous assignment at line ${index + 1} has ${evidenceOwners.size} source-proven owners; exact unique ownership is required; target='$target' rhs=[${rhsNames.toVector.sorted.mkString(",")}] targetOwners=${targetOwners.size} evidence={$ownershipSummary}"
               )
           }
         }
