@@ -1,6 +1,7 @@
 package morphhdl.compiler
 
 import java.io.File
+import java.net.JarURLConnection
 import java.nio.file.Files
 
 import scala.collection.JavaConverters._
@@ -315,13 +316,40 @@ class NativeIntConstructorSelectionTests extends AnyFunSuite {
     val classLocation =
       new File(classOf[MorphHdlPlugin].getProtectionDomain.getCodeSource.getLocation.toURI)
         .getAbsolutePath
-    val descriptorLocations = Option(
-      classOf[MorphHdlPlugin].getClassLoader.getResource("scalac-plugin.xml")
+    val descriptorLocations =
+      classOf[MorphHdlPlugin].getClassLoader
+        .getResources("scalac-plugin.xml")
+        .asScala
+        .filter { url =>
+          val source = scala.io.Source.fromURL(url, "UTF-8")
+          try
+            source.mkString.contains(
+              "<classname>morphhdl.compiler.MorphHdlPlugin</classname>"
+            )
+          finally source.close()
+        }
+        .flatMap { url =>
+          url.getProtocol match {
+            case "file" =>
+              Some(new File(url.toURI).getParentFile.getAbsolutePath)
+            case "jar" =>
+              url.openConnection() match {
+                case connection: JarURLConnection =>
+                  Some(new File(connection.getJarFileURL.toURI).getAbsolutePath)
+                case _ => None
+              }
+            case _ => None
+          }
+        }
+        .toList
+        .distinct
+    assert(
+      descriptorLocations.nonEmpty,
+      "MorphHDL compiler-plugin descriptor was not found"
     )
-      .filter(_.getProtocol == "file")
-      .map(url => new File(url.toURI).getParentFile.getAbsolutePath)
-      .toList
-    settings.plugin.value = (classLocation :: descriptorLocations).distinct
+    settings.plugin.value = List(
+      (classLocation :: descriptorLocations).distinct.mkString(File.pathSeparator)
+    )
     val reporter = new StoreReporter
     val compiler = new Global(settings, reporter)
     assert(

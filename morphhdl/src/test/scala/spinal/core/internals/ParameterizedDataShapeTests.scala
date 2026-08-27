@@ -246,6 +246,75 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
     }
   }
 
+  test("native UInt XOR shape requires two matching explicit symbolic operands") {
+    withTemporaryDirectory { directory =>
+      val matchingExpression = ElaborationIntegerExpression(
+        verilog = width.name,
+        default = width.default,
+        minimum = width.minimum,
+        maximum = width.maximum,
+        parameters = Vector(width),
+        sourceLocation = Some("ParameterizedDataShapeTests.scala:MATCHING")
+      )
+      val otherWidth = width.copy(name = "OTHER_WIDTH")
+      val otherExpression = matchingExpression.copy(
+        verilog = otherWidth.name,
+        parameters = Vector(otherWidth),
+        sourceLocation = Some("ParameterizedDataShapeTests.scala:OTHER")
+      )
+      var matchingResult: UInt = null
+      var mismatchedResult: UInt = null
+
+      SpinalVerilog(concreteConfig(directory)) {
+        new Component {
+          setDefinitionName("ExplicitUIntXorShape")
+          val left = in(ParameterizedWidth.UInt(bitCount))
+          val matchingRight = in(
+            ParameterizedWidth.UInt(
+              ParameterizedBitCount(
+                value = 8,
+                parameter = None,
+                sourceLocation = matchingExpression.sourceLocation,
+                expression = Some(matchingExpression)
+              )
+            )
+          )
+          val mismatchedRight = in(
+            ParameterizedWidth.UInt(
+              ParameterizedBitCount(
+                value = 8,
+                parameter = None,
+                sourceLocation = otherExpression.sourceLocation,
+                expression = Some(otherExpression)
+              )
+            )
+          )
+          matchingResult =
+            ExternalNativeIntCompilerRuntime.preserveMatchingUIntXorShape(
+              left,
+              matchingRight,
+              left ^ matchingRight
+            )
+          mismatchedResult =
+            ExternalNativeIntCompilerRuntime.preserveMatchingUIntXorShape(
+              left,
+              mismatchedRight,
+              left ^ mismatchedRight
+            )
+          val matchingOut = out(UInt(8 bits))
+          val mismatchedOut = out(UInt(8 bits))
+          matchingOut := matchingResult
+          mismatchedOut := mismatchedResult
+        }
+      }
+
+      assert(
+        ParameterizedWidth.expressionOf(matchingResult).exists(_.verilog == "WIDTH")
+      )
+      assert(ParameterizedWidth.expressionOf(mismatchedResult).isEmpty)
+    }
+  }
+
   test("native UInt carrier shape never borrows equal-width driver metadata") {
     val thrown = withTemporaryDirectory { directory =>
       intercept[Throwable] {

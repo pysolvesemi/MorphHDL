@@ -13,13 +13,14 @@ import morphhdl.MorphVerilog
 
 final class DisjointNativeGenerateLeaf(choice: Int) extends Component {
   setDefinitionName("DisjointNativeGenerateLeaf")
+  val stimulus = in(Bool())
   val observed = out(Bool())
 
   (choice == 1).generate {
-    observed := False
+    observed := stimulus
   }
   (choice > 1).generate {
-    observed := True
+    observed := !stimulus
   }
 }
 
@@ -35,13 +36,14 @@ object DisjointNativeGenerateLeaf {
 
 final class OverlappingNativeGenerateLeaf(choice: Int) extends Component {
   setDefinitionName("OverlappingNativeGenerateLeaf")
+  val stimulus = in(Bool())
   val observed = out(Bool())
 
   (choice >= 1).generate {
-    observed := False
+    observed := stimulus
   }
   (choice > 1).generate {
-    observed := True
+    observed := !stimulus
   }
 }
 
@@ -57,20 +59,21 @@ object OverlappingNativeGenerateLeaf {
 
 final class ReachableNativeGenerateLeaf(choice: Int) extends Component {
   setDefinitionName("ReachableNativeGenerateLeaf")
+  val stimulus = in(UInt(3 bits))
   val observed = out(UInt(3 bits))
 
   // This body is deliberately invalid for the concrete graph, but its exact
   // truth domain is empty over the canonical positive constructor domain.
   (choice == 0).generate {
-    observed := 0
+    observed := stimulus
   }
   // The witness is five, so this body proves that reachable false alternatives
   // are still captured rather than specialized away.
   (choice == 1).generate {
-    observed := U(1, 3 bits)
+    observed := stimulus
   }
   (choice > 1).generate {
-    observed := U(2, 3 bits)
+    observed := ~stimulus
   }
 }
 
@@ -82,6 +85,24 @@ object ReachableNativeGenerateLeaf {
       minimum = BigInt(1),
       maximum = BigInt(Int.MaxValue) - 1
     )(witness => new ReachableNativeGenerateLeaf(witness))
+}
+
+final class CompositeUIntCarrierLeaf(choice: Int) extends Component {
+  setDefinitionName("CompositeUIntCarrierLeaf")
+  val left = in(UInt(choice bits))
+  val right = in(UInt(choice bits))
+  val observed = out(UInt(choice bits))
+  observed := left ^ right ^ choice
+}
+
+object CompositeUIntCarrierLeaf {
+  def apply(choice: ParameterizedMemoryDepth): CompositeUIntCarrierLeaf =
+    ExternalNativeIntFormalComponent.parameter(
+      actual = choice,
+      name = "CHOICE",
+      minimum = BigInt(1),
+      maximum = BigInt(8)
+    )(witness => new CompositeUIntCarrierLeaf(witness))
 }
 
 private object GenericNativeGenerateActual {
@@ -103,22 +124,46 @@ private object GenericNativeGenerateActual {
 
 final class DisjointNativeGenerateHarness extends Component {
   setDefinitionName("DisjointNativeGenerateHarness")
+  val stimulus = in(Bool())
   val observed = out(Bool())
   val leaf = DisjointNativeGenerateLeaf(GenericNativeGenerateActual())
+  leaf.stimulus := stimulus
   observed := leaf.observed
 }
 
 final class OverlappingNativeGenerateHarness extends Component {
   setDefinitionName("OverlappingNativeGenerateHarness")
+  val stimulus = in(Bool())
   val observed = out(Bool())
   val leaf = OverlappingNativeGenerateLeaf(GenericNativeGenerateActual())
+  leaf.stimulus := stimulus
   observed := leaf.observed
 }
 
 final class ReachableNativeGenerateHarness extends Component {
   setDefinitionName("ReachableNativeGenerateHarness")
+  val stimulus = in(UInt(3 bits))
   val observed = out(UInt(3 bits))
   val leaf = ReachableNativeGenerateLeaf(GenericNativeGenerateActual())
+  leaf.stimulus := stimulus
+  observed := leaf.observed
+}
+
+final class CompositeUIntCarrierHarness extends Component {
+  setDefinitionName("CompositeUIntCarrierHarness")
+  private val actual = GenericNativeGenerateActual()
+  private val symbolicWidth = ParameterizedBitCount(
+    value = actual.value,
+    parameter = None,
+    sourceLocation = actual.expression.sourceLocation,
+    expression = Some(actual.expression)
+  )
+  val left = in(ParameterizedWidth.UInt(symbolicWidth))
+  val right = in(ParameterizedWidth.UInt(symbolicWidth))
+  val observed = out(ParameterizedWidth.UInt(symbolicWidth))
+  val leaf = CompositeUIntCarrierLeaf(actual)
+  leaf.left := left
+  leaf.right := right
   observed := leaf.observed
 }
 
@@ -173,6 +218,25 @@ class GenericNativeIntGenerateTests extends AnyFunSuite {
       ).replaceAll("\\s+", "")
       assert(verilog.contains("CHOICE==1") || verilog.contains("(CHOICE)==(1)"))
       assert(!verilog.contains("CHOICE==0") && !verilog.contains("(CHOICE)==(0)"))
+    }
+  }
+
+  test("matching explicit UInt operands preserve composite carrier shape") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(
+        mode = Verilog,
+        targetDirectory = directory.toString
+      )
+      config.netlistFileName = "generic_native_uint_carrier.v"
+      MorphVerilog(config)(new CompositeUIntCarrierHarness)
+
+      val verilog = new String(
+        Files.readAllBytes(directory.resolve("generic_native_uint_carrier.v")),
+        StandardCharsets.UTF_8
+      ).replaceAll("\\s+", "")
+      assert(verilog.contains("moduleCompositeUIntCarrierLeaf#("))
+      assert(verilog.contains(".CHOICE(SELECT)"))
+      assert(verilog.contains("[CHOICE-1:0]"))
     }
   }
 

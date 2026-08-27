@@ -1226,16 +1226,34 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         throw new IllegalStateException("native value carrier lost its provenance")
       )
       val name = resultName(None, s"carrier_$role", original)
-      call(
-        "compilerUIntValueLike",
-        List(
-          value.tree,
-          Literal(Constant(reference)),
-          transform(prototype),
-          Literal(Constant(name))
-        ) ++ sourceArguments(original),
-        original
-      )
+      prototype match {
+        case Apply(Select(left, operatorName), List(right))
+            if decoded(operatorName) == "^" &&
+              inferShape(left) == UIntShape && inferShape(right) == UIntShape =>
+          call(
+            "compilerUIntValueLikeBinary",
+            List(
+              value.tree,
+              Literal(Constant(reference)),
+              Literal(Constant("^")),
+              transform(left),
+              transform(right),
+              Literal(Constant(name))
+            ) ++ sourceArguments(original),
+            original
+          )
+        case _ =>
+          call(
+            "compilerUIntValueLike",
+            List(
+              value.tree,
+              Literal(Constant(reference)),
+              transform(prototype),
+              Literal(Constant(name))
+            ) ++ sourceArguments(original),
+            original
+          )
+      }
     }
 
     private def rewriteMixedHardwareBinary(

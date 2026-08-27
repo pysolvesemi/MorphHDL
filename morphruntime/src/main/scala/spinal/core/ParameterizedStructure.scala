@@ -422,12 +422,29 @@ object ParameterizedStructure {
     val capturedOrNestedHardware = identitySet(
       hardwareStatements ++ nestedHardwareStatements
     )
+    val beforeComponents = identitySet(beforeDesign.components.map(_._1))
+    val capturedChildComponents = identitySet(
+      identityDistinct(children ++ nestedChildren).flatMap(componentTree)
+    )
+    val capturedChildHardware = identitySet(
+      afterDesign.components.flatMap {
+        case (owner, graph)
+            if capturedChildComponents.containsKey(owner) &&
+              !beforeComponents.containsKey(owner) &&
+              owner.getInstanceCounter >= creationBoundary =>
+          graph.statements
+        case _ => Vector.empty[Statement]
+      }
+    )
     val newContainerStatements =
       (afterDesign.assignmentContainers.flatMap(_.statements) ++
         afterDesign.memoryPortContainers.flatMap(_.statements))
         .filterNot(beforeContainerStatements.containsKey)
     newContainerStatements
-      .find(value => !capturedOrNestedHardware.containsKey(value))
+      .find(value =>
+        !capturedOrNestedHardware.containsKey(value) &&
+          !capturedChildHardware.containsKey(value)
+      )
       .foreach { value =>
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-PROCESS-FOREIGN-OWNERSHIP",

@@ -331,6 +331,63 @@ object ExternalNativeIntCompilerRuntime {
     }
 
   /**
+    * Preserve exact symbolic width identity through a native UInt XOR only
+    * when both explicit operands prove the same complete width expression.
+    * Composite-expression or assignment-driver traversal remains forbidden.
+    */
+  private[core] def preserveMatchingUIntXorShape(
+      left: UInt,
+      right: UInt,
+      result: UInt
+  ): UInt = {
+    val matchingShape = for {
+      leftShape <- ParameterizedWidth.expressionOf(left)
+      rightShape <- ParameterizedWidth.expressionOf(right)
+      if leftShape.parameters.nonEmpty
+      if rightShape.parameters.nonEmpty
+      if ExternalFormalParameterRegistry.equivalentExpression(
+        leftShape,
+        rightShape
+      )
+      if left.getBitsWidth == right.getBitsWidth
+      if result.getBitsWidth == left.getBitsWidth
+    } yield left
+    matchingShape.foreach(source => ParameterizedWidth.copyShape(source, result))
+    result
+  }
+
+  def compilerUIntValueLikeBinary(
+      value: Int,
+      reference: String,
+      operation: String,
+      left: UInt,
+      right: UInt,
+      stableName: String,
+      file: String,
+      line: Int
+  ): UInt = {
+    val prototype = operation match {
+      case "^" => left ^ right
+      case other =>
+        ParameterizedVerilogException.fail(
+          "SPINAL-PARAMETERIZED-VERILOG-UINT-CARRIER-OPERATION-UNSUPPORTED",
+          s"native UInt carrier prototype operation '$other' is outside the bounded binary set",
+          Some(rendered(file, line))
+        )
+    }
+    if (boundaryActive)
+      preserveMatchingUIntXorShape(left, right, prototype)
+    compilerUIntValueLike(
+      value,
+      reference,
+      prototype,
+      stableName,
+      file,
+      line
+    )
+  }
+
+  /**
     * Build an exact, named UInt carrier for one symbolic Scala integer used by
     * an ordinary hardware operator. This method is called only from the active
     * side of a compiler-generated boundary check; concrete SpinalHDL evaluates

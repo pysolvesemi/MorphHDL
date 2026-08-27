@@ -47,6 +47,8 @@ object NativeProcessTreeCaptureSmoke {
     val condition = in(Bool())
     val selector = in(spinal.core.UInt(2 bits))
     val payload = in(morphhdl.frontend.Bits(8 bits))
+    val observed = out(morphhdl.frontend.Bits(8 bits))
+    observed := payload
 
     enabled.generateIf("g_process_enabled", "g_process_disabled") {
       val whenValue = morphhdl.frontend.Bits(8 bits)
@@ -324,6 +326,46 @@ object NativeProcessTreeCaptureSmoke {
     }
   }
 
+  final class FreshChildOwnershipTop(width: HdlInt) extends Component {
+    setDefinitionName("FreshChildOwnershipTop")
+    retainWidthMetadata(width)
+    val payload = in(morphhdl.frontend.Bits(8 bits))
+    ParameterizedStructure.captureBlock(this, Some("fresh-child-owner")) {
+      val child = new ForeignOwnerChild
+      child.din := payload
+    }
+    val recovered = out(morphhdl.frontend.Bits(8 bits))
+    recovered := payload
+  }
+
+  final class DetachedFreshChild extends Component {
+    setDefinitionName("DetachedFreshChild")
+    val value = morphhdl.frontend.Bits(8 bits)
+    value := spinal.core.B(0, 8 bits)
+    value.head match {
+      case assignment: DataAssignmentStatement =>
+        assignment.removeStatementFromScope()
+      case other =>
+        throw new IllegalStateException(
+          s"expected child data assignment, received ${other.getClass.getSimpleName}"
+        )
+    }
+  }
+
+  final class DetachedFreshChildRollbackTop(width: HdlInt) extends Component {
+    setDefinitionName("DetachedFreshChildRollbackTop")
+    retainWidthMetadata(width)
+    expectCaptureFailure(
+      "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-PROCESS-FOREIGN-OWNERSHIP"
+    ) {
+      ParameterizedStructure.captureBlock(this, Some("detached-child-owner")) {
+        new DetachedFreshChild
+      }
+    }
+    val recovered = out(morphhdl.frontend.Bits(8 bits))
+    recovered := spinal.core.B(0, 8 bits)
+  }
+
   final class ForeignComponentStatementRollbackTop(width: HdlInt)
       extends Component {
     setDefinitionName("ForeignComponentStatementRollbackTop")
@@ -448,6 +490,8 @@ object NativeProcessTreeCaptureSmoke {
 
     val condition = in(Bool())
     val payload = in(morphhdl.frontend.Bits(8 bits))
+    val observed = out(morphhdl.frontend.Bits(8 bits))
+    observed := payload
 
     expectCaptureFailure(
       "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALA-SIDE-EFFECT-UNSUPPORTED"
@@ -702,6 +746,32 @@ class NativeProcessTreeCaptureTests extends AnyFunSuite {
       val childModule = verilog.substring(childStart, childEnd)
       assert(childModule.contains("assign childDout = childDin;"), childModule)
       assert(occurrences(childModule, "assign childDout = childDin;") == 1)
+    }
+  }
+
+  test("fresh child statements retain their exact child process owner") {
+    withTemporaryDirectory { directory =>
+      val verilog = emit(
+        directory,
+        "fresh_child_owner.v",
+        widthParameterizedComponent(new FreshChildOwnershipTop(_))
+      )
+      assert(verilog.contains("module FreshChildOwnershipTop"))
+      assert(verilog.contains("module ForeignOwnerChild"))
+      assert(verilog.contains("assign childDout = childDin;"))
+    }
+  }
+
+  test("detached fresh-child assignments still fail closed and roll back") {
+    withTemporaryDirectory { directory =>
+      val verilog = emit(
+        directory,
+        "detached_fresh_child.v",
+        widthParameterizedComponent(new DetachedFreshChildRollbackTop(_))
+      )
+      assert(verilog.contains("module DetachedFreshChildRollbackTop"))
+      assert(!verilog.contains("module DetachedFreshChild ("))
+      assert(verilog.contains("recovered"))
     }
   }
 
