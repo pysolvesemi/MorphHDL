@@ -79,12 +79,12 @@ object ParameterizedStructure {
       sourceLocation: Option[String]
   )
 
-  private[core] final case class StructuralPredicateRoot(
-      verilog: String,
-      default: BigInt,
-      minimum: BigInt,
-      maximum: BigInt,
-      parameters: Vector[ElaborationIntegerParameter]
+  private[core] final class StructuralPredicateRoot(
+      val verilog: String,
+      val default: BigInt,
+      val minimum: BigInt,
+      val maximum: BigInt,
+      val parameters: Vector[ElaborationIntegerParameter]
   )
 
   /**
@@ -97,6 +97,10 @@ object ParameterizedStructure {
       universe: Set[BigInt],
       whenTrue: Set[BigInt]
   ) {
+    require(root.minimum <= root.maximum)
+    require(root.default >= root.minimum && root.default <= root.maximum)
+    require(universe.forall(value => value >= root.minimum && value <= root.maximum))
+    require(BigInt(universe.size) == root.maximum - root.minimum + 1)
     require(whenTrue.subsetOf(universe))
 
     def valuesFor(branch: Int): Option[Set[BigInt]] = branch match {

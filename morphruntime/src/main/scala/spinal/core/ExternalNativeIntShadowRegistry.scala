@@ -110,6 +110,13 @@ object ExternalNativeIntShadowRegistry {
       val token: ExternalNativeIntFormalizationToken,
       val parentToken: Option[ExternalNativeIntFormalizationToken]
   ) {
+    val structuralPredicateRoot = new ParameterizedStructure.StructuralPredicateRoot(
+      definitionExpression.verilog,
+      definitionExpression.default,
+      definitionExpression.minimum,
+      definitionExpression.maximum,
+      definitionExpression.parameters
+    )
     val slots = mutable.LinkedHashMap.empty[
       (ExternalNativeIntShadowKind, String),
       ExternalNativeIntShadowPendingSlot
@@ -813,13 +820,7 @@ object ExternalNativeIntShadowRegistry {
     if (!complete) None
     else Some(
       ParameterizedStructure.StructuralPredicateDomain(
-        root = ParameterizedStructure.StructuralPredicateRoot(
-          root.verilog,
-          root.default,
-          root.minimum,
-          root.maximum,
-          root.parameters
-        ),
+        root = boundary.structuralPredicateRoot,
         universe = universe.result(),
         whenTrue = whenTrue.result()
       )
