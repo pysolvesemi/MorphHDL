@@ -30,7 +30,7 @@ jobs:
           ref: agent/increment-53-native-streamfifo-repair
           fetch-depth: 0
 
-      - name: Apply candidate and expose next shared native unit
+      - name: Apply candidate and factor proven shared declarations
         shell: bash
         run: |
           set -euo pipefail
@@ -78,14 +78,14 @@ jobs:
                   val declarationLines = range.indices.map(lines).toVector
                   val normalizedDeclarations =
                     declarationLines.map(line => stripLineComment(line).trim)
-                  val isSharedNativeWireDeclarationRange =
+                  val isSharedNativeDeclarationRange =
                     normalizedDeclarations.nonEmpty &&
                     normalizedDeclarations.forall { line =>
                       line.nonEmpty &&
-                      line.startsWith("wire ") &&
+                      isDeclarationLine(line) &&
                       line.endsWith(";")
                     }
-                  if (isSharedNativeWireDeclarationRange) {
+                  if (isSharedNativeDeclarationRange) {
                     val claimants =
                       claimed.toVector.map(plan => current(plan.block))
                     claimants.combinations(2).foreach { pair =>
@@ -171,9 +171,11 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Reproduce StreamFifo shared-range failure
+      - name: Validate focused Increment 53 repair on Scala 2.12
         shell: bash
         run: |
           set -euo pipefail
           /tmp/morphhdl-mill "morph[2.12.18].testOnly" \
-            morphhdl.ParameterizedStreamFifoDepthTests
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests
