@@ -400,6 +400,22 @@ object ExternalNativeIntCompilerRuntime {
     nativeValue
   }
 
+  def compilerUnsupportedValue[A](
+      reference: String,
+      code: String,
+      detail: String,
+      file: String,
+      line: Int
+  )(nativeValue: => A): A = {
+    ExternalNativeIntShadowRegistry.rejectTracked(
+      reference,
+      code,
+      detail,
+      rendered(file, line)
+    )
+    nativeValue
+  }
+
   def compilerUnsupportedBoolean(
       reference: String,
       code: String,

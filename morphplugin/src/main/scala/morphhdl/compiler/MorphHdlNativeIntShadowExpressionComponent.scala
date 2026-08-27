@@ -117,6 +117,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       "useVec"
     )
     private val binaryOperations = Set("+", "-", "*", "/", "%", "min", "max")
+    private val uintCarrierOperations = Set("+", "-", "*", "/", "^", "===", "=/=")
     private val comparisonOperations = Set("<", "<=", ">", ">=", "==", "!=")
     private val helperOperations = Set("addressWidth", "ceilLog2", "log2Up", "log2Down")
     private val unsupportedIntegerCalls = Set(
@@ -343,6 +344,26 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       }
     }
 
+    private def withoutNativeStreamFifoContext[A](body: => A): A = {
+      val previousDataTypeName = nativeStreamFifoDataTypeName
+      val previousDepthName = nativeStreamFifoDepthName
+      val previousDepthReference = nativeStreamFifoDepthReference
+      val previousDepthLine = nativeStreamFifoDepthLine
+      val previousStaticBooleans = nativeStreamFifoStaticBooleans
+      nativeStreamFifoDataTypeName = None
+      nativeStreamFifoDepthName = None
+      nativeStreamFifoDepthReference = None
+      nativeStreamFifoStaticBooleans = Set.empty
+      try body
+      finally {
+        nativeStreamFifoDataTypeName = previousDataTypeName
+        nativeStreamFifoDepthName = previousDepthName
+        nativeStreamFifoDepthReference = previousDepthReference
+        nativeStreamFifoDepthLine = previousDepthLine
+        nativeStreamFifoStaticBooleans = previousStaticBooleans
+      }
+    }
+
     private def trackedInteger(tree: Tree): Option[String] = tree match {
       case Ident(name: TermName) => lookupInteger(name)
       case Select(This(_), name: TermName) => lookupInteger(name)
@@ -437,6 +458,26 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       Rewrite(
         curriedCall(
           "compilerUnsupportedInt",
+          List(
+            Literal(Constant(reference)),
+            Literal(Constant(code)),
+            Literal(Constant(detail))
+          ) ++ sourceArguments(original),
+          nativeTree,
+          original
+        )
+      )
+
+    private def unsupportedValue(
+        reference: String,
+        code: String,
+        detail: String,
+        original: Tree,
+        nativeTree: Tree
+    ): Rewrite =
+      Rewrite(
+        curriedCall(
+          "compilerUnsupportedValue",
           List(
             Literal(Constant(reference)),
             Literal(Constant(code)),
@@ -626,7 +667,13 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
             rightTree,
             operation
           ).getOrElse {
-            unsupportedInt(
+            val unsupported =
+              if (
+                inferShape(leftTree) == UIntShape ||
+                inferShape(rightTree) == UIntShape
+              ) unsupportedValue _
+              else unsupportedInt _
+            unsupported(
               reference,
               "MORPH-FRONTEND-NATIVE-INT-EXPRESSION-OPERAND-UNPROVEN",
               s"native Int '$operation' requires every nonliteral operand to carry exact shadow provenance",
@@ -965,7 +1012,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         rightTree: Tree,
         operation: String
     ): Option[Rewrite] = {
-      if (!inNativeStreamFifo) return None
+      if (!inNativeStreamFifo || !uintCarrierOperations(operation)) return None
       val left = rewriteExpression(leftTree, None)
       val right = rewriteExpression(rightTree, None)
       if (left.intReference.nonEmpty && inferShape(rightTree) == UIntShape) {
@@ -1738,6 +1785,11 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       case template: Template => withScope(super.transform(template))
       case block: Block       => withScope(super.transform(block))
       case function: Function => withScope(super.transform(function))
+      case definition: DefDef
+          if inNativeStreamFifo && decoded(definition.name) != "<init>" =>
+        withoutNativeStreamFifoContext {
+          withScope(super.transform(definition))
+        }
       case definition: DefDef => withScope(super.transform(definition))
       case conditional: If    => rewriteIf(conditional)
       case value: ValDef =>
