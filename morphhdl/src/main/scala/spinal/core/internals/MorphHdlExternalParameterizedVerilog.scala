@@ -162,7 +162,16 @@ object MorphHdlExternalParameterizedVerilog {
               pc,
               canonicalOf
             )
-          } else withStructure
+          } else {
+            // Structure-only definitions do not need the native hierarchy and
+            // declaration analysis above, but their proven generate bounds and
+            // predicates can still retain native integer-helper IR.
+            ExternalParameterizedVerilogNativeFallback
+              .lowerRetainedIntegerHelpers(
+                withStructure,
+                component.definitionName
+              )
+          }
         }
         Some(name -> rewritten.split("\n", -1).toVector)
       } else None
@@ -441,6 +450,7 @@ object MorphHdlExternalParameterizedVerilog {
     val values =
       ParameterizedWidth.parametersOf(component) ++
         ExternalParameterizedMemoryRegistry.parametersOf(component) ++
+        ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component)
     val grouped = values.groupBy(_.name)
@@ -458,6 +468,7 @@ object MorphHdlExternalParameterizedVerilog {
   private def hasParameterizedMetadata(component: Component): Boolean =
     ParameterizedWidth.parametersOf(component).nonEmpty ||
       ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
+      ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
       ParameterizedVerilogStructural.hasRegions(component) ||
       ParameterizedVerilogProcesses.hasLoops(component)
 
@@ -478,11 +489,9 @@ object MorphHdlExternalParameterizedVerilog {
   ): Boolean =
     ParameterizedWidth.parametersOf(component).nonEmpty ||
       ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
+      ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
       ParameterizedProcess.parametersOf(component).nonEmpty ||
-      component.children.exists { child =>
-        ParameterizedWidth.parametersOf(child).nonEmpty ||
-          ExternalParameterizedMemoryRegistry.parametersOf(child).nonEmpty
-      }
+      component.children.exists(child => componentParameters(child).nonEmpty)
 
   private def moduleBlocks(lines: Vector[String]): Vector[ModuleBlock] = {
     val declaration: Regex =

@@ -222,6 +222,61 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
     assert(failure.code == "SPINAL-PARAMETERIZED-VERILOG-WITNESS-MISMATCH")
   }
 
+  test("native UInt carrier shape accepts metadata from the exact prototype identity") {
+    withTemporaryDirectory { directory =>
+      var prototype: UInt = null
+      var selected: UInt = null
+
+      SpinalVerilog(concreteConfig(directory)) {
+        new Component {
+          setDefinitionName("ExactCarrierShapePrototype")
+          val din = in(ParameterizedWidth.UInt(bitCount))
+          val dout = out(ParameterizedWidth.UInt(bitCount))
+          prototype = din
+          selected = ExternalNativeIntCompilerRuntime.parameterizedUIntShapeSource(
+            din,
+            Some("ExactCarrierShapePrototype.scala:12")
+          )
+          dout := din
+        }
+      }
+
+      assert(selected eq prototype)
+      assert(ParameterizedWidth.expressionOf(selected).exists(_.verilog == "WIDTH"))
+    }
+  }
+
+  test("native UInt carrier shape never borrows equal-width driver metadata") {
+    val thrown = withTemporaryDirectory { directory =>
+      intercept[Throwable] {
+        SpinalVerilog(concreteConfig(directory)) {
+          new Component {
+            setDefinitionName("ConcreteCarrierShapePrototype")
+            val symbolic = in(ParameterizedWidth.UInt(bitCount))
+            val concretePrototype = UInt(8 bits)
+            val dout = out(UInt(8 bits))
+            concretePrototype := symbolic
+            ExternalNativeIntCompilerRuntime.parameterizedUIntShapeSource(
+              concretePrototype,
+              Some("ConcreteCarrierShapePrototype.scala:17")
+            )
+            dout := concretePrototype
+          }
+        }
+      }
+    }
+    val failure = findParameterized(thrown).getOrElse {
+      fail(s"Expected ParameterizedVerilogException, received $thrown")
+    }
+
+    assert(
+      failure.code ==
+        "SPINAL-PARAMETERIZED-VERILOG-UINT-SHAPE-PROVENANCE-MISSING"
+    )
+    assert(failure.sourceLocation.contains("ConcreteCarrierShapePrototype.scala:17"))
+    assert(failure.detail.contains("exact retained symbolic-width metadata"))
+  }
+
   test("parameter names cannot collide with internal flattened declarations") {
     val failure = interceptParameterized("InternalParameterCollision") { () =>
       new Component {

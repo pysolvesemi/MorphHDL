@@ -4,7 +4,7 @@ set -euo pipefail
 root="$(git rev-parse --show-toplevel)"
 cd "$root"
 
-registry=frontend/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala
+registry=morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala
 api=frontend/src/main/scala/morphhdl/frontend/NativeIntShadow.scala
 region=frontend/src/main/scala/morphhdl/frontend/formalRegion.scala
 component=frontend/src/main/scala/morphhdl/frontend/formalComponent.scala
@@ -38,7 +38,7 @@ python3 - <<'PY'
 from pathlib import Path
 
 paths = (
-    Path("frontend/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala"),
+    Path("morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala"),
     Path("frontend/src/main/scala/morphhdl/frontend/NativeIntShadow.scala"),
     Path("frontend/src/main/scala/morphhdl/frontend/formalRegion.scala"),
     Path("frontend/src/main/scala/morphhdl/frontend/formalComponent.scala"),

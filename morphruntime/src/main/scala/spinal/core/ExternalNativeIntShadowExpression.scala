@@ -92,6 +92,8 @@ private[core] object ExternalNativeIntRelativeExpression {
       extends ExternalNativeIntRelativeExpression
   final case class Log2Down(value: ExternalNativeIntRelativeExpression)
       extends ExternalNativeIntRelativeExpression
+  final case class BooleanToInt(value: ExternalNativeIntRelativePredicate)
+      extends ExternalNativeIntRelativeExpression
 
   final case class Facts(
       verilog: String,
@@ -160,6 +162,37 @@ private[core] object ExternalNativeIntRelativeExpression {
     case "addressWidth"          => AddressWidth(value)
     case "log2Down"              => Log2Down(value)
     case other => throw new IllegalArgumentException(s"unsupported native Int shadow unary operation '$other'")
+  }
+
+  def booleanToInt(
+      value: ExternalNativeIntRelativePredicate
+  ): ExternalNativeIntRelativeExpression = BooleanToInt(value)
+
+  /**
+    * A native helper such as `log2Up(depth)` has witness zero at depth one even
+    * when the declaration using it exists only in a `depth > 1` alternative.
+    * The concrete Spinal graph already proved that alternative. Retain a
+    * portable one-bit minimum for declaration geometry without changing the
+    * arithmetic expression used in comparisons or values.
+    */
+  def positiveWidth(
+      expression: ExternalNativeIntRelativeExpression
+  ): ExternalNativeIntRelativeExpression = expression match {
+    case Root | _: Literal => expression
+    case Add(left, right) => Add(positiveWidth(left), positiveWidth(right))
+    case Subtract(left, right) =>
+      Subtract(positiveWidth(left), positiveWidth(right))
+    case Multiply(left, right) =>
+      Multiply(positiveWidth(left), positiveWidth(right))
+    case Divide(left, right) => Divide(positiveWidth(left), positiveWidth(right))
+    case Modulo(left, right) => Modulo(positiveWidth(left), positiveWidth(right))
+    case Min(left, right) => Min(positiveWidth(left), positiveWidth(right))
+    case Max(left, right) => Max(positiveWidth(left), positiveWidth(right))
+    case Negate(value) => Negate(positiveWidth(value))
+    case CeilLog2(value) => AddressWidth(positiveWidth(value))
+    case AddressWidth(value) => AddressWidth(positiveWidth(value))
+    case Log2Down(value) => Log2Down(positiveWidth(value))
+    case BooleanToInt(value) => BooleanToInt(value)
   }
 
   def lower(
@@ -369,6 +402,21 @@ private[core] object ExternalNativeIntRelativeExpression {
             checked("log2Down", out)
           }
         }
+      case BooleanToInt(predicate) =>
+        ExternalNativeIntRelativePredicate
+          .lower(predicate, root, root.sourceLocation.getOrElse("<native-int-shadow>"))
+          .flatMap { value =>
+            checked(
+              "boolean-to-int",
+              Facts(
+                s"((${value.verilog}) ? 1 : 0)",
+                if (value.default) BigInt(1) else BigInt(0),
+                BigInt(0),
+                BigInt(1),
+                value.parameters
+              )
+            )
+          }
     }
 
     loop(expression)
@@ -384,6 +432,16 @@ private[core] sealed trait ExternalNativeIntRelativePredicate
 private[core] object ExternalNativeIntRelativePredicate {
   import ExternalNativeIntRelativeExpression.{Facts, Failure}
 
+  private final case class Affine(coefficient: BigInt, constant: BigInt) {
+    def +(that: Affine): Affine =
+      Affine(coefficient + that.coefficient, constant + that.constant)
+    def -(that: Affine): Affine =
+      Affine(coefficient - that.coefficient, constant - that.constant)
+    def unary_- : Affine = Affine(-coefficient, -constant)
+    def *(factor: BigInt): Affine =
+      Affine(coefficient * factor, constant * factor)
+  }
+
   final case class Comparison(
       operation: String,
       left: ExternalNativeIntRelativeExpression,
@@ -392,6 +450,37 @@ private[core] object ExternalNativeIntRelativePredicate {
 
   final case class PowerOfTwo(value: ExternalNativeIntRelativeExpression)
       extends ExternalNativeIntRelativePredicate
+
+  final case class Constant(value: Boolean)
+      extends ExternalNativeIntRelativePredicate
+
+  final case class And(
+      left: ExternalNativeIntRelativePredicate,
+      right: ExternalNativeIntRelativePredicate
+  ) extends ExternalNativeIntRelativePredicate
+
+  final case class Or(
+      left: ExternalNativeIntRelativePredicate,
+      right: ExternalNativeIntRelativePredicate
+  ) extends ExternalNativeIntRelativePredicate
+
+  final case class Not(value: ExternalNativeIntRelativePredicate)
+      extends ExternalNativeIntRelativePredicate
+
+  def binary(
+      operation: String,
+      left: ExternalNativeIntRelativePredicate,
+      right: ExternalNativeIntRelativePredicate
+  ): ExternalNativeIntRelativePredicate = operation match {
+    case "&&" => And(left, right)
+    case "||" => Or(left, right)
+    case other => throw new IllegalArgumentException(
+      s"unsupported native Boolean shadow operation '$other'"
+    )
+  }
+
+  def not(value: ExternalNativeIntRelativePredicate): ExternalNativeIntRelativePredicate =
+    Not(value)
 
   def lower(
       predicate: ExternalNativeIntRelativePredicate,
@@ -439,10 +528,234 @@ private[core] object ExternalNativeIntRelativePredicate {
           sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
         )
       }
+    case Constant(value) =>
+      Right(
+        ElaborationBooleanExpression(
+          verilog = if (value) "1'b1" else "1'b0",
+          default = value,
+          parameters = Vector.empty,
+          sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
+        )
+      )
+    case And(left, right) =>
+      for {
+        l <- lower(left, root, sourceLocation)
+        r <- lower(right, root, sourceLocation)
+      } yield ElaborationBooleanExpression(
+        verilog = s"((${l.verilog}) && (${r.verilog}))",
+        default = l.default && r.default,
+        parameters = mergeParameters(l.parameters, r.parameters),
+        sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
+      )
+    case Or(left, right) =>
+      for {
+        l <- lower(left, root, sourceLocation)
+        r <- lower(right, root, sourceLocation)
+      } yield ElaborationBooleanExpression(
+        verilog = s"((${l.verilog}) || (${r.verilog}))",
+        default = l.default || r.default,
+        parameters = mergeParameters(l.parameters, r.parameters),
+        sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
+      )
+    case Not(value) =>
+      lower(value, root, sourceLocation).map { operand =>
+        ElaborationBooleanExpression(
+          verilog = s"(!(${operand.verilog}))",
+          default = !operand.default,
+          parameters = operand.parameters,
+          sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
+        )
+      }
+  }
+
+  /**
+    * Produce exact, non-enumerated truth-domain evidence when the retained
+    * predicate is reducible to affine comparisons over the canonical root.
+    * Unsupported arithmetic and predicates return None and therefore never
+    * authorize cross-region assignment ownership.
+    */
+  private[core] def structuralDomain(
+      predicate: ExternalNativeIntRelativePredicate,
+      root: ParameterizedStructure.StructuralPredicateRoot
+  ): Option[ParameterizedStructure.StructuralPredicateDomain] = {
+    import ParameterizedStructure.{
+      StructuralPredicateDomain,
+      StructuralPredicateInterval
+    }
+
+    def affine(
+        expression: ExternalNativeIntRelativeExpression
+    ): Option[Affine] = expression match {
+      case ExternalNativeIntRelativeExpression.Root => Some(Affine(1, 0))
+      case ExternalNativeIntRelativeExpression.Literal(value) =>
+        Some(Affine(0, value))
+      case ExternalNativeIntRelativeExpression.Add(left, right) =>
+        for (l <- affine(left); r <- affine(right)) yield l + r
+      case ExternalNativeIntRelativeExpression.Subtract(left, right) =>
+        for (l <- affine(left); r <- affine(right)) yield l - r
+      case ExternalNativeIntRelativeExpression.Negate(value) =>
+        affine(value).map(value => -value)
+      case ExternalNativeIntRelativeExpression.Multiply(left, right) =>
+        for {
+          l <- affine(left)
+          r <- affine(right)
+          result <-
+            if (l.coefficient == 0) Some(r * l.constant)
+            else if (r.coefficient == 0) Some(l * r.constant)
+            else None
+        } yield result
+      case ExternalNativeIntRelativeExpression.Divide(left, right) =>
+        for {
+          l <- affine(left)
+          r <- affine(right)
+          result <-
+            if (r.coefficient != 0) None
+            else if (r.constant == 1) Some(l)
+            else if (r.constant == -1) Some(-l)
+            else if (l.coefficient == 0 && r.constant != 0)
+              Some(Affine(0, l.constant / r.constant))
+            else None
+        } yield result
+      case _ => None
+    }
+
+    val full = Vector(StructuralPredicateInterval(root.minimum, root.maximum))
+
+    def prefixWhere(predicate: BigInt => Boolean): Vector[StructuralPredicateInterval] = {
+      if (!predicate(root.minimum)) Vector.empty
+      else if (predicate(root.maximum)) full
+      else {
+        var lower = root.minimum
+        var upper = root.maximum
+        while (lower < upper) {
+          val middle = (lower + upper + 1) >> 1
+          if (predicate(middle)) lower = middle else upper = middle - 1
+        }
+        Vector(StructuralPredicateInterval(root.minimum, lower))
+      }
+    }
+
+    def suffixWhere(predicate: BigInt => Boolean): Vector[StructuralPredicateInterval] = {
+      if (!predicate(root.maximum)) Vector.empty
+      else if (predicate(root.minimum)) full
+      else {
+        var lower = root.minimum
+        var upper = root.maximum
+        while (lower < upper) {
+          val middle = (lower + upper) >> 1
+          if (predicate(middle)) upper = middle else lower = middle + 1
+        }
+        Vector(StructuralPredicateInterval(lower, root.maximum))
+      }
+    }
+
+    def comparison(
+        operation: String,
+        difference: Affine
+    ): Option[Vector[StructuralPredicateInterval]] = {
+      val evaluate = (value: BigInt) =>
+        difference.coefficient * value + difference.constant
+      if (difference.coefficient == 0) {
+        val value = evaluate(root.minimum)
+        val result = operation match {
+          case "<"  => Some(value < 0)
+          case "<=" => Some(value <= 0)
+          case ">"  => Some(value > 0)
+          case ">=" => Some(value >= 0)
+          case "==" => Some(value == 0)
+          case "!=" => Some(value != 0)
+          case _    => None
+        }
+        result.map(if (_) full else Vector.empty)
+      } else operation match {
+        case "==" | "!=" =>
+          val numerator = -difference.constant
+          val exact =
+            if (numerator % difference.coefficient != 0) Vector.empty
+            else {
+              val value = numerator / difference.coefficient
+              if (value < root.minimum || value > root.maximum) Vector.empty
+              else Vector(StructuralPredicateInterval(value, value))
+            }
+          if (operation == "==") Some(exact)
+          else Some(ParameterizedStructure.complementPredicateIntervals(root, exact))
+        case "<" =>
+          Some(
+            if (difference.coefficient > 0) prefixWhere(value => evaluate(value) < 0)
+            else suffixWhere(value => evaluate(value) < 0)
+          )
+        case "<=" =>
+          Some(
+            if (difference.coefficient > 0) prefixWhere(value => evaluate(value) <= 0)
+            else suffixWhere(value => evaluate(value) <= 0)
+          )
+        case ">" =>
+          Some(
+            if (difference.coefficient > 0) suffixWhere(value => evaluate(value) > 0)
+            else prefixWhere(value => evaluate(value) > 0)
+          )
+        case ">=" =>
+          Some(
+            if (difference.coefficient > 0) suffixWhere(value => evaluate(value) >= 0)
+            else prefixWhere(value => evaluate(value) >= 0)
+          )
+        case _ => None
+      }
+    }
+
+    def intervals(
+        value: ExternalNativeIntRelativePredicate
+    ): Option[Vector[StructuralPredicateInterval]] = value match {
+      case Comparison(operation, left, right) =>
+        for {
+          l <- affine(left)
+          r <- affine(right)
+          result <- comparison(operation, l - r)
+        } yield result
+      case Constant(true)  => Some(full)
+      case Constant(false) => Some(Vector.empty)
+      case And(left, right) =>
+        for {
+          l <- intervals(left)
+          r <- intervals(right)
+        } yield ParameterizedStructure.intersectPredicateIntervals(l, r)
+      case Or(left, right) =>
+        for {
+          l <- intervals(left)
+          r <- intervals(right)
+        } yield ParameterizedStructure.normalizePredicateIntervals(l ++ r)
+      case Not(value) =>
+        intervals(value).map(
+          ParameterizedStructure.complementPredicateIntervals(root, _)
+        )
+      case PowerOfTwo(ExternalNativeIntRelativeExpression.Root) =>
+        val values = Vector.newBuilder[StructuralPredicateInterval]
+        var candidate = BigInt(1)
+        while (candidate <= root.maximum) {
+          if (candidate >= root.minimum)
+            values += StructuralPredicateInterval(candidate, candidate)
+          candidate *= 2
+        }
+        Some(values.result())
+      case PowerOfTwo(_) => None
+    }
+
+    intervals(predicate).map(values =>
+      StructuralPredicateDomain(
+        root,
+        ParameterizedStructure.normalizePredicateIntervals(values)
+      )
+    )
   }
 
   private def mergeParameters(left: Facts, right: Facts): Vector[ElaborationIntegerParameter] =
-    (left.parameters ++ right.parameters)
+    mergeParameters(left.parameters, right.parameters)
+
+  private def mergeParameters(
+      left: Vector[ElaborationIntegerParameter],
+      right: Vector[ElaborationIntegerParameter]
+  ): Vector[ElaborationIntegerParameter] =
+    (left ++ right)
       .groupBy(_.name)
       .toVector
       .sortBy(_._1)

@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
 
 import scala.collection.JavaConverters._
+import scala.sys.process.{Process, ProcessLogger}
 
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
@@ -52,6 +53,30 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
       enable = read_enable,
       readUnderWrite = readFirst
     )
+    memory.write(write_address, write_data, enable = write_enable)
+    read_data := read_word
+  }
+
+  private final class NativeDontCareSimpleDualPortMemory(
+      width: HdlInt,
+      depth: HdlInt
+  ) extends Component {
+    setDefinitionName("NativeDontCareSimpleDualPortMemory")
+
+    val read_enable = in(Bool())
+    val write_enable = in(Bool())
+    val read_address = in(morphhdl.frontend.UInt(depth.addressWidth bits))
+    val write_address = in(morphhdl.frontend.UInt(depth.addressWidth bits))
+    val write_data = in(morphhdl.frontend.Bits(width bits))
+    val read_data = out(morphhdl.frontend.Bits(width bits))
+
+    val memory = morphhdl.frontend
+      .Mem(
+        morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)),
+        depth
+      )
+      .setName("memory")
+    val read_word = memory.readSync(read_address, enable = read_enable)
     memory.write(write_address, write_data, enable = write_enable)
     read_data := read_word
   }
@@ -133,6 +158,31 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
       assert(verilog.contains("else if (read_enable == 1'b1) begin"))
       assert(verilog.contains("<= {WIDTH{1'b0}};"))
       assert(count(verilog, "always @(posedge clk)") == 1)
+    }
+  }
+
+  test("independent-address dontCare retains one deterministic legal collision outcome") {
+    withTemporaryDirectory { directory =>
+      val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
+      val depth = HdlInt.param("DEPTH", default = 5, min = 1, max = 8)
+      val verilog = emitMorph(
+        directory,
+        "native_dontcare_simple_dual_port_memory.v",
+        new NativeDontCareSimpleDualPortMemory(width, depth)
+      )
+
+      assert(verilog.contains("if (read_address < DEPTH) begin"))
+      assert(verilog.contains("if (write_address < DEPTH) begin"))
+      assert(verilog.contains("<= memory[read_address];"))
+      assert(verilog.contains("memory[write_address] <= write_data;"))
+      val readIndex = verilog.indexOf("<= memory[read_address];")
+      val writeIndex = verilog.indexOf("memory[write_address] <= write_data;")
+      assert(readIndex >= 0 && writeIndex > readIndex)
+      assert(count(verilog, "always @(posedge clk)") == 1)
+      simulateDontCareCollision(
+        directory,
+        directory.resolve("native_dontcare_simple_dual_port_memory.v")
+      )
     }
   }
 
@@ -337,6 +387,105 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
 
   private def count(value: String, needle: String): Int =
     value.sliding(needle.length).count(_ == needle)
+
+  private def simulateDontCareCollision(
+      directory: Path,
+      rtl: Path
+  ): Unit = {
+    val testbench = directory.resolve("native_dontcare_collision_tb.v")
+    val executable = directory.resolve("native_dontcare_collision.out")
+    val source =
+      s"""`timescale 1ns/1ps
+         |module NativeDontCareCollisionTb;
+         |  localparam integer WIDTH = 8;
+         |  localparam integer DEPTH = 5;
+         |  reg clk = 1'b0;
+         |  reg read_enable = 1'b0;
+         |  reg write_enable = 1'b0;
+         |  reg [2:0] read_address = 3'd0;
+         |  reg [2:0] write_address = 3'd0;
+         |  reg [WIDTH-1:0] write_data = {WIDTH{1'b0}};
+         |  wire [WIDTH-1:0] read_data;
+         |
+         |  always #5 clk = ~clk;
+         |
+         |  NativeDontCareSimpleDualPortMemory #(
+         |    .WIDTH(WIDTH),
+         |    .DEPTH(DEPTH)
+         |  ) dut (
+         |    .read_enable(read_enable),
+         |    .write_enable(write_enable),
+         |    .read_address(read_address),
+         |    .write_address(write_address),
+         |    .write_data(write_data),
+         |    .read_data(read_data),
+         |    .clk(clk)
+         |  );
+         |
+         |  task tick;
+         |    begin
+         |      @(posedge clk);
+         |      #1;
+         |    end
+         |  endtask
+         |
+         |  initial begin
+         |    write_address = 3'd2;
+         |    write_data = 8'hA5;
+         |    write_enable = 1'b1;
+         |    tick;
+         |
+         |    read_address = 3'd2;
+         |    write_address = 3'd2;
+         |    write_data = 8'h3C;
+         |    read_enable = 1'b1;
+         |    write_enable = 1'b1;
+         |    tick;
+         |    if (read_data !== 8'hA5) begin
+         |      $$display("FAIL collision result=%h", read_data);
+         |      $$finish(2);
+         |    end
+         |
+         |    write_enable = 1'b0;
+         |    tick;
+         |    if (read_data !== 8'h3C) begin
+         |      $$display("FAIL post-collision result=%h", read_data);
+         |      $$finish(2);
+         |    end
+         |    $$display("PASS native dontCare collision");
+         |    $$finish;
+         |  end
+         |endmodule
+         |""".stripMargin
+    Files.write(testbench, source.getBytes(StandardCharsets.UTF_8))
+
+    val compileLog = new StringBuilder
+    val compileStatus = Process(
+      Seq(
+        "iverilog",
+        "-g2001",
+        "-s",
+        "NativeDontCareCollisionTb",
+        "-o",
+        executable.toString,
+        rtl.toString,
+        testbench.toString
+      ),
+      directory.toFile
+    ).!(ProcessLogger(line => compileLog.append(line).append('\n')))
+    assert(compileStatus == 0, compileLog.toString)
+
+    val runLog = new StringBuilder
+    val runStatus = Process(
+      Seq("vvp", executable.toString),
+      directory.toFile
+    ).!(ProcessLogger(line => runLog.append(line).append('\n')))
+    assert(runStatus == 0, runLog.toString)
+    assert(
+      runLog.toString.contains("PASS native dontCare collision"),
+      runLog.toString
+    )
+  }
 
   private def read(path: Path): String =
     new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
