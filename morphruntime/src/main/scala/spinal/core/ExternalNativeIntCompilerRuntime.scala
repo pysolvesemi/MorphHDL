@@ -375,7 +375,7 @@ object ExternalNativeIntCompilerRuntime {
     val result = UInt(carrierWidth bits)
     ParameterizedWidth.copyShape(shapeSource, result)
     result.setName(stableName)
-    result := U(BigInt(value), carrierWidth bits)
+    result := U(BigInt(value))
     ExternalParameterizedValueRegistry.attach(
       result,
       expression,
