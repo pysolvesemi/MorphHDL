@@ -58,13 +58,15 @@ final class Inc53bEnumTop(width: HdlInt) extends Component {
   setDefinitionName("Inc53bEnumTop")
 
   val payload = in(morphhdl.frontend.UInt(width bits))
-  val active = out Bool()
+  val binaryActive = out Bool()
+  val oneHotActive = out Bool()
 
   val binary = new Inc53bBinaryEnumLeaf
   val oneHot = new Inc53bOneHotEnumLeaf
   binary.select := payload(0)
   oneHot.select := payload(0)
-  active := binary.active ^ oneHot.active
+  binaryActive := binary.active
+  oneHotActive := oneHot.active
 }
 
 final class Inc53bEnumCollisionTop(width: HdlInt) extends Component {
