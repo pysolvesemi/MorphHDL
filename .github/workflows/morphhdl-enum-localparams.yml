@@ -2,7 +2,8 @@ name: MorphHDL SCREAMING_SNAKE_CASE module-local SpinalEnum parameters and forma
 
 # Increment 53b.1 refines Increment 53b enum constants to deterministic
 # SCREAMING_SNAKE_CASE in MorphHDL-owned publication code and formally proves
-# equivalence to the untouched native macro implementation.
+# equivalence to the untouched native macro implementation. One-hot encoded
+# values and their _OH_ID bit-index helpers are both retained.
 on:
   push:
     branches:
