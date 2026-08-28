@@ -1,0 +1,42 @@
+name: Increment 53e dual-clock memory bootstrap
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53e-dual-clock-memory-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]' || !contains(github.event.head_commit.message, 'Apply Increment 53e dual-clock memory lowering')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply exact MorphHDL-owned memory patch
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/apply-increment-53e-dual-clock-memory.py
+
+      - name: Commit patched source
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "Increment 53e dual-clock memory lowering is already applied"
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
+          git commit -m "Apply Increment 53e dual-clock memory lowering"
+          git push origin HEAD:${GITHUB_REF_NAME}
