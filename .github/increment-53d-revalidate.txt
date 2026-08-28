@@ -1,1 +1,1 @@
-Trigger exact-head Increment 53d validation after retained native resize-target recovery.
+Trigger exact-head Increment 53d validation after exact native Resize provenance repair.
