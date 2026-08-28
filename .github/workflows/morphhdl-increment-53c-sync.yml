@@ -101,10 +101,8 @@ jobs:
           """
           text = text.replace(marker, increment_53c + marker, 1)
 
-          dependency_54_old =
-              "  **Dependencies:** Increments 53a and 53b implemented and merged."
-          dependency_54_new =
-              "  **Dependencies:** Increments 53a and 53c implemented and merged."
+          dependency_54_old = "  **Dependencies:** Increments 53a and 53b implemented and merged."
+          dependency_54_new = "  **Dependencies:** Increments 53a and 53c implemented and merged."
           if text.count(dependency_54_old) != 1:
               raise SystemExit("Increment 54 dependency line was missing or ambiguous")
           text = text.replace(dependency_54_old, dependency_54_new, 1)
