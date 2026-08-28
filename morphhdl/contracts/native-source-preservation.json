@@ -8,9 +8,9 @@
     "description": "Increment 0 repository baseline"
   },
   "approved_state": {
-    "commit": "acf91805ead6d17911c979c17315bc4ab1afb80d",
-    "tree": "a488170053f13c67a8582662e38b586d1d29accd",
-    "description": "Reviewed native-source state after Increment 53 restored the native StreamFifo symbolic-depth overload with its exact bounded actual domain and pointer-width-safe assignments, without restoring the FIFO sidecar or emitted-name recognizer"
+    "commit": "7aee619ab7c8e1322df0413e3c08863bd9aa42b6",
+    "tree": "34536e7e50126e8a86a22f81607035053c27a7ff",
+    "description": "Reviewed native-source state after Increment 53 added target-local synchronous-process isolation for captured structural alternatives while keeping the native StreamFifo source unchanged"
   },
   "source_roots": [
     "core/src/main/scala/spinal/core",
@@ -55,6 +55,24 @@
         "platform"
       ],
       "reason": "Adds MorphHDL parameterized generation and phase-planning integration to the native entrypoint."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Trait.scala",
+      "change": "modified",
+      "classification": "generated_backend_coupling",
+      "introduced_by": [
+        "53"
+      ],
+      "reason": "Adds a target-local backend tag used only to keep captured structural registers in distinct synchronous processes during native emission."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala",
+      "change": "modified",
+      "classification": "generated_backend_coupling",
+      "introduced_by": [
+        "53"
+      ],
+      "reason": "Honors the target-local synchronous-process isolation tag without changing default native register grouping."
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
