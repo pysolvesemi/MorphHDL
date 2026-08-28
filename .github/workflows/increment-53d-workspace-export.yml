@@ -1,4 +1,4 @@
-name: Apply Increment 53d bit-vector factory bridge repair
+name: Apply Increment 53d invariant unsigned resize repair
 
 on:
   push:
@@ -20,52 +20,53 @@ jobs:
           ref: agent/increment-53d-native-streamwidth-adapter
           fetch-depth: 0
 
-      - name: Route hardware factory retention through MorphHDL runtime
+      - name: Admit domain-invariant unsigned symbolic widening
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path("morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala")
+          path = Path("morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala")
           text = path.read_text(encoding="utf-8")
-          method_start = text.find("    private def rewriteBitVectorFactory(")
-          method_end = text.find("\n    private def rewriteNativeMem(", method_start)
-          if method_start < 0 or method_end < 0:
-              raise SystemExit(
-                  f"bit-vector factory method markers missing: start={method_start}, end={method_end}"
+          old = '''            if (!source.isSymbolic) WidthLiteral(size)
+            else if (size <= source.minimum) WidthLiteral(size)
+            else {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-UNSUPPORTED",
+                s"resize from symbolic width '${source.render}' to ${resize.size} is not a domain-invariant narrowing; widening and domain-crossing resize lowering is deferred"
               )
-          block = text[method_start:method_end]
-          old = """            Rewrite(
-              curriedCall(
-                method,
-                List(Literal(Constant(reference))) ++ sourceArguments(original),
-                native,
-                original
+            }
+'''
+          new = '''            if (!source.isSymbolic) WidthLiteral(size)
+            else if (size <= source.minimum) WidthLiteral(size)
+            else if (
+              size >= source.maximum &&
+              (resize.getTypeObject == TypeBits || resize.getTypeObject == TypeUInt)
+            ) {
+              // The untouched Verilog emitter gives every Resize node its
+              // fixed target width: nested resizes are wrapped in a target-sized
+              // temporary, while a top-level resize is consumed by its
+              // target-sized assignment. For Bits/UInt, a target no smaller
+              // than the complete symbolic source domain is therefore an
+              // invariant zero-extension/equality operation. The witness-sized
+              // leading-zero fragment remains semantically exact because the
+              // fixed target context supplies any remaining zero extension or
+              // discards only leading zeros. Signed widening is deliberately
+              // excluded because a witness-sized unsigned concatenation cannot
+              // prove sign extension for a smaller symbolic source.
+              WidthLiteral(size)
+            } else {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-UNSUPPORTED",
+                s"resize from symbolic width '${source.render}' to ${resize.size} is neither a domain-invariant narrowing nor an unsigned domain-invariant widening; domain-crossing and signed widening resize lowering are deferred"
               )
-            )"""
-          new = """            // Bit-vector factory width retention is implemented by the
-            // MorphHDL runtime bridge for both native-library and application
-            // sources. The frontend NativeIntShadow object owns only explicit
-            // Int provenance selection and deliberately has no compilerBits /
-            // compilerUInt / compilerSInt hardware-factory API.
-            val retained = Apply(
-              Apply(
-                helperMethod(method),
-                List(Literal(Constant(reference))) ++ sourceArguments(original)
-              ),
-              List(native)
-            )
-            retained.setPos(original.pos)
-            Rewrite(retained)"""
-          count = block.count(old)
+            }
+'''
+          count = text.count(old)
           if count != 1:
-              raise SystemExit(f"expected one bit-vector factory bridge anchor, found {count}")
-          repaired_block = block.replace(old, new)
-          path.write_text(
-              text[:method_start] + repaired_block + text[method_end:],
-              encoding="utf-8",
-          )
+              raise SystemExit(f"expected one inferResize anchor, found {count}")
+          path.write_text(text.replace(old, new), encoding="utf-8")
           PY
 
           rm -f .github/workflows/increment-53d-workspace-export.yml
@@ -76,7 +77,7 @@ jobs:
           fi
           git config user.name "MorphHDL Increment Agent"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          git add morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
           git add .github/workflows/increment-53d-workspace-export.yml
-          git commit -m "fix: route symbolic bit-vector factories through runtime"
+          git commit -m "fix: support invariant unsigned symbolic widening"
           git push origin HEAD:agent/increment-53d-native-streamwidth-adapter
