@@ -361,14 +361,37 @@ object ExternalNativeIntCompilerRuntime {
     value
   }
 
-  /** Retain the target width of the untouched native BitVector.resize result. */
+  /**
+    * Retain the target width of the untouched native BitVector.resize result
+    * and bind it to the exact internal Resize expression before native
+    * normalization can remove the weak-clone result object.
+    */
   def compilerResize[T <: BitVector](
       reference: String,
       file: String,
       line: Int
   )(native: => T): T = {
-    val value = native
-    retainWidth(value, reference, file, line)
+    val value = retainWidth(native, reference, file, line)
+    ParameterizedWidth
+      .expressionOf(value)
+      .filter(_.parameters.nonEmpty)
+      .foreach { expression =>
+        if (value.hasOnlyOneStatement) {
+          value.head match {
+            case assignment: spinal.core.internals.DataAssignmentStatement
+                if (assignment.target eq value) &&
+                  (assignment.finalTarget eq value) =>
+              assignment.source match {
+                case resize: spinal.core.internals.Resize
+                    if resize.size == value.getBitsWidth =>
+                  ExternalParameterizedResizeRegistry.attach(resize, expression)
+                case _ =>
+              }
+            case _ =>
+          }
+        }
+      }
+    value
   }
 
   def compilerReg[T <: Data](dataType: => T)(native: => T): T =

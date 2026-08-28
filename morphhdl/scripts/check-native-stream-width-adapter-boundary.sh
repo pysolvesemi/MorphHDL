@@ -20,10 +20,11 @@ fi
 plugin="morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala"
 runtime="morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala"
 registry="morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala"
+resize_registry="morphruntime/src/main/scala/spinal/core/ExternalParameterizedResizeRegistry.scala"
 test_file="morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala"
 doc_file="docs/morphhdl/increment-53d-native-streamwidth-adapter.md"
 
-for required in "$plugin" "$runtime" "$registry" "$test_file" "$doc_file"; do
+for required in "$plugin" "$runtime" "$registry" "$resize_registry" "$test_file" "$doc_file"; do
   test -f "$required"
 done
 
@@ -32,11 +33,13 @@ grep -Fq 'spinal.lib.StreamWidthAdapter(' "$test_file"
 grep -Fq 'withWidthFunctionBoundary' "$runtime"
 grep -Fq 'compilerWidthOf' "$runtime"
 grep -Fq 'widthQueryTracked' "$registry"
+grep -Fq 'ExternalParameterizedResizeRegistry.attach' "$runtime"
+grep -Fq 'WeakReference[Resize]' "$resize_registry"
 grep -Fq 'nativeWidthRoots' "$plugin"
 grep -Fq 'terminalName(fun) == "widthOf"' "$plugin"
 
 if grep -Eq 'StreamWidthAdapter|io_(down|up)(Input|Output)|widthAdapter' \
-  "$plugin" "$runtime" "$registry"; then
+  "$plugin" "$runtime" "$registry" "$resize_registry"; then
   echo "MorphHDL native-width support must not recognize StreamWidthAdapter or emitted hardware names" >&2
   exit 1
 fi

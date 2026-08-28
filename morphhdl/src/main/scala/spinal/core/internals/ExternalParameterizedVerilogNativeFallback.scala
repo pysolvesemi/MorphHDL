@@ -971,6 +971,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                   targetWidth,
                   sourceWidth
                 )
+              val provenInvariantTargetWidth =
+                targetWidth.isSymbolic &&
+                  targetWidth.minimum == targetWidth.maximum &&
+                  sourceWidth.default == targetWidth.default
               if (
                 targetWidth.isSymbolic && sourceWidth.isSymbolic &&
                 targetWidth != sourceWidth && !nativeCounterNext &&
@@ -986,7 +990,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               if (
                 targetWidth.isSymbolic && !sourceWidth.isSymbolic &&
                 !isUnfixedLiteral(assignment.source) && !nativeCounterNext &&
-                !provenAutoResize && !provenModularUpdate
+                !provenAutoResize && !provenModularUpdate &&
+                !provenInvariantTargetWidth
               ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
@@ -1466,13 +1471,24 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
 
       private def inferResize(resize: Resize): WidthExpr = {
+        val retainedExpression =
+          ExternalParameterizedResizeRegistry.expressionOf(resize).map { expression =>
+            if (expression.default != BigInt(resize.size)) {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-RESIZE-WITNESS-MISMATCH",
+                s"native Resize target ${resize.size} does not match retained symbolic default ${expression.default}",
+                expression.sourceLocation
+              )
+            }
+            retained(expression)
+          }
         val retainedTarget =
           ExternalParameterizedAutoResize
             .syntheticBooleanResizeTarget(component, resize)
             .map(target => target: BitVector)
             .orElse(retainedResizeTarget(resize))
-        retainedTarget
-          .map(target => ofBase(target))
+        retainedExpression
+          .orElse(retainedTarget.map(target => ofBase(target)))
           .getOrElse {
             val source = ofExpression(resize.input)
             val size = BigInt(resize.size)
