@@ -195,10 +195,12 @@ After Increment 44 is implemented and merged:
 - Increment 52 depends only on Increment 51.
 - Increment 53 joins memory provenance and symbolic control flow; it depends
   on Increments 45 and 52.
-- Increment 53b depends on Increment 53 and extends the same zero-native-edit
-  proof to native relational payload-width algorithms.
+- Increment 53a is a corrective formal-equivalence closure and depends only on
+  the merged Increment 53.
+- Increment 53b depends only on the merged Increment 53. Increments 53a and 53b
+  may execute independently, but both must complete before Increment 54.
 - Increments 54 through 58 then form a strict sequential closure chain after
-  Increment 53b.
+  Increments 53a and 53b.
 
 Dependencies are transitive. Two increments with no dependency edge between
 them are intentionally eligible for parallel implementation and review.
@@ -345,31 +347,53 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   separately authored FIFO. Stop for architecture approval if the alternatives
   cannot be retained through the generic provenance and branch-capture path.
 
-- [ ] **Increment 53b — Native StreamWidthAdapter relational-width parameterization without source edits**
+- [x] **Increment 53a — Native StreamFifo concrete-witness formal equivalence**
 
   **Dependencies:** Increment 53 implemented and merged.
 
-  Apply the generic formalization, native-`Int` provenance, relational
-  predicate and structural-capture path to an ordinary SpinalHDL component
-  that invokes the real, untouched `spinal.lib.StreamWidthAdapter`. Retain
-  symbolic payload widths across native `widthOf` queries and the arithmetic,
-  comparisons, counters, registers, resizes and slices derived by the existing
-  adapter algorithm. Prove the native equal-width, downsize and upsize paths
-  through bounded branch-invariant witness domains in one parameterized
-  Verilog-2001 top definition. MorphHDL must not modify `Stream.scala` or any
-  other upstream-owned SpinalHDL source, introduce a replacement adapter or
-  separately authored component/RTL algorithm, or recognize module, port or
-  signal names. Distinct independent symbolic width roots in one native
-  invocation must fail closed until a generic multi-root formalization model is
-  explicitly implemented. Preserve concrete `SpinalVerilog` parity, dual-Scala
-  behavior, deterministic generation, parameter overrides, simulation, lint,
-  synthesis and the complete native-source boundary. The bounded executable
-  contract is documented in
-  [Increment 53b](increment-53b-native-streamwidth-adapter.md).
+  Keep Increment 53 checked and add an independent formal proof layer around
+  its generated top-level design. From the same untouched
+  `spinal.lib.StreamFifo` source, generate ordinary `SpinalVerilog` concrete
+  witnesses with literal native-`Int` depths 1, 3, 5 and 8. Generate the
+  Increment 53 `MorphVerilog` top once, specialize that one parameterized
+  definition to each matching `DEPTH`, and prove every full top-level pair
+  sequentially equivalent after a shared synchronous-reset edge under
+  arbitrary shared push-valid/payload, pop-ready, flush and later-reset inputs.
+  Compare push-ready, pop-valid, occupancy and availability on every proved
+  cycle, and compare pop payload only while pop-valid because unwritten memory
+  payload is unspecified. The proof must be solver-backed and unbounded, or
+  exhaustive with an explicit completeness argument; bounded simulation,
+  lint, synthesis, `yosys check`, structural/text equality and a
+  concrete-vs-concrete comparison do not satisfy it. Require independently
+  generated DUT legs, reject a `DEPTH` parameter on the concrete leg, and add a
+  DEPTH=3 negative-control mutation that changes a compared MorphHDL observable
+  and must produce a genuine assertion counterexample. Run generation and all
+  four proofs on Scala 2.12.18 and 2.13.12 in a pinned formal toolchain while
+  retaining strict Verilog-2001, determinism and source-boundary gates. No
+  separately authored FIFO, native `StreamFifo` source edit, emitted-name
+  heuristic or Increment 53 checkbox change is permitted.
+
+- [x] **Increment 53b — MorphHDL-owned module-local SpinalEnum parameters**
+
+  **Dependencies:** Increment 53 implemented and merged.
+
+  Keep all upstream-owned SpinalHDL `core`, `lib` and `idslplugin`
+  production sources byte-identical. In MorphHDL-owned post-publication
+  code, discover exact `SpinalEnum` definitions, elements and encodings from
+  the native graph, replace global enum `` `define `` references and long
+  enum-prefixed constants with module-local Verilog-2001 `localparam`s named
+  only by the element (`IDLE`, `RUN`, and so on). Retain encoding-specific
+  values and one-hot index helpers, remove recognized global macros from the
+  final `MorphVerilog` output, and allow the same short names in different
+  module scopes. Fail closed on conflicting same-module names or existing
+  identifiers rather than adding module or enum prefixes. Ordinary
+  `SpinalVerilog` output must remain unchanged. Prove deterministic
+  dual-Scala generation, strict Verilog-2001 lint/synthesis and the native
+  source-preservation boundary.
 
 - [ ] **Increment 54 — MorphHDL module extraction and native-tree cleanup**
 
-  **Dependencies:** Increment 53b implemented and merged.
+  **Dependencies:** Increments 53a and 53b implemented and merged.
 
   Move remaining MorphHDL-specific parameter metadata, capture and lowering
   files out of native `core`, `lib` and `idslplugin` source trees into
@@ -388,7 +412,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   exact native-source manifest gate with no exception unless previously
   approved. Run the complete inherited validation inventory and all concrete,
   parameter-override, simulation, lint, synthesis, mutation and determinism
-  gates for Increments 29 through 54, including Increment 53b.
+  gates for Increments 29 through 54.
 
 - [ ] **Increment 56 — Native-looking SpinalHDL library-call provenance bridge**
 

@@ -1,0 +1,91 @@
+name: MorphHDL module-local SpinalEnum parameters
+
+# Increment 53b localizes SpinalEnum constants in MorphHDL-owned publication
+# code while keeping native SpinalHDL core, lib and compiler-plugin sources
+# unchanged. The final MorphVerilog-only integration is validated on both Scala lanes.
+on:
+  push:
+    branches:
+      - main
+      - parameterized-verilog
+      - agent/increment-53b-local-enum-parameters
+  pull_request:
+    branches:
+      - main
+      - parameterized-verilog
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-enum-localparams-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-boundary:
+    name: MorphHDL-only enum source boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reject native SpinalHDL implementation changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          test -f morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala
+          grep -Fq 'MorphHdlExternalEnumLocalizer.rewrite(pc)' \
+            morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
+          if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
+            git fetch --no-tags origin "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
+            changed="$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")"
+            if grep -Eq '^(core|lib|idslplugin)/src/main/' <<<"${changed}"; then
+              echo "Increment 53b must not modify native SpinalHDL production sources" >&2
+              grep -E '^(core|lib|idslplugin)/src/main/' <<<"${changed}" >&2
+              exit 1
+            fi
+          fi
+
+  contracts:
+    name: Enum-localparam proof Scala ${{ matrix.scala_version }}
+    needs: source-boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate enum localization and inherited external publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.SpinalEnumLocalParameterTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.integration.ExternalSpinalVerilogBaselineTests
