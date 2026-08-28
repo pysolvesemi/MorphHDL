@@ -2,7 +2,7 @@ name: MorphHDL module-local SpinalEnum parameters
 
 # Increment 53b localizes SpinalEnum constants in MorphHDL-owned publication
 # code while keeping native SpinalHDL core, lib and compiler-plugin sources
-# unchanged.
+# unchanged. The exact repaired branch head is validated on both Scala lanes.
 on:
   push:
     branches:
