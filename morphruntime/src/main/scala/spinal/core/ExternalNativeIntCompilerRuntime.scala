@@ -487,20 +487,25 @@ object ExternalNativeIntCompilerRuntime {
   }
 
   def compilerUnsupportedInt(
-      reference: String,
-      code: String,
-      detail: String,
-      file: String,
-      line: Int
-  )(nativeValue: => Int): Int = {
-    ExternalNativeIntShadowRegistry.rejectTracked(
-      reference,
-      code,
-      detail,
-      rendered(file, line)
-    )
-    nativeValue
-  }
+    reference: String,
+    code: String,
+    detail: String,
+    file: String,
+    line: Int
+)(nativeValue: => Int): Int = {
+  // The rewritten pure native expression may contain the compiler hook
+  // which materializes a derived receiver reference. Evaluate it before
+  // validating that exact reference, then fail closed with the requested
+  // unsupported-operation diagnostic before the value can escape.
+  val value = nativeValue
+  ExternalNativeIntShadowRegistry.rejectTracked(
+    reference,
+    code,
+    detail,
+    rendered(file, line)
+  )
+  value
+}
 
   def compilerUnsupportedValue[A](
       reference: String,
