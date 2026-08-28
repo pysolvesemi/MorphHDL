@@ -1,0 +1,61 @@
+name: Increment 53d collection reverse repair
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-native-streamwidth-adapter
+    paths:
+      - .github/workflows/increment-53d-repair-collection-reverse.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-native-streamwidth-adapter
+          fetch-depth: 0
+
+      - name: Restrict unsupported Int methods to their direct receiver
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala")
+          text = path.read_text()
+          old = '''        case Select(_, methodName) if unsupportedIntegerCalls.contains(decoded(methodName)) =>
+          firstTrackedInteger(tree)
+            .map(rewriteUnsupportedKnownCall(tree, _, decoded(methodName)))
+            .getOrElse(Rewrite(super.transform(tree)))
+'''
+          new = '''        case Select(value, methodName) if unsupportedIntegerCalls.contains(decoded(methodName)) =>
+          // A tracked Int nested somewhere below the receiver is not proof that
+          // the selected method operates on an Int. In particular,
+          // `subdivideIn(factor slices).reverse` is a collection reversal whose
+          // collection expression merely contains the symbolic `factor`.
+          trackedInteger(value)
+            .map(rewriteUnsupportedKnownCall(tree, _, decoded(methodName)))
+            .getOrElse(Rewrite(super.transform(tree)))
+'''
+          if text.count(old) != 1:
+              raise SystemExit("expected exactly one unsupported Select rewrite anchor")
+          path.write_text(text.replace(old, new))
+          PY
+          git diff --check
+          bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
+
+      - name: Commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          git commit -m "fix(morphhdl): preserve collection reverse in native width adapter"
+          git push origin HEAD:agent/increment-53d-native-streamwidth-adapter
