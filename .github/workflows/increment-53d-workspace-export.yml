@@ -1,0 +1,182 @@
+name: Validate Increment 53d symbolic resize target recovery
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-native-streamwidth-adapter
+    paths:
+      - .github/workflows/increment-53d-workspace-export.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out Increment 53d branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-native-streamwidth-adapter
+          fetch-depth: 0
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Recover exact symbolic resize targets and validate StreamWidthAdapter
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala")
+          text = path.read_text(encoding="utf-8")
+          old = '''      private def inferResize(resize: Resize): WidthExpr = {
+        ExternalParameterizedAutoResize
+          .syntheticBooleanResizeTarget(component, resize)
+          .map(target => ofBase(target))
+          .getOrElse {
+            val source = ofExpression(resize.input)
+            val size = BigInt(resize.size)
+            if (!source.isSymbolic) WidthLiteral(size)
+            else if (size <= source.minimum) WidthLiteral(size)
+            else {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-UNSUPPORTED",
+                s"resize from symbolic width '${source.render}' to ${resize.size} is not a domain-invariant narrowing; widening and domain-crossing resize lowering is deferred"
+              )
+            }
+          }
+      }
+'''
+          new = '''      /**
+        * A native BitVector.resize call materializes one weak-clone target whose
+        * direct driver is the exact Resize expression. The compiler bridge
+        * retains the symbolic target width on that native target object. Recover
+        * it by statement and object identity; never infer it from a matching
+        * witness width or emitted name.
+        */
+      private def retainedResizeTarget(resize: Resize): Option[BitVector] = {
+        var found: BitVector = null
+        assignments.foreach { assignment =>
+          if (
+            (assignment.source eq resize) &&
+            (assignment.target eq assignment.finalTarget)
+          ) {
+            assignment.target match {
+              case target: BitVector
+                  if (target.component eq component) &&
+                    target.isTypeNode && target.isComb &&
+                    target.isDirectionLess &&
+                    target.getBitsWidth == resize.size &&
+                    ParameterizedWidth.expressionOf(target).exists { expression =>
+                      expression.parameters.nonEmpty &&
+                      expression.default == BigInt(resize.size)
+                    } =>
+                if (found == null) found = target
+                else if (!(found eq target)) {
+                  fail(
+                    "SPINAL-PARAMETERIZED-VERILOG-RESIZE-TARGET-AMBIGUOUS",
+                    s"one native Resize expression drives multiple retained symbolic targets in component '${component.definitionName}'"
+                  )
+                }
+              case _ =>
+            }
+          }
+        }
+        Option(found)
+      }
+
+      private def inferResize(resize: Resize): WidthExpr = {
+        val retainedTarget =
+          ExternalParameterizedAutoResize
+            .syntheticBooleanResizeTarget(component, resize)
+            .map(target => target: BitVector)
+            .orElse(retainedResizeTarget(resize))
+        retainedTarget
+          .map(target => ofBase(target))
+          .getOrElse {
+            val source = ofExpression(resize.input)
+            val size = BigInt(resize.size)
+            if (!source.isSymbolic) WidthLiteral(size)
+            else if (size <= source.minimum) WidthLiteral(size)
+            else {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-UNSUPPORTED",
+                s"resize from symbolic width '${source.render}' to ${resize.size} is not a domain-invariant narrowing; widening and domain-crossing resize lowering is deferred"
+              )
+            }
+          }
+      }
+'''
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f"expected one inferResize anchor, found {count}")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+
+          cp morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala /tmp/ParameterizedStreamWidthAdapterTests.scala
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala")
+          text = path.read_text(encoding="utf-8")
+          old = '''  private def withTemporaryDirectory(body: Path => Unit): Unit = {
+    val directory = Files.createTempDirectory("morphhdl-stream-width-adapter-")
+    try body(directory)
+    finally {
+      val stream = Files.walk(directory)
+      try {
+        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach {
+          path => Files.deleteIfExists(path)
+        }
+      } finally stream.close()
+    }
+  }
+'''
+          new = '''  private def withTemporaryDirectory(body: Path => Unit): Unit = {
+    val directory = Files.createTempDirectory("morphhdl-stream-width-adapter-")
+    println(s"INCREMENT53D_DIAGNOSTIC_DIRECTORY=$directory")
+    body(directory)
+  }
+'''
+          if text.count(old) != 1:
+              raise SystemExit("temporary-directory diagnostic anchor missing")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+
+          set +e
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.ParameterizedStreamWidthAdapterTests
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            find /tmp -type f \( -name 'native_stream_width_adapter.v' -o -name '*.v.tmp' \) \
+              -print -exec sh -c 'echo "===== $1 ====="; sed -n "1,260p" "$1"' _ {} \; || true
+            exit "$status"
+          fi
+
+          mv /tmp/ParameterizedStreamWidthAdapterTests.scala \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala
+          rm .github/workflows/increment-53d-workspace-export.yml
+          git diff --check
+          if git diff --name-only | grep -Eq '^(core|lib|idslplugin)/'; then
+            echo "Increment 53d must not modify native SpinalHDL source" >&2
+            exit 1
+          fi
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+          git add .github/workflows/increment-53d-workspace-export.yml
+          git commit -m "fix: recover retained native resize targets"
+          git push origin HEAD:agent/increment-53d-native-streamwidth-adapter
