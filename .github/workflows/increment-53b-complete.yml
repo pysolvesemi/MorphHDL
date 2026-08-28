@@ -1,0 +1,107 @@
+name: Complete Increment 53b after green CI
+
+on:
+  push:
+    branches:
+      - agent/increment-53b-local-enum-parameters
+
+permissions:
+  contents: write
+
+jobs:
+  complete:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53b-local-enum-parameters
+          fetch-depth: 0
+
+      - name: Verify reviewed head and close the roadmap item
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VALIDATED_HEAD: faa79dde808a0dea15975f1d773ad4df560e7c16
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          head = os.environ["VALIDATED_HEAD"]
+          token = os.environ["GH_TOKEN"]
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{repo}/actions/runs?head_sha={head}&per_page=100",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {token}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request) as response:
+              payload = json.load(response)
+
+          runs = payload.get("workflow_runs", [])
+          if not runs:
+              raise SystemExit(f"no workflow runs found for validated head {head}")
+          failures = []
+          pending = []
+          for run in runs:
+              status = run.get("status")
+              conclusion = run.get("conclusion")
+              name = run.get("name")
+              if status != "completed":
+                  pending.append(f"{name}: {status}")
+              elif conclusion not in ("success", "skipped"):
+                  failures.append(f"{name}: {conclusion}")
+          if pending or failures:
+              raise SystemExit(
+                  "validated head is not fully green; "
+                  + "; ".join(pending + failures)
+              )
+          print(f"validated {len(runs)} completed workflow runs for {head}")
+          PY
+
+          unexpected="$(git diff --name-only "${VALIDATED_HEAD}...HEAD" | grep -v '^.github/workflows/increment-53b-complete.yml$' || true)"
+          if [[ -n "${unexpected}" ]]; then
+            echo "Unexpected source changes after validated head:" >&2
+            printf '%s\n' "${unexpected}" >&2
+            exit 1
+          fi
+
+          python3 morphhdl/scripts/check-native-source-preservation.py
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          text = path.read_text()
+          old = "- [ ] **Increment 53b — MorphHDL-owned module-local SpinalEnum parameters**"
+          new = "- [x] **Increment 53b — MorphHDL-owned module-local SpinalEnum parameters**"
+          if text.count(old) != 1:
+              raise SystemExit("Increment 53b unchecked roadmap anchor is not unique")
+          if new in text:
+              raise SystemExit("Increment 53b was already marked complete")
+          path.write_text(text.replace(old, new))
+          PY
+
+          git rm .github/workflows/increment-53b-complete.yml
+
+          final_changes="$(git diff --name-only "${VALIDATED_HEAD}")"
+          if [[ "${final_changes}" != "docs/morphhdl/parameterized-verilog-todo.md" ]]; then
+            echo "Final tree differs from the validated implementation by unexpected files:" >&2
+            printf '%s\n' "${final_changes}" >&2
+            exit 1
+          fi
+
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/morphhdl/parameterized-verilog-todo.md
+          git commit -m "docs(morphhdl): complete Increment 53b"
+          git push origin HEAD:agent/increment-53b-local-enum-parameters
