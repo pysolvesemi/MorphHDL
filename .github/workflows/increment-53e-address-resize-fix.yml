@@ -36,6 +36,7 @@ jobs:
           python3 morphhdl/scripts/apply-increment-53e-address-role-repair.py
           python3 morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py
           python3 morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py
+          python3 morphhdl/scripts/apply-increment-53e-emitted-child-definition-match.py
           python3 morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
           python3 morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
           python3 morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py
@@ -81,6 +82,7 @@ jobs:
           rm -f morphhdl/scripts/apply-increment-53e-address-role-repair.py
           rm -f morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py
           rm -f morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py
+          rm -f morphhdl/scripts/apply-increment-53e-emitted-child-definition-match.py
           rm -f morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
           rm -f morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
           rm -f morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py
