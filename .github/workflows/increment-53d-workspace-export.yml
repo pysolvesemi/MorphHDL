@@ -1,45 +1,73 @@
-name: Increment 53d workspace export
+name: Apply Increment 53d bit-vector factory bridge repair
 
-# Temporary exact-head export used only during Increment 53d validation.
 on:
   push:
     branches:
       - agent/increment-53d-native-streamwidth-adapter
     paths:
       - .github/workflows/increment-53d-workspace-export.yml
-  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  export:
+  repair:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out exact branch head
+      - name: Check out Increment 53d branch
         uses: actions/checkout@v4
         with:
+          ref: agent/increment-53d-native-streamwidth-adapter
           fetch-depth: 0
 
-      - name: Package repository workspace
+      - name: Route hardware factory retention through MorphHDL runtime
         shell: bash
         run: |
           set -euo pipefail
-          git rev-parse HEAD > /tmp/increment-53d-head.txt
-          tar \
-            --exclude=.git \
-            --exclude=out \
-            --exclude=target \
-            --exclude=.bloop \
-            --exclude=.metals \
-            -czf /tmp/morphhdl-increment-53d-workspace.tar.gz .
+          python3 - <<'PY'
+          from pathlib import Path
 
-      - name: Upload workspace
-        uses: actions/upload-artifact@v4
-        with:
-          name: morphhdl-increment-53d-workspace
-          path: |
-            /tmp/morphhdl-increment-53d-workspace.tar.gz
-            /tmp/increment-53d-head.txt
-          if-no-files-found: error
-          retention-days: 1
+          path = Path("morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala")
+          text = path.read_text(encoding="utf-8")
+          old = '''            Rewrite(
+              curriedCall(
+                method,
+                List(Literal(Constant(reference))) ++ sourceArguments(original),
+                native,
+                original
+              )
+            )
+          '''
+          new = '''            // Bit-vector factory width retention is implemented by the
+            // MorphHDL runtime bridge for both native-library and application
+            // sources. The frontend NativeIntShadow object owns only explicit
+            // Int provenance selection and deliberately has no compilerBits /
+            // compilerUInt / compilerSInt hardware-factory API.
+            val retained = Apply(
+              Apply(
+                helperMethod(method),
+                List(Literal(Constant(reference))) ++ sourceArguments(original)
+              ),
+              List(native)
+            )
+            retained.setPos(original.pos)
+            Rewrite(retained)
+          '''
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f"expected one bit-vector factory bridge anchor, found {count}")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+
+          rm .github/workflows/increment-53d-workspace-export.yml
+          git diff --check
+          if git diff --name-only | grep -Eq '^(core|lib|idslplugin)/'; then
+            echo "Increment 53d must not modify native SpinalHDL source" >&2
+            exit 1
+          fi
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          git add .github/workflows/increment-53d-workspace-export.yml
+          git commit -m "fix: route symbolic bit-vector factories through runtime"
+          git push origin HEAD:agent/increment-53d-native-streamwidth-adapter
