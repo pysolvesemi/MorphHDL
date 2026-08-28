@@ -83,16 +83,14 @@ jobs:
               1,
           )
 
-          assignment_case_marker = '''        case Apply(Select(left, operatorName), List(right))
-              if Set("^", "===", "=/=").contains(decoded(operatorName)) =>
-          '''
           assignment_case = '''        case Apply(Select(target, operatorName), List(source))
               if inNativeStreamFifo && decoded(operatorName) == ":=" =>
             rewriteNativeAssignment(tree, target, source)
           '''
           rewrite_expression = plugin.index('    private def rewriteExpression(')
-          assignment_at = plugin.index(assignment_case_marker, rewrite_expression)
-          plugin = plugin[:assignment_at] + assignment_case + plugin[assignment_at:]
+          tree_match_marker = '      tree match {\n'
+          tree_match = plugin.index(tree_match_marker, rewrite_expression) + len(tree_match_marker)
+          plugin = plugin[:tree_match] + assignment_case + plugin[tree_match:]
           plugin_path.write_text(plugin)
 
           runtime_path = Path(
@@ -277,7 +275,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53e-bootstrap-v4-evidence
+          name: increment-53e-bootstrap-v5-evidence
           path: |
             /tmp/increment-53e-bootstrap.log
             /tmp/morphhdl-streamfifocc-debug
