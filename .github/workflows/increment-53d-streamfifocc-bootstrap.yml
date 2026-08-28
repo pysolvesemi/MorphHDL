@@ -41,7 +41,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL https://github.com/com-lihaoyi/mill/releases/download/1.1.0/1.1.0 -o /tmp/morphhdl-mill
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
       - name: Run the native StreamFifoCC diagnostic witness
