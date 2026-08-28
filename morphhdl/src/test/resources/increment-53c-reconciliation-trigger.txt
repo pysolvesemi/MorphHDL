@@ -1,0 +1,3 @@
+Increment 53c reconciliation trigger
+
+The reconciliation workflow validates the exact dual-Scala focused and independent formal proof jobs, then safely handles either an open PR #108 or an already-merged PR #108 without weakening the native SpinalHDL source boundary.
