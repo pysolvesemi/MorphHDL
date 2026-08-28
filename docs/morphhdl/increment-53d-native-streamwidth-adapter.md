@@ -42,6 +42,24 @@ A native invocation that introduces a second, independently rooted symbolic
 payload width must fail closed. Equal concrete witness values and equal emitted
 text are never accepted as provenance.
 
+## Exact receiver provenance
+
+Unsupported native-`Int` method handling is classified from the method's exact
+receiver and explicit arguments, not from any symbolic integer found somewhere
+inside the complete syntax subtree. Consequently:
+
+- a direct symbolic call such as `root.abs` remains fail-closed;
+- a derived symbolic receiver such as `(root + 1).abs` remains fail-closed;
+- a static call such as `math.abs(root)` remains fail-closed; and
+- an ordinary collection operation such as
+  `Vector(root, root + 1).reverse` remains ordinary Scala even though the
+  collection elements contain symbolic integer expressions.
+
+This distinction is required by the untouched native downsize and upsize paths,
+which call `.reverse` on the `IndexedSeq[Bits]` produced by `subdivideIn` while
+its slice count is derived from a symbolic width. MorphHDL must preserve that
+collection operation rather than rewriting it as native `Int.reverse`.
+
 ## Required evidence
 
 - native source preservation manifest passes with no exception;
@@ -54,5 +72,8 @@ text are never accepted as provenance.
 - overrides `(5, 9, 9)`, `(8, 12, 12)`, and `(16, 16, 16)` compile, simulate,
   lint, and synthesize;
 - bit order and Stream ready/valid behavior are preserved under backpressure;
+- collection `.reverse` with nested symbolic values remains ordinary Scala,
+  while direct, derived-receiver and static unsupported native-`Int` calls all
+  fail closed;
 - concrete native generation remains parameter-free at the default witness;
 - Scala 2.12.18 and 2.13.12 both pass.
