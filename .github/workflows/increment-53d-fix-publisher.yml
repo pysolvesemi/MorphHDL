@@ -1,0 +1,80 @@
+name: Publish Increment 53d structural ownership fix
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-native-streamwidth-adapter
+    paths:
+      - .github/workflows/increment-53d-fix-publisher.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-publish:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out Increment 53d branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-native-streamwidth-adapter
+          fetch-depth: 0
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Retain transitive continuous-assignment dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala")
+          text = path.read_text()
+          old = """            (explicitlyOwned || ownedTargetNames(target) ||
+              trackedInternalNames(target) || mentionsSlice)"""
+          new = """            (explicitlyOwned || ownedTargetNames(target) ||
+              trackedInternalNames(target) || mentionsSlice ||
+              mentionsInternal)"""
+          if text.count(old) != 1:
+              raise SystemExit(f"expected one structural ownership closure site, found {text.count(old)}")
+          path.write_text(text.replace(old, new))
+          PY
+
+      - name: Validate the ownership repair on Scala 2.12.18
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.CapturedAssignmentNormalizationTests
+
+      - name: Validate the ownership repair on Scala 2.13.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.CapturedAssignmentNormalizationTests
+
+      - name: Commit the validated repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+          git diff --cached --check
+          git commit -m "fix: retain transitive structural continuous assignments"
+          git push origin HEAD:agent/increment-53d-native-streamwidth-adapter
