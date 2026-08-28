@@ -1,5 +1,6 @@
 name: Increment 53d workspace export
 
+# Temporary exact-head export used only while Increment 53d is under review.
 on:
   push:
     branches:
