@@ -34,9 +34,22 @@ object ExternalParameterizedAutoResize {
       sourceDriver: DataAssignmentStatement
   )
 
+  private final case class SyntheticBooleanRecord(
+      component: Component,
+      outer: DataAssignmentStatement,
+      target: UInt,
+      resizeSource: UInt,
+      sourceDriver: DataAssignmentStatement,
+      uintCast: CastBitsToUInt,
+      bitsSource: Bits,
+      bitsDriver: DataAssignmentStatement,
+      boolCast: CastBoolToBits
+  )
+
   private final class Storage {
     val byStatement = new IdentityHashMap[DataAssignmentStatement, Record]()
     val byResizeSource = new IdentityHashMap[UInt, Record]()
+    val syntheticBoolean = ArrayBuffer.empty[SyntheticBooleanRecord]
   }
 
   private final class CapturePhase extends PhaseMisc {
@@ -47,13 +60,23 @@ object ExternalParameterizedAutoResize {
 
   private def captureComponent(component: Component): Unit = {
     component.userCache.remove(StorageKey)
+    val witnessInactiveAssignments =
+      new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+    ParameterizedStructure
+      .capturedWitnessInactiveDataAssignmentsOf(component)
+      .foreach(statement =>
+        witnessInactiveAssignments.put(statement, java.lang.Boolean.TRUE)
+      )
     val candidatesBySource =
       new IdentityHashMap[UInt, ArrayBuffer[Candidate]]()
-    val drivingUseCount = new IdentityHashMap[UInt, java.lang.Integer]()
+    val drivingUseCount = new IdentityHashMap[BaseType, java.lang.Integer]()
+    val syntheticBySource =
+      new IdentityHashMap[UInt, java.lang.Boolean]()
+    val syntheticRecords = ArrayBuffer.empty[SyntheticBooleanRecord]
 
     component.dslBody.walkStatements { statement =>
       statement.walkDrivingExpressions {
-        case source: UInt =>
+        case source: BaseType =>
           val previous = drivingUseCount.get(source)
           drivingUseCount.put(
             source,
@@ -67,6 +90,16 @@ object ExternalParameterizedAutoResize {
 
     component.dslBody.walkLeafStatements {
       case outer: DataAssignmentStatement =>
+        syntheticBooleanRecord(
+          component,
+          outer,
+          witnessInactiveAssignments,
+          drivingUseCount
+        ).foreach { record =>
+          record.resizeSource.addTag(tagAutoResize)
+          syntheticBySource.put(record.resizeSource, java.lang.Boolean.TRUE)
+          syntheticRecords += record
+        }
         (outer.target, outer.source) match {
           case (target: UInt, resizeSource: UInt)
               if (outer.finalTarget eq target) &&
@@ -75,6 +108,7 @@ object ExternalParameterizedAutoResize {
                 resizeSource.isComb &&
                 resizeSource.isDirectionLess &&
                 resizeSource.hasTag(tagAutoResize) &&
+                !syntheticBySource.containsKey(resizeSource) &&
                 resizeSource.hasOnlyOneStatement =>
             val sourceDriver = resizeSource.head match {
               case driver: DataAssignmentStatement
@@ -148,8 +182,86 @@ object ExternalParameterizedAutoResize {
         storage.byResizeSource.put(record.resizeSource, record)
       }
     }
-    if (!storage.byStatement.isEmpty) {
+    storage.syntheticBoolean ++= syntheticRecords
+    if (!storage.byStatement.isEmpty || storage.syntheticBoolean.nonEmpty) {
       component.userCache.update(StorageKey, storage)
+    }
+  }
+
+  private def syntheticBooleanRecord(
+      component: Component,
+      outer: DataAssignmentStatement,
+      inactive: IdentityHashMap[
+        DataAssignmentStatement,
+        java.lang.Boolean
+      ],
+      useCount: IdentityHashMap[BaseType, java.lang.Integer]
+  ): Option[SyntheticBooleanRecord] = {
+    if (!inactive.containsKey(outer)) return None
+
+    def oneUse(value: BaseType): Boolean = {
+      val count = useCount.get(value)
+      count != null && count.intValue() == 1
+    }
+
+    def transient(value: BaseType): Boolean =
+      (value.component eq component) &&
+        value.isTypeNode && value.isComb && value.isDirectionLess &&
+        value.isUnnamed && value.hasOnlyOneStatement && oneUse(value)
+
+    (outer.target, outer.source) match {
+      case (target: UInt, source: UInt)
+          if (outer.finalTarget eq target) &&
+            (target.component eq component) &&
+            (source.component eq component) &&
+            !source.hasTag(tagAutoResize) &&
+            transient(source) &&
+            source.getBitsWidth == 1 &&
+            ParameterizedWidth.expressionOf(target).exists { expression =>
+              expression.parameters.nonEmpty &&
+              expression.default == BigInt(target.getBitsWidth) &&
+              expression.default > 1
+            } =>
+        source.head match {
+          case sourceDriver: DataAssignmentStatement
+              if (sourceDriver.target eq source) &&
+                (sourceDriver.finalTarget eq source) =>
+            sourceDriver.source match {
+              case uintCast: CastBitsToUInt =>
+                uintCast.input match {
+                  case bits: Bits if transient(bits) =>
+                    bits.head match {
+                      case bitsDriver: DataAssignmentStatement
+                          if (bitsDriver.target eq bits) &&
+                            (bitsDriver.finalTarget eq bits) =>
+                        bitsDriver.source match {
+                          case boolCast: CastBoolToBits
+                              if boolCast.input != null &&
+                                boolCast.input.getTypeObject == TypeBool =>
+                            Some(
+                              SyntheticBooleanRecord(
+                                component,
+                                outer,
+                                target,
+                                source,
+                                sourceDriver,
+                                uintCast,
+                                bits,
+                                bitsDriver,
+                                boolCast
+                              )
+                            )
+                          case _ => None
+                        }
+                      case _ => None
+                    }
+                  case _ => None
+                }
+              case _ => None
+            }
+          case _ => None
+        }
+      case _ => None
     }
   }
 
@@ -210,6 +322,74 @@ object ExternalParameterizedAutoResize {
         currentSource.asInstanceOf[WidthProvider].getWidth == target.getBitsWidth &&
         !currentSource.isInstanceOf[Resize]
       }
+  }
+
+  private def validSyntheticBooleanRecord(
+      component: Component,
+      record: SyntheticBooleanRecord
+  ): Boolean =
+    (record.component eq component) &&
+      (record.outer ne null) &&
+      (record.target ne null) &&
+      (record.resizeSource ne null) &&
+      (record.sourceDriver ne null) &&
+      (record.uintCast ne null) &&
+      (record.bitsSource ne null) &&
+      (record.bitsDriver ne null) &&
+      (record.boolCast ne null) &&
+      (record.outer ne record.sourceDriver) &&
+      (record.target ne record.resizeSource) &&
+      (record.outer.target eq record.target) &&
+      (record.outer.finalTarget eq record.target) &&
+      (record.target.component eq component) &&
+      (record.sourceDriver.target eq record.resizeSource) &&
+      (record.sourceDriver.finalTarget eq record.resizeSource) &&
+      (record.sourceDriver.source eq record.uintCast) &&
+      (record.bitsDriver.target eq record.bitsSource) &&
+      (record.bitsDriver.finalTarget eq record.bitsSource) &&
+      (record.bitsDriver.source eq record.boolCast) &&
+      (record.uintCast.input eq record.boolCast) &&
+      record.boolCast.input != null &&
+      record.boolCast.input.getTypeObject == TypeBool &&
+      record.uintCast.getTypeObject == TypeUInt &&
+      record.uintCast.getWidth == 1 &&
+      record.target.getBitsWidth > 1 &&
+      ParameterizedWidth.expressionOf(record.target).exists { expression =>
+        expression.parameters.nonEmpty &&
+        expression.default == BigInt(record.target.getBitsWidth)
+      }
+
+  /**
+    * Recover the symbolic target of the exact native Resize materialized after
+    * capture for a witness-inactive Bool-to-UInt assignment. The Resize does
+    * not exist during capture, so its identity is bound lazily through the
+    * surviving outer assignment and cast edges. Zero or ambiguous matches fail
+    * closed.
+    */
+  private[internals] def syntheticBooleanResizeTarget(
+      component: Component,
+      resize: Resize
+  ): Option[UInt] = {
+    if (
+      component == null || resize == null ||
+      !resize.isInstanceOf[ResizeUInt] ||
+      resize.getTypeObject != TypeUInt
+    ) return None
+
+    val matches = storageOf(component).toVector
+      .flatMap(_.syntheticBoolean.toVector)
+      .filter { record =>
+        validSyntheticBooleanRecord(component, record) &&
+        (record.outer.source eq resize) &&
+        (resize.input eq record.uintCast) &&
+        resize.input.getWidth == 1 &&
+        resize.size == record.target.getBitsWidth &&
+        resize.size > 1
+      }
+    matches match {
+      case Vector(record) => Some(record.target)
+      case _              => None
+    }
   }
 
   private def validRecord(component: Component, record: Record): Boolean =

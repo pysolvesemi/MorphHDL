@@ -110,6 +110,24 @@ object ParameterizedStructure {
     }
   }
 
+  /**
+    * Exact bounded root values under which one captured assignment may exist.
+    * Construction is internal and derives only from captured statement identity
+    * plus compiler-proven structural predicate domains.
+    */
+  private[core] final case class CapturedAssignmentDomain(
+      root: StructuralPredicateRoot,
+      values: Set[BigInt]
+  ) {
+    require(root ne null)
+    require(values.nonEmpty)
+    require(
+      BigInt(values.size) <=
+        ExternalNativeIntShadowRegistry.MaximumStructuralPredicateDomainSize
+    )
+    require(values.forall(value => value >= root.minimum && value <= root.maximum))
+  }
+
   private[core] sealed trait StructuralRegion {
     def blocks: Vector[ParameterizedStructuralBlock]
     def parameters: Vector[ElaborationIntegerParameter]
@@ -336,12 +354,16 @@ object ParameterizedStructure {
       }
 
       // Every source alternative must remain available to the native emitter even
-      // when it is not selected by the concrete witness. Preserve the exact
-      // declarations and memory ports until the MorphHDL relocation pass extracts
-      // them into their parameterized structural region.
-      declarations.foreach { value =>
+      // when it is not selected by the concrete witness. Preserve declared
+      // hardware and memory ports until the MorphHDL relocation pass extracts
+      // them into their parameterized structural region. Native unnamed type
+      // nodes remain simplifiable so literal and cast carriers are normalized at
+      // their exact assignment edge.
+      declarations.filterNot(_.isTypeNode).foreach { value =>
         value.setAsVital()
         value.dontSimplifyIt()
+        if (value.isComb) value.noBackendCombMerge()
+        if (value.isReg) value.addTag(noBackendSyncMerge)
       }
       memories.foreach(_.preventAsBlackBox())
       memoryPorts.foreach(port => port.isVital = true)
@@ -515,14 +537,140 @@ object ParameterizedStructure {
           entries.forall(value =>
             targetAssignments.exists(_ eq value.statement)
           )
-        val pairwiseExclusive = entries.indices.forall { left =>
+        val pairwiseCompatible = entries.indices.forall { left =>
           (left + 1 until entries.size).forall { right =>
+            sameAlternativePath(entries(left).path, entries(right).path) ||
             mutuallyExclusive(entries(left).path, entries(right).path)
           }
         }
-        if (completeCapture && pairwiseExclusive) target.allowOverride()
+        val alternatives = ArrayBuffer.empty[ArrayBuffer[CapturedAssignment]]
+        entries.foreach { captured =>
+          alternatives
+            .find(group =>
+              sameAlternativePath(group.head.path, captured.path)
+            )
+            .getOrElse {
+              val group = ArrayBuffer.empty[CapturedAssignment]
+              alternatives += group
+              group
+            } += captured
+        }
+        val hasExclusiveAlternatives = alternatives.size > 1
+        val alternativesAreLocallySafe = alternatives.forall(group =>
+          nativeOverlapSafe(component, target, group.toVector)
+        )
+        if (
+          completeCapture && hasExclusiveAlternatives &&
+          pairwiseCompatible && alternativesAreLocallySafe
+        ) target.allowOverride()
       }
     }
+  }
+
+  /**
+    * Replay native definite-assignment overlap rules for one structural path.
+    * This proves that an allowOverride tag suppresses only false overlap between
+    * parameter alternatives, never an overlap already present inside a branch.
+    */
+  private def nativeOverlapSafe(
+      component: Component,
+      target: BaseType,
+      captured: Vector[CapturedAssignment]
+  ): Boolean = {
+    val selected =
+      new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+    captured.foreach(value =>
+      selected.put(value.statement, java.lang.Boolean.TRUE)
+    )
+    val seen =
+      new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+    val width = target.getBitsWidth
+
+    final case class ScopeFacts(
+        definite: AssignedBits,
+        touched: Boolean,
+        safe: Boolean
+    )
+
+    def assignmentBits(
+        statement: DataAssignmentStatement
+    ): Option[(AssignedBits, Boolean)] = {
+      val bits = new AssignedBits(width)
+      statement.target match {
+        case value: BaseType if value eq target =>
+          bits.add(width - 1, 0)
+          Some(bits -> true)
+        case value: BitVectorAssignmentExpression
+            if value.finalTarget eq target =>
+          val range = value.getMinAssignedBits
+          bits.add(range)
+          Some(bits -> (range.hi == width - 1 && range.lo == 0))
+        case _ => None
+      }
+    }
+
+    def walk(scope: ScopeStatement): ScopeFacts = {
+      val definite = new AssignedBits(width)
+      var touched = false
+      var safe = true
+
+      def mergeConditional(value: ScopeFacts): Unit = {
+        if (value.touched) touched = true
+        safe &&= value.safe
+      }
+
+      scope.foreachStatements {
+        case statement: DataAssignmentStatement
+            if selected.containsKey(statement) =>
+          seen.put(statement, java.lang.Boolean.TRUE)
+          val poison = statement.source match {
+            case literal: Literal => literal.hasPoison()
+            case _                => false
+          }
+          if (!poison) {
+            assignmentBits(statement) match {
+              case Some((bits, fullOrigin)) =>
+                if (fullOrigin && bits.isFull && touched) safe = false
+                definite.add(bits)
+                touched = true
+              case None => safe = false
+            }
+          }
+        case statement: WhenStatement =>
+          val whenTrue = walk(statement.whenTrue)
+          val whenFalse = walk(statement.whenFalse)
+          mergeConditional(whenTrue)
+          mergeConditional(whenFalse)
+          if (whenTrue.touched && whenFalse.touched) {
+            definite.add(
+              whenTrue.definite.clone().intersect(whenFalse.definite)
+            )
+          }
+        case statement: SwitchStatement =>
+          val bodies =
+            statement.elements.map(_.scopeStatement) ++
+              Option(statement.defaultScope)
+          val branches = bodies.map(walk)
+          branches.foreach(mergeConditional)
+          if (
+            branches.nonEmpty &&
+            (statement.isFullyCoveredWithoutDefault ||
+              statement.defaultScope != null) &&
+            branches.forall(_.touched)
+          ) {
+            val intersection = branches.head.definite.clone()
+            branches.tail.foreach(value =>
+              intersection.intersect(value.definite)
+            )
+            definite.add(intersection)
+          }
+        case _ =>
+      }
+      ScopeFacts(definite, touched, safe)
+    }
+
+    val result = walk(component.dslBody)
+    result.safe && captured.forall(value => seen.containsKey(value.statement))
   }
 
   private def capturedAssignments(
@@ -572,6 +720,116 @@ object ParameterizedStructure {
     values.toVector
   }
 
+  private def inactiveAtWitness(step: AlternativeStep): Boolean =
+    step.region match {
+      case value: StructuralIf =>
+        step.branch match {
+          case 0 => !value.condition.default
+          case 1 => value.condition.default
+          case _ => false
+        }
+      case value: StructuralCase
+          if step.branch >= 0 && step.branch < value.choices.size =>
+        value.choices(step.branch).value != value.selector.default
+      case value: StructuralCase if step.branch == value.choices.size =>
+        value.choices.exists(_.value == value.selector.default)
+      case _ => false
+    }
+
+  private def validAlternativeStep(step: AlternativeStep): Boolean =
+    step.region match {
+      case _: StructuralIf => step.branch == 0 || step.branch == 1
+      case value: StructuralCase =>
+        step.branch >= 0 && step.branch <= value.choices.size
+      case _ => false
+    }
+
+  private def witnessInactive(path: Vector[AlternativeStep]): Boolean =
+    path.nonEmpty &&
+      path.forall(validAlternativeStep) &&
+      path.exists(inactiveAtWitness)
+
+  /**
+    * Exact captured data-assignment identities that occur only below a branch
+    * which the concrete elaboration witness does not select. Invalid or
+    * branchless paths fail closed, as does an identity also seen on an active
+    * path.
+    */
+  private[core] def capturedWitnessInactiveDataAssignmentsOf(
+      component: Component
+  ): Vector[DataAssignmentStatement] = {
+    if (component eq null) return Vector.empty
+    val captured = capturedAssignments(regionsOf(component))
+    val active =
+      new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+    captured.foreach { value =>
+      if (!witnessInactive(value.path))
+        active.put(value.statement, java.lang.Boolean.TRUE)
+    }
+
+    val seen =
+      new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+    val values = ArrayBuffer.empty[DataAssignmentStatement]
+    captured.foreach { value =>
+      val statement = value.statement
+      if (
+        witnessInactive(value.path) &&
+        !active.containsKey(statement) &&
+        !seen.containsKey(statement)
+      ) {
+        seen.put(statement, java.lang.Boolean.TRUE)
+        values += statement
+      }
+    }
+    values.toVector
+  }
+
+  /**
+    * Resolve the exact predicate-domain intersection for one captured data
+    * assignment. Every alternative step must carry compiler-proven bounded
+    * evidence for one shared root. Missing, ambiguous, impossible or oversized
+    * paths fail closed.
+    */
+  private[core] def capturedAssignmentDomainOf(
+      component: Component,
+      statement: DataAssignmentStatement
+  ): Option[CapturedAssignmentDomain] = {
+    if (component == null || statement == null) return None
+    val matches = capturedAssignments(regionsOf(component)).filter(value =>
+      value.statement eq statement
+    )
+    if (matches.size != 1 || matches.head.path.isEmpty) return None
+
+    val constrained = matches.head.path.map { step =>
+      step.region match {
+        case value: StructuralIf =>
+          value.predicateDomain.flatMap(domain =>
+            domain.valuesFor(step.branch).map(allowed => domain -> allowed)
+          )
+        case _ => None
+      }
+    }
+    if (constrained.exists(_.isEmpty)) return None
+    val domains = constrained.flatten
+    if (domains.isEmpty) return None
+    val root = domains.head._1.root
+    val universe = domains.head._1.universe
+    if (
+      root == null ||
+      BigInt(universe.size) >
+        ExternalNativeIntShadowRegistry.MaximumStructuralPredicateDomainSize ||
+      domains.exists { case (domain, _) =>
+        (domain.root ne root) || domain.universe != universe
+      }
+    ) return None
+
+    val values = domains.foldLeft(universe) { case (remaining, (_, allowed)) =>
+      remaining intersect allowed
+    }
+    if (values.isEmpty) None
+    else Some(CapturedAssignmentDomain(root, values))
+  }
+
   private def mutuallyExclusive(
       left: Vector[AlternativeStep],
       right: Vector[AlternativeStep]
@@ -579,6 +837,16 @@ object ParameterizedStructure {
     left.map(value => value.region -> value.branch),
     right.map(value => value.region -> value.branch)
   )
+
+  private def sameAlternativePath(
+      left: Vector[AlternativeStep],
+      right: Vector[AlternativeStep]
+  ): Boolean =
+    left.size == right.size && left.zip(right).forall {
+      case (leftStep, rightStep) =>
+        (leftStep.region eq rightStep.region) &&
+          leftStep.branch == rightStep.branch
+    }
 
   /** Shared fail-closed exclusivity proof used by graph validation and RTL relocation. */
   private[core] def mutuallyExclusiveAlternatives(

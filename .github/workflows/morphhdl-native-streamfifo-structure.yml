@@ -72,6 +72,8 @@ jobs:
           set -euo pipefail
           /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
             morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.BackendSyncMergeIsolationTests \
+            morphhdl.CapturedAssignmentNormalizationTests \
             morphhdl.NativeIntSymbolicConditionalTests \
             morphhdl.NativeIntNestedSymbolicControlFlowTests \
             morphhdl.NativeMemAutoProvenanceTests \

@@ -965,10 +965,17 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 targetWidth,
                 sourceWidth
               )
+              val provenCapturedDomainEquivalent =
+                isProvenCapturedDomainWidthEquivalence(
+                  assignment,
+                  targetWidth,
+                  sourceWidth
+                )
               if (
                 targetWidth.isSymbolic && sourceWidth.isSymbolic &&
                 targetWidth != sourceWidth && !nativeCounterNext &&
-                !provenAutoResize && !provenModularUpdate
+                !provenAutoResize && !provenModularUpdate &&
+                !provenCapturedDomainEquivalent
               ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
@@ -991,6 +998,38 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           }
         }
       }
+    }
+
+    /**
+      * Distinct symbolic width expressions may be equal only inside the exact
+      * bounded structural alternative that owns an assignment. Authorize that
+      * assignment by identity only when both expressions retain evaluator
+      * provenance for the same predicate root and exhaustive evaluation agrees
+      * at every admitted root value for its complete captured path.
+      */
+    private def isProvenCapturedDomainWidthEquivalence(
+        assignment: DataAssignmentStatement,
+        targetWidth: WidthExpr,
+        sourceWidth: WidthExpr
+    ): Boolean = {
+      if (!targetWidth.isSymbolic || !sourceWidth.isSymbolic) return false
+      ParameterizedStructure
+        .capturedAssignmentDomainOf(component, assignment)
+        .exists { domain =>
+          domain.values.forall { value =>
+            val target = widthInference.evaluate(
+              targetWidth,
+              domain.root,
+              value
+            )
+            val source = widthInference.evaluate(
+              sourceWidth,
+              domain.root,
+              value
+            )
+            target.nonEmpty && target == source && target.exists(_ > 0)
+          }
+        }
     }
 
     /**
@@ -1186,6 +1225,51 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       private val baseCache = mutable.HashMap.empty[BaseType, WidthExpr]
       private val expressionCache = mutable.HashMap.empty[Expression, WidthExpr]
       private val activeBases = mutable.HashSet.empty[BaseType]
+      private val retainedOrigins =
+        new IdentityHashMap[WidthExpr, ElaborationIntegerExpression]()
+
+      private def retained(
+          expression: ElaborationIntegerExpression
+      ): WidthExpr = {
+        val value = WidthRetained(
+          expression.verilog,
+          expression.default,
+          expression.minimum,
+          expression.maximum,
+          expression.parameters.distinct.sortBy(_.name)
+        )
+        retainedOrigins.put(value, expression)
+        value
+      }
+
+      /** Exact bounded evaluation; unsupported or unproven nodes return None. */
+      def evaluate(
+          expression: WidthExpr,
+          root: ParameterizedStructure.StructuralPredicateRoot,
+          value: BigInt
+      ): Option[BigInt] = expression match {
+        case WidthLiteral(literal) => Some(literal)
+        case retained: WidthRetained =>
+          Option(retainedOrigins.get(retained)).flatMap(origin =>
+            ExternalNativeIntShadowRegistry.evaluateDefinitionExpression(
+              origin,
+              root,
+              value
+            )
+          )
+        case WidthBinary(operator, left, right, _, _, _, _, _) =>
+          for {
+            l <- evaluate(left, root, value)
+            r <- evaluate(right, root, value)
+            result <- operator match {
+              case "+" => Some(l + r)
+              case "-" => Some(l - r)
+              case "*" => Some(l * r)
+              case _   => None
+            }
+          } yield result
+        case _ => None
+      }
 
       def ofBase(baseType: BaseType): WidthExpr = {
         baseCache.get(baseType) match {
@@ -1199,14 +1283,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 .map(ofBase)
                 .getOrElse {
                   ParameterizedWidth.expressionOf(baseType) match {
-                    case Some(expression) =>
-                      WidthRetained(
-                        expression.verilog,
-                        expression.default,
-                        expression.minimum,
-                        expression.maximum,
-                        expression.parameters.distinct.sortBy(_.name)
-                      )
+                    case Some(expression) => retained(expression)
                     case None =>
                       baseType match {
                         case _: Bool => WidthLiteral(1)
@@ -1311,14 +1388,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case _: BoolLiteral            => WidthLiteral(1)
         case port: MemReadSync =>
           ExternalParameterizedMemoryRegistry.metadataOf(port.mem) match {
-            case Some(metadata) =>
-              WidthRetained(
-                metadata.elementWidth.verilog,
-                metadata.elementWidth.default,
-                metadata.elementWidth.minimum,
-                metadata.elementWidth.maximum,
-                metadata.elementWidth.parameters.distinct.sortBy(_.name)
-              )
+            case Some(metadata) => retained(metadata.elementWidth)
             case None => WidthLiteral(port.getWidth)
           }
         case widthProvider: Expression with WidthProvider =>
@@ -1344,16 +1414,21 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
 
       private def inferResize(resize: Resize): WidthExpr = {
-        val source = ofExpression(resize.input)
-        val size = BigInt(resize.size)
-        if (!source.isSymbolic) WidthLiteral(size)
-        else if (size <= source.minimum) WidthLiteral(size)
-        else {
-          fail(
-            "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-UNSUPPORTED",
-            s"resize from symbolic width '${source.render}' to ${resize.size} is not a domain-invariant narrowing; widening and domain-crossing resize lowering is deferred"
-          )
-        }
+        ExternalParameterizedAutoResize
+          .syntheticBooleanResizeTarget(component, resize)
+          .map(target => ofBase(target))
+          .getOrElse {
+            val source = ofExpression(resize.input)
+            val size = BigInt(resize.size)
+            if (!source.isSymbolic) WidthLiteral(size)
+            else if (size <= source.minimum) WidthLiteral(size)
+            else {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-UNSUPPORTED",
+                s"resize from symbolic width '${source.render}' to ${resize.size} is not a domain-invariant narrowing; widening and domain-crossing resize lowering is deferred"
+              )
+            }
+          }
       }
 
       private def inferFixedRange(access: BitVectorRangedAccessFixed): WidthExpr = {

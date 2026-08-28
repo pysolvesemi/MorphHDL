@@ -82,6 +82,26 @@ private[core] final class ExternalNativeIntShadowRegionIdentityRef(
   }
 }
 
+/** Weak identity key for one exact lowered native-Int expression. */
+private[core] final class ExternalNativeIntExpressionIdentityRef(
+    value: ElaborationIntegerExpression,
+    queue: ReferenceQueue[ElaborationIntegerExpression]
+) extends WeakReference[ElaborationIntegerExpression](value, queue) {
+  private val identityHash = System.identityHashCode(value)
+
+  override def hashCode(): Int = identityHash
+
+  override def equals(other: Any): Boolean = other match {
+    case that: ExternalNativeIntExpressionIdentityRef =>
+      (this eq that) || {
+        val left = get()
+        val right = that.get()
+        (left ne null) && (right ne null) && (left eq right)
+      }
+    case _ => false
+  }
+}
+
 /**
   * MorphHDL-owned shadow provenance registry for native Scala `Int` values.
   *
@@ -102,7 +122,12 @@ private[core] final class ExternalNativeIntShadowRegionIdentityRef(
   * MORPH-FRONTEND-NATIVE-INT-EXPRESSION-MUTABLE-ESCAPE.
   */
 object ExternalNativeIntShadowRegistry {
-  private val MaximumStructuralPredicateDomainSize = BigInt(65536)
+  private[core] val MaximumStructuralPredicateDomainSize = BigInt(65536)
+
+  private final case class DefinitionExpressionEvidence(
+      root: ParameterizedStructure.StructuralPredicateRoot,
+      expression: ExternalNativeIntRelativeExpression
+  )
 
   private final class ActiveBoundary(
       val expression: ElaborationIntegerExpression,
@@ -134,6 +159,8 @@ object ExternalNativeIntShadowRegistry {
   private val active = new ThreadLocal[List[ActiveBoundary]]
   private val componentQueue = new ReferenceQueue[Component]()
   private val regionQueue = new ReferenceQueue[Data]()
+  private val definitionExpressionQueue =
+    new ReferenceQueue[ElaborationIntegerExpression]()
   private val components = mutable.HashMap.empty[
     ExternalNativeIntShadowComponentIdentityRef,
     Vector[ExternalNativeIntComponentShadowRecord]
@@ -142,6 +169,77 @@ object ExternalNativeIntShadowRegistry {
     ExternalNativeIntShadowRegionIdentityRef,
     ExternalNativeIntRegionShadowRecord
   ]
+  private val definitionExpressionEvidence = mutable.HashMap.empty[
+    ExternalNativeIntExpressionIdentityRef,
+    DefinitionExpressionEvidence
+  ]
+
+  private def reapDefinitionExpressionEvidence(): Unit = {
+    var reference = definitionExpressionQueue
+      .poll()
+      .asInstanceOf[ExternalNativeIntExpressionIdentityRef]
+    while (reference != null) {
+      definitionExpressionEvidence.remove(reference)
+      reference = definitionExpressionQueue
+        .poll()
+        .asInstanceOf[ExternalNativeIntExpressionIdentityRef]
+    }
+  }
+
+  private def retainDefinitionExpressionEvidence(
+      lowered: ElaborationIntegerExpression,
+      root: ParameterizedStructure.StructuralPredicateRoot,
+      expression: ExternalNativeIntRelativeExpression
+  ): Unit = synchronized {
+    reapDefinitionExpressionEvidence()
+    val key = new ExternalNativeIntExpressionIdentityRef(lowered, null)
+    definitionExpressionEvidence.get(key) match {
+      case Some(existing)
+          if (existing.root ne root) || existing.expression != expression =>
+        fail(
+          "MORPH-FRONTEND-NATIVE-INT-EXPRESSION-PROVENANCE-CONFLICT",
+          "one exact lowered native Int expression carries incompatible bounded-domain provenance",
+          lowered.sourceLocation
+        )
+      case Some(_) =>
+      case None =>
+        definitionExpressionEvidence.update(
+          new ExternalNativeIntExpressionIdentityRef(
+            lowered,
+            definitionExpressionQueue
+          ),
+          DefinitionExpressionEvidence(root, expression)
+        )
+    }
+  }
+
+  /**
+    * Evaluate one exact lowered expression against its compiler-retained native
+    * Int AST. Both the expression and predicate root must match by identity;
+    * rendered Verilog text and equal numeric witnesses are never discovery
+    * keys.
+    */
+  private[core] def evaluateDefinitionExpression(
+      lowered: ElaborationIntegerExpression,
+      root: ParameterizedStructure.StructuralPredicateRoot,
+      value: BigInt
+  ): Option[BigInt] = synchronized {
+    if (
+      lowered == null || root == null || value < root.minimum ||
+      value > root.maximum
+    ) return None
+    reapDefinitionExpressionEvidence()
+    definitionExpressionEvidence
+      .get(new ExternalNativeIntExpressionIdentityRef(lowered, null))
+      .filter(_.root eq root)
+      .flatMap(evidence =>
+        ExternalNativeIntRelativeExpression.evaluate(
+          evidence.expression,
+          value
+        )
+      )
+      .filter(result => result >= lowered.minimum && result <= lowered.maximum)
+  }
 
   /** Execute one untouched constructor with an active shadow scope. */
   def capture[A](
@@ -730,6 +828,11 @@ object ExternalNativeIntShadowRegistry {
         Option(sourceLocation).filter(_.nonEmpty).orElse(definition.sourceLocation)
       )
     }
+    retainDefinitionExpressionEvidence(
+      definition,
+      boundary.structuralPredicateRoot,
+      relative
+    )
     definition
   }
 
