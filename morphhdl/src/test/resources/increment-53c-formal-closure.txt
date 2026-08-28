@@ -1,0 +1,10 @@
+Increment 53c guarded closure trigger
+
+Required exact-head evidence:
+- native Axi4SlaveFactory parameterized-offset contract on Scala 2.12.18 and 2.13.12
+- independent concrete native-Int witnesses at offsets 16, 64, 80, and 112
+- positive SymbiYosys proof for every witness
+- deliberate candidate mutation producing a counterexample
+- untouched SpinalHDL core/lib source boundary
+
+This temporary trigger is removed by the guarded closure workflow before squash merge.
