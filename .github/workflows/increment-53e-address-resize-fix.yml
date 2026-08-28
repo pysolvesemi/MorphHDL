@@ -1,4 +1,4 @@
-name: Increment 53e combined native address-width fix
+name: Increment 53e native StreamFifoCC write-address diagnostic
 
 on:
   push:
@@ -6,30 +6,22 @@ on:
       - agent/increment-53e-native-streamfifocc-parameterization
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply-test-publish:
+  trace-address-graph:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/spinalhdl/docker:latest
-    timeout-minutes: 90
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/increment-53e-native-streamfifocc-parameterization
           fetch-depth: 0
 
-      - name: Prepare authenticated branch checkout
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-
-      - name: Recover explicit resize and canonical address-width provenance
+      - name: Instrument transformed memory address expressions
         shell: bash
         run: |
           set -euo pipefail
@@ -41,163 +33,123 @@ jobs:
               "ParameterizedVerilogMemories.scala"
           )
           value = path.read_text()
-
-          select_start_marker = "  private def selectAddressWidth(\n"
-          select_end_marker = "  private def validateAddressWidth(\n"
-          if (
-              value.count(select_start_marker) != 1 or
-              value.count(select_end_marker) != 1
-          ):
+          marker = "    if (\n      native.parameters.nonEmpty &&\n      retainedIsConcreteWitness &&\n"
+          if value.count(marker) != 1:
               raise SystemExit(
-                  "selectAddressWidth/validateAddressWidth boundaries are ambiguous"
+                  f"selectAddressWidth diagnostic marker count={value.count(marker)}"
               )
-          select_start = value.index(select_start_marker)
-          select_end = value.index(select_end_marker, select_start)
-          select_replacement = '''  private def directDriverExpressions(
-              target: BaseType,
-              component: Component
-          ): Vector[Expression] = {
-            val assignments = ArrayBuffer.empty[DataAssignmentStatement]
-            component.dslBody.walkLeafStatements {
-              case value: DataAssignmentStatement
-                  if value.finalTarget eq target =>
-                assignments += value
-              case _ =>
-            }
-            assignments.toVector.flatMap { assignment =>
-              assignment.source match {
-                case expression: Expression => Some(expression)
-                case _                      => None
-              }
-            }
-          }
 
-          private def explicitlyResizedToWidth(
-              expression: Expression,
-              expectedWidth: Int,
-              component: Component
-          ): Boolean = {
-            val seen = new IdentityHashMap[Expression, java.lang.Boolean]()
+          diagnostic = r'''    if (
+              native.parameters.nonEmpty &&
+              source.exists(_.contains("Stream.scala:1908"))
+            ) {
+              val visited =
+                new IdentityHashMap[Expression, java.lang.Boolean]()
 
-            def walk(value: Expression): Boolean = {
-              if (seen.put(value, java.lang.Boolean.TRUE) != null) false
-              else {
+              def retainedLabel(value: BaseType): String =
+                ParameterizedWidth.expressionOf(value)
+                  .map { retainedValue =>
+                    s"${retainedValue.verilog}/${retainedValue.default}/" +
+                      s"${retainedValue.minimum}/${retainedValue.maximum}"
+                  }
+                  .getOrElse("-")
+
+              def expressionWidth(value: Expression): String =
                 value match {
-                  case resize: ResizeUInt =>
-                    resize.getWidth == expectedWidth
-                  case base: BaseType if base.hasTag(tagAutoResize) =>
-                    base.getBitsWidth == expectedWidth
-                  case base: BaseType =>
-                    val drivers = directDriverExpressions(base, component)
-                    drivers.size == 1 && walk(drivers.head)
-                  case other =>
-                    val children = ArrayBuffer.empty[Expression]
-                    other.foreachExpression(children += _)
-                    children.size == 1 && walk(children.head)
+                  case width: Expression with WidthProvider =>
+                    val retainedValue = widthOf(width, source)
+                    s"${retainedValue.verilog}/${retainedValue.default}/" +
+                      s"${retainedValue.minimum}/${retainedValue.maximum}"
+                  case _ => "not-width"
+                }
+
+              def dump(value: Expression, depth: Int): Unit = {
+                if (
+                  depth <= 14 &&
+                  visited.put(value, java.lang.Boolean.TRUE) == null
+                ) {
+                  val indent = "  " * depth
+                  val baseDetails = value match {
+                    case base: BaseType =>
+                      s" name=${base.getName()} bits=${base.getBitsWidth}" +
+                        s" autoResize=${base.hasTag(tagAutoResize)}" +
+                        s" retained=${retainedLabel(base)}"
+                    case _ => ""
+                  }
+                  println(
+                    s"[53e-write-address] ${indent}EXPR " +
+                      s"id=${System.identityHashCode(value)} " +
+                      s"class=${value.getClass.getName} op=${value.opName} " +
+                      s"width=${expressionWidth(value)}$baseDetails " +
+                      s"text=${value.toString.take(500)}"
+                  )
+
+                  val children = ArrayBuffer.empty[Expression]
+                  value.foreachExpression(children += _)
+                  children.zipWithIndex.foreach { case (child, index) =>
+                    println(
+                      s"[53e-write-address] ${indent}  CHILD[$index] " +
+                        s"id=${System.identityHashCode(child)} " +
+                        s"class=${child.getClass.getName} op=${child.opName}"
+                    )
+                    dump(child, depth + 1)
+                  }
+
+                  value match {
+                    case base: BaseType =>
+                      val assignments =
+                        ArrayBuffer.empty[DataAssignmentStatement]
+                      component.dslBody.walkLeafStatements {
+                        case assignment: DataAssignmentStatement
+                            if assignment.finalTarget eq base =>
+                          assignments += assignment
+                        case _ =>
+                      }
+                      println(
+                        s"[53e-write-address] ${indent}  DRIVERS=" +
+                          assignments.size
+                      )
+                      assignments.zipWithIndex.foreach {
+                        case (assignment, index) =>
+                          assignment.source match {
+                            case expression: Expression =>
+                              println(
+                                s"[53e-write-address] ${indent}  DRIVER[$index] " +
+                                  s"sourceId=${System.identityHashCode(expression)} " +
+                                  s"sourceClass=${expression.getClass.getName} " +
+                                  s"sourceOp=${expression.opName} " +
+                                  s"sourceWidth=${expressionWidth(expression)} " +
+                                  s"sourceText=${expression.toString.take(500)}"
+                              )
+                              dump(expression, depth + 1)
+                            case other =>
+                              println(
+                                s"[53e-write-address] ${indent}  DRIVER[$index] " +
+                                  s"nonExpression=${other.getClass.getName} " +
+                                  s"value=$other"
+                              )
+                          }
+                      }
+                    case _ =>
+                  }
                 }
               }
+
+              println(
+                s"[53e-write-address] ROOT roleSource=${source.getOrElse("-")} " +
+                  s"addressClass=${address.getClass.getName} " +
+                  s"addressOp=${address.opName} concrete=${address.getWidth} " +
+                  s"retained=${retained.verilog}/${retained.default}/" +
+                  s"${retained.minimum}/${retained.maximum} " +
+                  s"native=${native.verilog}/${native.default}/" +
+                  s"${native.minimum}/${native.maximum} " +
+                  s"driverProof=$driverProvesNativeWidth"
+              )
+              dump(address, 0)
             }
 
-            walk(expression)
-          }
-
-          private def selectAddressWidth(
-              address: Expression with WidthProvider,
-              retained: ElaborationIntegerExpression,
-              native: ElaborationIntegerExpression,
-              component: Component,
-              source: Option[String]
-          ): ElaborationIntegerExpression = {
-            val retainedIsConcreteWitness =
-              retained.parameters.isEmpty &&
-              retained.default == BigInt(address.getWidth) &&
-              retained.minimum == retained.default &&
-              retained.maximum == retained.default
-
-            val driverExpressions = address match {
-              case target: BaseType => directDriverExpressions(target, component)
-              case expression       => Vector(expression)
-            }
-
-            val retainedDriverWidths = driverExpressions.flatMap {
-              case value: Expression with WidthProvider =>
-                Some(widthOf(value, source))
-              case _ => None
-            }.distinct
-            val widthExpressionProvesNative =
-              retainedDriverWidths.size == 1 &&
-              equivalentWidth(retainedDriverWidths.head, native)
-
-            val explicitResizeProvesNative =
-              native.default.isValidInt &&
-              driverExpressions.size == 1 &&
-              explicitlyResizedToWidth(
-                driverExpressions.head,
-                native.default.toInt,
-                component
-              )
-
-            val driverProvesNativeWidth =
-              widthExpressionProvesNative || explicitResizeProvesNative
-
-            if (
-              native.parameters.nonEmpty &&
-              retainedIsConcreteWitness &&
-              native.default == retained.default &&
-              driverProvesNativeWidth
-            ) native
-            else retained
-          }
-
           '''
-          value = value[:select_start] + select_replacement + value[select_end:]
-
-          equivalent_start_marker = "  private def equivalentWidth(\n"
-          equivalent_end_marker = "  private def requireType(\n"
-          if (
-              value.count(equivalent_start_marker) != 1 or
-              value.count(equivalent_end_marker) != 1
-          ):
-              raise SystemExit(
-                  "equivalentWidth/requireType boundaries are ambiguous"
-              )
-          equivalent_start = value.index(equivalent_start_marker)
-          equivalent_end = value.index(
-              equivalent_end_marker,
-              equivalent_start
-          )
-          equivalent_replacement = '''  private def canonicalWidthVerilog(value: String): String = {
-            val normalized = compact(value)
-            val addressWidthPrefix = "morphhdl_address_width("
-            if (
-              normalized.startsWith(addressWidthPrefix) &&
-              normalized.endsWith(")")
-            ) {
-              val operand = normalized.substring(
-                addressWidthPrefix.length,
-                normalized.length - 1
-              )
-              s"clog2($operand,1)"
-            } else normalized
-          }
-
-          private def equivalentWidth(
-              left: ElaborationIntegerExpression,
-              right: ElaborationIntegerExpression
-          ): Boolean =
-            canonicalWidthVerilog(left.verilog) ==
-              canonicalWidthVerilog(right.verilog) &&
-              left.default == right.default && left.minimum == right.minimum &&
-              left.maximum == right.maximum &&
-              left.parameters.sortBy(_.name) == right.parameters.sortBy(_.name)
-
-          '''
-          value = (
-              value[:equivalent_start] +
-              equivalent_replacement +
-              value[equivalent_end:]
-          )
-          path.write_text(value)
+          path.write_text(value.replace(marker, diagnostic + marker, 1))
           PY
           git diff --check
 
@@ -210,33 +162,18 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Validate native StreamFifoCC on both Scala lanes
+      - name: Trace Scala 2.12 native StreamFifoCC witness
         shell: bash
         run: |
-          set -euo pipefail
+          set -o pipefail
           /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
             morphhdl.ParameterizedStreamFifoCCTests \
-            2>&1 | tee /tmp/increment-53e-combined-width-2.12.log
-          /tmp/morphhdl-mill 'morph[2.13.12].testOnly' \
-            morphhdl.ParameterizedStreamFifoCCTests \
-            2>&1 | tee /tmp/increment-53e-combined-width-2.13.log
+            2>&1 | tee /tmp/increment-53e-write-address-trace.log
 
-      - name: Upload focused validation evidence
+      - name: Upload address graph trace
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53e-combined-width-evidence
-          path: |
-            /tmp/increment-53e-combined-width-2.12.log
-            /tmp/increment-53e-combined-width-2.13.log
+          name: increment-53e-write-address-trace
+          path: /tmp/increment-53e-write-address-trace.log
           if-no-files-found: ignore
-
-      - name: Publish passing MorphHDL-only repair
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -f .github/workflows/increment-53e-address-resize-fix.yml
-          git add -A
-          git diff --cached --check
-          git commit -m 'Increment 53e: recover native FIFO address-width provenance'
-          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
