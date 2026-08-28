@@ -33,7 +33,7 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Instrument the native adapter witness checker
+      - name: Instrument the native adapter witness and preserve emitted RTL
         shell: bash
         run: |
           set -euo pipefail
@@ -54,10 +54,23 @@ jobs:
           )
           if text.count(old_stall) != 1 or text.count(old_fire) != 1:
               raise SystemExit("expected exact upsize checker statements were not found")
-          path.write_text(text.replace(old_stall, new_stall).replace(old_fire, new_fire))
+          text = text.replace(old_stall, new_stall).replace(old_fire, new_fire)
+
+          helper = '  private def withTemporaryDirectory(body: Path => Unit): Unit = {'
+          helper_index = text.find(helper)
+          if helper_index < 0:
+              raise SystemExit("temporary-directory helper was not found")
+          text = text[:helper_index] + '''  private def withTemporaryDirectory(body: Path => Unit): Unit = {
+            val directory = Files.createTempDirectory("morphhdl-stream-width-adapter-")
+            println(s"DBG_KEEP_DIRECTORY=$directory")
+            body(directory)
+          }
+        }
+        '''
+          path.write_text(text)
           PY
 
-      - name: Run the focused adapter proof with payload diagnostics
+      - name: Run the focused adapter proof and expose generated upsize RTL
         shell: bash
         run: |
           set -o pipefail
@@ -65,6 +78,14 @@ jobs:
             morphhdl.ParameterizedStreamWidthAdapterTests \
             2>&1 | tee /tmp/increment-53d-adapter-diagnostic.log
           status=${PIPESTATUS[0]}
-          grep -E "DBG_UP_|FAILED|FAIL EQ=|tests failed" \
+          grep -E "DBG_UP_|DBG_KEEP_DIRECTORY|FAILED|FAIL EQ=|tests failed" \
             /tmp/increment-53d-adapter-diagnostic.log | tail -n 200 || true
+          echo "===== GENERATED UPSIZE MODULES ====="
+          while IFS= read -r rtl; do
+            echo "===== $rtl ====="
+            awk '/^module NativeStreamWidthAdapterUpsize([ #(]|$)/,/^endmodule/' "$rtl" || true
+          done < <(find /tmp/morphhdl-stream-width-adapter-* -type f -name '*.v' 2>/dev/null | sort)
+          echo "===== UPSIZE-RELATED LINES ====="
+          grep -R -n -E 'NativeStreamWidthAdapterUpsize|upsize|buffer|io_input_payload|io_output_payload' \
+            /tmp/morphhdl-stream-width-adapter-* 2>/dev/null | tail -n 400 || true
           exit "$status"
