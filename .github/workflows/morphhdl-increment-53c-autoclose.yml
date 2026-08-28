@@ -1,0 +1,266 @@
+name: MorphHDL Increment 53c guarded closure
+
+on:
+  push:
+    branches:
+      - agent/increment-53c-native-axi4-slave-factory-offsets
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: morphhdl-increment-53c-guarded-closure
+  cancel-in-progress: true
+
+jobs:
+  close:
+    if: github.ref_name == 'agent/increment-53c-native-axi4-slave-factory-offsets'
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: pysolvesemi/MorphHDL
+      FEATURE_BRANCH: agent/increment-53c-native-axi4-slave-factory-offsets
+      BASE_BRANCH: parameterized-verilog
+      PR_NUMBER: "108"
+      ORIGINAL_WORKFLOW: .github/workflows/morphhdl-native-axi4-slave-factory-offsets.yml
+      FORMAL_WORKFLOW: .github/workflows/morphhdl-native-axi4-slave-factory-formal-v2.yml
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/increment-53c-native-axi4-slave-factory-offsets
+
+      - name: Wait for exact-head CI and require both Scala formal witnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.request
+
+          repository = os.environ["REPOSITORY"]
+          head = os.environ["GITHUB_SHA"]
+          token = os.environ["GH_TOKEN"]
+          required = {
+              os.environ["ORIGINAL_WORKFLOW"]: {
+                  "Native AXI4 factory proof Scala 2.12.18",
+                  "Native AXI4 factory proof Scala 2.13.12",
+              },
+              os.environ["FORMAL_WORKFLOW"]: {
+                  "Concrete-witness AXI4 proof Scala 2.12.18",
+                  "Concrete-witness AXI4 proof Scala 2.13.12",
+              },
+          }
+
+          def api(path):
+              request = urllib.request.Request(
+                  "https://api.github.com" + path,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": "Bearer " + token,
+                      "X-GitHub-Api-Version": "2022-11-28",
+                      "User-Agent": "MorphHDL-Increment-53c-closure",
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  return json.load(response)
+
+          deadline = time.time() + 45 * 60
+          last = {}
+          while time.time() < deadline:
+              data = api(
+                  f"/repos/{repository}/actions/runs?head_sha={head}&per_page=100"
+              )
+              latest = {}
+              for run in data.get("workflow_runs", []):
+                  path = run.get("path")
+                  if path not in required:
+                      continue
+                  old = latest.get(path)
+                  if old is None or run.get("created_at", "") > old.get("created_at", ""):
+                      latest[path] = run
+              last = latest
+              if set(latest) == set(required) and all(
+                  run.get("status") == "completed" for run in latest.values()
+              ):
+                  break
+              time.sleep(15)
+          else:
+              raise SystemExit(
+                  "Timed out waiting for required exact-head workflows: "
+                  + json.dumps(last, indent=2)
+              )
+
+          for path, expected_jobs in required.items():
+              run = last[path]
+              if run.get("conclusion") != "success":
+                  raise SystemExit(
+                      f"Required workflow {path} did not pass: "
+                      f"run={run.get('id')} conclusion={run.get('conclusion')}"
+                  )
+              jobs = api(
+                  f"/repos/{repository}/actions/runs/{run['id']}/jobs?per_page=100"
+              ).get("jobs", [])
+              by_name = {job.get("name"): job for job in jobs}
+              missing = sorted(expected_jobs - set(by_name))
+              if missing:
+                  raise SystemExit(
+                      f"Required workflow {path} is missing proof jobs: {missing}"
+                  )
+              failed = [
+                  name
+                  for name in sorted(expected_jobs)
+                  if by_name[name].get("conclusion") != "success"
+              ]
+              if failed:
+                  raise SystemExit(
+                      f"Required proof jobs did not pass in {path}: {failed}"
+                  )
+              print(
+                  f"validated {path}: run {run['id']} at {head} with "
+                  + ", ".join(sorted(expected_jobs))
+              )
+          PY
+
+      - name: Require current parameterized-verilog ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "${BASE_BRANCH}" "${FEATURE_BRANCH}"
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          git merge-base --is-ancestor "origin/${BASE_BRANCH}" HEAD
+
+      - name: Close roadmap and remove temporary closure machinery
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          lines = path.read_text().splitlines()
+          matches = [index for index, line in enumerate(lines) if "Increment 53c" in line]
+          if len(matches) != 1:
+              raise SystemExit(
+                  f"Expected exactly one Increment 53c roadmap entry, found {len(matches)}"
+              )
+          index = matches[0]
+          if "- [ ]" in lines[index]:
+              lines[index] = lines[index].replace("- [ ]", "- [x]", 1)
+          elif "- [x]" not in lines[index]:
+              raise SystemExit(
+                  "Increment 53c roadmap entry is neither unchecked nor checked: "
+                  + lines[index]
+              )
+          path.write_text("\n".join(lines) + "\n")
+          PY
+          rm -f .github/workflows/morphhdl-increment-53c-autoclose.yml
+          rm -f morphhdl/src/test/resources/increment-53c-formal-closure.txt
+          git diff --check
+          changed="$(git diff --name-only | sort)"
+          expected="$(printf '%s\n' \
+            .github/workflows/morphhdl-increment-53c-autoclose.yml \
+            docs/morphhdl/parameterized-verilog-todo.md \
+            morphhdl/src/test/resources/increment-53c-formal-closure.txt | sort)"
+          test "${changed}" = "${expected}"
+
+      - name: Commit exact docs-only closure revision
+        id: closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "OpenAI MorphHDL Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Close Increment 53c after dual-Scala AXI4 formal proof"
+          final_sha="$(git rev-parse HEAD)"
+          git diff --exit-code "${GITHUB_SHA}" "${final_sha}" -- \
+            morphplugin morphruntime frontend paramrtl core lib \
+            ':(exclude)morphhdl/src/test/resources/increment-53c-formal-closure.txt'
+          git push origin "HEAD:${FEATURE_BRANCH}"
+          echo "final_sha=${final_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Mark PR ready and squash-merge exact closure revision
+        shell: bash
+        env:
+          FINAL_SHA: ${{ steps.closure.outputs.final_sha }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          repository = os.environ["REPOSITORY"]
+          number = os.environ["PR_NUMBER"]
+          token = os.environ["GH_TOKEN"]
+          final_sha = os.environ["FINAL_SHA"]
+
+          def request(method, path, payload=None):
+              data = None if payload is None else json.dumps(payload).encode("utf-8")
+              req = urllib.request.Request(
+                  "https://api.github.com" + path,
+                  data=data,
+                  method=method,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": "Bearer " + token,
+                      "Content-Type": "application/json",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                      "User-Agent": "MorphHDL-Increment-53c-closure",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as response:
+                      return json.load(response)
+              except urllib.error.HTTPError as error:
+                  body = error.read().decode("utf-8", errors="replace")
+                  raise SystemExit(
+                      f"GitHub API {method} {path} failed with {error.code}: {body}"
+                  )
+
+          pr = request("GET", f"/repos/{repository}/pulls/{number}")
+          if pr.get("head", {}).get("sha") != final_sha:
+              raise SystemExit(
+                  f"PR head moved: expected {final_sha}, got "
+                  f"{pr.get('head', {}).get('sha')}"
+              )
+          if pr.get("draft"):
+              pr = request(
+                  "PATCH",
+                  f"/repos/{repository}/pulls/{number}",
+                  {"draft": False},
+              )
+              if pr.get("draft"):
+                  raise SystemExit("PR remained draft after ready-for-review update")
+
+          result = request(
+              "PUT",
+              f"/repos/{repository}/pulls/{number}/merge",
+              {
+                  "commit_title": "Increment 53c: parameterize native Axi4SlaveFactory offsets (#108)",
+                  "commit_message": (
+                      "Reuse the untouched SpinalHDL Axi4SlaveFactory while preserving "
+                      "direct and derived symbolic register offsets. Dual-Scala focused, "
+                      "strict-tool and independent concrete-witness formal gates passed "
+                      "before roadmap closure."
+                  ),
+                  "sha": final_sha,
+                  "merge_method": "squash",
+              },
+          )
+          if not result.get("merged"):
+              raise SystemExit("GitHub declined the guarded merge: " + json.dumps(result))
+          print(
+              "merged PR #108 at "
+              + str(result.get("sha"))
+              + ": "
+              + str(result.get("message"))
+          )
+          PY
