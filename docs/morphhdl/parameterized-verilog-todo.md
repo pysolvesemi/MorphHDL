@@ -195,7 +195,10 @@ After Increment 44 is implemented and merged:
 - Increment 52 depends only on Increment 51.
 - Increment 53 joins memory provenance and symbolic control flow; it depends
   on Increments 45 and 52.
-- Increments 54 through 58 then form a strict sequential closure chain.
+- Increment 53b depends on Increment 53 and extends the same zero-native-edit
+  proof to native relational payload-width algorithms.
+- Increments 54 through 58 then form a strict sequential closure chain after
+  Increment 53b.
 
 Dependencies are transitive. Two increments with no dependency edge between
 them are intentionally eligible for parallel implementation and review.
@@ -342,9 +345,31 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   separately authored FIFO. Stop for architecture approval if the alternatives
   cannot be retained through the generic provenance and branch-capture path.
 
-- [ ] **Increment 54 — MorphHDL module extraction and native-tree cleanup**
+- [ ] **Increment 53b — Native StreamWidthAdapter relational-width parameterization without source edits**
 
   **Dependencies:** Increment 53 implemented and merged.
+
+  Apply the generic formalization, native-`Int` provenance, relational
+  predicate and structural-capture path to an ordinary SpinalHDL component
+  that invokes the real, untouched `spinal.lib.StreamWidthAdapter`. Retain
+  symbolic payload widths across native `widthOf` queries and the arithmetic,
+  comparisons, counters, registers, resizes and slices derived by the existing
+  adapter algorithm. Prove the native equal-width, downsize and upsize paths
+  through bounded branch-invariant witness domains in one parameterized
+  Verilog-2001 top definition. MorphHDL must not modify `Stream.scala` or any
+  other upstream-owned SpinalHDL source, introduce a replacement adapter or
+  separately authored component/RTL algorithm, or recognize module, port or
+  signal names. Distinct independent symbolic width roots in one native
+  invocation must fail closed until a generic multi-root formalization model is
+  explicitly implemented. Preserve concrete `SpinalVerilog` parity, dual-Scala
+  behavior, deterministic generation, parameter overrides, simulation, lint,
+  synthesis and the complete native-source boundary. The bounded executable
+  contract is documented in
+  [Increment 53b](increment-53b-native-streamwidth-adapter.md).
+
+- [ ] **Increment 54 — MorphHDL module extraction and native-tree cleanup**
+
+  **Dependencies:** Increment 53b implemented and merged.
 
   Move remaining MorphHDL-specific parameter metadata, capture and lowering
   files out of native `core`, `lib` and `idslplugin` source trees into
@@ -363,7 +388,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   exact native-source manifest gate with no exception unless previously
   approved. Run the complete inherited validation inventory and all concrete,
   parameter-override, simulation, lint, synthesis, mutation and determinism
-  gates for Increments 29 through 54.
+  gates for Increments 29 through 54, including Increment 53b.
 
 - [ ] **Increment 56 — Native-looking SpinalHDL library-call provenance bridge**
 

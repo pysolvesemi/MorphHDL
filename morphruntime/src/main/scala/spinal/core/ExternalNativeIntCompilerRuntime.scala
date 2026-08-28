@@ -210,6 +210,98 @@ object ExternalNativeIntCompilerRuntime {
       rendered(file, line)
     )
 
+  private def literalWidth(value: Int): ElaborationIntegerExpression =
+    ElaborationIntegerExpression(
+      verilog = value.toString,
+      default = BigInt(value),
+      minimum = BigInt(value),
+      maximum = BigInt(value),
+      parameters = Vector.empty
+    )
+
+  private def addWidths(
+      left: ElaborationIntegerExpression,
+      right: ElaborationIntegerExpression
+  ): ElaborationIntegerExpression =
+    ElaborationIntegerExpression(
+      verilog = s"(${left.verilog} + ${right.verilog})",
+      default = left.default + right.default,
+      minimum = left.minimum + right.minimum,
+      maximum = left.maximum + right.maximum,
+      parameters = (left.parameters ++ right.parameters).distinct.sortBy(_.name),
+      sourceLocation = left.sourceLocation.orElse(right.sourceLocation)
+    )
+
+  private def packedWidthExpression(data: Data): ElaborationIntegerExpression = {
+    if (data == null) {
+      fail(
+        "MORPH-FRONTEND-NATIVE-WIDTH-FUNCTION-DATA-NULL",
+        "native width function received a null Data root",
+        "<native-width-function>",
+        1
+      )
+    }
+    val leaves = data.flatten.toVector
+    if (leaves.isEmpty) literalWidth(0)
+    else leaves.map { leaf =>
+      ParameterizedWidth.expressionOf(leaf).getOrElse(literalWidth(leaf.getBitsWidth))
+    }.reduce(addWidths)
+  }
+
+  /**
+    * Open a temporary generic native-width method scope. The real native method
+    * remains authoritative; this scope only supplies symbolic provenance to
+    * compiler-instrumented `widthOf` results and expressions derived from them.
+    */
+  def withWidthFunctionBoundary[A](
+      roots: Seq[Data],
+      file: String,
+      line: Int
+  )(body: => A): A = {
+    val expressions = Option(roots).getOrElse(Seq.empty).map(packedWidthExpression)
+    val symbolic = expressions.filter(_.parameters.nonEmpty).foldLeft(Vector.empty[ElaborationIntegerExpression]) {
+      case (known, expression)
+          if known.exists(ExternalFormalParameterRegistry.equivalentExpression(_, expression)) => known
+      case (known, expression) => known :+ expression
+    }
+    symbolic match {
+      case Vector() => body
+      case Vector(root) =>
+        val location = rendered(file, line)
+        val token = ExternalNativeIntFormalizationToken(
+          callSite = location,
+          valueOrigin = root.sourceLocation.getOrElse(location),
+          role = "nativeWidthFunction"
+        )
+        ExternalNativeIntShadowRegistry.withDefinitionExpressionBoundary(root, token)(body)
+      case roots =>
+        fail(
+          "MORPH-FRONTEND-NATIVE-WIDTH-FUNCTION-ROOT-AMBIGUOUS",
+          s"native width function received ${roots.size} independent symbolic packed-width roots: ${roots.map(_.verilog).mkString(", ")}",
+          file,
+          line
+        )
+    }
+  }
+
+  def compilerWidthOf(
+      data: Data,
+      nativeWidth: Int,
+      reference: String,
+      name: String,
+      file: String,
+      line: Int
+  ): Int = {
+    val expression = packedWidthExpression(data)
+    ExternalNativeIntShadowRegistry.widthQueryTracked(
+      witness = nativeWidth,
+      expression = if (expression.parameters.nonEmpty) Some(expression) else None,
+      reference = reference,
+      name = name,
+      sourceLocation = rendered(file, line)
+    )
+  }
+
   def compilerUInt(
       reference: String,
       file: String,
@@ -267,6 +359,16 @@ object ExternalNativeIntCompilerRuntime {
         )
       }
     value
+  }
+
+  /** Retain the target width of the untouched native BitVector.resize result. */
+  def compilerResize[T <: BitVector](
+      reference: String,
+      file: String,
+      line: Int
+  )(native: => T): T = {
+    val value = native
+    retainWidth(value, reference, file, line)
   }
 
   def compilerReg[T <: Data](dataType: => T)(native: => T): T =
@@ -462,6 +564,25 @@ object ExternalNativeIntCompilerRuntime {
     nativeValue
   }
 
+  private def constantPredicate(
+      condition: Boolean,
+      predicateReference: String,
+      sourceFile: String,
+      sourceLine: Int
+  ): Option[Boolean] = {
+    val (_, domain) =
+      ExternalNativeIntShadowRegistry.definitionPredicateEvidenceTracked(
+        predicateReference,
+        condition,
+        rendered(sourceFile, sourceLine)
+      )
+    domain.flatMap { value =>
+      if (value.whenTrue.isEmpty) Some(false)
+      else if (value.whenTrue == value.universe) Some(true)
+      else None
+    }
+  }
+
   def selectSymbolic[T](
       condition: Boolean,
       predicateReference: String,
@@ -470,17 +591,26 @@ object ExternalNativeIntCompilerRuntime {
   )(ifTrue: => T)(ifFalse: => T): T = {
     if (!boundaryActive || !ParameterizedStructure.captureEnabled) {
       if (condition) ifTrue else ifFalse
-    } else withCapture(sourceFile, sourceLine) {
-      captureOne(
-        condition,
-        predicateReference,
-        sourceFile,
-        sourceLine,
-        sourceFile,
-        sourceLine,
-        ifTrue,
-        ifFalse
-      )
+    } else constantPredicate(
+      condition,
+      predicateReference,
+      sourceFile,
+      sourceLine
+    ) match {
+      case Some(true)  => ifTrue
+      case Some(false) => ifFalse
+      case None => withCapture(sourceFile, sourceLine) {
+        captureOne(
+          condition,
+          predicateReference,
+          sourceFile,
+          sourceLine,
+          sourceFile,
+          sourceLine,
+          ifTrue,
+          ifFalse
+        )
+      }
     }
   }
 
@@ -499,48 +629,57 @@ object ExternalNativeIntCompilerRuntime {
   )(body: => T): T = {
     if (!boundaryActive || !ParameterizedStructure.captureEnabled) {
       if (condition) body else null.asInstanceOf[T]
-    } else withCapture(sourceFile, sourceLine) {
-      val component = Option(Component.current).getOrElse {
-        fail(
-          "MORPH-FRONTEND-SESSION-MISSING",
-          "native symbolic generate requires an active Component",
-          sourceFile,
-          sourceLine
+    } else constantPredicate(
+      condition,
+      predicateReference,
+      sourceFile,
+      sourceLine
+    ) match {
+      case Some(true)  => body
+      case Some(false) => null.asInstanceOf[T]
+      case None => withCapture(sourceFile, sourceLine) {
+        val component = Option(Component.current).getOrElse {
+          fail(
+            "MORPH-FRONTEND-SESSION-MISSING",
+            "native symbolic generate requires an active Component",
+            sourceFile,
+            sourceLine
+          )
+        }
+        val (expression, predicateDomain) =
+          ExternalNativeIntShadowRegistry.definitionPredicateEvidenceTracked(
+            predicateReference,
+            condition,
+            rendered(sourceFile, sourceLine)
+          )
+        var capturedValue: Option[T] = None
+        val trueBlock = ParameterizedStructure.captureBlock(
+          component,
+          Some(rendered(sourceFile, sourceLine))
+        ) {
+          capturedValue = Some(body)
+        }
+        val pending = ParameterizedStructure.beginPending(
+          component,
+          "generate-if",
+          Some(rendered(sourceFile, sourceLine))
         )
-      }
-      val (expression, predicateDomain) =
-        ExternalNativeIntShadowRegistry.definitionPredicateEvidenceTracked(
-          predicateReference,
-          condition,
-          rendered(sourceFile, sourceLine)
+        val falseBlock = ParameterizedStructuralSynthetic.emptyBlock(
+          Some(rendered(sourceFile, sourceLine))
         )
-      var capturedValue: Option[T] = None
-      val trueBlock = ParameterizedStructure.captureBlock(
-        component,
-        Some(rendered(sourceFile, sourceLine))
-      ) {
-        capturedValue = Some(body)
+        val base = generatedIfBase(sourceFile, sourceLine)
+        ParameterizedStructure.registerIf(
+          pending,
+          expression,
+          base + "_true",
+          base + "_false",
+          trueBlock,
+          falseBlock,
+          Some(rendered(sourceFile, sourceLine)),
+          predicateDomain
+        )
+        if (condition) capturedValue.get else null.asInstanceOf[T]
       }
-      val pending = ParameterizedStructure.beginPending(
-        component,
-        "generate-if",
-        Some(rendered(sourceFile, sourceLine))
-      )
-      val falseBlock = ParameterizedStructuralSynthetic.emptyBlock(
-        Some(rendered(sourceFile, sourceLine))
-      )
-      val base = generatedIfBase(sourceFile, sourceLine)
-      ParameterizedStructure.registerIf(
-        pending,
-        expression,
-        base + "_true",
-        base + "_false",
-        trueBlock,
-        falseBlock,
-        Some(rendered(sourceFile, sourceLine)),
-        predicateDomain
-      )
-      if (condition) capturedValue.get else null.asInstanceOf[T]
     }
   }
 
@@ -558,46 +697,59 @@ object ExternalNativeIntCompilerRuntime {
     if (!boundaryActive || !ParameterizedStructure.captureEnabled) {
       if (condition) ifTrue else ifFalse
       ()
-    } else withCapture(sourceFile, sourceLine) {
-      val component = Option(Component.current).getOrElse {
-        fail(
-          "MORPH-FRONTEND-SESSION-MISSING",
-          "native symbolic conditional requires an active Component",
-          sourceFile,
-          sourceLine
-        )
-      }
-      val expression = ExternalNativeIntShadowRegistry.definitionPredicateTracked(
-        predicateReference,
-        condition,
-        rendered(sourceFile, sourceLine)
-      )
-      val witness = if (condition) BigInt(1) else BigInt(0)
-      val retained = ElaborationIntegerExpression(
-        verilog = expression.verilog,
-        default = witness,
-        minimum = BigInt(0),
-        maximum = BigInt(1),
-        parameters = expression.parameters,
-        sourceLocation = expression.sourceLocation.orElse(
-          Some(rendered(sourceFile, sourceLine))
-        )
-      )
-      val carrier = component.rework {
-        val value = UInt(1 bits)
-        value := U(witness, 1 bits)
-        ExternalParameterizedValueRegistry.attach(
-          value,
-          retained,
-          witness,
-          retained.sourceLocation
-        )
-      }
-      when(carrier.asBool) {
+    } else constantPredicate(
+      condition,
+      predicateReference,
+      sourceFile,
+      sourceLine
+    ) match {
+      case Some(true) =>
         ifTrue
         ()
+      case Some(false) =>
+        ifFalse
+        ()
+      case None => withCapture(sourceFile, sourceLine) {
+        val component = Option(Component.current).getOrElse {
+          fail(
+            "MORPH-FRONTEND-SESSION-MISSING",
+            "native symbolic conditional requires an active Component",
+            sourceFile,
+            sourceLine
+          )
+        }
+        val expression = ExternalNativeIntShadowRegistry.definitionPredicateTracked(
+          predicateReference,
+          condition,
+          rendered(sourceFile, sourceLine)
+        )
+        val witness = if (condition) BigInt(1) else BigInt(0)
+        val retained = ElaborationIntegerExpression(
+          verilog = expression.verilog,
+          default = witness,
+          minimum = BigInt(0),
+          maximum = BigInt(1),
+          parameters = expression.parameters,
+          sourceLocation = expression.sourceLocation.orElse(
+            Some(rendered(sourceFile, sourceLine))
+          )
+        )
+        val carrier = component.rework {
+          val value = UInt(1 bits)
+          value := U(witness, 1 bits)
+          ExternalParameterizedValueRegistry.attach(
+            value,
+            retained,
+            witness,
+            retained.sourceLocation
+          )
+        }
+        when(carrier.asBool) {
+          ifTrue
+          ()
+        }
+        ()
       }
-      ()
     }
   }
 
@@ -627,19 +779,26 @@ object ExternalNativeIntCompilerRuntime {
     } else withCapture(ordered.head._4, ordered.head._5) {
       def capture(index: Int): T = {
         val (conditionThunk, reference, body, file, line) = ordered(index)
+        val condition = conditionThunk()
         val continuation = index + 1 < ordered.size
-        val falseFile = if (continuation) ordered(index + 1)._4 else otherwiseFile
-        val falseLine = if (continuation) ordered(index + 1)._5 else otherwiseLine
-        captureOne(
-          conditionThunk(),
-          reference,
-          file,
-          line,
-          falseFile,
-          falseLine,
-          body(),
-          if (continuation) capture(index + 1) else otherwise()
-        )
+        def fallback(): T = if (continuation) capture(index + 1) else otherwise()
+        constantPredicate(condition, reference, file, line) match {
+          case Some(true)  => body()
+          case Some(false) => fallback()
+          case None =>
+            val falseFile = if (continuation) ordered(index + 1)._4 else otherwiseFile
+            val falseLine = if (continuation) ordered(index + 1)._5 else otherwiseLine
+            captureOne(
+              condition,
+              reference,
+              file,
+              line,
+              falseFile,
+              falseLine,
+              body(),
+              fallback()
+            )
+        }
       }
       capture(0)
     }
@@ -667,32 +826,40 @@ object ExternalNativeIntCompilerRuntime {
     } else withCapture(ordered.head._4, ordered.head._5) {
       def capture(index: Int): Unit = {
         val (conditionThunk, reference, body, file, line) = ordered(index)
-        if (index + 1 < ordered.size) {
-          val next = ordered(index + 1)
-          captureOne[Any](
-            conditionThunk(),
-            reference,
-            file,
-            line,
-            next._4,
-            next._5,
-            body(),
-            {
-              capture(index + 1)
-              ()
-            }
-          )
-          ()
-        } else {
-          captureOneUnit(
-            conditionThunk(),
-            reference,
-            file,
-            line,
-            otherwiseFile,
-            otherwiseLine,
+        val condition = conditionThunk()
+        constantPredicate(condition, reference, file, line) match {
+          case Some(true) =>
             body()
-          )
+            ()
+          case Some(false) =>
+            if (index + 1 < ordered.size) capture(index + 1)
+            else { otherwise(); () }
+          case None if index + 1 < ordered.size =>
+            val next = ordered(index + 1)
+            captureOne[Any](
+              condition,
+              reference,
+              file,
+              line,
+              next._4,
+              next._5,
+              body(),
+              {
+                capture(index + 1)
+                ()
+              }
+            )
+            ()
+          case None =>
+            captureOneUnit(
+              condition,
+              reference,
+              file,
+              line,
+              otherwiseFile,
+              otherwiseLine,
+              body()
+            )
         }
       }
       capture(0)
