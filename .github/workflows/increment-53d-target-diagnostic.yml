@@ -1,4 +1,4 @@
-name: Validate Increment 53d invariant symbolic target assignments
+name: Diagnose Increment 53d symbolic assignment source
 
 on:
   push:
@@ -8,10 +8,10 @@ on:
       - .github/workflows/increment-53d-target-diagnostic.yml
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  validate:
+  diagnose:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/spinalhdl/docker:latest
@@ -33,13 +33,34 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Apply and validate the invariant-width assignment proof
+      - name: Print exact failing assignment IR
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s' 'LS0tIGEvbW9ycGhoZGwvc3JjL21haW4vc2NhbGEvc3BpbmFsL2NvcmUvaW50ZXJuYWxzL0V4dGVybmFsUGFyYW1ldGVyaXplZFZlcmlsb2dOYXRpdmVGYWxsYmFjay5zY2FsYQorKysgYi9tb3JwaGhkbC9zcmMvbWFpbi9zY2FsYS9zcGluYWwvY29yZS9pbnRlcm5hbHMvRXh0ZXJuYWxQYXJhbWV0ZXJpemVkVmVyaWxvZ05hdGl2ZUZhbGxiYWNrLnNjYWxhCkBAIC05NzEsNiArOTcxLDEwIEBACiAgICAgICAgICAgICAgICAgICB0YXJnZXRXaWR0aCwKICAgICAgICAgICAgICAgICAgIHNvdXJjZVdpZHRoCiAgICAgICAgICAgICAgICAgKQorICAgICAgICAgICAgICB2YWwgcHJvdmVuSW52YXJpYW50VGFyZ2V0V2lkdGggPQorICAgICAgICAgICAgICAgIHRhcmdldFdpZHRoLmlzU3ltYm9saWMgJiYKKyAgICAgICAgICAgICAgICAgIHRhcmdldFdpZHRoLm1pbmltdW0gPT0gdGFyZ2V0V2lkdGgubWF4aW11bSAmJgorICAgICAgICAgICAgICAgICAgc291cmNlV2lkdGguZGVmYXVsdCA9PSB0YXJnZXRXaWR0aC5kZWZhdWx0CiAgICAgICAgICAgICAgIGlmICgKICAgICAgICAgICAgICAgICB0YXJnZXRXaWR0aC5pc1N5bWJvbGljICYmIHNvdXJjZVdpZHRoLmlzU3ltYm9saWMgJiYKICAgICAgICAgICAgICAgICB0YXJnZXRXaWR0aCAhPSBzb3VyY2VXaWR0aCAmJiAhbmF0aXZlQ291bnRlck5leHQgJiYKQEAgLTk4Niw3ICs5OTAsOCBAQAogICAgICAgICAgICAgICBpZiAoCiAgICAgICAgICAgICAgICAgdGFyZ2V0V2lkdGguaXNTeW1ib2xpYyAmJiAhc291cmNlV2lkdGguaXNTeW1ib2xpYyAmJgogICAgICAgICAgICAgICAgICFpc1VuZml4ZWRMaXRlcmFsKGFzc2lnbm1lbnQuc291cmNlKSAmJiAhbmF0aXZlQ291bnRlck5leHQgJiYKLSAgICAgICAgICAgICAgICAhcHJvdmVuQXV0b1Jlc2l6ZSAmJiAhcHJvdmVuTW9kdWxhclVwZGF0ZQorICAgICAgICAgICAgICAgICFwcm92ZW5BdXRvUmVzaXplICYmICFwcm92ZW5Nb2R1bGFyVXBkYXRlICYmCisgICAgICAgICAgICAgICAgIXByb3ZlbkludmFyaWFudFRhcmdldFdpZHRoCiAgICAgICAgICAgICAgICkgewogICAgICAgICAgICAgICAgIGZhaWwoCiAgICAgICAgICAgICAgICAgICAiU1BJTkFMLVBBUkFNRVRFUklaRUQtVkVSSUxPRy1BU1NJR05NRU5ULVdJRFRILU1JU01BVENIIiwK' | base64 --decode > /tmp/increment-53d-invariant.patch
-          git apply --check /tmp/increment-53d-invariant.patch
-          git apply /tmp/increment-53d-invariant.patch
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala")
+          text = path.read_text(encoding="utf-8")
+          old = '''                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
+                  s"assignment to symbolic signal '${target.getName()}' uses concrete-width expression ${sourceWidth.render}; explicit domain-safe conversion is required",
+                  ParameterizedWidth.sourceLocationOf(target)
+                )'''
+          new = '''                val sourceChildren = ArrayBuffer.empty[String]
+                assignment.source.foreachExpression { child =>
+                  sourceChildren += s"${child.getClass.getName}:${child.opName}:${widthInference.ofExpression(child).render}"
+                }
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
+                  s"assignment to symbolic signal '${target.getName()}' uses concrete-width expression ${sourceWidth.render}; sourceClass=${assignment.source.getClass.getName}; sourceOp=${assignment.source.opName}; targetClass=${assignment.target.getClass.getName}; finalTargetClass=${assignment.finalTarget.getClass.getName}; children=${sourceChildren.mkString("[", ", ", "]")}",
+                  ParameterizedWidth.sourceLocationOf(target)
+                )'''
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f"expected one assignment diagnostic anchor, found {count}")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
 
           set +e
           /tmp/morphhdl-mill morph[2.13.12].testOnly \
@@ -47,25 +68,9 @@ jobs:
             > /tmp/increment-53d-target.log 2>&1
           status=$?
           set -e
-          if [ "$status" -ne 0 ]; then
-            echo "===== actionable diagnostics ====="
-            grep -E "FAILED|Cause:|SPINAL-|MORPH-|MorphVerilogException|ParameterizedVerilogException|AssertionError|tests failed" \
-              /tmp/increment-53d-target.log | tail -n 180 || true
-            echo "===== final log context ====="
-            tail -n 240 /tmp/increment-53d-target.log
-            exit "$status"
-          fi
-          tail -n 80 /tmp/increment-53d-target.log
-
-          rm .github/workflows/increment-53d-target-diagnostic.yml
-          git diff --check
-          if git diff --name-only | grep -Eq '^(core|lib|idslplugin)/'; then
-            echo "Increment 53d must not modify native SpinalHDL source" >&2
-            exit 1
-          fi
-          git config user.name "MorphHDL Increment Agent"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
-          git add .github/workflows/increment-53d-target-diagnostic.yml
-          git commit -m "fix: accept proven invariant symbolic target widths"
-          git push origin HEAD:agent/increment-53d-native-streamwidth-adapter
+          echo "===== exact assignment diagnostic ====="
+          grep -E "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH|FAILED|Cause:" \
+            /tmp/increment-53d-target.log | tail -n 80 || true
+          echo "===== final context ====="
+          tail -n 100 /tmp/increment-53d-target.log
+          exit "$status"
