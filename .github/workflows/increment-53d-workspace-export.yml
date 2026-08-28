@@ -29,16 +29,22 @@ jobs:
 
           path = Path("morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala")
           text = path.read_text(encoding="utf-8")
-          old = '''            Rewrite(
+          method_start = text.find("    private def rewriteBitVectorFactory(")
+          method_end = text.find("\n    private def rewriteNativeMem(", method_start)
+          if method_start < 0 or method_end < 0:
+              raise SystemExit(
+                  f"bit-vector factory method markers missing: start={method_start}, end={method_end}"
+              )
+          block = text[method_start:method_end]
+          old = """            Rewrite(
               curriedCall(
                 method,
                 List(Literal(Constant(reference))) ++ sourceArguments(original),
                 native,
                 original
               )
-            )
-          '''
-          new = '''            // Bit-vector factory width retention is implemented by the
+            )"""
+          new = """            // Bit-vector factory width retention is implemented by the
             // MorphHDL runtime bridge for both native-library and application
             // sources. The frontend NativeIntShadow object owns only explicit
             // Int provenance selection and deliberately has no compilerBits /
@@ -51,15 +57,18 @@ jobs:
               List(native)
             )
             retained.setPos(original.pos)
-            Rewrite(retained)
-          '''
-          count = text.count(old)
+            Rewrite(retained)"""
+          count = block.count(old)
           if count != 1:
               raise SystemExit(f"expected one bit-vector factory bridge anchor, found {count}")
-          path.write_text(text.replace(old, new), encoding="utf-8")
+          repaired_block = block.replace(old, new)
+          path.write_text(
+              text[:method_start] + repaired_block + text[method_end:],
+              encoding="utf-8",
+          )
           PY
 
-          rm .github/workflows/increment-53d-workspace-export.yml
+          rm -f .github/workflows/increment-53d-workspace-export.yml
           git diff --check
           if git diff --name-only | grep -Eq '^(core|lib|idslplugin)/'; then
             echo "Increment 53d must not modify native SpinalHDL source" >&2
