@@ -148,16 +148,23 @@ jobs:
               retained.minimum == retained.default &&
               retained.maximum == retained.default
 
-            val retainedDriverWidths =
-              retainedWidthThroughUniqueDriver(address, component, source)
+            val driverExpressions = address match {
+              case target: BaseType => directDriverExpressions(target, component)
+              case expression       => Vector(expression)
+            }
+
+            val retainedDriverWidths = driverExpressions.flatMap { driver =>
+              retainedWidthThroughUniqueDriver(driver, component, source)
+            }.distinct
             val widthExpressionProvesNative =
               retainedDriverWidths.size == 1 &&
               equivalentWidth(retainedDriverWidths.head, native)
 
             val explicitResizeProvesNative =
               native.default.isValidInt &&
+              driverExpressions.size == 1 &&
               explicitlyResizedToWidth(
-                address,
+                driverExpressions.head,
                 native.default.toInt,
                 component
               )
