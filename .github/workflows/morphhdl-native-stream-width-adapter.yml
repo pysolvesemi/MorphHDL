@@ -3,7 +3,7 @@ name: MorphHDL native StreamWidthAdapter parameterization
 on:
   push:
     branches:
-      - agent/increment-53b-native-streamwidth-adapter
+      - agent/increment-53d-native-streamwidth-adapter
       - parameterized-verilog
   pull_request:
     branches:
