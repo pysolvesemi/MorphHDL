@@ -242,7 +242,6 @@ final class MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(
                   original,
                   s"axi4-address-expression:${decoded(operationName)}"
                 )
-                val rightReference = reference(rightTree, "axi4-address-literal")
                 val call = Apply(
                   nativeIntMethod("compilerBinary"),
                   List(
@@ -251,7 +250,7 @@ final class MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(
                     Literal(Constant(lhs.reference)),
                     Literal(Constant(false)),
                     super.transform(rightTree),
-                    Literal(Constant(rightReference)),
+                    Literal(Constant("")),
                     Literal(Constant(true)),
                     Literal(Constant(resultReference)),
                     Literal(Constant("axi4Address"))
