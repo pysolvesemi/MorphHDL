@@ -31,18 +31,18 @@ object Inc53bFormalState extends SpinalEnum(binarySequential) {
   setGlobal()
 }
 
-object Inc53cAXI4ReadState extends SpinalEnum(binaryOneHot) {
+object Inc53b1AXI4ReadState extends SpinalEnum(binaryOneHot) {
   val waitResp = newElement("waitResp")
   val HTTPDone = newElement("HTTPDone")
   setGlobal()
 }
 
-object Inc53cFooBarState extends SpinalEnum(binarySequential) {
+object Inc53b1FooBarState extends SpinalEnum(binarySequential) {
   val IDLE, RUN = newElement()
   setGlobal()
 }
 
-object Inc53cFoo_BarState extends SpinalEnum(binarySequential) {
+object Inc53b1Foo_BarState extends SpinalEnum(binarySequential) {
   val IDLE, RUN = newElement()
   setGlobal()
 }
@@ -149,37 +149,37 @@ final class Inc53bFormalEnumTop(width: HdlInt) extends Component {
   encoded := state.asBits
 }
 
-final class Inc53cSnakeCaseTop(width: HdlInt) extends Component {
-  setDefinitionName("Inc53cSnakeCaseTop")
+final class Inc53b1SnakeCaseTop(width: HdlInt) extends Component {
+  setDefinitionName("Inc53b1SnakeCaseTop")
 
   val payload = in(morphhdl.frontend.UInt(width bits))
   val active = out Bool()
 
-  val state = Inc53cAXI4ReadState()
-  state := Inc53cAXI4ReadState.waitResp
+  val state = Inc53b1AXI4ReadState()
+  state := Inc53b1AXI4ReadState.waitResp
   when(payload(0)) {
-    state := Inc53cAXI4ReadState.HTTPDone
+    state := Inc53b1AXI4ReadState.HTTPDone
   }
-  active := state === Inc53cAXI4ReadState.HTTPDone
+  active := state === Inc53b1AXI4ReadState.HTTPDone
 }
 
-final class Inc53cSnakeCollisionTop(width: HdlInt) extends Component {
-  setDefinitionName("Inc53cSnakeCollisionTop")
+final class Inc53b1SnakeCollisionTop(width: HdlInt) extends Component {
+  setDefinitionName("Inc53b1SnakeCollisionTop")
 
   val payload = in(morphhdl.frontend.UInt(width bits))
   val active = out Bool()
 
-  val left = Inc53cFooBarState()
-  val right = Inc53cFoo_BarState()
-  left := Inc53cFooBarState.IDLE
-  right := Inc53cFoo_BarState.IDLE
+  val left = Inc53b1FooBarState()
+  val right = Inc53b1Foo_BarState()
+  left := Inc53b1FooBarState.IDLE
+  right := Inc53b1Foo_BarState.IDLE
   when(payload(0)) {
-    left := Inc53cFooBarState.RUN
-    right := Inc53cFoo_BarState.RUN
+    left := Inc53b1FooBarState.RUN
+    right := Inc53b1Foo_BarState.RUN
   }
   active :=
-    (left === Inc53cFooBarState.RUN) &&
-      (right === Inc53cFoo_BarState.RUN)
+    (left === Inc53b1FooBarState.RUN) &&
+      (right === Inc53b1Foo_BarState.RUN)
 }
 
 class SpinalEnumLocalParameterTests extends AnyFunSuite {
@@ -236,18 +236,18 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
       config.netlistFileName = "enum_snake_case.v"
       val report = MorphVerilog(config) {
         val width = HdlInt.param("WIDTH", default = 4, min = 1, max = 16)
-        new Inc53cSnakeCaseTop(width)
+        new Inc53b1SnakeCaseTop(width)
       }
 
-      assert(report.toplevelName == "Inc53cSnakeCaseTop")
+      assert(report.toplevelName == "Inc53b1SnakeCaseTop")
       val output = directory.resolve("enum_snake_case.v")
       val verilog = read(output)
-      assert(verilog.contains("localparam INC53C_AXI4_READ_STATE_WAIT_RESP = 2'd1;"))
-      assert(verilog.contains("localparam INC53C_AXI4_READ_STATE_WAIT_RESP_OH_ID = 0;"))
-      assert(verilog.contains("localparam INC53C_AXI4_READ_STATE_HTTP_DONE = 2'd2;"))
-      assert(verilog.contains("localparam INC53C_AXI4_READ_STATE_HTTP_DONE_OH_ID = 1;"))
-      assert(!verilog.contains("INC53CAXI4READSTATE"))
-      lint(output, directory, "Inc53cSnakeCaseTop")
+      assert(verilog.contains("localparam INC53B1_AXI4_READ_STATE_WAIT_RESP = 2'd1;"))
+      assert(verilog.contains("localparam INC53B1_AXI4_READ_STATE_WAIT_RESP_OH_ID = 0;"))
+      assert(verilog.contains("localparam INC53B1_AXI4_READ_STATE_HTTP_DONE = 2'd2;"))
+      assert(verilog.contains("localparam INC53B1_AXI4_READ_STATE_HTTP_DONE_OH_ID = 1;"))
+      assert(!verilog.contains("INC53B1AXI4READSTATE"))
+      lint(output, directory, "Inc53b1SnakeCaseTop")
     }
   }
 
@@ -295,7 +295,7 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
 
       MorphVerilog.tryGenerate(config) {
         val width = HdlInt.param("WIDTH", default = 4, min = 1, max = 16)
-        new Inc53cSnakeCollisionTop(width)
+        new Inc53b1SnakeCollisionTop(width)
       } match {
         case Left(failure) =>
           assert(failure.stage == MorphVerilogStage.SingleSourceGeneration)
@@ -305,7 +305,7 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
               "SPINAL-PARAMETERIZED-VERILOG-ENUM-LOCAL-NAME-COLLISION"
             )
           )
-          assert(diagnostic.contains("INC53C_FOO_BAR_STATE_IDLE"))
+          assert(diagnostic.contains("INC53B1_FOO_BAR_STATE_IDLE"))
           assert(!Files.exists(directory.resolve("enum_snake_collision.v")))
         case Right(_) =>
           fail("distinct enum identifiers that canonicalize identically must fail closed")

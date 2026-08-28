@@ -199,10 +199,11 @@ After Increment 44 is implemented and merged:
   the merged Increment 53.
 - Increment 53b depends only on the merged Increment 53. Increments 53a and 53b
   may execute independently.
-- Increment 53c depends only on the merged Increment 53b. Increment 54 requires
-  both Increment 53a and Increment 53c.
+- Increment 53b.1 is a corrective enum-naming closure and depends only on the
+  merged Increment 53b. Increment 54 requires both Increment 53a and Increment
+  53b.1.
 - Increments 54 through 58 then form a strict sequential closure chain after
-  Increments 53a and 53c.
+  Increments 53a and 53b.1.
 
 Dependencies are transitive. Two increments with no dependency edge between
 them are intentionally eligible for parallel implementation and review.
@@ -396,7 +397,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   generation, strict Verilog-2001 lint/synthesis and native-source preservation.
 
 
-- [ ] **Increment 53c — SCREAMING_SNAKE_CASE SpinalEnum localparam names**
+- [ ] **Increment 53b.1 — SCREAMING_SNAKE_CASE SpinalEnum localparam names**
 
   **Dependencies:** Increment 53b implemented and merged.
 
@@ -419,7 +420,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
 
 - [ ] **Increment 54 — MorphHDL module extraction and native-tree cleanup**
 
-  **Dependencies:** Increments 53a, 53b and 53c implemented and merged.
+  **Dependencies:** Increments 53a, 53b and 53b.1 implemented and merged.
 
   Move remaining MorphHDL-specific parameter metadata, capture and lowering
   files out of native `core`, `lib` and `idslplugin` source trees into
