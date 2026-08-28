@@ -80,6 +80,43 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
     read_data := read_word
   }
 
+  private final class ResizedNativeMemoryAddress(
+      width: HdlInt,
+      depth: HdlInt
+  ) extends Component {
+    setDefinitionName("ResizedNativeMemoryAddress")
+
+    val read_enable = in(Bool())
+    val write_enable = in(Bool())
+    @dontName val pointerWidth = depth
+      .hdlEq(HdlInt.literal(BigInt(8)))
+      .select(HdlInt.literal(BigInt(4)), HdlInt.literal(BigInt(3)))
+    val pointer = in(
+      morphhdl.frontend.UInt(pointerWidth bits)
+    )
+    val write_data = in(morphhdl.frontend.Bits(width bits))
+    val read_data = out(morphhdl.frontend.Bits(width bits))
+
+    // This is deliberately an ordinary, untagged native memory-address
+    // carrier. At the DEPTH=5 witness it has the same width as pointer, while
+    // the retained pointer grows an extra wrap bit only at DEPTH=8.
+    val address = UInt(3 bits).setName("address")
+    address := pointer.resized
+    val memory = morphhdl.frontend
+      .Mem(
+        morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)),
+        depth
+      )
+      .setName("memory")
+    val read_word = memory.readSync(
+      address,
+      enable = read_enable,
+      readUnderWrite = readFirst
+    )
+    memory.write(address, write_data, enable = write_enable)
+    read_data := read_word
+  }
+
   test("ordinary Mem readSync and write emit the guarded native single-port contract") {
     withTemporaryDirectory { directory =>
       val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
@@ -178,6 +215,28 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
       val writeIndex = verilog.indexOf("memory[write_address] <= write_data;")
       assert(readIndex >= 0 && writeIndex > readIndex)
       assert(count(verilog, "always @(posedge clk)") == 1)
+    }
+  }
+
+  test("validated memory address width survives generic resized-carrier inference") {
+    withTemporaryDirectory { directory =>
+      val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
+      val depth = HdlInt.param("DEPTH", default = 5, min = 1, max = 8)
+      val verilog = emitMorph(
+        directory,
+        "resized_native_memory_address.v",
+        new ResizedNativeMemoryAddress(width, depth)
+      )
+
+      assert(
+        """(?m)^\s*wire\s+\[2:0\]\s+address\s*;\s*$""".r
+          .findFirstIn(verilog)
+          .nonEmpty,
+        verilog
+      )
+      assert("""DEPTH\)?\s*==\s*\(?8""".r.findFirstIn(verilog).nonEmpty)
+      assert(verilog.contains("if (address < DEPTH) begin"))
+      assert(verilog.contains("memory[address] <= write_data;"))
     }
   }
 

@@ -195,9 +195,14 @@ After Increment 44 is implemented and merged:
 - Increment 52 depends only on Increment 51.
 - Increment 53 joins memory provenance and symbolic control flow; it depends
   on Increments 45 and 52.
-- Increment 53b depends on Increment 53 and must complete before Increment 53c.
-- Increment 53c depends on Increment 53b and must complete before Increment 54.
-- Increments 54 through 58 then form a strict sequential closure chain.
+- Increment 53a is a corrective formal-equivalence closure and depends only on
+  the merged Increment 53.
+- Increment 53b depends only on the merged Increment 53. Increments 53a and 53b
+  may execute independently.
+- Increment 53c depends on the merged Increment 53b and may overlap Increment
+  53a once Increment 53b is merged.
+- Increment 54 requires the merged Increments 53a and 53c. Increments 54
+  through 58 then form a strict sequential closure chain.
 
 Dependencies are transitive. Two increments with no dependency edge between
 them are intentionally eligible for parallel implementation and review.
@@ -344,6 +349,32 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   separately authored FIFO. Stop for architecture approval if the alternatives
   cannot be retained through the generic provenance and branch-capture path.
 
+- [x] **Increment 53a — Native StreamFifo concrete-witness formal equivalence**
+
+  **Dependencies:** Increment 53 implemented and merged.
+
+  Keep Increment 53 checked and add an independent formal proof layer around
+  its generated top-level design. From the same untouched
+  `spinal.lib.StreamFifo` source, generate ordinary `SpinalVerilog` concrete
+  witnesses with literal native-`Int` depths 1, 3, 5 and 8. Generate the
+  Increment 53 `MorphVerilog` top once, specialize that one parameterized
+  definition to each matching `DEPTH`, and prove every full top-level pair
+  sequentially equivalent after a shared synchronous-reset edge under
+  arbitrary shared push-valid/payload, pop-ready, flush and later-reset inputs.
+  Compare push-ready, pop-valid, occupancy and availability on every proved
+  cycle, and compare pop payload only while pop-valid because unwritten memory
+  payload is unspecified. The proof must be solver-backed and unbounded, or
+  exhaustive with an explicit completeness argument; bounded simulation,
+  lint, synthesis, `yosys check`, structural/text equality and a
+  concrete-vs-concrete comparison do not satisfy it. Require independently
+  generated DUT legs, reject a `DEPTH` parameter on the concrete leg, and add a
+  DEPTH=3 negative-control mutation that changes a compared MorphHDL observable
+  and must produce a genuine assertion counterexample. Run generation and all
+  four proofs on Scala 2.12.18 and 2.13.12 in a pinned formal toolchain while
+  retaining strict Verilog-2001, determinism and source-boundary gates. No
+  separately authored FIFO, native `StreamFifo` source edit, emitted-name
+  heuristic or Increment 53 checkbox change is permitted.
+
 - [x] **Increment 53b — MorphHDL-owned module-local SpinalEnum parameters**
 
   **Dependencies:** Increment 53 implemented and merged.
@@ -351,16 +382,18 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   Keep all upstream-owned SpinalHDL `core`, `lib` and `idslplugin`
   production sources byte-identical. In MorphHDL-owned post-publication
   code, discover exact `SpinalEnum` definitions, elements and encodings from
-  the native graph, replace global enum `` `define `` references and long
-  enum-prefixed constants with module-local Verilog-2001 `localparam`s named
-  only by the element (`IDLE`, `RUN`, and so on). Retain encoding-specific
+  the native graph, replace global enum `` `define `` references with
+  module-local Verilog-2001 `localparam`s named by the uppercase enum and
+  element, for example Scala `State.IDLE` becomes Verilog `STATE_IDLE`.
+  Never add a component, module or hierarchy prefix. Retain encoding-specific
   values and one-hot index helpers, remove recognized global macros from the
-  final `MorphVerilog` output, and allow the same short names in different
-  module scopes. Fail closed on conflicting same-module names or existing
-  identifiers rather than adding module or enum prefixes. Ordinary
-  `SpinalVerilog` output must remain unchanged. Prove deterministic
-  dual-Scala generation, strict Verilog-2001 lint/synthesis and the native
-  source-preservation boundary.
+  final `MorphVerilog` output, and allow identical names in different module
+  scopes. Fail closed on conflicting final names or existing identifiers.
+  Ordinary `SpinalVerilog` output must remain unchanged. In both supported
+  Scala lanes, formally prove the native macro RTL and MorphHDL localparam RTL
+  equivalent at the concrete parameter witness using Yosys `equiv_make`,
+  sequential induction and `equiv_status -assert`, in addition to deterministic
+  generation, strict Verilog-2001 lint/synthesis and native-source preservation.
 
 - [ ] **Increment 53c — Native AXI4 Slave Factory parameterized offsets**
 
@@ -368,18 +401,27 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
 
   Preserve bounded symbolic register-map offsets while application source uses
   the real, untouched `spinal.lib.bus.amba4.axi.Axi4SlaveFactory`. MorphHDL may
-  add only compiler/runtime provenance, exact-object metadata and parameter-aware
-  native case-key lowering. It must not modify upstream-owned SpinalHDL
-  `core`, `lib` or `idslplugin` production sources, reimplement or replace the
-  factory, duplicate AXI/register-map algorithms, recognize emitted module or
-  signal text, or infer symbolic identity from equal concrete addresses. Prove
-  direct and derived offsets, unrelated fixed-address isolation, deterministic
-  dual-Scala `MorphVerilog`, ordinary concrete `SpinalVerilog` parity, strict
-  Verilog-2001 lint/synthesis and the native-source preservation boundary.
+  add only compiler/runtime provenance, exact-object metadata and
+  parameter-aware native case-key lowering. It must not modify upstream-owned
+  SpinalHDL `core`, `lib` or `idslplugin` production sources, reimplement or
+  replace the factory, duplicate AXI/register-map algorithms, recognize
+  emitted module or signal text, or infer symbolic identity from equal
+  concrete addresses. Prove direct and derived offsets, unrelated fixed-address
+  isolation, deterministic dual-Scala `MorphVerilog`, ordinary concrete
+  `SpinalVerilog` parity and strict Verilog-2001 lint/synthesis. Generate
+  independent native-`Int` concrete witnesses at offsets `0x010`, `0x040` and
+  `0x070`, specialize the single MorphHDL definition to each matching offset,
+  and prove the complete top-level AXI/register behavior sequentially
+  equivalent after a shared reset under arbitrary shared AXI inputs. Compare
+  response payloads only while their valid outputs are asserted, and require a
+  deliberately mutated MorphHDL observable to produce a genuine assertion
+  counterexample. Run all positive proofs and the mutation control on Scala
+  2.12.18 and 2.13.12 in the pinned formal toolchain while retaining the native
+  source-preservation boundary.
 
 - [ ] **Increment 54 — MorphHDL module extraction and native-tree cleanup**
 
-  **Dependencies:** Increment 53c implemented and merged.
+  **Dependencies:** Increments 53a and 53c implemented and merged.
 
   Move remaining MorphHDL-specific parameter metadata, capture and lowering
   files out of native `core`, `lib` and `idslplugin` source trees into

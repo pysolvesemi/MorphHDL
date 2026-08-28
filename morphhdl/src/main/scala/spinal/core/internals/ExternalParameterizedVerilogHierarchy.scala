@@ -445,15 +445,25 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     val canonicalParameterNames = canonicalParameters.map(_.name).toSet
     canonicalPorts.foreach {
       case (name, expectedPort) =>
-        val expectedParameter = ParameterizedWidth.parameterOf(expectedPort)
-        val actualParameter = ParameterizedWidth.parameterOf(actualByName(name))
-        if (expectedParameter.isEmpty && actualParameter.nonEmpty) {
+        val expectedWidth = ParameterizedWidth
+          .expressionOf(expectedPort)
+          .filter(_.parameters.nonEmpty)
+        val actualWidth = ParameterizedWidth
+          .expressionOf(actualByName(name))
+          .filter(_.parameters.nonEmpty)
+        if (expectedWidth.isEmpty && actualWidth.nonEmpty) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
             s"port '$name' of instance '$instanceName' is symbolic while canonical definition '$definitionName' is concrete"
           )
         }
-        if (expectedParameter.isEmpty) {
+        if (expectedWidth.nonEmpty && actualWidth.isEmpty) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
+            s"port '$name' of instance '$instanceName' is concrete while canonical definition '$definitionName' is symbolic"
+          )
+        }
+        if (expectedWidth.isEmpty) {
           connectionEvidence(
             parent,
             child,
@@ -483,13 +493,137 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     val bindingMap = bindings.toMap
     val ports = canonicalPorts.flatMap {
       case (name, port) =>
-        ParameterizedWidth.parameterOf(port).flatMap { parameter =>
-          val expression = bindingMap(parameter.name)
+        ParameterizedWidth.expressionOf(port).flatMap { definitionWidth =>
+          val expression = ParameterizedWidth.parameterOf(port) match {
+            case Some(parameter) => bindingMap(parameter.name)
+            case None =>
+              instantiateDerivedPortWidth(
+                definitionWidth,
+                bindingMap,
+                definitionName,
+                instanceName,
+                name
+              )
+          }
           if (expression.isSymbolic) Some(PortRewrite(name, expression)) else None
         }
     }
     InstancePlan(definitionName, instanceName, bindings, ports)
   }
+
+  /**
+    * Substitute one definition-side derived packed width with the already
+    * proven actual bindings of this exact child instance. Direct formal widths
+    * keep the older identity-preserving path above; this helper covers only
+    * expressions such as `addressWidth(DEPTH + 1)`.
+    *
+    * The definition bounds remain a conservative envelope because every
+    * actual binding was validated to stay inside its formal domain. Replacing
+    * all identifiers in one pass prevents an actual expression from being
+    * rewritten again when it happens to mention another formal name.
+    */
+  private def instantiateDerivedPortWidth(
+      definition: ElaborationIntegerExpression,
+      bindings: Map[String, BindingExpr],
+      definitionName: String,
+      instanceName: String,
+      portName: String
+  ): BindingExpr = {
+    val formals = definition.parameters.distinct.sortBy(_.name)
+    if (formals.isEmpty) return ExpressionBinding(definition)
+
+    val replacements = formals.map { formal =>
+      val actual = bindings.getOrElse(
+        formal.name,
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
+          s"derived width '${definition.verilog}' of port '$portName' on canonical child '$definitionName' references unbound formal '${formal.name}' for instance '$instanceName'"
+        )
+      )
+      formal.name -> actual
+    }.toMap
+    val substituted = mutable.HashSet.empty[String]
+    val rendered = new StringBuilder
+    var cursor = 0
+    while (cursor < definition.verilog.length) {
+      val current = definition.verilog.charAt(cursor)
+      if (isIdentifierStart(current)) {
+        val start = cursor
+        cursor += 1
+        while (
+          cursor < definition.verilog.length &&
+          isIdentifierCharacter(definition.verilog.charAt(cursor))
+        ) cursor += 1
+
+        val identifier = definition.verilog.substring(start, cursor)
+        replacements.get(identifier) match {
+          case Some(actual) =>
+            var next = cursor
+            while (
+              next < definition.verilog.length &&
+              definition.verilog.charAt(next).isWhitespace
+            ) next += 1
+
+            // Retained integer expressions use ordinary identifiers both for
+            // formal parameters and for portable helper calls. Verilog keeps
+            // module parameters and functions in one identifier namespace, so
+            // a formal that also appears as a call target (for example
+            // `clog2`) cannot be published safely. Fail closed instead of
+            // rewriting the function token into a call of the parent actual.
+            if (
+              next < definition.verilog.length &&
+              definition.verilog.charAt(next) == '('
+            ) {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-DERIVED-WIDTH-IDENTIFIER-COLLISION",
+                s"derived width '${definition.verilog}' of port '$portName' on canonical child '$definitionName' uses formal '$identifier' as a function-call identifier for instance '$instanceName'"
+              )
+            } else {
+              rendered.append('(').append(actual.render).append(')')
+              substituted += identifier
+            }
+          case None => rendered.append(identifier)
+        }
+      } else {
+        rendered.append(current)
+        cursor += 1
+      }
+    }
+    val missing = replacements.keySet.diff(substituted.toSet)
+    if (missing.nonEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
+        s"derived width '${definition.verilog}' of port '$portName' on canonical child '$definitionName' does not contain retained formal identifiers ${missing.toVector.sorted.mkString(", ")} for instance '$instanceName'"
+      )
+    }
+
+    val actualParameters = replacements.values.toVector
+      .flatMap(_.parameters)
+      .groupBy(_.name)
+      .toVector
+      .sortBy(_._1)
+      .map {
+        case (name, schemas) if schemas.distinct.size == 1 => schemas.head
+        case (name, _) =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
+            s"derived width of port '$portName' on instance '$instanceName' maps actual parameter '$name' to conflicting schemas"
+          )
+      }
+    ExpressionBinding(
+      definition.copy(
+        verilog = rendered.toString,
+        parameters = actualParameters,
+        sourceLocation = None
+      )
+    )
+  }
+
+  private def isIdentifierStart(value: Char): Boolean =
+    value == '_' || value == '$' || value.isLetter
+
+  private def isIdentifierCharacter(value: Char): Boolean =
+    isIdentifierStart(value) || value.isDigit
 
   private def componentParameters(
       component: Component

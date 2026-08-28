@@ -10,7 +10,7 @@
   "approved_state": {
     "commit": "4b2a78649dbe304d5aff0565e902474070c60063",
     "tree": "f29c123f1e0976466aea567d8f08f4655dd9628b",
-    "description": "Reviewed native-source state at the merged Increment 53 parameterized-verilog head; Increment 53b changes no native SpinalHDL production source"
+    "description": "Reviewed native-source state at the merged Increment 53 parameterized-verilog head; Increments 53a and 53b change no native SpinalHDL production source"
   },
   "source_roots": [
     "core/src/main/scala/spinal/core",

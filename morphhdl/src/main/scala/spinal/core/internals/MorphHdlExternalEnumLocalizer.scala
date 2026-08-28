@@ -19,10 +19,11 @@ import spinal.core._
   * to its exact enum element and encoding, and rewrites only the published
   * parameterized Verilog artifact.
   *
-  * Every enum value is declared as a short module-local `localparam` using the
-  * element name. Global preprocessor macros and enum/module prefixes therefore
-  * do not escape the module that uses the enum. A same-module short-name
-  * collision fails closed rather than silently reintroducing a prefix.
+  * Every enum value is declared as an uppercase, enum-qualified module-local
+  * `localparam`: for example, Scala `State.IDLE` becomes Verilog `STATE_IDLE`.
+  * Component, module and hierarchy names are never prefixed. Global
+  * preprocessor macros therefore do not escape the module that uses the enum,
+  * while distinct enum types remain readable inside one module.
   */
 object MorphHdlExternalEnumLocalizer {
   private final case class ModuleBlock(name: String, start: Int, end: Int)
@@ -342,11 +343,11 @@ object MorphHdlExternalEnumLocalizer {
         )
       }
       definition.elements.toVector.map { element =>
-        val localName = requiredName(
+        val elementName = requiredName(
           element.getName(),
           s"element ${element.position} of enum '$enumName'"
         )
-        validateLocalName(component, enumName, localName)
+        validateLocalName(component, enumName, elementName)
         val withEncoding =
           definition.defaultEncoding != encoding &&
             definition.defaultEncoding == native &&
@@ -355,7 +356,9 @@ object MorphHdlExternalEnumLocalizer {
           if (withEncoding)
             "_" + requiredName(encoding.getName(), s"encoding of enum '$enumName'")
           else ""
-        val nativeName = enumName + encodingSuffix + "_" + localName
+        val nativeName = enumName + encodingSuffix + "_" + elementName
+        val localName = nativeName.toUpperCase(java.util.Locale.ROOT)
+        validateLocalName(component, enumName, localName)
         val value = encoding.getValue(element)
         EnumConstant(
           nativeName = nativeName,
@@ -446,7 +449,7 @@ object MorphHdlExternalEnumLocalizer {
         case Some(previous) =>
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-ENUM-LOCAL-NAME-COLLISION",
-            s"module '$moduleName' requires short localparam '${alias.localName}' for both ${previous.literal} and ${alias.literal}"
+            s"module '$moduleName' requires uppercase enum localparam '${alias.localName}' for both ${previous.literal} and ${alias.literal}"
           )
       }
     }
@@ -462,7 +465,7 @@ object MorphHdlExternalEnumLocalizer {
       if (existingIdentifiers(localName)) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-ENUM-LOCAL-NAME-COLLISION",
-          s"module '$moduleName' already declares or references identifier '$localName'; a prefix-free enum localparam would be ambiguous"
+          s"module '$moduleName' already declares or references identifier '$localName'; an uppercase enum-qualified localparam would be ambiguous"
         )
       }
     }
