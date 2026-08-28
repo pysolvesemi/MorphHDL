@@ -1,0 +1,186 @@
+name: Increment 53e exact symbolic range bootstrap
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-streamfifo-cc-parameterization
+
+permissions:
+  contents: write
+
+jobs:
+  apply-test-publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 90
+    env:
+      MORPHDL_STREAMFIFOCC_DEBUG_DIR: /tmp/morphhdl-streamfifocc-debug
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-streamfifo-cc-parameterization
+          fetch-depth: 0
+
+      - name: Recover the reviewed bootstrap and native witness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git fetch --no-tags origin \
+            agent/increment-53d-native-streamfifocc-parameterization:refs/remotes/origin/agent/increment-53d-native-streamfifocc-parameterization
+          git show \
+            origin/agent/increment-53d-native-streamfifocc-parameterization:.github/workflows/increment-53d-streamfifocc-bootstrap.yml \
+            > /tmp/reviewed.yml
+          git show \
+            origin/agent/increment-53d-native-streamfifocc-parameterization:morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoCCDepthTests.scala \
+            > morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoCCDepthTests.scala
+          git show \
+            4a379f6c64f67889ca432e01ac7d51a41077941a:.github/workflows/increment-53e-bootstrap-v2.yml \
+            > /tmp/increment-53e-reviewed-bootstrap.yml
+
+      - name: Apply reviewed support plus exact symbolic low-range capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path('/tmp/increment-53e-reviewed-bootstrap.yml').read_text()
+          begin_marker = "          cat > /tmp/apply53e.py <<'PY'\n"
+          end_marker = "\n          PY\n          python3 /tmp/apply53e.py"
+          begin = workflow.index(begin_marker) + len(begin_marker)
+          end = workflow.index(end_marker, begin)
+          reviewed_patch = textwrap.dedent(workflow[begin:end])
+          exec(
+              compile(reviewed_patch, 'increment-53e-reviewed-bootstrap', 'exec'),
+              {'__name__': '__main__'},
+          )
+
+          plugin_path = Path(
+              'morphplugin/src/main/scala/morphhdl/compiler/'
+              'MorphHdlNativeIntShadowExpressionComponent.scala'
+          )
+          plugin = plugin_path.read_text()
+
+          method_marker = '    private def nativeValueCarrier(\n'
+          methods = '''    private def nativeUIntApplication(fun: Tree): Boolean =
+              fun match {
+                case Select(value, name) if decoded(name) == "apply" =>
+                  inferShape(value) == UIntShape
+                case _ => inferShape(fun) == UIntShape
+              }
+
+            private def rewriteNativeUIntLowRange(
+              original: Tree,
+              fun: Tree,
+              widthTree: Tree,
+              minusName: Name,
+              downtoName: Name
+            ): Rewrite = {
+              val width = rewriteExpression(widthTree, None)
+              width.intReference match {
+                case Some(reference) =>
+                  val one = Literal(Constant(1))
+                  val zero = Literal(Constant(0))
+                  one.setPos(original.pos)
+                  zero.setPos(original.pos)
+                  val high = Apply(Select(width.tree, minusName), List(one))
+                  high.setPos(original.pos)
+                  val range = Apply(Select(high, downtoName), List(zero))
+                  range.setPos(original.pos)
+                  val native = Apply(transform(fun), List(range))
+                  native.setPos(original.pos)
+                  Rewrite(
+                    curriedCall(
+                      "compilerUInt",
+                      List(Literal(Constant(reference))) ++ sourceArguments(original),
+                      native,
+                      original
+                    )
+                  )
+                case None => Rewrite(super.transform(original))
+              }
+            }
+
+          '''
+          if plugin.count(method_marker) != 1:
+              raise SystemExit('nativeValueCarrier range-method marker is ambiguous')
+          plugin = plugin.replace(method_marker, methods + method_marker, 1)
+
+          range_case = '''        case Apply(
+              fun,
+              List(
+                Apply(
+                  Select(
+                    Apply(Select(width, minusName), List(one)),
+                    downtoName
+                  ),
+                  List(zero)
+                )
+              )
+            )
+              if inNativeStreamFifo &&
+                nativeUIntApplication(fun) &&
+                decoded(minusName) == "-" &&
+                decoded(downtoName) == "downto" &&
+                literalInteger(one).contains(1) &&
+                literalInteger(zero).contains(0) =>
+            rewriteNativeUIntLowRange(
+              tree,
+              fun,
+              width,
+              minusName,
+              downtoName
+            )
+          '''
+          rewrite_expression = plugin.index('    private def rewriteExpression(')
+          tree_match_marker = '      tree match {\n'
+          tree_match = plugin.index(tree_match_marker, rewrite_expression) + len(tree_match_marker)
+          plugin = plugin[:tree_match] + range_case + plugin[tree_match:]
+          plugin_path.write_text(plugin)
+          PY
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run exact native StreamFifoCC diagnostic
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
+            morphhdl.ParameterizedStreamFifoCCDepthTests \
+            2>&1 | tee /tmp/increment-53e-range-bootstrap.log
+
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53e-range-bootstrap-evidence
+          path: |
+            /tmp/increment-53e-range-bootstrap.log
+            /tmp/morphhdl-streamfifocc-debug
+          if-no-files-found: ignore
+
+      - name: Publish only the passing implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala \
+            morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoCCDepthTests.scala
+          git diff --cached --check
+          git commit -m 'Increment 53e: parameterize native StreamFifoCC depth'
+          git push origin HEAD:agent/increment-53e-streamfifo-cc-parameterization
