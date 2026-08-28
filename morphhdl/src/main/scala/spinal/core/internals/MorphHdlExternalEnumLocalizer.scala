@@ -569,40 +569,40 @@ object MorphHdlExternalEnumLocalizer {
     var inString = false
     var escaped = false
 
-    def append(value: String): Unit = output.foreach(_ ++= value)
-    def append(value: Char): Unit = output.foreach(_ += value)
+    def appendString(value: String): Unit = output.foreach(_ ++= value)
+    def appendChar(value: Char): Unit = output.foreach(_ += value)
 
     while (index < text.length) {
       val current = text.charAt(index)
       val next = if (index + 1 < text.length) text.charAt(index + 1) else 0.toChar
 
       if (inLineComment) {
-        append(current)
+        appendChar(current)
         if (current == '\n') inLineComment = false
         index += 1
       } else if (inBlockComment) {
-        append(current)
+        appendChar(current)
         if (current == '*' && next == '/') {
-          append(next)
+          appendChar(next)
           index += 2
           inBlockComment = false
         } else index += 1
       } else if (inString) {
-        append(current)
+        appendChar(current)
         if (escaped) escaped = false
         else if (current == '\\') escaped = true
         else if (current == '"') inString = false
         index += 1
       } else if (current == '/' && next == '/') {
-        append("//")
+        appendString("//")
         index += 2
         inLineComment = true
       } else if (current == '/' && next == '*') {
-        append("/*")
+        appendString("/*")
         index += 2
         inBlockComment = true
       } else if (current == '"') {
-        append(current)
+        appendChar(current)
         index += 1
         inString = true
       } else if (current == '`' && isIdentifierStart(next)) {
@@ -611,8 +611,8 @@ object MorphHdlExternalEnumLocalizer {
         val name = text.substring(index + 1, end)
         consume(ScanToken.Macro(name))
         macros.get(name) match {
-          case Some(replacement) => append(replacement)
-          case None              => append(text.substring(index, end))
+          case Some(replacement) => appendString(replacement)
+          case None              => appendString(text.substring(index, end))
         }
         index = end
       } else if (isIdentifierStart(current)) {
@@ -620,10 +620,10 @@ object MorphHdlExternalEnumLocalizer {
         while (end < text.length && isIdentifierPart(text.charAt(end))) end += 1
         val name = text.substring(index, end)
         consume(ScanToken.Identifier(name))
-        append(plain.getOrElse(name, name))
+        appendString(plain.getOrElse(name, name))
         index = end
       } else {
-        append(current)
+        appendChar(current)
         index += 1
       }
     }
