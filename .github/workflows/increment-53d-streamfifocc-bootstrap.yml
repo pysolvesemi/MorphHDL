@@ -20,7 +20,7 @@ jobs:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
 
-      - name: Activate the existing native FIFO transformer for StreamFifoCC
+      - name: Activate StreamFifoCC and retain native runtime helper ownership
         shell: bash
         run: |
           set -euo pipefail
@@ -29,12 +29,46 @@ jobs:
 
           path = Path("morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala")
           text = path.read_text()
-          old = ''') && decoded(value.name) == "StreamFifo" =>'''
-          new = ''') && Set("StreamFifo", "StreamFifoCC").contains(decoded(value.name)) =>'''
-          count = text.count(old)
-          if count != 1:
-              raise SystemExit(f"expected one native StreamFifo class gate, found {count}")
-          path.write_text(text.replace(old, new))
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one match, found {count}")
+              text = text.replace(old, new)
+
+          replace_once(
+              ''') && decoded(value.name) == "StreamFifo" =>''',
+              ''') && Set("StreamFifo", "StreamFifoCC").contains(decoded(value.name)) =>''',
+              "native FIFO class gate",
+          )
+          replace_once(
+              '''    private var nativeStreamFifoStaticBooleans = Set.empty[TermName]\n''',
+              '''    private var nativeStreamFifoStaticBooleans = Set.empty[TermName]\n    private var nativeStreamFifoRuntimeHelpers = false\n''',
+              "native runtime helper state",
+          )
+          replace_once(
+              '''    private def selectedHelperMethod(name: String): Tree =\n      if (inNativeStreamFifo) helperMethod(name) else frontendHelperMethod(name)\n\n    private def selectedConditionalHelperMethod(name: String): Tree =\n      if (inNativeStreamFifo) helperMethod(name)\n      else frontendConditionalHelperMethod(name)\n''',
+              '''    private def selectedHelperMethod(name: String): Tree =\n      if (nativeStreamFifoRuntimeHelpers) helperMethod(name)\n      else frontendHelperMethod(name)\n\n    private def selectedConditionalHelperMethod(name: String): Tree =\n      if (nativeStreamFifoRuntimeHelpers) helperMethod(name)\n      else frontendConditionalHelperMethod(name)\n''',
+              "native helper selection",
+          )
+          replace_once(
+              '''          val previousLine = nativeStreamFifoDepthLine\n          val previousBooleans = nativeStreamFifoStaticBooleans\n''',
+              '''          val previousLine = nativeStreamFifoDepthLine\n          val previousBooleans = nativeStreamFifoStaticBooleans\n          val previousRuntimeHelpers = nativeStreamFifoRuntimeHelpers\n''',
+              "native helper save",
+          )
+          replace_once(
+              '''          nativeStreamFifoStaticBooleans = parameters.collect {\n            case parameter\n                if NativeStreamFifoStaticBooleanNames(decoded(parameter.name)) =>\n              parameter.name\n          }.toSet\n          try super.transform(value)\n''',
+              '''          nativeStreamFifoStaticBooleans = parameters.collect {\n            case parameter\n                if NativeStreamFifoStaticBooleanNames(decoded(parameter.name)) =>\n              parameter.name\n          }.toSet\n          nativeStreamFifoRuntimeHelpers = true\n          try super.transform(value)\n''',
+              "native helper activation",
+          )
+          replace_once(
+              '''            nativeStreamFifoDepthLine = previousLine\n            nativeStreamFifoStaticBooleans = previousBooleans\n''',
+              '''            nativeStreamFifoDepthLine = previousLine\n            nativeStreamFifoStaticBooleans = previousBooleans\n            nativeStreamFifoRuntimeHelpers = previousRuntimeHelpers\n''',
+              "native helper restore",
+          )
+
+          path.write_text(text)
           PY
 
       - name: Install pinned Mill bootstrap
