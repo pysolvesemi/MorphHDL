@@ -254,6 +254,15 @@ jobs:
           if memory.count(marker) != 1:
               raise SystemExit('selectAddressWidth insertion marker is ambiguous')
           memory = memory.replace(marker, insertion + marker, 1)
+
+          exact_marker = '''    val exact = compact(width.verilog) == compact(s"clog2(${depth.verilog}, 1)")'''
+          exact_replacement = '''    val exact =
+              compact(width.verilog) == compact(s"clog2(${depth.verilog}, 1)") ||
+                compact(width.verilog) ==
+                  compact(s"morphhdl_address_width(${depth.verilog})")'''
+          if memory.count(exact_marker) != 1:
+              raise SystemExit('native address-width equivalence marker is ambiguous')
+          memory = memory.replace(exact_marker, exact_replacement, 1)
           memory_path.write_text(memory)
           PY
           python3 /tmp/apply53e.py
@@ -275,7 +284,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53e-bootstrap-v6-evidence
+          name: increment-53e-bootstrap-v7-evidence
           path: |
             /tmp/increment-53e-bootstrap.log
             /tmp/morphhdl-streamfifocc-debug
