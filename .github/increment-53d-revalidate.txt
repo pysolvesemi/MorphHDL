@@ -1,1 +1,1 @@
-Trigger exact-head Increment 53d validation after invariant unsigned symbolic resize repair.
+Trigger exact-head Increment 53d validation after retained native resize-target recovery.
