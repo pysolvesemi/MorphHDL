@@ -12,8 +12,9 @@ import spinal.core._
   *
   * The normal emitter still owns naming, declarations, read-port wiring and
   * every inherited validation phase. This pass validates one reviewed 1R1W
-  * policy, rewrites the retained array geometry and replaces only the native
-  * memory process with the existing guarded contract. Explicit readFirst is
+  * policy on either one shared rising-edge clock or independent rising-edge
+  * read/write clocks, rewrites the retained array geometry and replaces only
+  * the native memory process with the existing guarded contract. Explicit readFirst is
   * preserved. An independent-address simple-dual-port dontCare read is lowered
   * deterministically as read-first, which is one legal dontCare outcome.
   */
@@ -33,7 +34,9 @@ private[internals] object ParameterizedVerilogMemories {
       readEnable: String,
       writeEnable: String,
       writeData: String,
-      clock: String,
+      readClock: String,
+      writeClock: String,
+      sharedClock: Boolean,
       sharedAddress: Boolean,
       independentDontCare: Boolean,
       readAddressWidth: ElaborationIntegerExpression,
@@ -75,6 +78,16 @@ private[internals] object ParameterizedVerilogMemories {
       if (!helperNeeded || !declaresIdentifier(normalized, "clog2")) "clog2"
       else firstAvailable("clog2", used)
     val processLabel = firstAvailable(s"p_${plan.memoryName}", used + helperName)
+    val readProcessLabel =
+      if (plan.sharedClock) processLabel
+      else firstAvailable(s"${processLabel}_read", used + helperName + processLabel)
+    val writeProcessLabel =
+      if (plan.sharedClock) processLabel
+      else
+        firstAvailable(
+          s"${processLabel}_write",
+          used + helperName + processLabel + readProcessLabel
+        )
 
     var lines = normalized.split("\\n", -1).toVector
     if (helperNeeded) {
@@ -112,7 +125,12 @@ private[internals] object ParameterizedVerilogMemories {
         s"normal Verilog emission did not terminate component '${component.definitionName}'"
       )
     }
-    val process = renderProcess(plan, processLabel, helperName)
+    val process = renderProcess(
+      plan,
+      readProcessLabel,
+      writeProcessLabel,
+      helperName
+    )
     lines = lines.patch(endmodule, Vector("") ++ process ++ Vector(""), 0)
 
     if (helperNeeded) {
@@ -191,16 +209,17 @@ private[internals] object ParameterizedVerilogMemories {
     }
     if (
       read.clockDomain == null || write.clockDomain == null ||
-      (read.clockDomain.clock ne write.clockDomain.clock) ||
+      read.clockDomain.clock == null || write.clockDomain.clock == null ||
       read.clockDomain.config.clockEdge != RISING ||
       write.clockDomain.config.clockEdge != RISING
     ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-CLOCK-POLICY-UNSUPPORTED",
-        s"memory '${memory.getName()}' must use one shared positive-edge clock",
+        s"memory '${memory.getName()}' requires named positive-edge read and write clocks",
         source
       )
     }
+    val sharedClock = read.clockDomain.clock eq write.clockDomain.clock
     requireType(read.address, TypeUInt, "read address", memory, source)
     requireType(write.address, TypeUInt, "write address", memory, source)
     requireType(read.readEnable, TypeBool, "read enable", memory, source)
@@ -296,6 +315,13 @@ private[internals] object ParameterizedVerilogMemories {
     val writeAddress = stableName(write.address, "write address", source)
     val independentDontCare =
       (read.readUnderWrite eq dontCare) && readAddress != writeAddress
+    if (!sharedClock && !independentDontCare) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DUAL-CLOCK-POLICY-UNSUPPORTED",
+        s"memory '${memory.getName()}' uses independent clocks and therefore requires independent read/write addresses with readUnderWrite = dontCare",
+        source
+      )
+    }
     if ((read.readUnderWrite ne readFirst) && !independentDontCare) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-COLLISION-POLICY-UNSUPPORTED",
@@ -306,10 +332,19 @@ private[internals] object ParameterizedVerilogMemories {
     val readEnable = stableName(read.readEnable, "read enable", source)
     val writeEnable = stableName(write.writeEnable, "write enable", source)
     val writeData = stableName(write.data, "write data", source)
-    val clock = stableName(read.clockDomain.clock, "memory clock", source)
+    val readClock = stableName(read.clockDomain.clock, "memory read clock", source)
+    val writeClock = stableName(write.clockDomain.clock, "memory write clock", source)
+    if (!sharedClock && readClock == writeClock) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-CLOCK-NAME-ALIAS",
+        s"memory '${memory.getName()}' has distinct read/write clock objects which emit the same identifier '$readClock'",
+        source
+      )
+    }
 
-    val nonAddressRoles = Vector(
-      clock,
+    val clockRoles =
+      if (sharedClock) Vector(readClock) else Vector(readClock, writeClock)
+    val nonAddressRoles = clockRoles ++ Vector(
       readEnable,
       writeEnable,
       writeData,
@@ -319,7 +354,7 @@ private[internals] object ParameterizedVerilogMemories {
     if (nonAddressRoles.distinct.size != nonAddressRoles.size) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ROLE-ALIAS",
-        s"memory '$memoryName' clock, enables, data, read result and storage roles must be distinct",
+        s"memory '$memoryName' clocks, enables, data, read result and storage roles must be distinct",
         source
       )
     }
@@ -343,7 +378,9 @@ private[internals] object ParameterizedVerilogMemories {
       readEnable,
       writeEnable,
       writeData,
-      clock,
+      readClock,
+      writeClock,
+      sharedClock = sharedClock,
       sharedAddress = readAddress == writeAddress,
       independentDontCare = independentDontCare,
       readAddressWidth,
@@ -712,25 +749,44 @@ private[internals] object ParameterizedVerilogMemories {
 
   private def renderProcess(
       plan: MemoryPlan,
-      label: String,
+      readLabel: String,
+      writeLabel: String,
       helperName: String
   ): Vector[String] = {
     val depth = render(plan.metadata.depth, helperName)
     val zeroWidth = render(plan.metadata.elementWidth, helperName)
     val lines = Vector.newBuilder[String]
-    lines += s"  always @(posedge ${plan.clock}) begin : $label"
-    if (plan.sharedAddress) {
-      lines += s"    if (${plan.readAddress} < $depth) begin"
-      lines += s"      if (${plan.readEnable} == 1'b1) begin"
-      lines += s"        ${plan.readTarget} <= ${plan.memoryName}[${plan.readAddress}];"
-      lines += "      end"
-      lines += s"      if (${plan.writeEnable} == 1'b1) begin"
-      lines += s"        ${plan.memoryName}[${plan.writeAddress}] <= ${plan.writeData};"
-      lines += "      end"
-      lines += s"    end else if (${plan.readEnable} == 1'b1) begin"
-      lines += s"      ${plan.readTarget} <= {$zeroWidth{1'b0}};"
-      lines += "    end"
+
+    if (plan.sharedClock) {
+      lines += s"  always @(posedge ${plan.readClock}) begin : $readLabel"
+      if (plan.sharedAddress) {
+        lines += s"    if (${plan.readAddress} < $depth) begin"
+        lines += s"      if (${plan.readEnable} == 1'b1) begin"
+        lines += s"        ${plan.readTarget} <= ${plan.memoryName}[${plan.readAddress}];"
+        lines += "      end"
+        lines += s"      if (${plan.writeEnable} == 1'b1) begin"
+        lines += s"        ${plan.memoryName}[${plan.writeAddress}] <= ${plan.writeData};"
+        lines += "      end"
+        lines += s"    end else if (${plan.readEnable} == 1'b1) begin"
+        lines += s"      ${plan.readTarget} <= {$zeroWidth{1'b0}};"
+        lines += "    end"
+      } else {
+        lines += s"    if (${plan.readAddress} < $depth) begin"
+        lines += s"      if (${plan.readEnable} == 1'b1) begin"
+        lines += s"        ${plan.readTarget} <= ${plan.memoryName}[${plan.readAddress}];"
+        lines += "      end"
+        lines += s"    end else if (${plan.readEnable} == 1'b1) begin"
+        lines += s"      ${plan.readTarget} <= {$zeroWidth{1'b0}};"
+        lines += "    end"
+        lines += s"    if (${plan.writeAddress} < $depth) begin"
+        lines += s"      if (${plan.writeEnable} == 1'b1) begin"
+        lines += s"        ${plan.memoryName}[${plan.writeAddress}] <= ${plan.writeData};"
+        lines += "      end"
+        lines += "    end"
+      }
+      lines += "  end"
     } else {
+      lines += s"  always @(posedge ${plan.readClock}) begin : $readLabel"
       lines += s"    if (${plan.readAddress} < $depth) begin"
       lines += s"      if (${plan.readEnable} == 1'b1) begin"
       lines += s"        ${plan.readTarget} <= ${plan.memoryName}[${plan.readAddress}];"
@@ -738,13 +794,16 @@ private[internals] object ParameterizedVerilogMemories {
       lines += s"    end else if (${plan.readEnable} == 1'b1) begin"
       lines += s"      ${plan.readTarget} <= {$zeroWidth{1'b0}};"
       lines += "    end"
+      lines += "  end"
+      lines += ""
+      lines += s"  always @(posedge ${plan.writeClock}) begin : $writeLabel"
       lines += s"    if (${plan.writeAddress} < $depth) begin"
       lines += s"      if (${plan.writeEnable} == 1'b1) begin"
       lines += s"        ${plan.memoryName}[${plan.writeAddress}] <= ${plan.writeData};"
       lines += "      end"
       lines += "    end"
+      lines += "  end"
     }
-    lines += "  end"
     lines.result()
   }
 
@@ -754,26 +813,32 @@ private[internals] object ParameterizedVerilogMemories {
       plan: MemoryPlan
   ): Boolean = {
     if (!plan.independentDontCare || blocks.size != 2) return false
-    val expectedHeader = s"always @(posedge ${plan.clock})"
-    val texts = blocks.map { block =>
-      val header = lines(block.start).replaceAll("\\s+", " ").trim
-      if (!header.startsWith(expectedHeader)) return false
-      lines.slice(block.start, block.endInclusive + 1).mkString("\n")
+    val entries = blocks.map { block =>
+      val header = lines(block.start).replaceAll("\s+", " ").trim
+      val text = lines.slice(block.start, block.endInclusive + 1).mkString("\n")
+      header -> text
     }
-    val readBlocks = texts.zipWithIndex.collect {
-      case (text, index)
+    val readBlocks = entries.zipWithIndex.collect {
+      case ((_, text), index)
           if containsIdentifier(text, plan.readTarget) &&
             containsIndexedAccess(text, plan.memoryName, plan.readAddress) =>
         index
     }
-    val writeBlocks = texts.zipWithIndex.collect {
-      case (text, index)
+    val writeBlocks = entries.zipWithIndex.collect {
+      case ((_, text), index)
           if containsIdentifier(text, plan.writeData) &&
             containsIndexedAccess(text, plan.memoryName, plan.writeAddress) =>
         index
     }
-    readBlocks.size == 1 && writeBlocks.size == 1 &&
-      readBlocks.head != writeBlocks.head
+    if (
+      readBlocks.size != 1 || writeBlocks.size != 1 ||
+      readBlocks.head == writeBlocks.head
+    ) return false
+
+    val readHeader = s"always @(posedge ${plan.readClock})"
+    val writeHeader = s"always @(posedge ${plan.writeClock})"
+    entries(readBlocks.head)._1.startsWith(readHeader) &&
+      entries(writeBlocks.head)._1.startsWith(writeHeader)
   }
 
   private def alwaysBlocks(lines: Vector[String]): Vector[LineRange] = {
