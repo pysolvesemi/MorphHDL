@@ -27,12 +27,8 @@ jobs:
 
           path = Path('.github/workflows/increment-53e-bootstrap-v2.yml')
           value = path.read_text()
-          old = '''                          ParameterizedWidth
-                            .expressionOf(value)
-                            .exists(_.parameters.nonEmpty) =>'''
-          new = '''                          ParameterizedWidth
-                            .expressionOf(value)
-                            .exists { width =>
+          old = '.exists(_.parameters.nonEmpty) =>'
+          new = '''.exists { width =>
                               width.parameters.nonEmpty &&
                               width.default == BigInt(prototype.getBitsWidth) &&
                               width.minimum >= 1 &&
