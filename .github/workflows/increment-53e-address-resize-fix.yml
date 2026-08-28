@@ -41,16 +41,15 @@ jobs:
               "ParameterizedVerilogMemories.scala"
           )
           value = path.read_text()
-          old = '''  private def equivalentWidth(
-              left: ElaborationIntegerExpression,
-              right: ElaborationIntegerExpression
-          ): Boolean =
-            compact(left.verilog) == compact(right.verilog) &&
-              left.default == right.default && left.minimum == right.minimum &&
-              left.maximum == right.maximum &&
-              left.parameters.sortBy(_.name) == right.parameters.sortBy(_.name)
-          '''
-          new = '''  private def canonicalWidthVerilog(value: String): String = {
+          start_marker = "  private def equivalentWidth(\n"
+          end_marker = "  private def requireType(\n"
+          if value.count(start_marker) != 1 or value.count(end_marker) != 1:
+              raise SystemExit(
+                  "equivalentWidth/requireType method boundaries are ambiguous"
+              )
+          start = value.index(start_marker)
+          end = value.index(end_marker, start)
+          replacement = '''  private def canonicalWidthVerilog(value: String): String = {
             val normalized = compact(value)
             val addressWidthPrefix = "morphhdl_address_width("
             if (
@@ -74,12 +73,9 @@ jobs:
               left.default == right.default && left.minimum == right.minimum &&
               left.maximum == right.maximum &&
               left.parameters.sortBy(_.name) == right.parameters.sortBy(_.name)
+
           '''
-          if value.count(old) != 1:
-              raise SystemExit(
-                  f"equivalentWidth marker count={value.count(old)}"
-              )
-          path.write_text(value.replace(old, new, 1))
+          path.write_text(value[:start] + replacement + value[end:])
           PY
           git diff --check
 
