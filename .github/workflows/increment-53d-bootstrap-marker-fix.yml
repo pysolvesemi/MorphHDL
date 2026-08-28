@@ -1,0 +1,48 @@
+name: Increment 53d bootstrap marker repair
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Match the existing single-line alwaysBlocks signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(".github/workflows/increment-53d-streamfifocc-bootstrap.yml")
+          text = path.read_text()
+          old = '              "  private def alwaysBlocks(\\n",\n'
+          new = '              "  private def alwaysBlocks",\n'
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f"expected one stale alwaysBlocks marker, found {count}")
+          path.write_text(text.replace(old, new))
+          PY
+
+      - name: Publish repaired bootstrap and remove this one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/increment-53d-bootstrap-marker-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/increment-53d-streamfifocc-bootstrap.yml
+          git add .github/workflows/increment-53d-bootstrap-marker-fix.yml
+          git diff --cached --check
+          git commit -m "Increment 53d: repair bootstrap source marker"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
