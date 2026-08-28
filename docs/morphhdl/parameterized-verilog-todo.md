@@ -343,7 +343,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   separately authored FIFO. Stop for architecture approval if the alternatives
   cannot be retained through the generic provenance and branch-capture path.
 
-- [ ] **Increment 53b — MorphHDL-owned module-local SpinalEnum parameters**
+- [x] **Increment 53b — MorphHDL-owned module-local SpinalEnum parameters**
 
   **Dependencies:** Increment 53 implemented and merged.
 
