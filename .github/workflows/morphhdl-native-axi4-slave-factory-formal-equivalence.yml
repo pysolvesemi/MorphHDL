@@ -1,0 +1,148 @@
+name: MorphHDL native AXI4 Slave Factory formal equivalence
+
+# Increment 53c specializes one MorphHDL parameterized native Axi4SlaveFactory
+# hierarchy and proves it against independent ordinary SpinalVerilog witnesses.
+on:
+  push:
+    branches:
+      - main
+      - parameterized-verilog
+      - agent/increment-53c-native-axi4-slave-factory-offsets
+  pull_request:
+    branches:
+      - main
+      - parameterized-verilog
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-native-axi4-formal-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-boundary:
+    name: Native AXI4 formal source boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove independent native witnesses and zero native-source diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          test -f morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryFormalEquivalenceTests.scala
+          grep -Fq 'new NativeAxi4SlaveFactoryRegisterBlock(offset)' \
+            morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryFormalEquivalenceTests.scala
+          grep -Fq 'SpinalVerilog(concreteConfig)' \
+            morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryFormalEquivalenceTests.scala
+          grep -Fq 'MorphVerilog(parameterizedConfig)' \
+            morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryFormalEquivalenceTests.scala
+          grep -Fq 'expectedStatus = "PASS"' \
+            morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryFormalEquivalenceTests.scala
+          grep -Fq 'expectedStatus = "FAIL"' \
+            morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryFormalEquivalenceTests.scala
+          if grep -R -n -E '(^|[[:space:]])(class|trait|object)[[:space:]]+Axi4SlaveFactory([[:space:]]|\{|$)' \
+              morphruntime morphplugin morphhdl/src/main; then
+            echo 'Increment 53c must not implement a MorphHDL Axi4SlaveFactory replacement' >&2
+            exit 1
+          fi
+          if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
+            git fetch --no-tags origin "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
+            changed="$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")"
+            if grep -Eq '^(core|lib|idslplugin)/src/main/' <<<"${changed}"; then
+              echo 'Increment 53c formal proof must not modify native SpinalHDL production sources' >&2
+              grep -E '^(core|lib|idslplugin)/src/main/' <<<"${changed}" >&2
+              exit 1
+            fi
+          fi
+
+  formal-equivalence:
+    name: Concrete-witness formal proof Scala ${{ matrix.scala_version }}
+    needs: source-boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      MORPHDL_RUN_NATIVE_AXI4_FORMAL_EQUIVALENCE: "1"
+      MORPHDL_NATIVE_AXI4_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify pinned formal toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v yosys
+          command -v sby
+          command -v yices-smt2
+          command -v iverilog
+          command -v vvp
+          command -v verilator
+          yosys_version="$(yosys -V)"
+          sby_help="$(sby -h 2>&1)"
+          sby_sha256="$(sha256sum "$(command -v sby)")"
+          yices_version="$(yices-smt2 --version)"
+          iverilog_version="$(iverilog -V 2>&1)"
+          verilator_version="$(verilator --version)"
+          printf '%s\n' \
+            "$yosys_version" \
+            "$sby_sha256" \
+            "$yices_version" \
+            "$iverilog_version" \
+            "$verilator_version"
+          grep -Eq '^Yosys 0\.41([ +]|$)' <<<"$yosys_version"
+          grep -q 'usage: sby' <<<"$sby_help"
+          test -n "$yices_version"
+          yosys -Q -p 'help abc' >/tmp/morphhdl-yosys-abc-help.txt 2>&1
+          grep -q 'ABC' /tmp/morphhdl-yosys-abc-help.txt
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Prove all concrete offset witnesses and mutation control
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${MORPHDL_NATIVE_AXI4_FORMAL_WORKSPACE}"
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.NativeAxi4SlaveFactoryFormalEquivalenceTests
+
+      - name: Re-run focused native AXI4 offset contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.NativeAxi4SlaveFactoryParameterizedOffsetTests
+
+      - name: Retain proof statuses and mutation counterexample
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-axi4-formal-scala-${{ matrix.scala_version }}
+          path: formal-artifacts/scala-${{ matrix.scala_version }}
+          if-no-files-found: error
+          retention-days: 14
