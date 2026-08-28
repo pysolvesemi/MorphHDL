@@ -1,0 +1,134 @@
+name: MorphHDL Increment 53c CI dispatch watchdog v2
+
+on:
+  push:
+    branches:
+      - agent/increment-53c-reconcile-20260828
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: morphhdl-increment-53c-ci-dispatch-watchdog
+  cancel-in-progress: true
+
+jobs:
+  dispatch-missing-exact-head-runs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 68
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: pysolvesemi/MorphHDL
+      FEATURE_BRANCH: agent/increment-53c-native-axi4-slave-factory-offsets
+    steps:
+      - name: Dispatch missing runs by discovered workflow ID
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          repo = os.environ["REPOSITORY"]
+          branch = os.environ["FEATURE_BRANCH"]
+          token = os.environ["GH_TOKEN"]
+          paths = [
+              ".github/workflows/morphhdl-native-axi4-slave-factory-offsets.yml",
+              ".github/workflows/morphhdl-native-axi4-slave-factory-formal-v2.yml",
+          ]
+          dispatched = set()
+
+          def api(method, path, payload=None, allow_404=False):
+              data = None if payload is None else json.dumps(payload).encode("utf-8")
+              request = urllib.request.Request(
+                  "https://api.github.com" + path,
+                  data=data,
+                  method=method,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": "Bearer " + token,
+                      "Content-Type": "application/json",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                      "User-Agent": "MorphHDL-Increment-53c-dispatch-watchdog-v2",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(request, timeout=45) as response:
+                      if response.status == 204:
+                          return None
+                      return json.load(response)
+              except urllib.error.HTTPError as error:
+                  if allow_404 and error.code == 404:
+                      return None
+                  body = error.read().decode("utf-8", errors="replace")
+                  raise RuntimeError(
+                      f"GitHub API {method} {path} failed with {error.code}: {body}"
+                  )
+
+          encoded_branch = urllib.parse.quote(branch, safe="")
+          deadline = time.time() + 66 * 60
+          while time.time() < deadline:
+              ref = api(
+                  "GET",
+                  f"/repos/{repo}/git/ref/heads/{encoded_branch}",
+                  allow_404=True,
+              )
+              if ref is None:
+                  print("feature branch no longer exists; watchdog complete")
+                  break
+              sha = ref["object"]["sha"]
+              current_runs = api(
+                  "GET",
+                  f"/repos/{repo}/actions/runs?head_sha={sha}&per_page=100",
+              ).get("workflow_runs", [])
+              current_by_path = {}
+              for run in current_runs:
+                  path = run.get("path")
+                  old = current_by_path.get(path)
+                  if old is None or run.get("created_at", "") > old.get("created_at", ""):
+                      current_by_path[path] = run
+
+              history = api(
+                  "GET",
+                  f"/repos/{repo}/actions/runs?branch={encoded_branch}&per_page=100",
+              ).get("workflow_runs", [])
+              workflow_ids = {}
+              for run in history:
+                  path = run.get("path")
+                  if path in paths and run.get("workflow_id"):
+                      workflow_ids.setdefault(path, run["workflow_id"])
+
+              for path in paths:
+                  if path in current_by_path:
+                      run = current_by_path[path]
+                      print(
+                          f"exact-head run exists: {path} {sha} "
+                          f"{run.get('status')}/{run.get('conclusion')}"
+                      )
+                      continue
+                  key = (sha, path)
+                  if key in dispatched:
+                      continue
+                  workflow_id = workflow_ids.get(path)
+                  if workflow_id is None:
+                      print(f"waiting to discover workflow ID for {path}")
+                      continue
+                  api(
+                      "POST",
+                      f"/repos/{repo}/actions/workflows/{workflow_id}/dispatches",
+                      {"ref": branch},
+                  )
+                  dispatched.add(key)
+                  print(
+                      f"dispatched missing exact-head workflow {path} "
+                      f"(id {workflow_id}) at {sha}"
+                  )
+              time.sleep(30)
+          PY
