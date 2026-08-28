@@ -168,9 +168,9 @@ jobs:
               }
             }
 
-            def compilerAssign(
+            def compilerAssign[T](
               target: Data,
-              source: AnyRef
+              source: T
             )(implicit loc: spinal.idslplugin.Location): Unit = {
               if (boundaryActive) {
                 source match {
@@ -178,7 +178,7 @@ jobs:
                   case _ =>
                 }
               }
-              target.assignFrom(source)
+              target.assignFrom(source.asInstanceOf[AnyRef])
             }
 
           '''
@@ -275,7 +275,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53e-bootstrap-v5-evidence
+          name: increment-53e-bootstrap-v6-evidence
           path: |
             /tmp/increment-53e-bootstrap.log
             /tmp/morphhdl-streamfifocc-debug
