@@ -1,0 +1,52 @@
+name: Increment 53b Codex handoff
+
+on:
+  push:
+    branches:
+      - agent/increment-53b-native-streamwidth-adapter
+    paths:
+      - .github/workflows/increment-53b-codex-handoff.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  handoff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Locate or open Increment 53b PR and request implementation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD: agent/increment-53b-native-streamwidth-adapter
+          BASE: parameterized-verilog
+        shell: bash
+        run: |
+          set -euo pipefail
+          pr="$(gh pr list --repo "$REPO" --head "$HEAD" --base "$BASE" --state open --json number --jq '.[0].number // empty')"
+          if [[ -z "$pr" ]]; then
+            gh pr create --repo "$REPO" --head "$HEAD" --base "$BASE" \
+              --title 'Increment 53b: native StreamWidthAdapter parameterization' \
+              --body 'Parameterize the untouched native spinal.lib.StreamWidthAdapter through MorphHDL-owned generic provenance, capture and lowering only. No upstream SpinalHDL source edits.'
+            pr="$(gh pr list --repo "$REPO" --head "$HEAD" --base "$BASE" --state open --json number --jq '.[0].number')"
+          fi
+          gh pr comment "$pr" --repo "$REPO" --body-file - <<'EOF'
+          @codex implement this Increment 53b completely on the current PR branch.
+
+          Hard requirements:
+          - Do not modify any upstream SpinalHDL source under core/src, lib/src, or idslplugin/src. In particular, leave lib/src/main/scala/spinal/lib/Stream.scala byte-for-byte unchanged.
+          - Reuse the real native spinal.lib.StreamWidthAdapter. Do not reimplement its algorithm, add a component-specific emitter, or recognize emitted component/port/signal names.
+          - Use only MorphHDL-owned frontend/runtime/capture/lowering/test/doc/script/CI files.
+          - Emit one strict Verilog-2001 module with public INPUT_WIDTH and OUTPUT_WIDTH parameters.
+          - Retain native equal-width, downsizing, and upsizing alternatives, including native factor, Counter, slicing, buffer, valid/ready, LITTLE-endian ordering, and no-padding divisibility behavior.
+          - Prove legal witnesses 16->16, 32->8, 8->32, and 8->24 from the same parameterized definition. Add a fail-closed invalid-ratio test such as 12->32 without padding.
+          - Add concrete native witness parity, randomized/arbitrary backpressure, no loss/duplication/reordering, deterministic generation, strict compile/lint/synthesis where available, and Scala 2.12.18 plus 2.13.12.
+          - Add an unchecked Increment 53b roadmap item immediately after Increment 53 without renumbering 54-58. Check it only as the final source change after exact-head gates pass.
+          - Add a permanent zero-native-diff/source-boundary CI workflow and remove both temporary Increment 53b handoff/export workflows before merge.
+          - Preserve all inherited Increment 53 and general MorphHDL tests.
+
+          Start by inspecting existing Increment 53 native provenance/capture patterns and extend only generic infrastructure when the native adapter exposes a missing construct. Commit the implementation to this PR branch and report exact tests run.
+          EOF
