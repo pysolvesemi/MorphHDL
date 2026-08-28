@@ -21,16 +21,13 @@ jobs:
           ref: agent/increment-53e-native-streamfifocc-parameterization
           fetch-depth: 0
 
-      - name: Reconcile the latest parameterized-verilog base
+      - name: Prepare authenticated branch checkout
         shell: bash
         run: |
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git fetch --no-tags origin \
-            parameterized-verilog:refs/remotes/origin/parameterized-verilog
-          git merge --no-edit origin/parameterized-verilog
 
       - name: Recover target-width provenance through native resize nodes
         shell: bash
