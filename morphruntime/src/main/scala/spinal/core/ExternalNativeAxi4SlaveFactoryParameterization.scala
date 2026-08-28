@@ -137,9 +137,10 @@ object ExternalNativeAxi4SlaveFactoryParameterization {
 
   /**
     * Compiler-inserted call-site bridge. Outside a live formalization boundary
-    * this is exactly an ordinary `BigInt(value)` conversion. A fresh wrapper is
-    * required because Scala caches small `BigInt(Int)` results; sharing one of
-    * those objects would turn equal numeric witnesses into false identity.
+    * this is exactly an ordinary `BigInt(value)` conversion. The public
+    * constructor is required here: Scala 2.13's companion `apply(BigInteger)`
+    * routes small values through its shared cache, which would turn equal
+    * numeric witnesses into false exact-object identity.
     */
   def compilerAddress(
       value: Int,
@@ -148,7 +149,7 @@ object ExternalNativeAxi4SlaveFactoryParameterization {
       file: String,
       line: Int
   ): BigInt = {
-    val address = BigInt(new java.math.BigInteger(value.toString))
+    val address = new BigInt(new java.math.BigInteger(value.toString))
     ExternalNativeIntShadowRegistry
       .definitionExpressionTracked(
         reference = reference,
