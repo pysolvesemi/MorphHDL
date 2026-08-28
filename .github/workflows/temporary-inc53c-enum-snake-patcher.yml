@@ -29,8 +29,7 @@ jobs:
           git add \
             docs/morphhdl/parameterized-verilog-todo.md \
             morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala \
-            morphhdl/src/test/scala/morphhdl/SpinalEnumLocalParameterTests.scala \
-            .github/workflows/morphhdl-enum-localparams.yml
+            morphhdl/src/test/scala/morphhdl/SpinalEnumLocalParameterTests.scala
           if git diff --cached --quiet; then
             echo "Increment 53c source is already patched"
             exit 0
