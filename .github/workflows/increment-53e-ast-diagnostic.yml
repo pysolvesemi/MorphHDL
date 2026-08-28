@@ -1,29 +1,39 @@
-name: Increment 53e native range AST diagnostic
+name: Increment 53e native StreamFifoCC auto-resize bootstrap
 
 on:
   push:
     branches:
       - agent/increment-53e-streamfifo-cc-parameterization
 
+permissions:
+  contents: write
+
 jobs:
-  diagnose:
+  apply-test-publish:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/spinalhdl/docker:latest
     timeout-minutes: 90
+    env:
+      MORPHDL_STREAMFIFOCC_DEBUG_DIR: /tmp/morphhdl-streamfifocc-debug
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/increment-53e-streamfifo-cc-parameterization
           fetch-depth: 0
 
-      - name: Recover reviewed support and native witness
+      - name: Reconcile the latest parameterized-verilog base and recover reviewed inputs
         shell: bash
         run: |
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git fetch --no-tags origin \
+            parameterized-verilog:refs/remotes/origin/parameterized-verilog \
             agent/increment-53d-native-streamfifocc-parameterization:refs/remotes/origin/agent/increment-53d-native-streamfifocc-parameterization
+          git merge --no-edit origin/parameterized-verilog
           git show \
             origin/agent/increment-53d-native-streamfifocc-parameterization:.github/workflows/increment-53d-streamfifocc-bootstrap.yml \
             > /tmp/reviewed.yml
@@ -33,30 +43,33 @@ jobs:
           git show \
             4a379f6c64f67889ca432e01ac7d51a41077941a:.github/workflows/increment-53e-bootstrap-v2.yml \
             > /tmp/increment-53e-reviewed-bootstrap.yml
+          git show \
+            aa346fe80eb795834eab557797d252a07d798698:.github/workflows/increment-53e-range-bootstrap.yml \
+            > /tmp/increment-53e-range-bootstrap.yml
           test -s /tmp/reviewed.yml
           test -s /tmp/increment-53e-reviewed-bootstrap.yml
+          test -s /tmp/increment-53e-range-bootstrap.yml
 
-      - name: Apply reviewed implementation and instrument parser AST
+      - name: Apply reviewed support and bind native auto-resize to the target width
         shell: bash
         run: |
           set -euo pipefail
-          if [ ! -s /tmp/reviewed.yml ]; then
-            git show \
-              origin/agent/increment-53d-native-streamfifocc-parameterization:.github/workflows/increment-53d-streamfifocc-bootstrap.yml \
-              > /tmp/reviewed.yml
-          fi
-          python3 - <<'PY'
+          cat > /tmp/apply53e-autoresize.py <<'PY'
           from pathlib import Path
           import textwrap
 
-          workflow = Path('/tmp/increment-53e-reviewed-bootstrap.yml').read_text()
-          begin_marker = "          cat > /tmp/apply53e.py <<'PY'\n"
-          end_marker = "\n          PY\n          python3 /tmp/apply53e.py"
-          begin = workflow.index(begin_marker) + len(begin_marker)
-          end = workflow.index(end_marker, begin)
-          reviewed_patch = textwrap.dedent(workflow[begin:end])
+          range_workflow = Path('/tmp/increment-53e-range-bootstrap.yml').read_text()
+          begin_marker = "          python3 - <<'PY'\n"
+          end_marker = "\n          PY\n\n      - name: Install pinned Mill bootstrap"
+          begin = range_workflow.index(begin_marker) + len(begin_marker)
+          end = range_workflow.index(end_marker, begin)
+          reviewed_range_patch = textwrap.dedent(range_workflow[begin:end])
           exec(
-              compile(reviewed_patch, 'increment-53e-reviewed-bootstrap', 'exec'),
+              compile(
+                  reviewed_range_patch,
+                  'increment-53e-reviewed-range-bootstrap',
+                  'exec',
+              ),
               {'__name__': '__main__'},
           )
 
@@ -65,23 +78,133 @@ jobs:
               'MorphHdlNativeIntShadowExpressionComponent.scala'
           )
           plugin = plugin_path.read_text()
-          method = plugin.index('    private def rewriteExpression(')
-          tree_match = plugin.index('      tree match {\n', method)
-          diagnostic = '''      if (
-                inNativeStreamFifo &&
-                (tree.toString.contains("downto") ||
-                  sourceLine(tree) >= 1870 && sourceLine(tree) <= 1930)
-              ) {
-                Console.err.println(
-                  "MORPHDL-INC53E-AST line=" + sourceLine(tree) +
-                    " code=" + tree.toString +
-                    " raw=" + showRaw(tree)
-                )
-              }
+          if 'compilerAutoResize' in plugin:
+              raise SystemExit('compiler auto-resize instrumentation already exists')
+          auto_resize_case = '''        case Select(_, methodName)
+              if inNativeStreamFifo && decoded(methodName) == "resized" =>
+            Rewrite(
+              call(
+                "compilerAutoResize",
+                List(super.transform(tree)),
+                tree
+              )
+            )
           '''
-          plugin = plugin[:tree_match] + diagnostic + plugin[tree_match:]
+          rewrite_expression = plugin.index('    private def rewriteExpression(')
+          tree_match_marker = '      tree match {\n'
+          tree_match = (
+              plugin.index(tree_match_marker, rewrite_expression)
+              + len(tree_match_marker)
+          )
+          plugin = plugin[:tree_match] + auto_resize_case + plugin[tree_match:]
           plugin_path.write_text(plugin)
+
+          runtime_path = Path(
+              'morphruntime/src/main/scala/spinal/core/'
+              'ExternalNativeIntCompilerRuntime.scala'
+          )
+          runtime = runtime_path.read_text()
+          if 'ExternalParameterizedAutoResizeTag' in runtime:
+              raise SystemExit('external auto-resize tag already exists')
+          runtime_doc = '''/**
+            * Runtime target of MorphHDL's parser-phase native-Int instrumentation.
+          '''
+          tag = '''private[spinal] object ExternalParameterizedAutoResizeTag
+              extends SpinalTag
+
+          '''
+          if runtime.count(runtime_doc) != 1:
+              raise SystemExit('runtime documentation marker is ambiguous')
+          runtime = runtime.replace(runtime_doc, tag + runtime_doc, 1)
+          method_marker = '''  def compilerUnsupportedInt(
+          '''
+          method = '''  def compilerAutoResize[T <: Data](native: T): T = {
+              if (boundaryActive) native.addTag(ExternalParameterizedAutoResizeTag)
+              native
+            }
+
+          '''
+          if runtime.count(method_marker) != 1:
+              raise SystemExit('runtime compilerUnsupportedInt marker is ambiguous')
+          runtime = runtime.replace(method_marker, method + method_marker, 1)
+          runtime_path.write_text(runtime)
+
+          memory_path = Path(
+              'morphhdl/src/main/scala/spinal/core/internals/'
+              'ParameterizedVerilogMemories.scala'
+          )
+          memory = memory_path.read_text()
+          if 'hasExternalAutoResizeEvidence' in memory:
+              raise SystemExit('external auto-resize memory handling already exists')
+          helper = '''  private def hasExternalAutoResizeEvidence(
+              expression: Expression
+            ): Boolean = {
+              val seen = new IdentityHashMap[Expression, java.lang.Boolean]()
+
+              def walk(value: Expression): Boolean = {
+                if (seen.put(value, java.lang.Boolean.TRUE) != null) false
+                else {
+                  value match {
+                    case base: BaseType =>
+                      if (base.hasTag(ExternalParameterizedAutoResizeTag)) true
+                      else {
+                        var found = false
+                        base.foreachStatements {
+                          case assignment: DataAssignmentStatement if !found =>
+                            assignment.source match {
+                              case driver: Expression => found = walk(driver)
+                              case _ =>
+                            }
+                          case _ =>
+                        }
+                        found
+                      }
+                    case other =>
+                      var found = false
+                      other.foreachExpression { child =>
+                        if (!found) found = walk(child)
+                      }
+                      found
+                  }
+                }
+              }
+
+              walk(expression)
+            }
+
+          '''
+          select_marker = '  private def selectAddressWidth(\n'
+          if memory.count(select_marker) != 1:
+              raise SystemExit('selectAddressWidth insertion marker is ambiguous')
+          memory = memory.replace(select_marker, helper + select_marker, 1)
+
+          select_start = memory.index(select_marker)
+          old_if_start = memory.index(
+              '    if (\n      native.parameters.nonEmpty',
+              select_start,
+          )
+          method_end_marker = '\n  }\n\n  private def validateAddressWidth('
+          old_if_end = memory.index(method_end_marker, old_if_start)
+          replacement = '''    val autoResizedToTarget =
+              hasExternalAutoResizeEvidence(address)
+            if (
+              native.parameters.nonEmpty &&
+              native.default == BigInt(address.getWidth) &&
+              (
+                autoResizedToTarget ||
+                  (
+                    retainedIsConcreteWitness &&
+                    native.default == retained.default &&
+                    driverProvesNativeWidth
+                  )
+              )
+            ) native
+            else retained
+          '''
+          memory = memory[:old_if_start] + replacement + memory[old_if_end:]
+          memory_path.write_text(memory)
           PY
+          python3 /tmp/apply53e-autoresize.py
 
       - name: Install pinned Mill bootstrap
         shell: bash
@@ -92,18 +215,32 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Compile and run diagnostic witness
+      - name: Run the exact native StreamFifoCC witness
         shell: bash
         run: |
           set -o pipefail
           /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
             morphhdl.ParameterizedStreamFifoCCDepthTests \
-            2>&1 | tee /tmp/increment-53e-ast-diagnostic.log
+            2>&1 | tee /tmp/increment-53e-autoresize-bootstrap.log
 
-      - name: Upload parser diagnostic
+      - name: Upload bootstrap evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53e-ast-diagnostic
-          path: /tmp/increment-53e-ast-diagnostic.log
-          if-no-files-found: error
+          name: increment-53e-autoresize-bootstrap-evidence
+          path: |
+            /tmp/increment-53e-autoresize-bootstrap.log
+            /tmp/morphhdl-streamfifocc-debug
+          if-no-files-found: ignore
+
+      - name: Publish only the passing MorphHDL implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/increment-53e-ast-diagnostic.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: parameterize native StreamFifoCC depth'
+          git push origin HEAD:agent/increment-53e-streamfifo-cc-parameterization
