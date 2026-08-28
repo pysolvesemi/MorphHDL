@@ -1,0 +1,196 @@
+name: Increment 53e native StreamFifoCC address-resize fix
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+jobs:
+  apply-test-publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Reconcile the latest parameterized-verilog base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch --no-tags origin \
+            parameterized-verilog:refs/remotes/origin/parameterized-verilog
+          git merge --no-edit origin/parameterized-verilog
+
+      - name: Recover target-width provenance through native resize nodes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "morphhdl/src/main/scala/spinal/core/internals/"
+              "ParameterizedVerilogMemories.scala"
+          )
+          value = path.read_text()
+          start_marker = "  private def selectAddressWidth(\n"
+          end_marker = "  private def validateAddressWidth(\n"
+          if value.count(start_marker) != 1 or value.count(end_marker) != 1:
+              raise SystemExit(
+                  "selectAddressWidth/validateAddressWidth markers are ambiguous"
+              )
+          start = value.index(start_marker)
+          end = value.index(end_marker, start)
+
+          replacement = '''  private def directDriverExpressions(
+              target: BaseType,
+              component: Component
+          ): Vector[Expression] = {
+            val assignments = ArrayBuffer.empty[DataAssignmentStatement]
+            component.dslBody.walkLeafStatements {
+              case value: DataAssignmentStatement
+                  if value.finalTarget eq target =>
+                assignments += value
+              case _ =>
+            }
+            assignments.toVector.flatMap { assignment =>
+              assignment.source match {
+                case expression: Expression => Some(expression)
+                case _                      => None
+              }
+            }
+          }
+
+          private def explicitlyResizedToWidth(
+              expression: Expression,
+              expectedWidth: Int,
+              component: Component
+          ): Boolean = {
+            val seen = new IdentityHashMap[Expression, java.lang.Boolean]()
+
+            def walk(value: Expression): Boolean = {
+              if (seen.put(value, java.lang.Boolean.TRUE) != null) false
+              else {
+                value match {
+                  case resize: ResizeUInt =>
+                    resize.getWidth == expectedWidth
+                  case base: BaseType if base.hasTag(tagAutoResize) =>
+                    base.getWidth == expectedWidth
+                  case base: BaseType =>
+                    val drivers = directDriverExpressions(base, component)
+                    drivers.size == 1 && walk(drivers.head)
+                  case other =>
+                    val children = ArrayBuffer.empty[Expression]
+                    other.foreachExpression(children += _)
+                    children.size == 1 && walk(children.head)
+                }
+              }
+            }
+
+            walk(expression)
+          }
+
+          private def selectAddressWidth(
+              address: Expression with WidthProvider,
+              retained: ElaborationIntegerExpression,
+              native: ElaborationIntegerExpression,
+              component: Component,
+              source: Option[String]
+          ): ElaborationIntegerExpression = {
+            val retainedIsConcreteWitness =
+              retained.parameters.isEmpty &&
+              retained.default == BigInt(address.getWidth) &&
+              retained.minimum == retained.default &&
+              retained.maximum == retained.default
+
+            val driverExpressions = address match {
+              case target: BaseType => directDriverExpressions(target, component)
+              case expression       => Vector(expression)
+            }
+
+            val retainedDriverWidths = driverExpressions.flatMap {
+              case value: Expression with WidthProvider =>
+                Some(widthOf(value, source))
+              case _ => None
+            }.distinct
+            val widthExpressionProvesNative =
+              retainedDriverWidths.size == 1 &&
+              equivalentWidth(retainedDriverWidths.head, native)
+
+            val explicitResizeProvesNative =
+              native.default.isValidInt &&
+              driverExpressions.size == 1 &&
+              explicitlyResizedToWidth(
+                driverExpressions.head,
+                native.default.toInt,
+                component
+              )
+
+            val driverProvesNativeWidth =
+              widthExpressionProvesNative || explicitResizeProvesNative
+
+            if (
+              native.parameters.nonEmpty &&
+              retainedIsConcreteWitness &&
+              native.default == retained.default &&
+              driverProvesNativeWidth
+            ) native
+            else retained
+          }
+
+          '''
+
+          path.write_text(value[:start] + replacement + value[end:])
+          PY
+          git diff --check
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate the native StreamFifoCC witness on both Scala lanes
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
+            morphhdl.ParameterizedStreamFifoCCTests \
+            2>&1 | tee /tmp/increment-53e-address-resize-2.12.log
+          /tmp/morphhdl-mill 'morph[2.13.12].testOnly' \
+            morphhdl.ParameterizedStreamFifoCCTests \
+            2>&1 | tee /tmp/increment-53e-address-resize-2.13.log
+
+      - name: Upload focused validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53e-address-resize-evidence
+          path: |
+            /tmp/increment-53e-address-resize-2.12.log
+            /tmp/increment-53e-address-resize-2.13.log
+          if-no-files-found: ignore
+
+      - name: Publish the passing MorphHDL-only repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/increment-53e-address-resize-fix.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: recover native FIFO address resize provenance'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
