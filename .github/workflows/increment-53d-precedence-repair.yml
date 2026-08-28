@@ -1,0 +1,116 @@
+name: Publish Increment 53d StreamFifo boundary precedence repair
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-native-streamwidth-adapter
+    paths:
+      - .github/workflows/increment-53d-precedence-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-test-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out exact Increment 53d branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-native-streamwidth-adapter
+          fetch-depth: 0
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Restore StreamFifo method-isolation precedence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala")
+          text = path.read_text(encoding="utf-8")
+          old = '''      case definition: DefDef if decoded(definition.name) != "<init>" =>
+            val roots = nativeWidthRoots(definition.rhs)
+            if (roots.nonEmpty) transformNativeWidthFunction(definition, roots)
+            else if (inNativeStreamFifo) {
+              withoutNativeStreamFifoContext {
+                withScope(super.transform(definition))
+              }
+            } else withScope(super.transform(definition))
+          case definition: DefDef => withScope(super.transform(definition))
+          '''
+          new = '''      case definition: DefDef
+              if inNativeStreamFifo && decoded(definition.name) != "<init>" =>
+            // StreamFifo owns a dedicated, already-proven constructor capture
+            // contract. Nested methods must retain its original isolation even
+            // when they contain widthOf calls; otherwise generic width-function
+            // capture can move native drivers into a structural alternative
+            // while their consumers remain at module scope.
+            withoutNativeStreamFifoContext {
+              withScope(super.transform(definition))
+            }
+          case definition: DefDef if decoded(definition.name) != "<init>" =>
+            val roots = nativeWidthRoots(definition.rhs)
+            if (roots.nonEmpty) transformNativeWidthFunction(definition, roots)
+            else withScope(super.transform(definition))
+          case definition: DefDef => withScope(super.transform(definition))
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(f"expected one native-width DefDef precedence block, found {text.count(old)}")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          git diff --check
+
+      - name: Validate focused contracts on Scala 2.13.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.ParameterizedStreamWidthAdapterTests \
+            morphhdl.CapturedAssignmentNormalizationTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests
+
+      - name: Validate focused contracts on Scala 2.12.18
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.ParameterizedStreamWidthAdapterTests \
+            morphhdl.CapturedAssignmentNormalizationTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests
+
+      - name: Validate zero native-source edits
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
+
+      - name: Commit validated repair and remove diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f \
+            .github/workflows/increment-53d-full-suite-diagnostic.yml \
+            .github/workflows/increment-53d-precedence-repair.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix: preserve StreamFifo method capture precedence"
+          git push origin HEAD:agent/increment-53d-native-streamwidth-adapter
