@@ -31,7 +31,7 @@ jobs:
           git show origin/agent/increment-53d-native-streamfifocc-parameterization:.github/workflows/increment-53d-streamfifocc-bootstrap.yml > /tmp/reviewed.yml
           git show origin/agent/increment-53d-native-streamfifocc-parameterization:morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoCCDepthTests.scala > morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoCCDepthTests.scala
 
-      - name: Apply reviewed dual-clock patch and exact assignment provenance
+      - name: Apply dual-clock lowering and exact connection-shape provenance
         shell: bash
         run: |
           set -euo pipefail
@@ -50,7 +50,154 @@ jobs:
               patch = patch.replace(stale, '"  private def alwaysBlocks",')
           exec(compile(patch, 'increment-53e-reviewed-dual-clock-patch', 'exec'), {'__name__': '__main__'})
 
-          memory_path = Path('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala')
+          plugin_path = Path(
+              'morphplugin/src/main/scala/morphhdl/compiler/'
+              'MorphHdlNativeIntShadowExpressionComponent.scala'
+          )
+          plugin = plugin_path.read_text()
+
+          connection_method_marker = '''    private def nativeValueCarrier(
+          '''
+          connection_method = '''    private def rewriteNativeAssignment(
+              original: Tree,
+              target: Tree,
+              source: Tree
+            ): Rewrite = {
+              val transformedTarget = transform(target)
+              val transformedSource = transform(source)
+              Rewrite(
+                call(
+                  "compilerAssign",
+                  List(transformedTarget, transformedSource),
+                  original
+                )
+              )
+            }
+
+          '''
+          if plugin.count(connection_method_marker) != 1:
+              raise SystemExit('nativeValueCarrier insertion marker is ambiguous')
+          plugin = plugin.replace(
+              connection_method_marker,
+              connection_method + connection_method_marker,
+              1,
+          )
+
+          assignment_case_marker = '''        case Apply(Select(left, operatorName), List(right))
+              if Set("^", "===", "=/=").contains(decoded(operatorName)) =>
+          '''
+          assignment_case = '''        case Apply(Select(target, operatorName), List(source))
+              if inNativeStreamFifo && decoded(operatorName) == ":=" =>
+            rewriteNativeAssignment(tree, target, source)
+          '''
+          if plugin.count(assignment_case_marker) != 1:
+              raise SystemExit('native assignment insertion marker is ambiguous')
+          plugin = plugin.replace(
+              assignment_case_marker,
+              assignment_case + assignment_case_marker,
+              1,
+          )
+          plugin_path.write_text(plugin)
+
+          runtime_path = Path(
+              'morphruntime/src/main/scala/spinal/core/'
+              'ExternalNativeIntCompilerRuntime.scala'
+          )
+          runtime = runtime_path.read_text()
+          package_marker = 'package spinal.core\n\n'
+          if runtime.count(package_marker) != 1:
+              raise SystemExit('runtime package marker is ambiguous')
+          runtime = runtime.replace(
+              package_marker,
+              package_marker + 'import java.util.IdentityHashMap\n\n',
+              1,
+          )
+
+          runtime_marker = '''  def compilerUnsupportedInt(
+          '''
+          runtime_connection = '''  private def exactParameterizedShapeSource(
+              prototype: BaseType
+            ): Option[BaseType] = {
+              val seen = new IdentityHashMap[
+                spinal.core.internals.Expression,
+                java.lang.Boolean
+              ]()
+              var selected: BaseType = null
+
+              def visit(expression: spinal.core.internals.Expression): Unit = {
+                if (
+                  selected == null &&
+                  seen.put(expression, java.lang.Boolean.TRUE) == null
+                ) {
+                  expression match {
+                    case value: BaseType
+                        if value.getClass == prototype.getClass &&
+                          value.getBitsWidth == prototype.getBitsWidth &&
+                          ParameterizedWidth
+                            .expressionOf(value)
+                            .exists(_.parameters.nonEmpty) =>
+                      selected = value
+                    case _ =>
+                  }
+                  if (selected == null) {
+                    expression match {
+                      case base: BaseType =>
+                        base.foreachStatements {
+                          case spinal.core.internals.AssignmentStatement(_, source) =>
+                            visit(source)
+                          case _ =>
+                        }
+                      case _ =>
+                    }
+                    if (selected == null) expression.foreachExpression(visit)
+                  }
+                }
+              }
+
+              visit(prototype)
+              Option(selected)
+            }
+
+            private def retainAssignmentShape(target: Data, source: Data): Unit = {
+              val targetLeaves = target.flatten.toVector
+              val sourceLeaves = source.flatten.toVector
+              if (targetLeaves.size == sourceLeaves.size) {
+                sourceLeaves.zip(targetLeaves).foreach {
+                  case (from, to)
+                      if from.getClass == to.getClass &&
+                        from.getBitsWidth == to.getBitsWidth =>
+                    exactParameterizedShapeSource(from).foreach { retained =>
+                      ParameterizedWidth.copy(retained, to)
+                    }
+                  case _ =>
+                }
+              }
+            }
+
+            def compilerAssign(target: Data, source: AnyRef): Unit = {
+              if (boundaryActive) {
+                source match {
+                  case data: Data => retainAssignmentShape(target, data)
+                  case _ =>
+                }
+              }
+              target.assignFrom(source)
+            }
+
+          '''
+          if runtime.count(runtime_marker) != 1:
+              raise SystemExit('runtime compilerUnsupportedInt marker is ambiguous')
+          runtime = runtime.replace(
+              runtime_marker,
+              runtime_connection + runtime_marker,
+              1,
+          )
+          runtime_path.write_text(runtime)
+
+          memory_path = Path(
+              'morphhdl/src/main/scala/spinal/core/internals/'
+              'ParameterizedVerilogMemories.scala'
+          )
           memory = memory_path.read_text()
           start_marker = '    val driverProvesNativeWidth = address match {'
           start = memory.index(start_marker)
@@ -72,7 +219,8 @@ jobs:
                   value match {
                     case base: BaseType =>
                       ParameterizedWidth.expressionOf(base) match {
-                        case Some(width) if width.parameters.nonEmpty => retained += width
+                        case Some(width) if width.parameters.nonEmpty =>
+                          retained += width
                         case _ =>
                           base.foreachStatements {
                             case assignment: DataAssignmentStatement =>
@@ -130,7 +278,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53e-bootstrap-v2-evidence
+          name: increment-53e-bootstrap-v3-evidence
           path: |
             /tmp/increment-53e-bootstrap.log
             /tmp/morphhdl-streamfifocc-debug
