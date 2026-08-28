@@ -197,10 +197,10 @@ final class MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(
     }
 
     private def typeTerminalName(tree: Tree): String = tree match {
-      case Ident(name)       => decoded(name)
-      case Select(_, name)   => decoded(name)
-      case AppliedTypeTree(base, _) => typeTerminalName(base)
-      case _                 => terminalName(tree)
+      case Ident(name)                => decoded(name)
+      case Select(_, name)            => decoded(name)
+      case AppliedTypeTree(base, _)   => typeTerminalName(base)
+      case _                          => terminalName(tree)
     }
 
     private def isNativeIntParameter(value: ValDef): Boolean =
@@ -248,9 +248,9 @@ final class MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(
     }
 
     private def trackedSelection(tree: Tree): Option[TrackedInt] = tree match {
-      case Ident(name: TermName) => lookupInteger(name)
-      case Select(This(_), name: TermName) => lookupInteger(name)
-      case _ => None
+      case Ident(name: TermName)             => lookupInteger(name)
+      case Select(This(_), name: TermName)   => lookupInteger(name)
+      case _                                 => None
     }
 
     private def trackRoot(tree: Tree, value: TrackedInt): Tree = {
@@ -276,24 +276,30 @@ final class MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(
         original,
         s"axi4-address-expression:$operation"
       )
-      val call = Apply(
-        nativeIntRuntimeMethod("compilerBinary"),
-        List(
-          Literal(Constant(operation)),
-          left.tree,
-          Literal(Constant(left.reference.getOrElse(
-            sourceReference(original, "axi4-address-left-literal")
-          ))),
-          Literal(Constant(left.literal)),
-          right.tree,
-          Literal(Constant(right.reference.getOrElse(
-            sourceReference(original, "axi4-address-right-literal")
-          ))),
-          Literal(Constant(right.literal)),
-          Literal(Constant(resultReference)),
-          Literal(Constant(requestedName.getOrElse("axi4Address"))
-        ) ++ sourceArguments(original)
-      )
+      val arguments = List(
+        Literal(Constant(operation)),
+        left.tree,
+        Literal(
+          Constant(
+            left.reference.getOrElse(
+              sourceReference(original, "axi4-address-left-literal")
+            )
+          )
+        ),
+        Literal(Constant(left.literal)),
+        right.tree,
+        Literal(
+          Constant(
+            right.reference.getOrElse(
+              sourceReference(original, "axi4-address-right-literal")
+            )
+          )
+        ),
+        Literal(Constant(right.literal)),
+        Literal(Constant(resultReference)),
+        Literal(Constant(requestedName.getOrElse("axi4Address")))
+      ) ++ sourceArguments(original)
+      val call = Apply(nativeIntRuntimeMethod("compilerBinary"), arguments)
       call.setPos(original.pos)
       IntRewrite(call, Some(resultReference))
     }
@@ -308,16 +314,14 @@ final class MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(
         original,
         s"axi4-address-expression:$operation"
       )
-      val call = Apply(
-        nativeIntRuntimeMethod("compilerUnary"),
-        List(
-          Literal(Constant(operation)),
-          operand.tree,
-          Literal(Constant(operand.reference.get)),
-          Literal(Constant(resultReference)),
-          Literal(Constant(requestedName.getOrElse("axi4Address"))
-        ) ++ sourceArguments(original)
-      )
+      val arguments = List(
+        Literal(Constant(operation)),
+        operand.tree,
+        Literal(Constant(operand.reference.get)),
+        Literal(Constant(resultReference)),
+        Literal(Constant(requestedName.getOrElse("axi4Address")))
+      ) ++ sourceArguments(original)
+      val call = Apply(nativeIntRuntimeMethod("compilerUnary"), arguments)
       call.setPos(original.pos)
       IntRewrite(call, Some(resultReference))
     }
@@ -361,13 +365,15 @@ final class MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(
               "MORPHDL-NATIVE-AXI4-ADDRESS-OPERAND-UNPROVEN: right address operand is neither a tracked native Int nor a literal"
             )
             IntRewrite(super.transform(original), None)
-          } else compilerBinary(
-            original,
-            decoded(operationName),
-            left,
-            right,
-            requestedName
-          )
+          } else {
+            compilerBinary(
+              original,
+              decoded(operationName),
+              left,
+              right,
+              requestedName
+            )
+          }
         } else IntRewrite(super.transform(original), None)
       case original @ Apply(Select(valueTree, operationName), Nil)
           if decoded(operationName) == "unary_-" =>
@@ -411,7 +417,7 @@ final class MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(
     }
 
     private def isFactoryReceiver(tree: Tree): Boolean = tree match {
-      case Ident(name: TermName) => lookupFactory(name)
+      case Ident(name: TermName)           => lookupFactory(name)
       case Select(This(_), name: TermName) => lookupFactory(name)
       case value if isFactoryConstruction(value) => true
       case _ => false
@@ -545,12 +551,13 @@ final class MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(
     private def transformVal(value: ValDef): Tree = {
       val immutable = !value.mods.hasFlag(Flag.MUTABLE)
       val factory = isFactoryConstruction(value.rhs) || (value.rhs match {
-        case Ident(name: TermName) => lookupFactory(name)
+        case Ident(name: TermName)           => lookupFactory(name)
         case Select(This(_), name: TermName) => lookupFactory(name)
-        case _ => false
+        case _                               => false
       })
-      val integer = if (immutable) rewriteInt(value.rhs, Some(decoded(value.name)))
-      else IntRewrite(transform(value.rhs), None)
+      val integer =
+        if (immutable) rewriteInt(value.rhs, Some(decoded(value.name)))
+        else IntRewrite(transform(value.rhs), None)
       val rhs = integer.reference match {
         case Some(reference) if immutable =>
           bindInteger(
@@ -595,12 +602,7 @@ final class MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(
           if isFactoryReceiver(receiver) &&
             (singleWordAddressMethods.contains(decoded(methodName)) ||
               multiWordAddressMethods.contains(decoded(methodName))) =>
-        transformFactoryCall(
-          original,
-          receiver,
-          methodName,
-          arguments
-        )
+        transformFactoryCall(original, receiver, methodName, arguments)
       case value: ValDef if !isNativeAxiSource => transformVal(value)
       case template: Template => withScope(super.transform(template))
       case block: Block       => withScope(super.transform(block))
