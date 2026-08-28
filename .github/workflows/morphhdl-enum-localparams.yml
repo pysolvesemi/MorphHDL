@@ -1,6 +1,6 @@
 name: MorphHDL SCREAMING_SNAKE_CASE module-local SpinalEnum parameters and formal equivalence
 
-# Increment 53c refines Increment 53b enum constants to deterministic
+# Increment 53b.1 refines Increment 53b enum constants to deterministic
 # SCREAMING_SNAKE_CASE in MorphHDL-owned publication code and formally proves
 # equivalence to the untouched native macro implementation.
 on:
@@ -8,7 +8,7 @@ on:
     branches:
       - main
       - parameterized-verilog
-      - agent/increment-53c-enum-screaming-snake-localparams
+      - agent/increment-53b1-enum-screaming-snake-localparams
   pull_request:
     branches:
       - main
@@ -45,7 +45,7 @@ jobs:
             morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala
           grep -Fq 'LowerOrDigitToUpperBoundary' \
             morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala
-          grep -Fq 'INC53C_AXI4_READ_STATE_WAIT_RESP' \
+          grep -Fq 'INC53B1_AXI4_READ_STATE_WAIT_RESP' \
             morphhdl/src/test/scala/morphhdl/SpinalEnumLocalParameterTests.scala
           grep -Fq 'MorphHdlExternalEnumLocalizer.rewrite(pc)' \
             morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
@@ -57,7 +57,7 @@ jobs:
             git fetch --no-tags origin "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
             changed="$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")"
             if grep -Eq '^(core|lib|idslplugin)/src/main/' <<<"${changed}"; then
-              echo "Increment 53c must not modify native SpinalHDL production sources" >&2
+              echo "Increment 53b.1 must not modify native SpinalHDL production sources" >&2
               grep -E '^(core|lib|idslplugin)/src/main/' <<<"${changed}" >&2
               exit 1
             fi
