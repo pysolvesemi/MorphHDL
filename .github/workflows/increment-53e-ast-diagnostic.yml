@@ -25,6 +25,9 @@ jobs:
           git fetch --no-tags origin \
             agent/increment-53d-native-streamfifocc-parameterization:refs/remotes/origin/agent/increment-53d-native-streamfifocc-parameterization
           git show \
+            origin/agent/increment-53d-native-streamfifocc-parameterization:.github/workflows/increment-53d-streamfifocc-bootstrap.yml \
+            > /tmp/reviewed.yml
+          git show \
             origin/agent/increment-53d-native-streamfifocc-parameterization:morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoCCDepthTests.scala \
             > morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoCCDepthTests.scala
           git show \
