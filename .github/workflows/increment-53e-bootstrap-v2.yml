@@ -90,13 +90,9 @@ jobs:
               if inNativeStreamFifo && decoded(operatorName) == ":=" =>
             rewriteNativeAssignment(tree, target, source)
           '''
-          if plugin.count(assignment_case_marker) != 1:
-              raise SystemExit('native assignment insertion marker is ambiguous')
-          plugin = plugin.replace(
-              assignment_case_marker,
-              assignment_case + assignment_case_marker,
-              1,
-          )
+          rewrite_expression = plugin.index('    private def rewriteExpression(')
+          assignment_at = plugin.index(assignment_case_marker, rewrite_expression)
+          plugin = plugin[:assignment_at] + assignment_case + plugin[assignment_at:]
           plugin_path.write_text(plugin)
 
           runtime_path = Path(
@@ -174,7 +170,10 @@ jobs:
               }
             }
 
-            def compilerAssign(target: Data, source: AnyRef): Unit = {
+            def compilerAssign(
+              target: Data,
+              source: AnyRef
+            )(implicit loc: spinal.idslplugin.Location): Unit = {
               if (boundaryActive) {
                 source match {
                   case data: Data => retainAssignmentShape(target, data)
@@ -278,7 +277,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53e-bootstrap-v3-evidence
+          name: increment-53e-bootstrap-v4-evidence
           path: |
             /tmp/increment-53e-bootstrap.log
             /tmp/morphhdl-streamfifocc-debug
