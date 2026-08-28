@@ -1,4 +1,4 @@
-name: Diagnose Increment 53d symbolic assignment source
+name: Inspect Increment 53d final upsize driver
 
 on:
   push:
@@ -33,34 +33,14 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Print exact failing assignment IR
+      - name: Inspect the exact witness-width source chain
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path("morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala")
-          text = path.read_text(encoding="utf-8")
-          old = '''                fail(
-                  "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
-                  s"assignment to symbolic signal '${target.getName()}' uses concrete-width expression ${sourceWidth.render}; explicit domain-safe conversion is required",
-                  ParameterizedWidth.sourceLocationOf(target)
-                )'''
-          new = '''                val sourceChildren = ArrayBuffer.empty[String]
-                assignment.source.foreachExpression { child =>
-                  sourceChildren += s"${child.getClass.getName}:${child.opName}:${widthInference.ofExpression(child).render}"
-                }
-                fail(
-                  "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
-                  s"assignment to symbolic signal '${target.getName()}' uses concrete-width expression ${sourceWidth.render}; sourceClass=${assignment.source.getClass.getName}; sourceOp=${assignment.source.opName}; targetClass=${assignment.target.getClass.getName}; finalTargetClass=${assignment.finalTarget.getClass.getName}; children=${sourceChildren.mkString("[", ", ", "]")}",
-                  ParameterizedWidth.sourceLocationOf(target)
-                )'''
-          count = text.count(old)
-          if count != 1:
-              raise SystemExit(f"expected one assignment diagnostic anchor, found {count}")
-          path.write_text(text.replace(old, new), encoding="utf-8")
-          PY
+          printf '%s' 'LS0tIGEvbW9ycGhoZGwvc3JjL21haW4vc2NhbGEvc3BpbmFsL2NvcmUvaW50ZXJuYWxzL0V4dGVybmFsUGFyYW1ldGVyaXplZFZlcmlsb2dOYXRpdmVGYWxsYmFjay5zY2FsYQorKysgYi9tb3JwaGhkbC9zcmMvbWFpbi9zY2FsYS9zcGluYWwvY29yZS9pbnRlcm5hbHMvRXh0ZXJuYWxQYXJhbWV0ZXJpemVkVmVyaWxvZ05hdGl2ZUZhbGxiYWNrLnNjYWxhCkBAIC05NzEsNiArOTcxLDEwIEBACiAgICAgICAgICAgICAgICAgICB0YXJnZXRXaWR0aCwKICAgICAgICAgICAgICAgICAgIHNvdXJjZVdpZHRoCiAgICAgICAgICAgICAgICAgKQorICAgICAgICAgICAgICB2YWwgcHJvdmVuSW52YXJpYW50VGFyZ2V0V2lkdGggPQorICAgICAgICAgICAgICAgIHRhcmdldFdpZHRoLmlzU3ltYm9saWMgJiYKKyAgICAgICAgICAgICAgICAgIHRhcmdldFdpZHRoLm1pbmltdW0gPT0gdGFyZ2V0V2lkdGgubWF4aW11bSAmJgorICAgICAgICAgICAgICAgICAgc291cmNlV2lkdGguZGVmYXVsdCA9PSB0YXJnZXRXaWR0aC5kZWZhdWx0CiAgICAgICAgICAgICAgIGlmICgKICAgICAgICAgICAgICAgICB0YXJnZXRXaWR0aC5pc1N5bWJvbGljICYmIHNvdXJjZVdpZHRoLmlzU3ltYm9saWMgJiYKICAgICAgICAgICAgICAgICB0YXJnZXRXaWR0aCAhPSBzb3VyY2VXaWR0aCAmJiAhbmF0aXZlQ291bnRlck5leHQgJiYKQEAgLTk4Niw3ICs5OTAsOCBAQAogICAgICAgICAgICAgICBpZiAoCiAgICAgICAgICAgICAgICAgdGFyZ2V0V2lkdGguaXNTeW1ib2xpYyAmJiAhc291cmNlV2lkdGguaXNTeW1ib2xpYyAmJgogICAgICAgICAgICAgICAgICFpc1VuZml4ZWRMaXRlcmFsKGFzc2lnbm1lbnQuc291cmNlKSAmJiAhbmF0aXZlQ291bnRlck5leHQgJiYKLSAgICAgICAgICAgICAgICAhcHJvdmVuQXV0b1Jlc2l6ZSAmJiAhcHJvdmVuTW9kdWxhclVwZGF0ZQorICAgICAgICAgICAgICAgICFwcm92ZW5BdXRvUmVzaXplICYmICFwcm92ZW5Nb2R1bGFyVXBkYXRlICYmCisgICAgICAgICAgICAgICAgIXByb3ZlbkludmFyaWFudFRhcmdldFdpZHRoCiAgICAgICAgICAgICAgICkgewogICAgICAgICAgICAgICAgIGZhaWwoCiAgICAgICAgICAgICAgICAgICAiU1BJTkFMLVBBUkFNRVRFUklaRUQtVkVSSUxPRy1BU1NJR05NRU5ULVdJRFRILU1JU01BVENIIiwK' | base64 --decode > /tmp/invariant.patch
+          git apply /tmp/invariant.patch
+          printf '%s' 'LS0tIGEvbW9ycGhoZGwvc3JjL21haW4vc2NhbGEvc3BpbmFsL2NvcmUvaW50ZXJuYWxzL0V4dGVybmFsUGFyYW1ldGVyaXplZFZlcmlsb2dOYXRpdmVGYWxsYmFjay5zY2FsYQorKysgYi9tb3JwaGhkbC9zcmMvbWFpbi9zY2FsYS9zcGluYWwvY29yZS9pbnRlcm5hbHMvRXh0ZXJuYWxQYXJhbWV0ZXJpemVkVmVyaWxvZ05hdGl2ZUZhbGxiYWNrLnNjYWxhCkBAIC05NDAsNiArOTQwLDMzIEBACiAgICAgfQogCiAgICAgcHJpdmF0ZSBkZWYgdmFsaWRhdGVBc3NpZ25tZW50cygpOiBVbml0ID0geworICAgICAgZGVmIGV4cHJlc3Npb25TdW1tYXJ5KGV4cHJlc3Npb246IEV4cHJlc3Npb24pOiBTdHJpbmcgPSBleHByZXNzaW9uIG1hdGNoIHsKKyAgICAgICAgY2FzZSByZXNpemU6IFJlc2l6ZSA9PgorICAgICAgICAgIHMiUmVzaXplKHNpemU9JHtyZXNpemUuc2l6ZX0sdHlwZT0ke3Jlc2l6ZS5nZXRUeXBlT2JqZWN0fSxpbnB1dD0ke3Jlc2l6ZS5pbnB1dC5nZXRDbGFzcy5nZXRTaW1wbGVOYW1lfSkiCisgICAgICAgIGNhc2UgYmFzZTogQmFzZVR5cGUgPT4KKyAgICAgICAgICB2YWwgcmV0YWluZWQgPSBQYXJhbWV0ZXJpemVkV2lkdGguZXhwcmVzc2lvbk9mKGJhc2UpCisgICAgICAgICAgICAubWFwKHZhbHVlID0+IHMiJHt2YWx1ZS52ZXJpbG9nfVske3ZhbHVlLm1pbmltdW19LCR7dmFsdWUubWF4aW11bX1dIikKKyAgICAgICAgICAgIC5nZXRPckVsc2UoIm5vbmUiKQorICAgICAgICAgIHZhbCBkcml2ZXIgPQorICAgICAgICAgICAgaWYgKGJhc2UuaXNUeXBlTm9kZSAmJiBTdGF0ZW1lbnQuaXNTb21ldGhpbmdUb0Z1bGxTdGF0ZW1lbnQoYmFzZSkpIHsKKyAgICAgICAgICAgICAgYmFzZS5oZWFkIG1hdGNoIHsKKyAgICAgICAgICAgICAgICBjYXNlIGFzc2lnbm1lbnQ6IERhdGFBc3NpZ25tZW50U3RhdGVtZW50ID0+CisgICAgICAgICAgICAgICAgICB2YWwgc291cmNlID0gYXNzaWdubWVudC5zb3VyY2UKKyAgICAgICAgICAgICAgICAgIHZhbCB3aWR0aCA9IHNvdXJjZSBtYXRjaCB7CisgICAgICAgICAgICAgICAgICAgIGNhc2UgcHJvdmlkZXI6IFdpZHRoUHJvdmlkZXIgPT4gcHJvdmlkZXIuZ2V0V2lkdGgudG9TdHJpbmcKKyAgICAgICAgICAgICAgICAgICAgY2FzZSBfICAgICAgICAgICAgICAgICAgICAgICA9PiAibi9hIgorICAgICAgICAgICAgICAgICAgfQorICAgICAgICAgICAgICAgICAgcyIke3NvdXJjZS5nZXRDbGFzcy5nZXRTaW1wbGVOYW1lfShvcD0ke3NvdXJjZS5vcE5hbWV9LHdpZHRoPSR3aWR0aCkiCisgICAgICAgICAgICAgICAgY2FzZSBvdGhlciA9PiBvdGhlci5nZXRDbGFzcy5nZXRTaW1wbGVOYW1lCisgICAgICAgICAgICAgIH0KKyAgICAgICAgICAgIH0gZWxzZSAibm9uZSIKKyAgICAgICAgICBzIiR7YmFzZS5nZXRDbGFzcy5nZXRTaW1wbGVOYW1lfShuYW1lPSR7YmFzZS5nZXROYW1lKCl9LHdpZHRoPSR7YmFzZS5nZXRCaXRzV2lkdGh9LHJldGFpbmVkPSRyZXRhaW5lZCxkcml2ZXI9JGRyaXZlcikiCisgICAgICAgIGNhc2UgcHJvdmlkZXI6IFdpZHRoUHJvdmlkZXIgPT4KKyAgICAgICAgICBzIiR7cHJvdmlkZXIuZ2V0Q2xhc3MuZ2V0U2ltcGxlTmFtZX0ob3A9JHtwcm92aWRlci5vcE5hbWV9LHdpZHRoPSR7cHJvdmlkZXIuZ2V0V2lkdGh9KSIKKyAgICAgICAgY2FzZSBvdGhlciA9PgorICAgICAgICAgIHMiJHtvdGhlci5nZXRDbGFzcy5nZXRTaW1wbGVOYW1lfShvcD0ke290aGVyLm9wTmFtZX0pIgorICAgICAgfQorCiAgICAgICBhc3NpZ25tZW50cy5mb3JlYWNoIHsgYXNzaWdubWVudCA9PgogICAgICAgICBpZiAoIWlzSGllcmFyY2h5Qm91bmRhcnkoYXNzaWdubWVudCkpIHsKICAgICAgICAgICBhc3NpZ25tZW50LmZpbmFsVGFyZ2V0IG1hdGNoIHsKQEAgLTk5NSw3ICsxMDIyLDcgQEAKICAgICAgICAgICAgICAgKSB7CiAgICAgICAgICAgICAgICAgZmFpbCgKICAgICAgICAgICAgICAgICAgICJTUElOQUwtUEFSQU1FVEVSSVpFRC1WRVJJTE9HLUFTU0lHTk1FTlQtV0lEVEgtTUlTTUFUQ0giLAotICAgICAgICAgICAgICAgICAgcyJhc3NpZ25tZW50IHRvIHN5bWJvbGljIHNpZ25hbCAnJHt0YXJnZXQuZ2V0TmFtZSgpfScgdXNlcyBjb25jcmV0ZS13aWR0aCBleHByZXNzaW9uICR7c291cmNlV2lkdGgucmVuZGVyfTsgZXhwbGljaXQgZG9tYWluLXNhZmUgY29udmVyc2lvbiBpcyByZXF1aXJlZCIsCisgICAgICAgICAgICAgICAgICBzImFzc2lnbm1lbnQgdG8gc3ltYm9saWMgc2lnbmFsICcke3RhcmdldC5nZXROYW1lKCl9JyB1c2VzIGNvbmNyZXRlLXdpZHRoIGV4cHJlc3Npb24gJHtzb3VyY2VXaWR0aC5yZW5kZXJ9OyBleHBsaWNpdCBkb21haW4tc2FmZSBjb252ZXJzaW9uIGlzIHJlcXVpcmVkOyBzb3VyY2U9JHtleHByZXNzaW9uU3VtbWFyeShhc3NpZ25tZW50LnNvdXJjZSl9IiwKICAgICAgICAgICAgICAgICAgIFBhcmFtZXRlcml6ZWRXaWR0aC5zb3VyY2VMb2NhdGlvbk9mKHRhcmdldCkKICAgICAgICAgICAgICAgICApCiAgICAgICAgICAgICAgIH0K' | base64 --decode > /tmp/debug.patch
+          git apply /tmp/debug.patch
 
           set +e
           /tmp/morphhdl-mill morph[2.13.12].testOnly \
@@ -68,9 +48,6 @@ jobs:
             > /tmp/increment-53d-target.log 2>&1
           status=$?
           set -e
-          echo "===== exact assignment diagnostic ====="
-          grep -E "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH|FAILED|Cause:" \
-            /tmp/increment-53d-target.log | tail -n 80 || true
-          echo "===== final context ====="
-          tail -n 100 /tmp/increment-53d-target.log
+          grep -E "FAILED|Cause:|SPINAL-|MORPH-|source=|tests failed" \
+            /tmp/increment-53d-target.log | tail -n 200 || true
           exit "$status"
