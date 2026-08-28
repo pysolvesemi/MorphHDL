@@ -197,49 +197,49 @@ object NativeIntShadow {
     )
 
   /** Retain a compiler-proven symbolic UInt factory width. */
-def compilerUInt(
-    reference: String,
-    file: String,
-    line: Int
-)(native: => UInt): UInt =
-  ExternalNativeIntCompilerRuntime.compilerUInt(reference, file, line)(native)
+  def compilerUInt(
+      reference: String,
+      file: String,
+      line: Int
+  )(native: => UInt): UInt =
+    ExternalNativeIntCompilerRuntime.compilerUInt(reference, file, line)(native)
 
-/** Retain a compiler-proven symbolic Bits factory width. */
-def compilerBits(
-    reference: String,
-    file: String,
-    line: Int
-)(native: => Bits): Bits =
-  ExternalNativeIntCompilerRuntime.compilerBits(reference, file, line)(native)
+  /** Retain a compiler-proven symbolic Bits factory width. */
+  def compilerBits(
+      reference: String,
+      file: String,
+      line: Int
+  )(native: => Bits): Bits =
+    ExternalNativeIntCompilerRuntime.compilerBits(reference, file, line)(native)
 
-/** Retain a compiler-proven symbolic SInt factory width. */
-def compilerSInt(
-    reference: String,
-    file: String,
-    line: Int
-)(native: => SInt): SInt =
-  ExternalNativeIntCompilerRuntime.compilerSInt(reference, file, line)(native)
+  /** Retain a compiler-proven symbolic SInt factory width. */
+  def compilerSInt(
+      reference: String,
+      file: String,
+      line: Int
+  )(native: => SInt): SInt =
+    ExternalNativeIntCompilerRuntime.compilerSInt(reference, file, line)(native)
 
   /** Fail closed only when the referenced Int is live in an active boundary. */
   def compilerUnsupportedInt(
-    reference: String,
-    code: String,
-    detail: String,
-    file: String,
-    line: Int
-)(nativeValue: => Int): Int = {
-  // A derived receiver may be materialized by compiler hooks nested in
-  // this pure native expression. Evaluate it first, then reject the
-  // unsupported operation before the resulting value can escape.
-  val value = nativeValue
-  ExternalNativeIntShadowRegistry.rejectTracked(
-    reference,
-    code,
-    detail,
-    rendered(file, line)
-  )
-  value
-}
+      reference: String,
+      code: String,
+      detail: String,
+      file: String,
+      line: Int
+  )(nativeValue: => Int): Int = {
+    // A derived receiver may be materialized by compiler hooks nested in this
+    // pure native expression. Evaluate it first, then reject the unsupported
+    // operation before the resulting value can escape.
+    val value = nativeValue
+    ExternalNativeIntShadowRegistry.rejectTracked(
+      reference,
+      code,
+      detail,
+      rendered(file, line)
+    )
+    value
+  }
 
   /** Fail closed only when the referenced predicate is live in an active boundary. */
   def compilerUnsupportedBoolean(
