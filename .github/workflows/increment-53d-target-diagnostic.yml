@@ -60,14 +60,18 @@ jobs:
           helper_index = text.find(helper)
           if helper_index < 0:
               raise SystemExit("temporary-directory helper was not found")
-          text = text[:helper_index] + '''  private def withTemporaryDirectory(body: Path => Unit): Unit = {
-            val directory = Files.createTempDirectory("morphhdl-stream-width-adapter-")
-            println(s"DBG_KEEP_DIRECTORY=$directory")
-            body(directory)
-          }
-        }
-        '''
-          path.write_text(text)
+          replacement = "\n".join(
+              (
+                  '  private def withTemporaryDirectory(body: Path => Unit): Unit = {',
+                  '    val directory = Files.createTempDirectory("morphhdl-stream-width-adapter-")',
+                  '    println(s"DBG_KEEP_DIRECTORY=$directory")',
+                  '    body(directory)',
+                  '  }',
+                  '}',
+                  ''
+              )
+          )
+          path.write_text(text[:helper_index] + replacement)
           PY
 
       - name: Run the focused adapter proof and expose generated upsize RTL
