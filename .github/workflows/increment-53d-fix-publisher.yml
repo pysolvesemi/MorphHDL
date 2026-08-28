@@ -1,4 +1,4 @@
-name: Publish Increment 53d symbolic Resize fix
+name: Sync and clean Increment 53d branch
 
 on:
   push:
@@ -11,12 +11,8 @@ permissions:
   contents: write
 
 jobs:
-  patch-test-publish:
+  sync-clean:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/spinalhdl/docker:latest
-    env:
-      XDG_CACHE_HOME: /tmp/morphhdl-cache
     steps:
       - name: Check out Increment 53d branch
         uses: actions/checkout@v4
@@ -24,44 +20,20 @@ jobs:
           ref: agent/increment-53d-native-streamwidth-adapter
           fetch-depth: 0
 
-      - name: Install pinned Mill bootstrap
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --location --retry 5 --retry-all-errors \
-            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
-            --output /tmp/morphhdl-mill
-          chmod +x /tmp/morphhdl-mill
-
-      - name: Lower exact retained Resize slices symbolically
-        shell: bash
-        run: |
-          set -euo pipefail
-          printf '%s' 'LS0tIGEvbW9ycGhoZGwvc3JjL21haW4vc2NhbGEvc3BpbmFsL2NvcmUvaW50ZXJuYWxzL0V4dGVybmFsUGFyYW1ldGVyaXplZFZlcmlsb2dOYXRpdmVGYWxsYmFjay5zY2FsYQorKysgYi9tb3JwaGhkbC9zcmMvbWFpbi9zY2FsYS9zcGluYWwvY29yZS9pbnRlcm5hbHMvRXh0ZXJuYWxQYXJhbWV0ZXJpemVkVmVyaWxvZ05hdGl2ZUZhbGxiYWNrLnNjYWxhCkBAIC0xMTIsMTAgKzExMiwxNCBAQAogICAgICAgY29tcG9uZW50LAogICAgICAgcmV3cml0dGVuQ291bnRlckJvdW5kYXJpZXMKICAgICApCisgICAgdmFsIHJld3JpdHRlblJlc2l6ZXMgPSByZXdyaXRlUmV0YWluZWRSZXNpemVBc3NpZ25tZW50cygKKyAgICAgIGNvbXBvbmVudCwKKyAgICAgIHJld3JpdHRlblZhbHVlcworICAgICkKICAgICB2YWwgY2Fub25pY2FsID0KICAgICAgIGlmIChpc0Nhbm9uaWNhbERpcmVjdFN1cmZhY2UoY29tcG9uZW50KSkKLSAgICAgICAgY2Fub25pY2FsaXplRGVjbGFyYXRpb25zKGNvbXBvbmVudCwgcmV3cml0dGVuVmFsdWVzKQotICAgICAgZWxzZSByZXdyaXR0ZW5WYWx1ZXMKKyAgICAgICAgY2Fub25pY2FsaXplRGVjbGFyYXRpb25zKGNvbXBvbmVudCwgcmV3cml0dGVuUmVzaXplcykKKyAgICAgIGVsc2UgcmV3cml0dGVuUmVzaXplcwogICAgIGxvd2VyUmV0YWluZWRJbnRlZ2VySGVscGVycyhjYW5vbmljYWwsIGNvbXBvbmVudC5kZWZpbml0aW9uTmFtZSkKICAgfQogCkBAIC00OTksNiArNTAzLDExNiBAQAogICAgICAgICAgICkKICAgICAgICAgfQogICAgIH0KKyAgICBsaW5lcy5ta1N0cmluZygiXG4iKQorICB9CisKKyAgLyoqCisgICAgKiBSZXBsYWNlIGEgY29uY3JldGUgd2l0bmVzcyBMU0Igc2xpY2UgZW1pdHRlZCBmb3Igb25lIGV4YWN0IG5hdGl2ZSBSZXNpemUKKyAgICAqIHdpdGggdGhlIHJldGFpbmVkIHN5bWJvbGljIHRhcmdldCByYW5nZS4gVGhlIGVsaWdpYmxlIGFzc2lnbm1lbnQsIHRhcmdldAorICAgICogYW5kIFJlc2l6ZSBub2RlIGFyZSBkaXNjb3ZlcmVkIGZyb20gdGhlIG5vcm1hbGl6ZWQgZ3JhcGggYnkgSlZNIGlkZW50aXR5OworICAgICogZW1pdHRlZCBuYW1lcyBhcmUgdXNlZCBvbmx5IGFmdGVyIHRoYXQgcHJvb2YgdG8gYWRkcmVzcyB0aGUgY29ycmVzcG9uZGluZworICAgICogbmF0aXZlIFZlcmlsb2cgYXNzaWdubWVudC4gT3RoZXIgUmVzaXplIHJlbmRlcmluZ3MgcmVtYWluIG93bmVkIGJ5IHRoZQorICAgICogbmF0aXZlIGVtaXR0ZXIuCisgICAgKi8KKyAgcHJpdmF0ZSBkZWYgcmV3cml0ZVJldGFpbmVkUmVzaXplQXNzaWdubWVudHMoCisgICAgICBjb21wb25lbnQ6IENvbXBvbmVudCwKKyAgICAgIHZlcmlsb2c6IFN0cmluZworICApOiBTdHJpbmcgPSB7CisgICAgZmluYWwgY2FzZSBjbGFzcyBSZXRhaW5lZFJlc2l6ZUFzc2lnbm1lbnQoCisgICAgICAgIHRhcmdldE5hbWU6IFN0cmluZywKKyAgICAgICAgd2l0bmVzc1NpemU6IEludCwKKyAgICAgICAgZXhwcmVzc2lvbjogRWxhYm9yYXRpb25JbnRlZ2VyRXhwcmVzc2lvbgorICAgICkKKworICAgIHZhbCByZXRhaW5lZCA9IEFycmF5QnVmZmVyLmVtcHR5W1JldGFpbmVkUmVzaXplQXNzaWdubWVudF0KKyAgICBjb21wb25lbnQuZHNsQm9keS53YWxrTGVhZlN0YXRlbWVudHMgeworICAgICAgY2FzZSBhc3NpZ25tZW50OiBEYXRhQXNzaWdubWVudFN0YXRlbWVudAorICAgICAgICAgIGlmIGFzc2lnbm1lbnQudGFyZ2V0ID09IGFzc2lnbm1lbnQuZmluYWxUYXJnZXQgPT4KKyAgICAgICAgKGFzc2lnbm1lbnQudGFyZ2V0LCBhc3NpZ25tZW50LnNvdXJjZSkgbWF0Y2ggeworICAgICAgICAgIGNhc2UgKHRhcmdldDogQml0VmVjdG9yLCByZXNpemU6IFJlc2l6ZSkKKyAgICAgICAgICAgICAgaWYgKHRhcmdldC5jb21wb25lbnQgZXEgY29tcG9uZW50KSAmJiB0YXJnZXQuaXNDb21iICYmCisgICAgICAgICAgICAgICAgdGFyZ2V0LmdldEJpdHNXaWR0aCA9PSByZXNpemUuc2l6ZSA9PgorICAgICAgICAgICAgRXh0ZXJuYWxQYXJhbWV0ZXJpemVkUmVzaXplUmVnaXN0cnkKKyAgICAgICAgICAgICAgLmV4cHJlc3Npb25PZihyZXNpemUpCisgICAgICAgICAgICAgIC5maWx0ZXIoXy5wYXJhbWV0ZXJzLm5vbkVtcHR5KQorICAgICAgICAgICAgICAuZm9yZWFjaCB7IGV4cHJlc3Npb24gPT4KKyAgICAgICAgICAgICAgICBpZiAoZXhwcmVzc2lvbi5kZWZhdWx0ICE9IEJpZ0ludChyZXNpemUuc2l6ZSkpIHsKKyAgICAgICAgICAgICAgICAgIGZhaWwoCisgICAgICAgICAgICAgICAgICAgICJTUElOQUwtUEFSQU1FVEVSSVpFRC1WRVJJTE9HLVJFU0laRS1XSVRORVNTLU1JU01BVENIIiwKKyAgICAgICAgICAgICAgICAgICAgcyJuYXRpdmUgUmVzaXplIHRhcmdldCAke3Jlc2l6ZS5zaXplfSBkb2VzIG5vdCBtYXRjaCByZXRhaW5lZCBzeW1ib2xpYyBkZWZhdWx0ICR7ZXhwcmVzc2lvbi5kZWZhdWx0fSIsCisgICAgICAgICAgICAgICAgICAgIGV4cHJlc3Npb24uc291cmNlTG9jYXRpb24KKyAgICAgICAgICAgICAgICAgICkKKyAgICAgICAgICAgICAgICB9CisgICAgICAgICAgICAgICAgdmFsIHRhcmdldE5hbWUgPSBPcHRpb24odGFyZ2V0LmdldE5hbWUoKSkuZmlsdGVyKF8ubm9uRW1wdHkpLmdldE9yRWxzZSB7CisgICAgICAgICAgICAgICAgICBmYWlsKAorICAgICAgICAgICAgICAgICAgICAiU1BJTkFMLVBBUkFNRVRFUklaRUQtVkVSSUxPRy1SRVNJWkUtVEFSR0VULU5BTUUtTUlTU0lORyIsCisgICAgICAgICAgICAgICAgICAgICJvbmUgcmV0YWluZWQgbmF0aXZlIFJlc2l6ZSB0YXJnZXQgaGFzIG5vIGZpbmFsIGVtaXR0ZWQgbmFtZSIsCisgICAgICAgICAgICAgICAgICAgIGV4cHJlc3Npb24uc291cmNlTG9jYXRpb24KKyAgICAgICAgICAgICAgICAgICkKKyAgICAgICAgICAgICAgICB9CisgICAgICAgICAgICAgICAgcmV0YWluZWQgKz0gUmV0YWluZWRSZXNpemVBc3NpZ25tZW50KAorICAgICAgICAgICAgICAgICAgdGFyZ2V0TmFtZSwKKyAgICAgICAgICAgICAgICAgIHJlc2l6ZS5zaXplLAorICAgICAgICAgICAgICAgICAgZXhwcmVzc2lvbgorICAgICAgICAgICAgICAgICkKKyAgICAgICAgICAgICAgfQorICAgICAgICAgIGNhc2UgXyA9PgorICAgICAgICB9CisgICAgICBjYXNlIF8gPT4KKyAgICB9CisgICAgaWYgKHJldGFpbmVkLmlzRW1wdHkpIHJldHVybiB2ZXJpbG9nCisKKyAgICB2YWwgZ3JvdXBlZCA9IHJldGFpbmVkLmRpc3RpbmN0Lmdyb3VwQnkoXy50YXJnZXROYW1lKQorICAgIGdyb3VwZWQuY29sbGVjdEZpcnN0IHsKKyAgICAgIGNhc2UgKG5hbWUsIHZhbHVlcykKKyAgICAgICAgICBpZiB2YWx1ZXMubWFwKHZhbHVlID0+IHZhbHVlLndpdG5lc3NTaXplIC0+IHZhbHVlLmV4cHJlc3Npb24pLmRpc3RpbmN0LnNpemUgIT0gMSA9PgorICAgICAgICBuYW1lCisgICAgfS5mb3JlYWNoIHsgbmFtZSA9PgorICAgICAgZmFpbCgKKyAgICAgICAgIlNQSU5BTC1QQVJBTUVURVJJWkVELVZFUklMT0ctUkVTSVpFLVRBUkdFVC1DT05GTElDVCIsCisgICAgICAgIHMicmV0YWluZWQgbmF0aXZlIFJlc2l6ZSBhc3NpZ25tZW50cyBmb3IgdGFyZ2V0ICckbmFtZScgZGlzYWdyZWUiCisgICAgICApCisgICAgfQorCisgICAgdmFyIGxpbmVzID0gdmVyaWxvZy5zcGxpdCgiXG4iLCAtMSkudG9WZWN0b3IKKyAgICBncm91cGVkLnRvVmVjdG9yLnNvcnRCeSB7IGNhc2UgKG5hbWUsIF8pID0+IC1uYW1lLmxlbmd0aCB9LmZvcmVhY2ggeworICAgICAgY2FzZSAobmFtZSwgdmFsdWVzKSA9PgorICAgICAgICB2YWwgcmVjb3JkID0gdmFsdWVzLmhlYWQKKyAgICAgICAgdmFsIGFzc2lnbm1lbnRQYXR0ZXJuID0gKAorICAgICAgICAgICJeKFxccyphc3NpZ25cXHMrIiArIFBhdHRlcm4ucXVvdGUobmFtZSkgKworICAgICAgICAgICAgIlxccyo9XFxzKikoLio/KSg7XFxzKikkIgorICAgICAgICApLnIKKyAgICAgICAgdmFsIGNvbmNyZXRlUmFuZ2UgPSAoCisgICAgICAgICAgIl4oLiopXFxbXFxzKiIgKyAocmVjb3JkLndpdG5lc3NTaXplIC0gMSkgKworICAgICAgICAgICAgIlxccyo6XFxzKjBcXHMqXFxdKFxccyopJCIKKyAgICAgICAgKS5yCisgICAgICAgIHZhbCBzeW1ib2xpY1JhbmdlID0geworICAgICAgICAgIHZhbCBleHByZXNzaW9uID0gcmVjb3JkLmV4cHJlc3Npb24udmVyaWxvZworICAgICAgICAgIGlmICgiW0EtWmEtel9dW0EtWmEtejAtOV8kXSoiLnIucGF0dGVybi5tYXRjaGVyKGV4cHJlc3Npb24pLm1hdGNoZXMoKSkKKyAgICAgICAgICAgIHMiWyRleHByZXNzaW9uLTE6MF0iCisgICAgICAgICAgZWxzZSBzIlsoJGV4cHJlc3Npb24pLTE6MF0iCisgICAgICAgIH0KKyAgICAgICAgdmFyIGFzc2lnbm1lbnRDb3VudCA9IDAKKyAgICAgICAgbGluZXMgPSBsaW5lcy5tYXAgeyBsaW5lID0+CisgICAgICAgICAgbGluZSBtYXRjaCB7CisgICAgICAgICAgICBjYXNlIGFzc2lnbm1lbnRQYXR0ZXJuKHByZWZpeCwgcmhzLCBzdWZmaXgpID0+CisgICAgICAgICAgICAgIGFzc2lnbm1lbnRDb3VudCArPSAxCisgICAgICAgICAgICAgIHJocyBtYXRjaCB7CisgICAgICAgICAgICAgICAgY2FzZSBjb25jcmV0ZVJhbmdlKHNvdXJjZSwgdHJhaWxpbmcpID0+CisgICAgICAgICAgICAgICAgICBwcmVmaXggKyBzb3VyY2UgKyBzeW1ib2xpY1JhbmdlICsgdHJhaWxpbmcgKyBzdWZmaXgKKyAgICAgICAgICAgICAgICBjYXNlIF8gPT4gbGluZQorICAgICAgICAgICAgICB9CisgICAgICAgICAgICBjYXNlIF8gPT4gbGluZQorICAgICAgICAgIH0KKyAgICAgICAgfQorICAgICAgICBpZiAoYXNzaWdubWVudENvdW50ICE9IDEpIHsKKyAgICAgICAgICBmYWlsKAorICAgICAgICAgICAgIlNQSU5BTC1QQVJBTUVURVJJWkVELVZFUklMT0ctUkVTSVpFLUFTU0lHTk1FTlQtTk9ULVVOSVFVRSIsCisgICAgICAgICAgICBzInJldGFpbmVkIG5hdGl2ZSBSZXNpemUgdGFyZ2V0ICckbmFtZScgbWFwcyB0byAkYXNzaWdubWVudENvdW50IGNvbnRpbnVvdXMgYXNzaWdubWVudHMiLAorICAgICAgICAgICAgcmVjb3JkLmV4cHJlc3Npb24uc291cmNlTG9jYXRpb24KKyAgICAgICAgICApCisgICAgICAgIH0KKyAgICB9CiAgICAgbGluZXMubWtTdHJpbmcoIlxuIikKICAgfQogCg==' | base64 -d > /tmp/increment-53d-symbolic-resize.patch
-          git apply --check /tmp/increment-53d-symbolic-resize.patch
-          git apply /tmp/increment-53d-symbolic-resize.patch
-          git diff --check
-
-      - name: Validate the native StreamWidthAdapter witness
-        shell: bash
-        run: |
-          set -euo pipefail
-          /tmp/morphhdl-mill morph[2.13.12].testOnly \
-            morphhdl.ParameterizedStreamWidthAdapterTests
-
-      - name: Validate the native source boundary
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
-
-      - name: Commit the validated symbolic Resize fix
+      - name: Merge the latest parameterized-verilog and remove diagnostics
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+          git fetch origin parameterized-verilog
+          git merge --no-edit origin/parameterized-verilog
+          rm -f \
+            .github/increment-53d-revalidate.txt \
+            .github/workflows/increment-53d-current-workspace-export.yml \
+            .github/workflows/increment-53d-target-diagnostic.yml \
+            .github/workflows/increment-53d-fix-publisher.yml
+          git add -A
           git diff --cached --check
-          git commit -m "fix: lower retained native Resize slices symbolically"
+          git commit -m "chore: sync Increment 53d and remove diagnostics"
           git push origin HEAD:agent/increment-53d-native-streamwidth-adapter
