@@ -29,7 +29,7 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
 
-      - name: Recover target-width provenance through native resize nodes
+      - name: Recover target-width provenance through native driver chains
         shell: bash
         run: |
           set -euo pipefail
@@ -67,6 +67,43 @@ jobs:
                 case _                      => None
               }
             }
+          }
+
+          private def retainedWidthThroughUniqueDriver(
+              expression: Expression,
+              component: Component,
+              source: Option[String]
+          ): Vector[ElaborationIntegerExpression] = {
+            val seen = new IdentityHashMap[Expression, java.lang.Boolean]()
+
+            def walk(value: Expression): Vector[ElaborationIntegerExpression] = {
+              if (seen.put(value, java.lang.Boolean.TRUE) != null) Vector.empty
+              else {
+                val local = value match {
+                  case width: Expression with WidthProvider =>
+                    val candidate = widthOf(width, source)
+                    if (candidate.parameters.nonEmpty) Vector(candidate)
+                    else Vector.empty
+                  case _ => Vector.empty
+                }
+                if (local.nonEmpty) local
+                else {
+                  value match {
+                    case base: BaseType =>
+                      val drivers = directDriverExpressions(base, component)
+                      if (drivers.size == 1) walk(drivers.head)
+                      else Vector.empty
+                    case other =>
+                      val children = ArrayBuffer.empty[Expression]
+                      other.foreachExpression(children += _)
+                      if (children.size == 1) walk(children.head)
+                      else Vector.empty
+                  }
+                }
+              }
+            }
+
+            walk(expression).distinct
           }
 
           private def explicitlyResizedToWidth(
@@ -111,25 +148,16 @@ jobs:
               retained.minimum == retained.default &&
               retained.maximum == retained.default
 
-            val driverExpressions = address match {
-              case target: BaseType => directDriverExpressions(target, component)
-              case expression       => Vector(expression)
-            }
-
-            val retainedDriverWidths = driverExpressions.flatMap {
-              case value: Expression with WidthProvider =>
-                Some(widthOf(value, source))
-              case _ => None
-            }.distinct
+            val retainedDriverWidths =
+              retainedWidthThroughUniqueDriver(address, component, source)
             val widthExpressionProvesNative =
               retainedDriverWidths.size == 1 &&
               equivalentWidth(retainedDriverWidths.head, native)
 
             val explicitResizeProvesNative =
               native.default.isValidInt &&
-              driverExpressions.size == 1 &&
               explicitlyResizedToWidth(
-                driverExpressions.head,
+                address,
                 native.default.toInt,
                 component
               )
@@ -164,7 +192,7 @@ jobs:
       - name: Validate the native StreamFifoCC witness on both Scala lanes
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
             morphhdl.ParameterizedStreamFifoCCTests \
             2>&1 | tee /tmp/increment-53e-address-resize-2.12.log
@@ -189,5 +217,5 @@ jobs:
           rm -f .github/workflows/increment-53e-address-resize-fix.yml
           git add -A
           git diff --cached --check
-          git commit -m 'Increment 53e: recover native FIFO address resize provenance'
+          git commit -m 'Increment 53e: recover native FIFO address width provenance'
           git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
