@@ -6,6 +6,7 @@ on:
       - agent/increment-53d-native-streamwidth-adapter
     paths:
       - .github/workflows/increment-53d-repair-collection-reverse.yml
+      - morphhdl/scripts/apply-increment-53d-collection-reverse-repair.py
 
 permissions:
   contents: write
@@ -20,13 +21,21 @@ jobs:
           fetch-depth: 0
       - name: Apply reviewed MorphHDL-only repair
         run: |
+          set -euo pipefail
           python3 morphhdl/scripts/apply-increment-53d-collection-reverse-repair.py
           git diff --check
           bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
       - name: Commit repair
         run: |
+          set -euo pipefail
           git config user.name "MorphHDL Increment Agent"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
-          git commit -m "fix(morphhdl): preserve collection reverse in native width adapter"
+          git add \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala \
+            morphhdl/src/test/scala/morphhdl/ExternalNativeIntShadowExpressionTests.scala
+          if git diff --cached --quiet; then
+            echo "Increment 53d receiver repair already applied"
+            exit 0
+          fi
+          git commit -m "fix(morphhdl): classify native Int calls by exact receiver provenance"
           git push origin HEAD:agent/increment-53d-native-streamwidth-adapter
