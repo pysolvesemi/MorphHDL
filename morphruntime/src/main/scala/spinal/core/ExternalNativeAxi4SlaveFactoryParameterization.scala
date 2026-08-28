@@ -4,8 +4,6 @@ import java.lang.ref.{ReferenceQueue, WeakReference}
 
 import scala.collection.mutable
 
-import spinal.core.internals.SwitchStack
-
 /**
   * Definition-side symbolic address retained for one exact native Scala
   * `BigInt` object passed into the untouched SpinalHDL bus-slave factory.
