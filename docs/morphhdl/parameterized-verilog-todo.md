@@ -195,6 +195,7 @@ After Increment 44 is implemented and merged:
 - Increment 52 depends only on Increment 51.
 - Increment 53 joins memory provenance and symbolic control flow; it depends
   on Increments 45 and 52.
+- Increment 53b depends on Increment 53 and must complete before Increment 54.
 - Increments 54 through 58 then form a strict sequential closure chain.
 
 Dependencies are transitive. Two increments with no dependency edge between
@@ -342,9 +343,27 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   separately authored FIFO. Stop for architecture approval if the alternatives
   cannot be retained through the generic provenance and branch-capture path.
 
-- [ ] **Increment 54 — MorphHDL module extraction and native-tree cleanup**
+- [ ] **Increment 53b — MorphHDL-owned module-local SpinalEnum parameters**
 
   **Dependencies:** Increment 53 implemented and merged.
+
+  Keep all upstream-owned SpinalHDL `core`, `lib` and `idslplugin`
+  production sources byte-identical. In MorphHDL-owned post-publication
+  code, discover exact `SpinalEnum` definitions, elements and encodings from
+  the native graph, replace global enum `` `define `` references and long
+  enum-prefixed constants with module-local Verilog-2001 `localparam`s named
+  only by the element (`IDLE`, `RUN`, and so on). Retain encoding-specific
+  values and one-hot index helpers, remove recognized global macros from the
+  final `MorphVerilog` output, and allow the same short names in different
+  module scopes. Fail closed on conflicting same-module names or existing
+  identifiers rather than adding module or enum prefixes. Ordinary
+  `SpinalVerilog` output must remain unchanged. Prove deterministic
+  dual-Scala generation, strict Verilog-2001 lint/synthesis and the native
+  source-preservation boundary.
+
+- [ ] **Increment 54 — MorphHDL module extraction and native-tree cleanup**
+
+  **Dependencies:** Increment 53b implemented and merged.
 
   Move remaining MorphHDL-specific parameter metadata, capture and lowering
   files out of native `core`, `lib` and `idslplugin` source trees into
