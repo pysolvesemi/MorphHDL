@@ -31,6 +31,22 @@ object Inc53bFormalState extends SpinalEnum(binarySequential) {
   setGlobal()
 }
 
+object Inc53cAXI4ReadState extends SpinalEnum(binaryOneHot) {
+  val waitResp = newElement("waitResp")
+  val HTTPDone = newElement("HTTPDone")
+  setGlobal()
+}
+
+object Inc53cFooBarState extends SpinalEnum(binarySequential) {
+  val IDLE, RUN = newElement()
+  setGlobal()
+}
+
+object Inc53cFoo_BarState extends SpinalEnum(binarySequential) {
+  val IDLE, RUN = newElement()
+  setGlobal()
+}
+
 final class Inc53bBinaryEnumLeaf extends Component {
   setDefinitionName("Inc53bBinaryEnumLeaf")
 
@@ -133,8 +149,41 @@ final class Inc53bFormalEnumTop(width: HdlInt) extends Component {
   encoded := state.asBits
 }
 
+final class Inc53cSnakeCaseTop(width: HdlInt) extends Component {
+  setDefinitionName("Inc53cSnakeCaseTop")
+
+  val payload = in(morphhdl.frontend.UInt(width bits))
+  val active = out Bool()
+
+  val state = Inc53cAXI4ReadState()
+  state := Inc53cAXI4ReadState.waitResp
+  when(payload(0)) {
+    state := Inc53cAXI4ReadState.HTTPDone
+  }
+  active := state === Inc53cAXI4ReadState.HTTPDone
+}
+
+final class Inc53cSnakeCollisionTop(width: HdlInt) extends Component {
+  setDefinitionName("Inc53cSnakeCollisionTop")
+
+  val payload = in(morphhdl.frontend.UInt(width bits))
+  val active = out Bool()
+
+  val left = Inc53cFooBarState()
+  val right = Inc53cFoo_BarState()
+  left := Inc53cFooBarState.IDLE
+  right := Inc53cFoo_BarState.IDLE
+  when(payload(0)) {
+    left := Inc53cFooBarState.RUN
+    right := Inc53cFoo_BarState.RUN
+  }
+  active :=
+    (left === Inc53cFooBarState.RUN) &&
+      (right === Inc53cFoo_BarState.RUN)
+}
+
 class SpinalEnumLocalParameterTests extends AnyFunSuite {
-  test("MorphVerilog replaces global enum macros with uppercase enum-qualified module-local parameters") {
+  test("MorphVerilog replaces global enum macros with SCREAMING_SNAKE_CASE enum-qualified module-local parameters") {
     withTemporaryDirectory { directory =>
       val firstDirectory = directory.resolve("first")
       val replayDirectory = directory.resolve("replay")
@@ -161,23 +210,44 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
       assert(!verilog.contains("localparam IDLE ="))
       assert(!verilog.contains("localparam RUN ="))
 
-      assert(binary.contains("localparam INC53BGLOBALBINARYSTATE_IDLE = 1'd0;"))
-      assert(binary.contains("localparam INC53BGLOBALBINARYSTATE_RUN = 1'd1;"))
-      assert(!binary.contains("INC53BBINARYENUMLEAF_INC53BGLOBALBINARYSTATE"))
+      assert(binary.contains("localparam INC53B_GLOBAL_BINARY_STATE_IDLE = 1'd0;"))
+      assert(binary.contains("localparam INC53B_GLOBAL_BINARY_STATE_RUN = 1'd1;"))
+      assert(!binary.contains("INC53B_BINARY_ENUM_LEAF_INC53B_GLOBAL_BINARY_STATE"))
 
-      assert(oneHot.contains("localparam INC53BGLOBALONEHOTSTATE_IDLE = 2'd1;"))
-      assert(oneHot.contains("localparam INC53BGLOBALONEHOTSTATE_IDLE_OH_ID = 0;"))
-      assert(oneHot.contains("localparam INC53BGLOBALONEHOTSTATE_RUN = 2'd2;"))
-      assert(oneHot.contains("localparam INC53BGLOBALONEHOTSTATE_RUN_OH_ID = 1;"))
-      assert(!oneHot.contains("INC53BONEHOTENUMLEAF_INC53BGLOBALONEHOTSTATE"))
+      assert(oneHot.contains("localparam INC53B_GLOBAL_ONE_HOT_STATE_IDLE = 2'd1;"))
+      assert(oneHot.contains("localparam INC53B_GLOBAL_ONE_HOT_STATE_IDLE_OH_ID = 0;"))
+      assert(oneHot.contains("localparam INC53B_GLOBAL_ONE_HOT_STATE_RUN = 2'd2;"))
+      assert(oneHot.contains("localparam INC53B_GLOBAL_ONE_HOT_STATE_RUN_OH_ID = 1;"))
+      assert(!oneHot.contains("INC53B_ONE_HOT_ENUM_LEAF_INC53B_GLOBAL_ONE_HOT_STATE"))
 
       assert(
-        verilog.split("localparam INC53BGLOBALBINARYSTATE_IDLE =", -1).length - 1 == 1
+        verilog.split("localparam INC53B_GLOBAL_BINARY_STATE_IDLE =", -1).length - 1 == 1
       )
       assert(
-        verilog.split("localparam INC53BGLOBALONEHOTSTATE_IDLE =", -1).length - 1 == 1
+        verilog.split("localparam INC53B_GLOBAL_ONE_HOT_STATE_IDLE =", -1).length - 1 == 1
       )
       lint(first, directory, "Inc53bEnumTop")
+    }
+  }
+
+  test("MorphVerilog splits camel-case, acronym and digit boundaries in enum names") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "enum_snake_case.v"
+      val report = MorphVerilog(config) {
+        val width = HdlInt.param("WIDTH", default = 4, min = 1, max = 16)
+        new Inc53cSnakeCaseTop(width)
+      }
+
+      assert(report.toplevelName == "Inc53cSnakeCaseTop")
+      val output = directory.resolve("enum_snake_case.v")
+      val verilog = read(output)
+      assert(verilog.contains("localparam INC53C_AXI4_READ_STATE_WAIT_RESP = 2'd1;"))
+      assert(verilog.contains("localparam INC53C_AXI4_READ_STATE_WAIT_RESP_OH_ID = 0;"))
+      assert(verilog.contains("localparam INC53C_AXI4_READ_STATE_HTTP_DONE = 2'd2;"))
+      assert(verilog.contains("localparam INC53C_AXI4_READ_STATE_HTTP_DONE_OH_ID = 1;"))
+      assert(!verilog.contains("INC53CAXI4READSTATE"))
+      lint(output, directory, "Inc53cSnakeCaseTop")
     }
   }
 
@@ -194,7 +264,7 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
       assert(verilog.contains("`define Inc53bGlobalOneHotState_IDLE"))
       assert(verilog.contains("`Inc53bGlobalBinaryState_RUN"))
       assert(verilog.contains("`Inc53bGlobalOneHotState_RUN"))
-      assert(!verilog.contains("localparam INC53BGLOBALBINARYSTATE_IDLE"))
+      assert(!verilog.contains("localparam INC53B_GLOBAL_BINARY_STATE_IDLE"))
     }
   }
 
@@ -210,15 +280,40 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
       assert(report.toplevelName == "Inc53bEnumCollisionTop")
       val output = directory.resolve("enum_collision.v")
       val verilog = read(output)
-      assert(verilog.contains("localparam INC53BGLOBALBINARYSTATE_IDLE = 1'd0;"))
-      assert(verilog.contains("localparam INC53BGLOBALCOLLISIONSTATE_IDLE = 2'd0;"))
-      assert(verilog.contains("localparam INC53BGLOBALCOLLISIONSTATE_WAIT_1 = 2'd1;"))
+      assert(verilog.contains("localparam INC53B_GLOBAL_BINARY_STATE_IDLE = 1'd0;"))
+      assert(verilog.contains("localparam INC53B_GLOBAL_COLLISION_STATE_IDLE = 2'd0;"))
+      assert(verilog.contains("localparam INC53B_GLOBAL_COLLISION_STATE_WAIT_1 = 2'd1;"))
       assert(!verilog.contains("localparam IDLE ="))
       lint(output, directory, "Inc53bEnumCollisionTop")
     }
   }
 
-  test("Yosys formally proves legacy macro and uppercase localparam enum RTL equivalent") {
+  test("SCREAMING_SNAKE_CASE canonicalization collisions fail closed") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "enum_snake_collision.v"
+
+      MorphVerilog.tryGenerate(config) {
+        val width = HdlInt.param("WIDTH", default = 4, min = 1, max = 16)
+        new Inc53cSnakeCollisionTop(width)
+      } match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.SingleSourceGeneration)
+          val diagnostic = failure.detail + failure.cause.map(_.toString).getOrElse("")
+          assert(
+            diagnostic.contains(
+              "SPINAL-PARAMETERIZED-VERILOG-ENUM-LOCAL-NAME-COLLISION"
+            )
+          )
+          assert(diagnostic.contains("INC53C_FOO_BAR_STATE_IDLE"))
+          assert(!Files.exists(directory.resolve("enum_snake_collision.v")))
+        case Right(_) =>
+          fail("distinct enum identifiers that canonicalize identically must fail closed")
+      }
+    }
+  }
+
+  test("Yosys formally proves legacy macro and SCREAMING_SNAKE_CASE localparam enum RTL equivalent") {
     withTemporaryDirectory { directory =>
       assert(commandAvailable("yosys"), "Yosys is required for the enum formal-equivalence contract")
 
@@ -246,8 +341,8 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
       val localized = read(localizedRtl)
       assert(legacy.contains("`define Inc53bFormalState_IDLE"))
       assert(legacy.contains("`Inc53bFormalState_DONE"))
-      assert(localized.contains("localparam INC53BFORMALSTATE_IDLE = 2'd0;"))
-      assert(localized.contains("localparam INC53BFORMALSTATE_DONE = 2'd3;"))
+      assert(localized.contains("localparam INC53B_FORMAL_STATE_IDLE = 2'd0;"))
+      assert(localized.contains("localparam INC53B_FORMAL_STATE_DONE = 2'd3;"))
       assert(!localized.contains("`define Inc53bFormalState"))
       assert(!localized.contains("`Inc53bFormalState"))
 

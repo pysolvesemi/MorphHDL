@@ -19,11 +19,12 @@ import spinal.core._
   * to its exact enum element and encoding, and rewrites only the published
   * parameterized Verilog artifact.
   *
-  * Every enum value is declared as an uppercase, enum-qualified module-local
-  * `localparam`: for example, Scala `State.IDLE` becomes Verilog `STATE_IDLE`.
-  * Component, module and hierarchy names are never prefixed. Global
-  * preprocessor macros therefore do not escape the module that uses the enum,
-  * while distinct enum types remain readable inside one module.
+  * Every enum value is declared as an enum-qualified SCREAMING_SNAKE_CASE
+  * module-local `localparam`: for example, Scala `Inc53bFormalState.IDLE`
+  * becomes Verilog `INC53B_FORMAL_STATE_IDLE`. Component, module, instance and
+  * hierarchy names are never prefixed. Global preprocessor macros therefore do
+  * not escape the module that uses the enum, while distinct enum types remain
+  * readable inside one module.
   */
 object MorphHdlExternalEnumLocalizer {
   private final case class ModuleBlock(name: String, start: Int, end: Int)
@@ -45,6 +46,12 @@ object MorphHdlExternalEnumLocalizer {
 
   private val SimpleIdentifier: Regex =
     "^[A-Za-z_][A-Za-z0-9_$]*$".r
+
+  private val AcronymToWordBoundary: Regex =
+    "([A-Z]+)([A-Z][a-z])".r
+
+  private val LowerOrDigitToUpperBoundary: Regex =
+    "([a-z0-9])([A-Z])".r
 
   private val Verilog2001Keywords = Set(
     "always",
@@ -357,7 +364,7 @@ object MorphHdlExternalEnumLocalizer {
             "_" + requiredName(encoding.getName(), s"encoding of enum '$enumName'")
           else ""
         val nativeName = enumName + encodingSuffix + "_" + elementName
-        val localName = nativeName.toUpperCase(java.util.Locale.ROOT)
+        val localName = toScreamingSnake(nativeName)
         validateLocalName(component, enumName, localName)
         val value = encoding.getValue(element)
         EnumConstant(
@@ -405,6 +412,19 @@ object MorphHdlExternalEnumLocalizer {
     }
   }
 
+  private def toScreamingSnake(value: String): String = {
+    val acronymSeparated = AcronymToWordBoundary.replaceAllIn(
+      value,
+      matched => matched.group(1) + "_" + matched.group(2)
+    )
+    LowerOrDigitToUpperBoundary
+      .replaceAllIn(
+        acronymSeparated,
+        matched => matched.group(1) + "_" + matched.group(2)
+      )
+      .toUpperCase(java.util.Locale.ROOT)
+  }
+
   private def validateLocalName(
       component: Component,
       enumName: String,
@@ -445,11 +465,11 @@ object MorphHdlExternalEnumLocalizer {
     aliases.foreach { alias =>
       declarations.get(alias.localName) match {
         case None => declarations.update(alias.localName, alias)
-        case Some(previous) if previous.literal == alias.literal =>
+        case Some(previous) if previous == alias =>
         case Some(previous) =>
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-ENUM-LOCAL-NAME-COLLISION",
-            s"module '$moduleName' requires uppercase enum localparam '${alias.localName}' for both ${previous.literal} and ${alias.literal}"
+            s"module '$moduleName' canonicalizes enum identifiers '${previous.nativeName}' and '${alias.nativeName}' to the same SCREAMING_SNAKE_CASE localparam '${alias.localName}'"
           )
       }
     }
@@ -465,7 +485,7 @@ object MorphHdlExternalEnumLocalizer {
       if (existingIdentifiers(localName)) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-ENUM-LOCAL-NAME-COLLISION",
-          s"module '$moduleName' already declares or references identifier '$localName'; an uppercase enum-qualified localparam would be ambiguous"
+          s"module '$moduleName' already declares or references identifier '$localName'; a SCREAMING_SNAKE_CASE enum-qualified localparam would be ambiguous"
         )
       }
     }
