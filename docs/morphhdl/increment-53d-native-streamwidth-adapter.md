@@ -77,3 +77,22 @@ collection operation rather than rewriting it as native `Int.reverse`.
   fail closed;
 - concrete native generation remains parameter-free at the default witness;
 - Scala 2.12.18 and 2.13.12 both pass.
+
+## Closure repair
+
+Native normalization can retain an exact internal `Resize` expression after its
+weak-clone result object has been removed. MorphHDL therefore binds the symbolic
+target width to that exact surviving `Resize` node by JVM identity. During
+post-publication lowering, only a whole-target continuous assignment proven
+from that graph identity may replace its concrete default-witness least-
+significant-bit range with the retained symbolic range. For example, the native
+12-bit witness slice `[11:0]` becomes `[OUTPUT_WIDTH-1:0]` for the proven upsize
+output assignment.
+
+This repair is generic: production code contains no StreamWidthAdapter module,
+port, instance or signal-name recognition. Conflicting provenance, missing
+final names, witness mismatches and non-unique continuous-assignment mappings
+all fail closed. The formerly failing `UP_WIDTH=16` backpressure witness now
+preserves both bytes (`16'hB2A1`), while the source-preservation boundary remains
+unchanged. The branch is synchronized with the current `parameterized-verilog`
+head before the final dual-Scala validation matrix.
