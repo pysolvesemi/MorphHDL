@@ -1,0 +1,127 @@
+name: Increment 53d StreamFifoCC bootstrap v2
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+jobs:
+  apply-test-publish:
+    runs-on: ubuntu-latest
+    container: ghcr.io/spinalhdl/docker:latest
+    env:
+      MORPHDL_STREAMFIFOCC_DEBUG_DIR: /tmp/morphhdl-streamfifocc-debug
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Apply the reviewed MorphHDL-only implementation patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          plugin = Path(
+              "morphplugin/src/main/scala/morphhdl/compiler/"
+              "MorphHdlNativeIntShadowExpressionComponent.scala"
+          )
+          memory = Path(
+              "morphhdl/src/main/scala/spinal/core/internals/"
+              "ParameterizedVerilogMemories.scala"
+          )
+
+          plugin_text = plugin.read_text()
+          memory_text = memory.read_text()
+          already_applied = (
+              'Set("StreamFifo", "StreamFifoCC").contains(decoded(value.name))' in plugin_text
+              and "dualClock: Boolean" in memory_text
+              and "plan.writeClock" in memory_text
+          )
+
+          if already_applied:
+              print("Increment 53d implementation is already present; validating it unchanged.")
+          else:
+              source = Path(
+                  ".github/workflows/increment-53d-streamfifocc-bootstrap.yml"
+              ).read_text()
+              begin_marker = "          python3 - <<'PY'\n"
+              end_marker = "\n          PY\n"
+              begin = source.index(begin_marker) + len(begin_marker)
+              end = source.index(end_marker, begin)
+              patch = textwrap.dedent(source[begin:end])
+
+              stale = '"  private def alwaysBlocks(\\n",'
+              corrected = '"  private def alwaysBlocks",'
+              count = patch.count(stale)
+              if count != 1:
+                  raise SystemExit(
+                      f"expected one stale alwaysBlocks marker in reviewed patch, found {count}"
+                  )
+              patch = patch.replace(stale, corrected)
+              exec(compile(patch, "increment-53d-reviewed-patch", "exec"))
+
+          plugin_text = plugin.read_text()
+          memory_text = memory.read_text()
+          required = {
+              "native StreamFifoCC activation": (
+                  'Set("StreamFifo", "StreamFifoCC").contains(decoded(value.name))'
+                  in plugin_text
+              ),
+              "native helper ownership": "nativeStreamFifoRuntimeHelpers" in plugin_text,
+              "dual-clock plan": "dualClock: Boolean" in memory_text,
+              "read clock retention": "plan.readClock" in memory_text,
+              "write clock retention": "plan.writeClock" in memory_text,
+          }
+          missing = [name for name, present in required.items() if not present]
+          if missing:
+              raise SystemExit("implementation patch is incomplete: " + ", ".join(missing))
+          PY
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run the real native StreamFifoCC diagnostic witness
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
+            morphhdl.ParameterizedStreamFifoCCDepthTests
+
+      - name: Upload diagnostic RTL
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53d-streamfifocc-diagnostic-v2
+          path: /tmp/morphhdl-streamfifocc-debug
+          if-no-files-found: ignore
+
+      - name: Publish only MorphHDL production changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No production update remains to publish."
+            exit 0
+          fi
+          git commit -m "Increment 53d: parameterize native StreamFifoCC depth"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
