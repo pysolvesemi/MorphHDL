@@ -29,23 +29,13 @@ jobs:
 
           path = Path("morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala")
           text = path.read_text(encoding="utf-8")
-          old = '''  def compilerUnsupportedInt(
-              reference: String,
-              code: String,
-              detail: String,
-              file: String,
-              line: Int
-          )(nativeValue: => Int): Int = {
-            ExternalNativeIntShadowRegistry.rejectTracked(
-              reference,
-              code,
-              detail,
-              rendered(file, line)
-            )
-            nativeValue
-          }
-          '''
-          new = '''  def compilerUnsupportedInt(
+          start_marker = "  def compilerUnsupportedInt("
+          end_marker = "\n\n  def compilerUnsupportedValue"
+          start = text.find(start_marker)
+          end = text.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit("compilerUnsupportedInt structural markers missing")
+          replacement = '''  def compilerUnsupportedInt(
               reference: String,
               code: String,
               detail: String,
@@ -64,11 +54,9 @@ jobs:
               rendered(file, line)
             )
             value
-          }
-          '''
-          if text.count(old) != 1:
-              raise SystemExit(f"compilerUnsupportedInt anchor count was {text.count(old)}")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          }'''
+          text = text[:start] + replacement + text[end:]
+          path.write_text(text, encoding="utf-8")
           PY
 
           rm .github/workflows/increment-53d-unsupported-call-repair.yml
