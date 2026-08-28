@@ -43,11 +43,15 @@ jobs:
           path = Path("morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala")
           text = path.read_text()
           old_stall = '         |    if (upOutputPayload !== upCombined[UP_WIDTH-1:0]) fail("upsize payload mismatch while stalled");'
-          new_stall = '''         |    $$display("DBG_UP_STALL EQ=%0d DOWN=%0d UP=%0d actual=%h expected=%h", EQ_WIDTH, DOWN_WIDTH, UP_WIDTH, upOutputPayload, upCombined[UP_WIDTH-1:0]);
-         |    if (upOutputPayload !== upCombined[UP_WIDTH-1:0]) fail("upsize payload mismatch while stalled");'''
+          new_stall = (
+              '         |    $$display("DBG_UP_STALL EQ=%0d DOWN=%0d UP=%0d actual=%h expected=%h", EQ_WIDTH, DOWN_WIDTH, UP_WIDTH, upOutputPayload, upCombined[UP_WIDTH-1:0]);\n'
+              '         |    if (upOutputPayload !== upCombined[UP_WIDTH-1:0]) fail("upsize payload mismatch while stalled");'
+          )
           old_fire = '         |    if (upOutputPayload !== upCombined[UP_WIDTH-1:0]) fail("upsize payload mismatch");'
-          new_fire = '''         |    $$display("DBG_UP_FIRE EQ=%0d DOWN=%0d UP=%0d actual=%h expected=%h", EQ_WIDTH, DOWN_WIDTH, UP_WIDTH, upOutputPayload, upCombined[UP_WIDTH-1:0]);
-         |    if (upOutputPayload !== upCombined[UP_WIDTH-1:0]) fail("upsize payload mismatch");'''
+          new_fire = (
+              '         |    $$display("DBG_UP_FIRE EQ=%0d DOWN=%0d UP=%0d actual=%h expected=%h", EQ_WIDTH, DOWN_WIDTH, UP_WIDTH, upOutputPayload, upCombined[UP_WIDTH-1:0]);\n'
+              '         |    if (upOutputPayload !== upCombined[UP_WIDTH-1:0]) fail("upsize payload mismatch");'
+          )
           if text.count(old_stall) != 1 or text.count(old_fire) != 1:
               raise SystemExit("expected exact upsize checker statements were not found")
           path.write_text(text.replace(old_stall, new_stall).replace(old_fire, new_fire))
