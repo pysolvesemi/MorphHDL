@@ -233,9 +233,9 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       else {
         // Native StreamFifo's m2sPipe(...).translateWith(...) keeps the
         // discarded address payload in ordinary concrete SpinalHDL output as
-        // well. Ignore that inherited dead-net warning while retaining every
-        // non-unused -Wall checks for the parameterized DEPTH > 1 alternatives.
-        Seq("-Wno-UNUSED")
+        // well. Ignore exactly that inherited dead-net name across legacy and
+        // current Verilator while retaining every other -Wall check.
+        Seq("--unused-regexp", "logic_pop_sync_readArbitration_payload")
       }
     val command = Seq(
       "verilator",
