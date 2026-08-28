@@ -8,7 +8,6 @@ on:
     branches:
       - main
       - parameterized-verilog
-      - fix/increment-53b-uppercase-formal-equivalence
   pull_request:
     branches:
       - main
