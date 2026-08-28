@@ -49,29 +49,33 @@ jobs:
           git show \
             3959b78bf31d857d1518594ba704a4c37067a1a0:.github/workflows/increment-53e-ast-diagnostic.yml \
             > /tmp/increment-53e-autoresize-bootstrap.yml
+          git show \
+            5a2802a7fa3212d836a9c1c46e19c546109c3513:.github/workflows/increment-53e-ast-diagnostic.yml \
+            > /tmp/increment-53e-autoresize-name-bootstrap.yml
           test -s /tmp/reviewed.yml
           test -s /tmp/increment-53e-reviewed-bootstrap.yml
           test -s /tmp/increment-53e-range-bootstrap.yml
           test -s /tmp/increment-53e-autoresize-bootstrap.yml
+          test -s /tmp/increment-53e-autoresize-name-bootstrap.yml
 
-      - name: Apply reviewed support and source-derived auto-resize naming
+      - name: Apply reviewed support with named and generic auto-resize paths
         shell: bash
         run: |
           set -euo pipefail
-          cat > /tmp/apply53e-autoresize-name.py <<'PY'
+          cat > /tmp/apply53e-autoresize-fallback.py <<'PY'
           from pathlib import Path
           import textwrap
 
-          previous = Path('/tmp/increment-53e-autoresize-bootstrap.yml').read_text()
-          begin_marker = "          cat > /tmp/apply53e-autoresize.py <<'PY'\n"
-          end_marker = "\n          PY\n          python3 /tmp/apply53e-autoresize.py"
+          previous = Path('/tmp/increment-53e-autoresize-name-bootstrap.yml').read_text()
+          begin_marker = "          cat > /tmp/apply53e-autoresize-name.py <<'PY'\n"
+          end_marker = "\n          PY\n          python3 /tmp/apply53e-autoresize-name.py"
           begin = previous.index(begin_marker) + len(begin_marker)
           end = previous.index(end_marker, begin)
           reviewed_patch = textwrap.dedent(previous[begin:end])
           exec(
               compile(
                   reviewed_patch,
-                  'increment-53e-reviewed-autoresize-bootstrap',
+                  'increment-53e-reviewed-autoresize-name-bootstrap',
                   'exec',
               ),
               {'__name__': '__main__'},
@@ -82,7 +86,15 @@ jobs:
               'MorphHdlNativeIntShadowExpressionComponent.scala'
           )
           plugin = plugin_path.read_text()
-          old = '''        case Select(_, methodName)
+          old = '''          case Select(_, methodName)
+              if inNativeStreamFifo && decoded(methodName) == "resized" =>
+            global.reporter.error(
+              tree.pos,
+              "MORPHDL-NATIVE-AUTO-RESIZE-SOURCE-UNSUPPORTED: symbolic native auto-resize requires one stable identifier receiver"
+            )
+            Rewrite(super.transform(tree))
+          '''
+          new = '''          case Select(_, methodName)
               if inNativeStreamFifo && decoded(methodName) == "resized" =>
             Rewrite(
               call(
@@ -92,25 +104,8 @@ jobs:
               )
             )
           '''
-          new = '''        case Select(receiver @ Ident(_), methodName)
-              if inNativeStreamFifo && decoded(methodName) == "resized" =>
-            Rewrite(
-              call(
-                "compilerAutoResize",
-                List(super.transform(receiver), super.transform(tree)),
-                tree
-              )
-            )
-          case Select(_, methodName)
-              if inNativeStreamFifo && decoded(methodName) == "resized" =>
-            global.reporter.error(
-              tree.pos,
-              "MORPHDL-NATIVE-AUTO-RESIZE-SOURCE-UNSUPPORTED: symbolic native auto-resize requires one stable identifier receiver"
-            )
-            Rewrite(super.transform(tree))
-          '''
           if plugin.count(old) != 1:
-              raise SystemExit('auto-resize parser marker is ambiguous')
+              raise SystemExit('generic auto-resize parser marker is ambiguous')
           plugin_path.write_text(plugin.replace(old, new, 1))
 
           runtime_path = Path(
@@ -118,26 +113,19 @@ jobs:
               'ExternalNativeIntCompilerRuntime.scala'
           )
           runtime = runtime_path.read_text()
-          old = '''  def compilerAutoResize[T <: Data](native: T): T = {
+          marker = '''  def compilerAutoResize[T <: Data](source: T, native: T): T = {
+          '''
+          overload = '''  def compilerAutoResize[T <: Data](native: T): T = {
               if (boundaryActive) native.addTag(ExternalParameterizedAutoResizeTag)
               native
             }
 
           '''
-          new = '''  def compilerAutoResize[T <: Data](source: T, native: T): T = {
-              if (boundaryActive) {
-                native.addTag(ExternalParameterizedAutoResizeTag)
-                native.setCompositeName(source, "resized", weak = true)
-              }
-              native
-            }
-
-          '''
-          if runtime.count(old) != 1:
-              raise SystemExit('auto-resize runtime marker is ambiguous')
-          runtime_path.write_text(runtime.replace(old, new, 1))
+          if runtime.count(marker) != 1:
+              raise SystemExit('named auto-resize runtime marker is ambiguous')
+          runtime_path.write_text(runtime.replace(marker, overload + marker, 1))
           PY
-          python3 /tmp/apply53e-autoresize-name.py
+          python3 /tmp/apply53e-autoresize-fallback.py
 
       - name: Install pinned Mill bootstrap
         shell: bash
@@ -154,15 +142,15 @@ jobs:
           set -o pipefail
           /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
             morphhdl.ParameterizedStreamFifoCCDepthTests \
-            2>&1 | tee /tmp/increment-53e-autoresize-name.log
+            2>&1 | tee /tmp/increment-53e-autoresize-fallback.log
 
       - name: Upload bootstrap evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53e-autoresize-name-evidence
+          name: increment-53e-autoresize-fallback-evidence
           path: |
-            /tmp/increment-53e-autoresize-name.log
+            /tmp/increment-53e-autoresize-fallback.log
             /tmp/morphhdl-streamfifocc-debug
           if-no-files-found: ignore
 
