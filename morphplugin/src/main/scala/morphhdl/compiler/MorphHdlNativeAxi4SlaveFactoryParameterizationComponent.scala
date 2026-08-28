@@ -89,12 +89,14 @@ final class MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(
       "readAndWriteMultiWord"
     )
 
-    private def sourceFile: String =
-      Option(unit.source)
+    private def sourceFile: String = {
+      val path = Option(unit.source)
         .flatMap(source => Option(source.file))
         .map(_.path)
-        .filter(_.nonEmpty)
-        .getOrElse("<native-axi4-slave-factory>")
+        .orNull
+      if (path == null || path.length == 0) "<native-axi4-slave-factory>"
+      else path
+    }
 
     private def line(tree: Tree): Int =
       if (tree.pos != null && tree.pos.isDefined) math.max(1, tree.pos.line)
