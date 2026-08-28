@@ -60,7 +60,11 @@ final class MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(
       TermName(name)
     )
 
-  private final case class Root(reference: String, name: String)
+  private final case class Root(
+      reference: String,
+      name: String,
+      sourceLine: Int
+  )
   private final case class Rewritten(value: Tree, reference: String)
 
   private final class TransformerImpl(unit: CompilationUnit) extends Transformer {
@@ -122,6 +126,9 @@ final class MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(
     private def location(tree: Tree): List[Tree] =
       List(Literal(Constant(sourceFile)), Literal(Constant(line(tree))))
 
+    private def rootLocation(root: Root): List[Tree] =
+      List(Literal(Constant(sourceFile)), Literal(Constant(root.sourceLine)))
+
     private def decoded(name: Name): String = name.decodedName.toString
 
     private def terminal(tree: Tree): String = tree match {
@@ -171,7 +178,11 @@ final class MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(
           val name = decoded(parameter.name)
           rootScopes.head.update(
             parameter.name,
-            Root(reference(parameter, s"argument:$name"), name)
+            Root(
+              reference(parameter, s"argument:$name"),
+              name,
+              line(parameter)
+            )
           )
         }
       }
@@ -204,7 +215,7 @@ final class MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(
           super.transform(tree),
           Literal(Constant(root.name)),
           Literal(Constant(root.reference))
-        ) ++ location(tree)
+        ) ++ rootLocation(root)
       )
       call.setPos(tree.pos)
       Rewritten(call, root.reference)
