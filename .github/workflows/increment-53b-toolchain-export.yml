@@ -15,6 +15,11 @@ jobs:
   export:
     runs-on: ubuntu-latest
     steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Download pinned Mill
         shell: bash
         run: |
@@ -24,10 +29,34 @@ jobs:
             --output /tmp/mill
           chmod +x /tmp/mill
           /tmp/mill --version
+
+      - name: Package exact workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD > /tmp/increment-53b-head.txt
+          tar \
+            --exclude=.git \
+            --exclude=out \
+            --exclude=target \
+            --exclude=.bloop \
+            --exclude=.metals \
+            -czf /tmp/morphhdl-increment-53b-workspace.tar.gz .
+
       - name: Upload pinned Mill
         uses: actions/upload-artifact@v4
         with:
           name: morphhdl-increment-53b-mill
           path: /tmp/mill
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload exact workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-increment-53b-current-workspace
+          path: |
+            /tmp/morphhdl-increment-53b-workspace.tar.gz
+            /tmp/increment-53b-head.txt
           if-no-files-found: error
           retention-days: 1
