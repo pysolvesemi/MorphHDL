@@ -1611,15 +1611,81 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     private def rewriteUnsupportedKnownCall(
         original: Tree,
         reference: String,
-        method: String
+        method: String,
+        nativeTree: Tree
     ): Rewrite =
       unsupportedInt(
         reference,
         "MORPH-FRONTEND-NATIVE-INT-EXPRESSION-CALL-UNSUPPORTED",
         s"native Int call '$method' is outside the bounded Increment 50 operation set",
         original,
+        nativeTree
+      )
+
+    private def rewriteUnsupportedKnownCall(
+        original: Tree,
+        reference: String,
+        method: String
+    ): Rewrite =
+      rewriteUnsupportedKnownCall(
+        original,
+        reference,
+        method,
         super.transform(original)
       )
+
+    private def rewriteUnsupportedReceiverCall(
+        original: Tree,
+        receiver: Tree,
+        methodName: Name,
+        arguments: Option[List[Tree]],
+        method: String
+    ): Rewrite = {
+      val rewrittenReceiver = rewriteExpression(receiver, None)
+      val rewrittenArguments = arguments.getOrElse(Nil).map { argument =>
+        rewriteExpression(argument, None)
+      }
+      val selected = Select(rewrittenReceiver.tree, methodName)
+      selected.setPos(original.pos)
+      val native: Tree = arguments match {
+        case Some(_) =>
+          val applied = Apply(selected, rewrittenArguments.map(_.tree))
+          applied.setPos(original.pos)
+        case None => selected
+      }
+      val reference = rewrittenReceiver.intReference.orElse(
+        rewrittenArguments.collectFirst {
+          case value if value.intReference.nonEmpty => value.intReference.get
+        }
+      )
+      reference match {
+        case Some(value) =>
+          rewriteUnsupportedKnownCall(original, value, method, native)
+        case None =>
+          Rewrite(native, intLiteral = literalInteger(original).nonEmpty)
+      }
+    }
+
+    private def rewriteUnsupportedFunctionCall(
+        original: Tree,
+        fun: Tree,
+        arguments: List[Tree],
+        method: String
+    ): Rewrite = {
+      val rewrittenArguments = arguments.map { argument =>
+        rewriteExpression(argument, None)
+      }
+      val native = Apply(super.transform(fun), rewrittenArguments.map(_.tree))
+      native.setPos(original.pos)
+      rewrittenArguments.collectFirst {
+        case value if value.intReference.nonEmpty => value.intReference.get
+      } match {
+        case Some(reference) =>
+          rewriteUnsupportedKnownCall(original, reference, method, native)
+        case None =>
+          Rewrite(native, intLiteral = literalInteger(original).nonEmpty)
+      }
+    }
 
     private def rewriteExpression(
         tree: Tree,
@@ -1745,6 +1811,15 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
           rewriteUnary(tree, "negate", value, requestedName)
         case Select(value, operatorName) if decoded(operatorName) == "unary_-" =>
           rewriteUnary(tree, "negate", value, requestedName)
+        case Apply(Select(receiver, methodName), arguments)
+            if unsupportedIntegerCalls.contains(decoded(methodName)) =>
+          rewriteUnsupportedReceiverCall(
+            tree,
+            receiver,
+            methodName,
+            Some(arguments),
+            decoded(methodName)
+          )
         case Apply(fun, arguments) =>
           rewriteStaticMinMax(tree, fun, arguments, requestedName).getOrElse {
             val method = terminalName(fun)
@@ -1752,25 +1827,26 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
               rewriteUnary(tree, method, arguments.head, requestedName)
             else if (method == "isPow2" && arguments.size == 1)
               rewritePowerOfTwo(tree, arguments.head, requestedName)
+            else if (unsupportedIntegerCalls.contains(method))
+              rewriteUnsupportedFunctionCall(tree, fun, arguments, method)
             else {
               firstTrackedInteger(tree) match {
                 case Some(reference) if boxingCall(tree) => rewriteBoxing(tree, reference)
-                case Some(reference) if unsupportedIntegerCalls.contains(method) =>
-                  rewriteUnsupportedKnownCall(tree, reference, method)
                 case _ => Rewrite(super.transform(tree), intLiteral = literalInteger(tree).nonEmpty)
               }
             }
           }
         case Select(value, methodName) if helperOperations.contains(decoded(methodName)) =>
           rewriteUnary(tree, decoded(methodName), value, requestedName)
-        case Select(value, methodName) if unsupportedIntegerCalls.contains(decoded(methodName)) =>
-          // A tracked Int nested somewhere below the receiver is not proof that
-          // the selected method operates on an Int. In particular,
-          // `subdivideIn(factor slices).reverse` is a collection reversal whose
-          // collection expression merely contains the symbolic `factor`.
-          trackedInteger(value)
-            .map(rewriteUnsupportedKnownCall(tree, _, decoded(methodName)))
-            .getOrElse(Rewrite(super.transform(tree)))
+        case Select(receiver, methodName)
+            if unsupportedIntegerCalls.contains(decoded(methodName)) =>
+          rewriteUnsupportedReceiverCall(
+            tree,
+            receiver,
+            methodName,
+            None,
+            decoded(methodName)
+          )
         case _ => Rewrite(super.transform(tree), intLiteral = literalInteger(tree).nonEmpty)
       }
     }

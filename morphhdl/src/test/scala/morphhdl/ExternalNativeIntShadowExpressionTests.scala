@@ -38,6 +38,7 @@ object ExternalNativeIntShadowExpressionSmoke {
     @dontName val up = log2Up(root)
     @dontName val down = log2Down(root)
     @dontName val compound = (root + 1) * 2
+    @dontName val collectionReverse = Vector(root, root + 1).reverse.head
 
     @dontName val less = root < 12
     @dontName val lessEqual = root <= 8
@@ -87,6 +88,10 @@ object ExternalNativeIntShadowExpressionSmoke {
         @dontName val broken = root + external
       case "unsupported" =>
         @dontName val broken = math.abs(root)
+      case "unsupported-receiver" =>
+        @dontName val broken = root.abs
+      case "unsupported-derived-receiver" =>
+        @dontName val broken = (root + 1).abs
       case "boxing" =>
         @dontName val broken = Option(root)
       case "mutable" =>
@@ -226,6 +231,7 @@ class ExternalNativeIntShadowExpressionTests extends AnyFunSuite {
       assert(top.leaf.root == 8)
       assert(top.leaf.plus == 10)
       assert(top.leaf.compound == 18)
+      assert(top.leaf.collectionReverse == 9)
     }
   }
 
@@ -299,6 +305,12 @@ class ExternalNativeIntShadowExpressionTests extends AnyFunSuite {
   test("unsupported native Int calls fail closed") {
     val failure = failureFor(8, 2, 16, "unsupported")
     assert(failure.contains("MORPH-FRONTEND-NATIVE-INT-EXPRESSION-CALL-UNSUPPORTED"))
+
+    val receiver = failureFor(8, 2, 16, "unsupported-receiver")
+    assert(receiver.contains("MORPH-FRONTEND-NATIVE-INT-EXPRESSION-CALL-UNSUPPORTED"))
+
+    val derivedReceiver = failureFor(8, 2, 16, "unsupported-derived-receiver")
+    assert(derivedReceiver.contains("MORPH-FRONTEND-NATIVE-INT-EXPRESSION-CALL-UNSUPPORTED"))
   }
 
   test("boxing and mutable escape are rejected explicitly") {
