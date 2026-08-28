@@ -1,0 +1,111 @@
+name: MorphHDL native AXI4 Slave Factory parameterized offsets
+
+# Increment 53c preserves bounded symbolic register-map addresses while the
+# untouched spinal.lib.bus.amba4.axi.Axi4SlaveFactory remains the only factory
+# implementation used by application source.
+on:
+  push:
+    branches:
+      - main
+      - parameterized-verilog
+      - agent/increment-53c-native-axi4-slave-factory-offsets
+  pull_request:
+    branches:
+      - main
+      - parameterized-verilog
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-native-axi4-factory-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-boundary:
+    name: Real native AXI4 factory and zero native-source diff
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove the MorphHDL-only integration boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          test -f morphruntime/src/main/scala/spinal/core/ExternalNativeAxi4SlaveFactoryParameterization.scala
+          test -f morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeAxi4SlaveFactoryParameterizationComponent.scala
+          test -f morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryParameterizedOffsetTests.scala
+          grep -Fq 'import spinal.lib.bus.amba4.axi.{Axi4, Axi4Config, Axi4SlaveFactory}' \
+            morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryParameterizedOffsetTests.scala
+          grep -Fq 'val factory = Axi4SlaveFactory(io.axi)' \
+            morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryParameterizedOffsetTests.scala
+          grep -Fq 'factory.readAndWrite(baseRegister, offset)' \
+            morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryParameterizedOffsetTests.scala
+          if grep -R -n -E '(^|[[:space:]])(class|trait|object)[[:space:]]+Axi4SlaveFactory([[:space:]]|\{|$)' \
+              morphruntime morphplugin morphhdl/src/main; then
+            echo 'Increment 53c must not implement a MorphHDL Axi4SlaveFactory replacement' >&2
+            exit 1
+          fi
+          if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
+            git fetch --no-tags origin "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
+            changed="$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")"
+            if grep -Eq '^(core|lib|idslplugin)/src/main/' <<<"${changed}"; then
+              echo 'Increment 53c must not modify native SpinalHDL production sources' >&2
+              grep -E '^(core|lib|idslplugin)/src/main/' <<<"${changed}" >&2
+              exit 1
+            fi
+          fi
+
+  contracts:
+    name: Native AXI4 factory proof Scala ${{ matrix.scala_version }}
+    needs: source-boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run real native AXI4 factory offset contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/morphhdl-axi4-offset-logs
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.NativeAxi4SlaveFactoryParameterizedOffsetTests \
+            2>&1 | tee /tmp/morphhdl-axi4-offset-logs/scala-${{ matrix.scala_version }}.log
+
+      - name: Preserve focused output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-axi4-factory-offset-scala-${{ matrix.scala_version }}
+          path: /tmp/morphhdl-axi4-offset-logs
+          if-no-files-found: error
+          retention-days: 7
