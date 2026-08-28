@@ -1,0 +1,33 @@
+name: Increment 53b toolchain export
+
+on:
+  push:
+    branches:
+      - agent/increment-53b-native-streamwidth-adapter
+    paths:
+      - .github/workflows/increment-53b-toolchain-export.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+          /tmp/mill --version
+      - name: Upload pinned Mill
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-increment-53b-mill
+          path: /tmp/mill
+          if-no-files-found: error
+          retention-days: 1
