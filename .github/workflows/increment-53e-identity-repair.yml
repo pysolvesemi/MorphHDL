@@ -1,0 +1,129 @@
+name: Increment 53e StreamFifoCC identity repair
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-streamfifo-cc-parameterization
+
+permissions:
+  contents: write
+
+jobs:
+  apply-test-publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 90
+    env:
+      MORPHDL_STREAMFIFOCC_DEBUG_DIR: /tmp/morphhdl-streamfifocc-debug
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-streamfifo-cc-parameterization
+          fetch-depth: 0
+
+      - name: Reconcile the latest base and recover reviewed patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch --no-tags origin \
+            parameterized-verilog:refs/remotes/origin/parameterized-verilog \
+            agent/increment-53d-native-streamfifocc-parameterization:refs/remotes/origin/agent/increment-53d-native-streamfifocc-parameterization
+          git merge --no-edit origin/parameterized-verilog
+          git show \
+            origin/agent/increment-53d-native-streamfifocc-parameterization:.github/workflows/increment-53d-streamfifocc-bootstrap.yml \
+            > /tmp/reviewed.yml
+          git show \
+            origin/agent/increment-53d-native-streamfifocc-parameterization:morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoCCDepthTests.scala \
+            > morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoCCDepthTests.scala
+          git show \
+            4a379f6c64f67889ca432e01ac7d51a41077941a:.github/workflows/increment-53e-bootstrap-v2.yml \
+            > /tmp/increment-53e-reviewed-bootstrap.yml
+          git show \
+            aa346fe80eb795834eab557797d252a07d798698:.github/workflows/increment-53e-range-bootstrap.yml \
+            > /tmp/increment-53e-range-bootstrap.yml
+          git show \
+            3959b78bf31d857d1518594ba704a4c37067a1a0:.github/workflows/increment-53e-ast-diagnostic.yml \
+            > /tmp/increment-53e-autoresize-bootstrap.yml
+          git show \
+            7a21b113e74925ffdee7d77a29093cb9fa69cb4a:.github/workflows/increment-53e-ast-diagnostic.yml \
+            > /tmp/increment-53e-identity-bootstrap.yml
+          test -s /tmp/reviewed.yml
+          test -s /tmp/increment-53e-reviewed-bootstrap.yml
+          test -s /tmp/increment-53e-range-bootstrap.yml
+          test -s /tmp/increment-53e-autoresize-bootstrap.yml
+          test -s /tmp/increment-53e-identity-bootstrap.yml
+
+      - name: Apply the reviewed identity patch with a robust method boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path('/tmp/increment-53e-identity-bootstrap.yml').read_text()
+          begin_marker = "          cat > /tmp/apply53e-autoresize-identity.py <<'PY'\n"
+          end_marker = "\n          PY\n          python3 /tmp/apply53e-autoresize-identity.py"
+          begin = workflow.index(begin_marker) + len(begin_marker)
+          end = workflow.index(end_marker, begin)
+          patch = textwrap.dedent(workflow[begin:end])
+          brittle = "stable_end_marker = '''  private def compact(\n'''"
+          robust = "stable_end_marker = '  private def compact('"
+          if patch.count(brittle) != 1:
+              raise SystemExit(
+                  f'expected one brittle stableName boundary, found {patch.count(brittle)}'
+              )
+          patch = patch.replace(brittle, robust, 1)
+          exec(
+              compile(
+                  patch,
+                  'increment-53e-reviewed-identity-repair',
+                  'exec',
+              ),
+              {'__name__': '__main__'},
+          )
+          PY
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run the exact native StreamFifoCC witness
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
+            morphhdl.ParameterizedStreamFifoCCDepthTests \
+            2>&1 | tee /tmp/increment-53e-identity-repair.log
+
+      - name: Upload bootstrap evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53e-identity-repair-evidence
+          path: |
+            /tmp/increment-53e-identity-repair.log
+            /tmp/morphhdl-streamfifocc-debug
+          if-no-files-found: ignore
+
+      - name: Publish only the passing MorphHDL implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/increment-53e-identity-repair.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: parameterize native StreamFifoCC depth'
+          git push origin HEAD:agent/increment-53e-streamfifo-cc-parameterization
