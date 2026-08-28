@@ -195,7 +195,8 @@ After Increment 44 is implemented and merged:
 - Increment 52 depends only on Increment 51.
 - Increment 53 joins memory provenance and symbolic control flow; it depends
   on Increments 45 and 52.
-- Increment 53b depends on Increment 53 and must complete before Increment 54.
+- Increment 53b depends on Increment 53 and must complete before Increment 53c.
+- Increment 53c depends on Increment 53b and must complete before Increment 54.
 - Increments 54 through 58 then form a strict sequential closure chain.
 
 Dependencies are transitive. Two increments with no dependency edge between
@@ -361,9 +362,24 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   dual-Scala generation, strict Verilog-2001 lint/synthesis and the native
   source-preservation boundary.
 
-- [ ] **Increment 54 — MorphHDL module extraction and native-tree cleanup**
+- [ ] **Increment 53c — Native AXI4 Slave Factory parameterized offsets**
 
   **Dependencies:** Increment 53b implemented and merged.
+
+  Preserve bounded symbolic register-map offsets while application source uses
+  the real, untouched `spinal.lib.bus.amba4.axi.Axi4SlaveFactory`. MorphHDL may
+  add only compiler/runtime provenance, exact-object metadata and parameter-aware
+  native case-key lowering. It must not modify upstream-owned SpinalHDL
+  `core`, `lib` or `idslplugin` production sources, reimplement or replace the
+  factory, duplicate AXI/register-map algorithms, recognize emitted module or
+  signal text, or infer symbolic identity from equal concrete addresses. Prove
+  direct and derived offsets, unrelated fixed-address isolation, deterministic
+  dual-Scala `MorphVerilog`, ordinary concrete `SpinalVerilog` parity, strict
+  Verilog-2001 lint/synthesis and the native-source preservation boundary.
+
+- [ ] **Increment 54 — MorphHDL module extraction and native-tree cleanup**
+
+  **Dependencies:** Increment 53c implemented and merged.
 
   Move remaining MorphHDL-specific parameter metadata, capture and lowering
   files out of native `core`, `lib` and `idslplugin` source trees into
