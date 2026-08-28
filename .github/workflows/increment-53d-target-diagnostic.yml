@@ -78,10 +78,12 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          set +e
           /tmp/morphhdl-mill morph[2.13.12].testOnly \
             morphhdl.ParameterizedStreamWidthAdapterTests \
             2>&1 | tee /tmp/increment-53d-adapter-diagnostic.log
           status=${PIPESTATUS[0]}
+          set -e
           grep -E "DBG_UP_|DBG_KEEP_DIRECTORY|FAILED|FAIL EQ=|tests failed" \
             /tmp/increment-53d-adapter-diagnostic.log | tail -n 200 || true
           echo "===== GENERATED UPSIZE MODULES ====="
