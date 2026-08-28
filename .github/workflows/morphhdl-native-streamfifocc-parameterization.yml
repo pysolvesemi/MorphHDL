@@ -1,0 +1,74 @@
+name: MorphHDL native StreamFifoCC parameterization
+
+# Increment 53e proves parameterization of the exact untouched
+# spinal.lib.StreamFifoCC implementation.
+on:
+  push:
+    branches:
+      - main
+      - parameterized-verilog
+      - agent/increment-53e-native-streamfifocc-parameterization
+  pull_request:
+    branches:
+      - main
+      - parameterized-verilog
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-native-streamfifocc-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-boundary:
+    name: Native StreamFifoCC source boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove exact native reuse and zero SpinalHDL source changes
+        shell: bash
+        run: bash morphhdl/scripts/check-native-streamfifocc-parameterization-boundary.sh
+
+  contracts:
+    name: Native StreamFifoCC proof Scala ${{ matrix.scala_version }}
+    needs: source-boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate native StreamFifoCC witness
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.ParameterizedStreamFifoCCTests
