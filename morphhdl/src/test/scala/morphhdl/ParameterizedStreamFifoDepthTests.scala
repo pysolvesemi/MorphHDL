@@ -231,11 +231,11 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
     val depthSpecificWarnings =
       if (selectedDepth == 1) Seq("-Wno-CMPCONST")
       else {
-        // Native StreamFifo's m2sPipe(...).translateWith(...) keeps the
-        // discarded address payload in ordinary concrete SpinalHDL output as
-        // well. Ignore exactly that inherited dead-net name across legacy and
-        // current Verilator while retaining every other -Wall check.
-        Seq("--unused-regexp", "logic_pop_sync_readArbitration_payload")
+        // Native StreamFifo keeps inherited dead helper nets in ordinary
+        // concrete output. Legacy Verilator reports that family as UNUSED,
+        // while current Verilator splits it into finer unused categories.
+        // Keep UNDRIVEN and every non-unused -Wall check active.
+        Seq("-Wno-UNUSED")
       }
     val command = Seq(
       "verilator",
