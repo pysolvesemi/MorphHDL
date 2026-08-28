@@ -1,0 +1,47 @@
+name: Temporary Increment 53b.1 roadmap closure
+
+on:
+  push:
+    branches:
+      - agent/increment-53b1-enum-screaming-snake-localparams
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-inc53b1-roadmap-close
+  cancel-in-progress: true
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out Increment 53b.1 branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Mark Increment 53b.1 complete and remove this workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          text = path.read_text(encoding="utf-8")
+          old = "- [ ] **Increment 53b.1 — SCREAMING_SNAKE_CASE SpinalEnum localparam names**"
+          new = "- [x] **Increment 53b.1 — SCREAMING_SNAKE_CASE SpinalEnum localparam names**"
+          if text.count(old) != 1:
+              raise SystemExit(f"expected exactly one unchecked Increment 53b.1 item, found {text.count(old)}")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
+          git rm .github/workflows/temporary-inc53b1-roadmap-close.yml
+          git diff --check
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/morphhdl/parameterized-verilog-todo.md
+          git commit -m "docs(morphhdl): complete Increment 53b.1"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
