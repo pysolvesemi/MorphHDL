@@ -20,55 +20,163 @@ jobs:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
 
-      - name: Activate StreamFifoCC and retain native runtime helper ownership
+      - name: Activate StreamFifoCC and retain its reviewed dual-clock memory shape
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path("morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala")
-          text = path.read_text()
-
-          def replace_once(old: str, new: str, label: str) -> None:
-              global text
-              count = text.count(old)
+          def replace_once(value: str, old: str, new: str, label: str) -> str:
+              count = value.count(old)
               if count != 1:
                   raise SystemExit(f"{label}: expected one match, found {count}")
-              text = text.replace(old, new)
+              return value.replace(old, new)
 
-          replace_once(
+          def replace_region(
+              value: str,
+              start_marker: str,
+              end_marker: str,
+              replacement: str,
+              label: str,
+          ) -> str:
+              start = value.find(start_marker)
+              if start < 0:
+                  raise SystemExit(f"{label}: start marker not found")
+              end = value.find(end_marker, start)
+              if end < 0:
+                  raise SystemExit(f"{label}: end marker not found")
+              if value.find(start_marker, start + 1) >= 0:
+                  raise SystemExit(f"{label}: start marker is ambiguous")
+              return value[:start] + replacement + value[end:]
+
+          plugin_path = Path(
+              "morphplugin/src/main/scala/morphhdl/compiler/"
+              "MorphHdlNativeIntShadowExpressionComponent.scala"
+          )
+          plugin = plugin_path.read_text()
+          plugin = replace_once(
+              plugin,
               ''') && decoded(value.name) == "StreamFifo" =>''',
               ''') && Set("StreamFifo", "StreamFifoCC").contains(decoded(value.name)) =>''',
               "native FIFO class gate",
           )
-          replace_once(
+          plugin = replace_once(
+              plugin,
               '''    private var nativeStreamFifoStaticBooleans = Set.empty[TermName]\n''',
               '''    private var nativeStreamFifoStaticBooleans = Set.empty[TermName]\n    private var nativeStreamFifoRuntimeHelpers = false\n''',
               "native runtime helper state",
           )
-          replace_once(
+          plugin = replace_once(
+              plugin,
               '''    private def selectedHelperMethod(name: String): Tree =\n      if (inNativeStreamFifo) helperMethod(name) else frontendHelperMethod(name)\n\n    private def selectedConditionalHelperMethod(name: String): Tree =\n      if (inNativeStreamFifo) helperMethod(name)\n      else frontendConditionalHelperMethod(name)\n''',
               '''    private def selectedHelperMethod(name: String): Tree =\n      if (nativeStreamFifoRuntimeHelpers) helperMethod(name)\n      else frontendHelperMethod(name)\n\n    private def selectedConditionalHelperMethod(name: String): Tree =\n      if (nativeStreamFifoRuntimeHelpers) helperMethod(name)\n      else frontendConditionalHelperMethod(name)\n''',
               "native helper selection",
           )
-          replace_once(
+          plugin = replace_once(
+              plugin,
               '''          val previousLine = nativeStreamFifoDepthLine\n          val previousBooleans = nativeStreamFifoStaticBooleans\n''',
               '''          val previousLine = nativeStreamFifoDepthLine\n          val previousBooleans = nativeStreamFifoStaticBooleans\n          val previousRuntimeHelpers = nativeStreamFifoRuntimeHelpers\n''',
               "native helper save",
           )
-          replace_once(
+          plugin = replace_once(
+              plugin,
               '''          nativeStreamFifoStaticBooleans = parameters.collect {\n            case parameter\n                if NativeStreamFifoStaticBooleanNames(decoded(parameter.name)) =>\n              parameter.name\n          }.toSet\n          try super.transform(value)\n''',
               '''          nativeStreamFifoStaticBooleans = parameters.collect {\n            case parameter\n                if NativeStreamFifoStaticBooleanNames(decoded(parameter.name)) =>\n              parameter.name\n          }.toSet\n          nativeStreamFifoRuntimeHelpers = true\n          try super.transform(value)\n''',
               "native helper activation",
           )
-          replace_once(
+          plugin = replace_once(
+              plugin,
               '''            nativeStreamFifoDepthLine = previousLine\n            nativeStreamFifoStaticBooleans = previousBooleans\n''',
               '''            nativeStreamFifoDepthLine = previousLine\n            nativeStreamFifoStaticBooleans = previousBooleans\n            nativeStreamFifoRuntimeHelpers = previousRuntimeHelpers\n''',
               "native helper restore",
           )
+          plugin_path.write_text(plugin)
 
-          path.write_text(text)
+          memory_path = Path(
+              "morphhdl/src/main/scala/spinal/core/internals/"
+              "ParameterizedVerilogMemories.scala"
+          )
+          memory = memory_path.read_text()
+          memory = replace_once(
+              memory,
+              '''      writeData: String,\n      clock: String,\n      sharedAddress: Boolean,\n''',
+              '''      writeData: String,\n      readClock: String,\n      writeClock: String,\n      dualClock: Boolean,\n      sharedAddress: Boolean,\n''',
+              "memory plan clock fields",
+          )
+          memory = replace_once(
+              memory,
+              '''    val processLabel = firstAvailable(s"p_${plan.memoryName}", used + helperName)\n''',
+              '''    val processLabels =\n      if (plan.dualClock) {\n        val read = firstAvailable(s"p_${plan.memoryName}_read", used + helperName)\n        val write = firstAvailable(\n          s"p_${plan.memoryName}_write",\n          used + helperName + read\n        )\n        read -> Some(write)\n      } else\n        firstAvailable(s"p_${plan.memoryName}", used + helperName) -> None\n''',
+              "memory process labels",
+          )
+          memory = replace_once(
+              memory,
+              '''    val acceptedMemoryBlocks =\n      memoryBlocks.size == 1 ||\n        independentDontCareProcessesAreComplete(lines, memoryBlocks, plan)\n''',
+              '''    val acceptedMemoryBlocks =\n      if (plan.dualClock)\n        independentDontCareProcessesAreComplete(lines, memoryBlocks, plan)\n      else\n        memoryBlocks.size == 1 ||\n          independentDontCareProcessesAreComplete(lines, memoryBlocks, plan)\n''',
+              "memory process acceptance",
+          )
+          memory = replace_once(
+              memory,
+              '''      val expected =\n        if (plan.independentDontCare)\n          "one combined process or one proven read process plus one proven write process"\n        else "exactly one process"\n''',
+              '''      val expected =\n        if (plan.dualClock)\n          "one proven read process and one proven write process on their retained clocks"\n        else if (plan.independentDontCare)\n          "one combined process or one proven read process plus one proven write process"\n        else "exactly one process"\n''',
+              "memory process diagnostic",
+          )
+          memory = replace_once(
+              memory,
+              '''    val process = renderProcess(plan, processLabel, helperName)\n''',
+              '''    val process = renderProcess(\n      plan,\n      processLabels._1,\n      processLabels._2,\n      helperName\n    )\n''',
+              "memory process rendering call",
+          )
+          memory = replace_once(
+              memory,
+              '''    if (\n      read.clockDomain == null || write.clockDomain == null ||\n      (read.clockDomain.clock ne write.clockDomain.clock) ||\n      read.clockDomain.config.clockEdge != RISING ||\n      write.clockDomain.config.clockEdge != RISING\n    ) {\n      fail(\n        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-CLOCK-POLICY-UNSUPPORTED",\n        s"memory '${memory.getName()}' must use one shared positive-edge clock",\n        source\n      )\n    }\n''',
+              '''    if (\n      read.clockDomain == null || write.clockDomain == null ||\n      read.clockDomain.config.clockEdge != RISING ||\n      write.clockDomain.config.clockEdge != RISING\n    ) {\n      fail(\n        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-CLOCK-POLICY-UNSUPPORTED",\n        s"memory '${memory.getName()}' read and write ports must each use an explicit positive-edge clock",\n        source\n      )\n    }\n    val dualClock = read.clockDomain.clock ne write.clockDomain.clock\n''',
+              "memory clock policy",
+          )
+          memory = replace_once(
+              memory,
+              '''    val independentDontCare =\n      (read.readUnderWrite eq dontCare) && readAddress != writeAddress\n    if ((read.readUnderWrite ne readFirst) && !independentDontCare) {\n''',
+              '''    val independentDontCare =\n      (read.readUnderWrite eq dontCare) && readAddress != writeAddress\n    if (dualClock && !independentDontCare) {\n      fail(\n        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DUAL-CLOCK-COLLISION-POLICY-UNSUPPORTED",\n        s"memory '${memory.getName()}' dual-clock lowering requires independent read/write addresses with readUnderWrite = dontCare",\n        source\n      )\n    }\n    if (!dualClock && (read.readUnderWrite ne readFirst) && !independentDontCare) {\n''',
+              "dual-clock collision policy",
+          )
+          memory = replace_once(
+              memory,
+              '''    val writeData = stableName(write.data, "write data", source)\n    val clock = stableName(read.clockDomain.clock, "memory clock", source)\n\n    val nonAddressRoles = Vector(\n      clock,\n      readEnable,\n''',
+              '''    val writeData = stableName(write.data, "write data", source)\n    val readClock =\n      stableName(read.clockDomain.clock, "memory read clock", source)\n    val writeClock =\n      stableName(write.clockDomain.clock, "memory write clock", source)\n    val clockRoles = Vector(readClock, writeClock).distinct\n\n    val nonAddressRoles = clockRoles ++ Vector(\n      readEnable,\n''',
+              "memory clock names",
+          )
+          memory = replace_once(
+              memory,
+              '''        s"memory '$memoryName' clock, enables, data, read result and storage roles must be distinct",\n''',
+              '''        s"memory '$memoryName' clock(s), enables, data, read result and storage roles must be distinct",\n''',
+              "memory role diagnostic",
+          )
+          memory = replace_once(
+              memory,
+              '''      writeData,\n      clock,\n      sharedAddress = readAddress == writeAddress,\n''',
+              '''      writeData,\n      readClock,\n      writeClock,\n      dualClock,\n      sharedAddress = readAddress == writeAddress,\n''',
+              "memory plan construction",
+          )
+
+          render_process = '''  private def renderProcess(\n      plan: MemoryPlan,\n      readLabel: String,\n      writeLabel: Option[String],\n      helperName: String\n  ): Vector[String] = {\n    val depth = render(plan.metadata.depth, helperName)\n    val zeroWidth = render(plan.metadata.elementWidth, helperName)\n    if (plan.dualClock) {\n      val writeProcessLabel = writeLabel.getOrElse {\n        fail(\n          "SPINAL-PARAMETERIZED-VERILOG-MEMORY-PROCESS-LABEL-MISSING",\n          s"dual-clock memory '${plan.memoryName}' has no collision-safe write-process label",\n          plan.sourceLocation\n        )\n      }\n      Vector(\n        s"  always @(posedge ${plan.readClock}) begin : $readLabel",\n        s"    if (${plan.readAddress} < $depth) begin",\n        s"      if (${plan.readEnable} == 1'b1) begin",\n        s"        ${plan.readTarget} <= ${plan.memoryName}[${plan.readAddress}];",\n        "      end",\n        s"    end else if (${plan.readEnable} == 1'b1) begin",\n        s"      ${plan.readTarget} <= {$zeroWidth{1'b0}};",\n        "    end",\n        "  end",\n        "",\n        s"  always @(posedge ${plan.writeClock}) begin : $writeProcessLabel",\n        s"    if (${plan.writeAddress} < $depth) begin",\n        s"      if (${plan.writeEnable} == 1'b1) begin",\n        s"        ${plan.memoryName}[${plan.writeAddress}] <= ${plan.writeData};",\n        "      end",\n        "    end",\n        "  end"\n      )\n    } else {\n      val lines = Vector.newBuilder[String]\n      lines += s"  always @(posedge ${plan.readClock}) begin : $readLabel"\n      if (plan.sharedAddress) {\n        lines += s"    if (${plan.readAddress} < $depth) begin"\n        lines += s"      if (${plan.readEnable} == 1'b1) begin"\n        lines += s"        ${plan.readTarget} <= ${plan.memoryName}[${plan.readAddress}];"\n        lines += "      end"\n        lines += s"      if (${plan.writeEnable} == 1'b1) begin"\n        lines += s"        ${plan.memoryName}[${plan.writeAddress}] <= ${plan.writeData};"\n        lines += "      end"\n        lines += s"    end else if (${plan.readEnable} == 1'b1) begin"\n        lines += s"      ${plan.readTarget} <= {$zeroWidth{1'b0}};"\n        lines += "    end"\n      } else {\n        lines += s"    if (${plan.readAddress} < $depth) begin"\n        lines += s"      if (${plan.readEnable} == 1'b1) begin"\n        lines += s"        ${plan.readTarget} <= ${plan.memoryName}[${plan.readAddress}];"\n        lines += "      end"\n        lines += s"    end else if (${plan.readEnable} == 1'b1) begin"\n        lines += s"      ${plan.readTarget} <= {$zeroWidth{1'b0}};"\n        lines += "    end"\n        lines += s"    if (${plan.writeAddress} < $depth) begin"\n        lines += s"      if (${plan.writeEnable} == 1'b1) begin"\n        lines += s"        ${plan.memoryName}[${plan.writeAddress}] <= ${plan.writeData};"\n        lines += "      end"\n        lines += "    end"\n      }\n      lines += "  end"\n      lines.result()\n    }\n  }\n\n'''
+          memory = replace_region(
+              memory,
+              "  private def renderProcess(\n",
+              "  private def independentDontCareProcessesAreComplete(\n",
+              render_process,
+              "memory process renderer",
+          )
+
+          process_validation = '''  private def independentDontCareProcessesAreComplete(\n      lines: Vector[String],\n      blocks: Vector[LineRange],\n      plan: MemoryPlan\n  ): Boolean = {\n    if (!plan.independentDontCare || blocks.size != 2) return false\n    val texts = blocks.map { block =>\n      lines.slice(block.start, block.endInclusive + 1).mkString("\\n")\n    }\n    val readBlocks = texts.zipWithIndex.collect {\n      case (text, index)\n          if containsIdentifier(text, plan.readTarget) &&\n            containsIndexedAccess(text, plan.memoryName, plan.readAddress) =>\n        index\n    }\n    val writeBlocks = texts.zipWithIndex.collect {\n      case (text, index)\n          if containsIdentifier(text, plan.writeData) &&\n            containsIndexedAccess(text, plan.memoryName, plan.writeAddress) =>\n        index\n    }\n    if (\n      readBlocks.size != 1 || writeBlocks.size != 1 ||\n      readBlocks.head == writeBlocks.head\n    ) false\n    else {\n      val readHeader =\n        lines(blocks(readBlocks.head).start).replaceAll("\\\\s+", " ").trim\n      val writeHeader =\n        lines(blocks(writeBlocks.head).start).replaceAll("\\\\s+", " ").trim\n      readHeader.startsWith(s"always @(posedge ${plan.readClock})") &&\n      writeHeader.startsWith(s"always @(posedge ${plan.writeClock})")\n    }\n  }\n\n'''
+          memory = replace_region(
+              memory,
+              "  private def independentDontCareProcessesAreComplete(\n",
+              "  private def alwaysBlocks(\n",
+              process_validation,
+              "memory process validation",
+          )
+          memory_path.write_text(memory)
           PY
 
       - name: Install pinned Mill bootstrap
@@ -103,6 +211,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          git add morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
           git add .github/workflows/increment-53d-streamfifocc-bootstrap.yml
           git diff --cached --check
           git commit -m "Increment 53d: activate native StreamFifoCC symbolic depth"
