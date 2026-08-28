@@ -7,7 +7,7 @@ import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
 
 import spinal.core.{Component, SpinalConfig, SpinalReport, SpinalVerilog, SystemVerilog, VHDL, Verilog}
-import spinal.core.internals.{ExternalParameterizedAutoResize, MorphHdlExternalParameterizedVerilog}
+import spinal.core.internals.{ExternalParameterizedAutoResize, MorphHdlExternalEnumLocalizer, MorphHdlExternalParameterizedVerilog}
 
 import morphhdl.backend.verilog2001.{Verilog2001Capability => V2001Capability, Verilog2001Emitter}
 import morphhdl.integration.ExternalSpinalVerilog
@@ -217,8 +217,10 @@ object MorphVerilog {
         }
         value
       } { pc =>
-        try MorphHdlExternalParameterizedVerilog.rewrite(pc)
-        finally ExternalParameterizedAutoResize.clearGraph(pc.topLevel)
+        try {
+          MorphHdlExternalParameterizedVerilog.rewrite(pc)
+          MorphHdlExternalEnumLocalizer.rewrite(pc)
+        } finally ExternalParameterizedAutoResize.clearGraph(pc.topLevel)
       }
       Right(external.nativeReport)
     } catch {
