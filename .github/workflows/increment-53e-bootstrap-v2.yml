@@ -129,7 +129,12 @@ jobs:
                           value.getBitsWidth == prototype.getBitsWidth &&
                           ParameterizedWidth
                             .expressionOf(value)
-                            .exists(_.parameters.nonEmpty) =>
+                            .exists { width =>
+                              width.parameters.nonEmpty &&
+                              width.default == BigInt(prototype.getBitsWidth) &&
+                              width.minimum >= 1 &&
+                              width.maximum >= width.minimum
+                            } =>
                       selected = value
                     case _ =>
                   }
@@ -284,7 +289,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53e-bootstrap-v7-evidence
+          name: increment-53e-bootstrap-v8-evidence
           path: |
             /tmp/increment-53e-bootstrap.log
             /tmp/morphhdl-streamfifocc-debug
