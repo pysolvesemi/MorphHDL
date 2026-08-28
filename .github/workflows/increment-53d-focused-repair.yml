@@ -1,0 +1,196 @@
+name: Apply focused Increment 53d repair
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-native-streamwidth-adapter
+    paths:
+      - .github/workflows/increment-53d-focused-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Increment 53d feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-native-streamwidth-adapter
+          fetch-depth: 0
+
+      - name: Apply exact MorphHDL-owned repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          plugin = Path("morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala")
+          text = plugin.read_text(encoding="utf-8")
+          replacements = [
+              (
+                  '''        case Apply(fun, List(bitCount))
+                      if inNativeRuntimeContext && terminalName(fun) == "UInt" =>
+                    rewriteBitVectorFactory(tree, fun, bitCount, "compilerUInt")
+          ''',
+                  '''        case Apply(fun, List(bitCount))
+                      if terminalName(fun) == "UInt" &&
+                        (inNativeRuntimeContext || firstTrackedInteger(bitCount).nonEmpty) =>
+                    rewriteBitVectorFactory(tree, fun, bitCount, "compilerUInt")
+          '''
+              ),
+              (
+                  '''        case Apply(fun, List(bitCount))
+                      if inNativeRuntimeContext && terminalName(fun) == "Bits" =>
+                    rewriteBitVectorFactory(tree, fun, bitCount, "compilerBits")
+          ''',
+                  '''        case Apply(fun, List(bitCount))
+                      if terminalName(fun) == "Bits" &&
+                        (inNativeRuntimeContext || firstTrackedInteger(bitCount).nonEmpty) =>
+                    rewriteBitVectorFactory(tree, fun, bitCount, "compilerBits")
+          '''
+              ),
+              (
+                  '''        case Apply(fun, List(bitCount))
+                      if inNativeRuntimeContext && terminalName(fun) == "SInt" =>
+                    rewriteBitVectorFactory(tree, fun, bitCount, "compilerSInt")
+          ''',
+                  '''        case Apply(fun, List(bitCount))
+                      if terminalName(fun) == "SInt" &&
+                        (inNativeRuntimeContext || firstTrackedInteger(bitCount).nonEmpty) =>
+                    rewriteBitVectorFactory(tree, fun, bitCount, "compilerSInt")
+          '''
+              ),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f"compiler replacement anchor missing: {old.splitlines()[0]!r}")
+              text = text.replace(old, new, 1)
+          plugin.write_text(text, encoding="utf-8")
+
+          test = Path("morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala")
+          text = test.read_text(encoding="utf-8")
+          leaf_anchor = '''  final class IndependentRootLeaf(
+              inputWidth: Int,
+              outputWidth: ParameterizedBitCount
+          ) extends Component {
+            setDefinitionName("NativeStreamWidthAdapterIndependentRoots")
+
+            @dontName val selectedInputWidth =
+              NativeIntShadow.captureArgument(inputWidth, "selectedInputWidth")
+            val io = new Bundle {
+              val input = slave(
+                Stream(
+                  morphhdl.frontend.HardType(
+                    spinal.core.Bits(selectedInputWidth bits)
+                  )
+                )
+              )
+              val output = master(
+                Stream(
+                  morphhdl.frontend.HardType(
+                    morphhdl.frontend.Bits(outputWidth)
+                  )
+                )
+              )
+            }
+
+            spinal.lib.StreamWidthAdapter(io.input, io.output, padding = true)
+          }
+          '''
+          parent_shell = leaf_anchor + '''
+
+          /**
+            * Valid parent shell for the independent-root rejection proof. The native
+            * adapter still receives the two unrelated symbolic packed-width roots in
+            * the child; the parent exists only to satisfy ordinary SpinalHDL hierarchy
+            * construction and fully connect the child IO.
+            */
+          final class IndependentRootTop(
+              inputWidth: HdlInt,
+              outputWidth: HdlInt
+          ) extends Component {
+            setDefinitionName("NativeStreamWidthAdapterIndependentRootTop")
+
+            val io = new Bundle {
+              val input = slave(Stream(morphhdl.frontend.Bits(inputWidth bits)))
+              val output = master(Stream(morphhdl.frontend.Bits(outputWidth bits)))
+            }
+
+            val adapter = formalComponent.parameter(
+              inputWidth,
+              "INPUT_WIDTH",
+              minimum = BigInt(9),
+              maximum = BigInt(16)
+            ) { inputWitness =>
+              new IndependentRootLeaf(inputWitness, outputWidth bits)
+            }
+            adapter.setName("adapter")
+
+            adapter.io.input.valid := io.input.valid
+            adapter.io.input.payload := io.input.payload
+            io.input.ready := adapter.io.input.ready
+
+            io.output.valid := adapter.io.output.valid
+            io.output.payload := adapter.io.output.payload
+            adapter.io.output.ready := io.output.ready
+          }
+          '''
+          if leaf_anchor not in text:
+              raise SystemExit("IndependentRootLeaf insertion anchor missing")
+          text = text.replace(leaf_anchor, parent_shell, 1)
+
+          old_test = '''  test("a native adapter invocation rejects an unproven second symbolic root") {
+            withTemporaryDirectory { directory =>
+              val spinalConfig = config(directory)
+              spinalConfig.netlistFileName = "native_stream_width_adapter_independent.v"
+              val result = MorphVerilog.tryGenerate(spinalConfig) {
+                val first = HdlInt.param("FIRST_WIDTH", default = 12, min = 9, max = 16)
+                val second = HdlInt.param("SECOND_WIDTH", default = 12, min = 9, max = 16)
+                formalComponent.parameter(
+                  first,
+                  "INPUT_WIDTH",
+                  minimum = BigInt(9),
+                  maximum = BigInt(16)
+                ) { inputWitness =>
+                  // The second independent symbolic width is attached to a different
+                  // exact Data identity. The active INPUT_WIDTH boundary must reject it
+                  // instead of matching the equal concrete default.
+                  new IndependentRootLeaf(inputWitness, second bits)
+                }
+              }
+          '''
+          new_test = '''  test("a native adapter invocation rejects an unproven second symbolic root") {
+            withTemporaryDirectory { directory =>
+              val generationConfig = config(directory)
+              generationConfig.netlistFileName = "native_stream_width_adapter_independent.v"
+              val first = HdlInt.param("FIRST_WIDTH", default = 12, min = 9, max = 16)
+              val second = HdlInt.param("SECOND_WIDTH", default = 12, min = 9, max = 16)
+              val result = MorphVerilog.tryGenerate(generationConfig) {
+                // The second independent symbolic width is attached to a different
+                // exact Data identity. The active INPUT_WIDTH boundary must reject it
+                // instead of matching the equal concrete default.
+                new IndependentRootTop(first, second)
+              }
+          '''
+          if old_test not in text:
+              raise SystemExit("independent-root test replacement anchor missing")
+          text = text.replace(old_test, new_test, 1)
+          test.write_text(text, encoding="utf-8")
+          PY
+
+          rm .github/workflows/increment-53d-focused-repair.yml
+          git diff --check
+          if git diff --name-only | grep -Eq '^(core|lib|idslplugin)/'; then
+            echo "Increment 53d must not modify native SpinalHDL source" >&2
+            exit 1
+          fi
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          git add morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala
+          git add .github/workflows/increment-53d-focused-repair.yml
+          git commit -m "fix: retain StreamWidthAdapter symbolic payload shapes"
+          git push origin HEAD:agent/increment-53d-native-streamwidth-adapter
