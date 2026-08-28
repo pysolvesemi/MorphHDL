@@ -212,7 +212,7 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
       val verilog = read(output)
       assert(verilog.contains("localparam INC53BGLOBALBINARYSTATE_IDLE = 1'd0;"))
       assert(verilog.contains("localparam INC53BGLOBALCOLLISIONSTATE_IDLE = 2'd0;"))
-      assert(verilog.contains("localparam INC53BGLOBALCOLLISIONSTATE_WAIT = 2'd1;"))
+      assert(verilog.contains("localparam INC53BGLOBALCOLLISIONSTATE_WAIT_1 = 2'd1;"))
       assert(!verilog.contains("localparam IDLE ="))
       lint(output, directory, "Inc53bEnumCollisionTop")
     }
