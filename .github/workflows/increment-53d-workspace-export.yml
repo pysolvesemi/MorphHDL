@@ -24,95 +24,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path("morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala")
-          text = path.read_text(encoding="utf-8")
-          old = '''      private def inferResize(resize: Resize): WidthExpr = {
-        ExternalParameterizedAutoResize
-          .syntheticBooleanResizeTarget(component, resize)
-          .map(target => ofBase(target))
-          .getOrElse {
-            val source = ofExpression(resize.input)
-            val size = BigInt(resize.size)
-            if (!source.isSymbolic) WidthLiteral(size)
-            else if (size <= source.minimum) WidthLiteral(size)
-            else {
-              fail(
-                "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-UNSUPPORTED",
-                s"resize from symbolic width '${source.render}' to ${resize.size} is not a domain-invariant narrowing; widening and domain-crossing resize lowering is deferred"
-              )
-            }
-          }
-      }
-'''
-          new = '''      /**
-        * A native BitVector.resize call materializes one weak-clone target whose
-        * direct driver is the exact Resize expression. The compiler bridge
-        * retains the symbolic target width on that native target object. Recover
-        * it by statement and object identity; never infer it from a matching
-        * witness width or emitted name.
-        */
-      private def retainedResizeTarget(resize: Resize): Option[BitVector] = {
-        var found: BitVector = null
-        assignments.foreach { assignment =>
-          if (
-            (assignment.source eq resize) &&
-            (assignment.target eq assignment.finalTarget)
-          ) {
-            assignment.target match {
-              case target: BitVector
-                  if (target.component eq component) &&
-                    target.isTypeNode && target.isComb &&
-                    target.isDirectionLess &&
-                    target.getBitsWidth == resize.size &&
-                    ParameterizedWidth.expressionOf(target).exists { expression =>
-                      expression.parameters.nonEmpty &&
-                      expression.default == BigInt(resize.size)
-                    } =>
-                if (found == null) found = target
-                else if (!(found eq target)) {
-                  fail(
-                    "SPINAL-PARAMETERIZED-VERILOG-RESIZE-TARGET-AMBIGUOUS",
-                    s"one native Resize expression drives multiple retained symbolic targets in component '${component.definitionName}'"
-                  )
-                }
-              case _ =>
-            }
-          }
-        }
-        Option(found)
-      }
-
-      private def inferResize(resize: Resize): WidthExpr = {
-        val retainedTarget =
-          ExternalParameterizedAutoResize
-            .syntheticBooleanResizeTarget(component, resize)
-            .map(target => target: BitVector)
-            .orElse(retainedResizeTarget(resize))
-        retainedTarget
-          .map(target => ofBase(target))
-          .getOrElse {
-            val source = ofExpression(resize.input)
-            val size = BigInt(resize.size)
-            if (!source.isSymbolic) WidthLiteral(size)
-            else if (size <= source.minimum) WidthLiteral(size)
-            else {
-              fail(
-                "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-UNSUPPORTED",
-                s"resize from symbolic width '${source.render}' to ${resize.size} is not a domain-invariant narrowing; widening and domain-crossing resize lowering is deferred"
-              )
-            }
-          }
-      }
-'''
-          count = text.count(old)
-          if count != 1:
-              raise SystemExit(f"expected one inferResize anchor, found {count}")
-          path.write_text(text.replace(old, new), encoding="utf-8")
-          PY
-
+          printf '%s' 'LS0tIGEvbW9ycGhoZGwvc3JjL21haW4vc2NhbGEvc3BpbmFsL2NvcmUvaW50ZXJuYWxzL0V4dGVybmFsUGFyYW1ldGVyaXplZFZlcmlsb2dOYXRpdmVGYWxsYmFjay5zY2FsYQorKysgYi9tb3JwaGhkbC9zcmMvbWFpbi9zY2FsYS9zcGluYWwvY29yZS9pbnRlcm5hbHMvRXh0ZXJuYWxQYXJhbWV0ZXJpemVkVmVyaWxvZ05hdGl2ZUZhbGxiYWNrLnNjYWxhCkBAIC0xNDI3LDkgKzE0MjcsNTEgQEAKICAgICAgICAgICBXaWR0aExpdGVyYWwoMSkKICAgICAgIH0KIAorICAgICAgLyoqCisgICAgICAgICogQSBuYXRpdmUgQml0VmVjdG9yLnJlc2l6ZSBjYWxsIG1hdGVyaWFsaXplcyBvbmUgd2Vhay1jbG9uZSB0YXJnZXQgd2hvc2UKKyAgICAgICAgKiBkaXJlY3QgZHJpdmVyIGlzIHRoZSBleGFjdCBSZXNpemUgZXhwcmVzc2lvbi4gVGhlIGNvbXBpbGVyIGJyaWRnZQorICAgICAgICAqIHJldGFpbnMgdGhlIHN5bWJvbGljIHRhcmdldCB3aWR0aCBvbiB0aGF0IG5hdGl2ZSB0YXJnZXQgb2JqZWN0LiBSZWNvdmVyCisgICAgICAgICogaXQgYnkgc3RhdGVtZW50IGFuZCBvYmplY3QgaWRlbnRpdHk7IG5ldmVyIGluZmVyIGl0IGZyb20gYSBtYXRjaGluZworICAgICAgICAqIHdpdG5lc3Mgd2lkdGggb3IgZW1pdHRlZCBuYW1lLgorICAgICAgICAqLworICAgICAgcHJpdmF0ZSBkZWYgcmV0YWluZWRSZXNpemVUYXJnZXQocmVzaXplOiBSZXNpemUpOiBPcHRpb25bQml0VmVjdG9yXSA9IHsKKyAgICAgICAgdmFyIGZvdW5kOiBCaXRWZWN0b3IgPSBudWxsCisgICAgICAgIGFzc2lnbm1lbnRzLmZvcmVhY2ggeyBhc3NpZ25tZW50ID0+CisgICAgICAgICAgaWYgKAorICAgICAgICAgICAgKGFzc2lnbm1lbnQuc291cmNlIGVxIHJlc2l6ZSkgJiYKKyAgICAgICAgICAgIChhc3NpZ25tZW50LnRhcmdldCBlcSBhc3NpZ25tZW50LmZpbmFsVGFyZ2V0KQorICAgICAgICAgICkgeworICAgICAgICAgICAgYXNzaWdubWVudC50YXJnZXQgbWF0Y2ggeworICAgICAgICAgICAgICBjYXNlIHRhcmdldDogQml0VmVjdG9yCisgICAgICAgICAgICAgICAgICBpZiAodGFyZ2V0LmNvbXBvbmVudCBlcSBjb21wb25lbnQpICYmCisgICAgICAgICAgICAgICAgICAgIHRhcmdldC5pc1R5cGVOb2RlICYmIHRhcmdldC5pc0NvbWIgJiYKKyAgICAgICAgICAgICAgICAgICAgdGFyZ2V0LmlzRGlyZWN0aW9uTGVzcyAmJgorICAgICAgICAgICAgICAgICAgICB0YXJnZXQuZ2V0Qml0c1dpZHRoID09IHJlc2l6ZS5zaXplICYmCisgICAgICAgICAgICAgICAgICAgIFBhcmFtZXRlcml6ZWRXaWR0aC5leHByZXNzaW9uT2YodGFyZ2V0KS5leGlzdHMgeyBleHByZXNzaW9uID0+CisgICAgICAgICAgICAgICAgICAgICAgZXhwcmVzc2lvbi5wYXJhbWV0ZXJzLm5vbkVtcHR5ICYmCisgICAgICAgICAgICAgICAgICAgICAgZXhwcmVzc2lvbi5kZWZhdWx0ID09IEJpZ0ludChyZXNpemUuc2l6ZSkKKyAgICAgICAgICAgICAgICAgICAgfSA9PgorICAgICAgICAgICAgICAgIGlmIChmb3VuZCA9PSBudWxsKSBmb3VuZCA9IHRhcmdldAorICAgICAgICAgICAgICAgIGVsc2UgaWYgKCEoZm91bmQgZXEgdGFyZ2V0KSkgeworICAgICAgICAgICAgICAgICAgZmFpbCgKKyAgICAgICAgICAgICAgICAgICAgIlNQSU5BTC1QQVJBTUVURVJJWkVELVZFUklMT0ctUkVTSVpFLVRBUkdFVC1BTUJJR1VPVVMiLAorICAgICAgICAgICAgICAgICAgICBzIm9uZSBuYXRpdmUgUmVzaXplIGV4cHJlc3Npb24gZHJpdmVzIG11bHRpcGxlIHJldGFpbmVkIHN5bWJvbGljIHRhcmdldHMgaW4gY29tcG9uZW50ICcke2NvbXBvbmVudC5kZWZpbml0aW9uTmFtZX0nIgorICAgICAgICAgICAgICAgICAgKQorICAgICAgICAgICAgICAgIH0KKyAgICAgICAgICAgICAgY2FzZSBfID0+CisgICAgICAgICAgICB9CisgICAgICAgICAgfQorICAgICAgICB9CisgICAgICAgIE9wdGlvbihmb3VuZCkKKyAgICAgIH0KKwogICAgICAgcHJpdmF0ZSBkZWYgaW5mZXJSZXNpemUocmVzaXplOiBSZXNpemUpOiBXaWR0aEV4cHIgPSB7Ci0gICAgICAgIEV4dGVybmFsUGFyYW1ldGVyaXplZEF1dG9SZXNpemUKLSAgICAgICAgICAuc3ludGhldGljQm9vbGVhblJlc2l6ZVRhcmdldChjb21wb25lbnQsIHJlc2l6ZSkKKyAgICAgICAgdmFsIHJldGFpbmVkVGFyZ2V0ID0KKyAgICAgICAgICBFeHRlcm5hbFBhcmFtZXRlcml6ZWRBdXRvUmVzaXplCisgICAgICAgICAgICAuc3ludGhldGljQm9vbGVhblJlc2l6ZVRhcmdldChjb21wb25lbnQsIHJlc2l6ZSkKKyAgICAgICAgICAgIC5tYXAodGFyZ2V0ID0+IHRhcmdldDogQml0VmVjdG9yKQorICAgICAgICAgICAgLm9yRWxzZShyZXRhaW5lZFJlc2l6ZVRhcmdldChyZXNpemUpKQorICAgICAgICByZXRhaW5lZFRhcmdldAogICAgICAgICAgIC5tYXAodGFyZ2V0ID0+IG9mQmFzZSh0YXJnZXQpKQogICAgICAgICAgIC5nZXRPckVsc2UgewogICAgICAgICAgICAgdmFsIHNvdXJjZSA9IG9mRXhwcmVzc2lvbihyZXNpemUuaW5wdXQpCg==' | base64 --decode > /tmp/increment-53d-resize.patch
+          git apply --check /tmp/increment-53d-resize.patch
+          git apply /tmp/increment-53d-resize.patch
           rm .github/workflows/increment-53d-workspace-export.yml
           git diff --check
           if git diff --name-only | grep -Eq '^(core|lib|idslplugin)/'; then
