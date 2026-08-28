@@ -328,7 +328,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   arbitrary Scala effects. Prove deterministic replay, hierarchy stability,
   driver/latch/clock/reset validation and nested generate legality.
 
-- [ ] **Increment 53 — Native StreamFifo parameter structure without source edits**
+- [x] **Increment 53 — Native StreamFifo parameter structure without source edits**
 
   **Dependencies:** Increments 45 and 52 implemented and merged.
 
