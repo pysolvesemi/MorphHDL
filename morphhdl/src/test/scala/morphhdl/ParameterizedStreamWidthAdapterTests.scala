@@ -203,6 +203,43 @@ object ParameterizedStreamWidthAdapterSmoke {
     spinal.lib.StreamWidthAdapter(io.input, io.output, padding = true)
   }
 
+
+/**
+  * Valid parent shell for the independent-root rejection proof. The native
+  * adapter still receives the two unrelated symbolic packed-width roots in
+  * the child; the parent exists only to satisfy ordinary SpinalHDL hierarchy
+  * construction and fully connect the child IO.
+  */
+final class IndependentRootTop(
+    inputWidth: HdlInt,
+    outputWidth: HdlInt
+) extends Component {
+  setDefinitionName("NativeStreamWidthAdapterIndependentRootTop")
+
+  val io = new Bundle {
+    val input = slave(Stream(morphhdl.frontend.Bits(inputWidth bits)))
+    val output = master(Stream(morphhdl.frontend.Bits(outputWidth bits)))
+  }
+
+  val adapter = formalComponent.parameter(
+    inputWidth,
+    "INPUT_WIDTH",
+    minimum = BigInt(9),
+    maximum = BigInt(16)
+  ) { inputWitness =>
+    new IndependentRootLeaf(inputWitness, outputWidth bits)
+  }
+  adapter.setName("adapter")
+
+  adapter.io.input.valid := io.input.valid
+  adapter.io.input.payload := io.input.payload
+  io.input.ready := adapter.io.input.ready
+
+  io.output.valid := adapter.io.output.valid
+  io.output.payload := adapter.io.output.payload
+  adapter.io.output.ready := io.output.ready
+}
+
   def component(): Top =
     new Top(
       equalWidth = HdlInt.param("EQ_WIDTH", default = 8, min = 1, max = 32),
@@ -328,36 +365,29 @@ class ParameterizedStreamWidthAdapterTests extends AnyFunSuite {
   }
 
   test("a native adapter invocation rejects an unproven second symbolic root") {
-    withTemporaryDirectory { directory =>
-      val spinalConfig = config(directory)
-      spinalConfig.netlistFileName = "native_stream_width_adapter_independent.v"
-      val result = MorphVerilog.tryGenerate(spinalConfig) {
-        val first = HdlInt.param("FIRST_WIDTH", default = 12, min = 9, max = 16)
-        val second = HdlInt.param("SECOND_WIDTH", default = 12, min = 9, max = 16)
-        formalComponent.parameter(
-          first,
-          "INPUT_WIDTH",
-          minimum = BigInt(9),
-          maximum = BigInt(16)
-        ) { inputWitness =>
-          // The second independent symbolic width is attached to a different
-          // exact Data identity. The active INPUT_WIDTH boundary must reject it
-          // instead of matching the equal concrete default.
-          new IndependentRootLeaf(inputWitness, second bits)
-        }
-      }
-      result match {
-        case Left(failure) =>
-          assert(
-            failure.detail.contains("MORPH-FRONTEND-NATIVE-WIDTH-FUNCTION-ROOT-AMBIGUOUS") ||
-              failure.detail.contains("MORPH-FRONTEND-NATIVE-INT-EXPRESSION-OPERAND-UNPROVEN"),
-            failure.detail
-          )
-        case Right(report) =>
-          fail(s"Expected independent-width provenance rejection, received $report")
-      }
+  withTemporaryDirectory { directory =>
+    val generationConfig = config(directory)
+    generationConfig.netlistFileName = "native_stream_width_adapter_independent.v"
+    val first = HdlInt.param("FIRST_WIDTH", default = 12, min = 9, max = 16)
+    val second = HdlInt.param("SECOND_WIDTH", default = 12, min = 9, max = 16)
+    val result = MorphVerilog.tryGenerate(generationConfig) {
+      // The second independent symbolic width is attached to a different
+      // exact Data identity. The active INPUT_WIDTH boundary must reject it
+      // instead of matching the equal concrete default.
+      new IndependentRootTop(first, second)
+    }
+    result match {
+      case Left(failure) =>
+        assert(
+          failure.detail.contains("MORPH-FRONTEND-NATIVE-WIDTH-FUNCTION-ROOT-AMBIGUOUS") ||
+            failure.detail.contains("MORPH-FRONTEND-NATIVE-INT-EXPRESSION-OPERAND-UNPROVEN"),
+          failure.detail
+        )
+      case Right(report) =>
+        fail(s"Expected independent-width provenance rejection, received $report")
     }
   }
+}
 
   private def hasWidth(
       verilog: String,

@@ -1751,13 +1751,16 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
             if inNativeRuntimeContext && decoded(methodName) == "toInt" =>
           rewriteBooleanToInt(tree, value, requestedName)
         case Apply(fun, List(bitCount))
-            if inNativeRuntimeContext && terminalName(fun) == "UInt" =>
+            if terminalName(fun) == "UInt" &&
+              (inNativeRuntimeContext || firstTrackedInteger(bitCount).nonEmpty) =>
           rewriteBitVectorFactory(tree, fun, bitCount, "compilerUInt")
         case Apply(fun, List(bitCount))
-            if inNativeRuntimeContext && terminalName(fun) == "Bits" =>
+            if terminalName(fun) == "Bits" &&
+              (inNativeRuntimeContext || firstTrackedInteger(bitCount).nonEmpty) =>
           rewriteBitVectorFactory(tree, fun, bitCount, "compilerBits")
         case Apply(fun, List(bitCount))
-            if inNativeRuntimeContext && terminalName(fun) == "SInt" =>
+            if terminalName(fun) == "SInt" &&
+              (inNativeRuntimeContext || firstTrackedInteger(bitCount).nonEmpty) =>
           rewriteBitVectorFactory(tree, fun, bitCount, "compilerSInt")
         case Apply(fun, List(dataType, depth))
             if inNativeStreamFifo && terminalName(fun) == "Mem" =>
