@@ -53,12 +53,12 @@ jobs:
           memory_path = Path('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala')
           memory = memory_path.read_text()
           start_marker = '    val driverProvesNativeWidth = address match {'
-          end_marker = '\n\n    if (\n      native.parameters.nonEmpty'
           start = memory.index(start_marker)
-          end = memory.index(end_marker, start)
+          end = memory.index('\n    if (', start)
           replacement = '''    val driverWidths = exactSymbolicDriverWidths(address, component)
             val driverProvesNativeWidth =
-              driverWidths.size == 1 && equivalentWidth(driverWidths.head, native)'''
+              driverWidths.size == 1 && equivalentWidth(driverWidths.head, native)
+          '''
           memory = memory[:start] + replacement + memory[end:]
 
           insertion = '''  private def exactSymbolicDriverWidths(
