@@ -33,11 +33,18 @@ jobs:
           git show \
             4a379f6c64f67889ca432e01ac7d51a41077941a:.github/workflows/increment-53e-bootstrap-v2.yml \
             > /tmp/increment-53e-reviewed-bootstrap.yml
+          test -s /tmp/reviewed.yml
+          test -s /tmp/increment-53e-reviewed-bootstrap.yml
 
       - name: Apply reviewed implementation and instrument parser AST
         shell: bash
         run: |
           set -euo pipefail
+          if [ ! -s /tmp/reviewed.yml ]; then
+            git show \
+              origin/agent/increment-53d-native-streamfifocc-parameterization:.github/workflows/increment-53d-streamfifocc-bootstrap.yml \
+              > /tmp/reviewed.yml
+          fi
           python3 - <<'PY'
           from pathlib import Path
           import textwrap
