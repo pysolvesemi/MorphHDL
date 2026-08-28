@@ -1,0 +1,44 @@
+name: Increment 53b workspace export
+
+on:
+  push:
+    branches:
+      - agent/increment-53b-native-streamwidth-adapter
+    paths:
+      - .github/workflows/increment-53b-workspace-export.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Package repository workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD > increment-53b-head.txt
+          tar \
+            --exclude=.git \
+            --exclude=out \
+            --exclude=target \
+            --exclude=.bloop \
+            --exclude=.metals \
+            -czf morphhdl-increment-53b-workspace.tar.gz .
+
+      - name: Upload workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-increment-53b-workspace
+          path: |
+            morphhdl-increment-53b-workspace.tar.gz
+            increment-53b-head.txt
+          if-no-files-found: error
+          retention-days: 1
