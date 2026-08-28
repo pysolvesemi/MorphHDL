@@ -395,7 +395,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   sequential induction and `equiv_status -assert`, in addition to deterministic
   generation, strict Verilog-2001 lint/synthesis and native-source preservation.
 
-- [ ] **Increment 53c — Native AXI4 Slave Factory parameterized offsets**
+- [x] **Increment 53c — Native AXI4 Slave Factory parameterized offsets**
 
   **Dependencies:** Increment 53b implemented and merged.
 
