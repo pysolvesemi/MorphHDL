@@ -66,11 +66,12 @@ jobs:
     name: Native AXI4 factory proof Scala ${{ matrix.scala_version }}
     needs: source-boundary
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     container:
-      image: ghcr.io/spinalhdl/docker:latest
+      image: ghcr.io/spinalhdl/docker@sha256:7666918d726d498af9979dc004012a9baa1c758be8d1a63c615a000ac06db793
     env:
       XDG_CACHE_HOME: /tmp/morphhdl-cache
+      MORPHDL_NATIVE_AXI4_ARTIFACT_DIR: /tmp/morphhdl-native-axi4-artifacts
     strategy:
       fail-fast: false
       matrix:
@@ -96,16 +97,99 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/morphhdl-axi4-offset-logs
+          mkdir -p /tmp/morphhdl-axi4-offset-logs \
+            "${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}"
           /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
             morphhdl.NativeAxi4SlaveFactoryParameterizedOffsetTests \
-            2>&1 | tee /tmp/morphhdl-axi4-offset-logs/scala-${{ matrix.scala_version }}.log
+            2>&1 | tee /tmp/morphhdl-axi4-offset-logs/focused-scala-${{ matrix.scala_version }}.log
 
-      - name: Preserve focused output
+      - name: Validate emitted RTL with strict Verilog-2001 tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          parameterized="${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}/native_axi4_parameterized.v"
+          concrete_top="${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}/native_axi4_concrete_top.v"
+          concrete_block="${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}/native_axi4_concrete_block.v"
+          test -s "${parameterized}"
+          test -s "${concrete_top}"
+          test -s "${concrete_block}"
+
+          {
+            echo '== tool versions =='
+            iverilog -V
+            verilator --version
+            yosys -V
+
+            echo '== Icarus Verilog-2001 =='
+            iverilog -g2001 -Wall -Wimplicit \
+              -s NativeAxi4SlaveFactoryParameterizedTop \
+              -o /tmp/native_axi4_parameterized_default.vvp \
+              "${parameterized}"
+            iverilog -g2001 -Wall -Wimplicit \
+              -P NativeAxi4SlaveFactoryParameterizedTop.TOP_OFFSET=80 \
+              -s NativeAxi4SlaveFactoryParameterizedTop \
+              -o /tmp/native_axi4_parameterized_offset_80.vvp \
+              "${parameterized}"
+            iverilog -g2001 -Wall -Wimplicit \
+              -s NativeAxi4SlaveFactoryParameterizedTop \
+              -o /tmp/native_axi4_concrete_top.vvp \
+              "${concrete_top}"
+            iverilog -g2001 -Wall -Wimplicit \
+              -s NativeAxi4SlaveFactoryRegisterBlock \
+              -o /tmp/native_axi4_concrete_block.vvp \
+              "${concrete_block}"
+
+            echo '== Verilator Verilog-2001 lint =='
+            verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
+              --top-module NativeAxi4SlaveFactoryParameterizedTop \
+              "${parameterized}"
+            verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
+              -GTOP_OFFSET=80 \
+              --top-module NativeAxi4SlaveFactoryParameterizedTop \
+              "${parameterized}"
+            verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
+              --top-module NativeAxi4SlaveFactoryParameterizedTop \
+              "${concrete_top}"
+            verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
+              --top-module NativeAxi4SlaveFactoryRegisterBlock \
+              "${concrete_block}"
+
+            echo '== Yosys Verilog-2001 synthesis =='
+            yosys -q -p "read_verilog -noautowire ${parameterized}; hierarchy -check -top NativeAxi4SlaveFactoryParameterizedTop; proc; opt; check -assert; synth -top NativeAxi4SlaveFactoryParameterizedTop; check -assert"
+            yosys -q -p "read_verilog -noautowire ${parameterized}; chparam -set TOP_OFFSET 80 NativeAxi4SlaveFactoryParameterizedTop; hierarchy -check -top NativeAxi4SlaveFactoryParameterizedTop; proc; opt; check -assert; synth -top NativeAxi4SlaveFactoryParameterizedTop; check -assert"
+            yosys -q -p "read_verilog -noautowire ${concrete_top}; hierarchy -check -top NativeAxi4SlaveFactoryParameterizedTop; proc; opt; check -assert; synth -top NativeAxi4SlaveFactoryParameterizedTop; check -assert"
+            yosys -q -p "read_verilog -noautowire ${concrete_block}; hierarchy -check -top NativeAxi4SlaveFactoryRegisterBlock; proc; opt; check -assert; synth -top NativeAxi4SlaveFactoryRegisterBlock; check -assert"
+          } 2>&1 | tee /tmp/morphhdl-axi4-offset-logs/verilog-2001-scala-${{ matrix.scala_version }}.log
+
+      - name: Run inherited MorphHDL regression contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.BackendSyncMergeIsolationTests \
+            morphhdl.CapturedAssignmentNormalizationTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.NativeMemAutoProvenanceTests \
+            morphhdl.ExternalNativeIntFormalizationTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowProvenanceTests \
+            morphhdl.FormalParameterIdentityTests \
+            morphhdl.FormalParameterClonePropagationTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.SpinalEnumLocalParameterTests \
+            morphhdl.integration.ExternalSpinalVerilogBaselineTests \
+            2>&1 | tee /tmp/morphhdl-axi4-offset-logs/regressions-scala-${{ matrix.scala_version }}.log
+
+      - name: Preserve focused output and witness RTL
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: native-axi4-factory-offset-scala-${{ matrix.scala_version }}
-          path: /tmp/morphhdl-axi4-offset-logs
+          path: |
+            /tmp/morphhdl-axi4-offset-logs
+            /tmp/morphhdl-native-axi4-artifacts
           if-no-files-found: error
           retention-days: 7
