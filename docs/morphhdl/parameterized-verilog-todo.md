@@ -198,9 +198,12 @@ After Increment 44 is implemented and merged:
 - Increment 53a is a corrective formal-equivalence closure and depends only on
   the merged Increment 53.
 - Increment 53b depends only on the merged Increment 53. Increments 53a and 53b
-  may execute independently, but both must complete before Increment 54.
+  may execute independently.
+- Increment 53b.1 is a corrective enum-naming closure and depends only on the
+  merged Increment 53b. Increment 54 requires both Increment 53a and Increment
+  53b.1.
 - Increments 54 through 58 then form a strict sequential closure chain after
-  Increments 53a and 53b.
+  Increments 53a and 53b.1.
 
 Dependencies are transitive. Two increments with no dependency edge between
 them are intentionally eligible for parallel implementation and review.
@@ -393,9 +396,31 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   sequential induction and `equiv_status -assert`, in addition to deterministic
   generation, strict Verilog-2001 lint/synthesis and native-source preservation.
 
+
+- [x] **Increment 53b.1 — SCREAMING_SNAKE_CASE SpinalEnum localparam names**
+
+  **Dependencies:** Increment 53b implemented and merged.
+
+  Refine only the MorphHDL-owned module-local enum publication naming from
+  Increment 53b. Convert each resolved enum type and element identifier to
+  deterministic SCREAMING_SNAKE_CASE before joining them: split lowercase-or-
+  digit to uppercase boundaries, split acronym-to-word boundaries, preserve
+  existing underscores and digits, and uppercase with locale-independent
+  rules. For example, Scala `Inc53bFormalState.IDLE` must become Verilog
+  `INC53B_FORMAL_STATE_IDLE`, and `AXI4ReadState.waitResp` must become
+  `AXI4_READ_STATE_WAIT_RESP`. Apply the same base name to retained one-hot
+  `_OH_ID` bit-index helpers without changing their semantics. Never add a
+  component, module, instance or hierarchy prefix. Fail closed when distinct
+  source identifiers such as `FooBar` and `Foo_Bar` canonicalize to the same
+  module-local name, even when their encoded values happen to match. Keep
+  ordinary `SpinalVerilog` macro output and every upstream-owned SpinalHDL
+  production source unchanged. Re-run deterministic Verilog-2001 lint and
+  synthesis plus macro-versus-localparam sequential formal equivalence on
+  Scala 2.12.18 and 2.13.12.
+
 - [ ] **Increment 54 — MorphHDL module extraction and native-tree cleanup**
 
-  **Dependencies:** Increments 53a and 53b implemented and merged.
+  **Dependencies:** Increments 53a, 53b and 53b.1 implemented and merged.
 
   Move remaining MorphHDL-specific parameter metadata, capture and lowering
   files out of native `core`, `lib` and `idslplugin` source trees into

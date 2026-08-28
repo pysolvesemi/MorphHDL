@@ -1,8 +1,9 @@
-name: MorphHDL uppercase module-local SpinalEnum parameters and formal equivalence
+name: MorphHDL SCREAMING_SNAKE_CASE module-local SpinalEnum parameters and formal equivalence
 
-# Increment 53b localizes native SpinalEnum macros in MorphHDL-owned publication
-# code, emits uppercase enum-qualified module-local parameters, and formally
-# proves equivalence to the untouched native macro implementation.
+# Increment 53b.1 refines Increment 53b enum constants to deterministic
+# SCREAMING_SNAKE_CASE in MorphHDL-owned publication code and formally proves
+# equivalence to the untouched native macro implementation. One-hot encoded
+# values and their _OH_ID bit-index helpers are both retained.
 on:
   push:
     branches:
@@ -23,7 +24,7 @@ concurrency:
 
 jobs:
   source-boundary:
-    name: MorphHDL-only uppercase enum source boundary
+    name: MorphHDL-only SCREAMING_SNAKE_CASE enum source boundary
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -38,8 +39,14 @@ jobs:
           set -euo pipefail
           python3 morphhdl/scripts/check-native-source-preservation.py
           test -f morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala
-          grep -Fq 'nativeName.toUpperCase(java.util.Locale.ROOT)' \
+          grep -Fq 'toScreamingSnake(nativeName)' \
             morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala
+          grep -Fq 'AcronymToWordBoundary' \
+            morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala
+          grep -Fq 'LowerOrDigitToUpperBoundary' \
+            morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala
+          grep -Fq 'INC53B1_AXI4_READ_STATE_WAIT_RESP' \
+            morphhdl/src/test/scala/morphhdl/SpinalEnumLocalParameterTests.scala
           grep -Fq 'MorphHdlExternalEnumLocalizer.rewrite(pc)' \
             morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
           grep -Fq 'equiv_induct -undef -seq 8' \
@@ -50,14 +57,14 @@ jobs:
             git fetch --no-tags origin "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
             changed="$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")"
             if grep -Eq '^(core|lib|idslplugin)/src/main/' <<<"${changed}"; then
-              echo "Increment 53b follow-up must not modify native SpinalHDL production sources" >&2
+              echo "Increment 53b.1 must not modify native SpinalHDL production sources" >&2
               grep -E '^(core|lib|idslplugin)/src/main/' <<<"${changed}" >&2
               exit 1
             fi
           fi
 
   contracts:
-    name: Uppercase enum formal-equivalence proof Scala ${{ matrix.scala_version }}
+    name: SCREAMING_SNAKE_CASE enum formal-equivalence proof Scala ${{ matrix.scala_version }}
     needs: source-boundary
     runs-on: ubuntu-latest
     timeout-minutes: 75
@@ -93,7 +100,7 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Validate uppercase enum localization, formal equivalence and inherited publication
+      - name: Validate SCREAMING_SNAKE_CASE enum localization, formal equivalence and inherited publication
         shell: bash
         run: |
           set -euo pipefail
