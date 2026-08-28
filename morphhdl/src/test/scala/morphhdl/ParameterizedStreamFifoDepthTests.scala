@@ -244,8 +244,7 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       "1364-2001",
       "-Wall",
       "-Wno-DECLFILENAME",
-      "-Wno-WIDTHEXPAND",
-      "-Wno-WIDTHTRUNC"
+      "-Wno-WIDTH"
     ) ++ depthSpecificWarnings ++ Seq(
       "--top-module",
       "NativeParameterizedStreamFifoHarness",

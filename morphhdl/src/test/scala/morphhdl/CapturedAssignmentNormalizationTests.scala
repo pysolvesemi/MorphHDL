@@ -262,6 +262,196 @@ object CapturedAssignmentNormalizationSmoke {
     }
   }
 
+  final class CachedDriverSink extends Component {
+    setDefinitionName("CapturedCachedDriverSink")
+
+    val din = in(Bool())
+    val observed = out(Bool())
+    observed := din
+  }
+
+  final class ChildFirstCachedDriver(mode: HdlInt) extends Component {
+    setDefinitionName("CapturedChildFirstCachedDriver")
+
+    val din = in(Bool())
+    val observed = out(Bool())
+
+    def cachedDriver: Bool =
+      signalCache(this, "child_first_cached_driver") {
+        val value = Bool().setName("cached_driver")
+        value := din
+        value
+      }
+
+    if ((mode > 0).named("g_cached_outer", "g_cached_absent")) {
+      if ((mode > 1).named("g_cached_inner", "g_cached_shallow")) {
+        val innerSink = new CachedDriverSink
+        innerSink.setName("cached_inner_sink")
+        val innerUse = Bool().setName("inner_use")
+        innerUse := cachedDriver
+        innerSink.din := innerUse
+      } else {
+        val shallowSink = new CachedDriverSink
+        shallowSink.setName("cached_shallow_sink")
+        shallowSink.din := din
+      }
+
+      val outerUse = Bool().setName("outer_use")
+      outerUse := cachedDriver
+      observed := outerUse
+    } else {
+      observed := din
+    }
+  }
+
+  final class RawControlOnlyCachedDriver(mode: HdlInt) extends Component {
+    setDefinitionName("CapturedRawControlOnlyCachedDriver")
+
+    val din = in(Bool())
+    val observed = out(Bool())
+
+    def cachedDriver: Bool =
+      signalCache(this, "raw_control_cached_driver") {
+        val value = Bool().setName("raw_control_driver")
+        value := din
+        value
+      }
+
+    if ((mode > 0).named("g_raw_outer", "g_raw_absent")) {
+      if ((mode > 1).named("g_raw_inner", "g_raw_shallow")) {
+        val innerUse = Bool().setName("raw_inner_use")
+        innerUse := cachedDriver
+      } else {
+        val shallowUse = Bool().setName("raw_shallow_use")
+        shallowUse := din
+      }
+
+      val controlled = Bool().setName("raw_controlled")
+      controlled := False
+      when(cachedDriver) {
+        controlled := True
+      }
+      observed := controlled
+    } else {
+      observed := din
+    }
+  }
+
+  final class VecDuplicatedRawControlCachedDriver(
+      mode: HdlInt,
+      lanes: HdlInt
+  ) extends Component {
+    setDefinitionName("CapturedVecDuplicatedRawControlCachedDriver")
+
+    val din = in(Bool())
+    val laneIn =
+      in(morphhdl.frontend.Vec(morphhdl.frontend.Bits(1 bits), 2))
+    val observed = out(Bool())
+
+    def cachedDriver: Bool =
+      signalCache(this, "vec_raw_control_cached_driver") {
+        val value = Bool().setName("vec_raw_control_driver")
+        value := din
+        value
+      }
+
+    if ((mode > 0).named("g_vec_raw_outer", "g_vec_raw_absent")) {
+      (0 until lanes).named("g_vec_raw_lane", "vec_raw_lane").foreach {
+        index =>
+          val selected = Bool().setName("vec_raw_selected")
+          selected := laneIn(index).orR
+          val selectedSink = new CachedDriverSink
+          selectedSink.setName("vec_raw_selected_sink")
+          selectedSink.din := selected
+
+          val innerUse = Bool().setName("vec_raw_inner_use")
+          innerUse := cachedDriver
+          val driverSink = new CachedDriverSink
+          driverSink.setName("vec_raw_driver_sink")
+          driverSink.din := innerUse
+      }
+
+      val controlled = Bool().setName("vec_raw_controlled")
+      controlled := False
+      when(cachedDriver) {
+        controlled := True
+      }
+      observed := controlled
+    } else {
+      observed := din
+    }
+  }
+
+  final class VecScopedNestedConsumer(mode: HdlInt, lanes: HdlInt)
+      extends Component {
+    setDefinitionName("CapturedVecScopedNestedConsumer")
+
+    val din = in(Bool())
+    val laneIn =
+      in(morphhdl.frontend.Vec(morphhdl.frontend.Bits(1 bits), 2))
+    val observed = out(Bool())
+
+    observed := din
+    (0 until lanes).named("g_vec_scoped_lane", "vec_scoped_lane").foreach {
+      index =>
+        val selected = Bool().setName("vec_scoped_selected")
+        selected := laneIn(index).orR
+        val selectedSink = new CachedDriverSink
+        selectedSink.setName("vec_scoped_selected_sink")
+        selectedSink.din := selected
+
+        val scopedDriver = Bool().setName("vec_scoped_driver")
+        scopedDriver := din
+        if ((mode > 0).named("g_vec_scoped_inner", "g_vec_scoped_shallow")) {
+          val innerUse = Bool().setName("vec_scoped_inner_use")
+          innerUse := scopedDriver
+          val innerSink = new CachedDriverSink
+          innerSink.setName("vec_scoped_inner_sink")
+          innerSink.din := innerUse
+        } else {
+          val shallowSink = new CachedDriverSink
+          shallowSink.setName("vec_scoped_shallow_sink")
+          shallowSink.din := din
+        }
+    }
+  }
+
+  final class PartialProducerRhsPromotion(mode: HdlInt) extends Component {
+    setDefinitionName("CapturedPartialProducerRhsPromotion")
+
+    val din = in(Bool())
+    val observed = out(Bool())
+
+    if ((mode > 0).named("g_partial_outer", "g_partial_absent")) {
+      val partialSource = Bool().setName("partial_source")
+      def cachedDriver: Bool =
+        signalCache(this, "partial_producer_cached_driver") {
+          val value = Bool().setName("partial_cached_driver")
+          value := partialSource
+          value
+        }
+
+      if ((mode > 1).named("g_partial_inner", "g_partial_shallow")) {
+        partialSource := din
+        val innerUse = Bool().setName("partial_inner_use")
+        innerUse := cachedDriver
+        val innerSink = new CachedDriverSink
+        innerSink.setName("partial_inner_sink")
+        innerSink.din := innerUse
+      } else {
+        val shallowSink = new CachedDriverSink
+        shallowSink.setName("partial_shallow_sink")
+        shallowSink.din := din
+      }
+
+      val outerUse = Bool().setName("partial_outer_use")
+      outerUse := cachedDriver
+      observed := outerUse
+    } else {
+      observed := din
+    }
+  }
+
   final class AnonymousCastHelperOwnership(mode: HdlInt) extends Component {
     setDefinitionName("CapturedAnonymousCastHelperOwnership")
 
@@ -532,6 +722,143 @@ class CapturedAssignmentNormalizationTests extends AnyFunSuite {
           "wire[7:0]for_ancestor_value"
         )
       )
+    }
+  }
+
+  test("a child-first cached driver is promoted to its consuming ancestor") {
+    withTemporaryDirectory { directory =>
+      val mode = HdlInt.param("MODE", default = 2, min = 0, max = 2)
+      val verilog = emitMorph(
+        directory,
+        "captured_child_first_cached_driver.v",
+        new ChildFirstCachedDriver(mode)
+      )
+
+      val outerStart = verilog.indexOf("begin : g_cached_outer")
+      val innerStart = verilog.indexOf("begin : g_cached_inner")
+      val outerFalse = verilog.indexOf("begin : g_cached_absent")
+      assert(
+        outerStart >= 0 && innerStart > outerStart && outerFalse > innerStart
+      )
+
+      val outerPrefix = verilog.substring(outerStart, innerStart)
+      val nestedBody = verilog.substring(innerStart, outerFalse)
+      val compactVerilog = verilog.replaceAll("\\s+", "")
+      val compactOuterPrefix = outerPrefix.replaceAll("\\s+", "")
+      val compactNestedBody = nestedBody.replaceAll("\\s+", "")
+
+      assert(compactOuterPrefix.contains("wirecached_driver;"))
+      assert(compactOuterPrefix.contains("assigncached_driver=din;"))
+      assert(compactOuterPrefix.contains("assignouter_use=cached_driver;"))
+      assert(occurrences(compactVerilog, "wirecached_driver;") == 1)
+      assert(
+        occurrences(compactVerilog, "assigncached_driver=din;") == 1
+      )
+      assert(!compactNestedBody.contains("wirecached_driver;"))
+      assert(!compactNestedBody.contains("assigncached_driver=din;"))
+      assert(compactNestedBody.contains("assigninner_use=cached_driver;"))
+    }
+  }
+
+  test("a raw-control-only ancestor consumer fails closed") {
+    withTemporaryDirectory { directory =>
+      val mode = HdlInt.param("MODE", default = 2, min = 0, max = 2)
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      val fileName = "captured_raw_control_only_cached_driver.v"
+      config.netlistFileName = fileName
+
+      MorphVerilog.tryGenerate(config) {
+        new RawControlOnlyCachedDriver(mode)
+      } match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-DOMINANCE-UNPROVEN"
+            ),
+            failure.detail
+          )
+        case Right(report) =>
+          fail(s"Expected raw-control dominance failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve(fileName)))
+    }
+  }
+
+  test("Vec-cloned drivers retain one owner for raw-control dominance") {
+    withTemporaryDirectory { directory =>
+      val mode = HdlInt.param("MODE", default = 1, min = 0, max = 1)
+      val lanes = HdlInt.param("LANES", default = 2, min = 1, max = 2)
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      val fileName = "captured_vec_duplicated_raw_control_driver.v"
+      config.netlistFileName = fileName
+
+      MorphVerilog.tryGenerate(config) {
+        new VecDuplicatedRawControlCachedDriver(mode, lanes)
+      } match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-DOMINANCE-UNPROVEN"
+            ),
+            failure.detail
+          )
+          assert(failure.detail.contains("vec_raw_control_driver"), failure.detail)
+        case Right(report) =>
+          fail(s"Expected Vec-cloned raw-control dominance failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve(fileName)))
+    }
+  }
+
+  test("single-value Vec-scoped direct driver fails closed") {
+    withTemporaryDirectory { directory =>
+      val mode = HdlInt.param("MODE", default = 1, min = 0, max = 1)
+      val lanes = HdlInt.param("LANES", default = 1, min = 1, max = 1)
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      val fileName = "captured_vec_scoped_promoted_driver.v"
+      config.netlistFileName = fileName
+
+      MorphVerilog.tryGenerate(config) {
+        new VecScopedNestedConsumer(mode, lanes)
+      } match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-DOMINANCE-UNPROVEN"
+            ),
+            failure.detail
+          )
+          assert(failure.detail.contains("vec_scoped_driver"), failure.detail)
+        case Right(report) =>
+          fail(s"Expected Vec-scoped dominance failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve(fileName)))
+    }
+  }
+
+  test("promotion rejects an internal RHS with only a deeper producer") {
+    withTemporaryDirectory { directory =>
+      val mode = HdlInt.param("MODE", default = 2, min = 0, max = 2)
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      val fileName = "captured_partial_producer_rhs_promotion.v"
+      config.netlistFileName = fileName
+
+      MorphVerilog.tryGenerate(config) {
+        new PartialProducerRhsPromotion(mode)
+      } match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-DOMINANCE-UNPROVEN"
+            ),
+            failure.detail
+          )
+          assert(failure.detail.contains("partial_cached_driver"), failure.detail)
+          assert(failure.detail.contains("rhsSourcesAvailable=false"), failure.detail)
+        case Right(report) =>
+          fail(s"Expected partial-producer promotion failure, received $report")
+      }
+      assert(!Files.exists(directory.resolve(fileName)))
     }
   }
 

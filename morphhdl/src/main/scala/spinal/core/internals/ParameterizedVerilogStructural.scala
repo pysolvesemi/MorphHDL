@@ -31,15 +31,24 @@ private[internals] object ParameterizedVerilogStructural {
       sourceBooleanLiteral: Option[BigInt]
   )
 
+  private final case class ContinuousAssignmentPromotionProof(
+      target: String,
+      declarationLine: Int,
+      promotedOwner: ParameterizedStructuralBlock,
+      rhsNames: Set[String]
+  )
+
   private final case class ContinuousAssignmentResolution(
       owners: Map[Int, ParameterizedStructuralBlock],
-      moduleScopeLines: Set[Int]
+      moduleScopeLines: Set[Int],
+      promotions: Map[Int, ContinuousAssignmentPromotionProof]
   ) {
-    def isEmpty: Boolean = owners.isEmpty && moduleScopeLines.isEmpty
+    def isEmpty: Boolean =
+      owners.isEmpty && moduleScopeLines.isEmpty && promotions.isEmpty
   }
 
   private object ContinuousAssignmentResolution {
-    val empty = ContinuousAssignmentResolution(Map.empty, Set.empty)
+    val empty = ContinuousAssignmentResolution(Map.empty, Set.empty, Map.empty)
   }
 
   private final case class BlockPlan(
@@ -89,7 +98,12 @@ private[internals] object ParameterizedVerilogStructural {
       )
     }
 
-    val portNames = component.getOrdredNodeIo.toVector
+    val componentPorts = component.getOrdredNodeIo.toVector
+    val portNames = componentPorts
+      .flatMap(port => Option(port.getName()))
+      .toSet
+    val inputPortNames = componentPorts
+      .filter(_.dir == in)
       .flatMap(port => Option(port.getName()))
       .toSet
     val parameters = mergeParameters(
@@ -143,7 +157,9 @@ private[internals] object ParameterizedVerilogStructural {
       lines,
       alternativePaths,
       containmentPaths,
-      portNames ++ parameters.map(_.name)
+      portNames ++ parameters.map(_.name),
+      inputPortNames ++ parameters.map(_.name),
+      parameters.map(_.name).toSet
     )
     val rawPlans =
       if (continuousResolution.isEmpty) preliminaryPlans
@@ -163,6 +179,12 @@ private[internals] object ParameterizedVerilogStructural {
       )
     validateBranchLocalReferences(resolvedPlans, lines)
     val plans = resolvedPlans.map(finalizePlan)
+    validateContinuousAssignmentDominance(
+      plans,
+      lines,
+      containmentPaths,
+      continuousResolution
+    )
     val allRanges = plans.flatMap(_.ranges)
     allRanges.combinations(2).foreach {
       case Vector(left, right)
@@ -741,16 +763,125 @@ private[internals] object ParameterizedVerilogStructural {
     "(?i)'[01xz]".r
 
   private val VerilogSystemIdentifier =
-    "\\$([A-Za-z_][A-Za-z0-9_$]*)".r
+    "(?<![A-Za-z0-9_$])\\$([A-Za-z_][A-Za-z0-9_$]*)".r
 
   private val VerilogCallIdentifier =
-    "([A-Za-z_][A-Za-z0-9_$]*)\\s*\\(".r
+    "([A-Za-z_][A-Za-z0-9_$]*)[ \\t]*\\(".r
 
   private val VerilogHierarchicalReference =
     "[A-Za-z_][A-Za-z0-9_$]*(?:\\.[A-Za-z_][A-Za-z0-9_$]*)+".r
 
   private def identifierTokens(value: String): Set[String] =
     VerilogIdentifier.findAllIn(value).filterNot(VerilogWords).toSet
+
+  /** Remove non-code lexical regions without hiding identifiers passed to a
+    * native call or instance connection. Strings are erased before comments
+    * so a `//` embedded in a message cannot truncate a later real reference.
+    */
+  private def verilogReferenceText(value: String): String = {
+    val withoutStrings = VerilogStringLiteral.replaceAllIn(
+      value,
+      matched =>
+        matched.matched.map(character => if (character == '\n') '\n' else ' ')
+    )
+    val withoutComments = new StringBuilder(withoutStrings.length)
+    var index = 0
+    var blockComment = false
+    while (index < withoutStrings.length) {
+      if (blockComment) {
+        if (
+          index + 1 < withoutStrings.length &&
+          withoutStrings.charAt(index) == '*' &&
+          withoutStrings.charAt(index + 1) == '/'
+        ) {
+          withoutComments.append("  ")
+          index += 2
+          blockComment = false
+        } else {
+          val current = withoutStrings.charAt(index)
+          withoutComments.append(if (current == '\n') '\n' else ' ')
+          index += 1
+        }
+      } else if (
+        index + 1 < withoutStrings.length &&
+        withoutStrings.charAt(index) == '/' &&
+        withoutStrings.charAt(index + 1) == '/'
+      ) {
+        withoutComments.append("  ")
+        index += 2
+        while (
+          index < withoutStrings.length &&
+          withoutStrings.charAt(index) != '\n'
+        ) {
+          withoutComments.append(' ')
+          index += 1
+        }
+      } else if (
+        index + 1 < withoutStrings.length &&
+        withoutStrings.charAt(index) == '/' &&
+        withoutStrings.charAt(index + 1) == '*'
+      ) {
+        withoutComments.append("  ")
+        index += 2
+        blockComment = true
+      } else {
+        withoutComments.append(withoutStrings.charAt(index))
+        index += 1
+      }
+    }
+    val withoutBased = VerilogBasedLiteral.replaceAllIn(
+      withoutComments.result(),
+      matched => " " * matched.matched.length
+    )
+    VerilogUnbasedLiteral.replaceAllIn(
+      withoutBased,
+      matched => " " * matched.matched.length
+    )
+  }
+
+  private val VerilogSimpleInstanceHeader =
+    "(?m)^[ \\t]*[A-Za-z_][A-Za-z0-9_$]*[ \\t]+[A-Za-z_][A-Za-z0-9_$]*[ \\t]*\\(".r
+
+  private val VerilogParameterizedInstanceHeader =
+    "(?m)^[ \\t]*[A-Za-z_][A-Za-z0-9_$]*[ \\t]*#[ \\t]*\\(".r
+
+  private val VerilogNamedBlockLabel =
+    "(?m)\\bbegin[ \\t]*:[ \\t]*([A-Za-z_][A-Za-z0-9_$]*)".r
+
+  private def blankVerilogSyntax(value: String): String =
+    value.map(character => if (character == '\n') '\n' else ' ')
+
+  private[internals] def verilogReferenceNames(value: String): Set[String] = {
+    val lexical = verilogReferenceText(value)
+    val withoutHierarchy = VerilogHierarchicalReference.replaceAllIn(
+      lexical,
+      matched => blankVerilogSyntax(matched.matched)
+    )
+    val withoutInstances = VerilogSimpleInstanceHeader.replaceAllIn(
+      VerilogParameterizedInstanceHeader.replaceAllIn(
+        withoutHierarchy,
+        matched => blankVerilogSyntax(matched.matched)
+      ),
+      matched => blankVerilogSyntax(matched.matched)
+    )
+    val withoutSystem = VerilogSystemIdentifier.replaceAllIn(
+      withoutInstances,
+      matched => blankVerilogSyntax(matched.matched)
+    )
+    val withoutCallees = VerilogCallIdentifier.replaceAllIn(
+      withoutSystem,
+      matched => {
+        val openingParenthesis = matched.matched.lastIndexOf('(')
+        blankVerilogSyntax(matched.matched.substring(0, openingParenthesis)) +
+          matched.matched.substring(openingParenthesis)
+      }
+    )
+    val withoutLabels = VerilogNamedBlockLabel.replaceAllIn(
+      withoutCallees,
+      matched => blankVerilogSyntax(matched.matched)
+    )
+    identifierTokens(withoutLabels)
+  }
 
   private def sanitizedIdentifierTokens(value: String): Set[String] = {
     val withoutStrings = VerilogStringLiteral.replaceAllIn(value, " ")
@@ -798,6 +929,89 @@ private[internals] object ParameterizedVerilogStructural {
     }
   }
 
+  /** Promotion is allowed only when every identifier in a whole-target driver
+    * can be enumerated without interpreting Verilog scoping or call syntax.
+    * The ordinary ownership path may still retain richer native expressions;
+    * this predicate is deliberately specific to moving a driver outward.
+    */
+  private val PortableBooleanToken =
+    """1'[bB][01]|&&|\|\||[!~&|^()]|[A-Za-z_][A-Za-z0-9_$]*""".r
+
+  private def portableBooleanExpression(
+      value: String,
+      expectedNames: Set[String]
+  ): Boolean = {
+    val matches = PortableBooleanToken.findAllMatchIn(value).toVector
+    val tokens = matches.map(_.matched)
+    var cursor = 0
+    val tokensCoverExpression = matches.forall { matched =>
+      val gapIsWhitespace =
+        value.substring(cursor, matched.start).forall(_.isWhitespace)
+      cursor = matched.end
+      gapIsWhitespace
+    } && value.substring(cursor).forall(_.isWhitespace)
+    if (!tokensCoverExpression || tokens.isEmpty) return false
+
+    var position = 0
+    def isIdentifier(token: String): Boolean =
+      VerilogIdentifier.pattern.matcher(token).matches()
+    def isLiteral(token: String): Boolean =
+      token.matches("1'[bB][01]")
+    def parsePrimary(): Boolean = {
+      if (position >= tokens.size) false
+      else if (isIdentifier(tokens(position)) || isLiteral(tokens(position))) {
+        position += 1
+        true
+      } else if (tokens(position) == "(") {
+        position += 1
+        val nested = parseExpression()
+        if (nested && position < tokens.size && tokens(position) == ")") {
+          position += 1
+          true
+        } else false
+      } else false
+    }
+    def parseUnary(): Boolean = {
+      while (
+        position < tokens.size &&
+        (tokens(position) == "!" || tokens(position) == "~")
+      ) position += 1
+      parsePrimary()
+    }
+    def parseExpression(): Boolean = {
+      if (!parseUnary()) false
+      else {
+        var valid = true
+        while (
+          valid && position < tokens.size &&
+          Set("&&", "||", "&", "|", "^")(tokens(position))
+        ) {
+          position += 1
+          valid = parseUnary()
+        }
+        valid
+      }
+    }
+
+    val syntaxValid = parseExpression() && position == tokens.size
+    val identifierNames = tokens.filter(isIdentifier).filterNot(VerilogWords).toSet
+    syntaxValid && identifierNames == expectedNames
+  }
+
+  private def portableWholeContinuousDriver(
+      lhsSelection: String,
+      rhsText: String,
+      rhsNames: Set[String]
+  ): Boolean =
+    Option(lhsSelection).forall(_.trim.isEmpty) &&
+      !rhsText.contains('\\') &&
+      VerilogStringLiteral.findFirstIn(rhsText).isEmpty &&
+      VerilogSystemIdentifier.findFirstIn(rhsText).isEmpty &&
+      VerilogCallIdentifier.findFirstIn(rhsText).isEmpty &&
+      VerilogHierarchicalReference.findFirstIn(rhsText).isEmpty &&
+      sanitizedIdentifierTokens(rhsText) == rhsNames &&
+      portableBooleanExpression(rhsText, rhsNames)
+
   private def sharedContinuousAssignmentResolution(
       plans: Vector[BlockPlan],
       lines: Vector[String],
@@ -806,13 +1020,19 @@ private[internals] object ParameterizedVerilogStructural {
         ParameterizedStructuralBlock,
         Vector[ParameterizedStructuralBlock]
       ],
-      moduleScopeNames: Set[String]
+      moduleScopeNames: Set[String],
+      intrinsicSourceNames: Set[String],
+      parameterNames: Set[String]
   ): ContinuousAssignmentResolution = {
     val claims = planClaimsByLine(plans)
     val proceduralRanges = proceduralBlocks(lines, None)
 
     val owners = mutable.LinkedHashMap.empty[Int, ParameterizedStructuralBlock]
     val moduleScopeLines = mutable.LinkedHashSet.empty[Int]
+    val promotions = mutable.LinkedHashMap.empty[
+      Int,
+      ContinuousAssignmentPromotionProof
+    ]
     def uniqueMostSpecificOwner(
         candidates: Vector[BlockPlan]
     ): Option[BlockPlan] = {
@@ -898,7 +1118,207 @@ private[internals] object ParameterizedVerilogStructural {
             claimed.size > 1 || pathCandidates.nonEmpty
           if (needsResolution) pathOwner.toVector match {
             case Vector(owner) =>
-              owners(index) = owner.block
+              val ownerPath =
+                containmentPathOf(owner.block, containmentPaths)
+              val targetDemandOwners = plans.filter { plan =>
+                plan.assignmentEvidence.exists { evidence =>
+                  evidence.sourceNames(target)
+                }
+              }
+              val undominatedDemandOwners = targetDemandOwners.filterNot { demand =>
+                containmentPrefix(
+                  ownerPath,
+                  containmentPathOf(demand.block, containmentPaths)
+                )
+              }
+              if (undominatedDemandOwners.isEmpty) owners(index) = owner.block
+              else {
+                val rhsText = statement.group(3)
+                val portableWholeDriver =
+                  portableWholeContinuousDriver(
+                    statement.group(2),
+                    rhsText,
+                    rhsNames
+                  )
+                val targetDeclarationLines = lines.zipWithIndex.collect {
+                  case (candidate, declarationIndex)
+                      if standaloneDeclarationName(candidate).contains(target) =>
+                    declarationIndex
+                }
+                val continuousDriverLines = lines.zipWithIndex.collect {
+                  case (candidate, driverIndex)
+                      if DirectContinuousAssignment
+                        .findFirstMatchIn(stripLineComment(candidate).trim)
+                        .exists(_.group(1) == target) =>
+                    driverIndex
+                }
+                val claimantBlocks = claimed.map(_.block).toSet
+                val declarationClaimants = targetDeclarationLines match {
+                  case Vector(declarationIndex) =>
+                    Some(
+                      claims
+                        .getOrElse(declarationIndex, Vector.empty)
+                        .map(_.block)
+                        .toSet
+                    )
+                  case _ => None
+                }
+                val exactDemandsClaimed =
+                  targetDemandOwners.nonEmpty && targetDemandOwners.forall { demand =>
+                    claimantBlocks(demand.block)
+                  }
+                val promotedOwner =
+                  leastCommonContainingBlock(
+                    claimed.map(_.block),
+                    containmentPaths
+                  )
+                val promotedOwnerDominatesProof = promotedOwner.exists { promoted =>
+                  val promotedPath =
+                    containmentPathOf(promoted, containmentPaths)
+                  (claimed ++ targetDemandOwners).forall { plan =>
+                    containmentPrefix(
+                      promotedPath,
+                      containmentPathOf(plan.block, containmentPaths)
+                    )
+                  }
+                }
+
+                def declarationVisibleAt(
+                    name: String,
+                    promoted: ParameterizedStructuralBlock
+                ): Boolean = {
+                  if (parameterNames(name)) return true
+                  val declarationLines = lines.zipWithIndex.collect {
+                    case (candidate, declarationIndex)
+                        if standaloneDeclarationName(candidate).contains(name) =>
+                      declarationIndex
+                  }
+                  val portDeclarationLines = lines.zipWithIndex.collect {
+                    case (candidate, declarationIndex)
+                        if portDeclarationName(candidate).contains(name) =>
+                      declarationIndex
+                  }
+                  (declarationLines, portDeclarationLines) match {
+                    case (Vector(), Vector(portDeclarationIndex)) =>
+                      declarationIsScalar(lines(portDeclarationIndex))
+                    case (Vector(declarationIndex), Vector()) =>
+                      if (
+                        proceduralRanges.exists(
+                          _.indices.contains(declarationIndex)
+                        )
+                      ) false
+                      else if (!declarationIsScalar(lines(declarationIndex)))
+                        false
+                      else {
+                        val declarationOwners = claims
+                          .getOrElse(declarationIndex, Vector.empty)
+                          .map(_.block)
+                          .distinct
+                        if (declarationOwners.isEmpty) true
+                        else
+                          leastCommonContainingBlock(
+                            declarationOwners,
+                            containmentPaths
+                          ).exists { declarationOwner =>
+                            containmentPrefix(
+                              containmentPathOf(
+                                declarationOwner,
+                                containmentPaths
+                              ),
+                              containmentPathOf(promoted, containmentPaths)
+                            )
+                          }
+                      }
+                    case _ => false
+                  }
+                }
+
+                def sourceProducedAt(
+                    name: String,
+                    promoted: ParameterizedStructuralBlock
+                ): Boolean = {
+                  if (intrinsicSourceNames(name)) return true
+
+                  val exactProducers = plans.filter { plan =>
+                    plan.assignmentEvidence.exists(_.target == name) ||
+                    plan.childOutputActualNames(name)
+                  }
+                  var moduleScopeProducer = false
+                  val directProducers = lines.zipWithIndex.flatMap {
+                    case (candidate, producerIndex) =>
+                      val normalized = stripLineComment(candidate).trim
+                      val producedName =
+                        DirectContinuousAssignment
+                          .findFirstMatchIn(normalized)
+                          .map(_.group(1))
+                          .orElse(
+                            DirectProceduralAssignment
+                              .findFirstMatchIn(normalized)
+                              .map(_.group(1))
+                          )
+                      if (!producedName.contains(name)) Vector.empty
+                      else
+                        claims.getOrElse(producerIndex, Vector.empty).distinct match {
+                          case Vector() =>
+                            moduleScopeProducer = true
+                            Vector.empty
+                          case Vector(producer) => Vector(producer)
+                          case _                => Vector.empty
+                        }
+                  }
+                  val promotedPath =
+                    containmentPathOf(promoted, containmentPaths)
+                  moduleScopeProducer ||
+                  (exactProducers ++ directProducers).distinct.exists { producer =>
+                    containmentPrefix(
+                      containmentPathOf(producer.block, containmentPaths),
+                      promotedPath
+                    ) &&
+                    (producer.block.vecIndices.isEmpty ||
+                      (producer.block eq promoted))
+                  }
+                }
+
+                val rhsDeclarationsVisible = promotedOwner.exists { promoted =>
+                  rhsNames.forall(name => declarationVisibleAt(name, promoted))
+                }
+                val rhsSourcesAvailable = promotedOwner.exists { promoted =>
+                  rhsNames.forall(name => sourceProducedAt(name, promoted))
+                }
+                val declarationMatchesClaimants =
+                  declarationClaimants.contains(claimantBlocks)
+                val uniqueDriver = continuousDriverLines == Vector(index)
+                val targetDeclarationIsScalar =
+                  targetDeclarationLines match {
+                    case Vector(declarationIndex) =>
+                      declarationIsScalar(lines(declarationIndex))
+                    case _ => false
+                  }
+                val promotionProven =
+                  portableWholeDriver &&
+                    targetDeclarationLines.size == 1 &&
+                    targetDeclarationIsScalar &&
+                    declarationMatchesClaimants &&
+                    uniqueDriver &&
+                    exactDemandsClaimed &&
+                    promotedOwnerDominatesProof &&
+                    rhsDeclarationsVisible &&
+                    rhsSourcesAvailable
+                if (!promotionProven) {
+                  fail(
+                    "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-DOMINANCE-UNPROVEN",
+                    s"native continuous assignment at line ${index + 1} to '$target' is owned below ${undominatedDemandOwners.size} exact consuming blocks, but outward promotion is unproven; portableWholeDriver=$portableWholeDriver standaloneDeclarations=${targetDeclarationLines.size} targetDeclarationIsScalar=$targetDeclarationIsScalar declarationMatchesClaimants=$declarationMatchesClaimants continuousDrivers=${continuousDriverLines.size} exactDemandsClaimed=$exactDemandsClaimed promotedOwner=${promotedOwner.nonEmpty} promotedOwnerDominatesProof=$promotedOwnerDominatesProof rhsDeclarationsVisible=$rhsDeclarationsVisible rhsSourcesAvailable=$rhsSourcesAvailable rhs=[${rhsNames.toVector.sorted.mkString(",")}]"
+                  )
+                }
+                val promoted = promotedOwner.get
+                owners(index) = promoted
+                promotions(index) = ContinuousAssignmentPromotionProof(
+                  target,
+                  targetDeclarationLines.head,
+                  promoted,
+                  rhsNames
+                )
+              }
             case Vector()
                 if targetEvidenceOwners.isEmpty &&
                   targetOwners.isEmpty &&
@@ -965,7 +1385,11 @@ private[internals] object ParameterizedVerilogStructural {
         }
       }
     }
-    ContinuousAssignmentResolution(owners.toMap, moduleScopeLines.toSet)
+    ContinuousAssignmentResolution(
+      owners.toMap,
+      moduleScopeLines.toSet,
+      promotions.toMap
+    )
   }
 
   private def commonModuleScopeContinuousAssignment(
@@ -1063,6 +1487,264 @@ private[internals] object ParameterizedVerilogStructural {
           s"shared native continuous assignment at line ${index + 1} retained ${values.size} owners without a source-proven owner"
         )
       }
+
+  }
+
+  /** Ownership selection above uses exact captured assignment evidence. Native
+    * emission can also reference a helper from an instance actual, condition,
+    * or other raw module item, so validate lexical dominance again after
+    * shared declarations and procedural processes have reached final owners.
+    */
+  private def validateContinuousAssignmentDominance(
+      plans: Vector[BlockPlan],
+      lines: Vector[String],
+      containmentPaths: Map[
+        ParameterizedStructuralBlock,
+        Vector[ParameterizedStructuralBlock]
+      ],
+      resolution: ContinuousAssignmentResolution
+  ): Unit = {
+    val claims = planClaimsByLine(plans)
+    val capturedIndices = plans.flatMap(_.ranges).flatMap(_.indices).toSet
+    val lexicalLines =
+      verilogReferenceText(lines.mkString("\n")).split("\n", -1).toVector
+    if (lexicalLines.size != lines.size) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-DOMINANCE-UNPROVEN",
+        s"native lexical reference scan produced ${lexicalLines.size} lines for ${lines.size} source lines"
+      )
+    }
+
+    def ownerBlocks(index: Int): Vector[ParameterizedStructuralBlock] =
+      claims
+        .getOrElse(index, Vector.empty)
+        .map(_.block)
+        .distinct
+
+    def exactOwner(
+        index: Int,
+        target: String,
+        kind: String
+    ): Option[ParameterizedStructuralBlock] = {
+      val owners = ownerBlocks(index)
+      owners match {
+        case Vector()      => None
+        case Vector(owner) => Some(owner)
+        case _ =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-DOMINANCE-UNPROVEN",
+            s"native $kind for continuously driven '$target' at line ${index + 1} has ${owners.size} resolved structural owners; module scope or one exact owner is required"
+          )
+      }
+    }
+
+    def lineDefinesName(line: String, name: String): Boolean = {
+      val normalized = stripLineComment(line).trim
+      standaloneDeclarationName(normalized).contains(name) ||
+      portDeclarationName(normalized).contains(name) ||
+      DirectContinuousAssignment
+        .findFirstMatchIn(normalized)
+        .exists(_.group(1) == name)
+    }
+
+    def bodyConsumesName(body: String, name: String): Boolean = {
+      val withoutDefinitions = verilogReferenceText(body)
+        .split("\n", -1)
+        .map { line =>
+          val normalized = line.trim
+          val isDefinition =
+            standaloneDeclarationName(normalized).contains(name) ||
+              DirectContinuousAssignment
+                .findFirstMatchIn(normalized)
+                .exists(_.group(1) == name)
+          if (isDefinition) "" else line
+        }
+        .mkString("\n")
+      verilogReferenceNames(withoutDefinitions)(name)
+    }
+
+    def validateDriverConsumers(
+        target: String,
+        driverLocation: String,
+        owner: ParameterizedStructuralBlock,
+        role: String
+    ): Unit = {
+      val ownerPath = containmentPathOf(owner, containmentPaths)
+      val undominatedConsumers = plans.filter { plan =>
+        bodyConsumesName(plan.body, target) &&
+        ((owner.vecIndices.nonEmpty && !(plan.block eq owner)) ||
+          !containmentPrefix(
+            ownerPath,
+            containmentPathOf(plan.block, containmentPaths)
+          ))
+      }
+      if (undominatedConsumers.nonEmpty) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-DOMINANCE-UNPROVEN",
+          s"$role structural continuous driver for '$target' at $driverLocation does not dominate ${undominatedConsumers.size} resolved bodies that consume it"
+        )
+      }
+      lexicalLines.indices
+        .collectFirst {
+          case index
+              if !capturedIndices(index) &&
+                !lineDefinesName(lexicalLines(index), target) &&
+                verilogReferenceNames(lexicalLines(index))(target) =>
+            index -> lines(index).trim
+        }
+        .foreach { case (index, line) =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-DOMINANCE-UNPROVEN",
+            s"$role structural continuous driver for '$target' at $driverLocation does not dominate module-scope reference at line ${index + 1}: '$line'"
+          )
+        }
+    }
+
+    resolution.promotions.toVector.sortBy(_._1).foreach { case (driverIndex, proof) =>
+      val target = proof.target
+      DirectContinuousAssignment
+        .findFirstMatchIn(stripLineComment(lines(driverIndex)).trim)
+        .getOrElse {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-PROMOTION-PROOF-MISMATCH",
+            s"promoted native continuous assignment at line ${driverIndex + 1} is absent after structural process resolution"
+          )
+        }
+      val targetDriverLines = lines.zipWithIndex.collect {
+        case (line, index)
+            if DirectContinuousAssignment
+              .findFirstMatchIn(stripLineComment(line).trim)
+              .exists(_.group(1) == target) =>
+          index
+      }
+      if (targetDriverLines != Vector(driverIndex)) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-DOMINANCE-UNPROVEN",
+          s"promoted captured name '$target' has ${targetDriverLines.size} native continuous drivers after replay; its recorded driver at line ${driverIndex + 1} must be unique"
+        )
+      }
+      val declarationLines = lines.zipWithIndex.collect {
+        case (line, index) if standaloneDeclarationName(line).contains(target) =>
+          index
+      }
+      if (declarationLines != Vector(proof.declarationLine)) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-DOMINANCE-UNPROVEN",
+          s"promoted captured name '$target' has ${declarationLines.size} exact standalone native declarations; only its recorded declaration at line ${proof.declarationLine + 1} is permitted"
+        )
+      }
+      val declarationIndex = proof.declarationLine
+      val driverOwner = exactOwner(driverIndex, target, "driver")
+      val declarationOwner =
+        exactOwner(declarationIndex, target, "declaration")
+
+      if (!driverOwner.exists(_ eq proof.promotedOwner)) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-PROMOTION-PROOF-MISMATCH",
+          s"promoted continuous driver for '$target' at line ${driverIndex + 1} is not retained by its recorded structural owner"
+        )
+      }
+
+      val declarationDominatesDriver =
+        (declarationOwner, driverOwner) match {
+          case (None, _)       => true
+          case (Some(_), None) => false
+          case (Some(declaration), Some(driver)) =>
+            containmentPrefix(
+              containmentPathOf(declaration, containmentPaths),
+              containmentPathOf(driver, containmentPaths)
+            )
+        }
+      if (!declarationDominatesDriver) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-DOMINANCE-UNPROVEN",
+          s"standalone declaration for '$target' at line ${declarationIndex + 1} does not lexically dominate its continuous driver at line ${driverIndex + 1}"
+        )
+      }
+
+      val owner = driverOwner.get
+      validateDriverConsumers(
+        target,
+        s"line ${driverIndex + 1}",
+        owner,
+        "promoted"
+      )
+
+      val ownerPlans = plans.filter(plan => plan.block eq owner)
+      if (ownerPlans.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-PROMOTION-PROOF-MISMATCH",
+          s"promoted continuous driver for '$target' at line ${driverIndex + 1} has ${ownerPlans.size} finalized owner plans; exactly one is required"
+        )
+      }
+      val ownerBodyLines = ownerPlans.head.body.split("\n", -1).toVector
+      val emittedDeclarations = ownerBodyLines.filter { line =>
+        standaloneDeclarationName(line).contains(target)
+      }
+      if (emittedDeclarations.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-PROMOTION-PROOF-MISMATCH",
+          s"promoted continuous driver for '$target' at line ${driverIndex + 1} has ${emittedDeclarations.size} finalized owner-body declarations; exactly one is required"
+        )
+      }
+      val emittedDrivers = ownerBodyLines
+        .flatMap { line =>
+          DirectContinuousAssignment
+            .findFirstMatchIn(stripLineComment(line).trim)
+            .filter(_.group(1) == target)
+        }
+      if (emittedDrivers.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-PROMOTION-PROOF-MISMATCH",
+          s"promoted continuous driver for '$target' at line ${driverIndex + 1} has ${emittedDrivers.size} finalized owner-body statements; exactly one is required"
+        )
+      }
+      val statement = emittedDrivers.head
+
+      val rhsNames =
+        continuousAssignmentSourceTokens(statement.group(3), target)
+      val portableWholeDriver = portableWholeContinuousDriver(
+        statement.group(2),
+        statement.group(3),
+        rhsNames
+      )
+      if (
+        proof.rhsNames != rhsNames || !portableWholeDriver
+      ) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-PROMOTION-PROOF-MISMATCH",
+          s"resolved continuous driver for '$target' at line ${driverIndex + 1} no longer satisfies its recorded outward-promotion proof; portableWholeDriver=$portableWholeDriver"
+        )
+      }
+    }
+
+    val promotedTargets = resolution.promotions.values.map(_.target).toSet
+    val directDrivers = plans
+      .flatMap { plan =>
+        plan.body
+          .split("\n", -1)
+          .flatMap { line =>
+            DirectContinuousAssignment
+              .findFirstMatchIn(stripLineComment(line).trim)
+              .map(statement => statement.group(1) -> plan.block)
+          }
+      }
+      .groupBy(_._1)
+      .map { case (target, values) =>
+        target -> values.map(_._2).distinct
+      }
+    directDrivers.toVector.sortBy(_._1).foreach {
+      case (target, Vector(owner)) if !promotedTargets(target) =>
+        validateDriverConsumers(
+          target,
+          "its finalized owner body",
+          owner,
+          "uniquely owned"
+        )
+      case _ =>
+        // Multiple direct drivers are outside this narrow dominance proof.
+        ()
+    }
   }
 
   private def removeUniqueProcess(
@@ -2465,6 +3147,38 @@ private[internals] object ParameterizedVerilogStructural {
     declaration.endsWith(";") &&
     declaration.count(_ == ';') == 1 &&
     !declaration.dropRight(1).contains("=")
+  }
+
+  private val StandaloneDeclaration =
+    """^(?:wire|reg|integer)\b(?:\s+(?:signed|unsigned))*\s*(?:\[[^\]]+\]\s*)?([A-Za-z_][A-Za-z0-9_$]*)(?:\s*\[[^\]]+\])*\s*;\s*$""".r
+
+  private val PortDeclaration =
+    """^(?:input|output|inout)\b(?:\s+(?:wire|reg|signed|unsigned))*\s*(?:\[[^\]]+\]\s*)?([A-Za-z_][A-Za-z0-9_$]*)(?:\s*\[[^\]]+\])*\s*[,;]?\s*$""".r
+
+  /** Return the declarator, excluding identifiers used only in its widths. */
+  private def standaloneDeclarationName(value: String): Option[String] = {
+    val declaration =
+      stripLeadingVerilogAttributes(stripLineComment(value)).trim
+    if (!isStandaloneDeclarationLine(declaration)) None
+    else
+      declaration match {
+        case StandaloneDeclaration(name) => Some(name)
+        case _                           => None
+      }
+  }
+
+  private def portDeclarationName(value: String): Option[String] =
+    stripLeadingVerilogAttributes(stripLineComment(value)).trim match {
+      case PortDeclaration(name) => Some(name)
+      case _                     => None
+    }
+
+  private def declarationIsScalar(value: String): Boolean = {
+    val declaration =
+      stripLeadingVerilogAttributes(stripLineComment(value)).trim
+    !declaration.contains("[") &&
+    (standaloneDeclarationName(declaration).nonEmpty ||
+      portDeclarationName(declaration).nonEmpty)
   }
 
   private def identifiers(value: String): Vector[String] =
