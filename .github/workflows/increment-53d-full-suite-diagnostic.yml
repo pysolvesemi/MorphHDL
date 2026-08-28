@@ -1,0 +1,105 @@
+name: Diagnose Increment 53d inherited suite
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-native-streamwidth-adapter
+    paths:
+      - .github/workflows/increment-53d-full-suite-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Failure-only diagnostic Scala ${{ matrix.scala_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
+    steps:
+      - name: Check out exact Increment 53d head
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-native-streamwidth-adapter
+          fetch-depth: 0
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run full inherited suite and print only failure contexts
+        shell: bash
+        run: |
+          set +e
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.ParameterizedStreamWidthAdapterTests \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.BackendSyncMergeIsolationTests \
+            morphhdl.CapturedAssignmentNormalizationTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.NativeMemAutoProvenanceTests \
+            morphhdl.ExternalNativeIntFormalizationTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowProvenanceTests \
+            morphhdl.FormalParameterIdentityTests \
+            morphhdl.FormalParameterClonePropagationTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.integration.ExternalSpinalVerilogBaselineTests \
+            > /tmp/increment-53d-full-suite.log 2>&1
+          status=$?
+          set -e
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('/tmp/increment-53d-full-suite.log')
+          lines = path.read_text(errors='replace').splitlines()
+          markers = (
+              '*** FAILED ***',
+              '*** 1 TEST FAILED ***',
+              '*** 2 TESTS FAILED ***',
+              '[error]',
+              'tests failed',
+              'AssertionError',
+              'Exception',
+              'MORPH-',
+              'SPINAL-PARAMETERIZED-',
+          )
+          hits = [index for index, line in enumerate(lines) if any(marker in line for marker in markers)]
+          if not hits:
+              start = max(0, len(lines) - 240)
+              intervals = [(start, len(lines))]
+          else:
+              intervals = []
+              for hit in hits:
+                  start = max(0, hit - 12)
+                  end = min(len(lines), hit + 20)
+                  if intervals and start <= intervals[-1][1] + 2:
+                      intervals[-1] = (intervals[-1][0], max(intervals[-1][1], end))
+                  else:
+                      intervals.append((start, end))
+          print('===== INCREMENT 53D FAILURE CONTEXTS =====')
+          for number, (start, end) in enumerate(intervals, 1):
+              print(f'----- context {number}: lines {start + 1}-{end} -----')
+              for index in range(start, end):
+                  print(f'{index + 1:06d}: {lines[index]}')
+          print('===== END FAILURE CONTEXTS =====')
+          PY
+
+          exit "$status"
