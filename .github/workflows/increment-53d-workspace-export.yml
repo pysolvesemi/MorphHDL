@@ -25,48 +25,21 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import base64
           from pathlib import Path
 
           path = Path("morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala")
           text = path.read_text(encoding="utf-8")
-          old = '''            if (!source.isSymbolic) WidthLiteral(size)
-            else if (size <= source.minimum) WidthLiteral(size)
-            else {
-              fail(
-                "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-UNSUPPORTED",
-                s"resize from symbolic width '${source.render}' to ${resize.size} is not a domain-invariant narrowing; widening and domain-crossing resize lowering is deferred"
-              )
-            }
-'''
-          new = '''            if (!source.isSymbolic) WidthLiteral(size)
-            else if (size <= source.minimum) WidthLiteral(size)
-            else if (
-              size >= source.maximum &&
-              (resize.getTypeObject == TypeBits || resize.getTypeObject == TypeUInt)
-            ) {
-              // The untouched Verilog emitter gives every Resize node its
-              // fixed target width: nested resizes are wrapped in a target-sized
-              // temporary, while a top-level resize is consumed by its
-              // target-sized assignment. For Bits/UInt, a target no smaller
-              // than the complete symbolic source domain is therefore an
-              // invariant zero-extension/equality operation. The witness-sized
-              // leading-zero fragment remains semantically exact because the
-              // fixed target context supplies any remaining zero extension or
-              // discards only leading zeros. Signed widening is deliberately
-              // excluded because a witness-sized unsigned concatenation cannot
-              // prove sign extension for a smaller symbolic source.
-              WidthLiteral(size)
-            } else {
-              fail(
-                "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-UNSUPPORTED",
-                s"resize from symbolic width '${source.render}' to ${resize.size} is neither a domain-invariant narrowing nor an unsigned domain-invariant widening; domain-crossing and signed widening resize lowering are deferred"
-              )
-            }
-'''
-          count = text.count(old)
-          if count != 1:
-              raise SystemExit(f"expected one inferResize anchor, found {count}")
-          path.write_text(text.replace(old, new), encoding="utf-8")
+          start_marker = "      private def inferResize(resize: Resize): WidthExpr = {"
+          end_marker = "\n\n      private def inferFixedRange"
+          start = text.find(start_marker)
+          end = text.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit(f"inferResize method markers missing: start={start}, end={end}")
+          replacement = base64.b64decode(
+              "ICAgICAgcHJpdmF0ZSBkZWYgaW5mZXJSZXNpemUocmVzaXplOiBSZXNpemUpOiBXaWR0aEV4cHIgPSB7CiAgICAgICAgRXh0ZXJuYWxQYXJhbWV0ZXJpemVkQXV0b1Jlc2l6ZQogICAgICAgICAgLnN5bnRoZXRpY0Jvb2xlYW5SZXNpemVUYXJnZXQoY29tcG9uZW50LCByZXNpemUpCiAgICAgICAgICAubWFwKHRhcmdldCA9PiBvZkJhc2UodGFyZ2V0KSkKICAgICAgICAgIC5nZXRPckVsc2UgewogICAgICAgICAgICB2YWwgc291cmNlID0gb2ZFeHByZXNzaW9uKHJlc2l6ZS5pbnB1dCkKICAgICAgICAgICAgdmFsIHNpemUgPSBCaWdJbnQocmVzaXplLnNpemUpCiAgICAgICAgICAgIGlmICghc291cmNlLmlzU3ltYm9saWMpIFdpZHRoTGl0ZXJhbChzaXplKQogICAgICAgICAgICBlbHNlIGlmIChzaXplIDw9IHNvdXJjZS5taW5pbXVtKSBXaWR0aExpdGVyYWwoc2l6ZSkKICAgICAgICAgICAgZWxzZSBpZiAoCiAgICAgICAgICAgICAgc2l6ZSA+PSBzb3VyY2UubWF4aW11bSAmJgogICAgICAgICAgICAgIChyZXNpemUuZ2V0VHlwZU9iamVjdCA9PSBUeXBlQml0cyB8fCByZXNpemUuZ2V0VHlwZU9iamVjdCA9PSBUeXBlVUludCkKICAgICAgICAgICAgKSB7CiAgICAgICAgICAgICAgLy8gVGhlIHVudG91Y2hlZCBWZXJpbG9nIGVtaXR0ZXIgZ2l2ZXMgZXZlcnkgUmVzaXplIG5vZGUgaXRzCiAgICAgICAgICAgICAgLy8gZml4ZWQgdGFyZ2V0IHdpZHRoOiBuZXN0ZWQgcmVzaXplcyBhcmUgd3JhcHBlZCBpbiBhIHRhcmdldC1zaXplZAogICAgICAgICAgICAgIC8vIHRlbXBvcmFyeSwgd2hpbGUgYSB0b3AtbGV2ZWwgcmVzaXplIGlzIGNvbnN1bWVkIGJ5IGl0cwogICAgICAgICAgICAgIC8vIHRhcmdldC1zaXplZCBhc3NpZ25tZW50LiBGb3IgQml0cy9VSW50LCBhIHRhcmdldCBubyBzbWFsbGVyCiAgICAgICAgICAgICAgLy8gdGhhbiB0aGUgY29tcGxldGUgc3ltYm9saWMgc291cmNlIGRvbWFpbiBpcyB0aGVyZWZvcmUgYW4KICAgICAgICAgICAgICAvLyBpbnZhcmlhbnQgemVyby1leHRlbnNpb24vZXF1YWxpdHkgb3BlcmF0aW9uLiBUaGUgd2l0bmVzcy1zaXplZAogICAgICAgICAgICAgIC8vIGxlYWRpbmctemVybyBmcmFnbWVudCByZW1haW5zIHNlbWFudGljYWxseSBleGFjdCBiZWNhdXNlIHRoZQogICAgICAgICAgICAgIC8vIGZpeGVkIHRhcmdldCBjb250ZXh0IHN1cHBsaWVzIGFueSByZW1haW5pbmcgemVybyBleHRlbnNpb24gb3IKICAgICAgICAgICAgICAvLyBkaXNjYXJkcyBvbmx5IGxlYWRpbmcgemVyb3MuIFNpZ25lZCB3aWRlbmluZyBpcyBkZWxpYmVyYXRlbHkKICAgICAgICAgICAgICAvLyBleGNsdWRlZCBiZWNhdXNlIGEgd2l0bmVzcy1zaXplZCB1bnNpZ25lZCBjb25jYXRlbmF0aW9uIGNhbm5vdAogICAgICAgICAgICAgIC8vIHByb3ZlIHNpZ24gZXh0ZW5zaW9uIGZvciBhIHNtYWxsZXIgc3ltYm9saWMgc291cmNlLgogICAgICAgICAgICAgIFdpZHRoTGl0ZXJhbChzaXplKQogICAgICAgICAgICB9IGVsc2UgewogICAgICAgICAgICAgIGZhaWwoCiAgICAgICAgICAgICAgICAiU1BJTkFMLVBBUkFNRVRFUklaRUQtVkVSSUxPRy1SRVNJWkUtRE9NQUlOLVVOU1VQUE9SVEVEIiwKICAgICAgICAgICAgICAgIHMicmVzaXplIGZyb20gc3ltYm9saWMgd2lkdGggJyR7c291cmNlLnJlbmRlcn0nIHRvICR7cmVzaXplLnNpemV9IGlzIG5laXRoZXIgYSBkb21haW4taW52YXJpYW50IG5hcnJvd2luZyBub3IgYW4gdW5zaWduZWQgZG9tYWluLWludmFyaWFudCB3aWRlbmluZzsgZG9tYWluLWNyb3NzaW5nIGFuZCBzaWduZWQgd2lkZW5pbmcgcmVzaXplIGxvd2VyaW5nIGFyZSBkZWZlcnJlZCIKICAgICAgICAgICAgICApCiAgICAgICAgICAgIH0KICAgICAgICAgIH0KICAgICAgfQ=="
+          ).decode("utf-8")
+          path.write_text(text[:start] + replacement + text[end:], encoding="utf-8")
           PY
 
           rm -f .github/workflows/increment-53d-workspace-export.yml
