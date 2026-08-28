@@ -22,23 +22,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path("morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala")
-          text = path.read_text()
-          old = '''      val config = config(directory)
-      config.netlistFileName = "native_stream_width_adapter_independent.v"
-      val result = MorphVerilog.tryGenerate(config) {
-'''
-          new = '''      val spinalConfig = config(directory)
-      spinalConfig.netlistFileName = "native_stream_width_adapter_independent.v"
-      val result = MorphVerilog.tryGenerate(spinalConfig) {
-'''
-          if text.count(old) != 1:
-              raise SystemExit("expected exactly one fixture shadowing anchor")
-          path.write_text(text.replace(old, new))
-          PY
+          file=morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala
+          test "$(grep -c 'val config = config(directory)' "$file")" -eq 1
+          test "$(grep -c 'config.netlistFileName = "native_stream_width_adapter_independent.v"' "$file")" -eq 1
+          test "$(grep -c 'MorphVerilog.tryGenerate(config)' "$file")" -eq 1
+          sed -i 's/val config = config(directory)/val spinalConfig = config(directory)/' "$file"
+          sed -i 's/config.netlistFileName = "native_stream_width_adapter_independent.v"/spinalConfig.netlistFileName = "native_stream_width_adapter_independent.v"/' "$file"
+          sed -i 's/MorphVerilog.tryGenerate(config)/MorphVerilog.tryGenerate(spinalConfig)/' "$file"
           git diff --check
       - name: Commit fixture repair
         shell: bash
