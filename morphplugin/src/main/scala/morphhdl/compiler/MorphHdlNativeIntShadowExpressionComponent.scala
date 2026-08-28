@@ -1763,8 +1763,12 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
           }
         case Select(value, methodName) if helperOperations.contains(decoded(methodName)) =>
           rewriteUnary(tree, decoded(methodName), value, requestedName)
-        case Select(_, methodName) if unsupportedIntegerCalls.contains(decoded(methodName)) =>
-          firstTrackedInteger(tree)
+        case Select(value, methodName) if unsupportedIntegerCalls.contains(decoded(methodName)) =>
+          // A tracked Int nested somewhere below the receiver is not proof that
+          // the selected method operates on an Int. In particular,
+          // `subdivideIn(factor slices).reverse` is a collection reversal whose
+          // collection expression merely contains the symbolic `factor`.
+          trackedInteger(value)
             .map(rewriteUnsupportedKnownCall(tree, _, decoded(methodName)))
             .getOrElse(Rewrite(super.transform(tree)))
         case _ => Rewrite(super.transform(tree), intLiteral = literalInteger(tree).nonEmpty)
