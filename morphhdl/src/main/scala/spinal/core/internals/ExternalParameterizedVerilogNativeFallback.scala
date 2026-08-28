@@ -1427,9 +1427,51 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           WidthLiteral(1)
       }
 
+      /**
+        * A native BitVector.resize call materializes one weak-clone target whose
+        * direct driver is the exact Resize expression. The compiler bridge
+        * retains the symbolic target width on that native target object. Recover
+        * it by statement and object identity; never infer it from a matching
+        * witness width or emitted name.
+        */
+      private def retainedResizeTarget(resize: Resize): Option[BitVector] = {
+        var found: BitVector = null
+        assignments.foreach { assignment =>
+          if (
+            (assignment.source eq resize) &&
+            (assignment.target eq assignment.finalTarget)
+          ) {
+            assignment.target match {
+              case target: BitVector
+                  if (target.component eq component) &&
+                    target.isTypeNode && target.isComb &&
+                    target.isDirectionLess &&
+                    target.getBitsWidth == resize.size &&
+                    ParameterizedWidth.expressionOf(target).exists { expression =>
+                      expression.parameters.nonEmpty &&
+                      expression.default == BigInt(resize.size)
+                    } =>
+                if (found == null) found = target
+                else if (!(found eq target)) {
+                  fail(
+                    "SPINAL-PARAMETERIZED-VERILOG-RESIZE-TARGET-AMBIGUOUS",
+                    s"one native Resize expression drives multiple retained symbolic targets in component '${component.definitionName}'"
+                  )
+                }
+              case _ =>
+            }
+          }
+        }
+        Option(found)
+      }
+
       private def inferResize(resize: Resize): WidthExpr = {
-        ExternalParameterizedAutoResize
-          .syntheticBooleanResizeTarget(component, resize)
+        val retainedTarget =
+          ExternalParameterizedAutoResize
+            .syntheticBooleanResizeTarget(component, resize)
+            .map(target => target: BitVector)
+            .orElse(retainedResizeTarget(resize))
+        retainedTarget
           .map(target => ofBase(target))
           .getOrElse {
             val source = ofExpression(resize.input)
