@@ -83,7 +83,7 @@ jobs:
                   case resize: ResizeUInt =>
                     resize.getWidth == expectedWidth
                   case base: BaseType if base.hasTag(tagAutoResize) =>
-                    base.getWidth == expectedWidth
+                    base.getBitsWidth == expectedWidth
                   case base: BaseType =>
                     val drivers = directDriverExpressions(base, component)
                     drivers.size == 1 && walk(drivers.head)
