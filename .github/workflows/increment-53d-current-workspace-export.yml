@@ -37,4 +37,4 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-# Retriggered on the live Increment 53d head for exact-source diagnosis.
+# Retriggered after the focused adapter payload diagnosis for exact-source inspection.
