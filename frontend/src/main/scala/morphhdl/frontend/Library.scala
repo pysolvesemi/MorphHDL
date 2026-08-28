@@ -1,7 +1,13 @@
 package morphhdl.frontend
 
 import spinal.core._
-import spinal.lib.{Counter => NativeCounter, Flow => NativeFlow, Stream => NativeStream, StreamFifo => NativeStreamFifo}
+import spinal.lib.{
+  Counter => NativeCounter,
+  Flow => NativeFlow,
+  Stream => NativeStream,
+  StreamFifo => NativeStreamFifo,
+  StreamFifoCC => NativeStreamFifoCC
+}
 
 /** External MorphHDL adapters that return and execute ordinary SpinalHDL library objects. */
 object Counter {
@@ -70,6 +76,65 @@ object StreamFifo {
       line: sourcecode.Line
   ): NativeStreamFifo[T] =
     spinal.lib.StreamFifo(dataType, depth)
+}
+
+/**
+  * MorphHDL-owned construction boundary for the untouched native
+  * `spinal.lib.StreamFifoCC` implementation.
+  *
+  * Only the checked concrete witness crosses the native `depth: Int` API. The
+  * returned object is exactly `spinal.lib.StreamFifoCC[T]`; MorphHDL retains the
+  * formal/actual binding externally and does not provide another FIFO class.
+  */
+object StreamFifoCC {
+  def apply[T <: Data](
+      dataType: HardType[T],
+      depth: HdlInt,
+      pushClock: ClockDomain,
+      popClock: ClockDomain,
+      withPopBufferedReset: Boolean = ClockDomain.crossClockBufferPushToPopResetGen.get
+  )(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): NativeStreamFifoCC[T] = {
+    val origin = SourceOrigin.capture
+    val retained = HdlInt.nativeIntExpression(
+      depth,
+      "native StreamFifoCC depth",
+      origin
+    )
+    if (retained.minimum < 2) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-NATIVE-STREAMFIFOCC-DEPTH-DOMAIN-INVALID",
+        s"native StreamFifoCC depth '${retained.verilog}' must be at least 2 over its complete domain, received [${retained.minimum}, ${retained.maximum}]",
+        origin
+      )
+    }
+    val witness = retained.default
+    if (witness <= 0 || (witness & (witness - 1)) != 0) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-NATIVE-STREAMFIFOCC-DEPTH-WITNESS-NOT-POWER-OF-TWO",
+        s"native StreamFifoCC concrete depth witness $witness must be a power of two",
+        origin
+      )
+    }
+
+    formalComponent.parameter(
+      actual = depth,
+      name = "DEPTH",
+      minimum = retained.minimum,
+      maximum = retained.maximum
+    )(
+      value =>
+        new spinal.lib.StreamFifoCC(
+          dataType,
+          value,
+          pushClock,
+          popClock,
+          withPopBufferedReset
+        )
+    )
+  }
 }
 
 object Flow {
