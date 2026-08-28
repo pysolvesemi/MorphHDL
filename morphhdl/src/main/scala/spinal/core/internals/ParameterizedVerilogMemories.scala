@@ -814,7 +814,7 @@ private[internals] object ParameterizedVerilogMemories {
   ): Boolean = {
     if (!plan.independentDontCare || blocks.size != 2) return false
     val entries = blocks.map { block =>
-      val header = lines(block.start).replaceAll("\s+", " ").trim
+      val header = lines(block.start).replaceAll("\\s+", " ").trim
       val text = lines.slice(block.start, block.endInclusive + 1).mkString("\n")
       header -> text
     }
