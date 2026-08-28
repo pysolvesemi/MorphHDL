@@ -12,7 +12,7 @@ else
   base="$(git rev-parse HEAD)"
 fi
 if ! git diff --quiet "$base" HEAD -- core lib idslplugin; then
-  echo "Increment 53b must not modify upstream-owned core, lib, or idslplugin sources" >&2
+  echo "Increment 53d must not modify upstream-owned core, lib, or idslplugin sources" >&2
   git diff --name-status "$base" HEAD -- core lib idslplugin >&2
   exit 1
 fi
@@ -21,7 +21,7 @@ plugin="morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpr
 runtime="morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala"
 registry="morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala"
 test_file="morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala"
-doc_file="docs/morphhdl/increment-53b-native-streamwidth-adapter.md"
+doc_file="docs/morphhdl/increment-53d-native-streamwidth-adapter.md"
 
 for required in "$plugin" "$runtime" "$registry" "$test_file" "$doc_file"; do
   test -f "$required"
@@ -51,4 +51,4 @@ fi
 python3 morphhdl/scripts/check-native-source-preservation.py \
   --manifest morphhdl/contracts/native-source-preservation.json
 
-printf 'Increment 53b native StreamWidthAdapter source boundary passed.\n'
+printf 'Increment 53d native StreamWidthAdapter source boundary passed.\n'
