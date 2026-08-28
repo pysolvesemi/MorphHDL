@@ -23,6 +23,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import re
           from pathlib import Path
 
           path = Path("morphhdl/src/main/scala/morphhdl/MorphVerilog.scala")
@@ -34,21 +35,21 @@ jobs:
               raise SystemExit("MorphVerilog import anchor is not unique")
           text = text.replace(old_import, new_import)
 
-          old_callback = """      } { pc =>
-                try MorphHdlExternalParameterizedVerilog.rewrite(pc)
-                finally ExternalParameterizedAutoResize.clearGraph(pc.topLevel)
-              }
-          """
-          new_callback = """      } { pc =>
-                try {
-                  MorphHdlExternalParameterizedVerilog.rewrite(pc)
-                  MorphHdlExternalEnumLocalizer.rewrite(pc)
-                } finally ExternalParameterizedAutoResize.clearGraph(pc.topLevel)
-              }
-          """
-          if text.count(old_callback) != 1:
+          pattern = re.compile(
+              r"(?m)^(?P<indent>[ \t]*)try MorphHdlExternalParameterizedVerilog\.rewrite\(pc\)\n"
+              r"(?P=indent)finally ExternalParameterizedAutoResize\.clearGraph\(pc\.topLevel\)$"
+          )
+          match = pattern.search(text)
+          if match is None or pattern.search(text, match.end()) is not None:
               raise SystemExit("MorphVerilog publication callback anchor is not unique")
-          path.write_text(text.replace(old_callback, new_callback))
+          indent = match.group("indent")
+          replacement = (
+              f"{indent}try {{\n"
+              f"{indent}  MorphHdlExternalParameterizedVerilog.rewrite(pc)\n"
+              f"{indent}  MorphHdlExternalEnumLocalizer.rewrite(pc)\n"
+              f"{indent}}} finally ExternalParameterizedAutoResize.clearGraph(pc.topLevel)"
+          )
+          path.write_text(pattern.sub(replacement, text, count=1))
           PY
 
           git rm .github/workflows/increment-53b-integration-fix.yml
