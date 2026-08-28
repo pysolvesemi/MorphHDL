@@ -198,13 +198,17 @@ object NativeIntShadow {
       file: String,
       line: Int
   )(nativeValue: => Int): Int = {
+    // A rewritten pure expression may first materialize the derived reference
+    // named by `reference`. Evaluate that expression before validating the
+    // unsupported operation, then fail closed before its value can escape.
+    val value = nativeValue
     ExternalNativeIntShadowRegistry.rejectTracked(
       reference,
       code,
       detail,
       rendered(file, line)
     )
-    nativeValue
+    value
   }
 
   /** Fail closed only when the referenced predicate is live in an active boundary. */
