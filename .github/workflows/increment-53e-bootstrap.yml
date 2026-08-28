@@ -1,0 +1,355 @@
+name: Increment 53e StreamFifoCC bootstrap
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-streamfifo-cc-parameterization
+
+permissions:
+  contents: write
+
+jobs:
+  apply-test-publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 90
+    env:
+      MORPHDL_STREAMFIFOCC_DEBUG_DIR: /tmp/morphhdl-streamfifocc-debug
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Fetch the abandoned diagnostic branch for reviewed patch extraction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git fetch --no-tags origin \
+            agent/increment-53d-native-streamfifocc-parameterization:refs/remotes/origin/agent/increment-53d-native-streamfifocc-parameterization
+          git show \
+            origin/agent/increment-53d-native-streamfifocc-parameterization:.github/workflows/increment-53d-streamfifocc-bootstrap.yml \
+            > /tmp/increment-53d-reviewed-bootstrap.yml
+          git show \
+            origin/agent/increment-53d-native-streamfifocc-parameterization:morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoCCDepthTests.scala \
+            > morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoCCDepthTests.scala
+
+      - name: Apply MorphHDL-only native StreamFifoCC support and exact driver provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          reviewed = Path('/tmp/increment-53d-reviewed-bootstrap.yml').read_text()
+          begin_marker = "          python3 - <<'PY'\n"
+          end_marker = "\n          PY\n"
+          begin = reviewed.index(begin_marker) + len(begin_marker)
+          end = reviewed.index(end_marker, begin)
+          patch = textwrap.dedent(reviewed[begin:end])
+          stale = '"  private def alwaysBlocks(\\n",'
+          if patch.count(stale) == 1:
+              patch = patch.replace(stale, '"  private def alwaysBlocks",')
+          exec(compile(patch, 'increment-53e-reviewed-dual-clock-patch', 'exec'), {'__name__': '__main__'})
+
+          plugin_path = Path(
+              'morphplugin/src/main/scala/morphhdl/compiler/'
+              'MorphHdlNativeIntShadowExpressionComponent.scala'
+          )
+          plugin = plugin_path.read_text()
+
+          old = '''    private val NativeStreamFifoStaticBooleanNames = Set(
+      "withAsyncRead",
+      "withBypass",
+      "allowExtraMsb",
+      "forFMax",
+      "useVec"
+    )'''
+          new = '''    private val NativeStreamFifoStaticBooleanNames = Set(
+      "withAsyncRead",
+      "withBypass",
+      "allowExtraMsb",
+      "forFMax",
+      "useVec",
+      "withPopBufferedReset"
+    )
+    private val NativeStreamFifoContextMethods = Set("<init>", "isFull", "isEmpty")
+    private val NativeBooleanOperations = Set("&&", "||", "&", "|")
+
+    private def canonicalBooleanOperation(value: String): String = value match {
+      case "&" => "&&"
+      case "|" => "||"
+      case other => other
+    }'''
+          if old not in plugin:
+              raise SystemExit('static Boolean set marker not found')
+          plugin = plugin.replace(old, new, 1)
+
+          old = '''      case Apply(Select(left, name), List(right))
+          if decoded(name) == "&&" || decoded(name) == "||" =>
+        isConcreteBoolean(left) && isConcreteBoolean(right)'''
+          new = '''      case Apply(Select(left, name), List(right))
+          if NativeBooleanOperations(decoded(name)) =>
+        isConcreteBoolean(left) && isConcreteBoolean(right)'''
+          if old not in plugin:
+              raise SystemExit('concrete Boolean operation marker not found')
+          plugin = plugin.replace(old, new, 1)
+
+          old = '''        case Apply(Select(left, operatorName), List(right))
+            if inNativeStreamFifo &&
+              (decoded(operatorName) == "&&" || decoded(operatorName) == "||") =>
+          rewriteBooleanBinary(
+            tree,
+            left,
+            operatorName,
+            right,
+            decoded(operatorName),
+            requestedName
+          )'''
+          new = '''        case Apply(Select(left, operatorName), List(right))
+            if inNativeStreamFifo &&
+              NativeBooleanOperations(decoded(operatorName)) =>
+          rewriteBooleanBinary(
+            tree,
+            left,
+            operatorName,
+            right,
+            canonicalBooleanOperation(decoded(operatorName)),
+            requestedName
+          )'''
+          if old not in plugin:
+              raise SystemExit('symbolic Boolean operation marker not found')
+          plugin = plugin.replace(old, new, 1)
+
+          old = '''      case definition: DefDef
+          if inNativeStreamFifo && decoded(definition.name) != "<init>" =>
+        withoutNativeStreamFifoContext {
+          withScope(super.transform(definition))
+        }'''
+          new = '''      case definition: DefDef
+          if inNativeStreamFifo &&
+            !NativeStreamFifoContextMethods(decoded(definition.name)) =>
+        withoutNativeStreamFifoContext {
+          withScope(super.transform(definition))
+        }'''
+          if old not in plugin:
+              raise SystemExit('native helper method context marker not found')
+          plugin = plugin.replace(old, new, 1)
+          plugin_path.write_text(plugin)
+
+          memory_path = Path(
+              'morphhdl/src/main/scala/spinal/core/internals/'
+              'ParameterizedVerilogMemories.scala'
+          )
+          memory = memory_path.read_text()
+          old = '''    val driverProvesNativeWidth = address match {
+      case target: BaseType =>
+        val assignments = ArrayBuffer.empty[DataAssignmentStatement]
+        component.dslBody.walkLeafStatements {
+          case value: DataAssignmentStatement
+              if value.finalTarget eq target =>
+            assignments += value
+          case _ =>
+        }
+        val widths = assignments.toVector.flatMap { assignment =>
+          assignment.source match {
+            case value: Expression with WidthProvider =>
+              Some(widthOf(value, source))
+            case _ => None
+          }
+        }.distinct
+        widths.size == 1 && equivalentWidth(widths.head, native)
+      case _ => false
+    }'''
+          new = '''    val driverWidths = exactSymbolicDriverWidths(address, component, source)
+    val driverProvesNativeWidth =
+      driverWidths.size == 1 && equivalentWidth(driverWidths.head, native)'''
+          if old not in memory:
+              raise SystemExit('memory driver proof marker not found')
+          memory = memory.replace(old, new, 1)
+
+          marker = '''  private def selectAddressWidth(
+'''
+          helper = '''  private def exactSymbolicDriverWidths(
+      expression: Expression with WidthProvider,
+      component: Component,
+      source: Option[String]
+  ): Vector[ElaborationIntegerExpression] = {
+    val seen = new IdentityHashMap[Expression, java.lang.Boolean]()
+    val retained = ArrayBuffer.empty[ElaborationIntegerExpression]
+
+    def walk(value: Expression): Unit = {
+      if (seen.put(value, java.lang.Boolean.TRUE) == null) {
+        value match {
+          case base: BaseType =>
+            ParameterizedWidth.expressionOf(base) match {
+              case Some(width) if width.parameters.nonEmpty => retained += width
+              case _ =>
+                component.dslBody.walkLeafStatements {
+                  case assignment: DataAssignmentStatement
+                      if assignment.finalTarget eq base =>
+                    assignment.source match {
+                      case driver: Expression => walk(driver)
+                      case _ =>
+                    }
+                  case _ =>
+                }
+            }
+          case other => other.foreachExpression(walk)
+        }
+      }
+    }
+
+    walk(expression)
+    retained
+      .groupBy { width =>
+        (
+          compact(width.verilog),
+          width.default,
+          width.minimum,
+          width.maximum,
+          width.parameters.sortBy(_.name)
+        )
+      }
+      .values
+      .map(_.head)
+      .toVector
+  }
+
+'''
+          if memory.count(marker) != 1:
+              raise SystemExit('selectAddressWidth insertion marker is ambiguous')
+          memory = memory.replace(marker, helper + marker, 1)
+          memory_path.write_text(memory)
+
+          test_path = Path(
+              'morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoCCDepthTests.scala'
+          )
+          test = test_path.read_text()
+          test = test.replace(
+              'import morphhdl.frontend.{formalComponent, HdlInt}',
+              'import morphhdl.frontend.HdlInt'
+          )
+          test = test.replace(
+              '''  val fifo: spinal.lib.StreamFifoCC[Bits] = formalComponent.parameter(
+    actual = depth,
+    name = "DEPTH",
+    minimum = BigInt(2),
+    maximum = BigInt(8)
+  ) { witness =>
+    new spinal.lib.StreamFifoCC(
+      dataType = HardType(Bits(8 bits)),
+      depth = witness,
+      pushClock = pushCd,
+      popClock = popCd,
+      withPopBufferedReset = false
+    )
+  }''',
+              '''  val fifo: spinal.lib.StreamFifoCC[Bits] =
+    morphhdl.frontend.StreamFifoCC(
+      dataType = HardType(Bits(8 bits)),
+      depth = depth,
+      pushClock = pushCd,
+      popClock = popCd,
+      withPopBufferedReset = false
+    )'''
+          )
+          test_path.write_text(test)
+
+          library_path = Path('frontend/src/main/scala/morphhdl/frontend/Library.scala')
+          library = library_path.read_text()
+          old = 'import spinal.lib.{Counter => NativeCounter, Flow => NativeFlow, Stream => NativeStream, StreamFifo => NativeStreamFifo}'
+          new = '''import spinal.lib.{
+  Counter => NativeCounter,
+  Flow => NativeFlow,
+  Stream => NativeStream,
+  StreamFifo => NativeStreamFifo,
+  StreamFifoCC => NativeStreamFifoCC
+}'''
+          if old not in library:
+              raise SystemExit('Library.scala import marker not found')
+          library = library.replace(old, new, 1)
+          marker = 'object Flow {\n'
+          adapter = '''object StreamFifoCC {
+  def apply[T <: Data](
+      dataType: HardType[T],
+      depth: HdlInt,
+      pushClock: ClockDomain,
+      popClock: ClockDomain,
+      withPopBufferedReset: Boolean =
+        ClockDomain.crossClockBufferPushToPopResetGen.get
+  )(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): NativeStreamFifoCC[T] = {
+    val origin = SourceOrigin.capture
+    val retained = HdlInt.nativeIntExpression(
+      depth,
+      "native StreamFifoCC depth",
+      origin
+    )
+    formalComponent.parameter(
+      actual = depth,
+      name = "DEPTH",
+      minimum = retained.minimum,
+      maximum = retained.maximum
+    ) { witness =>
+      new spinal.lib.StreamFifoCC(
+        dataType = dataType,
+        depth = witness,
+        pushClock = pushClock,
+        popClock = popClock,
+        withPopBufferedReset = withPopBufferedReset
+      )
+    }
+  }
+}
+
+'''
+          if library.count(marker) != 1:
+              raise SystemExit('Library.scala Flow marker is ambiguous')
+          library = library.replace(marker, adapter + marker, 1)
+          library_path.write_text(library)
+          PY
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run the exact native StreamFifoCC diagnostic witness
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
+            morphhdl.ParameterizedStreamFifoCCDepthTests \
+            2>&1 | tee /tmp/increment-53e-bootstrap.log
+
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53e-bootstrap-evidence
+          path: |
+            /tmp/increment-53e-bootstrap.log
+            /tmp/morphhdl-streamfifocc-debug
+          if-no-files-found: ignore
+
+      - name: Publish only after the native diagnostic passes
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/increment-53e-bootstrap.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: parameterize native StreamFifoCC depth'
+          git push origin HEAD:${GITHUB_REF_NAME}
