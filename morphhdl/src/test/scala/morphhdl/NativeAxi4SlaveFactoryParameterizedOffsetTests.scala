@@ -3,8 +3,11 @@ package morphhdl
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
 
+import scala.collection.JavaConverters._
+
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
+import spinal.lib._
 import spinal.lib.bus.amba4.axi.{Axi4, Axi4Config, Axi4SlaveFactory}
 
 import morphhdl.frontend.{formalComponent, HdlInt}
@@ -160,6 +163,19 @@ class NativeAxi4SlaveFactoryParameterizedOffsetTests extends AnyFunSuite {
       assert(verilog.contains("128"))
       assert(verilog.contains("io_axi_aw_ready"))
       assert(verilog.contains("io_axi_r_valid"))
+    }
+  }
+
+  private def withTemporaryDirectory(body: Path => Unit): Unit = {
+    val directory = Files.createTempDirectory("morphhdl-native-axi4-offset-test-")
+    try body(directory)
+    finally {
+      val stream = Files.walk(directory)
+      try {
+        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach {
+          path => Files.deleteIfExists(path)
+        }
+      } finally stream.close()
     }
   }
 }
