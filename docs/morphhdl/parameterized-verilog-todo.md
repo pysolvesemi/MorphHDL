@@ -397,7 +397,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   generation, strict Verilog-2001 lint/synthesis and native-source preservation.
 
 
-- [ ] **Increment 53b.1 — SCREAMING_SNAKE_CASE SpinalEnum localparam names**
+- [x] **Increment 53b.1 — SCREAMING_SNAKE_CASE SpinalEnum localparam names**
 
   **Dependencies:** Increment 53b implemented and merged.
 
