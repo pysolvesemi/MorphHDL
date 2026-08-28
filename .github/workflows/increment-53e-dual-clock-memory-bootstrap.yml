@@ -36,7 +36,7 @@ jobs:
           marker_code = '''    complete_start = text.index(
               "  private def independentDontCareProcessesAreComplete("
           )
-              complete_end = text.index(
+          complete_end = text.index(
               "  private def alwaysBlocks(",
               complete_start
           )
