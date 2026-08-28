@@ -39,7 +39,7 @@ jobs:
               native.default == retained.default &&
               driverProvesNativeWidth
             ) native
-"""
+          """
           if value.count(marker) != 1:
               raise SystemExit("selectAddressWidth decision marker is ambiguous")
 
@@ -135,7 +135,7 @@ jobs:
               }
             }
 
-'''
+          '''
           value = value.replace(marker, diagnostic + marker)
           path.write_text(value)
           PY
