@@ -8,9 +8,9 @@
     "description": "Increment 0 repository baseline"
   },
   "approved_state": {
-    "commit": "8a14d1660c551d0b01fa02f9b601aa68cda2fe03",
-    "tree": "d6d9ac2fc49b66fe297ed20e4786739abea6089a",
-    "description": "Reviewed native-source state at the squashed Increment 44 merge, with Counter.scala restored and only the approved Increment 37 FIFO delta retained"
+    "commit": "7aee619ab7c8e1322df0413e3c08863bd9aa42b6",
+    "tree": "34536e7e50126e8a86a22f81607035053c27a7ff",
+    "description": "Reviewed native-source state after Increment 53 added target-local synchronous-process isolation for captured structural alternatives while keeping the native StreamFifo source unchanged"
   },
   "source_roots": [
     "core/src/main/scala/spinal/core",
@@ -57,6 +57,24 @@
       "reason": "Adds MorphHDL parameterized generation and phase-planning integration to the native entrypoint."
     },
     {
+      "path": "core/src/main/scala/spinal/core/Trait.scala",
+      "change": "modified",
+      "classification": "generated_backend_coupling",
+      "introduced_by": [
+        "53"
+      ],
+      "reason": "Adds a target-local backend tag used only to keep captured structural registers in distinct synchronous processes during native emission."
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala",
+      "change": "modified",
+      "classification": "generated_backend_coupling",
+      "introduced_by": [
+        "53"
+      ],
+      "reason": "Honors the target-local synchronous-process isolation tag without changing default native register grouping."
+    },
+    {
       "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
       "change": "modified",
       "classification": "generated_backend_coupling",
@@ -84,22 +102,14 @@
       "reason": "Adds MorphHDL compiler-plugin transformation coupling to the native IDSL plugin."
     },
     {
-      "path": "lib/src/main/scala/spinal/lib/ParameterizedStreamFifoDepth.scala",
-      "change": "added",
-      "classification": "morphhdl_sidecar",
-      "introduced_by": [
-        "37"
-      ],
-      "reason": "Attaches MorphHDL symbolic depth metadata to an ordinary StreamFifo from inside the native library tree."
-    },
-    {
       "path": "lib/src/main/scala/spinal/lib/Stream.scala",
       "change": "modified",
       "classification": "direct_edit",
       "introduced_by": [
-        "37"
+        "37",
+        "53"
       ],
-      "reason": "Retains the Increment 37 symbolic-depth StreamFifo construction, pointer resizing and explicit synchronous-memory collision policy."
+      "reason": "Restores the roadmap-approved native StreamFifo ParameterizedMemoryDepth overload and pointer-width-safe assignments while delegating generic formalization to MorphHDL runtime metadata rather than a FIFO sidecar or emitted-name recognizer."
     }
   ]
 }

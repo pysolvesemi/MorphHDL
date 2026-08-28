@@ -81,7 +81,7 @@ lazy val all = (project in file("."))
     publishLocal := {},
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(lib, core)
   )
-  .aggregate(sim, idslpayload, idslplugin, morphplugin, core, lib, tester, paramrtl, frontend, verilogBackend, morph)
+  .aggregate(sim, idslpayload, idslplugin, morphplugin, core, lib, tester, paramrtl, morphruntime, frontend, verilogBackend, morph)
 
 
 import sys.process._
@@ -113,6 +113,7 @@ lazy val idslplugin = (project in file("idslplugin"))
   )
 
 lazy val morphplugin = (project in file("morphplugin"))
+  .dependsOn(morphruntime)
   .settings(
     defaultSettings,
     name := "MorphHDL-compiler-plugin",
@@ -140,8 +141,17 @@ lazy val paramrtl = (project in file("paramrtl"))
     publish / skip := true
   )
 
+lazy val morphruntime = (project in file("morphruntime"))
+  .dependsOn(core)
+  .settings(
+    defaultSettings,
+    name := "MorphHDL-runtime",
+    version := SpinalVersion.core,
+    publish / skip := true
+  )
+
 lazy val frontend = (project in file("frontend"))
-  .dependsOn(paramrtl, core, lib)
+  .dependsOn(paramrtl, core, morphruntime, lib)
   .settings(
     defaultSettings,
     name := "MorphHDL-frontend",
@@ -214,10 +224,15 @@ lazy val lib = (project in file("lib"))
   .settings(
     defaultSettingsWithPlugin,
     name := "SpinalHDL-lib",
+    Compile / scalacOptions += {
+      val file = (morphplugin / Compile / packageBin).value
+      s"-Xplugin:${file.getAbsolutePath}"
+    },
+    Compile / scalacOptions += "-Xplugin-require:morphhdl",
     libraryDependencies += "commons-io" % "commons-io" % "2.11.0",
     version := SpinalVersion.lib,
   )
-  .dependsOn (sim, core)
+  .dependsOn (sim, core, morphruntime)
 
 
 

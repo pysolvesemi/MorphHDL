@@ -10,7 +10,7 @@ import ExternalNativeIntRelativeExpression.{
   Literal,
   Root
 }
-import ExternalNativeIntRelativePredicate.{Comparison, PowerOfTwo}
+import ExternalNativeIntRelativePredicate.{Comparison, Constant, PowerOfTwo}
 
 /**
   * Immutable capture returned after one boundary constructor has completed.
@@ -82,6 +82,26 @@ private[core] final class ExternalNativeIntShadowRegionIdentityRef(
   }
 }
 
+/** Weak identity key for one exact lowered native-Int expression. */
+private[core] final class ExternalNativeIntExpressionIdentityRef(
+    value: ElaborationIntegerExpression,
+    queue: ReferenceQueue[ElaborationIntegerExpression]
+) extends WeakReference[ElaborationIntegerExpression](value, queue) {
+  private val identityHash = System.identityHashCode(value)
+
+  override def hashCode(): Int = identityHash
+
+  override def equals(other: Any): Boolean = other match {
+    case that: ExternalNativeIntExpressionIdentityRef =>
+      (this eq that) || {
+        val left = get()
+        val right = that.get()
+        (left ne null) && (right ne null) && (left eq right)
+      }
+    case _ => false
+  }
+}
+
 /**
   * MorphHDL-owned shadow provenance registry for native Scala `Int` values.
   *
@@ -102,12 +122,26 @@ private[core] final class ExternalNativeIntShadowRegionIdentityRef(
   * MORPH-FRONTEND-NATIVE-INT-EXPRESSION-MUTABLE-ESCAPE.
   */
 object ExternalNativeIntShadowRegistry {
+  private[core] val MaximumStructuralPredicateDomainSize = BigInt(65536)
+
+  private final case class DefinitionExpressionEvidence(
+      root: ParameterizedStructure.StructuralPredicateRoot,
+      expression: ExternalNativeIntRelativeExpression
+  )
+
   private final class ActiveBoundary(
       val expression: ElaborationIntegerExpression,
       val definitionExpression: ElaborationIntegerExpression,
       val token: ExternalNativeIntFormalizationToken,
       val parentToken: Option[ExternalNativeIntFormalizationToken]
   ) {
+    val structuralPredicateRoot = new ParameterizedStructure.StructuralPredicateRoot(
+      definitionExpression.verilog,
+      definitionExpression.default,
+      definitionExpression.minimum,
+      definitionExpression.maximum,
+      definitionExpression.parameters
+    )
     val slots = mutable.LinkedHashMap.empty[
       (ExternalNativeIntShadowKind, String),
       ExternalNativeIntShadowPendingSlot
@@ -125,6 +159,8 @@ object ExternalNativeIntShadowRegistry {
   private val active = new ThreadLocal[List[ActiveBoundary]]
   private val componentQueue = new ReferenceQueue[Component]()
   private val regionQueue = new ReferenceQueue[Data]()
+  private val definitionExpressionQueue =
+    new ReferenceQueue[ElaborationIntegerExpression]()
   private val components = mutable.HashMap.empty[
     ExternalNativeIntShadowComponentIdentityRef,
     Vector[ExternalNativeIntComponentShadowRecord]
@@ -133,6 +169,77 @@ object ExternalNativeIntShadowRegistry {
     ExternalNativeIntShadowRegionIdentityRef,
     ExternalNativeIntRegionShadowRecord
   ]
+  private val definitionExpressionEvidence = mutable.HashMap.empty[
+    ExternalNativeIntExpressionIdentityRef,
+    DefinitionExpressionEvidence
+  ]
+
+  private def reapDefinitionExpressionEvidence(): Unit = {
+    var reference = definitionExpressionQueue
+      .poll()
+      .asInstanceOf[ExternalNativeIntExpressionIdentityRef]
+    while (reference != null) {
+      definitionExpressionEvidence.remove(reference)
+      reference = definitionExpressionQueue
+        .poll()
+        .asInstanceOf[ExternalNativeIntExpressionIdentityRef]
+    }
+  }
+
+  private def retainDefinitionExpressionEvidence(
+      lowered: ElaborationIntegerExpression,
+      root: ParameterizedStructure.StructuralPredicateRoot,
+      expression: ExternalNativeIntRelativeExpression
+  ): Unit = synchronized {
+    reapDefinitionExpressionEvidence()
+    val key = new ExternalNativeIntExpressionIdentityRef(lowered, null)
+    definitionExpressionEvidence.get(key) match {
+      case Some(existing)
+          if (existing.root ne root) || existing.expression != expression =>
+        fail(
+          "MORPH-FRONTEND-NATIVE-INT-EXPRESSION-PROVENANCE-CONFLICT",
+          "one exact lowered native Int expression carries incompatible bounded-domain provenance",
+          lowered.sourceLocation
+        )
+      case Some(_) =>
+      case None =>
+        definitionExpressionEvidence.update(
+          new ExternalNativeIntExpressionIdentityRef(
+            lowered,
+            definitionExpressionQueue
+          ),
+          DefinitionExpressionEvidence(root, expression)
+        )
+    }
+  }
+
+  /**
+    * Evaluate one exact lowered expression against its compiler-retained native
+    * Int AST. Both the expression and predicate root must match by identity;
+    * rendered Verilog text and equal numeric witnesses are never discovery
+    * keys.
+    */
+  private[core] def evaluateDefinitionExpression(
+      lowered: ElaborationIntegerExpression,
+      root: ParameterizedStructure.StructuralPredicateRoot,
+      value: BigInt
+  ): Option[BigInt] = synchronized {
+    if (
+      lowered == null || root == null || value < root.minimum ||
+      value > root.maximum
+    ) return None
+    reapDefinitionExpressionEvidence()
+    definitionExpressionEvidence
+      .get(new ExternalNativeIntExpressionIdentityRef(lowered, null))
+      .filter(_.root eq root)
+      .flatMap(evidence =>
+        ExternalNativeIntRelativeExpression.evaluate(
+          evidence.expression,
+          value
+        )
+      )
+      .filter(result => result >= lowered.minimum && result <= lowered.maximum)
+  }
 
   /** Execute one untouched constructor with an active shadow scope. */
   def capture[A](
@@ -519,6 +626,216 @@ object ExternalNativeIntShadowRegistry {
     }
   }
 
+  /** Compiler hook for `&&` and `||` over one or more proven predicates. */
+  def booleanBinaryTracked(
+      operation: String,
+      left: Boolean,
+      leftReference: String,
+      leftConcrete: Boolean,
+      right: Boolean,
+      rightReference: String,
+      rightConcrete: Boolean,
+      resultReference: String,
+      name: String,
+      sourceLocation: String
+  ): Boolean = {
+    val result = operation match {
+      case "&&" => left && right
+      case "||" => left || right
+      case other => throw new IllegalArgumentException(
+        s"unsupported native Boolean operation '$other'"
+      )
+    }
+    withBoundaryOrBoolean(result) { boundary =>
+      val leftPredicate = resolvePredicate(
+        boundary,
+        left,
+        leftReference,
+        leftConcrete,
+        sourceLocation,
+        s"left operand of '$operation'"
+      )
+      val rightPredicate = resolvePredicate(
+        boundary,
+        right,
+        rightReference,
+        rightConcrete,
+        sourceLocation,
+        s"right operand of '$operation'"
+      )
+      if (
+        leftPredicate.isInstanceOf[Constant] &&
+        rightPredicate.isInstanceOf[Constant]
+      ) {
+        fail(
+          "MORPH-FRONTEND-NATIVE-INT-PREDICATE-OPERAND-UNPROVEN",
+          s"native Boolean operation '$operation' has no proven symbolic operand",
+          Option(sourceLocation).filter(_.nonEmpty)
+        )
+      }
+      val predicate = ExternalNativeIntRelativePredicate.binary(
+        operation,
+        leftPredicate,
+        rightPredicate
+      )
+      val actual = lowerPredicate(boundary, predicate, sourceLocation)
+      if (actual.default != result) {
+        fail(
+          "MORPH-FRONTEND-NATIVE-INT-SHADOW-DEFAULT-MISMATCH",
+          s"native Boolean operation '$operation' witness $result disagrees with symbolic default ${actual.default}",
+          Option(sourceLocation).filter(_.nonEmpty)
+        )
+      }
+      validateReference(resultReference, sourceLocation, "Boolean result")
+      retainPredicate(
+        boundary,
+        resultReference,
+        ExternalNativeIntShadowPendingPredicate(
+          ExternalNativeIntShadowPredicateToken(name, operation, sourceLocation),
+          result,
+          predicate
+        )
+      )
+      result
+    }
+  }
+
+  /** Compiler hook for Boolean negation of a proven predicate. */
+  def booleanNotTracked(
+      value: Boolean,
+      valueReference: String,
+      valueConcrete: Boolean,
+      resultReference: String,
+      name: String,
+      sourceLocation: String
+  ): Boolean = {
+    val result = !value
+    withBoundaryOrBoolean(result) { boundary =>
+      val operand = resolvePredicate(
+        boundary,
+        value,
+        valueReference,
+        valueConcrete,
+        sourceLocation,
+        "operand of Boolean negation"
+      )
+      if (operand.isInstanceOf[Constant]) {
+        fail(
+          "MORPH-FRONTEND-NATIVE-INT-PREDICATE-OPERAND-UNPROVEN",
+          "native Boolean negation has no proven symbolic operand",
+          Option(sourceLocation).filter(_.nonEmpty)
+        )
+      }
+      val predicate = ExternalNativeIntRelativePredicate.not(operand)
+      val actual = lowerPredicate(boundary, predicate, sourceLocation)
+      if (actual.default != result) {
+        fail(
+          "MORPH-FRONTEND-NATIVE-INT-SHADOW-DEFAULT-MISMATCH",
+          s"native Boolean negation witness $result disagrees with symbolic default ${actual.default}",
+          Option(sourceLocation).filter(_.nonEmpty)
+        )
+      }
+      validateReference(resultReference, sourceLocation, "Boolean negation result")
+      retainPredicate(
+        boundary,
+        resultReference,
+        ExternalNativeIntShadowPendingPredicate(
+          ExternalNativeIntShadowPredicateToken(name, "!", sourceLocation),
+          result,
+          predicate
+        )
+      )
+      result
+    }
+  }
+
+  /** Compiler hook for the native `Boolean.toInt` helper used in geometry. */
+  def booleanToIntTracked(
+      value: Boolean,
+      valueReference: String,
+      valueConcrete: Boolean,
+      resultReference: String,
+      name: String,
+      sourceLocation: String
+  ): Int = {
+    val result = if (value) 1 else 0
+    withBoundaryOrValue(result, false, name, sourceLocation) { boundary =>
+      val predicate = resolvePredicate(
+        boundary,
+        value,
+        valueReference,
+        valueConcrete,
+        sourceLocation,
+        "Boolean.toInt operand"
+      )
+      if (predicate.isInstanceOf[Constant]) {
+        fail(
+          "MORPH-FRONTEND-NATIVE-INT-PREDICATE-OPERAND-UNPROVEN",
+          "native Boolean.toInt has no proven symbolic operand",
+          Option(sourceLocation).filter(_.nonEmpty)
+        )
+      }
+      val expression = ExternalNativeIntRelativeExpression.booleanToInt(predicate)
+      val tracked = ExternalNativeIntShadowTrackedValue(result, expression, sourceLocation)
+      validateWitness(boundary, tracked, sourceLocation, "Boolean.toInt")
+      validateReference(resultReference, sourceLocation, "Boolean.toInt result")
+      retainTracked(boundary, resultReference, tracked)
+      retainSlot(
+        boundary,
+        ExternalNativeIntShadowKind.LocalValue,
+        name,
+        result,
+        expression,
+        sourceLocation
+      )
+      result
+    }
+  }
+
+  /**
+    * Resolve one exact tracked integer in definition scope. Outside a live
+    * formalization boundary this intentionally returns `None`, preserving
+    * ordinary native-library behavior.
+    */
+  def definitionExpressionTracked(
+      reference: String,
+      witness: Int,
+      sourceLocation: String,
+      positiveWidth: Boolean = false
+  ): Option[ElaborationIntegerExpression] = currentBoundary.map { boundary =>
+    validateReference(reference, sourceLocation, "definition expression")
+    val tracked = resolveTracked(
+      boundary,
+      witness,
+      reference,
+      literal = false,
+      sourceLocation,
+      role = "definition expression"
+    )
+    val relative =
+      if (positiveWidth)
+        ExternalNativeIntRelativeExpression.positiveWidth(tracked.expression)
+      else tracked.expression
+    val definition = lowerFinalExpression(
+      relative,
+      boundary.definitionExpression,
+      sourceLocation
+    )
+    if (definition.default != BigInt(witness)) {
+      fail(
+        "MORPH-FRONTEND-NATIVE-INT-SHADOW-DEFAULT-MISMATCH",
+        s"tracked definition expression witness $witness disagrees with symbolic default ${definition.default}",
+        Option(sourceLocation).filter(_.nonEmpty).orElse(definition.sourceLocation)
+      )
+    }
+    retainDefinitionExpressionEvidence(
+      definition,
+      boundary.structuralPredicateRoot,
+      relative
+    )
+    definition
+  }
+
   /**
     * Resolve one proven native Boolean predicate in canonical definition scope.
     * Increment 51 consumes this only while the exact formalization boundary is
@@ -528,7 +845,22 @@ object ExternalNativeIntShadowRegistry {
       reference: String,
       witness: Boolean,
       sourceLocation: String
-  ): ElaborationBooleanExpression = currentBoundary match {
+  ): ElaborationBooleanExpression =
+    definitionPredicateEvidenceTracked(reference, witness, sourceLocation)._1
+
+  /**
+    * Return the lowered predicate together with optional exact bounded-domain
+    * evidence.  Structural replay consumes the evidence only to prove that two
+    * independently captured alternatives cannot be active together.
+    */
+  private[core] def definitionPredicateEvidenceTracked(
+      reference: String,
+      witness: Boolean,
+      sourceLocation: String
+  ): (
+      ElaborationBooleanExpression,
+      Option[ParameterizedStructure.StructuralPredicateDomain]
+  ) = currentBoundary match {
     case None =>
       fail(
         "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-BOUNDARY-MISSING",
@@ -551,7 +883,7 @@ object ExternalNativeIntShadowRegistry {
               Option(sourceLocation).filter(_.nonEmpty).orElse(definition.sourceLocation)
             )
           }
-          definition
+          definition -> structuralPredicateDomain(boundary, pending.predicate)
         case Some(pending) =>
           fail(
             "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-WITNESS-MISMATCH",
@@ -565,6 +897,37 @@ object ExternalNativeIntShadowRegistry {
             Option(sourceLocation).filter(_.nonEmpty).orElse(sourceOf(boundary.token))
           )
       }
+  }
+
+  private def structuralPredicateDomain(
+      boundary: ActiveBoundary,
+      predicate: ExternalNativeIntRelativePredicate
+  ): Option[ParameterizedStructure.StructuralPredicateDomain] = {
+    val root = boundary.definitionExpression
+    val size = root.maximum - root.minimum + 1
+    if (size < 1 || size > MaximumStructuralPredicateDomainSize) return None
+
+    val universe = Set.newBuilder[BigInt]
+    val whenTrue = Set.newBuilder[BigInt]
+    var value = root.minimum
+    var complete = true
+    while (value <= root.maximum && complete) {
+      universe += value
+      ExternalNativeIntRelativePredicate.evaluate(predicate, value) match {
+        case Some(true)  => whenTrue += value
+        case Some(false) =>
+        case None        => complete = false
+      }
+      value += 1
+    }
+    if (!complete) None
+    else Some(
+      ParameterizedStructure.StructuralPredicateDomain(
+        root = boundary.structuralPredicateRoot,
+        universe = universe.result(),
+        whenTrue = whenTrue.result()
+      )
+    )
   }
 
   /** Fail-closed hook for compiler-proven unsupported escape or mutation. */
@@ -751,6 +1114,9 @@ object ExternalNativeIntShadowRegistry {
     components.size -> regions.size
   }
 
+  /** True only while one exact native formalization constructor is executing. */
+  def boundaryActive: Boolean = currentBoundary.nonEmpty
+
   private def currentBoundary: Option[ActiveBoundary] =
     Option(active.get()).getOrElse(Nil).headOption
 
@@ -822,6 +1188,17 @@ object ExternalNativeIntShadowRegistry {
       expression
     )
     boundary.slots.get(key) match {
+      case Some(existing)
+          if kind == ExternalNativeIntShadowKind.ConstructorArgument &&
+            existing.witness == incoming.witness &&
+            existing.expression == incoming.expression &&
+            existing.token.sourceLocation == boundary.token.callSite =>
+        // `captureWithDefinition` seeds the public formal at the external call
+        // site before the untouched constructor executes. When parser-phase
+        // instrumentation later reaches the exact native constructor argument,
+        // replace only that seed with the authoritative definition-source
+        // identity. Other duplicate slot identities still fail closed.
+        boundary.slots.update(key, incoming)
       case Some(existing) if existing != incoming =>
         fail(
           "MORPH-FRONTEND-NATIVE-INT-SHADOW-SLOT-CONFLICT",
@@ -897,6 +1274,40 @@ object ExternalNativeIntShadowRegistry {
       fail(
         "MORPH-FRONTEND-NATIVE-INT-EXPRESSION-OPERAND-UNPROVEN",
         s"$role is neither a compiler-proven shadow value nor an integer literal",
+        Option(sourceLocation).filter(_.nonEmpty).orElse(sourceOf(boundary.token))
+      )
+    }
+  }
+
+  private def resolvePredicate(
+      boundary: ActiveBoundary,
+      witness: Boolean,
+      reference: String,
+      concrete: Boolean,
+      sourceLocation: String,
+      role: String
+  ): ExternalNativeIntRelativePredicate = {
+    if (reference != null && reference.nonEmpty) {
+      boundary.predicates.get(reference) match {
+        case Some(value) if value.witness == witness => value.predicate
+        case Some(value) =>
+          fail(
+            "MORPH-FRONTEND-NATIVE-INT-SHADOW-WITNESS-MISMATCH",
+            s"$role witness $witness disagrees with tracked witness ${value.witness}",
+            Option(sourceLocation).filter(_.nonEmpty)
+          )
+        case None =>
+          fail(
+            "MORPH-FRONTEND-NATIVE-INT-SHADOW-REFERENCE-UNRESOLVED",
+            s"$role uses unbound or foreign predicate reference '$reference'",
+            Option(sourceLocation).filter(_.nonEmpty).orElse(sourceOf(boundary.token))
+          )
+      }
+    } else if (concrete) Constant(witness)
+    else {
+      fail(
+        "MORPH-FRONTEND-NATIVE-INT-PREDICATE-OPERAND-UNPROVEN",
+        s"$role is neither a compiler-proven predicate nor an approved concrete Boolean",
         Option(sourceLocation).filter(_.nonEmpty).orElse(sourceOf(boundary.token))
       )
     }

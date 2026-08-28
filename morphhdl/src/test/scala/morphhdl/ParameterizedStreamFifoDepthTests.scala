@@ -10,81 +10,149 @@ import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 import spinal.lib._
 
-import morphhdl.frontend.{StreamFifo => MorphStreamFifo}
+import morphhdl.frontend.HdlInt
+import morphhdl.frontend.HdlInt.hdlIntToParameterizedMemoryDepth
+
+final class NativeParameterizedStreamFifoHarness(depth: HdlInt)
+    extends Component {
+  setDefinitionName("NativeParameterizedStreamFifoHarness")
+
+  val io = new Bundle {
+    val push = slave Stream (Bits(8 bits))
+    val pop = master Stream (Bits(8 bits))
+    val flush = in Bool()
+    val occupancy = out UInt (4 bits)
+    val availability = out UInt (4 bits)
+  }
+
+  val fifo = spinal.lib.StreamFifo(
+    HardType(Bits(8 bits)),
+    depth
+  )
+  fifo.setName("fifo")
+  fifo.io.push << io.push
+  io.pop << fifo.io.pop
+  fifo.io.flush := io.flush
+  io.occupancy := fifo.io.occupancy.resized
+  io.availability := fifo.io.availability.resized
+}
+
+final class UnsafeStructuralAssignmentHarness(depth: HdlInt)
+    extends Component {
+  setDefinitionName("UnsafeStructuralAssignmentHarness")
+  val observed = out(Bool())
+  observed := False
+  if (depth > 1) observed := True
+  else observed := False
+}
 
 class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
-  test("one native StreamFifo definition preserves behavior at depths 1, 3, 5 and 8") {
+  private val ExpectedStreamFifoModuleInventory =
+    Vector("NativeParameterizedStreamFifoHarness", "StreamFifo").sorted
+
+  private val ModuleDeclaration =
+    """(?m)^\s*module\s+([A-Za-z_][A-Za-z0-9_$]*)\b""".r
+
+  private def streamFifoModuleInventory(verilog: String): Vector[String] =
+    ModuleDeclaration
+      .findAllMatchIn(verilog)
+      .map(_.group(1))
+      .filter(_.contains("StreamFifo"))
+      .toVector
+      .sorted
+
+  private def nativeStreamFifoDefinition(verilog: String): String =
+    "(?ms)^\\s*module\\s+StreamFifo\\b.*?^\\s*endmodule\\b".r
+      .findFirstIn(verilog)
+      .getOrElse(fail("Native StreamFifo module definition is missing"))
+
+  private def component(): NativeParameterizedStreamFifoHarness = {
+    val depth = HdlInt.param(
+      "DEPTH",
+      default = BigInt(5),
+      min = BigInt(1),
+      max = BigInt(8)
+    )
+    new NativeParameterizedStreamFifoHarness(depth)
+  }
+
+  test("one native StreamFifo definition preserves depths 1, 3, 5 and 8") {
     withTemporaryDirectory { directory =>
       val parameterizedDirectory = directory.resolve("parameterized")
       val concreteDirectory = directory.resolve("concrete")
       Files.createDirectories(parameterizedDirectory)
       Files.createDirectories(concreteDirectory)
 
-      val depthSchema = ElaborationIntegerParameter(
-        name = "DEPTH",
-        default = BigInt(5),
-        minimum = BigInt(1),
-        maximum = BigInt(8)
-      )
-      val symbolicDepth = ParameterizedMemoryDepth(
-        value = 5,
-        expression = ElaborationIntegerExpression(
-          verilog = "DEPTH",
-          default = BigInt(5),
-          minimum = BigInt(1),
-          maximum = BigInt(8),
-          parameters = Vector(depthSchema),
-          sourceLocation = Some("ParameterizedStreamFifoDepthTests.scala:DEPTH")
-        ),
-        sourceLocation = Some("ParameterizedStreamFifoDepthTests.scala:DEPTH")
-      )
-
       val parameterizedConfig = synchronousResetConfig(parameterizedDirectory)
       parameterizedConfig.netlistFileName = "stream_fifo_parameterized_depth.v"
-      val parameterizedReport =
-        MorphVerilog(parameterizedConfig)(MorphStreamFifo(morphhdl.frontend.HardType(morphhdl.frontend.Bits(8 bits)), symbolicDepth))
-      val parameterized =
-        read(parameterizedDirectory.resolve("stream_fifo_parameterized_depth.v"))
+      val parameterizedReport = MorphVerilog(parameterizedConfig)(component())
+      val parameterizedRtl =
+        parameterizedDirectory.resolve("stream_fifo_parameterized_depth.v")
+      val parameterized = read(parameterizedRtl)
+
+      val replayDirectory = directory.resolve("parameterized-replay")
+      Files.createDirectories(replayDirectory)
+      val replayConfig = synchronousResetConfig(replayDirectory)
+      replayConfig.netlistFileName = "stream_fifo_parameterized_depth.v"
+      MorphVerilog(replayConfig)(component())
+      val replayRtl =
+        replayDirectory.resolve("stream_fifo_parameterized_depth.v")
+      assert(
+        java.util.Arrays.equals(
+          Files.readAllBytes(parameterizedRtl),
+          Files.readAllBytes(replayRtl)
+        ),
+        "identical native StreamFifo generation was not byte deterministic"
+      )
 
       val concreteConfig = synchronousResetConfig(concreteDirectory)
       concreteConfig.netlistFileName = "stream_fifo_parameterized_depth.v"
-      SpinalVerilog(concreteConfig)(MorphStreamFifo(morphhdl.frontend.HardType(morphhdl.frontend.Bits(8 bits)), symbolicDepth))
+      SpinalVerilog(concreteConfig)(component())
       val concrete =
         read(concreteDirectory.resolve("stream_fifo_parameterized_depth.v"))
 
-      assert(parameterizedReport.parameters.map(_.name) == Vector("DEPTH"))
-      assert("(?m)^module StreamFifo #\\(".r.findAllMatchIn(parameterized).size == 1)
+      val depthParameter = parameterizedReport.parameters.find(_.name == "DEPTH")
+      assert(depthParameter.nonEmpty)
+      assert(depthParameter.get.default == BigInt(5))
+      assert(
+        depthParameter.get.constraints == Vector(
+          paramrtl.IntConstraint.MinInclusive(BigInt(1)),
+          paramrtl.IntConstraint.MaxInclusive(BigInt(8))
+        )
+      )
+      val streamFifoModules = streamFifoModuleInventory(parameterized)
+      assert(
+        streamFifoModules == ExpectedStreamFifoModuleInventory,
+        s"Unexpected StreamFifo module inventory: ${streamFifoModules.mkString(", ")}"
+      )
+      assert(parameterized.contains("module NativeParameterizedStreamFifoHarness #("))
       assert(parameterized.contains("parameter integer DEPTH = 5"))
+      assert(parameterized.contains(".DEPTH(DEPTH)"))
       assert(
         parameterized.contains("[0:DEPTH-1]") ||
           parameterized.contains("[0:(DEPTH - 1)]")
       )
       assert(parameterized.contains("clog2(DEPTH, 1)"))
+      assert(parameterized.contains("function integer clog2;"))
+      assert(!parameterized.contains("morphhdl_address_width"))
+      assert(!parameterized.contains("morphhdl_ceil_log2"))
+      val nativeStreamFifo = nativeStreamFifoDefinition(parameterized)
+      assert(nativeStreamFifo.contains("generate"))
+      assert(nativeStreamFifo.contains("DEPTH == 1"))
+      assert(nativeStreamFifo.contains("DEPTH > 1"))
       assert(
-        parameterized.contains("clog2((DEPTH + 1), 1)") ||
-          parameterized.contains("clog2(DEPTH + 1, 1)")
+        nativeStreamFifo.contains("DEPTH & (DEPTH - 1)") ||
+          nativeStreamFifo.contains("DEPTH & (DEPTH-1)")
       )
-      assert(
-        """(?m)^\s*(?:wire|reg)\s+\[clog2\(DEPTH, 1\)-1:0\]\s+logic_ptr_(?:push|pop|popOnIo);\s*$""".r
-          .findAllMatchIn(parameterized)
-          .size >= 3
-      )
-      assert(
-        """(?m)^\s*(?:wire|reg)\s+\[clog2\(DEPTH, 1\)-1:0\]\s+logic_pop_(?:addressGen_payload|sync_readPort_cmd_payload|sync_popReg);\s*$""".r
-          .findAllMatchIn(parameterized)
-          .size >= 3
-      )
-      assert(
-        """(?m)^\s*(?:wire|reg)\s+\[clog2\(\(DEPTH \+ 1\), 1\)-1:0\]\s+logic_ptr_notPow2_counter;\s*$""".r
-          .findFirstIn(parameterized)
-          .nonEmpty
-      )
+      val logicAlternative = nativeStreamFifo.indexOf("DEPTH > 1")
+      val powerOfTwoAlternative = nativeStreamFifo.indexOf("DEPTH &")
+      assert(logicAlternative >= 0 && powerOfTwoAlternative > logicAlternative)
       assert(parameterized.contains("io_push_ready"))
       assert(parameterized.contains("io_pop_valid"))
       assert(parameterized.contains("io_occupancy"))
       assert(parameterized.contains("io_availability"))
-      assert(parameterized.contains("always @(posedge clk)"))
       assert(!parameterized.contains("ParamRTL"))
+      assert(!parameterized.contains("rewriteParameterizedStreamFifoDepth"))
 
       assert(!concrete.contains("parameter integer DEPTH"))
       assert(concrete.contains("[0:4]"))
@@ -92,10 +160,102 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
 
       val rtl = parameterizedDirectory.resolve("stream_fifo_parameterized_depth.v")
       Vector(1, 3, 5, 8).foreach { selectedDepth =>
+        lintDepth(parameterizedDirectory, rtl, selectedDepth)
         simulateDepth(parameterizedDirectory, rtl, selectedDepth)
         synthesizeDepth(parameterizedDirectory, rtl, selectedDepth)
       }
     }
+  }
+
+  test("mutually-exclusive capture never hides an outside assignment") {
+    withTemporaryDirectory { directory =>
+      val config = synchronousResetConfig(directory)
+      config.netlistFileName = "unsafe_structural_assignment.v"
+      MorphVerilog.tryGenerate(config) {
+        val depth = HdlInt.param(
+          "DEPTH",
+          default = BigInt(5),
+          min = BigInt(1),
+          max = BigInt(8)
+        )
+        new UnsafeStructuralAssignmentHarness(depth)
+      } match {
+        case Left(failure) =>
+          assert(failure.detail.contains("ASSIGNMENT OVERLAP"))
+        case Right(report) =>
+          fail(s"Expected inherited overlap failure, received $report")
+      }
+    }
+  }
+
+  test("compound bounded depth retains its exact formal actual") {
+    withTemporaryDirectory { directory =>
+      val config = synchronousResetConfig(directory)
+      config.netlistFileName = "stream_fifo_compound_depth.v"
+      val report = MorphVerilog(config) {
+        val base = HdlInt.param(
+          "BASE",
+          default = BigInt(4),
+          min = BigInt(1),
+          max = BigInt(7)
+        )
+        new NativeParameterizedStreamFifoHarness(
+          base + HdlInt.literal(BigInt(1))
+        )
+      }
+      val verilog = read(directory.resolve("stream_fifo_compound_depth.v"))
+      val compact = verilog.replaceAll("\\s+", "")
+      assert(report.parameters.map(_.name) == Vector("BASE"))
+      val baseParameter = report.parameters.head
+      assert(baseParameter.default == BigInt(4))
+      assert(
+        baseParameter.constraints == Vector(
+          paramrtl.IntConstraint.MinInclusive(BigInt(1)),
+          paramrtl.IntConstraint.MaxInclusive(BigInt(7))
+        )
+      )
+      assert(compact.contains(".DEPTH((BASE+1))"))
+      val streamFifoModules = streamFifoModuleInventory(verilog)
+      assert(
+        streamFifoModules == ExpectedStreamFifoModuleInventory,
+        s"Unexpected StreamFifo module inventory: ${streamFifoModules.mkString(", ")}"
+      )
+    }
+  }
+
+  private def lintDepth(
+      directory: Path,
+      rtl: Path,
+      selectedDepth: Int
+  ): Unit = {
+    val depthSpecificWarnings =
+      if (selectedDepth == 1) Seq("-Wno-CMPCONST")
+      else {
+        // Native StreamFifo keeps inherited dead helper nets in ordinary
+        // concrete output. Legacy Verilator reports that family as UNUSED,
+        // while current Verilator splits it into finer unused categories.
+        // This leaves UNDRIVEN and the existing non-unused warning policy unchanged.
+        Seq("-Wno-UNUSED")
+      }
+    val command = Seq(
+      "verilator",
+      "--lint-only",
+      "--language",
+      "1364-2001",
+      "-Wall",
+      "-Wno-DECLFILENAME",
+      "-Wno-WIDTH"
+    ) ++ depthSpecificWarnings ++ Seq(
+      "--top-module",
+      "NativeParameterizedStreamFifoHarness",
+      s"-GDEPTH=$selectedDepth",
+      rtl.toString
+    )
+    val result = run(directory, command)
+    assert(
+      result._1 == 0,
+      s"Verilator lint failed for DEPTH=$selectedDepth:\n${result._2}"
+    )
   }
 
   private def simulateDepth(
@@ -275,11 +435,9 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       script,
       s"""read_verilog -defer ${rtl.toString}
          |chparam -set DEPTH $selectedDepth StreamFifo
-         |hierarchy -top StreamFifo
-         |proc
-         |memory
-         |opt
-         |check
+         |hierarchy -check -top StreamFifo
+         |synth -top StreamFifo
+         |check -assert
          |""".stripMargin.getBytes(StandardCharsets.UTF_8)
     )
     val result = run(directory, Seq("yosys", "-q", "-s", script.toString))

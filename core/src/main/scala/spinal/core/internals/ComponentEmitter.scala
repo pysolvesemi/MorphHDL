@@ -211,7 +211,10 @@ abstract class ComponentEmitter {
         s.finalTarget match {
           case target: BaseType if target.isComb => asyncStatement += s
           case target: BaseType if target.isReg  =>
-            val group = syncGroups.getOrElseUpdate((target.clockDomain, s.rootScopeStatement, target.hasInit, if(spinalConfig.mergeSyncProcess) null else target), new SyncGroup(target.clockDomain, s.rootScopeStatement, target.hasInit, syncGroupInstanceCounter))
+            val mergeTarget =
+              if(spinalConfig.mergeSyncProcess && !target.hasTag(noBackendSyncMerge)) null
+              else target
+            val group = syncGroups.getOrElseUpdate((target.clockDomain, s.rootScopeStatement, target.hasInit, mergeTarget), new SyncGroup(target.clockDomain, s.rootScopeStatement, target.hasInit, syncGroupInstanceCounter))
             syncGroupInstanceCounter += 1
             s match {
               case s: InitAssignmentStatement => group.initStatements += s

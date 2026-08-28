@@ -13,7 +13,9 @@ import spinal.core._
   * The normal emitter still owns naming, declarations, read-port wiring and
   * every inherited validation phase. This pass validates one reviewed 1R1W
   * policy, rewrites the retained array geometry and replaces only the native
-  * memory process with the existing guarded read-first contract.
+  * memory process with the existing guarded contract. Explicit readFirst is
+  * preserved. An independent-address simple-dual-port dontCare read is lowered
+  * deterministically as read-first, which is one legal dontCare outcome.
   */
 private[internals] object ParameterizedVerilogMemories {
   private val PortableIdentifier = "[A-Za-z_][A-Za-z0-9_$]*".r
@@ -33,6 +35,7 @@ private[internals] object ParameterizedVerilogMemories {
       writeData: String,
       clock: String,
       sharedAddress: Boolean,
+      independentDontCare: Boolean,
       readAddressWidth: ElaborationIntegerExpression,
       writeAddressWidth: ElaborationIntegerExpression,
       sourceLocation: Option[String]
@@ -67,16 +70,7 @@ private[internals] object ParameterizedVerilogMemories {
         plan.readAddressWidth,
         plan.writeAddressWidth
       ).exists(expression => PortableLogCall.findFirstIn(expression.verilog).nonEmpty) ||
-        PortableLogCall.findFirstIn(normalized).nonEmpty ||
-        (
-          plan.metadata.depth.parameters.nonEmpty &&
-            normalized.toLowerCase.contains("io_push_valid") &&
-            normalized.toLowerCase.contains("io_push_ready") &&
-            normalized.toLowerCase.contains("io_pop_valid") &&
-            normalized.toLowerCase.contains("io_pop_ready") &&
-            normalized.toLowerCase.contains("io_occupancy") &&
-            normalized.toLowerCase.contains("io_availability")
-        )
+        PortableLogCall.findFirstIn(normalized).nonEmpty
     val helperName =
       if (!helperNeeded || !declaresIdentifier(normalized, "clog2")) "clog2"
       else firstAvailable("clog2", used)
@@ -88,16 +82,23 @@ private[internals] object ParameterizedVerilogMemories {
     }
     lines = rewriteMemoryDeclaration(lines, plan, helperName)
     lines = rewriteReadTargetDeclaration(lines, plan, helperName)
-    lines = rewriteParameterizedStreamFifoDepth(lines, plan, helperName)
+    lines = rewriteAddressDeclarations(lines, plan, helperName)
 
     val memoryBlocks = alwaysBlocks(lines).filter { block =>
       val text = lines.slice(block.start, block.endInclusive + 1).mkString("\n")
       containsIndexedReference(text, plan.memoryName)
     }
-    if (memoryBlocks.size != 1) {
+    val acceptedMemoryBlocks =
+      memoryBlocks.size == 1 ||
+        independentDontCareProcessesAreComplete(lines, memoryBlocks, plan)
+    if (!acceptedMemoryBlocks) {
+      val expected =
+        if (plan.independentDontCare)
+          "one combined process or one proven read process plus one proven write process"
+        else "exactly one process"
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-PROCESS-NOT-FOUND",
-        s"normal Verilog emission contains ${memoryBlocks.size} clocked processes for memory '${plan.memoryName}'; expected exactly one",
+        s"normal Verilog emission contains ${memoryBlocks.size} clocked processes for memory '${plan.memoryName}'; expected $expected",
         plan.sourceLocation
       )
     }
@@ -188,13 +189,6 @@ private[internals] object ParameterizedVerilogMemories {
         source
       )
     }
-    if (read.readUnderWrite ne readFirst) {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-COLLISION-POLICY-UNSUPPORTED",
-        s"memory '${memory.getName()}' must select readUnderWrite = readFirst",
-        source
-      )
-    }
     if (
       read.clockDomain == null || write.clockDomain == null ||
       (read.clockDomain.clock ne write.clockDomain.clock) ||
@@ -252,8 +246,22 @@ private[internals] object ParameterizedVerilogMemories {
       )
     }
 
-    val readAddressWidth = widthOf(read.address, source)
-    val writeAddressWidth = widthOf(write.address, source)
+    val nativeAddressWidth =
+      nativeMemoryAddressWidth(metadata.depth, source)
+    val readAddressWidth = selectAddressWidth(
+      read.address,
+      widthOf(read.address, source),
+      nativeAddressWidth,
+      memory.component,
+      source
+    )
+    val writeAddressWidth = selectAddressWidth(
+      write.address,
+      widthOf(write.address, source),
+      nativeAddressWidth,
+      memory.component,
+      source
+    )
     validateAddressWidth(read.address, readAddressWidth, metadata.depth, "read", memory, pc, source)
     validateAddressWidth(write.address, writeAddressWidth, metadata.depth, "write", memory, pc, source)
     if (!equivalentWidth(readAddressWidth, writeAddressWidth)) {
@@ -286,6 +294,15 @@ private[internals] object ParameterizedVerilogMemories {
     val readTarget = stableName(read, "synchronous read result", source)
     val readAddress = stableName(read.address, "read address", source)
     val writeAddress = stableName(write.address, "write address", source)
+    val independentDontCare =
+      (read.readUnderWrite eq dontCare) && readAddress != writeAddress
+    if ((read.readUnderWrite ne readFirst) && !independentDontCare) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-COLLISION-POLICY-UNSUPPORTED",
+        s"memory '${memory.getName()}' must select readUnderWrite = readFirst; only independent-address simple-dual-port dontCare reads are admitted",
+        source
+      )
+    }
     val readEnable = stableName(read.readEnable, "read enable", source)
     val writeEnable = stableName(write.writeEnable, "write enable", source)
     val writeData = stableName(write.data, "write data", source)
@@ -328,10 +345,74 @@ private[internals] object ParameterizedVerilogMemories {
       writeData,
       clock,
       sharedAddress = readAddress == writeAddress,
+      independentDontCare = independentDontCare,
       readAddressWidth,
       writeAddressWidth,
       source
     )
+  }
+
+  private def nativeMemoryAddressWidth(
+      depth: ElaborationIntegerExpression,
+      source: Option[String]
+  ): ElaborationIntegerExpression =
+    ElaborationIntegerExpression(
+      verilog = s"clog2(${depth.verilog}, 1)",
+      default = portableAddressWidth(depth.default),
+      minimum = portableAddressWidth(depth.minimum),
+      maximum = portableAddressWidth(depth.maximum),
+      parameters = depth.parameters,
+      sourceLocation = source.orElse(depth.sourceLocation)
+    )
+
+  private def portableAddressWidth(value: BigInt): BigInt = {
+    if (value < 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-DOMAIN-INVALID",
+        s"native memory address width requires a positive depth, received $value"
+      )
+    }
+    BigInt(math.max(1, (value - 1).bitLength))
+  }
+
+  private def selectAddressWidth(
+      address: Expression with WidthProvider,
+      retained: ElaborationIntegerExpression,
+      native: ElaborationIntegerExpression,
+      component: Component,
+      source: Option[String]
+  ): ElaborationIntegerExpression = {
+    val retainedIsConcreteWitness =
+      retained.parameters.isEmpty &&
+      retained.default == BigInt(address.getWidth) &&
+      retained.minimum == retained.default &&
+      retained.maximum == retained.default
+    val driverProvesNativeWidth = address match {
+      case target: BaseType =>
+        val assignments = ArrayBuffer.empty[DataAssignmentStatement]
+        component.dslBody.walkLeafStatements {
+          case value: DataAssignmentStatement
+              if value.finalTarget eq target =>
+            assignments += value
+          case _ =>
+        }
+        val widths = assignments.toVector.flatMap { assignment =>
+          assignment.source match {
+            case value: Expression with WidthProvider =>
+              Some(widthOf(value, source))
+            case _ => None
+          }
+        }.distinct
+        widths.size == 1 && equivalentWidth(widths.head, native)
+      case _ => false
+    }
+    if (
+      native.parameters.nonEmpty &&
+      retainedIsConcreteWitness &&
+      native.default == retained.default &&
+      driverProvesNativeWidth
+    ) native
+    else retained
   }
 
   private def validateAddressWidth(
@@ -474,133 +555,75 @@ private[internals] object ParameterizedVerilogMemories {
     case _ =>
   }
 
-  /**
-    * Retain the native non-power-of-two StreamFifo algorithm while replacing
-    * witness-only geometry with the public bounded depth. A witness of five
-    * selects the library's explicit terminal-count wrap path, which remains
-    * valid for each supported override, including one and powers of two.
-    */
-  private def rewriteParameterizedStreamFifoDepth(
+  private def rewriteAddressDeclarations(
       lines: Vector[String],
       plan: MemoryPlan,
       helperName: String
   ): Vector[String] = {
-    val depth = plan.metadata.depth
-    if (depth.parameters.isEmpty) return lines
-
-    val moduleText = lines.mkString("\n").toLowerCase
-    val isStreamFifo =
-      moduleText.contains("io_push_valid") &&
-        moduleText.contains("io_push_ready") &&
-        moduleText.contains("io_pop_valid") &&
-        moduleText.contains("io_pop_ready") &&
-        moduleText.contains("io_occupancy") &&
-        moduleText.contains("io_availability")
-    if (!isStreamFifo) return lines
-
-    val depthExpression = render(depth, helperName)
-    val pointerWidth = s"$helperName($depthExpression, 1)"
-    val occupancyWidth = s"$helperName(($depthExpression + 1), 1)"
-    val depthDefault = depth.default
-    val packedRange = "\\[[^\\]]+\\]".r
-    val sizedLiteral = "(?i)([0-9]+)'([s]?)([bodh])([0-9a-f_xz]+)".r
-    val pushReadyAssignment =
-      """^(\s*assign\s+io_push_ready\s*=\s*)(.*)(;\s*)$""".r
-
-    def isDeclaration(line: String): Boolean = {
-      val value = line.trim.toLowerCase
-      value.startsWith("input ") || value.startsWith("output ") ||
-      value.startsWith("inout ") || value.startsWith("wire ") ||
-      value.startsWith("reg ")
-    }
-
-    def literalValue(value: String, radix: String): Option[BigInt] = {
-      if (value.exists(c => c == 'x' || c == 'X' || c == 'z' || c == 'Z')) None
-      else {
-        val cleaned = value.replace("_", "")
-        val base = radix.toLowerCase match {
-          case "b" => 2
-          case "o" => 8
-          case "d" => 10
-          case "h" => 16
+    val roles = Vector(
+      plan.readAddress -> plan.readAddressWidth,
+      plan.writeAddress -> plan.writeAddressWidth
+    ).groupBy(_._1).toVector.sortBy(_._1).map {
+      case (name, values) =>
+        val widths = values.map(_._2).distinct
+        if (widths.size != 1) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ADDRESS-TYPE-MISMATCH",
+            s"memory '${plan.memoryName}' address '$name' has incompatible retained declaration widths",
+            plan.sourceLocation
+          )
         }
-        Some(BigInt(cleaned, base))
-      }
+        name -> widths.head
     }
-
-    def replaceSized(line: String, target: BigInt, replacement: String): String =
-      sizedLiteral.replaceAllIn(
-        line,
-        value =>
-          literalValue(value.group(4), value.group(3)) match {
-            case Some(parsed) if parsed == target =>
-              java.util.regex.Matcher.quoteReplacement(replacement)
-            case _ => value.matched
-          }
+    roles.foldLeft(lines) { case (current, (name, width)) =>
+      rewriteAddressDeclaration(
+        current,
+        plan,
+        name,
+        width,
+        helperName
       )
+    }
+  }
 
-    def replaceDecimal(line: String, target: BigInt, replacement: String): String = {
-      val pattern =
-        ("(?<![A-Za-z0-9_$'])" + java.util.regex.Pattern.quote(target.toString) +
-          "(?![A-Za-z0-9_$])").r
-      pattern.replaceAllIn(
-        line,
-        java.util.regex.Matcher.quoteReplacement(replacement)
+  private def rewriteAddressDeclaration(
+      lines: Vector[String],
+      plan: MemoryPlan,
+      name: String,
+      width: ElaborationIntegerExpression,
+      helperName: String
+  ): Vector[String] = {
+    if (width.parameters.isEmpty) return lines
+    val declaration =
+      "^\\s*(?:input|output|inout|wire|reg)\\b".r
+    val candidates = lines.zipWithIndex.collect {
+      case (line, index)
+          if declaration.findFirstIn(line).nonEmpty &&
+            containsIdentifier(line, name) =>
+        index
+    }
+    if (candidates.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ADDRESS-DECLARATION-NOT-FOUND",
+        s"normal Verilog emission contains ${candidates.size} declarations matching memory address '$name' for '${plan.memoryName}'",
+        plan.sourceLocation
       )
     }
 
-    lines.map { original =>
-      val lower = original.toLowerCase
-      // The witness-depth FIFO emits several related address and occupancy
-      // pipeline names. Normalize separators and classify the complete native
-      // path so every depth-derived declaration is rewritten consistently.
-      val compactName = lower.replace("_", "")
-      val pointerContext =
-        compactName.contains("pushptr") || compactName.contains("popptr") ||
-          compactName.contains("ptrpush") || compactName.contains("ptrpop") ||
-          compactName.contains("poponio") || compactName.contains("popreg") ||
-          compactName.contains("addressgenpayload") ||
-          compactName.contains("addressgenrdata") ||
-          compactName.contains("readarbitrationpayload") ||
-          compactName.contains("readportcmdpayload") ||
-          compactName.contains("toflowfirepayload") ||
-          (lower.contains("address") &&
-            (lower.contains("ram") || lower.contains("memory")))
-      val occupancyContext =
-        lower.contains("occupancy") || lower.contains("availability") ||
-          (compactName.contains("notpow2counter") &&
-            !lower.contains("[0:0]")) ||
-          lower.contains("push_ready")
-      val memoryArray = lower.contains("[0:")
-
-      var line = original
-      if (isDeclaration(line) && !memoryArray && packedRange.findFirstIn(line).nonEmpty) {
-        if (pointerContext) {
-          line = packedRange.replaceFirstIn(
-            line,
-            java.util.regex.Matcher.quoteReplacement(s"[$pointerWidth-1:0]")
-          )
-        } else if (occupancyContext) {
-          line = packedRange.replaceFirstIn(
-            line,
-            java.util.regex.Matcher.quoteReplacement(s"[$occupancyWidth-1:0]")
-          )
-        }
-      }
-      if (pointerContext) {
-        line = replaceSized(line, depthDefault - 1, s"($depthExpression - 1)")
-        line = replaceDecimal(line, depthDefault - 1, s"($depthExpression - 1)")
-      }
-      if (occupancyContext) {
-        line = replaceSized(line, depthDefault, depthExpression)
-        line = replaceDecimal(line, depthDefault, depthExpression)
-      }
-      line match {
-        case pushReadyAssignment(prefix, rhs, suffix) =>
-          s"$prefix(($depthExpression == 1) ? ((io_occupancy == 0) || (io_pop_valid && io_pop_ready)) : ($rhs))$suffix"
-        case _ => line
-      }
+    val index = candidates.head
+    val line = lines(index)
+    val nameMatch = identifierPattern(name).findFirstMatchIn(line).get
+    var prefix = line.substring(0, nameMatch.start)
+    val suffix = line.substring(nameMatch.end)
+    val packed = "\\[[^\\]]+\\]\\s*$".r
+    val range = s"[${render(width, helperName)}-1:0]"
+    packed.findFirstMatchIn(prefix) match {
+      case Some(value) =>
+        prefix = prefix.substring(0, value.start) + range + " "
+      case None =>
+        prefix = prefix + range + " "
     }
+    lines.updated(index, prefix + name + suffix)
   }
 
   private def rewriteReadTargetDeclaration(
@@ -725,6 +748,34 @@ private[internals] object ParameterizedVerilogMemories {
     lines.result()
   }
 
+  private def independentDontCareProcessesAreComplete(
+      lines: Vector[String],
+      blocks: Vector[LineRange],
+      plan: MemoryPlan
+  ): Boolean = {
+    if (!plan.independentDontCare || blocks.size != 2) return false
+    val expectedHeader = s"always @(posedge ${plan.clock})"
+    val texts = blocks.map { block =>
+      val header = lines(block.start).replaceAll("\\s+", " ").trim
+      if (!header.startsWith(expectedHeader)) return false
+      lines.slice(block.start, block.endInclusive + 1).mkString("\n")
+    }
+    val readBlocks = texts.zipWithIndex.collect {
+      case (text, index)
+          if containsIdentifier(text, plan.readTarget) &&
+            containsIndexedAccess(text, plan.memoryName, plan.readAddress) =>
+        index
+    }
+    val writeBlocks = texts.zipWithIndex.collect {
+      case (text, index)
+          if containsIdentifier(text, plan.writeData) &&
+            containsIndexedAccess(text, plan.memoryName, plan.writeAddress) =>
+        index
+    }
+    readBlocks.size == 1 && writeBlocks.size == 1 &&
+      readBlocks.head != writeBlocks.head
+  }
+
   private def alwaysBlocks(lines: Vector[String]): Vector[LineRange] = {
     val blocks = Vector.newBuilder[LineRange]
     var index = 0
@@ -841,6 +892,16 @@ private[internals] object ParameterizedVerilogMemories {
 
   private def containsIndexedReference(value: String, name: String): Boolean =
     ("(?<![A-Za-z0-9_$])" + Pattern.quote(name) + "\\s*\\[").r
+      .findFirstIn(value)
+      .nonEmpty
+
+  private def containsIndexedAccess(
+      value: String,
+      name: String,
+      index: String
+  ): Boolean =
+    ("(?<![A-Za-z0-9_$])" + Pattern.quote(name) + "\\s*\\[\\s*" +
+      Pattern.quote(index) + "\\s*\\]").r
       .findFirstIn(value)
       .nonEmpty
 

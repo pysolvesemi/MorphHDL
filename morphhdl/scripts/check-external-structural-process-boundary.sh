@@ -14,7 +14,7 @@ do
 done
 
 for path in \
-  frontend/src/main/scala/spinal/core/ParameterizedStructure.scala \
+  morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala \
   frontend/src/main/scala/spinal/core/ParameterizedProcess.scala \
   morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
   morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogProcesses.scala \
@@ -24,7 +24,7 @@ do
 done
 
 width=core/src/main/scala/spinal/core/ParameterizedWidth.scala
-structure=frontend/src/main/scala/spinal/core/ParameterizedStructure.scala
+structure=morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala
 phase=core/src/main/scala/spinal/core/internals/PhaseVerilog.scala
 external=morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
 

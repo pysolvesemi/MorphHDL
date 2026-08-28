@@ -856,6 +856,7 @@ object unusedTag                     extends SpinalTag
 object noCombinatorialLoopCheck      extends SpinalTag
 object noLatchCheck                  extends SpinalTag
 object noBackendCombMerge            extends SpinalTag
+object noBackendSyncMerge            extends SpinalTag
 object reportIncludeSourceLocation   extends SpinalTag{ override def allowMultipleInstance = false }
 case class reportSourceLocationFormatTag(format: String) extends SpinalTag{
   override def allowMultipleInstance = false

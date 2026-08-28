@@ -48,6 +48,50 @@ object formalComponent {
   )(constructor: Int => C)(geometry: C => Iterable[Data])(implicit
       file: sourcecode.File,
       line: sourcecode.Line
+  ): C =
+    build(
+      actual,
+      name,
+      minimum,
+      maximum,
+      constructor,
+      Some(geometry)
+    )
+
+  /**
+    * Retain one exact component-level formal whose native `Int` controls
+    * storage or structural choices but is not itself a packed child-port width.
+    * Internal symbolic metadata must still prove the definition dependency;
+    * this method supplies only the exact formal-to-actual hierarchy binding.
+    */
+  def parameter[C <: Component](
+      actual: HdlInt,
+      name: String,
+      minimum: BigInt,
+      maximum: BigInt
+  )(constructor: Int => C)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): C =
+    build(
+      actual,
+      name,
+      minimum,
+      maximum,
+      constructor,
+      None
+    )
+
+  private def build[C <: Component](
+      actual: HdlInt,
+      name: String,
+      minimum: BigInt,
+      maximum: BigInt,
+      constructor: Int => C,
+      geometry: Option[C => Iterable[Data]]
+  )(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
   ): C = {
     val origin = SourceOrigin.capture
     if (constructor eq null) {
@@ -57,12 +101,14 @@ object formalComponent {
         origin
       )
     }
-    if (geometry eq null) {
-      FrontendException.failAt(
-        "MORPH-FRONTEND-FORMAL-COMPONENT-SELECTOR-NULL",
-        s"formalComponent slot '$name' requires one non-null exact-geometry selector",
-        origin
-      )
+    geometry.foreach { selector =>
+      if (selector eq null) {
+        FrontendException.failAt(
+          "MORPH-FRONTEND-FORMAL-COMPONENT-SELECTOR-NULL",
+          s"formalComponent slot '$name' requires one non-null exact-geometry selector",
+          origin
+        )
+      }
     }
 
     val parent = Option(Component.current).getOrElse {
@@ -87,7 +133,9 @@ object formalComponent {
     val token = ExternalNativeIntFormalizationToken(
       callSite = origin.rendered,
       valueOrigin = actual.origin.rendered,
-      role = s"formalComponent($name)"
+      role =
+        if (geometry.isDefined) s"formalComponent($name)"
+        else s"formalComponent.parameter($name)"
     )
     val shadow = ExternalNativeIntShadowRegistry.captureWithDefinition(
       expression = actualExpression,
@@ -116,15 +164,23 @@ object formalComponent {
       declarationKey = s"external-native-int::$ownerClassName::$name",
       origin = origin
     )
-    val selected = geometry(component)
-
-    ExternalNativeIntFormalizationRegistry.attachComponent(
-      parent = parent,
-      component = component,
-      geometry = selected,
-      binding = binding,
-      token = token
-    )
+    geometry match {
+      case Some(selector) =>
+        ExternalNativeIntFormalizationRegistry.attachComponent(
+          parent = parent,
+          component = component,
+          geometry = selector(component),
+          binding = binding,
+          token = token
+        )
+      case None =>
+        ExternalNativeIntFormalizationRegistry.attachComponentParameter(
+          parent = parent,
+          component = component,
+          binding = binding,
+          token = token
+        )
+    }
     ExternalNativeIntShadowRegistry.attachComponent(
       component = component,
       binding = binding,
