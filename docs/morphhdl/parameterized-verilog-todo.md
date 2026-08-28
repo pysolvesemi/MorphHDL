@@ -195,8 +195,12 @@ After Increment 44 is implemented and merged:
 - Increment 52 depends only on Increment 51.
 - Increment 53 joins memory provenance and symbolic control flow; it depends
   on Increments 45 and 52.
-- Increment 53b depends on Increment 53 and must complete before Increment 54.
-- Increments 54 through 58 then form a strict sequential closure chain.
+- Increment 53a is a corrective formal-equivalence closure and depends only on
+  the merged Increment 53.
+- Increment 53b depends only on the merged Increment 53. Increments 53a and 53b
+  may execute independently, but both must complete before Increment 54.
+- Increments 54 through 58 then form a strict sequential closure chain after
+  Increments 53a and 53b.
 
 Dependencies are transitive. Two increments with no dependency edge between
 them are intentionally eligible for parallel implementation and review.
@@ -343,6 +347,32 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   separately authored FIFO. Stop for architecture approval if the alternatives
   cannot be retained through the generic provenance and branch-capture path.
 
+- [x] **Increment 53a — Native StreamFifo concrete-witness formal equivalence**
+
+  **Dependencies:** Increment 53 implemented and merged.
+
+  Keep Increment 53 checked and add an independent formal proof layer around
+  its generated top-level design. From the same untouched
+  `spinal.lib.StreamFifo` source, generate ordinary `SpinalVerilog` concrete
+  witnesses with literal native-`Int` depths 1, 3, 5 and 8. Generate the
+  Increment 53 `MorphVerilog` top once, specialize that one parameterized
+  definition to each matching `DEPTH`, and prove every full top-level pair
+  sequentially equivalent after a shared synchronous-reset edge under
+  arbitrary shared push-valid/payload, pop-ready, flush and later-reset inputs.
+  Compare push-ready, pop-valid, occupancy and availability on every proved
+  cycle, and compare pop payload only while pop-valid because unwritten memory
+  payload is unspecified. The proof must be solver-backed and unbounded, or
+  exhaustive with an explicit completeness argument; bounded simulation,
+  lint, synthesis, `yosys check`, structural/text equality and a
+  concrete-vs-concrete comparison do not satisfy it. Require independently
+  generated DUT legs, reject a `DEPTH` parameter on the concrete leg, and add a
+  DEPTH=3 negative-control mutation that changes a compared MorphHDL observable
+  and must produce a genuine assertion counterexample. Run generation and all
+  four proofs on Scala 2.12.18 and 2.13.12 in a pinned formal toolchain while
+  retaining strict Verilog-2001, determinism and source-boundary gates. No
+  separately authored FIFO, native `StreamFifo` source edit, emitted-name
+  heuristic or Increment 53 checkbox change is permitted.
+
 - [x] **Increment 53b — MorphHDL-owned module-local SpinalEnum parameters**
 
   **Dependencies:** Increment 53 implemented and merged.
@@ -363,7 +393,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
 
 - [ ] **Increment 54 — MorphHDL module extraction and native-tree cleanup**
 
-  **Dependencies:** Increment 53b implemented and merged.
+  **Dependencies:** Increments 53a and 53b implemented and merged.
 
   Move remaining MorphHDL-specific parameter metadata, capture and lowering
   files out of native `core`, `lib` and `idslplugin` source trees into

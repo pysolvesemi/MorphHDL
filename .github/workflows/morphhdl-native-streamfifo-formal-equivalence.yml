@@ -1,0 +1,121 @@
+name: MorphHDL native StreamFifo formal equivalence
+
+# Increment 53a compares one MorphHDL parameterized StreamFifo hierarchy with
+# independent ordinary SpinalVerilog witnesses at native-Int depths 1, 3, 5
+# and 8. The solver proof covers the complete fixed-width outer harness.
+on:
+  push:
+    branches:
+      - main
+      - parameterized-verilog
+  pull_request:
+    branches:
+      - main
+      - parameterized-verilog
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-native-streamfifo-formal-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-boundary:
+    name: Native StreamFifo source boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove approved native StreamFifo ownership
+        shell: bash
+        run: bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+
+  formal-equivalence:
+    name: Concrete-witness formal proof Scala ${{ matrix.scala_version }}
+    needs: source-boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      MORPHDL_RUN_STREAMFIFO_FORMAL_EQUIVALENCE: "1"
+      MORPHDL_STREAMFIFO_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify pinned formal toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v yosys
+          command -v sby
+          command -v yices-smt2
+          command -v iverilog
+          command -v vvp
+          command -v verilator
+          yosys_version="$(yosys -V)"
+          sby_help="$(sby -h 2>&1)"
+          sby_sha256="$(sha256sum "$(command -v sby)")"
+          yices_version="$(yices-smt2 --version)"
+          iverilog_version="$(iverilog -V 2>&1)"
+          verilator_version="$(verilator --version)"
+          printf '%s\n' \
+            "$yosys_version" \
+            "$sby_sha256" \
+            "$yices_version" \
+            "$iverilog_version" \
+            "$verilator_version"
+          grep -Eq '^Yosys 0\.41([ +]|$)' <<<"$yosys_version"
+          grep -q 'usage: sby' <<<"$sby_help"
+          test -n "$yices_version"
+          yosys -Q -p 'help abc' >/tmp/morphhdl-yosys-abc-help.txt 2>&1
+          grep -q 'ABC' /tmp/morphhdl-yosys-abc-help.txt
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Prove all concrete witnesses and live mutation control
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.NativeStreamFifoFormalEquivalenceTests
+
+      - name: Re-run inherited native StreamFifo and hierarchy contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.HierarchyParameterBindingTests
+
+      - name: Retain proof statuses and mutation counterexample
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: streamfifo-formal-scala-${{ matrix.scala_version }}
+          path: formal-artifacts/scala-${{ matrix.scala_version }}
+          if-no-files-found: error
+          retention-days: 14
