@@ -79,6 +79,8 @@ final class NativeAxi4SlaveFactoryParameterizedTop(actualOffset: HdlInt)
 }
 
 class NativeAxi4SlaveFactoryParameterizedOffsetTests extends AnyFunSuite {
+  private val ConcreteWitnessOffsets = Vector(0x010, 0x040, 0x050, 0x070)
+
   private def component(default: Int = 0x040)
       : NativeAxi4SlaveFactoryParameterizedTop = {
     val offset = HdlInt.param(
@@ -126,19 +128,29 @@ class NativeAxi4SlaveFactoryParameterizedOffsetTests extends AnyFunSuite {
     withTemporaryDirectory { directory =>
       val firstDirectory = directory.resolve("first")
       val secondDirectory = directory.resolve("second")
-      val concreteDirectory = directory.resolve("concrete")
       val filename = "native_axi4_slave_factory_parameterized_offset.v"
 
       val firstReport = MorphVerilog(config(firstDirectory, filename))(component())
       MorphVerilog(config(secondDirectory, filename))(component())
-      SpinalVerilog(config(concreteDirectory, filename))(component())
+
+      val concreteByOffset = ConcreteWitnessOffsets.map { offset =>
+        val concreteDirectory = directory.resolve(s"concrete-offset-$offset")
+        SpinalVerilog(config(concreteDirectory, filename))(component(offset))
+        offset -> read(concreteDirectory.resolve(filename))
+      }.toMap
 
       val first = read(firstDirectory.resolve(filename))
       val second = read(secondDirectory.resolve(filename))
-      val concrete = read(concreteDirectory.resolve(filename))
+      val concrete = concreteByOffset(0x040)
 
       exportArtifact("native_axi4_parameterized.v", first)
       exportArtifact("native_axi4_concrete_top.v", concrete)
+      concreteByOffset.foreach { case (offset, verilog) =>
+        exportArtifact(
+          s"native_axi4_concrete_top_offset_$offset.v",
+          verilog
+        )
+      }
 
       assert(first == second, "native factory parameterized emission is not deterministic")
       assert(firstReport.parameters.exists(_.name == "TOP_OFFSET"))
@@ -167,11 +179,19 @@ class NativeAxi4SlaveFactoryParameterizedOffsetTests extends AnyFunSuite {
       assert(!first.contains("ParamRTL"))
       assert(!first.contains("class Axi4SlaveFactory"))
 
-      assert(!concrete.contains("parameter integer OFFSET"))
-      assert(!concrete.contains("parameter integer TOP_OFFSET"))
-      assert(containsAddressLiteral(concrete, 0x040))
-      assert(containsAddressLiteral(concrete, 0x044))
-      assert(containsAddressLiteral(concrete, 0x080))
+      concreteByOffset.foreach { case (offset, verilog) =>
+        assert(!verilog.contains("parameter integer OFFSET"))
+        assert(!verilog.contains("parameter integer TOP_OFFSET"))
+        assert(containsAddressLiteral(verilog, offset))
+        assert(containsAddressLiteral(verilog, offset + 4))
+        assert(containsAddressLiteral(verilog, 0x080))
+        assert(verilog.contains("io_axi_aw_ready"))
+        assert(verilog.contains("io_axi_r_valid"))
+      }
+      assert(
+        concreteByOffset.values.toSet.size == ConcreteWitnessOffsets.size,
+        "native factory concrete witnesses were not independently specialized"
+      )
     }
   }
 
