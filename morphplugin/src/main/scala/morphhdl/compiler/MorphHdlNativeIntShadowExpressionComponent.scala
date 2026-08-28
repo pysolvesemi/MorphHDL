@@ -108,6 +108,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     private var nativeStreamFifoDepthReference: Option[String] = None
     private var nativeStreamFifoDepthLine: Int = 1
     private var nativeStreamFifoStaticBooleans = Set.empty[TermName]
+    private var nativeStreamFifoClassName: Option[String] = None
 
     private val NativeStreamFifoStaticBooleanNames = Set(
       "withAsyncRead",
@@ -350,10 +351,12 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       val previousDepthReference = nativeStreamFifoDepthReference
       val previousDepthLine = nativeStreamFifoDepthLine
       val previousStaticBooleans = nativeStreamFifoStaticBooleans
+      val previousClassName = nativeStreamFifoClassName
       nativeStreamFifoDataTypeName = None
       nativeStreamFifoDepthName = None
       nativeStreamFifoDepthReference = None
       nativeStreamFifoStaticBooleans = Set.empty
+      nativeStreamFifoClassName = None
       try body
       finally {
         nativeStreamFifoDataTypeName = previousDataTypeName
@@ -361,6 +364,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         nativeStreamFifoDepthReference = previousDepthReference
         nativeStreamFifoDepthLine = previousDepthLine
         nativeStreamFifoStaticBooleans = previousStaticBooleans
+        nativeStreamFifoClassName = previousClassName
       }
     }
 
@@ -1729,12 +1733,14 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
           val previousReference = nativeStreamFifoDepthReference
           val previousLine = nativeStreamFifoDepthLine
           val previousBooleans = nativeStreamFifoStaticBooleans
+          val previousClassName = nativeStreamFifoClassName
           nativeStreamFifoDataTypeName = dataType.map(_.name)
           nativeStreamFifoDepthName = Some(depthParameter.name)
           nativeStreamFifoDepthReference = Some(
             sourceReference(depthParameter, "argument:DEPTH")
           )
           nativeStreamFifoDepthLine = sourceLine(depthParameter)
+          nativeStreamFifoClassName = Some(decoded(value.name))
           nativeStreamFifoStaticBooleans = parameters.collect {
             case parameter
                 if NativeStreamFifoStaticBooleanNames(decoded(parameter.name)) =>
@@ -1747,6 +1753,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
             nativeStreamFifoDepthReference = previousReference
             nativeStreamFifoDepthLine = previousLine
             nativeStreamFifoStaticBooleans = previousBooleans
+            nativeStreamFifoClassName = previousClassName
           }
       }
     }
@@ -1816,7 +1823,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       case value: ClassDef
           if sourceFile.replace('\\', '/').endsWith(
             "/lib/src/main/scala/spinal/lib/Stream.scala"
-          ) && decoded(value.name) == "StreamFifo" =>
+          ) && Set("StreamFifo", "StreamFifoCC").contains(decoded(value.name)) =>
         transformNativeStreamFifo(value)
       case application @ Apply(Select(condition, name), List(body))
           if inNativeStreamFifo && decoded(name) == "generate" =>
@@ -1827,7 +1834,9 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       case block: Block       => withScope(super.transform(block))
       case function: Function => withScope(super.transform(function))
       case definition: DefDef
-          if inNativeStreamFifo && decoded(definition.name) != "<init>" =>
+          if inNativeStreamFifo && decoded(definition.name) != "<init>" &&
+            !(nativeStreamFifoClassName.contains("StreamFifoCC") &&
+              Set("isFull", "isEmpty").contains(decoded(definition.name))) =>
         withoutNativeStreamFifoContext {
           withScope(super.transform(definition))
         }

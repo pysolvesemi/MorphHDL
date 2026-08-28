@@ -418,6 +418,25 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   synthesis plus macro-versus-localparam sequential formal equivalence on
   Scala 2.12.18 and 2.13.12.
 
+- [ ] **Increment 53e — Native StreamFifoCC parameterization without source edits**
+
+  **Dependencies:** Increment 53 implemented and merged.
+
+  Apply the generic native-`Int` provenance, expression, memory, hierarchy and
+  process lowering path to the exact untouched `spinal.lib.StreamFifoCC` class.
+  MorphHDL may provide only an external construction/provenance adapter that
+  returns the native `spinal.lib.StreamFifoCC[T]`; it must not add a copied,
+  subclassed or separately authored asynchronous FIFO. Keep all upstream-owned
+  SpinalHDL `core`, `lib`, `idslplugin` and other production sources byte-identical.
+  Preserve the native power-of-two/depth-at-least-two contract, dual clock
+  domains, Gray-coded pointers, `BufferCC` synchronizers, cross-clock memory,
+  optional buffered pop reset, push/pop occupancy and stream ordering. Emit one
+  parameterized Verilog-2001 `StreamFifoCC` definition and prove legal DEPTH
+  overrides 4, 8 and 16 using deterministic dual-Scala generation, concrete
+  parity, asynchronous-clock simulation, strict lint and synthesis. Retain
+  symbolic pointer widths and range/index expressions by graph identity; emitted
+  signal names or component-specific Verilog rewriting are not acceptable.
+
 - [ ] **Increment 54 — MorphHDL module extraction and native-tree cleanup**
 
   **Dependencies:** Increments 53a, 53b and 53b.1 implemented and merged.
