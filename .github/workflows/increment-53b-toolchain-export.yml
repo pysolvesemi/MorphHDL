@@ -14,13 +14,16 @@ permissions:
 jobs:
   export:
     runs-on: ubuntu-latest
+    env:
+      COURSIER_CACHE: /tmp/increment-53b-coursier
+      MILL_HOME: /tmp/increment-53b-mill-home
     steps:
       - name: Check out exact branch head
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Download pinned Mill
+      - name: Download and initialize pinned Mill
         shell: bash
         run: |
           set -euo pipefail
@@ -30,7 +33,7 @@ jobs:
           chmod +x /tmp/mill
           /tmp/mill --version
 
-      - name: Package exact workspace
+      - name: Package exact workspace and offline Mill runtime
         shell: bash
         run: |
           set -euo pipefail
@@ -42,14 +45,8 @@ jobs:
             --exclude=.bloop \
             --exclude=.metals \
             -czf /tmp/morphhdl-increment-53b-workspace.tar.gz .
-
-      - name: Upload pinned Mill
-        uses: actions/upload-artifact@v4
-        with:
-          name: morphhdl-increment-53b-mill
-          path: /tmp/mill
-          if-no-files-found: error
-          retention-days: 1
+          tar -C /tmp -czf /tmp/morphhdl-increment-53b-toolchain.tar.gz \
+            mill increment-53b-coursier increment-53b-mill-home
 
       - name: Upload exact workspace
         uses: actions/upload-artifact@v4
@@ -58,5 +55,13 @@ jobs:
           path: |
             /tmp/morphhdl-increment-53b-workspace.tar.gz
             /tmp/increment-53b-head.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload offline Mill runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-increment-53b-offline-toolchain
+          path: /tmp/morphhdl-increment-53b-toolchain.tar.gz
           if-no-files-found: error
           retention-days: 1
