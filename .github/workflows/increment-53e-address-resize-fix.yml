@@ -37,6 +37,7 @@ jobs:
           python3 morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py
           python3 morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py
           python3 morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
+          python3 morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
           git diff --check
 
       - name: Install pinned Mill bootstrap
@@ -78,6 +79,7 @@ jobs:
           rm -f morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py
           rm -f morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py
           rm -f morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
+          rm -f morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
           rm -f morphhdl/scripts/apply-increment-53e-buffercc-shape-repair.py
           git add -A
           git diff --cached --check
