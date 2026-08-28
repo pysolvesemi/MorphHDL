@@ -29,78 +29,29 @@ jobs:
 
           plugin = Path("morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala")
           text = plugin.read_text(encoding="utf-8")
-          replacements = [
-              (
-                  '''        case Apply(fun, List(bitCount))
-                      if inNativeRuntimeContext && terminalName(fun) == "UInt" =>
-                    rewriteBitVectorFactory(tree, fun, bitCount, "compilerUInt")
-          ''',
-                  '''        case Apply(fun, List(bitCount))
-                      if terminalName(fun) == "UInt" &&
-                        (inNativeRuntimeContext || firstTrackedInteger(bitCount).nonEmpty) =>
-                    rewriteBitVectorFactory(tree, fun, bitCount, "compilerUInt")
-          '''
-              ),
-              (
-                  '''        case Apply(fun, List(bitCount))
-                      if inNativeRuntimeContext && terminalName(fun) == "Bits" =>
-                    rewriteBitVectorFactory(tree, fun, bitCount, "compilerBits")
-          ''',
-                  '''        case Apply(fun, List(bitCount))
-                      if terminalName(fun) == "Bits" &&
-                        (inNativeRuntimeContext || firstTrackedInteger(bitCount).nonEmpty) =>
-                    rewriteBitVectorFactory(tree, fun, bitCount, "compilerBits")
-          '''
-              ),
-              (
-                  '''        case Apply(fun, List(bitCount))
-                      if inNativeRuntimeContext && terminalName(fun) == "SInt" =>
-                    rewriteBitVectorFactory(tree, fun, bitCount, "compilerSInt")
-          ''',
-                  '''        case Apply(fun, List(bitCount))
-                      if terminalName(fun) == "SInt" &&
-                        (inNativeRuntimeContext || firstTrackedInteger(bitCount).nonEmpty) =>
-                    rewriteBitVectorFactory(tree, fun, bitCount, "compilerSInt")
-          '''
-              ),
-          ]
-          for old, new in replacements:
-              if old not in text:
-                  raise SystemExit(f"compiler replacement anchor missing: {old.splitlines()[0]!r}")
+          for kind in ("UInt", "Bits", "SInt"):
+              old = (
+                  f'        case Apply(fun, List(bitCount))\n'
+                  f'            if inNativeRuntimeContext && terminalName(fun) == "{kind}" =>\n'
+                  f'          rewriteBitVectorFactory(tree, fun, bitCount, "compiler{kind}")\n'
+              )
+              new = (
+                  f'        case Apply(fun, List(bitCount))\n'
+                  f'            if terminalName(fun) == "{kind}" &&\n'
+                  f'              (inNativeRuntimeContext || firstTrackedInteger(bitCount).nonEmpty) =>\n'
+                  f'          rewriteBitVectorFactory(tree, fun, bitCount, "compiler{kind}")\n'
+              )
+              if text.count(old) != 1:
+                  raise SystemExit(f"compiler {kind} replacement anchor count was {text.count(old)}")
               text = text.replace(old, new, 1)
           plugin.write_text(text, encoding="utf-8")
 
           test = Path("morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala")
           text = test.read_text(encoding="utf-8")
-          leaf_anchor = '''  final class IndependentRootLeaf(
-              inputWidth: Int,
-              outputWidth: ParameterizedBitCount
-          ) extends Component {
-            setDefinitionName("NativeStreamWidthAdapterIndependentRoots")
-
-            @dontName val selectedInputWidth =
-              NativeIntShadow.captureArgument(inputWidth, "selectedInputWidth")
-            val io = new Bundle {
-              val input = slave(
-                Stream(
-                  morphhdl.frontend.HardType(
-                    spinal.core.Bits(selectedInputWidth bits)
-                  )
-                )
-              )
-              val output = master(
-                Stream(
-                  morphhdl.frontend.HardType(
-                    morphhdl.frontend.Bits(outputWidth)
-                  )
-                )
-              )
-            }
-
-            spinal.lib.StreamWidthAdapter(io.input, io.output, padding = true)
-          }
-          '''
-          parent_shell = leaf_anchor + '''
+          component_marker = "\n  def component(): Top =\n"
+          if text.count(component_marker) != 1:
+              raise SystemExit(f"component marker count was {text.count(component_marker)}")
+          parent_shell = '''
 
           /**
             * Valid parent shell for the independent-root rejection proof. The native
@@ -138,30 +89,14 @@ jobs:
             adapter.io.output.ready := io.output.ready
           }
           '''
-          if leaf_anchor not in text:
-              raise SystemExit("IndependentRootLeaf insertion anchor missing")
-          text = text.replace(leaf_anchor, parent_shell, 1)
+          text = text.replace(component_marker, parent_shell + component_marker, 1)
 
-          old_test = '''  test("a native adapter invocation rejects an unproven second symbolic root") {
-            withTemporaryDirectory { directory =>
-              val spinalConfig = config(directory)
-              spinalConfig.netlistFileName = "native_stream_width_adapter_independent.v"
-              val result = MorphVerilog.tryGenerate(spinalConfig) {
-                val first = HdlInt.param("FIRST_WIDTH", default = 12, min = 9, max = 16)
-                val second = HdlInt.param("SECOND_WIDTH", default = 12, min = 9, max = 16)
-                formalComponent.parameter(
-                  first,
-                  "INPUT_WIDTH",
-                  minimum = BigInt(9),
-                  maximum = BigInt(16)
-                ) { inputWitness =>
-                  // The second independent symbolic width is attached to a different
-                  // exact Data identity. The active INPUT_WIDTH boundary must reject it
-                  // instead of matching the equal concrete default.
-                  new IndependentRootLeaf(inputWitness, second bits)
-                }
-              }
-          '''
+          test_name = '  test("a native adapter invocation rejects an unproven second symbolic root") {'
+          start = text.find(test_name)
+          end_marker = "\n  private def hasWidth("
+          end = text.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit("independent-root test block markers missing")
           new_test = '''  test("a native adapter invocation rejects an unproven second symbolic root") {
             withTemporaryDirectory { directory =>
               val generationConfig = config(directory)
@@ -174,10 +109,20 @@ jobs:
                 // instead of matching the equal concrete default.
                 new IndependentRootTop(first, second)
               }
+              result match {
+                case Left(failure) =>
+                  assert(
+                    failure.detail.contains("MORPH-FRONTEND-NATIVE-WIDTH-FUNCTION-ROOT-AMBIGUOUS") ||
+                      failure.detail.contains("MORPH-FRONTEND-NATIVE-INT-EXPRESSION-OPERAND-UNPROVEN"),
+                    failure.detail
+                  )
+                case Right(report) =>
+                  fail(s"Expected independent-width provenance rejection, received $report")
+              }
+            }
+          }
           '''
-          if old_test not in text:
-              raise SystemExit("independent-root test replacement anchor missing")
-          text = text.replace(old_test, new_test, 1)
+          text = text[:start] + new_test + text[end:]
           test.write_text(text, encoding="utf-8")
           PY
 
