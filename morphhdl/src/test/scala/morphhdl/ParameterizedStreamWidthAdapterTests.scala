@@ -329,9 +329,9 @@ class ParameterizedStreamWidthAdapterTests extends AnyFunSuite {
 
   test("a native adapter invocation rejects an unproven second symbolic root") {
     withTemporaryDirectory { directory =>
-      val config = config(directory)
-      config.netlistFileName = "native_stream_width_adapter_independent.v"
-      val result = MorphVerilog.tryGenerate(config) {
+      val spinalConfig = config(directory)
+      spinalConfig.netlistFileName = "native_stream_width_adapter_independent.v"
+      val result = MorphVerilog.tryGenerate(spinalConfig) {
         val first = HdlInt.param("FIRST_WIDTH", default = 12, min = 9, max = 16)
         val second = HdlInt.param("SECOND_WIDTH", default = 12, min = 9, max = 16)
         formalComponent.parameter(
