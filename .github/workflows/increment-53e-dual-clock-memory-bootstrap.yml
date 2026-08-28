@@ -26,12 +26,46 @@ jobs:
       - name: Apply exact MorphHDL-owned memory patch
         run: |
           set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphhdl/scripts/apply-increment-53e-dual-clock-memory.py")
+          source = path.read_text(encoding="utf-8")
+          assignment_start = source.index('    old_complete = """')
+          new_assignment_start = source.index('    new_complete = """', assignment_start)
+          marker_code = '''    complete_start = text.index(
+              "  private def independentDontCareProcessesAreComplete("
+          )
+              complete_end = text.index(
+              "  private def alwaysBlocks(",
+              complete_start
+          )
+          '''
+          source = (
+              source[:assignment_start]
+              + marker_code
+              + source[new_assignment_start:]
+          )
+          call_start = source.index(
+              "    text = replace_once(\n        text,\n        old_complete,",
+              assignment_start,
+          )
+          call_end = source.index("\n\n    text = text.replace(", call_start)
+          replacement = '''    text = (
+              text[:complete_start]
+              + new_complete
+              + "\\n"
+              + text[complete_end:]
+          )'''
+          source = source[:call_start] + replacement + source[call_end:]
+          path.write_text(source, encoding="utf-8")
+          PY
           python3 morphhdl/scripts/apply-increment-53e-dual-clock-memory.py
 
       - name: Commit patched source
         run: |
           set -euo pipefail
-          if git diff --quiet; then
+          if git diff --quiet -- morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala; then
             echo "Increment 53e dual-clock memory lowering is already applied"
             exit 0
           fi
