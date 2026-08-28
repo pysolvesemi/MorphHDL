@@ -8,6 +8,10 @@ grep -Fq '): NativeStreamFifoCC[T]' frontend/src/main/scala/morphhdl/frontend/Li
 grep -Fq 'formalComponent.parameter' frontend/src/main/scala/morphhdl/frontend/Library.scala
 grep -Fq 'Set("StreamFifo", "StreamFifoCC")' \
   morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+grep -Fq 'ExternalParameterizedSliceRegistry' \
+  morphruntime/src/main/scala/spinal/core/ExternalParameterizedSliceRegistry.scala
+grep -Fq 'ParameterizedVerilogSlices.rewrite' \
+  morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
 
 if grep -R --include='*.scala' -nE \
   '(^|[[:space:]])class[[:space:]]+[A-Za-z0-9_]*StreamFifoCC|extends[[:space:]]+.*StreamFifoCC' \

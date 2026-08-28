@@ -46,10 +46,13 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         ParameterizedWidth.parametersOf(component).nonEmpty ||
           ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
           ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
+          ExternalParameterizedSliceRegistry.parametersOf(component).nonEmpty ||
           ParameterizedProcess.parametersOf(component).nonEmpty ||
           ParameterizedStructure.parametersOf(component).nonEmpty ||
           component.children.exists(
-            child => ParameterizedWidth.parametersOf(child).nonEmpty
+            child =>
+              ParameterizedWidth.parametersOf(child).nonEmpty ||
+                ExternalParameterizedSliceRegistry.parametersOf(child).nonEmpty
           )
       )
 
@@ -69,6 +72,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       hierarchy.parameters ++
         ExternalParameterizedMemoryRegistry.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
+        ExternalParameterizedSliceRegistry.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component),
       hierarchy.hasParameterizedInstances

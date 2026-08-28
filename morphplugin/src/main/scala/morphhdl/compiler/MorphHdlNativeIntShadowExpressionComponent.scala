@@ -987,6 +987,75 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       Rewrite(native)
     }
 
+    private def descendingRangeBounds(
+        tree: Tree
+    ): Option[(Tree, Tree, Name)] = tree match {
+      case Apply(Select(high, name), List(low))
+          if decoded(name) == "downto" =>
+        Some((high, low, name))
+      case _ => None
+    }
+
+    private def rewriteNativeSlice(
+        original: Tree,
+        function: Tree,
+        range: Tree
+    ): Option[Rewrite] =
+      descendingRangeBounds(range).map { case (highTree, lowTree, rangeName) =>
+        val high = operand(highTree)
+        val low = operand(lowTree)
+        val sourceTree = function match {
+          case Select(base, name) if decoded(name) == "apply" => base
+          case other                                           => other
+        }
+        val transformedSource = super.transform(sourceTree)
+        val transformedFunction = function match {
+          case Select(_, name) if decoded(name) == "apply" =>
+            val selected = Select(transformedSource, name)
+            selected.setPos(function.pos)
+          case _ => transformedSource
+        }
+        val transformedRange = Apply(
+          Select(high.tree, rangeName),
+          List(low.tree)
+        )
+        transformedRange.setPos(range.pos)
+        val native = Apply(transformedFunction, List(transformedRange))
+        native.setPos(original.pos)
+
+        val proven = high.intReference.orElse(low.intReference)
+        proven match {
+          case None => Rewrite(native)
+          case Some(reference)
+              if (high.intReference.isEmpty && !high.intLiteral) ||
+                (low.intReference.isEmpty && !low.intLiteral) =>
+            unsupportedInt(
+              reference,
+              "MORPH-FRONTEND-NATIVE-INT-SLICE-ENDPOINT-UNPROVEN",
+              "native descending range requires each endpoint to be a proven symbolic Int or exact integer literal",
+              original,
+              native
+            )
+          case Some(_) =>
+            Rewrite(
+              curriedCall(
+                "compilerSlice",
+                List(
+                  transformedSource,
+                  high.tree,
+                  Literal(Constant(high.intReference.getOrElse(""))),
+                  Literal(Constant(high.intLiteral)),
+                  low.tree,
+                  Literal(Constant(low.intReference.getOrElse(""))),
+                  Literal(Constant(low.intLiteral))
+                ) ++ sourceArguments(original),
+                native,
+                original
+              )
+            )
+        }
+      }
+
     private def nativeValueCarrier(
         value: Rewrite,
         prototype: Tree,
@@ -1593,6 +1662,12 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       }
 
       tree match {
+        case application @ Apply(function, List(range))
+            if inNativeStreamFifo &&
+              nativeStreamFifoClassName.contains("StreamFifoCC") &&
+              descendingRangeBounds(range).nonEmpty =>
+          rewriteNativeSlice(application, function, range)
+            .getOrElse(Rewrite(super.transform(tree)))
         // ValDef initializers enter rewriteExpression directly and therefore
         // do not reach the transform-level generate case below.
         case application @ Apply(Select(condition, name), List(body))

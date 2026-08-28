@@ -837,6 +837,149 @@ object ExternalNativeIntShadowRegistry {
   }
 
   /**
+    * Resolve one compiler-proven descending Scala range while its native
+    * formalization boundary is active. The offset and width are lowered from
+    * the shared relative-expression graph, and the width domain is evaluated
+    * exactly so correlated endpoints such as `(PTR_WIDTH - 1) downto
+    * (PTR_WIDTH - 2)` remain a constant two-bit slice.
+    */
+  def definitionRangeTracked(
+      highReference: String,
+      highWitness: Int,
+      highLiteral: Boolean,
+      lowReference: String,
+      lowWitness: Int,
+      lowLiteral: Boolean,
+      sourceLocation: String
+  ): Option[(ElaborationIntegerExpression, ElaborationIntegerExpression)] =
+    currentBoundary.map { boundary =>
+      val high = resolveTracked(
+        boundary,
+        highWitness,
+        highReference,
+        highLiteral,
+        sourceLocation,
+        role = "descending range high endpoint"
+      )
+      val low = resolveTracked(
+        boundary,
+        lowWitness,
+        lowReference,
+        lowLiteral,
+        sourceLocation,
+        role = "descending range low endpoint"
+      )
+      val widthRelative = ExternalNativeIntRelativeExpression.Add(
+        ExternalNativeIntRelativeExpression.Subtract(
+          high.expression,
+          low.expression
+        ),
+        ExternalNativeIntRelativeExpression.Literal(BigInt(1))
+      )
+      val highDefinition = lowerFinalExpression(
+        high.expression,
+        boundary.definitionExpression,
+        sourceLocation
+      )
+      val offset = lowerFinalExpression(
+        low.expression,
+        boundary.definitionExpression,
+        sourceLocation
+      )
+
+      val domainMinimum = boundary.definitionExpression.minimum
+      val domainMaximum = boundary.definitionExpression.maximum
+      val domainSize = domainMaximum - domainMinimum + 1
+      if (
+        domainSize < 1 ||
+        domainSize > MaximumStructuralPredicateDomainSize
+      ) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-SLICE-DOMAIN-TOO-LARGE",
+          s"native parameterized slice requires exact validation over $domainSize definition values; maximum is $MaximumStructuralPredicateDomainSize",
+          Option(sourceLocation).filter(_.nonEmpty)
+        )
+      }
+
+      var root = domainMinimum
+      var minimumWidth: Option[BigInt] = None
+      var maximumWidth: Option[BigInt] = None
+      while (root <= domainMaximum) {
+        val highValue = ExternalNativeIntRelativeExpression
+          .evaluate(high.expression, root)
+          .getOrElse {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-SLICE-ENDPOINT-UNDEFINED",
+              s"native slice high endpoint is undefined at ${boundary.definitionExpression.verilog}=$root",
+              Option(sourceLocation).filter(_.nonEmpty)
+            )
+          }
+        val lowValue = ExternalNativeIntRelativeExpression
+          .evaluate(low.expression, root)
+          .getOrElse {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-SLICE-ENDPOINT-UNDEFINED",
+              s"native slice low endpoint is undefined at ${boundary.definitionExpression.verilog}=$root",
+              Option(sourceLocation).filter(_.nonEmpty)
+            )
+          }
+        val currentWidth = highValue - lowValue + 1
+        if (lowValue < 0 || currentWidth < 1) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-SLICE-DOMAIN-INVALID",
+            s"native descending slice [$highValue:$lowValue] is invalid at ${boundary.definitionExpression.verilog}=$root",
+            Option(sourceLocation).filter(_.nonEmpty)
+          )
+        }
+        minimumWidth = Some(minimumWidth.fold(currentWidth)(_.min(currentWidth)))
+        maximumWidth = Some(maximumWidth.fold(currentWidth)(_.max(currentWidth)))
+        root += 1
+      }
+
+      val groupedParameters =
+        (highDefinition.parameters ++ offset.parameters).groupBy(_.name)
+      groupedParameters.collectFirst {
+        case (name, declarations) if declarations.distinct.size != 1 => name
+      }.foreach { name =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
+          s"native parameterized slice carries conflicting declarations for '$name'",
+          Option(sourceLocation).filter(_.nonEmpty)
+        )
+      }
+      val width = ElaborationIntegerExpression(
+        verilog =
+          s"((${highDefinition.verilog}) - (${offset.verilog}) + 1)",
+        default = BigInt(highWitness) - BigInt(lowWitness) + 1,
+        minimum = minimumWidth.get,
+        maximum = maximumWidth.get,
+        parameters = groupedParameters.toVector.map(_._2.head).sortBy(_.name),
+        sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
+      )
+      if (
+        offset.default != BigInt(lowWitness) ||
+        width.default != BigInt(highWitness) - BigInt(lowWitness) + 1
+      ) {
+        fail(
+          "MORPH-FRONTEND-NATIVE-INT-SHADOW-DEFAULT-MISMATCH",
+          s"native range witness [$highWitness:$lowWitness] disagrees with symbolic offset ${offset.default} and width ${width.default}",
+          Option(sourceLocation).filter(_.nonEmpty)
+        )
+      }
+      retainDefinitionExpressionEvidence(
+        offset,
+        boundary.structuralPredicateRoot,
+        low.expression
+      )
+      retainDefinitionExpressionEvidence(
+        width,
+        boundary.structuralPredicateRoot,
+        widthRelative
+      )
+      offset -> width
+    }
+
+  /**
     * Resolve one proven native Boolean predicate in canonical definition scope.
     * Increment 51 consumes this only while the exact formalization boundary is
     * active, before the native child constructor returns.

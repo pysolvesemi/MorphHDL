@@ -155,14 +155,16 @@ object MorphHdlExternalParameterizedVerilog {
             pc,
             canonicalOf
           )
-          if (requiresExpressionHierarchyRewrite(component)) {
-            ExternalParameterizedVerilogNativeFallback.rewrite(
-              component,
-              withStructure,
-              pc,
-              canonicalOf
-            )
-          } else withStructure
+          val withExpressions =
+            if (requiresExpressionHierarchyRewrite(component)) {
+              ExternalParameterizedVerilogNativeFallback.rewrite(
+                component,
+                withStructure,
+                pc,
+                canonicalOf
+              )
+            } else withStructure
+          ParameterizedVerilogSlices.rewrite(component, withExpressions)
         }
         Some(name -> rewritten.split("\n", -1).toVector)
       } else None
@@ -442,6 +444,7 @@ object MorphHdlExternalParameterizedVerilog {
       ParameterizedWidth.parametersOf(component) ++
         ExternalParameterizedMemoryRegistry.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
+        ExternalParameterizedSliceRegistry.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component)
     val grouped = values.groupBy(_.name)
@@ -460,6 +463,7 @@ object MorphHdlExternalParameterizedVerilog {
     ParameterizedWidth.parametersOf(component).nonEmpty ||
       ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
       ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
+      ExternalParameterizedSliceRegistry.hasSlices(component) ||
       ParameterizedVerilogStructural.hasRegions(component) ||
       ParameterizedVerilogProcesses.hasLoops(component)
 
@@ -473,6 +477,7 @@ object MorphHdlExternalParameterizedVerilog {
   private def requiresPublicationRewrite(component: Component): Boolean =
     ParameterizedVerilogProcesses.hasLoops(component) ||
       ParameterizedVerilogStructural.hasRegions(component) ||
+      ExternalParameterizedSliceRegistry.hasSlices(component) ||
       requiresExpressionHierarchyRewrite(component)
 
   private def requiresExpressionHierarchyRewrite(
@@ -481,11 +486,13 @@ object MorphHdlExternalParameterizedVerilog {
     ParameterizedWidth.parametersOf(component).nonEmpty ||
       ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
       ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
+      ExternalParameterizedSliceRegistry.parametersOf(component).nonEmpty ||
       ParameterizedProcess.parametersOf(component).nonEmpty ||
       component.children.exists { child =>
         ParameterizedWidth.parametersOf(child).nonEmpty ||
           ExternalParameterizedMemoryRegistry.parametersOf(child).nonEmpty ||
-          ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty
+          ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty ||
+          ExternalParameterizedSliceRegistry.parametersOf(child).nonEmpty
       }
 
   private def moduleBlocks(lines: Vector[String]): Vector[ModuleBlock] = {

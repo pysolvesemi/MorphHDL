@@ -285,6 +285,40 @@ object ExternalNativeIntCompilerRuntime {
     if (boundaryActive) ParameterizedWidth.copyShape(source, value) else value
   }
 
+  def compilerSlice[T <: BitVector](
+      source: T,
+      high: Int,
+      highReference: String,
+      highLiteral: Boolean,
+      low: Int,
+      lowReference: String,
+      lowLiteral: Boolean,
+      file: String,
+      line: Int
+  )(native: => T): T = {
+    val result = native
+    ExternalNativeIntShadowRegistry
+      .definitionRangeTracked(
+        highReference,
+        high,
+        highLiteral,
+        lowReference,
+        low,
+        lowLiteral,
+        rendered(file, line)
+      )
+      .foreach { case (offset, width) =>
+        ExternalParameterizedSliceRegistry.attach(
+          source,
+          result,
+          offset,
+          width,
+          Some(rendered(file, line))
+        )
+      }
+    result
+  }
+
   def compilerHardType[T <: Data](dataType: => T)(native: => HardType[T]): HardType[T] =
     if (boundaryActive) ParameterizedWidth.HardType(dataType) else native
 
