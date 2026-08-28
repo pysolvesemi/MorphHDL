@@ -1,4 +1,4 @@
-name: Increment 53e native StreamFifoCC auto-resize naming bootstrap
+name: Increment 53e native StreamFifoCC auto-resize identity bootstrap
 
 on:
   push:
@@ -49,33 +49,29 @@ jobs:
           git show \
             3959b78bf31d857d1518594ba704a4c37067a1a0:.github/workflows/increment-53e-ast-diagnostic.yml \
             > /tmp/increment-53e-autoresize-bootstrap.yml
-          git show \
-            5a2802a7fa3212d836a9c1c46e19c546109c3513:.github/workflows/increment-53e-ast-diagnostic.yml \
-            > /tmp/increment-53e-autoresize-name-bootstrap.yml
           test -s /tmp/reviewed.yml
           test -s /tmp/increment-53e-reviewed-bootstrap.yml
           test -s /tmp/increment-53e-range-bootstrap.yml
           test -s /tmp/increment-53e-autoresize-bootstrap.yml
-          test -s /tmp/increment-53e-autoresize-name-bootstrap.yml
 
-      - name: Apply reviewed support with named and generic auto-resize paths
+      - name: Apply one direct deterministic auto-resize identity patch
         shell: bash
         run: |
           set -euo pipefail
-          cat > /tmp/apply53e-autoresize-fallback.py <<'PY'
+          cat > /tmp/apply53e-autoresize-identity.py <<'PY'
           from pathlib import Path
           import textwrap
 
-          previous = Path('/tmp/increment-53e-autoresize-name-bootstrap.yml').read_text()
-          begin_marker = "          cat > /tmp/apply53e-autoresize-name.py <<'PY'\n"
-          end_marker = "\n          PY\n          python3 /tmp/apply53e-autoresize-name.py"
+          previous = Path('/tmp/increment-53e-autoresize-bootstrap.yml').read_text()
+          begin_marker = "          cat > /tmp/apply53e-autoresize.py <<'PY'\n"
+          end_marker = "\n          PY\n          python3 /tmp/apply53e-autoresize.py"
           begin = previous.index(begin_marker) + len(begin_marker)
           end = previous.index(end_marker, begin)
           reviewed_patch = textwrap.dedent(previous[begin:end])
           exec(
               compile(
                   reviewed_patch,
-                  'increment-53e-reviewed-autoresize-name-bootstrap',
+                  'increment-53e-reviewed-autoresize-bootstrap',
                   'exec',
               ),
               {'__name__': '__main__'},
@@ -86,15 +82,7 @@ jobs:
               'MorphHdlNativeIntShadowExpressionComponent.scala'
           )
           plugin = plugin_path.read_text()
-          old = '''          case Select(_, methodName)
-              if inNativeStreamFifo && decoded(methodName) == "resized" =>
-            global.reporter.error(
-              tree.pos,
-              "MORPHDL-NATIVE-AUTO-RESIZE-SOURCE-UNSUPPORTED: symbolic native auto-resize requires one stable identifier receiver"
-            )
-            Rewrite(super.transform(tree))
-          '''
-          new = '''          case Select(_, methodName)
+          old = '''        case Select(_, methodName)
               if inNativeStreamFifo && decoded(methodName) == "resized" =>
             Rewrite(
               call(
@@ -104,8 +92,23 @@ jobs:
               )
             )
           '''
+          new = '''        case Select(_, methodName)
+              if inNativeStreamFifo && decoded(methodName) == "resized" =>
+            Rewrite(
+              call(
+                "compilerAutoResize",
+                List(
+                  super.transform(tree),
+                  Literal(Constant(resultName(None, "auto_resize", tree))),
+                  Literal(Constant(sourceFile)),
+                  Literal(Constant(sourceLine(tree)))
+                ),
+                tree
+              )
+            )
+          '''
           if plugin.count(old) != 1:
-              raise SystemExit('generic auto-resize parser marker is ambiguous')
+              raise SystemExit('auto-resize parser marker is ambiguous')
           plugin_path.write_text(plugin.replace(old, new, 1))
 
           runtime_path = Path(
@@ -113,19 +116,145 @@ jobs:
               'ExternalNativeIntCompilerRuntime.scala'
           )
           runtime = runtime_path.read_text()
-          marker = '''  def compilerAutoResize[T <: Data](source: T, native: T): T = {
-          '''
-          overload = '''  def compilerAutoResize[T <: Data](native: T): T = {
+          old = '''  def compilerAutoResize[T <: Data](native: T): T = {
               if (boundaryActive) native.addTag(ExternalParameterizedAutoResizeTag)
               native
             }
 
           '''
-          if runtime.count(marker) != 1:
-              raise SystemExit('named auto-resize runtime marker is ambiguous')
-          runtime_path.write_text(runtime.replace(marker, overload + marker, 1))
+          new = '''  def compilerAutoResize[T <: Data](
+              native: T,
+              stableName: String,
+              file: String,
+              line: Int
+            ): T = {
+              if (boundaryActive) {
+                if (stableName == null || stableName.isEmpty) {
+                  throw new IllegalArgumentException(
+                    "MORPHDL-NATIVE-AUTO-RESIZE-NAME-INVALID: compiler-generated auto-resize name is empty"
+                  )
+                }
+                native.setName(stableName)
+                native.dontSimplifyIt()
+                native.addTag(ExternalParameterizedAutoResizeTag)
+              }
+              native
+            }
+
+          '''
+          if runtime.count(old) != 1:
+              raise SystemExit('auto-resize runtime marker is ambiguous')
+          runtime_path.write_text(runtime.replace(old, new, 1))
+
+          memory_path = Path(
+              'morphhdl/src/main/scala/spinal/core/internals/'
+              'ParameterizedVerilogMemories.scala'
+          )
+          memory = memory_path.read_text()
+          helper_start_marker = '''  private def hasExternalAutoResizeEvidence(
+          '''
+          helper_end_marker = '''  private def selectAddressWidth(
+          '''
+          helper_start = memory.index(helper_start_marker)
+          helper_end = memory.index(helper_end_marker, helper_start)
+          helper = '''  private def externalAutoResizeBase(
+              expression: Expression,
+              source: Option[String]
+            ): Option[BaseType] = {
+              val seen = new IdentityHashMap[Expression, java.lang.Boolean]()
+              val candidates = ArrayBuffer.empty[BaseType]
+
+              def walk(value: Expression): Unit = {
+                if (seen.put(value, java.lang.Boolean.TRUE) == null) {
+                  value match {
+                    case base: BaseType =>
+                      if (base.hasTag(ExternalParameterizedAutoResizeTag)) {
+                        candidates += base
+                      }
+                      base.foreachStatements {
+                        case assignment: DataAssignmentStatement =>
+                          assignment.source match {
+                            case driver: Expression => walk(driver)
+                            case _ =>
+                          }
+                        case _ =>
+                      }
+                    case other => other.foreachExpression(walk)
+                  }
+                }
+              }
+
+              walk(expression)
+              val distinct = candidates.foldLeft(Vector.empty[BaseType]) {
+                case (values, candidate)
+                    if values.exists(existing => existing eq candidate) =>
+                  values
+                case (values, candidate) => values :+ candidate
+              }
+              if (distinct.size > 1) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-MEMORY-AUTO-RESIZE-AMBIGUOUS",
+                  s"memory address expression '${expression.opName}' reaches ${distinct.size} independently tagged auto-resize values",
+                  source
+                )
+              }
+              distinct.headOption
+            }
+
+          '''
+          memory = memory[:helper_start] + helper + memory[helper_end:]
+          old_evidence = 'hasExternalAutoResizeEvidence(address)'
+          new_evidence = 'externalAutoResizeBase(address, source).nonEmpty'
+          if memory.count(old_evidence) != 1:
+              raise SystemExit('auto-resize address evidence marker is ambiguous')
+          memory = memory.replace(old_evidence, new_evidence, 1)
+
+          stable_start_marker = '''  private def stableName(
+          '''
+          stable_end_marker = '''  private def compact(
+          '''
+          stable_start = memory.index(stable_start_marker)
+          stable_end = memory.index(stable_end_marker, stable_start)
+          stable = '''  private def stableName(
+              value: AnyRef,
+              role: String,
+              source: Option[String]
+            ): String = {
+              val direct = value match {
+                case nameable: Nameable =>
+                  Option(nameable.getName()).filter(_.nonEmpty)
+                case _ => None
+              }
+              direct
+                .orElse {
+                  value match {
+                    case expression: Expression =>
+                      externalAutoResizeBase(expression, source)
+                        .flatMap(base => Option(base.getName()).filter(_.nonEmpty))
+                    case _ => None
+                  }
+                }
+                .getOrElse {
+                  val detail = value match {
+                    case _: Nameable =>
+                      s"$role has no stable name after normal Verilog emission"
+                    case _: Expression =>
+                      s"$role is an unnamed native expression without one proven auto-resize source"
+                    case _ => s"$role is not a named native AST value"
+                  }
+                  fail(
+                    "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ROLE-NAME-MISSING",
+                    detail,
+                    source
+                  )
+                }
+            }
+
+          '''
+          memory = memory[:stable_start] + stable + memory[stable_end:]
+          memory_path.write_text(memory)
           PY
-          python3 /tmp/apply53e-autoresize-fallback.py
+          python3 /tmp/apply53e-autoresize-identity.py
 
       - name: Install pinned Mill bootstrap
         shell: bash
@@ -142,15 +271,15 @@ jobs:
           set -o pipefail
           /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
             morphhdl.ParameterizedStreamFifoCCDepthTests \
-            2>&1 | tee /tmp/increment-53e-autoresize-fallback.log
+            2>&1 | tee /tmp/increment-53e-autoresize-identity.log
 
       - name: Upload bootstrap evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53e-autoresize-fallback-evidence
+          name: increment-53e-autoresize-identity-evidence
           path: |
-            /tmp/increment-53e-autoresize-fallback.log
+            /tmp/increment-53e-autoresize-identity.log
             /tmp/morphhdl-streamfifocc-debug
           if-no-files-found: ignore
 
