@@ -42,11 +42,8 @@ jobs:
 
           path = Path("morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala")
           text = path.read_text()
-          old = """            (explicitlyOwned || ownedTargetNames(target) ||
-              trackedInternalNames(target) || mentionsSlice)"""
-          new = """            (explicitlyOwned || ownedTargetNames(target) ||
-              trackedInternalNames(target) || mentionsSlice ||
-              mentionsInternal)"""
+          old = "trackedInternalNames(target) || mentionsSlice)"
+          new = "trackedInternalNames(target) || mentionsSlice ||\n              mentionsInternal)"
           if text.count(old) != 1:
               raise SystemExit(f"expected one structural ownership closure site, found {text.count(old)}")
           path.write_text(text.replace(old, new))
