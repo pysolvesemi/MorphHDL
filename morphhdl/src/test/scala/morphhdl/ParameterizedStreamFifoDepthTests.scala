@@ -235,7 +235,7 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
         // discarded address payload in ordinary concrete SpinalHDL output as
         // well. Ignore that inherited dead-net warning while retaining every
         // other -Wall check for the parameterized DEPTH > 1 alternatives.
-        Seq("-Wno-UNUSEDSIGNAL")
+        Seq("-Wno-UNUSED")
       }
     val command = Seq(
       "verilator",
