@@ -7,14 +7,9 @@ path = Path(
 )
 value = path.read_text()
 
-old = '''      private def inferExpression(expression: Expression): WidthExpr = expression match {
-        case resize: Resize => WidthLiteral(BigInt(resize.size))
-        case operator: Operator.BitVector.Add =>
-          widthMax(operandWidth(operator.left), operandWidth(operator.right))
-        case operator: Operator.BitVector.Sub =>
-          widthMax(operandWidth(operator.left), operandWidth(operator.right))
+infer_marker = '''      private def inferExpression(expression: Expression): WidthExpr = expression match {
 '''
-new = '''      /**
+helper = '''      /**
         * Spinal normalizes an unsized Scala literal to the concrete witness
         * width of its UInt peer. That normalized literal is not a fixed packed
         * width contract. When exactly one Add/Sub operand retains symbolic
@@ -34,18 +29,27 @@ new = '''      /**
         else widthMax(left, right)
       }
 
-      private def inferExpression(expression: Expression): WidthExpr = expression match {
-        case resize: Resize => WidthLiteral(BigInt(resize.size))
-        case operator: Operator.BitVector.Add =>
+'''
+if value.count(infer_marker) != 1:
+    raise SystemExit(
+        f"unfixed-literal helper marker count={value.count(infer_marker)}"
+    )
+value = value.replace(infer_marker, helper + infer_marker, 1)
+
+old_cases = '''        case operator: Operator.BitVector.Add =>
+          widthMax(operandWidth(operator.left), operandWidth(operator.right))
+        case operator: Operator.BitVector.Sub =>
+          widthMax(operandWidth(operator.left), operandWidth(operator.right))
+'''
+new_cases = '''        case operator: Operator.BitVector.Add =>
           adaptiveLiteralBinaryWidth(operator.left, operator.right)
         case operator: Operator.BitVector.Sub =>
           adaptiveLiteralBinaryWidth(operator.left, operator.right)
 '''
-
-count = value.count(old)
-if count != 1:
+if value.count(old_cases) != 1:
     raise SystemExit(
-        f"unfixed-literal width inference: expected one match, found {count}"
+        f"unfixed-literal Add/Sub marker count={value.count(old_cases)}"
     )
+value = value.replace(old_cases, new_cases, 1)
 
-path.write_text(value.replace(old, new, 1))
+path.write_text(value)
