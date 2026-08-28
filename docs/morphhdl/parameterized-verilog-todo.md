@@ -380,16 +380,18 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   Keep all upstream-owned SpinalHDL `core`, `lib` and `idslplugin`
   production sources byte-identical. In MorphHDL-owned post-publication
   code, discover exact `SpinalEnum` definitions, elements and encodings from
-  the native graph, replace global enum `` `define `` references and long
-  enum-prefixed constants with module-local Verilog-2001 `localparam`s named
-  only by the element (`IDLE`, `RUN`, and so on). Retain encoding-specific
+  the native graph, replace global enum `` `define `` references with
+  module-local Verilog-2001 `localparam`s named by the uppercase enum and
+  element, for example Scala `State.IDLE` becomes Verilog `STATE_IDLE`.
+  Never add a component, module or hierarchy prefix. Retain encoding-specific
   values and one-hot index helpers, remove recognized global macros from the
-  final `MorphVerilog` output, and allow the same short names in different
-  module scopes. Fail closed on conflicting same-module names or existing
-  identifiers rather than adding module or enum prefixes. Ordinary
-  `SpinalVerilog` output must remain unchanged. Prove deterministic
-  dual-Scala generation, strict Verilog-2001 lint/synthesis and the native
-  source-preservation boundary.
+  final `MorphVerilog` output, and allow identical names in different module
+  scopes. Fail closed on conflicting final names or existing identifiers.
+  Ordinary `SpinalVerilog` output must remain unchanged. In both supported
+  Scala lanes, formally prove the native macro RTL and MorphHDL localparam RTL
+  equivalent at the concrete parameter witness using Yosys `equiv_make`,
+  sequential induction and `equiv_status -assert`, in addition to deterministic
+  generation, strict Verilog-2001 lint/synthesis and native-source preservation.
 
 - [ ] **Increment 54 — MorphHDL module extraction and native-tree cleanup**
 
