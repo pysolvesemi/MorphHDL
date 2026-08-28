@@ -1,0 +1,64 @@
+name: Apply Increment 53b Scala compile fix
+
+on:
+  push:
+    branches:
+      - agent/increment-53b-local-enum-parameters
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53b-local-enum-parameters
+          fetch-depth: 0
+
+      - name: Repair local scanner helper names
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala")
+          text = path.read_text()
+          old = """    def append(value: String): Unit = output.foreach(_ ++= value)
+              def append(value: Char): Unit = output.foreach(_ += value)
+          """
+          new = """    def appendString(value: String): Unit = output.foreach(_ ++= value)
+              def appendChar(value: Char): Unit = output.foreach(_ += value)
+          """
+          if text.count(old) != 1:
+              raise SystemExit("scanner helper declaration anchor is not unique")
+          text = text.replace(old, new)
+
+          replacements = {
+              "        append(current)": "        appendChar(current)",
+              "          append(next)": "          appendChar(next)",
+              "        append(\"//\")": "        appendString(\"//\")",
+              "        append(\"/*\")": "        appendString(\"/*\")",
+              "          case Some(replacement) => append(replacement)": "          case Some(replacement) => appendString(replacement)",
+              "          case None              => append(text.substring(index, end))": "          case None              => appendString(text.substring(index, end))",
+              "        append(plain.getOrElse(name, name))": "        appendString(plain.getOrElse(name, name))",
+          }
+          for source, target in replacements.items():
+              if source not in text:
+                  raise SystemExit(f"missing scanner replacement anchor: {source}")
+              text = text.replace(source, target)
+
+          if "append(" in text[text.index("  private def scan(\n"):text.index("  private def isIdentifierStart")]:
+              raise SystemExit("unrepaired append helper call remains in scanner")
+          path.write_text(text)
+          PY
+
+          git rm .github/workflows/increment-53b-compile-fix.yml
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala
+          git commit -m "fix(morphhdl): repair enum-localizer scanner compilation"
+          git push origin HEAD:agent/increment-53b-local-enum-parameters
