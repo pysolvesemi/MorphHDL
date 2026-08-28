@@ -347,7 +347,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   separately authored FIFO. Stop for architecture approval if the alternatives
   cannot be retained through the generic provenance and branch-capture path.
 
-- [ ] **Increment 53a — Native StreamFifo concrete-witness formal equivalence**
+- [x] **Increment 53a — Native StreamFifo concrete-witness formal equivalence**
 
   **Dependencies:** Increment 53 implemented and merged.
 
