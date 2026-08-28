@@ -93,6 +93,16 @@ class NativeAxi4SlaveFactoryParameterizedOffsetTests extends AnyFunSuite {
   private def read(path: Path): String =
     new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
 
+  private def exportArtifact(filename: String, content: String): Unit =
+    sys.env.get("MORPHDL_NATIVE_AXI4_ARTIFACT_DIR").foreach { rawDirectory =>
+      val directory = java.nio.file.Paths.get(rawDirectory)
+      Files.createDirectories(directory)
+      Files.write(
+        directory.resolve(filename),
+        content.getBytes(StandardCharsets.UTF_8)
+      )
+    }
+
   private def containsAddressLiteral(verilog: String, value: Int): Boolean = {
     val decimal = Pattern
       .compile(
@@ -126,6 +136,9 @@ class NativeAxi4SlaveFactoryParameterizedOffsetTests extends AnyFunSuite {
       val first = read(firstDirectory.resolve(filename))
       val second = read(secondDirectory.resolve(filename))
       val concrete = read(concreteDirectory.resolve(filename))
+
+      exportArtifact("native_axi4_parameterized.v", first)
+      exportArtifact("native_axi4_concrete_top.v", concrete)
 
       assert(first == second, "native factory parameterized emission is not deterministic")
       assert(firstReport.parameters.exists(_.name == "TOP_OFFSET"))
@@ -169,6 +182,7 @@ class NativeAxi4SlaveFactoryParameterizedOffsetTests extends AnyFunSuite {
         new NativeAxi4SlaveFactoryRegisterBlock(0x024)
       )
       val verilog = read(directory.resolve(filename))
+      exportArtifact("native_axi4_concrete_block.v", verilog)
       assert(report.toplevelName == "NativeAxi4SlaveFactoryRegisterBlock")
       assert(!verilog.contains("parameter integer OFFSET"))
       assert(containsAddressLiteral(verilog, 0x024))
