@@ -29,7 +29,7 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
 
-      - name: Recover target-width provenance through native driver chains
+      - name: Extend native address proof through one unique driver chain
         shell: bash
         run: |
           set -euo pipefail
@@ -41,147 +41,88 @@ jobs:
               "ParameterizedVerilogMemories.scala"
           )
           value = path.read_text()
-          start_marker = "  private def selectAddressWidth(\n"
-          end_marker = "  private def validateAddressWidth(\n"
+          start_marker = "    val driverProvesNativeWidth = address match {\n"
+          end_marker = "    if (\n      native.parameters.nonEmpty &&\n"
           if value.count(start_marker) != 1 or value.count(end_marker) != 1:
               raise SystemExit(
-                  "selectAddressWidth/validateAddressWidth markers are ambiguous"
+                  "driverProvesNativeWidth/selectAddressWidth markers are ambiguous"
               )
           start = value.index(start_marker)
           end = value.index(end_marker, start)
 
-          replacement = '''  private def directDriverExpressions(
-              target: BaseType,
-              component: Component
-          ): Vector[Expression] = {
-            val assignments = ArrayBuffer.empty[DataAssignmentStatement]
-            component.dslBody.walkLeafStatements {
-              case value: DataAssignmentStatement
-                  if value.finalTarget eq target =>
-                assignments += value
-              case _ =>
-            }
-            assignments.toVector.flatMap { assignment =>
-              assignment.source match {
-                case expression: Expression => Some(expression)
-                case _                      => None
-              }
-            }
-          }
+          replacement = '''    val driverProvesNativeWidth = address match {
+              case target: BaseType =>
+                val seen = new IdentityHashMap[BaseType, java.lang.Boolean]()
 
-          private def retainedWidthThroughUniqueDriver(
-              expression: Expression,
-              component: Component,
-              source: Option[String]
-          ): Vector[ElaborationIntegerExpression] = {
-            val seen = new IdentityHashMap[Expression, java.lang.Boolean]()
-
-            def walk(value: Expression): Vector[ElaborationIntegerExpression] = {
-              if (seen.put(value, java.lang.Boolean.TRUE) != null) Vector.empty
-              else {
-                val local = value match {
-                  case width: Expression with WidthProvider =>
-                    val candidate = widthOf(width, source)
-                    if (candidate.parameters.nonEmpty) Vector(candidate)
-                    else Vector.empty
-                  case _ => Vector.empty
+                def assignmentsOf(
+                    value: BaseType
+                ): Vector[DataAssignmentStatement] = {
+                  val assignments = ArrayBuffer.empty[DataAssignmentStatement]
+                  component.dslBody.walkLeafStatements {
+                    case assignment: DataAssignmentStatement
+                        if assignment.finalTarget eq value =>
+                      assignments += assignment
+                    case _ =>
+                  }
+                  assignments.toVector
                 }
-                if (local.nonEmpty) local
-                else {
-                  value match {
-                    case base: BaseType =>
-                      val drivers = directDriverExpressions(base, component)
-                      if (drivers.size == 1) walk(drivers.head)
-                      else Vector.empty
-                    case other =>
-                      val children = ArrayBuffer.empty[Expression]
-                      other.foreachExpression(children += _)
-                      if (children.size == 1) walk(children.head)
-                      else Vector.empty
+
+                def immediateWidthProof(
+                    assignments: Vector[DataAssignmentStatement]
+                ): Boolean = {
+                  val widths = assignments.flatMap { assignment =>
+                    assignment.source match {
+                      case value: Expression with WidthProvider =>
+                        Some(widthOf(value, source))
+                      case _ => None
+                    }
+                  }.distinct
+                  widths.size == 1 && equivalentWidth(widths.head, native)
+                }
+
+                def uniqueBaseDependency(
+                    assignment: DataAssignmentStatement
+                ): Option[BaseType] = {
+                  val bases = ArrayBuffer.empty[BaseType]
+                  val visited =
+                    new IdentityHashMap[Expression, java.lang.Boolean]()
+
+                  def collect(value: Expression): Unit = {
+                    if (visited.put(value, java.lang.Boolean.TRUE) == null) {
+                      value match {
+                        case base: BaseType => bases += base
+                        case other          => other.foreachExpression(collect)
+                      }
+                    }
+                  }
+
+                  assignment.source match {
+                    case expression: Expression => collect(expression)
+                    case _ =>
+                  }
+                  val unique = bases.foldLeft(Vector.empty[BaseType]) {
+                    case (known, value) if known.exists(_ eq value) => known
+                    case (known, value) => known :+ value
+                  }
+                  if (unique.size == 1) Some(unique.head) else None
+                }
+
+                def walk(value: BaseType): Boolean = {
+                  if (seen.put(value, java.lang.Boolean.TRUE) != null) false
+                  else {
+                    val assignments = assignmentsOf(value)
+                    immediateWidthProof(assignments) ||
+                      (assignments.size == 1 &&
+                        uniqueBaseDependency(assignments.head).exists { next =>
+                          walk(next)
+                        })
                   }
                 }
-              }
+
+                walk(target)
+              case _ => false
             }
-
-            walk(expression).distinct
-          }
-
-          private def explicitlyResizedToWidth(
-              expression: Expression,
-              expectedWidth: Int,
-              component: Component
-          ): Boolean = {
-            val seen = new IdentityHashMap[Expression, java.lang.Boolean]()
-
-            def walk(value: Expression): Boolean = {
-              if (seen.put(value, java.lang.Boolean.TRUE) != null) false
-              else {
-                value match {
-                  case resize: ResizeUInt =>
-                    resize.getWidth == expectedWidth
-                  case base: BaseType if base.hasTag(tagAutoResize) =>
-                    base.getBitsWidth == expectedWidth
-                  case base: BaseType =>
-                    val drivers = directDriverExpressions(base, component)
-                    drivers.size == 1 && walk(drivers.head)
-                  case other =>
-                    val children = ArrayBuffer.empty[Expression]
-                    other.foreachExpression(children += _)
-                    children.size == 1 && walk(children.head)
-                }
-              }
-            }
-
-            walk(expression)
-          }
-
-          private def selectAddressWidth(
-              address: Expression with WidthProvider,
-              retained: ElaborationIntegerExpression,
-              native: ElaborationIntegerExpression,
-              component: Component,
-              source: Option[String]
-          ): ElaborationIntegerExpression = {
-            val retainedIsConcreteWitness =
-              retained.parameters.isEmpty &&
-              retained.default == BigInt(address.getWidth) &&
-              retained.minimum == retained.default &&
-              retained.maximum == retained.default
-
-            val driverExpressions = address match {
-              case target: BaseType => directDriverExpressions(target, component)
-              case expression       => Vector(expression)
-            }
-
-            val retainedDriverWidths = driverExpressions.flatMap { driver =>
-              retainedWidthThroughUniqueDriver(driver, component, source)
-            }.distinct
-            val widthExpressionProvesNative =
-              retainedDriverWidths.size == 1 &&
-              equivalentWidth(retainedDriverWidths.head, native)
-
-            val explicitResizeProvesNative =
-              native.default.isValidInt &&
-              driverExpressions.size == 1 &&
-              explicitlyResizedToWidth(
-                driverExpressions.head,
-                native.default.toInt,
-                component
-              )
-
-            val driverProvesNativeWidth =
-              widthExpressionProvesNative || explicitResizeProvesNative
-
-            if (
-              native.parameters.nonEmpty &&
-              retainedIsConcreteWitness &&
-              native.default == retained.default &&
-              driverProvesNativeWidth
-            ) native
-            else retained
-          }
-
-          '''
+'''
 
           path.write_text(value[:start] + replacement + value[end:])
           PY
