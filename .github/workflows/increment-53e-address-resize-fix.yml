@@ -122,7 +122,7 @@ jobs:
                 walk(target)
               case _ => false
             }
-'''
+          '''
 
           path.write_text(value[:start] + replacement + value[end:])
           PY
