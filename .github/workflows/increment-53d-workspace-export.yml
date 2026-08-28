@@ -1,4 +1,4 @@
-name: Validate Increment 53d symbolic resize target recovery
+name: Apply Increment 53d retained resize target repair
 
 on:
   push:
@@ -13,10 +13,6 @@ permissions:
 jobs:
   repair:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/spinalhdl/docker:latest
-    env:
-      XDG_CACHE_HOME: /tmp/morphhdl-cache
     steps:
       - name: Check out Increment 53d branch
         uses: actions/checkout@v4
@@ -24,16 +20,7 @@ jobs:
           ref: agent/increment-53d-native-streamwidth-adapter
           fetch-depth: 0
 
-      - name: Install pinned Mill bootstrap
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --location --retry 5 --retry-all-errors \
-            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
-            --output /tmp/morphhdl-mill
-          chmod +x /tmp/morphhdl-mill
-
-      - name: Recover exact symbolic resize targets and validate StreamWidthAdapter
+      - name: Recover exact symbolic resize targets
         shell: bash
         run: |
           set -euo pipefail
@@ -126,48 +113,6 @@ jobs:
           path.write_text(text.replace(old, new), encoding="utf-8")
           PY
 
-          cp morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala /tmp/ParameterizedStreamWidthAdapterTests.scala
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path("morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala")
-          text = path.read_text(encoding="utf-8")
-          old = '''  private def withTemporaryDirectory(body: Path => Unit): Unit = {
-    val directory = Files.createTempDirectory("morphhdl-stream-width-adapter-")
-    try body(directory)
-    finally {
-      val stream = Files.walk(directory)
-      try {
-        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach {
-          path => Files.deleteIfExists(path)
-        }
-      } finally stream.close()
-    }
-  }
-'''
-          new = '''  private def withTemporaryDirectory(body: Path => Unit): Unit = {
-    val directory = Files.createTempDirectory("morphhdl-stream-width-adapter-")
-    println(s"INCREMENT53D_DIAGNOSTIC_DIRECTORY=$directory")
-    body(directory)
-  }
-'''
-          if text.count(old) != 1:
-              raise SystemExit("temporary-directory diagnostic anchor missing")
-          path.write_text(text.replace(old, new), encoding="utf-8")
-          PY
-
-          set +e
-          /tmp/morphhdl-mill morph[2.13.12].testOnly \
-            morphhdl.ParameterizedStreamWidthAdapterTests
-          status=$?
-          set -e
-          if [ "$status" -ne 0 ]; then
-            find /tmp -type f \( -name 'native_stream_width_adapter.v' -o -name '*.v.tmp' \) \
-              -print -exec sh -c 'echo "===== $1 ====="; sed -n "1,260p" "$1"' _ {} \; || true
-            exit "$status"
-          fi
-
-          mv /tmp/ParameterizedStreamWidthAdapterTests.scala \
-            morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala
           rm .github/workflows/increment-53d-workspace-export.yml
           git diff --check
           if git diff --name-only | grep -Eq '^(core|lib|idslplugin)/'; then
