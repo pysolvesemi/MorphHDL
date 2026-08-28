@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: temporary-inc53b-uppercase-source-patch
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   apply:
