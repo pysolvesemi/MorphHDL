@@ -54,6 +54,10 @@ object ExternalNativeAxi4SlaveFactoryParameterization {
     ExternalNativeAxi4AddressIdentityRef,
     ExternalNativeAxi4SlaveFactoryAddressRecord
   ]
+  private val materializationCounts = mutable.HashMap.empty[
+    ExternalNativeAxi4AddressIdentityRef,
+    Int
+  ]
 
   private def rendered(file: String, line: Int): String = s"$file:$line"
 
@@ -68,6 +72,7 @@ object ExternalNativeAxi4SlaveFactoryParameterization {
     var reference = queue.poll().asInstanceOf[ExternalNativeAxi4AddressIdentityRef]
     while (reference != null) {
       retained.remove(reference)
+      materializationCounts.remove(reference)
       reference = queue.poll().asInstanceOf[ExternalNativeAxi4AddressIdentityRef]
     }
   }
@@ -123,10 +128,9 @@ object ExternalNativeAxi4SlaveFactoryParameterization {
         )
       case Some(_) =>
       case None =>
-        retained.update(
-          new ExternalNativeAxi4AddressIdentityRef(value, queue),
-          incoming
-        )
+        val retainedKey = new ExternalNativeAxi4AddressIdentityRef(value, queue)
+        retained.update(retainedKey, incoming)
+        materializationCounts.update(retainedKey, 0)
     }
     value
   }
@@ -172,6 +176,21 @@ object ExternalNativeAxi4SlaveFactoryParameterization {
     }
   }
 
+  private def nextMaterialization(
+      value: BigInt
+  ): Option[(ExternalNativeAxi4SlaveFactoryAddressRecord, Int)] = synchronized {
+    if (value == null) None
+    else {
+      reap()
+      val key = new ExternalNativeAxi4AddressIdentityRef(value, null)
+      retained.get(key).map { record =>
+        val occurrence = materializationCounts.getOrElse(key, 0)
+        materializationCounts.update(key, occurrence + 1)
+        record -> occurrence
+      }
+    }
+  }
+
   /**
     * Compiler-inserted bridge inside the native `is(address.address)` call.
     * Untagged addresses are returned unchanged. Tagged addresses become an
@@ -182,9 +201,9 @@ object ExternalNativeAxi4SlaveFactoryParameterization {
       value: BigInt,
       file: String,
       line: Int
-  ): Any = recordOf(value) match {
+  ): Any = nextMaterialization(value) match {
     case None => value
-    case Some(record) =>
+    case Some((record, occurrence)) =>
       val source = Some(rendered(file, line)).orElse(record.sourceLocation)
       val switchValue = Option(SwitchStack.get)
         .map(_.statement.value)
@@ -210,7 +229,7 @@ object ExternalNativeAxi4SlaveFactoryParameterization {
           }
           val result = UInt(carrierWidth bits)
           ParameterizedWidth.copyShape(prototype, result)
-          result.setName(record.stableName)
+          result.setName(s"${record.stableName}_case_$occurrence")
           result := U(record.witness, carrierWidth bits)
           ExternalParameterizedValueRegistry.attach(
             value = result,
