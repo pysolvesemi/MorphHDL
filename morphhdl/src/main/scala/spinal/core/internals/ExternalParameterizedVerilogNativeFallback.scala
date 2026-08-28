@@ -1436,10 +1436,26 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             val size = BigInt(resize.size)
             if (!source.isSymbolic) WidthLiteral(size)
             else if (size <= source.minimum) WidthLiteral(size)
-            else {
+            else if (
+              size >= source.maximum &&
+              (resize.getTypeObject == TypeBits || resize.getTypeObject == TypeUInt)
+            ) {
+              // The untouched Verilog emitter gives every Resize node its
+              // fixed target width: nested resizes are wrapped in a target-sized
+              // temporary, while a top-level resize is consumed by its
+              // target-sized assignment. For Bits/UInt, a target no smaller
+              // than the complete symbolic source domain is therefore an
+              // invariant zero-extension/equality operation. The witness-sized
+              // leading-zero fragment remains semantically exact because the
+              // fixed target context supplies any remaining zero extension or
+              // discards only leading zeros. Signed widening is deliberately
+              // excluded because a witness-sized unsigned concatenation cannot
+              // prove sign extension for a smaller symbolic source.
+              WidthLiteral(size)
+            } else {
               fail(
                 "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-UNSUPPORTED",
-                s"resize from symbolic width '${source.render}' to ${resize.size} is not a domain-invariant narrowing; widening and domain-crossing resize lowering is deferred"
+                s"resize from symbolic width '${source.render}' to ${resize.size} is neither a domain-invariant narrowing nor an unsigned domain-invariant widening; domain-crossing and signed widening resize lowering are deferred"
               )
             }
           }
