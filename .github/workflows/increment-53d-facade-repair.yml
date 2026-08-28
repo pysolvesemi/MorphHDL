@@ -1,0 +1,157 @@
+name: Apply Increment 53d frontend facade repair
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-native-streamwidth-adapter
+    paths:
+      - .github/workflows/increment-53d-facade-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Increment 53d feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-native-streamwidth-adapter
+          fetch-depth: 0
+
+      - name: Add generic factory facade hooks and repair diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin agent/increment-53d-native-streamwidth-adapter
+          python3 - <<'PY'
+          from pathlib import Path
+
+          facade = Path("frontend/src/main/scala/morphhdl/frontend/NativeIntShadow.scala")
+          text = facade.read_text(encoding="utf-8")
+          old_import = "import spinal.core.ExternalNativeIntShadowRegistry\n"
+          new_import = (
+              "import spinal.core.{\n"
+              "  Bits,\n"
+              "  ExternalNativeIntCompilerRuntime,\n"
+              "  ExternalNativeIntShadowRegistry,\n"
+              "  SInt,\n"
+              "  UInt\n"
+              "}\n"
+          )
+          if text.count(old_import) != 1:
+              raise SystemExit(f"NativeIntShadow import anchor count was {text.count(old_import)}")
+          text = text.replace(old_import, new_import, 1)
+
+          insertion_marker = "  /** Fail closed only when the referenced Int is live in an active boundary. */\n"
+          if text.count(insertion_marker) != 1:
+              raise SystemExit(
+                  f"NativeIntShadow factory insertion marker count was {text.count(insertion_marker)}"
+              )
+          factory_hooks = '''  /** Retain a compiler-proven symbolic UInt factory width. */
+          def compilerUInt(
+              reference: String,
+              file: String,
+              line: Int
+          )(native: => UInt): UInt =
+            ExternalNativeIntCompilerRuntime.compilerUInt(reference, file, line)(native)
+
+          /** Retain a compiler-proven symbolic Bits factory width. */
+          def compilerBits(
+              reference: String,
+              file: String,
+              line: Int
+          )(native: => Bits): Bits =
+            ExternalNativeIntCompilerRuntime.compilerBits(reference, file, line)(native)
+
+          /** Retain a compiler-proven symbolic SInt factory width. */
+          def compilerSInt(
+              reference: String,
+              file: String,
+              line: Int
+          )(native: => SInt): SInt =
+            ExternalNativeIntCompilerRuntime.compilerSInt(reference, file, line)(native)
+
+          '''
+          text = text.replace(insertion_marker, factory_hooks + insertion_marker, 1)
+
+          start_marker = "  def compilerUnsupportedInt("
+          end_marker = "\n  /** Fail closed only when the referenced predicate"
+          start = text.find(start_marker)
+          end = text.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit(
+                  f"frontend compilerUnsupportedInt markers missing: start={start}, end={end}"
+              )
+          new_frontend_method = '''  def compilerUnsupportedInt(
+              reference: String,
+              code: String,
+              detail: String,
+              file: String,
+              line: Int
+          )(nativeValue: => Int): Int = {
+            // A derived receiver may be materialized by compiler hooks nested in
+            // this pure native expression. Evaluate it first, then reject the
+            // unsupported operation before the resulting value can escape.
+            val value = nativeValue
+            ExternalNativeIntShadowRegistry.rejectTracked(
+              reference,
+              code,
+              detail,
+              rendered(file, line)
+            )
+            value
+          }
+          '''
+          text = text[:start] + new_frontend_method + text[end:]
+          facade.write_text(text, encoding="utf-8")
+
+          runtime = Path("morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala")
+          text = runtime.read_text(encoding="utf-8")
+          start = text.find("  def compilerUnsupportedInt(")
+          end = text.find("\n  def compilerUnsupportedValue[A](", start)
+          if start < 0 or end < 0:
+              raise SystemExit(
+                  f"runtime compilerUnsupportedInt markers missing: start={start}, end={end}"
+              )
+          new_runtime_method = '''  def compilerUnsupportedInt(
+              reference: String,
+              code: String,
+              detail: String,
+              file: String,
+              line: Int
+          )(nativeValue: => Int): Int = {
+            // The rewritten pure native expression may contain the compiler hook
+            // which materializes a derived receiver reference. Evaluate it before
+            // validating that exact reference, then fail closed with the requested
+            // unsupported-operation diagnostic before the value can escape.
+            val value = nativeValue
+            ExternalNativeIntShadowRegistry.rejectTracked(
+              reference,
+              code,
+              detail,
+              rendered(file, line)
+            )
+            value
+          }
+          '''
+          text = text[:start] + new_runtime_method + text[end:]
+          runtime.write_text(text, encoding="utf-8")
+          PY
+
+          rm -f .github/workflows/increment-53d-facade-repair.yml
+          git diff --check
+          if git diff --name-only | grep -Eq '^(core|lib|idslplugin)/'; then
+            echo "Increment 53d must not modify native SpinalHDL source" >&2
+            exit 1
+          fi
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Increment 53d facade repair already present"
+            exit 0
+          fi
+          git commit -m "fix: expose symbolic native width factory hooks"
+          git push origin HEAD:agent/increment-53d-native-streamwidth-adapter
