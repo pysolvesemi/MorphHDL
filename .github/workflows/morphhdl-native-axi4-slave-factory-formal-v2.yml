@@ -1,0 +1,127 @@
+name: MorphHDL native AXI4 Slave Factory formal equivalence v2
+
+on:
+  push:
+    branches:
+      - agent/increment-53c-native-axi4-slave-factory-offsets
+    paths:
+      - ".github/workflows/morphhdl-native-axi4-slave-factory-formal-v2.yml"
+      - "morphhdl/**"
+      - "morphplugin/**"
+      - "morphruntime/**"
+      - "frontend/**"
+      - "paramrtl/**"
+      - "build.mill"
+      - "mill-build/**"
+  pull_request:
+    branches:
+      - parameterized-verilog
+    paths:
+      - ".github/workflows/morphhdl-native-axi4-slave-factory-formal-v2.yml"
+      - "morphhdl/**"
+      - "morphplugin/**"
+      - "morphruntime/**"
+      - "frontend/**"
+      - "paramrtl/**"
+      - "build.mill"
+      - "mill-build/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-native-axi4-slave-factory-formal-v2-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  XDG_CACHE_HOME: /tmp/morphhdl-cache
+  MORPHDL_RUN_AXI4_FACTORY_FORMAL_EQUIVALENCE_V2: "1"
+  MORPHDL_AXI4_FACTORY_FORMAL_WORKSPACE_V2: /tmp/morphhdl-native-axi4-formal-v2
+
+jobs:
+  source-boundary:
+    name: Native source preservation boundary
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify untouched SpinalHDL source boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin parameterized-verilog
+          git diff --exit-code origin/parameterized-verilog -- core lib
+          test ! -e lib/src/main/scala/spinal/lib/bus/amba4/axi/MorphHdlAxi4SlaveFactory.scala
+          grep -Fq "new NativeAxi4SlaveFactoryRegisterBlock(offset)" \
+            morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryFormalEquivalenceV2Tests.scala
+          grep -Fq "SpinalVerilog(concreteConfig)" \
+            morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryFormalEquivalenceV2Tests.scala
+          grep -Fq "expect fail" \
+            morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryFormalEquivalenceV2Tests.scala
+
+  formal-equivalence:
+    name: Concrete-witness AXI4 proof Scala ${{ matrix.scala }}
+    needs: source-boundary
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala:
+          - 2.12.18
+          - 2.13.12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify pinned formal toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          yosys -V
+          sby -h >/tmp/sby-help.txt
+          yices-smt2 --version
+          iverilog -V
+          verilator --version
+      - name: Install pinned Mill launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+      - name: Run independent native AXI4 formal equivalence
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "${MORPHDL_AXI4_FACTORY_FORMAL_WORKSPACE_V2}"
+          mkdir -p "${MORPHDL_AXI4_FACTORY_FORMAL_WORKSPACE_V2}"
+          /tmp/morphhdl-mill morph[${{ matrix.scala }}].testOnly \
+            morphhdl.NativeAxi4SlaveFactoryFormalEquivalenceV2Tests \
+            2>&1 | tee "/tmp/native-axi4-formal-v2-${{ matrix.scala }}.log"
+      - name: Re-run focused native AXI4 offset contract
+        shell: bash
+        env:
+          MORPHDL_NATIVE_AXI4_ARTIFACT_DIR: /tmp/morphhdl-native-axi4-artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p "${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}"
+          /tmp/morphhdl-mill morph[${{ matrix.scala }}].testOnly \
+            morphhdl.NativeAxi4SlaveFactoryParameterizedOffsetTests \
+            2>&1 | tee "/tmp/native-axi4-focused-${{ matrix.scala }}.log"
+      - name: Upload formal and witness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-axi4-factory-formal-v2-scala-${{ matrix.scala }}
+          path: |
+            /tmp/native-axi4-formal-v2-${{ matrix.scala }}.log
+            /tmp/native-axi4-focused-${{ matrix.scala }}.log
+            /tmp/morphhdl-native-axi4-formal-v2
+            /tmp/morphhdl-native-axi4-artifacts
+          if-no-files-found: error
+          retention-days: 14
