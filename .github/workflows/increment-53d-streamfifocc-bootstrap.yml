@@ -1,0 +1,73 @@
+name: Increment 53d StreamFifoCC bootstrap
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    container: ghcr.io/spinalhdl/docker:latest
+    env:
+      MORPHDL_STREAMFIFOCC_DEBUG_DIR: /tmp/morphhdl-streamfifocc-debug
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Activate the existing native FIFO transformer for StreamFifoCC
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala")
+          text = path.read_text()
+          old = ''') && decoded(value.name) == "StreamFifo" =>'''
+          new = ''') && Set("StreamFifo", "StreamFifoCC").contains(decoded(value.name)) =>'''
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f"expected one native StreamFifo class gate, found {count}")
+          path.write_text(text.replace(old, new))
+          PY
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/com-lihaoyi/mill/releases/download/1.1.0/1.1.0 -o /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run the native StreamFifoCC diagnostic witness
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill 'morph[2.12.18].testOnly' morphhdl.ParameterizedStreamFifoCCDepthTests
+
+      - name: Upload diagnostic RTL
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53d-streamfifocc-diagnostic
+          path: /tmp/morphhdl-streamfifocc-debug
+          if-no-files-found: ignore
+
+      - name: Commit the proven generic activation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/increment-53d-streamfifocc-bootstrap.yml
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          git add .github/workflows/increment-53d-streamfifocc-bootstrap.yml
+          git diff --cached --check
+          git commit -m "Increment 53d: activate native StreamFifoCC symbolic depth"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
