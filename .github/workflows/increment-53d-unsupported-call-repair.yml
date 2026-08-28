@@ -1,0 +1,85 @@
+name: Apply Increment 53d derived-call repair
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-native-streamwidth-adapter
+    paths:
+      - .github/workflows/increment-53d-unsupported-call-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Increment 53d feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-native-streamwidth-adapter
+          fetch-depth: 0
+
+      - name: Repair derived unsupported-call provenance ordering
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala")
+          text = path.read_text(encoding="utf-8")
+          old = '''  def compilerUnsupportedInt(
+              reference: String,
+              code: String,
+              detail: String,
+              file: String,
+              line: Int
+          )(nativeValue: => Int): Int = {
+            ExternalNativeIntShadowRegistry.rejectTracked(
+              reference,
+              code,
+              detail,
+              rendered(file, line)
+            )
+            nativeValue
+          }
+          '''
+          new = '''  def compilerUnsupportedInt(
+              reference: String,
+              code: String,
+              detail: String,
+              file: String,
+              line: Int
+          )(nativeValue: => Int): Int = {
+            // The rewritten pure native expression may contain the compiler hook
+            // which materializes a derived receiver reference. Evaluate it before
+            // validating that exact reference, then fail closed with the requested
+            // unsupported-operation diagnostic before the value can escape.
+            val value = nativeValue
+            ExternalNativeIntShadowRegistry.rejectTracked(
+              reference,
+              code,
+              detail,
+              rendered(file, line)
+            )
+            value
+          }
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(f"compilerUnsupportedInt anchor count was {text.count(old)}")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
+          rm .github/workflows/increment-53d-unsupported-call-repair.yml
+          git diff --check
+          if git diff --name-only | grep -Eq '^(core|lib|idslplugin)/'; then
+            echo "Increment 53d must not modify native SpinalHDL source" >&2
+            exit 1
+          fi
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
+          git add .github/workflows/increment-53d-unsupported-call-repair.yml
+          git commit -m "fix: materialize derived unsupported-call provenance"
+          git push origin HEAD:agent/increment-53d-native-streamwidth-adapter
