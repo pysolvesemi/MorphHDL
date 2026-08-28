@@ -65,7 +65,10 @@ jobs:
                       f"expected one stale alwaysBlocks marker in reviewed patch, found {count}"
                   )
               patch = patch.replace(stale, corrected)
-              exec(compile(patch, "increment-53d-reviewed-patch", "exec"))
+              exec(
+                  compile(patch, "increment-53d-reviewed-patch", "exec"),
+                  {"__name__": "__main__"},
+              )
 
           plugin_text = plugin.read_text()
           memory_text = memory.read_text()
