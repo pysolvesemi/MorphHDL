@@ -1,4 +1,4 @@
-name: MorphHDL Increment 53c CI dispatch watchdog
+name: MorphHDL Increment 53c CI dispatch cleanup
 
 on:
   push:
@@ -6,118 +6,14 @@ on:
       - agent/increment-53c-reconcile-20260828
   workflow_dispatch:
 
-permissions:
-  actions: write
-  contents: read
-  pull-requests: read
-
 concurrency:
   group: morphhdl-increment-53c-ci-dispatch-watchdog
   cancel-in-progress: true
 
 jobs:
-  dispatch-missing-exact-head-runs:
+  cleanup:
     runs-on: ubuntu-24.04
-    timeout-minutes: 68
-    env:
-      GH_TOKEN: ${{ github.token }}
-      REPOSITORY: pysolvesemi/MorphHDL
-      FEATURE_BRANCH: agent/increment-53c-native-axi4-slave-factory-offsets
-      ORIGINAL_WORKFLOW: morphhdl-native-axi4-slave-factory-offsets.yml
-      FORMAL_WORKFLOW: morphhdl-native-axi4-slave-factory-formal-v2.yml
+    timeout-minutes: 5
     steps:
-      - name: Dispatch only missing exact-head workflows
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json
-          import os
-          import time
-          import urllib.error
-          import urllib.parse
-          import urllib.request
-
-          repo = os.environ["REPOSITORY"]
-          branch = os.environ["FEATURE_BRANCH"]
-          token = os.environ["GH_TOKEN"]
-          workflows = [
-              os.environ["ORIGINAL_WORKFLOW"],
-              os.environ["FORMAL_WORKFLOW"],
-          ]
-          dispatched = set()
-
-          def api(method, path, payload=None, allow_404=False):
-              data = None if payload is None else json.dumps(payload).encode("utf-8")
-              request = urllib.request.Request(
-                  "https://api.github.com" + path,
-                  data=data,
-                  method=method,
-                  headers={
-                      "Accept": "application/vnd.github+json",
-                      "Authorization": "Bearer " + token,
-                      "Content-Type": "application/json",
-                      "X-GitHub-Api-Version": "2022-11-28",
-                      "User-Agent": "MorphHDL-Increment-53c-dispatch-watchdog",
-                  },
-              )
-              try:
-                  with urllib.request.urlopen(request, timeout=45) as response:
-                      if response.status == 204:
-                          return None
-                      return json.load(response)
-              except urllib.error.HTTPError as error:
-                  if allow_404 and error.code == 404:
-                      return None
-                  body = error.read().decode("utf-8", errors="replace")
-                  raise RuntimeError(
-                      f"GitHub API {method} {path} failed with {error.code}: {body}"
-                  )
-
-          deadline = time.time() + 66 * 60
-          encoded_branch = urllib.parse.quote(branch, safe="")
-          while time.time() < deadline:
-              ref = api(
-                  "GET",
-                  f"/repos/{repo}/git/ref/heads/{encoded_branch}",
-                  allow_404=True,
-              )
-              if ref is None:
-                  print("feature branch no longer exists; watchdog complete")
-                  break
-              sha = ref["object"]["sha"]
-              runs = api(
-                  "GET",
-                  f"/repos/{repo}/actions/runs?head_sha={sha}&per_page=100",
-              ).get("workflow_runs", [])
-              paths = {run.get("path"): run for run in runs}
-              for workflow in workflows:
-                  path = ".github/workflows/" + workflow
-                  key = (sha, workflow)
-                  if path in paths:
-                      run = paths[path]
-                      print(
-                          f"exact-head run exists: {workflow} {sha} "
-                          f"{run.get('status')}/{run.get('conclusion')}"
-                      )
-                      continue
-                  if key in dispatched:
-                      continue
-                  api(
-                      "POST",
-                      f"/repos/{repo}/actions/workflows/{workflow}/dispatches",
-                      {"ref": branch},
-                  )
-                  dispatched.add(key)
-                  print(f"dispatched missing exact-head workflow {workflow} at {sha}")
-              pr = api("GET", f"/repos/{repo}/pulls/108")
-              if pr.get("merged"):
-                  # Keep watching briefly because a post-merge closure commit can
-                  # advance the feature branch and still require proof dispatch.
-                  if all((sha, workflow) in dispatched or (
-                      ".github/workflows/" + workflow in paths
-                  ) for workflow in workflows):
-                      time.sleep(120)
-              else:
-                  time.sleep(30)
-          PY
+      - name: Confirm dispatch watchdog is superseded by the merged Increment 53c
+        run: echo "Increment 53c is merged; no proof-dispatch polling remains."
