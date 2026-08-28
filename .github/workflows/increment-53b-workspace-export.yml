@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 0
           ref: agent/increment-53b-native-streamwidth-adapter
 
-      - name: Apply exact staged implementation
+      - name: Apply exact staged implementation source
         shell: bash
         run: |
           set -euo pipefail
@@ -34,10 +34,13 @@ jobs:
           echo "822718c9102db683f79d54b24d4a273b38009f77f9be5479f2875110be64e4e4  /tmp/inc53b.patch" \
             | sha256sum --check --strict
 
-          git apply --check /tmp/inc53b.patch
-          git apply --index /tmp/inc53b.patch
+          git apply --check \
+            --exclude=.github/workflows/morphhdl-native-stream-width-adapter.yml \
+            /tmp/inc53b.patch
+          git apply --index \
+            --exclude=.github/workflows/morphhdl-native-stream-width-adapter.yml \
+            /tmp/inc53b.patch
           git rm -rf .github/inc53b-patch
-          git rm -f .github/workflows/increment-53b-workspace-export.yml
 
           git diff --cached --check
           if git diff --cached --name-only | grep -Eq '^(core|lib|idslplugin)/'; then
