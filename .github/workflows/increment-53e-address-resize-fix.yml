@@ -1,4 +1,4 @@
-name: Increment 53e native StreamFifoCC address-resize diagnostic
+name: Increment 53e canonical native address-width fix
 
 on:
   push:
@@ -6,22 +6,30 @@ on:
       - agent/increment-53e-native-streamfifocc-parameterization
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  trace-read-address:
+  apply-test-publish:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/spinalhdl/docker:latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/increment-53e-native-streamfifocc-parameterization
           fetch-depth: 0
 
-      - name: Instrument retained address-width graph
+      - name: Prepare authenticated branch checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+      - name: Canonicalize equivalent native address-width helper forms
         shell: bash
         run: |
           set -euo pipefail
@@ -33,107 +41,45 @@ jobs:
               "ParameterizedVerilogMemories.scala"
           )
           value = path.read_text()
-          marker = "    if (\n      native.parameters.nonEmpty &&\n      retainedIsConcreteWitness &&\n"
-          if value.count(marker) != 1:
-              raise SystemExit(
-                  f"selectAddressWidth insertion marker count={value.count(marker)}"
-              )
-
-          diagnostic = r'''    if (source.exists(_.contains("Stream.scala:1908"))) {
-              def baseLabel(value: BaseType): String = {
-                val retainedValue = ParameterizedWidth.expressionOf(value)
-                  .map(v => s"${v.verilog}/${v.default}/${v.minimum}/${v.maximum}")
-                  .getOrElse("-")
-                s"id=${System.identityHashCode(value)} class=${value.getClass.getName} " +
-                  s"name=${value.getName()} width=${value.getBitsWidth} retained=$retainedValue"
-              }
-
-              println(
-                s"[53e-address-proof] ROOT class=${address.getClass.getName} " +
-                  s"op=${address.opName} width=${address.getWidth} " +
-                  s"retained=${retained.verilog}/${retained.default}/${retained.minimum}/${retained.maximum} " +
-                  s"native=${native.verilog}/${native.default}/${native.minimum}/${native.maximum} " +
-                  s"driverProof=$driverProvesNativeWidth"
-              )
-
-              address match {
-                case root: BaseType =>
-                  val visited = new IdentityHashMap[BaseType, java.lang.Boolean]()
-
-                  def dump(value: BaseType, depth: Int): Unit = {
-                    if (
-                      depth <= 10 &&
-                      visited.put(value, java.lang.Boolean.TRUE) == null
-                    ) {
-                      val assignments = ArrayBuffer.empty[DataAssignmentStatement]
-                      component.dslBody.walkLeafStatements {
-                        case assignment: DataAssignmentStatement
-                            if assignment.finalTarget eq value =>
-                          assignments += assignment
-                        case _ =>
-                      }
-                      println(
-                        s"[53e-address-proof] ${"  " * depth}BASE ${baseLabel(value)} " +
-                          s"assignments=${assignments.size}"
-                      )
-                      assignments.zipWithIndex.foreach { case (assignment, index) =>
-                        assignment.source match {
-                          case expression: Expression =>
-                            val widthValue = expression match {
-                              case width: Expression with WidthProvider =>
-                                val candidate = widthOf(width, source)
-                                s"${candidate.verilog}/${candidate.default}/${candidate.minimum}/${candidate.maximum}"
-                              case _ => "not-width"
-                            }
-                            val bases = ArrayBuffer.empty[BaseType]
-                            val expressionVisited =
-                              new IdentityHashMap[Expression, java.lang.Boolean]()
-                            def collect(node: Expression): Unit = {
-                              if (
-                                expressionVisited.put(node, java.lang.Boolean.TRUE) == null
-                              ) {
-                                node match {
-                                  case base: BaseType => bases += base
-                                  case other          => other.foreachExpression(collect)
-                                }
-                              }
-                            }
-                            collect(expression)
-                            val uniqueBases = bases.foldLeft(Vector.empty[BaseType]) {
-                              case (known, base) if known.exists(_ eq base) => known
-                              case (known, base) => known :+ base
-                            }
-                            println(
-                              s"[53e-address-proof] ${"  " * depth}ASSIGN[$index] " +
-                                s"sourceClass=${expression.getClass.getName} op=${expression.opName} " +
-                                s"sourceWidth=$widthValue bases=${uniqueBases.size} " +
-                                s"source=${expression.toString.take(500)}"
-                            )
-                            uniqueBases.foreach { base =>
-                              println(
-                                s"[53e-address-proof] ${"  " * depth}  DEP ${baseLabel(base)}"
-                              )
-                              dump(base, depth + 1)
-                            }
-                          case other =>
-                            println(
-                              s"[53e-address-proof] ${"  " * depth}ASSIGN[$index] " +
-                                s"nonExpression=${other.getClass.getName} value=$other"
-                            )
-                        }
-                      }
-                    }
-                  }
-
-                  dump(root, 0)
-                case _ =>
-                  println("[53e-address-proof] ROOT is not a BaseType")
-              }
-            }
-
+          old = '''  private def equivalentWidth(
+              left: ElaborationIntegerExpression,
+              right: ElaborationIntegerExpression
+          ): Boolean =
+            compact(left.verilog) == compact(right.verilog) &&
+              left.default == right.default && left.minimum == right.minimum &&
+              left.maximum == right.maximum &&
+              left.parameters.sortBy(_.name) == right.parameters.sortBy(_.name)
           '''
-          value = value.replace(marker, diagnostic + marker, 1)
-          path.write_text(value)
+          new = '''  private def canonicalWidthVerilog(value: String): String = {
+            val normalized = compact(value)
+            val addressWidthPrefix = "morphhdl_address_width("
+            if (
+              normalized.startsWith(addressWidthPrefix) &&
+              normalized.endsWith(")")
+            ) {
+              val operand = normalized.substring(
+                addressWidthPrefix.length,
+                normalized.length - 1
+              )
+              s"clog2($operand,1)"
+            } else normalized
+          }
+
+          private def equivalentWidth(
+              left: ElaborationIntegerExpression,
+              right: ElaborationIntegerExpression
+          ): Boolean =
+            canonicalWidthVerilog(left.verilog) ==
+              canonicalWidthVerilog(right.verilog) &&
+              left.default == right.default && left.minimum == right.minimum &&
+              left.maximum == right.maximum &&
+              left.parameters.sortBy(_.name) == right.parameters.sortBy(_.name)
+          '''
+          if value.count(old) != 1:
+              raise SystemExit(
+                  f"equivalentWidth marker count={value.count(old)}"
+              )
+          path.write_text(value.replace(old, new, 1))
           PY
           git diff --check
 
@@ -146,18 +92,33 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Trace Scala 2.12 native StreamFifoCC witness
+      - name: Validate native StreamFifoCC on both Scala lanes
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
             morphhdl.ParameterizedStreamFifoCCTests \
-            2>&1 | tee /tmp/increment-53e-address-trace.log
+            2>&1 | tee /tmp/increment-53e-canonical-width-2.12.log
+          /tmp/morphhdl-mill 'morph[2.13.12].testOnly' \
+            morphhdl.ParameterizedStreamFifoCCTests \
+            2>&1 | tee /tmp/increment-53e-canonical-width-2.13.log
 
-      - name: Upload graph trace
+      - name: Upload focused validation evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53e-address-trace
-          path: /tmp/increment-53e-address-trace.log
+          name: increment-53e-canonical-width-evidence
+          path: |
+            /tmp/increment-53e-canonical-width-2.12.log
+            /tmp/increment-53e-canonical-width-2.13.log
           if-no-files-found: ignore
+
+      - name: Publish passing MorphHDL-only repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/increment-53e-address-resize-fix.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: equate native address-width helper forms'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
