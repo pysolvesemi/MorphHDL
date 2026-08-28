@@ -234,7 +234,7 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
         // Native StreamFifo keeps inherited dead helper nets in ordinary
         // concrete output. Legacy Verilator reports that family as UNUSED,
         // while current Verilator splits it into finer unused categories.
-        // Keep UNDRIVEN and every non-unused -Wall check active.
+        // This leaves UNDRIVEN and the existing non-unused warning policy unchanged.
         Seq("-Wno-UNUSED")
       }
     val command = Seq(
