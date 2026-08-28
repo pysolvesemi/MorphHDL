@@ -1,0 +1,99 @@
+name: Increment 53e native range AST diagnostic
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-streamfifo-cc-parameterization
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-streamfifo-cc-parameterization
+          fetch-depth: 0
+
+      - name: Recover reviewed support and native witness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git fetch --no-tags origin \
+            agent/increment-53d-native-streamfifocc-parameterization:refs/remotes/origin/agent/increment-53d-native-streamfifocc-parameterization
+          git show \
+            origin/agent/increment-53d-native-streamfifocc-parameterization:morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoCCDepthTests.scala \
+            > morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoCCDepthTests.scala
+          git show \
+            4a379f6c64f67889ca432e01ac7d51a41077941a:.github/workflows/increment-53e-bootstrap-v2.yml \
+            > /tmp/increment-53e-reviewed-bootstrap.yml
+
+      - name: Apply reviewed implementation and instrument parser AST
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path('/tmp/increment-53e-reviewed-bootstrap.yml').read_text()
+          begin_marker = "          cat > /tmp/apply53e.py <<'PY'\n"
+          end_marker = "\n          PY\n          python3 /tmp/apply53e.py"
+          begin = workflow.index(begin_marker) + len(begin_marker)
+          end = workflow.index(end_marker, begin)
+          reviewed_patch = textwrap.dedent(workflow[begin:end])
+          exec(
+              compile(reviewed_patch, 'increment-53e-reviewed-bootstrap', 'exec'),
+              {'__name__': '__main__'},
+          )
+
+          plugin_path = Path(
+              'morphplugin/src/main/scala/morphhdl/compiler/'
+              'MorphHdlNativeIntShadowExpressionComponent.scala'
+          )
+          plugin = plugin_path.read_text()
+          method = plugin.index('    private def rewriteExpression(')
+          tree_match = plugin.index('      tree match {\n', method)
+          diagnostic = '''      if (
+                inNativeStreamFifo &&
+                (tree.toString.contains("downto") ||
+                  sourceLine(tree) >= 1870 && sourceLine(tree) <= 1930)
+              ) {
+                Console.err.println(
+                  "MORPHDL-INC53E-AST line=" + sourceLine(tree) +
+                    " code=" + tree.toString +
+                    " raw=" + showRaw(tree)
+                )
+              }
+          '''
+          plugin = plugin[:tree_match] + diagnostic + plugin[tree_match:]
+          plugin_path.write_text(plugin)
+          PY
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Compile and run diagnostic witness
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
+            morphhdl.ParameterizedStreamFifoCCDepthTests \
+            2>&1 | tee /tmp/increment-53e-ast-diagnostic.log
+
+      - name: Upload parser diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53e-ast-diagnostic
+          path: /tmp/increment-53e-ast-diagnostic.log
+          if-no-files-found: error
