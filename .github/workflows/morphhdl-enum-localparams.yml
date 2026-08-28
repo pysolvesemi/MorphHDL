@@ -2,7 +2,7 @@ name: MorphHDL module-local SpinalEnum parameters
 
 # Increment 53b localizes SpinalEnum constants in MorphHDL-owned publication
 # code while keeping native SpinalHDL core, lib and compiler-plugin sources
-# unchanged. The exact repaired branch head is validated on both Scala lanes.
+# unchanged. The final MorphVerilog-only integration is validated on both Scala lanes.
 on:
   push:
     branches:
@@ -40,7 +40,7 @@ jobs:
           python3 morphhdl/scripts/check-native-source-preservation.py
           test -f morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala
           grep -Fq 'MorphHdlExternalEnumLocalizer.rewrite(pc)' \
-            morphhdl/src/main/scala/morphhdl/integration/ExternalSpinalVerilog.scala
+            morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
           if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
             git fetch --no-tags origin "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
             changed="$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")"
