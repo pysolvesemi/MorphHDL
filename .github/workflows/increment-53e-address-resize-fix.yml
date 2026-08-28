@@ -35,6 +35,7 @@ jobs:
           set -euo pipefail
           python3 morphhdl/scripts/apply-increment-53e-address-role-repair.py
           python3 morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py
+          python3 morphhdl/scripts/apply-increment-53e-buffercc-shape-repair.py
           git diff --check
 
       - name: Install pinned Mill bootstrap
@@ -74,6 +75,7 @@ jobs:
           rm -f .github/workflows/increment-53e-address-resize-fix.yml
           rm -f morphhdl/scripts/apply-increment-53e-address-role-repair.py
           rm -f morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py
+          rm -f morphhdl/scripts/apply-increment-53e-buffercc-shape-repair.py
           git add -A
           git diff --cached --check
           git commit -m 'Increment 53e: retain native FIFO symbolic hierarchy'
