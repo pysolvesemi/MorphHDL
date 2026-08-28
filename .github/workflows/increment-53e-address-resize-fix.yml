@@ -70,6 +70,7 @@ jobs:
           path: |
             /tmp/increment-53e-native-fifo-2.12.log
             /tmp/increment-53e-native-fifo-2.13.log
+            /tmp/morphhdl-single-source-*
           if-no-files-found: ignore
 
       - name: Publish passing MorphHDL-only repair
