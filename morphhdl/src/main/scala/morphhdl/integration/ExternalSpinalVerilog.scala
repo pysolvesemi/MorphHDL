@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.{AtomicInteger, AtomicReference}
 import scala.collection.mutable.ArrayBuffer
 
 import spinal.core.{BaseType, Component, SInt, SpinalConfig, SpinalReport, Verilog}
-import spinal.core.internals.{MorphHdlExternalEnumLocalizer, Phase, PhaseContext, PhaseMisc}
+import spinal.core.internals.{Phase, PhaseContext, PhaseMisc}
 
 /** Immutable port geometry observed after normal SpinalHDL elaboration. */
 final case class NativePortSnapshot(
@@ -156,10 +156,7 @@ object ExternalSpinalVerilog {
   ): ExternalSpinalVerilogReport[T, NativeGraphSnapshot] =
     run(config)(component)(
       (top: T) => NativeGraphSnapshot.capture(top),
-      (pc: PhaseContext) => {
-        afterPublication(pc)
-        MorphHdlExternalEnumLocalizer.rewrite(pc)
-      }
+      afterPublication
     )
 
   private def run[T <: Component, A](
