@@ -1,7 +1,7 @@
 package morphhdl
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path, Paths}
+import java.nio.file.{Files, Path}
 
 import scala.collection.JavaConverters._
 import scala.sys.process.{Process, ProcessLogger}
@@ -23,6 +23,11 @@ object Inc53bGlobalOneHotState extends SpinalEnum(binaryOneHot) {
 
 object Inc53bGlobalCollisionState extends SpinalEnum(binarySequential) {
   val IDLE, WAIT, RUN = newElement()
+  setGlobal()
+}
+
+object Inc53bFormalState extends SpinalEnum(binarySequential) {
+  val IDLE, LOAD, RUN, DONE = newElement()
   setGlobal()
 }
 
@@ -88,8 +93,48 @@ final class Inc53bEnumCollisionTop(width: HdlInt) extends Component {
       (right === Inc53bGlobalCollisionState.RUN)
 }
 
+final class Inc53bFormalEnumTop(width: HdlInt) extends Component {
+  setDefinitionName("Inc53bFormalEnumTop")
+
+  val selector = in(morphhdl.frontend.UInt(width bits))
+  val enable = in Bool()
+  val active = out Bool()
+  val encoded = out Bits (2 bits)
+
+  val state = Reg(Inc53bFormalState()) init (Inc53bFormalState.IDLE)
+  switch(state) {
+    is(Inc53bFormalState.IDLE) {
+      when(enable) {
+        state := Inc53bFormalState.LOAD
+      }
+    }
+    is(Inc53bFormalState.LOAD) {
+      when(!enable) {
+        state := Inc53bFormalState.IDLE
+      } otherwise {
+        when(selector(0)) {
+          state := Inc53bFormalState.RUN
+        }
+      }
+    }
+    is(Inc53bFormalState.RUN) {
+      when(enable) {
+        state := Inc53bFormalState.DONE
+      }
+    }
+    is(Inc53bFormalState.DONE) {
+      when(!enable) {
+        state := Inc53bFormalState.IDLE
+      }
+    }
+  }
+
+  active := state === Inc53bFormalState.DONE
+  encoded := state.asBits
+}
+
 class SpinalEnumLocalParameterTests extends AnyFunSuite {
-  test("MorphVerilog replaces global enum macros with short module-local parameters") {
+  test("MorphVerilog replaces global enum macros with uppercase enum-qualified module-local parameters") {
     withTemporaryDirectory { directory =>
       val firstDirectory = directory.resolve("first")
       val replayDirectory = directory.resolve("replay")
@@ -112,22 +157,27 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
 
       assert(!verilog.contains("`define"))
       assert(!verilog.contains("`Inc53bGlobal"))
-      assert(!verilog.contains("Inc53bGlobalBinaryState_"))
-      assert(!verilog.contains("Inc53bGlobalOneHotState_"))
+      assert(!verilog.contains("localparam Inc53bGlobal"))
+      assert(!verilog.contains("localparam IDLE ="))
+      assert(!verilog.contains("localparam RUN ="))
 
-      assert(binary.contains("localparam IDLE = 1'd0;"))
-      assert(binary.contains("localparam RUN = 1'd1;"))
-      assert(!binary.contains("localparam Inc53b"))
+      assert(binary.contains("localparam INC53BGLOBALBINARYSTATE_IDLE = 1'd0;"))
+      assert(binary.contains("localparam INC53BGLOBALBINARYSTATE_RUN = 1'd1;"))
+      assert(!binary.contains("INC53BBINARYENUMLEAF_INC53BGLOBALBINARYSTATE"))
 
-      assert(oneHot.contains("localparam IDLE = 2'd1;"))
-      assert(oneHot.contains("localparam IDLE_OH_ID = 0;"))
-      assert(oneHot.contains("localparam RUN = 2'd2;"))
-      assert(oneHot.contains("localparam RUN_OH_ID = 1;"))
-      assert(!oneHot.contains("localparam Inc53b"))
+      assert(oneHot.contains("localparam INC53BGLOBALONEHOTSTATE_IDLE = 2'd1;"))
+      assert(oneHot.contains("localparam INC53BGLOBALONEHOTSTATE_IDLE_OH_ID = 0;"))
+      assert(oneHot.contains("localparam INC53BGLOBALONEHOTSTATE_RUN = 2'd2;"))
+      assert(oneHot.contains("localparam INC53BGLOBALONEHOTSTATE_RUN_OH_ID = 1;"))
+      assert(!oneHot.contains("INC53BONEHOTENUMLEAF_INC53BGLOBALONEHOTSTATE"))
 
-      assert(verilog.split("localparam IDLE =", -1).length - 1 == 2)
-      assert(verilog.split("localparam RUN =", -1).length - 1 == 2)
-      lint(first, directory)
+      assert(
+        verilog.split("localparam INC53BGLOBALBINARYSTATE_IDLE =", -1).length - 1 == 1
+      )
+      assert(
+        verilog.split("localparam INC53BGLOBALONEHOTSTATE_IDLE =", -1).length - 1 == 1
+      )
+      lint(first, directory, "Inc53bEnumTop")
     }
   }
 
@@ -144,30 +194,94 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
       assert(verilog.contains("`define Inc53bGlobalOneHotState_IDLE"))
       assert(verilog.contains("`Inc53bGlobalBinaryState_RUN"))
       assert(verilog.contains("`Inc53bGlobalOneHotState_RUN"))
+      assert(!verilog.contains("localparam INC53BGLOBALBINARYSTATE_IDLE"))
     }
   }
 
-  test("same-module short enum-name conflicts fail closed without prefixes") {
+  test("enum-qualified uppercase names avoid same-module element collisions") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
       config.netlistFileName = "enum_collision.v"
-
-      MorphVerilog.tryGenerate(config) {
+      val report = MorphVerilog(config) {
         val width = HdlInt.param("WIDTH", default = 4, min = 1, max = 16)
         new Inc53bEnumCollisionTop(width)
-      } match {
-        case Left(failure) =>
-          assert(failure.stage == MorphVerilogStage.SingleSourceGeneration)
-          assert(
-            failure.detail.contains(
-              "SPINAL-PARAMETERIZED-VERILOG-ENUM-LOCAL-NAME-COLLISION"
-            )
-          )
-          assert(failure.detail.contains("IDLE"))
-        case Right(report) =>
-          fail(s"Expected prefix-free enum-name collision failure, received $report")
       }
-      assert(!Files.exists(directory.resolve("enum_collision.v")))
+
+      assert(report.toplevelName == "Inc53bEnumCollisionTop")
+      val output = directory.resolve("enum_collision.v")
+      val verilog = read(output)
+      assert(verilog.contains("localparam INC53BGLOBALBINARYSTATE_IDLE = 1'd0;"))
+      assert(verilog.contains("localparam INC53BGLOBALCOLLISIONSTATE_IDLE = 2'd0;"))
+      assert(verilog.contains("localparam INC53BGLOBALCOLLISIONSTATE_WAIT = 2'd1;"))
+      assert(!verilog.contains("localparam IDLE ="))
+      lint(output, directory, "Inc53bEnumCollisionTop")
+    }
+  }
+
+  test("Yosys formally proves legacy macro and uppercase localparam enum RTL equivalent") {
+    withTemporaryDirectory { directory =>
+      assert(commandAvailable("yosys"), "Yosys is required for the enum formal-equivalence contract")
+
+      val legacyDirectory = directory.resolve("legacy")
+      val localizedDirectory = directory.resolve("localized")
+      Files.createDirectories(legacyDirectory)
+      Files.createDirectories(localizedDirectory)
+
+      val legacyConfig = formalConfig(legacyDirectory)
+      legacyConfig.netlistFileName = "enum_macro.v"
+      SpinalVerilog(legacyConfig) {
+        formalComponent()
+      }
+      val legacyRtl = legacyDirectory.resolve("enum_macro.v")
+
+      val localizedConfig = formalConfig(localizedDirectory)
+      localizedConfig.netlistFileName = "enum_localparam.v"
+      val report = MorphVerilog(localizedConfig) {
+        formalComponent()
+      }
+      val localizedRtl = localizedDirectory.resolve("enum_localparam.v")
+
+      assert(report.parameters.map(_.name) == Vector("WIDTH"))
+      val legacy = read(legacyRtl)
+      val localized = read(localizedRtl)
+      assert(legacy.contains("`define Inc53bFormalState_IDLE"))
+      assert(legacy.contains("`Inc53bFormalState_DONE"))
+      assert(localized.contains("localparam INC53BFORMALSTATE_IDLE = 2'd0;"))
+      assert(localized.contains("localparam INC53BFORMALSTATE_DONE = 2'd3;"))
+      assert(!localized.contains("`define Inc53bFormalState"))
+      assert(!localized.contains("`Inc53bFormalState"))
+
+      val script = directory.resolve("enum_macro_vs_localparam.ys")
+      val scriptText =
+        s"""read_verilog -formal ${legacyRtl.toAbsolutePath}
+           |prep -top Inc53bFormalEnumTop
+           |rename Inc53bFormalEnumTop gold
+           |design -stash gold
+           |
+           |read_verilog -formal ${localizedRtl.toAbsolutePath}
+           |chparam -set WIDTH 4 Inc53bFormalEnumTop
+           |prep -top Inc53bFormalEnumTop
+           |rename Inc53bFormalEnumTop gate
+           |design -stash gate
+           |
+           |design -reset
+           |design -copy-from gold -as gold gold
+           |design -copy-from gate -as gate gate
+           |equiv_make gold gate equiv
+           |hierarchy -check -top equiv
+           |proc
+           |opt_clean
+           |equiv_simple -seq 8
+           |equiv_induct -undef -seq 8
+           |equiv_status -assert
+           |""".stripMargin
+      Files.write(script, scriptText.getBytes(StandardCharsets.UTF_8))
+
+      val proof = run(directory, Seq("yosys", "-s", script.toString))
+      assert(
+        proof._1 == 0,
+        s"Yosys failed macro/localparam formal equivalence:\n${proof._2}"
+      )
     }
   }
 
@@ -175,6 +289,20 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
     val width = HdlInt.param("WIDTH", default = 4, min = 1, max = 16)
     new Inc53bEnumTop(width)
   }
+
+  private def formalComponent(): Inc53bFormalEnumTop = {
+    val width = HdlInt.param("WIDTH", default = 4, min = 1, max = 16)
+    new Inc53bFormalEnumTop(width)
+  }
+
+  private def formalConfig(directory: Path): SpinalConfig =
+    SpinalConfig(
+      targetDirectory = directory.toString,
+      defaultConfigForClockDomains = ClockDomainConfig(
+        resetKind = SYNC,
+        resetActiveLevel = HIGH
+      )
+    )
 
   private def generate(directory: Path): Path = {
     val config = SpinalConfig(targetDirectory = directory.toString)
@@ -195,7 +323,7 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
       .findFirstIn(verilog)
       .getOrElse(fail(s"Module '$name' is missing"))
 
-  private def lint(rtl: Path, directory: Path): Unit = {
+  private def lint(rtl: Path, directory: Path, top: String): Unit = {
     if (commandAvailable("iverilog")) {
       val result = run(
         directory,
@@ -203,9 +331,9 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
           "iverilog",
           "-g2001",
           "-s",
-          "Inc53bEnumTop",
+          top,
           "-o",
-          directory.resolve("enum_localparams.out").toString,
+          directory.resolve(top + ".out").toString,
           rtl.toString
         )
       )
@@ -223,7 +351,7 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
           "-Wno-fatal",
           "-Wno-DECLFILENAME",
           "--top-module",
-          "Inc53bEnumTop",
+          top,
           rtl.toString
         )
       )
@@ -237,7 +365,7 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
           "yosys",
           "-q",
           "-p",
-          s"read_verilog ${rtl.toString}; hierarchy -check -top Inc53bEnumTop; proc; check"
+          s"read_verilog ${rtl.toString}; hierarchy -check -top $top; proc; check"
         )
       )
       assert(result._1 == 0, s"Yosys rejected localized enum RTL:\n${result._2}")
