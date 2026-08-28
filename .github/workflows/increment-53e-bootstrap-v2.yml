@@ -55,15 +55,14 @@ jobs:
           start_marker = '    val driverProvesNativeWidth = address match {'
           start = memory.index(start_marker)
           end = memory.index('\n    if (', start)
-          replacement = '''    val driverWidths = exactSymbolicDriverWidths(address, component)
+          replacement = '''    val driverWidths = exactSymbolicDriverWidths(address)
             val driverProvesNativeWidth =
               driverWidths.size == 1 && equivalentWidth(driverWidths.head, native)
           '''
           memory = memory[:start] + replacement + memory[end:]
 
           insertion = '''  private def exactSymbolicDriverWidths(
-              expression: Expression with WidthProvider,
-              component: Component
+              expression: Expression with WidthProvider
             ): Vector[ElaborationIntegerExpression] = {
               val seen = new IdentityHashMap[Expression, java.lang.Boolean]()
               val retained = ArrayBuffer.empty[ElaborationIntegerExpression]
@@ -75,9 +74,8 @@ jobs:
                       ParameterizedWidth.expressionOf(base) match {
                         case Some(width) if width.parameters.nonEmpty => retained += width
                         case _ =>
-                          component.dslBody.walkLeafStatements {
-                            case assignment: DataAssignmentStatement
-                                if assignment.finalTarget eq base =>
+                          base.foreachStatements {
+                            case assignment: DataAssignmentStatement =>
                               assignment.source match {
                                 case driver: Expression => walk(driver)
                                 case _ =>
