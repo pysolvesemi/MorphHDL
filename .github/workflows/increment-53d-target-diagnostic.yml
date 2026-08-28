@@ -1,0 +1,50 @@
+name: Diagnose Increment 53d native StreamWidthAdapter
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-native-streamwidth-adapter
+    paths:
+      - .github/workflows/increment-53d-target-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out Increment 53d branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-native-streamwidth-adapter
+          fetch-depth: 0
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run the focused target and print only actionable diagnostics
+        shell: bash
+        run: |
+          set +e
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.ParameterizedStreamWidthAdapterTests \
+            > /tmp/increment-53d-target.log 2>&1
+          status=$?
+          set -e
+          echo "===== actionable diagnostics ====="
+          grep -E "FAILED|Cause:|SPINAL-|MORPH-|MorphVerilogException|ParameterizedVerilogException|AssertionError|tests failed" \
+            /tmp/increment-53d-target.log | tail -n 180 || true
+          echo "===== final log context ====="
+          tail -n 240 /tmp/increment-53d-target.log
+          exit "$status"
