@@ -1,4 +1,4 @@
-name: Increment 53e graph-backed native memory address repair
+name: Increment 53e graph-backed native FIFO repair
 
 on:
   push:
@@ -29,11 +29,12 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
 
-      - name: Apply graph-backed native memory address repair
+      - name: Apply graph-backed native FIFO repairs
         shell: bash
         run: |
           set -euo pipefail
           python3 morphhdl/scripts/apply-increment-53e-address-role-repair.py
+          python3 morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py
           git diff --check
 
       - name: Install pinned Mill bootstrap
@@ -51,19 +52,19 @@ jobs:
           set -euo pipefail
           /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
             morphhdl.ParameterizedStreamFifoCCTests \
-            2>&1 | tee /tmp/increment-53e-address-role-2.12.log
+            2>&1 | tee /tmp/increment-53e-native-fifo-2.12.log
           /tmp/morphhdl-mill 'morph[2.13.12].testOnly' \
             morphhdl.ParameterizedStreamFifoCCTests \
-            2>&1 | tee /tmp/increment-53e-address-role-2.13.log
+            2>&1 | tee /tmp/increment-53e-native-fifo-2.13.log
 
       - name: Upload focused validation evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53e-address-role-evidence
+          name: increment-53e-native-fifo-evidence
           path: |
-            /tmp/increment-53e-address-role-2.12.log
-            /tmp/increment-53e-address-role-2.13.log
+            /tmp/increment-53e-native-fifo-2.12.log
+            /tmp/increment-53e-native-fifo-2.13.log
           if-no-files-found: ignore
 
       - name: Publish passing MorphHDL-only repair
@@ -72,7 +73,8 @@ jobs:
           set -euo pipefail
           rm -f .github/workflows/increment-53e-address-resize-fix.yml
           rm -f morphhdl/scripts/apply-increment-53e-address-role-repair.py
+          rm -f morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py
           git add -A
           git diff --cached --check
-          git commit -m 'Increment 53e: retain graph-backed native FIFO addresses'
+          git commit -m 'Increment 53e: retain native FIFO symbolic hierarchy'
           git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
