@@ -1,4 +1,4 @@
-name: Increment 53e native StreamFifoCC address-width repair
+name: Increment 53e graph-backed native memory address repair
 
 on:
   push:
@@ -29,176 +29,11 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
 
-      - name: Recover native resize and canonical address-width provenance
+      - name: Apply graph-backed native memory address repair
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path(
-              "morphhdl/src/main/scala/spinal/core/internals/"
-              "ParameterizedVerilogMemories.scala"
-          )
-          value = path.read_text()
-
-          select_start_marker = "  private def selectAddressWidth(\n"
-          select_end_marker = "  private def validateAddressWidth(\n"
-          if (
-              value.count(select_start_marker) != 1 or
-              value.count(select_end_marker) != 1
-          ):
-              raise SystemExit(
-                  "selectAddressWidth/validateAddressWidth boundaries are ambiguous"
-              )
-          select_start = value.index(select_start_marker)
-          select_end = value.index(select_end_marker, select_start)
-          select_replacement = '''  private def directDriverExpressions(
-              target: BaseType,
-              component: Component
-          ): Vector[Expression] = {
-            val assignments = ArrayBuffer.empty[DataAssignmentStatement]
-            component.dslBody.walkLeafStatements {
-              case value: DataAssignmentStatement
-                  if value.finalTarget eq target =>
-                assignments += value
-              case _ =>
-            }
-            assignments.toVector.flatMap { assignment =>
-              assignment.source match {
-                case expression: Expression => Some(expression)
-                case _                      => None
-              }
-            }
-          }
-
-          private def explicitlyResizedToWidth(
-              expression: Expression,
-              expectedWidth: Int,
-              component: Component
-          ): Boolean = {
-            val seen = new IdentityHashMap[Expression, java.lang.Boolean]()
-
-            def walk(value: Expression): Boolean = {
-              if (seen.put(value, java.lang.Boolean.TRUE) != null) false
-              else {
-                value match {
-                  case resize: ResizeUInt =>
-                    resize.getWidth == expectedWidth
-                  case base: BaseType if base.hasTag(tagAutoResize) =>
-                    base.getBitsWidth == expectedWidth
-                  case base: BaseType =>
-                    val drivers = directDriverExpressions(base, component)
-                    drivers.size == 1 && walk(drivers.head)
-                  case other =>
-                    val children = ArrayBuffer.empty[Expression]
-                    other.foreachExpression(children += _)
-                    children.size == 1 && walk(children.head)
-                }
-              }
-            }
-
-            walk(expression)
-          }
-
-          private def selectAddressWidth(
-              address: Expression with WidthProvider,
-              retained: ElaborationIntegerExpression,
-              native: ElaborationIntegerExpression,
-              component: Component,
-              source: Option[String]
-          ): ElaborationIntegerExpression = {
-            val retainedIsConcreteWitness =
-              retained.parameters.isEmpty &&
-              retained.default == BigInt(address.getWidth) &&
-              retained.minimum == retained.default &&
-              retained.maximum == retained.default
-
-            val driverExpressions = address match {
-              case target: BaseType => directDriverExpressions(target, component)
-              case expression       => Vector(expression)
-            }
-
-            val retainedDriverWidths = driverExpressions.flatMap {
-              case value: Expression with WidthProvider =>
-                Some(widthOf(value, source))
-              case _ => None
-            }.distinct
-            val widthExpressionProvesNative =
-              retainedDriverWidths.size == 1 &&
-              equivalentWidth(retainedDriverWidths.head, native)
-
-            val explicitResizeProvesNative =
-              native.default.isValidInt &&
-              address.getWidth == native.default.toInt &&
-              explicitlyResizedToWidth(
-                address,
-                native.default.toInt,
-                component
-              )
-
-            val concreteDriverProvesNative =
-              retainedIsConcreteWitness &&
-              native.default == retained.default &&
-              widthExpressionProvesNative
-
-            if (
-              native.parameters.nonEmpty &&
-              (explicitResizeProvesNative || concreteDriverProvesNative)
-            ) native
-            else retained
-          }
-
-          '''
-          value = value[:select_start] + select_replacement + value[select_end:]
-
-          equivalent_start_marker = "  private def equivalentWidth(\n"
-          equivalent_end_marker = "  private def requireType(\n"
-          if (
-              value.count(equivalent_start_marker) != 1 or
-              value.count(equivalent_end_marker) != 1
-          ):
-              raise SystemExit(
-                  "equivalentWidth/requireType boundaries are ambiguous"
-              )
-          equivalent_start = value.index(equivalent_start_marker)
-          equivalent_end = value.index(
-              equivalent_end_marker,
-              equivalent_start
-          )
-          equivalent_replacement = '''  private def canonicalWidthVerilog(value: String): String = {
-            val normalized = compact(value)
-            val addressWidthPrefix = "morphhdl_address_width("
-            if (
-              normalized.startsWith(addressWidthPrefix) &&
-              normalized.endsWith(")")
-            ) {
-              val operand = normalized.substring(
-                addressWidthPrefix.length,
-                normalized.length - 1
-              )
-              s"clog2($operand,1)"
-            } else normalized
-          }
-
-          private def equivalentWidth(
-              left: ElaborationIntegerExpression,
-              right: ElaborationIntegerExpression
-          ): Boolean =
-            canonicalWidthVerilog(left.verilog) ==
-              canonicalWidthVerilog(right.verilog) &&
-              left.default == right.default && left.minimum == right.minimum &&
-              left.maximum == right.maximum &&
-              left.parameters.sortBy(_.name) == right.parameters.sortBy(_.name)
-
-          '''
-          value = (
-              value[:equivalent_start] +
-              equivalent_replacement +
-              value[equivalent_end:]
-          )
-          path.write_text(value)
-          PY
+          python3 morphhdl/scripts/apply-increment-53e-address-role-repair.py
           git diff --check
 
       - name: Install pinned Mill bootstrap
@@ -216,19 +51,19 @@ jobs:
           set -euo pipefail
           /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
             morphhdl.ParameterizedStreamFifoCCTests \
-            2>&1 | tee /tmp/increment-53e-address-width-2.12.log
+            2>&1 | tee /tmp/increment-53e-address-role-2.12.log
           /tmp/morphhdl-mill 'morph[2.13.12].testOnly' \
             morphhdl.ParameterizedStreamFifoCCTests \
-            2>&1 | tee /tmp/increment-53e-address-width-2.13.log
+            2>&1 | tee /tmp/increment-53e-address-role-2.13.log
 
       - name: Upload focused validation evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53e-address-width-evidence
+          name: increment-53e-address-role-evidence
           path: |
-            /tmp/increment-53e-address-width-2.12.log
-            /tmp/increment-53e-address-width-2.13.log
+            /tmp/increment-53e-address-role-2.12.log
+            /tmp/increment-53e-address-role-2.13.log
           if-no-files-found: ignore
 
       - name: Publish passing MorphHDL-only repair
@@ -236,7 +71,8 @@ jobs:
         run: |
           set -euo pipefail
           rm -f .github/workflows/increment-53e-address-resize-fix.yml
+          rm -f morphhdl/scripts/apply-increment-53e-address-role-repair.py
           git add -A
           git diff --cached --check
-          git commit -m 'Increment 53e: recover native FIFO address-width provenance'
+          git commit -m 'Increment 53e: retain graph-backed native FIFO addresses'
           git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
