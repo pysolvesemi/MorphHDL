@@ -831,7 +831,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           "generic parameterized expressions target Verilog-2001, not SystemVerilog"
         )
       }
-      // Native memories are validated and canonically lowered after this
+      // Native memories are validated and canonically lowered before this
       // generic declaration-width pass.
       if (parameters.isEmpty && !hasParameterizedHierarchy) {
         fail(
@@ -1299,19 +1299,33 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
 
       private def inferUntaggedBitVector(bitVector: BitVector): WidthExpr = {
-        val fullSources = ArrayBuffer.empty[Expression]
+        val fullAssignments = ArrayBuffer.empty[DataAssignmentStatement]
         bitVector.foreachStatements {
           case assignment: DataAssignmentStatement
               if assignment.target == bitVector &&
                 assignment.finalTarget == bitVector &&
                 !isHierarchyBoundary(assignment) =>
-            fullSources += assignment.source
+            fullAssignments += assignment
           case _ =>
         }
-        val sourceWidths = fullSources.map(ofExpression)
-        val symbolicWidths = sourceWidths.filter(_.isSymbolic)
-        if (symbolicWidths.isEmpty) WidthLiteral(bitVector.getBitsWidth)
-        else symbolicWidths.reduce(widthMax)
+        val provenAutoResizeBoundary = bitVector match {
+          case uint: UInt if fullAssignments.size == 1 =>
+            ExternalParameterizedAutoResize.proves(
+              component,
+              fullAssignments.head,
+              uint
+            )
+          case _ => false
+        }
+        if (provenAutoResizeBoundary) WidthLiteral(bitVector.getBitsWidth)
+        else {
+          val sourceWidths = fullAssignments.map(assignment =>
+            ofExpression(assignment.source)
+          )
+          val symbolicWidths = sourceWidths.filter(_.isSymbolic)
+          if (symbolicWidths.isEmpty) WidthLiteral(bitVector.getBitsWidth)
+          else symbolicWidths.reduce(widthMax)
+        }
       }
 
       def ofExpression(expression: Expression): WidthExpr = {

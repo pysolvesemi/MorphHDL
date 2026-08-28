@@ -8,7 +8,7 @@ import scala.collection.JavaConverters._
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 
-import morphhdl.frontend.HdlInt
+import morphhdl.frontend.{formalParam, HdlInt}
 
 object HierarchyParameterBindingSmoke {
   final class Leaf(width: HdlInt) extends Component {
@@ -37,6 +37,71 @@ object HierarchyParameterBindingSmoke {
     leftOut := left.dout
     right.din := rightIn
     rightOut := right.dout
+  }
+
+  /** Native-Int child whose public packed width is derived from its formal. */
+  final class DerivedWidthLeaf(actualDepth: HdlInt) extends Component {
+    setDefinitionName("NativeHierarchyDerivedWidthLeaf")
+
+    @dontName private val depth = formalParam(
+      actualDepth,
+      "DEPTH",
+      minimum = BigInt(1),
+      maximum = BigInt(8)
+    )
+    val din = in(morphhdl.frontend.UInt(depth bits))
+    val occupancy = out(
+      morphhdl.frontend.UInt(
+        (depth + HdlInt.literal(1)).addressWidth bits
+      )
+    )
+    occupancy := 0
+  }
+
+  /** Fixed-width parent adapter used to expose the emitted child carrier. */
+  final class DerivedWidthTop(depth: HdlInt) extends Component {
+    setDefinitionName("NativeHierarchyDerivedWidthTop")
+
+    val din = in(morphhdl.frontend.UInt(depth bits))
+    val occupancy = out(UInt(4 bits))
+    val leaf = new DerivedWidthLeaf(depth)
+    leaf.setName("leaf")
+
+    leaf.din := din
+    occupancy := leaf.occupancy.resized
+  }
+
+  /** Proves that a legal formal name cannot capture a helper call token. */
+  final class DerivedWidthHelperCollisionLeaf(actualDepth: HdlInt)
+      extends Component {
+    setDefinitionName("NativeHierarchyDerivedWidthHelperCollisionLeaf")
+
+    @dontName private val depth = formalParam(
+      actualDepth,
+      "clog2",
+      minimum = BigInt(1),
+      maximum = BigInt(8)
+    )
+    val din = in(morphhdl.frontend.UInt(depth bits))
+    val occupancy = out(
+      morphhdl.frontend.UInt(
+        (depth + HdlInt.literal(1)).addressWidth bits
+      )
+    )
+    occupancy := 0
+  }
+
+  final class DerivedWidthHelperCollisionTop(depth: HdlInt)
+      extends Component {
+    setDefinitionName("NativeHierarchyDerivedWidthHelperCollisionTop")
+
+    val din = in(morphhdl.frontend.UInt(depth bits))
+    val occupancy = out(UInt(4 bits))
+    val leaf = new DerivedWidthHelperCollisionLeaf(depth)
+    leaf.setName("leaf")
+
+    leaf.din := din
+    occupancy := leaf.occupancy.resized
   }
 
   def component(): Component = {
@@ -149,6 +214,76 @@ class HierarchyParameterBindingTests extends AnyFunSuite {
       assert(hasDeclarationWidth(verilog, "right_dout", "[RIGHT_WIDTH-1:0]"))
       assert(!verilog.contains("__v_"))
       assert(!verilog.contains("ParamRTL"))
+    }
+  }
+
+  test("derived symbolic child ports rewrite their parent carrier and connection") {
+    withTemporaryDirectory { directory =>
+      val depth = HdlInt.param("TOP_DEPTH", default = 5, min = 1, max = 8)
+      val verilog = emitComponent(
+        directory,
+        "native_hierarchy_derived_width.v",
+        new DerivedWidthTop(depth)
+      )
+      val compact = verilog.replaceAll("\\s+", "")
+
+      assert(verilog.contains("module NativeHierarchyDerivedWidthLeaf #("))
+      assert(verilog.contains("parameter integer DEPTH = 5"))
+      assert(verilog.contains("module NativeHierarchyDerivedWidthTop #("))
+      assert(verilog.contains("parameter integer TOP_DEPTH = 5"))
+      assert(verilog.contains(".DEPTH(TOP_DEPTH)"))
+      assert(
+        compact.contains(
+          "wire[clog2(((TOP_DEPTH)+1),1)-1:0]leaf_occupancy;"
+        ),
+        verilog
+      )
+      assert(
+        compact.contains(
+          ".occupancy(leaf_occupancy[clog2(((TOP_DEPTH)+1),1)-1:0])"
+        ),
+        verilog
+      )
+      assert(!compact.contains("wire[2:0]leaf_occupancy;"), verilog)
+    }
+  }
+
+  test("derived symbolic child ports substitute a compound parent actual once") {
+    withTemporaryDirectory { directory =>
+      val base = HdlInt.param("BASE", default = 4, min = 1, max = 7)
+      val verilog = emitComponent(
+        directory,
+        "native_hierarchy_derived_compound_width.v",
+        new DerivedWidthTop(base + HdlInt.literal(1))
+      )
+      val compact = verilog.replaceAll("\\s+", "")
+
+      assert(verilog.contains(".DEPTH((BASE + 1))"))
+      assert(
+        compact.contains(
+          "wire[clog2((((BASE+1))+1),1)-1:0]leaf_occupancy;"
+        ),
+        verilog
+      )
+      assert(
+        compact.contains(
+          ".occupancy(leaf_occupancy[clog2((((BASE+1))+1),1)-1:0])"
+        ),
+        verilog
+      )
+    }
+  }
+
+  test("derived width substitution rejects a same-scoped helper and formal name") {
+    withTemporaryDirectory { directory =>
+      val depth = HdlInt.param("TOP_DEPTH", default = 5, min = 1, max = 8)
+      expectFailure(
+        directory,
+        "native_hierarchy_derived_helper_collision.v",
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-DERIVED-WIDTH-IDENTIFIER-COLLISION"
+      ) {
+        new DerivedWidthHelperCollisionTop(depth)
+      }
     }
   }
 
