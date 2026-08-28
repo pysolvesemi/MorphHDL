@@ -2,6 +2,7 @@ package morphhdl
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
+import java.util.regex.Pattern
 
 import scala.collection.JavaConverters._
 
@@ -92,6 +93,18 @@ class NativeAxi4SlaveFactoryParameterizedOffsetTests extends AnyFunSuite {
   private def read(path: Path): String =
     new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
 
+  private def containsAddressLiteral(verilog: String, value: Int): Boolean = {
+    val decimal = Pattern
+      .compile(
+        "(?<![A-Za-z0-9_])" + Pattern.quote(value.toString) +
+          "(?![A-Za-z0-9_])"
+      )
+      .matcher(verilog)
+      .find()
+    val nativeHex = f"12'h$value%03x"
+    decimal || verilog.toLowerCase.contains(nativeHex)
+  }
+
   private def config(directory: Path, filename: String): SpinalConfig = {
     Files.createDirectories(directory)
     val result = SpinalConfig(targetDirectory = directory.toString)
@@ -137,15 +150,15 @@ class NativeAxi4SlaveFactoryParameterizedOffsetTests extends AnyFunSuite {
       assert(first.contains("fixedRegister"))
 
       // The unrelated fixed mapping must remain an ordinary concrete address.
-      assert(first.contains("128"))
+      assert(containsAddressLiteral(first, 0x080))
       assert(!first.contains("ParamRTL"))
       assert(!first.contains("class Axi4SlaveFactory"))
 
       assert(!concrete.contains("parameter integer OFFSET"))
       assert(!concrete.contains("parameter integer TOP_OFFSET"))
-      assert(concrete.contains("64"))
-      assert(concrete.contains("68"))
-      assert(concrete.contains("128"))
+      assert(containsAddressLiteral(concrete, 0x040))
+      assert(containsAddressLiteral(concrete, 0x044))
+      assert(containsAddressLiteral(concrete, 0x080))
     }
   }
 
@@ -158,9 +171,9 @@ class NativeAxi4SlaveFactoryParameterizedOffsetTests extends AnyFunSuite {
       val verilog = read(directory.resolve(filename))
       assert(report.toplevelName == "NativeAxi4SlaveFactoryRegisterBlock")
       assert(!verilog.contains("parameter integer OFFSET"))
-      assert(verilog.contains("36"))
-      assert(verilog.contains("40"))
-      assert(verilog.contains("128"))
+      assert(containsAddressLiteral(verilog, 0x024))
+      assert(containsAddressLiteral(verilog, 0x028))
+      assert(containsAddressLiteral(verilog, 0x080))
       assert(verilog.contains("io_axi_aw_ready"))
       assert(verilog.contains("io_axi_r_valid"))
     }
