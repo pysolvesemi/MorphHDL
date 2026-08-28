@@ -33,15 +33,11 @@ jobs:
               "ParameterizedVerilogMemories.scala"
           )
           value = path.read_text()
-          marker = """    if (
-              native.parameters.nonEmpty &&
-              retainedIsConcreteWitness &&
-              native.default == retained.default &&
-              driverProvesNativeWidth
-            ) native
-          """
+          marker = "    if (\n      native.parameters.nonEmpty &&\n      retainedIsConcreteWitness &&\n"
           if value.count(marker) != 1:
-              raise SystemExit("selectAddressWidth decision marker is ambiguous")
+              raise SystemExit(
+                  f"selectAddressWidth insertion marker count={value.count(marker)}"
+              )
 
           diagnostic = r'''    if (source.exists(_.contains("Stream.scala:1908"))) {
               def baseLabel(value: BaseType): String = {
@@ -136,7 +132,7 @@ jobs:
             }
 
           '''
-          value = value.replace(marker, diagnostic + marker)
+          value = value.replace(marker, diagnostic + marker, 1)
           path.write_text(value)
           PY
           git diff --check
@@ -164,4 +160,4 @@ jobs:
         with:
           name: increment-53e-address-trace
           path: /tmp/increment-53e-address-trace.log
-          if-no-files-found: error
+          if-no-files-found: ignore
