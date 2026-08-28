@@ -1,16 +1,12 @@
-name: Increment 53e StreamFifoCC identity repair
+name: Increment 53e StreamFifoCC process diagnostic
 
 on:
   push:
     branches:
       - agent/increment-53e-streamfifo-cc-parameterization
 
-permissions:
-  contents: write
-
 jobs:
-  apply-test-publish:
-    if: github.actor != 'github-actions[bot]'
+  diagnose:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/spinalhdl/docker:latest
@@ -89,6 +85,93 @@ jobs:
           )
           PY
 
+      - name: Instrument native RAM process classification
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              'morphhdl/src/main/scala/spinal/core/internals/'
+              'ParameterizedVerilogMemories.scala'
+          )
+          value = path.read_text()
+          start_marker = '  private def independentDontCareProcessesAreComplete(\n'
+          end_marker = '  private def alwaysBlocks('
+          start = value.index(start_marker)
+          end = value.index(end_marker, start)
+          diagnostic = '''  private def independentDontCareProcessesAreComplete(
+              lines: Vector[String],
+              blocks: Vector[LineRange],
+              plan: MemoryPlan
+            ): Boolean = {
+              if (!plan.independentDontCare || blocks.size != 2) return false
+              val texts = blocks.map { block =>
+                lines.slice(block.start, block.endInclusive + 1).mkString("\\n")
+              }
+              Console.err.println(
+                "MORPHDL-INC53E-PROCESS-PLAN " +
+                  s"memory=${plan.memoryName} readTarget=${plan.readTarget} " +
+                  s"readAddress=${plan.readAddress} writeAddress=${plan.writeAddress} " +
+                  s"writeData=${plan.writeData} readClock=${plan.readClock} " +
+                  s"writeClock=${plan.writeClock}"
+              )
+              texts.zipWithIndex.foreach { case (text, index) =>
+                val header =
+                  lines(blocks(index).start).replaceAll("\\\\s+", " ").trim
+                val readTarget = containsIdentifier(text, plan.readTarget)
+                val readAccess =
+                  containsIndexedAccess(text, plan.memoryName, plan.readAddress)
+                val writeData = containsIdentifier(text, plan.writeData)
+                val writeAccess =
+                  containsIndexedAccess(text, plan.memoryName, plan.writeAddress)
+                Console.err.println(
+                  "MORPHDL-INC53E-PROCESS-BLOCK " +
+                    s"index=$index header=$header readTarget=$readTarget " +
+                    s"readAccess=$readAccess writeData=$writeData " +
+                    s"writeAccess=$writeAccess\\n$text"
+                )
+              }
+              val readBlocks = texts.zipWithIndex.collect {
+                case (text, index)
+                    if containsIdentifier(text, plan.readTarget) &&
+                      containsIndexedAccess(text, plan.memoryName, plan.readAddress) =>
+                  index
+              }
+              val writeBlocks = texts.zipWithIndex.collect {
+                case (text, index)
+                    if containsIdentifier(text, plan.writeData) &&
+                      containsIndexedAccess(text, plan.memoryName, plan.writeAddress) =>
+                  index
+              }
+              val result =
+                if (
+                  readBlocks.size != 1 || writeBlocks.size != 1 ||
+                  readBlocks.head == writeBlocks.head
+                ) false
+                else {
+                  val readHeader =
+                    lines(blocks(readBlocks.head).start)
+                      .replaceAll("\\\\s+", " ").trim
+                  val writeHeader =
+                    lines(blocks(writeBlocks.head).start)
+                      .replaceAll("\\\\s+", " ").trim
+                  readHeader.startsWith(s"always @(posedge ${plan.readClock})") &&
+                  writeHeader.startsWith(s"always @(posedge ${plan.writeClock})")
+                }
+              Console.err.println(
+                "MORPHDL-INC53E-PROCESS-RESULT " +
+                  s"readBlocks=${readBlocks.mkString(",")} " +
+                  s"writeBlocks=${writeBlocks.mkString(",")} result=$result"
+              )
+              result
+            }
+
+          '''
+          path.write_text(value[:start] + diagnostic + value[end:])
+          PY
+
       - name: Install pinned Mill bootstrap
         shell: bash
         run: |
@@ -104,26 +187,14 @@ jobs:
           set -o pipefail
           /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
             morphhdl.ParameterizedStreamFifoCCDepthTests \
-            2>&1 | tee /tmp/increment-53e-identity-repair.log
+            2>&1 | tee /tmp/increment-53e-process-diagnostic.log
 
-      - name: Upload bootstrap evidence
+      - name: Upload process diagnostic evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53e-identity-repair-evidence
+          name: increment-53e-process-diagnostic-evidence
           path: |
-            /tmp/increment-53e-identity-repair.log
+            /tmp/increment-53e-process-diagnostic.log
             /tmp/morphhdl-streamfifocc-debug
           if-no-files-found: ignore
-
-      - name: Publish only the passing MorphHDL implementation
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -f .github/workflows/increment-53e-identity-repair.yml
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add -A
-          git diff --cached --check
-          git commit -m 'Increment 53e: parameterize native StreamFifoCC depth'
-          git push origin HEAD:agent/increment-53e-streamfifo-cc-parameterization
