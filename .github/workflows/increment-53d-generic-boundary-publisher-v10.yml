@@ -35,11 +35,11 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Apply coherent generic source-tree prototype
+      - name: Apply pattern-binder-safe generic source-tree prototype
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/apply-increment-53d-generic-boundary-v10.py
+          python3 morphhdl/scripts/apply-increment-53d-generic-boundary-v11.py
           git diff --check
           git diff --stat
 
@@ -67,7 +67,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53d-generic-compile-diagnostic
+          name: increment-53d-generic-compile-diagnostic-v11
           path: |
             /tmp/increment-53d-compile.log
             /tmp/increment-53d-compile.status
