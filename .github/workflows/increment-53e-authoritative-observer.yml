@@ -1,0 +1,78 @@
+name: Increment 53e authoritative result observer
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  actions: read
+  checks: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: increment-53e-authoritative-observer
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Observe exact authoritative run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api=https://api.github.com/repos/${GITHUB_REPOSITORY}
+          auth=(-H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json')
+          run_id=
+          conclusion=
+          for attempt in $(seq 1 360); do
+            payload=$(curl -fsSL "${auth[@]}" "$api/actions/runs?branch=agent%2Fincrement-53e-native-streamfifocc-parameterization&per_page=100")
+            run_id=$(python3 -c 'import json,sys; d=json.load(sys.stdin); xs=[x for x in d.get("workflow_runs",[]) if x.get("path")==".github/workflows/increment-53e-authoritative-closure.yml" and x.get("head_sha")==sys.argv[1]]; print(xs[0]["id"] if xs else "")' "$GITHUB_SHA" <<<"$payload")
+            if test -n "$run_id"; then
+              state=$(curl -fsSL "${auth[@]}" "$api/actions/runs/$run_id")
+              status=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("status", ""))' <<<"$state")
+              conclusion=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("conclusion") or "")' <<<"$state")
+              if test "$status" = completed; then break; fi
+            fi
+            sleep 10
+          done
+          test -n "$run_id"
+          test -n "$conclusion"
+
+          jobs=$(curl -fsSL "${auth[@]}" "$api/actions/runs/$run_id/jobs?per_page=100")
+          failed_step=$(python3 -c 'import json,sys; d=json.load(sys.stdin); rows=[]; [(rows.append(f"{j.get(chr(110)+chr(97)+chr(109)+chr(101))}: {s.get(chr(110)+chr(97)+chr(109)+chr(101))}")) for j in d.get("jobs",[]) for s in j.get("steps",[]) if s.get("conclusion")=="failure"]; print(rows[0] if rows else "none")' <<<"$jobs")
+          mkdir -p morphhdl/ci
+          {
+            echo "run_id=$run_id"
+            echo "trigger_sha=$GITHUB_SHA"
+            echo "conclusion=$conclusion"
+            echo "failed_step=$failed_step"
+          } > morphhdl/ci/increment-53e-last-authoritative-status.txt
+
+          if test "$conclusion" != success; then
+            mkdir -p /tmp/53e-logs
+            curl -fsSL "${auth[@]}" "$api/actions/runs/$run_id/logs" -o /tmp/53e-logs.zip || true
+            if test -s /tmp/53e-logs.zip; then
+              unzip -q /tmp/53e-logs.zip -d /tmp/53e-logs || true
+              grep -R -h -E 'SPINAL-|MORPH-|\*\*\* FAILED|\[error\]|Exception|error:' /tmp/53e-logs 2>/dev/null | tail -n 120 > morphhdl/ci/increment-53e-last-authoritative-diagnostic.txt || true
+            fi
+          fi
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          rm -f .github/workflows/increment-53e-authoritative-observer.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "Increment 53e: record authoritative $conclusion result"
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
