@@ -10,6 +10,42 @@ fallback = Path(
     "ExternalParameterizedVerilogNativeFallback.scala"
 )
 
+
+def require_unique(value: str, marker: str, label: str) -> None:
+    count = value.count(marker)
+    if count != 1:
+        raise SystemExit(f"{label}: expected one match, found {count}")
+
+
+def replace_in_nearest_if(
+    value: str,
+    anchor: str,
+    old: str,
+    new: str,
+    label: str,
+) -> str:
+    """Replace one clause only in the first complete `if` after `anchor`."""
+    anchor_index = value.find(anchor)
+    if anchor_index < 0:
+        raise SystemExit(f"{label}: anchor is missing")
+
+    block_start = value.find("              if (\n", anchor_index)
+    if block_start < 0:
+        raise SystemExit(f"{label}: following if block is missing")
+    block_end = value.find("              ) {\n", block_start)
+    if block_end < 0:
+        raise SystemExit(f"{label}: following if block is unterminated")
+
+    block = value[block_start:block_end]
+    count = block.count(old)
+    if count != 1:
+        raise SystemExit(
+            f"{label}: expected one scoped match, found {count}"
+        )
+    block = block.replace(old, new, 1)
+    return value[:block_start] + block + value[block_end:]
+
+
 rv = registry.read_text()
 if "def definitionExpressionRoot(" not in rv:
     marker = "  /** Execute one untouched constructor with an active shadow scope. */\n"
@@ -30,41 +66,52 @@ if "def definitionExpressionRoot(" not in rv:
   }
 
 '''
-    if rv.count(marker) != 1:
-        raise SystemExit("generic root-query insertion marker is ambiguous")
+    require_unique(rv, marker, "generic root-query insertion marker")
     rv = rv.replace(marker, method + marker, 1)
     registry.write_text(rv)
 
 value = fallback.read_text()
 
-if "provenCompleteDomainEquivalent" not in value:
-    old = '''              val provenCapturedDomainEquivalent =
+captured_equivalence = '''              val provenCapturedDomainEquivalent =
                 isProvenCapturedDomainWidthEquivalence(
                   assignment,
                   targetWidth,
                   sourceWidth
                 )
 '''
-    new = old + '''              val provenCompleteDomainEquivalent =
+complete_equivalence = '''              val provenCompleteDomainEquivalent =
                 widthInference.provesEquivalentOnCompleteRetainedDomain(
                   targetWidth,
                   sourceWidth
                 )
 '''
-    if value.count(old) != 1:
-        raise SystemExit("generic complete-domain assignment marker is ambiguous")
-    value = value.replace(old, new, 1)
+if "val provenCompleteDomainEquivalent =" not in value:
+    require_unique(
+        value,
+        captured_equivalence,
+        "generic complete-domain assignment marker",
+    )
+    value = value.replace(
+        captured_equivalence,
+        captured_equivalence + complete_equivalence,
+        1,
+    )
 
-    old = '''                !provenAutoResize && !provenModularUpdate &&
+old_rejection = '''                !provenAutoResize && !provenModularUpdate &&
                 !provenCapturedDomainEquivalent
 '''
-    new = '''                !provenAutoResize && !provenModularUpdate &&
+new_rejection = '''                !provenAutoResize && !provenModularUpdate &&
                 !provenCapturedDomainEquivalent &&
                 !provenCompleteDomainEquivalent
 '''
-    if value.count(old) != 1:
-        raise SystemExit("generic complete-domain rejection marker is ambiguous")
-    value = value.replace(old, new, 1)
+if "!provenCompleteDomainEquivalent" not in value:
+    value = replace_in_nearest_if(
+        value,
+        "              val provenCompleteDomainEquivalent =\n",
+        old_rejection,
+        new_rejection,
+        "generic complete-domain rejection marker",
+    )
 
 if "def provesEquivalentOnCompleteRetainedDomain(" not in value:
     marker = '''      def ofBase(baseType: BaseType): WidthExpr = {
@@ -131,8 +178,7 @@ if "def provesEquivalentOnCompleteRetainedDomain(" not in value:
       }
 
 '''
-    if value.count(marker) != 1:
-        raise SystemExit("generic WidthInference insertion marker is ambiguous")
+    require_unique(value, marker, "generic WidthInference insertion marker")
     value = value.replace(marker, method + marker, 1)
 
 old = '''        case retained: WidthRetained =>
