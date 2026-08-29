@@ -1,0 +1,55 @@
+name: Increment 53e fix exact certification tag
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53e-certifier-tag-fix
+  cancel-in-progress: true
+
+jobs:
+  rewrite:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Use an exact lightweight verification tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path(
+              ".github/workflows/"
+              "morphhdl-increment-53e-automerge-certify.yml"
+          )
+          value = path.read_text()
+          old = '''          git tag -a increment-53e-verified "${{ github.sha }}" \\
+            -m 'Increment 53e verified: generic native StreamFifoCC parameterization'
+          git push origin refs/tags/increment-53e-verified
+'''
+          new = '''          git tag increment-53e-verified "${{ github.sha }}"
+          git push origin refs/tags/increment-53e-verified
+'''
+          if old not in value:
+              if new in value:
+                  raise SystemExit(0)
+              raise SystemExit("exact certification-tag marker missing")
+          path.write_text(value.replace(old, new, 1))
+          PY
+          rm -f .github/workflows/increment-53e-fix-certifier-tag.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: use exact lightweight verification tag'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
