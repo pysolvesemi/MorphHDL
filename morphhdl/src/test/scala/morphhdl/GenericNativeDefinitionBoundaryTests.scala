@@ -64,10 +64,15 @@ class GenericNativeDefinitionBoundaryTests extends AnyFunSuite {
     assert(definitionCase.contains("if (inNativeRuntimeContext) {"))
     assert(definitionCase.contains("withoutEnclosingNativeRuntimeContext"))
     assert(definitionCase.contains("withScope(super.transform(definition))"))
-    assert(definitionCase.contains("else transformIndependentNativeDefinition(definition)"))
     val activeStart = definitionCase.indexOf("if (inNativeRuntimeContext)")
-    val elseStart = definitionCase.indexOf("else transformIndependentNativeDefinition")
-    assert(activeStart >= 0 && elseStart > activeStart)
+    val elseStart = definitionCase.indexOf("} else {", activeStart)
+    val independentStart = definitionCase.indexOf(
+      "transformIndependentNativeDefinition(definition)",
+      elseStart
+    )
+    assert(
+      activeStart >= 0 && elseStart > activeStart && independentStart > elseStart
+    )
     assert(!definitionCase.substring(activeStart, elseStart)
       .contains("transformIndependentNativeDefinition"))
     assert(!value.contains("if inNativeStreamFifo && decoded(definition.name)"))
