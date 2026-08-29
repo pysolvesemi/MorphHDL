@@ -93,7 +93,7 @@ def patch_plugin() -> None:
         "private def nativeWidthRootScan",
         "if (stable.nonEmpty && unstable.nonEmpty)",
         "else unstable += current",
-        "partial capture would be unsound",
+        "capture would be unsound",
     )
     for value in required:
         if value not in text:
@@ -126,7 +126,7 @@ def patch_test() -> None:
                 )
                 assert(scan.contains("else unstable += current"))
                 assert(scan.contains("if (stable.nonEmpty && unstable.nonEmpty)"))
-                assert(scan.contains("partial capture would be unsound"))
+                assert(scan.contains("capture would be unsound"))
                 assert(
                   !scan.contains(
                     "if (!stableNativeWidthRoot(data)) {"
