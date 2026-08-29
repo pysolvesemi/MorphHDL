@@ -1,0 +1,274 @@
+package spinal.core.internals
+
+import spinal.core.{ElaborationIntegerExpression, ElaborationIntegerParameter}
+
+/**
+  * Generic bounded-domain proof for MorphHDL-retained integer expressions.
+  *
+  * This engine has no knowledge of Component classes, library source paths,
+  * emitted HDL signal names or particular SpinalHDL components. It validates a
+  * common formal schema and exhaustively checks the complete finite Cartesian
+  * domain. Expression evaluation prefers compiler-retained AST provenance;
+  * immutable expression copies can use the strictly parsed MorphHDL integer
+  * expression IR below. The parser accepts only declared formals and reviewed
+  * total integer operators/helpers, and fails closed on every other token.
+  */
+private[internals] object ExternalParameterizedDomainEquivalence {
+  private val MaximumAssignments = BigInt(65536)
+
+  def provePositiveEquality(
+      parameters: Vector[ElaborationIntegerParameter],
+      leftDefault: BigInt,
+      rightDefault: BigInt
+  )(
+      left: Map[String, BigInt] => Option[BigInt],
+      right: Map[String, BigInt] => Option[BigInt]
+  ): Boolean = {
+    if (parameters.isEmpty || leftDefault != rightDefault) return false
+
+    val grouped = parameters.groupBy(_.name).toVector.sortBy(_._1)
+    if (grouped.exists { case (_, declarations) => declarations.distinct.size != 1 })
+      return false
+    val formals = grouped.map(_._2.head)
+    if (formals.exists { formal =>
+          formal.minimum > formal.maximum ||
+          formal.default < formal.minimum ||
+          formal.default > formal.maximum
+        }) return false
+
+    val domainSize = formals.foldLeft(BigInt(1)) { (product, formal) =>
+      val size = formal.maximum - formal.minimum + 1
+      if (size < 1 || product > MaximumAssignments / size)
+        MaximumAssignments + 1
+      else product * size
+    }
+    if (domainSize < 1 || domainSize > MaximumAssignments) return false
+
+    def verify(index: Int, values: Map[String, BigInt]): Boolean = {
+      if (index == formals.size) {
+        val leftValue = left(values)
+        val rightValue = right(values)
+        leftValue.nonEmpty && leftValue == rightValue && leftValue.exists(_ > 0)
+      } else {
+        val formal = formals(index)
+        var value = formal.minimum
+        var valid = true
+        while (valid && value <= formal.maximum) {
+          valid = verify(index + 1, values.updated(formal.name, value))
+          value += 1
+        }
+        valid
+      }
+    }
+
+    val defaults = formals.map(formal => formal.name -> formal.default).toMap
+    val defaultLeft = left(defaults)
+    val defaultRight = right(defaults)
+    if (
+      !defaultLeft.contains(leftDefault) ||
+      !defaultRight.contains(rightDefault)
+    ) false
+    else verify(0, Map.empty)
+  }
+
+  /**
+    * Evaluate the reviewed MorphHDL integer-expression IR under one complete
+    * named formal assignment. This is not an emitted-Verilog parser: it accepts
+    * only the internal helper names and arithmetic syntax produced by retained
+    * ElaborationIntegerExpression values. Unknown identifiers, bit-vector
+    * syntax, conditionals and non-total operations return None.
+    */
+  def evaluateRetainedExpression(
+      expression: ElaborationIntegerExpression,
+      values: Map[String, BigInt]
+  ): Option[BigInt] = {
+    if (expression == null || values == null) return None
+    val declarations = expression.parameters.groupBy(_.name)
+    if (declarations.exists { case (_, schemas) => schemas.distinct.size != 1 })
+      return None
+    val schema = declarations.map { case (name, schemas) => name -> schemas.head }
+    if (!schema.keySet.subsetOf(values.keySet)) return None
+    if (schema.exists { case (name, formal) =>
+          val value = values(name)
+          value < formal.minimum || value > formal.maximum
+        }) return None
+
+    new IntegerIrParser(expression.verilog, values, schema.keySet)
+      .parse()
+      .filter(value =>
+        value >= expression.minimum && value <= expression.maximum
+      )
+  }
+
+  private final class IntegerIrParser(
+      text: String,
+      values: Map[String, BigInt],
+      declared: Set[String]
+  ) {
+    private var index = 0
+
+    def parse(): Option[BigInt] = {
+      val result = parseAdditive()
+      skipWhitespace()
+      if (result.nonEmpty && index == text.length) result else None
+    }
+
+    private def parseAdditive(): Option[BigInt] = {
+      var result = parseMultiplicative()
+      var continue = result.nonEmpty
+      while (continue) {
+        skipWhitespace()
+        if (consume('+')) {
+          val right = parseMultiplicative()
+          result = combine(result, right)(_ + _)
+          continue = result.nonEmpty
+        } else if (consume('-')) {
+          val right = parseMultiplicative()
+          result = combine(result, right)(_ - _)
+          continue = result.nonEmpty
+        } else continue = false
+      }
+      result
+    }
+
+    private def parseMultiplicative(): Option[BigInt] = {
+      var result = parseUnary()
+      var continue = result.nonEmpty
+      while (continue) {
+        skipWhitespace()
+        if (consume('*')) {
+          val right = parseUnary()
+          result = combine(result, right)(_ * _)
+          continue = result.nonEmpty
+        } else if (consume('/')) {
+          val right = parseUnary()
+          result = for {
+            left <- result
+            divisor <- right if divisor != 0
+          } yield left / divisor
+          continue = result.nonEmpty
+        } else if (consume('%')) {
+          val right = parseUnary()
+          result = for {
+            left <- result
+            divisor <- right if divisor != 0
+          } yield left % divisor
+          continue = result.nonEmpty
+        } else continue = false
+      }
+      result
+    }
+
+    private def parseUnary(): Option[BigInt] = {
+      skipWhitespace()
+      if (consume('+')) parseUnary()
+      else if (consume('-')) parseUnary().map(-_)
+      else parsePrimary()
+    }
+
+    private def parsePrimary(): Option[BigInt] = {
+      skipWhitespace()
+      if (consume('(')) {
+        val value = parseAdditive()
+        skipWhitespace()
+        if (value.nonEmpty && consume(')')) value else None
+      } else if (index < text.length && text.charAt(index).isDigit) {
+        parseDecimal()
+      } else parseIdentifierOrCall()
+    }
+
+    private def parseDecimal(): Option[BigInt] = {
+      val start = index
+      while (index < text.length && text.charAt(index).isDigit) index += 1
+      if (start == index) None
+      else {
+        try Some(BigInt(text.substring(start, index)))
+        catch { case _: NumberFormatException => None }
+      }
+    }
+
+    private def parseIdentifierOrCall(): Option[BigInt] = {
+      val name = parseIdentifier().getOrElse(return None)
+      skipWhitespace()
+      if (!consume('(')) {
+        if (declared.contains(name)) values.get(name) else None
+      } else {
+        val arguments = Vector.newBuilder[BigInt]
+        skipWhitespace()
+        if (!consume(')')) {
+          var done = false
+          while (!done) {
+            val argument = parseAdditive().getOrElse(return None)
+            arguments += argument
+            skipWhitespace()
+            if (consume(')')) done = true
+            else if (!consume(',')) return None
+          }
+        }
+        evaluateCall(name, arguments.result())
+      }
+    }
+
+    private def parseIdentifier(): Option[String] = {
+      skipWhitespace()
+      if (
+        index >= text.length ||
+        !(text.charAt(index).isLetter || text.charAt(index) == '_')
+      ) return None
+      val start = index
+      index += 1
+      while (
+        index < text.length &&
+        (text.charAt(index).isLetterOrDigit || text.charAt(index) == '_')
+      ) index += 1
+      Some(text.substring(start, index))
+    }
+
+    private def evaluateCall(
+        name: String,
+        arguments: Vector[BigInt]
+    ): Option[BigInt] = name match {
+      case "morphhdl_address_width" | "addressWidth" if arguments.size == 1 =>
+        addressWidth(arguments.head)
+      case "morphhdl_ceil_log2" | "ceilLog2" | "log2Up"
+          if arguments.size == 1 =>
+        ceilLog2(arguments.head)
+      case "log2Down" if arguments.size == 1 && arguments.head > 0 =>
+        Some(BigInt(arguments.head.bitLength - 1))
+      case "clog2" if arguments.size == 1 =>
+        ceilLog2(arguments.head)
+      case "clog2" if arguments.size == 2 =>
+        ceilLog2(arguments.head).map(_.max(arguments(1)))
+      case "min" if arguments.size == 2 => Some(arguments(0).min(arguments(1)))
+      case "max" if arguments.size == 2 => Some(arguments(0).max(arguments(1)))
+      case _ => None
+    }
+
+    private def ceilLog2(value: BigInt): Option[BigInt] =
+      if (value <= 0) None
+      else if (value == 1) Some(BigInt(0))
+      else Some(BigInt((value - 1).bitLength))
+
+    private def addressWidth(value: BigInt): Option[BigInt] =
+      ceilLog2(value).map(_.max(BigInt(1)))
+
+    private def combine(
+        left: Option[BigInt],
+        right: Option[BigInt]
+    )(operation: (BigInt, BigInt) => BigInt): Option[BigInt] =
+      for {
+        l <- left
+        r <- right
+      } yield operation(l, r)
+
+    private def skipWhitespace(): Unit =
+      while (index < text.length && text.charAt(index).isWhitespace) index += 1
+
+    private def consume(character: Char): Boolean = {
+      if (index < text.length && text.charAt(index) == character) {
+        index += 1
+        true
+      } else false
+    }
+  }
+}
