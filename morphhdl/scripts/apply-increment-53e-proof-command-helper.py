@@ -18,7 +18,30 @@ if value.count(old_require) != 1:
     raise SystemExit(
         f"proof requireTool invocation count={value.count(old_require)}"
     )
-fixtures.write_text(value.replace(old_require, new_require, 1))
+value = value.replace(old_require, new_require, 1)
+
+old_native_constructor = '''  val fifo = spinal.lib.StreamFifoCC(
+    HardType(Bits(8 bits)),
+    depth,
+    pushCd,
+    popCd,
+    withPopBufferedReset
+  )
+'''
+new_native_constructor = '''  val fifo = new spinal.lib.StreamFifoCC(
+    dataType = HardType(Bits(8 bits)),
+    depth = depth,
+    pushClock = pushCd,
+    popClock = popCd,
+    withPopBufferedReset = withPopBufferedReset
+  )
+'''
+if value.count(old_native_constructor) != 1:
+    raise SystemExit(
+        f"proof native constructor call count={value.count(old_native_constructor)}"
+    )
+value = value.replace(old_native_constructor, new_native_constructor, 1)
+fixtures.write_text(value)
 
 for relative in (
     "NativeStreamFifoCCImplementationProofTests.scala",
