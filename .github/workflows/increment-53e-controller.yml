@@ -1,0 +1,94 @@
+name: Increment 53e definitive closure controller
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53e-definitive-controller
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Establish one final workflow and deterministic transform order
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          python3 - <<'PY'
+          from pathlib import Path
+
+          workflows = Path('.github/workflows')
+          final = workflows / 'increment-53e-final-generic-closure.yml'
+          if not final.exists():
+              raise SystemExit('final generic closure workflow is missing')
+          text = final.read_text()
+          exploratory = (
+              '            morphhdl/scripts/apply-increment-53e-generic-native-runtime-selection.py\n',
+              '            morphhdl/scripts/apply-increment-53e-generic-native-compiler-selection.py\n',
+          )
+          for line in exploratory:
+              text = text.replace(line, '')
+          runtime_v2 = '            morphhdl/scripts/apply-increment-53e-generic-native-runtime-selection-v2.py\n'
+          compiler_v2 = '            morphhdl/scripts/apply-increment-53e-generic-native-compiler-selection-v2.py\n'
+          insertion = '            morphhdl/scripts/apply-increment-53e-generic-comment-cleanup.py\n'
+          if runtime_v2 not in text or compiler_v2 not in text:
+              block = runtime_v2 + compiler_v2
+              if insertion not in text:
+                  raise SystemExit('final script insertion marker is missing')
+              text = text.replace(insertion, block + insertion, 1)
+          # Deduplicate all script-list entries without changing their order.
+          lines = text.splitlines(True)
+          seen = set()
+          normalized = []
+          for line in lines:
+              if 'morphhdl/scripts/apply-increment-53e-' in line:
+                  if line in seen:
+                      continue
+                  seen.add(line)
+              normalized.append(line)
+          text = ''.join(normalized)
+          guard_old = "    if: ${{ hashFiles('.morphhdl/increment-53e-final-ready') != '' }}"
+          guard_new = "    if: ${{ contains(github.event.head_commit.message, '[53e-final-ready]') }}"
+          text = text.replace(guard_old, guard_new)
+          final.write_text(text)
+
+          for path in workflows.glob('increment-53e-*.yml'):
+              if path.name not in {
+                  'increment-53e-final-generic-closure.yml',
+                  'increment-53e-controller.yml',
+              }:
+                  path.unlink()
+
+          Path('.morphhdl').mkdir(exist_ok=True)
+          Path('.morphhdl/increment-53e-final-ready').write_text(
+              'definitive generic closure controller ready\n'
+          )
+          Path('.morphhdl/increment-53e-classification').unlink(missing_ok=True)
+          diagnostic = Path('morphhdl/diagnostics')
+          if diagnostic.exists():
+              for item in sorted(diagnostic.rglob('*'), reverse=True):
+                  if item.is_file() or item.is_symlink():
+                      item.unlink()
+                  elif item.is_dir():
+                      item.rmdir()
+              diagnostic.rmdir()
+          Path('.github/workflows/increment-53e-controller.yml').unlink()
+          PY
+          git add -A
+          git diff --cached --check
+          git commit -m '[53e-final-ready] Start definitive generic Increment 53e closure'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
