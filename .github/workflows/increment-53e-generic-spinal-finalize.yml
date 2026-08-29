@@ -1,0 +1,107 @@
+name: Increment 53e generic SpinalHDL finalization
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+jobs:
+  validate-latest-and-publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Synchronize exact remote head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin agent/increment-53e-native-streamfifocc-parameterization
+          git reset --hard origin/agent/increment-53e-native-streamfifocc-parameterization
+          git rev-parse HEAD > /tmp/validated-head
+
+      - name: Materialize pending generic changes when needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in \
+            morphhdl/scripts/apply-increment-53e-address-role-repair.py \
+            morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py \
+            morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py \
+            morphhdl/scripts/apply-increment-53e-modular-literal-proof.py \
+            morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py \
+            morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py \
+            morphhdl/scripts/apply-increment-53e-generic-complete-domain-equivalence.py
+          do
+            if test -f "$script"; then python3 "$script"; fi
+          done
+          test -f morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedWidthDomainProof.scala
+          bash morphhdl/scripts/check-generic-parameterized-width-engine.sh
+          git diff --check
+
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+
+      - name: Validate both supported Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala in 2.12.18 2.13.12; do
+            /tmp/mill "morph[$scala].testOnly" \
+              spinal.core.internals.ExternalParameterizedWidthDomainProofTests \
+              morphhdl.ParameterizedStreamFifoCCTests \
+              2>&1 | tee "/tmp/53e-$scala.log"
+          done
+          bash morphhdl/scripts/check-native-streamfifocc-parameterization-boundary.sh
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53e-generic-finalization-evidence
+          path: /tmp/53e-*.log
+          if-no-files-found: ignore
+
+      - name: Publish exactly the validated implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          validated=$(cat /tmp/validated-head)
+          remote=$(git ls-remote origin refs/heads/agent/increment-53e-native-streamfifocc-parameterization | awk '{print $1}')
+          test "$validated" = "$remote"
+          rm -f .github/workflows/increment-53e-address-resize-fix.yml
+          rm -f .github/workflows/increment-53e-generic-spinal-proof.yml
+          rm -f .github/workflows/increment-53e-generic-spinal-finalize.yml
+          rm -f morphhdl/scripts/apply-increment-53e-address-role-repair.py
+          rm -f morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py
+          rm -f morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py
+          rm -f morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
+          rm -f morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
+          rm -f morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py
+          rm -f morphhdl/scripts/apply-increment-53e-buffercc-shape-repair.py
+          rm -f morphhdl/scripts/apply-increment-53e-generic-complete-domain-equivalence.py
+          git add -A
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'Increment 53e: publish generic SpinalHDL parameter proof'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
