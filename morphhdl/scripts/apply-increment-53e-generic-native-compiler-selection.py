@@ -73,7 +73,7 @@ value = value.replace(
 # Identify a formalizable class structurally: exactly one constructor Int is
 # supported by one boundary root. No source path, component class name, argument
 # name, or equal witness is used as selection evidence.
-helper_marker = '''    private def nativeConstructorParameters(value: ClassDef)'''
+helper_marker = '''    private def nativeConstructorParameters('''
 if "private def isNativeIntConstructorParameter" not in value:
     index = value.find(helper_marker)
     if index < 0:
