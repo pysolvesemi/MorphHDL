@@ -104,6 +104,7 @@ jobs:
           python3 morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py
           python3 morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
           python3 morphhdl/scripts/apply-increment-53e-symbolic-zero-initializers.py
+          python3 morphhdl/scripts/apply-increment-53e-final-helper-lowering.py
           git diff --check
 
           hierarchy=morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
@@ -143,6 +144,7 @@ jobs:
             /tmp/increment-53e-native-hierarchy-2.12.log
             /tmp/increment-53e-native-hierarchy-2.13.log
             /tmp/morphhdl-single-source-*
+            /tmp/morphhdl-native-streamfifocc-*
           if-no-files-found: ignore
 
       - name: Publish passing MorphHDL-only repair
@@ -156,6 +158,7 @@ jobs:
           rm -f morphhdl/scripts/apply-increment-53e-emitted-child-definition-match.py
           rm -f morphhdl/scripts/apply-increment-53e-generic-emitted-inventory.py
           rm -f morphhdl/scripts/apply-increment-53e-generic-packed-lineage.py
+          rm -f morphhdl/scripts/apply-increment-53e-remove-lineage-debug.py
           rm -f morphhdl/scripts/apply-increment-53e-retained-packed-declaration-inventory.py
           rm -f morphhdl/scripts/apply-increment-53e-attributed-declarations.py
           rm -f morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
@@ -163,6 +166,7 @@ jobs:
           rm -f morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py
           rm -f morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
           rm -f morphhdl/scripts/apply-increment-53e-symbolic-zero-initializers.py
+          rm -f morphhdl/scripts/apply-increment-53e-final-helper-lowering.py
           rm -f morphhdl/scripts/apply-increment-53e-buffercc-shape-repair.py
           git add -A
           git diff --cached --check
