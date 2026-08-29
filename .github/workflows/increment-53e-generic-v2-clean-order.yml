@@ -1,0 +1,62 @@
+name: Increment 53e use deterministic generic v2 transforms
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53e-generic-v2-order
+  cancel-in-progress: true
+
+jobs:
+  reorder:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+      - name: Remove exploratory compiler/runtime transforms from final order
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/increment-53e-final-generic-closure.yml')
+          text = path.read_text()
+          for line in (
+              '            morphhdl/scripts/apply-increment-53e-generic-native-runtime-selection.py\n',
+              '            morphhdl/scripts/apply-increment-53e-generic-native-compiler-selection.py\n',
+          ):
+              text = text.replace(line, '')
+          for required in (
+              'apply-increment-53e-generic-native-runtime-selection-v2.py',
+              'apply-increment-53e-generic-native-compiler-selection-v2.py',
+          ):
+              if required not in text:
+                  raise SystemExit(f'missing normalized final transform: {required}')
+          path.write_text(text)
+          Path('.morphhdl').mkdir(exist_ok=True)
+          Path('.morphhdl/increment-53e-final-ready').write_text('deterministic v2 order ready\n')
+          Path('.morphhdl/increment-53e-classification').unlink(missing_ok=True)
+          diagnostic = Path('morphhdl/diagnostics')
+          if diagnostic.exists():
+              for item in sorted(diagnostic.rglob('*'), reverse=True):
+                  if item.is_file() or item.is_symlink():
+                      item.unlink()
+                  elif item.is_dir():
+                      item.rmdir()
+              diagnostic.rmdir()
+          Path('.github/workflows/increment-53e-generic-v2-clean-order.yml').unlink()
+          PY
+          git add -A
+          git diff --cached --check
+          git commit -m '[53e-final-ready] Use deterministic generic v2 transforms for Increment 53e'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
