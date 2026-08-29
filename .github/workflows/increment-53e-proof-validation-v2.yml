@@ -1,0 +1,99 @@
+name: Increment 53e native StreamFifoCC proof v2
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-53e-proof
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 180
+    env:
+      MORPHDL_RUN_STREAMFIFOCC_PROOF: "1"
+      MORPHDL_STREAMFIFOCC_PROOF_WORKSPACE: /tmp/increment-53e-proof
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Materialize generic implementation and proof alignment
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          scripts=(
+            morphhdl/scripts/apply-increment-53e-address-role-repair.py
+            morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py
+            morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py
+            morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
+            morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
+            morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py
+            morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
+            morphhdl/scripts/apply-increment-53e-generic-retained-domain-v2.py
+            morphhdl/scripts/apply-increment-53e-generic-retained-domain-v4.py
+            morphhdl/scripts/apply-increment-53e-generic-root-schema-equivalence.py
+            morphhdl/scripts/apply-increment-53e-generic-retained-expression-evaluator.py
+            morphhdl/scripts/apply-increment-53e-generic-comment-cleanup.py
+            morphhdl/scripts/apply-increment-53e-proof-api-alignment.py
+          )
+          for script in "${scripts[@]}"; do
+            test ! -f "$script" || python3 "$script"
+          done
+          git diff --check
+
+      - name: Install Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe -o /tmp/mill
+          chmod +x /tmp/mill
+
+      - name: Compile proof suite on Scala 2.12.18
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/mill 'morph[2.12.18].test.compile' 2>&1 | tee /tmp/proof-compile-2.12.log
+
+      - name: Run focused parameterization contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/mill 'morph[2.12.18].testOnly' morphhdl.ParameterizedStreamFifoCCTests 2>&1 | tee /tmp/focused.log
+
+      - name: Run independent-clock, synthesis and formal proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/increment-53e-proof
+          mkdir -p /tmp/increment-53e-proof
+          /tmp/mill 'morph[2.12.18].testOnly' morphhdl.NativeStreamFifoCCProofTests 2>&1 | tee /tmp/proof.log
+
+      - name: Compile proof suite on Scala 2.13.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/mill 'morph[2.13.12].test.compile' 2>&1 | tee /tmp/proof-compile-2.13.log
+
+      - name: Upload proof evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53e-native-streamfifocc-proof-v2-evidence
+          path: |
+            /tmp/proof-compile-2.12.log
+            /tmp/focused.log
+            /tmp/proof.log
+            /tmp/proof-compile-2.13.log
+            /tmp/increment-53e-proof
+          if-no-files-found: ignore
