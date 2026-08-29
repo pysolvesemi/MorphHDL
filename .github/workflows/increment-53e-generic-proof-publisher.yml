@@ -60,6 +60,19 @@ jobs:
             morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedDomainEquivalence.scala \
             morphhdl/src/test/scala/spinal/core/internals/ExternalParameterizedDomainEquivalenceTests.scala
 
+      - name: Require component-independent compiler boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          compiler=morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          if grep -nE \
+            'StreamFifo|StreamFifoCC|BufferCC|Stream\.scala|CrossClock\.scala|pushToPopGray|popToPushGray' \
+            "$compiler"; then
+            echo 'Increment 53e compiler capture is still component-specific.' >&2
+            exit 1
+          fi
+          test -f morphhdl/src/test/scala/morphhdl/GenericNativeDefinitionBoundaryTests.scala
+
       - name: Install pinned Mill and proof tools
         shell: bash
         run: |
@@ -86,6 +99,7 @@ jobs:
           for lane in 2.12.18 2.13.12; do
             /tmp/morphhdl-mill "morph[$lane].testOnly" \
               spinal.core.internals.ExternalParameterizedDomainEquivalenceTests \
+              morphhdl.GenericNativeDefinitionBoundaryTests \
               morphhdl.ParameterizedStreamFifoCCTests \
               morphhdl.NativeStreamFifoCCImplementationProofTests \
               morphhdl.NativeStreamFifoCCFormalEquivalenceTests \
