@@ -1,0 +1,126 @@
+name: Increment 53e generic SpinalHDL publisher v4
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+  pull-requests: write
+
+jobs:
+  apply-test-publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Prepare authenticated feature checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+      - name: Apply generic graph and provenance repairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in \
+            morphhdl/scripts/apply-increment-53e-address-role-repair.py \
+            morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py \
+            morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py \
+            morphhdl/scripts/apply-increment-53e-modular-literal-proof.py \
+            morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py \
+            morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py \
+            morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py \
+            morphhdl/scripts/apply-increment-53e-generic-full-domain-width-equivalence.py \
+            morphhdl/scripts/apply-increment-53e-generic-spinal-engine-v4.py
+          do
+            if [[ -f "$script" ]]; then
+              python3 "$script"
+            fi
+          done
+          bash morphhdl/scripts/check-generic-native-parameterization-engine.sh
+          git diff --check
+          if git diff --name-only -- \
+            core/src/main lib/src/main idslplugin/src/main | grep -q .; then
+            echo 'Increment 53e attempted to modify native SpinalHDL production source.' >&2
+            git diff --name-only -- \
+              core/src/main lib/src/main idslplugin/src/main >&2
+            exit 1
+          fi
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate generic domain and native StreamFifoCC contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          suite=morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCImplementationProofTests.scala
+          while read -r variable; do
+            case "$variable" in
+              *WORKSPACE*)
+                export "$variable=/tmp/increment-53e-${variable,,}"
+                mkdir -p "/tmp/increment-53e-${variable,,}"
+                ;;
+              *) export "$variable=1" ;;
+            esac
+          done < <(grep -oE 'MORPHDL_[A-Z0-9_]+' "$suite" | sort -u)
+
+          for scala in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill "morph[$scala].testOnly" \
+              spinal.core.internals.ExternalParameterizedDomainEquivalenceTests \
+              morphhdl.ParameterizedStreamFifoCCTests \
+              morphhdl.NativeStreamFifoCCImplementationProofTests
+          done
+
+      - name: Run complete MorphHDL regressions on both Scala lines
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill 'morph[2.12.18].test'
+          /tmp/morphhdl-mill 'morph[2.13.12].test'
+
+      - name: Publish only the reviewed permanent implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/increment-53e-*.yml
+          find morphhdl/scripts -maxdepth 1 -type f \
+            -name 'apply-increment-53e-*.py' -delete
+
+          bash morphhdl/scripts/check-generic-native-parameterization-engine.sh
+          git add -A
+          git diff --cached --check
+          if git diff --cached --name-only -- \
+            core/src/main lib/src/main idslplugin/src/main | grep -q .; then
+            echo 'Published candidate modifies native SpinalHDL production source.' >&2
+            git diff --cached --name-only -- \
+              core/src/main lib/src/main idslplugin/src/main >&2
+            exit 1
+          fi
+          grep -Fq -- \
+            '- [x] **Increment 53e — Native StreamFifoCC parameterization without source edits**' \
+            docs/morphhdl/parameterized-verilog-todo.md
+
+          git commit -m \
+            'Increment 53e: generic native StreamFifoCC parameterization'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
