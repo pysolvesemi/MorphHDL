@@ -16,10 +16,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  split-aggregate-tests:
-    name: Split aggregate tests Scala ${{ matrix.scala_version }}
+  isolated-target:
+    name: ${{ matrix.target_name }} Scala ${{ matrix.scala_version }}
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 120
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     strategy:
@@ -28,6 +28,13 @@ jobs:
         scala_version:
           - "2.12.18"
           - "2.13.12"
+        target_name:
+          - idslplugin-test
+          - paramrtl-test
+          - frontend-test
+          - verilogBackend-test
+          - morph-test
+          - core-phase-plan-test
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@v4
@@ -36,48 +43,43 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Run aggregate targets independently and retain complete logs
-        id: diagnostics
+      - name: Run isolated aggregate target and print exact failure
+        id: diagnostic
         shell: bash
         run: |
           set +e
-          output="${RUNNER_TEMP}/increment-53d-sbt-${{ matrix.scala_version }}"
+          case "${{ matrix.target_name }}" in
+            idslplugin-test) target='idslplugin/test' ;;
+            paramrtl-test) target='paramrtl/test' ;;
+            frontend-test) target='frontend/test' ;;
+            verilogBackend-test) target='verilogBackend/test' ;;
+            morph-test) target='morph/test' ;;
+            core-phase-plan-test) target='core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests' ;;
+            *) printf '%s\n' 'Unknown diagnostic target' >&2; exit 2 ;;
+          esac
+
+          output="${RUNNER_TEMP}/increment-53d-${{ matrix.target_name }}-${{ matrix.scala_version }}"
           mkdir -p "$output"
-          overall=0
+          log="$output/test.log"
+          sbt -batch "++${{ matrix.scala_version }}" "$target" >"$log" 2>&1
+          result=$?
+          printf '%s\n' "$result" >"$output/status"
 
-          run_target() {
-            name="$1"
-            shift
-            log="$output/${name}.log"
-            printf '===== %s =====\n' "$name"
-            sbt -batch "++${{ matrix.scala_version }}" "$@" >"$log" 2>&1
-            result=$?
-            printf '%s\n' "$result" >"$output/${name}.status"
-            if [ "$result" -ne 0 ]; then
-              overall=1
-              printf '%s\n' "FAILED: $name (exit $result)"
-              grep -E -n -C 8 '(\[error\]|FAILED|Exception|AssertionError|not found:|type mismatch|ambiguous|unbound|No tests were executed)' "$log" | tail -n 1200 || true
-            else
-              printf '%s\n' "PASSED: $name"
-            fi
-            tail -n 160 "$log"
-          }
+          if [ "$result" -ne 0 ]; then
+            printf '%s\n' "FAILED: $target on Scala ${{ matrix.scala_version }} (exit $result)"
+            grep -E -n -C 10 '(\[error\]|FAILED|Exception|AssertionError|not found:|type mismatch|ambiguous|unbound|No tests were executed)' "$log" | tail -n 1800 || true
+          else
+            printf '%s\n' "PASSED: $target on Scala ${{ matrix.scala_version }}"
+          fi
+          printf '%s\n' '--- final output ---'
+          tail -n 300 "$log"
+          exit "$result"
 
-          run_target idslplugin-test idslplugin/test
-          run_target paramrtl-test paramrtl/test
-          run_target frontend-test frontend/test
-          run_target verilogBackend-test verilogBackend/test
-          run_target morph-test morph/test
-          run_target core-phase-plan-test "core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests"
-
-          printf '%s\n' "$overall" >"$output/overall.status"
-          exit "$overall"
-
-      - name: Upload exact split-test diagnostics
+      - name: Upload exact target diagnostic
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53d-sbt-diagnostics-scala-${{ matrix.scala_version }}
-          path: ${{ runner.temp }}/increment-53d-sbt-${{ matrix.scala_version }}
+          name: increment-53d-${{ matrix.target_name }}-scala-${{ matrix.scala_version }}
+          path: ${{ runner.temp }}/increment-53d-${{ matrix.target_name }}-${{ matrix.scala_version }}
           if-no-files-found: error
           retention-days: 3
