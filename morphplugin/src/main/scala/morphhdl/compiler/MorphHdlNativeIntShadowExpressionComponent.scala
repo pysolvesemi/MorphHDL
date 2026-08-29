@@ -2050,14 +2050,19 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       case template: Template => withScope(super.transform(template))
       case block: Block       => withScope(super.transform(block))
       case function: Function => withScope(super.transform(function))
+      case definition: DefDef
+          if inNativeStreamFifo && decoded(definition.name) != "<init>" =>
+        // StreamFifo owns a dedicated constructor-capture contract. Isolate
+        // every nested method before the generic width-function matcher so a
+        // helper driver cannot move into a symbolic body while its consumer
+        // remains at module scope.
+        withoutNativeStreamFifoContext {
+          withScope(super.transform(definition))
+        }
       case definition: DefDef if decoded(definition.name) != "<init>" =>
         val roots = nativeWidthRoots(definition.rhs)
         if (roots.nonEmpty) transformNativeWidthFunction(definition, roots)
-        else if (inNativeStreamFifo) {
-          withoutNativeStreamFifoContext {
-            withScope(super.transform(definition))
-          }
-        } else withScope(super.transform(definition))
+        else withScope(super.transform(definition))
       case definition: DefDef => withScope(super.transform(definition))
       case conditional: If    => rewriteIf(conditional)
       case value: ValDef =>
