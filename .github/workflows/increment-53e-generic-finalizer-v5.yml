@@ -1,0 +1,167 @@
+name: Increment 53e generic finalizer v5
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+  pull-requests: write
+
+jobs:
+  verify-open-and-merge:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Configure authenticated checkout
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+      - name: Verify permanent source boundaries
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-generic-native-parameterization-engine.sh
+          grep -Fq -- \
+            '- [x] **Increment 53e — Native StreamFifoCC parameterization without source edits**' \
+            docs/morphhdl/parameterized-verilog-todo.md
+          test -f morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedDomainEquivalence.scala
+          test -f morphhdl/src/test/scala/spinal/core/internals/ExternalParameterizedDomainEquivalenceTests.scala
+          test -f morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCImplementationProofTests.scala
+          test -f morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCFormalEquivalenceTests.scala
+          if find morphhdl/scripts -maxdepth 1 -type f \
+            -name 'apply-increment-53e-*.py' -print -quit | grep -q .; then
+            echo 'Temporary Increment 53e source patch remains.' >&2
+            exit 1
+          fi
+          git fetch origin parameterized-verilog
+          if git diff --name-only origin/parameterized-verilog...HEAD -- \
+            core/src/main lib/src/main idslplugin/src/main | grep -q .; then
+            echo 'Increment 53e modifies native SpinalHDL production source.' >&2
+            git diff --name-only origin/parameterized-verilog...HEAD -- \
+              core/src/main lib/src/main idslplugin/src/main >&2
+            exit 1
+          fi
+
+      - name: Require generic and formal workflows on this exact proof commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROOF_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          required=(
+            '.github/workflows/morphhdl-native-streamfifocc-parameterization.yml'
+            '.github/workflows/morphhdl-native-streamfifocc-formal-equivalence.yml'
+          )
+
+          for attempt in $(seq 1 360); do
+            all_complete=1
+            all_success=1
+            for path in "${required[@]}"; do
+              run=$(gh api --method GET \
+                "repos/$GITHUB_REPOSITORY/actions/runs" \
+                -f head_sha="$PROOF_SHA" \
+                -f per_page=100 \
+                --jq "[.workflow_runs[] | select(.path == \"$path\")] | sort_by(.created_at) | last // {}")
+              status=$(jq -r '.status // "missing"' <<<"$run")
+              conclusion=$(jq -r '.conclusion // "missing"' <<<"$run")
+              id=$(jq -r '.id // "missing"' <<<"$run")
+              printf '%s: run=%s status=%s conclusion=%s\n' \
+                "$path" "$id" "$status" "$conclusion"
+              [[ "$status" == completed ]] || all_complete=0
+              [[ "$conclusion" == success ]] || all_success=0
+            done
+            if ((all_complete)); then
+              ((all_success)) || {
+                echo 'A required Increment 53e workflow failed.' >&2
+                exit 1
+              }
+              exit 0
+            fi
+            sleep 20
+          done
+          echo 'Timed out waiting for required Increment 53e workflows.' >&2
+          exit 1
+
+      - name: Remove temporary finalizer without changing proven source
+        id: final
+        run: |
+          set -euo pipefail
+          proof_sha=$(git rev-parse HEAD)
+          base_sha=$(git rev-parse origin/parameterized-verilog)
+          rm -f .github/workflows/increment-53e-generic-finalizer-v5.yml
+          git add -A
+          changed=$(git diff --cached --name-only)
+          [[ "$changed" == '.github/workflows/increment-53e-generic-finalizer-v5.yml' ]]
+          git commit -m 'Increment 53e: remove temporary merge gate'
+          final_sha=$(git rev-parse HEAD)
+          git diff --exit-code "$proof_sha" "$final_sha" -- \
+            ':!/.github/workflows/increment-53e-generic-finalizer-v5.yml'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
+          echo "proof_sha=$proof_sha" >> "$GITHUB_OUTPUT"
+          echo "final_sha=$final_sha" >> "$GITHUB_OUTPUT"
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Open and merge the reviewed Increment 53e PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FINAL_SHA: ${{ steps.final.outputs.final_sha }}
+          BASE_SHA: ${{ steps.final.outputs.base_sha }}
+        run: |
+          set -euo pipefail
+          git fetch origin parameterized-verilog \
+            agent/increment-53e-native-streamfifocc-parameterization
+          [[ $(git rev-parse origin/parameterized-verilog) == "$BASE_SHA" ]] || {
+            echo 'parameterized-verilog advanced after proof; refusing stale merge.' >&2
+            exit 1
+          }
+          [[ $(git rev-parse origin/agent/increment-53e-native-streamfifocc-parameterization) == "$FINAL_SHA" ]]
+
+          pr=$(gh pr list \
+            --head agent/increment-53e-native-streamfifocc-parameterization \
+            --base parameterized-verilog \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+          if [[ -z "$pr" ]]; then
+            url=$(gh pr create \
+              --base parameterized-verilog \
+              --head agent/increment-53e-native-streamfifocc-parameterization \
+              --title 'Increment 53e: generic native StreamFifoCC parameterization' \
+              --body-file - <<'EOF'
+## Scope
+
+- Parameterize the exact untouched `spinal.lib.StreamFifoCC` implementation.
+- Do not change SpinalHDL production sources or implement alternate FIFO/CDC logic.
+- Use a generic typed-component, exact-identity, compiler-provenance and bounded-domain mechanism; do not dispatch or prove by component, signal or source filename.
+
+## Proof gates
+
+- Scala 2.12.18 and 2.13.12.
+- Complete MorphHDL regressions.
+- Depths 4, 8 and 16.
+- Independent push/pop clocks and both buffered-reset modes.
+- Verilog-2001 lint, ordered behavioral simulation and Yosys synthesis.
+- Independently elaborated native concrete witnesses.
+- Solver-backed sequential equivalence and a mutation that must fail.
+- Generic-engine and native-source boundary guards.
+EOF
+            )
+            pr=${url##*/}
+          fi
+
+          gh pr merge "$pr" --squash --delete-branch
+          merged=$(gh pr view "$pr" --json mergedAt,mergeCommit \
+            --jq 'select(.mergedAt != null) | .mergeCommit.oid')
+          [[ -n "$merged" ]]
+          printf 'Merged PR #%s at %s\n' "$pr" "$merged"
