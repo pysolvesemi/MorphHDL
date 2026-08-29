@@ -40,64 +40,7 @@ jobs:
           python3 morphhdl/scripts/apply-increment-53e-generic-emitted-inventory.py
           python3 morphhdl/scripts/apply-increment-53e-generic-packed-lineage.py
           python3 morphhdl/scripts/apply-increment-53e-retained-packed-declaration-inventory.py
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path(
-              "morphhdl/src/main/scala/spinal/core/internals/"
-              "ExternalParameterizedVerilogHierarchy.scala"
-          )
-          value = path.read_text()
-          method = '''  private def debugPackedAssignment(
-              component: Component,
-              assignment: DataAssignmentStatement,
-              selected: Option[BitVector]
-          ): Unit = {
-            if (!sys.env.get("MORPHDL_INCREMENT_53E_LINEAGE_DEBUG").contains("1")) return
-            val finalTarget = assignment.finalTarget
-            val targetName = Option(finalTarget.getName()).filter(_.nonEmpty).getOrElse("<unnamed>")
-            val sourceWidth = assignment.source match {
-              case width: WidthProvider => width.getWidth.toString
-              case _                    => "n/a"
-            }
-            val selectedName = selected.flatMap(value =>
-              Option(value.getName()).filter(_.nonEmpty)
-            ).getOrElse("<none>")
-            System.err.println(
-              s"MORPHDL-IMPLICIT-LINEAGE assignment component=${component.definitionName} " +
-                s"target=$targetName targetClass=${assignment.target.getClass.getName} " +
-                s"finalClass=${finalTarget.getClass.getName} sourceClass=${assignment.source.getClass.getName} " +
-                s"targetEqFinal=${assignment.target eq finalTarget} targetWidth=${finalTarget.getBitsWidth} " +
-                s"sourceWidth=$sourceWidth selected=$selectedName selectedOwner=${selected.map(_.component == component).getOrElse(false)}"
-            )
-          }
-
-          '''
-          call = '''        debugPackedAssignment(component, assignment, selected)
-                  selected.foreach(source =>
-          '''
-          call_replacement = '''        selected.foreach(source =>
-          '''
-          result = '''    if (sys.env.get("MORPHDL_INCREMENT_53E_LINEAGE_DEBUG").contains("1")) {
-              val names = result.map(value =>
-                Option(value.getName()).filter(_.nonEmpty).getOrElse("<unnamed>")
-              ).mkString(",")
-              System.err.println(
-                s"MORPHDL-IMPLICIT-LINEAGE result component=${component.definitionName} slot=$slotIdentity leaves=$names"
-              )
-            }
-
-          '''
-          for label, marker in (("method", method), ("call", call), ("result", result)):
-              if value.count(marker) != 1:
-                  raise SystemExit(
-                      f"lineage debug {label} marker count={value.count(marker)}"
-                  )
-          value = value.replace(method, "", 1)
-          value = value.replace(call, call_replacement, 1)
-          value = value.replace(result, "", 1)
-          path.write_text(value)
-          PY
+          python3 morphhdl/scripts/apply-increment-53e-remove-lineage-debug.py
           python3 morphhdl/scripts/apply-increment-53e-attributed-declarations.py
           python3 morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
           python3 morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
