@@ -1,0 +1,132 @@
+name: Increment 53e generic compiler stage one
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53e-generic-stage-one
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Configure exact branch head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin agent/increment-53e-native-streamfifocc-parameterization
+          git reset --hard origin/agent/increment-53e-native-streamfifocc-parameterization
+          git rev-parse HEAD >/tmp/validated-head
+
+      - name: Materialize generic implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in \
+            morphhdl/scripts/apply-increment-53e-address-role-repair.py \
+            morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py \
+            morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py \
+            morphhdl/scripts/apply-increment-53e-modular-literal-proof.py \
+            morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py \
+            morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py \
+            morphhdl/scripts/apply-increment-53e-generic-complete-domain-equivalence.py
+          do
+            if test -f "$script"; then python3 "$script"; fi
+          done
+
+          if ! test -x morphhdl/scripts/check-generic-native-int-compiler.sh || \
+             ! bash morphhdl/scripts/check-generic-native-int-compiler.sh >/dev/null 2>&1; then
+            python3 morphhdl/scripts/apply-increment-53e-generic-native-source-selection.py
+            python3 morphhdl/scripts/apply-increment-53e-generic-native-shape-selection.py
+          fi
+          if test -f morphhdl/scripts/apply-increment-53e-generic-candidate-argument-selection.py; then
+            python3 morphhdl/scripts/apply-increment-53e-generic-candidate-argument-selection.py
+          fi
+
+          bash morphhdl/scripts/check-generic-native-int-compiler.sh
+          bash morphhdl/scripts/check-generic-parameterized-width-engine.sh
+          bash morphhdl/scripts/check-native-streamfifocc-parameterization-boundary.sh
+          git diff --check
+
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+
+      - name: Validate Scala 2.12.18
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/mill 'morph[2.12.18].testOnly' \
+            spinal.core.internals.ExternalParameterizedWidthDomainProofTests \
+            morphhdl.ParameterizedStreamFifoCCTests \
+            2>&1 | tee /tmp/53e-stage1-2.12.log
+
+      - name: Validate Scala 2.13.12
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/mill 'morph[2.13.12].testOnly' \
+            spinal.core.internals.ExternalParameterizedWidthDomainProofTests \
+            morphhdl.ParameterizedStreamFifoCCTests \
+            2>&1 | tee /tmp/53e-stage1-2.13.log
+
+      - name: Publish source or exact failure evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p morphhdl/ci
+          result=success
+          for log in /tmp/53e-stage1-2.12.log /tmp/53e-stage1-2.13.log; do
+            if ! test -s "$log" || grep -Eq '\*\*\* [1-9][0-9]* TESTS? FAILED|\[error\]|Compilation failed|[1-9][0-9]* FAILED' "$log"; then
+              result=failure
+            fi
+          done
+          {
+            echo "stage=generic-compiler"
+            echo "validated_head=$(cat /tmp/validated-head)"
+            echo "result=$result"
+          } > morphhdl/ci/increment-53e-stage1-status.txt
+          cat /tmp/53e-stage1-2.12.log /tmp/53e-stage1-2.13.log 2>/dev/null | \
+            grep -E 'SPINAL-|MORPH-|\*\*\* FAILED|\[error\]|error:|Exception|not found|type mismatch' | \
+            tail -n 240 > morphhdl/ci/increment-53e-stage1-diagnostic.txt || true
+
+          rm -f .github/workflows/increment-53e-generic-stage1.yml
+          git add -A
+          git diff --cached --check
+          remote=$(git ls-remote origin refs/heads/agent/increment-53e-native-streamfifocc-parameterization | awk '{print $1}')
+          test "$remote" = "$(cat /tmp/validated-head)"
+
+          if test "$result" = success; then
+            find morphhdl/scripts -maxdepth 1 -type f -name 'apply-increment-53e-*.py' -delete
+            git add -A
+            git commit -m 'Increment 53e: publish generic parameterization engine'
+          else
+            git reset
+            git add .github/workflows/increment-53e-generic-stage1.yml morphhdl/ci
+            git commit -m 'Increment 53e: record generic stage-one failure'
+          fi
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
