@@ -1,0 +1,133 @@
+name: Increment 53e generic symbolic-domain proof
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-generic-domain-proof-final
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-generic-domain-proof-final
+          fetch-depth: 0
+
+      - name: Configure checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+      - name: Materialize the MorphHDL-only generic repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          for patch in \
+            morphhdl/scripts/apply-increment-53e-address-role-repair.py \
+            morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py \
+            morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py \
+            morphhdl/scripts/apply-increment-53e-modular-literal-proof.py \
+            morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py \
+            morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py \
+            morphhdl/scripts/apply-increment-53e-generic-domain-proof.py
+          do
+            test -f "$patch"
+            python3 "$patch"
+          done
+          git diff --check
+
+      - name: Enforce native-source and generic-backend boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --name-only | grep -E '^(core|lib|idslplugin)/src/main/'; then
+            echo 'Increment 53e must not modify upstream SpinalHDL production sources.' >&2
+            exit 1
+          fi
+          for file in \
+            morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedAutoResize.scala
+          do
+            test -f "$file"
+            if grep -E 'StreamFifo(CC)?|BufferCC' "$file"; then
+              echo "Generic backend file $file contains component-specific recognition." >&2
+              exit 1
+            fi
+          done
+
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate native StreamFifoCC regression on both Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
+            morphhdl.ParameterizedStreamFifoCCTests \
+            2>&1 | tee /tmp/increment-53e-generic-2.12.log
+          /tmp/morphhdl-mill 'morph[2.13.12].testOnly' \
+            morphhdl.ParameterizedStreamFifoCCTests \
+            2>&1 | tee /tmp/increment-53e-generic-2.13.log
+
+      - name: Run inherited generic parameterization regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
+            morphhdl.ExternalSymbolicWidthTests \
+            morphhdl.ExternalParameterizedMemoryTests \
+            morphhdl.NativeStreamFifoStructureTests \
+            2>&1 | tee /tmp/increment-53e-inherited-2.12.log
+          /tmp/morphhdl-mill 'morph[2.13.12].testOnly' \
+            morphhdl.ExternalSymbolicWidthTests \
+            morphhdl.ExternalParameterizedMemoryTests \
+            morphhdl.NativeStreamFifoStructureTests \
+            2>&1 | tee /tmp/increment-53e-inherited-2.13.log
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53e-generic-domain-proof-evidence
+          path: /tmp/increment-53e-*.log
+          if-no-files-found: ignore
+
+      - name: Publish only a passing source-stable repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/increment-53e-address-resize-fix.yml
+          rm -f .github/workflows/increment-53e-generic-domain-proof.yml
+          rm -f morphhdl/scripts/apply-increment-53e-address-role-repair.py
+          rm -f morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py
+          rm -f morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py
+          rm -f morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
+          rm -f morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
+          rm -f morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py
+          rm -f morphhdl/scripts/apply-increment-53e-generic-domain-proof.py
+          rm -f morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: generalize symbolic width proofs'
+          git push origin HEAD:agent/increment-53e-generic-domain-proof-final
