@@ -1,0 +1,226 @@
+name: Increment 53e exact-head proof and merge finalizer
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  actions: write
+  checks: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: increment-53e-ready-finalizer
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 420
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Establish exact readiness
+        id: ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin \
+            agent/increment-53e-native-streamfifocc-parameterization \
+            parameterized-verilog
+          git reset --hard origin/agent/increment-53e-native-streamfifocc-parameterization
+          git rev-parse HEAD >/tmp/validated-head
+
+          ready=1
+          grep -Fq -- '- [x] **Increment 53e — Native StreamFifoCC parameterization without source edits**' \
+            docs/morphhdl/parameterized-verilog-todo.md || ready=0
+          test -f .github/workflows/morphhdl-generic-native-parameterization.yml || ready=0
+          test -f morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedWidthDomainProof.scala || ready=0
+          test -f morphhdl/src/test/scala/morphhdl/GenericNativeStreamFifoCCFormalEquivalenceTests.scala || ready=0
+          test -x morphhdl/scripts/verify-generic-native-streamfifocc.sh || ready=0
+          test -x morphhdl/scripts/verify-generic-native-streamfifocc-formal.sh || ready=0
+          ! find morphhdl/scripts -maxdepth 1 -type f -name 'apply-increment-53e-*.py' | grep -q . || ready=0
+          bash morphhdl/scripts/check-generic-native-int-compiler.sh || ready=0
+          bash morphhdl/scripts/check-generic-parameterized-width-engine.sh || ready=0
+          bash morphhdl/scripts/check-native-streamfifocc-parameterization-boundary.sh || ready=0
+          git merge-base --is-ancestor origin/parameterized-verilog HEAD || ready=0
+
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+
+      - name: Record not-ready state and stop
+        if: steps.ready.outputs.ready != '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p morphhdl/ci
+          {
+            echo 'result=not-ready-for-pr'
+            echo "head=$(cat /tmp/validated-head)"
+            grep -h . morphhdl/ci/increment-53e-*-status.txt 2>/dev/null || true
+          } >morphhdl/ci/increment-53e-finalizer-status.txt
+          rm -f .github/workflows/increment-53e-ready-finalizer.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: retain finalizer not-ready status'
+          remote=$(git ls-remote origin refs/heads/agent/increment-53e-native-streamfifocc-parameterization | awk '{print $1}')
+          test "$remote" = "$(cat /tmp/validated-head)"
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
+
+      - name: Install exact-head verification tools
+        if: steps.ready.outputs.ready == '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+          apt-get update
+          apt-get install -y --no-install-recommends yosys iverilog verilator
+
+      - name: Re-run generic compiler and both Scala lanes on exact head
+        if: steps.ready.outputs.ready == '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-generic-native-int-compiler.sh
+          bash morphhdl/scripts/check-generic-parameterized-width-engine.sh
+          bash morphhdl/scripts/check-native-streamfifocc-parameterization-boundary.sh
+          for scala in 2.12.18 2.13.12; do
+            /tmp/mill "morph[$scala].testOnly" \
+              spinal.core.internals.ExternalParameterizedWidthDomainProofTests \
+              morphhdl.ParameterizedStreamFifoCCTests \
+              morphhdl.GenericNativeStreamFifoCCFormalEquivalenceTests
+          done
+
+      - name: Re-run independent formal, lint, synthesis and simulation
+        if: steps.ready.outputs.ready == '1'
+        shell: bash
+        env:
+          MORPHDL_STREAMFIFOCC_GENERATE_WORKSPACE_ONLY: "1"
+          MORPHDL_STREAMFIFOCC_FORMAL_WORKSPACE: /tmp/streamfifocc-final
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/streamfifocc-final
+          /tmp/mill 'morph[2.12.18].testOnly' \
+            morphhdl.GenericNativeStreamFifoCCFormalEquivalenceTests
+          bash morphhdl/scripts/verify-generic-native-streamfifocc-formal.sh \
+            /tmp/streamfifocc-final
+          bash morphhdl/scripts/verify-generic-native-streamfifocc.sh \
+            /tmp/streamfifocc-final
+
+      - name: Publish dispatchable permanent CI on exact proven head
+        if: steps.ready.outputs.ready == '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/morphhdl-generic-native-parameterization.yml')
+          value = path.read_text()
+          if '  workflow_dispatch:\n' not in value:
+              value = value.replace('on:\n', 'on:\n  workflow_dispatch:\n', 1)
+          path.write_text(value)
+          PY
+          rm -f .github/workflows/increment-53e-ready-finalizer.yml
+          rm -f morphhdl/ci/increment-53e-finalizer-status.txt
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: publish dispatchable permanent proof gate'
+          remote=$(git ls-remote origin refs/heads/agent/increment-53e-native-streamfifocc-parameterization | awk '{print $1}')
+          test "$remote" = "$(cat /tmp/validated-head)"
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
+          git rev-parse HEAD >/tmp/pr-head
+
+      - name: Open and squash-merge exact proven PR
+        if: steps.ready.outputs.ready == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api=https://api.github.com/repos/${GITHUB_REPOSITORY}
+          auth=(-H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json')
+          pr_head=$(cat /tmp/pr-head)
+          pulls=$(curl -fsSL "${auth[@]}" "$api/pulls?state=open&head=pysolvesemi:agent%2Fincrement-53e-native-streamfifocc-parameterization&base=parameterized-verilog")
+          number=$(python3 -c 'import json,sys; x=json.load(sys.stdin); print(x[0]["number"] if x else "")' <<<"$pulls")
+          if test -z "$number"; then
+            payload=$(python3 - <<'PY'
+          import json
+          print(json.dumps({
+            "title": "Increment 53e: generic native StreamFifoCC parameterization",
+            "head": "agent/increment-53e-native-streamfifocc-parameterization",
+            "base": "parameterized-verilog",
+            "body": "Uses the exact untouched spinal.lib.StreamFifoCC. The implementation uses generic type-, graph-, identity-, and bounded-domain provenance rather than component, source-file, internal-signal, or emitted-name recognition. Dual-Scala generation, independent Yosys sequential equivalence, mutation rejection, Verilog-2001 lint, synthesis, and independent-clock ordered-data simulation passed on the exact PR head."
+          }))
+          PY
+            )
+            created=$(curl -fsSL -X POST "${auth[@]}" "$api/pulls" -d "$payload")
+            number=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["number"])' <<<"$created")
+          fi
+          state=$(curl -fsSL "${auth[@]}" "$api/pulls/$number")
+          actual=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["head"]["sha"])' <<<"$state")
+          test "$actual" = "$pr_head"
+          merge=$(python3 - <<PY
+          import json
+          print(json.dumps({
+            "commit_title": "Increment 53e: generic native StreamFifoCC parameterization (#$number)",
+            "merge_method": "squash",
+            "sha": "$pr_head"
+          }))
+          PY
+          )
+          result=$(curl -fsSL -X PUT "${auth[@]}" "$api/pulls/$number/merge" -d "$merge")
+          python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("merged") is True, d' <<<"$result"
+          merge_sha=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])' <<<"$result")
+          echo "$merge_sha" >/tmp/merge-sha
+
+      - name: Dispatch and require post-merge permanent proof
+        if: steps.ready.outputs.ready == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api=https://api.github.com/repos/${GITHUB_REPOSITORY}
+          auth=(-H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'Content-Type: application/json')
+          merge_sha=$(cat /tmp/merge-sha)
+          target=
+          for attempt in $(seq 1 60); do
+            target=$(curl -fsSL "${auth[@]}" "$api/branches/parameterized-verilog" | python3 -c 'import json,sys; print(json.load(sys.stdin)["commit"]["sha"])')
+            if test "$target" = "$merge_sha"; then break; fi
+            sleep 5
+          done
+          test "$target" = "$merge_sha"
+          started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          curl -fsSL -X POST "${auth[@]}" \
+            "$api/actions/workflows/morphhdl-generic-native-parameterization.yml/dispatches" \
+            -d '{"ref":"parameterized-verilog"}'
+          run_id=
+          conclusion=
+          for attempt in $(seq 1 720); do
+            runs=$(curl -fsSL "${auth[@]}" "$api/actions/workflows/morphhdl-generic-native-parameterization.yml/runs?branch=parameterized-verilog&event=workflow_dispatch&per_page=20")
+            run_id=$(python3 -c 'import json,sys; d=json.load(sys.stdin); xs=[x for x in d.get("workflow_runs",[]) if x.get("head_sha")==sys.argv[1]]; print(xs[0]["id"] if xs else "")' "$merge_sha" <<<"$runs")
+            if test -n "$run_id"; then
+              state=$(curl -fsSL "${auth[@]}" "$api/actions/runs/$run_id")
+              status=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])' <<<"$state")
+              conclusion=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("conclusion") or "")' <<<"$state")
+              if test "$status" = completed; then break; fi
+            fi
+            sleep 10
+          done
+          test -n "$run_id"
+          test "$conclusion" = success
+          git tag -f increment-53e-verified "$merge_sha"
+          git push origin refs/tags/increment-53e-verified --force
