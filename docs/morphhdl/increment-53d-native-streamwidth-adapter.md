@@ -96,3 +96,11 @@ all fail closed. The formerly failing `UP_WIDTH=16` backpressure witness now
 preserves both bytes (`16'hB2A1`), while the source-preservation boundary remains
 unchanged. The branch is synchronized with the current `parameterized-verilog`
 head before the final dual-Scala validation matrix.
+
+The final regression repair confines bounded-domain constant-predicate folding
+to an active `nativeWidthFunction` boundary. Existing constructor boundaries,
+including the native StreamFifo formalization path, continue to retain their
+established symbolic alternatives even when a narrowed caller domain makes a
+predicate constant. This prevents a helper driver's structural owner from
+diverging from a module-scope consumer and is checked by the compound-depth
+StreamFifo regression on both supported Scala versions.
