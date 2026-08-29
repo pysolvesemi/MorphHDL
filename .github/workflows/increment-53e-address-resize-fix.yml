@@ -50,6 +50,7 @@ jobs:
           python3 morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
           python3 morphhdl/scripts/apply-increment-53e-symbolic-zero-initializers.py
           python3 morphhdl/scripts/apply-increment-53e-final-helper-lowering.py
+          python3 morphhdl/scripts/apply-increment-53e-generic-target-sizing-patch-order.py
           python3 morphhdl/scripts/apply-increment-53e-generic-target-sizing-and-slices.py
           python3 morphhdl/scripts/apply-increment-53e-expression-publication-diagnostic.py
           git diff --check
@@ -142,6 +143,7 @@ jobs:
           rm -f morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
           rm -f morphhdl/scripts/apply-increment-53e-symbolic-zero-initializers.py
           rm -f morphhdl/scripts/apply-increment-53e-final-helper-lowering.py
+          rm -f morphhdl/scripts/apply-increment-53e-generic-target-sizing-patch-order.py
           rm -f morphhdl/scripts/apply-increment-53e-generic-target-sizing-and-slices.py
           rm -f morphhdl/scripts/apply-increment-53e-expression-publication-diagnostic.py
           rm -f morphhdl/scripts/apply-increment-53e-buffercc-shape-repair.py
