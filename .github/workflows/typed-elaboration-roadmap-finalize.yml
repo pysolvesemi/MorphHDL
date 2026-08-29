@@ -1,0 +1,50 @@
+name: Finalize approved typed-elaboration roadmap
+
+on:
+  push:
+    branches:
+      - agent/typed-elaboration-roadmap-pivot
+    paths:
+      - .github/workflows/typed-elaboration-roadmap-finalize.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/typed-elaboration-roadmap-pivot
+          fetch-depth: 0
+      - name: Materialize approved roadmap directly
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f morphhdl/scripts/apply-typed-elaboration-roadmap.py; then
+            python3 morphhdl/scripts/apply-typed-elaboration-roadmap.py
+          fi
+          git diff --check
+          grep -Fq 'Authoritative typed-elaboration architecture from Increment 53d onward' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Increment 53d — Typed elaboration pivot and native StreamWidthAdapter closure' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Increment 56 — Shadow-native-Int production retirement' docs/morphhdl/parameterized-verilog-todo.md
+      - name: Commit documents and remove every temporary roadmap helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add docs/morphhdl/parameterized-verilog-todo.md docs/morphhdl/typed-elaboration-architecture.md
+          git rm -f --ignore-unmatch \
+            morphhdl/scripts/apply-typed-elaboration-roadmap.py \
+            .github/workflows/typed-elaboration-roadmap-publisher.yml \
+            .github/workflows/typed-elaboration-roadmap-cleanup.yml \
+            .github/workflows/typed-elaboration-roadmap-finalize.yml
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m 'Finalize typed elaboration roadmap pivot'
+            git push origin HEAD:agent/typed-elaboration-roadmap-pivot
+          fi
