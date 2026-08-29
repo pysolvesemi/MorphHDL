@@ -82,8 +82,8 @@ method = '''  /**
         if (width.precedence >= 100) width.render else s"(${width.render})"
       val replacement = s"{$repeatCount{1'b0}}"
       val pattern = (
-        "^(\\s*" + Pattern.quote(name) +
-          "\\s*(?:<=|=)\\s*)(" + literalSyntax + ")(\\s*;.*)$"
+        """^(\s*""" + Pattern.quote(name) +
+          """\s*(?:<=|=)\s*)(""" + literalSyntax + """)(\s*;.*)$"""
       ).r
       var count = 0
       lines = lines.map { line =>
