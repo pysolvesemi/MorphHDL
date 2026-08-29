@@ -1,5 +1,6 @@
 name: Publish Increment 53d generic native boundary repair
 
+# Re-run after the generic width-root classifier self-check repair.
 on:
   push:
     branches:
