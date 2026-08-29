@@ -131,11 +131,13 @@ method = '''  /**
       graph.exists(name => emitted == name || emitted.endsWith("_" + name))
     }
 
-    val directIdentifier = "^([A-Za-z_][A-Za-z0-9_$]*)$".r
+    // Triple-quoted Scala regexes deliberately preserve regex backslashes and
+    // avoid coupling this Python staging script to Scala string escaping.
+    val directIdentifier = """^([A-Za-z_][A-Za-z0-9_$]*)$""".r
     val truncatedIdentifier =
-      "^([A-Za-z_][A-Za-z0-9_$]*)\\s*\\[\\s*([0-9]+)\\s*:\\s*0\\s*\\]$".r
+      """^([A-Za-z_][A-Za-z0-9_$]*)\s*\[\s*([0-9]+)\s*:\s*0\s*\]$""".r
     val zeroExtendedIdentifier =
-      "^\\{\\s*\\{\\s*([0-9]+)\\s*\\{\\s*1'b0\\s*\\}\\s*\\}\\s*,\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*\\}$".r
+      """^\{\s*\{\s*([0-9]+)\s*\{\s*1'b0\s*\}\s*\}\s*,\s*([A-Za-z_][A-Za-z0-9_$]*)\s*\}$""".r
 
     var lines = verilog.split("\\n", -1).toVector
     val uniqueRecords = records.groupBy { case (target, _) => target }.toVector
@@ -167,8 +169,8 @@ method = '''  /**
         )
       }
       val assignment = (
-        "^(\\s*(?:assign\\s+)?" + Pattern.quote(targetName) +
-          "\\s*(?:=|<=)\\s*)(.*?)(;\\s*(?://.*)?)$"
+        """^(\s*(?:assign\s+)?""" + Pattern.quote(targetName) +
+          """\s*(?:=|<=)\s*)(.*?)(;\s*(?://.*)?)$"""
       ).r
       val matches = lines.zipWithIndex.flatMap { case (line, index) =>
         assignment.findFirstMatchIn(line).map(index -> _)
