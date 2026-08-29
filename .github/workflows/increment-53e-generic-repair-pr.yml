@@ -1,0 +1,146 @@
+name: Increment 53e gate generic repair PR
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-generic-domain-proof-final
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: increment-53e-generic-repair-pr
+  cancel-in-progress: true
+
+jobs:
+  validate-and-open:
+    if: >-
+      github.actor == 'github-actions[bot]' &&
+      contains(github.event.head_commit.message, 'generalize native symbolic parameterization')
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-generic-domain-proof-final
+          fetch-depth: 0
+
+      - name: Configure checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin parameterized-verilog agent/increment-53e-native-streamfifocc-parameterization
+
+      - name: Enforce source and genericity boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --name-only origin/parameterized-verilog...HEAD | \
+              grep -E '^(core|lib|idslplugin)/src/main/'; then
+            echo 'Upstream SpinalHDL production source changed.' >&2
+            exit 1
+          fi
+          for file in \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala \
+            morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedAutoResize.scala
+          do
+            if grep -E 'StreamFifo(CC)?|BufferCC' "$file"; then
+              echo "Component-specific recognition remains in $file" >&2
+              exit 1
+            fi
+          done
+
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Revalidate both Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
+            morphhdl.ParameterizedStreamFifoCCTests
+          /tmp/morphhdl-mill 'morph[2.13.12].testOnly' \
+            morphhdl.ParameterizedStreamFifoCCTests
+
+      - name: Remove repair-only workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/increment-53e-generic-repair-pr.yml
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m 'Increment 53e: remove generic repair gate'
+            git push origin HEAD:agent/increment-53e-generic-domain-proof-final
+          fi
+
+      - name: Open repair PR against the canonical Increment 53e branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, urllib.parse, urllib.request
+
+          repo = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          owner = repo.split('/')[0]
+          head = 'agent/increment-53e-generic-domain-proof-final'
+          base = 'agent/increment-53e-native-streamfifocc-parameterization'
+          headers = {
+              'Accept': 'application/vnd.github+json',
+              'Authorization': f'Bearer {token}',
+              'User-Agent': 'morphhdl-increment-53e',
+              'X-GitHub-Api-Version': '2022-11-28',
+          }
+
+          query = urllib.parse.urlencode({
+              'state': 'open',
+              'head': f'{owner}:{head}',
+              'base': base,
+          })
+          request = urllib.request.Request(
+              f'https://api.github.com/repos/{repo}/pulls?{query}',
+              headers=headers,
+          )
+          with urllib.request.urlopen(request) as response:
+              existing = json.load(response)
+          if existing:
+              print(existing[0]['html_url'])
+          else:
+              payload = json.dumps({
+                  'title': 'Increment 53e: generic native symbolic parameterization',
+                  'head': head,
+                  'base': base,
+                  'body': (
+                      'Replaces FIFO/file-name recognition with generic upstream '
+                      'Component and identity-backed bounded-domain proofs. '
+                      'Native SpinalHDL production sources remain unchanged.'
+                  ),
+              }).encode()
+              request = urllib.request.Request(
+                  f'https://api.github.com/repos/{repo}/pulls',
+                  data=payload,
+                  headers=headers,
+                  method='POST',
+              )
+              with urllib.request.urlopen(request) as response:
+                  created = json.load(response)
+              print(created['html_url'])
+          PY
