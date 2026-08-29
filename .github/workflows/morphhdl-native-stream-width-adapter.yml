@@ -1,0 +1,84 @@
+name: MorphHDL native StreamWidthAdapter parameterization
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-native-streamwidth-adapter
+      - parameterized-verilog
+  pull_request:
+    branches:
+      - parameterized-verilog
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-native-stream-width-adapter-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-boundary:
+    name: Native StreamWidthAdapter source boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prove untouched native library and generic MorphHDL support
+        shell: bash
+        run: bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
+
+  contracts:
+    name: Native StreamWidthAdapter proof Scala ${{ matrix.scala_version }}
+    needs: source-boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate native StreamWidthAdapter and inherited contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.ParameterizedStreamWidthAdapterTests \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.BackendSyncMergeIsolationTests \
+            morphhdl.CapturedAssignmentNormalizationTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.NativeMemAutoProvenanceTests \
+            morphhdl.ExternalNativeIntFormalizationTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowProvenanceTests \
+            morphhdl.FormalParameterIdentityTests \
+            morphhdl.FormalParameterClonePropagationTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.integration.ExternalSpinalVerilogBaselineTests

@@ -112,10 +112,14 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       component,
       rewrittenCounterBoundaries
     )
+    val rewrittenResizes = rewriteRetainedResizeAssignments(
+      component,
+      rewrittenValues
+    )
     val canonical =
       if (isCanonicalDirectSurface(component))
-        canonicalizeDeclarations(component, rewrittenValues)
-      else rewrittenValues
+        canonicalizeDeclarations(component, rewrittenResizes)
+      else rewrittenResizes
     lowerRetainedIntegerHelpers(canonical, component.definitionName)
   }
 
@@ -496,6 +500,116 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             "SPINAL-PARAMETERIZED-VERILOG-VALUE-ASSIGNMENT-NOT-UNIQUE",
             s"retained native UInt carrier '$name' maps to $count continuous assignments",
             record.sourceLocation.orElse(record.expression.sourceLocation)
+          )
+        }
+    }
+    lines.mkString("\n")
+  }
+
+  /**
+    * Replace a concrete witness LSB slice emitted for one exact native Resize
+    * with the retained symbolic target range. The eligible assignment, target
+    * and Resize node are discovered from the normalized graph by JVM identity;
+    * emitted names are used only after that proof to address the corresponding
+    * native Verilog assignment. Other Resize renderings remain owned by the
+    * native emitter.
+    */
+  private def rewriteRetainedResizeAssignments(
+      component: Component,
+      verilog: String
+  ): String = {
+    final case class RetainedResizeAssignment(
+        targetName: String,
+        witnessSize: Int,
+        expression: ElaborationIntegerExpression
+    )
+
+    val retained = ArrayBuffer.empty[RetainedResizeAssignment]
+    component.dslBody.walkLeafStatements {
+      case assignment: DataAssignmentStatement
+          if assignment.target == assignment.finalTarget =>
+        (assignment.target, assignment.source) match {
+          case (target: BitVector, resize: Resize)
+              if (target.component eq component) && target.isComb &&
+                target.getBitsWidth == resize.size =>
+            ExternalParameterizedResizeRegistry
+              .expressionOf(resize)
+              .filter(_.parameters.nonEmpty)
+              .foreach { expression =>
+                if (expression.default != BigInt(resize.size)) {
+                  fail(
+                    "SPINAL-PARAMETERIZED-VERILOG-RESIZE-WITNESS-MISMATCH",
+                    s"native Resize target ${resize.size} does not match retained symbolic default ${expression.default}",
+                    expression.sourceLocation
+                  )
+                }
+                val targetName = Option(target.getName()).filter(_.nonEmpty).getOrElse {
+                  fail(
+                    "SPINAL-PARAMETERIZED-VERILOG-RESIZE-TARGET-NAME-MISSING",
+                    "one retained native Resize target has no final emitted name",
+                    expression.sourceLocation
+                  )
+                }
+                retained += RetainedResizeAssignment(
+                  targetName,
+                  resize.size,
+                  expression
+                )
+              }
+          case _ =>
+        }
+      case _ =>
+    }
+    if (retained.isEmpty) return verilog
+
+    val grouped = retained.distinct.groupBy(_.targetName)
+    grouped.collectFirst {
+      case (name, values)
+          if values.map(value => value.witnessSize -> value.expression).distinct.size != 1 =>
+        name
+    }.foreach { name =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-RESIZE-TARGET-CONFLICT",
+        s"retained native Resize assignments for target '$name' disagree"
+      )
+    }
+
+    var lines = verilog.split("\n", -1).toVector
+    grouped.toVector.sortBy { case (name, _) => -name.length }.foreach {
+      case (name, values) =>
+        val record = values.head
+        val assignmentPattern = (
+          "^(\\s*assign\\s+" + Pattern.quote(name) +
+            "\\s*=\\s*)(.*?)(;\\s*)$"
+        ).r
+        val concreteRange = (
+          "^(.*)\\[\\s*" + (record.witnessSize - 1) +
+            "\\s*:\\s*0\\s*\\](\\s*)$"
+        ).r
+        val symbolicRange = {
+          val expression = record.expression.verilog
+          if ("[A-Za-z_][A-Za-z0-9_$]*".r.pattern.matcher(expression).matches())
+            s"[$expression-1:0]"
+          else s"[($expression)-1:0]"
+        }
+        var assignmentCount = 0
+        lines = lines.map { line =>
+          line match {
+            case assignmentPattern(prefix, rhs, suffix) =>
+              assignmentCount += 1
+              rhs match {
+                case concreteRange(source, trailing) =>
+                  prefix + source + symbolicRange + trailing + suffix
+                case _ => line
+              }
+            case _ => line
+          }
+        }
+        if (assignmentCount != 1) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-RESIZE-ASSIGNMENT-NOT-UNIQUE",
+            s"retained native Resize target '$name' maps to $assignmentCount continuous assignments",
+            record.expression.sourceLocation
           )
         }
     }
@@ -971,6 +1085,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                   targetWidth,
                   sourceWidth
                 )
+              val provenInvariantTargetWidth =
+                targetWidth.isSymbolic &&
+                  targetWidth.minimum == targetWidth.maximum &&
+                  sourceWidth.default == targetWidth.default
               if (
                 targetWidth.isSymbolic && sourceWidth.isSymbolic &&
                 targetWidth != sourceWidth && !nativeCounterNext &&
@@ -986,7 +1104,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               if (
                 targetWidth.isSymbolic && !sourceWidth.isSymbolic &&
                 !isUnfixedLiteral(assignment.source) && !nativeCounterNext &&
-                !provenAutoResize && !provenModularUpdate
+                !provenAutoResize && !provenModularUpdate &&
+                !provenInvariantTargetWidth
               ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
@@ -1427,19 +1546,88 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           WidthLiteral(1)
       }
 
+      /**
+        * A native BitVector.resize call materializes one weak-clone target whose
+        * direct driver is the exact Resize expression. The compiler bridge
+        * retains the symbolic target width on that native target object. Recover
+        * it by statement and object identity; never infer it from a matching
+        * witness width or emitted name.
+        */
+      private def retainedResizeTarget(resize: Resize): Option[BitVector] = {
+        var found: BitVector = null
+        assignments.foreach { assignment =>
+          if (
+            (assignment.source eq resize) &&
+            (assignment.target eq assignment.finalTarget)
+          ) {
+            assignment.target match {
+              case target: BitVector
+                  if (target.component eq component) &&
+                    target.isTypeNode && target.isComb &&
+                    target.isDirectionLess &&
+                    target.getBitsWidth == resize.size &&
+                    ParameterizedWidth.expressionOf(target).exists { expression =>
+                      expression.parameters.nonEmpty &&
+                      expression.default == BigInt(resize.size)
+                    } =>
+                if (found == null) found = target
+                else if (!(found eq target)) {
+                  fail(
+                    "SPINAL-PARAMETERIZED-VERILOG-RESIZE-TARGET-AMBIGUOUS",
+                    s"one native Resize expression drives multiple retained symbolic targets in component '${component.definitionName}'"
+                  )
+                }
+              case _ =>
+            }
+          }
+        }
+        Option(found)
+      }
+
       private def inferResize(resize: Resize): WidthExpr = {
-        ExternalParameterizedAutoResize
-          .syntheticBooleanResizeTarget(component, resize)
-          .map(target => ofBase(target))
+        val retainedExpression =
+          ExternalParameterizedResizeRegistry.expressionOf(resize).map { expression =>
+            if (expression.default != BigInt(resize.size)) {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-RESIZE-WITNESS-MISMATCH",
+                s"native Resize target ${resize.size} does not match retained symbolic default ${expression.default}",
+                expression.sourceLocation
+              )
+            }
+            retained(expression)
+          }
+        val retainedTarget =
+          ExternalParameterizedAutoResize
+            .syntheticBooleanResizeTarget(component, resize)
+            .map(target => target: BitVector)
+            .orElse(retainedResizeTarget(resize))
+        retainedExpression
+          .orElse(retainedTarget.map(target => ofBase(target)))
           .getOrElse {
             val source = ofExpression(resize.input)
             val size = BigInt(resize.size)
             if (!source.isSymbolic) WidthLiteral(size)
             else if (size <= source.minimum) WidthLiteral(size)
-            else {
+            else if (
+              size >= source.maximum &&
+              (resize.getTypeObject == TypeBits || resize.getTypeObject == TypeUInt)
+            ) {
+              // The untouched Verilog emitter gives every Resize node its
+              // fixed target width: nested resizes are wrapped in a target-sized
+              // temporary, while a top-level resize is consumed by its
+              // target-sized assignment. For Bits/UInt, a target no smaller
+              // than the complete symbolic source domain is therefore an
+              // invariant zero-extension/equality operation. The witness-sized
+              // leading-zero fragment remains semantically exact because the
+              // fixed target context supplies any remaining zero extension or
+              // discards only leading zeros. Signed widening is deliberately
+              // excluded because a witness-sized unsigned concatenation cannot
+              // prove sign extension for a smaller symbolic source.
+              WidthLiteral(size)
+            } else {
               fail(
                 "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-UNSUPPORTED",
-                s"resize from symbolic width '${source.render}' to ${resize.size} is not a domain-invariant narrowing; widening and domain-crossing resize lowering is deferred"
+                s"resize from symbolic width '${source.render}' to ${resize.size} is neither a domain-invariant narrowing nor an unsigned domain-invariant widening; domain-crossing and signed widening resize lowering are deferred"
               )
             }
           }

@@ -319,6 +319,99 @@ object ExternalNativeIntShadowRegistry {
     }
   }
 
+  /**
+    * Execute one ordinary native-library method whose internal Scala `Int`
+    * geometry is rooted in an already-retained symbolic packed width. Unlike
+    * `captureWithDefinition`, this transient scope does not create a public
+    * constructor slot or attach a replacement component; it only lets generic
+    * compiler instrumentation retain the native method's own arithmetic and
+    * predicates while the untouched method executes.
+    */
+  private[core] def withDefinitionExpressionBoundary[A](
+      expression: ElaborationIntegerExpression,
+      token: ExternalNativeIntFormalizationToken
+  )(body: => A): A = {
+    validateBoundaryExpression(expression, token)
+    val previous = Option(active.get()).getOrElse(Nil)
+    val boundary = new ActiveBoundary(
+      expression = expression,
+      definitionExpression = expression,
+      token = token,
+      parentToken = previous.headOption.map(_.token)
+    )
+    active.set(boundary :: previous)
+    try body
+    finally {
+      val current = Option(active.get()).getOrElse(Nil)
+      current match {
+        case head :: tail if head eq boundary =>
+          if (tail.isEmpty) active.remove() else active.set(tail)
+        case _ =>
+          active.remove()
+          fail(
+            "MORPH-FRONTEND-NATIVE-INT-SHADOW-SCOPE-CORRUPT",
+            s"native width-function boundary '${token.role}' did not close in stack order",
+            sourceOf(token)
+          )
+      }
+    }
+  }
+
+  /**
+    * Retain one native `widthOf` result by exact compiler reference. A concrete
+    * payload width becomes a literal. A symbolic payload width must be exactly
+    * the active method root; distinct symbolic roots are rejected instead of
+    * being inferred from equal witnesses.
+    */
+  private[core] def widthQueryTracked(
+      witness: Int,
+      expression: Option[ElaborationIntegerExpression],
+      reference: String,
+      name: String,
+      sourceLocation: String
+  ): Int = withBoundaryOrValue(
+    witness,
+    requireBoundary = false,
+    name,
+    sourceLocation
+  ) { boundary =>
+    validateReference(reference, sourceLocation, "native widthOf result")
+    if (witness < 0) {
+      fail(
+        "MORPH-FRONTEND-NATIVE-WIDTH-FUNCTION-WITNESS-INVALID",
+        s"native widthOf result '$name' must be non-negative, received $witness",
+        Option(sourceLocation).filter(_.nonEmpty)
+      )
+    }
+    val relative = expression match {
+      case None => Literal(BigInt(witness))
+      case Some(retained)
+          if equivalentExpression(retained, boundary.definitionExpression) =>
+        if (retained.default != BigInt(witness)) {
+          fail(
+            "MORPH-FRONTEND-NATIVE-WIDTH-FUNCTION-WITNESS-MISMATCH",
+            s"native widthOf result '$name' witness $witness disagrees with retained symbolic default ${retained.default}",
+            Option(sourceLocation).filter(_.nonEmpty).orElse(retained.sourceLocation)
+          )
+        }
+        Root
+      case Some(retained) =>
+        fail(
+          "MORPH-FRONTEND-NATIVE-WIDTH-FUNCTION-ROOT-AMBIGUOUS",
+          s"native width function mixes independent symbolic roots '${boundary.definitionExpression.verilog}' and '${retained.verilog}'; multi-root formalization is not yet enabled",
+          Option(sourceLocation).filter(_.nonEmpty).orElse(retained.sourceLocation)
+        )
+    }
+    val tracked = ExternalNativeIntShadowTrackedValue(
+      witness = witness,
+      expression = relative,
+      sourceLocation = sourceLocation
+    )
+    validateWitness(boundary, tracked, sourceLocation, "native widthOf result")
+    retainTracked(boundary, reference, tracked)
+    witness
+  }
+
   /** Increment 49 compatibility hook for a direct selected argument. */
   def captureArgument(
       value: Int,
@@ -1116,6 +1209,15 @@ object ExternalNativeIntShadowRegistry {
 
   /** True only while one exact native formalization constructor is executing. */
   def boundaryActive: Boolean = currentBoundary.nonEmpty
+
+  /**
+    * Domain-constant branch folding is local to an ordinary native
+    * width-function call. Constructor boundaries such as StreamFifo retain
+    * their established structural capture even when a narrowed caller domain
+    * makes one predicate constant.
+    */
+  private[core] def nativeWidthFunctionBoundaryActive: Boolean =
+    currentBoundary.exists(_.token.role == "nativeWidthFunction")
 
   private def currentBoundary: Option[ActiveBoundary] =
     Option(active.get()).getOrElse(Nil).headOption
