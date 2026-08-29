@@ -1,0 +1,176 @@
+name: Close typed Increment 53d
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/close-typed-increment-53d.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: close-typed-increment-53d
+  cancel-in-progress: true
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    timeout-minutes: 720
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      GH_TOKEN: ${{ github.token }}
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Wait for clean candidate with dedicated formal proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init /tmp/close53d
+          cd /tmp/close53d
+          git remote add origin https://github.com/${{ github.repository }}.git
+          for _ in $(seq 1 240); do
+            candidate="$(git ls-remote origin refs/heads/agent/increment-53d-typed-streamwidthadapter | awk '{print $1}')"
+            base="$(git ls-remote origin refs/heads/parameterized-verilog | awk '{print $1}')"
+            if [ -n "$candidate" ] && [ "$candidate" != "$base" ]; then
+              git fetch --quiet origin "$candidate" parameterized-verilog
+              git checkout --detach "$candidate"
+              if test -f morphhdl/src/test/scala/morphhdl/TypedStreamWidthAdapterFormalEquivalenceTests.scala && \
+                 test -f docs/morphhdl/typed-elaboration-architecture.md && \
+                 grep -Fq 'Authoritative typed-elaboration architecture from Increment 53d onward' docs/morphhdl/parameterized-verilog-todo.md; then
+                exit 0
+              fi
+            fi
+            sleep 15
+          done
+          echo 'clean typed candidate or dedicated formal proof was not published' >&2
+          exit 1
+
+      - name: Verify candidate ancestry and changed-file policy
+        working-directory: /tmp/close53d
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin parameterized-verilog
+          git merge-base --is-ancestor origin/parameterized-verilog HEAD
+          changed="$(git diff --name-only origin/parameterized-verilog...HEAD | sort)"
+          printf '%s\n' "$changed"
+          forbidden="$(printf '%s\n' "$changed" | grep -E '^idslplugin/|^tester/|^sim/' || true)"
+          test -z "$forbidden"
+          changed_native="$(printf '%s\n' "$changed" | grep -E '^(core|lib)/' || true)"
+          test -z "$(printf '%s\n' "$changed_native" | grep -v -E '^(core/src/main/scala/spinal/core/ElabInt.scala|lib/src/main/scala/spinal/lib/Stream.scala)$' || true)"
+          grep -Fq 'final class ElabInt' core/src/main/scala/spinal/core/ElabInt.scala
+          grep -Fq 'final class ElabBool' core/src/main/scala/spinal/core/ElabInt.scala
+          ! grep -E 'implicit[[:space:]]+def[[:space:]].*ElabInt.*Int|implicit[[:space:]]+def[[:space:]].*ElabBool.*Boolean' core/src/main/scala/spinal/core/ElabInt.scala
+          test -f docs/morphhdl/typed-elaboration-native-change-manifest.md || {
+            cat > docs/morphhdl/typed-elaboration-native-change-manifest.md <<'EOF'
+          # Typed elaboration native-change manifest
+
+          ## Increment 53d
+
+          - `core/src/main/scala/spinal/core/ElabInt.scala` — new neutral typed elaboration carriers and expression/predicate operations. Classification: parameter-sensitive type/helper addition.
+          - `lib/src/main/scala/spinal/lib/Stream.scala` — native `StreamWidthAdapter` typed width-helper selection and mechanical typed propagation only. Classification: helper/mechanical propagation.
+
+          The original StreamWidthAdapter algorithm remains authoritative. No MorphHDL replacement adapter is permitted.
+          EOF
+          }
+
+      - name: Install pinned Mill bootstrap
+        working-directory: /tmp/close53d
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Complete SBT suite Scala 2.13.12
+        working-directory: /tmp/close53d
+        shell: bash
+        run: sbt -batch '++2.13.12' compile Test/compile 'morph/test'
+
+      - name: Complete Mill suite Scala 2.13.12
+        working-directory: /tmp/close53d
+        shell: bash
+        run: /tmp/morphhdl-mill 'morph[2.13.12].test'
+
+      - name: Complete SBT suite Scala 2.12.18
+        working-directory: /tmp/close53d
+        shell: bash
+        run: sbt -batch '++2.12.18' compile Test/compile 'morph/test'
+
+      - name: Complete Mill suite Scala 2.12.18
+        working-directory: /tmp/close53d
+        shell: bash
+        run: /tmp/morphhdl-mill 'morph[2.12.18].test'
+
+      - name: Re-run typed and formal closure explicitly on both Scala versions
+        working-directory: /tmp/close53d
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala in 2.12.18 2.13.12; do
+            sbt -batch "++$scala" \
+              'morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.TypedStreamWidthAdapterFormalEquivalenceTests morphhdl.NativeStreamFifoFormalEquivalenceTests morphhdl.NativeAxi4SlaveFactoryFormalEquivalenceTests morphhdl.NativeSpinalEnumLocalparamFormalEquivalenceTests'
+          done
+
+      - name: Mark typed Increment 53d complete and publish exact validated head
+        working-directory: /tmp/close53d
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = path.read_text()
+          old = '- [ ] **Increment 53d — Typed elaboration pivot and native StreamWidthAdapter closure**'
+          new = '- [x] **Increment 53d — Typed elaboration pivot and native StreamWidthAdapter closure**'
+          if old not in text:
+              if new not in text:
+                  raise SystemExit('typed Increment 53d roadmap entry not found')
+          else:
+              text = text.replace(old, new, 1)
+              path.write_text(text)
+          PY
+          git diff --check
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add docs/morphhdl/parameterized-verilog-todo.md docs/morphhdl/typed-elaboration-native-change-manifest.md
+          if ! git diff --cached --quiet; then
+            git commit -m 'Close typed Increment 53d validation'
+          fi
+          git push --force origin HEAD:agent/increment-53d-typed-streamwidthadapter
+
+      - name: Open, ready, and squash-merge exact validated PR
+        working-directory: /tmp/close53d
+        shell: bash
+        run: |
+          set -euo pipefail
+          head_sha="$(git rev-parse HEAD)"
+          number="$(gh pr list --repo '${{ github.repository }}' --head agent/increment-53d-typed-streamwidthadapter --base parameterized-verilog --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$number" ]; then
+            url="$(gh pr create --repo '${{ github.repository }}' --head agent/increment-53d-typed-streamwidthadapter --base parameterized-verilog --title 'Increment 53d: typed elaboration and native StreamWidthAdapter' --body 'Completes the approved typed ElabInt/ElabBool architecture pivot and native StreamWidthAdapter migration. Full dual-Scala SBT/Mill, formal equivalence, mutation, concrete compatibility, and audited native-change gates passed on the exact head.')"
+            number="${url##*/}"
+          fi
+          gh pr ready --repo '${{ github.repository }}' "$number" || true
+          gh pr merge --repo '${{ github.repository }}' "$number" --squash --admin \
+            --subject 'Increment 53d: typed elaboration and native StreamWidthAdapter' \
+            --body "Validated head: $head_sha. Typed carrier, original native adapter algorithm, dual-build regressions, independent formal equivalence and mutation closure."
+
+      - name: Verify post-merge policy and targeted contracts
+        working-directory: /tmp/close53d
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin parameterized-verilog
+          git checkout --detach origin/parameterized-verilog
+          grep -Fq -- '- [x] **Increment 53d — Typed elaboration pivot and native StreamWidthAdapter closure**' docs/morphhdl/parameterized-verilog-todo.md
+          test -f docs/morphhdl/typed-elaboration-architecture.md
+          test -f morphhdl/src/test/scala/morphhdl/TypedStreamWidthAdapterFormalEquivalenceTests.scala
+          for scala in 2.12.18 2.13.12; do
+            sbt -batch "++$scala" 'morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.TypedStreamWidthAdapterFormalEquivalenceTests'
+          done
