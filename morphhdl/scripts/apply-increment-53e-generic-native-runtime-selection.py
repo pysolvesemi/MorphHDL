@@ -232,7 +232,7 @@ if old in value:
     }
   }
 
-  /** Compiler hook for negation and logarithm helpers. */
+  /** Compiler hook for negation and address/log2 helpers. */
 '''
     replacement = '''        retainSlot(
           boundary,
@@ -247,7 +247,7 @@ if old in value:
     }
   }
 
-  /** Compiler hook for negation and logarithm helpers. */
+  /** Compiler hook for negation and address/log2 helpers. */
 '''
     if marker not in value:
         raise SystemExit("binaryTracked closing marker is ambiguous")
