@@ -78,6 +78,28 @@ jobs:
             morphhdl.ParameterizedStreamFifoCCTests \
             2>&1 | tee /tmp/increment-53e-native-hierarchy-2.13.log
 
+      - name: Collect generic expression publication evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence=/tmp/increment-53e-expression-evidence
+          rm -rf "$evidence"
+          mkdir -p "$evidence/patched-sources" "$evidence/generated"
+          cp morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala "$evidence/patched-sources/"
+          cp morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala "$evidence/patched-sources/"
+          cp morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala "$evidence/patched-sources/"
+          cp morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala "$evidence/patched-sources/"
+          cp morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala "$evidence/patched-sources/"
+          find /tmp -type f \( -name '*.v' -o -name '*.sv' \) \
+            \( -path '/tmp/morphhdl-single-source-*/*' -o -path '/tmp/morphhdl-native-streamfifocc-*/*' \) \
+            -print0 | while IFS= read -r -d '' file; do
+              relative=${file#/tmp/}
+              mkdir -p "$evidence/generated/$(dirname "$relative")"
+              cp "$file" "$evidence/generated/$relative"
+            done
+          find "$evidence" -type f -print | sort > "$evidence/manifest.txt"
+
       - name: Upload focused validation evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -86,9 +108,8 @@ jobs:
           path: |
             /tmp/increment-53e-native-hierarchy-2.12.log
             /tmp/increment-53e-native-hierarchy-2.13.log
-            /tmp/morphhdl-single-source-*
-            /tmp/morphhdl-native-streamfifocc-*
-          if-no-files-found: ignore
+            /tmp/increment-53e-expression-evidence
+          if-no-files-found: error
 
       - name: Publish passing MorphHDL-only repair
         shell: bash
