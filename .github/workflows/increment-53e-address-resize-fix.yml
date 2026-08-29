@@ -1,4 +1,4 @@
-name: Increment 53e graph-backed native FIFO repair
+name: Increment 53e generic native hierarchy repair
 
 on:
   push:
@@ -29,20 +29,27 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
 
-      - name: Apply graph-backed native FIFO repairs
+      - name: Apply generic graph-backed native hierarchy repairs
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/apply-increment-53e-buffercc-shape-repair.py
           python3 morphhdl/scripts/apply-increment-53e-address-role-repair.py
           python3 morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py
           python3 morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py
           python3 morphhdl/scripts/apply-increment-53e-emitted-child-definition-match.py
+          python3 morphhdl/scripts/apply-increment-53e-generic-emitted-inventory.py
+          python3 morphhdl/scripts/apply-increment-53e-generic-packed-lineage.py
           python3 morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
           python3 morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
           python3 morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py
           python3 morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
           git diff --check
+
+          hierarchy=morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+          if grep -nE 'StreamFifo|StreamFifoCC|BufferCC' "$hierarchy"; then
+            echo "Generic hierarchy lowering contains a component-specific name" >&2
+            exit 1
+          fi
 
       - name: Install pinned Mill bootstrap
         shell: bash
@@ -53,25 +60,27 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Validate native StreamFifoCC on both Scala lanes
+      - name: Validate generic hierarchy and native StreamFifoCC on both Scala lanes
         shell: bash
         run: |
           set -euo pipefail
           /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
+            morphhdl.GenericImplicitPackedShapeTests \
             morphhdl.ParameterizedStreamFifoCCTests \
-            2>&1 | tee /tmp/increment-53e-native-fifo-2.12.log
+            2>&1 | tee /tmp/increment-53e-native-hierarchy-2.12.log
           /tmp/morphhdl-mill 'morph[2.13.12].testOnly' \
+            morphhdl.GenericImplicitPackedShapeTests \
             morphhdl.ParameterizedStreamFifoCCTests \
-            2>&1 | tee /tmp/increment-53e-native-fifo-2.13.log
+            2>&1 | tee /tmp/increment-53e-native-hierarchy-2.13.log
 
       - name: Upload focused validation evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53e-native-fifo-evidence
+          name: increment-53e-native-hierarchy-evidence
           path: |
-            /tmp/increment-53e-native-fifo-2.12.log
-            /tmp/increment-53e-native-fifo-2.13.log
+            /tmp/increment-53e-native-hierarchy-2.12.log
+            /tmp/increment-53e-native-hierarchy-2.13.log
             /tmp/morphhdl-single-source-*
           if-no-files-found: ignore
 
@@ -84,6 +93,8 @@ jobs:
           rm -f morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py
           rm -f morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py
           rm -f morphhdl/scripts/apply-increment-53e-emitted-child-definition-match.py
+          rm -f morphhdl/scripts/apply-increment-53e-generic-emitted-inventory.py
+          rm -f morphhdl/scripts/apply-increment-53e-generic-packed-lineage.py
           rm -f morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
           rm -f morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
           rm -f morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py
@@ -91,5 +102,5 @@ jobs:
           rm -f morphhdl/scripts/apply-increment-53e-buffercc-shape-repair.py
           git add -A
           git diff --cached --check
-          git commit -m 'Increment 53e: retain native FIFO symbolic hierarchy'
+          git commit -m 'Increment 53e: retain generic native symbolic hierarchy'
           git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
