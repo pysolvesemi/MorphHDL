@@ -29,28 +29,26 @@ text = replace_once(
     ''').lstrip(),
     "MorphVerilog object declaration",
 )
-old_run = dedent('''
-      private def runSingleSource[T <: Component](
-          config: SpinalConfig,
-          component: => T
-      ): Either[MorphVerilogFailure, MorphSingleSourceVerilogReport] =
-        createSingleSourceDirectory() match {
-''')
-new_run = dedent('''
-      private def runSingleSource[T <: Component](
-          config: SpinalConfig,
-          component: => T
-      ): Either[MorphVerilogFailure, MorphSingleSourceVerilogReport] =
-        singleSourceGenerationMonitor.synchronized {
-          runSingleSourceExclusive(config, component)
-        }
+old_run = """  private def runSingleSource[T <: Component](
+      config: SpinalConfig,
+      component: => T
+  ): Either[MorphVerilogFailure, MorphSingleSourceVerilogReport] =
+    createSingleSourceDirectory() match {
+"""
+new_run = """  private def runSingleSource[T <: Component](
+      config: SpinalConfig,
+      component: => T
+  ): Either[MorphVerilogFailure, MorphSingleSourceVerilogReport] =
+    singleSourceGenerationMonitor.synchronized {
+      runSingleSourceExclusive(config, component)
+    }
 
-      private def runSingleSourceExclusive[T <: Component](
-          config: SpinalConfig,
-          component: => T
-      ): Either[MorphVerilogFailure, MorphSingleSourceVerilogReport] =
-        createSingleSourceDirectory() match {
-''')
+  private def runSingleSourceExclusive[T <: Component](
+      config: SpinalConfig,
+      component: => T
+  ): Either[MorphVerilogFailure, MorphSingleSourceVerilogReport] =
+    createSingleSourceDirectory() match {
+"""
 text = replace_once(text, old_run, new_run, "single-source generation entry")
 if text.count("singleSourceGenerationMonitor.synchronized") != 1:
     raise SystemExit("single-source transaction monitor is not used exactly once")
@@ -184,15 +182,22 @@ regression.write_text(
 
 workflow = Path(".github/workflows/morphhdl-native-stream-width-adapter.yml")
 value = workflow.read_text(encoding="utf-8")
-marker = "            morphhdl.GenericNativeDefinitionBoundaryTests \\\n"
-if marker not in value:
-    raise SystemExit("native-boundary workflow test list marker is missing")
 if "morphhdl.ConcurrentMorphVerilogIsolationTests" not in value:
-    value = value.replace(
-        marker,
-        marker + "            morphhdl.ConcurrentMorphVerilogIsolationTests \\\n",
-        1,
+    lines = value.splitlines()
+    indexes = [
+        index
+        for index, line in enumerate(lines)
+        if "morphhdl.GenericNativeDefinitionBoundaryTests" in line
+    ]
+    if len(indexes) != 1:
+        raise SystemExit(
+            f"expected one native-boundary workflow marker, found {len(indexes)}"
+        )
+    lines.insert(
+        indexes[0] + 1,
+        "            morphhdl.ConcurrentMorphVerilogIsolationTests \\",
     )
+    value = "\n".join(lines) + "\n"
 workflow.write_text(value, encoding="utf-8")
 
 doc = Path("docs/morphhdl/increment-53d-native-streamwidth-adapter.md")
