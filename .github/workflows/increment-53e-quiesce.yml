@@ -1,0 +1,59 @@
+name: Increment 53e quiesce temporary workflows
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53e-quiesce
+  cancel-in-progress: true
+
+jobs:
+  quiesce:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Keep only the final fail-closed closure workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          python3 - <<'PY'
+          from pathlib import Path
+          final = Path('.github/workflows/increment-53e-final-generic-closure.yml')
+          text = final.read_text()
+          old = "    if: ${{ hashFiles('.morphhdl/increment-53e-final-ready') != '' }}"
+          new = "    if: ${{ contains(github.event.head_commit.message, '[53e-final-ready]') }}"
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit('final closure job guard is missing or ambiguous')
+          final.write_text(text)
+
+          workflows = Path('.github/workflows')
+          for path in workflows.glob('increment-53e-*.yml'):
+              if path.name not in {
+                  'increment-53e-final-generic-closure.yml',
+                  'increment-53e-quiesce.yml',
+              }:
+                  path.unlink()
+          Path('.morphhdl').mkdir(exist_ok=True)
+          Path('.morphhdl/increment-53e-final-ready').write_text(
+              'The competing repair workflows were removed before the final generic closure run.\n'
+          )
+          Path('.github/workflows/increment-53e-quiesce.yml').unlink()
+          PY
+          git add -A
+          git diff --cached --check
+          git commit -m '[53e-final-ready] Quiesce Increment 53e closure branch'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
