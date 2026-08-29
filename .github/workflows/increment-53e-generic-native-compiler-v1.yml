@@ -1,0 +1,180 @@
+name: Increment 53e generic native compiler capture
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53e-generic-native-compiler-v1
+  cancel-in-progress: true
+
+jobs:
+  compile-and-contract:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Prepare checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin parameterized-verilog
+          git rev-parse HEAD > /tmp/repair-base.sha
+
+      - name: Materialize generic implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          scripts=(
+            morphhdl/scripts/apply-increment-53e-address-role-repair.py
+            morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py
+            morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py
+            morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
+            morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
+            morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py
+            morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
+            morphhdl/scripts/apply-increment-53e-generic-retained-domain-v2.py
+            morphhdl/scripts/apply-increment-53e-generic-retained-domain-v4.py
+            morphhdl/scripts/apply-increment-53e-generic-root-schema-equivalence.py
+            morphhdl/scripts/apply-increment-53e-generic-retained-expression-evaluator.py
+            morphhdl/scripts/apply-increment-53e-generic-native-runtime-selection.py
+            morphhdl/scripts/apply-increment-53e-generic-native-compiler-selection.py
+            morphhdl/scripts/apply-increment-53e-generic-comment-cleanup.py
+            morphhdl/scripts/apply-increment-53e-proof-api-alignment.py
+            morphhdl/scripts/apply-increment-53e-proof-api-alignment-v2.py
+          )
+          for script in "${scripts[@]}"; do
+            test ! -f "$script" || python3 "$script"
+          done
+          git diff --check
+
+      - name: Enforce native-source and generic-engine boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=$(cat /tmp/repair-base.sha)
+          test -z "$(git diff --name-only "$base" -- core/src/main lib/src/main idslplugin/src/main)"
+          test -z "$(git diff --name-only origin/parameterized-verilog -- core/src/main lib/src/main idslplugin/src/main)"
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          paths = [
+              Path('morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala'),
+              Path('morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala'),
+              Path('morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala'),
+              Path('morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala'),
+              Path('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala'),
+          ]
+          forbidden = re.compile(
+              r'(?<![A-Za-z0-9_])(?:StreamFifoCC|StreamFifo|BufferCC|pushToPopGray|popToPushGray)(?![A-Za-z0-9_])'
+              r'|/lib/src/main/scala/spinal/lib/(?:Stream|CrossClock)\.scala'
+          )
+          failures = []
+          for path in paths:
+              if not path.exists():
+                  continue
+              text = path.read_text()
+              # Remove comments before checking executable recognition. String
+              # literals remain visible and are deliberately audited.
+              text = re.sub(r'/\*.*?\*/', '', text, flags=re.S)
+              text = re.sub(r'//.*', '', text)
+              found = sorted(set(forbidden.findall(text)))
+              if found:
+                  failures.append(f'{path}: {found}')
+          if failures:
+              raise SystemExit('component-specific reusable engine recognition remains:\n' + '\n'.join(failures))
+          PY
+          grep -q 'contains("/lib/src/main/scala/spinal/")' \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          grep -q 'argumentName: String' \
+            morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala
+          grep -q 'provesEquivalentOnCompleteRetainedDomain' \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+
+      - name: Install Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            -o /tmp/mill
+          chmod +x /tmp/mill
+
+      - name: Compile complete test corpus on Scala 2.12.18
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/mill 'morph[2.12.18].test.compile' 2>&1 | tee /tmp/compile-2.12.log
+
+      - name: Run focused contract on Scala 2.12.18
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/mill 'morph[2.12.18].testOnly' \
+            morphhdl.ParameterizedStreamFifoCCTests \
+            2>&1 | tee /tmp/focused-2.12.log
+
+      - name: Compile complete test corpus on Scala 2.13.12
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/mill 'morph[2.13.12].test.compile' 2>&1 | tee /tmp/compile-2.13.log
+
+      - name: Run focused contract on Scala 2.13.12
+        shell: bash
+        run: |
+          set -o pipefail
+          /tmp/mill 'morph[2.13.12].testOnly' \
+            morphhdl.ParameterizedStreamFifoCCTests \
+            2>&1 | tee /tmp/focused-2.13.log
+
+      - name: Write compact diagnostic
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p morphhdl/diagnostics
+          {
+            echo '# Increment 53e latest generic compiler diagnostic'
+            echo
+            echo "Run: $GITHUB_RUN_ID"
+            echo "Head: $GITHUB_SHA"
+            echo
+            for file in /tmp/compile-2.12.log /tmp/focused-2.12.log /tmp/compile-2.13.log /tmp/focused-2.13.log; do
+              test -f "$file" || continue
+              echo "## $(basename "$file")"
+              grep -E -i '(^|\]) \[error\]|error:|exception|FAILED|not found|type mismatch|overloaded method|ambiguous|SPINAL-PARAMETERIZED' "$file" | tail -120 || true
+              echo
+            done
+          } > morphhdl/diagnostics/increment-53e-latest.txt
+          git add morphhdl/diagnostics/increment-53e-latest.txt
+          git commit -m 'Increment 53e: record generic compiler diagnostic' || true
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization || true
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53e-generic-native-compiler-v1-evidence
+          path: |
+            /tmp/compile-2.12.log
+            /tmp/focused-2.12.log
+            /tmp/compile-2.13.log
+            /tmp/focused-2.13.log
+            morphhdl/diagnostics/increment-53e-latest.txt
+          if-no-files-found: ignore
