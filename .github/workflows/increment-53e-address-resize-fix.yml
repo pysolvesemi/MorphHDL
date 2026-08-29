@@ -45,6 +45,7 @@ jobs:
           python3 morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
           python3 morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
           python3 morphhdl/scripts/apply-increment-53e-symbolic-auto-resize-width.py
+          python3 morphhdl/scripts/apply-increment-53e-auto-resize-assignment-rewrite.py
           python3 morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py
           python3 morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
           python3 morphhdl/scripts/apply-increment-53e-symbolic-zero-initializers.py
@@ -127,6 +128,7 @@ jobs:
           rm -f morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
           rm -f morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
           rm -f morphhdl/scripts/apply-increment-53e-symbolic-auto-resize-width.py
+          rm -f morphhdl/scripts/apply-increment-53e-auto-resize-assignment-rewrite.py
           rm -f morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py
           rm -f morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
           rm -f morphhdl/scripts/apply-increment-53e-symbolic-zero-initializers.py
