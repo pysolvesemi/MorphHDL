@@ -1,0 +1,6 @@
+stage=generic-root-taint-v4
+validated_head=c37640187b18dee991228ec6a3faa09d9f290475
+materialize_exit=1
+scala_2_12_exit=99
+scala_2_13_exit=99
+result=failure
