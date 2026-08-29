@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import runpy
 
 # Start from the coherent generic v10 transformation, then close the first
@@ -38,36 +39,40 @@ if text.count(old) != 1:
 text = text.replace(old, new, 1)
 plugin.write_text(text, encoding="utf-8")
 
-# Keep architecture assertions readable when the preceding prototype emitted
-# multiline tokens. These repairs are intentionally tolerant because the exact
-# assertion formatting changed across the diagnostic iterations.
+# Repair source-architecture assertions emitted by the earlier prototype.
+# These tests inspect stable tokens only; they do not alter production behavior.
 regression = Path(
     "morphhdl/src/test/scala/morphhdl/GenericNativeDefinitionBoundaryTests.scala"
 )
 value = regression.read_text(encoding="utf-8")
-broken_defdef_assertion = 'assert(value.contains("treeCopy.DefDef(\n          definition,"))'
-if broken_defdef_assertion in value:
-    index = value.index(broken_defdef_assertion)
-    line_start = value.rfind("\n", 0, index) + 1
-    indent = value[line_start:index]
-    value = value.replace(
-        broken_defdef_assertion,
-        'assert(value.contains("treeCopy.DefDef("))\n'
-        + indent
-        + 'assert(value.contains("definition,"))',
-        1,
-    )
-broken_definition_locator = (
+multiline_defdef = re.compile(
+    r'(?m)^(\s*)assert\(value\.contains\("treeCopy\.DefDef\(\s*definition,"\)\)'
+)
+value, repaired = multiline_defdef.subn(
+    lambda match: (
+        match.group(1) + 'assert(value.contains("treeCopy.DefDef("))\n'
+        + match.group(1) + 'assert(value.contains("definition,"))'
+    ),
+    value,
+    count=1,
+)
+if repaired == 0 and 'assert(value.contains("treeCopy.DefDef("))' not in value:
+    raise SystemExit("could not normalize generated DefDef assertion")
+
+malformed_locator = (
     '"case definition: DefDef if decoded(definition.name) != "<init>""'
 )
-if broken_definition_locator in value:
+if malformed_locator in value:
     value = value.replace(
-        broken_definition_locator,
+        malformed_locator,
         '"case definition: DefDef if decoded(definition.name)"',
         1,
     )
+
 needle = 'assert(value.contains("private def localNativeWidthNames"))'
-if needle in value and 'case Bind(name: TermName, body) =>' not in value:
+if needle not in value:
+    raise SystemExit("generic regression insertion point is missing")
+if 'assert(value.contains("case Bind(name: TermName, body) =>"))' not in value:
     index = value.index(needle)
     line_start = value.rfind("\n", 0, index) + 1
     indent = value[line_start:index]
@@ -82,7 +87,9 @@ regression.write_text(value, encoding="utf-8")
 guard = Path("morphhdl/scripts/check-native-stream-width-adapter-boundary.sh")
 value = guard.read_text(encoding="utf-8")
 marker = "grep -Fq 'private def nativeWidthRootAvailableAtEntry' \"$plugin\"\n"
-if marker in value and "case Bind(name: TermName, body) =>" not in value:
+if marker not in value:
+    raise SystemExit("generic source-guard insertion point is missing")
+if "grep -Fq 'case Bind(name: TermName, body) =>'" not in value:
     value = value.replace(
         marker,
         marker + "grep -Fq 'case Bind(name: TermName, body) =>' \"$plugin\"\n",
