@@ -1,0 +1,317 @@
+name: Increment 53e clean generic SpinalHDL closure v10
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+  actions: read
+  pull-requests: write
+
+concurrency:
+  group: increment-53e-clean-generic-closure-v10
+  cancel-in-progress: true
+
+jobs:
+  prove-and-close:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 360
+    env:
+      SOURCE_BRANCH: agent/increment-53e-native-streamfifocc-parameterization
+      FINAL_BRANCH: agent/increment-53e-generic-engine-final-v10
+      TARGET_BRANCH: parameterized-verilog
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Configure tools and fetch live branches
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          if ! command -v gh >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+            apt-get update
+            apt-get install -y gh jq
+          fi
+          git fetch --prune origin "$TARGET_BRANCH" "$SOURCE_BRANCH" --tags
+
+      - name: Select an already merged target or construct a fresh candidate
+        id: select
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="origin/$TARGET_BRANCH"
+          closed=0
+          if git show "$target:docs/morphhdl/parameterized-verilog-todo.md" | grep -Fq -- \
+               '- [x] **Increment 53e — Native StreamFifoCC parameterization without source edits**' && \
+             git cat-file -e "$target:morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedDomainEquivalence.scala" && \
+             git cat-file -e "$target:morphhdl/src/test/scala/spinal/core/internals/ExternalParameterizedDomainEquivalenceTests.scala" && \
+             git cat-file -e "$target:morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCImplementationProofTests.scala" && \
+             git cat-file -e "$target:morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCFormalEquivalenceTests.scala" && \
+             git cat-file -e "$target:morphhdl/scripts/check-generic-native-parameterization-engine.sh"; then
+            closed=1
+          fi
+
+          if ((closed)); then
+            git switch -C "$FINAL_BRANCH" "$target"
+            echo 'already_merged=1' >> "$GITHUB_OUTPUT"
+            echo "base_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git switch -C "$FINAL_BRANCH" "origin/$SOURCE_BRANCH"
+          if ! git merge --no-edit "$target"; then
+            mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
+            if [[ ${#conflicts[@]} -ne 1 || \
+                  "${conflicts[0]}" != docs/morphhdl/parameterized-verilog-todo.md ]]; then
+              printf 'Unexpected merge conflicts:\n%s\n' "${conflicts[*]}" >&2
+              exit 1
+            fi
+            git checkout --theirs docs/morphhdl/parameterized-verilog-todo.md
+            git add docs/morphhdl/parameterized-verilog-todo.md
+            git commit --no-edit
+          fi
+          git checkout "$target" -- core/src/main lib/src/main idslplugin/src/main
+          echo 'already_merged=0' >> "$GITHUB_OUTPUT"
+          echo "base_sha=$(git rev-parse "$target")" >> "$GITHUB_OUTPUT"
+
+      - name: Materialize the generic engine on a fresh feature candidate
+        if: steps.select.outputs.already_merged == '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_if_missing() {
+            local sentinel=$1 file=$2 script=$3
+            if ! grep -Fq "$sentinel" "$file"; then
+              test -f "$script"
+              python3 "$script"
+            fi
+          }
+          run_if_missing \
+            'private sealed trait MemoryAddressRole' \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala \
+            morphhdl/scripts/apply-increment-53e-address-role-repair.py
+          run_if_missing \
+            'def promoteImplicitPackedFormals' \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala \
+            morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py
+          if grep -Fq '::$definitionName::$key' \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala; then
+            python3 morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py
+          fi
+          run_if_missing \
+            'def isProvenModularUIntUpdate' \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala \
+            morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
+          run_if_missing \
+            'val materializedAutoResize' \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedAutoResize.scala \
+            morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
+          run_if_missing \
+            'def adaptiveLiteralBinaryWidth' \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala \
+            morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py
+          if [[ -f morphhdl/scripts/apply-increment-53e-generic-spinal-engine-v4.py ]]; then
+            python3 morphhdl/scripts/apply-increment-53e-generic-spinal-engine-v4.py
+          fi
+          test -x morphhdl/scripts/check-generic-native-parameterization-engine.sh
+          bash morphhdl/scripts/check-generic-native-parameterization-engine.sh
+          git diff --check
+          if git diff --name-only "origin/$TARGET_BRANCH" -- \
+            core/src/main lib/src/main idslplugin/src/main | grep -q .; then
+            echo 'Increment 53e changed native SpinalHDL production source.' >&2
+            exit 1
+          fi
+
+      - name: Validate generic source boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-generic-native-parameterization-engine.sh
+          grep -Fq -- \
+            '- [x] **Increment 53e — Native StreamFifoCC parameterization without source edits**' \
+            docs/morphhdl/parameterized-verilog-todo.md
+          test -f morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedDomainEquivalence.scala
+          test -f morphhdl/src/test/scala/spinal/core/internals/ExternalParameterizedDomainEquivalenceTests.scala
+          test -f morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCImplementationProofTests.scala
+          test -f morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCFormalEquivalenceTests.scala
+          if git diff --name-only "origin/$TARGET_BRANCH" -- \
+            core/src/main lib/src/main idslplugin/src/main | grep -q .; then
+            echo 'Candidate changes native SpinalHDL production source.' >&2
+            exit 1
+          fi
+
+      - name: Install pinned Mill launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Run generic domain and native implementation proofs on both Scala lines
+        shell: bash
+        run: |
+          set -euo pipefail
+          suite=morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCImplementationProofTests.scala
+          while read -r variable; do
+            case "$variable" in
+              *WORKSPACE*)
+                directory="/tmp/${variable,,}"
+                mkdir -p "$directory"
+                export "$variable=$directory"
+                ;;
+              *) export "$variable=1" ;;
+            esac
+          done < <(grep -oE 'MORPHDL_[A-Z0-9_]+' "$suite" | sort -u)
+          for scala in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill "morph[$scala].testOnly" \
+              spinal.core.internals.ExternalParameterizedDomainEquivalenceTests \
+              morphhdl.ParameterizedStreamFifoCCTests \
+              morphhdl.NativeStreamFifoCCImplementationProofTests
+          done
+
+      - name: Run complete MorphHDL regressions on both Scala lines
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill 'morph[2.12.18].test'
+          /tmp/morphhdl-mill 'morph[2.13.12].test'
+
+      - name: Publish a permanent clean candidate
+        if: steps.select.outputs.already_merged == '0'
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          find .github/workflows -maxdepth 1 -type f \
+            -name 'increment-53e-*.yml' -delete
+          find morphhdl/scripts -maxdepth 1 -type f \
+            -name 'apply-increment-53e-*.py' -delete
+          bash morphhdl/scripts/check-generic-native-parameterization-engine.sh
+          test -f .github/workflows/morphhdl-native-streamfifocc-parameterization.yml
+          test -f .github/workflows/morphhdl-native-streamfifocc-formal-equivalence.yml
+          mapfile -t changed < <(git diff --name-only "origin/$TARGET_BRANCH")
+          for path in "${changed[@]}"; do
+            case "$path" in
+              morphplugin/*|morphruntime/*|morphhdl/*|frontend/*|docs/morphhdl/*|.github/workflows/morphhdl-*) ;;
+              *) echo "Unexpected Increment 53e path: $path" >&2; exit 1 ;;
+            esac
+          done
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: generic native StreamFifoCC parameterization'
+          candidate_sha=$(git rev-parse HEAD)
+          candidate_tree=$(git rev-parse HEAD^{tree})
+          git push --force-with-lease origin HEAD:"$FINAL_BRANCH"
+          echo "candidate_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+          echo "candidate_tree=$candidate_tree" >> "$GITHUB_OUTPUT"
+
+      - name: Open the reviewed pull request
+        if: steps.select.outputs.already_merged == '0'
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          number=$(gh pr list --head "$FINAL_BRANCH" --base "$TARGET_BRANCH" \
+            --state open --json number --jq '.[0].number // empty')
+          if [[ -z "$number" ]]; then
+            url=$(gh pr create \
+              --head "$FINAL_BRANCH" --base "$TARGET_BRANCH" \
+              --title 'Increment 53e: generic native StreamFifoCC parameterization' \
+              --body-file - <<'EOF'
+Parameterizes the exact untouched `spinal.lib.StreamFifoCC` while keeping native SpinalHDL production sources unchanged. The enabling mechanism is generic across SpinalHDL and uses typed compiler structure, exact graph identity, retained provenance, and exhaustive bounded-domain proof—never component names, signal names, source filenames, rendered text, or equal concrete witnesses.
+
+Required gates cover Scala 2.12.18/2.13.12, complete MorphHDL regressions, depths 4/8/16, independent clocks, both buffered reset modes, Verilog-2001 lint/simulation/synthesis, independent native witnesses, solver-backed sequential equivalence, and a failing mutation control.
+EOF
+            )
+            number=${url##*/}
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Require permanent parameterization and formal workflows
+        if: steps.select.outputs.already_merged == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ steps.publish.outputs.candidate_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            '.github/workflows/morphhdl-native-streamfifocc-parameterization.yml'
+            '.github/workflows/morphhdl-native-streamfifocc-formal-equivalence.yml'
+          )
+          for attempt in $(seq 1 720); do
+            complete=1; successful=1
+            for path in "${required[@]}"; do
+              run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$CANDIDATE_SHA&per_page=100" \
+                --jq "[.workflow_runs[] | select(.path == \"$path\")] | sort_by(.created_at) | last // {}")
+              status=$(jq -r '.status // "missing"' <<<"$run")
+              conclusion=$(jq -r '.conclusion // "missing"' <<<"$run")
+              printf '%s status=%s conclusion=%s\n' "$path" "$status" "$conclusion"
+              [[ "$status" == completed ]] || complete=0
+              [[ "$conclusion" == success ]] || successful=0
+            done
+            if ((complete)); then
+              ((successful)) || exit 1
+              exit 0
+            fi
+            sleep 20
+          done
+          echo 'Timed out waiting for permanent Increment 53e workflows.' >&2
+          exit 1
+
+      - name: Merge exact proven candidate or certify already merged target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ALREADY_MERGED: ${{ steps.select.outputs.already_merged }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          CANDIDATE_SHA: ${{ steps.publish.outputs.candidate_sha }}
+          CANDIDATE_TREE: ${{ steps.publish.outputs.candidate_tree }}
+          BASE_SHA: ${{ steps.select.outputs.base_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$ALREADY_MERGED" == 1 ]]; then
+            merge_sha=$(git rev-parse HEAD)
+          else
+            [[ $(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid) == "$CANDIDATE_SHA" ]]
+            git fetch origin "$TARGET_BRANCH"
+            [[ $(git rev-parse "origin/$TARGET_BRANCH") == "$BASE_SHA" ]] || {
+              echo 'Target advanced after proof; refusing stale merge.' >&2
+              exit 1
+            }
+            gh pr merge "$PR_NUMBER" --squash --delete-branch
+            merge_sha=$(gh pr view "$PR_NUMBER" --json mergedAt,mergeCommit \
+              --jq 'select(.mergedAt != null) | .mergeCommit.oid')
+            [[ -n "$merge_sha" ]]
+            git fetch origin "$TARGET_BRANCH" --tags
+            [[ $(git rev-parse "origin/$TARGET_BRANCH") == "$merge_sha" ]]
+            [[ $(git rev-parse "$merge_sha^{tree}") == "$CANDIDATE_TREE" ]]
+          fi
+          git tag -f -a increment-53e-verified "$merge_sha" \
+            -m 'Increment 53e generic native StreamFifoCC parameterization verified'
+          git push --force origin refs/tags/increment-53e-verified
+          printf 'Increment 53e verified at %s\n' "$merge_sha"
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53e-clean-generic-closure-v10
+          path: |
+            /tmp/morphhdl_*
+            /tmp/MORPHDL_*
+          if-no-files-found: ignore
