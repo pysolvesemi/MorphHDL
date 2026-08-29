@@ -1,0 +1,60 @@
+name: Finalize and integrate approved typed roadmap
+
+on:
+  push:
+    branches:
+      - agent/typed-elaboration-roadmap-pivot
+    paths:
+      - .github/workflows/typed-roadmap-direct-finalize.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: typed-roadmap-direct-finalize
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/typed-elaboration-roadmap-pivot
+          fetch-depth: 0
+      - name: Materialize and validate the approved policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f morphhdl/scripts/apply-typed-elaboration-roadmap.py; then
+            python3 morphhdl/scripts/apply-typed-elaboration-roadmap.py
+          fi
+          git diff --check
+          grep -Fq 'Authoritative typed-elaboration architecture from Increment 53d onward' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Increment 53d — Typed elaboration pivot and native StreamWidthAdapter closure' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Increment 54 — Typed StreamFifo depth and structural-domain validation' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Increment 56 — Shadow-native-Int production retirement' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Approved production architecture from Increment 53d onward' docs/morphhdl/typed-elaboration-architecture.md
+      - name: Collapse to one docs-only commit on the latest integration base
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp docs/morphhdl/parameterized-verilog-todo.md "$tmp/parameterized-verilog-todo.md"
+          cp docs/morphhdl/typed-elaboration-architecture.md "$tmp/typed-elaboration-architecture.md"
+          git fetch origin parameterized-verilog
+          base="$(git rev-parse origin/parameterized-verilog)"
+          git reset --hard "$base"
+          cp "$tmp/parameterized-verilog-todo.md" docs/morphhdl/parameterized-verilog-todo.md
+          cp "$tmp/typed-elaboration-architecture.md" docs/morphhdl/typed-elaboration-architecture.md
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add docs/morphhdl/parameterized-verilog-todo.md docs/morphhdl/typed-elaboration-architecture.md
+          test "$(git diff --cached --name-only | sort | tr '\n' ' ')" = 'docs/morphhdl/parameterized-verilog-todo.md docs/morphhdl/typed-elaboration-architecture.md '
+          git diff --cached --check
+          git commit -m 'Adopt typed elaboration architecture from Increment 53d'
+          git push --force-with-lease origin HEAD:agent/typed-elaboration-roadmap-pivot
+          git push origin "$base":refs/heads/parameterized-verilog --force-with-lease=refs/heads/parameterized-verilog:"$base"
+          git push origin HEAD:parameterized-verilog
