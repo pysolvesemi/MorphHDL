@@ -1,0 +1,69 @@
+name: Increment 53e retry normalized generic compiler runtime
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53e-generic-v2-retry
+  cancel-in-progress: true
+
+jobs:
+  retry:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Install normalized generic scripts in final closure order
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/increment-53e-final-generic-closure.yml')
+          if not path.exists():
+              raise SystemExit('final closure workflow is missing')
+          text = path.read_text()
+          runtime = '            morphhdl/scripts/apply-increment-53e-generic-native-runtime-selection.py\n'
+          runtime_v2 = '            morphhdl/scripts/apply-increment-53e-generic-native-runtime-selection-v2.py\n'
+          compiler = '            morphhdl/scripts/apply-increment-53e-generic-native-compiler-selection.py\n'
+          compiler_v2 = '            morphhdl/scripts/apply-increment-53e-generic-native-compiler-selection-v2.py\n'
+          if runtime_v2 not in text:
+              if runtime not in text:
+                  raise SystemExit('runtime script marker is missing')
+              text = text.replace(runtime, runtime + runtime_v2, 1)
+          if compiler_v2 not in text:
+              if compiler not in text:
+                  raise SystemExit('compiler script marker is missing')
+              text = text.replace(compiler, compiler + compiler_v2, 1)
+          guard_old = "    if: ${{ hashFiles('.morphhdl/increment-53e-final-ready') != '' }}"
+          guard_new = "    if: ${{ contains(github.event.head_commit.message, '[53e-final-ready]') }}"
+          text = text.replace(guard_old, guard_new)
+          path.write_text(text)
+          Path('.morphhdl').mkdir(exist_ok=True)
+          Path('.morphhdl/increment-53e-final-ready').write_text('normalized generic v2 ready\n')
+          Path('.morphhdl/increment-53e-classification').unlink(missing_ok=True)
+          diagnostic = Path('morphhdl/diagnostics')
+          if diagnostic.exists():
+              for item in sorted(diagnostic.rglob('*'), reverse=True):
+                  if item.is_file() or item.is_symlink():
+                      item.unlink()
+                  elif item.is_dir():
+                      item.rmdir()
+              diagnostic.rmdir()
+          Path('.github/workflows/increment-53e-generic-v2-retry.yml').unlink()
+          PY
+          git add -A
+          git diff --cached --check
+          git commit -m '[53e-final-ready] Retry Increment 53e with normalized generic compiler runtime'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
