@@ -1,0 +1,58 @@
+name: Increment 53e isolate generated proof source
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53e-proof-prefix-fix
+  cancel-in-progress: true
+
+jobs:
+  rewrite:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Keep only package and imports before the generated harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("morphhdl/scripts/create-increment-53e-proof-suite.py")
+          value = path.read_text()
+          old = '''          prefix = source[:start]
+          harness = source[start:body_end]
+'''
+          new = '''          header_lines = source[:start].splitlines()
+          package_lines = [line for line in header_lines if line.startswith("package ")]
+          import_lines = [line for line in header_lines if line.startswith("import ")]
+          if len(package_lines) != 1:
+              raise SystemExit(
+                  f"proof source package declaration count={len(package_lines)}"
+              )
+          prefix = package_lines[0] + "\\n\\n" + "\\n".join(import_lines) + "\\n\\n"
+          harness = source[start:body_end]
+'''
+          if old not in value:
+              if new in value:
+                  raise SystemExit(0)
+              raise SystemExit("proof-source prefix marker missing")
+          path.write_text(value.replace(old, new, 1))
+          PY
+          rm -f .github/workflows/increment-53e-fix-proof-prefix.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: isolate generated proof source'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
