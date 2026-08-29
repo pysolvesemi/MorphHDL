@@ -1,4 +1,4 @@
-name: Validate Increment 53d generic all-Spinal boundary
+name: Publish validated Increment 53d generic all-Spinal boundary
 
 on:
   push:
@@ -10,7 +10,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: increment-53d-generic-all-spinal-publisher
+  cancel-in-progress: true
 
 jobs:
   source-boundary:
@@ -20,13 +24,13 @@ jobs:
     container:
       image: ghcr.io/spinalhdl/docker:latest
     steps:
-      - name: Check out diagnostic branch
+      - name: Check out exact candidate branch
         uses: actions/checkout@v4
         with:
           ref: agent/increment-53d-generic-native-definition-boundary
           fetch-depth: 0
 
-      - name: Apply pattern-binder-safe generic source-tree implementation
+      - name: Apply generic definition-boundary implementation
         shell: bash
         run: |
           set -euo pipefail
@@ -51,7 +55,7 @@ jobs:
           - "2.12.18"
           - "2.13.12"
     steps:
-      - name: Check out diagnostic branch
+      - name: Check out exact candidate branch
         uses: actions/checkout@v4
         with:
           ref: agent/increment-53d-generic-native-definition-boundary
@@ -66,7 +70,7 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Apply pattern-binder-safe generic source-tree implementation
+      - name: Apply generic definition-boundary implementation
         shell: bash
         run: |
           set -euo pipefail
@@ -74,36 +78,52 @@ jobs:
           git diff --check
 
       - name: Run complete MorphHDL test suite
-        id: tests
-        continue-on-error: true
         shell: bash
-        run: |
-          set +e
-          log=/tmp/increment-53d-tests-${{ matrix.scala_version }}.log
-          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].test > "$log" 2>&1
-          status=$?
-          printf '%s\n' "$status" > /tmp/increment-53d-tests-${{ matrix.scala_version }}.status
-          printf '%s\n' '--- filtered test diagnostics ---'
-          grep -E -n -C 5 '(\[error\]|FAILED|Exception|AssertionError|not found:|type mismatch|ambiguous|unbound)' \
-            "$log" | tail -n 800 || true
-          printf '%s\n' '--- final test output ---'
-          tail -n 500 "$log"
-          exit "$status"
+        run: /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].test
 
-      - name: Upload complete-suite log
-        if: always()
-        uses: actions/upload-artifact@v4
+  publish:
+    name: Publish validated generic implementation
+    needs:
+      - source-boundary
+      - contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    steps:
+      - name: Check out exact candidate branch
+        uses: actions/checkout@v4
         with:
-          name: increment-53d-complete-suite-scala-${{ matrix.scala_version }}
-          path: |
-            /tmp/increment-53d-tests-${{ matrix.scala_version }}.log
-            /tmp/increment-53d-tests-${{ matrix.scala_version }}.status
-          if-no-files-found: error
-          retention-days: 2
+          ref: agent/increment-53d-generic-native-definition-boundary
+          fetch-depth: 0
 
-      - name: Preserve complete-suite conclusion
-        if: always()
+      - name: Apply final implementation and verify boundaries
         shell: bash
         run: |
-          status="$(cat /tmp/increment-53d-tests-${{ matrix.scala_version }}.status 2>/dev/null || printf '1')"
-          exit "$status"
+          set -euo pipefail
+          python3 morphhdl/scripts/apply-increment-53d-generic-boundary-v11.py
+          git diff --check
+          bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
+          git diff --quiet HEAD -- core lib idslplugin
+
+      - name: Commit only validated production, regression, guard, and documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MorphHDL Agent"
+          git config user.email "morphhdl-agent@users.noreply.github.com"
+          git add \
+            docs/morphhdl/increment-53d-native-streamwidth-adapter.md \
+            morphhdl/scripts/check-native-stream-width-adapter-boundary.sh \
+            morphhdl/src/test/scala/morphhdl/GenericNativeDefinitionBoundaryTests.scala \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          git diff --cached --check
+          actual="$(git diff --cached --name-only | sort)"
+          expected="$(printf '%s\n' \
+            docs/morphhdl/increment-53d-native-streamwidth-adapter.md \
+            morphhdl/scripts/check-native-stream-width-adapter-boundary.sh \
+            morphhdl/src/test/scala/morphhdl/GenericNativeDefinitionBoundaryTests.scala \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala | sort)"
+          test "$actual" = "$expected"
+          git commit -m "Complete Increment 53d with generic SpinalHDL boundaries"
+          git push origin HEAD:agent/increment-53d-generic-native-definition-boundary
