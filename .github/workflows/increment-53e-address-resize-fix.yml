@@ -48,11 +48,12 @@ jobs:
           python3 morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
           python3 morphhdl/scripts/apply-increment-53e-symbolic-zero-initializers.py
           python3 morphhdl/scripts/apply-increment-53e-final-helper-lowering.py
+          python3 morphhdl/scripts/apply-increment-53e-expression-publication-diagnostic.py
           git diff --check
 
           hierarchy=morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
           if grep -nE 'StreamFifo|StreamFifoCC|BufferCC|MORPHDL-IMPLICIT-LINEAGE' "$hierarchy"; then
-            echo "Generic hierarchy lowering contains a component-specific name or temporary diagnostic" >&2
+            echo "Generic hierarchy lowering contains a component-specific name or temporary lineage diagnostic" >&2
             exit 1
           fi
 
@@ -67,6 +68,8 @@ jobs:
 
       - name: Validate generic hierarchy and native StreamFifoCC on both Scala lanes
         shell: bash
+        env:
+          MORPHDL_INCREMENT_53E_EXPRESSION_DEBUG: "1"
         run: |
           set -euo pipefail
           /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
@@ -85,19 +88,12 @@ jobs:
           set -euo pipefail
           evidence=/tmp/increment-53e-expression-evidence
           rm -rf "$evidence"
-          mkdir -p "$evidence/patched-sources" "$evidence/generated"
+          mkdir -p "$evidence/patched-sources"
           cp morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala "$evidence/patched-sources/"
           cp morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala "$evidence/patched-sources/"
           cp morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala "$evidence/patched-sources/"
           cp morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala "$evidence/patched-sources/"
           cp morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala "$evidence/patched-sources/"
-          find /tmp -type f \( -name '*.v' -o -name '*.sv' \) \
-            \( -path '/tmp/morphhdl-single-source-*/*' -o -path '/tmp/morphhdl-native-streamfifocc-*/*' \) \
-            -print0 | while IFS= read -r -d '' file; do
-              relative=${file#/tmp/}
-              mkdir -p "$evidence/generated/$(dirname "$relative")"
-              cp "$file" "$evidence/generated/$relative"
-            done
           find "$evidence" -type f -print | sort > "$evidence/manifest.txt"
 
       - name: Upload focused validation evidence
@@ -131,6 +127,7 @@ jobs:
           rm -f morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
           rm -f morphhdl/scripts/apply-increment-53e-symbolic-zero-initializers.py
           rm -f morphhdl/scripts/apply-increment-53e-final-helper-lowering.py
+          rm -f morphhdl/scripts/apply-increment-53e-expression-publication-diagnostic.py
           rm -f morphhdl/scripts/apply-increment-53e-buffercc-shape-repair.py
           git add -A
           git diff --cached --check
