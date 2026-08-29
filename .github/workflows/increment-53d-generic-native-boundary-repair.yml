@@ -40,9 +40,12 @@ jobs:
         run: |
           set -euo pipefail
           python3 morphhdl/scripts/apply-increment-53d-generic-native-boundary-repair.py
+          python3 morphhdl/scripts/apply-increment-53d-width-root-classification.py
           git diff --check
           git diff --stat
           grep -n -A44 -B4 'withoutEnclosingNativeRuntimeContext' \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          grep -n -A48 -B4 'nativeWidthRootScan' \
             morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
           grep -n -A28 -B4 'transformIndependentNativeDefinition' \
             morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
@@ -117,12 +120,17 @@ jobs:
           grep -Fq 'content.contains("widthOf")' "$plugin"
           grep -Fq 'withoutEnclosingNativeRuntimeContext' "$plugin"
           grep -Fq 'transformIndependentNativeDefinition(definition)' "$plugin"
+          grep -Fq 'private def nativeWidthRootScan' "$plugin"
+          grep -Fq 'if (stable.nonEmpty && unstable.nonEmpty)' "$plugin"
+          grep -Fq 'else unstable += current' "$plugin"
 
       - name: Commit validated production repair
         shell: bash
         run: |
           set -euo pipefail
-          rm -f morphhdl/scripts/apply-increment-53d-generic-native-boundary-repair.py
+          rm -f \
+            morphhdl/scripts/apply-increment-53d-generic-native-boundary-repair.py \
+            morphhdl/scripts/apply-increment-53d-width-root-classification.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
