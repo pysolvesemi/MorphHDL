@@ -1,0 +1,34 @@
+name: Export Increment 53d typed architecture workspace
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elab-int
+    paths:
+      - .github/workflows/increment-53d-typed-source-export.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elab-int
+          fetch-depth: 0
+          submodules: false
+      - name: Pack exact workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar --exclude=.git -czf /tmp/morphhdl-inc53d-typed-source.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-inc53d-typed-source
+          path: /tmp/morphhdl-inc53d-typed-source.tar.gz
+          if-no-files-found: error
+          retention-days: 2
