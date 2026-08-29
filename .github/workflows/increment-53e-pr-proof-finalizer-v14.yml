@@ -1,0 +1,183 @@
+name: Increment 53e PR-proof finalizer v14
+
+on:
+  push:
+    branches:
+      - agent/increment-53c-reconcile-20260828
+
+permissions:
+  contents: write
+  actions: read
+  checks: read
+  pull-requests: write
+
+concurrency:
+  group: increment-53e-pr-proof-finalizer-v14
+  cancel-in-progress: true
+
+jobs:
+  verify-and-merge:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      CANDIDATE_BRANCH: agent/increment-53e-generic-engine-final-v10
+      TARGET_BRANCH: parameterized-verilog
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53c-reconcile-20260828
+          fetch-depth: 0
+
+      - name: Configure and fetch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch --prune origin "$TARGET_BRANCH" "$CANDIDATE_BRANCH" --tags
+
+      - name: Accept an already verified target or validate candidate boundaries
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="origin/$TARGET_BRANCH"
+          target_sha=$(git rev-parse "$target")
+          tag_sha=$(git rev-parse refs/tags/increment-53e-verified^{} 2>/dev/null || true)
+          if [[ -n "$tag_sha" && "$tag_sha" == "$target_sha" ]] && \
+             git show "$target:docs/morphhdl/parameterized-verilog-todo.md" | grep -Fq -- \
+               '- [x] **Increment 53e — Native StreamFifoCC parameterization without source edits**'; then
+            echo 'already_closed=1' >> "$GITHUB_OUTPUT"
+            echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          candidate="origin/$CANDIDATE_BRANCH"
+          git merge-base --is-ancestor "$target" "$candidate" || {
+            echo 'Candidate is stale relative to parameterized-verilog.' >&2
+            exit 1
+          }
+          git switch --detach "$candidate"
+          bash morphhdl/scripts/check-generic-native-parameterization-engine.sh
+          grep -Fq -- \
+            '- [x] **Increment 53e — Native StreamFifoCC parameterization without source edits**' \
+            docs/morphhdl/parameterized-verilog-todo.md
+          test -f morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedDomainEquivalence.scala
+          test -f morphhdl/src/test/scala/spinal/core/internals/ExternalParameterizedDomainEquivalenceTests.scala
+          test -f morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCImplementationProofTests.scala
+          test -f morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCFormalEquivalenceTests.scala
+          if find morphhdl/scripts -maxdepth 1 -type f \
+            -name 'apply-increment-53e-*.py' -print -quit | grep -q .; then
+            echo 'Temporary Increment 53e patch script remains.' >&2
+            exit 1
+          fi
+          if find .github/workflows -maxdepth 1 -type f \
+            -name 'increment-53e-*.yml' -print -quit | grep -q .; then
+            echo 'Temporary Increment 53e workflow remains.' >&2
+            exit 1
+          fi
+          if git diff --name-only "$target"..."$candidate" -- \
+            core/src/main lib/src/main idslplugin/src/main | grep -q .; then
+            echo 'Candidate changes native SpinalHDL production source.' >&2
+            exit 1
+          fi
+
+          pr=$(gh pr list --head "$CANDIDATE_BRANCH" --base "$TARGET_BRANCH" \
+            --state open --json number --jq '.[0].number // empty')
+          if [[ -z "$pr" ]]; then
+            echo 'No open Increment 53e candidate PR exists; a normal user event is required after PR creation.' >&2
+            exit 1
+          fi
+          head=$(gh pr view "$pr" --json headRefOid --jq .headRefOid)
+          [[ "$head" == $(git rev-parse "$candidate") ]]
+          echo 'already_closed=0' >> "$GITHUB_OUTPUT"
+          echo "pr=$pr" >> "$GITHUB_OUTPUT"
+          echo "sha=$head" >> "$GITHUB_OUTPUT"
+          echo "tree=$(git rev-parse "$candidate^{tree}")" >> "$GITHUB_OUTPUT"
+          echo "base=$(git rev-parse "$target")" >> "$GITHUB_OUTPUT"
+
+      - name: Require successful permanent workflows for the current PR revision
+        if: steps.candidate.outputs.already_closed == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.candidate.outputs.pr }}
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            '.github/workflows/morphhdl-native-streamfifocc-parameterization.yml'
+            '.github/workflows/morphhdl-native-streamfifocc-formal-equivalence.yml'
+          )
+
+          for attempt in $(seq 1 720); do
+            [[ $(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid) == "$CANDIDATE_SHA" ]] || {
+              echo 'PR head changed while proof was pending.' >&2
+              exit 1
+            }
+            all_complete=1
+            all_success=1
+            for path in "${required[@]}"; do
+              run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?event=pull_request&per_page=100" \
+                --jq "[.workflow_runs[] | select(.path == \"$path\") | select(any(.pull_requests[]?; .number == $PR_NUMBER))] | sort_by(.created_at) | last // {}")
+              id=$(jq -r '.id // "missing"' <<<"$run")
+              status=$(jq -r '.status // "missing"' <<<"$run")
+              conclusion=$(jq -r '.conclusion // "missing"' <<<"$run")
+              head_branch=$(jq -r '.head_branch // "missing"' <<<"$run")
+              printf '%s run=%s branch=%s status=%s conclusion=%s\n' \
+                "$path" "$id" "$head_branch" "$status" "$conclusion"
+              [[ "$head_branch" == "$CANDIDATE_BRANCH" ]] || all_success=0
+              [[ "$status" == completed ]] || all_complete=0
+              [[ "$conclusion" == success ]] || all_success=0
+            done
+            if ((all_complete)); then
+              ((all_success)) || {
+                echo 'A required current-PR workflow failed.' >&2
+                exit 1
+              }
+              # Also fail on any other completed failing check attached to the
+              # current PR revision; hidden regressions may not be ignored.
+              gh pr checks "$PR_NUMBER" --required || gh pr checks "$PR_NUMBER"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo 'Timed out waiting for current PR proof workflows.' >&2
+          exit 1
+
+      - name: Squash merge exact proven tree and tag it
+        if: steps.candidate.outputs.already_closed == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.candidate.outputs.pr }}
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+          CANDIDATE_TREE: ${{ steps.candidate.outputs.tree }}
+          BASE_SHA: ${{ steps.candidate.outputs.base }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ $(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid) == "$CANDIDATE_SHA" ]]
+          git fetch origin "$TARGET_BRANCH"
+          [[ $(git rev-parse "origin/$TARGET_BRANCH") == "$BASE_SHA" ]] || {
+            echo 'Target advanced after exact PR proof; refusing stale merge.' >&2
+            exit 1
+          }
+          gh pr merge "$PR_NUMBER" --squash --delete-branch
+          merge_sha=$(gh pr view "$PR_NUMBER" --json mergedAt,mergeCommit \
+            --jq 'select(.mergedAt != null) | .mergeCommit.oid')
+          [[ -n "$merge_sha" ]]
+          git fetch origin "$TARGET_BRANCH" --tags
+          [[ $(git rev-parse "origin/$TARGET_BRANCH") == "$merge_sha" ]]
+          [[ $(git rev-parse "$merge_sha^{tree}") == "$CANDIDATE_TREE" ]]
+          git tag -f -a increment-53e-verified "$merge_sha" \
+            -m 'Increment 53e generic native StreamFifoCC parameterization verified'
+          git push --force origin refs/tags/increment-53e-verified
+          printf 'Increment 53e merged through PR #%s at %s\n' "$PR_NUMBER" "$merge_sha"
+
+      - name: Report already closed target
+        if: steps.candidate.outputs.already_closed == '1'
+        run: |
+          echo "Increment 53e is already verified at ${{ steps.candidate.outputs.target_sha }}"
