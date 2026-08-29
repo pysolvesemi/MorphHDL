@@ -1,0 +1,12 @@
+result=not-ready-for-pr
+head=3f66b44ac8a045a5f4cfd32a375d11ef3c829ed6
+run_id=33249181065
+trigger_sha=7df8d7a73a944a67f4278c9b678edcf6f12f6037
+conclusion=failure
+failed_step=close: Materialize only missing generic implementation
+stage=generic-root-taint-v4
+validated_head=c37640187b18dee991228ec6a3faa09d9f290475
+materialize_exit=1
+scala_2_12_exit=99
+scala_2_13_exit=99
+result=failure
