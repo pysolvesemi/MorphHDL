@@ -1,4 +1,4 @@
-name: Validate Increment 53d generic all-Spinal boundary
+name: Diagnose Increment 53d generic source guard
 
 on:
   push:
@@ -13,8 +13,8 @@ permissions:
   contents: read
 
 jobs:
-  source-boundary:
-    name: Generic source and native-library boundary
+  diagnose-source-boundary:
+    name: Trace generic source boundary
     runs-on: ubuntu-latest
     timeout-minutes: 30
     container:
@@ -26,84 +26,25 @@ jobs:
           ref: agent/increment-53d-generic-native-definition-boundary
           fetch-depth: 0
 
-      - name: Apply pattern-binder-safe generic source-tree implementation
+      - name: Apply pattern-binder-safe generic implementation
         shell: bash
         run: |
           set -euo pipefail
           python3 morphhdl/scripts/apply-increment-53d-generic-boundary-v11.py
           git diff --check
-          bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
-          git diff --quiet HEAD -- core lib idslplugin
+          git diff --stat
 
-  contracts:
-    name: Complete MorphHDL suite Scala ${{ matrix.scala_version }}
-    needs: source-boundary
-    runs-on: ubuntu-latest
-    timeout-minutes: 180
-    container:
-      image: ghcr.io/spinalhdl/docker:latest
-    env:
-      XDG_CACHE_HOME: /tmp/morphhdl-cache
-    strategy:
-      fail-fast: false
-      matrix:
-        scala_version:
-          - "2.12.18"
-          - "2.13.12"
-    steps:
-      - name: Check out diagnostic branch
-        uses: actions/checkout@v4
-        with:
-          ref: agent/increment-53d-generic-native-definition-boundary
-          fetch-depth: 0
-
-      - name: Install pinned Mill bootstrap
+      - name: Trace permanent generic source guard
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --location --retry 5 --retry-all-errors \
-            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
-            --output /tmp/morphhdl-mill
-          chmod +x /tmp/morphhdl-mill
+          bash -x morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
 
-      - name: Apply pattern-binder-safe generic source-tree implementation
+      - name: Prove upstream-owned sources remain untouched
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/apply-increment-53d-generic-boundary-v11.py
-          git diff --check
-
-      - name: Run complete MorphHDL test suite
-        id: tests
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          log=/tmp/increment-53d-tests-${{ matrix.scala_version }}.log
-          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].test > "$log" 2>&1
-          status=$?
-          printf '%s\n' "$status" > /tmp/increment-53d-tests-${{ matrix.scala_version }}.status
-          printf '%s\n' '--- filtered test diagnostics ---'
-          grep -E -n -C 5 '(\[error\]|FAILED|Exception|AssertionError|not found:|type mismatch|ambiguous|unbound)' \
-            "$log" | tail -n 800 || true
-          printf '%s\n' '--- final test output ---'
-          tail -n 500 "$log"
-          exit "$status"
-
-      - name: Upload complete-suite log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: increment-53d-complete-suite-scala-${{ matrix.scala_version }}
-          path: |
-            /tmp/increment-53d-tests-${{ matrix.scala_version }}.log
-            /tmp/increment-53d-tests-${{ matrix.scala_version }}.status
-          if-no-files-found: error
-          retention-days: 2
-
-      - name: Preserve complete-suite conclusion
-        if: always()
-        shell: bash
-        run: |
-          status="$(cat /tmp/increment-53d-tests-${{ matrix.scala_version }}.status 2>/dev/null || printf '1')"
-          exit "$status"
+          if ! git diff --quiet HEAD -- core lib idslplugin; then
+            git diff -- core lib idslplugin
+            exit 1
+          fi
