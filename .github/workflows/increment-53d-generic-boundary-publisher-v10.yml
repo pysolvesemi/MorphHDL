@@ -1,4 +1,4 @@
-name: Complete Increment 53d generic native definition boundary v10
+name: Diagnose Increment 53d generic all-Spinal compilation
 
 on:
   push:
@@ -6,20 +6,21 @@ on:
       - agent/increment-53d-generic-native-definition-boundary
     paths:
       - .github/workflows/increment-53d-generic-boundary-publisher-v10.yml
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  repair-test-publish:
+  diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 90
     container:
       image: ghcr.io/spinalhdl/docker:latest
     env:
       XDG_CACHE_HOME: /tmp/morphhdl-cache
     steps:
-      - name: Check out exact repair branch
+      - name: Check out diagnostic branch
         uses: actions/checkout@v4
         with:
           ref: agent/increment-53d-generic-native-definition-boundary
@@ -34,117 +35,48 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Apply syntax-safe generic definition-lifetime repair
+      - name: Apply coherent generic source-tree prototype
         shell: bash
         run: |
           set -euo pipefail
           python3 morphhdl/scripts/apply-increment-53d-generic-boundary-v10.py
           git diff --check
           git diff --stat
-          nl -ba morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala \
-            | sed -n '2070,2175p'
 
-      - name: Fast-compile MorphHDL compiler plugin on Scala 2.13.12
+      - name: Compile compiler plugin
+        shell: bash
+        run: /tmp/morphhdl-mill morphplugin[2.13.12].compile
+
+      - name: Capture complete SpinalHDL compilation
+        id: compile
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          /tmp/morphhdl-mill morphplugin[2.13.12].compile
+          set +e
+          /tmp/morphhdl-mill morph[2.13.12].test.compile > /tmp/increment-53d-compile.log 2>&1
+          status=$?
+          printf '%s\n' "$status" > /tmp/increment-53d-compile.status
+          printf '%s\n' '--- filtered compiler diagnostics ---'
+          grep -E -n -C 4 '(error:|Error:|Exception|not found:|type mismatch|ambiguous|unbound|assertion failed)' \
+            /tmp/increment-53d-compile.log | tail -n 500 || true
+          printf '%s\n' '--- final compiler output ---'
+          tail -n 500 /tmp/increment-53d-compile.log
+          exit "$status"
 
-      - name: Compile complete upstream SpinalHDL tree on Scala 2.13.12
+      - name: Upload diagnostic log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53d-generic-compile-diagnostic
+          path: |
+            /tmp/increment-53d-compile.log
+            /tmp/increment-53d-compile.status
+          if-no-files-found: error
+          retention-days: 2
+
+      - name: Preserve diagnostic conclusion
+        if: always()
         shell: bash
         run: |
-          set -euo pipefail
-          /tmp/morphhdl-mill morph[2.13.12].test.compile
-
-      - name: Validate decisive generic witnesses on Scala 2.13.12
-        shell: bash
-        run: |
-          set -euo pipefail
-          /tmp/morphhdl-mill morph[2.13.12].testOnly \
-            morphhdl.GenericNativeDefinitionBoundaryTests \
-            morphhdl.ParameterizedStreamWidthAdapterTests \
-            morphhdl.ParameterizedStreamFifoDepthTests
-
-      - name: Validate inherited cross-component contracts on Scala 2.13.12
-        shell: bash
-        run: |
-          set -euo pipefail
-          /tmp/morphhdl-mill morph[2.13.12].testOnly \
-            morphhdl.GenericNativeDefinitionBoundaryTests \
-            morphhdl.ParameterizedStreamWidthAdapterTests \
-            morphhdl.ParameterizedStreamFifoDepthTests \
-            morphhdl.BackendSyncMergeIsolationTests \
-            morphhdl.CapturedAssignmentNormalizationTests \
-            morphhdl.NativeIntSymbolicConditionalTests \
-            morphhdl.NativeIntNestedSymbolicControlFlowTests \
-            morphhdl.NativeMemAutoProvenanceTests \
-            morphhdl.ExternalNativeIntFormalizationTests \
-            morphhdl.ExternalNativeIntShadowExpressionTests \
-            morphhdl.ExternalNativeIntShadowProvenanceTests \
-            morphhdl.FormalParameterIdentityTests \
-            morphhdl.FormalParameterClonePropagationTests \
-            morphhdl.HierarchyParameterBindingTests \
-            morphhdl.MorphSingleSourceVerilogTests \
-            morphhdl.integration.ExternalSpinalVerilogBaselineTests
-
-      - name: Fast-compile MorphHDL compiler plugin on Scala 2.12.18
-        shell: bash
-        run: |
-          set -euo pipefail
-          /tmp/morphhdl-mill morphplugin[2.12.18].compile
-
-      - name: Compile complete upstream SpinalHDL tree on Scala 2.12.18
-        shell: bash
-        run: |
-          set -euo pipefail
-          /tmp/morphhdl-mill morph[2.12.18].test.compile
-
-      - name: Validate decisive generic witnesses on Scala 2.12.18
-        shell: bash
-        run: |
-          set -euo pipefail
-          /tmp/morphhdl-mill morph[2.12.18].testOnly \
-            morphhdl.GenericNativeDefinitionBoundaryTests \
-            morphhdl.ParameterizedStreamWidthAdapterTests \
-            morphhdl.ParameterizedStreamFifoDepthTests
-
-      - name: Validate inherited cross-component contracts on Scala 2.12.18
-        shell: bash
-        run: |
-          set -euo pipefail
-          /tmp/morphhdl-mill morph[2.12.18].testOnly \
-            morphhdl.GenericNativeDefinitionBoundaryTests \
-            morphhdl.ParameterizedStreamWidthAdapterTests \
-            morphhdl.ParameterizedStreamFifoDepthTests \
-            morphhdl.BackendSyncMergeIsolationTests \
-            morphhdl.CapturedAssignmentNormalizationTests \
-            morphhdl.NativeIntSymbolicConditionalTests \
-            morphhdl.NativeIntNestedSymbolicControlFlowTests \
-            morphhdl.NativeMemAutoProvenanceTests \
-            morphhdl.ExternalNativeIntFormalizationTests \
-            morphhdl.ExternalNativeIntShadowExpressionTests \
-            morphhdl.ExternalNativeIntShadowProvenanceTests \
-            morphhdl.FormalParameterIdentityTests \
-            morphhdl.FormalParameterClonePropagationTests \
-            morphhdl.HierarchyParameterBindingTests \
-            morphhdl.MorphSingleSourceVerilogTests \
-            morphhdl.integration.ExternalSpinalVerilogBaselineTests
-
-      - name: Validate native-source and generic-boundary contracts
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
-
-      - name: Publish exact validated production repair
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -f .github/workflows/increment-53d-generic-boundary-publisher*.yml
-          rm -f morphhdl/scripts/apply-increment-53d-generic-boundary-v*.py
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --check
-          git commit -m "fix: make native definition capture component-independent"
-          git push origin HEAD:agent/increment-53d-generic-native-definition-boundary
+          status="$(cat /tmp/increment-53d-compile.status 2>/dev/null || printf '1')"
+          exit "$status"
