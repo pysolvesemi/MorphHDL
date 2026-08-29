@@ -3,7 +3,7 @@ name: MorphHDL native StreamWidthAdapter parameterization
 on:
   push:
     branches:
-      - agent/increment-53d-native-streamwidth-adapter
+      - 'agent/increment-53d-*'
       - parameterized-verilog
   pull_request:
     branches:
@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   source-boundary:
-    name: Native StreamWidthAdapter source boundary
+    name: Generic native definition and StreamWidthAdapter source boundary
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -33,7 +33,7 @@ jobs:
         run: bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
 
   contracts:
-    name: Native StreamWidthAdapter proof Scala ${{ matrix.scala_version }}
+    name: Generic native boundary proof Scala ${{ matrix.scala_version }}
     needs: source-boundary
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -62,11 +62,12 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Validate native StreamWidthAdapter and inherited contracts
+      - name: Validate generic native boundaries and inherited contracts
         shell: bash
         run: |
           set -euo pipefail
           /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.GenericNativeDefinitionBoundaryTests \
             morphhdl.ParameterizedStreamWidthAdapterTests \
             morphhdl.ParameterizedStreamFifoDepthTests \
             morphhdl.BackendSyncMergeIsolationTests \
