@@ -30,6 +30,52 @@ if value.count(candidate_old) != 1:
     )
 value = value.replace(candidate_old, candidate_new, 1)
 
+actual_old = '''            .foreach { case (_, grouped) =>
+              val actuals = grouped.map(_.actual).distinct
+              if (actuals.size != 1) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-IMPLICIT-FORMAL-AMBIGUOUS",
+                  s"native child '$definitionName' instance '$instanceName' maps one packed slot to multiple actual width expressions"
+                )
+              }
+              slots += ImplicitPackedSlot(
+                parent = parent,
+                child = child,
+                definitionName = definitionName,
+                ports = grouped.sortBy(_.name),
+                actual = actuals.head
+              )
+            }
+'''
+actual_new = '''            .foreach { case (signature, grouped) =>
+              // Source locations are diagnostics, not expression identity. The
+              // group key already proves identical render/default/domain/formal
+              // schemas, so select one deterministic source while preserving
+              // one canonical semantic expression.
+              val source = grouped.flatMap(_.actual.sourceLocation).distinct.sorted.headOption
+              val actual = ElaborationIntegerExpression(
+                verilog = signature.render,
+                default = signature.default,
+                minimum = signature.minimum,
+                maximum = signature.maximum,
+                parameters = signature.parameters,
+                sourceLocation = source
+              )
+              slots += ImplicitPackedSlot(
+                parent = parent,
+                child = child,
+                definitionName = definitionName,
+                ports = grouped.sortBy(_.name),
+                actual = actual
+              )
+            }
+'''
+if value.count(actual_old) != 1:
+    raise SystemExit(
+        f"generic packed lineage actual normalization marker count={value.count(actual_old)}"
+    )
+value = value.replace(actual_old, actual_new, 1)
+
 binding_marker = '''  private def bindingExpression(
       value: BindingExpr
   ): ElaborationIntegerExpression = value match {
@@ -40,11 +86,11 @@ if value.count(binding_marker) != 1:
     )
 
 helpers = '''  /**
-    * Return one exact child-local packed source only through wrappers which
-    * preserve both the concrete type width and the complete packed value. This
-    * deliberately excludes arithmetic, indexing, slicing, concatenation and
-    * widening/narrowing conversions: those require their own reviewed symbolic
-    * result-width rules.
+    * Return one exact packed source only through wrappers which preserve both
+    * the concrete type width and the complete packed value. This deliberately
+    * excludes arithmetic, indexing, slicing, concatenation and any real
+    * widening or narrowing conversion: those require their own reviewed
+    * symbolic result-width rules.
     */
   private def transparentPackedSource(
       expression: Expression,
@@ -60,6 +106,98 @@ helpers = '''  /**
           cast.input.getWidth == width =>
       transparentPackedSource(cast.input, width)
     case _ => None
+  }
+
+  private def distinctPackedIdentities(
+      values: Vector[BitVector]
+  ): Vector[BitVector] = {
+    val seen = new IdentityHashMap[BitVector, java.lang.Boolean]()
+    values.filter(value => seen.put(value, java.lang.Boolean.TRUE) == null)
+  }
+
+  /**
+    * Resolve every immediate parent-side peer of one exact child port through a
+    * direct full-packed boundary assignment. Output fanout is supported; every
+    * peer must still be a native BitVector of the same concrete witness width.
+    */
+  private def boundaryPackedPeers(
+      parent: Component,
+      childPort: BitVector,
+      slotIdentity: String
+  ): Vector[BitVector] = {
+    val peers = ArrayBuffer.empty[BitVector]
+    parent.dslBody.walkLeafStatements {
+      case assignment: DataAssignmentStatement if childPort.isInput =>
+        if ((assignment.target eq childPort) &&
+            (assignment.finalTarget eq childPort)) {
+          transparentPackedSource(
+            assignment.source,
+            childPort.getBitsWidth
+          ).foreach { peer =>
+            if (peer.component == parent) peers += peer
+          }
+        }
+      case assignment: DataAssignmentStatement if childPort.isOutput =>
+        assignment.target match {
+          case peer: BitVector
+              if (assignment.finalTarget eq peer) &&
+                peer.component == parent &&
+                peer.getBitsWidth == childPort.getBitsWidth =>
+            transparentPackedSource(
+              assignment.source,
+              childPort.getBitsWidth
+            ).foreach { source =>
+              if (source eq childPort) peers += peer
+            }
+          case _ =>
+        }
+      case _ =>
+    }
+
+    val result = distinctPackedIdentities(peers.toVector)
+    if (result.isEmpty) {
+      val name = Option(childPort.getName()).filter(_.nonEmpty).getOrElse("<unnamed>")
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-IMPLICIT-LINEAGE-PORT-EVIDENCE-MISSING",
+        s"implicit packed slot '$slotIdentity' reaches child port '$name' without one exact full-packed parent boundary peer"
+      )
+    }
+    result
+  }
+
+  private def attachParentActual(
+      parentPeer: BitVector,
+      actual: ElaborationIntegerExpression,
+      slotIdentity: String
+  ): Unit = {
+    if (!actual.default.isValidInt ||
+        parentPeer.getBitsWidth != actual.default.toInt) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-IMPLICIT-LINEAGE-WITNESS-MISMATCH",
+        s"parent peer of implicit packed slot '$slotIdentity' has concrete width ${parentPeer.getBitsWidth}, expected ${actual.default}"
+      )
+    }
+
+    ParameterizedWidth.expressionOf(parentPeer) match {
+      case Some(existing)
+          if expressionSignature(existing) != expressionSignature(actual) =>
+        val name = Option(parentPeer.getName()).filter(_.nonEmpty).getOrElse("<unnamed>")
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-IMPLICIT-LINEAGE-ACTUAL-CONFLICT",
+          s"parent peer '$name' of implicit packed slot '$slotIdentity' retains '${existing.verilog}', expected '${actual.verilog}'"
+        )
+      case Some(_) =>
+      case None =>
+        ParameterizedWidth.attach(
+          parentPeer,
+          ParameterizedBitCount(
+            value = actual.default.toInt,
+            parameter = None,
+            sourceLocation = actual.sourceLocation,
+            expression = Some(actual)
+          )
+        )
+    }
   }
 
   /**
@@ -161,24 +299,28 @@ helpers = '''  /**
       slotIdentity: String,
       promoted: IdentityHashMap[BitVector, String]
   ): Unit = {
-    val ports = occurrence.ports.map(_.port)
-    val portSet = new IdentityHashMap[BitVector, java.lang.Boolean]()
-    ports.foreach(port => portSet.put(port, java.lang.Boolean.TRUE))
-
+    val seedPorts = occurrence.ports.map(_.port)
     val lineage = implicitPackedLineage(
       occurrence.child,
-      ports,
+      seedPorts,
       slotIdentity,
       promoted
     )
-    lineage.foreach { leaf =>
-      if (leaf.isIo && !portSet.containsKey(leaf)) {
-        val name = Option(leaf.getName()).filter(_.nonEmpty).getOrElse("<unnamed>")
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-IMPLICIT-LINEAGE-PORT-EVIDENCE-MISSING",
-          s"implicit packed slot '$slotIdentity' reaches child port '$name' without one matching symbolic parent connection"
-        )
-      }
+    val ports = distinctPackedIdentities(
+      lineage.filter(_.isIo).sortBy(port =>
+        Option(port.getName()).getOrElse("")
+      )
+    )
+    val portSet = new IdentityHashMap[BitVector, java.lang.Boolean]()
+    ports.foreach { port =>
+      portSet.put(port, java.lang.Boolean.TRUE)
+      boundaryPackedPeers(
+        occurrence.parent,
+        port,
+        slotIdentity
+      ).foreach(peer =>
+        attachParentActual(peer, occurrence.actual, slotIdentity)
+      )
     }
 
     ExternalNativeIntFormalizationRegistry.attachComponent(
