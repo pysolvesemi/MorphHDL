@@ -1,0 +1,74 @@
+name: Increment 53e proof command repair
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+jobs:
+  repair-test-publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Prepare authenticated branch checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+      - name: Apply proof command helper repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/apply-increment-53e-proof-command-helper.py
+          git diff --check
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate repaired proof sources on both Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
+            morphhdl.GenericImplicitPackedShapeTests \
+            morphhdl.GenericAutoResizeWidthTests \
+            morphhdl.ParameterizedStreamFifoCCTests \
+            morphhdl.NativeStreamFifoCCImplementationProofTests \
+            morphhdl.NativeStreamFifoCCFormalEquivalenceTests
+          /tmp/morphhdl-mill 'morph[2.13.12].testOnly' \
+            morphhdl.GenericImplicitPackedShapeTests \
+            morphhdl.GenericAutoResizeWidthTests \
+            morphhdl.ParameterizedStreamFifoCCTests \
+            morphhdl.NativeStreamFifoCCImplementationProofTests \
+            morphhdl.NativeStreamFifoCCFormalEquivalenceTests
+
+      - name: Publish repaired proof sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/increment-53e-proof-command-repair.yml
+          rm -f morphhdl/scripts/apply-increment-53e-proof-command-helper.py
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: disambiguate proof process runner'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
