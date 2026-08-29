@@ -1,0 +1,45 @@
+name: Publish typed elaboration architecture roadmap
+
+on:
+  push:
+    branches:
+      - agent/typed-elabint-roadmap-final10
+    paths:
+      - .github/workflows/publish-typed-elabint-roadmap.yml
+      - morphhdl/scripts/update-typed-elabint-roadmap.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/typed-elabint-roadmap-final10
+          fetch-depth: 0
+
+      - name: Apply controlling roadmap amendment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/update-typed-elabint-roadmap.py
+          git diff --check
+          grep -Fq 'Architecture supersession — typed elaboration values' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Increment 53d — Typed elaboration values and native StreamWidthAdapter migration' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Increment 53g — Native-shadow compatibility retirement' docs/morphhdl/parameterized-verilog-todo.md
+          ! grep -Fq 'Increment 55 — Upstream parity and complete zero-diff proof' docs/morphhdl/parameterized-verilog-todo.md
+
+      - name: Commit roadmap
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add docs/morphhdl/parameterized-verilog-todo.md
+          git diff --cached --check
+          git commit -m 'Adopt typed elaboration architecture roadmap'
+          git push origin HEAD:agent/typed-elabint-roadmap-final10
