@@ -1,0 +1,183 @@
+name: MorphHDL generic native StreamFifoCC proof
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+      - parameterized-verilog
+  pull_request:
+    branches:
+      - parameterized-verilog
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-53e-final-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  generic-native-proof:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect fully materialized candidate
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          backend=morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+          registry=morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala
+          plugin=morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          proof=morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCProofGenerationTests.scala
+          ready=true
+          grep -Fq 'provesRetainedProvenanceEquivalence' "$backend" || ready=false
+          grep -Fq 'evaluateDefinitionExpressionInOwnDomain' "$registry" || ready=false
+          grep -Fq 'nativeFormalIntComponentCandidate' "$plugin" || ready=false
+          test -f "$proof" || ready=false
+          test -f morphhdl/scripts/run-increment-53e-native-proofs.py || ready=false
+          if test "$ready" = false; then
+            if test "${{ github.event_name }}" = pull_request || \
+               test "${{ github.ref_name }}" = parameterized-verilog; then
+              echo 'Increment 53e final proof sources are incomplete.' >&2
+              exit 1
+            fi
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            echo 'The feature branch has not reached its fully materialized candidate.'
+          else
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Enforce generic production implementation
+        if: steps.gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedAutoResize.scala
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedIntegerEquivalence.scala
+            morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          )
+          if grep -En \
+            'StreamFifo(CC)?|pushToPopGray|popToPushGray|BufferCC|Stream\.scala|CrossClock\.scala' \
+            "${files[@]}"; then
+            echo 'Production parameterization code contains a selected-component recognition key.' >&2
+            exit 1
+          fi
+          if grep -Fq 'RetainedWidthEvaluator' "${files[0]}"; then
+            echo 'Rendered-expression parsing remains in the production proof path.' >&2
+            exit 1
+          fi
+          grep -Fq 'definitionExpressionRootOf' "${files[5]}"
+          grep -Fq 'evaluateDefinitionExpressionInOwnDomain' "${files[5]}"
+          grep -Fq 'nativeFormalIntComponentCandidate' "${files[6]}"
+          grep -Fq 'definitions.IntTpe' "${files[6]}"
+
+      - name: Enforce no native SpinalHDL production edits in Increment 53e
+        if: steps.gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin parameterized-verilog
+          if test "${{ github.ref_name }}" = parameterized-verilog; then
+            base=$(git rev-parse HEAD^)
+          else
+            base=$(git merge-base HEAD origin/parameterized-verilog)
+          fi
+          changed=$(git diff --name-only "$base"..HEAD -- \
+            core/src/main lib/src/main idslplugin/src/main)
+          if test -n "$changed"; then
+            echo 'Increment 53e modifies native SpinalHDL production sources:' >&2
+            echo "$changed" >&2
+            exit 1
+          fi
+
+      - name: Install pinned Mill and verify proof tools
+        if: steps.gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            -o /tmp/mill
+          chmod +x /tmp/mill
+          command -v iverilog
+          command -v vvp
+          command -v yosys
+          iverilog -V
+          yosys -V
+
+      - name: Run complete dual-Scala regressions and generate independent witnesses
+        if: steps.gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala in 2.12.18 2.13.12; do
+            workspace="/tmp/increment-53e-proof-$scala"
+            mkdir -p "$workspace"
+            /tmp/mill "morph[$scala].test" \
+              2>&1 | tee "/tmp/increment-53e-full-$scala.log"
+            MORPHDL_STREAMFIFOCC_PROOF_WORKSPACE="$workspace" \
+              /tmp/mill "morph[$scala].testOnly" \
+                morphhdl.NativeStreamFifoCCProofGenerationTests \
+              2>&1 | tee "/tmp/increment-53e-generate-$scala.log"
+            python3 morphhdl/scripts/run-increment-53e-native-proofs.py \
+              "$workspace" \
+              2>&1 | tee "/tmp/increment-53e-proof-$scala.log"
+            test -f "$workspace/PROOF_PASS"
+          done
+
+      - name: Prove dual-Scala deterministic RTL
+        if: steps.gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def inventory(root):
+              root = Path(root)
+              rows = {}
+              for line in (root / "manifest.txt").read_text().splitlines():
+                  fields = line.split("|")
+                  if fields[0] == "candidate":
+                      _, mode, path, top = fields
+                      key = ("candidate", mode, top)
+                  elif fields[0] == "concrete":
+                      _, mode, depth, path, top = fields
+                      key = ("concrete", mode, depth, top)
+                  else:
+                      raise SystemExit(f"unsupported manifest row: {line}")
+                  rows[key] = Path(path).read_bytes()
+              return rows
+
+          left = inventory("/tmp/increment-53e-proof-2.12.18")
+          right = inventory("/tmp/increment-53e-proof-2.13.12")
+          if left.keys() != right.keys():
+              raise SystemExit("dual-Scala proof inventories differ")
+          mismatches = [key for key in left if left[key] != right[key]]
+          if mismatches:
+              raise SystemExit(f"dual-Scala generated RTL differs for {mismatches}")
+          print(f"dual-Scala deterministic RTL proven for {len(left)} artifacts")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.gate.outputs.run == 'true'
+        with:
+          name: increment-53e-complete-proof-${{ github.sha }}
+          path: |
+            /tmp/increment-53e-*.log
+            /tmp/increment-53e-proof-*/manifest.txt
+            /tmp/increment-53e-proof-*/PROOF_PASS
+            /tmp/increment-53e-proof-*/negative-control.log
+          if-no-files-found: error
