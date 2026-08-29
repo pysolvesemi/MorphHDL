@@ -1,0 +1,35 @@
+name: Clean typed pivot staging artifacts
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/cleanup-typed-pivot-staging.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch \
+            docs/morphhdl/.typed-roadmap-placeholder \
+            docs/morphhdl/README-typed-pivot-marker.tmp \
+            docs/morphhdl/.ignore-this-temp \
+            docs/morphhdl/.temp-cleanup-required
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git commit -m 'Remove accidental typed pivot staging markers'
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot
