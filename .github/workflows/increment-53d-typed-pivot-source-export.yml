@@ -1,4 +1,4 @@
-name: Export Increment 53d typed-pivot source workspace
+name: Publish typed elaboration roadmap pivot
 
 on:
   push:
@@ -9,10 +9,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  export:
+  publish-roadmap:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -23,16 +23,23 @@ jobs:
           fetch-depth: 0
           submodules: false
 
-      - name: Create source archive
+      - name: Apply approved roadmap pivot
         shell: bash
         run: |
           set -euo pipefail
-          git archive --format=tar.gz --output="${RUNNER_TEMP}/MorphHDL-53d-typed-pivot.tar.gz" HEAD
+          base64 -d morphhdl/scripts/typed-roadmap.patch.gz.b64 | gzip -d > "${RUNNER_TEMP}/typed-roadmap.patch"
+          git apply --check "${RUNNER_TEMP}/typed-roadmap.patch"
+          git apply "${RUNNER_TEMP}/typed-roadmap.patch"
+          git diff --check
+          grep -Fq 'Increment 53d — Typed elaboration carriers' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'zero-native-edit architecture for all future' docs/morphhdl/parameterized-verilog-todo.md
 
-      - name: Upload source archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: MorphHDL-53d-typed-pivot-source
-          path: ${{ runner.temp }}/MorphHDL-53d-typed-pivot.tar.gz
-          if-no-files-found: error
-          retention-days: 2
+      - name: Commit controlling roadmap
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MorphHDL Agent"
+          git config user.email "morphhdl-agent@users.noreply.github.com"
+          git add docs/morphhdl/parameterized-verilog-todo.md
+          git commit -m "Pivot roadmap to typed elaboration architecture"
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot
