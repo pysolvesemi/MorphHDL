@@ -1,0 +1,83 @@
+name: Diagnose Increment 53d aggregate SBT failures
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-generic-native-definition-boundary
+    paths:
+      - .github/workflows/increment-53d-final-head-diagnostic.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-53d-final-head-diagnostic-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  split-aggregate-tests:
+    name: Split aggregate tests Scala ${{ matrix.scala_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-generic-native-definition-boundary
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Run aggregate targets independently and retain complete logs
+        id: diagnostics
+        shell: bash
+        run: |
+          set +e
+          output="${RUNNER_TEMP}/increment-53d-sbt-${{ matrix.scala_version }}"
+          mkdir -p "$output"
+          overall=0
+
+          run_target() {
+            name="$1"
+            shift
+            log="$output/${name}.log"
+            printf '===== %s =====\n' "$name"
+            sbt -batch "++${{ matrix.scala_version }}" "$@" >"$log" 2>&1
+            result=$?
+            printf '%s\n' "$result" >"$output/${name}.status"
+            if [ "$result" -ne 0 ]; then
+              overall=1
+              printf '%s\n' "FAILED: $name (exit $result)"
+              grep -E -n -C 8 '(\[error\]|FAILED|Exception|AssertionError|not found:|type mismatch|ambiguous|unbound|No tests were executed)' "$log" | tail -n 1200 || true
+            else
+              printf '%s\n' "PASSED: $name"
+            fi
+            tail -n 160 "$log"
+          }
+
+          run_target idslplugin-test idslplugin/test
+          run_target paramrtl-test paramrtl/test
+          run_target frontend-test frontend/test
+          run_target verilogBackend-test verilogBackend/test
+          run_target morph-test morph/test
+          run_target core-phase-plan-test "core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests"
+
+          printf '%s\n' "$overall" >"$output/overall.status"
+          exit "$overall"
+
+      - name: Upload exact split-test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53d-sbt-diagnostics-scala-${{ matrix.scala_version }}
+          path: ${{ runner.temp }}/increment-53d-sbt-${{ matrix.scala_version }}
+          if-no-files-found: error
+          retention-days: 3
