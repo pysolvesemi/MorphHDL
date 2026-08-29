@@ -1,4 +1,4 @@
-name: Diagnose Increment 53d generic all-Spinal compilation
+name: Validate Increment 53d generic all-Spinal boundary
 
 on:
   push:
@@ -13,13 +13,43 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  source-boundary:
+    name: Generic source and native-library boundary
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 30
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    steps:
+      - name: Check out diagnostic branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-generic-native-definition-boundary
+          fetch-depth: 0
+
+      - name: Apply pattern-binder-safe generic source-tree implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/apply-increment-53d-generic-boundary-v11.py
+          git diff --check
+          bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
+          git diff --quiet HEAD -- core lib idslplugin
+
+  contracts:
+    name: Complete MorphHDL suite Scala ${{ matrix.scala_version }}
+    needs: source-boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
     container:
       image: ghcr.io/spinalhdl/docker:latest
     env:
       XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
     steps:
       - name: Check out diagnostic branch
         uses: actions/checkout@v4
@@ -36,48 +66,44 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Apply pattern-binder-safe generic source-tree prototype
+      - name: Apply pattern-binder-safe generic source-tree implementation
         shell: bash
         run: |
           set -euo pipefail
           python3 morphhdl/scripts/apply-increment-53d-generic-boundary-v11.py
           git diff --check
-          git diff --stat
 
-      - name: Compile compiler plugin
-        shell: bash
-        run: /tmp/morphhdl-mill morphplugin[2.13.12].compile
-
-      - name: Capture complete SpinalHDL compilation
-        id: compile
+      - name: Run complete MorphHDL test suite
+        id: tests
         continue-on-error: true
         shell: bash
         run: |
           set +e
-          /tmp/morphhdl-mill morph[2.13.12].test.compile > /tmp/increment-53d-compile.log 2>&1
+          log=/tmp/increment-53d-tests-${{ matrix.scala_version }}.log
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].test > "$log" 2>&1
           status=$?
-          printf '%s\n' "$status" > /tmp/increment-53d-compile.status
-          printf '%s\n' '--- filtered compiler diagnostics ---'
-          grep -E -n -C 4 '(error:|Error:|Exception|not found:|type mismatch|ambiguous|unbound|assertion failed)' \
-            /tmp/increment-53d-compile.log | tail -n 500 || true
-          printf '%s\n' '--- final compiler output ---'
-          tail -n 500 /tmp/increment-53d-compile.log
+          printf '%s\n' "$status" > /tmp/increment-53d-tests-${{ matrix.scala_version }}.status
+          printf '%s\n' '--- filtered test diagnostics ---'
+          grep -E -n -C 5 '(\[error\]|FAILED|Exception|AssertionError|not found:|type mismatch|ambiguous|unbound)' \
+            "$log" | tail -n 800 || true
+          printf '%s\n' '--- final test output ---'
+          tail -n 500 "$log"
           exit "$status"
 
-      - name: Upload diagnostic log
+      - name: Upload complete-suite log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53d-generic-compile-diagnostic-v11
+          name: increment-53d-complete-suite-scala-${{ matrix.scala_version }}
           path: |
-            /tmp/increment-53d-compile.log
-            /tmp/increment-53d-compile.status
+            /tmp/increment-53d-tests-${{ matrix.scala_version }}.log
+            /tmp/increment-53d-tests-${{ matrix.scala_version }}.status
           if-no-files-found: error
           retention-days: 2
 
-      - name: Preserve diagnostic conclusion
+      - name: Preserve complete-suite conclusion
         if: always()
         shell: bash
         run: |
-          status="$(cat /tmp/increment-53d-compile.status 2>/dev/null || printf '1')"
+          status="$(cat /tmp/increment-53d-tests-${{ matrix.scala_version }}.status 2>/dev/null || printf '1')"
           exit "$status"
