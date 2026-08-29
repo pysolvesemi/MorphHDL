@@ -1,0 +1,109 @@
+package spinal.core.internals
+
+import org.scalatest.funsuite.AnyFunSuite
+import spinal.core.ElaborationIntegerParameter
+
+class ExternalParameterizedDomainEquivalenceTests extends AnyFunSuite {
+  private def ceilLog2(value: BigInt): BigInt =
+    if (value <= 1) BigInt(0) else (value - 1).bitLength
+
+  test("proves generic equivalent integer forms over a complete domain") {
+    val n = ElaborationIntegerParameter(
+      "N",
+      BigInt(8),
+      BigInt(4),
+      BigInt(16)
+    )
+    assert(
+      ExternalParameterizedDomainEquivalence.provePositiveEquality(
+        Vector(n),
+        leftDefault = ceilLog2(8) + 1,
+        rightDefault = ceilLog2(16)
+      )(
+        values => Some(ceilLog2(values("N")) + 1),
+        values => Some(ceilLog2(values("N") * 2))
+      )
+    )
+  }
+
+  test("proves generic multi-parameter arithmetic identities") {
+    val a = ElaborationIntegerParameter(
+      "A",
+      BigInt(3),
+      BigInt(1),
+      BigInt(8)
+    )
+    val b = ElaborationIntegerParameter(
+      "B",
+      BigInt(5),
+      BigInt(1),
+      BigInt(8)
+    )
+    assert(
+      ExternalParameterizedDomainEquivalence.provePositiveEquality(
+        Vector(a, b),
+        leftDefault = BigInt(9),
+        rightDefault = BigInt(9)
+      )(
+        values => Some((values("A") + values("B")) + 1),
+        values => Some(values("A") + (values("B") + 1))
+      )
+    )
+  }
+
+  test("rejects a near miss, an undefined point and an excessive domain") {
+    val n = ElaborationIntegerParameter(
+      "N",
+      BigInt(8),
+      BigInt(4),
+      BigInt(16)
+    )
+    assert(
+      !ExternalParameterizedDomainEquivalence.provePositiveEquality(
+        Vector(n),
+        leftDefault = BigInt(4),
+        rightDefault = BigInt(4)
+      )(
+        values => Some(ceilLog2(values("N")) + 1),
+        values =>
+          Some(
+            ceilLog2(values("N") * 2) +
+              (if (values("N") == 16) 1 else 0)
+          )
+      )
+    )
+    assert(
+      !ExternalParameterizedDomainEquivalence.provePositiveEquality(
+        Vector(n),
+        leftDefault = BigInt(4),
+        rightDefault = BigInt(4)
+      )(
+        values => if (values("N") == 7) None else Some(BigInt(4)),
+        _ => Some(BigInt(4))
+      )
+    )
+
+    val wideA = ElaborationIntegerParameter(
+      "WIDE_A",
+      BigInt(128),
+      BigInt(1),
+      BigInt(512)
+    )
+    val wideB = ElaborationIntegerParameter(
+      "WIDE_B",
+      BigInt(128),
+      BigInt(1),
+      BigInt(512)
+    )
+    assert(
+      !ExternalParameterizedDomainEquivalence.provePositiveEquality(
+        Vector(wideA, wideB),
+        leftDefault = BigInt(256),
+        rightDefault = BigInt(256)
+      )(
+        values => Some(values("WIDE_A") + values("WIDE_B")),
+        values => Some(values("WIDE_B") + values("WIDE_A"))
+      )
+    )
+  }
+}
