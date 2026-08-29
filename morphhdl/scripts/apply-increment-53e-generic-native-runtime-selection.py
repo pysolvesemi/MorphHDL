@@ -44,17 +44,20 @@ new = '''    val boundary = new ActiveBoundary(
 if old in value:
     value = value.replace(old, new, 1)
 
-# Every native constructor Int may be compiler-instrumented. Only the argument
-# explicitly selected by formalComponent/formalRegion becomes the symbolic root.
+# Every native constructor Int may be compiler-instrumented. The compiler may
+# pass an empty name because only the active MorphHDL boundary owns the public
+# formal name. A non-empty compiler name must match exactly; otherwise the call
+# is unrelated and remains an ordinary native Int operation.
 old = '''  ): Int = withBoundaryOrValue(value, false, name, sourceLocation) { boundary =>
     validateReference(reference, sourceLocation, "constructor argument")
     requireRootWitness(boundary, value, name, sourceLocation)
 '''
 new = '''  ): Int = withBoundaryOrValue(value, false, name, sourceLocation) { boundary =>
-    if (name != boundary.argumentName) value
+    val effectiveName = Option(name).filter(_.nonEmpty).getOrElse(boundary.argumentName)
+    if (effectiveName != boundary.argumentName) value
     else {
       validateReference(reference, sourceLocation, "constructor argument")
-      requireRootWitness(boundary, value, name, sourceLocation)
+      requireRootWitness(boundary, value, effectiveName, sourceLocation)
 '''
 if old in value:
     value = value.replace(old, new, 1)
@@ -71,10 +74,10 @@ if old in value:
 
   /** Compiler hook: select one local whose source reference is already proven. */
 '''
-    replacement = '''    retainSlot(
+    replacement = '''      retainSlot(
         boundary,
         ExternalNativeIntShadowKind.ConstructorArgument,
-        name,
+        effectiveName,
         value,
         Root,
         sourceLocation
@@ -104,7 +107,6 @@ new = '''  ): Int = withBoundaryOrValue(value, requireBoundary, name, sourceLoca
         value,
         sourceReference,
 '''
-# This shape occurs in captureLocalTracked only. Close it before aliasTracked.
 if old in value:
     value = value.replace(old, new, 1)
     marker = '''    retainSlot(
@@ -185,27 +187,6 @@ if old in value:
         raise SystemExit("aliasTracked closing marker is ambiguous")
     value = value.replace(marker, replacement, 1)
 
-# Arithmetic/comparison helpers return the native result when no operand belongs
-# to the selected root. If exactly one operand is tracked, the existing
-# fail-closed resolver still requires every other non-literal operand to be
-# proven before combining it with the root.
-def wrap_method_body(signature_tail: str, first_statement: str, closing_marker: str, label: str):
-    global value
-    old = signature_tail + first_statement
-    if old not in value:
-        return
-    new = signature_tail + '''    val hasTrackedOperand =
-      boundary.trackedValues.contains(leftReference) ||
-        boundary.trackedValues.contains(rightReference)
-    if (!hasTrackedOperand) result
-    else {
-''' + first_statement
-    value = value.replace(old, new, 1)
-    if closing_marker not in value:
-        raise SystemExit(label + " closing marker is ambiguous")
-    value = value.replace(closing_marker, closing_marker.replace("    result\n  }", "      result\n    }\n  }"), 1)
-
-# Apply guarded returns with direct, method-specific anchors.
 old = '''    withBoundaryOrValue(result, false, name, sourceLocation) { boundary =>
       val leftValue = resolveTracked(
 '''
@@ -217,7 +198,6 @@ new = '''    withBoundaryOrValue(result, false, name, sourceLocation) { boundary
       else {
         val leftValue = resolveTracked(
 '''
-# First occurrence is binaryTracked.
 if old in value:
     value = value.replace(old, new, 1)
     marker = '''      retainSlot(
@@ -401,7 +381,6 @@ if old in value:
         raise SystemExit("powerOfTwoTracked closing marker is ambiguous")
     value = value.replace(marker, replacement, 1)
 
-# Definition queries are optional for unrelated compiler-instrumented integers.
 old = '''  ): Option[ElaborationIntegerExpression] = currentBoundary.map { boundary =>
     validateReference(reference, sourceLocation, "definition expression")
 '''
@@ -439,8 +418,6 @@ if old in value:
         raise SystemExit("definitionExpressionTracked closing marker is ambiguous")
     value = value.replace(marker, replacement, 1)
 
-# An unsupported-use callback for an unrelated native integer is a no-op. A
-# selected/tracked value retains the original fail-closed diagnostic.
 old = '''    } else {
       fail(
         "MORPH-FRONTEND-NATIVE-INT-SHADOW-REFERENCE-STALE",
