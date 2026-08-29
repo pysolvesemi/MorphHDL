@@ -50,12 +50,19 @@ jobs:
           python3 morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
           python3 morphhdl/scripts/apply-increment-53e-symbolic-zero-initializers.py
           python3 morphhdl/scripts/apply-increment-53e-final-helper-lowering.py
+          python3 morphhdl/scripts/apply-increment-53e-generic-target-sizing-and-slices.py
           python3 morphhdl/scripts/apply-increment-53e-expression-publication-diagnostic.py
           git diff --check
 
-          hierarchy=morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
-          if grep -nE 'StreamFifo|StreamFifoCC|BufferCC|MORPHDL-IMPLICIT-LINEAGE' "$hierarchy"; then
-            echo "Generic hierarchy lowering contains a component-specific name or temporary lineage diagnostic" >&2
+          generic_sources=(
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedAutoResize.scala
+            morphruntime/src/main/scala/spinal/core/ExternalParameterizedSliceRegistry.scala
+            morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala
+          )
+          if grep -nHE 'StreamFifo|StreamFifoCC|BufferCC|MORPHDL-IMPLICIT-LINEAGE' "${generic_sources[@]}"; then
+            echo "Generic production lowering contains a component-specific name or temporary lineage diagnostic" >&2
             exit 1
           fi
 
@@ -95,8 +102,10 @@ jobs:
           mkdir -p "$evidence/patched-sources"
           cp morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala "$evidence/patched-sources/"
           cp morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala "$evidence/patched-sources/"
+          cp morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedAutoResize.scala "$evidence/patched-sources/"
           cp morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala "$evidence/patched-sources/"
           cp morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala "$evidence/patched-sources/"
+          cp morphruntime/src/main/scala/spinal/core/ExternalParameterizedSliceRegistry.scala "$evidence/patched-sources/"
           cp morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala "$evidence/patched-sources/"
           find "$evidence" -type f -print | sort > "$evidence/manifest.txt"
 
@@ -133,6 +142,7 @@ jobs:
           rm -f morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
           rm -f morphhdl/scripts/apply-increment-53e-symbolic-zero-initializers.py
           rm -f morphhdl/scripts/apply-increment-53e-final-helper-lowering.py
+          rm -f morphhdl/scripts/apply-increment-53e-generic-target-sizing-and-slices.py
           rm -f morphhdl/scripts/apply-increment-53e-expression-publication-diagnostic.py
           rm -f morphhdl/scripts/apply-increment-53e-buffercc-shape-repair.py
           git add -A
