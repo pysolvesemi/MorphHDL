@@ -40,16 +40,16 @@ regression = Path(
     "morphhdl/src/test/scala/morphhdl/GenericNativeDefinitionBoundaryTests.scala"
 )
 value = regression.read_text(encoding="utf-8")
-marker = """            assert(value.contains("private def localNativeWidthNames"))
-            assert(value.contains("private def nativeWidthRootAvailableAtEntry"))
-"""
-replacement = """            assert(value.contains("private def localNativeWidthNames"))
-            assert(value.contains("case Bind(name: TermName, body) =>"))
-            assert(value.contains("private def nativeWidthRootAvailableAtEntry"))
-"""
-if value.count(marker) != 1:
+needle = 'assert(value.contains("private def localNativeWidthNames"))'
+if value.count(needle) != 1:
     raise SystemExit("generic regression insertion point is ambiguous")
-regression.write_text(value.replace(marker, replacement, 1), encoding="utf-8")
+index = value.index(needle)
+line_start = value.rfind("\n", 0, index) + 1
+indent = value[line_start:index]
+insertion = needle + "\n" + indent + (
+    'assert(value.contains("case Bind(name: TermName, body) =>"))'
+)
+regression.write_text(value.replace(needle, insertion, 1), encoding="utf-8")
 
 guard = Path("morphhdl/scripts/check-native-stream-width-adapter-boundary.sh")
 value = guard.read_text(encoding="utf-8")
