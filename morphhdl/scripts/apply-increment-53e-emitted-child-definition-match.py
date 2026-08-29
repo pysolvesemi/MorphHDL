@@ -37,9 +37,26 @@ if value.count(patterns_old) != 1:
     raise SystemExit("hierarchy instance pattern marker is ambiguous")
 value = value.replace(patterns_old, patterns_new, 1)
 
+starts_old = '''        val starts = plainStarts ++ parameterizedStarts
+        if (starts.size != 1) {
+'''
+starts_new = '''        val starts = plainStarts ++ parameterizedStarts
+        val emittedInstanceInventory = lines.zipWithIndex.collect {
+          case (line, index)
+              if line.toLowerCase.contains("buffercc") ||
+                line.contains(instance.definitionName) ||
+                line.contains(instance.instanceName) =>
+            s"$index:${line.trim}"
+        }.mkString(" | ")
+        if (starts.size != 1) {
+'''
+if value.count(starts_old) != 1:
+    raise SystemExit("hierarchy instance inventory marker is ambiguous")
+value = value.replace(starts_old, starts_new, 1)
+
 error_old = '''            s"normal Verilog emission contains ${starts.size} instances matching '${instance.definitionName} ${instance.instanceName}'"
 '''
-error_new = '''            s"normal Verilog emission contains ${starts.size} uniquely named instances matching graph child base '${instance.instanceName}' for canonical definition '${instance.definitionName}'"
+error_new = '''            s"normal Verilog emission contains ${starts.size} uniquely named instances matching graph child base '${instance.instanceName}' for canonical definition '${instance.definitionName}'; emitted inventory: $emittedInstanceInventory"
 '''
 if value.count(error_old) != 1:
     raise SystemExit("hierarchy instance error marker is ambiguous")
