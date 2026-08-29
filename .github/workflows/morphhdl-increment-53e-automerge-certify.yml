@@ -1,0 +1,193 @@
+name: MorphHDL Increment 53e exact-SHA merge and certification
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+      - parameterized-verilog
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: increment-53e-merge-certify-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  merge-or-certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 430
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require the closed roadmap contract
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          marker='- [x] **Increment 53e — Native StreamFifoCC parameterization without source edits**'
+          if grep -Fqx -- "$marker" docs/morphhdl/parameterized-verilog-todo.md; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            echo 'Increment 53e is not finalized yet.'
+          fi
+
+      - name: Configure authenticated Git
+        if: steps.gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+      - name: Resynchronize a moved target before merge
+        if: steps.gate.outputs.run == 'true' && github.ref_name == 'agent/increment-53e-native-streamfifocc-parameterization'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin parameterized-verilog
+          target=$(git rev-parse origin/parameterized-verilog)
+          if git merge-base --is-ancestor "$target" HEAD; then
+            echo 'Feature branch already contains the current target.'
+            exit 0
+          fi
+          git merge --no-edit "$target"
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
+          echo 'Target moved; pushed a synchronized feature head. A fresh exact-SHA proof run will own the merge.'
+          exit 78
+
+      - name: Wait for permanent proof on exact SHA
+        if: steps.gate.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api=https://api.github.com/repos/${{ github.repository }}
+          deadline=$((SECONDS + 21600))
+          while test $SECONDS -lt $deadline; do
+            payload=$(curl -fsSL \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Accept: application/vnd.github+json' \
+              "$api/actions/runs?head_sha=$EXPECTED_SHA&per_page=100")
+            state=$(python3 - <<'PY' "$payload" "$EXPECTED_SHA"
+          import json,sys
+          rows=json.loads(sys.argv[1]).get("workflow_runs", [])
+          sha=sys.argv[2]
+          matches=[r for r in rows if
+              r.get("head_sha") == sha and
+              r.get("path") == ".github/workflows/morphhdl-native-streamfifocc-generic-proof.yml"]
+          if not matches:
+              print("missing")
+          else:
+              run=sorted(matches, key=lambda r: r.get("id", 0), reverse=True)[0]
+              if run.get("status") != "completed":
+                  print("pending")
+              else:
+                  print(run.get("conclusion") or "unknown")
+          PY
+            )
+            case "$state" in
+              success)
+                echo "Permanent proof passed on $EXPECTED_SHA"
+                exit 0
+                ;;
+              failure|cancelled|timed_out|action_required|startup_failure|stale)
+                echo "Permanent proof concluded $state on $EXPECTED_SHA" >&2
+                exit 1
+                ;;
+              *)
+                echo "Permanent proof state on $EXPECTED_SHA: $state"
+                sleep 30
+                ;;
+            esac
+          done
+          echo "Timed out waiting for permanent proof on $EXPECTED_SHA" >&2
+          exit 1
+
+      - name: Squash-merge the exact proven feature SHA
+        if: steps.gate.outputs.run == 'true' && github.ref_name == 'agent/increment-53e-native-streamfifocc-parameterization'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api=https://api.github.com/repos/${{ github.repository }}
+          query="$api/pulls?state=open&base=parameterized-verilog&head=${{ github.repository_owner }}:agent/increment-53e-native-streamfifocc-parameterization"
+          rows=$(curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "$query")
+          read -r number head_sha count <<EOF
+          $(python3 - <<'PY' "$rows"
+          import json,sys
+          rows=json.loads(sys.argv[1])
+          if len(rows) != 1:
+              print("0 missing", len(rows))
+          else:
+              print(rows[0]["number"], rows[0]["head"]["sha"], 1)
+          PY
+          )
+          EOF
+          if test "$count" != 1 || test "$head_sha" != "$EXPECTED_SHA"; then
+            echo "Expected one PR at $EXPECTED_SHA; found count=$count head=$head_sha" >&2
+            exit 1
+          fi
+          result=$(curl -fsSL -X PUT \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "$api/pulls/$number/merge" \
+            -d "$(python3 - <<'PY' "$EXPECTED_SHA"
+          import json,sys
+          print(json.dumps({
+              "sha": sys.argv[1],
+              "merge_method": "squash",
+              "commit_title": "Increment 53e: generic native StreamFifoCC parameterization"
+          }))
+          PY
+          )")
+          python3 - <<'PY' "$result"
+          import json,sys
+          result=json.loads(sys.argv[1])
+          if not result.get("merged"):
+              raise SystemExit(f"merge rejected: {result}")
+          print(f"merged commit {result.get('sha')}")
+          PY
+
+      - name: Certify exact post-merge target SHA
+        if: steps.gate.outputs.run == 'true' && github.ref_name == 'parameterized-verilog'
+        shell: bash
+        run: |
+          set -euo pipefail
+          subject=$(git show -s --format=%s HEAD)
+          case "$subject" in
+            *"Increment 53e"*) ;;
+            *)
+              echo "Target commit is not the Increment 53e merge: $subject"
+              exit 0
+              ;;
+          esac
+          remote=$(git ls-remote origin refs/heads/parameterized-verilog | awk '{print $1}')
+          if test "$remote" != "${{ github.sha }}"; then
+            echo "Target moved from tested SHA ${{ github.sha }} to $remote; refusing certification." >&2
+            exit 1
+          fi
+          existing=$(git ls-remote origin refs/tags/increment-53e-verified | awk '{print $1}')
+          if test -n "$existing" && test "$existing" != "${{ github.sha }}"; then
+            echo "increment-53e-verified already points to $existing, not ${{ github.sha }}" >&2
+            exit 1
+          fi
+          if test "$existing" = "${{ github.sha }}"; then
+            echo 'Verification tag already exists on this exact target SHA.'
+            exit 0
+          fi
+          git tag -a increment-53e-verified "${{ github.sha }}" \
+            -m 'Increment 53e verified: generic native StreamFifoCC parameterization'
+          git push origin refs/tags/increment-53e-verified
