@@ -1,0 +1,38 @@
+name: Export Increment 53d typed-pivot source workspace
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-typed-pivot-source-export.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+          submodules: false
+
+      - name: Create source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          git archive --format=tar.gz --output="${RUNNER_TEMP}/MorphHDL-53d-typed-pivot.tar.gz" HEAD
+
+      - name: Upload source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: MorphHDL-53d-typed-pivot-source
+          path: ${{ runner.temp }}/MorphHDL-53d-typed-pivot.tar.gz
+          if-no-files-found: error
+          retention-days: 2
