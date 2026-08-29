@@ -34,18 +34,21 @@ jobs:
           text = publisher.read_text(encoding="utf-8")
           start = text.index("          old_eligibility =")
           end = text.index("          old_helper =", start)
-          replacement = '''          old_eligibility = (
-              'normalizedPath.endsWith('
-              '"/lib/src/main/scala/spinal/lib/Stream.scala")'
+          replacement = (
+              "          old_eligibility = (\n"
+              "              'normalizedPath.endsWith('" + "\n"
+              "              '\"/lib/src/main/scala/spinal/lib/Stream.scala\")'\n"
+              "          )\n"
+              "          new_eligibility = 'content.contains(\"widthOf\")'\n"
+              "          if old_eligibility in text:\n"
+              "              text = text.replace(old_eligibility, new_eligibility, 1)\n"
+              "          elif new_eligibility not in text:\n"
+              "              raise SystemExit(\"native source eligibility contract was not recognized\")\n\n"
           )
-          new_eligibility = 'content.contains("widthOf")'
-          if old_eligibility in text:
-              text = text.replace(old_eligibility, new_eligibility, 1)
-          elif new_eligibility not in text:
-              raise SystemExit("native source eligibility contract was not recognized")
-
-'''
-          publisher.write_text(text[:start] + replacement + text[end:], encoding="utf-8")
+          publisher.write_text(
+              text[:start] + replacement + text[end:],
+              encoding="utf-8"
+          )
           PY
           rm -f .github/workflows/increment-53d-publisher-fix.yml
           git diff --check
