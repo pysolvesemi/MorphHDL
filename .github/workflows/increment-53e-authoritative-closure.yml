@@ -1,0 +1,180 @@
+name: Increment 53e authoritative generic closure
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53e-authoritative-closure
+  cancel-in-progress: true
+
+jobs:
+  close:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Configure exact remote checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin agent/increment-53e-native-streamfifocc-parameterization
+          git reset --hard origin/agent/increment-53e-native-streamfifocc-parameterization
+          git rev-parse HEAD >/tmp/validated-head
+
+      - name: Materialize only missing generic implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! test -f morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedWidthDomainProof.scala; then
+            for script in \
+              morphhdl/scripts/apply-increment-53e-address-role-repair.py \
+              morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py \
+              morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py \
+              morphhdl/scripts/apply-increment-53e-modular-literal-proof.py \
+              morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py \
+              morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py \
+              morphhdl/scripts/apply-increment-53e-generic-complete-domain-equivalence.py
+            do
+              test -f "$script"
+              python3 "$script"
+            done
+          fi
+
+          if ! test -x morphhdl/scripts/check-generic-native-int-compiler.sh || \
+             ! bash morphhdl/scripts/check-generic-native-int-compiler.sh >/dev/null 2>&1; then
+            test -f morphhdl/scripts/apply-increment-53e-generic-native-source-selection.py
+            test -f morphhdl/scripts/apply-increment-53e-generic-native-shape-selection.py
+            python3 morphhdl/scripts/apply-increment-53e-generic-native-source-selection.py
+            python3 morphhdl/scripts/apply-increment-53e-generic-native-shape-selection.py
+          fi
+          if test -f morphhdl/scripts/apply-increment-53e-generic-candidate-argument-selection.py; then
+            python3 morphhdl/scripts/apply-increment-53e-generic-candidate-argument-selection.py
+          fi
+
+          formal=morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCFormalEquivalenceTests.scala
+          if ! test -f "$formal"; then
+            python3 morphhdl/scripts/apply-increment-53e-generic-multiclock-formal-test.py
+          fi
+          if grep -q 'candidate: Path' "$formal"; then
+            python3 morphhdl/scripts/apply-increment-53e-formal-reset-mode-candidates.py
+          fi
+          if grep -A8 'private def generate' "$formal" | grep -q 'val depth = HdlInt.param'; then
+            python3 morphhdl/scripts/apply-increment-53e-formal-fresh-boundaries.py
+          fi
+          if test -f morphhdl/scripts/apply-increment-53e-formal-portability.py; then
+            python3 morphhdl/scripts/apply-increment-53e-formal-portability.py
+          fi
+
+          bash morphhdl/scripts/check-generic-native-int-compiler.sh
+          bash morphhdl/scripts/check-generic-parameterized-width-engine.sh
+          bash morphhdl/scripts/check-native-streamfifocc-parameterization-boundary.sh
+          git diff --check
+
+      - name: Install pinned Mill and formal toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+          if ! command -v sby >/dev/null 2>&1; then
+            apt-get update
+            apt-get install -y --no-install-recommends git make python3 yosys boolector iverilog
+            rm -rf /tmp/sby
+            git clone --depth 1 https://github.com/YosysHQ/sby.git /tmp/sby
+            make -C /tmp/sby install PREFIX=/usr/local
+          fi
+          yosys -V
+          sby -h >/dev/null
+          yosys-smtbmc -h >/dev/null
+          boolector --version
+          iverilog -V
+
+      - name: Validate both Scala lanes and independent witnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala in 2.12.18 2.13.12; do
+            /tmp/mill "morph[$scala].testOnly" \
+              spinal.core.internals.ExternalParameterizedWidthDomainProofTests \
+              morphhdl.ParameterizedStreamFifoCCTests \
+              morphhdl.NativeStreamFifoCCFormalEquivalenceTests \
+              2>&1 | tee "/tmp/53e-complete-$scala.log"
+          done
+
+      - name: Run multiclock solver-backed equivalence
+        shell: bash
+        env:
+          MORPHDL_RUN_STREAMFIFOCC_FORMAL_EQUIVALENCE: "1"
+          MORPHDL_STREAMFIFOCC_FORMAL_WORKSPACE: /tmp/streamfifocc-formal
+        run: |
+          set -euo pipefail
+          /tmp/mill 'morph[2.12.18].testOnly' \
+            morphhdl.NativeStreamFifoCCFormalEquivalenceTests \
+            2>&1 | tee /tmp/53e-multiclock-proof.log
+
+      - name: Re-run generic and native source guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-generic-native-int-compiler.sh
+          bash morphhdl/scripts/check-generic-parameterized-width-engine.sh
+          bash morphhdl/scripts/check-native-streamfifocc-parameterization-boundary.sh
+
+      - name: Upload complete closure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53e-authoritative-closure-evidence
+          path: |
+            /tmp/53e-*.log
+            /tmp/streamfifocc-formal
+          if-no-files-found: ignore
+
+      - name: Close roadmap and remove all patch-time infrastructure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          value = path.read_text()
+          open_entry = '- [ ] **Increment 53e — Native StreamFifoCC parameterization without source edits**'
+          closed_entry = '- [x] **Increment 53e — Native StreamFifoCC parameterization without source edits**'
+          if open_entry in value:
+              value = value.replace(open_entry, closed_entry, 1)
+          elif closed_entry not in value:
+              raise SystemExit('Increment 53e roadmap entry not found')
+          path.write_text(value)
+          PY
+          find .github/workflows -maxdepth 1 -type f -name 'increment-53e-*.yml' -delete
+          find morphhdl/scripts -maxdepth 1 -type f -name 'apply-increment-53e-*.py' -delete
+          git add -A
+          git diff --cached --check
+
+      - name: Publish exactly the proven closure commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          validated=$(cat /tmp/validated-head)
+          remote=$(git ls-remote origin refs/heads/agent/increment-53e-native-streamfifocc-parameterization | awk '{print $1}')
+          test "$validated" = "$remote"
+          git commit -m 'Increment 53e: close generic native StreamFifoCC parameterization'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
