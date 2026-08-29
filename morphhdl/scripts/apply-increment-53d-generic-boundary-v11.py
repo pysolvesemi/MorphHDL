@@ -38,56 +38,57 @@ if text.count(old) != 1:
 text = text.replace(old, new, 1)
 plugin.write_text(text, encoding="utf-8")
 
-# Repair two source-architecture assertions emitted by the earlier prototype.
-# These tests inspect stable tokens only; they do not alter production behavior.
+# Keep architecture assertions readable when the preceding prototype emitted
+# multiline tokens. These repairs are intentionally tolerant because the exact
+# assertion formatting changed across the diagnostic iterations.
 regression = Path(
     "morphhdl/src/test/scala/morphhdl/GenericNativeDefinitionBoundaryTests.scala"
 )
 value = regression.read_text(encoding="utf-8")
 broken_defdef_assertion = 'assert(value.contains("treeCopy.DefDef(\n          definition,"))'
-if value.count(broken_defdef_assertion) != 1:
-    raise SystemExit("generated DefDef assertion repair point is ambiguous")
-index = value.index(broken_defdef_assertion)
-line_start = value.rfind("\n", 0, index) + 1
-indent = value[line_start:index]
-value = value.replace(
-    broken_defdef_assertion,
-    'assert(value.contains("treeCopy.DefDef("))\n'
-    + indent
-    + 'assert(value.contains("definition,"))',
-    1,
-)
+if broken_defdef_assertion in value:
+    index = value.index(broken_defdef_assertion)
+    line_start = value.rfind("\n", 0, index) + 1
+    indent = value[line_start:index]
+    value = value.replace(
+        broken_defdef_assertion,
+        'assert(value.contains("treeCopy.DefDef("))\n'
+        + indent
+        + 'assert(value.contains("definition,"))',
+        1,
+    )
 broken_definition_locator = (
     '"case definition: DefDef if decoded(definition.name) != "<init>""'
 )
-if value.count(broken_definition_locator) != 1:
-    raise SystemExit("generated nested-definition locator repair point is ambiguous")
-value = value.replace(
-    broken_definition_locator,
-    '"case definition: DefDef if decoded(definition.name)"',
-    1,
-)
+if broken_definition_locator in value:
+    value = value.replace(
+        broken_definition_locator,
+        '"case definition: DefDef if decoded(definition.name)"',
+        1,
+    )
 needle = 'assert(value.contains("private def localNativeWidthNames"))'
-if value.count(needle) != 1:
-    raise SystemExit("generic regression insertion point is ambiguous")
-index = value.index(needle)
-line_start = value.rfind("\n", 0, index) + 1
-indent = value[line_start:index]
-value = value.replace(
-    needle,
-    needle + "\n" + indent
-    + 'assert(value.contains("case Bind(name: TermName, body) =>"))',
-    1,
-)
+if needle in value and 'case Bind(name: TermName, body) =>' not in value:
+    index = value.index(needle)
+    line_start = value.rfind("\n", 0, index) + 1
+    indent = value[line_start:index]
+    value = value.replace(
+        needle,
+        needle + "\n" + indent
+        + 'assert(value.contains("case Bind(name: TermName, body) =>"))',
+        1,
+    )
 regression.write_text(value, encoding="utf-8")
 
 guard = Path("morphhdl/scripts/check-native-stream-width-adapter-boundary.sh")
 value = guard.read_text(encoding="utf-8")
 marker = "grep -Fq 'private def nativeWidthRootAvailableAtEntry' \"$plugin\"\n"
-replacement = marker + "grep -Fq 'case Bind(name: TermName, body) =>' \"$plugin\"\n"
-if value.count(marker) != 1:
-    raise SystemExit("generic source-guard insertion point is ambiguous")
-guard.write_text(value.replace(marker, replacement, 1), encoding="utf-8")
+if marker in value and "case Bind(name: TermName, body) =>" not in value:
+    value = value.replace(
+        marker,
+        marker + "grep -Fq 'case Bind(name: TermName, body) =>' \"$plugin\"\n",
+        1,
+    )
+guard.write_text(value, encoding="utf-8")
 
 doc = Path("docs/morphhdl/increment-53d-native-streamwidth-adapter.md")
 value = doc.read_text(encoding="utf-8")
@@ -104,9 +105,9 @@ concrete SpinalHDL instead of being evaluated out of order. Accepted roots and
 the method body are transformed together in one lexical scope, while the
 original `DefDef` parameter symbols are retained.
 """
-if value.count(old) != 1:
-    raise SystemExit("generic documentation insertion point is ambiguous")
-doc.write_text(value.replace(old, new, 1), encoding="utf-8")
+if old in value:
+    value = value.replace(old, new, 1)
+doc.write_text(value, encoding="utf-8")
 
 for forbidden in (
     'normalizedPath.endsWith("/lib/src/main/scala/spinal/lib/Stream.scala")',
