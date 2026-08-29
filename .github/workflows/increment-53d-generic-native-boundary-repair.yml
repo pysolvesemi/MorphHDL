@@ -1,6 +1,6 @@
 name: Publish Increment 53d generic native boundary repair
 
-# Re-run after the generic width-root classifier self-check repair.
+# Re-run after adding active-boundary rewrite gating.
 on:
   push:
     branches:
@@ -42,13 +42,16 @@ jobs:
           set -euo pipefail
           python3 morphhdl/scripts/apply-increment-53d-generic-native-boundary-repair.py
           python3 morphhdl/scripts/apply-increment-53d-width-root-classification.py
+          python3 morphhdl/scripts/apply-increment-53d-rewrite-context-gating.py
           git diff --check
           git diff --stat
+          grep -n -A34 -B4 'inNativeRewriteContext' \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
           grep -n -A44 -B4 'withoutEnclosingNativeRuntimeContext' \
             morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
           grep -n -A48 -B4 'nativeWidthRootScan' \
             morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
-          grep -n -A28 -B4 'transformIndependentNativeDefinition' \
+          grep -n -A32 -B4 'transformIndependentNativeDefinition' \
             morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
 
       - name: Validate generic and inherited contracts on Scala 2.13.12
@@ -124,6 +127,12 @@ jobs:
           grep -Fq 'private def nativeWidthRootScan' "$plugin"
           grep -Fq 'if (stable.nonEmpty && unstable.nonEmpty)' "$plugin"
           grep -Fq 'else unstable += current' "$plugin"
+          grep -Fq 'private val explicitShadowSource: Boolean' "$plugin"
+          grep -Fq 'private def inNativeRewriteContext: Boolean' "$plugin"
+          grep -Fq 'case conditional: If if inNativeRewriteContext' "$plugin"
+          grep -Fq 'case value: ValDef if inNativeRewriteContext' "$plugin"
+          grep -Fq 'case assignment: Assign if inNativeRewriteContext' "$plugin"
+          grep -Fq 'case other => super.transform(other)' "$plugin"
 
       - name: Commit validated production repair
         shell: bash
@@ -131,7 +140,8 @@ jobs:
           set -euo pipefail
           rm -f \
             morphhdl/scripts/apply-increment-53d-generic-native-boundary-repair.py \
-            morphhdl/scripts/apply-increment-53d-width-root-classification.py
+            morphhdl/scripts/apply-increment-53d-width-root-classification.py \
+            morphhdl/scripts/apply-increment-53d-rewrite-context-gating.py
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
