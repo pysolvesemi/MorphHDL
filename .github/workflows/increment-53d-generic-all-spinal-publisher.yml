@@ -6,6 +6,7 @@ on:
       - agent/increment-53d-generic-definition-boundary
     paths:
       - .github/workflows/increment-53d-generic-all-spinal-publisher.yml
+      - morphhdl/scripts/apply-increment-53d-generic-all-spinal.py
 
 permissions:
   contents: write
@@ -46,100 +47,13 @@ jobs:
               "origin/agent/increment-53d-generic-native-definition-boundary:morphhdl/scripts/apply-increment-53d-generic-boundary-${version}.py" \
               > "$repair/morphhdl/scripts/apply-increment-53d-generic-boundary-${version}.py"
           done
+          cp morphhdl/scripts/apply-increment-53d-generic-all-spinal.py \
+            "$repair/morphhdl/scripts/apply-increment-53d-generic-all-spinal.py"
           (
             cd "$repair"
-            python3 morphhdl/scripts/apply-increment-53d-generic-boundary-v10.py
-            python3 - <<'PY'
-          from pathlib import Path
-
-          plugin = Path(
-              "morphplugin/src/main/scala/morphhdl/compiler/"
-              "MorphHdlNativeIntShadowExpressionComponent.scala"
-          )
-          text = plugin.read_text(encoding="utf-8")
-          old = """          case value: ValDef =>
-            found += value.name
-            super.traverse(value.rhs)
-          case _ => super.traverse(current)
-"""
-          new = """          case value: ValDef =>
-            found += value.name
-            super.traverse(value.rhs)
-          case Bind(name: TermName, body) =>
-            // Pattern variables are introduced below method entry. A widthOf
-            // rooted in such a binder must stay in that lexical alternative
-            // instead of being hoisted into a method-entry runtime boundary.
-            found += name
-            super.traverse(body)
-          case _ => super.traverse(current)
-"""
-          if text.count(old) != 1:
-              raise SystemExit(
-                  "local-width declaration classifier insertion point is ambiguous"
-              )
-          text = text.replace(old, new, 1)
-          plugin.write_text(text, encoding="utf-8")
-
-          regression = Path(
-              "morphhdl/src/test/scala/morphhdl/"
-              "GenericNativeDefinitionBoundaryTests.scala"
-          )
-          value = regression.read_text(encoding="utf-8")
-          marker = """            assert(value.contains("private def localNativeWidthNames"))
-            assert(value.contains("private def nativeWidthRootAvailableAtEntry"))
-"""
-          replacement = """            assert(value.contains("private def localNativeWidthNames"))
-            assert(value.contains("case Bind(name: TermName, body) =>"))
-            assert(value.contains("private def nativeWidthRootAvailableAtEntry"))
-"""
-          if value.count(marker) != 1:
-              raise SystemExit("generic regression insertion point is ambiguous")
-          regression.write_text(
-              value.replace(marker, replacement, 1), encoding="utf-8"
-          )
-
-          guard = Path(
-              "morphhdl/scripts/check-native-stream-width-adapter-boundary.sh"
-          )
-          value = guard.read_text(encoding="utf-8")
-          marker = (
-              "grep -Fq 'private def nativeWidthRootAvailableAtEntry' \"$plugin\"\n"
-          )
-          replacement = marker + (
-              "grep -Fq 'case Bind(name: TermName, body) =>' \"$plugin\"\n"
-          )
-          if value.count(marker) != 1:
-              raise SystemExit("generic guard insertion point is ambiguous")
-          guard.write_text(value.replace(marker, replacement, 1), encoding="utf-8")
-
-          doc = Path("docs/morphhdl/increment-53d-native-streamwidth-adapter.md")
-          value = doc.read_text(encoding="utf-8")
-          marker = (
-              "Method-entry discovery accepts stable parameters and enclosing members. A\n"
-              "local Data value declared later in the method and a constructor or call\n"
-              "expression remain ordinary concrete SpinalHDL instead of being evaluated out\n"
-              "of order. Accepted roots and the method body are transformed together in one\n"
-          )
-          replacement = (
-              "Method-entry discovery accepts stable parameters and enclosing members. A\n"
-              "local Data value declared later in the method, a pattern-bound value inside a\n"
-              "match/case alternative, and a constructor or call expression remain ordinary\n"
-              "concrete SpinalHDL instead of being evaluated out of order. Accepted roots and\n"
-              "the method body are transformed together in one lexical scope, while the\n"
-          )
-          if value.count(marker) != 1:
-              raise SystemExit("generic documentation insertion point is ambiguous")
-          value = value.replace(marker, replacement, 1)
-          value = value.replace(
-              "one lexical scope, while the original `DefDef` parameter symbols are retained.\n",
-              "original `DefDef` parameter symbols are retained.\n",
-              1,
-          )
-          doc.write_text(value, encoding="utf-8")
-          PY
+            python3 morphhdl/scripts/apply-increment-53d-generic-all-spinal.py
             git diff --check
           )
-
           for path in \
             morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala \
             morphhdl/src/test/scala/morphhdl/GenericNativeDefinitionBoundaryTests.scala \
@@ -147,7 +61,6 @@ jobs:
             docs/morphhdl/increment-53d-native-streamwidth-adapter.md; do
             cp "$repair/$path" "$path"
           done
-
           git diff --check
           git diff --stat
           grep -F 'case Bind(name: TermName, body) =>' \
