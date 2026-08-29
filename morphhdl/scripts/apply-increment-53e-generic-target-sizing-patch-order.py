@@ -35,7 +35,26 @@ if count != 1:
     raise SystemExit(
         f"generic target-sizing patch-order marker count={count}"
     )
-path.write_text(value.replace(old, new, 1))
+value = value.replace(old, new, 1)
+
+# Symbolic-zero publication is installed before this script runs. Replace only
+# the older auto-resize publisher; never consume the adjacent generic
+# zero-initializer method while updating that publisher.
+old_end = '''resize_end = \'\'\'  /**
+    * Replace only the concrete witness assignment of compiler-created UInt
+\'\'\'
+'''
+new_end = '''resize_end = \'\'\'  /**
+    * Rewrite zero assignments of graph-proven symbolic-width registers to a
+\'\'\'
+'''
+count = value.count(old_end)
+if count != 1:
+    raise SystemExit(
+        f"generic auto-resize replacement boundary count={count}"
+    )
+value = value.replace(old_end, new_end, 1)
+path.write_text(value)
 
 # Apply source-level quoting corrections before the target script executes.
 # The target script itself contains a Python triple-quoted Scala source body;
