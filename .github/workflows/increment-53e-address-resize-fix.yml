@@ -45,6 +45,7 @@ jobs:
           python3 morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
           python3 morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py
           python3 morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
+          python3 morphhdl/scripts/apply-increment-53e-symbolic-zero-initializers.py
           git diff --check
 
           hierarchy=morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
@@ -101,6 +102,7 @@ jobs:
           rm -f morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
           rm -f morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py
           rm -f morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
+          rm -f morphhdl/scripts/apply-increment-53e-symbolic-zero-initializers.py
           rm -f morphhdl/scripts/apply-increment-53e-buffercc-shape-repair.py
           git add -A
           git diff --cached --check
