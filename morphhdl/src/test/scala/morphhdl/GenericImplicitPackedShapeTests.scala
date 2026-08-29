@@ -27,6 +27,9 @@ final class GenericConcretePackedPipeline(width: Int) extends Component {
 
   val stage0 = Reg(Bits(width bits)) init (0)
   val stage1 = Reg(Bits(width bits)) init (0)
+  // Exercise generic declaration rewriting when the native emitter prefixes a
+  // register with a one-line synthesis/CDC attribute.
+  stage0.addTag(crossClockDomain)
   stage0 := io.input
   stage1 := stage0
   io.output := stage1
@@ -35,7 +38,7 @@ final class GenericConcretePackedPipeline(width: Int) extends Component {
 /**
   * The parent alone owns the public symbolic width. The child receives only the
   * concrete witness, proving that hierarchy shape recovery is independent of
-  * StreamFifo, StreamFifoCC, BufferCC, source-file names and class names.
+  * particular library components, source-file names and class names.
   */
 final class GenericImplicitPackedShapeHarness(width: HdlInt) extends Component {
   setDefinitionName("GenericImplicitPackedShapeHarness")
@@ -89,6 +92,10 @@ class GenericImplicitPackedShapeTests extends AnyFunSuite {
           s"$name retained a concrete witness width: ${declarations.head}"
         )
       }
+      assert(
+        lines.exists(line => line.contains("(*") && line.contains("stage0")),
+        "The generic witness did not preserve its native attributed declaration"
+      )
 
       Vector(4, 8, 16).foreach { selectedWidth =>
         val command = Seq(
