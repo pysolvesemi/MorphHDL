@@ -1,0 +1,386 @@
+name: Publish Increment 53d generic definition-boundary repair
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-native-streamwidth-adapter
+    paths:
+      - .github/workflows/increment-53d-generic-definition-boundary-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-test-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out exact Increment 53d branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-native-streamwidth-adapter
+          fetch-depth: 0
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Replace the component-specific bypass with a generic definition boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          plugin = Path(
+              "morphplugin/src/main/scala/morphhdl/compiler/"
+              "MorphHdlNativeIntShadowExpressionComponent.scala"
+          )
+          text = plugin.read_text(encoding="utf-8")
+
+          old_helper = '''    private def withoutNativeStreamFifoContext[A](body: => A): A = {
+                val previousDataTypeName = nativeStreamFifoDataTypeName
+                val previousDepthName = nativeStreamFifoDepthName
+                val previousDepthReference = nativeStreamFifoDepthReference
+                val previousDepthLine = nativeStreamFifoDepthLine
+                val previousStaticBooleans = nativeStreamFifoStaticBooleans
+                nativeStreamFifoDataTypeName = None
+                nativeStreamFifoDepthName = None
+                nativeStreamFifoDepthReference = None
+                nativeStreamFifoStaticBooleans = Set.empty
+                try body
+                finally {
+                  nativeStreamFifoDataTypeName = previousDataTypeName
+                  nativeStreamFifoDepthName = previousDepthName
+                  nativeStreamFifoDepthReference = previousDepthReference
+                  nativeStreamFifoDepthLine = previousDepthLine
+                  nativeStreamFifoStaticBooleans = previousStaticBooleans
+                }
+              }
+          '''
+          old_helper = '\n'.join(line[12:] if line.startswith('            ') else line for line in old_helper.splitlines()) + '\n'
+          new_helper = '''    /**
+              * Native runtime capture is scoped to the exact definition that opened
+              * it. A nested named definition has an independent elaboration lifetime,
+              * so it must not inherit an enclosing constructor or width-function
+              * boundary. Function literals remain in the current boundary because
+              * they execute as part of the owning definition body.
+              */
+            private def withoutEnclosingNativeRuntimeContext[A](body: => A): A = {
+              val previousStreamFifoDataTypeName = nativeStreamFifoDataTypeName
+              val previousStreamFifoDepthName = nativeStreamFifoDepthName
+              val previousStreamFifoDepthReference = nativeStreamFifoDepthReference
+              val previousStreamFifoDepthLine = nativeStreamFifoDepthLine
+              val previousStreamFifoStaticBooleans = nativeStreamFifoStaticBooleans
+              val previousWidthFunctionDepth = nativeWidthFunctionDepth
+              val previousWidthFunctionStaticBooleans = nativeWidthFunctionStaticBooleans
+
+              nativeStreamFifoDataTypeName = None
+              nativeStreamFifoDepthName = None
+              nativeStreamFifoDepthReference = None
+              nativeStreamFifoDepthLine = 1
+              nativeStreamFifoStaticBooleans = Set.empty
+              nativeWidthFunctionDepth = 0
+              nativeWidthFunctionStaticBooleans = Set.empty
+
+              try body
+              finally {
+                nativeStreamFifoDataTypeName = previousStreamFifoDataTypeName
+                nativeStreamFifoDepthName = previousStreamFifoDepthName
+                nativeStreamFifoDepthReference = previousStreamFifoDepthReference
+                nativeStreamFifoDepthLine = previousStreamFifoDepthLine
+                nativeStreamFifoStaticBooleans = previousStreamFifoStaticBooleans
+                nativeWidthFunctionDepth = previousWidthFunctionDepth
+                nativeWidthFunctionStaticBooleans = previousWidthFunctionStaticBooleans
+              }
+            }
+          '''
+          new_helper = '\n'.join(line[12:] if line.startswith('            ') else line for line in new_helper.splitlines()) + '\n'
+
+          if old_helper in text:
+              text = text.replace(old_helper, new_helper, 1)
+          elif "withoutEnclosingNativeRuntimeContext" not in text:
+              raise SystemExit("component-specific native context helper was not found")
+
+          old_cases = '''      case definition: DefDef
+                    if inNativeStreamFifo && decoded(definition.name) != "<init>" =>
+                  // StreamFifo owns a dedicated constructor-capture contract. Isolate
+                  // every nested method before the generic width-function matcher so a
+                  // helper driver cannot move into a symbolic body while its consumer
+                  // remains at module scope.
+                  withoutNativeStreamFifoContext {
+                    withScope(super.transform(definition))
+                  }
+                case definition: DefDef if decoded(definition.name) != "<init>" =>
+                  val roots = nativeWidthRoots(definition.rhs)
+                  if (roots.nonEmpty) transformNativeWidthFunction(definition, roots)
+                  else withScope(super.transform(definition))
+          '''
+          old_cases = '\n'.join(line[12:] if line.startswith('            ') else line for line in old_cases.splitlines()) + '\n'
+          new_cases = '''      case definition: DefDef if decoded(definition.name) != "<init>" =>
+                  // A named definition never inherits the active native capture of its
+                  // lexical owner. After clearing that state, discover and establish
+                  // any direct width-function boundary owned by this definition.
+                  if (inNativeRuntimeContext)
+                    withoutEnclosingNativeRuntimeContext {
+                      transformIndependentNativeDefinition(definition)
+                    }
+                  else transformIndependentNativeDefinition(definition)
+          '''
+          new_cases = '\n'.join(line[12:] if line.startswith('            ') else line for line in new_cases.splitlines()) + '\n'
+
+          independent_method = '''    private def transformIndependentNativeDefinition(
+              definition: DefDef
+            ): Tree = {
+              val roots = nativeWidthRoots(definition.rhs)
+              if (roots.nonEmpty) transformNativeWidthFunction(definition, roots)
+              else withScope(super.transform(definition))
+            }
+
+          '''
+          independent_method = '\n'.join(line[12:] if line.startswith('            ') else line for line in independent_method.splitlines()) + '\n'
+          override_marker = "    override def transform(tree: Tree): Tree = tree match {\n"
+          if "transformIndependentNativeDefinition" not in text:
+              if text.count(override_marker) != 1:
+                  raise SystemExit("expected one transformer override marker")
+              text = text.replace(override_marker, independent_method + override_marker, 1)
+
+          if old_cases in text:
+              text = text.replace(old_cases, new_cases, 1)
+          elif "withoutNativeStreamFifoContext" in text or \
+                  'if inNativeStreamFifo && decoded(definition.name) != "<init>"' in text:
+              raise SystemExit("component-specific DefDef bypass was not replaced")
+
+          plugin.write_text(text, encoding="utf-8")
+
+          test = Path(
+              "morphhdl/src/test/scala/morphhdl/"
+              "GenericNativeDefinitionBoundaryTests.scala"
+          )
+          test.write_text('''package morphhdl
+
+          import java.nio.charset.StandardCharsets
+          import java.nio.file.{Files, Path, Paths}
+
+          import org.scalatest.funsuite.AnyFunSuite
+
+          /**
+            * Architectural regression for the compiler-plugin lifetime rule used by
+            * every ordinary SpinalHDL definition. The contract deliberately names no
+            * library component: StreamFifo and StreamWidthAdapter are only functional
+            * witnesses of this generic boundary.
+            */
+          class GenericNativeDefinitionBoundaryTests extends AnyFunSuite {
+            private val pluginPath: Path = Paths.get(
+              "morphplugin/src/main/scala/morphhdl/compiler/" +
+                "MorphHdlNativeIntShadowExpressionComponent.scala"
+            )
+
+            private def source: String =
+              new String(Files.readAllBytes(pluginPath), StandardCharsets.UTF_8)
+
+            test("every named definition uses one component-agnostic native capture boundary") {
+              val value = source
+              assert(value.contains("private def withoutEnclosingNativeRuntimeContext"))
+              assert(value.contains("if (inNativeRuntimeContext)"))
+              assert(value.contains("transformIndependentNativeDefinition(definition)"))
+              assert(
+                !value.contains(
+                  "if inNativeStreamFifo && decoded(definition.name) != \\\"<init>\\\""
+                )
+              )
+              assert(!value.contains("withoutNativeStreamFifoContext"))
+            }
+
+            test("the generic reset covers every current native runtime context family") {
+              val value = source
+              val start = value.indexOf(
+                "private def withoutEnclosingNativeRuntimeContext"
+              )
+              val end = value.indexOf("private def trackedInteger", start)
+              assert(start >= 0 && end > start)
+              val helper = value.substring(start, end)
+
+              Vector(
+                "nativeStreamFifoDataTypeName",
+                "nativeStreamFifoDepthName",
+                "nativeStreamFifoDepthReference",
+                "nativeStreamFifoDepthLine",
+                "nativeStreamFifoStaticBooleans",
+                "nativeWidthFunctionDepth",
+                "nativeWidthFunctionStaticBooleans"
+              ).foreach { state =>
+                assert(helper.contains(state), s"generic reset omitted $state")
+              }
+              assert(helper.contains("nativeStreamFifoDepthReference = None"))
+              assert(helper.contains("nativeWidthFunctionDepth = 0"))
+              assert(helper.contains("nativeWidthFunctionStaticBooleans = Set.empty"))
+            }
+
+            test("each isolated definition independently discovers its own direct width roots") {
+              val value = source
+              val start = value.indexOf(
+                "private def transformIndependentNativeDefinition"
+              )
+              val end = value.indexOf("override def transform", start)
+              assert(start >= 0 && end > start)
+              val helper = value.substring(start, end)
+              assert(helper.contains("nativeWidthRoots(definition.rhs)"))
+              assert(helper.contains("transformNativeWidthFunction(definition, roots)"))
+              assert(helper.contains("withScope(super.transform(definition))"))
+            }
+          }
+          '''.replace('\n          ', '\n').lstrip(), encoding="utf-8")
+
+          workflow = Path(
+              ".github/workflows/morphhdl-native-stream-width-adapter.yml"
+          )
+          workflow_text = workflow.read_text(encoding="utf-8")
+          suite_marker = (
+              "            morphhdl.ParameterizedStreamWidthAdapterTests \\\n"
+              "            morphhdl.ParameterizedStreamFifoDepthTests \\\n"
+          )
+          suite_replacement = (
+              "            morphhdl.ParameterizedStreamWidthAdapterTests \\\n"
+              "            morphhdl.GenericNativeDefinitionBoundaryTests \\\n"
+              "            morphhdl.ParameterizedStreamFifoDepthTests \\\n"
+          )
+          if "morphhdl.GenericNativeDefinitionBoundaryTests" not in workflow_text:
+              if workflow_text.count(suite_marker) != 1:
+                  raise SystemExit("53d workflow suite marker was not found exactly once")
+              workflow_text = workflow_text.replace(
+                  suite_marker, suite_replacement, 1
+              )
+              workflow.write_text(workflow_text, encoding="utf-8")
+
+          guard = Path(
+              "morphhdl/scripts/check-native-stream-width-adapter-boundary.sh"
+          )
+          guard_text = guard.read_text(encoding="utf-8")
+          guard_marker = 'grep -Fq \'terminalName(fun) == "widthOf"\' "$plugin"\n'
+          guard_addition = '''grep -Fq 'private def withoutEnclosingNativeRuntimeContext' "$plugin"
+          grep -Fq 'if (inNativeRuntimeContext)' "$plugin"
+          grep -Fq 'transformIndependentNativeDefinition(definition)' "$plugin"
+
+          if grep -Fq 'withoutNativeStreamFifoContext' "$plugin"; then
+            echo "Named-definition capture isolation must not use a StreamFifo-only helper" >&2
+            exit 1
+          fi
+          if grep -Fq 'if inNativeStreamFifo && decoded(definition.name) != "<init>"' "$plugin"; then
+            echo "Named-definition capture isolation must be generic across native contexts" >&2
+            exit 1
+          fi
+          '''.replace('\n          ', '\n')
+          if "Named-definition capture isolation must be generic" not in guard_text:
+              if guard_text.count(guard_marker) != 1:
+                  raise SystemExit("source-boundary insertion marker was not found")
+              guard_text = guard_text.replace(
+                  guard_marker, guard_marker + guard_addition, 1
+              )
+              guard.write_text(guard_text, encoding="utf-8")
+
+          doc = Path("docs/morphhdl/increment-53d-native-streamwidth-adapter.md")
+          doc_text = doc.read_text(encoding="utf-8")
+          section = '''
+
+          ## Generic named-definition lifetime repair
+
+          Native symbolic capture belongs to the exact Scala definition that opens
+          the runtime boundary. Every non-constructor `DefDef` reached while an
+          enclosing constructor or native width-function boundary is active now
+          snapshots and clears the complete native runtime-capture state, then
+          independently discovers any direct `widthOf(Data)` roots owned by that
+          definition and opens a fresh boundary only when required. Function literals
+          remain inside their owning definition because they execute as part of that
+          definition body.
+
+          This is a compiler-wide lexical rule, not a StreamFifo, StreamFifoCC or
+          StreamWidthAdapter exception. The production transform contains no
+          component-name condition for named-definition isolation. The dual-Scala
+          architectural regression checks the generic rule and all current runtime
+          context state, while the native StreamFifo compound-depth and native
+          StreamWidthAdapter suites remain functional witnesses. New SpinalHDL
+          components using the same native constructor or `widthOf` capture machinery
+          therefore receive the same ownership and dominance protection automatically.
+          '''.replace('\n          ', '\n').rstrip() + '\n'
+          if "## Generic named-definition lifetime repair" not in doc_text:
+              doc.write_text(doc_text.rstrip() + section, encoding="utf-8")
+          PY
+
+          git diff --check
+          git diff --stat
+          grep -n -A28 -B4 'withoutEnclosingNativeRuntimeContext' \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          grep -n -A18 -B4 'transformIndependentNativeDefinition' \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+
+      - name: Validate generic and inherited contracts on Scala 2.13.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.GenericNativeDefinitionBoundaryTests \
+            morphhdl.ParameterizedStreamWidthAdapterTests \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.BackendSyncMergeIsolationTests \
+            morphhdl.CapturedAssignmentNormalizationTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.NativeMemAutoProvenanceTests \
+            morphhdl.ExternalNativeIntFormalizationTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowProvenanceTests \
+            morphhdl.FormalParameterIdentityTests \
+            morphhdl.FormalParameterClonePropagationTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.integration.ExternalSpinalVerilogBaselineTests
+
+      - name: Validate generic and inherited contracts on Scala 2.12.18
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.GenericNativeDefinitionBoundaryTests \
+            morphhdl.ParameterizedStreamWidthAdapterTests \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.BackendSyncMergeIsolationTests \
+            morphhdl.CapturedAssignmentNormalizationTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
+            morphhdl.NativeIntNestedSymbolicControlFlowTests \
+            morphhdl.NativeMemAutoProvenanceTests \
+            morphhdl.ExternalNativeIntFormalizationTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowProvenanceTests \
+            morphhdl.FormalParameterIdentityTests \
+            morphhdl.FormalParameterClonePropagationTests \
+            morphhdl.HierarchyParameterBindingTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.integration.ExternalSpinalVerilogBaselineTests
+
+      - name: Validate generic source and native-library boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
+
+      - name: Commit the validated generic repair and remove the publisher
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/increment-53d-generic-definition-boundary-repair.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix: generalize native definition capture isolation"
+          git push origin HEAD:agent/increment-53d-native-streamwidth-adapter
