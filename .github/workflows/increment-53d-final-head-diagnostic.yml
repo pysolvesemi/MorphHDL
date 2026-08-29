@@ -1,4 +1,4 @@
-name: Diagnose Increment 53d aggregate SBT failures
+name: Diagnose Increment 53d SBT parallel isolation
 
 on:
   push:
@@ -16,25 +16,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  isolated-target:
-    name: ${{ matrix.target_name }} Scala ${{ matrix.scala_version }}
+  morph-parallelism:
+    name: morph/test Scala ${{ matrix.scala_version }} parallel=${{ matrix.parallel }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SBT_TEST_PARALLEL: ${{ matrix.parallel }}
     strategy:
       fail-fast: false
       matrix:
         scala_version:
           - "2.12.18"
           - "2.13.12"
-        target_name:
-          - idslplugin-test
-          - paramrtl-test
-          - frontend-test
-          - verilogBackend-test
-          - morph-test
-          - core-phase-plan-test
+        parallel:
+          - "0"
+          - "1"
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@v4
@@ -43,43 +41,33 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Run isolated aggregate target and print exact failure
+      - name: Run complete morph suite and retain exact failure
         id: diagnostic
         shell: bash
         run: |
           set +e
-          case "${{ matrix.target_name }}" in
-            idslplugin-test) target='idslplugin/test' ;;
-            paramrtl-test) target='paramrtl/test' ;;
-            frontend-test) target='frontend/test' ;;
-            verilogBackend-test) target='verilogBackend/test' ;;
-            morph-test) target='morph/test' ;;
-            core-phase-plan-test) target='core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests' ;;
-            *) printf '%s\n' 'Unknown diagnostic target' >&2; exit 2 ;;
-          esac
-
-          output="${RUNNER_TEMP}/increment-53d-${{ matrix.target_name }}-${{ matrix.scala_version }}"
+          output="${RUNNER_TEMP}/increment-53d-morph-${{ matrix.scala_version }}-parallel-${{ matrix.parallel }}"
           mkdir -p "$output"
           log="$output/test.log"
-          sbt -batch "++${{ matrix.scala_version }}" "$target" >"$log" 2>&1
+          sbt -batch "++${{ matrix.scala_version }}" morph/test >"$log" 2>&1
           result=$?
           printf '%s\n' "$result" >"$output/status"
 
           if [ "$result" -ne 0 ]; then
-            printf '%s\n' "FAILED: $target on Scala ${{ matrix.scala_version }} (exit $result)"
-            grep -E -n -C 10 '(\[error\]|FAILED|Exception|AssertionError|not found:|type mismatch|ambiguous|unbound|No tests were executed)' "$log" | tail -n 1800 || true
+            printf '%s\n' "FAILED: morph/test Scala ${{ matrix.scala_version }} parallel=${{ matrix.parallel }}"
+            grep -E -n -C 12 '(\[error\]|FAILED|Exception|AssertionError|WIDTH MISMATCH|ASSIGNMENT-WIDTH-MISMATCH|Tests: succeeded)' "$log" | tail -n 2200 || true
           else
-            printf '%s\n' "PASSED: $target on Scala ${{ matrix.scala_version }}"
+            printf '%s\n' "PASSED: morph/test Scala ${{ matrix.scala_version }} parallel=${{ matrix.parallel }}"
           fi
           printf '%s\n' '--- final output ---'
-          tail -n 300 "$log"
+          tail -n 350 "$log"
           exit "$result"
 
-      - name: Upload exact target diagnostic
+      - name: Upload exact parallelism diagnostic
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53d-${{ matrix.target_name }}-scala-${{ matrix.scala_version }}
-          path: ${{ runner.temp }}/increment-53d-${{ matrix.target_name }}-${{ matrix.scala_version }}
+          name: increment-53d-morph-scala-${{ matrix.scala_version }}-parallel-${{ matrix.parallel }}
+          path: ${{ runner.temp }}/increment-53d-morph-${{ matrix.scala_version }}-parallel-${{ matrix.parallel }}
           if-no-files-found: error
           retention-days: 3
