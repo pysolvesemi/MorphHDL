@@ -1,0 +1,141 @@
+name: Increment 53e install permanent generic CI
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+jobs:
+  install:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Install only after proven closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin agent/increment-53e-native-streamfifocc-parameterization
+          git reset --hard origin/agent/increment-53e-native-streamfifocc-parameterization
+          validated=$(git rev-parse HEAD)
+          rm -f .github/workflows/increment-53e-install-permanent-ci.yml
+
+          if grep -Fq -- '- [x] **Increment 53e — Native StreamFifoCC parameterization without source edits**' \
+              docs/morphhdl/parameterized-verilog-todo.md; then
+            test -f morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedWidthDomainProof.scala
+            test -f morphhdl/src/test/scala/morphhdl/GenericNativeStreamFifoCCFormalEquivalenceTests.scala
+            test -x morphhdl/scripts/check-generic-native-int-compiler.sh
+            test -x morphhdl/scripts/check-generic-parameterized-width-engine.sh
+            test -x morphhdl/scripts/verify-generic-native-streamfifocc.sh
+            test -x morphhdl/scripts/verify-generic-native-streamfifocc-formal.sh
+            ! find .github/workflows -maxdepth 1 -type f -name 'increment-53e-*.yml' | grep -q .
+            ! find morphhdl/scripts -maxdepth 1 -type f -name 'apply-increment-53e-*.py' | grep -q .
+
+            cat >.github/workflows/morphhdl-generic-native-parameterization.yml <<'YAML'
+name: MorphHDL generic native parameterization
+
+on:
+  pull_request:
+    branches: [parameterized-verilog]
+  push:
+    branches: [parameterized-verilog]
+
+permissions:
+  contents: read
+
+jobs:
+  generic-native-parameterization:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate genericity and untouched native sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          bash morphhdl/scripts/check-generic-native-int-compiler.sh
+          bash morphhdl/scripts/check-generic-parameterized-width-engine.sh
+          bash morphhdl/scripts/check-native-streamfifocc-parameterization-boundary.sh
+
+      - name: Install pinned build and verification tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+          apt-get update
+          apt-get install -y --no-install-recommends yosys iverilog verilator
+
+      - name: Validate both supported Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala in 2.12.18 2.13.12; do
+            /tmp/mill "morph[$scala].testOnly" \
+              spinal.core.internals.ExternalParameterizedWidthDomainProofTests \
+              morphhdl.ParameterizedStreamFifoCCTests \
+              morphhdl.GenericNativeStreamFifoCCFormalEquivalenceTests
+          done
+
+      - name: Generate independent candidate and concrete witnesses
+        shell: bash
+        env:
+          MORPHDL_STREAMFIFOCC_GENERATE_WORKSPACE_ONLY: "1"
+          MORPHDL_STREAMFIFOCC_FORMAL_WORKSPACE: /tmp/streamfifocc-formal
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/streamfifocc-formal
+          /tmp/mill 'morph[2.12.18].testOnly' \
+            morphhdl.GenericNativeStreamFifoCCFormalEquivalenceTests
+
+      - name: Prove sequential equivalence and mutation rejection
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/verify-generic-native-streamfifocc-formal.sh \
+            /tmp/streamfifocc-formal
+
+      - name: Validate Verilog-2001, synthesis and independent-clock behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/verify-generic-native-streamfifocc.sh \
+            /tmp/streamfifocc-formal
+YAML
+            rm -f morphhdl/ci/increment-53e-not-ready.txt
+            message='Increment 53e: install permanent generic parameterization CI'
+          else
+            mkdir -p morphhdl/ci
+            {
+              echo 'result=not-ready'
+              echo "head=$validated"
+              for file in morphhdl/ci/increment-53e-complete-*-status.txt; do
+                if test -f "$file"; then cat "$file"; fi
+              done
+            } >morphhdl/ci/increment-53e-not-ready.txt
+            message='Increment 53e: retain not-ready closure status'
+          fi
+
+          git add -A
+          git diff --cached --check
+          git commit -m "$message"
+          remote=$(git ls-remote origin refs/heads/agent/increment-53e-native-streamfifocc-parameterization | awk '{print $1}')
+          test "$validated" = "$remote"
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
