@@ -46,17 +46,17 @@ jobs:
           )
           text = registry.read_text(encoding="utf-8")
           marker = "  def boundaryActive: Boolean = currentBoundary.nonEmpty\n"
-          addition = '''
-
-  /**
-    * Domain-constant branch folding is local to an ordinary native
-    * width-function call. Constructor boundaries such as StreamFifo retain
-    * their established structural capture even when a narrowed caller domain
-    * makes one predicate constant.
-    */
-  private[core] def nativeWidthFunctionBoundaryActive: Boolean =
-    currentBoundary.exists(_.token.role == "nativeWidthFunction")
-'''
+          addition = (
+              "\n"
+              "  /**\n"
+              "    * Domain-constant branch folding is local to an ordinary native\n"
+              "    * width-function call. Constructor boundaries such as StreamFifo retain\n"
+              "    * their established structural capture even when a narrowed caller domain\n"
+              "    * makes one predicate constant.\n"
+              "    */\n"
+              "  private[core] def nativeWidthFunctionBoundaryActive: Boolean =\n"
+              "    currentBoundary.exists(_.token.role == \"nativeWidthFunction\")\n"
+          )
           if "nativeWidthFunctionBoundaryActive" not in text:
               if text.count(marker) != 1:
                   raise SystemExit(
@@ -78,10 +78,11 @@ jobs:
           if body < 0:
               raise SystemExit("constantPredicate body marker not found")
           insertion = body + len(body_marker)
-          guard = '''    if (!ExternalNativeIntShadowRegistry.nativeWidthFunctionBoundaryActive)
-      return None
-
-'''
+          guard = (
+              "    if (!ExternalNativeIntShadowRegistry.nativeWidthFunctionBoundaryActive)\n"
+              "      return None\n"
+              "\n"
+          )
           if guard not in text[start:]:
               text = text[:insertion] + guard + text[insertion:]
               runtime.write_text(text, encoding="utf-8")
