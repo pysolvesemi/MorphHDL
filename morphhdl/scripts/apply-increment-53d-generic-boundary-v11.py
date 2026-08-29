@@ -95,6 +95,10 @@ if "grep -Fq 'case Bind(name: TermName, body) =>'" not in value:
         marker + "grep -Fq 'case Bind(name: TermName, body) =>' \"$plugin\"\n",
         1,
     )
+# The production transformer deliberately uses explicit braces around the
+# active-context/top-level split. Guard semantics, not one-line formatting.
+obsolete = "grep -Fq 'else transformIndependentNativeDefinition(definition)' \"$plugin\"\n"
+value = value.replace(obsolete, "")
 guard.write_text(value, encoding="utf-8")
 
 doc = Path("docs/morphhdl/increment-53d-native-streamwidth-adapter.md")
