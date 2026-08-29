@@ -6,6 +6,7 @@ on:
       - agent/increment-53d-generic-native-definition-boundary
     paths:
       - .github/workflows/increment-53d-generic-boundary-publisher-v10.yml
+      - morphhdl/scripts/apply-increment-53d-generic-boundary-v11.py
   workflow_dispatch:
 
 permissions:
