@@ -1,0 +1,56 @@
+name: Repair Increment 53d generic publisher matcher
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-generic-native-boundary-repair
+    paths:
+      - .github/workflows/increment-53d-publisher-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair-publisher:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-generic-native-boundary-repair
+          fetch-depth: 0
+
+      - name: Make semantic-eligibility patch indentation-independent
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          publisher = Path(
+              ".github/workflows/"
+              "increment-53d-generic-native-boundary-repair.yml"
+          )
+          text = publisher.read_text(encoding="utf-8")
+          start = text.index("          old_eligibility =")
+          end = text.index("          old_helper =", start)
+          replacement = '''          old_eligibility = (
+              'normalizedPath.endsWith('
+              '"/lib/src/main/scala/spinal/lib/Stream.scala")'
+          )
+          new_eligibility = 'content.contains("widthOf")'
+          if old_eligibility in text:
+              text = text.replace(old_eligibility, new_eligibility, 1)
+          elif new_eligibility not in text:
+              raise SystemExit("native source eligibility contract was not recognized")
+
+'''
+          publisher.write_text(text[:start] + replacement + text[end:], encoding="utf-8")
+          PY
+          rm -f .github/workflows/increment-53d-publisher-fix.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ci: fix generic boundary publisher matcher"
+          git push origin HEAD:agent/increment-53d-generic-native-boundary-repair
