@@ -61,6 +61,21 @@ value = value.replace(
     broken_defdef_assertion, fixed_defdef_assertion, 1
 )
 
+# The same generator emitted the quoted constructor name into an ordinary
+# Scala string without preserving its escapes. The generic case prefix is a
+# stronger stable locator and avoids coupling the regression to quote syntax.
+broken_definition_locator = (
+    '"case definition: DefDef if decoded(definition.name) != "<init>""'
+)
+fixed_definition_locator = (
+    '"case definition: DefDef if decoded(definition.name)"'
+)
+if value.count(broken_definition_locator) != 1:
+    raise SystemExit("generated nested-definition locator repair point is ambiguous")
+value = value.replace(
+    broken_definition_locator, fixed_definition_locator, 1
+)
+
 needle = 'assert(value.contains("private def localNativeWidthNames"))'
 if value.count(needle) != 1:
     raise SystemExit("generic regression insertion point is ambiguous")
