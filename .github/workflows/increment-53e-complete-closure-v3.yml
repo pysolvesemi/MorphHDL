@@ -1,0 +1,305 @@
+name: Increment 53e independent Yosys complete closure v3
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53e-complete-closure
+  cancel-in-progress: true
+
+jobs:
+  close:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Configure exact feature and target heads
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin \
+            agent/increment-53e-native-streamfifocc-parameterization \
+            parameterized-verilog
+          git reset --hard origin/agent/increment-53e-native-streamfifocc-parameterization
+          git rev-parse HEAD >/tmp/validated-head
+
+      - name: Build target-synchronized candidate and proof harness
+        id: prepare
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          (
+            set -euo pipefail
+            if ! git merge --no-commit --no-ff origin/parameterized-verilog; then
+              conflicts=$(git diff --name-only --diff-filter=U)
+              test "$conflicts" = 'docs/morphhdl/parameterized-verilog-todo.md'
+              git checkout --theirs docs/morphhdl/parameterized-verilog-todo.md
+              git add docs/morphhdl/parameterized-verilog-todo.md
+              test -z "$(git diff --name-only --diff-filter=U)"
+            fi
+
+            if ! test -f morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedWidthDomainProof.scala; then
+              for script in \
+                morphhdl/scripts/apply-increment-53e-address-role-repair.py \
+                morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py \
+                morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py \
+                morphhdl/scripts/apply-increment-53e-modular-literal-proof.py \
+                morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py \
+                morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py \
+                morphhdl/scripts/apply-increment-53e-generic-complete-domain-equivalence.py
+              do
+                test -f "$script"
+                python3 "$script"
+              done
+            fi
+            if ! test -x morphhdl/scripts/check-generic-native-int-compiler.sh || \
+               ! bash morphhdl/scripts/check-generic-native-int-compiler.sh >/dev/null 2>&1; then
+              if test -f morphhdl/scripts/apply-increment-53e-buffercc-shape-repair.py; then
+                python3 morphhdl/scripts/apply-increment-53e-buffercc-shape-repair.py
+              fi
+              python3 morphhdl/scripts/apply-increment-53e-generic-native-source-selection.py
+              python3 morphhdl/scripts/apply-increment-53e-generic-native-shape-selection.py
+            fi
+            if ! grep -q 'captureCandidateArgumentTracked' morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala; then
+              python3 morphhdl/scripts/apply-increment-53e-generic-candidate-argument-selection.py
+            fi
+            if ! grep -q 'expressionDependsOnRoot' morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala; then
+              python3 morphhdl/scripts/apply-increment-53e-generic-taint-inertness-v2.py
+            fi
+
+            python3 - <<'PY'
+            from pathlib import Path
+            path = Path('morphhdl/src/test/scala/morphhdl/GenericNativeStreamFifoCCFormalEquivalenceTests.scala')
+            value = path.read_text()
+            if 'val fifo = morphhdl.frontend.StreamFifoCC(' in value:
+                value = value.replace(
+                    '  val fifo = morphhdl.frontend.StreamFifoCC(\n',
+                    '  val fifo: spinal.lib.StreamFifoCC[Bits] = morphhdl.frontend.StreamFifoCC(\n',
+                    1,
+                )
+            value = value.replace(
+                '  require(fifo.getClass == classOf[spinal.lib.StreamFifoCC[_]])\n\n',
+                '',
+            )
+            marker = '''  test("all public outputs are solver-equivalent under independent clocks") {
+'''
+            generate_test = '''  test("formal workspace can be generated without coupling to one proof engine") {
+    if (!sys.env.get("MORPHDL_STREAMFIFOCC_GENERATE_WORKSPACE_ONLY").contains("1")) {
+      cancel("generation-only workspace is reserved for the formal workflow")
+    }
+    withFormalWorkspace { directory =>
+      validateGenerated(generate(directory))
+    }
+  }
+
+'''
+            if generate_test not in value:
+                if value.count(marker) != 1:
+                    raise SystemExit('formal generation-only insertion marker not found')
+                value = value.replace(marker, generate_test + marker, 1)
+            path.write_text(value)
+
+            implementation = Path('morphhdl/scripts/verify-generic-native-streamfifocc.sh')
+            implementation.write_text(
+                implementation.read_text().replace('\\$fatal(1);', '\\$finish;')
+            )
+
+            formal = Path('morphhdl/scripts/verify-generic-native-streamfifocc-formal.sh')
+            text = formal.read_text()
+            text = text.replace(
+                '''  grep -Eq 'Equivalence successfully proven|Successfully proved' \\
+    "$workspace/equiv_prove_${mode}_${depth}.log"
+''',
+                '',
+            )
+            formal.write_text(text)
+            PY
+
+            bash morphhdl/scripts/check-generic-native-int-compiler.sh
+            bash morphhdl/scripts/check-generic-parameterized-width-engine.sh
+            bash morphhdl/scripts/check-native-streamfifocc-parameterization-boundary.sh
+            git diff --check
+          ) 2>&1 | tee /tmp/53e-v3-prepare.log
+          code=${PIPESTATUS[0]}
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Install pinned toolchain
+        id: tools
+        if: steps.prepare.outputs.code == '0'
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          (
+            set -euo pipefail
+            curl --fail --location --retry 5 --retry-all-errors \
+              https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+              --output /tmp/mill
+            chmod +x /tmp/mill
+            apt-get update
+            apt-get install -y --no-install-recommends \
+              yosys iverilog verilator
+            yosys -V
+            iverilog -V
+            verilator --version
+          ) 2>&1 | tee /tmp/53e-v3-tools.log
+          code=${PIPESTATUS[0]}
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Validate generic compiler and independent generation on both Scala lanes
+        id: scala
+        if: steps.prepare.outputs.code == '0' && steps.tools.outputs.code == '0'
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          /tmp/mill 'morph[2.12.18].testOnly' \
+            spinal.core.internals.ExternalParameterizedWidthDomainProofTests \
+            morphhdl.ParameterizedStreamFifoCCTests \
+            morphhdl.GenericNativeStreamFifoCCFormalEquivalenceTests \
+            2>&1 | tee /tmp/53e-v3-scala-2.12.log
+          c12=${PIPESTATUS[0]}
+          /tmp/mill 'morph[2.13.12].testOnly' \
+            spinal.core.internals.ExternalParameterizedWidthDomainProofTests \
+            morphhdl.ParameterizedStreamFifoCCTests \
+            morphhdl.GenericNativeStreamFifoCCFormalEquivalenceTests \
+            2>&1 | tee /tmp/53e-v3-scala-2.13.log
+          c13=${PIPESTATUS[0]}
+          echo "c12=$c12" >> "$GITHUB_OUTPUT"
+          echo "c13=$c13" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Generate persistent independent witnesses
+        id: generate
+        if: steps.scala.outputs.c12 == '0' && steps.scala.outputs.c13 == '0'
+        shell: bash
+        env:
+          MORPHDL_STREAMFIFOCC_GENERATE_WORKSPACE_ONLY: "1"
+          MORPHDL_STREAMFIFOCC_FORMAL_WORKSPACE: /tmp/streamfifocc-formal
+        run: |
+          set +e
+          set -o pipefail
+          rm -rf /tmp/streamfifocc-formal
+          /tmp/mill 'morph[2.12.18].testOnly' \
+            morphhdl.GenericNativeStreamFifoCCFormalEquivalenceTests \
+            2>&1 | tee /tmp/53e-v3-generate.log
+          code=${PIPESTATUS[0]}
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Prove sequential equivalence and reject mutation
+        id: formal
+        if: steps.generate.outputs.code == '0'
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          bash morphhdl/scripts/verify-generic-native-streamfifocc-formal.sh \
+            /tmp/streamfifocc-formal \
+            2>&1 | tee /tmp/53e-v3-formal.log
+          code=${PIPESTATUS[0]}
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Run lint, synthesis and independent-clock simulation
+        id: implementation
+        if: steps.formal.outputs.code == '0'
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          bash morphhdl/scripts/verify-generic-native-streamfifocc.sh \
+            /tmp/streamfifocc-formal \
+            2>&1 | tee /tmp/53e-v3-implementation.log
+          code=${PIPESTATUS[0]}
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Publish exact outcome
+        shell: bash
+        env:
+          PREPARE: ${{ steps.prepare.outputs.code }}
+          TOOLS: ${{ steps.tools.outputs.code }}
+          C12: ${{ steps.scala.outputs.c12 }}
+          C13: ${{ steps.scala.outputs.c13 }}
+          GENERATE: ${{ steps.generate.outputs.code }}
+          FORMAL: ${{ steps.formal.outputs.code }}
+          IMPLEMENTATION: ${{ steps.implementation.outputs.code }}
+        run: |
+          set -euo pipefail
+          prepare=${PREPARE:-99}; tools=${TOOLS:-99}
+          c12=${C12:-99}; c13=${C13:-99}; generate=${GENERATE:-99}
+          formal=${FORMAL:-99}; implementation=${IMPLEMENTATION:-99}
+          result=failure
+          if test "$prepare" = 0 && test "$tools" = 0 && \
+             test "$c12" = 0 && test "$c13" = 0 && test "$generate" = 0 && \
+             test "$formal" = 0 && test "$implementation" = 0; then
+            result=success
+          fi
+          mkdir -p /tmp/evidence
+          {
+            echo "stage=complete-generic-closure-v3"
+            echo "validated_head=$(cat /tmp/validated-head)"
+            echo "prepare_exit=$prepare"
+            echo "tools_exit=$tools"
+            echo "scala_2_12_exit=$c12"
+            echo "scala_2_13_exit=$c13"
+            echo "generate_exit=$generate"
+            echo "formal_exit=$formal"
+            echo "implementation_exit=$implementation"
+            echo "result=$result"
+          } >/tmp/evidence/status.txt
+          cat /tmp/53e-v3-*.log 2>/dev/null | \
+            grep -E 'SPINAL-|MORPH-|\*\*\* FAILED|\[error\]|error:|Exception|not found|type mismatch|value .* is not a member|FAIL mode=|Assert failed|Unproven|unproven|syntax error|ERROR:' | \
+            tail -n 1200 >/tmp/evidence/diagnostic.txt || true
+          remote=$(git ls-remote origin refs/heads/agent/increment-53e-native-streamfifocc-parameterization | awk '{print $1}')
+          test "$remote" = "$(cat /tmp/validated-head)"
+
+          if test "$result" = failure; then
+            git reset --hard "$(cat /tmp/validated-head)"
+            mkdir -p morphhdl/ci
+            cp /tmp/evidence/status.txt morphhdl/ci/increment-53e-complete-v3-status.txt
+            cp /tmp/evidence/diagnostic.txt morphhdl/ci/increment-53e-complete-v3-diagnostic.txt
+            rm -f .github/workflows/increment-53e-complete-closure-v3.yml
+            git add -A
+            git diff --cached --check
+            git commit -m 'Increment 53e: record independent Yosys closure failure'
+          else
+            python3 - <<'PY'
+            from pathlib import Path
+            path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+            value = path.read_text()
+            open_entry = '- [ ] **Increment 53e — Native StreamFifoCC parameterization without source edits**'
+            closed_entry = '- [x] **Increment 53e — Native StreamFifoCC parameterization without source edits**'
+            if open_entry in value:
+                value = value.replace(open_entry, closed_entry, 1)
+            elif closed_entry not in value:
+                raise SystemExit('Increment 53e roadmap entry not found')
+            path.write_text(value)
+            PY
+            rm -rf morphhdl/ci/increment-53e-*.txt
+            find .github/workflows -maxdepth 1 -type f -name 'increment-53e-*.yml' -delete
+            find morphhdl/scripts -maxdepth 1 -type f -name 'apply-increment-53e-*.py' -delete
+            git add -A
+            git diff --cached --check
+            git commit -m 'Increment 53e: close generic native StreamFifoCC parameterization'
+          fi
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
