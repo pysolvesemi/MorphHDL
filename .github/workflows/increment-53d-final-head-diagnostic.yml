@@ -17,9 +17,9 @@ concurrency:
 
 jobs:
   morph-parallelism:
-    name: morph/test Scala ${{ matrix.scala_version }} parallel=${{ matrix.parallel }}
+    name: Native witnesses Scala ${{ matrix.scala_version }} parallel=${{ matrix.parallel }}
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 90
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     env:
@@ -41,23 +41,25 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Run complete morph suite and retain exact failure
+      - name: Run failing native witness classes together
         id: diagnostic
         shell: bash
         run: |
           set +e
-          output="${RUNNER_TEMP}/increment-53d-morph-${{ matrix.scala_version }}-parallel-${{ matrix.parallel }}"
+          output="${RUNNER_TEMP}/increment-53d-witnesses-${{ matrix.scala_version }}-parallel-${{ matrix.parallel }}"
           mkdir -p "$output"
           log="$output/test.log"
-          sbt -batch "++${{ matrix.scala_version }}" morph/test >"$log" 2>&1
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.NativeStreamFifoFormalEquivalenceTests" \
+            >"$log" 2>&1
           result=$?
           printf '%s\n' "$result" >"$output/status"
 
           if [ "$result" -ne 0 ]; then
-            printf '%s\n' "FAILED: morph/test Scala ${{ matrix.scala_version }} parallel=${{ matrix.parallel }}"
+            printf '%s\n' "FAILED: native witnesses Scala ${{ matrix.scala_version }} parallel=${{ matrix.parallel }}"
             grep -E -n -C 12 '(\[error\]|FAILED|Exception|AssertionError|WIDTH MISMATCH|ASSIGNMENT-WIDTH-MISMATCH|Tests: succeeded)' "$log" | tail -n 2200 || true
           else
-            printf '%s\n' "PASSED: morph/test Scala ${{ matrix.scala_version }} parallel=${{ matrix.parallel }}"
+            printf '%s\n' "PASSED: native witnesses Scala ${{ matrix.scala_version }} parallel=${{ matrix.parallel }}"
           fi
           printf '%s\n' '--- final output ---'
           tail -n 350 "$log"
@@ -67,7 +69,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-53d-morph-scala-${{ matrix.scala_version }}-parallel-${{ matrix.parallel }}
-          path: ${{ runner.temp }}/increment-53d-morph-${{ matrix.scala_version }}-parallel-${{ matrix.parallel }}
+          name: increment-53d-witnesses-scala-${{ matrix.scala_version }}-parallel-${{ matrix.parallel }}
+          path: ${{ runner.temp }}/increment-53d-witnesses-${{ matrix.scala_version }}-parallel-${{ matrix.parallel }}
           if-no-files-found: error
           retention-days: 3
