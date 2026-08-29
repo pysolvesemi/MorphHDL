@@ -598,6 +598,9 @@ object ExternalNativeIntCompilerRuntime {
       sourceFile: String,
       sourceLine: Int
   ): Option[Boolean] = {
+    if (!ExternalNativeIntShadowRegistry.nativeWidthFunctionBoundaryActive)
+      return None
+
     val (_, domain) =
       ExternalNativeIntShadowRegistry.definitionPredicateEvidenceTracked(
         predicateReference,

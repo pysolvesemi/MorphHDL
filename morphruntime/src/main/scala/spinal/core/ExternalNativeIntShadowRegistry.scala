@@ -1210,6 +1210,15 @@ object ExternalNativeIntShadowRegistry {
   /** True only while one exact native formalization constructor is executing. */
   def boundaryActive: Boolean = currentBoundary.nonEmpty
 
+  /**
+    * Domain-constant branch folding is local to an ordinary native
+    * width-function call. Constructor boundaries such as StreamFifo retain
+    * their established structural capture even when a narrowed caller domain
+    * makes one predicate constant.
+    */
+  private[core] def nativeWidthFunctionBoundaryActive: Boolean =
+    currentBoundary.exists(_.token.role == "nativeWidthFunction")
+
   private def currentBoundary: Option[ActiveBoundary] =
     Option(active.get()).getOrElse(Nil).headOption
 
