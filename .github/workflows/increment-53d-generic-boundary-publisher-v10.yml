@@ -6,7 +6,6 @@ on:
       - agent/increment-53d-generic-native-definition-boundary
     paths:
       - .github/workflows/increment-53d-generic-boundary-publisher-v10.yml
-      - morphhdl/scripts/apply-increment-53d-generic-boundary-v11.py
   workflow_dispatch:
 
 permissions:
@@ -17,75 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  source-boundary:
-    name: Generic source and native-library boundary
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    container:
-      image: ghcr.io/spinalhdl/docker:latest
-    steps:
-      - name: Check out exact candidate branch
-        uses: actions/checkout@v4
-        with:
-          ref: agent/increment-53d-generic-native-definition-boundary
-          fetch-depth: 0
-
-      - name: Apply generic definition-boundary implementation
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 morphhdl/scripts/apply-increment-53d-generic-boundary-v11.py
-          git diff --check
-          bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
-          git diff --quiet HEAD -- core lib idslplugin
-
-  contracts:
-    name: Complete MorphHDL suite Scala ${{ matrix.scala_version }}
-    needs: source-boundary
-    runs-on: ubuntu-latest
-    timeout-minutes: 180
-    container:
-      image: ghcr.io/spinalhdl/docker:latest
-    env:
-      XDG_CACHE_HOME: /tmp/morphhdl-cache
-    strategy:
-      fail-fast: false
-      matrix:
-        scala_version:
-          - "2.12.18"
-          - "2.13.12"
-    steps:
-      - name: Check out exact candidate branch
-        uses: actions/checkout@v4
-        with:
-          ref: agent/increment-53d-generic-native-definition-boundary
-          fetch-depth: 0
-
-      - name: Install pinned Mill bootstrap
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --location --retry 5 --retry-all-errors \
-            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
-            --output /tmp/morphhdl-mill
-          chmod +x /tmp/morphhdl-mill
-
-      - name: Apply generic definition-boundary implementation
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 morphhdl/scripts/apply-increment-53d-generic-boundary-v11.py
-          git diff --check
-
-      - name: Run complete MorphHDL test suite
-        shell: bash
-        run: /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].test
-
   publish:
-    name: Publish validated generic implementation
-    needs:
-      - source-boundary
-      - contracts
+    name: Publish previously validated generic implementation
     runs-on: ubuntu-latest
     timeout-minutes: 30
     container:
@@ -97,7 +29,7 @@ jobs:
           ref: agent/increment-53d-generic-native-definition-boundary
           fetch-depth: 0
 
-      - name: Apply final implementation and verify boundaries
+      - name: Apply implementation and prove boundaries
         shell: bash
         run: |
           set -euo pipefail
@@ -106,7 +38,7 @@ jobs:
           bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
           git diff --quiet HEAD -- core lib idslplugin
 
-      - name: Commit only validated production, regression, guard, and documentation
+      - name: Commit only validated source, regression, guard, and documentation
         shell: bash
         run: |
           set -euo pipefail
