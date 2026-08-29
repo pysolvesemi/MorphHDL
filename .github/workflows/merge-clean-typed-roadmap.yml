@@ -1,0 +1,63 @@
+name: Merge clean typed-elaboration roadmap
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/merge-clean-typed-roadmap.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge-roadmap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Open or locate roadmap PR
+        id: pr
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin parameterized-verilog agent/typed-elaboration-roadmap-approved
+          test "$(git rev-list --count origin/parameterized-verilog..origin/agent/typed-elaboration-roadmap-approved)" -eq 1
+          changed="$(git diff --name-only origin/parameterized-verilog...origin/agent/typed-elaboration-roadmap-approved | sort)"
+          expected="$(printf '%s\n' docs/morphhdl/parameterized-verilog-todo.md docs/morphhdl/typed-elaboration-architecture.md | sort)"
+          test "$changed" = "$expected"
+
+          number="$(gh pr list --head agent/typed-elaboration-roadmap-approved --base parameterized-verilog --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$number" ]; then
+            url="$(gh pr create \
+              --head agent/typed-elaboration-roadmap-approved \
+              --base parameterized-verilog \
+              --title 'Adopt typed elaboration architecture from Increment 53d' \
+              --body 'Makes typed ElabInt/ElabBool elaboration authoritative for Increment 53d and all later parameterization work. It permits only audited parameter-sensitive type/helper/mechanical changes to native SpinalHDL while forbidding algorithm replacement, post-erasure native-Int reconstruction, component-name recognition, equal-witness guessing, and witness-fixed branch replay.')"
+            number="${url##*/}"
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Merge roadmap policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          number='${{ steps.pr.outputs.number }}'
+          gh pr merge "$number" --squash --admin \
+            --subject 'Adopt typed elaboration architecture from Increment 53d' \
+            --body 'Make the typed elaboration architecture and rewritten Increment 53d-58 roadmap the controlling project policy.'
+
+      - name: Create clean typed Increment 53d implementation branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin parameterized-verilog
+          git push --force origin origin/parameterized-verilog:refs/heads/agent/increment-53d-typed-streamwidthadapter
