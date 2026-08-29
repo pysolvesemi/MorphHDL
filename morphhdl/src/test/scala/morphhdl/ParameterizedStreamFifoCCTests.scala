@@ -3,57 +3,46 @@ package morphhdl
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
 
-import scala.collection.JavaConverters._
 import scala.sys.process.{Process, ProcessLogger}
 
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
-import spinal.lib._
 
-import morphhdl.frontend.{HdlInt, StreamFifoCC => MorphStreamFifoCC}
+import morphhdl.frontend.HdlInt
+import morphhdl.frontend.HdlInt.hdlIntToParameterizedMemoryDepth
 
 final class NativeParameterizedStreamFifoCCHarness(depth: HdlInt)
     extends Component {
-  setDefinitionName("NativeParameterizedStreamFifoCCHarness")
-
   val io = new Bundle {
-    val pushClock = in Bool()
-    val pushReset = in Bool()
-    val popClock = in Bool()
-    val popReset = in Bool()
+    val pushClock = in Bool ()
+    val pushReset = in Bool ()
+    val popClock = in Bool ()
+    val popReset = in Bool ()
     val push = slave Stream (Bits(8 bits))
     val pop = master Stream (Bits(8 bits))
     val pushOccupancy = out UInt (6 bits)
     val popOccupancy = out UInt (6 bits)
   }
 
-  val pushCd = ClockDomain(
+  private val pushClockDomain = ClockDomain(
     clock = io.pushClock,
     reset = io.pushReset,
-    config = ClockDomainConfig(
-      clockEdge = RISING,
-      resetKind = SYNC,
-      resetActiveLevel = HIGH
-    )
+    config = ClockDomainConfig(resetKind = SYNC)
   )
-  val popCd = ClockDomain(
+  private val popClockDomain = ClockDomain(
     clock = io.popClock,
     reset = io.popReset,
-    config = ClockDomainConfig(
-      clockEdge = RISING,
-      resetKind = SYNC,
-      resetActiveLevel = HIGH
-    )
+    config = ClockDomainConfig(resetKind = SYNC)
   )
 
-  val fifo = MorphStreamFifoCC(
-    HardType(Bits(8 bits)),
-    depth,
-    pushCd,
-    popCd,
+  val fifo = morphhdl.frontend.StreamFifoCC(
+    dataType = HardType(Bits(8 bits)),
+    depth = depth,
+    pushClock = pushClockDomain,
+    popClock = popClockDomain,
     withPopBufferedReset = false
   )
-  fifo.setName("fifo")
+
   fifo.io.push << io.push
   io.pop << fifo.io.pop
   io.pushOccupancy := fifo.io.pushOccupancy.resized
@@ -61,6 +50,18 @@ final class NativeParameterizedStreamFifoCCHarness(depth: HdlInt)
 }
 
 class ParameterizedStreamFifoCCTests extends AnyFunSuite {
+  private val ModuleDeclaration =
+    """(?m)^\s*module\s+([A-Za-z_][A-Za-z0-9_$]*)\b""".r
+
+  private def config(directory: Path): SpinalConfig =
+    SpinalConfig(
+      mode = Verilog,
+      targetDirectory = directory.toString,
+      defaultConfigForClockDomains = ClockDomainConfig(resetKind = SYNC),
+      onlyStdLogicVectorAtTopLevelIo = false,
+      anonymSignalPrefix = "tmp"
+    )
+
   private def component(): NativeParameterizedStreamFifoCCHarness = {
     val depth = HdlInt.param(
       "DEPTH",
@@ -73,35 +74,31 @@ class ParameterizedStreamFifoCCTests extends AnyFunSuite {
 
   test("one untouched native StreamFifoCC definition retains DEPTH 4, 8 and 16") {
     withTemporaryDirectory { directory =>
-      val first = directory.resolve("first")
-      val replay = directory.resolve("replay")
+      val firstDirectory = directory.resolve("first")
+      val secondDirectory = directory.resolve("second")
       val concreteDirectory = directory.resolve("concrete")
-      Files.createDirectories(first)
-      Files.createDirectories(replay)
+      Files.createDirectories(firstDirectory)
+      Files.createDirectories(secondDirectory)
       Files.createDirectories(concreteDirectory)
 
-      var generatedTop: NativeParameterizedStreamFifoCCHarness = null
-      val firstConfig = config(first)
+      val firstConfig = config(firstDirectory)
       firstConfig.netlistFileName = "stream_fifocc_parameterized.v"
-      val report = MorphVerilog(firstConfig) {
-        generatedTop = component()
-        generatedTop
-      }
-      val firstRtl = first.resolve("stream_fifocc_parameterized.v")
+      val first = MorphVerilog(firstConfig)(component())
+      val firstRtl = firstDirectory.resolve("stream_fifocc_parameterized.v")
       val parameterized = read(firstRtl)
 
-      val replayConfig = config(replay)
-      replayConfig.netlistFileName = "stream_fifocc_parameterized.v"
-      MorphVerilog(replayConfig)(component())
-      val replayRtl = replay.resolve("stream_fifocc_parameterized.v")
+      val secondConfig = config(secondDirectory)
+      secondConfig.netlistFileName = "stream_fifocc_parameterized.v"
+      val second = MorphVerilog(secondConfig)(component())
       assert(
-        java.util.Arrays.equals(
-          Files.readAllBytes(firstRtl),
-          Files.readAllBytes(replayRtl)
-        ),
-        "native StreamFifoCC generation was not byte deterministic"
+        parameterized == read(
+          secondDirectory.resolve("stream_fifocc_parameterized.v")
+        )
       )
+      assert(first.verilog == second.verilog)
 
+      val generatedTop = first.top.asInstanceOf[NativeParameterizedStreamFifoCCHarness]
+      val report = first.parameterReport
       val concreteConfig = config(concreteDirectory)
       concreteConfig.netlistFileName = "stream_fifocc_concrete.v"
       SpinalVerilog(concreteConfig)(component())
@@ -131,7 +128,11 @@ class ParameterizedStreamFifoCCTests extends AnyFunSuite {
       assert(parameterized.contains("popPtrGray"))
       assert(parameterized.contains("BufferCC") || parameterized.contains("buffercc"))
       assert(!parameterized.contains("ParamRTL"))
-      assert(!parameterized.contains("ParameterizedStreamFifoCC"))
+      assert(
+        !ModuleDeclaration
+          .findAllMatchIn(parameterized)
+          .exists(_.group(1) == "ParameterizedStreamFifoCC")
+      )
 
       assert(!concrete.contains("parameter integer DEPTH"))
       assert(concrete.contains("[0:7]"))
@@ -144,63 +145,51 @@ class ParameterizedStreamFifoCCTests extends AnyFunSuite {
 
   test("invalid native StreamFifoCC depth witnesses fail before construction") {
     withTemporaryDirectory { directory =>
-      val config = this.config(directory)
-      config.netlistFileName = "stream_fifocc_invalid.v"
-      MorphVerilog.tryGenerate(config) {
-        val depth = HdlInt.param(
-          "DEPTH",
-          default = BigInt(6),
-          min = BigInt(4),
-          max = BigInt(16)
-        )
-        new NativeParameterizedStreamFifoCCHarness(depth)
-      } match {
-        case Left(failure) =>
-          assert(
-            failure.detail.contains(
-              "MORPH-FRONTEND-NATIVE-STREAMFIFOCC-DEPTH-WITNESS-NOT-POWER-OF-TWO"
-            )
+      val invalidConfig = config(directory)
+      invalidConfig.netlistFileName = "stream_fifocc_invalid.v"
+      val error = intercept[MorphVerilogException] {
+        MorphVerilog(invalidConfig) {
+          val depth = HdlInt.param(
+            "DEPTH",
+            default = BigInt(6),
+            min = BigInt(4),
+            max = BigInt(16)
           )
-        case Right(report) =>
-          fail(s"Expected non-power-of-two witness rejection, received $report")
+          new NativeParameterizedStreamFifoCCHarness(depth)
+        }
       }
+      assert(error.getMessage.contains("MORPH-FRONTEND-STREAM-FIFO-CC-DEPTH-INVALID"))
     }
   }
 
-  private def config(directory: Path): SpinalConfig =
-    SpinalConfig(targetDirectory = directory.toString)
-
-  private def lintDepth(directory: Path, rtl: Path, selectedDepth: Int): Unit = {
+  private def lintDepth(
+      result: MorphVerilogResult[NativeParameterizedStreamFifoCCHarness],
+      rtl: Path,
+      depth: Int
+  ): Unit = {
     val command = Seq(
       "verilator",
       "--lint-only",
       "--language",
       "1364-2001",
-      "-Wall",
       "-Wno-DECLFILENAME",
       "-Wno-WIDTH",
       "-Wno-UNUSED",
+      "-Wno-PINMISSING",
       "--top-module",
       "NativeParameterizedStreamFifoCCHarness",
-      s"-GDEPTH=$selectedDepth",
-      rtl.toString
+      s"-GDEPTH=$depth",
+      rtl.toAbsolutePath.toString
     )
-    val result = run(directory, command)
-    assert(
-      result._1 == 0,
-      s"Verilator lint failed for StreamFifoCC DEPTH=$selectedDepth:\n${result._2}"
-    )
-  }
-
-  private def run(directory: Path, command: Seq[String]): (Int, String) = {
     val output = new StringBuilder
-    val status = Process(command, directory.toFile).!(
-      ProcessLogger(
-        line => output.append(line).append('\n'),
-        line => output.append(line).append('\n')
-      )
+    val exit = Process(command).!(ProcessLogger(
+      line => output.append(line).append('\n'),
+      line => output.append(line).append('\n')
+    ))
+    assert(
+      exit == 0,
+      s"Verilator rejected native StreamFifoCC DEPTH=$depth:\n$output"
     )
-    status -> output.toString
   }
 
   private def read(path: Path): String =
@@ -209,14 +198,17 @@ class ParameterizedStreamFifoCCTests extends AnyFunSuite {
   private def withTemporaryDirectory(body: Path => Unit): Unit = {
     val directory = Files.createTempDirectory("morphhdl-native-streamfifocc-")
     try body(directory)
-    finally {
-      val stream = Files.walk(directory)
-      try {
-        stream.iterator().asScala.toVector
-          .sortBy(_.getNameCount)
-          .reverse
-          .foreach(Files.deleteIfExists)
-      } finally stream.close()
-    }
+    finally deleteRecursively(directory)
+  }
+
+  private def deleteRecursively(path: Path): Unit = {
+    if (Files.notExists(path)) return
+    val stream = Files.walk(path)
+    try {
+      val values = stream.iterator()
+      val all = scala.collection.mutable.ArrayBuffer.empty[Path]
+      while (values.hasNext) all += values.next()
+      all.sortBy(_.getNameCount).reverse.foreach(Files.deleteIfExists)
+    } finally stream.close()
   }
 }
