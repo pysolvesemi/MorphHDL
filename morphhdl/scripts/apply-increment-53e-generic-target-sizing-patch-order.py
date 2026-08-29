@@ -37,9 +37,10 @@ if count != 1:
     )
 path.write_text(value.replace(old, new, 1))
 
-# Apply the source-level quoting correction before the target script is
-# executed, then remove this transient helper so a successful publication
-# cannot leave repair infrastructure behind.
+# Apply source-level quoting corrections before the target script executes.
+# The target script itself contains a Python triple-quoted Scala source body;
+# newline escapes therefore need two source backslashes so execution writes one
+# legal Scala escape instead of a physical newline inside a string literal.
 regex_fixer = Path(
     "morphhdl/scripts/apply-increment-53e-generic-regex-literals.py"
 )
@@ -50,3 +51,25 @@ exec(
     namespace,
 )
 regex_fixer.unlink()
+
+value = path.read_text()
+newline_replacements = (
+    (
+        r'verilog.split("\n", -1)',
+        r'verilog.split("\\n", -1)',
+        2,
+        "generated Scala split newline",
+    ),
+    (
+        r'lines.mkString("\n")',
+        r'lines.mkString("\\n")',
+        2,
+        "generated Scala join newline",
+    ),
+)
+for old_text, new_text, expected, label in newline_replacements:
+    count = value.count(old_text)
+    if count != expected:
+        raise SystemExit(f"{label}: expected {expected} matches, found {count}")
+    value = value.replace(old_text, new_text)
+path.write_text(value)
