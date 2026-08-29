@@ -200,6 +200,30 @@ helpers = '''  /**
     }
   }
 
+  private def debugPackedAssignment(
+      component: Component,
+      assignment: DataAssignmentStatement,
+      selected: Option[BitVector]
+  ): Unit = {
+    if (!sys.env.get("MORPHDL_INCREMENT_53E_LINEAGE_DEBUG").contains("1")) return
+    val finalTarget = assignment.finalTarget
+    val targetName = Option(finalTarget.getName()).filter(_.nonEmpty).getOrElse("<unnamed>")
+    val sourceWidth = assignment.source match {
+      case width: WidthProvider => width.getWidth.toString
+      case _                    => "n/a"
+    }
+    val selectedName = selected.flatMap(value =>
+      Option(value.getName()).filter(_.nonEmpty)
+    ).getOrElse("<none>")
+    System.err.println(
+      s"MORPHDL-IMPLICIT-LINEAGE assignment component=${component.definitionName} " +
+        s"target=$targetName targetClass=${assignment.target.getClass.getName} " +
+        s"finalClass=${finalTarget.getClass.getName} sourceClass=${assignment.source.getClass.getName} " +
+        s"targetEqFinal=${assignment.target eq finalTarget} targetWidth=${finalTarget.getBitsWidth} " +
+        s"sourceWidth=$sourceWidth selected=$selectedName selectedOwner=${selected.map(_.component == component).getOrElse(false)}"
+    )
+  }
+
   /**
     * Discover the exact width-preserving assignment component rooted at the
     * selected child ports. Graph identity, not signal names or equal numeric
@@ -236,16 +260,20 @@ helpers = '''  /**
 
     component.dslBody.walkLeafStatements {
       case assignment: DataAssignmentStatement =>
-        assignment.target match {
+        val selected = assignment.finalTarget match {
           case target: BitVector
-              if (assignment.finalTarget eq target) &&
-                target.component == component =>
+              if target.component == component &&
+                (assignment.target eq target) =>
             transparentPackedSource(
               assignment.source,
               target.getBitsWidth
-            ).foreach(source => connect(target, source))
-          case _ =>
+            )
+          case _ => None
         }
+        debugPackedAssignment(component, assignment, selected)
+        selected.foreach(source =>
+          connect(assignment.finalTarget.asInstanceOf[BitVector], source)
+        )
       case _ =>
     }
 
@@ -271,6 +299,15 @@ helpers = '''  /**
           if (seen.put(next, java.lang.Boolean.TRUE) == null) queue.enqueue(next)
         }
       }
+    }
+
+    if (sys.env.get("MORPHDL_INCREMENT_53E_LINEAGE_DEBUG").contains("1")) {
+      val names = result.map(value =>
+        Option(value.getName()).filter(_.nonEmpty).getOrElse("<unnamed>")
+      ).mkString(",")
+      System.err.println(
+        s"MORPHDL-IMPLICIT-LINEAGE result component=${component.definitionName} slot=$slotIdentity leaves=$names"
+      )
     }
 
     result.foreach { leaf =>
