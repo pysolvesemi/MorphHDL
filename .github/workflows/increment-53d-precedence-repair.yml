@@ -1,4 +1,4 @@
-name: Publish Increment 53d StreamFifo boundary precedence repair
+name: Publish Increment 53d width-function predicate isolation repair
 
 on:
   push:
@@ -34,46 +34,101 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Restore StreamFifo method-isolation precedence
+      - name: Restrict constant predicate folding to native width functions
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path("morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala")
-          text = path.read_text(encoding="utf-8")
-          old = '''      case definition: DefDef if decoded(definition.name) != "<init>" =>
-            val roots = nativeWidthRoots(definition.rhs)
-            if (roots.nonEmpty) transformNativeWidthFunction(definition, roots)
-            else if (inNativeStreamFifo) {
-              withoutNativeStreamFifoContext {
-                withScope(super.transform(definition))
-              }
-            } else withScope(super.transform(definition))
-          case definition: DefDef => withScope(super.transform(definition))
+          registry = Path(
+              "morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala"
+          )
+          text = registry.read_text(encoding="utf-8")
+          old = '''  /** True only while one exact native formalization constructor is executing. */
+          def boundaryActive: Boolean = currentBoundary.nonEmpty
+
+          private def currentBoundary: Option[ActiveBoundary] =
+            Option(active.get()).getOrElse(Nil).headOption
           '''
-          new = '''      case definition: DefDef
-              if inNativeStreamFifo && decoded(definition.name) != "<init>" =>
-            // StreamFifo owns a dedicated, already-proven constructor capture
-            // contract. Nested methods must retain its original isolation even
-            // when they contain widthOf calls; otherwise generic width-function
-            // capture can move native drivers into a structural alternative
-            // while their consumers remain at module scope.
-            withoutNativeStreamFifoContext {
-              withScope(super.transform(definition))
-            }
-          case definition: DefDef if decoded(definition.name) != "<init>" =>
-            val roots = nativeWidthRoots(definition.rhs)
-            if (roots.nonEmpty) transformNativeWidthFunction(definition, roots)
-            else withScope(super.transform(definition))
-          case definition: DefDef => withScope(super.transform(definition))
+          new = '''  /** True only while one exact native formalization constructor is executing. */
+          def boundaryActive: Boolean = currentBoundary.nonEmpty
+
+          /**
+            * Domain-constant branch folding is a local optimization for an
+            * ordinary native width-function call. Constructor boundaries such
+            * as StreamFifo must retain their established structural capture
+            * even when a narrowed caller domain makes one predicate constant.
+            */
+          private[core] def nativeWidthFunctionBoundaryActive: Boolean =
+            currentBoundary.exists(_.token.role == "nativeWidthFunction")
+
+          private def currentBoundary: Option[ActiveBoundary] =
+            Option(active.get()).getOrElse(Nil).headOption
           '''
           if text.count(old) != 1:
-              raise SystemExit(f"expected one native-width DefDef precedence block, found {text.count(old)}")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+              raise SystemExit(
+                  "expected one native boundary activity block, "
+                  f"found {text.count(old)}"
+              )
+          registry.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          runtime = Path(
+              "morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala"
+          )
+          text = runtime.read_text(encoding="utf-8")
+          old = '''  private def constantPredicate(
+              condition: Boolean,
+              predicateReference: String,
+              sourceFile: String,
+              sourceLine: Int
+          ): Option[Boolean] = {
+            val (_, domain) =
+              ExternalNativeIntShadowRegistry.definitionPredicateEvidenceTracked(
+                predicateReference,
+                condition,
+                rendered(sourceFile, sourceLine)
+              )
+            domain.flatMap { value =>
+              if (value.whenTrue.isEmpty) Some(false)
+              else if (value.whenTrue == value.universe) Some(true)
+              else None
+            }
+          }
+          '''
+          new = '''  private def constantPredicate(
+              condition: Boolean,
+              predicateReference: String,
+              sourceFile: String,
+              sourceLine: Int
+          ): Option[Boolean] = {
+            if (!ExternalNativeIntShadowRegistry.nativeWidthFunctionBoundaryActive)
+              return None
+
+            val (_, domain) =
+              ExternalNativeIntShadowRegistry.definitionPredicateEvidenceTracked(
+                predicateReference,
+                condition,
+                rendered(sourceFile, sourceLine)
+              )
+            domain.flatMap { value =>
+              if (value.whenTrue.isEmpty) Some(false)
+              else if (value.whenTrue == value.universe) Some(true)
+              else None
+            }
+          }
+          '''
+          if text.count(old) != 1:
+              raise SystemExit(
+                  "expected one constant-predicate implementation, "
+                  f"found {text.count(old)}"
+              )
+          runtime.write_text(text.replace(old, new, 1), encoding="utf-8")
           PY
           git diff --check
+          git diff -- \
+            morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala \
+            morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala
 
       - name: Validate focused contracts on Scala 2.13.12
         shell: bash
@@ -82,7 +137,9 @@ jobs:
           /tmp/morphhdl-mill morph[2.13.12].testOnly \
             morphhdl.ParameterizedStreamFifoDepthTests \
             morphhdl.ParameterizedStreamWidthAdapterTests \
+            morphhdl.BackendSyncMergeIsolationTests \
             morphhdl.CapturedAssignmentNormalizationTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
             morphhdl.ExternalNativeIntShadowExpressionTests
 
       - name: Validate focused contracts on Scala 2.12.18
@@ -92,7 +149,9 @@ jobs:
           /tmp/morphhdl-mill morph[2.12.18].testOnly \
             morphhdl.ParameterizedStreamFifoDepthTests \
             morphhdl.ParameterizedStreamWidthAdapterTests \
+            morphhdl.BackendSyncMergeIsolationTests \
             morphhdl.CapturedAssignmentNormalizationTests \
+            morphhdl.NativeIntSymbolicConditionalTests \
             morphhdl.ExternalNativeIntShadowExpressionTests
 
       - name: Validate zero native-source edits
@@ -112,5 +171,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --cached --check
-          git commit -m "fix: preserve StreamFifo method capture precedence"
+          git commit -m "fix: isolate width-function predicate folding"
           git push origin HEAD:agent/increment-53d-native-streamwidth-adapter
