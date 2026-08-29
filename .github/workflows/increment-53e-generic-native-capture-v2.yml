@@ -1,0 +1,134 @@
+name: Increment 53e generic native constructor capture v2
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53e-generic-native-capture-v2
+  cancel-in-progress: true
+
+jobs:
+  refactor-test-publish:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Detect prerequisite and existing publication
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          backend=morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+          registry=morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala
+          plugin=morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          if ! grep -Fq 'provesRetainedProvenanceEquivalence' "$backend" || \
+             ! grep -Fq 'evaluateDefinitionExpressionInOwnDomain' "$registry"; then
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            echo 'The coherent provenance prerequisite is not published yet.'
+          elif grep -Fq 'nativeFormalIntComponentCandidate' "$plugin"; then
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+            echo 'The structural constructor-capture refactor is already published.'
+          else
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure authenticated checkout
+        if: steps.gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+      - name: Apply generic native-constructor capture
+        if: steps.gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f morphhdl/scripts/apply-increment-53e-generic-native-capture.py
+          python3 morphhdl/scripts/apply-increment-53e-generic-native-capture.py
+          git diff --check
+
+      - name: Enforce structural genericity and source preservation
+        if: steps.gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --name-only | grep -Eq '^(core|lib|idslplugin)/src/main/'; then
+            echo 'Native SpinalHDL production source was modified.' >&2
+            git diff --name-only >&2
+            exit 1
+          fi
+          plugin=morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          grep -Fq 'nativeFormalIntComponentCandidate' "$plugin"
+          grep -Fq 'definitions.IntTpe' "$plugin"
+          if grep -En \
+            'StreamFifo(CC)?|BufferCC|Stream\.scala|CrossClock\.scala|pushToPopGray|popToPushGray' \
+            "$plugin"; then
+            echo 'Compiler capture still recognizes selected components or signals.' >&2
+            exit 1
+          fi
+
+      - name: Install pinned Mill
+        if: steps.gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            -o /tmp/mill
+          chmod +x /tmp/mill
+
+      - name: Compile plugin and run focused contract first
+        if: steps.gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala in 2.12.18 2.13.12; do
+            /tmp/mill "morphplugin[$scala].compile" \
+              2>&1 | tee "/tmp/increment-53e-plugin-$scala.log"
+            /tmp/mill "morph[$scala].testOnly" \
+              morphhdl.ParameterizedStreamFifoCCTests \
+              2>&1 | tee "/tmp/increment-53e-capture-focused-$scala.log"
+          done
+
+      - name: Run complete MorphHDL regressions on both Scala lanes
+        if: steps.gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala in 2.12.18 2.13.12; do
+            /tmp/mill "morph[$scala].test" \
+              2>&1 | tee "/tmp/increment-53e-capture-full-$scala.log"
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.gate.outputs.run == 'true'
+        with:
+          name: increment-53e-generic-capture-v2-evidence
+          path: /tmp/increment-53e-*.log
+          if-no-files-found: ignore
+
+      - name: Publish only the passing generic capture implementation
+        if: steps.gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/increment-53e-generic-native-capture-v2.yml
+          rm -f morphhdl/scripts/apply-increment-53e-generic-native-capture.py
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: generalize native constructor capture'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
