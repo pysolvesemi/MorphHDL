@@ -104,3 +104,23 @@ established symbolic alternatives even when a narrowed caller domain makes a
 predicate constant. This prevents a helper driver's structural owner from
 diverging from a module-scope consumer and is checked by the compound-depth
 StreamFifo regression on both supported Scala versions.
+
+## Generic named-definition lifetime closure
+
+Native symbolic capture belongs to the exact Scala definition that opens
+the runtime boundary. Every non-constructor `DefDef` reached while an
+enclosing constructor or native width-function boundary is active now
+snapshots and clears the complete native runtime-capture state, then
+independently discovers any direct `widthOf(Data)` roots owned by that
+definition and opens a fresh boundary only when required. Function
+literals remain inside their owning definition because they execute as
+part of that definition body.
+
+This is a compiler-wide lexical rule, not a `StreamFifo`, `StreamFifoCC`,
+or `StreamWidthAdapter` exception. The production transform contains no
+component-name condition for named-definition isolation. Native StreamFifo
+compound-depth and native StreamWidthAdapter suites remain functional
+witnesses, while a dedicated dual-Scala architecture regression prevents
+the generic rule from regressing. Any present or future SpinalHDL component
+that enters the same native constructor or `widthOf` capture machinery
+receives the same ownership and dominance protection automatically.

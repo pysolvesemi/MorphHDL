@@ -354,23 +354,40 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       }
     }
 
-    private def withoutNativeStreamFifoContext[A](body: => A): A = {
-      val previousDataTypeName = nativeStreamFifoDataTypeName
-      val previousDepthName = nativeStreamFifoDepthName
-      val previousDepthReference = nativeStreamFifoDepthReference
-      val previousDepthLine = nativeStreamFifoDepthLine
-      val previousStaticBooleans = nativeStreamFifoStaticBooleans
+    /**
+      * Native runtime capture is owned by the exact named definition
+      * that opens it. A nested named definition has an independent
+      * elaboration lifetime and therefore cannot inherit an enclosing
+      * constructor or native width-function capture. Function literals
+      * remain in the current definition because their bodies execute as
+      * part of that definition's elaboration.
+      */
+    private def withoutEnclosingNativeRuntimeContext[A](body: => A): A = {
+      val previousStreamFifoDataTypeName = nativeStreamFifoDataTypeName
+      val previousStreamFifoDepthName = nativeStreamFifoDepthName
+      val previousStreamFifoDepthReference = nativeStreamFifoDepthReference
+      val previousStreamFifoDepthLine = nativeStreamFifoDepthLine
+      val previousStreamFifoStaticBooleans = nativeStreamFifoStaticBooleans
+      val previousWidthFunctionDepth = nativeWidthFunctionDepth
+      val previousWidthFunctionStaticBooleans = nativeWidthFunctionStaticBooleans
+
       nativeStreamFifoDataTypeName = None
       nativeStreamFifoDepthName = None
       nativeStreamFifoDepthReference = None
+      nativeStreamFifoDepthLine = 1
       nativeStreamFifoStaticBooleans = Set.empty
+      nativeWidthFunctionDepth = 0
+      nativeWidthFunctionStaticBooleans = Set.empty
+
       try body
       finally {
-        nativeStreamFifoDataTypeName = previousDataTypeName
-        nativeStreamFifoDepthName = previousDepthName
-        nativeStreamFifoDepthReference = previousDepthReference
-        nativeStreamFifoDepthLine = previousDepthLine
-        nativeStreamFifoStaticBooleans = previousStaticBooleans
+        nativeStreamFifoDataTypeName = previousStreamFifoDataTypeName
+        nativeStreamFifoDepthName = previousStreamFifoDepthName
+        nativeStreamFifoDepthReference = previousStreamFifoDepthReference
+        nativeStreamFifoDepthLine = previousStreamFifoDepthLine
+        nativeStreamFifoStaticBooleans = previousStreamFifoStaticBooleans
+        nativeWidthFunctionDepth = previousWidthFunctionDepth
+        nativeWidthFunctionStaticBooleans = previousWidthFunctionStaticBooleans
       }
     }
 
@@ -2036,6 +2053,14 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       } else None
     }
 
+    private def transformIndependentNativeDefinition(
+        definition: DefDef
+    ): Tree = {
+      val roots = nativeWidthRoots(definition.rhs)
+      if (roots.nonEmpty) transformNativeWidthFunction(definition, roots)
+      else withScope(super.transform(definition))
+    }
+
     override def transform(tree: Tree): Tree = tree match {
       case value: ClassDef
           if sourceFile.replace('\\', '/').endsWith(
@@ -2050,19 +2075,15 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       case template: Template => withScope(super.transform(template))
       case block: Block       => withScope(super.transform(block))
       case function: Function => withScope(super.transform(function))
-      case definition: DefDef
-          if inNativeStreamFifo && decoded(definition.name) != "<init>" =>
-        // StreamFifo owns a dedicated constructor-capture contract. Isolate
-        // every nested method before the generic width-function matcher so a
-        // helper driver cannot move into a symbolic body while its consumer
-        // remains at module scope.
-        withoutNativeStreamFifoContext {
-          withScope(super.transform(definition))
-        }
       case definition: DefDef if decoded(definition.name) != "<init>" =>
-        val roots = nativeWidthRoots(definition.rhs)
-        if (roots.nonEmpty) transformNativeWidthFunction(definition, roots)
-        else withScope(super.transform(definition))
+        // A named definition never inherits the active native capture of
+        // its lexical owner. After clearing that state, discover and open
+        // any direct width-function boundary owned by this definition.
+        if (inNativeRuntimeContext)
+          withoutEnclosingNativeRuntimeContext {
+            transformIndependentNativeDefinition(definition)
+          }
+        else transformIndependentNativeDefinition(definition)
       case definition: DefDef => withScope(super.transform(definition))
       case conditional: If    => rewriteIf(conditional)
       case value: ValDef =>
