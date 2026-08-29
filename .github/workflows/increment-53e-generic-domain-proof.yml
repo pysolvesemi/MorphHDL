@@ -1,0 +1,66 @@
+name: Increment 53e generic expression-domain proof
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-generic-domain-equivalence
+  pull_request:
+    branches:
+      - parameterized-verilog
+
+permissions:
+  contents: read
+
+jobs:
+  genericity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reject FIFO-specific discovery in generic proof implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+          )
+          if grep -nE 'StreamFifo(CC)?|NativeParameterizedStreamFifo|spinal/lib/Stream\.scala|CrossClock\.scala|BufferCC' "${files[@]}"; then
+            echo 'Generic expression-domain implementation contains a component-specific discovery key' >&2
+            exit 1
+          fi
+      - name: Verify native SpinalHDL production source boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-streamfifocc-parameterization-boundary.sh
+
+  dual-scala:
+    needs: genericity
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scala:
+          - 2.12.18
+          - 2.13.12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+      - name: Run generic and native integration contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill "morph[${{ matrix.scala }}].testOnly" \
+            spinal.core.GenericNativeIntExpressionDomainTests \
+            morphhdl.ParameterizedStreamFifoCCTests
