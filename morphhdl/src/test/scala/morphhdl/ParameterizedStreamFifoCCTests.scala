@@ -86,6 +86,7 @@ class ParameterizedStreamFifoCCTests extends AnyFunSuite {
       val first = MorphVerilog(firstConfig)(component())
       val firstRtl = firstDirectory.resolve("stream_fifocc_parameterized.v")
       val parameterized = read(firstRtl)
+      val parameterizedLines = parameterized.linesIterator.toVector
 
       val secondConfig = config(secondDirectory)
       secondConfig.netlistFileName = "stream_fifocc_parameterized.v"
@@ -134,6 +135,37 @@ class ParameterizedStreamFifoCCTests extends AnyFunSuite {
           .exists(_.group(1) == "ParameterizedStreamFifoCC")
       )
 
+      Vector(
+        "popToPushGray_buffercc_io_dataOut",
+        "pushToPopGray_buffercc_io_dataOut"
+      ).foreach { name =>
+        val declarations = parameterizedLines.filter { line =>
+          line.trim.startsWith("wire") && line.contains(name)
+        }
+        assert(
+          declarations.size == 1,
+          s"Expected one declaration for $name, found ${declarations.mkString(" | ")}"
+        )
+        assert(
+          declarations.head.contains("clog2(DEPTH") &&
+            declarations.head.contains("+ 1"),
+          s"$name retained a concrete witness width: ${declarations.head}"
+        )
+      }
+
+      val synchronizerRegisters = parameterizedLines.filter { line =>
+        line.contains(" reg ") &&
+        (line.contains("buffers_0") || line.contains("buffers_1"))
+      }
+      assert(
+        synchronizerRegisters.size == 4,
+        s"Expected four BufferCC synchronizer registers, found ${synchronizerRegisters.mkString(" | ")}"
+      )
+      assert(
+        synchronizerRegisters.forall(_.contains("[WIDTH-1:0]")),
+        s"BufferCC internal registers retained a concrete witness width: ${synchronizerRegisters.mkString(" | ")}"
+      )
+
       assert(!concrete.contains("parameter integer DEPTH"))
       assert(concrete.contains("[0:7]"))
 
@@ -173,7 +205,6 @@ class ParameterizedStreamFifoCCTests extends AnyFunSuite {
       "--language",
       "1364-2001",
       "-Wno-DECLFILENAME",
-      "-Wno-WIDTH",
       "-Wno-UNUSED",
       "-Wno-PINMISSING",
       "--top-module",
