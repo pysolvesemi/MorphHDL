@@ -1,0 +1,47 @@
+name: Probe Increment 53d typed StreamWidthAdapter migration
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-typed-adapter-probe.yml
+      - morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-53d-typed-adapter-probe
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Typed adapter compile probe Scala ${{ matrix.scala_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12.18", "2.13.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+          submodules: recursive
+      - name: Apply typed native adapter migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py
+          git diff --check
+      - name: Compile complete production path
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch "++${{ matrix.scala_version }}" \
+            morphruntime/compile morphplugin/compile frontend/compile lib/compile morph/compile Test/compile
