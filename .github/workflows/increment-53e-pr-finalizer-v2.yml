@@ -1,0 +1,173 @@
+name: Increment 53e gated PR finalizer v2
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+  checks: read
+
+jobs:
+  finalize:
+    if: github.actor == 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      FEATURE: agent/increment-53e-native-streamfifocc-parameterization
+      TARGET: parameterized-verilog
+      PROOF_WORKFLOW: morphhdl-native-streamfifocc-formal-equivalence.yml
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Confirm a published, generic, closed feature head
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq \
+            '- [x] **Increment 53e — Native StreamFifoCC parameterization without source edits**' \
+            docs/morphhdl/parameterized-verilog-todo.md
+          test -f morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedDomainEquivalence.scala
+          test -f morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCImplementationProofTests.scala
+          test -f morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCFormalEquivalenceTests.scala
+          test -f .github/workflows/morphhdl-native-streamfifocc-formal-equivalence.yml
+          test ! -e .github/workflows/increment-53e-generic-proof-publisher-v2.yml
+          ! grep -E \
+            'spinal\.lib|StreamFifo|StreamFifoCC|pushToPopGray|popToPushGray' \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedDomainEquivalence.scala
+
+      - name: Remove the temporary finalizer from the merge candidate
+        id: cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          rm -f .github/workflows/increment-53e-pr-finalizer-v2.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: remove temporary PR finalizer'
+          git push origin HEAD:$FEATURE
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for permanent push proof on the clean feature head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ steps.cleanup.outputs.sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, subprocess, time
+          repo = os.environ['REPOSITORY']
+          workflow = os.environ['PROOF_WORKFLOW']
+          expected = os.environ['EXPECTED_SHA']
+          event = 'push'
+          deadline = time.time() + 14400
+          while time.time() < deadline:
+              raw = subprocess.check_output([
+                  'gh', 'api', '-X', 'GET',
+                  f'repos/{repo}/actions/workflows/{workflow}/runs',
+                  '-f', f'event={event}', '-f', 'per_page=100'
+              ], text=True)
+              runs = json.loads(raw).get('workflow_runs', [])
+              matching = [r for r in runs if r.get('head_sha') == expected]
+              if matching:
+                  run = matching[0]
+                  if run.get('status') == 'completed':
+                      if run.get('conclusion') != 'success':
+                          raise SystemExit(
+                              f"permanent {event} proof failed: {run.get('html_url')}"
+                          )
+                      print(run.get('html_url'))
+                      break
+              time.sleep(20)
+          else:
+              raise SystemExit('timed out waiting for permanent feature proof')
+          PY
+
+      - name: Open or update the Increment 53e pull request
+        id: pr
+        shell: bash
+        run: |
+          set -euo pipefail
+          number=$(gh pr list \
+            --repo "$REPOSITORY" \
+            --head "$FEATURE" \
+            --base "$TARGET" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+          if test -z "$number"; then
+            gh pr create \
+              --repo "$REPOSITORY" \
+              --head "$FEATURE" \
+              --base "$TARGET" \
+              --title 'Increment 53e: generic native StreamFifoCC parameterization' \
+              --body 'Adds parameterization support around the exact native spinal.lib.StreamFifoCC without changing native SpinalHDL production sources or reimplementing FIFO/CDC logic. The implementation uses a generic bounded-domain retained-expression proof and includes dual-Scala lint, synthesis, independent-clock simulation, concrete-witness formal equivalence, and a mutation negative control.'
+            number=$(gh pr list \
+              --repo "$REPOSITORY" \
+              --head "$FEATURE" \
+              --base "$TARGET" \
+              --state open \
+              --json number \
+              --jq '.[0].number')
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for all pull-request checks and merge
+        shell: bash
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          set -euo pipefail
+          gh pr checks "$PR_NUMBER" \
+            --repo "$REPOSITORY" \
+            --watch \
+            --fail-fast \
+            --interval 20
+          gh pr merge "$PR_NUMBER" \
+            --repo "$REPOSITORY" \
+            --squash \
+            --delete-branch
+
+      - name: Require a successful post-merge permanent proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          target_sha=$(gh api "repos/$REPOSITORY/git/ref/heads/$TARGET" --jq .object.sha)
+          export EXPECTED_SHA="$target_sha"
+          python3 - <<'PY'
+          import json, os, subprocess, time
+          repo = os.environ['REPOSITORY']
+          workflow = os.environ['PROOF_WORKFLOW']
+          expected = os.environ['EXPECTED_SHA']
+          deadline = time.time() + 14400
+          while time.time() < deadline:
+              raw = subprocess.check_output([
+                  'gh', 'api', '-X', 'GET',
+                  f'repos/{repo}/actions/workflows/{workflow}/runs',
+                  '-f', 'event=push', '-f', 'per_page=100'
+              ], text=True)
+              runs = json.loads(raw).get('workflow_runs', [])
+              matching = [r for r in runs if r.get('head_sha') == expected]
+              if matching:
+                  run = matching[0]
+                  if run.get('status') == 'completed':
+                      if run.get('conclusion') != 'success':
+                          raise SystemExit(
+                              f"post-merge formal proof failed: {run.get('html_url')}"
+                          )
+                      print(run.get('html_url'))
+                      break
+              time.sleep(20)
+          else:
+              raise SystemExit('timed out waiting for post-merge proof')
+          PY
