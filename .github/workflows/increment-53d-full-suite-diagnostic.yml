@@ -6,6 +6,11 @@ on:
       - agent/increment-53d-native-streamwidth-adapter
     paths:
       - .github/workflows/increment-53d-full-suite-diagnostic.yml
+  pull_request:
+    branches:
+      - parameterized-verilog
+    paths:
+      - .github/workflows/increment-53d-full-suite-diagnostic.yml
 
 permissions:
   contents: read
