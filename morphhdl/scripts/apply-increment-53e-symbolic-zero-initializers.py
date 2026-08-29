@@ -7,12 +7,34 @@ path = Path(
 )
 value = path.read_text()
 
-rewrite_old = '''    val rewrittenCounterBoundaries = rewriteSymbolicCounterBoundaryComparisons(
+rewrite_after_resize = '''    val rewrittenAutoResizes = rewriteMaterializedAutoResizeAssignments(
+      component,
+      rewrittenDeclarations
+    )
+    val rewrittenCounterBoundaries = rewriteSymbolicCounterBoundaryComparisons(
+      rewrittenAutoResizes,
+      analysis.symbolicCounterBoundaryWidths
+    )
+'''
+rewrite_direct = '''    val rewrittenCounterBoundaries = rewriteSymbolicCounterBoundaryComparisons(
       rewrittenDeclarations,
       analysis.symbolicCounterBoundaryWidths
     )
 '''
-rewrite_new = '''    val rewrittenInitializers = rewriteSymbolicZeroAssignments(
+rewrite_after_resize_new = '''    val rewrittenAutoResizes = rewriteMaterializedAutoResizeAssignments(
+      component,
+      rewrittenDeclarations
+    )
+    val rewrittenInitializers = rewriteSymbolicZeroAssignments(
+      rewrittenAutoResizes,
+      analysis.symbolicZeroInitializers
+    )
+    val rewrittenCounterBoundaries = rewriteSymbolicCounterBoundaryComparisons(
+      rewrittenInitializers,
+      analysis.symbolicCounterBoundaryWidths
+    )
+'''
+rewrite_direct_new = '''    val rewrittenInitializers = rewriteSymbolicZeroAssignments(
       rewrittenDeclarations,
       analysis.symbolicZeroInitializers
     )
@@ -21,11 +43,16 @@ rewrite_new = '''    val rewrittenInitializers = rewriteSymbolicZeroAssignments(
       analysis.symbolicCounterBoundaryWidths
     )
 '''
-if value.count(rewrite_old) != 1:
+if value.count(rewrite_after_resize) == 1:
+    value = value.replace(rewrite_after_resize, rewrite_after_resize_new, 1)
+elif value.count(rewrite_direct) == 1:
+    value = value.replace(rewrite_direct, rewrite_direct_new, 1)
+else:
     raise SystemExit(
-        f"symbolic zero initializer rewrite marker count={value.count(rewrite_old)}"
+        "symbolic zero initializer rewrite marker count="
+        f"afterResize:{value.count(rewrite_after_resize)},"
+        f"direct:{value.count(rewrite_direct)}"
     )
-value = value.replace(rewrite_old, rewrite_new, 1)
 
 method_marker = '''  /**
     * Replace only the concrete witness assignment of compiler-created UInt
