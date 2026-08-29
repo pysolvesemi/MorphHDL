@@ -1,0 +1,125 @@
+name: Increment 53e observe final closure
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: increment-53e-final-observer
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Wait for final closure and record any failure
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          python3 - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.parse
+          import urllib.request
+
+          repo = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          branch = 'agent/increment-53e-native-streamfifocc-parameterization'
+          headers = {
+              'Accept': 'application/vnd.github+json',
+              'Authorization': f'Bearer {token}',
+              'User-Agent': 'MorphHDL-Increment-53e-Observer',
+              'X-GitHub-Api-Version': '2022-11-28',
+          }
+          selected = None
+          for _ in range(180):
+              query = urllib.parse.urlencode({
+                  'branch': branch,
+                  'per_page': 100,
+              })
+              request = urllib.request.Request(
+                  f'https://api.github.com/repos/{repo}/actions/runs?{query}',
+                  headers=headers,
+              )
+              with urllib.request.urlopen(request) as response:
+                  runs = json.load(response)['workflow_runs']
+              matches = [
+                  run for run in runs
+                  if run['name'] == 'Increment 53e final generic closure'
+              ]
+              if matches:
+                  selected = matches[0]
+                  if selected['status'] == 'completed':
+                      break
+              time.sleep(10)
+          if selected is None or selected['status'] != 'completed':
+              raise SystemExit('final closure run was not found or did not complete')
+          with open('/tmp/final-run.json', 'w') as stream:
+              json.dump(selected, stream, indent=2)
+          with open('/tmp/final-run-id', 'w') as stream:
+              stream.write(str(selected['id']))
+          with open('/tmp/final-conclusion', 'w') as stream:
+              stream.write(str(selected['conclusion']))
+          PY
+
+          conclusion=$(cat /tmp/final-conclusion)
+          if test "$conclusion" = success; then
+            exit 0
+          fi
+
+          run=$(cat /tmp/final-run-id)
+          mkdir -p /tmp/failed-run morphhdl/diagnostics
+          curl --fail --location \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/runs/$run/logs" \
+            -o /tmp/failed-run.zip
+          unzip -q /tmp/failed-run.zip -d /tmp/failed-run
+          {
+            echo '# Increment 53e final closure diagnostic'
+            echo
+            echo "Run: $run"
+            echo "Conclusion: $conclusion"
+            echo
+            find /tmp/failed-run -type f -print0 | sort -z | while IFS= read -r -d '' file; do
+              matches=$(grep -E -i '(^|\]) \[error\]|error:|exception|FAILED|not found|type mismatch|overloaded method|ambiguous|No such file|Traceback|SystemExit|SPINAL-PARAMETERIZED|Process completed with exit code|conflict' "$file" | tail -200 || true)
+              if test -n "$matches"; then
+                echo "## $(basename "$file")"
+                printf '%s\n\n' "$matches"
+              fi
+            done
+          } > morphhdl/diagnostics/increment-53e-final-latest.txt
+          rm -f .morphhdl/increment-53e-final-ready
+          rm -f .github/workflows/increment-53e-final-observer.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: record exact final closure failure'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
+
+      - name: Upload observer evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53e-final-observer-evidence
+          path: |
+            /tmp/final-run.json
+            /tmp/failed-run
+            morphhdl/diagnostics/increment-53e-final-latest.txt
+          if-no-files-found: ignore
