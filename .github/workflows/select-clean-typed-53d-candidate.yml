@@ -1,0 +1,162 @@
+name: Select clean typed Increment 53d candidate
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/select-clean-typed-53d-candidate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: select-clean-typed-increment-53d-candidate
+  cancel-in-progress: true
+
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      GH_TOKEN: ${{ github.token }}
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@v4
+        with:
+          ref: parameterized-verilog
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Evaluate typed prototype overlays
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/agent/*:refs/remotes/origin/agent/*'
+          candidates=(
+            agent/increment-53d-typed-elabint-pivot
+            agent/increment-53d-typed-architecture-final
+            agent/increment-53d-typed-elabint-streamwidthadapter
+            agent/increment-53d-typed-elabint-streamwidthadapter-v2
+            agent/increment-53d-typed-elabint-path
+            agent/increment-53d-typed-elabint-path-final
+            agent/inc53d-typed-elaboration-v2
+          )
+          production_paths=(
+            core/src/main/scala/spinal/core/ElabInt.scala
+            morphruntime/src/main/scala/spinal/core/ElabControl.scala
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala
+            frontend/src/main/scala/morphhdl/frontend/HdlInt.scala
+            frontend/src/main/scala/morphhdl/frontend/HdlBool.scala
+            frontend/src/main/scala/morphhdl/frontend/package.scala
+            lib/src/main/scala/spinal/lib/Stream.scala
+            morphhdl/src/test/scala/morphhdl/TypedElaborationControlTests.scala
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala
+            docs/morphhdl/increment-53d-native-streamwidth-adapter.md
+            docs/morphhdl/typed-elaboration-native-change-manifest.md
+          )
+
+          selected=''
+          rm -rf /tmp/typed-selection
+          mkdir -p /tmp/typed-selection/logs
+          for candidate in "${candidates[@]}"; do
+            remote="origin/$candidate"
+            git show-ref --verify --quiet "refs/remotes/$remote" || continue
+            git reset --hard origin/parameterized-verilog
+            git clean -fdx -e tester/src/test/python/cocotblib
+            for path in "${production_paths[@]}"; do
+              if git cat-file -e "$remote:$path" 2>/dev/null; then
+                mkdir -p "$(dirname "$path")"
+                git show "$remote:$path" > "$path"
+              fi
+            done
+            if git cat-file -e "$remote:morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py" 2>/dev/null; then
+              git show "$remote:morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py" > /tmp/apply-typed-adapter.py
+              python3 /tmp/apply-typed-adapter.py || { git diff > "/tmp/typed-selection/logs/${candidate//\//_}-patch.diff"; continue; }
+            fi
+            python3 - <<'PY'
+          from pathlib import Path
+          path = Path('morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala')
+          if path.exists():
+              text = path.read_text()
+              entry = 'new MorphHdlTypedElaborationControlComponent(global)'
+              if entry not in text and Path('morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala').exists():
+                  for marker in ('new MorphHdlNaturalSymbolicConditionalComponent(global)', 'new MorphHdlNativeIntShadowExpressionComponent(global)'):
+                      if marker in text:
+                          text = text.replace(marker, entry + ',\n    ' + marker, 1)
+                          break
+                  path.write_text(text)
+          PY
+            git diff --check || continue
+            if sbt -batch '++2.13.12' compile Test/compile 'morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.ParameterizedStreamWidthAdapterTests' > "/tmp/typed-selection/logs/${candidate//\//_}.log" 2>&1; then
+              selected="$candidate"
+              mkdir -p /tmp/typed-selection/files
+              git diff --binary origin/parameterized-verilog > /tmp/typed-selection/candidate.patch
+              git diff --name-only origin/parameterized-verilog | sort > /tmp/typed-selection/changed-files.txt
+              break
+            fi
+          done
+          if [ -z "$selected" ]; then
+            echo 'No typed prototype passed Scala 2.13 compile and targeted tests.' >&2
+            for log in /tmp/typed-selection/logs/*.log; do
+              echo "===== $log ====="
+              tail -n 160 "$log"
+            done
+            exit 1
+          fi
+          printf '%s\n' "$selected" > /tmp/typed-selection/selected.txt
+
+      - name: Reconstruct selected candidate and validate both Scala versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard origin/parameterized-verilog
+          git clean -fdx -e tester/src/test/python/cocotblib
+          git apply --binary /tmp/typed-selection/candidate.patch
+          git diff --check
+          for scala in 2.12.18 2.13.12; do
+            sbt -batch "++$scala" compile Test/compile \
+              'morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.ParameterizedStreamWidthAdapterTests'
+            /tmp/morphhdl-mill "morph[$scala].testOnly" \
+              morphhdl.TypedElaborationControlTests \
+              morphhdl.ParameterizedStreamWidthAdapterTests
+          done
+
+      - name: Enforce typed architecture scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'final class ElabInt' core/src/main/scala/spinal/core/ElabInt.scala
+          grep -Fq 'final class ElabBool' core/src/main/scala/spinal/core/ElabInt.scala
+          grep -Fq 'MorphHdlTypedElaborationControlComponent' morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala
+          ! grep -E 'implicit[[:space:]]+def[[:space:]].*ElabInt.*Int|implicit[[:space:]]+def[[:space:]].*ElabBool.*Boolean' core/src/main/scala/spinal/core/ElabInt.scala
+          changed_native="$(git diff --name-only origin/parameterized-verilog -- core lib idslplugin | sort)"
+          test -z "$(printf '%s\n' "$changed_native" | grep -v -E '^(core/src/main/scala/spinal/core/ElabInt.scala|lib/src/main/scala/spinal/lib/Stream.scala)$' || true)"
+
+      - name: Publish clean selected candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m "Implement typed Increment 53d from $(cat /tmp/typed-selection/selected.txt)"
+          git push --force origin HEAD:agent/increment-53d-typed-streamwidthadapter
+          number="$(gh pr list --head agent/increment-53d-typed-streamwidthadapter --base parameterized-verilog --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$number" ]; then
+            gh pr create --draft --head agent/increment-53d-typed-streamwidthadapter --base parameterized-verilog --title 'Increment 53d: typed elaboration and native StreamWidthAdapter' --body 'Clean typed candidate selected by dual-build validation. Draft until full CI and dedicated formal equivalence pass.'
+          fi
