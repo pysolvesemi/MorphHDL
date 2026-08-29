@@ -1,0 +1,179 @@
+name: Increment 53e exact hosted-proof finalizer v12
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-native-streamwidth-adapter
+
+permissions:
+  contents: write
+  actions: read
+  pull-requests: write
+
+concurrency:
+  group: increment-53e-exact-hosted-proof-finalizer
+  cancel-in-progress: true
+
+jobs:
+  verify-and-merge:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      CANDIDATE_BRANCH: agent/increment-53e-generic-engine-final-v10
+      TARGET_BRANCH: parameterized-verilog
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-native-streamwidth-adapter
+          fetch-depth: 0
+
+      - name: Configure authenticated checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch --prune origin "$TARGET_BRANCH" "$CANDIDATE_BRANCH" --tags
+
+      - name: Verify candidate source and ancestry boundaries
+        id: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="origin/$TARGET_BRANCH"
+          candidate="origin/$CANDIDATE_BRANCH"
+          git merge-base --is-ancestor "$target" "$candidate" || {
+            echo 'Candidate does not contain the current target; reproof is required.' >&2
+            exit 1
+          }
+          git switch --detach "$candidate"
+          candidate_sha=$(git rev-parse HEAD)
+          candidate_tree=$(git rev-parse HEAD^{tree})
+          base_sha=$(git rev-parse "$target")
+
+          bash morphhdl/scripts/check-generic-native-parameterization-engine.sh
+          grep -Fq -- \
+            '- [x] **Increment 53e — Native StreamFifoCC parameterization without source edits**' \
+            docs/morphhdl/parameterized-verilog-todo.md
+          test -f morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedDomainEquivalence.scala
+          test -f morphhdl/src/test/scala/spinal/core/internals/ExternalParameterizedDomainEquivalenceTests.scala
+          test -f morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCImplementationProofTests.scala
+          test -f morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCFormalEquivalenceTests.scala
+          test -f .github/workflows/morphhdl-native-streamfifocc-parameterization.yml
+          test -f .github/workflows/morphhdl-native-streamfifocc-formal-equivalence.yml
+          if find morphhdl/scripts -maxdepth 1 -type f \
+            -name 'apply-increment-53e-*.py' -print -quit | grep -q .; then
+            echo 'Temporary Increment 53e patch script remains in candidate.' >&2
+            exit 1
+          fi
+          if find .github/workflows -maxdepth 1 -type f \
+            -name 'increment-53e-*.yml' -print -quit | grep -q .; then
+            echo 'Temporary Increment 53e workflow remains in candidate.' >&2
+            exit 1
+          fi
+          if git diff --name-only "$target"..."$candidate" -- \
+            core/src/main lib/src/main idslplugin/src/main | grep -q .; then
+            echo 'Candidate changes native SpinalHDL production source.' >&2
+            git diff --name-only "$target"..."$candidate" -- \
+              core/src/main lib/src/main idslplugin/src/main >&2
+            exit 1
+          fi
+
+          echo "sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+          echo "tree=$candidate_tree" >> "$GITHUB_OUTPUT"
+          echo "base=$base_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Require both permanent workflows on exact candidate SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            '.github/workflows/morphhdl-native-streamfifocc-parameterization.yml'
+            '.github/workflows/morphhdl-native-streamfifocc-formal-equivalence.yml'
+          )
+          for attempt in $(seq 1 720); do
+            complete=1
+            successful=1
+            for path in "${required[@]}"; do
+              run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$CANDIDATE_SHA&per_page=100" \
+                --jq "[.workflow_runs[] | select(.path == \"$path\")] | sort_by(.created_at) | last // {}")
+              id=$(jq -r '.id // "missing"' <<<"$run")
+              status=$(jq -r '.status // "missing"' <<<"$run")
+              conclusion=$(jq -r '.conclusion // "missing"' <<<"$run")
+              printf '%s run=%s status=%s conclusion=%s\n' \
+                "$path" "$id" "$status" "$conclusion"
+              [[ "$status" == completed ]] || complete=0
+              [[ "$conclusion" == success ]] || successful=0
+            done
+            if ((complete)); then
+              ((successful)) || {
+                echo 'A required permanent Increment 53e workflow failed.' >&2
+                exit 1
+              }
+              exit 0
+            fi
+            sleep 20
+          done
+          echo 'Timed out waiting for exact hosted proofs.' >&2
+          exit 1
+
+      - name: Open or reuse reviewed PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          number=$(gh pr list --head "$CANDIDATE_BRANCH" --base "$TARGET_BRANCH" \
+            --state open --json number --jq '.[0].number // empty')
+          if [[ -z "$number" ]]; then
+            url=$(gh pr create \
+              --head "$CANDIDATE_BRANCH" \
+              --base "$TARGET_BRANCH" \
+              --title 'Increment 53e: generic native StreamFifoCC parameterization' \
+              --body-file - <<'EOF'
+Parameterizes the exact untouched `spinal.lib.StreamFifoCC` without changing native SpinalHDL production sources or implementing alternate FIFO/CDC logic.
+
+The compiler/runtime/backend mechanism is generic across native SpinalHDL. It uses typed compiler structure, exact graph identity, retained provenance, and exhaustive bounded-domain proof. Component names, signal names, source filenames, rendered text, and equal concrete witnesses are not proof or dispatch keys.
+
+Both permanent workflows have passed on the exact PR head, including two Scala lines, complete regressions, independent-clock behavior, Verilog-2001 lint/synthesis, concrete native witnesses, solver-backed sequential equivalence, and a mutation negative control.
+EOF
+            )
+            number=${url##*/}
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Squash merge exact proven tree and publish immutable verification tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+          CANDIDATE_TREE: ${{ steps.candidate.outputs.tree }}
+          BASE_SHA: ${{ steps.candidate.outputs.base }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ $(gh pr view "$PR_NUMBER" --json headRefOid --jq .headRefOid) == "$CANDIDATE_SHA" ]]
+          git fetch origin "$TARGET_BRANCH"
+          [[ $(git rev-parse "origin/$TARGET_BRANCH") == "$BASE_SHA" ]] || {
+            echo 'Target advanced after hosted proof; refusing stale merge.' >&2
+            exit 1
+          }
+          gh pr merge "$PR_NUMBER" --squash --delete-branch
+          merge_sha=$(gh pr view "$PR_NUMBER" --json mergedAt,mergeCommit \
+            --jq 'select(.mergedAt != null) | .mergeCommit.oid')
+          [[ -n "$merge_sha" ]]
+          git fetch origin "$TARGET_BRANCH" --tags
+          [[ $(git rev-parse "origin/$TARGET_BRANCH") == "$merge_sha" ]]
+          [[ $(git rev-parse "$merge_sha^{tree}") == "$CANDIDATE_TREE" ]] || {
+            echo 'Merged target tree differs from exact proven candidate tree.' >&2
+            exit 1
+          }
+          git tag -f -a increment-53e-verified "$merge_sha" \
+            -m 'Increment 53e generic native StreamFifoCC parameterization verified'
+          git push --force origin refs/tags/increment-53e-verified
+          printf 'Increment 53e merged through PR #%s at %s\n' "$PR_NUMBER" "$merge_sha"
