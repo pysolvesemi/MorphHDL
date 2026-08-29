@@ -40,6 +40,27 @@ regression = Path(
     "morphhdl/src/test/scala/morphhdl/GenericNativeDefinitionBoundaryTests.scala"
 )
 value = regression.read_text(encoding="utf-8")
+
+# The v9 architecture generator intentionally checks DefDef reconstruction,
+# but its Python string escaped a newline into an ordinary Scala string literal.
+# Keep the architectural check while expressing it as two legal stable tokens.
+broken_defdef_assertion = (
+    'assert(value.contains("treeCopy.DefDef(\n  definition,"))'
+)
+if value.count(broken_defdef_assertion) != 1:
+    raise SystemExit("generated DefDef assertion repair point is ambiguous")
+index = value.index(broken_defdef_assertion)
+line_start = value.rfind("\n", 0, index) + 1
+indent = value[line_start:index]
+fixed_defdef_assertion = (
+    'assert(value.contains("treeCopy.DefDef("))\n'
+    + indent
+    + 'assert(value.contains("definition,"))'
+)
+value = value.replace(
+    broken_defdef_assertion, fixed_defdef_assertion, 1
+)
+
 needle = 'assert(value.contains("private def localNativeWidthNames"))'
 if value.count(needle) != 1:
     raise SystemExit("generic regression insertion point is ambiguous")
