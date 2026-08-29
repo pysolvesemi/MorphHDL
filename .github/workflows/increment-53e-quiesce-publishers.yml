@@ -1,0 +1,53 @@
+name: Increment 53e quiesce temporary publishers
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53e-quiesce-publishers
+  cancel-in-progress: true
+
+jobs:
+  quiesce:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Verify hardened materializers and remove competing publishers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          sleep 90
+          git fetch origin agent/increment-53e-native-streamfifocc-parameterization
+          remote=$(git rev-parse origin/agent/increment-53e-native-streamfifocc-parameterization)
+          local=$(git rev-parse HEAD)
+          if test "$remote" != "$local"; then
+            echo "Quiesce checkout $local is stale; remote is $remote." >&2
+            exit 78
+          fi
+          capture=morphhdl/scripts/apply-increment-53e-generic-native-capture.py
+          generator=morphhdl/scripts/create-increment-53e-proof-suite.py
+          test -f "$capture"
+          test -f "$generator"
+          grep -Fq 'base.fullName == "spinal.core.Component"' "$capture"
+          grep -Fq 'header_lines = source[:start].splitlines()' "$generator"
+
+          find .github/workflows -maxdepth 1 -type f -name 'increment-53e-*.yml' \
+            ! -name 'increment-53e-serial-closure.yml' \
+            ! -name 'increment-53e-monitor-serialized-run.yml' \
+            -delete
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: quiesce temporary publishers'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
