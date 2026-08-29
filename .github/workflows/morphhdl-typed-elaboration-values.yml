@@ -1,0 +1,72 @@
+name: MorphHDL typed elaboration values
+
+on:
+  push:
+    branches:
+      - parameterized-verilog
+      - 'agent/increment-53d-*'
+      - agent/typed-elabint-roadmap-final10
+  pull_request:
+    branches:
+      - parameterized-verilog
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-typed-elaboration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-contract:
+    name: Typed architecture source contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check typed carrier boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          carrier=morphruntime/src/main/scala/spinal/core/ElabInt.scala
+          test -f "$carrier"
+          grep -Fq 'final class ElabInt' "$carrier"
+          grep -Fq 'final class ElabBool' "$carrier"
+          grep -Fq 'def ==(that: Int): ElabBool' "$carrier"
+          grep -Fq 'def constantWitness(role: String): Int' "$carrier"
+          ! grep -Eq 'implicit[[:space:]]+def[[:space:]].*ElabInt.*Int' "$carrier"
+          ! grep -Eq 'StreamFifo|StreamFifoCC|StreamWidthAdapter' "$carrier"
+          git diff --check
+
+  contracts:
+    name: Typed elaboration contracts Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - '2.12.18'
+          - '2.13.12'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Compile production and test sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+
+      - name: Run typed elaboration contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch "++${{ matrix.scala_version }}" \
+            'morph/testOnly morphhdl.TypedElaborationValueTests'
