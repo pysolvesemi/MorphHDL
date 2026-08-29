@@ -1,0 +1,114 @@
+name: Increment 53e monitor serialized closure
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: increment-53e-serialized-monitor
+  cancel-in-progress: true
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 480
+    steps:
+      - name: Wait for the serialized run on this exact SHA
+        id: wait
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api=https://api.github.com/repos/${{ github.repository }}
+          deadline=$((SECONDS + 27000))
+          run_id=
+          conclusion=
+          while test $SECONDS -lt $deadline; do
+            payload=$(curl -fsSL \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Accept: application/vnd.github+json' \
+              "$api/actions/runs?head_sha=$EXPECTED_SHA&per_page=100")
+            read -r run_id status conclusion <<EOF
+          $(python3 - <<'PY' "$payload" "$EXPECTED_SHA"
+          import json,sys
+          rows=json.loads(sys.argv[1]).get("workflow_runs", [])
+          sha=sys.argv[2]
+          matches=[row for row in rows if
+              row.get("head_sha") == sha and
+              row.get("path") == ".github/workflows/increment-53e-serial-closure.yml"]
+          if not matches:
+              print("0 missing none")
+          else:
+              row=sorted(matches, key=lambda item: item.get("id", 0), reverse=True)[0]
+              print(row.get("id", 0), row.get("status", "unknown"), row.get("conclusion") or "none")
+          PY
+          )
+          EOF
+            if test "$status" = completed; then
+              break
+            fi
+            echo "serialized run state: id=$run_id status=$status"
+            sleep 45
+          done
+          if test -z "$run_id" || test "$run_id" = 0 || test "$status" != completed; then
+            echo 'Serialized run did not complete before monitor timeout.' >&2
+            exit 1
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "conclusion=$conclusion" >> "$GITHUB_OUTPUT"
+
+      - name: Download and publish a failed run diagnostic
+        if: steps.wait.outputs.conclusion != 'success' && steps.wait.outputs.conclusion != 'neutral' && steps.wait.outputs.conclusion != 'skipped'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          api=https://api.github.com/repos/${{ github.repository }}
+          archive=/tmp/serialized-run-logs.zip
+          curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "$api/actions/runs/${{ steps.wait.outputs.run_id }}/logs" \
+            -o "$archive"
+          mkdir -p /tmp/serialized-run-logs
+          unzip -q "$archive" -d /tmp/serialized-run-logs
+          diagnostic=/tmp/increment-53e-last-failure.txt
+          {
+            echo "run=${{ steps.wait.outputs.run_id }}"
+            echo "sha=${{ github.sha }}"
+            echo "conclusion=${{ steps.wait.outputs.conclusion }}"
+            echo "time=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            find /tmp/serialized-run-logs -type f -print0 | sort -z | \
+              while IFS= read -r -d '' log; do
+                echo "===== $log ====="
+                tail -n 300 "$log"
+              done
+          } > "$diagnostic"
+          work=/tmp/increment-53e-diagnostic-branch
+          rm -rf "$work"
+          mkdir -p "$work"
+          cd "$work"
+          git init
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          cp "$diagnostic" ./increment-53e-last-failure.txt
+          git add increment-53e-last-failure.txt
+          git commit -m "Increment 53e diagnostic for run ${{ steps.wait.outputs.run_id }}"
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          git push --force origin HEAD:agent/increment-53e-diagnostics
+
+      - name: Remove stale diagnostic branch after a successful closure run
+        if: steps.wait.outputs.conclusion == 'success'
+        shell: bash
+        run: |
+          git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
+            --delete agent/increment-53e-diagnostics || true
