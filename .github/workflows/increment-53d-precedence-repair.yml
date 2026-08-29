@@ -45,85 +45,46 @@ jobs:
               "morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala"
           )
           text = registry.read_text(encoding="utf-8")
-          old = '''  /** True only while one exact native formalization constructor is executing. */
-          def boundaryActive: Boolean = currentBoundary.nonEmpty
+          marker = "  def boundaryActive: Boolean = currentBoundary.nonEmpty\n"
+          addition = '''
 
-          private def currentBoundary: Option[ActiveBoundary] =
-            Option(active.get()).getOrElse(Nil).headOption
-          '''
-          new = '''  /** True only while one exact native formalization constructor is executing. */
-          def boundaryActive: Boolean = currentBoundary.nonEmpty
-
-          /**
-            * Domain-constant branch folding is a local optimization for an
-            * ordinary native width-function call. Constructor boundaries such
-            * as StreamFifo must retain their established structural capture
-            * even when a narrowed caller domain makes one predicate constant.
-            */
-          private[core] def nativeWidthFunctionBoundaryActive: Boolean =
-            currentBoundary.exists(_.token.role == "nativeWidthFunction")
-
-          private def currentBoundary: Option[ActiveBoundary] =
-            Option(active.get()).getOrElse(Nil).headOption
-          '''
-          if text.count(old) != 1:
-              raise SystemExit(
-                  "expected one native boundary activity block, "
-                  f"found {text.count(old)}"
-              )
-          registry.write_text(text.replace(old, new, 1), encoding="utf-8")
+  /**
+    * Domain-constant branch folding is local to an ordinary native
+    * width-function call. Constructor boundaries such as StreamFifo retain
+    * their established structural capture even when a narrowed caller domain
+    * makes one predicate constant.
+    */
+  private[core] def nativeWidthFunctionBoundaryActive: Boolean =
+    currentBoundary.exists(_.token.role == "nativeWidthFunction")
+'''
+          if "nativeWidthFunctionBoundaryActive" not in text:
+              if text.count(marker) != 1:
+                  raise SystemExit(
+                      "expected one native boundary activity marker, "
+                      f"found {text.count(marker)}"
+                  )
+              text = text.replace(marker, marker + addition, 1)
+              registry.write_text(text, encoding="utf-8")
 
           runtime = Path(
               "morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala"
           )
           text = runtime.read_text(encoding="utf-8")
-          old = '''  private def constantPredicate(
-              condition: Boolean,
-              predicateReference: String,
-              sourceFile: String,
-              sourceLine: Int
-          ): Option[Boolean] = {
-            val (_, domain) =
-              ExternalNativeIntShadowRegistry.definitionPredicateEvidenceTracked(
-                predicateReference,
-                condition,
-                rendered(sourceFile, sourceLine)
-              )
-            domain.flatMap { value =>
-              if (value.whenTrue.isEmpty) Some(false)
-              else if (value.whenTrue == value.universe) Some(true)
-              else None
-            }
-          }
-          '''
-          new = '''  private def constantPredicate(
-              condition: Boolean,
-              predicateReference: String,
-              sourceFile: String,
-              sourceLine: Int
-          ): Option[Boolean] = {
-            if (!ExternalNativeIntShadowRegistry.nativeWidthFunctionBoundaryActive)
-              return None
+          start = text.find("  private def constantPredicate(\n")
+          if start < 0:
+              raise SystemExit("constantPredicate declaration not found")
+          body_marker = "  ): Option[Boolean] = {\n"
+          body = text.find(body_marker, start)
+          if body < 0:
+              raise SystemExit("constantPredicate body marker not found")
+          insertion = body + len(body_marker)
+          guard = '''    if (!ExternalNativeIntShadowRegistry.nativeWidthFunctionBoundaryActive)
+      return None
 
-            val (_, domain) =
-              ExternalNativeIntShadowRegistry.definitionPredicateEvidenceTracked(
-                predicateReference,
-                condition,
-                rendered(sourceFile, sourceLine)
-              )
-            domain.flatMap { value =>
-              if (value.whenTrue.isEmpty) Some(false)
-              else if (value.whenTrue == value.universe) Some(true)
-              else None
-            }
-          }
-          '''
-          if text.count(old) != 1:
-              raise SystemExit(
-                  "expected one constant-predicate implementation, "
-                  f"found {text.count(old)}"
-              )
-          runtime.write_text(text.replace(old, new, 1), encoding="utf-8")
+'''
+          if guard not in text[start:]:
+              text = text[:insertion] + guard + text[insertion:]
+              runtime.write_text(text, encoding="utf-8")
           PY
           git diff --check
           git diff -- \
