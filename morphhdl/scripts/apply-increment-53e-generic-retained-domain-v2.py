@@ -17,14 +17,13 @@ def require_unique(value: str, marker: str, label: str) -> None:
         raise SystemExit(f"{label}: expected one match, found {count}")
 
 
-def replace_in_nearest_if(
+def append_guard_to_nearest_if(
     value: str,
     anchor: str,
-    old: str,
-    new: str,
+    guard: str,
     label: str,
 ) -> str:
-    """Replace one clause only in the first complete `if` after `anchor`."""
+    """Append one condition to the first complete `if` after `anchor`."""
     anchor_index = value.find(anchor)
     if anchor_index < 0:
         raise SystemExit(f"{label}: anchor is missing")
@@ -37,13 +36,26 @@ def replace_in_nearest_if(
         raise SystemExit(f"{label}: following if block is unterminated")
 
     block = value[block_start:block_end]
-    count = block.count(old)
-    if count != 1:
+    if guard in block:
+        return value
+
+    required = (
+        "targetWidth.isSymbolic",
+        "sourceWidth.isSymbolic",
+        "!provenCapturedDomainEquivalent",
+    )
+    missing = [marker for marker in required if marker not in block]
+    if missing:
         raise SystemExit(
-            f"{label}: expected one scoped match, found {count}"
+            f"{label}: following if block is not the symbolic-width rejection; "
+            f"missing {', '.join(missing)}"
         )
-    block = block.replace(old, new, 1)
-    return value[:block_start] + block + value[block_end:]
+
+    trimmed = block.rstrip()
+    if trimmed.endswith("&&") or trimmed.endswith("||"):
+        raise SystemExit(f"{label}: following if block has an incomplete condition")
+    rewritten = trimmed + " &&\n                " + guard + "\n"
+    return value[:block_start] + rewritten + value[block_end:]
 
 
 rv = registry.read_text()
@@ -97,21 +109,12 @@ if "val provenCompleteDomainEquivalent =" not in value:
         1,
     )
 
-old_rejection = '''                !provenAutoResize && !provenModularUpdate &&
-                !provenCapturedDomainEquivalent
-'''
-new_rejection = '''                !provenAutoResize && !provenModularUpdate &&
-                !provenCapturedDomainEquivalent &&
-                !provenCompleteDomainEquivalent
-'''
-if "!provenCompleteDomainEquivalent" not in value:
-    value = replace_in_nearest_if(
-        value,
-        "              val provenCompleteDomainEquivalent =\n",
-        old_rejection,
-        new_rejection,
-        "generic complete-domain rejection marker",
-    )
+value = append_guard_to_nearest_if(
+    value,
+    "              val provenCompleteDomainEquivalent =\n",
+    "!provenCompleteDomainEquivalent",
+    "generic complete-domain rejection marker",
+)
 
 if "def provesEquivalentOnCompleteRetainedDomain(" not in value:
     marker = '''      def ofBase(baseType: BaseType): WidthExpr = {
