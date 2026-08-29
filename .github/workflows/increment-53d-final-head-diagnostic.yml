@@ -1,4 +1,4 @@
-name: Validate Increment 53d concurrent generation isolation
+name: Diagnose patched Increment 53d witness failures
 
 on:
   push:
@@ -6,19 +6,18 @@ on:
       - agent/increment-53d-generic-native-definition-boundary
     paths:
       - .github/workflows/increment-53d-final-head-diagnostic.yml
-      - morphhdl/scripts/apply-increment-53d-concurrent-generation-isolation.py
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: increment-53d-concurrent-generation-isolation
+  group: increment-53d-patched-witness-diagnostic
   cancel-in-progress: true
 
 jobs:
-  validate:
-    name: Concurrent native witnesses Scala ${{ matrix.scala_version }}
+  witness:
+    name: ${{ matrix.test_class }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     container:
@@ -28,9 +27,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala_version:
-          - "2.12.18"
-          - "2.13.12"
+        test_class:
+          - morphhdl.ConcurrentMorphVerilogIsolationTests
+          - morphhdl.ParameterizedStreamWidthAdapterTests
+          - morphhdl.ParameterizedStreamFifoDepthTests
+          - morphhdl.NativeStreamFifoFormalEquivalenceTests
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@v4
@@ -47,63 +48,17 @@ jobs:
           git diff --check
           git diff --quiet HEAD -- core lib idslplugin
 
-      - name: Compile production and test sources
+      - name: Run isolated witness and print exact diagnostic
         shell: bash
         run: |
-          set -euo pipefail
-          sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
-
-      - name: Run concurrent and previously failing native witnesses
-        shell: bash
-        run: |
-          set -euo pipefail
-          sbt -batch "++${{ matrix.scala_version }}" \
-            "morph/testOnly morphhdl.ConcurrentMorphVerilogIsolationTests morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.NativeStreamFifoFormalEquivalenceTests"
-
-      - name: Validate permanent source boundary
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
-          git diff --quiet HEAD -- core lib idslplugin
-
-  publish:
-    name: Publish validated transaction isolation
-    needs: validate
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    container:
-      image: ghcr.io/spinalhdl/docker:v1.2.0
-    steps:
-      - name: Check out exact candidate
-        uses: actions/checkout@v4
-        with:
-          ref: agent/increment-53d-generic-native-definition-boundary
-          fetch-depth: 0
-
-      - name: Apply final production fix
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 morphhdl/scripts/apply-increment-53d-concurrent-generation-isolation.py
-          git diff --check
-          bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
-          git diff --quiet HEAD -- core lib idslplugin
-
-      - name: Commit only permanent implementation and regression files
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "MorphHDL Agent"
-          git config user.email "morphhdl-agent@users.noreply.github.com"
-          git add \
-            morphhdl/src/main/scala/morphhdl/MorphVerilog.scala \
-            morphhdl/src/test/scala/morphhdl/ConcurrentMorphVerilogIsolationTests.scala \
-            .github/workflows/morphhdl-native-stream-width-adapter.yml \
-            docs/morphhdl/increment-53d-native-streamwidth-adapter.md
-          git rm \
-            morphhdl/scripts/apply-increment-53d-concurrent-generation-isolation.py \
-            .github/workflows/increment-53d-final-head-diagnostic.yml
-          git diff --cached --check
-          git commit -m "Isolate concurrent Increment 53d generations"
-          git push origin HEAD:agent/increment-53d-generic-native-definition-boundary
+          set +e
+          log="${RUNNER_TEMP}/witness.log"
+          sbt -batch ++2.13.12 \
+            "morph/testOnly ${{ matrix.test_class }}" >"$log" 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            grep -E -n -C 14 '(\[error\]|FAILED|Exception|AssertionError|WIDTH MISMATCH|ASSIGNMENT-WIDTH-MISMATCH|Tests: succeeded|unexpected concurrent)' "$log" | tail -n 2400 || true
+          fi
+          printf '%s\n' '--- final output ---'
+          tail -n 500 "$log"
+          exit "$status"
