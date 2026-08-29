@@ -39,6 +39,7 @@ jobs:
           python3 morphhdl/scripts/apply-increment-53e-emitted-child-definition-match.py
           python3 morphhdl/scripts/apply-increment-53e-generic-emitted-inventory.py
           python3 morphhdl/scripts/apply-increment-53e-generic-packed-lineage.py
+          python3 morphhdl/scripts/apply-increment-53e-retained-packed-declaration-inventory.py
           python3 - <<'PY'
           from pathlib import Path
 
@@ -155,6 +156,7 @@ jobs:
           rm -f morphhdl/scripts/apply-increment-53e-emitted-child-definition-match.py
           rm -f morphhdl/scripts/apply-increment-53e-generic-emitted-inventory.py
           rm -f morphhdl/scripts/apply-increment-53e-generic-packed-lineage.py
+          rm -f morphhdl/scripts/apply-increment-53e-retained-packed-declaration-inventory.py
           rm -f morphhdl/scripts/apply-increment-53e-attributed-declarations.py
           rm -f morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
           rm -f morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
