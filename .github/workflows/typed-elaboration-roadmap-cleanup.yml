@@ -1,0 +1,45 @@
+name: Clean typed-elaboration roadmap publisher
+
+on:
+  push:
+    branches:
+      - agent/typed-elaboration-roadmap-pivot
+    paths:
+      - .github/workflows/typed-elaboration-roadmap-cleanup.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: typed-elaboration-roadmap-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/typed-elaboration-roadmap-pivot
+          fetch-depth: 0
+      - name: Verify permanent roadmap is present
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'Authoritative typed-elaboration architecture from Increment 53d onward' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Approved production architecture from Increment 53d onward' docs/morphhdl/typed-elaboration-architecture.md
+      - name: Remove temporary publication files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git rm -f \
+            morphhdl/scripts/apply-typed-elaboration-roadmap.py \
+            .github/workflows/typed-elaboration-roadmap-publisher.yml \
+            .github/workflows/typed-elaboration-roadmap-cleanup.yml
+          git diff --cached --check
+          git commit -m 'Finalize typed elaboration roadmap pivot'
+          git push origin HEAD:agent/typed-elaboration-roadmap-pivot
