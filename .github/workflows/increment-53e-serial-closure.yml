@@ -1,0 +1,349 @@
+name: Increment 53e serialized generic closure
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: increment-53e-serialized-closure
+  cancel-in-progress: true
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 480
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Configure checkout and wait for earlier temporary publishers
+        id: start
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          echo "tested_base=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          sleep 120
+          git fetch origin agent/increment-53e-native-streamfifocc-parameterization parameterized-verilog
+          remote=$(git rev-parse origin/agent/increment-53e-native-streamfifocc-parameterization)
+          local=$(git rev-parse HEAD)
+          if test "$remote" != "$local"; then
+            echo "Checkout $local is stale; remote is $remote. A newer push has its own serialized run."
+            exit 78
+          fi
+
+      - name: Synchronize target and materialize every generic implementation layer
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge --no-edit origin/parameterized-verilog
+          apply_if_missing() {
+            marker=$1
+            script=$2
+            file=$3
+            if grep -Fq "$marker" "$file"; then
+              return 0
+            fi
+            if ! test -f "$script"; then
+              echo "Required materializer $script is missing while marker $marker is absent from $file" >&2
+              exit 1
+            fi
+            python3 "$script"
+          }
+          apply_if_missing \
+            'private sealed trait MemoryAddressRole' \
+            morphhdl/scripts/apply-increment-53e-address-role-repair.py \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
+          apply_if_missing \
+            'promoteImplicitPackedFormals' \
+            morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+          if test -f morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py && \
+             grep -Fq '::$definitionName::$key' \
+               morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala; then
+            python3 morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py
+          fi
+          apply_if_missing \
+            'isProvenModularUIntUpdate' \
+            morphhdl/scripts/apply-increment-53e-modular-literal-proof.py \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+          apply_if_missing \
+            'materializedAutoResize' \
+            morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedAutoResize.scala
+          apply_if_missing \
+            'adaptiveLiteralBinaryWidth' \
+            morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+          apply_if_missing \
+            'provesRetainedProvenanceEquivalence' \
+            morphhdl/scripts/apply-increment-53e-generic-provenance-equivalence.py \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+          apply_if_missing \
+            'nativeFormalIntComponentCandidate' \
+            morphhdl/scripts/apply-increment-53e-generic-native-capture.py \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          if ! test -f morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCProofGenerationTests.scala; then
+            python3 morphhdl/scripts/create-increment-53e-proof-suite.py
+          fi
+          git diff --check
+
+      - name: Enforce genericity and native-source preservation before compilation
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedAutoResize.scala
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedIntegerEquivalence.scala
+            morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala
+          )
+          for file in "${files[@]}"; do test -f "$file"; done
+          if grep -En \
+            'StreamFifo(CC)?|pushToPopGray|popToPushGray|BufferCC|Stream\.scala|CrossClock\.scala' \
+            "${files[@]}"; then
+            echo 'Production implementation contains a selected component, signal, or source-file recognition key.' >&2
+            exit 1
+          fi
+          if grep -Fq 'RetainedWidthEvaluator' "${files[0]}"; then
+            echo 'Rendered-expression parsing remains in the production proof path.' >&2
+            exit 1
+          fi
+          grep -Fq 'provesRetainedProvenanceEquivalence' "${files[0]}"
+          grep -Fq 'definitionExpressionRootOf' "${files[5]}"
+          grep -Fq 'evaluateDefinitionExpressionInOwnDomain' "${files[5]}"
+          grep -Fq 'nativeFormalIntComponentCandidate' "${files[6]}"
+          grep -Fq 'definitions.IntTpe' "${files[6]}"
+          base=$(git merge-base HEAD origin/parameterized-verilog)
+          changed=$(git diff --name-only "$base"..HEAD -- \
+            core/src/main lib/src/main idslplugin/src/main)
+          if test -n "$changed"; then
+            echo 'Increment 53e modifies native SpinalHDL production source:' >&2
+            echo "$changed" >&2
+            exit 1
+          fi
+
+      - name: Install pinned Mill and verify proof tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            -o /tmp/mill
+          chmod +x /tmp/mill
+          command -v iverilog
+          command -v vvp
+          command -v yosys
+          iverilog -V 2>&1 | tee /tmp/increment-53e-tools.log
+          yosys -V 2>&1 | tee -a /tmp/increment-53e-tools.log
+
+      - name: Compile generic compiler capture and run focused contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala in 2.12.18 2.13.12; do
+            /tmp/mill "morphplugin[$scala].compile" \
+              2>&1 | tee "/tmp/increment-53e-plugin-$scala.log"
+            /tmp/mill "morph[$scala].testOnly" \
+              spinal.core.internals.GenericNativeIntegerEquivalenceTests \
+              morphhdl.ParameterizedStreamFifoCCTests \
+              2>&1 | tee "/tmp/increment-53e-contract-$scala.log"
+          done
+
+      - name: Run complete MorphHDL regressions on both Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala in 2.12.18 2.13.12; do
+            /tmp/mill "morph[$scala].test" \
+              2>&1 | tee "/tmp/increment-53e-full-$scala.log"
+          done
+
+      - name: Generate and prove six independent native witnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala in 2.12.18 2.13.12; do
+            workspace="/tmp/increment-53e-proof-$scala"
+            mkdir -p "$workspace"
+            MORPHDL_STREAMFIFOCC_PROOF_WORKSPACE="$workspace" \
+              /tmp/mill "morph[$scala].testOnly" \
+                morphhdl.NativeStreamFifoCCProofGenerationTests \
+              2>&1 | tee "/tmp/increment-53e-generate-$scala.log"
+            python3 morphhdl/scripts/run-increment-53e-native-proofs.py \
+              "$workspace" \
+              2>&1 | tee "/tmp/increment-53e-proof-$scala.log"
+            test -f "$workspace/PROOF_PASS"
+          done
+
+      - name: Prove deterministic dual-Scala RTL
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def inventory(root):
+              root = Path(root)
+              result = {}
+              for row in (root / "manifest.txt").read_text().splitlines():
+                  fields = row.split("|")
+                  if fields[0] == "candidate":
+                      _, mode, path, top = fields
+                      key = ("candidate", mode, top)
+                  elif fields[0] == "concrete":
+                      _, mode, depth, path, top = fields
+                      key = ("concrete", mode, depth, top)
+                  else:
+                      raise SystemExit(f"unsupported proof manifest row: {row}")
+                  result[key] = Path(path).read_bytes()
+              return result
+
+          left = inventory("/tmp/increment-53e-proof-2.12.18")
+          right = inventory("/tmp/increment-53e-proof-2.13.12")
+          if left.keys() != right.keys():
+              raise SystemExit("dual-Scala proof inventories differ")
+          failures = [key for key in left if left[key] != right[key]]
+          if failures:
+              raise SystemExit(f"dual-Scala RTL differs for {failures}")
+          print(f"deterministic dual-Scala RTL proven for {len(left)} artifacts")
+          PY
+
+      - name: Recheck tested remote head before publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin agent/increment-53e-native-streamfifocc-parameterization
+          remote=$(git rev-parse origin/agent/increment-53e-native-streamfifocc-parameterization)
+          tested=${{ steps.start.outputs.tested_base }}
+          if test "$remote" != "$tested"; then
+            echo "Remote head changed from tested base $tested to $remote; refusing to publish stale results." >&2
+            exit 78
+          fi
+
+      - name: Close roadmap and remove all temporary 53e publishers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          text = path.read_text()
+          open_item = "- [ ] **Increment 53e — Native StreamFifoCC parameterization without source edits**"
+          closed_item = "- [x] **Increment 53e — Native StreamFifoCC parameterization without source edits**"
+          if closed_item not in text:
+              if text.count(open_item) != 1:
+                  raise SystemExit(
+                      f"Increment 53e roadmap marker count={text.count(open_item)}"
+                  )
+              text = text.replace(open_item, closed_item, 1)
+              path.write_text(text)
+          PY
+          find .github/workflows -maxdepth 1 -type f \
+            -name 'increment-53e-*.yml' -delete
+          find morphhdl/scripts -maxdepth 1 -type f \
+            -name 'apply-increment-53e-*.py' -delete
+          rm -f morphhdl/scripts/create-increment-53e-proof-suite.py
+          git add -A
+          git diff --cached --check
+
+      - name: Publish proven candidate and open or reuse PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git commit -m 'Increment 53e: close generic native StreamFifoCC proof'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
+
+          api=https://api.github.com/repos/${{ github.repository }}
+          query="$api/pulls?state=open&base=parameterized-verilog&head=${{ github.repository_owner }}:agent/increment-53e-native-streamfifocc-parameterization"
+          existing=$(curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "$query")
+          number=$(python3 -c 'import json,sys; rows=json.load(sys.stdin); print(rows[0]["number"] if rows else "")' <<<"$existing")
+          if test -n "$number"; then
+            echo "Reusing PR #$number"
+            exit 0
+          fi
+          python3 - <<'PY' > /tmp/pr.json
+          import json
+          print(json.dumps({
+              "title": "Increment 53e: generic native StreamFifoCC parameterization",
+              "head": "agent/increment-53e-native-streamfifocc-parameterization",
+              "base": "parameterized-verilog",
+              "body": (
+                  "Uses the exact native spinal.lib.StreamFifoCC with no native "
+                  "SpinalHDL production edits or MorphHDL FIFO reimplementation. "
+                  "The production solution is generic: constructor capture is "
+                  "selected by compiler-visible type/shape and integer width "
+                  "equivalence is proven from exact retained AST provenance over "
+                  "the complete finite domain. Closure includes both Scala lanes, "
+                  "full regressions, depths 4/8/16, both buffered-reset modes, "
+                  "independent clocks, Verilog-2001 compilation, synthesis, six "
+                  "independent concrete-native sequential-equivalence proofs, "
+                  "dual-Scala determinism, and a mandatory failing wrong-depth control."
+              )
+          }))
+          PY
+          curl -fsSL -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "$api/pulls" \
+            --data-binary @/tmp/pr.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-53e-serialized-evidence-${{ github.sha }}
+          path: |
+            /tmp/increment-53e-*.log
+            /tmp/increment-53e-proof-*/manifest.txt
+            /tmp/increment-53e-proof-*/PROOF_PASS
+            /tmp/increment-53e-proof-*/negative-control.log
+          if-no-files-found: ignore
+
+      - name: Publish isolated failure diagnostic
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          diagnostic=/tmp/increment-53e-last-failure.txt
+          {
+            echo "run=${{ github.run_id }}"
+            echo "sha=${{ github.sha }}"
+            echo "time=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            for log in /tmp/increment-53e-*.log; do
+              test -f "$log" || continue
+              echo "===== $log ====="
+              tail -n 160 "$log"
+            done
+          } > "$diagnostic"
+          work=/tmp/increment-53e-diagnostic-branch
+          rm -rf "$work"
+          mkdir -p "$work"
+          cd "$work"
+          git init
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          cp "$diagnostic" ./increment-53e-last-failure.txt
+          git add increment-53e-last-failure.txt
+          git commit -m "Increment 53e diagnostic for run ${{ github.run_id }}"
+          git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          git push --force origin HEAD:agent/increment-53e-diagnostics
