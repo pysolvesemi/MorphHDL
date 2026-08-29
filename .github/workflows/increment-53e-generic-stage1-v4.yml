@@ -1,0 +1,156 @@
+name: Increment 53e brace-aware generic taint engine v4
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53e-generic-stage-one-v4
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 210
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Configure exact head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin agent/increment-53e-native-streamfifocc-parameterization
+          git reset --hard origin/agent/increment-53e-native-streamfifocc-parameterization
+          git rev-parse HEAD >/tmp/validated-head
+
+      - name: Materialize and validate while retaining every exit code
+        id: validate
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+
+          (
+            set -euo pipefail
+            if ! test -f morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedWidthDomainProof.scala; then
+              for script in \
+                morphhdl/scripts/apply-increment-53e-address-role-repair.py \
+                morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py \
+                morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py \
+                morphhdl/scripts/apply-increment-53e-modular-literal-proof.py \
+                morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py \
+                morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py \
+                morphhdl/scripts/apply-increment-53e-generic-complete-domain-equivalence.py
+              do
+                test -f "$script"
+                python3 "$script"
+              done
+            fi
+
+            if ! test -x morphhdl/scripts/check-generic-native-int-compiler.sh || \
+               ! bash morphhdl/scripts/check-generic-native-int-compiler.sh >/dev/null 2>&1; then
+              if test -f morphhdl/scripts/apply-increment-53e-buffercc-shape-repair.py; then
+                python3 morphhdl/scripts/apply-increment-53e-buffercc-shape-repair.py
+              fi
+              python3 morphhdl/scripts/apply-increment-53e-generic-native-source-selection.py
+              python3 morphhdl/scripts/apply-increment-53e-generic-native-shape-selection.py
+            fi
+            if ! grep -q 'captureCandidateArgumentTracked' morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala; then
+              python3 morphhdl/scripts/apply-increment-53e-generic-candidate-argument-selection.py
+            fi
+            python3 morphhdl/scripts/apply-increment-53e-generic-taint-inertness-v2.py
+
+            bash morphhdl/scripts/check-generic-native-int-compiler.sh
+            bash morphhdl/scripts/check-generic-parameterized-width-engine.sh
+            bash morphhdl/scripts/check-native-streamfifocc-parameterization-boundary.sh
+            git diff --check
+          ) 2>&1 | tee /tmp/53e-v4-materialize.log
+          materialize=${PIPESTATUS[0]}
+
+          c12=99
+          c13=99
+          if test "$materialize" = 0; then
+            curl --fail --location --retry 5 --retry-all-errors \
+              https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+              --output /tmp/mill 2>&1 | tee /tmp/53e-v4-install.log
+            install=${PIPESTATUS[0]}
+            chmod +x /tmp/mill 2>/dev/null
+            if test "$install" = 0; then
+              /tmp/mill 'morph[2.12.18].testOnly' \
+                spinal.core.internals.ExternalParameterizedWidthDomainProofTests \
+                morphhdl.ParameterizedStreamFifoCCTests \
+                2>&1 | tee /tmp/53e-v4-2.12.log
+              c12=${PIPESTATUS[0]}
+              /tmp/mill 'morph[2.13.12].testOnly' \
+                spinal.core.internals.ExternalParameterizedWidthDomainProofTests \
+                morphhdl.ParameterizedStreamFifoCCTests \
+                2>&1 | tee /tmp/53e-v4-2.13.log
+              c13=${PIPESTATUS[0]}
+            fi
+          fi
+
+          echo "materialize=$materialize" >> "$GITHUB_OUTPUT"
+          echo "c12=$c12" >> "$GITHUB_OUTPUT"
+          echo "c13=$c13" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Publish exact result
+        shell: bash
+        env:
+          MATERIALIZE: ${{ steps.validate.outputs.materialize }}
+          C12: ${{ steps.validate.outputs.c12 }}
+          C13: ${{ steps.validate.outputs.c13 }}
+        run: |
+          set -euo pipefail
+          result=failure
+          if test "$MATERIALIZE" = 0 && test "$C12" = 0 && test "$C13" = 0; then
+            result=success
+          fi
+
+          mkdir -p /tmp/evidence
+          {
+            echo "stage=generic-root-taint-v4"
+            echo "validated_head=$(cat /tmp/validated-head)"
+            echo "materialize_exit=$MATERIALIZE"
+            echo "scala_2_12_exit=$C12"
+            echo "scala_2_13_exit=$C13"
+            echo "result=$result"
+          } >/tmp/evidence/status.txt
+          cat /tmp/53e-v4-*.log 2>/dev/null | \
+            grep -E 'SPINAL-|MORPH-|\*\*\* FAILED|\[error\]|error:|Exception|not found|type mismatch|value .* is not a member|expected .* found|signature not found|marker not found' | \
+            tail -n 520 >/tmp/evidence/diagnostic.txt || true
+
+          remote=$(git ls-remote origin refs/heads/agent/increment-53e-native-streamfifocc-parameterization | awk '{print $1}')
+          test "$remote" = "$(cat /tmp/validated-head)"
+
+          if test "$result" = success; then
+            rm -rf morphhdl/ci/increment-53e-stage1*.txt
+            find .github/workflows -maxdepth 1 -type f -name 'increment-53e-generic-stage1*.yml' -delete
+            find morphhdl/scripts -maxdepth 1 -type f -name 'apply-increment-53e-*.py' -delete
+            git add -A
+            git diff --cached --check
+            git commit -m 'Increment 53e: publish generic root-taint compiler engine'
+          else
+            git reset --hard "$(cat /tmp/validated-head)"
+            mkdir -p morphhdl/ci
+            cp /tmp/evidence/status.txt morphhdl/ci/increment-53e-stage1-v4-status.txt
+            cp /tmp/evidence/diagnostic.txt morphhdl/ci/increment-53e-stage1-v4-diagnostic.txt
+            find .github/workflows -maxdepth 1 -type f -name 'increment-53e-generic-stage1*.yml' -delete
+            git add -A
+            git diff --cached --check
+            git commit -m 'Increment 53e: record brace-aware generic compiler failure'
+          fi
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
