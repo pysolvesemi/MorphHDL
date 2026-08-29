@@ -1,0 +1,251 @@
+name: Increment 53e self-contained generic closure v15
+
+on:
+  push:
+    branches:
+      - agent/increment-53b-native-streamwidth-adapter
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: increment-53e-self-contained-closure-v15
+  cancel-in-progress: true
+
+jobs:
+  prove-merge-tag:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 360
+    env:
+      CANDIDATE_BRANCH: agent/increment-53e-generic-engine-final-v10
+      TARGET_BRANCH: parameterized-verilog
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53b-native-streamwidth-adapter
+          fetch-depth: 0
+
+      - name: Configure tools and fetch exact candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          if ! command -v gh >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+            apt-get update
+            apt-get install -y gh jq
+          fi
+          git fetch --prune origin "$TARGET_BRANCH" "$CANDIDATE_BRANCH" --tags
+
+      - name: Select target when already verified, otherwise exact candidate
+        id: select
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="origin/$TARGET_BRANCH"
+          target_sha=$(git rev-parse "$target")
+          tag_sha=$(git rev-parse refs/tags/increment-53e-verified^{} 2>/dev/null || true)
+          if [[ -n "$tag_sha" && "$tag_sha" == "$target_sha" ]] && \
+             git show "$target:docs/morphhdl/parameterized-verilog-todo.md" | grep -Fq -- \
+               '- [x] **Increment 53e — Native StreamFifoCC parameterization without source edits**'; then
+            git switch --detach "$target"
+            echo 'already_closed=1' >> "$GITHUB_OUTPUT"
+            echo "sha=$target_sha" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          candidate="origin/$CANDIDATE_BRANCH"
+          git merge-base --is-ancestor "$target" "$candidate" || {
+            echo 'Exact candidate is stale relative to current target.' >&2
+            exit 1
+          }
+          git switch --detach "$candidate"
+          echo 'already_closed=0' >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tree=$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
+          echo "base=$(git rev-parse "$target")" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce generic and native-source boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-generic-native-parameterization-engine.sh
+          grep -Fq -- \
+            '- [x] **Increment 53e — Native StreamFifoCC parameterization without source edits**' \
+            docs/morphhdl/parameterized-verilog-todo.md
+          test -f morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedDomainEquivalence.scala
+          test -f morphhdl/src/test/scala/spinal/core/internals/ExternalParameterizedDomainEquivalenceTests.scala
+          test -f morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoCCTests.scala
+          test -f morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCImplementationProofTests.scala
+          test -f morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCFormalEquivalenceTests.scala
+          if find morphhdl/scripts -maxdepth 1 -type f \
+            -name 'apply-increment-53e-*.py' -print -quit | grep -q .; then
+            echo 'Temporary Increment 53e patch remains.' >&2
+            exit 1
+          fi
+          if find .github/workflows -maxdepth 1 -type f \
+            -name 'increment-53e-*.yml' -print -quit | grep -q .; then
+            echo 'Temporary Increment 53e workflow remains in candidate.' >&2
+            exit 1
+          fi
+          if [[ "${{ steps.select.outputs.already_closed }}" == 0 ]] && \
+             git diff --name-only "origin/$TARGET_BRANCH"...HEAD -- \
+               core/src/main lib/src/main idslplugin/src/main | grep -q .; then
+            echo 'Candidate changes native SpinalHDL production source.' >&2
+            exit 1
+          fi
+
+      - name: Install pinned build and formal tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+          missing=()
+          for tool in yosys iverilog verilator; do
+            command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
+          done
+          if ((${#missing[@]})); then
+            apt-get update
+            apt-get install -y yosys iverilog verilator
+          fi
+          if ! command -v sby >/dev/null 2>&1; then
+            apt-get update
+            apt-get install -y make python3 git
+            rm -rf /tmp/sby
+            git clone --depth 1 https://github.com/YosysHQ/sby.git /tmp/sby
+            make -C /tmp/sby install PREFIX=/usr/local
+          fi
+          if ! command -v yices-smt2 >/dev/null 2>&1; then
+            apt-get update
+            if ! apt-get install -y yices2; then
+              asset=$(curl --fail --silent --show-error \
+                https://api.github.com/repos/SRI-CSL/yices2/releases/latest | \
+                jq -r '.assets[] | select(.name | test("x86_64.*linux.*static.*tar.gz"; "i")) | .browser_download_url' | head -n1)
+              [[ -n "$asset" && "$asset" != null ]]
+              curl --fail --location --retry 5 "$asset" --output /tmp/yices.tar.gz
+              rm -rf /tmp/yices
+              mkdir -p /tmp/yices
+              tar -xzf /tmp/yices.tar.gz -C /tmp/yices --strip-components=1
+              install -m 0755 /tmp/yices/bin/yices-smt2 /usr/local/bin/yices-smt2
+            fi
+          fi
+          yosys -V
+          sby -h >/dev/null
+          yices-smt2 --version
+          yosys -Q -p 'help abc' >/dev/null
+
+      - name: Run generic and independent-clock implementation proofs on both Scala lines
+        shell: bash
+        run: |
+          set -euo pipefail
+          suite=morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCImplementationProofTests.scala
+          while read -r variable; do
+            case "$variable" in
+              *WORKSPACE*)
+                directory="/tmp/${variable,,}"
+                mkdir -p "$directory"
+                export "$variable=$directory"
+                ;;
+              *) export "$variable=1" ;;
+            esac
+          done < <(grep -oE 'MORPHDL_[A-Z0-9_]+' "$suite" | sort -u)
+          for scala in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill "morph[$scala].testOnly" \
+              spinal.core.internals.ExternalParameterizedDomainEquivalenceTests \
+              morphhdl.ParameterizedStreamFifoCCTests \
+              morphhdl.NativeStreamFifoCCImplementationProofTests
+          done
+
+      - name: Run complete MorphHDL regressions on both Scala lines
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill 'morph[2.12.18].test'
+          /tmp/morphhdl-mill 'morph[2.13.12].test'
+
+      - name: Run solver-backed equivalence and mutation proof on both Scala lines
+        shell: bash
+        run: |
+          set -euo pipefail
+          suite=morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCFormalEquivalenceTests.scala
+          while read -r variable; do
+            case "$variable" in
+              *WORKSPACE*)
+                directory="/tmp/${variable,,}"
+                mkdir -p "$directory"
+                export "$variable=$directory"
+                ;;
+              *) export "$variable=1" ;;
+            esac
+          done < <(grep -oE 'MORPHDL_[A-Z0-9_]+' "$suite" | sort -u)
+          /tmp/morphhdl-mill 'morph[2.12.18].testOnly' \
+            morphhdl.NativeStreamFifoCCFormalEquivalenceTests
+          /tmp/morphhdl-mill 'morph[2.13.12].testOnly' \
+            morphhdl.NativeStreamFifoCCFormalEquivalenceTests
+
+      - name: Open/reuse PR, merge exact tree, and tag
+        if: steps.select.outputs.already_closed == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ steps.select.outputs.sha }}
+          CANDIDATE_TREE: ${{ steps.select.outputs.tree }}
+          BASE_SHA: ${{ steps.select.outputs.base }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          number=$(gh pr list --head "$CANDIDATE_BRANCH" --base "$TARGET_BRANCH" \
+            --state open --json number --jq '.[0].number // empty')
+          if [[ -z "$number" ]]; then
+            url=$(gh pr create \
+              --head "$CANDIDATE_BRANCH" --base "$TARGET_BRANCH" \
+              --title 'Increment 53e: generic native StreamFifoCC parameterization' \
+              --body-file - <<'EOF'
+This PR parameterizes the exact untouched native `spinal.lib.StreamFifoCC`. Native SpinalHDL production sources remain unchanged and MorphHDL contains no alternate FIFO/CDC implementation.
+
+The enabling mechanism is generic across native SpinalHDL: typed compiler structure, exact graph identity, compiler-retained provenance, and exhaustive bounded-domain proof. Component names, signal names, source filenames, rendered text, and equal concrete witnesses are never used as proof or dispatch keys.
+
+This self-contained gate passed both Scala lines, complete MorphHDL regressions, independent-clock behavior, Verilog-2001 lint/simulation/synthesis, independent concrete native witnesses, solver-backed sequential equivalence, and a mutation counterexample before merge.
+EOF
+            )
+            number=${url##*/}
+          fi
+          [[ $(gh pr view "$number" --json headRefOid --jq .headRefOid) == "$CANDIDATE_SHA" ]]
+          git fetch origin "$TARGET_BRANCH"
+          [[ $(git rev-parse "origin/$TARGET_BRANCH") == "$BASE_SHA" ]] || {
+            echo 'Target advanced after self-contained proof; refusing stale merge.' >&2
+            exit 1
+          }
+          gh pr merge "$number" --squash --delete-branch
+          merge_sha=$(gh pr view "$number" --json mergedAt,mergeCommit \
+            --jq 'select(.mergedAt != null) | .mergeCommit.oid')
+          [[ -n "$merge_sha" ]]
+          git fetch origin "$TARGET_BRANCH" --tags
+          [[ $(git rev-parse "origin/$TARGET_BRANCH") == "$merge_sha" ]]
+          [[ $(git rev-parse "$merge_sha^{tree}") == "$CANDIDATE_TREE" ]]
+          git tag -f -a increment-53e-verified "$merge_sha" \
+            -m 'Increment 53e generic native StreamFifoCC parameterization verified'
+          git push --force origin refs/tags/increment-53e-verified
+          printf 'Increment 53e merged through PR #%s at %s\n' "$number" "$merge_sha"
+
+      - name: Confirm already verified target
+        if: steps.select.outputs.already_closed == '1'
+        run: echo 'Increment 53e target and verification tag already agree.'
+
+      - name: Upload proof workspaces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53e-self-contained-closure-v15
+          path: |
+            /tmp/morphhdl_*
+            /tmp/MORPHDL_*
+          if-no-files-found: ignore
