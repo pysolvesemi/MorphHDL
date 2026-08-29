@@ -1,4 +1,4 @@
-name: Diagnose Increment 53d SBT parallel isolation
+name: Validate Increment 53d concurrent generation isolation
 
 on:
   push:
@@ -6,33 +6,31 @@ on:
       - agent/increment-53d-generic-native-definition-boundary
     paths:
       - .github/workflows/increment-53d-final-head-diagnostic.yml
+      - morphhdl/scripts/apply-increment-53d-concurrent-generation-isolation.py
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: increment-53d-final-head-diagnostic-${{ github.ref }}
+  group: increment-53d-concurrent-generation-isolation
   cancel-in-progress: true
 
 jobs:
-  morph-parallelism:
-    name: Native witnesses Scala ${{ matrix.scala_version }} parallel=${{ matrix.parallel }}
+  validate:
+    name: Concurrent native witnesses Scala ${{ matrix.scala_version }}
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     env:
-      SBT_TEST_PARALLEL: ${{ matrix.parallel }}
+      SBT_TEST_PARALLEL: "1"
     strategy:
       fail-fast: false
       matrix:
         scala_version:
           - "2.12.18"
           - "2.13.12"
-        parallel:
-          - "0"
-          - "1"
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@v4
@@ -41,35 +39,71 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Run failing native witness classes together
-        id: diagnostic
+      - name: Apply transaction-isolation fix
         shell: bash
         run: |
-          set +e
-          output="${RUNNER_TEMP}/increment-53d-witnesses-${{ matrix.scala_version }}-parallel-${{ matrix.parallel }}"
-          mkdir -p "$output"
-          log="$output/test.log"
+          set -euo pipefail
+          python3 morphhdl/scripts/apply-increment-53d-concurrent-generation-isolation.py
+          git diff --check
+          git diff --quiet HEAD -- core lib idslplugin
+
+      - name: Compile production and test sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+
+      - name: Run concurrent and previously failing native witnesses
+        shell: bash
+        run: |
+          set -euo pipefail
           sbt -batch "++${{ matrix.scala_version }}" \
-            "morph/testOnly morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.NativeStreamFifoFormalEquivalenceTests" \
-            >"$log" 2>&1
-          result=$?
-          printf '%s\n' "$result" >"$output/status"
+            "morph/testOnly morphhdl.ConcurrentMorphVerilogIsolationTests morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.NativeStreamFifoFormalEquivalenceTests"
 
-          if [ "$result" -ne 0 ]; then
-            printf '%s\n' "FAILED: native witnesses Scala ${{ matrix.scala_version }} parallel=${{ matrix.parallel }}"
-            grep -E -n -C 12 '(\[error\]|FAILED|Exception|AssertionError|WIDTH MISMATCH|ASSIGNMENT-WIDTH-MISMATCH|Tests: succeeded)' "$log" | tail -n 2200 || true
-          else
-            printf '%s\n' "PASSED: native witnesses Scala ${{ matrix.scala_version }} parallel=${{ matrix.parallel }}"
-          fi
-          printf '%s\n' '--- final output ---'
-          tail -n 350 "$log"
-          exit "$result"
+      - name: Validate permanent source boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
+          git diff --quiet HEAD -- core lib idslplugin
 
-      - name: Upload exact parallelism diagnostic
-        if: always()
-        uses: actions/upload-artifact@v4
+  publish:
+    name: Publish validated transaction isolation
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@v4
         with:
-          name: increment-53d-witnesses-scala-${{ matrix.scala_version }}-parallel-${{ matrix.parallel }}
-          path: ${{ runner.temp }}/increment-53d-witnesses-${{ matrix.scala_version }}-parallel-${{ matrix.parallel }}
-          if-no-files-found: error
-          retention-days: 3
+          ref: agent/increment-53d-generic-native-definition-boundary
+          fetch-depth: 0
+
+      - name: Apply final production fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/apply-increment-53d-concurrent-generation-isolation.py
+          git diff --check
+          bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
+          git diff --quiet HEAD -- core lib idslplugin
+
+      - name: Commit only permanent implementation and regression files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MorphHDL Agent"
+          git config user.email "morphhdl-agent@users.noreply.github.com"
+          git add \
+            morphhdl/src/main/scala/morphhdl/MorphVerilog.scala \
+            morphhdl/src/test/scala/morphhdl/ConcurrentMorphVerilogIsolationTests.scala \
+            .github/workflows/morphhdl-native-stream-width-adapter.yml \
+            docs/morphhdl/increment-53d-native-streamwidth-adapter.md
+          git rm \
+            morphhdl/scripts/apply-increment-53d-concurrent-generation-isolation.py \
+            .github/workflows/increment-53d-final-head-diagnostic.yml
+          git diff --cached --check
+          git commit -m "Isolate concurrent Increment 53d generations"
+          git push origin HEAD:agent/increment-53d-generic-native-definition-boundary
