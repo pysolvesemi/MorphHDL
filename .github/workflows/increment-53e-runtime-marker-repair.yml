@@ -1,0 +1,52 @@
+name: Increment 53e generic runtime materializer marker repair
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Align the generic binary-hook marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "morphhdl/scripts/"
+              "apply-increment-53e-generic-native-runtime-selection.py"
+          )
+          value = path.read_text()
+          old = "  /** Compiler hook for negation and logarithm helpers. */"
+          new = "  /** Compiler hook for negation and address/log2 helpers. */"
+          count = value.count(old)
+          if count != 1:
+              raise SystemExit(
+                  f"generic binary-hook materializer marker: expected one match, found {count}"
+              )
+          path.write_text(value.replace(old, new, 1))
+          PY
+          git diff --check
+
+      - name: Publish marker repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add morphhdl/scripts/apply-increment-53e-generic-native-runtime-selection.py
+          git commit -m 'Increment 53e: align generic runtime materializer marker'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
