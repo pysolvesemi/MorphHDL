@@ -104,3 +104,35 @@ established symbolic alternatives even when a narrowed caller domain makes a
 predicate constant. This prevents a helper driver's structural owner from
 diverging from a module-scope consumer and is checked by the compound-depth
 StreamFifo regression on both supported Scala versions.
+
+## Generic native definition-lifetime closure
+
+The ownership repair is compiler-wide rather than tied to `StreamFifo`,
+`StreamFifoCC`, `StreamWidthAdapter`, an emitted signal name, or one source
+file. The parser phase is installed for every upstream SpinalHDL `core` and
+`lib` source, while semantic expression rewriting is activated only by
+explicit MorphHDL shadow syntax or a proven native runtime context. Ordinary
+eligible SpinalHDL code therefore remains unchanged.
+
+Every nested named method reached inside an active constructor or native
+width boundary owns a fresh empty lifetime. MorphHDL snapshots and clears the
+complete enclosing runtime state and transforms that method normally; it does
+not discover or open a second width boundary from inside the first one. A
+method reached with no active native context may independently establish a
+boundary from its own direct method-entry roots. The same rule applies to all
+components because no component name participates in the decision.
+
+Method-entry discovery accepts stable parameters and enclosing members. A
+local Data value declared later in the method, a pattern-bound value inside a
+match/case alternative, and a constructor or call expression remain ordinary
+concrete SpinalHDL instead of being evaluated out of order. Accepted roots and
+the method body are transformed together in one lexical scope, while the
+original `DefDef` parameter symbols are retained.
+Proven symbolic use remains fail-closed in runtime identity and domain checks.
+
+Dual-Scala architecture checks reject component-named lifetime guards,
+file-specific eligibility, eager rejection of unrelated concrete `widthOf`
+calls, nested-boundary reopening, and method-parameter symbol replacement.
+Native StreamWidthAdapter and compound-depth StreamFifo remain independent
+functional witnesses; the inherited native-Int, memory, hierarchy, process,
+and concrete-baseline suites provide cross-component regression coverage.

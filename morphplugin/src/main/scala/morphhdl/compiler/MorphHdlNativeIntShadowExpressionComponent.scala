@@ -33,14 +33,17 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       .getOrElse("")
     val normalizedPath = "/" + path.stripPrefix("/")
     val content = Option(unit.source).map(_.content.mkString).getOrElse("")
-    !normalizedPath.contains("/frontend/src/main/scala/") &&
-      !normalizedPath.contains("/morphplugin/src/main/scala/") &&
-      (
-        content.contains("NativeIntShadow") ||
-        content.contains("shadowInt") ||
-        normalizedPath.endsWith("/lib/src/main/scala/spinal/lib/Stream.scala")
-      )
-  }
+      val upstreamSpinalComponentSource =
+        normalizedPath.contains("/core/src/main/scala/spinal/") ||
+          normalizedPath.contains("/lib/src/main/scala/spinal/")
+      !normalizedPath.contains("/frontend/src/main/scala/") &&
+        !normalizedPath.contains("/morphplugin/src/main/scala/") &&
+        (
+          content.contains("NativeIntShadow") ||
+          content.contains("shadowInt") ||
+          upstreamSpinalComponentSource
+        )
+    }
 
   private def helperMethod(name: String): Tree = {
     val root = Ident(termNames.ROOTPKG)
@@ -110,6 +113,12 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     private var nativeStreamFifoStaticBooleans = Set.empty[TermName]
     private var nativeWidthFunctionStaticBooleans = Set.empty[TermName]
     private var nativeWidthFunctionDepth = 0
+
+    private val explicitNativeShadowSource: Boolean =
+      Option(unit.source).exists { source =>
+        val content = source.content.mkString
+        content.contains("NativeIntShadow") || content.contains("shadowInt")
+      }
 
     private val NativeStreamFifoStaticBooleanNames = Set(
       "withAsyncRead",
@@ -202,6 +211,9 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
 
     private def inNativeRuntimeContext: Boolean =
       inNativeStreamFifo || inNativeWidthFunction
+
+    private def inNativeRewriteContext: Boolean =
+      explicitNativeShadowSource || inNativeRuntimeContext
 
     private def nativeStreamFifoDataType(tree: Tree): Boolean = tree match {
       case Ident(name: TermName) => nativeStreamFifoDataTypeName.contains(name)
@@ -354,23 +366,39 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       }
     }
 
-    private def withoutNativeStreamFifoContext[A](body: => A): A = {
-      val previousDataTypeName = nativeStreamFifoDataTypeName
-      val previousDepthName = nativeStreamFifoDepthName
-      val previousDepthReference = nativeStreamFifoDepthReference
-      val previousDepthLine = nativeStreamFifoDepthLine
-      val previousStaticBooleans = nativeStreamFifoStaticBooleans
+    /**
+      * Native symbolic runtime capture is owned by the exact named Scala
+      * definition that opens it. A nested named definition has an independent
+      * elaboration lifetime and must never inherit constructor or native-width
+      * capture state from its lexical owner. Anonymous function bodies stay
+      * within the owning definition because they execute as part of that body.
+      */
+    private def withoutEnclosingNativeRuntimeContext[A](body: => A): A = {
+      val previousStreamFifoDataTypeName = nativeStreamFifoDataTypeName
+      val previousStreamFifoDepthName = nativeStreamFifoDepthName
+      val previousStreamFifoDepthReference = nativeStreamFifoDepthReference
+      val previousStreamFifoDepthLine = nativeStreamFifoDepthLine
+      val previousStreamFifoStaticBooleans = nativeStreamFifoStaticBooleans
+      val previousWidthFunctionStaticBooleans = nativeWidthFunctionStaticBooleans
+      val previousWidthFunctionDepth = nativeWidthFunctionDepth
+
       nativeStreamFifoDataTypeName = None
       nativeStreamFifoDepthName = None
       nativeStreamFifoDepthReference = None
+      nativeStreamFifoDepthLine = 1
       nativeStreamFifoStaticBooleans = Set.empty
+      nativeWidthFunctionStaticBooleans = Set.empty
+      nativeWidthFunctionDepth = 0
+
       try body
       finally {
-        nativeStreamFifoDataTypeName = previousDataTypeName
-        nativeStreamFifoDepthName = previousDepthName
-        nativeStreamFifoDepthReference = previousDepthReference
-        nativeStreamFifoDepthLine = previousDepthLine
-        nativeStreamFifoStaticBooleans = previousStaticBooleans
+        nativeStreamFifoDataTypeName = previousStreamFifoDataTypeName
+        nativeStreamFifoDepthName = previousStreamFifoDepthName
+        nativeStreamFifoDepthReference = previousStreamFifoDepthReference
+        nativeStreamFifoDepthLine = previousStreamFifoDepthLine
+        nativeStreamFifoStaticBooleans = previousStreamFifoStaticBooleans
+        nativeWidthFunctionStaticBooleans = previousWidthFunctionStaticBooleans
+        nativeWidthFunctionDepth = previousWidthFunctionDepth
       }
     }
 
@@ -1866,22 +1894,65 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       * Discover direct `widthOf(Data)` roots in one native method body. Nested
       * definitions own independent lifetimes and are deliberately excluded.
       */
-    private def nativeWidthRoots(tree: Tree): Vector[Tree] = {
+    private def localNativeWidthNames(tree: Tree): Set[TermName] = {
+      val found = mutable.LinkedHashSet.empty[TermName]
+      object Finder extends Traverser {
+        override def traverse(current: Tree): Unit = current match {
+          case _: DefDef | _: ClassDef | _: ModuleDef | _: Function =>
+          case value: ValDef =>
+            found += value.name
+            super.traverse(value.rhs)
+          case Bind(name: TermName, body) =>
+            // Pattern variables are introduced below method entry. A widthOf
+            // rooted in such a binder must stay in that lexical alternative
+            // instead of being hoisted into a method-entry runtime boundary.
+            found += name
+            super.traverse(body)
+          case _ => super.traverse(current)
+        }
+      }
+      Finder.traverse(tree)
+      found.toSet
+    }
+
+    private def nativeWidthRootAvailableAtEntry(
+        tree: Tree,
+        parameters: Set[TermName],
+        locals: Set[TermName]
+    ): Boolean = tree match {
+      case Ident(name: TermName) => parameters(name) || !locals(name)
+      case Select(This(_), _)    => true
+      case Select(base, _)       =>
+        nativeWidthRootAvailableAtEntry(base, parameters, locals)
+      case Typed(value, _)       =>
+        nativeWidthRootAvailableAtEntry(value, parameters, locals)
+      case This(_)               => true
+      case _                     => false
+    }
+
+    /**
+      * Discover direct `widthOf(Data)` roots available when one native method is
+      * entered. Nested definitions own independent lifetimes. A local Data value
+      * declared inside the method cannot be evaluated before its declaration, so
+      * a local-only `widthOf` remains ordinary concrete SpinalHDL. Method
+      * parameters and enclosing members are safe generic roots for any component.
+      */
+    private def nativeWidthRoots(definition: DefDef): Vector[Tree] = {
+      val parameters = definition.vparamss.flatten.map(_.name).toSet
+      val locals = localNativeWidthNames(definition.rhs)
       val found = mutable.ArrayBuffer.empty[Tree]
       object Finder extends Traverser {
         override def traverse(current: Tree): Unit = current match {
           case _: DefDef | _: ClassDef | _: ModuleDef | _: Function =>
           case Apply(fun, List(data)) if terminalName(fun) == "widthOf" =>
-            if (!stableNativeWidthRoot(data)) {
-              global.reporter.error(
-                current.pos,
-                "MORPHDL-NATIVE-WIDTH-FUNCTION-ROOT-UNSTABLE: widthOf provenance requires an Ident/Select Data root"
-              )
-            } else found += data
+            if (
+              stableNativeWidthRoot(data) &&
+                nativeWidthRootAvailableAtEntry(data, parameters, locals)
+            ) found += data
           case _ => super.traverse(current)
         }
       }
-      Finder.traverse(tree)
+      Finder.traverse(definition.rhs)
       found
         .groupBy(path)
         .toVector
@@ -1900,26 +1971,27 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       }.toSet
       nativeWidthFunctionDepth += 1
       try {
-        val transformed = withScope(super.transform(definition)).asInstanceOf[DefDef]
-        val rootSequence = Apply(
-          scalaSeqApply,
-          roots.map(root => super.transform(root).duplicate).toList
-        )
+        val (rootSequence, transformedRhs) = withScope {
+          val transformedRoots =
+            roots.map(root => super.transform(root).duplicate).toList
+          val transformedBody = super.transform(definition.rhs)
+          (Apply(scalaSeqApply, transformedRoots), transformedBody)
+        }
         val wrapped = Apply(
           Apply(
             helperMethod("withWidthFunctionBoundary"),
             List(rootSequence) ++ sourceArguments(definition)
           ),
-          List(transformed.rhs)
+          List(transformedRhs)
         )
         wrapped.setPos(definition.rhs.pos)
         treeCopy.DefDef(
-          transformed,
-          transformed.mods,
-          transformed.name,
-          transformed.tparams,
-          transformed.vparamss,
-          transformed.tpt,
+          definition,
+          definition.mods,
+          definition.name,
+          definition.tparams,
+          definition.vparamss,
+          definition.tpt,
           wrapped
         )
       } finally {
@@ -2036,12 +2108,28 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       } else None
     }
 
+    private def transformIndependentNativeDefinition(
+        definition: DefDef
+    ): Tree = {
+      val roots = nativeWidthRoots(definition)
+      if (roots.nonEmpty) transformNativeWidthFunction(definition, roots)
+      else withScope(super.transform(definition))
+    }
+
     override def transform(tree: Tree): Tree = tree match {
       case value: ClassDef
           if sourceFile.replace('\\', '/').endsWith(
             "/lib/src/main/scala/spinal/lib/Stream.scala"
           ) && decoded(value.name) == "StreamFifo" =>
         transformNativeStreamFifo(value)
+      case value: ClassDef if inNativeRuntimeContext =>
+        withoutEnclosingNativeRuntimeContext {
+          withScope(super.transform(value))
+        }
+      case value: ModuleDef if inNativeRuntimeContext =>
+        withoutEnclosingNativeRuntimeContext {
+          withScope(super.transform(value))
+        }
       case application @ Apply(Select(condition, name), List(body))
           if inNativeStreamFifo && decoded(name) == "generate" =>
         normalizeGenerate(application, condition, body)
@@ -2050,22 +2138,22 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       case template: Template => withScope(super.transform(template))
       case block: Block       => withScope(super.transform(block))
       case function: Function => withScope(super.transform(function))
-      case definition: DefDef
-          if inNativeStreamFifo && decoded(definition.name) != "<init>" =>
-        // StreamFifo owns a dedicated constructor-capture contract. Isolate
-        // every nested method before the generic width-function matcher so a
-        // helper driver cannot move into a symbolic body while its consumer
-        // remains at module scope.
-        withoutNativeStreamFifoContext {
-          withScope(super.transform(definition))
-        }
       case definition: DefDef if decoded(definition.name) != "<init>" =>
-        val roots = nativeWidthRoots(definition.rhs)
-        if (roots.nonEmpty) transformNativeWidthFunction(definition, roots)
-        else withScope(super.transform(definition))
+        // A named method never inherits the native capture of its lexical
+        // owner. While an enclosing native boundary is active, clear it and
+        // transform the nested method normally; do not discover or open a
+        // second boundary from inside the first one. A top-level method may
+        // independently own direct method-entry width roots.
+        if (inNativeRuntimeContext) {
+          withoutEnclosingNativeRuntimeContext {
+            withScope(super.transform(definition))
+          }
+        } else {
+          transformIndependentNativeDefinition(definition)
+        }
       case definition: DefDef => withScope(super.transform(definition))
-      case conditional: If    => rewriteIf(conditional)
-      case value: ValDef =>
+      case conditional: If if inNativeRewriteContext => rewriteIf(conditional)
+      case value: ValDef if inNativeRewriteContext =>
         val mutable = value.mods.hasFlag(Flag.MUTABLE)
         val requested = if (mutable) None else Some(decoded(value.name))
         val syntacticShape = inferShape(value.rhs)
@@ -2101,7 +2189,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
           super.transform(value.tpt),
           rhs
         )
-      case assignment: Assign =>
+      case assignment: Assign if inNativeRewriteContext =>
         val rewritten = rewriteExpression(assignment.rhs, None)
         rewritten.intReference match {
           case Some(reference) =>
@@ -2117,7 +2205,8 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
             treeCopy.Assign(assignment, super.transform(assignment.lhs), guarded)
           case None => super.transform(assignment)
         }
-      case other => rewriteExpression(other, None).tree
+      case other if inNativeRewriteContext => rewriteExpression(other, None).tree
+      case other                           => super.transform(other)
     }
   }
 

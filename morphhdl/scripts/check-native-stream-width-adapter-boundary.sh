@@ -37,6 +37,40 @@ grep -Fq 'ExternalParameterizedResizeRegistry.attach' "$runtime"
 grep -Fq 'WeakReference[Resize]' "$resize_registry"
 grep -Fq 'nativeWidthRoots' "$plugin"
 grep -Fq 'terminalName(fun) == "widthOf"' "$plugin"
+grep -Fq 'val upstreamSpinalComponentSource' "$plugin"
+grep -Fq '/core/src/main/scala/spinal/' "$plugin"
+grep -Fq '/lib/src/main/scala/spinal/' "$plugin"
+grep -Fq 'private def inNativeRewriteContext' "$plugin"
+grep -Fq 'private def withoutEnclosingNativeRuntimeContext' "$plugin"
+grep -Fq 'transformIndependentNativeDefinition(definition)' "$plugin"
+grep -Fq 'private def nativeWidthRootAvailableAtEntry' "$plugin"
+grep -Fq 'case Bind(name: TermName, body) =>' "$plugin"
+grep -Fq 'val (rootSequence, transformedRhs) = withScope' "$plugin"
+grep -Fq 'roots.map(root => super.transform(root).duplicate).toList' "$plugin"
+grep -Fq 'val transformedBody = super.transform(definition.rhs)' "$plugin"
+grep -Fq 'withScope(super.transform(definition))' "$plugin"
+grep -Fq 'List(transformedRhs)' "$plugin"
+if grep -Fq 'super.transform(definition)).asInstanceOf[DefDef]' "$plugin"; then
+  echo "Native method transformation must preserve original DefDef parameter symbols" >&2
+  exit 1
+fi
+
+if grep -Fq 'withoutNativeStreamFifoContext' "$plugin"; then
+  echo "Named-definition isolation must not use a StreamFifo-only helper" >&2
+  exit 1
+fi
+if grep -Fq 'if inNativeStreamFifo && decoded(definition.name)' "$plugin"; then
+  echo "Named-definition isolation must be component-independent" >&2
+  exit 1
+fi
+if grep -Fq 'normalizedPath.endsWith("/lib/src/main/scala/spinal/lib/Stream.scala")' "$plugin"; then
+  echo "Native instrumentation eligibility must not be limited to Stream.scala" >&2
+  exit 1
+fi
+if grep -Fq 'MORPHDL-NATIVE-WIDTH-FUNCTION-ROOT-UNSTABLE' "$plugin"; then
+  echo "Unrelated concrete widthOf calls must not fail during candidate discovery" >&2
+  exit 1
+fi
 
 if grep -Eq 'StreamWidthAdapter|io_(down|up)(Input|Output)|widthAdapter' \
   "$plugin" "$runtime" "$registry" "$resize_registry"; then
