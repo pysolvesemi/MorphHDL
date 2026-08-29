@@ -1,0 +1,90 @@
+name: Record typed Increment 53d status
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/record-typed-53d-status.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: read
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out staging branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+
+      - name: Wait for reconciliation run and collect status
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id=''
+          status=''
+          conclusion=''
+          for _ in $(seq 1 60); do
+            line="$(gh run list --workflow reconcile-and-publish-typed-53d.yml --branch agent/increment-53d-typed-elabint-pivot --limit 1 --json databaseId,status,conclusion --jq '.[0] | [.databaseId,.status,(.conclusion // "")] | @tsv')"
+            run_id="$(printf '%s' "$line" | cut -f1)"
+            status="$(printf '%s' "$line" | cut -f2)"
+            conclusion="$(printf '%s' "$line" | cut -f3)"
+            [ "$status" = completed ] && break
+            sleep 15
+          done
+          test "$status" = completed
+
+          git fetch origin parameterized-verilog agent/increment-53d-typed-streamwidthadapter || true
+          base_sha="$(git rev-parse origin/parameterized-verilog)"
+          target_sha="$(git rev-parse origin/agent/increment-53d-typed-streamwidthadapter 2>/dev/null || printf unavailable)"
+          ahead='0'
+          changed=''
+          if [ "$target_sha" != unavailable ]; then
+            ahead="$(git rev-list --count origin/parameterized-verilog..origin/agent/increment-53d-typed-streamwidthadapter)"
+            changed="$(git diff --name-only origin/parameterized-verilog...origin/agent/increment-53d-typed-streamwidthadapter | sort)"
+          fi
+
+          failed_log=''
+          if [ "$conclusion" != success ]; then
+            failed_log="$(gh run view "$run_id" --log-failed 2>&1 | tail -n 240 || true)"
+          fi
+
+          mkdir -p docs/morphhdl
+          {
+            echo '# Increment 53d typed-elaboration status'
+            echo
+            echo "- Recorded: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "- Reconciliation run: $run_id"
+            echo "- Run status: $status"
+            echo "- Run conclusion: $conclusion"
+            echo "- parameterized-verilog SHA: $base_sha"
+            echo "- typed candidate SHA: $target_sha"
+            echo "- commits ahead: $ahead"
+            echo
+            echo '## Candidate changed files'
+            echo '```text'
+            printf '%s\n' "$changed"
+            echo '```'
+            if [ "$conclusion" != success ]; then
+              echo
+              echo '## Failed-step tail'
+              echo '```text'
+              printf '%s\n' "$failed_log"
+              echo '```'
+            fi
+          } > docs/morphhdl/increment-53d-typed-status.md
+
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add docs/morphhdl/increment-53d-typed-status.md
+          git commit -m 'Record typed Increment 53d validation status'
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot
