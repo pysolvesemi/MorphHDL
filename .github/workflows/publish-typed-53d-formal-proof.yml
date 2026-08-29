@@ -1,0 +1,239 @@
+name: Publish typed Increment 53d formal proof
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/publish-typed-53d-formal-proof.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: publish-typed-increment-53d-formal-proof
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Wait for and check out clean typed candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init /tmp/repo
+          cd /tmp/repo
+          git remote add origin https://github.com/${{ github.repository }}.git
+          for _ in $(seq 1 120); do
+            sha="$(git ls-remote origin refs/heads/agent/increment-53d-typed-streamwidthadapter | awk '{print $1}')"
+            base="$(git ls-remote origin refs/heads/parameterized-verilog | awk '{print $1}')"
+            if [ -n "$sha" ] && [ "$sha" != "$base" ]; then
+              git fetch --depth=1 origin "$sha"
+              git checkout --detach FETCH_HEAD
+              exit 0
+            fi
+            sleep 15
+          done
+          exit 1
+
+      - name: Add independent typed StreamWidthAdapter formal proof
+        working-directory: /tmp/repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > morphhdl/src/test/scala/morphhdl/TypedStreamWidthAdapterFormalEquivalenceTests.scala <<'SCALA'
+          package morphhdl
+
+          import java.nio.charset.StandardCharsets
+          import java.nio.file.{Files, Path}
+
+          import scala.sys.process.{Process, ProcessLogger}
+
+          import org.scalatest.funsuite.AnyFunSuite
+
+          import spinal.core._
+          import spinal.lib._
+          import morphhdl.frontend._
+
+          final class TypedStreamWidthAdapterFormalTop(
+              eqWidth: HdlInt,
+              downWidth: HdlInt,
+              upWidth: HdlInt
+          ) extends Component {
+            setDefinitionName("TypedStreamWidthAdapterFormalTop")
+            val io = new Bundle {
+              val eqInput = slave Stream(morphhdl.frontend.Bits(eqWidth bits))
+              val eqOutput = master Stream(morphhdl.frontend.Bits(eqWidth bits))
+              val downInput = slave Stream(morphhdl.frontend.Bits(downWidth bits))
+              val downOutput = master Stream(Bits(8 bits))
+              val upInput = slave Stream(Bits(8 bits))
+              val upOutput = master Stream(morphhdl.frontend.Bits(upWidth bits))
+              val mutationProbe = out Bool()
+            }
+            StreamWidthAdapter(io.eqInput, io.eqOutput, LITTLE, padding = true)
+            StreamWidthAdapter(io.downInput, io.downOutput, LITTLE, padding = true)
+            StreamWidthAdapter(io.upInput, io.upOutput, LITTLE, padding = true)
+            io.mutationProbe := io.eqOutput.valid ^ io.downOutput.valid ^ io.upOutput.valid
+            io.mutationProbe.setName("mutation_probe")
+          }
+
+          final class ConcreteStreamWidthAdapterFormalTop(
+              eqWidth: Int,
+              downWidth: Int,
+              upWidth: Int
+          ) extends Component {
+            setDefinitionName("ConcreteStreamWidthAdapterFormalTop")
+            val io = new Bundle {
+              val eqInput = slave Stream(Bits(eqWidth bits))
+              val eqOutput = master Stream(Bits(eqWidth bits))
+              val downInput = slave Stream(Bits(downWidth bits))
+              val downOutput = master Stream(Bits(8 bits))
+              val upInput = slave Stream(Bits(8 bits))
+              val upOutput = master Stream(Bits(upWidth bits))
+              val mutationProbe = out Bool()
+            }
+            StreamWidthAdapter(io.eqInput, io.eqOutput, LITTLE, padding = true)
+            StreamWidthAdapter(io.downInput, io.downOutput, LITTLE, padding = true)
+            StreamWidthAdapter(io.upInput, io.upOutput, LITTLE, padding = true)
+            io.mutationProbe := io.eqOutput.valid ^ io.downOutput.valid ^ io.upOutput.valid
+            io.mutationProbe.setName("mutation_probe")
+          }
+
+          class TypedStreamWidthAdapterFormalEquivalenceTests extends AnyFunSuite {
+            private final case class Witness(eq: Int, down: Int, up: Int)
+            private val witnesses = Vector(
+              Witness(5, 9, 9),
+              Witness(8, 12, 12),
+              Witness(16, 16, 16)
+            )
+
+            test("typed native StreamWidthAdapter specializations are sequentially equivalent") {
+              requireTool("yosys")
+              val directory = Files.createTempDirectory("morphhdl-typed-adapter-formal-")
+              val parameterized = directory.resolve("parameterized.v")
+              emitParameterized(directory, parameterized.getFileName.toString)
+              val parameterizedText = read(parameterized)
+              assert(parameterizedText.contains("parameter integer EQ_WIDTH"))
+              assert(parameterizedText.contains("parameter integer DOWN_WIDTH"))
+              assert(parameterizedText.contains("parameter integer UP_WIDTH"))
+
+              witnesses.foreach { witness =>
+                val concrete = directory.resolve(s"concrete_${witness.eq}_${witness.down}_${witness.up}.v")
+                emitConcrete(directory, concrete.getFileName.toString, witness)
+                val concreteText = read(concrete)
+                assert(!concreteText.contains("parameter integer EQ_WIDTH"))
+                assert(!concreteText.contains("parameter integer DOWN_WIDTH"))
+                assert(!concreteText.contains("parameter integer UP_WIDTH"))
+                prove(directory, concrete, parameterized, witness, expectSuccess = true)
+              }
+            }
+
+            test("typed StreamWidthAdapter mutation produces a genuine counterexample") {
+              requireTool("yosys")
+              val directory = Files.createTempDirectory("morphhdl-typed-adapter-mutation-")
+              val parameterized = directory.resolve("parameterized.v")
+              val concrete = directory.resolve("concrete.v")
+              val mutated = directory.resolve("mutated.v")
+              val witness = Witness(8, 12, 12)
+              emitParameterized(directory, parameterized.getFileName.toString)
+              emitConcrete(directory, concrete.getFileName.toString, witness)
+              val original = read(parameterized)
+              val pattern = "(?m)^(\\s*assign\\s+mutation_probe\\s*=\\s*)([^;]+);".r
+              val changed = pattern.replaceFirstIn(original, m => m.group(1) + "!(" + m.group(2) + ");")
+              assert(changed != original, "mutation probe assignment was not found")
+              Files.write(mutated, changed.getBytes(StandardCharsets.UTF_8))
+              prove(directory, concrete, mutated, witness, expectSuccess = false)
+            }
+
+            private def emitParameterized(directory: Path, fileName: String): Unit = {
+              val config = SpinalConfig(targetDirectory = directory.toString)
+              config.netlistFileName = fileName
+              val eq = HdlInt.param("EQ_WIDTH", default = 8, min = 1, max = 16)
+              val down = HdlInt.param("DOWN_WIDTH", default = 12, min = 9, max = 16)
+              val up = HdlInt.param("UP_WIDTH", default = 12, min = 9, max = 16)
+              MorphVerilog(config)(new TypedStreamWidthAdapterFormalTop(eq, down, up))
+            }
+
+            private def emitConcrete(directory: Path, fileName: String, witness: Witness): Unit = {
+              val config = SpinalConfig(targetDirectory = directory.toString)
+              config.netlistFileName = fileName
+              config.generateVerilog(
+                new ConcreteStreamWidthAdapterFormalTop(witness.eq, witness.down, witness.up)
+              )
+            }
+
+            private def prove(
+                directory: Path,
+                concrete: Path,
+                parameterized: Path,
+                witness: Witness,
+                expectSuccess: Boolean
+            ): Unit = {
+              val script = directory.resolve(
+                s"prove_${witness.eq}_${witness.down}_${witness.up}_${if (expectSuccess) "ok" else "mutation"}.ys"
+              )
+              val body =
+                s"""read_verilog -formal ${quote(concrete)}
+                   |read_verilog -formal ${quote(parameterized)}
+                   |chparam -set EQ_WIDTH ${witness.eq} -set DOWN_WIDTH ${witness.down} -set UP_WIDTH ${witness.up} TypedStreamWidthAdapterFormalTop
+                   |equiv_make ConcreteStreamWidthAdapterFormalTop TypedStreamWidthAdapterFormalTop equiv
+                   |hierarchy -top equiv
+                   |prep -top equiv
+                   |equiv_simple -undef
+                   |equiv_induct -undef -seq 12
+                   |equiv_status -assert
+                   |""".stripMargin
+              Files.write(script, body.getBytes(StandardCharsets.UTF_8))
+              val output = new StringBuilder
+              val status = Process(Seq("yosys", "-ql", directory.resolve("yosys.log").toString, "-s", script.toString), directory.toFile)
+                .!(ProcessLogger(line => output.append(line).append('\n'), line => output.append(line).append('\n')))
+              if (expectSuccess)
+                assert(status == 0, s"equivalence failed for $witness\n$output\n${readIfPresent(directory.resolve("yosys.log"))}")
+              else
+                assert(status != 0, s"mutation unexpectedly proved equivalent for $witness")
+            }
+
+            private def quote(path: Path): String = "\"" + path.toAbsolutePath.normalize.toString.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+            private def read(path: Path): String = new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
+            private def readIfPresent(path: Path): String = if (Files.isRegularFile(path)) read(path) else ""
+            private def requireTool(name: String): Unit = {
+              val status = Process(Seq("sh", "-c", s"command -v $name >/dev/null 2>&1")).!
+              assert(status == 0, s"required formal tool '$name' is unavailable")
+            }
+          }
+          SCALA
+          git diff --check
+
+      - name: Run positive proofs and mutation on Scala 2.13.12
+        working-directory: /tmp/repo
+        shell: bash
+        run: sbt -batch '++2.13.12' 'morph/testOnly morphhdl.TypedStreamWidthAdapterFormalEquivalenceTests'
+
+      - name: Run positive proofs and mutation on Scala 2.12.18
+        working-directory: /tmp/repo
+        shell: bash
+        run: sbt -batch '++2.12.18' 'morph/testOnly morphhdl.TypedStreamWidthAdapterFormalEquivalenceTests'
+
+      - name: Commit proof only after both lanes pass
+        working-directory: /tmp/repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add morphhdl/src/test/scala/morphhdl/TypedStreamWidthAdapterFormalEquivalenceTests.scala
+          git diff --cached --check
+          git commit -m 'Add typed StreamWidthAdapter formal equivalence proof'
+          git push origin HEAD:agent/increment-53d-typed-streamwidthadapter
+          number="$(gh pr list --repo '${{ github.repository }}' --head agent/increment-53d-typed-streamwidthadapter --base parameterized-verilog --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$number" ]; then
+            gh pr comment --repo '${{ github.repository }}' "$number" --body 'Dedicated equal/downsize/upsize sequential equivalence and mutation-control proofs passed on Scala 2.12.18 and 2.13.12.'
+          fi
