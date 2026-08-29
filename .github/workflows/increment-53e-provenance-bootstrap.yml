@@ -1,0 +1,158 @@
+name: Increment 53e coherent generic provenance bootstrap
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53e-provenance-bootstrap
+  cancel-in-progress: true
+
+jobs:
+  materialize-test-publish:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Configure authenticated checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+      - name: Materialize one coherent generic implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          apply_if_missing() {
+            marker=$1
+            script=$2
+            file=$3
+            if grep -Fq "$marker" "$file"; then
+              return 0
+            fi
+            test -f "$script"
+            python3 "$script"
+          }
+          apply_if_missing \
+            'private sealed trait MemoryAddressRole' \
+            morphhdl/scripts/apply-increment-53e-address-role-repair.py \
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
+          apply_if_missing \
+            'promoteImplicitPackedFormals' \
+            morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+          if test -f morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py && \
+             grep -Fq '::$definitionName::$key' \
+               morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala; then
+            python3 morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py
+          fi
+          apply_if_missing \
+            'isProvenModularUIntUpdate' \
+            morphhdl/scripts/apply-increment-53e-modular-literal-proof.py \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+          apply_if_missing \
+            'materializedAutoResize' \
+            morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedAutoResize.scala
+          apply_if_missing \
+            'adaptiveLiteralBinaryWidth' \
+            morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+          python3 morphhdl/scripts/apply-increment-53e-generic-provenance-equivalence.py
+          git diff --check
+
+      - name: Enforce genericity and native-source boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --name-only | grep -Eq '^(core|lib|idslplugin)/src/main/'; then
+            echo 'Native SpinalHDL production source was modified.' >&2
+            git diff --name-only >&2
+            exit 1
+          fi
+          files=(
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+            morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedAutoResize.scala
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedIntegerEquivalence.scala
+            morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala
+          )
+          grep -Fq 'provesRetainedProvenanceEquivalence' "${files[0]}"
+          grep -Fq 'evaluateDefinitionExpressionInOwnDomain' "${files[5]}"
+          if grep -Fq 'RetainedWidthEvaluator' "${files[0]}"; then
+            echo 'Rendered-expression evaluator remains in production code.' >&2
+            exit 1
+          fi
+          if grep -En \
+            'StreamFifo(CC)?|pushToPopGray|popToPushGray|Stream\.scala|CrossClock\.scala' \
+            "${files[@]}"; then
+            echo 'Generic proof implementation contains component-specific recognition.' >&2
+            exit 1
+          fi
+
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            -o /tmp/mill
+          chmod +x /tmp/mill
+
+      - name: Run focused and complete dual-Scala regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala in 2.12.18 2.13.12; do
+            /tmp/mill "morph[$scala].testOnly" \
+              morphhdl.ParameterizedStreamFifoCCTests \
+              2>&1 | tee "/tmp/increment-53e-bootstrap-focused-$scala.log"
+            /tmp/mill "morph[$scala].test" \
+              2>&1 | tee "/tmp/increment-53e-bootstrap-full-$scala.log"
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-53e-provenance-bootstrap-evidence
+          path: /tmp/increment-53e-bootstrap-*.log
+          if-no-files-found: ignore
+
+      - name: Publish only the coherent passing implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/increment-53e-provenance-bootstrap.yml
+          rm -f .github/workflows/increment-53e-generic-width-materialize.yml
+          rm -f .github/workflows/increment-53e-provenance-width-refactor.yml
+          rm -f .github/workflows/increment-53e-address-resize-fix.yml
+          rm -f .github/workflows/increment-53e-generic-native-capture.yml
+          rm -f morphhdl/scripts/apply-increment-53e-address-role-repair.py
+          rm -f morphhdl/scripts/apply-increment-53e-implicit-child-width-formals.py
+          rm -f morphhdl/scripts/apply-increment-53e-canonical-implicit-formal-identity.py
+          rm -f morphhdl/scripts/apply-increment-53e-modular-literal-proof.py
+          rm -f morphhdl/scripts/apply-increment-53e-materialized-auto-resize-proof.py
+          rm -f morphhdl/scripts/apply-increment-53e-unfixed-literal-width-inference.py
+          rm -f morphhdl/scripts/apply-increment-53e-full-domain-width-equivalence.py
+          rm -f morphhdl/scripts/apply-increment-53e-generic-retained-width-equivalence.py
+          rm -f morphhdl/scripts/apply-increment-53e-generic-provenance-equivalence.py
+          rm -f morphhdl/scripts/apply-increment-53e-buffercc-shape-repair.py
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: materialize generic native provenance'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
