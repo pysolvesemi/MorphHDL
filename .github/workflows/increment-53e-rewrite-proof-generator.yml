@@ -1,0 +1,365 @@
+name: Increment 53e harden proof generator
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-native-streamfifocc-parameterization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53e-proof-generator-rewrite
+  cancel-in-progress: true
+
+jobs:
+  rewrite:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53e-native-streamfifocc-parameterization
+          fetch-depth: 0
+
+      - name: Replace proof generator with signature-derived implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          cat > morphhdl/scripts/create-increment-53e-proof-suite.py <<'PY'
+          #!/usr/bin/env python3
+          from pathlib import Path
+          import re
+
+          source_path = Path(
+              "morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoCCTests.scala"
+          )
+          target_path = Path(
+              "morphhdl/src/test/scala/morphhdl/"
+              "NativeStreamFifoCCProofGenerationTests.scala"
+          )
+          source = source_path.read_text()
+
+          def balanced_end(text, opening, open_character="(", close_character=")"):
+              level = 0
+              for index in range(opening, len(text)):
+                  if text[index] == open_character:
+                      level += 1
+                  elif text[index] == close_character:
+                      level -= 1
+                      if level == 0:
+                          return index + 1
+              raise SystemExit("unterminated balanced expression")
+
+          def split_top_level(text):
+              result = []
+              start = 0
+              levels = {"(": 0, "[": 0, "{": 0}
+              pairs = {")": "(", "]": "[", "}": "{"}
+              for index, character in enumerate(text):
+                  if character in levels:
+                      levels[character] += 1
+                  elif character in pairs:
+                      levels[pairs[character]] -= 1
+                  elif character == "," and all(value == 0 for value in levels.values()):
+                      result.append(text[start:index].strip())
+                      start = index + 1
+              tail = text[start:].strip()
+              if tail:
+                  result.append(tail)
+              return result
+
+          class_marker = "final class NativeParameterizedStreamFifoCCHarness"
+          start = source.find(class_marker)
+          if start < 0:
+              raise SystemExit("native parameterized StreamFifoCC harness was not found")
+          body_open = source.find("{", start)
+          if body_open < 0:
+              raise SystemExit("native parameterized StreamFifoCC harness has no body")
+          body_end = balanced_end(source, body_open, "{", "}")
+          prefix = source[:start]
+          harness = source[start:body_end]
+
+          signature = re.compile(
+              r"final class NativeParameterizedStreamFifoCCHarness\((.*?)\)\s*"
+              r"extends Component",
+              re.S,
+          )
+          match = signature.search(harness)
+          if not match:
+              raise SystemExit("native parameterized StreamFifoCC harness signature changed")
+          raw_parameters = split_top_level(match.group(1))
+          parameters = []
+          declaration = re.compile(
+              r"^(?:val\s+|var\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([^=]+?)"
+              r"(?:\s*=\s*(.*))?$",
+              re.S,
+          )
+          for raw in raw_parameters:
+              parsed = declaration.match(raw)
+              if not parsed:
+                  raise SystemExit(f"unsupported harness constructor parameter: {raw}")
+              parameters.append({
+                  "raw": raw,
+                  "name": parsed.group(1),
+                  "type": parsed.group(2).strip(),
+                  "default": (parsed.group(3) or "").strip(),
+              })
+
+          depth_parameters = [
+              parameter for parameter in parameters
+              if parameter["name"] == "depth" and parameter["type"] == "HdlInt"
+          ]
+          if len(depth_parameters) != 1:
+              raise SystemExit(
+                  f"expected one HdlInt depth parameter, found {depth_parameters}"
+              )
+          buffered_parameters = [
+              parameter for parameter in parameters
+              if parameter["name"] == "withPopBufferedReset"
+          ]
+          if not buffered_parameters:
+              parameters.append({
+                  "raw": "withPopBufferedReset: Boolean",
+                  "name": "withPopBufferedReset",
+                  "type": "Boolean",
+                  "default": "",
+              })
+          elif len(buffered_parameters) != 1 or buffered_parameters[0]["type"] != "Boolean":
+              raise SystemExit("withPopBufferedReset must be one Boolean constructor field")
+
+          candidate_signature = ",\n    ".join(parameter["raw"] for parameter in parameters)
+          harness = harness[:match.start()] + (
+              "final class NativeParameterizedStreamFifoCCFormalHarness(\n    "
+              + candidate_signature
+              + "\n) extends Component"
+          ) + harness[match.end():]
+
+          # Remove an existing top definition-name call by balanced syntax, then
+          # insert the proof-stable definition name immediately inside the class.
+          definition = harness.find("setDefinitionName(")
+          if definition >= 0:
+              line_start = harness.rfind("\n", 0, definition) + 1
+              call_open = harness.find("(", definition)
+              call_end = balanced_end(harness, call_open)
+              line_end = harness.find("\n", call_end)
+              if line_end < 0:
+                  line_end = call_end
+              else:
+                  line_end += 1
+              harness = harness[:line_start] + harness[line_end:]
+          insertion = harness.find("{") + 1
+          definition_statement = '''
+            setDefinitionName(
+              if (withPopBufferedReset)
+                "NativeParameterizedStreamFifoCCFormalHarnessBuffered"
+              else "NativeParameterizedStreamFifoCCFormalHarnessPlain"
+            )
+          '''
+          harness = harness[:insertion] + definition_statement + harness[insertion:]
+
+          # Make native reset buffering explicit in the constructor call.
+          assignment = re.compile(
+              r"withPopBufferedReset\s*=\s*[^,\n\)]+"
+          )
+          if assignment.search(harness):
+              harness = assignment.sub(
+                  "withPopBufferedReset = withPopBufferedReset",
+                  harness,
+                  count=1,
+              )
+          else:
+              constructor = re.search(
+                  r"(?<![A-Za-z0-9_$])(?:morphhdl\.frontend\.)?StreamFifoCC\s*\(",
+                  harness,
+              )
+              if not constructor:
+                  raise SystemExit("StreamFifoCC constructor call was not found")
+              call_open = harness.find("(", constructor.start())
+              call_end = balanced_end(harness, call_open)
+              harness = (
+                  harness[:call_end - 1]
+                  + ",\n    withPopBufferedReset = withPopBufferedReset"
+                  + harness[call_end - 1:]
+              )
+
+          concrete_parameters = []
+          for parameter in parameters:
+              raw = parameter["raw"]
+              if parameter["type"] == "HdlInt":
+                  raw = re.sub(r"\bHdlInt\b", "Int", raw, count=1)
+              concrete_parameters.append(raw)
+          concrete = harness.replace(
+              "NativeParameterizedStreamFifoCCFormalHarness",
+              "NativeConcreteStreamFifoCCFormalHarness",
+          )
+          concrete = re.sub(
+              r"final class NativeConcreteStreamFifoCCFormalHarness\(.*?\)\s*extends Component",
+              "final class NativeConcreteStreamFifoCCFormalHarness(\n    "
+              + ",\n    ".join(concrete_parameters)
+              + "\n) extends Component",
+              concrete,
+              count=1,
+              flags=re.S,
+          )
+          concrete, count = re.subn(
+              r"(?<![A-Za-z0-9_$])(?:morphhdl\.frontend\.)?StreamFifoCC\s*\(",
+              "spinal.lib.StreamFifoCC(",
+              concrete,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit(f"native StreamFifoCC constructor replacement count={count}")
+          concrete_definition = concrete.find("setDefinitionName(")
+          if concrete_definition < 0:
+              raise SystemExit("concrete proof harness has no definition-name call")
+          line_start = concrete.rfind("\n", 0, concrete_definition) + 1
+          call_open = concrete.find("(", concrete_definition)
+          call_end = balanced_end(concrete, call_open)
+          line_end = concrete.find("\n", call_end)
+          if line_end < 0:
+              line_end = call_end
+          else:
+              line_end += 1
+          concrete_name = '''  setDefinitionName(
+              if (withPopBufferedReset)
+                s"NativeConcreteStreamFifoCCFormalHarnessDepth${depth}Buffered"
+              else s"NativeConcreteStreamFifoCCFormalHarnessDepth${depth}Plain"
+            )
+          '''
+          concrete = concrete[:line_start] + concrete_name + concrete[line_end:]
+
+          candidate_declarations = [
+              '''      val depth = HdlInt.param(
+                    "DEPTH",
+                    default = BigInt(8),
+                    min = BigInt(4),
+                    max = BigInt(16)
+                  )'''
+          ]
+          candidate_arguments = []
+          concrete_arguments = []
+          for parameter in parameters:
+              name = parameter["name"]
+              parameter_type = parameter["type"]
+              default = parameter["default"]
+              if name == "depth":
+                  candidate_arguments.append("depth")
+                  concrete_arguments.append("selectedDepth")
+              elif name == "withPopBufferedReset":
+                  candidate_arguments.append("withPopBufferedReset = buffered")
+                  concrete_arguments.append("withPopBufferedReset = buffered")
+              elif parameter_type == "HdlInt":
+                  formal = re.sub(r"[^A-Za-z0-9_]", "_", name).upper()
+                  candidate_declarations.append(
+                      f'''      val {name} = HdlInt.param(
+                    "{formal}",
+                    default = BigInt(8),
+                    min = BigInt(1),
+                    max = BigInt(32)
+                  )'''
+                  )
+                  candidate_arguments.append(f"{name} = {name}")
+                  concrete_arguments.append(f"{name} = 8")
+              elif default:
+                  # Let the source-level default remain authoritative.
+                  continue
+              elif parameter_type == "Boolean":
+                  candidate_arguments.append(f"{name} = false")
+                  concrete_arguments.append(f"{name} = false")
+              elif parameter_type == "Int":
+                  raise SystemExit(
+                      f"required non-depth Int constructor parameter {name} needs an explicit proof policy"
+                  )
+              else:
+                  raise SystemExit(
+                      f"required constructor parameter {name}: {parameter_type} needs an explicit proof policy"
+                  )
+
+          proof = f'''
+
+          class NativeStreamFifoCCProofGenerationTests extends AnyFunSuite {{
+            private val Depths = Vector(4, 8, 16)
+            private val WorkspaceEnvironment = "MORPHDL_STREAMFIFOCC_PROOF_WORKSPACE"
+
+            test("generate one parameterized candidate and independent native witnesses") {{
+              val workspace = sys.env.get(WorkspaceEnvironment).map(Path.of(_)).getOrElse {{
+                cancel(s"Set $WorkspaceEnvironment to a persistent proof workspace")
+              }}
+              Files.createDirectories(workspace)
+              val manifest = Vector.newBuilder[String]
+
+              Vector(false, true).foreach {{ buffered =>
+                val mode = if (buffered) "buffered" else "plain"
+                val candidateDirectory = workspace.resolve(s"candidate-$mode")
+                Files.createDirectories(candidateDirectory)
+                val candidateFile = s"streamfifocc_candidate_$mode.v"
+                val candidateConfig = SpinalConfig(targetDirectory = candidateDirectory.toString)
+                candidateConfig.netlistFileName = candidateFile
+          {chr(10).join(candidate_declarations)}
+                MorphVerilog(candidateConfig) {{
+                  new NativeParameterizedStreamFifoCCFormalHarness(
+                    {', '.join(candidate_arguments)}
+                  )
+                }}
+                val candidateTop =
+                  if (buffered) "NativeParameterizedStreamFifoCCFormalHarnessBuffered"
+                  else "NativeParameterizedStreamFifoCCFormalHarnessPlain"
+                manifest += s"candidate|$mode|${{candidateDirectory.resolve(candidateFile)}}|$candidateTop"
+
+                Depths.foreach {{ selectedDepth =>
+                  val concreteDirectory =
+                    workspace.resolve(s"concrete-$mode-depth-$selectedDepth")
+                  Files.createDirectories(concreteDirectory)
+                  val concreteFile =
+                    s"streamfifocc_concrete_${{mode}}_depth_$selectedDepth.v"
+                  val concreteConfig = SpinalConfig(targetDirectory = concreteDirectory.toString)
+                  concreteConfig.netlistFileName = concreteFile
+                  SpinalVerilog(concreteConfig) {{
+                    new NativeConcreteStreamFifoCCFormalHarness(
+                      {', '.join(concrete_arguments)}
+                    )
+                  }}
+                  val concreteTop =
+                    s"NativeConcreteStreamFifoCCFormalHarnessDepth${{selectedDepth}}" +
+                      (if (buffered) "Buffered" else "Plain")
+                  manifest +=
+                    s"concrete|$mode|$selectedDepth|${{concreteDirectory.resolve(concreteFile)}}|$concreteTop"
+                }}
+              }}
+
+              Files.write(
+                workspace.resolve("manifest.txt"),
+                manifest.result().mkString("\\n").getBytes(StandardCharsets.UTF_8)
+              )
+            }}
+          }}
+          '''
+
+          required_imports = []
+          if "java.nio.charset.StandardCharsets" not in prefix:
+              required_imports.append("import java.nio.charset.StandardCharsets")
+          if "java.nio.file.{Files, Path}" not in prefix:
+              required_imports.append("import java.nio.file.{Files, Path}")
+          if "org.scalatest.funsuite.AnyFunSuite" not in prefix:
+              required_imports.append("import org.scalatest.funsuite.AnyFunSuite")
+          if required_imports:
+              package_end = prefix.find("\n") + 1
+              prefix = (
+                  prefix[:package_end]
+                  + "\n"
+                  + "\n".join(required_imports)
+                  + "\n"
+                  + prefix[package_end:]
+              )
+
+          target_path.write_text(prefix + harness + "\n\n" + concrete + proof)
+          PY
+          chmod +x morphhdl/scripts/create-increment-53e-proof-suite.py
+          rm -f .github/workflows/increment-53e-rewrite-proof-generator.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'Increment 53e: derive proof harness arguments structurally'
+          git push origin HEAD:agent/increment-53e-native-streamfifocc-parameterization
