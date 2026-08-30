@@ -7,6 +7,8 @@ on:
     paths:
       - .github/workflows/increment-53d-typed-adapter-publisher-v2.yml
       - morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py
+      - morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala
+      - morphhdl/src/test/scala/morphhdl/TypedElaborationControlTests.scala
   workflow_dispatch:
 
 permissions:
