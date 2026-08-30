@@ -43,12 +43,14 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     eligibleGateFailures.contains(failure.code) &&
       (
         ParameterizedWidth.parametersOf(component).nonEmpty ||
+          ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
           ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
           ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
           ParameterizedProcess.parametersOf(component).nonEmpty ||
           ParameterizedStructure.parametersOf(component).nonEmpty ||
           component.children.exists { child =>
             ParameterizedWidth.parametersOf(child).nonEmpty ||
+            ExternalParameterizedAutoResize.parametersOf(child).nonEmpty ||
             ExternalParameterizedMemoryRegistry.parametersOf(child).nonEmpty ||
             ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty ||
             ParameterizedProcess.parametersOf(child).nonEmpty ||
@@ -127,10 +129,15 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       component,
       rewrittenValues
     )
+    val rewrittenNormalizedTypedResizes =
+      rewriteNormalizedTypedUIntResizeAssignments(
+        component,
+        rewrittenResizes
+      )
     val canonical =
       if (isCanonicalDirectSurface(component))
-        canonicalizeDeclarations(component, rewrittenResizes)
-      else rewrittenResizes
+        canonicalizeDeclarations(component, rewrittenNormalizedTypedResizes)
+      else rewrittenNormalizedTypedResizes
     lowerRetainedIntegerHelpers(canonical, component.definitionName)
   }
 
@@ -824,6 +831,186 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     lines.mkString("\n")
   }
 
+  /** Reconstruct one explicit typed UInt resize whose witness-sized carrier
+    * native normalization removed. The capture API proves the exact surviving
+    * assignment, target and source identities. This text rewrite then masks
+    * the unsigned source at its own symbolic width before the fixed consumer
+    * applies ordinary Verilog assignment sizing.
+    */
+  private def rewriteNormalizedTypedUIntResizeAssignments(
+      component: Component,
+      verilog: String
+  ): String = {
+    final case class NormalizedTypedUIntResizeAssignment(
+        target: UInt,
+        source: UInt,
+        targetName: String,
+        sourceName: String,
+        sourceWidth: ElaborationIntegerExpression,
+        targetWidth: ElaborationIntegerExpression
+    )
+
+    val captured = ArrayBuffer.empty[NormalizedTypedUIntResizeAssignment]
+    component.dslBody.walkLeafStatements {
+      case assignment: DataAssignmentStatement
+          if assignment.target == assignment.finalTarget =>
+        assignment.target match {
+          case target: UInt =>
+            ExternalParameterizedAutoResize
+              .normalizedTypedUIntResizeBoundary(
+                component,
+                assignment,
+                target
+              )
+              .foreach { boundary =>
+                val targetName =
+                  Option(target.getName()).filter(_.nonEmpty).getOrElse {
+                    fail(
+                      "SPINAL-PARAMETERIZED-VERILOG-NORMALIZED-TYPED-RESIZE-TARGET-NAME-MISSING",
+                      "one normalized typed UInt resize target has no final emitted name",
+                      boundary.targetWidth.sourceLocation
+                    )
+                  }
+                val sourceName =
+                  Option(boundary.source.getName()).filter(_.nonEmpty).getOrElse {
+                    fail(
+                      "SPINAL-PARAMETERIZED-VERILOG-NORMALIZED-TYPED-RESIZE-SOURCE-NAME-MISSING",
+                      "one normalized typed UInt resize source has no final emitted name",
+                      boundary.sourceWidth.sourceLocation
+                    )
+                  }
+                if (targetName == sourceName) {
+                  fail(
+                    "SPINAL-PARAMETERIZED-VERILOG-NORMALIZED-TYPED-RESIZE-NAME-ALIAS",
+                    s"normalized typed UInt resize target '$targetName' aliases its source",
+                    boundary.targetWidth.sourceLocation.orElse(
+                      boundary.sourceWidth.sourceLocation
+                    )
+                  )
+                }
+                if (
+                  boundary.targetWidth.parameters.isEmpty ||
+                  boundary.sourceWidth.default < 1 ||
+                  boundary.targetWidth.default < 1
+                ) {
+                  fail(
+                    "SPINAL-PARAMETERIZED-VERILOG-NORMALIZED-TYPED-RESIZE-WIDTH-INVALID",
+                    s"normalized typed UInt resize '$sourceName' -> '$targetName' must retain a positive source width and positive symbolic target width",
+                    boundary.targetWidth.sourceLocation.orElse(
+                      boundary.sourceWidth.sourceLocation
+                    )
+                  )
+                }
+                captured += NormalizedTypedUIntResizeAssignment(
+                  target,
+                  boundary.source,
+                  targetName,
+                  sourceName,
+                  boundary.sourceWidth,
+                  boundary.targetWidth
+                )
+              }
+          case _ =>
+        }
+      case _ =>
+    }
+    if (captured.isEmpty) return verilog
+
+    def equivalent(
+        left: NormalizedTypedUIntResizeAssignment,
+        right: NormalizedTypedUIntResizeAssignment
+    ): Boolean =
+      (left.target eq right.target) &&
+        (left.source eq right.source) &&
+        left.targetName == right.targetName &&
+        left.sourceName == right.sourceName &&
+        ExternalFormalParameterRegistry.equivalentExpression(
+          left.sourceWidth,
+          right.sourceWidth
+        ) &&
+        ExternalFormalParameterRegistry.equivalentExpression(
+          left.targetWidth,
+          right.targetWidth
+        )
+
+    val unique = captured.toVector.foldLeft(
+      Vector.empty[NormalizedTypedUIntResizeAssignment]
+    ) { case (known, value) =>
+      if (known.exists(equivalent(_, value))) known else known :+ value
+    }
+    unique
+      .groupBy(_.targetName)
+      .collectFirst {
+        case (name, values) if values.size != 1 => name
+      }
+      .foreach { name =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-NORMALIZED-TYPED-RESIZE-TARGET-CONFLICT",
+          s"normalized typed UInt resize target name '$name' maps to multiple captured boundaries"
+        )
+      }
+    unique
+      .groupBy(_.sourceName)
+      .collectFirst {
+        case (name, values)
+            if values.map(_.source).foldLeft(Vector.empty[UInt]) {
+              case (known, source) if known.exists(_ eq source) => known
+              case (known, source)                              => known :+ source
+            }.size != 1 =>
+          name
+      }
+      .foreach { name =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-NORMALIZED-TYPED-RESIZE-SOURCE-CONFLICT",
+          s"normalized typed UInt resize source name '$name' maps to multiple captured identities"
+        )
+      }
+
+    var lines = verilog.split("\n", -1).toVector
+    unique.sortBy(value => -value.targetName.length).foreach { record =>
+      val targetAssignment = (
+        "^\\s*assign\\s+" + Pattern.quote(record.targetName) +
+          "\\s*=.*;\\s*$"
+      ).r
+      val exactEdge = (
+        "^(\\s*assign\\s+" + Pattern.quote(record.targetName) +
+          "\\s*=\\s*)" + Pattern.quote(record.sourceName) +
+          "(\\s*;\\s*)$"
+      ).r
+      val targetAssignmentCount =
+        lines.count(line => targetAssignment.findFirstIn(line).nonEmpty)
+      var exactEdgeCount = 0
+      val sourceWidth = record.sourceWidth.verilog
+      val targetWidth = record.targetWidth.verilog
+      val sourceWidthCount =
+        if (
+          "[A-Za-z_][A-Za-z0-9_$]*".r.pattern
+            .matcher(sourceWidth)
+            .matches()
+        ) sourceWidth
+        else s"($sourceWidth)"
+      val mask = s"~({$sourceWidthCount{1'b1}} << ($targetWidth))"
+      lines = lines.map { line =>
+        line match {
+          case exactEdge(prefix, suffix) =>
+            exactEdgeCount += 1
+            prefix + "(" + record.sourceName + " & " + mask + ")" + suffix
+          case _ => line
+        }
+      }
+      if (targetAssignmentCount != 1 || exactEdgeCount != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-NORMALIZED-TYPED-RESIZE-ASSIGNMENT-NOT-UNIQUE",
+          s"normalized typed UInt resize '${record.sourceName}' -> '${record.targetName}' maps to $targetAssignmentCount target assignments and $exactEdgeCount exact source edges",
+          record.targetWidth.sourceLocation.orElse(
+            record.sourceWidth.sourceLocation
+          )
+        )
+      }
+    }
+    lines.mkString("\n")
+  }
+
   /** Preserve the untouched native full-range Counter boundary comparison when
     * its concrete witness state is widened externally. Only state leaves whose
     * provenance was retained by ExternalParameterizedCounterRegistry are
@@ -1113,6 +1300,22 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       case _                   =>
     }
 
+    private lazy val normalizedTypedResizeBoundaries =
+      assignments.toVector.flatMap { assignment =>
+        assignment.target match {
+          case target: UInt
+              if assignment.target == assignment.finalTarget =>
+            ExternalParameterizedAutoResize
+              .normalizedTypedUIntResizeBoundary(
+                component,
+                assignment,
+                target
+              )
+              .toVector
+          case _ => Vector.empty
+        }
+      }
+
     lazy val symbolicDeclarationWidths: Vector[(String, WidthExpr)] =
       declarations.distinct.toVector.flatMap {
         case bitVector: BitVector =>
@@ -1135,10 +1338,17 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
 
     lazy val parameters: Vector[ElaborationIntegerParameter] = {
+      val normalizedResizeExpressions =
+        normalizedTypedResizeBoundaries.flatMap { boundary =>
+          Vector(boundary.sourceWidth, boundary.targetWidth)
+        }
       val referenced =
-        symbolicDeclarationWidths.flatMap(_._2.parameters) ++ hierarchyParameters
+        symbolicDeclarationWidths.flatMap(_._2.parameters) ++
+          normalizedResizeExpressions.flatMap(_.parameters) ++
+          hierarchyParameters
       val retainedRoots =
-        symbolicDeclarationWidths.flatMap(_._2.parameterRoots)
+        symbolicDeclarationWidths.flatMap(_._2.parameterRoots) ++
+          normalizedResizeExpressions.flatMap(_.parameterRoots)
       retainedRoots
         .groupBy(_.name)
         .collectFirst {
@@ -1819,7 +2029,18 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             )
           case _ => false
         }
-        if (provenAutoResizeBoundary) WidthLiteral(bitVector.getBitsWidth)
+        val fixedTypedResizeConsumer = bitVector match {
+          case uint: UInt if fullAssignments.size == 1 =>
+            ExternalParameterizedAutoResize
+              .preservesFixedTypedResizeConsumer(
+                component,
+                fullAssignments.head,
+                uint
+              )
+          case _ => false
+        }
+        if (provenAutoResizeBoundary || fixedTypedResizeConsumer)
+          WidthLiteral(bitVector.getBitsWidth)
         else {
           val sourceWidths = fullAssignments.map(assignment => ofExpression(assignment.source))
           val symbolicWidths = sourceWidths.filter(_.isSymbolic)
@@ -1840,6 +2061,13 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         */
       private def operandWidth(expression: Expression): WidthExpr = expression match {
         case resize: Resize =>
+          retainedResizeExpression(resize).foreach { retained =>
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-NESTED-TYPED-RESIZE-UNSUPPORTED",
+              s"nested typed Resize target '${retained.verilog}' has no reviewed native-expression reconstruction; assign the resize to an explicit carrier first",
+              retained.sourceLocation
+            )
+          }
           val source = ofExpression(resize.input)
           if (source.isSymbolic && source.default == BigInt(resize.size)) source
           else ofExpression(resize)

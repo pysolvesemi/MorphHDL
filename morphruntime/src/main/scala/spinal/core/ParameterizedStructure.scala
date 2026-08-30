@@ -1018,6 +1018,39 @@ object ParameterizedStructure {
     )
   }
 
+  /** Exact-assignment counterpart of [[exactDeclarationDomainOf]]. The
+    * assignment itself, rather than its target declaration, owns expressions
+    * that are introduced only while lowering that surviving assignment.
+    */
+  private[core] def exactAssignmentDomainOf(
+      component: Component,
+      assignment: DataAssignmentStatement,
+      root: ElaborationIntegerParameterRoot,
+      universe: Set[BigInt],
+      role: String,
+      sourceLocation: Option[String]
+  ): ExactNativeObjectDomain = {
+    if (component == null || assignment == null) {
+      fail(
+        "SPINAL-ELAB-PROJECTION-OBJECT-NULL",
+        s"$role requires a non-null component and native assignment",
+        sourceLocation
+      )
+    }
+    val matches = capturedAssignments(regionsOf(component)).collect {
+      case value if value.statement eq assignment => value.path
+    }
+    exactNativeObjectDomainOf(
+      component,
+      matches,
+      allStatementsOf(component).exists(_ eq assignment),
+      root,
+      universe,
+      role,
+      sourceLocation
+    )
+  }
+
   /** Exact-memory counterpart of [[exactDeclarationDomainOf]]. */
   private[core] def exactMemoryDomainOf(
       component: Component,
@@ -1103,6 +1136,89 @@ object ParameterizedStructure {
           sourceLocation
         )
     )
+
+  /** Require a projected expression to cover every root value for which one
+    * exact assignment survives. Unlike declaration geometry, an expression
+    * introduced into an assignment is not rebased to that owner's
+    * representative: module-scope operands may be used safely in a narrower
+    * branch. Identity, evidence and owner dominance remain mandatory.
+    */
+  private[core] def validateProjectedAssignmentDominance(
+      component: Component,
+      assignment: DataAssignmentStatement,
+      expression: ElaborationIntegerExpression,
+      role: String,
+      sourceLocation: Option[String]
+  ): Unit = {
+    if (expression == null) {
+      fail(
+        "SPINAL-ELAB-DOMAIN-PROJECTION-NULL",
+        s"$role requires a non-null retained expression",
+        sourceLocation
+      )
+    }
+    expression.exactDomain.foreach { domain =>
+      val projection = expression.projectionProvenance.getOrElse {
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-IDENTITY-MISSING",
+          s"$role expression '${expression.verilog}' has exact evidence but no projection provenance on this exact expression object",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      if (projection.root ne domain.root) {
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-ROOT-IDENTITY-MISMATCH",
+          s"$role expression '${expression.verilog}' projection and exact evidence have different root identities",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      if (!projection.admitted.subsetOf(domain.evidenceValues)) {
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-OUTSIDE-EVIDENCE",
+          s"$role expression '${expression.verilog}' projection admits values without exact evaluation evidence",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      val expectedRepresentative =
+        if (projection.admitted.contains(domain.parameter.default))
+          domain.parameter.default
+        else projection.admitted.min
+      if (projection.representative != expectedRepresentative) {
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-REPRESENTATIVE-INVALID",
+          s"$role expression '${expression.verilog}' has non-deterministic projection representative ${projection.representative}",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+
+      val owner = exactAssignmentDomainOf(
+        component,
+        assignment,
+        domain.root,
+        domain.universe,
+        role,
+        sourceLocation
+      )
+      if (!owner.values.subsetOf(projection.admitted)) {
+        val escaped = owner.values -- projection.admitted
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-OWNER-SCOPE-MISMATCH",
+          s"$role expression '${expression.verilog}' was projected for root values ${projection.admitted.toVector.sorted
+              .mkString(", ")}, but its exact native owner also exists for ${escaped.toVector.sorted.mkString(", ")}",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      owner.values.foreach { rootValue =>
+        if (domain.evaluate(rootValue).isEmpty) {
+          fail(
+            "SPINAL-ELAB-DOMAIN-PROJECTION-EVIDENCE-INCOMPLETE",
+            s"$role expression '${expression.verilog}' has no exact evaluation at ${domain.root.name}=$rootValue",
+            sourceLocation.orElse(expression.sourceLocation)
+          )
+        }
+      }
+    }
+  }
 
   /** Exact-memory counterpart of [[projectedDeclarationEvaluationOf]]. */
   private[core] def projectedMemoryEvaluationOf(

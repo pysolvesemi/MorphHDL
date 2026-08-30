@@ -25,6 +25,7 @@ morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
 morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedAutoResize.scala
 morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
 morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
 morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
 morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
 morphhdl/src/test/scala/morphhdl/CapturedDomainWidthEquivalenceTests.scala

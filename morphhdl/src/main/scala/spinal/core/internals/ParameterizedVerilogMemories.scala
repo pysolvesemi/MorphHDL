@@ -449,15 +449,55 @@ private[internals] object ParameterizedVerilogMemories {
         retained.default == BigInt(address.getWidth) &&
         retained.minimum == retained.default &&
         retained.maximum == retained.default
+    def assignmentsOf(target: BaseType): Vector[DataAssignmentStatement] = {
+      val assignments = ArrayBuffer.empty[DataAssignmentStatement]
+      memory.component.dslBody.walkLeafStatements {
+        case value: DataAssignmentStatement if value.finalTarget eq target =>
+          assignments += value
+        case _ =>
+      }
+      assignments.toVector
+    }
+    val addressAssignments = address match {
+      case target: BaseType => assignmentsOf(target)
+      case _ => Vector.empty
+    }
+    // A native Mem has one address type across its reviewed read/write ports.
+    // One exactly reconstructible typed boundary may retain that shared fixed
+    // ABI only when the current concrete port still covers the complete native
+    // address domain. A smaller branch representative must be promoted.
+    val memoryHasFixedTypedResizeConsumer = {
+      val portAddresses = ArrayBuffer.empty[UInt]
+      memory.foreachStatements {
+        case port: MemReadSync =>
+          port.address match {
+            case target: UInt => portAddresses += target
+            case _            =>
+          }
+        case port: MemWrite =>
+          port.address match {
+            case target: UInt => portAddresses += target
+            case _            =>
+          }
+        case _ =>
+      }
+      portAddresses.exists { target =>
+        val assignments = assignmentsOf(target)
+        assignments.size == 1 &&
+          ExternalParameterizedAutoResize.preservesFixedTypedResizeConsumer(
+            memory.component,
+            assignments.head,
+            target
+          )
+      }
+    }
+    val fixedTypedResizeConsumerCoversAddressDomain =
+      memoryHasFixedTypedResizeConsumer &&
+        retainedIsConcreteWitness &&
+        retained.minimum >= native.maximum
     val driverProvesNativeWidth = address match {
-      case target: BaseType =>
-        val assignments = ArrayBuffer.empty[DataAssignmentStatement]
-        memory.component.dslBody.walkLeafStatements {
-          case value: DataAssignmentStatement if value.finalTarget eq target =>
-            assignments += value
-          case _ =>
-        }
-        val widths = assignments.toVector.flatMap { assignment =>
+      case _: BaseType =>
+        val widths = addressAssignments.flatMap { assignment =>
           assignment.source match {
             case value: Expression with WidthProvider =>
               Some(widthOf(value, source))
@@ -479,7 +519,8 @@ private[internals] object ParameterizedVerilogMemories {
       native.parameters.nonEmpty &&
       retainedIsConcreteWitness &&
       native.default == retained.default &&
-      driverProvesNativeWidth
+      driverProvesNativeWidth &&
+      !fixedTypedResizeConsumerCoversAddressDomain
     ) native
     else retained
   }
