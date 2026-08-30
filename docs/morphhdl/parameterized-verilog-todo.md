@@ -493,7 +493,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   bridge manifest. The legacy shadow-width implementation remains only as an
   oracle and must not be used by the migrated adapter.
 
-- [ ] **Increment 53e — Typed StreamFifo depth and branch-local geometry**
+- [x] **Increment 53e — Typed StreamFifo depth and branch-local geometry**
 
   **Dependencies:** Increment 53d implemented and merged.
 
