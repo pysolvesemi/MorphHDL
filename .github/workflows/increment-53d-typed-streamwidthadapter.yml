@@ -41,32 +41,11 @@ jobs:
             base="$(git merge-base HEAD origin/parameterized-verilog)"
           fi
 
+          scope=morphhdl/contracts/increment-53d-source-scope.txt
+          test -f "$scope"
+          test "$(cat "$scope")" = "$(sort -u "$scope")"
           actual="$(git diff --name-only --diff-filter=ACMRTD "$base"...HEAD | sort)"
-          expected="$(printf '%s\n' \
-            .github/workflows/increment-53d-typed-streamwidthadapter.yml \
-            .github/workflows/morphhdl-typed-elaboration-values.yml \
-            core/src/main/scala/spinal/core/BitVector.scala \
-            core/src/main/scala/spinal/core/Bits.scala \
-            core/src/main/scala/spinal/core/ElabInt.scala \
-            core/src/main/scala/spinal/core/ParameterizedWidth.scala \
-            core/src/main/scala/spinal/core/SInt.scala \
-            core/src/main/scala/spinal/core/UInt.scala \
-            core/src/main/scala/spinal/core/core.scala \
-            docs/morphhdl/increment-53d-typed-native-change-manifest.md \
-            docs/morphhdl/parameterized-verilog-todo.md \
-            docs/morphhdl/typed-elaboration-architecture.md \
-            frontend/src/main/scala/morphhdl/frontend/HdlInt.scala \
-            lib/src/main/scala/spinal/lib/Stream.scala \
-            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala \
-            morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala \
-            morphhdl/src/test/scala/morphhdl/TypedElaborationControlTests.scala \
-            morphhdl/src/test/scala/morphhdl/TypedParameterizedFactoryDirectionTests.scala \
-            morphhdl/src/test/scala/morphhdl/TypedStreamWidthAdapterFormalEquivalenceTests.scala \
-            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala \
-            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala \
-            morphruntime/src/main/scala/spinal/core/ElabControl.scala \
-            morphruntime/src/main/scala/spinal/core/ElabInt.scala | sort)"
-
+          expected="$(cat "$scope")"
           if [ "$actual" != "$expected" ]; then
             echo 'Unexpected Increment 53d file inventory' >&2
             echo '--- expected ---' >&2
@@ -121,8 +100,7 @@ jobs:
               value = Path('core/src/main/scala/spinal/core', name).read_text()
               assert token in value, (name, token)
 
-          carrier_path = Path('core/src/main/scala/spinal/core/ElabInt.scala')
-          carrier = carrier_path.read_text()
+          carrier = Path('core/src/main/scala/spinal/core/ElabInt.scala').read_text()
           for token in (
               'final class ElabInt',
               'final class ElabBool',

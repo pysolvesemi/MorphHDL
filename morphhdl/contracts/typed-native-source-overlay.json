@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "repository": "pysolvesemi/MorphHDL",
+  "hash_format": "git-sha1",
+  "base": {
+    "commit": "ce7e306f8a0dea685317e37dbe01fb4a743f04eb",
+    "tree": "fdd49d3ebbf4947c9baa956fb2e9ce08a2949ffb",
+    "description": "merged typed-elaboration architecture pivot before the Increment 53d implementation"
+  },
+  "source_roots": [
+    "core",
+    "idslplugin",
+    "lib"
+  ],
+  "classifications": [
+    "typed-formal-or-overload",
+    "typed-helper",
+    "typed-mechanical-propagation"
+  ],
+  "entries": [
+    {
+      "path": "core/src/main/scala/spinal/core/BitVector.scala",
+      "change": "modified",
+      "classification": "typed-formal-or-overload",
+      "blob": "42cf69e49df474816262357a64720c155079597e",
+      "reason": "declare the typed resize overload on the authoritative native bit-vector API"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Bits.scala",
+      "change": "modified",
+      "classification": "typed-formal-or-overload",
+      "blob": "04792d71c292a4b83f5c2bb752b33acc461cc07a",
+      "reason": "preserve typed factory direction and exact typed resize geometry"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElabInt.scala",
+      "change": "added",
+      "classification": "typed-helper",
+      "blob": "6ed3d282d32eadc92e710e2c37e7ccca7fd01516",
+      "reason": "provide the single neutral ElabInt and ElabBool carrier owned by core"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
+      "change": "modified",
+      "classification": "typed-helper",
+      "blob": "a3166a36a7530a9ce675283e0d3ab4d489dbbf0b",
+      "reason": "retain typed widths and exact native Resize identity"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/SInt.scala",
+      "change": "modified",
+      "classification": "typed-formal-or-overload",
+      "blob": "3f55670d8edda791dcdbcb22c6955fc15e7852a5",
+      "reason": "preserve typed factory direction and exact typed resize geometry"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/UInt.scala",
+      "change": "modified",
+      "classification": "typed-formal-or-overload",
+      "blob": "2c3fadece0e2270175e73ba5bc6a1179bbe976f1",
+      "reason": "preserve typed factory direction and exact typed resize geometry"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/core.scala",
+      "change": "modified",
+      "classification": "typed-helper",
+      "blob": "fdab645e6e20ff53571330e126135d8629226821",
+      "reason": "add the parameter-preserving widthOfExpr helper"
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/Stream.scala",
+      "change": "modified",
+      "classification": "typed-mechanical-propagation",
+      "blob": "1733a6f443259b7dad7672cbfa2386b2099e8dc4",
+      "reason": "mechanically carry typed widths through the existing native StreamWidthAdapter algorithm"
+    }
+  ]
+}
