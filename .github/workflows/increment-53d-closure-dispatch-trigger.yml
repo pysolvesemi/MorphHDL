@@ -1,0 +1,27 @@
+name: Dispatch Increment 53d closure after publication
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-closure-dispatch-trigger.yml
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch final closure workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run increment-53d-final-closure.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref agent/increment-53d-typed-elabint-pivot
