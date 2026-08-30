@@ -1,0 +1,223 @@
+name: Validate and publish Increment 53d canonical typed adapter fixture
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-canonical-fixture-autopublish.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53d-canonical-fixture-autopublish
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+      - name: Apply direct typed candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
+            | gzip -d \
+            | git apply --whitespace=nowarn
+      - name: Install canonical direct-typed fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala')
+          source = path.read_text()
+          start = source.index('object ParameterizedStreamWidthAdapterSmoke {')
+          end = source.index('\nclass ParameterizedStreamWidthAdapterTests', start)
+          replacement = r'''object ParameterizedStreamWidthAdapterSmoke {
+            final class EqualLeaf(width: ElabInt) extends Component {
+              setDefinitionName("NativeStreamWidthAdapterEqual")
+              val io = new Bundle {
+                val input = slave(Stream(spinal.core.Bits(width bits)))
+                val output = master(Stream(spinal.core.Bits(width bits)))
+              }
+              spinal.lib.StreamWidthAdapter(io.input, io.output, endianness = LITTLE, padding = true)
+            }
+
+            final class DownsizeLeaf(inputWidth: ElabInt) extends Component {
+              setDefinitionName("NativeStreamWidthAdapterDownsize")
+              val io = new Bundle {
+                val input = slave(Stream(spinal.core.Bits(inputWidth bits)))
+                val output = master(Stream(spinal.core.Bits(8 bits)))
+              }
+              spinal.lib.StreamWidthAdapter(io.input, io.output, endianness = LITTLE, padding = true)
+            }
+
+            final class UpsizeLeaf(outputWidth: ElabInt) extends Component {
+              setDefinitionName("NativeStreamWidthAdapterUpsize")
+              val io = new Bundle {
+                val input = slave(Stream(spinal.core.Bits(8 bits)))
+                val output = master(Stream(spinal.core.Bits(outputWidth bits)))
+              }
+              spinal.lib.StreamWidthAdapter(io.input, io.output, endianness = LITTLE, padding = true)
+            }
+
+            final class Top(
+                equalWidth: ElabInt,
+                downWidth: ElabInt,
+                upWidth: ElabInt
+            ) extends Component {
+              setDefinitionName("NativeStreamWidthAdapterTop")
+
+              val equalInputValid = in Bool()
+              val equalInputReady = out Bool()
+              val equalInputPayload = in(spinal.core.Bits(equalWidth bits))
+              val equalOutputValid = out Bool()
+              val equalOutputReady = in Bool()
+              val equalOutputPayload = out(spinal.core.Bits(equalWidth bits))
+
+              val downInputValid = in Bool()
+              val downInputReady = out Bool()
+              val downInputPayload = in(spinal.core.Bits(downWidth bits))
+              val downOutputValid = out Bool()
+              val downOutputReady = in Bool()
+              val downOutputPayload = out spinal.core.Bits (8 bits)
+
+              val upInputValid = in Bool()
+              val upInputReady = out Bool()
+              val upInputPayload = in spinal.core.Bits (8 bits)
+              val upOutputValid = out Bool()
+              val upOutputReady = in Bool()
+              val upOutputPayload = out(spinal.core.Bits(upWidth bits))
+
+              val equal = new EqualLeaf(equalWidth)
+              equal.setName("equal")
+              val downsize = new DownsizeLeaf(downWidth)
+              downsize.setName("downsize")
+              val upsize = new UpsizeLeaf(upWidth)
+              upsize.setName("upsize")
+
+              equal.io.input.valid := equalInputValid
+              equal.io.input.payload := equalInputPayload
+              equalInputReady := equal.io.input.ready
+              equalOutputValid := equal.io.output.valid
+              equal.io.output.ready := equalOutputReady
+              equalOutputPayload := equal.io.output.payload
+
+              downsize.io.input.valid := downInputValid
+              downsize.io.input.payload := downInputPayload
+              downInputReady := downsize.io.input.ready
+              downOutputValid := downsize.io.output.valid
+              downsize.io.output.ready := downOutputReady
+              downOutputPayload := downsize.io.output.payload
+
+              upsize.io.input.valid := upInputValid
+              upsize.io.input.payload := upInputPayload
+              upInputReady := upsize.io.input.ready
+              upOutputValid := upsize.io.output.valid
+              upsize.io.output.ready := upOutputReady
+              upOutputPayload := upsize.io.output.payload
+            }
+
+            final class IndependentRootLeaf(
+                inputWidth: ElabInt,
+                outputWidth: ElabInt
+            ) extends Component {
+              setDefinitionName("NativeStreamWidthAdapterIndependentRoots")
+              val io = new Bundle {
+                val input = slave(Stream(spinal.core.Bits(inputWidth bits)))
+                val output = master(Stream(spinal.core.Bits(outputWidth bits)))
+              }
+              spinal.lib.StreamWidthAdapter(io.input, io.output, padding = true)
+            }
+
+            final class IndependentRootTop(
+                inputWidth: ElabInt,
+                outputWidth: ElabInt
+            ) extends Component {
+              setDefinitionName("NativeStreamWidthAdapterIndependentRootTop")
+              val io = new Bundle {
+                val input = slave(Stream(spinal.core.Bits(inputWidth bits)))
+                val output = master(Stream(spinal.core.Bits(outputWidth bits)))
+              }
+              val adapter = new IndependentRootLeaf(inputWidth, outputWidth)
+              adapter.setName("adapter")
+              adapter.io.input <> io.input
+              io.output <> adapter.io.output
+            }
+
+            def component(): Top =
+              new Top(
+                equalWidth = HdlInt.param("EQ_WIDTH", default = 8, min = 1, max = 32).asElabInt,
+                downWidth = HdlInt.param("DOWN_WIDTH", default = 12, min = 9, max = 16).asElabInt,
+                upWidth = HdlInt.param("UP_WIDTH", default = 12, min = 9, max = 16).asElabInt
+              )
+          }
+          '''
+          path.write_text(source[:start] + replacement + source[end:])
+          PY
+          git diff --check
+      - name: Run isolated canonical adapter suite
+        id: adapter
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          /tmp/mill 'morph[2.13.12].testOnly' \
+            morphhdl.ParameterizedStreamWidthAdapterTests \
+            > /tmp/inc53d-canonical.log 2>&1
+          status=$?
+          printf '%s\n' "$status" > /tmp/inc53d-canonical.status
+          cat /tmp/inc53d-canonical.log
+          exit "$status"
+      - name: Publish passing candidate or exact failure diagnosis
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(cat /tmp/inc53d-canonical.status 2>/dev/null || printf '1')"
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          if [ "$status" = 0 ]; then
+            git add \
+              docs/morphhdl/increment-53d-typed-native-change-manifest.md \
+              lib/src/main/scala/spinal/lib/Stream.scala \
+              morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala
+            git diff --cached --check
+            git commit -m 'Use direct typed widths in native StreamWidthAdapter proof'
+          else
+            {
+              echo '# Increment 53d canonical typed adapter diagnosis'
+              echo
+              echo "test_status=$status"
+              echo
+              grep -nEi 'NO DRIVER|SPINAL-ELAB|AssertionError|Exception|FAILED|error|downInputPayload' \
+                /tmp/inc53d-canonical.log || true
+              echo
+              echo '## Final 200 log lines'
+              tail -n 200 /tmp/inc53d-canonical.log
+            } > docs/morphhdl/increment-53d-canonical-fixture-result.txt
+            git add docs/morphhdl/increment-53d-canonical-fixture-result.txt
+            git commit -m 'Record Increment 53d canonical fixture diagnosis'
+          fi
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot
