@@ -1,0 +1,100 @@
+name: Publish Increment 53d direct typed adapter v2
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-direct-typed-fast-publisher-v2.yml
+      - morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64
+      - morphhdl/scripts/apply-increment-53d-direct-typed-port-fix.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53d-direct-typed-publisher-v2
+  cancel-in-progress: true
+
+jobs:
+  prove-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+      - name: Apply direct typed candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
+            | gzip -d \
+            | git apply --whitespace=nowarn
+          python3 morphhdl/scripts/apply-increment-53d-direct-typed-port-fix.py
+          git diff --check
+          actual="$(git diff --name-only | sort)"
+          expected="$(printf '%s\n' \
+            docs/morphhdl/increment-53d-typed-native-change-manifest.md \
+            lib/src/main/scala/spinal/lib/Stream.scala \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala | sort)"
+          test "$actual" = "$expected"
+      - name: Run isolated direct typed proof
+        id: proof
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          /tmp/mill 'morph[2.13.12].testOnly' \
+            morphhdl.ParameterizedStreamWidthAdapterTests \
+            > /tmp/increment-53d-direct-typed.log 2>&1
+          status=$?
+          cat /tmp/increment-53d-direct-typed.log
+          printf '%s\n' "$status" > /tmp/increment-53d-direct-typed.status
+          exit "$status"
+      - name: Publish exact diagnostic on proof failure
+        if: steps.proof.outcome != 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git reset --hard HEAD
+          mkdir -p docs/morphhdl/diagnostics
+          cp /tmp/increment-53d-direct-typed.log \
+            docs/morphhdl/diagnostics/increment-53d-direct-typed-latest.log
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add docs/morphhdl/diagnostics/increment-53d-direct-typed-latest.log
+          git commit -m 'Record Increment 53d direct typed adapter diagnostic'
+          git pull --rebase origin agent/increment-53d-typed-elabint-pivot
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot
+      - name: Fail after preserving diagnostic
+        if: steps.proof.outcome != 'success'
+        shell: bash
+        run: exit 1
+      - name: Commit validated direct typed source
+        if: steps.proof.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add \
+            docs/morphhdl/increment-53d-typed-native-change-manifest.md \
+            lib/src/main/scala/spinal/lib/Stream.scala \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala
+          git diff --cached --check
+          git commit -m 'Use direct ElabInt widths in StreamWidthAdapter'
+          git pull --rebase origin agent/increment-53d-typed-elabint-pivot
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot
