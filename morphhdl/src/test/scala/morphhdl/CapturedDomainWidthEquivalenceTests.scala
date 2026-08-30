@@ -178,6 +178,51 @@ object CapturedDomainWidthEquivalenceSmoke {
     observed := (source.resize(targetWidth).asBits ## False)
   }
 
+  final class TypedBitsResizeWholeAssignment(targetWidth: ElabInt)
+      extends Component {
+    setDefinitionName("TypedBitsResizeWholeAssignment")
+
+    val source = in Bits (16 bits)
+    val observed = out Bits (targetWidth bits)
+
+    observed := source.resize(targetWidth)
+  }
+
+  final class TypedBitsResizeCrossingInputWidth(targetWidth: ElabInt)
+      extends Component {
+    setDefinitionName("TypedBitsResizeCrossingInputWidth")
+
+    val source = in Bits (4 bits)
+    val observed = out Bits (targetWidth bits)
+
+    observed := source.resize(targetWidth)
+  }
+
+  final class TypedBitsResizeNamedFixedCarrier(
+      sourceWidth: ElabInt,
+      targetWidth: ElabInt
+  ) extends Component {
+    setDefinitionName("TypedBitsResizeNamedFixedCarrier")
+
+    val source = in Bits (sourceWidth bits)
+    val observed = out Bits (targetWidth bits)
+    val carrier = Bits(4 bits)
+    carrier.setName("named_fixed_carrier")
+
+    carrier := source
+    observed := carrier.resize(targetWidth)
+  }
+
+  final class TypedBitsResizeTransientCast(targetWidth: ElabInt)
+      extends Component {
+    setDefinitionName("TypedBitsResizeTransientCast")
+
+    val source = in SInt (3 bits)
+    val observed = out Bits (targetWidth bits)
+
+    observed := source.asBits.resize(targetWidth)
+  }
+
   final class TypedBitsResizeNestedOperand(
       sourceWidth: ElabInt,
       targetWidth: ElabInt
@@ -477,6 +522,106 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
           )
         case Right(report) =>
           fail(s"Expected unsupported nested typed resize, received $report")
+      }
+      assert(!Files.exists(directory.resolve(fileName)))
+    }
+  }
+
+  test("a typed Bits resize survives as an exact whole assignment") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      val fileName = "typed_bits_resize_whole_assignment.v"
+      config.netlistFileName = fileName
+      val targetWidth =
+        HdlInt.param("TARGET_WIDTH", default = 3, min = 2, max = 4).asElabInt
+
+      MorphVerilog(config) {
+        new TypedBitsResizeWholeAssignment(targetWidth)
+      }
+
+      val verilog = new String(
+        Files.readAllBytes(directory.resolve(fileName)),
+        StandardCharsets.UTF_8
+      )
+      val compact = verilog.replaceAll("\\s+", "")
+      assert(verilog.contains("parameter integer TARGET_WIDTH = 3"), verilog)
+      assert(compact.contains("outputwire[TARGET_WIDTH-1:0]observed"), verilog)
+      assert(compact.contains("source[TARGET_WIDTH-1:0]"), verilog)
+    }
+  }
+
+  test("a typed whole-assignment resize cannot cross its fixed input width") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      val fileName = "typed_bits_resize_crossing_input_width.v"
+      config.netlistFileName = fileName
+      val targetWidth =
+        HdlInt.param("TARGET_WIDTH", default = 3, min = 3, max = 5).asElabInt
+
+      MorphVerilog.tryGenerate(config) {
+        new TypedBitsResizeCrossingInputWidth(targetWidth)
+      } match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-PARAMETERIZED-VERILOG-NESTED-TYPED-RESIZE-UNSUPPORTED"
+            ),
+            failure.detail
+          )
+        case Right(report) =>
+          fail(s"Expected crossing typed resize rejection, received $report")
+      }
+      assert(!Files.exists(directory.resolve(fileName)))
+    }
+  }
+
+  test("a named fixed carrier cannot launder a symbolic resize input width") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      val fileName = "typed_bits_resize_named_fixed_carrier.v"
+      config.netlistFileName = fileName
+      val sourceWidth =
+        HdlInt.param("SOURCE_WIDTH", default = 4, min = 2, max = 4).asElabInt
+      val targetWidth =
+        HdlInt.param("TARGET_WIDTH", default = 3, min = 3, max = 4).asElabInt
+
+      MorphVerilog.tryGenerate(config) {
+        new TypedBitsResizeNamedFixedCarrier(sourceWidth, targetWidth)
+      } match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-PARAMETERIZED-VERILOG-NESTED-TYPED-RESIZE-UNSUPPORTED"
+            ),
+            failure.detail
+          )
+        case Right(report) =>
+          fail(s"Expected named-carrier typed resize rejection, received $report")
+      }
+      assert(!Files.exists(directory.resolve(fileName)))
+    }
+  }
+
+  test("a witness-equal typed resize cannot launder transient cast signedness") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      val fileName = "typed_bits_resize_transient_cast.v"
+      config.netlistFileName = fileName
+      val targetWidth =
+        HdlInt.param("TARGET_WIDTH", default = 3, min = 3, max = 4).asElabInt
+
+      MorphVerilog.tryGenerate(config) {
+        new TypedBitsResizeTransientCast(targetWidth)
+      } match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-PARAMETERIZED-VERILOG-NESTED-TYPED-RESIZE-UNSUPPORTED"
+            ),
+            failure.detail
+          )
+        case Right(report) =>
+          fail(s"Expected transient-cast typed resize rejection, received $report")
       }
       assert(!Files.exists(directory.resolve(fileName)))
     }

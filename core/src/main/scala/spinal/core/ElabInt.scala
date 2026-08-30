@@ -1480,7 +1480,10 @@ object ElabInt {
     left.verilog == right.verilog &&
       left.default == right.default &&
       left.parameters == right.parameters &&
-      sameParameterRoots(left.parameterRoots, right.parameterRoots) &&
+      sameParameterRoots(
+        left.completedParameterRoots,
+        right.completedParameterRoots
+      ) &&
       sameExactDomain(left.exactDomain, right.exactDomain) &&
       sameProjection(left.projectionProvenance, right.projectionProvenance)
 

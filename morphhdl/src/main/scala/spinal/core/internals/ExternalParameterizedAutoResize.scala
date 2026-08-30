@@ -87,6 +87,8 @@ object ExternalParameterizedAutoResize {
     val drivingUseCount = new IdentityHashMap[BaseType, java.lang.Integer]()
     val typedResizeCarriers =
       new IdentityHashMap[BitVector, java.lang.Boolean]()
+    val directTypedConsumers =
+      new IdentityHashMap[BitVector, ArrayBuffer[DataAssignmentStatement]]()
     val syntheticBySource =
       new IdentityHashMap[UInt, java.lang.Boolean]()
     val syntheticRecords = ArrayBuffer.empty[SyntheticBooleanRecord]
@@ -112,6 +114,20 @@ object ExternalParameterizedAutoResize {
               if (outer.finalTarget eq value) &&
                 value.hasTag(ParameterizedWidth.TypedResizeCaptureTag) =>
             typedResizeCarriers.put(value, java.lang.Boolean.TRUE)
+          case _ =>
+        }
+        (outer.target, outer.source) match {
+          case (target: BitVector, source: BitVector)
+              if (outer.finalTarget eq target) &&
+                (target.component eq component) &&
+                (source.component eq component) &&
+                source.hasTag(ParameterizedWidth.TypedResizeCaptureTag) =>
+            var consumers = directTypedConsumers.get(source)
+            if (consumers == null) {
+              consumers = ArrayBuffer.empty[DataAssignmentStatement]
+              directTypedConsumers.put(source, consumers)
+            }
+            consumers += outer
           case _ =>
         }
         syntheticBooleanRecord(
@@ -271,11 +287,175 @@ object ExternalParameterizedAutoResize {
     if (!storage.byStatement.isEmpty || storage.syntheticBoolean.nonEmpty) {
       component.userCache.update(StorageKey, storage)
     }
+
+    def survivesUnnamedRemoval(value: BitVector): Boolean = {
+      val useCount = drivingUseCount.get(value)
+      !value.isDirectionLess || value.isNamed || value.dontSimplify ||
+      useCount == null || useCount.intValue() != 1
+    }
+
+    /** The generalized whole-assignment path renders a symbolic narrowing
+      * select from the original Resize input. Admit only the small native
+      * fixed-width expression grammar used by StreamWidthAdapter; a witness
+      * width for any other node is not exact publication-time evidence.
+      */
+    def hasInvariantPackedWidth(expression: Expression): Boolean = {
+      val states =
+        new IdentityHashMap[Expression, java.lang.Boolean]()
+      val activeBases =
+        new IdentityHashMap[BaseType, java.lang.Boolean]()
+
+      def visit(current: Expression): Boolean = {
+        if (current == null) return false
+        current match {
+          // Width inference treats a self-reference reached through one
+          // already-reviewed fixed declaration as that declaration's width.
+          case value: BaseType if activeBases.containsKey(value) => return true
+          case _ =>
+        }
+        val known = states.get(current)
+        // FALSE marks an active or already-rejected generic node. Only the
+        // explicit BaseType case above may close its own fixed-width cycle.
+        if (known != null) return known.booleanValue()
+        states.put(current, java.lang.Boolean.FALSE)
+
+        val invariant = current match {
+          case value: BaseType
+              if (value.component ne component) ||
+                value.hasTag(tagAutoResize) ||
+                value.hasTag(ParameterizedWidth.TypedResizeCaptureTag) ||
+                ParameterizedWidth.expressionOf(value).nonEmpty ||
+                (value match {
+                  case uint: UInt =>
+                    ExternalParameterizedValueRegistry.recordOf(uint).nonEmpty
+                  case _ => false
+                }) =>
+            false
+          case value: BaseType =>
+            val fullDrivers = ArrayBuffer.empty[DataAssignmentStatement]
+            value.foreachStatements {
+              case driver: DataAssignmentStatement
+                  if (driver.target eq value) &&
+                    (driver.finalTarget eq value) =>
+                fullDrivers += driver
+              case _ =>
+            }
+            activeBases.put(value, java.lang.Boolean.TRUE)
+            try {
+              if (fullDrivers.nonEmpty)
+                fullDrivers.forall(driver => visit(driver.source))
+              else value.isInput
+            } finally activeBases.remove(value)
+          case value: BitVectorLiteral =>
+            value.getWidth >= 0
+          case value: Operator.Bits.Cat =>
+            value.getWidth == value.left.getWidth + value.right.getWidth &&
+              visit(value.left) && visit(value.right)
+          case value: CastBitVectorToBitVector =>
+            value.input != null &&
+              value.getWidth == value.input.getWidth &&
+              visit(value.input)
+          case value: Operator.BitVector.ShiftRightByIntFixedWidth =>
+            value.source != null &&
+              value.getWidth == value.source.getWidth &&
+              visit(value.source)
+          case value: Operator.BitVector.ShiftLeftByIntFixedWidth =>
+            value.source != null &&
+              value.getWidth == value.source.getWidth &&
+              visit(value.source)
+          case value: Operator.BitVector.ShiftRightByInt =>
+            value.source != null && value.shift >= 0 &&
+              value.getWidth == Math.max(
+                0,
+                value.source.getWidth - value.shift
+              ) &&
+              visit(value.source)
+          case value: Operator.BitVector.ShiftLeftByInt =>
+            value.source != null && value.shift >= 0 &&
+              BigInt(value.getWidth) ==
+                BigInt(value.source.getWidth) + BigInt(value.shift) &&
+              visit(value.source)
+          // Resize may carry another typed target; memory reads and all
+          // unreviewed operators need their own publication-time width proof.
+          case _ => false
+        }
+        if (invariant) states.put(current, java.lang.Boolean.TRUE)
+        invariant
+      }
+
+      visit(expression)
+    }
+
+    def reviewedWholeAssignmentBoundary(value: BitVector): Boolean = {
+      val consumers = directTypedConsumers.get(value)
+      if (consumers == null || consumers.size != 1) return false
+
+      val outer = consumers.head
+      val target = outer.target match {
+        case candidate: BitVector
+            if (outer.finalTarget eq candidate) &&
+              (outer.source eq value) &&
+              candidate.getBitsWidth == value.getBitsWidth =>
+          candidate
+        case _ => return false
+      }
+      val targetWidth =
+        ParameterizedWidth.expressionOf(target).filter(_.parameters.nonEmpty)
+      val resizeWidth =
+        ParameterizedWidth.expressionOf(value).filter(_.parameters.nonEmpty)
+      val resize =
+        if (!value.hasOnlyOneStatement) None
+        else
+          value.head match {
+            case driver: DataAssignmentStatement
+                if (driver.target eq value) &&
+                  (driver.finalTarget eq value) =>
+              driver.source match {
+                case candidate: Resize
+                    if candidate.getTypeObject == value.getTypeObject &&
+                      candidate.size == value.getBitsWidth &&
+                      candidate.input.getWidth != 0 &&
+                      candidate.input.getWidth != candidate.size =>
+                  Some(candidate)
+                case _ => None
+              }
+            case _ => None
+          }
+
+      (targetWidth, resizeWidth, resize) match {
+        case (Some(expected), Some(retained), Some(operation))
+            if ExternalFormalParameterRegistry.equivalentExpression(
+              expected,
+              retained
+            ) &&
+              ParameterizedWidth
+                .resizeExpressionOf(operation)
+                .exists(expression =>
+                  ExternalFormalParameterRegistry.equivalentExpression(
+                    expression,
+                    retained
+                  )
+                ) &&
+              hasInvariantPackedWidth(operation.input) &&
+              retained.maximum <= BigInt(operation.input.getWidth) &&
+              survivesUnnamedRemoval(target) =>
+          ParameterizedStructure.validateProjectedAssignmentDominance(
+            component,
+            outer,
+            retained,
+            "typed packed resize whole-assignment target width",
+            retained.sourceLocation
+          )
+          true
+        case _ => false
+      }
+    }
+
     val typedCarrierIterator = typedResizeCarriers.keySet().iterator()
     while (typedCarrierIterator.hasNext) {
       val value = typedCarrierIterator.next()
       val useCount = drivingUseCount.get(value)
-      val reviewedDirectBoundary = value match {
+      val reviewedNormalizedUIntBoundary = value match {
         case uint: UInt =>
           Option(storage.byResizeSource.get(uint)).exists { record =>
             val targetUseCount = drivingUseCount.get(record.target)
@@ -285,6 +465,9 @@ object ExternalParameterizedAutoResize {
           }
         case _ => false
       }
+      val reviewedDirectBoundary =
+        reviewedNormalizedUIntBoundary ||
+          reviewedWholeAssignmentBoundary(value)
       // The capture tag intentionally prevents native simplification while
       // identities are collected. Judge the next phase only after consuming
       // that marker, exactly as publication will see the carrier.

@@ -36,7 +36,7 @@
       "path": "core/src/main/scala/spinal/core/ElabInt.scala",
       "change": "added",
       "classification": "typed-helper",
-      "blob": "afe6aca3b8f350faba5c1c41c25ccd63fcdf52d6",
+      "blob": "b0dc24e9a93349c6f9c0bd0ebf3fe2f153b302fe",
       "reason": "provide the single neutral ElabInt and ElabBool carrier with exact declaration-root, evidence and projection identity"
     },
     {
