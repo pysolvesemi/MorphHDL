@@ -14,6 +14,8 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 EXPECTED_REPOSITORY = "pysolvesemi/MorphHDL"
 DEFAULT_MANIFEST = "morphhdl/contracts/native-source-preservation.json"
+TYPED_OVERLAY_MANIFEST = "morphhdl/contracts/typed-native-source-overlay.json"
+TYPED_OVERLAY_GUARD = "morphhdl/scripts/check-typed-native-source-overlay.py"
 ALLOWED_CLASSIFICATIONS = {
     "direct_edit",
     "morphhdl_sidecar",
@@ -249,7 +251,12 @@ def validate_manifest_shape(manifest: Mapping[str, Any]) -> Tuple[
     )
 
 
-def check_repository(repo_root: Path, manifest_path: Path) -> None:
+def check_repository(
+    repo_root: Path,
+    manifest_path: Path,
+    *,
+    head_override: Optional[str] = None,
+) -> None:
     manifest = load_manifest(manifest_path)
     (
         baseline_commit,
@@ -262,6 +269,8 @@ def check_repository(repo_root: Path, manifest_path: Path) -> None:
 
     resolve_commit(repo_root, baseline_commit, "baseline.commit")
     resolve_commit(repo_root, approved_commit, "approved_state.commit")
+    if head_override is not None:
+        resolve_commit(repo_root, head_override, "head_override")
     actual_baseline_tree = resolve_tree(repo_root, baseline_commit)
     actual_approved_tree = resolve_tree(repo_root, approved_commit)
     if actual_baseline_tree != baseline_tree:
@@ -275,7 +284,11 @@ def check_repository(repo_root: Path, manifest_path: Path) -> None:
     if not is_ancestor(repo_root, baseline_commit, approved_commit):
         raise GuardError("baseline.commit is not an ancestor of approved_state.commit")
 
-    head = run_git(repo_root, ["rev-parse", "HEAD"]).stdout.strip()
+    head = (
+        resolve_commit(repo_root, head_override, "head_override")
+        if head_override is not None
+        else run_git(repo_root, ["rev-parse", "HEAD"]).stdout.strip()
+    )
     if not is_ancestor(repo_root, approved_commit, head):
         raise GuardError(
             "approved_state.commit is not an ancestor of HEAD; rebase or review a new approved state"
@@ -308,7 +321,7 @@ def check_repository(repo_root: Path, manifest_path: Path) -> None:
             details.append(
                 "status-mismatch="
                 + ", ".join(
-                    f"{path}:{expected_changes[path]}->{actual_changes[path]}"
+                    f"{path}:{expected_changes[path}}->{actual_changes[path}"
                     for path in mismatched
                 )
             )
@@ -503,7 +516,51 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         manifest_path = Path(arguments.manifest)
         if not manifest_path.is_absolute():
             manifest_path = repo_root / manifest_path
-        check_repository(repo_root, manifest_path)
+        overlay_path = repo_root / TYPED_OVERLAY_MANIFEST
+        if (
+            arguments.manifest == DEFAULT_MANIFEST
+            and overlay_path.is_file()
+        ):
+            overlay = load_manifest(overlay_path)
+            base = overlay.get("base")
+            if not isinstance(base, dict):
+                raise GuardError("typed native overlay base must be a JSON object")
+            typed_base = require_sha1(
+                base.get("commit"),
+                "typed_native_overlay.base.commit",
+            )
+            # Prove the complete historical zero-edit contract at the exact
+            # architecture-pivot base, then prove only the reviewed typed
+            # overlay from that immutable base to the current HEAD.
+            check_repository(
+                repo_root,
+                manifest_path,
+                head_override=typed_base,
+            )
+            guard = repo_root / TYPED_OVERLAY_GUARD
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(guard),
+                    "--repo-root",
+                    str(repo_root),
+                    "--manifest",
+                    str(overlay_path),
+                ],
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            if result.stdout:
+                print(result.stdout.rstrip())
+            if result.returncode != 0:
+                detail = result.stderr.strip() or result.stdout.strip()
+                raise GuardError(
+                    "typed native-source overlay validation failed: " + detail
+                )
+        else:
+            check_repository(repo_root, manifest_path)
         return 0
     except GuardError as error:
         print(f"Native-source preservation guard failed: {error}", file=sys.stderr)

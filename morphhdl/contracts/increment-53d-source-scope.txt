@@ -16,6 +16,7 @@ frontend/src/main/scala/morphhdl/frontend/HdlInt.scala
 lib/src/main/scala/spinal/lib/Stream.scala
 morphhdl/contracts/increment-53d-source-scope.txt
 morphhdl/contracts/typed-native-source-overlay.json
+morphhdl/scripts/check-native-source-preservation.py
 morphhdl/scripts/check-typed-native-source-overlay.py
 morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
 morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala
