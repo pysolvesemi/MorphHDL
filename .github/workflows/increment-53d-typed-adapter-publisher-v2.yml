@@ -1,4 +1,4 @@
-name: Diagnose Increment 53d direct typed StreamWidthAdapter
+name: Export Increment 53d direct typed adapter candidate
 
 on:
   push:
@@ -13,31 +13,19 @@ permissions:
   contents: read
 
 concurrency:
-  group: increment-53d-direct-typed-adapter-diagnostic
+  group: increment-53d-direct-typed-adapter-export
   cancel-in-progress: true
 
 jobs:
-  diagnose:
+  export:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
-    container:
-      image: ghcr.io/spinalhdl/docker:v1.2.0
-    env:
-      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           ref: agent/increment-53d-typed-elabint-pivot
           fetch-depth: 0
-      - name: Install pinned Mill
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --location --retry 5 --retry-all-errors \
-            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
-            --output /tmp/mill
-          chmod +x /tmp/mill
-      - name: Apply direct typed adapter candidate
+      - name: Apply direct typed candidate
         shell: bash
         run: |
           set -euo pipefail
@@ -45,30 +33,16 @@ jobs:
             | gzip -d \
             | git apply --whitespace=nowarn
           git diff --check
-      - name: Run isolated adapter suite and retain full diagnostic
-        id: test
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          /tmp/mill morph[2.13.12].testOnly \
-            morphhdl.ParameterizedStreamWidthAdapterTests \
-            > /tmp/inc53d-direct-typed-adapter.log 2>&1
-          status=$?
-          printf '%s\n' "$status" > /tmp/inc53d-direct-typed-adapter.status
-          cat /tmp/inc53d-direct-typed-adapter.log
-          exit "$status"
-      - name: Upload full adapter diagnostic
-        if: always()
+      - name: Upload exact post-patch source
         uses: actions/upload-artifact@v4
         with:
-          name: inc53d-direct-typed-adapter-diagnostic
+          name: inc53d-direct-typed-source
           path: |
-            /tmp/inc53d-direct-typed-adapter.log
-            /tmp/inc53d-direct-typed-adapter.status
+            core/src/main/scala/spinal/core/ElabInt.scala
+            core/src/main/scala/spinal/core/ParameterizedWidth.scala
+            lib/src/main/scala/spinal/lib/Stream.scala
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala
+            docs/morphhdl/increment-53d-typed-native-change-manifest.md
           if-no-files-found: error
           retention-days: 2
-      - name: Preserve isolated-suite result
-        if: always()
-        shell: bash
-        run: exit "$(cat /tmp/inc53d-direct-typed-adapter.status 2>/dev/null || printf '1')"
