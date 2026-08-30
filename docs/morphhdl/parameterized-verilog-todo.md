@@ -464,7 +464,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   2.12.18 and 2.13.12 in the pinned formal toolchain while retaining the native
   source-preservation boundary.
 
-- [ ] **Increment 53d — Typed elaboration carriers and native StreamWidthAdapter migration**
+- [x] **Increment 53d — Typed elaboration carriers and native StreamWidthAdapter migration**
 
   **Dependencies:** Increment 53c implemented and merged.
 
