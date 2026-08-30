@@ -11,6 +11,7 @@ on:
 permissions:
   contents: read
 
+# Export trigger after lexical typed-control repair.
 jobs:
   export:
     runs-on: ubuntu-latest
