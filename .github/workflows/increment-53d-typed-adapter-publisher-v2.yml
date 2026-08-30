@@ -8,6 +8,7 @@ on:
       - .github/workflows/increment-53d-typed-adapter-publisher-v2.yml
       - morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64
       - morphhdl/scripts/increment-53d-typed-factory-dispatch.patch.gz.b64
+      - morphhdl/scripts/increment-53d-typed-factory-direction-test.patch.gz.b64
       - morphhdl/scripts/increment-53d-direction-probe.patch.gz.b64
   workflow_dispatch:
 
@@ -39,7 +40,7 @@ jobs:
             https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
             --output /tmp/mill
           chmod +x /tmp/mill
-      - name: Apply typed adapter, factory repair, and direction assertions
+      - name: Apply typed adapter, factory repair, and direction regressions
         shell: bash
         run: |
           set -euo pipefail
@@ -49,11 +50,14 @@ jobs:
           base64 -d morphhdl/scripts/increment-53d-typed-factory-dispatch.patch.gz.b64 \
             | gzip -d \
             | git apply --whitespace=nowarn
+          base64 -d morphhdl/scripts/increment-53d-typed-factory-direction-test.patch.gz.b64 \
+            | gzip -d \
+            | git apply --whitespace=nowarn
           base64 -d morphhdl/scripts/increment-53d-direction-probe.patch.gz.b64 \
             | gzip -d \
             | git apply --whitespace=nowarn
           git diff --check
-      - name: Run isolated adapter suite
+      - name: Run isolated adapter and factory suites
         id: test
         continue-on-error: true
         shell: bash
@@ -61,6 +65,7 @@ jobs:
           set +e
           /tmp/mill morph[2.13.12].testOnly \
             morphhdl.ParameterizedStreamWidthAdapterTests \
+            morphhdl.TypedParameterizedFactoryDirectionTests \
             > /tmp/inc53d-factory-repair.log 2>&1
           status=$?
           printf '%s\n' "$status" > /tmp/inc53d-factory-repair.status
