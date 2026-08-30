@@ -43,3 +43,16 @@ class ExternalNativeIntShadowBooleanIdentityTests extends AnyFunSuite {
     )
   }
 }
+
+/** Test-only access to exact roots completed inside the owning core package. */
+object ExternalNativeIntCompletedRootTestProbe {
+  def apply(
+      expression: ElaborationIntegerExpression
+  ): Vector[ElaborationIntegerParameterRoot] =
+    expression.completedParameterRoots
+
+  def apply(
+      expression: ElaborationBooleanExpression
+  ): Vector[ElaborationIntegerParameterRoot] =
+    expression.completedParameterRoots
+}

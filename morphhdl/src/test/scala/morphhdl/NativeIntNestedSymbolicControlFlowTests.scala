@@ -184,10 +184,32 @@ class NativeIntNestedSymbolicControlFlowTests extends AnyFunSuite {
 
   test("nested alternatives retain loops locals registers memory Areas ClockingAreas naming and assignments") {
     withTemporaryDirectory { directory =>
+      var top: NestedTop = null
       val verilog = emitMorph(directory, "native_int_nested_hardware.v") {
         val width = HdlInt.param("WIDTH", default = 18, min = 1, max = 32)
-        new NestedTop(width)
+        top = new NestedTop(width)
+        top
       }
+      val geometryExpression = ExternalNativeIntFormalizationRegistry
+        .regionOf(top.leaf.payloadIn)
+        .getOrElse(fail("missing exact formalized child-port region"))
+        .expression
+      val geometryRoot = ExternalNativeIntCompletedRootTestProbe(
+        geometryExpression
+      )
+        .headOption
+        .getOrElse(fail("formalized child port lost its declaration root"))
+      val definitionRoots = ExternalNativeIntShadowRegistry
+        .componentRecordsOf(top.leaf)
+        .flatMap(record =>
+          record.slots.flatMap(slot =>
+            ExternalNativeIntCompletedRootTestProbe(slot.definitionExpression)
+          ) ++ record.predicates.flatMap(predicate =>
+            ExternalNativeIntCompletedRootTestProbe(predicate.definitionExpression)
+          )
+        )
+      assert(definitionRoots.nonEmpty)
+      assert(definitionRoots.forall(root => root eq geometryRoot))
       val compact = verilog.replaceAll("\\s+", "")
       assert(compact.contains("WIDTH>16") || compact.contains("(WIDTH)>(16)"))
       assert(

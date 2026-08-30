@@ -177,6 +177,8 @@ class NativeIntSymbolicConditionalTests extends AnyFunSuite {
       assert(leftRecord.predicates.forall(_.definitionExpression.verilog.contains("WIDTH")))
       assert(leftRecord.predicates.forall(_.actualExpression.verilog.contains("LEFT_WIDTH")))
       assert(rightRecord.predicates.forall(_.actualExpression.verilog.contains("RIGHT_WIDTH")))
+      assertOneDefinitionRoot(top.left, leftRecord)
+      assertOneDefinitionRoot(top.right, rightRecord)
     }
   }
 
@@ -267,6 +269,31 @@ class NativeIntSymbolicConditionalTests extends AnyFunSuite {
     val records = ExternalNativeIntShadowRegistry.componentRecordsOf(component)
     assert(records.size == 1, records)
     records.head
+  }
+
+  private def assertOneDefinitionRoot(
+      component: ConditionalLeaf,
+      record: ExternalNativeIntComponentShadowRecord
+  ): Unit = {
+    val widthExpressions = Vector(component.din, component.dout).map { value =>
+      ParameterizedWidth.expressionOf(value).getOrElse {
+        fail(s"missing retained WIDTH expression on ${value.getName()}")
+      }
+    }
+    val definitionExpressions =
+      widthExpressions ++ record.slots.map(_.definitionExpression)
+    val predicateExpressions = record.predicates.map(_.definitionExpression)
+    val roots =
+      definitionExpressions.flatMap(ExternalNativeIntCompletedRootTestProbe(_)) ++
+        predicateExpressions.flatMap(ExternalNativeIntCompletedRootTestProbe(_))
+    assert(roots.nonEmpty)
+    assert(roots.forall(_ eq roots.head), roots)
+    val parameters =
+      definitionExpressions.flatMap(_.parameters) ++
+        predicateExpressions.flatMap(_.parameters)
+    assert(
+      parameters.forall(_ eq record.binding.formal)
+    )
   }
 
   private def emitMorph(

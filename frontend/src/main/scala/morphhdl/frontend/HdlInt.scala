@@ -750,26 +750,19 @@ object HdlInt {
         origin
       )
     }
+    val formal = spinal.core.ElaborationIntegerParameter(
+      name,
+      actual.default,
+      minimum,
+      maximum
+    )
     spinal.core.ElaborationIntegerExpression(
       verilog = name,
       default = actual.default,
       minimum = minimum,
       maximum = maximum,
-      parameters = Vector(
-        spinal.core.ElaborationIntegerParameter(
-          name,
-          actual.default,
-          minimum,
-          maximum
-        )
-      ),
-      sourceLocation = Some(origin.rendered),
-      parameterRoots = Vector(
-        spinal.core.ElaborationIntegerParameterRoot.fresh(
-          name,
-          Some(origin.rendered)
-        )
-      )
+      parameters = Vector(formal),
+      sourceLocation = Some(origin.rendered)
     )
   }
 
@@ -786,7 +779,8 @@ object HdlInt {
       maximum: BigInt,
       ownerClassName: String,
       declarationKey: String,
-      origin: SourceOrigin
+      origin: SourceOrigin,
+      provisionalFormal: Option[ElaborationIntegerParameter] = None
   ): ExternalFormalParameterBinding = {
     if (actual eq null) {
       FrontendException.failAt(
@@ -826,12 +820,32 @@ object HdlInt {
         origin
       )
     }
+    if (provisionalFormal == null || provisionalFormal.exists(_ == null)) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-FORMAL-PARAMETER-PROVISIONAL-NULL",
+        s"formal parameter '$name' requires a non-null provisional-formal option",
+        origin
+      )
+    }
     if (actual.formalBinding.nonEmpty) {
       FrontendException.failAt(
         "MORPH-FRONTEND-FORMAL-PARAMETER-NESTED",
         s"formal parameter '$name' cannot use another component-definition formal as its instance actual",
         origin
       )
+    }
+
+    provisionalFormal.foreach { formal =>
+      if (
+        formal.name != name || formal.default != actual.witness ||
+        formal.minimum != minimum || formal.maximum != maximum
+      ) {
+        FrontendException.failAt(
+          "MORPH-FRONTEND-FORMAL-PARAMETER-PROVISIONAL-SCHEMA-MISMATCH",
+          s"provisional formal '${formal.name}' with default ${formal.default} in [${formal.minimum}, ${formal.maximum}] does not match requested formal '$name' with default ${actual.witness} in [$minimum, $maximum]",
+          origin
+        )
+      }
     }
 
     val retainedActual = nativeIntExpression(
@@ -849,13 +863,16 @@ object HdlInt {
       )
     }
 
-    ExternalFormalParameterBinding(
-      formal = ElaborationIntegerParameter(
+    val formal = provisionalFormal.getOrElse(
+      ElaborationIntegerParameter(
         name,
         retainedActual.default,
         minimum,
         maximum
-      ),
+      )
+    )
+    ExternalFormalParameterBinding(
+      formal = formal,
       actual = retainedActual,
       declarationKey = declarationKey,
       ownerClassName = ownerClassName,
