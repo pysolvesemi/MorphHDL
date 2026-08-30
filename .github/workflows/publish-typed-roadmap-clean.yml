@@ -1,0 +1,46 @@
+name: Publish clean typed-elaboration roadmap
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-roadmap-clean
+    paths:
+      - .github/workflows/publish-typed-roadmap-clean.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-roadmap-clean
+          fetch-depth: 0
+      - name: Copy only approved typed architecture documents
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin agent/increment-53d-typed-elabint-pivot
+          git show origin/agent/increment-53d-typed-elabint-pivot:docs/morphhdl/parameterized-verilog-todo.md > docs/morphhdl/parameterized-verilog-todo.md
+          git show origin/agent/increment-53d-typed-elabint-pivot:docs/morphhdl/typed-elaboration-architecture.md > docs/morphhdl/typed-elaboration-architecture.md
+          grep -Fq 'Authoritative typed-elaboration architecture from Increment 53d onward' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Increment 53d — Typed elaboration pivot and native StreamWidthAdapter closure' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Approved production architecture from Increment 53d onward' docs/morphhdl/typed-elaboration-architecture.md
+          git diff --check
+      - name: Commit clean documentation-only result
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git rm .github/workflows/publish-typed-roadmap-clean.yml
+          git add docs/morphhdl/parameterized-verilog-todo.md docs/morphhdl/typed-elaboration-architecture.md
+          actual="$(git diff --cached --name-only | sort)"
+          expected="$(printf '%s\n' docs/morphhdl/parameterized-verilog-todo.md docs/morphhdl/typed-elaboration-architecture.md .github/workflows/publish-typed-roadmap-clean.yml | sort)"
+          test "$actual" = "$expected"
+          git commit -m 'Adopt typed elaboration architecture from Increment 53d'
+          git push origin HEAD:agent/increment-53d-typed-roadmap-clean
