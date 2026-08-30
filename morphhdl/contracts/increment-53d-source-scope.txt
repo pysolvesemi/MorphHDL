@@ -1,5 +1,6 @@
 .github/workflows/increment-53d-typed-streamwidthadapter.yml
 .github/workflows/morphhdl-native-source-guard.yml
+.github/workflows/morphhdl-native-stream-width-adapter.yml
 .github/workflows/morphhdl-typed-elaboration-values.yml
 core/src/main/scala/spinal/core/BitVector.scala
 core/src/main/scala/spinal/core/Bits.scala
