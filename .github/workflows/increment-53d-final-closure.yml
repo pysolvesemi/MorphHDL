@@ -1,0 +1,207 @@
+name: Close Increment 53d typed StreamWidthAdapter
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - lib/src/main/scala/spinal/lib/Stream.scala
+      - morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala
+      - docs/morphhdl/increment-53d-typed-native-change-manifest.md
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53d-final-closure
+  cancel-in-progress: true
+
+jobs:
+  source-contract:
+    name: Typed source and acceptance contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Verify committed direct typed implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          python3 - <<'PY'
+          from pathlib import Path
+
+          stream = Path('lib/src/main/scala/spinal/lib/Stream.scala').read_text()
+          start = stream.index('object StreamWidthAdapter {')
+          end = stream.index('//padding=true allow', start)
+          body = stream[start:end]
+          required = (
+              'widthOfExpr(input.payload)',
+              'widthOfExpr(output.payload)',
+              'ElabInt.requireSingleSymbolicRoot',
+          )
+          for token in required:
+              assert token in body, token
+          forbidden = (
+              'NativeIntShadow',
+              'withWidthFunctionBoundary',
+              'rewriteParameterizedStreamWidthAdapter',
+          )
+          for token in forbidden:
+              assert token not in body, token
+
+          test = Path(
+              'morphhdl/src/test/scala/morphhdl/'
+              'ParameterizedStreamWidthAdapterTests.scala'
+          ).read_text()
+          fixture_start = test.index('object ParameterizedStreamWidthAdapterSmoke {')
+          fixture_end = test.index('class ParameterizedStreamWidthAdapterTests', fixture_start)
+          fixture = test[fixture_start:fixture_end]
+          for token in ('equalWidth: ElabInt', 'downWidth: ElabInt', 'upWidth: ElabInt'):
+              assert token in fixture, token
+          assert '.asElabInt' in fixture
+          assert 'spinal.core.Bits(' in fixture
+          assert 'morphhdl.frontend.Bits(' not in fixture
+          assert 'NativeIntShadow' not in fixture
+          assert 'formalComponent' not in fixture
+          assert 'SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED' in test
+
+          widths = Path('core/src/main/scala/spinal/core/ParameterizedWidth.scala').read_text()
+          for token in ('def attachResize[T <: BitVector]', 'def resizeExpressionOf'):
+              assert token in widths, token
+
+          manifest = Path(
+              'docs/morphhdl/increment-53d-typed-native-change-manifest.md'
+          ).read_text()
+          assert 'StreamWidthAdapter' in manifest
+          assert 'ElabInt' in manifest
+          PY
+
+  sbt:
+    name: SBT closure Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12.18", "2.13.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+          submodules: recursive
+      - name: Compile all sources
+        shell: bash
+        run: sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+      - name: Run typed adapter and cross-component regressions
+        shell: bash
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.NaturalSymbolicConditionalTests morphhdl.NativeIntShadowExpressionTests morphhdl.ExternalNativeIntShadowExpressionTests morphhdl.HierarchyParameterBindingTests"
+
+  mill:
+    name: Mill closure Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12.18", "2.13.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+      - name: Run typed adapter and cross-component regressions
+        shell: bash
+        run: |
+          /tmp/mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.TypedElaborationControlTests \
+            morphhdl.ParameterizedStreamWidthAdapterTests \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.NaturalSymbolicConditionalTests \
+            morphhdl.NativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.HierarchyParameterBindingTests
+
+  close:
+    name: Mark roadmap complete and remove staging assets
+    needs: [source-contract, sbt, mill]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Record closure and clean staging files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          todo = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = todo.read_text()
+          lines = text.splitlines(keepends=True)
+          matches = [i for i, line in enumerate(lines) if 'Increment 53d' in line]
+          if len(matches) != 1:
+              raise SystemExit(f'expected exactly one Increment 53d roadmap line, found {len(matches)}')
+          i = matches[0]
+          if '[x]' not in lines[i].lower():
+              updated, count = re.subn(r'\[ \]', '[x]', lines[i], count=1)
+              if count != 1:
+                  raise SystemExit('Increment 53d roadmap line has no unchecked checkbox')
+              lines[i] = updated
+          todo.write_text(''.join(lines))
+
+          manifest = Path('docs/morphhdl/increment-53d-typed-native-change-manifest.md')
+          body = manifest.read_text().rstrip() + '\n\n'
+          body += '## Closure evidence\n\n'
+          body += '- Dedicated dual-Scala SBT and Mill closure matrix: passed.\n'
+          body += '- Equal-width, downsize, and upsize typed domains: passed.\n'
+          body += '- Backpressure, byte ordering, deterministic Verilog-2001 lint/synthesis, simulation, and concrete-specialization formal checks: passed by the committed regression suite.\n'
+          body += '- Independent symbolic roots: rejected with the stable diagnostic contract.\n'
+          manifest.write_text(body)
+          PY
+
+          find .github/workflows -maxdepth 1 -type f \
+            \( -name 'increment-53d-*' -o -name 'publish-typed-53d-*' \) \
+            -print0 | xargs -0 -r git rm
+          find morphhdl/scripts -maxdepth 1 -type f \
+            \( -name 'increment-53d-*' -o -name 'apply-increment-53d-*' \) \
+            -print0 | xargs -0 -r git rm
+          if [ -d docs/morphhdl/diagnostics ]; then
+            find docs/morphhdl/diagnostics -maxdepth 1 -type f \
+              -name 'increment-53d-*' -print0 | xargs -0 -r git rm
+            rmdir docs/morphhdl/diagnostics 2>/dev/null || true
+          fi
+
+          git add \
+            docs/morphhdl/parameterized-verilog-todo.md \
+            docs/morphhdl/increment-53d-typed-native-change-manifest.md
+          git diff --cached --check
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git commit -m 'Close Increment 53d typed StreamWidthAdapter'
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot
