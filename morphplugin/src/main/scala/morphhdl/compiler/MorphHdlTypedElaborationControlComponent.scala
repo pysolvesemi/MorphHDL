@@ -41,11 +41,18 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
   private def decoded(name: Name): String = name.decodedName.toString
 
+  private def terminalName(tree: Tree): String = tree match {
+    case Ident(name)       => decoded(name)
+    case Select(_, name)   => decoded(name)
+    case TypeApply(fun, _) => terminalName(fun)
+    case _                 => ""
+  }
+
   private def simpleTypeName(tree: Tree): String = tree match {
-    case Ident(name)        => decoded(name)
-    case Select(_, name)    => decoded(name)
+    case Ident(name)           => decoded(name)
+    case Select(_, name)       => decoded(name)
     case AppliedTypeTree(t, _) => simpleTypeName(t)
-    case _                  => tree.toString.split('.').lastOption.getOrElse("")
+    case _                     => tree.toString.split('.').lastOption.getOrElse("")
   }
 
   private def declaredTypedNames(tree: Tree): TypedNames = {
@@ -325,9 +332,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           if decoded(operator) == "generate" && referencesTyped(predicate, names) =>
         rewriteGenerate(original, predicate, body)
       case original @ Apply(fun, predicate :: rest)
-          if (decoded(fun.symbolOption.map(_.name).getOrElse(termNames.EMPTY)) == "require" ||
-            decoded(fun.symbolOption.map(_.name).getOrElse(termNames.EMPTY)) == "assert" ||
-            fun.toString == "require" || fun.toString == "assert") &&
+          if (terminalName(fun) == "require" || terminalName(fun) == "assert") &&
             referencesTyped(predicate, names) =>
         rewriteAssert(original, fun, predicate, rest)
       case _ => super.transform(tree)
