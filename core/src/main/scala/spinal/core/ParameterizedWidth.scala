@@ -4,6 +4,8 @@ import java.lang.ref.{ReferenceQueue, WeakReference}
 
 import scala.collection.mutable
 
+import spinal.core.internals.{DataAssignmentStatement, Resize}
+
 /**
   * Elaboration metadata for one public integer parameter used directly as a
   * packed width.
@@ -95,6 +97,26 @@ private[core] final class RetainedWidthIdentityRef(
   }
 }
 
+/** Weak identity key for one exact native Resize expression. */
+private[core] final class RetainedResizeIdentityRef(
+    value: Resize,
+    queue: ReferenceQueue[Resize]
+) extends WeakReference[Resize](value, queue) {
+  private val identityHash = System.identityHashCode(value)
+
+  override def hashCode(): Int = identityHash
+
+  override def equals(other: Any): Boolean = other match {
+    case that: RetainedResizeIdentityRef =>
+      (this eq that) || {
+        val left = get()
+        val right = that.get()
+        (left ne null) && (right ne null) && (left eq right)
+      }
+    case _ => false
+  }
+}
+
 /**
   * MorphHDL-owned symbolic-width registry and native-factory adapters.
   *
@@ -106,12 +128,47 @@ private[core] final class RetainedWidthIdentityRef(
 object ParameterizedWidth {
   private val queue = new ReferenceQueue[BaseType]()
   private val retained = mutable.HashMap.empty[RetainedWidthIdentityRef, RetainedWidth]
+  private val resizeQueue = new ReferenceQueue[Resize]()
+  private val retainedResizes = mutable.HashMap.empty[
+    RetainedResizeIdentityRef,
+    ElaborationIntegerExpression
+  ]
 
   private def reap(): Unit = {
     var reference = queue.poll().asInstanceOf[RetainedWidthIdentityRef]
     while (reference != null) {
       retained.remove(reference)
       reference = queue.poll().asInstanceOf[RetainedWidthIdentityRef]
+    }
+  }
+
+  private def reapResizes(): Unit = {
+    var reference = resizeQueue.poll().asInstanceOf[RetainedResizeIdentityRef]
+    while (reference != null) {
+      retainedResizes.remove(reference)
+      reference = resizeQueue.poll().asInstanceOf[RetainedResizeIdentityRef]
+    }
+  }
+
+  private def retainResize(
+      resize: Resize,
+      expression: ElaborationIntegerExpression
+  ): Unit = synchronized {
+    reapResizes()
+    val lookup = new RetainedResizeIdentityRef(resize, null)
+    retainedResizes.get(lookup) match {
+      case Some(existing) if existing == expression => ()
+      case Some(existing) =>
+        ParameterizedVerilogException.fail(
+          "SPINAL-PARAMETERIZED-VERILOG-RESIZE-PROVENANCE-CONFLICT",
+          s"one exact native Resize target is associated with conflicting typed expressions '${existing.verilog}' and '${expression.verilog}'",
+          expression.sourceLocation.orElse(existing.sourceLocation)
+        )
+      case None =>
+        retainedResizes.update(
+          new RetainedResizeIdentityRef(resize, resizeQueue),
+          expression
+        )
     }
   }
 
@@ -152,6 +209,51 @@ object ParameterizedWidth {
       )
     }
     data
+  }
+
+  /**
+    * Attach one typed target width to a native resize result and retain the
+    * exact internal Resize node before weak-clone normalization can remove the
+    * result object. The association is by JVM identity and is generic across
+    * all native algorithms.
+    */
+  def attachResize[T <: BitVector](data: T, width: ElabInt): T = {
+    if (width == null)
+      throw new IllegalArgumentException("typed resize width must not be null")
+    val result = attach(data, width.toParameterizedBitCount("typed resize"))
+    val expression = width.expression
+    if (expression.parameters.nonEmpty && result.hasOnlyOneStatement) {
+      result.head match {
+        case assignment: DataAssignmentStatement
+            if (assignment.target eq result) &&
+              (assignment.finalTarget eq result) =>
+          assignment.source match {
+            case resize: Resize if resize.size == result.getBitsWidth =>
+              if (expression.default != BigInt(resize.size)) {
+                ParameterizedVerilogException.fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-RESIZE-WITNESS-MISMATCH",
+                  s"native Resize target ${resize.size} does not match typed width default ${expression.default}",
+                  expression.sourceLocation
+                )
+              }
+              retainResize(resize, expression)
+            case _ =>
+          }
+        case _ =>
+      }
+    }
+    result
+  }
+
+  /** Look up one typed target width only by exact native Resize identity. */
+  def resizeExpressionOf(
+      resize: Resize
+  ): Option[ElaborationIntegerExpression] = synchronized {
+    if (resize == null) None
+    else {
+      reapResizes()
+      retainedResizes.get(new RetainedResizeIdentityRef(resize, null))
+    }
   }
 
   /** MorphHDL shadow factories; each delegates to the untouched native factory. */

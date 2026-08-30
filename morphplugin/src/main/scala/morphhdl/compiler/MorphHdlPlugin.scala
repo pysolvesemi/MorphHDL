@@ -3,7 +3,7 @@ package morphhdl.compiler
 import scala.tools.nsc.Global
 import scala.tools.nsc.plugins.{Plugin, PluginComponent}
 
-/** MorphHDL-owned compiler plugin; native SpinalHDL compiler sources remain untouched. */
+/** MorphHDL-owned compiler plugin for parameter-preserving elaboration. */
 final class MorphHdlPlugin(val global: Global) extends Plugin {
   override val name: String = "morphhdl"
   override val description: String =
@@ -12,6 +12,7 @@ final class MorphHdlPlugin(val global: Global) extends Plugin {
     List(
       new MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(global),
       new MorphHdlNativeIntShadowExpressionComponent(global),
+      new MorphHdlTypedElaborationControlComponent(global),
       new MorphHdlNaturalSymbolicConditionalComponent(global)
     )
 }

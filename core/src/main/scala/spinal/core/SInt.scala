@@ -31,6 +31,9 @@ trait SIntFactory {
   def SInt(u: Unit = ()) = new SInt()
   /** Create a new SInt of a given width */
   def SInt(width: BitCount): SInt = SInt().setWidth(width.value)
+  /** Create a new SInt while retaining one typed elaboration width. */
+  def SInt(width: ParameterizedBitCount): SInt =
+    ParameterizedWidth.attach(SInt(), width)
 }
 
 
@@ -562,6 +565,12 @@ class SInt extends BitVector with Num[SInt] with MinMaxProvider with DataPrimiti
     * If enlarged, it is extended with the sign at MSB as necessary.
     */
   override def resize(width: BitCount) : SInt = resize(width.value)
+
+  /** Resize while retaining the exact typed target width. */
+  override def resize(width: ElabInt): this.type =
+    ParameterizedWidth
+      .attachResize(resize(width.witness), width)
+      .asInstanceOf[this.type]
 
   override def minValue: BigInt = -(BigInt(1) << (getWidth - 1))
   override def maxValue: BigInt =  (BigInt(1) << (getWidth - 1)) - 1
