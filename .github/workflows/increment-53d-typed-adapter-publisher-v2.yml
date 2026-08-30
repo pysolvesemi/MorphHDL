@@ -1,4 +1,4 @@
-name: Validate Increment 53d typed factory direction repair
+name: Publish validated Increment 53d direct typed StreamWidthAdapter
 
 on:
   push:
@@ -9,24 +9,180 @@ on:
       - morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64
       - morphhdl/scripts/increment-53d-typed-factory-dispatch.patch.gz.b64
       - morphhdl/scripts/increment-53d-typed-factory-direction-test.patch.gz.b64
-      - morphhdl/scripts/increment-53d-direction-probe.patch.gz.b64
+      - morphhdl/scripts/increment-53d-typed-manifest-update.patch.gz.b64
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: increment-53d-typed-factory-direction-repair
+  group: increment-53d-direct-typed-adapter-publisher
   cancel-in-progress: true
 
 jobs:
-  validate:
+  source-contract:
+    name: Direct typed source and native-change contract
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Apply validated direct typed implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          for patch in \
+            morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
+            morphhdl/scripts/increment-53d-typed-factory-dispatch.patch.gz.b64 \
+            morphhdl/scripts/increment-53d-typed-factory-direction-test.patch.gz.b64 \
+            morphhdl/scripts/increment-53d-typed-manifest-update.patch.gz.b64
+          do
+            base64 -d "$patch" | gzip -d | git apply --whitespace=nowarn
+          done
+          git diff --check
+      - name: Enforce exact source scope and typed architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git diff --name-only HEAD | sort)"
+          expected="$(printf '%s\n' \
+            core/src/main/scala/spinal/core/Bits.scala \
+            core/src/main/scala/spinal/core/SInt.scala \
+            core/src/main/scala/spinal/core/UInt.scala \
+            docs/morphhdl/increment-53d-typed-native-change-manifest.md \
+            lib/src/main/scala/spinal/lib/Stream.scala \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala \
+            morphhdl/src/test/scala/morphhdl/TypedParameterizedFactoryDirectionTests.scala | sort)"
+          test "$actual" = "$expected"
+
+          actual_native="$(git diff --name-only HEAD -- core lib idslplugin | sort)"
+          expected_native="$(printf '%s\n' \
+            core/src/main/scala/spinal/core/Bits.scala \
+            core/src/main/scala/spinal/core/SInt.scala \
+            core/src/main/scala/spinal/core/UInt.scala \
+            lib/src/main/scala/spinal/lib/Stream.scala | sort)"
+          test "$actual_native" = "$expected_native"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          factories = {
+              'Bits.scala': 'ParameterizedWidth.attach(Bits(), width)',
+              'UInt.scala': 'ParameterizedWidth.attach(UInt(), width)',
+              'SInt.scala': 'ParameterizedWidth.attach(SInt(), width)',
+          }
+          for name, required in factories.items():
+              text = Path('core/src/main/scala/spinal/core', name).read_text()
+              assert required in text, (name, required)
+
+          stream = Path('lib/src/main/scala/spinal/lib/Stream.scala').read_text()
+          start = stream.index('object StreamWidthAdapter {')
+          end = stream.index('//padding=true allow', start)
+          body = stream[start:end]
+          assert 'val inputWidth: ElabInt = widthOfExpr(input.payload)' in body
+          assert 'val outputWidth: ElabInt = widthOfExpr(output.payload)' in body
+          assert 'ElabInt.requireSingleSymbolicRoot' in body
+          assert 'val factorExpr' in body
+          assert 'constantInt("StreamWidthAdapter downsize factor")' in body
+          assert 'constantInt("StreamWidthAdapter upsize factor")' in body
+          assert 'NativeIntShadow' not in body
+          assert 'withWidthFunctionBoundary' not in body
+          assert 'rewriteParameterizedStreamWidthAdapter' not in stream
+
+          adapter_test = Path(
+              'morphhdl/src/test/scala/morphhdl/'
+              'ParameterizedStreamWidthAdapterTests.scala'
+          ).read_text()
+          fixture_start = adapter_test.index('object ParameterizedStreamWidthAdapterSmoke {')
+          fixture_end = adapter_test.index(
+              'class ParameterizedStreamWidthAdapterTests', fixture_start
+          )
+          fixture = adapter_test[fixture_start:fixture_end]
+          assert 'equalWidth: ElabInt' in fixture
+          assert 'downWidth: ElabInt' in fixture
+          assert 'upWidth: ElabInt' in fixture
+          assert '.asElabInt' in fixture
+          assert 'NativeIntShadow' not in fixture
+          assert 'formalComponent' not in fixture
+          assert 'SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED' in adapter_test
+
+          direction_test = Path(
+              'morphhdl/src/test/scala/morphhdl/'
+              'TypedParameterizedFactoryDirectionTests.scala'
+          ).read_text()
+          for declaration in (
+              'val bitsIn = in Bits (width bits)',
+              'val bitsOut = out Bits (width bits)',
+              'val uintIn = in UInt (width bits)',
+              'val uintOut = out UInt (width bits)',
+              'val sintIn = in SInt (width bits)',
+              'val sintOut = out SInt (width bits)',
+          ):
+              assert declaration in direction_test
+          assert 'typed Bits factory lost input direction' in direction_test
+          assert 'typed UInt factory lost input direction' in direction_test
+          assert 'typed SInt factory lost input direction' in direction_test
+
+          manifest = Path(
+              'docs/morphhdl/increment-53d-typed-native-change-manifest.md'
+          ).read_text()
+          for name in ('Bits.scala', 'UInt.scala', 'SInt.scala', 'Stream.scala'):
+              assert name in manifest
+          assert 'no bypass of virtual packed-data factories' in manifest
+          PY
+
+  sbt:
+    name: SBT direct typed adapter Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
-    env:
-      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12.18", "2.13.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+          submodules: recursive
+      - name: Apply validated direct typed implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          for patch in \
+            morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
+            morphhdl/scripts/increment-53d-typed-factory-dispatch.patch.gz.b64 \
+            morphhdl/scripts/increment-53d-typed-factory-direction-test.patch.gz.b64 \
+            morphhdl/scripts/increment-53d-typed-manifest-update.patch.gz.b64
+          do
+            base64 -d "$patch" | gzip -d | git apply --whitespace=nowarn
+          done
+          git diff --check
+      - name: Compile production and test sources
+        shell: bash
+        run: sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+      - name: Run typed adapter and cross-component regressions
+        shell: bash
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.TypedParameterizedFactoryDirectionTests morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.NaturalSymbolicConditionalTests morphhdl.NativeIntShadowExpressionTests morphhdl.ExternalNativeIntShadowExpressionTests morphhdl.HierarchyParameterBindingTests"
+
+  mill:
+    name: Mill direct typed adapter Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12.18", "2.13.12"]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,48 +196,77 @@ jobs:
             https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
             --output /tmp/mill
           chmod +x /tmp/mill
-      - name: Apply typed adapter, factory repair, and direction regressions
+      - name: Apply validated direct typed implementation
         shell: bash
         run: |
           set -euo pipefail
-          base64 -d morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
-            | gzip -d \
-            | git apply --whitespace=nowarn
-          base64 -d morphhdl/scripts/increment-53d-typed-factory-dispatch.patch.gz.b64 \
-            | gzip -d \
-            | git apply --whitespace=nowarn
-          base64 -d morphhdl/scripts/increment-53d-typed-factory-direction-test.patch.gz.b64 \
-            | gzip -d \
-            | git apply --whitespace=nowarn
-          base64 -d morphhdl/scripts/increment-53d-direction-probe.patch.gz.b64 \
-            | gzip -d \
-            | git apply --whitespace=nowarn
+          for patch in \
+            morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
+            morphhdl/scripts/increment-53d-typed-factory-dispatch.patch.gz.b64 \
+            morphhdl/scripts/increment-53d-typed-factory-direction-test.patch.gz.b64 \
+            morphhdl/scripts/increment-53d-typed-manifest-update.patch.gz.b64
+          do
+            base64 -d "$patch" | gzip -d | git apply --whitespace=nowarn
+          done
           git diff --check
-      - name: Run isolated adapter and factory suites
-        id: test
-        continue-on-error: true
+      - name: Run typed adapter and cross-component regressions
         shell: bash
         run: |
-          set +e
-          /tmp/mill morph[2.13.12].testOnly \
-            morphhdl.ParameterizedStreamWidthAdapterTests \
+          /tmp/mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.TypedElaborationControlTests \
             morphhdl.TypedParameterizedFactoryDirectionTests \
-            > /tmp/inc53d-factory-repair.log 2>&1
-          status=$?
-          printf '%s\n' "$status" > /tmp/inc53d-factory-repair.status
-          tail -n 300 /tmp/inc53d-factory-repair.log
-          exit "$status"
-      - name: Upload factory repair diagnostic
-        if: always()
-        uses: actions/upload-artifact@v4
+            morphhdl.ParameterizedStreamWidthAdapterTests \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.NaturalSymbolicConditionalTests \
+            morphhdl.NativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.HierarchyParameterBindingTests
+
+  publish:
+    name: Publish direct typed adapter source
+    needs: [source-contract, sbt, mill]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
         with:
-          name: inc53d-factory-repair
-          path: |
-            /tmp/inc53d-factory-repair.log
-            /tmp/inc53d-factory-repair.status
-          if-no-files-found: error
-          retention-days: 2
-      - name: Preserve suite result
-        if: always()
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Apply and commit only validated permanent files
         shell: bash
-        run: exit "$(cat /tmp/inc53d-factory-repair.status 2>/dev/null || printf '1')"
+        run: |
+          set -euo pipefail
+          for patch in \
+            morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
+            morphhdl/scripts/increment-53d-typed-factory-dispatch.patch.gz.b64 \
+            morphhdl/scripts/increment-53d-typed-factory-direction-test.patch.gz.b64 \
+            morphhdl/scripts/increment-53d-typed-manifest-update.patch.gz.b64
+          do
+            base64 -d "$patch" | gzip -d | git apply --whitespace=nowarn
+          done
+          git diff --check
+
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add \
+            core/src/main/scala/spinal/core/Bits.scala \
+            core/src/main/scala/spinal/core/SInt.scala \
+            core/src/main/scala/spinal/core/UInt.scala \
+            docs/morphhdl/increment-53d-typed-native-change-manifest.md \
+            lib/src/main/scala/spinal/lib/Stream.scala \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala \
+            morphhdl/src/test/scala/morphhdl/TypedParameterizedFactoryDirectionTests.scala
+
+          actual="$(git diff --cached --name-only | sort)"
+          expected="$(printf '%s\n' \
+            core/src/main/scala/spinal/core/Bits.scala \
+            core/src/main/scala/spinal/core/SInt.scala \
+            core/src/main/scala/spinal/core/UInt.scala \
+            docs/morphhdl/increment-53d-typed-native-change-manifest.md \
+            lib/src/main/scala/spinal/lib/Stream.scala \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala \
+            morphhdl/src/test/scala/morphhdl/TypedParameterizedFactoryDirectionTests.scala | sort)"
+          test "$actual" = "$expected"
+          git diff --cached --check
+          git commit -m 'Preserve typed factory I/O dispatch in StreamWidthAdapter proof'
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot
