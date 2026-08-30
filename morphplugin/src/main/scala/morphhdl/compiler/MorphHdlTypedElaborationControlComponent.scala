@@ -1,5 +1,7 @@
 package morphhdl.compiler
 
+import java.util.IdentityHashMap
+
 import scala.collection.mutable
 import scala.tools.nsc.Global
 import scala.tools.nsc.Phase
@@ -22,12 +24,17 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
   override val runsBefore: List[String] =
     List("morphhdl-natural-symbolic-conditionals", "namer")
 
-  private final case class TypedNames(
-      integers: Set[TermName],
-      booleans: Set[TermName]
-  ) {
-    def nonEmpty: Boolean = integers.nonEmpty || booleans.nonEmpty
-  }
+  private sealed trait BindingKind
+  private case object TypedIntegerBinding extends BindingKind
+  private case object TypedBooleanBinding extends BindingKind
+  private case object OrdinaryBinding extends BindingKind
+
+  private final case class ClassifiedTrees(
+      typedIfs: IdentityHashMap[Tree, java.lang.Boolean],
+      typedGenerates: IdentityHashMap[Tree, java.lang.Boolean],
+      typedRequires: IdentityHashMap[Tree, java.lang.Boolean],
+      typedEqualities: IdentityHashMap[Tree, java.lang.Boolean]
+  )
 
   private def eligible(unit: CompilationUnit): Boolean = {
     val path = Option(unit.source)
@@ -55,39 +62,187 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     case _                     => tree.toString.split('.').lastOption.getOrElse("")
   }
 
-  private def declaredTypedNames(tree: Tree): TypedNames = {
-    val integers = mutable.LinkedHashSet.empty[TermName]
-    val booleans = mutable.LinkedHashSet.empty[TermName]
-    object Collector extends Traverser {
+  /**
+    * Classify typed control flow with lexical bindings before rewriting it.
+    * Every declaration is recorded, including ordinary declarations, so an
+    * inner `Int`/`Boolean` reliably shadows a same-named typed outer binding.
+    */
+  private def classify(tree: Tree): ClassifiedTrees = {
+    val typedIfs = new IdentityHashMap[Tree, java.lang.Boolean]()
+    val typedGenerates = new IdentityHashMap[Tree, java.lang.Boolean]()
+    val typedRequires = new IdentityHashMap[Tree, java.lang.Boolean]()
+    val typedEqualities = new IdentityHashMap[Tree, java.lang.Boolean]()
+
+    var scopes = List(mutable.LinkedHashMap.empty[TermName, BindingKind])
+
+    def bindingKind(value: ValDef): BindingKind =
+      simpleTypeName(value.tpt) match {
+        case "ElabInt"  => TypedIntegerBinding
+        case "ElabBool" => TypedBooleanBinding
+        case _          => OrdinaryBinding
+      }
+
+    def bind(value: ValDef): Unit =
+      scopes.head.update(value.name, bindingKind(value))
+
+    def bindOrdinary(name: TermName): Unit =
+      scopes.head.update(name, OrdinaryBinding)
+
+    def lookup(name: TermName): Option[BindingKind] =
+      scopes.collectFirst {
+        case scope if scope.contains(name) => scope(name)
+      }
+
+    def withScope[A](body: => A): A = {
+      scopes = mutable.LinkedHashMap.empty[TermName, BindingKind] :: scopes
+      try body
+      finally scopes = scopes.tail
+    }
+
+    def referencesKind(current: Tree, accepted: Set[BindingKind]): Boolean = {
+      var found = false
+      object Finder extends Traverser {
+        override def traverse(value: Tree): Unit = if (!found) value match {
+          case Ident(name: TermName) if lookup(name).exists(accepted.contains) =>
+            found = true
+          case Select(This(_), name: TermName)
+              if lookup(name).exists(accepted.contains) =>
+            found = true
+          case _: DefDef | _: ClassDef | _: ModuleDef | _: Function =>
+          case _ => super.traverse(value)
+        }
+      }
+      Finder.traverse(current)
+      found
+    }
+
+    def referencesInteger(current: Tree): Boolean =
+      referencesKind(current, Set[BindingKind](TypedIntegerBinding))
+
+    def referencesTyped(current: Tree): Boolean =
+      referencesKind(
+        current,
+        Set[BindingKind](TypedIntegerBinding, TypedBooleanBinding)
+      )
+
+    def patternNames(pattern: Tree): Vector[TermName] = {
+      val names = mutable.ArrayBuffer.empty[TermName]
+      object Finder extends Traverser {
+        override def traverse(current: Tree): Unit = current match {
+          case Bind(name: TermName, body) =>
+            names += name
+            super.traverse(body)
+          case _ => super.traverse(current)
+        }
+      }
+      Finder.traverse(pattern)
+      names.toVector
+    }
+
+    def mark(
+        values: IdentityHashMap[Tree, java.lang.Boolean],
+        value: Tree
+    ): Unit = values.put(value, java.lang.Boolean.TRUE)
+
+    object Classifier extends Traverser {
       override def traverse(current: Tree): Unit = current match {
-        case value: ValDef =>
-          simpleTypeName(value.tpt) match {
-            case "ElabInt"  => integers += value.name
-            case "ElabBool" => booleans += value.name
-            case _          =>
+        case template: Template =>
+          withScope {
+            // Class/object members are visible throughout their template.
+            // Recording every member also lets ordinary members shadow typed
+            // constructor parameters or enclosing values deterministically.
+            template.body.foreach {
+              case value: ValDef => bind(value)
+              case _             =>
+            }
+            template.parents.foreach(traverse)
+            traverse(template.self)
+            template.body.foreach(traverse)
           }
-          super.traverse(current)
+
+        case definition: DefDef =>
+          withScope {
+            definition.vparamss.flatten.foreach(bind)
+            definition.tparams.foreach(traverse)
+            definition.vparamss.flatten.foreach { parameter =>
+              traverse(parameter.tpt)
+              traverse(parameter.rhs)
+            }
+            traverse(definition.tpt)
+            traverse(definition.rhs)
+          }
+
+        case function: Function =>
+          withScope {
+            function.vparams.foreach(bind)
+            function.vparams.foreach { parameter =>
+              traverse(parameter.tpt)
+              traverse(parameter.rhs)
+            }
+            traverse(function.body)
+          }
+
+        case block: Block =>
+          withScope {
+            block.stats.foreach { statement =>
+              traverse(statement)
+              statement match {
+                case value: ValDef => bind(value)
+                case _             =>
+              }
+            }
+            traverse(block.expr)
+          }
+
+        case value: ValDef =>
+          traverse(value.tpt)
+          traverse(value.rhs)
+
+        case branch: CaseDef =>
+          withScope {
+            patternNames(branch.pat).foreach(bindOrdinary)
+            traverse(branch.pat)
+            traverse(branch.guard)
+            traverse(branch.body)
+          }
+
+        case original: If =>
+          if (referencesTyped(original.cond)) mark(typedIfs, original)
+          super.traverse(original)
+
+        case original @ Apply(Select(predicate, operator), List(_))
+            if decoded(operator) == "generate" =>
+          if (referencesTyped(predicate)) mark(typedGenerates, original)
+          super.traverse(original)
+
+        case original @ Apply(fun, predicate :: _)
+            if terminalName(fun) == "require" || terminalName(fun) == "assert" =>
+          if (referencesTyped(predicate)) mark(typedRequires, original)
+          super.traverse(original)
+
+        case original @ Apply(Select(left, operator), List(right))
+            if decoded(operator) == "==" || decoded(operator) == "!=" =>
+          val leftTyped = referencesInteger(left)
+          val rightTyped = referencesInteger(right)
+          if (leftTyped || rightTyped)
+            typedEqualities.put(
+              original,
+              java.lang.Boolean.valueOf(leftTyped)
+            )
+          super.traverse(original)
+
         case _ => super.traverse(current)
       }
     }
-    Collector.traverse(tree)
-    TypedNames(integers.toSet, booleans.toSet)
-  }
 
-  private def references(tree: Tree, names: Set[TermName]): Boolean = {
-    var found = false
-    object Finder extends Traverser {
-      override def traverse(current: Tree): Unit = if (!found) current match {
-        case Ident(name: TermName) if names.contains(name) => found = true
-        case _                                             => super.traverse(current)
-      }
-    }
-    Finder.traverse(tree)
-    found
+    Classifier.traverse(tree)
+    ClassifiedTrees(
+      typedIfs,
+      typedGenerates,
+      typedRequires,
+      typedEqualities
+    )
   }
-
-  private def referencesTyped(tree: Tree, names: TypedNames): Boolean =
-    references(tree, names.integers) || references(tree, names.booleans)
 
   private def helperMethod(name: String): Tree = {
     val root = Ident(termNames.ROOTPKG)
@@ -113,7 +268,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
   private final class TypedControlTransformer(
       unit: CompilationUnit,
-      names: TypedNames
+      classified: ClassifiedTrees
   ) extends Transformer {
     private def sourceFile: String =
       Option(unit.source)
@@ -134,19 +289,15 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
     private final class ConditionTransformer extends Transformer {
       override def transform(tree: Tree): Tree = tree match {
-        case Apply(Select(left, operator), List(right))
-            if decoded(operator) == "==" && references(tree, names.integers) =>
-          val rewritten = Apply(
-            Select(transform(left), TermName("elabEq")),
-            List(transform(right))
-          )
-          rewritten.setPos(tree.pos)
-        case Apply(Select(left, operator), List(right))
-            if decoded(operator) == "!=" && references(tree, names.integers) =>
-          val rewritten = Apply(
-            Select(transform(left), TermName("elabNe")),
-            List(transform(right))
-          )
+        case original @ Apply(Select(left, operator), List(right))
+            if classified.typedEqualities.containsKey(original) =>
+          val leftIsTyped = classified.typedEqualities.get(original).booleanValue()
+          val receiver = if (leftIsTyped) transform(left) else transform(right)
+          val argument = if (leftIsTyped) transform(right) else transform(left)
+          val method =
+            if (decoded(operator) == "==") TermName("elabEq")
+            else TermName("elabNe")
+          val rewritten = Apply(Select(receiver, method), List(argument))
           rewritten.setPos(tree.pos)
         case _ => super.transform(tree)
       }
@@ -249,7 +400,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         alternatives += ((condition(current.cond), transform(current.thenp), sourceLine(current)))
         current.elsep match {
           case next: If
-              if referencesTyped(next.cond, names) && directElseIf(current, next) =>
+              if classified.typedIfs.containsKey(next) && directElseIf(current, next) =>
             current = next
           case other =>
             otherwise = transform(other)
@@ -351,14 +502,13 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     }
 
     override def transform(tree: Tree): Tree = tree match {
-      case original: If if referencesTyped(original.cond, names) =>
+      case original: If if classified.typedIfs.containsKey(original) =>
         rewriteIf(original)
-      case original @ Apply(Select(predicate, operator), List(body))
-          if decoded(operator) == "generate" && referencesTyped(predicate, names) =>
+      case original @ Apply(Select(predicate, _), List(body))
+          if classified.typedGenerates.containsKey(original) =>
         rewriteGenerate(original, predicate, body)
-      case original @ Apply(fun, predicate :: rest)
-          if (terminalName(fun) == "require" || terminalName(fun) == "assert") &&
-            referencesTyped(predicate, names) =>
+      case original @ Apply(_, predicate :: rest)
+          if classified.typedRequires.containsKey(original) =>
         rewriteAssert(original, predicate, rest)
       case _ => super.transform(tree)
     }
@@ -367,9 +517,14 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
   override def newPhase(previous: Phase): Phase = new StdPhase(previous) {
     override def apply(unit: CompilationUnit): Unit =
       if (eligible(unit)) {
-        val names = declaredTypedNames(unit.body)
-        if (names.nonEmpty)
-          unit.body = new TypedControlTransformer(unit, names).transform(unit.body)
+        val classified = classify(unit.body)
+        if (
+          !classified.typedIfs.isEmpty ||
+          !classified.typedGenerates.isEmpty ||
+          !classified.typedRequires.isEmpty
+        )
+          unit.body =
+            new TypedControlTransformer(unit, classified).transform(unit.body)
       }
   }
 }
