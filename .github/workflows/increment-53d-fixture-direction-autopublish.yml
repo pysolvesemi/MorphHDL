@@ -1,0 +1,111 @@
+name: Validate Increment 53d typed fixture port directions
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-fixture-direction-autopublish.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53d-fixture-direction-autopublish
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+      - name: Apply typed candidate and normalize flattened payload directions
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! grep -q 'widthOfExpr(input.payload)' lib/src/main/scala/spinal/lib/Stream.scala; then
+            base64 -d morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
+              | gzip -d \
+              | git apply --whitespace=nowarn
+          fi
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala')
+          source = path.read_text()
+          for name in ('equalInputPayload', 'downInputPayload', 'upInputPayload'):
+            pattern = re.compile(
+              rf'(?m)^(\s*val\s+{name}\s*=\s*)(?!in\b)([^\n]+)$'
+            )
+            source, count = pattern.subn(
+              lambda match: match.group(1) + 'in(' + match.group(2).strip() + ')',
+              source,
+              count=1,
+            )
+          for name in ('equalInputPayload', 'downInputPayload', 'upInputPayload'):
+            declaration = re.search(rf'(?m)^\s*val\s+{name}\s*=\s*([^\n]+)$', source)
+            assert declaration is not None
+            assert declaration.group(1).lstrip().startswith('in')
+          path.write_text(source)
+          PY
+          git diff --check
+      - name: Run focused typed adapter suite
+        id: focused
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          /tmp/mill 'morph[2.13.12].testOnly' \
+            morphhdl.ParameterizedStreamWidthAdapterTests \
+            > /tmp/inc53d-direction-fix.log 2>&1
+          status=$?
+          echo "$status" > /tmp/inc53d-direction-fix.status
+          cat /tmp/inc53d-direction-fix.log
+          exit "$status"
+      - name: Publish only when the complete focused suite passes
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(cat /tmp/inc53d-direction-fix.status 2>/dev/null || printf '1')"
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          if [ "$status" = 0 ]; then
+            git add \
+              docs/morphhdl/increment-53d-typed-native-change-manifest.md \
+              lib/src/main/scala/spinal/lib/Stream.scala \
+              morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala
+            git diff --cached --check
+            git commit -m 'Preserve typed adapter fixture input directions'
+          else
+            {
+              echo '# Increment 53d typed fixture direction result'
+              echo
+              echo "test_status=$status"
+              grep -nEi 'NO DRIVER|SPINAL-ELAB|AssertionError|Exception|FAILED|error|InputPayload' \
+                /tmp/inc53d-direction-fix.log || true
+              echo
+              tail -n 160 /tmp/inc53d-direction-fix.log
+            } > docs/morphhdl/increment-53d-fixture-direction-result.txt
+            git add docs/morphhdl/increment-53d-fixture-direction-result.txt
+            git commit -m 'Record Increment 53d fixture direction result'
+          fi
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot
