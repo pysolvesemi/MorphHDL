@@ -35,7 +35,7 @@ trait UIntFactory{
   def UInt(width: BitCount): UInt = UInt().setWidth(width.value)
   /** Create a new UInt while retaining one typed elaboration width. */
   def UInt(width: ParameterizedBitCount): UInt =
-    ParameterizedWidth.UInt(width)
+    ParameterizedWidth.attach(UInt(), width)
 }
 
 

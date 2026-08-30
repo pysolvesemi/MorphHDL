@@ -33,7 +33,7 @@ trait BitsFactory {
   def Bits(width: BitCount): Bits = Bits().setWidth(width.value)
   /** Create a new Bits while retaining one typed elaboration width. */
   def Bits(width: ParameterizedBitCount): Bits =
-    ParameterizedWidth.Bits(width)
+    ParameterizedWidth.attach(Bits(), width)
 }
 
 

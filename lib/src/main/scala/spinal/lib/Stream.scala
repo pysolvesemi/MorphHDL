@@ -2136,6 +2136,11 @@ object StreamWidthAdapter {
   def apply[T <: Data,T2 <: Data](input : Stream[T],output : Stream[T2], endianness: Endianness = LITTLE, padding : Boolean = false): Unit = {
     val inputWidth: ElabInt = widthOfExpr(input.payload)
     val outputWidth: ElabInt = widthOfExpr(output.payload)
+    ElabInt.requireSingleSymbolicRoot(
+      "StreamWidthAdapter payload widths",
+      inputWidth,
+      outputWidth
+    )
     if(inputWidth == outputWidth) {
       output.arbitrationFrom(input)
       output.payload.assignFromBits(input.payload.asBits)

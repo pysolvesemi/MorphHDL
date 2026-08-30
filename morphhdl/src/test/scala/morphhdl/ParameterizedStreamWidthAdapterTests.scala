@@ -10,114 +10,36 @@ import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 import spinal.lib._
 
-import morphhdl.frontend.{formalComponent, HdlInt, NativeIntShadow}
-import morphhdl.frontend.HdlInt._
+import morphhdl.frontend.HdlInt
 
 /**
-  * Ordinary application components around the untouched native
-  * `spinal.lib.StreamWidthAdapter` algorithm. These shells expose stable IO and
-  * select exact native-Int provenance; they contain no width-conversion logic.
+  * Direct typed-elaboration application around the authoritative native
+  * `spinal.lib.StreamWidthAdapter` algorithm. No native-Int shadow provenance
+  * or component-specific adapter implementation participates in this fixture.
   */
 object ParameterizedStreamWidthAdapterSmoke {
-  final class EqualLeaf(width: Int) extends Component {
-    setDefinitionName("NativeStreamWidthAdapterEqual")
-
-    @dontName val selectedWidth =
-      NativeIntShadow.captureArgument(width, "selectedWidth")
-
-    val io = new Bundle {
-      val input = slave(
-        Stream(
-          morphhdl.frontend.HardType(
-            spinal.core.Bits(selectedWidth bits)
-          )
-        )
-      )
-      val output = master(
-        Stream(
-          morphhdl.frontend.HardType(
-            spinal.core.Bits(selectedWidth bits)
-          )
-        )
-      )
-    }
-
-    spinal.lib.StreamWidthAdapter(
-      io.input,
-      io.output,
-      endianness = LITTLE,
-      padding = true
-    )
-  }
-
-  final class DownsizeLeaf(inputWidth: Int) extends Component {
-    setDefinitionName("NativeStreamWidthAdapterDownsize")
-
-    @dontName val selectedInputWidth =
-      NativeIntShadow.captureArgument(inputWidth, "selectedInputWidth")
-
-    val io = new Bundle {
-      val input = slave(
-        Stream(
-          morphhdl.frontend.HardType(
-            spinal.core.Bits(selectedInputWidth bits)
-          )
-        )
-      )
-      val output = master(Stream(spinal.core.Bits(8 bits)))
-    }
-
-    spinal.lib.StreamWidthAdapter(
-      io.input,
-      io.output,
-      endianness = LITTLE,
-      padding = true
-    )
-  }
-
-  final class UpsizeLeaf(outputWidth: Int) extends Component {
-    setDefinitionName("NativeStreamWidthAdapterUpsize")
-
-    @dontName val selectedOutputWidth =
-      NativeIntShadow.captureArgument(outputWidth, "selectedOutputWidth")
-
-    val io = new Bundle {
-      val input = slave(Stream(spinal.core.Bits(8 bits)))
-      val output = master(
-        Stream(
-          morphhdl.frontend.HardType(
-            spinal.core.Bits(selectedOutputWidth bits)
-          )
-        )
-      )
-    }
-
-    spinal.lib.StreamWidthAdapter(
-      io.input,
-      io.output,
-      endianness = LITTLE,
-      padding = true
-    )
-  }
-
-  /** One ordinary SpinalHDL top invokes the real adapter in all three modes. */
+  /**
+    * One application component invokes the existing native adapter in all
+    * three width relations. Geometry remains typed from the public HdlInt
+    * construction boundary through the native StreamWidthAdapter algorithm.
+    */
   final class Top(
-      equalWidth: HdlInt,
-      downWidth: HdlInt,
-      upWidth: HdlInt
+      equalWidth: ElabInt,
+      downWidth: ElabInt,
+      upWidth: ElabInt
   ) extends Component {
     setDefinitionName("NativeStreamWidthAdapterTop")
 
     val equalInputValid = in Bool()
     val equalInputReady = out Bool()
-    val equalInputPayload = in(morphhdl.frontend.Bits(equalWidth bits))
+    val equalInputPayload = in Bits (equalWidth bits)
     val equalOutputValid = out Bool()
     val equalOutputReady = in Bool()
-    val equalOutputPayload = out(morphhdl.frontend.Bits(equalWidth bits))
+    val equalOutputPayload = out Bits (equalWidth bits)
 
     val downInputValid = in Bool()
     val downInputReady = out Bool()
-    val downInputPayload = in(morphhdl.frontend.Bits(downWidth bits))
+    val downInputPayload = in Bits (downWidth bits)
     val downOutputValid = out Bool()
     val downOutputReady = in Bool()
     val downOutputPayload = out Bits (8 bits)
@@ -127,124 +49,74 @@ object ParameterizedStreamWidthAdapterSmoke {
     val upInputPayload = in Bits (8 bits)
     val upOutputValid = out Bool()
     val upOutputReady = in Bool()
-    val upOutputPayload = out(morphhdl.frontend.Bits(upWidth bits))
+    val upOutputPayload = out Bits (upWidth bits)
 
-    val equal = formalComponent.parameter(
-      equalWidth,
-      "WIDTH",
-      minimum = BigInt(1),
-      maximum = BigInt(32)
-    )(value => new EqualLeaf(value))
-    equal.setName("equal")
+    val equalInput = Stream(Bits(equalWidth bits))
+    val equalOutput = Stream(Bits(equalWidth bits))
+    equalInput.valid := equalInputValid
+    equalInput.payload := equalInputPayload
+    equalInputReady := equalInput.ready
+    equalOutputValid := equalOutput.valid
+    equalOutputPayload := equalOutput.payload
+    equalOutput.ready := equalOutputReady
+    StreamWidthAdapter(equalInput, equalOutput, LITTLE, padding = true)
 
-    val downsize = formalComponent.parameter(
-      downWidth,
-      "INPUT_WIDTH",
-      minimum = BigInt(9),
-      maximum = BigInt(16)
-    )(value => new DownsizeLeaf(value))
-    downsize.setName("downsize")
+    val downInput = Stream(Bits(downWidth bits))
+    val downOutput = Stream(Bits(8 bits))
+    downInput.valid := downInputValid
+    downInput.payload := downInputPayload
+    downInputReady := downInput.ready
+    downOutputValid := downOutput.valid
+    downOutputPayload := downOutput.payload
+    downOutput.ready := downOutputReady
+    StreamWidthAdapter(downInput, downOutput, LITTLE, padding = true)
 
-    val upsize = formalComponent.parameter(
-      upWidth,
-      "OUTPUT_WIDTH",
-      minimum = BigInt(9),
-      maximum = BigInt(16)
-    )(value => new UpsizeLeaf(value))
-    upsize.setName("upsize")
-
-    equal.io.input.valid := equalInputValid
-    equal.io.input.payload := equalInputPayload
-    equalInputReady := equal.io.input.ready
-    equalOutputValid := equal.io.output.valid
-    equal.io.output.ready := equalOutputReady
-    equalOutputPayload := equal.io.output.payload
-
-    downsize.io.input.valid := downInputValid
-    downsize.io.input.payload := downInputPayload
-    downInputReady := downsize.io.input.ready
-    downOutputValid := downsize.io.output.valid
-    downsize.io.output.ready := downOutputReady
-    downOutputPayload := downsize.io.output.payload
-
-    upsize.io.input.valid := upInputValid
-    upsize.io.input.payload := upInputPayload
-    upInputReady := upsize.io.input.ready
-    upOutputValid := upsize.io.output.valid
-    upsize.io.output.ready := upOutputReady
-    upOutputPayload := upsize.io.output.payload
+    val upInput = Stream(Bits(8 bits))
+    val upOutput = Stream(Bits(upWidth bits))
+    upInput.valid := upInputValid
+    upInput.payload := upInputPayload
+    upInputReady := upInput.ready
+    upOutputValid := upOutput.valid
+    upOutputPayload := upOutput.payload
+    upOutput.ready := upOutputReady
+    StreamWidthAdapter(upInput, upOutput, LITTLE, padding = true)
   }
 
-  final class IndependentRootLeaf(
-      inputWidth: Int,
-      outputWidth: ParameterizedBitCount
+  /** Two unrelated typed width roots must fail before native elaboration. */
+  final class IndependentRootTop(
+      inputWidth: ElabInt,
+      outputWidth: ElabInt
   ) extends Component {
-    setDefinitionName("NativeStreamWidthAdapterIndependentRoots")
+    setDefinitionName("NativeStreamWidthAdapterIndependentRootTop")
 
-    @dontName val selectedInputWidth =
-      NativeIntShadow.captureArgument(inputWidth, "selectedInputWidth")
     val io = new Bundle {
-      val input = slave(
-        Stream(
-          morphhdl.frontend.HardType(
-            spinal.core.Bits(selectedInputWidth bits)
-          )
-        )
-      )
-      val output = master(
-        Stream(
-          morphhdl.frontend.HardType(
-            morphhdl.frontend.Bits(outputWidth)
-          )
-        )
-      )
+      val input = slave(Stream(Bits(inputWidth bits)))
+      val output = master(Stream(Bits(outputWidth bits)))
     }
 
-    spinal.lib.StreamWidthAdapter(io.input, io.output, padding = true)
+    StreamWidthAdapter(io.input, io.output, LITTLE, padding = true)
   }
-
-
-/**
-  * Valid parent shell for the independent-root rejection proof. The native
-  * adapter still receives the two unrelated symbolic packed-width roots in
-  * the child; the parent exists only to satisfy ordinary SpinalHDL hierarchy
-  * construction and fully connect the child IO.
-  */
-final class IndependentRootTop(
-    inputWidth: HdlInt,
-    outputWidth: HdlInt
-) extends Component {
-  setDefinitionName("NativeStreamWidthAdapterIndependentRootTop")
-
-  val io = new Bundle {
-    val input = slave(Stream(morphhdl.frontend.Bits(inputWidth bits)))
-    val output = master(Stream(morphhdl.frontend.Bits(outputWidth bits)))
-  }
-
-  val adapter = formalComponent.parameter(
-    inputWidth,
-    "INPUT_WIDTH",
-    minimum = BigInt(9),
-    maximum = BigInt(16)
-  ) { inputWitness =>
-    new IndependentRootLeaf(inputWitness, outputWidth bits)
-  }
-  adapter.setName("adapter")
-
-  adapter.io.input.valid := io.input.valid
-  adapter.io.input.payload := io.input.payload
-  io.input.ready := adapter.io.input.ready
-
-  io.output.valid := adapter.io.output.valid
-  io.output.payload := adapter.io.output.payload
-  adapter.io.output.ready := io.output.ready
-}
 
   def component(): Top =
     new Top(
-      equalWidth = HdlInt.param("EQ_WIDTH", default = 8, min = 1, max = 32),
-      downWidth = HdlInt.param("DOWN_WIDTH", default = 12, min = 9, max = 16),
-      upWidth = HdlInt.param("UP_WIDTH", default = 12, min = 9, max = 16)
+      equalWidth = HdlInt.param(
+        "EQ_WIDTH",
+        default = 8,
+        min = 1,
+        max = 32
+      ).asElabInt,
+      downWidth = HdlInt.param(
+        "DOWN_WIDTH",
+        default = 12,
+        min = 9,
+        max = 16
+      ).asElabInt,
+      upWidth = HdlInt.param(
+        "UP_WIDTH",
+        default = 12,
+        min = 9,
+        max = 16
+      ).asElabInt
     )
 }
 
@@ -254,7 +126,7 @@ class ParameterizedStreamWidthAdapterTests extends AnyFunSuite {
   private val ModuleDeclaration =
     """(?m)^\s*module\s+([A-Za-z_][A-Za-z0-9_$]*)\b""".r
 
-  test("untouched native StreamWidthAdapter emits one parameterized top covering all three native modes") {
+  test("typed native StreamWidthAdapter emits one parameterized top covering all three native modes") {
     withTemporaryDirectory { directory =>
       val parameterizedDirectory = directory.resolve("parameterized")
       val replayDirectory = directory.resolve("replay")
@@ -294,15 +166,6 @@ class ParameterizedStreamWidthAdapterTests extends AnyFunSuite {
       assert(parameterized.contains("parameter integer EQ_WIDTH = 8"))
       assert(parameterized.contains("parameter integer DOWN_WIDTH = 12"))
       assert(parameterized.contains("parameter integer UP_WIDTH = 12"))
-      assert(parameterized.contains("module NativeStreamWidthAdapterEqual #("))
-      assert(parameterized.contains("parameter integer WIDTH = 8"))
-      assert(parameterized.contains("module NativeStreamWidthAdapterDownsize #("))
-      assert(parameterized.contains("parameter integer INPUT_WIDTH = 12"))
-      assert(parameterized.contains("module NativeStreamWidthAdapterUpsize #("))
-      assert(parameterized.contains("parameter integer OUTPUT_WIDTH = 12"))
-      assert(parameterized.contains(".WIDTH(EQ_WIDTH)"))
-      assert(parameterized.contains(".INPUT_WIDTH(DOWN_WIDTH)"))
-      assert(parameterized.contains(".OUTPUT_WIDTH(UP_WIDTH)"))
       assert(hasWidth(parameterized, "equalInputPayload", "EQ_WIDTH"))
       assert(hasWidth(parameterized, "downInputPayload", "DOWN_WIDTH"))
       assert(hasWidth(parameterized, "upOutputPayload", "UP_WIDTH"))
@@ -313,12 +176,7 @@ class ParameterizedStreamWidthAdapterTests extends AnyFunSuite {
         .toVector
         .sorted
       assert(
-        inventory == Vector(
-          "NativeStreamWidthAdapterDownsize",
-          "NativeStreamWidthAdapterEqual",
-          "NativeStreamWidthAdapterTop",
-          "NativeStreamWidthAdapterUpsize"
-        ),
+        inventory == Vector("NativeStreamWidthAdapterTop"),
         s"Unexpected native StreamWidthAdapter module inventory: ${inventory.mkString(", ")}"
       )
 
@@ -326,6 +184,8 @@ class ParameterizedStreamWidthAdapterTests extends AnyFunSuite {
       assert(!parameterized.contains("MorphStreamWidthAdapter"))
       assert(!parameterized.contains("ParameterizedStreamWidthAdapter"))
       assert(!parameterized.contains("rewriteParameterizedStreamWidthAdapter"))
+      assert(!parameterized.contains("NativeIntShadow"))
+      assert(!parameterized.contains("compilerTrackArgument"))
 
       assert(!concrete.contains("parameter integer EQ_WIDTH"))
       assert(!concrete.contains("parameter integer DOWN_WIDTH"))
@@ -374,14 +234,12 @@ class ParameterizedStreamWidthAdapterTests extends AnyFunSuite {
       // The second independent symbolic width is attached to a different
       // exact Data identity. The active INPUT_WIDTH boundary must reject it
       // instead of matching the equal concrete default.
-      new IndependentRootTop(first, second)
+      new IndependentRootTop(first.asElabInt, second.asElabInt)
     }
     result match {
       case Left(failure) =>
         assert(
-          failure.detail.contains("MORPH-FRONTEND-NATIVE-WIDTH-FUNCTION-ROOT-AMBIGUOUS") ||
-            failure.detail.contains("MORPH-FRONTEND-NATIVE-INT-EXPRESSION-OPERAND-UNPROVEN") ||
-            failure.detail.contains("SPINAL-ELAB-INT-DOMAIN-NOT-CONSTANT"),
+          failure.detail.contains("SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED"),
           failure.detail
         )
       case Right(report) =>

@@ -33,7 +33,7 @@ trait SIntFactory {
   def SInt(width: BitCount): SInt = SInt().setWidth(width.value)
   /** Create a new SInt while retaining one typed elaboration width. */
   def SInt(width: ParameterizedBitCount): SInt =
-    ParameterizedWidth.SInt(width)
+    ParameterizedWidth.attach(SInt(), width)
 }
 
 
