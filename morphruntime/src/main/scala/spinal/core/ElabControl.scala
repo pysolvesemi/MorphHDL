@@ -37,6 +37,14 @@ object ElabControl {
     }
   }
 
+  /** Typed counterpart of SpinalHDL's host-language `.generate` helper. */
+  def generateSymbolic[T](
+      condition: ElabBool,
+      sourceFile: String,
+      sourceLine: Int
+  )(body: => T): T =
+    selectSymbolic(condition, sourceFile, sourceLine)(body)(null.asInstanceOf[T])
+
   /** Preserve one source-ordered typed `if / else if / ... / else` chain. */
   def selectSymbolicChain[T](
       alternatives: Seq[(ElabBool, () => T, String, Int)],

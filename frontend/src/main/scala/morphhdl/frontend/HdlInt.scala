@@ -180,6 +180,15 @@ final class HdlInt private[frontend] (
     }
   }
 
+  /**
+    * Cross the approved typed native-library boundary without collapsing this
+    * value to Scala `Int`.
+    */
+  def asElabInt: spinal.core.ElabInt =
+    spinal.core.ElabInt.fromExpression(
+      StructuralExpressionBridge.width(this, "typed elaboration integer")
+    )
+
   /** Retain one bounded native Mem word-count expression. */
   private[frontend] def toParameterizedMemoryDepth(implicit
       file: sourcecode.File,

@@ -263,29 +263,48 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
     private def rewriteIf(original: If): Tree = {
       val (alternatives, otherwise) = collectChain(original)
-      val sequence = Apply(
-        scalaSeqApply,
-        alternatives.map { case (predicate, body, line) =>
+      val rewritten =
+        if (alternatives.size == 1) {
+          val (predicate, body, line) = alternatives.head
           Apply(
-            tuple4Apply,
+            Apply(
+              Apply(
+                helperMethod("selectSymbolic"),
+                List(
+                  predicate,
+                  Literal(Constant(sourceFile)),
+                  Literal(Constant(line))
+                )
+              ),
+              List(body)
+            ),
+            List(otherwise)
+          )
+        } else {
+          val sequence = Apply(
+            scalaSeqApply,
+            alternatives.map { case (predicate, body, line) =>
+              Apply(
+                tuple4Apply,
+                List(
+                  predicate,
+                  function0(body),
+                  Literal(Constant(sourceFile)),
+                  Literal(Constant(line))
+                )
+              )
+            }.toList
+          )
+          Apply(
+            helperMethod("selectSymbolicChain"),
             List(
-              predicate,
-              function0(body),
+              sequence,
+              function0(otherwise),
               Literal(Constant(sourceFile)),
-              Literal(Constant(line))
+              Literal(Constant(sourceLine(otherwise)))
             )
           )
-        }.toList
-      )
-      val rewritten = Apply(
-        helperMethod("select"),
-        List(
-          sequence,
-          function0(otherwise),
-          Literal(Constant(sourceFile)),
-          Literal(Constant(sourceLine(otherwise)))
-        )
-      )
+        }
       rewritten.setPos(original.pos)
     }
 
@@ -296,7 +315,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     ): Tree = {
       val rewritten = Apply(
         Apply(
-          helperMethod("generate"),
+          helperMethod("generateSymbolic"),
           List(
             condition(predicate),
             Literal(Constant(sourceFile)),
@@ -310,18 +329,24 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
     private def rewriteAssert(
         original: Tree,
-        fun: Tree,
         predicate: Tree,
         rest: List[Tree]
     ): Tree = {
-      val rewritten = Apply(
-        helperMethod("require"),
-        List(
-          condition(predicate),
-          Literal(Constant(sourceFile)),
-          Literal(Constant(sourceLine(original)))
-        ) ++ rest.map(transform)
-      )
+      val transformedPredicate = condition(predicate)
+      val source = Literal(Constant(sourceFile))
+      val line = Literal(Constant(sourceLine(original)))
+      val arguments = rest match {
+        case Nil => List(transformedPredicate, source, line)
+        case message :: Nil =>
+          List(transformedPredicate, transform(message), source, line)
+        case _ =>
+          global.reporter.error(
+            original.pos,
+            "MORPHDL-TYPED-REQUIRE-ARITY-UNSUPPORTED: typed require/assert accepts zero or one message argument"
+          )
+          List(transformedPredicate, source, line)
+      }
+      val rewritten = Apply(helperMethod("requireCondition"), arguments)
       rewritten.setPos(original.pos)
     }
 
@@ -334,7 +359,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       case original @ Apply(fun, predicate :: rest)
           if (terminalName(fun) == "require" || terminalName(fun) == "assert") &&
             referencesTyped(predicate, names) =>
-        rewriteAssert(original, fun, predicate, rest)
+        rewriteAssert(original, predicate, rest)
       case _ => super.transform(tree)
     }
   }

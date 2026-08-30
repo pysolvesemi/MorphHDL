@@ -33,6 +33,9 @@ trait UIntFactory{
   def UInt(u: Unit = ()): UInt = new UInt()
   /** Create a new UInt of a given width */
   def UInt(width: BitCount): UInt = UInt().setWidth(width.value)
+  /** Create a new UInt while retaining one typed elaboration width. */
+  def UInt(width: ParameterizedBitCount): UInt =
+    ParameterizedWidth.UInt(width)
 }
 
 
@@ -440,6 +443,12 @@ class UInt extends BitVector with Num[UInt] with MinMaxProvider with DataPrimiti
    *  If enlarged, it is extended with zero padding at MSB as necessary.
    */
   override def resize(width: BitCount) : this.type = resize(width.value)
+
+  /** Resize while retaining the exact typed target width. */
+  override def resize(width: ElabInt): this.type =
+    ParameterizedWidth
+      .attach(resize(width.witness), width.toParameterizedBitCount("typed resize"))
+      .asInstanceOf[this.type]
 
   override def minValue: BigInt = BigInt(0)
   override def maxValue: BigInt = (BigInt(1) << getWidth) - 1
