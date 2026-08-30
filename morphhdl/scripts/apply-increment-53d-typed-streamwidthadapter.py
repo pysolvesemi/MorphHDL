@@ -37,7 +37,7 @@ constant_method = constant_match.group(1)
 
 width_helpers = []
 for path, value in texts_with('widthOfExpr'):
-    if re.search(r'def\s+widthOfExpr\s*\(', value):
+    if re.search(r'def\s+widthOfExpr(?:\s*\[[^\]]+\])?\s*\(', value):
         width_helpers.append(path)
 if not width_helpers:
     raise SystemExit('typed foundation needs a generic widthOfExpr(Data): ElabInt helper')
