@@ -1,0 +1,125 @@
+name: Validate and publish Increment 53d exact resize identity
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-resize-identity-autopublish.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53d-resize-identity-autopublish
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+      - name: Apply direct typed adapter and exact resize identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! grep -q 'widthOfExpr(input.payload)' lib/src/main/scala/spinal/lib/Stream.scala; then
+            base64 -d morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
+              | gzip -d \
+              | git apply --whitespace=nowarn
+          fi
+          if ! grep -q 'RetainedResizeIdentityRef' core/src/main/scala/spinal/core/ParameterizedWidth.scala; then
+            base64 -d morphhdl/scripts/increment-53d-typed-resize-identity.patch.gz.b64 \
+              | gzip -d \
+              | git apply --whitespace=nowarn
+          fi
+          git diff --check
+      - name: Verify generic exact-identity contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          widths = Path('core/src/main/scala/spinal/core/ParameterizedWidth.scala').read_text()
+          assert 'RetainedResizeIdentityRef' in widths
+          assert 'def attachResize[T <: BitVector]' in widths
+          assert 'def resizeExpressionOf' in widths
+          fallback = Path(
+            'morphhdl/src/main/scala/spinal/core/internals/'
+            'ExternalParameterizedVerilogNativeFallback.scala'
+          ).read_text()
+          assert 'private def retainedResizeExpression' in fallback
+          assert 'ParameterizedWidth.resizeExpressionOf(resize)' in fallback
+          stream = Path('lib/src/main/scala/spinal/lib/Stream.scala').read_text()
+          body = stream[stream.index('object StreamWidthAdapter {'):stream.index('//padding=true allow')]
+          assert 'widthOfExpr(input.payload)' in body
+          assert 'widthOfExpr(output.payload)' in body
+          assert 'NativeIntShadow' not in body
+          PY
+      - name: Run focused typed adapter suite
+        id: focused
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          /tmp/mill 'morph[2.13.12].testOnly' \
+            morphhdl.ParameterizedStreamWidthAdapterTests \
+            > /tmp/inc53d-resize-identity.log 2>&1
+          status=$?
+          echo "$status" > /tmp/inc53d-resize-identity.status
+          cat /tmp/inc53d-resize-identity.log
+          exit "$status"
+      - name: Publish passing generic implementation or exact result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(cat /tmp/inc53d-resize-identity.status 2>/dev/null || printf '1')"
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          if [ "$status" = 0 ]; then
+            git add \
+              core/src/main/scala/spinal/core/Bits.scala \
+              core/src/main/scala/spinal/core/ParameterizedWidth.scala \
+              core/src/main/scala/spinal/core/SInt.scala \
+              core/src/main/scala/spinal/core/UInt.scala \
+              docs/morphhdl/increment-53d-typed-native-change-manifest.md \
+              lib/src/main/scala/spinal/lib/Stream.scala \
+              morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala \
+              morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala
+            git diff --cached --check
+            git commit -m 'Retain direct typed adapter resizes by exact identity'
+          else
+            {
+              echo '# Increment 53d exact resize identity result'
+              echo
+              echo "test_status=$status"
+              grep -nEi 'NO DRIVER|SPINAL-ELAB|AssertionError|Exception|FAILED|error|Resize|InputPayload' \
+                /tmp/inc53d-resize-identity.log || true
+              echo
+              tail -n 180 /tmp/inc53d-resize-identity.log
+            } > docs/morphhdl/increment-53d-resize-identity-result.txt
+            git reset --hard HEAD >/dev/null
+            git clean -fd >/dev/null
+            git add docs/morphhdl/increment-53d-resize-identity-result.txt
+            git commit -m 'Record Increment 53d exact resize identity result'
+          fi
+          git pull --rebase origin agent/increment-53d-typed-elabint-pivot
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot
