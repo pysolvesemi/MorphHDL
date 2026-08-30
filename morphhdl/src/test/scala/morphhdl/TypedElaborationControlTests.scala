@@ -43,6 +43,25 @@ object TypedElaborationControlSmoke {
   }
 }
 
+/**
+  * Same source unit, same identifier spellings, different lexical bindings.
+  * Ordinary Int bindings must never inherit typed-control meaning from another
+  * class or method merely because their names match.
+  */
+object TypedElaborationLexicalScopeSmoke {
+  final class TypedOwner(inputWidth: ElabInt, outputWidth: ElabInt) {
+    def typedPredicate: ElabBool = inputWidth.elabEq(outputWidth)
+  }
+
+  def ordinaryEqual(inputWidth: Int, outputWidth: Int): Boolean =
+    inputWidth == outputWidth
+
+  def ordinaryNested(inputWidth: Int): Boolean = {
+    val outputWidth: Int = 8
+    inputWidth == outputWidth
+  }
+}
+
 class TypedElaborationControlTests extends AnyFunSuite {
   import TypedElaborationControlSmoke._
 
@@ -79,6 +98,13 @@ class TypedElaborationControlTests extends AnyFunSuite {
       ElabInt.requireSingleSymbolicRoot("typed unit test", left, right)
     }
     assert(error.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED")
+  }
+
+  test("ordinary bindings shadow same-named typed bindings in the same source unit") {
+    assert(TypedElaborationLexicalScopeSmoke.ordinaryEqual(8, 8))
+    assert(!TypedElaborationLexicalScopeSmoke.ordinaryEqual(8, 9))
+    assert(TypedElaborationLexicalScopeSmoke.ordinaryNested(8))
+    assert(!TypedElaborationLexicalScopeSmoke.ordinaryNested(7))
   }
 
   private def withTemporaryDirectory(body: Path => Unit): Unit = {
