@@ -1,0 +1,128 @@
+name: Publish coherent Increment 53d typed foundation
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-typed-foundation-publisher.yml
+      - morphhdl/scripts/apply-increment-53d-typed-foundation.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53d-typed-foundation-publisher
+  cancel-in-progress: true
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Apply and inspect typed foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/apply-increment-53d-typed-foundation.py
+          git diff --check
+          grep -Fq 'def widthOfExpr' core/src/main/scala/spinal/core/core.scala
+          grep -Fq 'def asElabInt' frontend/src/main/scala/morphhdl/frontend/HdlInt.scala
+          grep -Fq 'generateSymbolic' morphruntime/src/main/scala/spinal/core/ElabControl.scala
+          grep -Fq 'MorphHdlTypedElaborationControlComponent' morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala
+          ! grep -Fq 'symbolOption' morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala
+
+  sbt:
+    name: SBT typed foundation Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12.18", "2.13.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+          submodules: recursive
+      - name: Apply typed foundation
+        run: python3 morphhdl/scripts/apply-increment-53d-typed-foundation.py
+      - name: Compile and test typed control
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch "++${{ matrix.scala_version }}" \
+            morphruntime/compile morphplugin/compile frontend/compile morph/compile Test/compile \
+            "morph/testOnly morphhdl.TypedElaborationControlTests"
+
+  mill:
+    name: Mill typed foundation Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12.18", "2.13.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+      - name: Apply, compile, and test typed control
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/apply-increment-53d-typed-foundation.py
+          /tmp/mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.TypedElaborationControlTests
+
+  publish:
+    needs: [source-contract, sbt, mill]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Commit only the validated typed foundation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/apply-increment-53d-typed-foundation.py
+          git diff --check
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add \
+            core/src/main/scala/spinal/core/core.scala \
+            core/src/main/scala/spinal/core/Bits.scala \
+            core/src/main/scala/spinal/core/UInt.scala \
+            core/src/main/scala/spinal/core/SInt.scala \
+            core/src/main/scala/spinal/core/BitVector.scala \
+            frontend/src/main/scala/morphhdl/frontend/HdlInt.scala \
+            morphruntime/src/main/scala/spinal/core/ElabControl.scala \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala
+          git diff --cached --check
+          git commit -m 'Complete typed elaboration control foundation'
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot
