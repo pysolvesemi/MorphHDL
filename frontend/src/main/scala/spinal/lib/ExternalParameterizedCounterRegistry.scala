@@ -68,7 +68,8 @@ object ExternalParameterizedCounterRegistry {
           minimum = parameter.minimum,
           maximum = parameter.maximum,
           parameters = Vector(parameter),
-          sourceLocation = width.sourceLocation
+          sourceLocation = width.sourceLocation,
+          parameterRoots = Vector(parameter.declarationRoot)
         )
       }
     }.getOrElse {

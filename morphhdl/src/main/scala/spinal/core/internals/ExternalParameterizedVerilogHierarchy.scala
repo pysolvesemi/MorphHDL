@@ -22,6 +22,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     def minimum: BigInt
     def maximum: BigInt
     def parameters: Vector[ElaborationIntegerParameter]
+    def parameterRoots: Set[ElaborationIntegerParameterRoot]
     final def isSymbolic: Boolean = parameters.nonEmpty
     final def range: String = s"[$render-1:0]"
   }
@@ -34,6 +35,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     override def minimum: BigInt = parameter.minimum
     override def maximum: BigInt = parameter.maximum
     override def parameters: Vector[ElaborationIntegerParameter] = Vector(parameter)
+    override def parameterRoots: Set[ElaborationIntegerParameterRoot] =
+      Set(parameter.declarationRoot)
   }
 
   private final case class LiteralBinding(value: BigInt) extends BindingExpr {
@@ -42,6 +45,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     override def minimum: BigInt = value
     override def maximum: BigInt = value
     override def parameters: Vector[ElaborationIntegerParameter] = Vector.empty
+    override def parameterRoots: Set[ElaborationIntegerParameterRoot] = Set.empty
   }
 
   private final case class ExpressionBinding(
@@ -53,6 +57,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     override def maximum: BigInt = expression.maximum
     override def parameters: Vector[ElaborationIntegerParameter] =
       expression.parameters.distinct.sortBy(_.name)
+    override def parameterRoots: Set[ElaborationIntegerParameterRoot] =
+      expression.completedParameterRoots.toSet
   }
 
   private final case class BindingSignature(
@@ -60,7 +66,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       default: BigInt,
       minimum: BigInt,
       maximum: BigInt,
-      parameters: Vector[ElaborationIntegerParameter]
+      parameters: Vector[ElaborationIntegerParameter],
+      parameterRoots: Set[ElaborationIntegerParameterRoot]
   )
 
   private final case class PortRewrite(name: String, width: BindingExpr)
@@ -610,11 +617,24 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
             s"derived width of port '$portName' on instance '$instanceName' maps actual parameter '$name' to conflicting schemas"
           )
       }
+    val actualRoots = replacements.values.toVector
+      .flatMap(_.parameterRoots)
+      .toSet
+    actualRoots.groupBy(_.name).collectFirst {
+      case (name, roots) if roots.size > 1 => name -> roots
+    }.foreach { case (name, roots) =>
+      fail(
+        "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED",
+        s"derived width of port '$portName' on instance '$instanceName' combines independently sourced actual declarations for parameter '$name'",
+        roots.iterator.flatMap(_.sourceLocation).toVector.headOption
+      )
+    }
     ExpressionBinding(
       definition.copy(
         verilog = rendered.toString,
         parameters = actualParameters,
-        sourceLocation = None
+        sourceLocation = None,
+        parameterRoots = actualRoots.toVector.sortBy(_.name)
       )
     )
   }
@@ -947,7 +967,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       default = value.default,
       minimum = value.minimum,
       maximum = value.maximum,
-      parameters = value.parameters.distinct.sortBy(_.name)
+      parameters = value.parameters.distinct.sortBy(_.name),
+      parameterRoots = value.parameterRoots
     )
 
   private def references(expression: Expression, target: Expression): Boolean = {

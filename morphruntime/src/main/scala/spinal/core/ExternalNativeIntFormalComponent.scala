@@ -107,7 +107,8 @@ private[spinal] object ExternalNativeIntFormalComponent {
       minimum = minimum,
       maximum = maximum,
       parameters = Vector(formal),
-      sourceLocation = Some(callSite)
+      sourceLocation = Some(callSite),
+      parameterRoots = Vector(formal.declarationRoot)
     )
     val token = ExternalNativeIntFormalizationToken(
       callSite = callSite,

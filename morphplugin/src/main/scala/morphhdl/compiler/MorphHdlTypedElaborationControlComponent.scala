@@ -27,6 +27,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
   private sealed trait BindingKind
   private case object TypedIntegerBinding extends BindingKind
   private case object TypedBooleanBinding extends BindingKind
+  private case object ScalaIntegerBinding extends BindingKind
   private case object OrdinaryBinding extends BindingKind
 
   private final case class ClassifiedTrees(
@@ -75,19 +76,6 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
     var scopes = List(mutable.LinkedHashMap.empty[TermName, BindingKind])
 
-    def bindingKind(value: ValDef): BindingKind =
-      simpleTypeName(value.tpt) match {
-        case "ElabInt"  => TypedIntegerBinding
-        case "ElabBool" => TypedBooleanBinding
-        case _          => OrdinaryBinding
-      }
-
-    def bind(value: ValDef): Unit =
-      scopes.head.update(value.name, bindingKind(value))
-
-    def bindOrdinary(name: TermName): Unit =
-      scopes.head.update(name, OrdinaryBinding)
-
     def lookup(name: TermName): Option[BindingKind] =
       scopes.collectFirst {
         case scope if scope.contains(name) => scope(name)
@@ -112,24 +100,36 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       case Ident(name: TermName) => lookup(name).getOrElse(OrdinaryBinding)
       case Select(This(_), name: TermName) =>
         lookup(name).getOrElse(OrdinaryBinding)
+      case Literal(Constant(_: Byte))  => ScalaIntegerBinding
+      case Literal(Constant(_: Short)) => ScalaIntegerBinding
+      case Literal(Constant(_: Char))  => ScalaIntegerBinding
+      case Literal(Constant(_: Int))   => ScalaIntegerBinding
 
       case Apply(Select(receiver, operator), List(argument)) =>
         val receiverKind = expressionKind(receiver)
+        val argumentKind = expressionKind(argument)
+        val receiverIsInteger =
+          receiverKind == TypedIntegerBinding || receiverKind == ScalaIntegerBinding
+        val argumentIsInteger =
+          argumentKind == TypedIntegerBinding || argumentKind == ScalaIntegerBinding
         decoded(operator) match {
           case "+" | "-" | "*" | "/" | "%"
-              if receiverKind == TypedIntegerBinding =>
+              if receiverKind == TypedIntegerBinding && argumentIsInteger =>
             TypedIntegerBinding
+          case "+" | "-" | "*" | "/" | "%"
+              if receiverKind == ScalaIntegerBinding &&
+                argumentKind == ScalaIntegerBinding =>
+            ScalaIntegerBinding
           case "<" | "<=" | ">" | ">="
-              if receiverKind == TypedIntegerBinding =>
+              if receiverKind == TypedIntegerBinding && argumentIsInteger =>
             TypedBooleanBinding
           case "elabEq" | "elabNe"
-              if receiverKind == TypedIntegerBinding =>
+              if receiverKind == TypedIntegerBinding && argumentIsInteger =>
             TypedBooleanBinding
           case "==" | "!="
-              if receiverKind == TypedIntegerBinding =>
-            TypedBooleanBinding
-          case "==" | "!="
-              if expressionKind(argument) == TypedIntegerBinding =>
+              if receiverIsInteger && argumentIsInteger &&
+                (receiverKind == TypedIntegerBinding ||
+                  argumentKind == TypedIntegerBinding) =>
             TypedBooleanBinding
           case "&&" | "||" if receiverKind == TypedBooleanBinding =>
             TypedBooleanBinding
@@ -144,8 +144,31 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           if decoded(operator) == "unary_!" &&
             expressionKind(receiver) == TypedBooleanBinding =>
         TypedBooleanBinding
+      case Select(receiver, operator)
+          if (decoded(operator) == "unary_+" || decoded(operator) == "unary_-") &&
+            expressionKind(receiver) == ScalaIntegerBinding =>
+        ScalaIntegerBinding
+      case Apply(Select(receiver, operator), Nil)
+          if (decoded(operator) == "unary_+" || decoded(operator) == "unary_-") &&
+            expressionKind(receiver) == ScalaIntegerBinding =>
+        ScalaIntegerBinding
       case _ => OrdinaryBinding
     }
+
+    def bindingKind(value: ValDef): BindingKind =
+      simpleTypeName(value.tpt) match {
+        case "ElabInt"  => TypedIntegerBinding
+        case "ElabBool" => TypedBooleanBinding
+        case "Int" | "Byte" | "Short" | "Char" => ScalaIntegerBinding
+        case _ if value.tpt.isEmpty => expressionKind(value.rhs)
+        case _                      => OrdinaryBinding
+      }
+
+    def bind(value: ValDef): Unit =
+      scopes.head.update(value.name, bindingKind(value))
+
+    def bindOrdinary(name: TermName): Unit =
+      scopes.head.update(name, OrdinaryBinding)
 
     def isTypedInteger(current: Tree): Boolean =
       expressionKind(current) == TypedIntegerBinding
@@ -252,7 +275,10 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             if decoded(operator) == "==" || decoded(operator) == "!=" =>
           val leftTyped = isTypedInteger(left)
           val rightTyped = isTypedInteger(right)
-          if (leftTyped || rightTyped)
+          if (
+            (leftTyped || rightTyped) &&
+            expressionKind(original) == TypedBooleanBinding
+          )
             typedEqualities.put(
               original,
               java.lang.Boolean.valueOf(leftTyped)

@@ -435,6 +435,9 @@ class ExternalNativeIntShadowExpressionTests extends AnyFunSuite {
     assert(value.definitionExpression.maximum == definitionMaximum)
     assert(value.actualExpression.minimum == actualMinimum)
     assert(value.actualExpression.maximum == actualMaximum)
+    val root = slot(record, "root")
+    assertSameRoots(value.definitionExpression, root.definitionExpression)
+    assertSameRoots(value.actualExpression, root.actualExpression)
   }
 
   private def assertPredicate(
@@ -450,6 +453,35 @@ class ExternalNativeIntShadowExpressionTests extends AnyFunSuite {
     assert(value.witness == witness)
     assert(value.definitionExpression.verilog == definition)
     assert(value.actualExpression.verilog == actual)
+    val root = slot(record, "root")
+    assertSameRoots(value.definitionExpression, root.definitionExpression)
+    assertSameRoots(value.actualExpression, root.actualExpression)
+  }
+
+  private def assertSameRoots(
+      value: ElaborationIntegerExpression,
+      root: ElaborationIntegerExpression
+  ): Unit = {
+    assert(value.parameterRoots.nonEmpty)
+    assert(value.parameterRoots.size == root.parameterRoots.size)
+    assert(
+      value.parameterRoots.forall(candidate =>
+        root.parameterRoots.exists(_ eq candidate)
+      )
+    )
+  }
+
+  private def assertSameRoots(
+      value: ElaborationBooleanExpression,
+      root: ElaborationIntegerExpression
+  ): Unit = {
+    assert(value.parameterRoots.nonEmpty)
+    assert(value.parameterRoots.size == root.parameterRoots.size)
+    assert(
+      value.parameterRoots.forall(candidate =>
+        root.parameterRoots.exists(_ eq candidate)
+      )
+    )
   }
 
   private def signature(directory: Path): Vector[String] = {

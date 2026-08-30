@@ -14,6 +14,7 @@ from typing import Any, Dict, Mapping, Optional, Sequence
 
 EXPECTED_REPOSITORY = "pysolvesemi/MorphHDL"
 DEFAULT_MANIFEST = "morphhdl/contracts/typed-native-source-overlay.json"
+EXPECTED_SOURCE_ROOTS = ["core", "idslplugin", "lib"]
 ALLOWED_CLASSIFICATIONS = {
     "typed-formal-or-overload",
     "typed-helper",
@@ -128,8 +129,11 @@ def validate(root: Path, manifest_path: Path) -> None:
     if not isinstance(roots_raw, list) or not roots_raw:
         raise OverlayError("source_roots must be a non-empty array")
     roots = [clean_path(value, f"source_roots[{index}]") for index, value in enumerate(roots_raw)]
-    if roots != sorted(set(roots)):
-        raise OverlayError("source_roots must be sorted and unique")
+    if roots != EXPECTED_SOURCE_ROOTS:
+        raise OverlayError(
+            "source_roots must contain exactly the audited native roots: "
+            + ", ".join(EXPECTED_SOURCE_ROOTS)
+        )
 
     classes = manifest.get("classifications")
     if not isinstance(classes, list) or set(classes) != ALLOWED_CLASSIFICATIONS:
@@ -247,7 +251,7 @@ def self_test() -> None:
             "repository": EXPECTED_REPOSITORY,
             "hash_format": "git-sha1",
             "base": {"commit": base, "tree": base_tree},
-            "source_roots": ["core", "lib"],
+            "source_roots": EXPECTED_SOURCE_ROOTS,
             "classifications": sorted(ALLOWED_CLASSIFICATIONS),
             "entries": [
                 {
@@ -268,6 +272,15 @@ def self_test() -> None:
         }
         manifest.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
         validate(root, manifest)
+
+        narrowed = root / "narrowed-overlay.json"
+        narrowed_value = json.loads(json.dumps(value))
+        narrowed_value["source_roots"] = ["core", "idslplugin"]
+        narrowed.write_text(
+            json.dumps(narrowed_value, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        expect_failure(root, narrowed, "narrowed native source roots")
 
         unexpected = core / "Unexpected.scala"
         unexpected.write_text("object Unexpected\n", encoding="utf-8")

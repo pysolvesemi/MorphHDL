@@ -249,6 +249,43 @@ class GenericProcessLoweringTests extends AnyFunSuite {
     }
   }
 
+  test("procedural loop inventory rejects independent same-name roots") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "independent_process_roots.v"
+      val result = MorphVerilog.tryGenerate(config) {
+        val first = HdlInt.param("LANES", default = 2, min = 1, max = 2)
+        val second = HdlInt.param("LANES", default = 2, min = 1, max = 2)
+        new Component {
+          setDefinitionName("IndependentProcessRoots")
+          val din = in(morphhdl.frontend.Bits(4 bits))
+          val firstOut = out(morphhdl.frontend.Bits(4 bits))
+          val secondOut = out(morphhdl.frontend.Bits(4 bits))
+          firstOut := 0
+          secondOut := 0
+          (0 until first).named("p_first", "first_index").foreach { index =>
+            val width = HdlInt.literal(BigInt(1))
+            firstOut(index * width, width) := din(index * width, width)
+          }
+          (0 until second).named("p_second", "second_index").foreach { index =>
+            val width = HdlInt.literal(BigInt(1))
+            secondOut(index * width, width) := din(index * width, width)
+          }
+        }
+      }
+
+      result match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED"
+            )
+          )
+        case Right(report) => fail(s"Expected independent-root failure, received $report")
+      }
+    }
+  }
+
   test("generic fallback does not suppress inherited no-driver and latch validation") {
     withTemporaryDirectory { directory =>
       val noDriverConfig = SpinalConfig(

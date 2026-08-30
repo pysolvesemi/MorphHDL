@@ -166,10 +166,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         manifest_path = Path(arguments.manifest)
         if not manifest_path.is_absolute():
             manifest_path = root / manifest_path
+        manifest_path = manifest_path.resolve()
+        default_manifest_path = (root / DEFAULT_MANIFEST).resolve()
         legacy = json_object(manifest_path)
         overlay_path = root / OVERLAY_MANIFEST
 
-        if arguments.manifest != DEFAULT_MANIFEST or not overlay_path.is_file():
+        if manifest_path != default_manifest_path or not overlay_path.is_file():
             run_legacy_on_current(
                 root,
                 legacy_commit(legacy),

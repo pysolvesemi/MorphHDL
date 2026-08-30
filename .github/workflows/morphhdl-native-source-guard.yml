@@ -38,6 +38,8 @@ jobs:
             morphhdl/scripts/check-native-source-preservation.py \
             morphhdl/scripts/check-typed-native-source-overlay.py
           python3 morphhdl/scripts/check-native-source-preservation.py --self-test
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            --manifest ./morphhdl/contracts/native-source-preservation.json
           if [ -f morphhdl/contracts/typed-native-source-overlay.json ]; then
             python3 morphhdl/scripts/check-typed-native-source-overlay.py --self-test
           fi

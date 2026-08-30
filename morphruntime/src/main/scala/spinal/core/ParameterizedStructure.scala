@@ -131,6 +131,7 @@ object ParameterizedStructure {
   private[core] sealed trait StructuralRegion {
     def blocks: Vector[ParameterizedStructuralBlock]
     def parameters: Vector[ElaborationIntegerParameter]
+    def parameterRoots: Vector[ElaborationIntegerParameterRoot]
     def sourceLocation: Option[String]
   }
 
@@ -143,6 +144,8 @@ object ParameterizedStructure {
   ) extends StructuralRegion {
     override val blocks: Vector[ParameterizedStructuralBlock] = Vector(body)
     override val parameters: Vector[ElaborationIntegerParameter] = count.parameters
+    override val parameterRoots: Vector[ElaborationIntegerParameterRoot] =
+      count.parameterRoots
   }
 
   private[core] final case class StructuralIf(
@@ -158,6 +161,8 @@ object ParameterizedStructure {
       Vector(whenTrue, whenFalse)
     override val parameters: Vector[ElaborationIntegerParameter] =
       condition.parameters
+    override val parameterRoots: Vector[ElaborationIntegerParameterRoot] =
+      condition.parameterRoots
   }
 
   private[core] final case class StructuralCaseChoice(
@@ -177,6 +182,8 @@ object ParameterizedStructure {
       choices.map(_.body) :+ defaultBody
     override val parameters: Vector[ElaborationIntegerParameter] =
       selector.parameters
+    override val parameterRoots: Vector[ElaborationIntegerParameterRoot] =
+      selector.parameterRoots
   }
 
   private final case class AlternativeStep(
@@ -903,21 +910,26 @@ object ParameterizedStructure {
       body: ParameterizedStructuralBlock,
       sourceLocation: Option[String]
   ): Unit = {
+    ElabInt.validateExpression(count, "generate count")
+    val normalizedCount = ElabInt.withCompleteParameterRoots(count)
     val storage = storageOf(component)
     reserveName(storage, label, "generate label", sourceLocation)
     reserveName(storage, indexName, "generate index", sourceLocation)
-    validateIntegerExpression(count, "generate count")
-    if (count.default < 1) {
+    validateIntegerExpression(normalizedCount, "generate count")
+    if (normalizedCount.default < 1) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-COUNT-NONPOSITIVE",
-        s"generate count '${count.verilog}' has non-positive concrete witness ${count.default}",
+        s"generate count '${normalizedCount.verilog}' has non-positive concrete witness ${normalizedCount.default}",
         sourceLocation
       )
     }
-    if (count.minimum < 0 || count.maximum > BigInt(Int.MaxValue)) {
+    if (
+      normalizedCount.minimum < 0 ||
+      normalizedCount.maximum > BigInt(Int.MaxValue)
+    ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-COUNT-DOMAIN-UNSUPPORTED",
-        s"generate count '${count.verilog}' reaches [${count.minimum}, ${count.maximum}], outside the supported non-negative Int-sized domain",
+        s"generate count '${normalizedCount.verilog}' reaches [${normalizedCount.minimum}, ${normalizedCount.maximum}], outside the supported non-negative Int-sized domain",
         sourceLocation
       )
     }
@@ -927,7 +939,7 @@ object ParameterizedStructure {
       StructuralFor(
         label,
         indexName,
-        count,
+        normalizedCount,
         body,
         sourceLocation
       ),
@@ -963,16 +975,25 @@ object ParameterizedStructure {
       sourceLocation: Option[String],
       predicateDomain: Option[StructuralPredicateDomain] = None
   ): Unit = {
+    ElabInt.validateExpression(condition, "generate-if condition")
+    val normalizedCondition = ElabInt.withCompleteParameterRoots(condition)
     val storage = storageOf(pending.component)
     requirePending(storage, pending)
     reserveName(storage, whenTrueLabel, "generate-if true label", sourceLocation)
     reserveName(storage, whenFalseLabel, "generate-if false label", sourceLocation)
-    validateParameters(condition.parameters, sourceLocation)
+    ElabInt.validateExpression(normalizedCondition, "generate-if condition")
+    validateParameters(normalizedCondition.parameters, sourceLocation)
+    validateParameterRoots(
+      normalizedCondition.parameters,
+      normalizedCondition.parameterRoots,
+      sourceLocation,
+      "generate-if condition"
+    )
     registerRegion(
       pending.component,
       pending.captureId,
       StructuralIf(
-        condition,
+        normalizedCondition,
         whenTrueLabel,
         whenFalseLabel,
         whenTrue,
@@ -993,9 +1014,11 @@ object ParameterizedStructure {
       defaultBody: ParameterizedStructuralBlock,
       sourceLocation: Option[String]
   ): Unit = {
+    ElabInt.validateExpression(selector, "generate-case selector")
+    val normalizedSelector = ElabInt.withCompleteParameterRoots(selector)
     val storage = storageOf(pending.component)
     requirePending(storage, pending)
-    validateIntegerExpression(selector, "generate-case selector")
+    validateIntegerExpression(normalizedSelector, "generate-case selector")
     if (choices.isEmpty) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CASE-EMPTY",
@@ -1020,7 +1043,7 @@ object ParameterizedStructure {
       pending.component,
       pending.captureId,
       StructuralCase(
-        selector,
+        normalizedSelector,
         choices.map { case (value, label, body) =>
           StructuralCaseChoice(value, label, body)
         },
@@ -1035,9 +1058,18 @@ object ParameterizedStructure {
 
   /** Public structural parameter inventory for MorphVerilog reports. */
   def parametersOf(component: Component): Vector[ElaborationIntegerParameter] = {
-    val values = storageOption(component).toVector
+    val regions = storageOption(component).toVector
       .flatMap(_.regions)
+    val values = regions
       .flatMap(region => regionParameters(region))
+    val roots = regions
+      .flatMap(region => regionParameterRoots(region))
+    validateParameterRoots(
+      values,
+      roots,
+      None,
+      s"component '${component.definitionName}' structural regions"
+    )
     validateParameterVector(values, None)
   }
 
@@ -1109,6 +1141,13 @@ object ParameterizedStructure {
     region.parameters ++ region.blocks
       .flatMap(_.regions)
       .flatMap(nested => regionParameters(nested))
+
+  private def regionParameterRoots(
+      region: StructuralRegion
+  ): Vector[ElaborationIntegerParameterRoot] =
+    region.parameterRoots ++ region.blocks
+      .flatMap(_.regions)
+      .flatMap(nested => regionParameterRoots(nested))
 
   private def currentCaptureId(
       component: Component,
@@ -1236,6 +1275,49 @@ object ParameterizedStructure {
       )
     }
     validateParameters(expression.parameters, expression.sourceLocation)
+    validateParameterRoots(
+      expression.parameters,
+      expression.parameterRoots,
+      expression.sourceLocation,
+      role
+    )
+  }
+
+  private def validateParameterRoots(
+      parameters: Vector[ElaborationIntegerParameter],
+      roots: Vector[ElaborationIntegerParameterRoot],
+      sourceLocation: Option[String],
+      role: String
+  ): Unit = {
+    roots.foreach { root =>
+      if (root == null) {
+        fail(
+          "SPINAL-ELAB-INT-PARAMETER-ROOT-NULL",
+          s"$role carries a null parameter root",
+          sourceLocation
+        )
+      }
+      if (!parameters.exists(_.name == root.name)) {
+        fail(
+          "SPINAL-ELAB-INT-PARAMETER-ROOT-UNKNOWN",
+          s"$role carries provenance for unknown parameter '${root.name}'",
+          root.sourceLocation.orElse(sourceLocation)
+        )
+      }
+    }
+    val distinct = roots.foldLeft(Vector.empty[ElaborationIntegerParameterRoot]) {
+      case (known, root) if known.exists(_ eq root) => known
+      case (known, root)                           => known :+ root
+    }
+    distinct.groupBy(_.name).collectFirst {
+      case (name, declarations) if declarations.size > 1 => name
+    }.foreach { name =>
+      fail(
+        "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED",
+        s"$role combines independently sourced declarations for parameter '$name'",
+        distinct.find(_.name == name).flatMap(_.sourceLocation).orElse(sourceLocation)
+      )
+    }
   }
 
   private def validateParameters(

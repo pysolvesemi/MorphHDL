@@ -246,7 +246,12 @@ object ParameterizedProcess {
 
   /** Public process-loop parameter inventory for MorphVerilog reports. */
   def parametersOf(component: Component): Vector[ElaborationIntegerParameter] = {
-    val values = loopsOf(component).flatMap(_.count.parameters)
+    val expressions = loopsOf(component).map(_.count)
+    ElabInt.validateParameterRootInventory(
+      s"process-loop component '${component.definitionName}'",
+      expressions
+    )
+    val values = expressions.flatMap(_.parameters)
     val grouped = values.groupBy(_.name)
     grouped.collectFirst {
       case (name, declarations) if declarations.distinct.size != 1 => name

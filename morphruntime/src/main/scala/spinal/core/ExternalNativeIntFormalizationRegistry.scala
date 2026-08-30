@@ -132,7 +132,14 @@ object ExternalNativeIntFormalizationRegistry {
         sourceOf(token)
       )
     }
-    formalBinding.foreach(validateFormal(owner, expression, _))
+    if (formalBinding == null || formalBinding.exists(_ == null))
+      throw new IllegalArgumentException(
+        "formal region binding option must retain non-null values"
+      )
+    formalBinding.foreach { binding =>
+      ExternalFormalParameterRegistry.validateBinding(binding)
+      validateFormal(owner, expression, binding)
+    }
 
     val prepared = prepareRegion(
       owner,
@@ -143,7 +150,7 @@ object ExternalNativeIntFormalizationRegistry {
       requireNativePort = false
     )
     preflightRegions(Vector(prepared))
-    attachPrepared(owner, prepared)
+    attachPrepared(owner, Vector(prepared))
     retainRegions(Vector(prepared))
     data
   }
@@ -176,6 +183,7 @@ object ExternalNativeIntFormalizationRegistry {
     if (binding == null) {
       throw new IllegalArgumentException("formal component binding must not be null")
     }
+    ExternalFormalParameterRegistry.validateBinding(binding)
     if (component.parent ne parent) {
       val actualParent =
         Option(component.parent).map(_.getClass.getName).getOrElse("<none>")
@@ -228,14 +236,15 @@ object ExternalNativeIntFormalizationRegistry {
     rejectDuplicateIdentity(prepared)
     preflightRegions(prepared)
 
-    retainComponentBinding(
+    val componentRecord = preflightComponentBinding(
       component = component,
       binding = binding,
       token = token,
       regionCount = prepared.size,
       packedLeafCount = prepared.map(_.leaves.size).sum
     )
-    prepared.foreach(attachPrepared(component, _))
+    attachPrepared(component, prepared)
+    retainComponentBinding(component, componentRecord)
     retainRegions(prepared)
     component
   }
@@ -269,6 +278,7 @@ object ExternalNativeIntFormalizationRegistry {
     if (binding == null) {
       throw new IllegalArgumentException("formal component binding must not be null")
     }
+    ExternalFormalParameterRegistry.validateBinding(binding)
     if (component.parent ne parent) {
       val actualParent =
         Option(component.parent).map(_.getClass.getName).getOrElse("<none>")
@@ -282,13 +292,15 @@ object ExternalNativeIntFormalizationRegistry {
     val expression = formalExpression(binding.formal, sourceLocation = None)
     validateCommon(component, expression, token)
     validateFormal(component, expression, binding)
-    retainComponentBinding(
+    val componentRecord = preflightComponentBinding(
       component = component,
       binding = binding,
       token = token,
       regionCount = 0,
       packedLeafCount = 0
     )
+    ExternalFormalParameterRegistry.retainComponent(component, binding)
+    retainComponentBinding(component, componentRecord)
     component
   }
 
@@ -317,13 +329,13 @@ object ExternalNativeIntFormalizationRegistry {
     }
   }
 
-  private def retainComponentBinding(
+  private def preflightComponentBinding(
       component: Component,
       binding: ExternalFormalParameterBinding,
       token: ExternalNativeIntFormalizationToken,
       regionCount: Int,
       packedLeafCount: Int
-  ): Unit = {
+  ): ExternalNativeIntComponentRecord = {
     reapComponents()
     val componentLookup =
       new ExternalNativeIntComponentIdentityRef(component, null)
@@ -349,11 +361,21 @@ object ExternalNativeIntFormalizationRegistry {
         )
       case _ =>
     }
+    incoming
+  }
 
-    ExternalFormalParameterRegistry.retainComponent(component, binding)
+  private def retainComponentBinding(
+      component: Component,
+      incoming: ExternalNativeIntComponentRecord
+  ): Unit = {
+    val componentLookup =
+      new ExternalNativeIntComponentIdentityRef(component, null)
+    val existing = components.getOrElse(componentLookup, Vector.empty)
     if (!existing.exists(value =>
-          ExternalFormalParameterRegistry.equivalentBinding(value.binding, binding) &&
-            value.token == token
+          ExternalFormalParameterRegistry.equivalentBinding(
+            value.binding,
+            incoming.binding
+          ) && value.token == incoming.token
         )) {
       components.update(
         new ExternalNativeIntComponentIdentityRef(component, componentQueue),
@@ -477,15 +499,29 @@ object ExternalNativeIntFormalizationRegistry {
 
   private def attachPrepared(
       owner: Component,
-      prepared: PreparedRegion
+      prepared: Vector[PreparedRegion]
   ): Unit = {
-    val width = bitCount(prepared.record.expression)
-    prepared.leaves.foreach { leaf =>
-      prepared.record.formalBinding match {
+    prepared.headOption.foreach { first =>
+      first.record.formalBinding match {
         case Some(binding) =>
-          ExternalFormalParameterRegistry.attach(owner, leaf, width, binding)
+          val width = bitCount(first.record.expression)
+          ExternalFormalParameterRegistry.attachAll(
+            owner,
+            prepared.flatMap(_.leaves),
+            width,
+            binding
+          )
         case None =>
-          ParameterizedWidth.attach(leaf, width)
+          val validated = prepared.map { region =>
+            val width = bitCount(region.record.expression)
+            val expression = ParameterizedWidth.validatedWidthExpression(width)
+            (region, width, expression)
+          }
+          validated.foreach { case (region, width, expression) =>
+            region.leaves.foreach(
+              ParameterizedWidth.attachValidated(_, width, expression)
+            )
+          }
       }
     }
   }
@@ -513,6 +549,10 @@ object ExternalNativeIntFormalizationRegistry {
       throw new IllegalArgumentException("native Int expression must not be null")
     if (token == null)
       throw new IllegalArgumentException("native Int formalization token must not be null")
+    ElabInt.validateExpression(
+      expression,
+      "native Int formalization expression"
+    )
     if (
       expression.minimum < 1 || expression.maximum < expression.minimum ||
       expression.maximum > BigInt(Int.MaxValue) ||
@@ -541,7 +581,10 @@ object ExternalNativeIntFormalizationRegistry {
       )
     }
     val expected = formalExpression(binding.formal, expression.sourceLocation)
-    if (!ExternalFormalParameterRegistry.equivalentExpression(expression, expected)) {
+    if (!ExternalFormalParameterRegistry.equivalentCanonicalFormalSchema(
+          expression,
+          expected
+        )) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-SCHEMA-MISMATCH",
         s"formal slot '${binding.formal.name}' carries region expression '${expression.verilog}' instead of its direct definition formal",
@@ -593,7 +636,8 @@ object ExternalNativeIntFormalizationRegistry {
       minimum = formal.minimum,
       maximum = formal.maximum,
       parameters = Vector(formal),
-      sourceLocation = sourceLocation
+      sourceLocation = sourceLocation,
+      parameterRoots = Vector(formal.declarationRoot)
     )
 
   private def sourceOf(

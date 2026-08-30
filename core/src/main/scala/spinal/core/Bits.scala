@@ -32,8 +32,10 @@ trait BitsFactory {
   /** Create a new Bits of a given width */
   def Bits(width: BitCount): Bits = Bits().setWidth(width.value)
   /** Create a new Bits while retaining one typed elaboration width. */
-  def Bits(width: ParameterizedBitCount): Bits =
+  def Bits(width: ParameterizedBitCount): Bits = {
+    ParameterizedWidth.validatedWidthWitness(width)
     ParameterizedWidth.attach(Bits(), width)
+  }
 }
 
 
@@ -215,7 +217,10 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
 
   /** Resize while retaining the exact typed target width. */
   override def resize(width: ElabInt): Bits =
-    ParameterizedWidth.attachResize(resize(width.witness), width)
+    ParameterizedWidth.attachResize(
+      resize(ParameterizedWidth.validatedResizeWitness(width)),
+      width
+    )
 
   override def resizeFactory: Resize = new ResizeBits
 

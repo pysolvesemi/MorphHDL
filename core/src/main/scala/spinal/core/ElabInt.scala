@@ -157,6 +157,7 @@ object ElabBool {
   ): ElabBool = {
     if (expression == null)
       throw new IllegalArgumentException("ElabBool expression must not be null")
+    ElabInt.validateExpression(expression, "ElabBool expression")
     val normalized = ElabInt.withCompleteParameterRoots(expression)
     ElabInt.validateExpression(normalized, "ElabBool expression")
     new ElabBool(normalized, truth)
@@ -235,6 +236,12 @@ object ElabInt {
   def literal(value: Int): ElabInt = fromBigInt(BigInt(value))
 
   def fromBigInt(value: BigInt): ElabInt = {
+    if (value == null)
+      fail(
+        "SPINAL-ELAB-INT-LITERAL-NULL",
+        "elaboration integer literal must not be null",
+        None
+      )
     if (!value.isValidInt)
       fail(
         "SPINAL-ELAB-INT-LITERAL-OUT-OF-RANGE",
@@ -456,17 +463,26 @@ object ElabInt {
       case ">=" => left.expression.default >= right.expression.default
       case other => throw new IllegalArgumentException(s"unsupported comparison '$other'")
     }
-    val truth = operation match {
-      case "<" if left.maximum < right.minimum  => ElabBool.AlwaysTrue
-      case "<" if left.minimum >= right.maximum => ElabBool.AlwaysFalse
-      case "<=" if left.maximum <= right.minimum => ElabBool.AlwaysTrue
-      case "<=" if left.minimum > right.maximum  => ElabBool.AlwaysFalse
-      case ">" if left.minimum > right.maximum  => ElabBool.AlwaysTrue
-      case ">" if left.maximum <= right.minimum => ElabBool.AlwaysFalse
-      case ">=" if left.minimum >= right.maximum => ElabBool.AlwaysTrue
-      case ">=" if left.maximum < right.minimum  => ElabBool.AlwaysFalse
-      case _                                      => ElabBool.Unknown
-    }
+    val equivalent = equivalentExpression(left.expression, right.expression)
+    val truth =
+      if (equivalent) {
+        operation match {
+          case "<" | ">"   => ElabBool.AlwaysFalse
+          case "<=" | ">=" => ElabBool.AlwaysTrue
+        }
+      } else {
+        operation match {
+          case "<" if left.maximum < right.minimum  => ElabBool.AlwaysTrue
+          case "<" if left.minimum >= right.maximum => ElabBool.AlwaysFalse
+          case "<=" if left.maximum <= right.minimum => ElabBool.AlwaysTrue
+          case "<=" if left.minimum > right.maximum  => ElabBool.AlwaysFalse
+          case ">" if left.minimum > right.maximum  => ElabBool.AlwaysTrue
+          case ">" if left.maximum <= right.minimum => ElabBool.AlwaysFalse
+          case ">=" if left.minimum >= right.maximum => ElabBool.AlwaysTrue
+          case ">=" if left.maximum < right.minimum  => ElabBool.AlwaysFalse
+          case _                                      => ElabBool.Unknown
+        }
+      }
     ElabBool(
       ElaborationBooleanExpression(
         verilog = s"((${left.expression.verilog}) $operation (${right.expression.verilog}))",
@@ -491,7 +507,15 @@ object ElabInt {
       right: Vector[ElaborationIntegerParameter],
       sourceLocation: Option[String]
   ): Vector[ElaborationIntegerParameter] = {
+    if (left == null || right == null) {
+      fail(
+        "SPINAL-ELAB-INT-PARAMETER-SCHEMA-NULL",
+        "typed elaboration parameter collection must not be null",
+        sourceLocation
+      )
+    }
     val values = left ++ right
+    validateParameterSchemas(values, sourceLocation)
     values.groupBy(_.name).foreach { case (name, schemas) =>
       if (schemas.distinct.size != 1) {
         fail(
@@ -502,6 +526,47 @@ object ElabInt {
       }
     }
     values.groupBy(_.name).toVector.map(_._2.head).sortBy(_.name)
+  }
+
+  private def validateParameterSchemas(
+      parameters: Vector[ElaborationIntegerParameter],
+      sourceLocation: Option[String]
+  ): Unit = {
+    val portableIdentifier = "[A-Za-z_][A-Za-z0-9_]*".r
+    parameters.zipWithIndex.foreach { case (parameter, index) =>
+      if (parameter == null) {
+        fail(
+          "SPINAL-ELAB-INT-PARAMETER-SCHEMA-NULL",
+          s"typed elaboration parameter schema at index $index must not be null",
+          sourceLocation
+        )
+      }
+      if (
+        parameter.name == null ||
+        !portableIdentifier.pattern.matcher(parameter.name).matches()
+      ) {
+        fail(
+          "SPINAL-ELAB-INT-PARAMETER-NAME-INVALID",
+          s"typed elaboration parameter name '${parameter.name}' is not a portable Verilog identifier",
+          sourceLocation
+        )
+      }
+      if (
+        parameter.default == null ||
+        parameter.minimum == null ||
+        parameter.maximum == null ||
+        !parameter.default.isValidInt ||
+        parameter.minimum > parameter.maximum ||
+        parameter.default < parameter.minimum ||
+        parameter.default > parameter.maximum
+      ) {
+        fail(
+          "SPINAL-ELAB-INT-PARAMETER-DOMAIN-INVALID",
+          s"typed elaboration parameter '${parameter.name}' must have an Int-sized default inside its non-empty bounded domain [${parameter.minimum}, ${parameter.maximum}], received ${parameter.default}",
+          sourceLocation
+        )
+      }
+    }
   }
 
   private[core] def equivalentExpression(
@@ -519,39 +584,17 @@ object ElabInt {
   private[core] def withCompleteParameterRoots(
       expression: ElaborationIntegerExpression
   ): ElaborationIntegerExpression = {
-    val rootedNames = expression.parameterRoots.map(_.name).toSet
-    val missing = expression.parameters
-      .filterNot(parameter => rootedNames.contains(parameter.name))
-      .map(parameter =>
-        ElaborationIntegerParameterRoot.fresh(
-          parameter.name,
-          expression.sourceLocation
-        )
-      )
-    if (missing.isEmpty) expression
-    else
-      expression.copy(
-        parameterRoots = mergeParameterRoots(expression.parameterRoots, missing)
-      )
+    val completed = expression.completedParameterRoots
+    if (completed == expression.parameterRoots) expression
+    else expression.copy(parameterRoots = completed)
   }
 
   private[core] def withCompleteParameterRoots(
       expression: ElaborationBooleanExpression
   ): ElaborationBooleanExpression = {
-    val rootedNames = expression.parameterRoots.map(_.name).toSet
-    val missing = expression.parameters
-      .filterNot(parameter => rootedNames.contains(parameter.name))
-      .map(parameter =>
-        ElaborationIntegerParameterRoot.fresh(
-          parameter.name,
-          expression.sourceLocation
-        )
-      )
-    if (missing.isEmpty) expression
-    else
-      expression.copy(
-        parameterRoots = mergeParameterRoots(expression.parameterRoots, missing)
-      )
+    val completed = expression.completedParameterRoots
+    if (completed == expression.parameterRoots) expression
+    else expression.copy(parameterRoots = completed)
   }
 
   private[core] def mergeParameterRoots(
@@ -559,6 +602,43 @@ object ElabInt {
       right: Vector[ElaborationIntegerParameterRoot]
   ): Vector[ElaborationIntegerParameterRoot] =
     distinctParameterRoots(left ++ right)
+
+  /** Fail closed when one emitted parameter name denotes multiple declarations. */
+  private[spinal] def validateParameterRootInventory(
+      role: String,
+      expressions: Vector[ElaborationIntegerExpression]
+  ): Unit = {
+    if (expressions == null) {
+      fail(
+        "SPINAL-ELAB-INT-PARAMETER-ROOT-NULL",
+        s"$role must retain a non-null expression inventory",
+        None
+      )
+    }
+    val associated = expressions.flatMap { expression =>
+      validateExpression(expression, role)
+      expression.completedParameterRoots.map(root => expression -> root)
+    }
+    associated
+      .groupBy(_._2.name)
+      .collectFirst {
+        case (name, values)
+            if distinctParameterRoots(values.map(_._2)).size > 1 =>
+          name -> values
+      }
+      .foreach { case (name, values) =>
+        fail(
+          "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED",
+          s"$role combines independently sourced declarations for parameter '$name'",
+          values.iterator
+            .flatMap { case (expression, root) =>
+              root.sourceLocation.orElse(expression.sourceLocation)
+            }
+            .toVector
+            .headOption
+        )
+      }
+  }
 
   private def distinctParameterRoots(
       roots: Vector[ElaborationIntegerParameterRoot]
@@ -585,6 +665,36 @@ object ElabInt {
     if (expression == null)
       throw new IllegalArgumentException(s"$role must not be null")
     if (
+      expression.sourceLocation == null ||
+      expression.sourceLocation.exists(_ == null)
+    ) {
+      fail(
+        "SPINAL-ELAB-INT-SOURCE-OPTION-NULL",
+        s"$role must retain a non-null source-location option",
+        None
+      )
+    }
+    if (
+      expression.generateIndex == null ||
+      expression.generateIndex.exists(_ == null)
+    ) {
+      fail(
+        "SPINAL-ELAB-INT-GENERATE-INDEX-OPTION-NULL",
+        s"$role must retain a non-null generate-index option",
+        expression.sourceLocation
+      )
+    }
+    if (expression.verilog == null || expression.verilog.trim.isEmpty) {
+      fail(
+        "SPINAL-ELAB-INT-EXPRESSION-INVALID",
+        s"$role must retain a non-empty Verilog expression",
+        expression.sourceLocation
+      )
+    }
+    if (
+      expression.default == null ||
+      expression.minimum == null ||
+      expression.maximum == null ||
       !expression.default.isValidInt ||
       expression.minimum > expression.maximum ||
       expression.default < expression.minimum ||
@@ -593,6 +703,20 @@ object ElabInt {
       fail(
         "SPINAL-ELAB-INT-DOMAIN-INVALID",
         s"$role '${expression.verilog}' has default ${expression.default} outside [${expression.minimum}, ${expression.maximum}] or outside Scala Int",
+        expression.sourceLocation
+      )
+    }
+    if (expression.parameters == null) {
+      fail(
+        "SPINAL-ELAB-INT-PARAMETER-SCHEMA-NULL",
+        s"$role '${expression.verilog}' must retain a non-null parameter collection",
+        expression.sourceLocation
+      )
+    }
+    if (expression.parameterRoots == null) {
+      fail(
+        "SPINAL-ELAB-INT-PARAMETER-ROOT-NULL",
+        s"$role '${expression.verilog}' must retain a non-null parameter-root collection",
         expression.sourceLocation
       )
     }
@@ -618,6 +742,16 @@ object ElabInt {
         fail(
           "SPINAL-ELAB-INT-PARAMETER-ROOT-NULL",
           s"$role '$verilog' carries a null parameter root",
+          sourceLocation
+        )
+      }
+      if (
+        root.sourceLocation == null ||
+        root.sourceLocation.exists(_ == null)
+      ) {
+        fail(
+          "SPINAL-ELAB-INT-PARAMETER-ROOT-SOURCE-OPTION-NULL",
+          s"$role '$verilog' carries a parameter root with a null source-location option",
           sourceLocation
         )
       }
@@ -651,6 +785,37 @@ object ElabInt {
   ): Unit = {
     if (expression == null)
       throw new IllegalArgumentException(s"$role must not be null")
+    if (
+      expression.sourceLocation == null ||
+      expression.sourceLocation.exists(_ == null)
+    ) {
+      fail(
+        "SPINAL-ELAB-BOOL-SOURCE-OPTION-NULL",
+        s"$role must retain a non-null source-location option",
+        None
+      )
+    }
+    if (expression.verilog == null || expression.verilog.trim.isEmpty) {
+      fail(
+        "SPINAL-ELAB-BOOL-EXPRESSION-INVALID",
+        s"$role must retain a non-empty Verilog expression",
+        expression.sourceLocation
+      )
+    }
+    if (expression.parameters == null) {
+      fail(
+        "SPINAL-ELAB-INT-PARAMETER-SCHEMA-NULL",
+        s"$role '${expression.verilog}' must retain a non-null parameter collection",
+        expression.sourceLocation
+      )
+    }
+    if (expression.parameterRoots == null) {
+      fail(
+        "SPINAL-ELAB-INT-PARAMETER-ROOT-NULL",
+        s"$role '${expression.verilog}' must retain a non-null parameter-root collection",
+        expression.sourceLocation
+      )
+    }
     mergeParameters(expression.parameters, Vector.empty, expression.sourceLocation)
     validateParameterRoots(
       expression.verilog,

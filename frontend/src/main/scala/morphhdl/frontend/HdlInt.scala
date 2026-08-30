@@ -128,12 +128,16 @@ final class HdlInt private[frontend] (
             useOrigin
           )
         }
-        val schema = ElaborationIntegerParameter(
-          parameter.name,
-          parameter.default,
-          minimum,
-          maximum
-        )
+        val schema = formalBinding match {
+          case Some(binding) => binding.formal
+          case None =>
+            ElaborationIntegerParameter(
+              parameter.name,
+              parameter.default,
+              minimum,
+              maximum
+            )
+        }
         val width = ParameterizedBitCount(
           parameter.default.toInt,
           parameter = Some(schema),
@@ -682,7 +686,22 @@ object HdlInt {
         origin
       )
     }
-    retained
+    actual.formalBinding match {
+      case Some(binding) =>
+        retained.parameters match {
+          case Vector(parameter)
+              if parameter == binding.formal &&
+                retained.verilog == binding.formal.name =>
+            retained.copy(parameters = Vector(binding.formal))
+          case _ =>
+            FrontendException.failAt(
+              "MORPH-FRONTEND-FORMAL-PARAMETER-NOT-DIRECT",
+              s"$role must retain the direct explicit formal parameter '${binding.formal.name}'",
+              origin
+            )
+        }
+      case None => retained
+    }
   }
 
   /**

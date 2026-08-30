@@ -29,35 +29,42 @@
       "path": "core/src/main/scala/spinal/core/Bits.scala",
       "change": "modified",
       "classification": "typed-formal-or-overload",
-      "blob": "04792d71c292a4b83f5c2bb752b33acc461cc07a",
+      "blob": "2b86a9d7f79a715edb115ee6ac2fb8076a729934",
       "reason": "preserve typed factory direction and exact typed resize geometry"
     },
     {
       "path": "core/src/main/scala/spinal/core/ElabInt.scala",
       "change": "added",
       "classification": "typed-helper",
-      "blob": "70b9da4041b5a24fe16a4292f8865dd6f1eb5804",
+      "blob": "190d5478f300d98bdc5ff46fec4b30f848248642",
       "reason": "provide the single neutral ElabInt and ElabBool carrier owned by core with exact declaration-root identity"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ParameterizedMemory.scala",
+      "change": "modified",
+      "classification": "typed-helper",
+      "blob": "07dda84cb1af444da7719a9dc440ece1e9fb237d",
+      "reason": "preserve exact declaration-root provenance through typed memory metadata"
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
       "change": "modified",
       "classification": "typed-helper",
-      "blob": "e2e09919a44556b6b1aed9bfb70d8e92fb202a06",
+      "blob": "b2c953063e5b232ed3e1c8c78b3e33628672cc26",
       "reason": "retain typed widths, exact declaration roots and exact native Resize identity"
     },
     {
       "path": "core/src/main/scala/spinal/core/SInt.scala",
       "change": "modified",
       "classification": "typed-formal-or-overload",
-      "blob": "3f55670d8edda791dcdbcb22c6955fc15e7852a5",
+      "blob": "b552b08817dbfd19bdc7ff6d6ab8066046445749",
       "reason": "preserve typed factory direction and exact typed resize geometry"
     },
     {
       "path": "core/src/main/scala/spinal/core/UInt.scala",
       "change": "modified",
       "classification": "typed-formal-or-overload",
-      "blob": "2c3fadece0e2270175e73ba5bc6a1179bbe976f1",
+      "blob": "6a65fb46e5cfa74ac2b34d582fa1bb3a838572d6",
       "reason": "preserve typed factory direction and exact typed resize geometry"
     },
     {

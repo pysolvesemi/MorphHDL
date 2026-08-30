@@ -91,6 +91,37 @@ object TypedElaborationLexicalMentionSmoke {
 
   def standaloneNotEqual(width: ElabInt): ElabBool =
     width != width
+
+  def inferredPredicate(width: ElabInt): Boolean = {
+    val predicate = width > 0
+    if (predicate) true else false
+  }
+
+  def inferredEquality(width: ElabInt): ElabBool = {
+    val predicate = width == 8
+    predicate
+  }
+
+  def literalOnLeft(width: ElabInt): ElabBool =
+    8 == width
+
+  def stringOnLeft(width: ElabInt): Boolean =
+    "WIDTH" == width
+
+  def stringOnRight(width: ElabInt): Boolean =
+    width == "WIDTH"
+
+  def nullOnLeft(width: ElabInt): Boolean =
+    null == width
+
+  def nullOnRight(width: ElabInt): Boolean =
+    width == null
+
+  def nullNotEqualOnLeft(width: ElabInt): Boolean =
+    null != width
+
+  def nullNotEqualOnRight(width: ElabInt): Boolean =
+    width != null
 }
 
 class TypedElaborationControlTests extends AnyFunSuite {
@@ -213,6 +244,16 @@ class TypedElaborationControlTests extends AnyFunSuite {
     val notEqual = TypedElaborationLexicalMentionSmoke.standaloneNotEqual(width)
     assert(equal.isAlwaysTrue)
     assert(notEqual.isAlwaysFalse)
+
+    assert(TypedElaborationLexicalMentionSmoke.inferredPredicate(width))
+    assert(TypedElaborationLexicalMentionSmoke.inferredEquality(width).isSymbolic)
+    assert(TypedElaborationLexicalMentionSmoke.literalOnLeft(width).isSymbolic)
+    assert(!TypedElaborationLexicalMentionSmoke.stringOnLeft(width))
+    assert(!TypedElaborationLexicalMentionSmoke.stringOnRight(width))
+    assert(!TypedElaborationLexicalMentionSmoke.nullOnLeft(width))
+    assert(!TypedElaborationLexicalMentionSmoke.nullOnRight(width))
+    assert(TypedElaborationLexicalMentionSmoke.nullNotEqualOnLeft(width))
+    assert(TypedElaborationLexicalMentionSmoke.nullNotEqualOnRight(width))
   }
 
   private def withTemporaryDirectory(body: Path => Unit): Unit = {

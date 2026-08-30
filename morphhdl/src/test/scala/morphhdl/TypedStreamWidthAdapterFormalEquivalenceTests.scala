@@ -32,16 +32,11 @@ object TypedStreamWidthAdapterFormalEquivalenceSmoke {
       val downOutput = master(Stream(Bits(8 bits)))
       val upInput = slave(Stream(Bits(8 bits)))
       val upOutput = master(Stream(Bits(upWidth bits)))
-      val mutationProbe = out Bool()
     }
 
     StreamWidthAdapter(io.equalInput, io.equalOutput, LITTLE, padding = true)
     StreamWidthAdapter(io.downInput, io.downOutput, LITTLE, padding = true)
     StreamWidthAdapter(io.upInput, io.upOutput, LITTLE, padding = true)
-
-    io.mutationProbe :=
-      io.equalOutput.valid ^ io.downOutput.valid ^ io.upOutput.valid
-    io.mutationProbe.setName("mutation_probe")
   }
 
   final class ConcreteTop(
@@ -58,16 +53,11 @@ object TypedStreamWidthAdapterFormalEquivalenceSmoke {
       val downOutput = master(Stream(Bits(8 bits)))
       val upInput = slave(Stream(Bits(8 bits)))
       val upOutput = master(Stream(Bits(upWidth bits)))
-      val mutationProbe = out Bool()
     }
 
     StreamWidthAdapter(io.equalInput, io.equalOutput, LITTLE, padding = true)
     StreamWidthAdapter(io.downInput, io.downOutput, LITTLE, padding = true)
     StreamWidthAdapter(io.upInput, io.upOutput, LITTLE, padding = true)
-
-    io.mutationProbe :=
-      io.equalOutput.valid ^ io.downOutput.valid ^ io.upOutput.valid
-    io.mutationProbe.setName("mutation_probe")
   }
 
   def typed(): TypedTop =
@@ -128,14 +118,28 @@ class TypedStreamWidthAdapterFormalEquivalenceTests extends AnyFunSuite {
     emitConcrete(directory, concrete.getFileName.toString, witness)
 
     val original = read(parameterized)
+    val outputDeclaration =
+      "(?m)^[ \\t]*output[ \\t]+wire[ \\t]+io_equalOutput_valid,[ \\t]*$".r
+    assert(
+      outputDeclaration.findFirstIn(original).nonEmpty,
+      "equal-width adapter output declaration was not found"
+    )
     val assignment =
-      "(?mi)^(\\s*assign\\s+[A-Za-z_][A-Za-z0-9_$]*mutation[A-Za-z0-9_$]*\\s*=\\s*)([^;]+);".r
-    val matched = assignment
-      .findFirstMatchIn(original)
-      .getOrElse(fail("mutation probe assignment was not found"))
-    val replacement = matched.group(1) + "!(" + matched.group(2) + ");"
+      "(?m)^([ \\t]*assign[ \\t]+io_equalOutput_valid[ \\t]*=[ \\t]*)([^;\\r\\n]+);[ \\t]*$".r
+    val matches = assignment.findAllMatchIn(original).toVector
+    assert(
+      matches.size == 1,
+      s"expected exactly one equal-width output-valid assignment, found ${matches.size}"
+    )
+    val matched = matches.head
+    assert(
+      matched.group(2).trim == "io_equalInput_valid",
+      s"unexpected equal-width output-valid logic: ${matched.group(2).trim}"
+    )
+    val replacement = matched.group(1) + "!(io_equalInput_valid);"
     val changed =
       original.substring(0, matched.start) + replacement + original.substring(matched.end)
+    assert(changed != original, "mutation did not change the generated module")
     Files.write(mutated, changed.getBytes(StandardCharsets.UTF_8))
 
     proveMutationCounterexample(directory, concrete, mutated, witness)
@@ -169,6 +173,9 @@ class TypedStreamWidthAdapterFormalEquivalenceTests extends AnyFunSuite {
       s"""read_verilog -formal ${quote(concrete)}
          |read_verilog -formal ${quote(parameterized)}
          |chparam -set EQ_WIDTH ${witness.equal} -set DOWN_WIDTH ${witness.down} -set UP_WIDTH ${witness.up} TypedStreamWidthAdapterFormalTop
+         |proc
+         |memory
+         |opt_clean
          |equiv_make ConcreteStreamWidthAdapterFormalTop TypedStreamWidthAdapterFormalTop equiv
          |hierarchy -check -top equiv
          |prep -top equiv
@@ -222,6 +229,9 @@ class TypedStreamWidthAdapterFormalEquivalenceTests extends AnyFunSuite {
          |read_verilog -formal ${concrete.getFileName}
          |read_verilog -formal ${mutated.getFileName}
          |chparam -set EQ_WIDTH ${witness.equal} -set DOWN_WIDTH ${witness.down} -set UP_WIDTH ${witness.up} TypedStreamWidthAdapterFormalTop
+         |proc
+         |memory
+         |opt_clean
          |miter -equiv -make_assert ConcreteStreamWidthAdapterFormalTop TypedStreamWidthAdapterFormalTop $miter
          |flatten $miter
          |hierarchy -check -top $miter
