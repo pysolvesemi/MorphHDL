@@ -1,6 +1,6 @@
 # Typed elaboration architecture
 
-**Status:** Approved production architecture from Increment 53d onward  
+**Status:** Approved production architecture from Increment 53d onward
 **Decision date:** 2026-08-29
 
 ## Decision
