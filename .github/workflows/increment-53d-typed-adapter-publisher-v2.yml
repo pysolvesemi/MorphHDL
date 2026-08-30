@@ -1,4 +1,4 @@
-name: Publish validated Increment 53d typed StreamWidthAdapter v2
+name: Publish validated Increment 53d direct typed StreamWidthAdapter
 
 on:
   push:
@@ -6,22 +6,19 @@ on:
       - agent/increment-53d-typed-elabint-pivot
     paths:
       - .github/workflows/increment-53d-typed-adapter-publisher-v2.yml
-      - morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py
-      - morphhdl/scripts/increment-53d-typed-resize-identity.patch.gz.b64
-      - morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala
-      - morphhdl/src/test/scala/morphhdl/TypedElaborationControlTests.scala
+      - morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: increment-53d-typed-adapter-publisher-v2
+  group: increment-53d-direct-typed-adapter
   cancel-in-progress: true
 
 jobs:
   source-contract:
-    name: Typed source and architecture contract
+    name: Direct typed adapter source contract
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -29,53 +26,51 @@ jobs:
         with:
           ref: agent/increment-53d-typed-elabint-pivot
           fetch-depth: 0
-      - name: Apply typed migration and exact Resize identity retention
+      - name: Apply direct typed fixture and root-domain contract
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py
-          base64 -d morphhdl/scripts/increment-53d-typed-resize-identity.patch.gz.b64 \
+          base64 -d morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
             | gzip -d \
             | git apply --whitespace=nowarn
           git diff --check
           changed_native="$(git diff --name-only HEAD -- core lib idslplugin | sort)"
-          expected_native="$(printf '%s\n' \
-            core/src/main/scala/spinal/core/Bits.scala \
-            core/src/main/scala/spinal/core/ParameterizedWidth.scala \
-            core/src/main/scala/spinal/core/SInt.scala \
-            core/src/main/scala/spinal/core/UInt.scala \
-            lib/src/main/scala/spinal/lib/Stream.scala | sort)"
-          test "$changed_native" = "$expected_native"
+          test "$changed_native" = 'lib/src/main/scala/spinal/lib/Stream.scala'
           python3 - <<'PY'
           from pathlib import Path
+
           stream = Path('lib/src/main/scala/spinal/lib/Stream.scala').read_text()
           start = stream.index('object StreamWidthAdapter {')
           end = stream.index('//padding=true allow', start)
           body = stream[start:end]
           assert 'widthOfExpr(input.payload)' in body
           assert 'widthOfExpr(output.payload)' in body
-          assert 'val factorExpr' in body
-          assert 'StreamWidthAdapter downsize factor' in body
-          assert 'StreamWidthAdapter upsize factor' in body
+          assert 'ElabInt.requireSingleSymbolicRoot' in body
           assert 'NativeIntShadow' not in body
           assert 'withWidthFunctionBoundary' not in body
-          assert 'rewriteParameterizedStreamWidthAdapter' not in stream
+
+          test = Path(
+            'morphhdl/src/test/scala/morphhdl/'
+            'ParameterizedStreamWidthAdapterTests.scala'
+          ).read_text()
+          fixture_start = test.index('object ParameterizedStreamWidthAdapterSmoke {')
+          fixture_end = test.index('class ParameterizedStreamWidthAdapterTests', fixture_start)
+          fixture = test[fixture_start:fixture_end]
+          assert 'equalWidth: ElabInt' in fixture
+          assert 'downWidth: ElabInt' in fixture
+          assert 'upWidth: ElabInt' in fixture
+          assert '.asElabInt' in fixture
+          assert 'NativeIntShadow' not in fixture
+          assert 'formalComponent' not in fixture
+          assert 'SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED' in test
 
           widths = Path('core/src/main/scala/spinal/core/ParameterizedWidth.scala').read_text()
           assert 'def attachResize[T <: BitVector]' in widths
           assert 'def resizeExpressionOf' in widths
-          assert 'RetainedResizeIdentityRef' in widths
-
-          fallback = Path(
-            'morphhdl/src/main/scala/spinal/core/internals/'
-            'ExternalParameterizedVerilogNativeFallback.scala'
-          ).read_text()
-          assert 'private def retainedResizeExpression' in fallback
-          assert 'ParameterizedWidth.resizeExpressionOf(resize)' in fallback
           PY
 
   sbt:
-    name: SBT typed adapter Scala ${{ matrix.scala_version }}
+    name: SBT direct typed adapter Scala ${{ matrix.scala_version }}
     needs: source-contract
     runs-on: ubuntu-latest
     timeout-minutes: 180
@@ -91,12 +86,11 @@ jobs:
           ref: agent/increment-53d-typed-elabint-pivot
           fetch-depth: 0
           submodules: recursive
-      - name: Apply typed migration
+      - name: Apply direct typed fixture
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py
-          base64 -d morphhdl/scripts/increment-53d-typed-resize-identity.patch.gz.b64 \
+          base64 -d morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
             | gzip -d \
             | git apply --whitespace=nowarn
           git diff --check
@@ -110,7 +104,7 @@ jobs:
             "morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.NaturalSymbolicConditionalTests morphhdl.NativeIntShadowExpressionTests morphhdl.ExternalNativeIntShadowExpressionTests morphhdl.HierarchyParameterBindingTests"
 
   mill:
-    name: Mill typed adapter Scala ${{ matrix.scala_version }}
+    name: Mill direct typed adapter Scala ${{ matrix.scala_version }}
     needs: source-contract
     runs-on: ubuntu-latest
     timeout-minutes: 180
@@ -133,12 +127,11 @@ jobs:
             https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
             --output /tmp/mill
           chmod +x /tmp/mill
-      - name: Apply typed migration
+      - name: Apply direct typed fixture
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py
-          base64 -d morphhdl/scripts/increment-53d-typed-resize-identity.patch.gz.b64 \
+          base64 -d morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
             | gzip -d \
             | git apply --whitespace=nowarn
           git diff --check
@@ -155,7 +148,7 @@ jobs:
             morphhdl.HierarchyParameterBindingTests
 
   publish:
-    name: Publish validated typed adapter source
+    name: Publish direct typed adapter proof
     needs: [source-contract, sbt, mill]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -164,37 +157,26 @@ jobs:
         with:
           ref: agent/increment-53d-typed-elabint-pivot
           fetch-depth: 0
-      - name: Apply and commit only permanent production and regression files
+      - name: Commit only permanent source, test, and audit changes
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py
-          base64 -d morphhdl/scripts/increment-53d-typed-resize-identity.patch.gz.b64 \
+          base64 -d morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
             | gzip -d \
             | git apply --whitespace=nowarn
           git diff --check
           git config user.name 'MorphHDL Agent'
           git config user.email 'morphhdl-agent@users.noreply.github.com'
           git add \
-            core/src/main/scala/spinal/core/Bits.scala \
-            core/src/main/scala/spinal/core/ParameterizedWidth.scala \
-            core/src/main/scala/spinal/core/SInt.scala \
-            core/src/main/scala/spinal/core/UInt.scala \
             docs/morphhdl/increment-53d-typed-native-change-manifest.md \
             lib/src/main/scala/spinal/lib/Stream.scala \
-            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala \
             morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala
           actual="$(git diff --cached --name-only | sort)"
           expected="$(printf '%s\n' \
-            core/src/main/scala/spinal/core/Bits.scala \
-            core/src/main/scala/spinal/core/ParameterizedWidth.scala \
-            core/src/main/scala/spinal/core/SInt.scala \
-            core/src/main/scala/spinal/core/UInt.scala \
             docs/morphhdl/increment-53d-typed-native-change-manifest.md \
             lib/src/main/scala/spinal/lib/Stream.scala \
-            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala \
             morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala | sort)"
           test "$actual" = "$expected"
           git diff --cached --check
-          git commit -m 'Retain typed resize widths by exact native identity'
+          git commit -m 'Use direct typed widths in StreamWidthAdapter proof'
           git push origin HEAD:agent/increment-53d-typed-elabint-pivot
