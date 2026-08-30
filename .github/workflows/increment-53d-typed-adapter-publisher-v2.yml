@@ -76,7 +76,7 @@ jobs:
         shell: bash
         run: |
           sbt -batch "++${{ matrix.scala_version }}" \
-            "morph/testOnly morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.NaturalSymbolicConditionalTests morphhdl.NativeIntShadowExpressionTests morphhdl.ExternalNativeIntShadowExpressionTests morphhdl.HierarchyParameterBindingTests"
+            "morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.NaturalSymbolicConditionalTests morphhdl.NativeIntShadowExpressionTests morphhdl.ExternalNativeIntShadowExpressionTests morphhdl.HierarchyParameterBindingTests"
 
   mill:
     name: Mill typed adapter Scala ${{ matrix.scala_version }}
@@ -108,6 +108,7 @@ jobs:
         shell: bash
         run: |
           /tmp/mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.TypedElaborationControlTests \
             morphhdl.ParameterizedStreamWidthAdapterTests \
             morphhdl.ParameterizedStreamFifoDepthTests \
             morphhdl.NaturalSymbolicConditionalTests \
