@@ -1,4 +1,4 @@
-name: Diagnose Increment 53d typed adapter direction retention
+name: Validate Increment 53d typed factory direction repair
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/increment-53d-typed-adapter-publisher-v2.yml
       - morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64
+      - morphhdl/scripts/increment-53d-typed-factory-dispatch.patch.gz.b64
       - morphhdl/scripts/increment-53d-direction-probe.patch.gz.b64
   workflow_dispatch:
 
@@ -14,11 +15,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: increment-53d-typed-adapter-direction-probe
+  group: increment-53d-typed-factory-direction-repair
   cancel-in-progress: true
 
 jobs:
-  diagnose:
+  validate:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     container:
@@ -38,11 +39,14 @@ jobs:
             https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
             --output /tmp/mill
           chmod +x /tmp/mill
-      - name: Apply typed adapter candidate and direction probe
+      - name: Apply typed adapter, factory repair, and direction assertions
         shell: bash
         run: |
           set -euo pipefail
           base64 -d morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
+            | gzip -d \
+            | git apply --whitespace=nowarn
+          base64 -d morphhdl/scripts/increment-53d-typed-factory-dispatch.patch.gz.b64 \
             | gzip -d \
             | git apply --whitespace=nowarn
           base64 -d morphhdl/scripts/increment-53d-direction-probe.patch.gz.b64 \
@@ -57,22 +61,22 @@ jobs:
           set +e
           /tmp/mill morph[2.13.12].testOnly \
             morphhdl.ParameterizedStreamWidthAdapterTests \
-            > /tmp/inc53d-direction-probe.log 2>&1
+            > /tmp/inc53d-factory-repair.log 2>&1
           status=$?
-          printf '%s\n' "$status" > /tmp/inc53d-direction-probe.status
-          tail -n 300 /tmp/inc53d-direction-probe.log
+          printf '%s\n' "$status" > /tmp/inc53d-factory-repair.status
+          tail -n 300 /tmp/inc53d-factory-repair.log
           exit "$status"
-      - name: Upload direction diagnostic
+      - name: Upload factory repair diagnostic
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: inc53d-direction-probe
+          name: inc53d-factory-repair
           path: |
-            /tmp/inc53d-direction-probe.log
-            /tmp/inc53d-direction-probe.status
+            /tmp/inc53d-factory-repair.log
+            /tmp/inc53d-factory-repair.status
           if-no-files-found: error
           retention-days: 2
       - name: Preserve suite result
         if: always()
         shell: bash
-        run: exit "$(cat /tmp/inc53d-direction-probe.status 2>/dev/null || printf '1')"
+        run: exit "$(cat /tmp/inc53d-factory-repair.status 2>/dev/null || printf '1')"
