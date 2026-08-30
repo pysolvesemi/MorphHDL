@@ -1,0 +1,182 @@
+name: Isolate Increment 53d typed StreamWidthAdapter modes
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-mode-isolation.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53d-mode-isolation
+  cancel-in-progress: true
+
+jobs:
+  isolate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+      - name: Apply direct typed candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! grep -q 'widthOfExpr(input.payload)' lib/src/main/scala/spinal/lib/Stream.scala; then
+            base64 -d morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
+              | gzip -d \
+              | git apply --whitespace=nowarn
+          fi
+      - name: Add isolated mode probes
+        shell: bash
+        run: |
+          cat > morphhdl/src/test/scala/morphhdl/TypedAdapterModeIsolationTests.scala <<'SCALA'
+          package morphhdl
+
+          import java.nio.file.Files
+          import org.scalatest.funsuite.AnyFunSuite
+          import spinal.core._
+          import spinal.lib._
+          import morphhdl.frontend.HdlInt
+
+          object TypedAdapterModeIsolationSmoke {
+            final class PortPass(width: ElabInt) extends Component {
+              val inputPayload = in Bits(width bits)
+              val outputPayload = out Bits(width bits)
+              outputPayload := inputPayload
+            }
+
+            final class Equal(width: ElabInt) extends Component {
+              val io = new Bundle {
+                val input = slave(Stream(Bits(width bits)))
+                val output = master(Stream(Bits(width bits)))
+              }
+              StreamWidthAdapter(io.input, io.output, LITTLE, padding = true)
+            }
+
+            final class Down(width: ElabInt) extends Component {
+              val io = new Bundle {
+                val input = slave(Stream(Bits(width bits)))
+                val output = master(Stream(Bits(8 bits)))
+              }
+              StreamWidthAdapter(io.input, io.output, LITTLE, padding = true)
+            }
+
+            final class Up(width: ElabInt) extends Component {
+              val io = new Bundle {
+                val input = slave(Stream(Bits(8 bits)))
+                val output = master(Stream(Bits(width bits)))
+              }
+              StreamWidthAdapter(io.input, io.output, LITTLE, padding = true)
+            }
+
+            final class Combined(eq: ElabInt, down: ElabInt, up: ElabInt) extends Component {
+              val io = new Bundle {
+                val equalInput = slave(Stream(Bits(eq bits)))
+                val equalOutput = master(Stream(Bits(eq bits)))
+                val downInput = slave(Stream(Bits(down bits)))
+                val downOutput = master(Stream(Bits(8 bits)))
+                val upInput = slave(Stream(Bits(8 bits)))
+                val upOutput = master(Stream(Bits(up bits)))
+              }
+              StreamWidthAdapter(io.equalInput, io.equalOutput, LITTLE, padding = true)
+              StreamWidthAdapter(io.downInput, io.downOutput, LITTLE, padding = true)
+              StreamWidthAdapter(io.upInput, io.upOutput, LITTLE, padding = true)
+            }
+          }
+
+          class TypedAdapterModeIsolationTests extends AnyFunSuite {
+            private def parameter(name: String, default: Int, min: Int, max: Int): ElabInt =
+              HdlInt.param(name, default = default, min = min, max = max).asElabInt
+
+            private def generate(name: String)(component: => Component): Unit = {
+              val directory = Files.createTempDirectory(name)
+              val config = SpinalConfig(targetDirectory = directory.toString)
+              config.netlistFileName = name + ".v"
+              MorphVerilog(config)(component)
+            }
+
+            test("typed-port-pass") {
+              generate("typed_port_pass")(
+                new TypedAdapterModeIsolationSmoke.PortPass(parameter("WIDTH", 12, 1, 32))
+              )
+            }
+            test("equal-mode") {
+              generate("equal_mode")(
+                new TypedAdapterModeIsolationSmoke.Equal(parameter("WIDTH", 8, 1, 32))
+              )
+            }
+            test("down-mode") {
+              generate("down_mode")(
+                new TypedAdapterModeIsolationSmoke.Down(parameter("WIDTH", 12, 9, 16))
+              )
+            }
+            test("up-mode") {
+              generate("up_mode")(
+                new TypedAdapterModeIsolationSmoke.Up(parameter("WIDTH", 12, 9, 16))
+              )
+            }
+            test("combined-mode") {
+              generate("combined_mode")(
+                new TypedAdapterModeIsolationSmoke.Combined(
+                  parameter("EQ_WIDTH", 8, 1, 32),
+                  parameter("DOWN_WIDTH", 12, 9, 16),
+                  parameter("UP_WIDTH", 12, 9, 16)
+                )
+              )
+            }
+          }
+          SCALA
+      - name: Run probes independently
+        shell: bash
+        run: |
+          set +e
+          : > /tmp/inc53d-mode-status.txt
+          for name in typed-port-pass equal-mode down-mode up-mode combined-mode; do
+            /tmp/mill 'morph[2.13.12].testOnly' \
+              morphhdl.TypedAdapterModeIsolationTests -- -z "$name" \
+              > "/tmp/inc53d-$name.log" 2>&1
+            status=$?
+            echo "$name=$status" >> /tmp/inc53d-mode-status.txt
+          done
+          exit 0
+      - name: Publish exact isolation matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '# Increment 53d typed StreamWidthAdapter mode isolation'
+            echo
+            cat /tmp/inc53d-mode-status.txt
+            for name in typed-port-pass equal-mode down-mode up-mode combined-mode; do
+              echo
+              echo "## $name"
+              grep -nEi 'NO DRIVER|SPINAL-ELAB|AssertionError|Exception|FAILED|error|payload|direction' \
+                "/tmp/inc53d-$name.log" || true
+              echo
+              tail -n 100 "/tmp/inc53d-$name.log"
+            done
+          } > docs/morphhdl/increment-53d-mode-isolation-result.txt
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add docs/morphhdl/increment-53d-mode-isolation-result.txt
+          git commit -m 'Record Increment 53d typed adapter mode isolation'
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot
