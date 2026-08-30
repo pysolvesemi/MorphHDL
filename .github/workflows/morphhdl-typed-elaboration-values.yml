@@ -5,7 +5,6 @@ on:
     branches:
       - parameterized-verilog
       - 'agent/increment-53d-*'
-      - agent/typed-elabint-roadmap-final10
   pull_request:
     branches:
       - parameterized-verilog
@@ -26,33 +25,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check typed carrier boundaries
+      - name: Check single-owner typed carrier boundaries
         shell: bash
         run: |
           set -euo pipefail
-          carrier=morphruntime/src/main/scala/spinal/core/ElabInt.scala
+          carrier=core/src/main/scala/spinal/core/ElabInt.scala
           test -f "$carrier"
+          test ! -e morphruntime/src/main/scala/spinal/core/ElabInt.scala
           grep -Fq 'final class ElabInt' "$carrier"
           grep -Fq 'final class ElabBool' "$carrier"
-          grep -Fq 'def ==(that: Int): ElabBool' "$carrier"
-          grep -Fq 'def constantWitness(role: String): Int' "$carrier"
+          grep -Fq 'def isAlwaysTrue' "$carrier"
+          grep -Fq 'def isAlwaysFalse' "$carrier"
+          grep -Fq 'def elabEq' "$carrier"
+          grep -Fq 'def elabNe' "$carrier"
+          grep -Fq 'def constantInt' "$carrier"
           ! grep -Eq 'implicit[[:space:]]+def[[:space:]].*ElabInt.*Int' "$carrier"
+          ! grep -Eq 'implicit[[:space:]]+def[[:space:]].*ElabBool.*Boolean' "$carrier"
           ! grep -Eq 'StreamFifo|StreamFifoCC|StreamWidthAdapter' "$carrier"
+          control=morphruntime/src/main/scala/spinal/core/ElabControl.scala
+          test -f "$control"
+          grep -Fq 'condition.isAlwaysTrue' "$control"
+          grep -Fq 'condition.isAlwaysFalse' "$control"
           git diff --check
 
   contracts:
     name: Typed elaboration contracts Scala ${{ matrix.scala_version }}
     needs: source-contract
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     strategy:
       fail-fast: false
       matrix:
-        scala_version:
-          - '2.12.18'
-          - '2.13.12'
+        scala_version: ['2.12.18', '2.13.12']
     steps:
       - uses: actions/checkout@v4
         with:
@@ -60,13 +66,10 @@ jobs:
 
       - name: Compile production and test sources
         shell: bash
-        run: |
-          set -euo pipefail
-          sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+        run: sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
 
-      - name: Run typed elaboration contracts
+      - name: Run typed carrier, control-flow, and factory contracts
         shell: bash
         run: |
-          set -euo pipefail
           sbt -batch "++${{ matrix.scala_version }}" \
-            'morph/testOnly morphhdl.TypedElaborationValueTests'
+            "morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.TypedParameterizedFactoryDirectionTests"

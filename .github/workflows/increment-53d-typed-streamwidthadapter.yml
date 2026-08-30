@@ -44,6 +44,7 @@ jobs:
           actual="$(git diff --name-only --diff-filter=ACMRTD "$base"...HEAD | sort)"
           expected="$(printf '%s\n' \
             .github/workflows/increment-53d-typed-streamwidthadapter.yml \
+            .github/workflows/morphhdl-typed-elaboration-values.yml \
             core/src/main/scala/spinal/core/BitVector.scala \
             core/src/main/scala/spinal/core/Bits.scala \
             core/src/main/scala/spinal/core/ElabInt.scala \
