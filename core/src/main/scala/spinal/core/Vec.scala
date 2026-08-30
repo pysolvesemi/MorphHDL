@@ -20,33 +20,40 @@
 \*                                                                           */
 package spinal.core
 
-import spinal.core.internals.{BitAssignmentFixed, BitAssignmentFloating, BitVectorAssignmentExpression, RangedAssignmentFixed, RangedAssignmentFloating}
+import spinal.core.internals.{
+  BitAssignmentFixed,
+  BitAssignmentFloating,
+  BitVectorAssignmentExpression,
+  RangedAssignmentFixed,
+  RangedAssignmentFloating
+}
 import spinal.idslplugin.Location
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.Seq
 
-/**
-  * Vec factory
+/** Vec factory
   */
 trait VecFactory {
 
-  def Vec[T <: Data](elements: TraversableOnce[T], dataType : HardType[T] = null): Vec[T] = {
+  def Vec[T <: Data](elements: TraversableOnce[T], dataType: HardType[T] = null): Vec[T] = {
     val vector = elements.toVector
 
-    if(vector.nonEmpty) {
+    if (vector.nonEmpty) {
       new Vec(dataType, vector)
-    }else{
+    } else {
       new Vec[T](null.asInstanceOf[T], vector)
     }
   }
 
   def Vec[T <: Data](gen: => T, size: Int): Vec[T] = Vec.fill(size)(gen)
   def Vec[T <: Data](gen: HardType[T], size: Int): Vec[T] = Vec.fill(size)(gen())
+  def Vec[T <: Data](gen: => T, size: ElabInt): Vec[T] = Vec.fill(size)(gen)
+  def Vec[T <: Data](gen: HardType[T], size: ElabInt): Vec[T] = Vec.fill(size)(gen())
   def Vec[T <: Data](firstElement: T, followingElements: T*): Vec[T] = Vec(List(firstElement) ++ followingElements)
 
-  class VecBuilder{
+  class VecBuilder {
     def tabulate[T <: Data](size: Int)(gen: (Int) => T): Vec[T] = {
       Vec((0 until size).map(gen(_))).setElementsParents()
     }
@@ -60,11 +67,25 @@ trait VecFactory {
     def tabulate[T <: Data](n1: Int, n2: Int, n3: Int, n4: Int)(f: (Int, Int, Int, Int) => T): Vec[Vec[Vec[Vec[T]]]] =
       tabulate(n1)(i => tabulate(n2, n3, n4)(f(i, _, _, _)))
 
-    def tabulate[T <: Data](n1: Int, n2: Int, n3: Int, n4: Int, n5: Int)(f: (Int, Int, Int, Int, Int) => T): Vec[Vec[Vec[Vec[Vec[T]]]]] =
+    def tabulate[T <: Data](n1: Int, n2: Int, n3: Int, n4: Int, n5: Int)(
+        f: (Int, Int, Int, Int, Int) => T
+    ): Vec[Vec[Vec[Vec[Vec[T]]]]] =
       tabulate(n1)(i => tabulate(n2, n3, n4, n5)(f(i, _, _, _, _)))
 
     def fill[T <: Data](size: Int)(dataType: => T): Vec[T] = {
       Vec((0 until size).map(_ => dataType), HardType(dataType)).setElementsParents()
+    }
+
+    /** Typed counterpart used by native algorithms whose enclosing structural
+      * branch retains the exact symbolic size.
+      */
+    def fill[T <: Data](size: ElabInt)(dataType: => T): Vec[T] = {
+      if (size == null)
+        throw new IllegalArgumentException("typed Vec size must not be null")
+      Vec(
+        size.finiteRangeFromZero("typed Vec size").map(_ => dataType),
+        HardType(dataType)
+      ).setElementsParents()
     }
     def fill[T <: Data](n1: Int, n2: Int)(elem: => T): Vec[Vec[T]] =
       tabulate(n1)(_ => fill(n2)(elem))
@@ -81,8 +102,6 @@ trait VecFactory {
   val Vec = new VecBuilder()
 }
 
-
-
 class VecAccessAssign[T <: Data](enables: Seq[Bool], tos: Seq[BaseType], vec: Vec[T]) extends Assignable {
 
   override def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit loc: Location): Unit = {
@@ -93,8 +112,9 @@ class VecAccessAssign[T <: Data](enables: Seq[Bool], tos: Seq[BaseType], vec: Ve
           case _ => that
         }*/
         target match {
-          case a : BitVectorAssignmentExpression => to.compositAssignFrom(thatSafe, a.copyWithTarget(to.asInstanceOf[BitVector]), kind)
-          case bt : BaseType => to.compositAssignFrom(thatSafe, to, kind)
+          case a: BitVectorAssignmentExpression =>
+            to.compositAssignFrom(thatSafe, a.copyWithTarget(to.asInstanceOf[BitVector]), kind)
+          case bt: BaseType => to.compositAssignFrom(thatSafe, to, kind)
         }
       }
     }
@@ -102,7 +122,6 @@ class VecAccessAssign[T <: Data](enables: Seq[Bool], tos: Seq[BaseType], vec: Ve
 
   override def getRealSourceNoRec: Any = vec
 }
-
 
 /** A `Vec` is a composite type that defines a group of indexed signals (of any SpinalHDL basic type) under a single name
   *
@@ -112,7 +131,7 @@ class VecAccessAssign[T <: Data](enables: Seq[Bool], tos: Seq[BaseType], vec: Ve
   *
   * @see  [[https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Data%20types/Vec.html `Vec` Documentation]]
   */
-class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends MultiData with collection.IndexedSeq[T] {
+class Vec[T <: Data](var _dataType: HardType[T], val vec: Vector[T]) extends MultiData with collection.IndexedSeq[T] {
 
   def setElementsParents(): this.type = {
     vec.foreach(_.parent = this)
@@ -120,7 +139,7 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
   }
 
   def dataType = {
-    if(_dataType == null){
+    if (_dataType == null) {
       val data = vec.reduce((a, b) => {
         if (a.getClass.isAssignableFrom(b.getClass)) a
         else if (b.getClass.isAssignableFrom(a.getClass)) b
@@ -131,11 +150,9 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
     _dataType
   }
 
-
-
-  for(i <- elements.indices){
+  for (i <- elements.indices) {
     val e = elements(i)._2
-    if(OwnableRef.proposal(e, this)) e.setPartialName(i.toString, Nameable.DATAMODEL_WEAK)
+    if (OwnableRef.proposal(e, this)) e.setPartialName(i.toString, Nameable.DATAMODEL_WEAK)
   }
 
   def range = vec.indices
@@ -150,7 +167,7 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
   override def hashCode(): Int = instanceCounter
 
   private[core] val accessMap = mutable.Map[(Component, UInt), T]()
-  private[core] val readMap   = mutable.Map[(Component, UInt), T]()
+  private[core] val readMap = mutable.Map[(Component, UInt), T]()
   private[core] var vecTransposedCache: ArrayBuffer[ArrayBuffer[BaseType]] = null
 
   private[core] def vecTransposed: ArrayBuffer[ArrayBuffer[BaseType]] = {
@@ -172,7 +189,8 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
 
   /** Access an element of the vector by an `Int` index */
   override def apply(idx: Int): T = {
-    if (idx < 0 || idx >= vec.size) SpinalError(s"Static Vec($idx) is outside the range (${vec.size - 1} downto 0) of ${this}")
+    if (idx < 0 || idx >= vec.size)
+      SpinalError(s"Static Vec($idx) is outside the range (${vec.size - 1} downto 0) of ${this}")
     vec(idx)
   }
 
@@ -183,8 +201,8 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
   /** Access an element of the vector by an `UInt` index */
   def apply(address: UInt): T = access(address)
 
-  private def readEmu(address : UInt): T = {
-    if(elements.size == 0){
+  private def readEmu(address: UInt): T = {
+    if (elements.size == 0) {
       throw new Exception("Can't mux a Vec of size zero")
     }
     if (elements.size == 1) {
@@ -193,33 +211,34 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
       return ret
     }
     //    val ret = SeqMux(vec.take(Math.min(vec.length, 1 << address.getWidth)), address)
-    var finalAddress   = address
+    var finalAddress = address
     val bitNeeded = log2Up(elements.size)
 
-    if(bitNeeded < finalAddress.getWidth){
-      if(finalAddress.hasTag(tagAutoResize)){
+    if (bitNeeded < finalAddress.getWidth) {
+      if (finalAddress.hasTag(tagAutoResize)) {
         finalAddress = address.resize(bitNeeded)
-      }else {
-        SpinalError(s"Too many bit to address the vector (${finalAddress.getWidth} in place of $bitNeeded)\n at\n${ScalaLocated.long}")
+      } else {
+        SpinalError(
+          s"Too many bit to address the vector (${finalAddress.getWidth} in place of $bitNeeded)\n at\n${ScalaLocated.long}"
+        )
       }
     }
 
-
     val ret = dataType()
-    def rec(ret : Data, elements : Traversable[Data]): Unit = {
+    def rec(ret: Data, elements: Traversable[Data]): Unit = {
       ret match {
-        case ret : MultiData =>{
+        case ret: MultiData => {
           val iRet = ret.elements.iterator
           val iIn = elements.map(_.toMuxInput[Data](ret).asInstanceOf[MultiData].elements.iterator)
           val continue = true
-          while(iRet.nonEmpty && continue){
+          while (iRet.nonEmpty && continue) {
             val dst = iRet.next()
             val srcs = iIn.map(_.next())
             assert(srcs.forall(_._1 == dst._1), "Doesn't match ???")
             rec(dst._2, srcs.map(_._2))
           }
         }
-        case ret : BaseType => {
+        case ret: BaseType => {
           val ab = ArrayBuffer[BaseType]()
           ab ++= elements.map(_.toMuxInput(ret))
           ret.assignFrom(ret.newMultiplexer(finalAddress, ab))
@@ -230,14 +249,14 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
     ret
   }
 
-  private def fixAddress(address : UInt) : UInt = if(widthOf(address) != log2Up(length)) {
-    if(address.hasTag(tagAutoResize)) {
+  private def fixAddress(address: UInt): UInt = if (widthOf(address) != log2Up(length)) {
+    if (address.hasTag(tagAutoResize)) {
       address.resize(log2Up(length))
-    }else{
+    } else {
       LocatedPendingError(s"Vec address width mismatch.\n- Vec : $this\n- Address width : ${widthOf(address)}\n")
       address
     }
-  }else{
+  } else {
     address
   }
 
@@ -256,7 +275,7 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
     if (accessMap.contains(key)) return accessMap(key)
     val trueAddress = fixAddress(address)
 
-    val ret     = readEmu(trueAddress)
+    val ret = readEmu(trueAddress)
     val enables = (U(1) << trueAddress).asBools
 
     for ((accessE, to) <- (ret.flatten, vecTransposed).zipped) {
@@ -267,12 +286,14 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
     ret
   }
 
-  //TODO sub element composite assignment, as well for indexed access (std)
+  // TODO sub element composite assignment, as well for indexed access (std)
   /** Access an element of the vector by a `oneHot` value */
   def oneHotAccess(oneHot: Bits): T = {
 
-    if(elements.size != oneHot.getWidth){
-      SpinalError(s"Invalid length of oneHot selection vector (${oneHot.getWidth}), not matching length of Vec (${elements.size})\n at\n${ScalaLocated.long}")
+    if (elements.size != oneHot.getWidth) {
+      SpinalError(
+        s"Invalid length of oneHot selection vector (${oneHot.getWidth}), not matching length of Vec (${elements.size})\n at\n${ScalaLocated.long}"
+      )
     }
 
     val ret = cloneOf(dataType)
@@ -285,10 +306,12 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
     }
 
     ret.compositeAssign = new Assignable {
-      override protected def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit loc: Location): Unit = {
+      override protected def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit
+          loc: Location
+      ): Unit = {
         for ((e, idx) <- vec.zipWithIndex) {
           when(oneHot(idx)) {
-            e.compositAssignFrom(that, target,kind)
+            e.compositAssignFrom(that, target, kind)
           }
         }
       }
@@ -305,7 +328,7 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
         for ((to, from) <- (this.vec, that.vec).zipped) {
           to.compositAssignFrom(from, to, kind)
         }
-      case _            => throw new Exception("Undefined assignment")
+      case _ => throw new Exception("Undefined assignment")
     }
   }
 
@@ -326,15 +349,17 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
   override def toString() = s"${getDisplayName()} : Vec of $length elements"
 }
 
-class VecBitwisePimper[T <: Data with BitwiseOp[T]](pimped : Vec[T]) extends BitwiseOp[Vec[T]] {
+class VecBitwisePimper[T <: Data with BitwiseOp[T]](pimped: Vec[T]) extends BitwiseOp[Vec[T]] {
   override def |(other: Vec[T]): Vec[T] = map2with(_ | _)(other)
   override def &(other: Vec[T]): Vec[T] = map2with(_ & _)(other)
   override def ^(other: Vec[T]): Vec[T] = map2with(_ ^ _)(other)
-  override def unary_~ : Vec[T] = Vec(pimped.map(~ _))
+  override def unary_~ : Vec[T] = Vec(pimped.map(~_))
 
   private def map2with(f: (T, T) => T)(other: Vec[T]): Vec[T] = {
     if (pimped.length != other.length)
-      SpinalError(s"Cannot apply a bitwise operation on vectors with different sizes (${pimped.length} vs ${other.length})")
+      SpinalError(
+        s"Cannot apply a bitwise operation on vectors with different sizes (${pimped.length} vs ${other.length})"
+      )
     Vec((pimped, other).zipped.map(f))
   }
 }

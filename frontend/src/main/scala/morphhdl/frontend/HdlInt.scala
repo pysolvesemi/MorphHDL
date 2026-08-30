@@ -48,8 +48,8 @@ final class HdlInt private[frontend] (
     private[frontend] val origin: SourceOrigin,
     private[frontend] val formalBinding: Option[ExternalFormalParameterBinding] = None
 ) extends scala.math.ScalaNumber {
-  /**
-    * Supply the concrete witness to ordinary SpinalHDL while retaining either
+
+  /** Supply the concrete witness to ordinary SpinalHDL while retaining either
     * a direct parameter or a complete bounded packed-width expression.
     */
   private[frontend] def toParameterizedBitCount(implicit
@@ -188,20 +188,23 @@ final class HdlInt private[frontend] (
           witness.toInt,
           parameter = None,
           sourceLocation = Some(useOrigin.rendered),
-          expression =
-            if (retained.parameters.nonEmpty) Some(retained) else None
+          expression = if (retained.parameters.nonEmpty) Some(retained) else None
         )
     }
   }
 
-  /**
-    * Cross the approved typed native-library boundary without collapsing this
+  /** Cross the approved typed native-library boundary without collapsing this
     * value to Scala `Int`.
     */
-  def asElabInt: spinal.core.ElabInt =
-    spinal.core.ElabInt.fromExpression(
+  def asElabInt: spinal.core.ElabInt = {
+    val retained =
       StructuralExpressionBridge.width(this, "typed elaboration integer")
-    )
+    StructuralExpressionBridge.singleRootEvaluations(this) match {
+      case Some(evaluations) =>
+        spinal.core.ElabInt.fromSingleRootExpression(retained, evaluations)
+      case None => spinal.core.ElabInt.fromExpression(retained)
+    }
+  }
 
   /** Retain one bounded native Mem word-count expression. */
   private[frontend] def toParameterizedMemoryDepth(implicit
@@ -339,8 +342,7 @@ final class HdlInt private[frontend] (
     )
   }
 
-  /**
-    * Returns the minimum packed width that can address every element of this
+  /** Returns the minimum packed width that can address every element of this
     * positive size, while retaining the size as a symbolic ParamRTL
     * expression. A size of one deliberately has an address width of one.
     */
@@ -373,8 +375,7 @@ final class HdlInt private[frontend] (
     )
   }
 
-  /**
-    * Returns the mathematical ceiling of log base two while retaining this
+  /** Returns the mathematical ceiling of log base two while retaining this
     * positive value as a symbolic ParamRTL expression. In contrast to
     * `addressWidth`, `ceilLog2(1)` is zero.
     */
@@ -537,8 +538,7 @@ object HdlInt {
   ): ParameterizedMemoryDepth =
     value.toParameterizedMemoryDepth(file, line)
 
-  /**
-    * Adds SpinalHDL's ordinary `width bits` spelling only to an actual
+  /** Adds SpinalHDL's ordinary `width bits` spelling only to an actual
     * `HdlInt`. Keeping this syntax in the receiver type's implicit scope
     * prevents the existing `Int => HdlInt` conversion from competing with
     * SpinalHDL's single-step `Int => IntBuilder` conversion for expressions
@@ -655,8 +655,7 @@ object HdlInt {
     )
   }
 
-  /**
-    * Prove one HdlInt can cross an untouched native Int API as a positive,
+  /** Prove one HdlInt can cross an untouched native Int API as a positive,
     * bounded concrete witness while retaining its complete symbolic geometry.
     */
   private[frontend] def nativeIntExpression(
@@ -704,8 +703,7 @@ object HdlInt {
     }
   }
 
-  /**
-    * Build the provisional canonical definition root used while an untouched
+  /** Build the provisional canonical definition root used while an untouched
     * native child constructor is still executing. Final component attachment
     * revalidates this expression against the owner-specific formal binding.
     */
@@ -766,8 +764,7 @@ object HdlInt {
     )
   }
 
-  /**
-    * Build a definition-side formal for an explicitly supplied component
+  /** Build a definition-side formal for an explicitly supplied component
     * owner. Unlike `formalParam`, this helper does not depend on
     * `Component.current`; it is used after an untouched native Int constructor
     * has returned its exact component object.
@@ -853,9 +850,7 @@ object HdlInt {
       s"formal parameter '$name' actual",
       origin
     )
-    if (
-      retainedActual.minimum < minimum || retainedActual.maximum > maximum
-    ) {
+    if (retainedActual.minimum < minimum || retainedActual.maximum > maximum) {
       FrontendException.failAt(
         "MORPH-FRONTEND-FORMAL-PARAMETER-ACTUAL-DOMAIN-UNSUPPORTED",
         s"actual expression '${retainedActual.verilog}' in [${retainedActual.minimum}, ${retainedActual.maximum}] with default ${retainedActual.default} is incompatible with formal '$name' in [$minimum, $maximum]",
@@ -981,8 +976,8 @@ object HdlInt {
       right: Option[ScopeToken],
       origin: SourceOrigin
   ): Option[ScopeToken] = (left, right) match {
-    case (None, value) => value
-    case (value, None) => value
+    case (None, value)                => value
+    case (value, None)                => value
     case (Some(x), Some(y)) if x eq y => Some(x)
     case (Some(_), Some(_)) =>
       FrontendException.failAt(

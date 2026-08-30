@@ -5,8 +5,7 @@ import scala.tools.nsc.Global
 import scala.tools.nsc.Phase
 import scala.tools.nsc.plugins.PluginComponent
 
-/**
-  * Parser-phase instrumentation for proven shadow-symbolic native Scala `Int`
+/** Parser-phase instrumentation for proven shadow-symbolic native Scala `Int`
   * values.
   *
   * The transformation starts only from an explicit Increment 49 selection
@@ -17,8 +16,7 @@ import scala.tools.nsc.plugins.PluginComponent
   * Scala conditional alternatives. Ordinary Int and Boolean code with no
   * proven source reference is left equivalent after typing.
   */
-final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
-    extends PluginComponent {
+final class MorphHdlNativeIntShadowExpressionComponent(val global: Global) extends PluginComponent {
   import global._
 
   override val phaseName: String = "morphhdl-native-int-shadow-expressions"
@@ -34,12 +32,11 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     val normalizedPath = "/" + path.stripPrefix("/")
     val content = Option(unit.source).map(_.content.mkString).getOrElse("")
     !normalizedPath.contains("/frontend/src/main/scala/") &&
-      !normalizedPath.contains("/morphplugin/src/main/scala/") &&
-      (
-        content.contains("NativeIntShadow") ||
-        content.contains("shadowInt") ||
-        normalizedPath.endsWith("/lib/src/main/scala/spinal/lib/Stream.scala")
-      )
+    !normalizedPath.contains("/morphplugin/src/main/scala/") &&
+    (
+      content.contains("NativeIntShadow") ||
+        content.contains("shadowInt")
+    )
   }
 
   private def helperMethod(name: String): Tree = {
@@ -85,7 +82,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       intReference: Option[String] = None,
       booleanReference: Option[String] = None,
       intLiteral: Boolean = false,
-    booleanConcrete: Boolean = false
+      booleanConcrete: Boolean = false
   )
 
   private sealed trait SyntacticShape
@@ -103,23 +100,10 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     private var shapeScopes =
       List(mutable.LinkedHashMap.empty[TermName, SyntacticShape])
 
-    private var nativeStreamFifoDataTypeName: Option[TermName] = None
-    private var nativeStreamFifoDepthName: Option[TermName] = None
-    private var nativeStreamFifoDepthReference: Option[String] = None
-    private var nativeStreamFifoDepthLine: Int = 1
-    private var nativeStreamFifoStaticBooleans = Set.empty[TermName]
     private var nativeWidthFunctionStaticBooleans = Set.empty[TermName]
     private var nativeWidthFunctionDepth = 0
 
-    private val NativeStreamFifoStaticBooleanNames = Set(
-      "withAsyncRead",
-      "withBypass",
-      "allowExtraMsb",
-      "forFMax",
-      "useVec"
-    )
     private val binaryOperations = Set("+", "-", "*", "/", "%", "min", "max")
-    private val uintCarrierOperations = Set("+", "-", "*", "/", "^", "===", "=/=")
     private val comparisonOperations = Set("<", "<=", ">", ">=", "==", "!=")
     private val helperOperations = Set("addressWidth", "ceilLog2", "log2Up", "log2Down")
     private val unsupportedIntegerCalls = Set(
@@ -173,71 +157,37 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     private def decoded(name: Name): String = name.decodedName.toString
 
     private def path(tree: Tree): String = tree match {
-      case Ident(name)       => decoded(name)
+      case Ident(name) => decoded(name)
       case Select(base, name) =>
         val prefix = path(base)
         if (prefix.isEmpty) decoded(name) else s"$prefix.${decoded(name)}"
-      case This(name)        => decoded(name)
-      case _                 => ""
+      case This(name) => decoded(name)
+      case _          => ""
     }
 
     private def terminalName(tree: Tree): String = tree match {
-      case Ident(name)        => decoded(name)
-      case Select(_, name)    => decoded(name)
-      case TypeApply(fun, _)  => terminalName(fun)
-      case _                  => ""
+      case Ident(name)       => decoded(name)
+      case Select(_, name)   => decoded(name)
+      case TypeApply(fun, _) => terminalName(fun)
+      case _                 => ""
     }
-
-    private def spinalCoreMethod(name: String): Tree = {
-      val root = Ident(termNames.ROOTPKG)
-      val spinal = Select(root, TermName("spinal"))
-      val core = Select(spinal, TermName("core"))
-      Select(core, TermName(name))
-    }
-
-    private def inNativeStreamFifo: Boolean =
-      nativeStreamFifoDepthReference.nonEmpty
 
     private def inNativeWidthFunction: Boolean = nativeWidthFunctionDepth > 0
 
     private def inNativeRuntimeContext: Boolean =
-      inNativeStreamFifo || inNativeWidthFunction
-
-    private def nativeStreamFifoDataType(tree: Tree): Boolean = tree match {
-      case Ident(name: TermName) => nativeStreamFifoDataTypeName.contains(name)
-      case Select(This(_), name: TermName) =>
-        nativeStreamFifoDataTypeName.contains(name)
-      case _ => false
-    }
-
-    private def nativeStreamFifoDepth(tree: Tree): Boolean = tree match {
-      case Ident(name: TermName) => nativeStreamFifoDepthName.contains(name)
-      case Select(This(_), name: TermName) =>
-        nativeStreamFifoDepthName.contains(name)
-      case _ => false
-    }
-
-    private def nativeDepthSourceArguments: List[Tree] =
-      List(
-        Literal(Constant(sourceFile)),
-        Literal(Constant(nativeStreamFifoDepthLine))
-      )
+      inNativeWidthFunction
 
     private def isConcreteBoolean(tree: Tree): Boolean = tree match {
       case Literal(Constant(_: Boolean)) => true
       case Ident(name: TermName) =>
-        nativeStreamFifoStaticBooleans(name) ||
-          nativeWidthFunctionStaticBooleans(name)
+        nativeWidthFunctionStaticBooleans(name)
       case Select(This(_), name: TermName) =>
-        nativeStreamFifoStaticBooleans(name) ||
-          nativeWidthFunctionStaticBooleans(name)
-      case Apply(Select(value, name), Nil)
-          if decoded(name) == "unary_!" =>
+        nativeWidthFunctionStaticBooleans(name)
+      case Apply(Select(value, name), Nil) if decoded(name) == "unary_!" =>
         isConcreteBoolean(value)
       case Select(value, name) if decoded(name) == "unary_!" =>
         isConcreteBoolean(value)
-      case Apply(Select(left, name), List(right))
-          if decoded(name) == "&&" || decoded(name) == "||" =>
+      case Apply(Select(left, name), List(right)) if decoded(name) == "&&" || decoded(name) == "||" =>
         isConcreteBoolean(left) && isConcreteBoolean(right)
       case _ => false
     }
@@ -246,9 +196,11 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         name: TermName,
         scopes: List[scala.collection.Map[TermName, SyntacticShape]] = shapeScopes
     ): SyntacticShape =
-      scopes.collectFirst {
-        case scope if scope.contains(name) => scope(name)
-      }.getOrElse(UnknownShape)
+      scopes
+        .collectFirst {
+          case scope if scope.contains(name) => scope(name)
+        }
+        .getOrElse(UnknownShape)
 
     private def anonymousTemplate(tree: Tree): Option[Template] = tree match {
       case Block(
@@ -268,8 +220,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     ): SyntacticShape = {
       val local = mutable.LinkedHashMap.empty[TermName, SyntacticShape]
       template.body.foreach {
-        case value: ValDef
-            if !value.mods.hasFlag(Flag.MUTABLE) && value.rhs != EmptyTree =>
+        case value: ValDef if !value.mods.hasFlag(Flag.MUTABLE) && value.rhs != EmptyTree =>
           val shape = inferShape(value.rhs, local :: inherited)
           local.update(value.name, shape)
         case _ =>
@@ -286,14 +237,13 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         .map(recordShape(_, scopes))
         .getOrElse {
           tree match {
-            case Ident(name: TermName) => lookupShape(name, scopes)
+            case Ident(name: TermName)           => lookupShape(name, scopes)
             case Select(This(_), name: TermName) => lookupShape(name, scopes)
             case Select(base, name: TermName) =>
               inferShape(base, scopes) match {
                 case RecordShape(members) =>
                   members.getOrElse(name, UnknownShape)
-                case UIntShape
-                    if Set("resized", "resize", "asUInt").contains(decoded(name)) =>
+                case UIntShape if Set("resized", "resize", "asUInt").contains(decoded(name)) =>
                   UIntShape
                 case _ => UnknownShape
               }
@@ -344,8 +294,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     private def withScope[A](body: => A): A = {
       integerScopes = mutable.LinkedHashMap.empty[TermName, String] :: integerScopes
       booleanScopes = mutable.LinkedHashMap.empty[TermName, String] :: booleanScopes
-      shapeScopes =
-        mutable.LinkedHashMap.empty[TermName, SyntacticShape] :: shapeScopes
+      shapeScopes = mutable.LinkedHashMap.empty[TermName, SyntacticShape] :: shapeScopes
       try body
       finally {
         integerScopes = integerScopes.tail
@@ -354,36 +303,16 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       }
     }
 
-    private def withoutNativeStreamFifoContext[A](body: => A): A = {
-      val previousDataTypeName = nativeStreamFifoDataTypeName
-      val previousDepthName = nativeStreamFifoDepthName
-      val previousDepthReference = nativeStreamFifoDepthReference
-      val previousDepthLine = nativeStreamFifoDepthLine
-      val previousStaticBooleans = nativeStreamFifoStaticBooleans
-      nativeStreamFifoDataTypeName = None
-      nativeStreamFifoDepthName = None
-      nativeStreamFifoDepthReference = None
-      nativeStreamFifoStaticBooleans = Set.empty
-      try body
-      finally {
-        nativeStreamFifoDataTypeName = previousDataTypeName
-        nativeStreamFifoDepthName = previousDepthName
-        nativeStreamFifoDepthReference = previousDepthReference
-        nativeStreamFifoDepthLine = previousDepthLine
-        nativeStreamFifoStaticBooleans = previousStaticBooleans
-      }
-    }
-
     private def trackedInteger(tree: Tree): Option[String] = tree match {
-      case Ident(name: TermName) => lookupInteger(name)
+      case Ident(name: TermName)           => lookupInteger(name)
       case Select(This(_), name: TermName) => lookupInteger(name)
-      case _ => None
+      case _                               => None
     }
 
     private def trackedBoolean(tree: Tree): Option[String] = tree match {
-      case Ident(name: TermName) => lookupBoolean(name)
+      case Ident(name: TermName)           => lookupBoolean(name)
       case Select(This(_), name: TermName) => lookupBoolean(name)
-      case _ => None
+      case _                               => None
     }
 
     private def literalInteger(tree: Tree): Option[Int] = tree match {
@@ -588,24 +517,6 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       }
     }
 
-    private def rewriteNativeStreamFifoDepth(original: Tree): Rewrite = {
-      val reference = nativeStreamFifoDepthReference.getOrElse(
-        throw new IllegalStateException("native StreamFifo depth reference is missing")
-      )
-      Rewrite(
-        call(
-          "compilerTrackArgument",
-          List(
-            super.transform(original),
-            Literal(Constant("DEPTH")),
-            Literal(Constant(reference))
-          ) ++ nativeDepthSourceArguments,
-          original
-        ),
-        intReference = Some(reference)
-      )
-    }
-
     private def rewriteAlias(
         original: Tree,
         reference: String,
@@ -634,10 +545,11 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     ): Rewrite = {
       val rewritten = rewriteExpression(tree, None)
       if (rewritten.intReference.nonEmpty) rewritten
-      else literalInteger(tree) match {
-        case Some(_) => rewritten.copy(intLiteral = true)
-        case None    => rewritten
-      }
+      else
+        literalInteger(tree) match {
+          case Some(_) => rewritten.copy(intLiteral = true)
+          case None    => rewritten
+        }
     }
 
     private def nativeBinaryTree(
@@ -670,27 +582,19 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         case Some(reference)
             if (left.intReference.isEmpty && !left.intLiteral) ||
               (right.intReference.isEmpty && !right.intLiteral) =>
-          rewriteMixedHardwareBinary(
+          val unsupported =
+            if (
+              inferShape(leftTree) == UIntShape ||
+              inferShape(rightTree) == UIntShape
+            ) unsupportedValue _
+            else unsupportedInt _
+          unsupported(
+            reference,
+            "MORPH-FRONTEND-NATIVE-INT-EXPRESSION-OPERAND-UNPROVEN",
+            s"native Int '$operation' requires every nonliteral operand to carry exact shadow provenance",
             original,
-            leftTree,
-            operatorName,
-            rightTree,
-            operation
-          ).getOrElse {
-            val unsupported =
-              if (
-                inferShape(leftTree) == UIntShape ||
-                inferShape(rightTree) == UIntShape
-              ) unsupportedValue _
-              else unsupportedInt _
-            unsupported(
-              reference,
-              "MORPH-FRONTEND-NATIVE-INT-EXPRESSION-OPERAND-UNPROVEN",
-              s"native Int '$operation' requires every nonliteral operand to carry exact shadow provenance",
-              original,
-              nativeBinaryTree(original, left.tree, operatorName, right.tree)
-            )
-          }
+            nativeBinaryTree(original, left.tree, operatorName, right.tree)
+          )
         case Some(_) =>
           val name = resultName(requestedName, operation, original)
           val resultRef = sourceReference(original, s"expression:$name")
@@ -840,20 +744,18 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     }
 
     private def bitCountValue(tree: Tree): Option[Tree] = tree match {
-      case Apply(Select(value, name), Nil)
-          if decoded(name) == "bits" || decoded(name) == "bit" => Some(value)
-      case Select(value, name)
-          if decoded(name) == "bits" || decoded(name) == "bit" => Some(value)
-      case Apply(fun, List(value)) if terminalName(fun) == "BitCount" => Some(value)
-      case _ => None
+      case Apply(Select(value, name), Nil) if decoded(name) == "bits" || decoded(name) == "bit" => Some(value)
+      case Select(value, name) if decoded(name) == "bits" || decoded(name) == "bit"             => Some(value)
+      case Apply(fun, List(value)) if terminalName(fun) == "BitCount"                           => Some(value)
+      case _                                                                                    => None
     }
 
     private def rebuildBitCount(original: Tree, value: Tree): Tree = {
       val result = original match {
         case Apply(Select(_, name), Nil) => Apply(Select(value, name), Nil)
-        case Select(_, name) => Select(value, name)
-        case Apply(fun, List(_)) => Apply(super.transform(fun), List(value))
-        case _ => original
+        case Select(_, name)             => Select(value, name)
+        case Apply(fun, List(_))         => Apply(super.transform(fun), List(value))
+        case _                           => original
       }
       result.setPos(original.pos)
     }
@@ -935,36 +837,6 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         }
     }
 
-    private def rewriteNativeMem(
-        original: Tree,
-        fun: Tree,
-        dataType: Tree,
-        depthTree: Tree
-    ): Rewrite = {
-      val depth = rewriteExpression(depthTree, None)
-      depth.intReference match {
-        case None => Rewrite(super.transform(original))
-        case Some(reference) =>
-          val transformedType = transform(dataType)
-          val native = Apply(
-            super.transform(fun),
-            List(transformedType, depth.tree)
-          )
-          native.setPos(original.pos)
-          Rewrite(
-            curriedCall(
-              "compilerMem",
-              List(
-                depth.tree,
-                Literal(Constant(reference))
-              ) ++ sourceArguments(original),
-              native,
-              original
-            )
-          )
-      }
-    }
-
     private def rewriteNativeReg(
         original: Tree,
         fun: Tree,
@@ -973,12 +845,9 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       val transformedType = transform(dataType)
       val native = Apply(super.transform(fun), List(transformedType))
       native.setPos(original.pos)
-      val helper =
-        if (nativeStreamFifoDataType(dataType)) "compilerRegHardType"
-        else "compilerReg"
       Rewrite(
         curriedCall(
-          helper,
+          "compilerReg",
           List(transformedType),
           native,
           original
@@ -1020,69 +889,6 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
           original
         )
       )
-    }
-
-    private def rewriteNativeStream(
-        original: Tree,
-        fun: Tree,
-        dataType: Tree
-    ): Rewrite = {
-      val transformedType = transform(dataType)
-      val nativeHardType = Apply(
-        spinalCoreMethod("HardType"),
-        List(transformedType)
-      )
-      nativeHardType.setPos(original.pos)
-      val retainedHardType = curriedCall(
-        "compilerHardType",
-        List(transformedType),
-        nativeHardType,
-        original
-      )
-      val native = Apply(super.transform(fun), List(retainedHardType))
-      native.setPos(original.pos)
-      Rewrite(native)
-    }
-
-    private def nativeValueCarrier(
-        value: Rewrite,
-        prototype: Tree,
-        original: Tree,
-        role: String
-    ): Tree = {
-      val reference = value.intReference.getOrElse(
-        throw new IllegalStateException("native value carrier lost its provenance")
-      )
-      val name = resultName(None, s"carrier_$role", original)
-      call(
-        "compilerUIntValueLike",
-        List(
-          value.tree,
-          Literal(Constant(reference)),
-          transform(prototype),
-          Literal(Constant(name))
-        ) ++ sourceArguments(original),
-        original
-      )
-    }
-
-    private def rewriteMixedHardwareBinary(
-        original: Tree,
-        leftTree: Tree,
-        operatorName: Name,
-        rightTree: Tree,
-        operation: String
-    ): Option[Rewrite] = {
-      if (!inNativeStreamFifo || !uintCarrierOperations(operation)) return None
-      val left = rewriteExpression(leftTree, None)
-      val right = rewriteExpression(rightTree, None)
-      if (left.intReference.nonEmpty && inferShape(rightTree) == UIntShape) {
-        val carrier = nativeValueCarrier(left, rightTree, original, "left")
-        Some(Rewrite(nativeBinaryTree(original, carrier, operatorName, transform(rightTree))))
-      } else if (right.intReference.nonEmpty && inferShape(leftTree) == UIntShape) {
-        val carrier = nativeValueCarrier(right, leftTree, original, "right")
-        Some(Rewrite(nativeBinaryTree(original, transform(leftTree), operatorName, carrier)))
-      } else None
     }
 
     private def rewriteStaticMinMax(
@@ -1216,13 +1022,10 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       object Finder extends Traverser {
         override def traverse(current: Tree): Unit =
           if (finding.isEmpty) {
-            if (nativeStreamFifoDepth(current))
-              finding = nativeStreamFifoDepthReference
-            else
-              trackedInteger(current) match {
-                case Some(value) => finding = Some(value)
-                case None        => super.traverse(current)
-              }
+            trackedInteger(current) match {
+              case Some(value) => finding = Some(value)
+              case None        => super.traverse(current)
+            }
           }
       }
       Finder.traverse(tree)
@@ -1311,11 +1114,14 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     ): Option[UnsafeAlternativeEffect] = {
       val rendered = path(fun)
       val method = terminalName(fun)
-      if (method.endsWith("_=") || method.endsWith("+=")) Some(effect(
-        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-MUTABLE-STATE-UNSUPPORTED",
-        s"setter or update call '$rendered' mutates Scala state and is not permitted inside a captured native symbolic alternative",
-        original
-      ))
+      if (method.endsWith("_=") || method.endsWith("+="))
+        Some(
+          effect(
+            "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-MUTABLE-STATE-UNSUPPORTED",
+            s"setter or update call '$rendered' mutates Scala state and is not permitted inside a captured native symbolic alternative",
+            original
+          )
+        )
       else if (
         (original.isInstanceOf[Apply] && ioEffectMethods.contains(method)) ||
         rendered.contains("Console") ||
@@ -1323,34 +1129,46 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         rendered.contains("java.io") || rendered.contains("java.nio.file") ||
         rendered.contains("scala.io") || rendered.contains("Socket") ||
         rendered.contains("InputStream") || rendered.contains("OutputStream")
-      ) Some(effect(
-        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-IO-UNSUPPORTED",
-        s"I/O call '$rendered' is not permitted while capturing a native symbolic alternative",
-        original
-      ))
+      )
+        Some(
+          effect(
+            "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-IO-UNSUPPORTED",
+            s"I/O call '$rendered' is not permitted while capturing a native symbolic alternative",
+            original
+          )
+        )
       else if (
         reflectionEffectMethods.contains(method) ||
         rendered.contains("scala.reflect") || rendered.contains("java.lang.reflect")
-      ) Some(effect(
-        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-REFLECTION-UNSUPPORTED",
-        s"reflection call '$rendered' is not permitted while capturing a native symbolic alternative",
-        original
-      ))
+      )
+        Some(
+          effect(
+            "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-REFLECTION-UNSUPPORTED",
+            s"reflection call '$rendered' is not permitted while capturing a native symbolic alternative",
+            original
+          )
+        )
       else if (
         nondeterministicEffectMethods.contains(method) &&
         (rendered.contains("Random") || rendered.contains("System") ||
           rendered.contains("UUID") || rendered.contains("Instant") ||
           rendered.contains("LocalDate") || rendered.contains("ZonedDate"))
-      ) Some(effect(
-        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-NONDETERMINISM-UNSUPPORTED",
-        s"nondeterministic call '$rendered' is not permitted while capturing a native symbolic alternative",
-        original
-      ))
-      else if (arbitraryEffectMethods.contains(method)) Some(effect(
-        "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-ARBITRARY-EFFECT-UNSUPPORTED",
-        s"Scala effect '$rendered' is outside the Increment 52 safe structural contract",
-        original
-      ))
+      )
+        Some(
+          effect(
+            "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-NONDETERMINISM-UNSUPPORTED",
+            s"nondeterministic call '$rendered' is not permitted while capturing a native symbolic alternative",
+            original
+          )
+        )
+      else if (arbitraryEffectMethods.contains(method))
+        Some(
+          effect(
+            "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-ARBITRARY-EFFECT-UNSUPPORTED",
+            s"Scala effect '$rendered' is outside the Increment 52 safe structural contract",
+            original
+          )
+        )
       else None
     }
 
@@ -1361,41 +1179,53 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       object Finder extends Traverser {
         override def traverse(current: Tree): Unit = if (finding.isEmpty) current match {
           case value: ValDef if value.mods.hasFlag(Flag.MUTABLE) =>
-            finding = Some(effect(
-              "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-MUTABLE-STATE-UNSUPPORTED",
-              s"mutable Scala variable '${decoded(value.name)}' is not permitted inside a captured native symbolic alternative",
-              current
-            ))
+            finding = Some(
+              effect(
+                "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-MUTABLE-STATE-UNSUPPORTED",
+                s"mutable Scala variable '${decoded(value.name)}' is not permitted inside a captured native symbolic alternative",
+                current
+              )
+            )
           case _: Assign =>
-            finding = Some(effect(
-              "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-MUTABLE-STATE-UNSUPPORTED",
-              "assignment to Scala mutable state is not permitted inside a captured native symbolic alternative",
-              current
-            ))
+            finding = Some(
+              effect(
+                "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-MUTABLE-STATE-UNSUPPORTED",
+                "assignment to Scala mutable state is not permitted inside a captured native symbolic alternative",
+                current
+              )
+            )
           case _: Return =>
-            finding = Some(effect(
-              "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-CONTROL-EFFECT-UNSUPPORTED",
-              "return is outside the safe native symbolic alternative contract",
-              current
-            ))
+            finding = Some(
+              effect(
+                "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-CONTROL-EFFECT-UNSUPPORTED",
+                "return is outside the safe native symbolic alternative contract",
+                current
+              )
+            )
           case _: Throw =>
-            finding = Some(effect(
-              "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-CONTROL-EFFECT-UNSUPPORTED",
-              "throw is outside the safe native symbolic alternative contract",
-              current
-            ))
+            finding = Some(
+              effect(
+                "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-CONTROL-EFFECT-UNSUPPORTED",
+                "throw is outside the safe native symbolic alternative contract",
+                current
+              )
+            )
           case _: Try =>
-            finding = Some(effect(
-              "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-CONTROL-EFFECT-UNSUPPORTED",
-              "try/catch/finally is outside the safe native symbolic alternative contract",
-              current
-            ))
+            finding = Some(
+              effect(
+                "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-CONTROL-EFFECT-UNSUPPORTED",
+                "try/catch/finally is outside the safe native symbolic alternative contract",
+                current
+              )
+            )
           case _: LabelDef =>
-            finding = Some(effect(
-              "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-UNBOUNDED-LOOP-UNSUPPORTED",
-              "while/do-style mutable loops are not permitted; use a finite immutable range loop",
-              current
-            ))
+            finding = Some(
+              effect(
+                "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-UNBOUNDED-LOOP-UNSUPPORTED",
+                "while/do-style mutable loops are not permitted; use a finite immutable range loop",
+                current
+              )
+            )
           case application @ Apply(fun, _) =>
             unsafeCallEffect(fun, application) match {
               case value @ Some(_) => finding = value
@@ -1488,7 +1318,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
 
     private def isUnitLiteral(tree: Tree): Boolean = tree match {
       case Literal(Constant(value)) if value == () => true
-      case _                                        => false
+      case _                                       => false
     }
 
     private def rewriteNativeConditionalSingle(
@@ -1592,7 +1422,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         rendered.endsWith("Integer.valueOf") ||
         rendered.endsWith("java.lang.Integer.valueOf")
       case TypeApply(Select(_, name), _) if decoded(name) == "asInstanceOf" => true
-      case _ => false
+      case _                                                                => false
     }
 
     private def rewriteBoxing(original: Tree, reference: String): Rewrite =
@@ -1691,9 +1521,6 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
         tree: Tree,
         requestedName: Option[String]
     ): Rewrite = {
-      if (nativeStreamFifoDepth(tree))
-        return rewriteNativeStreamFifoDepth(tree)
-
       markerCall(tree, "captureArgument") match {
         case Some((value, name)) =>
           return rewriteMarker(tree, value, name, requestedName)
@@ -1707,7 +1534,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
 
       trackedInteger(tree) match {
         case Some(reference) => return rewriteAlias(tree, reference, requestedName)
-        case None =>
+        case None            =>
       }
       trackedBoolean(tree) match {
         case Some(reference) =>
@@ -1716,8 +1543,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       }
 
       tree match {
-        case application @ Apply(fun, List(data))
-            if inNativeWidthFunction && terminalName(fun) == "widthOf" =>
+        case application @ Apply(fun, List(data)) if inNativeWidthFunction && terminalName(fun) == "widthOf" =>
           rewriteNativeWidthOf(application, fun, data, requestedName)
         case application @ Apply(Select(source, methodName), List(width))
             if inNativeRuntimeContext && decoded(methodName) == "resize" =>
@@ -1738,17 +1564,13 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
             decoded(operatorName),
             requestedName
           )
-        case Apply(Select(value, operatorName), Nil)
-            if inNativeRuntimeContext && decoded(operatorName) == "unary_!" =>
+        case Apply(Select(value, operatorName), Nil) if inNativeRuntimeContext && decoded(operatorName) == "unary_!" =>
           rewriteBooleanNot(tree, value, requestedName)
-        case Select(value, operatorName)
-            if inNativeRuntimeContext && decoded(operatorName) == "unary_!" =>
+        case Select(value, operatorName) if inNativeRuntimeContext && decoded(operatorName) == "unary_!" =>
           rewriteBooleanNot(tree, value, requestedName)
-        case Apply(Select(value, methodName), Nil)
-            if inNativeRuntimeContext && decoded(methodName) == "toInt" =>
+        case Apply(Select(value, methodName), Nil) if inNativeRuntimeContext && decoded(methodName) == "toInt" =>
           rewriteBooleanToInt(tree, value, requestedName)
-        case Select(value, methodName)
-            if inNativeRuntimeContext && decoded(methodName) == "toInt" =>
+        case Select(value, methodName) if inNativeRuntimeContext && decoded(methodName) == "toInt" =>
           rewriteBooleanToInt(tree, value, requestedName)
         case Apply(fun, List(bitCount))
             if terminalName(fun) == "UInt" &&
@@ -1762,35 +1584,16 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
             if terminalName(fun) == "SInt" &&
               (inNativeRuntimeContext || firstTrackedInteger(bitCount).nonEmpty) =>
           rewriteBitVectorFactory(tree, fun, bitCount, "compilerSInt")
-        case Apply(fun, List(dataType, depth))
-            if inNativeStreamFifo && terminalName(fun) == "Mem" =>
-          rewriteNativeMem(tree, fun, dataType, depth)
-        case Apply(fun, List(dataType))
-            if inNativeRuntimeContext && terminalName(fun) == "Reg" =>
+        case Apply(fun, List(dataType)) if inNativeRuntimeContext && terminalName(fun) == "Reg" =>
           rewriteNativeReg(tree, fun, dataType)
-        case Apply(fun, List(data))
-            if inNativeRuntimeContext && terminalName(fun) == "cloneOf" =>
+        case Apply(fun, List(data)) if inNativeRuntimeContext && terminalName(fun) == "cloneOf" =>
           rewriteNativeClone(tree, fun, data)
         case Apply(fun, arguments)
             if inNativeRuntimeContext &&
               (terminalName(fun) == "RegNextWhen" || terminalName(fun) == "RegNext") &&
               arguments.nonEmpty =>
           rewriteNativeCopyShape(tree, fun, arguments)
-        case Apply(fun, List(dataType))
-            if inNativeStreamFifo && terminalName(fun) == "Stream" &&
-              firstTrackedInteger(dataType).nonEmpty =>
-          rewriteNativeStream(tree, fun, dataType)
-        case Apply(Select(left, operatorName), List(right))
-            if Set("^", "===", "=/=").contains(decoded(operatorName)) =>
-          rewriteMixedHardwareBinary(
-            tree,
-            left,
-            operatorName,
-            right,
-            decoded(operatorName)
-          ).getOrElse(Rewrite(super.transform(tree)))
-        case Apply(Select(left, operatorName), List(right))
-            if binaryOperations.contains(decoded(operatorName)) =>
+        case Apply(Select(left, operatorName), List(right)) if binaryOperations.contains(decoded(operatorName)) =>
           rewriteBinary(
             tree,
             left,
@@ -1799,8 +1602,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
             decoded(operatorName),
             requestedName
           )
-        case Apply(Select(left, operatorName), List(right))
-            if comparisonOperations.contains(decoded(operatorName)) =>
+        case Apply(Select(left, operatorName), List(right)) if comparisonOperations.contains(decoded(operatorName)) =>
           rewriteComparison(
             tree,
             left,
@@ -1809,13 +1611,11 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
             decoded(operatorName),
             requestedName
           )
-        case Apply(Select(value, operatorName), Nil)
-            if decoded(operatorName) == "unary_-" =>
+        case Apply(Select(value, operatorName), Nil) if decoded(operatorName) == "unary_-" =>
           rewriteUnary(tree, "negate", value, requestedName)
         case Select(value, operatorName) if decoded(operatorName) == "unary_-" =>
           rewriteUnary(tree, "negate", value, requestedName)
-        case Apply(Select(receiver, methodName), arguments)
-            if unsupportedIntegerCalls.contains(decoded(methodName)) =>
+        case Apply(Select(receiver, methodName), arguments) if unsupportedIntegerCalls.contains(decoded(methodName)) =>
           rewriteUnsupportedReceiverCall(
             tree,
             receiver,
@@ -1841,8 +1641,7 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
           }
         case Select(value, methodName) if helperOperations.contains(decoded(methodName)) =>
           rewriteUnary(tree, decoded(methodName), value, requestedName)
-        case Select(receiver, methodName)
-            if unsupportedIntegerCalls.contains(decoded(methodName)) =>
+        case Select(receiver, methodName) if unsupportedIntegerCalls.contains(decoded(methodName)) =>
           rewriteUnsupportedReceiverCall(
             tree,
             receiver,
@@ -1855,15 +1654,14 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
     }
 
     private def stableNativeWidthRoot(tree: Tree): Boolean = tree match {
-      case Ident(_)           => true
-      case This(_)            => true
-      case Select(base, _)    => stableNativeWidthRoot(base)
-      case Typed(value, _)    => stableNativeWidthRoot(value)
-      case _                  => false
+      case Ident(_)        => true
+      case This(_)         => true
+      case Select(base, _) => stableNativeWidthRoot(base)
+      case Typed(value, _) => stableNativeWidthRoot(value)
+      case _               => false
     }
 
-    /**
-      * Discover direct `widthOf(Data)` roots in one native method body. Nested
+    /** Discover direct `widthOf(Data)` roots in one native method body. Nested
       * definitions own independent lifetimes and are deliberately excluded.
       */
     private def nativeWidthRoots(tree: Tree): Vector[Tree] = {
@@ -1928,53 +1726,6 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       }
     }
 
-    private def nativeStreamFifoConstructorParameters(
-        value: ClassDef
-    ): List[ValDef] =
-      value.impl.body.collectFirst {
-        case method: DefDef if decoded(method.name) == "<init>" =>
-          method.vparamss.flatten
-      }.getOrElse(Nil)
-
-    private def transformNativeStreamFifo(value: ClassDef): Tree = {
-      val parameters = nativeStreamFifoConstructorParameters(value)
-      val dataType = parameters.find(parameter => decoded(parameter.name) == "dataType")
-      val depth = parameters.find(parameter => decoded(parameter.name) == "depth")
-      depth match {
-        case None =>
-          global.reporter.error(
-            value.pos,
-            "MORPHDL-NATIVE-STREAMFIFO-DEPTH-MISSING: native StreamFifo constructor no longer exposes depth: Int"
-          )
-          super.transform(value)
-        case Some(depthParameter) =>
-          val previousDataTypeName = nativeStreamFifoDataTypeName
-          val previousName = nativeStreamFifoDepthName
-          val previousReference = nativeStreamFifoDepthReference
-          val previousLine = nativeStreamFifoDepthLine
-          val previousBooleans = nativeStreamFifoStaticBooleans
-          nativeStreamFifoDataTypeName = dataType.map(_.name)
-          nativeStreamFifoDepthName = Some(depthParameter.name)
-          nativeStreamFifoDepthReference = Some(
-            sourceReference(depthParameter, "argument:DEPTH")
-          )
-          nativeStreamFifoDepthLine = sourceLine(depthParameter)
-          nativeStreamFifoStaticBooleans = parameters.collect {
-            case parameter
-                if NativeStreamFifoStaticBooleanNames(decoded(parameter.name)) =>
-              parameter.name
-          }.toSet
-          try super.transform(value)
-          finally {
-            nativeStreamFifoDataTypeName = previousDataTypeName
-            nativeStreamFifoDepthName = previousName
-            nativeStreamFifoDepthReference = previousReference
-            nativeStreamFifoDepthLine = previousLine
-            nativeStreamFifoStaticBooleans = previousBooleans
-          }
-      }
-    }
-
     private def normalizeGenerate(original: Tree, condition: Tree, body: Tree): Tree = {
       val rewrittenCondition = rewriteExpression(condition, None)
       rewrittenCondition.booleanReference match {
@@ -2015,50 +1766,10 @@ final class MorphHdlNativeIntShadowExpressionComponent(val global: Global)
       }
     }
 
-    private def normalizeBooleanMatch(original: Match): Option[Tree] = {
-      var whenTrue: Option[Tree] = None
-      var whenFalse: Option[Tree] = None
-      var supported = true
-      original.cases.foreach { value =>
-        if (value.guard != EmptyTree) supported = false
-        value.pat match {
-          case Literal(Constant(true)) if whenTrue.isEmpty =>
-            whenTrue = Some(value.body)
-          case Literal(Constant(false)) if whenFalse.isEmpty =>
-            whenFalse = Some(value.body)
-          case _ => supported = false
-        }
-      }
-      if (supported && whenTrue.nonEmpty && whenFalse.nonEmpty && original.cases.size == 2) {
-        val conditional = If(original.selector, whenTrue.get, whenFalse.get)
-        conditional.setPos(original.pos)
-        Some(rewriteIf(conditional))
-      } else None
-    }
-
     override def transform(tree: Tree): Tree = tree match {
-      case value: ClassDef
-          if sourceFile.replace('\\', '/').endsWith(
-            "/lib/src/main/scala/spinal/lib/Stream.scala"
-          ) && decoded(value.name) == "StreamFifo" =>
-        transformNativeStreamFifo(value)
-      case application @ Apply(Select(condition, name), List(body))
-          if inNativeStreamFifo && decoded(name) == "generate" =>
-        normalizeGenerate(application, condition, body)
-      case value: Match if inNativeStreamFifo =>
-        normalizeBooleanMatch(value).getOrElse(super.transform(value))
       case template: Template => withScope(super.transform(template))
       case block: Block       => withScope(super.transform(block))
       case function: Function => withScope(super.transform(function))
-      case definition: DefDef
-          if inNativeStreamFifo && decoded(definition.name) != "<init>" =>
-        // StreamFifo owns a dedicated constructor-capture contract. Isolate
-        // every nested method before the generic width-function matcher so a
-        // helper driver cannot move into a symbolic body while its consumer
-        // remains at module scope.
-        withoutNativeStreamFifoContext {
-          withScope(super.transform(definition))
-        }
       case definition: DefDef if decoded(definition.name) != "<init>" =>
         val roots = nativeWidthRoots(definition.rhs)
         if (roots.nonEmpty) transformNativeWidthFunction(definition, roots)

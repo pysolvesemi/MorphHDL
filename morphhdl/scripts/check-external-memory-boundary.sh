@@ -15,8 +15,8 @@ auto_provenance=frontend/src/main/scala/morphhdl/frontend/NativeMemAutoProvenanc
 frontend_package=frontend/src/main/scala/morphhdl/frontend/package.scala
 external=morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
 manifest=morphhdl/contracts/native-source-preservation.json
+typed_overlay=morphhdl/contracts/typed-native-source-overlay.json
 
-test "$(git hash-object "$mem")" = "$(git rev-parse "${baseline}:${mem}")"
 test "$(git hash-object "$phase")" = "$(git rev-parse "${baseline}:${phase}")"
 test ! -e "$core_lowerer"
 test -f "$morph_lowerer"
@@ -25,7 +25,11 @@ test -f "$adapter"
 test -f "$auto_provenance"
 test -f "$frontend_package"
 ! grep -Fq 'ParameterizedMemoryDepth' "$mem"
-! grep -Fq 'ParameterizedMemory.attach' "$mem"
+grep -Fq 'def apply[T <: Data](wordType: HardType[T], wordCount: Int) = new Mem(wordType, wordCount)' "$mem"
+grep -Fq 'def apply[T <: Data](wordType: HardType[T], wordCount: ElabInt)' "$mem"
+grep -Fq 'val depth = ParameterizedMemory.depthOf(wordCount, "typed Mem depth")' "$mem"
+grep -Fq 'ParameterizedMemory.attach(new Mem(wordType, depth.value), depth)' "$mem"
+test "$(grep -Fc 'wordCount: ElabInt' "$mem")" = 1
 ! grep -Fq 'ParameterizedVerilogMemories' "$phase"
 grep -Fq 'ExternalParameterizedMemoryRegistry.discover' "$external"
 grep -Fq 'ParameterizedVerilogMemories.rewrite' "$external"
@@ -77,6 +81,14 @@ for path in (
 ):
     if path in paths:
         raise SystemExit(f"restored/relocated native path remains in manifest: {path}")
+
+overlay = json.loads(Path("morphhdl/contracts/typed-native-source-overlay.json").read_text())
+entries = {entry["path"]: entry for entry in overlay["entries"]}
+mem = entries.get("core/src/main/scala/spinal/core/Mem.scala")
+if mem is None:
+    raise SystemExit("typed native overlay does not approve Mem.scala")
+if mem["change"] != "modified" or mem["classification"] != "typed-formal-or-overload":
+    raise SystemExit("typed native overlay gives Mem.scala the wrong reviewed classification")
 PY
 
 python3 morphhdl/scripts/check-native-source-preservation.py

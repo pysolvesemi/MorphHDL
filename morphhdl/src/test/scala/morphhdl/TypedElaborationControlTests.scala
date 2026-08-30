@@ -174,13 +174,15 @@ class TypedElaborationControlTests extends AnyFunSuite {
       first + second
     }
     assert(
-      arithmeticError.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED"
+      arithmeticError.code == "SPINAL-ELAB-DOMAIN-EXACT-CORRELATION-UNSUPPORTED"
     )
 
     val booleanError = intercept[ParameterizedVerilogException] {
       (first > 0) && (second > 0)
     }
-    assert(booleanError.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED")
+    assert(
+      booleanError.code == "SPINAL-ELAB-DOMAIN-EXACT-CORRELATION-UNSUPPORTED"
+    )
   }
 
   test("copies and derived expressions preserve one symbolic root identity") {

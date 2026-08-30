@@ -4,16 +4,10 @@ import java.lang.ref.{ReferenceQueue, WeakReference}
 
 import scala.collection.mutable
 
-import ExternalNativeIntRelativeExpression.{
-  AddressWidth,
-  CeilLog2,
-  Literal,
-  Root
-}
+import ExternalNativeIntRelativeExpression.{AddressWidth, CeilLog2, Literal, Root}
 import ExternalNativeIntRelativePredicate.{Comparison, Constant, PowerOfTwo}
 
-/**
-  * Immutable capture returned after one boundary constructor has completed.
+/** Immutable capture returned after one boundary constructor has completed.
   * The constructor is package-private so callers cannot fabricate provenance.
   */
 final class ExternalNativeIntShadowCapture[A] private[core] (
@@ -102,8 +96,7 @@ private[core] final class ExternalNativeIntExpressionIdentityRef(
   }
 }
 
-/**
-  * MorphHDL-owned shadow provenance registry for native Scala `Int` values.
+/** MorphHDL-owned shadow provenance registry for native Scala `Int` values.
   *
   * A boundary keeps a thread-local stack only while an untouched constructor is
   * executing. Ordinary `Int` and `Boolean` values stay unchanged. The compiler
@@ -122,7 +115,8 @@ private[core] final class ExternalNativeIntExpressionIdentityRef(
   * MORPH-FRONTEND-NATIVE-INT-EXPRESSION-MUTABLE-ESCAPE.
   */
 object ExternalNativeIntShadowRegistry {
-  private[core] val MaximumStructuralPredicateDomainSize = BigInt(65536)
+  private[core] val MaximumStructuralPredicateDomainSize =
+    ElaborationExactDomain.MaximumDomainSize
 
   private final case class DefinitionExpressionEvidence(
       root: ParameterizedStructure.StructuralPredicateRoot,
@@ -194,8 +188,7 @@ object ExternalNativeIntShadowRegistry {
     reapDefinitionExpressionEvidence()
     val key = new ExternalNativeIntExpressionIdentityRef(lowered, null)
     definitionExpressionEvidence.get(key) match {
-      case Some(existing)
-          if (existing.root ne root) || existing.expression != expression =>
+      case Some(existing) if (existing.root ne root) || existing.expression != expression =>
         fail(
           "MORPH-FRONTEND-NATIVE-INT-EXPRESSION-PROVENANCE-CONFLICT",
           "one exact lowered native Int expression carries incompatible bounded-domain provenance",
@@ -213,8 +206,7 @@ object ExternalNativeIntShadowRegistry {
     }
   }
 
-  /**
-    * Evaluate one exact lowered expression against its compiler-retained native
+  /** Evaluate one exact lowered expression against its compiler-retained native
     * Int AST. Both the expression and predicate root must match by identity;
     * rendered Verilog text and equal numeric witnesses are never discovery
     * keys.
@@ -254,8 +246,7 @@ object ExternalNativeIntShadowRegistry {
       argumentName = argumentName
     )(body)
 
-  /**
-    * Execute a native child constructor while retaining separate definition
+  /** Execute a native child constructor while retaining separate definition
     * and instance roots. Increment 51 uses the definition root immediately for
     * structural branch capture; final attachment proves it matches the
     * canonical formal created for the returned child Component.
@@ -319,8 +310,7 @@ object ExternalNativeIntShadowRegistry {
     }
   }
 
-  /**
-    * Execute one ordinary native-library method whose internal Scala `Int`
+  /** Execute one ordinary native-library method whose internal Scala `Int`
     * geometry is rooted in an already-retained symbolic packed width. Unlike
     * `captureWithDefinition`, this transient scope does not create a public
     * constructor slot or attach a replacement component; it only lets generic
@@ -357,8 +347,7 @@ object ExternalNativeIntShadowRegistry {
     }
   }
 
-  /**
-    * Retain one native `widthOf` result by exact compiler reference. A concrete
+  /** Retain one native `widthOf` result by exact compiler reference. A concrete
     * payload width becomes a literal. A symbolic payload width must be exactly
     * the active method root; distinct symbolic roots are rejected instead of
     * being inferred from equal witnesses.
@@ -385,8 +374,7 @@ object ExternalNativeIntShadowRegistry {
     }
     val relative = expression match {
       case None => Literal(BigInt(witness))
-      case Some(retained)
-          if equivalentExpression(retained, boundary.definitionExpression) =>
+      case Some(retained) if equivalentExpression(retained, boundary.definitionExpression) =>
         if (retained.default != BigInt(witness)) {
           fail(
             "MORPH-FRONTEND-NATIVE-WIDTH-FUNCTION-WITNESS-MISMATCH",
@@ -735,9 +723,10 @@ object ExternalNativeIntShadowRegistry {
     val result = operation match {
       case "&&" => left && right
       case "||" => left || right
-      case other => throw new IllegalArgumentException(
-        s"unsupported native Boolean operation '$other'"
-      )
+      case other =>
+        throw new IllegalArgumentException(
+          s"unsupported native Boolean operation '$other'"
+        )
     }
     withBoundaryOrBoolean(result) { boundary =>
       val leftPredicate = resolvePredicate(
@@ -885,8 +874,7 @@ object ExternalNativeIntShadowRegistry {
     }
   }
 
-  /**
-    * Resolve one exact tracked integer in definition scope. Outside a live
+  /** Resolve one exact tracked integer in definition scope. Outside a live
     * formalization boundary this intentionally returns `None`, preserving
     * ordinary native-library behavior.
     */
@@ -929,8 +917,7 @@ object ExternalNativeIntShadowRegistry {
     definition
   }
 
-  /**
-    * Resolve one proven native Boolean predicate in canonical definition scope.
+  /** Resolve one proven native Boolean predicate in canonical definition scope.
     * Increment 51 consumes this only while the exact formalization boundary is
     * active, before the native child constructor returns.
     */
@@ -941,8 +928,7 @@ object ExternalNativeIntShadowRegistry {
   ): ElaborationBooleanExpression =
     definitionPredicateEvidenceTracked(reference, witness, sourceLocation)._1
 
-  /**
-    * Return the lowered predicate together with optional exact bounded-domain
+  /** Return the lowered predicate together with optional exact bounded-domain
     * evidence.  Structural replay consumes the evidence only to prove that two
     * independently captured alternatives cannot be active together.
     */
@@ -1014,13 +1000,14 @@ object ExternalNativeIntShadowRegistry {
       value += 1
     }
     if (!complete) None
-    else Some(
-      ParameterizedStructure.StructuralPredicateDomain(
-        root = boundary.structuralPredicateRoot,
-        universe = universe.result(),
-        whenTrue = whenTrue.result()
+    else
+      Some(
+        ParameterizedStructure.StructuralPredicateDomain(
+          root = boundary.structuralPredicateRoot,
+          universe = universe.result(),
+          whenTrue = whenTrue.result()
+        )
       )
-    )
   }
 
   /** Fail-closed hook for compiler-proven unsupported escape or mutation. */
@@ -1079,10 +1066,12 @@ object ExternalNativeIntShadowRegistry {
     }
 
     val reconstructedDefinition = formalExpression(binding.formal)
-    if (!ExternalFormalParameterRegistry.equivalentCanonicalFormalSchema(
-          capture.definitionExpression,
-          reconstructedDefinition
-        )) {
+    if (
+      !ExternalFormalParameterRegistry.equivalentCanonicalFormalSchema(
+        capture.definitionExpression,
+        reconstructedDefinition
+      )
+    ) {
       fail(
         "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-DEFINITION-MISMATCH",
         s"shadow capture '${capture.token.role}' retained definition root '${capture.definitionExpression.verilog}' but canonical formal is '${reconstructedDefinition.verilog}'",
@@ -1144,18 +1133,20 @@ object ExternalNativeIntShadowRegistry {
       )
     }
 
-    val reconstructedDefinition = formalBinding.map(binding =>
-      formalExpression(binding.formal)
-    )
-    if (!reconstructedDefinition.forall(definition =>
-          ExternalFormalParameterRegistry.equivalentCanonicalFormalSchema(
-            capture.definitionExpression,
-            definition
-          )
-        )) {
+    val reconstructedDefinition = formalBinding.map(binding => formalExpression(binding.formal))
+    if (
+      !reconstructedDefinition.forall(definition =>
+        ExternalFormalParameterRegistry.equivalentCanonicalFormalSchema(
+          capture.definitionExpression,
+          definition
+        )
+      )
+    ) {
       fail(
         "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-DEFINITION-MISMATCH",
-        s"shadow capture '${capture.token.role}' retained definition root '${capture.definitionExpression.verilog}' but attached region definition is '${reconstructedDefinition.map(_.verilog).getOrElse(capture.definitionExpression.verilog)}'",
+        s"shadow capture '${capture.token.role}' retained definition root '${capture.definitionExpression.verilog}' but attached region definition is '${reconstructedDefinition
+            .map(_.verilog)
+            .getOrElse(capture.definitionExpression.verilog)}'",
         formalBinding.flatMap(_.sourceLocation).orElse(sourceOf(capture.token))
       )
     }
@@ -1222,8 +1213,7 @@ object ExternalNativeIntShadowRegistry {
   /** True only while one exact native formalization constructor is executing. */
   def boundaryActive: Boolean = currentBoundary.nonEmpty
 
-  /**
-    * Domain-constant branch folding is local to an ordinary native
+  /** Domain-constant branch folding is local to an ordinary native
     * width-function call. Constructor boundaries such as StreamFifo retain
     * their established structural capture even when a narrowed caller domain
     * makes one predicate constant.
@@ -1474,70 +1464,72 @@ object ExternalNativeIntShadowRegistry {
       definition: ElaborationIntegerExpression,
       actual: ElaborationIntegerExpression
   ): Vector[ExternalNativeIntShadowSlot] =
-    capture.pendingSlots.map { pending =>
-      val definitionExpression = lowerFinalExpression(
-        pending.expression,
-        definition,
-        pending.token.sourceLocation
-      )
-      val actualExpression = lowerFinalExpression(
-        pending.expression,
-        actual,
-        pending.token.sourceLocation
-      )
-      if (
-        BigInt(pending.witness) != definitionExpression.default ||
-        BigInt(pending.witness) != actualExpression.default
-      ) {
-        fail(
-          "MORPH-FRONTEND-NATIVE-INT-SHADOW-WITNESS-MISMATCH",
-          s"shadow slot '${pending.token.name}' witness ${pending.witness} disagrees with definition default ${definitionExpression.default} or actual default ${actualExpression.default}",
-          Option(pending.token.sourceLocation).filter(_.nonEmpty).orElse(sourceOf(capture.token))
+    capture.pendingSlots
+      .map { pending =>
+        val definitionExpression = lowerFinalExpression(
+          pending.expression,
+          definition,
+          pending.token.sourceLocation
+        )
+        val actualExpression = lowerFinalExpression(
+          pending.expression,
+          actual,
+          pending.token.sourceLocation
+        )
+        if (
+          BigInt(pending.witness) != definitionExpression.default ||
+          BigInt(pending.witness) != actualExpression.default
+        ) {
+          fail(
+            "MORPH-FRONTEND-NATIVE-INT-SHADOW-WITNESS-MISMATCH",
+            s"shadow slot '${pending.token.name}' witness ${pending.witness} disagrees with definition default ${definitionExpression.default} or actual default ${actualExpression.default}",
+            Option(pending.token.sourceLocation).filter(_.nonEmpty).orElse(sourceOf(capture.token))
+          )
+        }
+        ExternalNativeIntShadowSlot(
+          pending.token,
+          pending.witness,
+          definitionExpression,
+          actualExpression
         )
       }
-      ExternalNativeIntShadowSlot(
-        pending.token,
-        pending.witness,
-        definitionExpression,
-        actualExpression
-      )
-    }.sortBy(slot => (slot.token.kind.label, slot.token.name, slot.token.sourceLocation))
+      .sortBy(slot => (slot.token.kind.label, slot.token.name, slot.token.sourceLocation))
 
   private def finalizePredicates(
       capture: ExternalNativeIntShadowCapture[_],
       definition: ElaborationIntegerExpression,
       actual: ElaborationIntegerExpression
   ): Vector[ExternalNativeIntShadowPredicate] =
-    capture.pendingPredicates.map { pending =>
-      val definitionExpression = lowerFinalPredicate(
-        pending.predicate,
-        definition,
-        pending.token.sourceLocation
-      )
-      val actualExpression = lowerFinalPredicate(
-        pending.predicate,
-        actual,
-        pending.token.sourceLocation
-      )
-      if (
-        pending.witness != definitionExpression.default ||
-        pending.witness != actualExpression.default
-      ) {
-        fail(
-          "MORPH-FRONTEND-NATIVE-INT-SHADOW-DEFAULT-MISMATCH",
-          s"shadow predicate '${pending.token.name}' witness ${pending.witness} disagrees with definition or actual default",
-          Option(pending.token.sourceLocation).filter(_.nonEmpty).orElse(sourceOf(capture.token))
+    capture.pendingPredicates
+      .map { pending =>
+        val definitionExpression = lowerFinalPredicate(
+          pending.predicate,
+          definition,
+          pending.token.sourceLocation
+        )
+        val actualExpression = lowerFinalPredicate(
+          pending.predicate,
+          actual,
+          pending.token.sourceLocation
+        )
+        if (
+          pending.witness != definitionExpression.default ||
+          pending.witness != actualExpression.default
+        ) {
+          fail(
+            "MORPH-FRONTEND-NATIVE-INT-SHADOW-DEFAULT-MISMATCH",
+            s"shadow predicate '${pending.token.name}' witness ${pending.witness} disagrees with definition or actual default",
+            Option(pending.token.sourceLocation).filter(_.nonEmpty).orElse(sourceOf(capture.token))
+          )
+        }
+        ExternalNativeIntShadowPredicate(
+          pending.token,
+          pending.witness,
+          definitionExpression,
+          actualExpression
         )
       }
-      ExternalNativeIntShadowPredicate(
-        pending.token,
-        pending.witness,
-        definitionExpression,
-        actualExpression
-      )
-    }.sortBy(predicate =>
-      (predicate.token.name, predicate.token.operation, predicate.token.sourceLocation)
-    )
+      .sortBy(predicate => (predicate.token.name, predicate.token.operation, predicate.token.sourceLocation))
 
   private def lowerFinalExpression(
       expression: ExternalNativeIntRelativeExpression,
@@ -1567,9 +1559,9 @@ object ExternalNativeIntShadowRegistry {
       right: Int,
       sourceLocation: String
   ): Int = operation match {
-    case "+"   => left + right
-    case "-"   => left - right
-    case "*"   => left * right
+    case "+"               => left + right
+    case "-"               => left - right
+    case "*"               => left * right
     case "/" if right != 0 => left / right
     case "%" if right != 0 => left % right
     case "/" | "%" =>
@@ -1593,10 +1585,10 @@ object ExternalNativeIntShadowRegistry {
       value: Int,
       sourceLocation: String
   ): Int = operation match {
-    case "negate" => -value
+    case "negate"                           => -value
     case "ceilLog2" | "log2Up" if value > 0 => (BigInt(value) - 1).bitLength
-    case "addressWidth" if value > 0 => math.max(1, (BigInt(value) - 1).bitLength)
-    case "log2Down" if value > 0 => BigInt(value).bitLength - 1
+    case "addressWidth" if value > 0        => math.max(1, (BigInt(value) - 1).bitLength)
+    case "log2Down" if value > 0            => BigInt(value).bitLength - 1
     case "ceilLog2" | "log2Up" | "log2Down" | "addressWidth" =>
       fail(
         "MORPH-FRONTEND-NATIVE-INT-SHADOW-OPERAND-NONPOSITIVE",
@@ -1619,9 +1611,10 @@ object ExternalNativeIntShadowRegistry {
       case ">=" => left >= right
       case "==" => left == right
       case "!=" => left != right
-      case other => throw new IllegalArgumentException(
-        s"unsupported native Int comparison '$other'"
-      )
+      case other =>
+        throw new IllegalArgumentException(
+          s"unsupported native Int comparison '$other'"
+        )
     }
 
   private def validateBoundaryExpression(
@@ -1760,23 +1753,7 @@ object ExternalNativeIntShadowRegistry {
   private[core] def equivalentBooleanExpression(
       left: ElaborationBooleanExpression,
       right: ElaborationBooleanExpression
-  ): Boolean = {
-    val leftRoots = distinctBooleanRoots(left.completedParameterRoots)
-    val rightRoots = distinctBooleanRoots(right.completedParameterRoots)
-    val sameRoots =
-      leftRoots.size == rightRoots.size &&
-        leftRoots.forall(root => rightRoots.exists(_ eq root))
-    sameRoots && left.verilog == right.verilog &&
-      left.default == right.default && left.parameters == right.parameters
-  }
-
-  private def distinctBooleanRoots(
-      roots: Vector[ElaborationIntegerParameterRoot]
-  ): Vector[ElaborationIntegerParameterRoot] =
-    roots.foldLeft(Vector.empty[ElaborationIntegerParameterRoot]) {
-      case (known, root) if known.exists(_ eq root) => known
-      case (known, root)                           => known :+ root
-    }
+  ): Boolean = ElabInt.equivalentBooleanExpression(left, right)
 
   private def formalExpression(
       formal: ElaborationIntegerParameter

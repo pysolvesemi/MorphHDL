@@ -7,8 +7,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import spinal.core._
 
-/**
-  * MorphHDL-owned external lowering for one ordinary bounded Spinal Mem.
+/** MorphHDL-owned external lowering for one ordinary bounded Spinal Mem.
   *
   * The normal emitter still owns naming, declarations, read-port wiring and
   * every inherited validation phase. This pass validates one reviewed 1R1W
@@ -147,8 +146,8 @@ private[internals] object ParameterizedVerilogMemories {
     val writes = ArrayBuffer.empty[MemWrite]
     val unsupported = ArrayBuffer.empty[MemPortStatement]
     memory.foreachStatements {
-      case value: MemReadSync => reads += value
-      case value: MemWrite    => writes += value
+      case value: MemReadSync      => reads += value
+      case value: MemWrite         => writes += value
       case value: MemPortStatement => unsupported += value
     }
     if (reads.size != 1 || writes.size != 1 || unsupported.nonEmpty) {
@@ -223,10 +222,24 @@ private[internals] object ParameterizedVerilogMemories {
         source
       )
     }
+    val projectedDepth =
+      if (metadata.depth.exactDomain.nonEmpty)
+        ParameterizedStructure.projectedMemoryEvaluationOf(
+          component,
+          memory,
+          metadata.depth,
+          s"memory '${memory.getName()}' depth",
+          source.orElse(metadata.depth.sourceLocation)
+        )
+      else None
+    val depthMinimum =
+      projectedDepth.map(_.results.map(_._2).min).getOrElse(metadata.depth.minimum)
+    val depthMaximum =
+      projectedDepth.map(_.results.map(_._2).max).getOrElse(metadata.depth.maximum)
     if (
       metadata.depth.default != BigInt(memory.wordCount) ||
-      metadata.depth.minimum < 1 ||
-      metadata.depth.maximum > BigInt(Int.MaxValue)
+      depthMinimum < 1 ||
+      depthMaximum > BigInt(Int.MaxValue)
     ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-DOMAIN-INVALID",
@@ -234,10 +247,26 @@ private[internals] object ParameterizedVerilogMemories {
         source
       )
     }
+    val projectedElementWidth =
+      if (metadata.elementWidth.exactDomain.nonEmpty)
+        ParameterizedStructure.projectedMemoryEvaluationOf(
+          component,
+          memory,
+          metadata.elementWidth,
+          s"memory '${memory.getName()}' element width",
+          source.orElse(metadata.elementWidth.sourceLocation)
+        )
+      else None
+    val elementWidthMinimum = projectedElementWidth
+      .map(_.results.map(_._2).min)
+      .getOrElse(metadata.elementWidth.minimum)
+    val elementWidthMaximum = projectedElementWidth
+      .map(_.results.map(_._2).max)
+      .getOrElse(metadata.elementWidth.maximum)
     if (
       metadata.elementWidth.default != BigInt(memory.getWidth) ||
-      metadata.elementWidth.minimum < 1 ||
-      metadata.elementWidth.maximum > BigInt(pc.config.bitVectorWidthMax)
+      elementWidthMinimum < 1 ||
+      elementWidthMaximum > BigInt(pc.config.bitVectorWidthMax)
     ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID",
@@ -252,14 +281,14 @@ private[internals] object ParameterizedVerilogMemories {
       read.address,
       widthOf(read.address, source),
       nativeAddressWidth,
-      memory.component,
+      memory,
       source
     )
     val writeAddressWidth = selectAddressWidth(
       write.address,
       widthOf(write.address, source),
       nativeAddressWidth,
-      memory.component,
+      memory,
       source
     )
     ElabInt.validateParameterRootInventory(
@@ -364,16 +393,39 @@ private[internals] object ParameterizedVerilogMemories {
   private def nativeMemoryAddressWidth(
       depth: ElaborationIntegerExpression,
       source: Option[String]
-  ): ElaborationIntegerExpression =
-    ElaborationIntegerExpression(
+  ): ElaborationIntegerExpression = {
+    val exactDomain = depth.exactDomain.map { domain =>
+      ElabInt.checkedIntegerDerivedDomain(
+        domain,
+        domain.evaluations.map { case (rootValue, value) =>
+          rootValue -> portableAddressWidth(value)
+        },
+        source.orElse(depth.sourceLocation),
+        "native memory address width"
+      )
+    }
+    val derived = ElaborationIntegerExpression(
       verilog = s"clog2(${depth.verilog}, 1)",
       default = portableAddressWidth(depth.default),
       minimum = portableAddressWidth(depth.minimum),
       maximum = portableAddressWidth(depth.maximum),
       parameters = depth.parameters,
       sourceLocation = source.orElse(depth.sourceLocation),
-      parameterRoots = depth.completedParameterRoots
+      parameterRoots = depth.completedParameterRoots,
+      exactDomain = exactDomain
     )
+    (depth.projectionProvenance, exactDomain) match {
+      case (Some(projection), Some(domain)) =>
+        derived.attachProjection(
+          domain,
+          projection.admitted,
+          projection.representative,
+          "native memory address width",
+          derived.sourceLocation
+        )
+      case _ => derived
+    }
+  }
 
   private def portableAddressWidth(value: BigInt): BigInt = {
     if (value < 1) {
@@ -389,20 +441,19 @@ private[internals] object ParameterizedVerilogMemories {
       address: Expression with WidthProvider,
       retained: ElaborationIntegerExpression,
       native: ElaborationIntegerExpression,
-      component: Component,
+      memory: Mem[_],
       source: Option[String]
   ): ElaborationIntegerExpression = {
     val retainedIsConcreteWitness =
       retained.parameters.isEmpty &&
-      retained.default == BigInt(address.getWidth) &&
-      retained.minimum == retained.default &&
-      retained.maximum == retained.default
+        retained.default == BigInt(address.getWidth) &&
+        retained.minimum == retained.default &&
+        retained.maximum == retained.default
     val driverProvesNativeWidth = address match {
       case target: BaseType =>
         val assignments = ArrayBuffer.empty[DataAssignmentStatement]
-        component.dslBody.walkLeafStatements {
-          case value: DataAssignmentStatement
-              if value.finalTarget eq target =>
+        memory.component.dslBody.walkLeafStatements {
+          case value: DataAssignmentStatement if value.finalTarget eq target =>
             assignments += value
           case _ =>
         }
@@ -414,7 +465,14 @@ private[internals] object ParameterizedVerilogMemories {
           }
         }
         val distinct = distinctWidths(widths)
-        distinct.size == 1 && equivalentWidth(distinct.head, native)
+        distinct.size == 1 &&
+        (equivalentWidth(distinct.head, native) ||
+          provesAddressCapacityOnMemoryOwner(
+            distinct.head,
+            native,
+            memory,
+            source
+          ))
       case _ => false
     }
     if (
@@ -425,6 +483,41 @@ private[internals] object ParameterizedVerilogMemories {
     ) native
     else retained
   }
+
+  private def provesAddressCapacityOnMemoryOwner(
+      candidate: ElaborationIntegerExpression,
+      required: ElaborationIntegerExpression,
+      memory: Mem[_],
+      source: Option[String]
+  ): Boolean =
+    (candidate.exactDomain, required.exactDomain) match {
+      case (Some(candidateDomain), Some(requiredDomain)) if candidateDomain.root eq requiredDomain.root =>
+        val candidateEvaluation = ParameterizedStructure
+          .projectedMemoryEvaluationOf(
+            memory.component,
+            memory,
+            candidate,
+            s"memory '${memory.getName()}' address driver width",
+            source.orElse(candidate.sourceLocation)
+          )
+        val requiredEvaluation = ParameterizedStructure
+          .projectedMemoryEvaluationOf(
+            memory.component,
+            memory,
+            required,
+            s"memory '${memory.getName()}' required address width",
+            source.orElse(required.sourceLocation)
+          )
+        (candidateEvaluation, requiredEvaluation) match {
+          case (Some(actual), Some(needed)) if actual.rootValues == needed.rootValues =>
+            val actualByRoot = actual.results.toMap
+            needed.results.forall { case (rootValue, width) =>
+              actualByRoot.get(rootValue).exists(_ >= width)
+            }
+          case _ => false
+        }
+      case _ => false
+    }
 
   private def validateAddressWidth(
       address: Expression with WidthProvider,
@@ -506,7 +599,19 @@ private[internals] object ParameterizedVerilogMemories {
       left.default == right.default && left.minimum == right.minimum &&
       left.maximum == right.maximum &&
       left.parameters.sortBy(_.name) == right.parameters.sortBy(_.name) &&
-      sameParameterRoots(left, right)
+      sameParameterRoots(left, right) &&
+      ((left.exactDomain, right.exactDomain) match {
+        case (None, None) => true
+        case (Some(l), Some(r)) =>
+          (l.root eq r.root) && l.parameter == r.parameter &&
+          l.universe == r.universe && l.evaluations == r.evaluations
+        case _ => false
+      }) &&
+      ((left.projectionProvenance, right.projectionProvenance) match {
+        case (None, None)                      => true
+        case (Some(l), Some(r))                => l.sameAs(r)
+        case (Some(_), None) | (None, Some(_)) => false
+      })
 
   private def sameParameterRoots(
       left: ElaborationIntegerExpression,
@@ -523,7 +628,7 @@ private[internals] object ParameterizedVerilogMemories {
   ): Vector[ElaborationIntegerParameterRoot] =
     roots.foldLeft(Vector.empty[ElaborationIntegerParameterRoot]) {
       case (known, root) if known.exists(_ eq root) => known
-      case (known, root)                           => known :+ root
+      case (known, root)                            => known :+ root
     }
 
   private def distinctWidths(
@@ -531,7 +636,7 @@ private[internals] object ParameterizedVerilogMemories {
   ): Vector[ElaborationIntegerExpression] =
     values.foldLeft(Vector.empty[ElaborationIntegerExpression]) {
       case (known, value) if known.exists(equivalentWidth(_, value)) => known
-      case (known, value)                                           => known :+ value
+      case (known, value)                                            => known :+ value
     }
 
   private def requireType(
@@ -556,7 +661,7 @@ private[internals] object ParameterizedVerilogMemories {
       memory: Mem[_],
       source: Option[String]
   ): Unit = expression match {
-    case _: Bool if expected == 1 =>
+    case _: Bool if expected == 1                           =>
     case width: WidthProvider if width.getWidth == expected =>
     case width: WidthProvider =>
       fail(
@@ -595,17 +700,16 @@ private[internals] object ParameterizedVerilogMemories {
     val roles = Vector(
       plan.readAddress -> plan.readAddressWidth,
       plan.writeAddress -> plan.writeAddressWidth
-    ).groupBy(_._1).toVector.sortBy(_._1).map {
-      case (name, values) =>
-        val widths = distinctWidths(values.map(_._2))
-        if (widths.size != 1) {
-          fail(
-            "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ADDRESS-TYPE-MISMATCH",
-            s"memory '${plan.memoryName}' address '$name' has incompatible retained declaration widths",
-            plan.sourceLocation
-          )
-        }
-        name -> widths.head
+    ).groupBy(_._1).toVector.sortBy(_._1).map { case (name, values) =>
+      val widths = distinctWidths(values.map(_._2))
+      if (widths.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ADDRESS-TYPE-MISMATCH",
+          s"memory '${plan.memoryName}' address '$name' has incompatible retained declaration widths",
+          plan.sourceLocation
+        )
+      }
+      name -> widths.head
     }
     roles.foldLeft(lines) { case (current, (name, width)) =>
       rewriteAddressDeclaration(
@@ -659,9 +763,9 @@ private[internals] object ParameterizedVerilogMemories {
   }
 
   private def rewriteReadTargetDeclaration(
-    lines: Vector[String],
-    plan: MemoryPlan,
-    helperName: String
+      lines: Vector[String],
+      plan: MemoryPlan,
+      helperName: String
   ): Vector[String] = {
     if (plan.metadata.elementWidth.parameters.isEmpty) return lines
 
@@ -805,7 +909,7 @@ private[internals] object ParameterizedVerilogMemories {
         index
     }
     readBlocks.size == 1 && writeBlocks.size == 1 &&
-      readBlocks.head != writeBlocks.head
+    readBlocks.head != writeBlocks.head
   }
 
   private def alwaysBlocks(lines: Vector[String]): Vector[LineRange] = {

@@ -11,7 +11,6 @@ import spinal.core._
 import spinal.lib._
 
 import morphhdl.frontend.HdlInt
-import morphhdl.frontend.HdlInt.hdlIntToParameterizedMemoryDepth
 
 /** An ordinary SpinalHDL witness whose FIFO depth is a native Int literal.
   *
@@ -450,7 +449,9 @@ class NativeStreamFifoFormalEquivalenceTests extends AnyFunSuite {
       Files.isRegularFile(statusFile),
       s"SymbiYosys published no status for ${config.getFileName}:\n$output"
     )
-    val statusLines = read(statusFile).split("\\r?\\n", -1).iterator
+    val statusLines = read(statusFile)
+      .split("\\r?\\n", -1)
+      .iterator
       .map(_.trim)
       .filter(_.nonEmpty)
       .toVector

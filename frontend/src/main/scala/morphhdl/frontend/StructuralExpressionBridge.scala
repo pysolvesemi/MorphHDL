@@ -4,11 +4,7 @@ import morphhdl.paramrtl._
 import morphhdl.paramrtl.BoolExpr
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
 import morphhdl.paramrtl.IntExpr
-import spinal.core.{
-  ElaborationBooleanExpression,
-  ElaborationIntegerExpression,
-  ElaborationIntegerParameter
-}
+import spinal.core.{ElaborationBooleanExpression, ElaborationIntegerExpression, ElaborationIntegerParameter}
 
 /** Converts the guarded frontend expressions into backend-neutral core metadata. */
 private[frontend] object StructuralExpressionBridge {
@@ -142,6 +138,49 @@ private[frontend] object StructuralExpressionBridge {
       allowPortableLogHelper = true
     )
 
+  /** Exhaustive evaluation of one bounded frontend AST for the neutral typed
+    * elaboration carrier.  This is rooted in the exact ParameterToken object;
+    * rendered identifiers are not used to infer provenance.
+    */
+  def singleRootEvaluations(
+      value: HdlInt
+  ): Option[Vector[(BigInt, BigInt)]] = {
+    if (
+      value == null || value.parameters.size != 1 ||
+      value.booleanParameters.nonEmpty || value.localDeclaration.nonEmpty ||
+      value.localParameters.nonEmpty || value.booleanLocalParameters.nonEmpty ||
+      value.scope.nonEmpty
+    ) return None
+
+    val token = value.parameters.head
+    val parameterFacts =
+      IntExpressionAnalysis.parameterFacts(token.declaration).getOrElse(return None)
+    val minimum = parameterFacts.interval.lower.getOrElse(return None)
+    val maximum = parameterFacts.interval.upper.getOrElse(return None)
+    val size = maximum - minimum + 1
+    if (size < 1 || size > spinal.core.ElabInt.MaximumExactDomainSize)
+      return None
+
+    val builder = Vector.newBuilder[(BigInt, BigInt)]
+    var rootValue = minimum
+    while (rootValue <= maximum) {
+      val point = IntExprFacts(rootValue, IntInterval.point(rootValue))
+      val facts = IntExpressionAnalysis
+        .analyze(
+          value.expression,
+          parameters = Map(token.declaration.name -> point),
+          localParameters = Map.empty,
+          booleanParameters = Map.empty,
+          generateIndices = Map.empty,
+          booleanLocalParameters = Map.empty
+        )
+        .fold(_ => return None, identity)
+      builder += rootValue -> facts.defaultValue
+      rootValue += 1
+    }
+    Some(builder.result())
+  }
+
   def integer(
       value: GenIndex,
       role: String
@@ -204,15 +243,17 @@ private[frontend] object StructuralExpressionBridge {
       integers.toVector.map(integerSchema(_, origin)) ++
         booleans.toVector.map(booleanSchema)
     val grouped = values.groupBy(_.name)
-    grouped.collectFirst {
-      case (name, declarations) if declarations.distinct.size != 1 => name
-    }.foreach { name =>
-      FrontendException.failAt(
-        "MORPH-FRONTEND-STRUCTURAL-PARAMETER-SCHEMA-CONFLICT",
-        s"parameter '$name' has conflicting integer/Boolean structural declarations",
-        origin
-      )
-    }
+    grouped
+      .collectFirst {
+        case (name, declarations) if declarations.distinct.size != 1 => name
+      }
+      .foreach { name =>
+        FrontendException.failAt(
+          "MORPH-FRONTEND-STRUCTURAL-PARAMETER-SCHEMA-CONFLICT",
+          s"parameter '$name' has conflicting integer/Boolean structural declarations",
+          origin
+        )
+      }
     grouped.toVector.map(_._2.head).sortBy(_.name)
   }
 
@@ -221,20 +262,18 @@ private[frontend] object StructuralExpressionBridge {
       booleans: Set[BooleanParameterToken]
   ) =
     (integers.toVector.map(_.elaborationRoot) ++
-      booleans.toVector.map(_.elaborationRoot)).sortBy(root =>
-      (root.name, root.sourceLocation.getOrElse(""))
-    )
+      booleans.toVector.map(_.elaborationRoot)).sortBy(root => (root.name, root.sourceLocation.getOrElse("")))
 
   private def integerSchema(
       token: ParameterToken,
       origin: SourceOrigin
   ): ElaborationIntegerParameter = {
     val declaration = token.declaration
-    val minimums = declaration.constraints.collect {
-      case MinInclusive(value) => value
+    val minimums = declaration.constraints.collect { case MinInclusive(value) =>
+      value
     }
-    val maximums = declaration.constraints.collect {
-      case MaxInclusive(value) => value
+    val maximums = declaration.constraints.collect { case MaxInclusive(value) =>
+      value
     }
     if (minimums.isEmpty || maximums.isEmpty) {
       FrontendException.failAt(

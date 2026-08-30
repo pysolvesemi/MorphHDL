@@ -1,7 +1,6 @@
 package spinal.core
 
-/**
-  * Runtime half of the typed elaboration control-flow bridge.
+/** Runtime half of the typed elaboration control-flow bridge.
   *
   * The compiler plugin routes only conditions already declared as
   * [[ElabBool]] here. Concrete Booleans never enter this API. Domain-constant
@@ -42,8 +41,18 @@ object ElabControl {
       condition: ElabBool,
       sourceFile: String,
       sourceLine: Int
-  )(body: => T): T =
-    selectSymbolic(condition, sourceFile, sourceLine)(body)(null.asInstanceOf[T])
+  )(body: => T): T = {
+    requireConditionValue(condition, sourceFile, sourceLine, "generate condition")
+    if (!ParameterizedStructure.captureEnabled) {
+      if (condition.witness) body else null.asInstanceOf[T]
+    } else if (condition.isAlwaysTrue) {
+      body
+    } else if (condition.isAlwaysFalse) {
+      null.asInstanceOf[T]
+    } else {
+      captureGenerate(condition, sourceFile, sourceLine, () => body)
+    }
+  }
 
   /** Preserve one source-ordered typed `if / else if / ... / else` chain. */
   def selectSymbolicChain[T](
@@ -136,7 +145,8 @@ object ElabControl {
     } else if (!condition.isAlwaysTrue) {
       fail(
         "SPINAL-ELAB-REQUIRE-DOMAIN-UNPROVEN",
-        s"typed requirement '${condition.expression.verilog}' is not proven true over its complete parameter domain: ${String.valueOf(message)}",
+        s"typed requirement '${condition.expression.verilog}' is not proven true over its complete parameter domain: ${String
+            .valueOf(message)}",
         rendered(sourceFile, sourceLine)
       )
     }
@@ -159,13 +169,37 @@ object ElabControl {
         rendered(sourceFile, sourceLine)
       )
     }
+    val source = Some(rendered(sourceFile, sourceLine))
+    val exact = condition.expression.exactDomain.getOrElse {
+      fail(
+        "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING",
+        s"typed conditional '${condition.expression.verilog}' lacks exact single-root evidence",
+        rendered(sourceFile, sourceLine)
+      )
+    }
+    val admitted = ElaborationDomainContext.admitted(exact)
+    val trueValues = admitted.filter(value => exact.evaluate(value).contains(true))
+    val falseValues = admitted.filter(value => exact.evaluate(value).contains(false))
+    if (trueValues.isEmpty || falseValues.isEmpty) {
+      fail(
+        "SPINAL-ELAB-CONTROL-DOMAIN-CLASSIFICATION-INCONSISTENT",
+        s"typed conditional '${condition.expression.verilog}' was captured although its active domain is constant",
+        rendered(sourceFile, sourceLine)
+      )
+    }
+    val projectedCondition = condition.projectedExpression("typed conditional")
+    val selectedWitness = condition.witness
+    val predicateDomain =
+      ParameterizedStructure.typedPredicateDomainOf(component, condition.expression)
     var trueValue: Option[T] = None
     var falseValue: Option[T] = None
     val trueBlock = ParameterizedStructure.captureBlock(
       component,
-      Some(rendered(sourceFile, sourceLine))
+      source
     ) {
-      trueValue = Some(ifTrue())
+      ElaborationDomainContext.withAdmitted(exact.root, trueValues, source) {
+        trueValue = Some(ifTrue())
+      }
       ()
     }
     val pending = ParameterizedStructure.beginPending(
@@ -177,20 +211,89 @@ object ElabControl {
       component,
       Some(rendered(falseFile, falseLine))
     ) {
-      falseValue = Some(ifFalse())
+      ElaborationDomainContext.withAdmitted(
+        exact.root,
+        falseValues,
+        Some(rendered(falseFile, falseLine))
+      ) {
+        falseValue = Some(ifFalse())
+      }
       ()
     }
     val base = generatedIfBase(sourceFile, sourceLine)
     ParameterizedStructure.registerIf(
       pending,
-      condition.expression,
+      projectedCondition,
       base + "_true",
       (if (continuation) ElseIfMarkerPrefix else "") + base + "_false",
       trueBlock,
       falseBlock,
-      Some(rendered(sourceFile, sourceLine))
+      source,
+      Some(predicateDomain)
     )
-    if (condition.witness) trueValue.get else falseValue.get
+    if (selectedWitness) trueValue.get else falseValue.get
+  }
+
+  private def captureGenerate[T](
+      condition: ElabBool,
+      sourceFile: String,
+      sourceLine: Int,
+      body: () => T
+  ): T = {
+    val component = Option(Component.current).getOrElse {
+      fail(
+        "SPINAL-ELAB-CONTROL-COMPONENT-MISSING",
+        "typed symbolic generate requires an active Component",
+        rendered(sourceFile, sourceLine)
+      )
+    }
+    val source = Some(rendered(sourceFile, sourceLine))
+    val exact = condition.expression.exactDomain.getOrElse {
+      fail(
+        "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING",
+        s"typed generate '${condition.expression.verilog}' lacks exact single-root evidence",
+        rendered(sourceFile, sourceLine)
+      )
+    }
+    val admitted = ElaborationDomainContext.admitted(exact)
+    val trueValues = admitted.filter(value => exact.evaluate(value).contains(true))
+    val falseValues = admitted.filter(value => exact.evaluate(value).contains(false))
+    if (trueValues.isEmpty || falseValues.isEmpty) {
+      fail(
+        "SPINAL-ELAB-CONTROL-DOMAIN-CLASSIFICATION-INCONSISTENT",
+        s"typed generate '${condition.expression.verilog}' was captured although its active domain is constant",
+        rendered(sourceFile, sourceLine)
+      )
+    }
+    val projectedCondition = condition.projectedExpression("typed generate")
+    val selectedWitness = condition.witness
+    val predicateDomain =
+      ParameterizedStructure.typedPredicateDomainOf(component, condition.expression)
+    var capturedValue: Option[T] = None
+    val trueBlock = ParameterizedStructure.captureBlock(component, source) {
+      ElaborationDomainContext.withAdmitted(exact.root, trueValues, source) {
+        capturedValue = Some(body())
+      }
+      ()
+    }
+    val pending = ParameterizedStructure.beginPending(
+      component,
+      "typed-generate-if",
+      source
+    )
+    val falseBlock = ParameterizedStructuralSynthetic.emptyBlock(source)
+    val base = generatedIfBase(sourceFile, sourceLine)
+    ParameterizedStructure.registerIf(
+      pending,
+      projectedCondition,
+      base + "_true",
+      base + "_false",
+      trueBlock,
+      falseBlock,
+      source,
+      Some(predicateDomain)
+    )
+    if (selectedWitness) capturedValue.get else null.asInstanceOf[T]
   }
 
   private def requireConditionValue(
@@ -203,13 +306,6 @@ object ElabControl {
       fail(
         "SPINAL-ELAB-CONTROL-CONDITION-NULL",
         s"$role must not be null",
-        rendered(file, line)
-      )
-    }
-    if (condition.expression.default != condition.witness) {
-      fail(
-        "SPINAL-ELAB-CONTROL-WITNESS-MISMATCH",
-        s"$role witness ${condition.witness} disagrees with expression default ${condition.expression.default}",
         rendered(file, line)
       )
     }

@@ -25,8 +25,7 @@ private[core] final case class ParameterizedMemoryTag(
   override def canSymplifyHost: Boolean = true
 }
 
-/**
-  * A shared native library primitive may replace only the concrete witness
+/** A shared native library primitive may replace only the concrete witness
   * depth retained by its ordinary Mem after normal elaboration.
   */
 private[core] final case class ParameterizedMemoryDepthOverrideTag(
@@ -39,8 +38,35 @@ private[core] final case class ParameterizedMemoryDepthOverrideTag(
 
 /** Native symbolic-memory metadata and schema discovery. */
 object ParameterizedMemory {
-  /**
-    * Retain a symbolic element shape on an ordinary fixed-depth Mem.
+
+  /** Validate and retain one typed native memory depth. */
+  private[core] def depthOf(
+      depth: ElabInt,
+      role: String
+  ): ParameterizedMemoryDepth = {
+    if (depth == null)
+      throw new IllegalArgumentException("typed memory depth must not be null")
+    val expression = depth.projectedExpression(role)
+    if (
+      expression.default != BigInt(depth.witness) ||
+      expression.minimum < 1 ||
+      expression.maximum < expression.minimum ||
+      expression.maximum > BigInt(Int.MaxValue)
+    ) {
+      fail(
+        "SPINAL-ELAB-INT-MEMORY-DEPTH-DOMAIN-INVALID",
+        s"$role '${expression.verilog}' must have a finite positive Int-sized domain and witness ${depth.witness}",
+        expression.sourceLocation
+      )
+    }
+    ParameterizedMemoryDepth(
+      value = depth.witness,
+      expression = expression,
+      sourceLocation = expression.sourceLocation
+    )
+  }
+
+  /** Retain a symbolic element shape on an ordinary fixed-depth Mem.
     *
     * Most Spinal library memories, including StreamFifo storage, intentionally
     * keep their depth as a Scala Int.  Their payload HardType can nevertheless
@@ -71,8 +97,7 @@ object ParameterizedMemory {
     }
   }
 
-  /**
-    * Retain one bounded depth on the single native Mem owned by a library
+  /** Retain one bounded depth on the single native Mem owned by a library
     * component while leaving that component's ordinary algorithm authoritative.
     */
   private[spinal] def retainSingleDepth(
@@ -142,9 +167,11 @@ object ParameterizedMemory {
         depth.sourceLocation
       )
     }
-    val elementWidth = leaves.map { leaf =>
-      ParameterizedWidth.expressionOf(leaf).getOrElse(literal(leaf.getBitsWidth))
-    }.reduce(add)
+    val elementWidth = leaves
+      .map { leaf =>
+        ParameterizedWidth.expressionOf(leaf).getOrElse(literal(leaf.getBitsWidth))
+      }
+      .reduce(add)
     if (
       elementWidth.default != BigInt(memory.getWidth) ||
       elementWidth.minimum < 1 ||
@@ -236,9 +263,11 @@ object ParameterizedMemory {
         sourceLocation
       )
     }
-    val elementWidth = leaves.map { leaf =>
-      ParameterizedWidth.expressionOf(leaf).getOrElse(literal(leaf.getBitsWidth))
-    }.reduce(add)
+    val elementWidth = leaves
+      .map { leaf =>
+        ParameterizedWidth.expressionOf(leaf).getOrElse(literal(leaf.getBitsWidth))
+      }
+      .reduce(add)
     if (
       elementWidth.default != BigInt(memory.getWidth) ||
       elementWidth.minimum < 1 ||
@@ -288,7 +317,7 @@ object ParameterizedMemory {
     val values = ArrayBuffer.empty[Mem[_]]
     component.dslBody.walkDeclarations {
       case memory: Mem[_] if metadataOf(memory).nonEmpty => values += memory
-      case _ =>
+      case _                                             =>
     }
     values.distinct.toVector
   }
@@ -304,22 +333,24 @@ object ParameterizedMemory {
     )
     val referenced = expressions.flatMap(_.parameters)
     val grouped = referenced.groupBy(_.name)
-    grouped.collectFirst {
-      case (name, schemas) if schemas.distinct.size != 1 => name
-    }.foreach { name =>
-      val source = memoriesOf(component).iterator
-        .flatMap(metadataOf)
-        .find(metadata =>
-          (metadata.depth.parameters ++ metadata.elementWidth.parameters)
-            .exists(_.name == name)
+    grouped
+      .collectFirst {
+        case (name, schemas) if schemas.distinct.size != 1 => name
+      }
+      .foreach { name =>
+        val source = memoriesOf(component).iterator
+          .flatMap(metadataOf)
+          .find(metadata =>
+            (metadata.depth.parameters ++ metadata.elementWidth.parameters)
+              .exists(_.name == name)
+          )
+          .flatMap(_.sourceLocation)
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
+          s"parameter '$name' has conflicting native-memory declarations on component '${component.definitionName}'",
+          source
         )
-        .flatMap(_.sourceLocation)
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
-        s"parameter '$name' has conflicting native-memory declarations on component '${component.definitionName}'",
-        source
-      )
-    }
+      }
     grouped.toVector.map(_._2.head).sortBy(_.name)
   }
 
@@ -336,18 +367,8 @@ object ParameterizedMemory {
       left: ElaborationIntegerExpression,
       right: ElaborationIntegerExpression
   ): ElaborationIntegerExpression =
-    ElaborationIntegerExpression(
-      verilog = s"(${left.verilog} + ${right.verilog})",
-      default = left.default + right.default,
-      minimum = left.minimum + right.minimum,
-      maximum = left.maximum + right.maximum,
-      parameters = (left.parameters ++ right.parameters).distinct.sortBy(_.name),
-      sourceLocation = left.sourceLocation.orElse(right.sourceLocation),
-      parameterRoots = ElabInt.mergeParameterRoots(
-        left.completedParameterRoots,
-        right.completedParameterRoots
-      )
-    )
+    (ElabInt.fromExpression(left) + ElabInt.fromExpression(right))
+      .projectedExpression("typed memory element width")
 
   private def fail(
       code: String,

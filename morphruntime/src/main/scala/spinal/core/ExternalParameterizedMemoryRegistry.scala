@@ -45,8 +45,7 @@ private[core] final class ExternalHardTypeIdentityRef(
   }
 }
 
-/**
-  * Frontend-owned symbolic geometry retained beside an ordinary native
+/** Frontend-owned symbolic geometry retained beside an ordinary native
   * HardType. Capturing the leaf expressions at construction avoids evaluating
   * the HardType generator again after normal elaboration has completed.
   */
@@ -111,8 +110,7 @@ object ExternalParameterizedHardTypeRegistry {
     )
 }
 
-/**
-  * MorphHDL-owned native-memory geometry registry.
+/** MorphHDL-owned native-memory geometry registry.
   *
   * Ordinary SpinalHDL Mem construction remains untouched. A MorphHDL depth
   * adapter records the bounded depth beside the concrete native Mem, while the
@@ -200,8 +198,7 @@ object ExternalParameterizedMemoryRegistry {
     memory
   }
 
-  /**
-    * Discover symbolic element geometry after normal elaboration and inherited
+  /** Discover symbolic element geometry after normal elaboration and inherited
     * validation. This records no hardware statement and changes no native Mem,
     * port or algorithm.
     */
@@ -234,7 +231,8 @@ object ExternalParameterizedMemoryRegistry {
     val library = ParameterizedMemory.metadataOf(memory)
     (external, library) match {
       case (Some(left), Some(right))
-          if left.depth != right.depth || left.elementWidth != right.elementWidth =>
+          if !ElabInt.equivalentExpression(left.depth, right.depth) ||
+            !ElabInt.equivalentExpression(left.elementWidth, right.elementWidth) =>
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-MEMORY-METADATA-CONFLICT",
           "native memory carries conflicting external and library symbolic geometry",
@@ -265,22 +263,24 @@ object ExternalParameterizedMemoryRegistry {
     )
     val referenced = expressions.flatMap(_.parameters)
     val grouped = referenced.groupBy(_.name)
-    grouped.collectFirst {
-      case (name, schemas) if schemas.distinct.size != 1 => name
-    }.foreach { name =>
-      val source = memories.iterator
-        .flatMap(metadataOf)
-        .find(metadata =>
-          (metadata.depth.parameters ++ metadata.elementWidth.parameters)
-            .exists(_.name == name)
+    grouped
+      .collectFirst {
+        case (name, schemas) if schemas.distinct.size != 1 => name
+      }
+      .foreach { name =>
+        val source = memories.iterator
+          .flatMap(metadataOf)
+          .find(metadata =>
+            (metadata.depth.parameters ++ metadata.elementWidth.parameters)
+              .exists(_.name == name)
+          )
+          .flatMap(_.sourceLocation)
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
+          s"parameter '$name' has conflicting native-memory declarations on component '${component.definitionName}'",
+          source
         )
-        .flatMap(_.sourceLocation)
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
-        s"parameter '$name' has conflicting native-memory declarations on component '${component.definitionName}'",
-        source
-      )
-    }
+      }
     grouped.toVector.map(_._2.head).sortBy(_.name)
   }
 
@@ -388,18 +388,8 @@ object ExternalParameterizedMemoryRegistry {
       left: ElaborationIntegerExpression,
       right: ElaborationIntegerExpression
   ): ElaborationIntegerExpression =
-    ElaborationIntegerExpression(
-      verilog = s"(${left.verilog} + ${right.verilog})",
-      default = left.default + right.default,
-      minimum = left.minimum + right.minimum,
-      maximum = left.maximum + right.maximum,
-      parameters = (left.parameters ++ right.parameters).distinct.sortBy(_.name),
-      sourceLocation = left.sourceLocation.orElse(right.sourceLocation),
-      parameterRoots = ElabInt.mergeParameterRoots(
-        left.completedParameterRoots,
-        right.completedParameterRoots
-      )
-    )
+    (ElabInt.fromExpression(left) + ElabInt.fromExpression(right))
+      .projectedExpression("external memory element width")
 
   private def fail(
       code: String,

@@ -4,8 +4,7 @@ import java.lang.ref.{ReferenceQueue, WeakReference}
 
 import scala.collection.mutable
 
-/**
-  * Definition-side identity and instance-side actual expression retained for
+/** Definition-side identity and instance-side actual expression retained for
   * one explicit MorphHDL formal packed-width slot.
   *
   * `formal` belongs to the canonical child-module definition. `actual` belongs
@@ -20,8 +19,7 @@ final case class ExternalFormalParameterBinding(
     sourceLocation: Option[String]
 )
 
-/**
-  * One component-local formal binding plus the exact definition-side width
+/** One component-local formal binding plus the exact definition-side width
   * expression observed on an explicitly attached leaf, when one exists.
   *
   * Component-only native Int formals have no packed definition expression.
@@ -113,8 +111,7 @@ private[core] final class ExternalFormalComponentIdentityRef(
   }
 }
 
-/**
-  * MorphHDL-owned formal-to-actual sidecar registry.
+/** MorphHDL-owned formal-to-actual sidecar registry.
   *
   * The frontend first associates one explicit formal declaration with the
   * transient ParameterizedBitCount returned by `formalParam(...).bits`. The
@@ -174,8 +171,7 @@ object ExternalFormalParameterRegistry {
       componentQueue.poll().asInstanceOf[ExternalFormalComponentIdentityRef]
     while (reference != null) {
       instanceBindings.remove(reference)
-      reference =
-        componentQueue.poll().asInstanceOf[ExternalFormalComponentIdentityRef]
+      reference = componentQueue.poll().asInstanceOf[ExternalFormalComponentIdentityRef]
     }
   }
 
@@ -242,8 +238,7 @@ object ExternalFormalParameterRegistry {
     data
   }
 
-  /**
-    * Attach an explicit formal to one exact native leaf after an untouched
+  /** Attach an explicit formal to one exact native leaf after an untouched
     * constructor has returned. The supplied component identity is
     * authoritative; neither the concrete width nor an emitted name is used to
     * discover the owner or the leaf.
@@ -292,8 +287,7 @@ object ExternalFormalParameterRegistry {
     data.foreach(retainLeafBinding(_, binding))
   }
 
-  /**
-    * Retain one explicit definition-formal/instance-actual pair against the
+  /** Retain one explicit definition-formal/instance-actual pair against the
     * exact component object, independent of any later port traversal.
     */
   def retainComponent(
@@ -319,12 +313,12 @@ object ExternalFormalParameterRegistry {
     if (component == null) Vector.empty
     else {
       reapComponents()
-      instanceBindings
+      val values = instanceBindings
         .get(new ExternalFormalComponentIdentityRef(component, null))
         .toVector
         .flatMap(_.valuesIterator.flatMap(_.iterator))
         .map(_.binding)
-        .distinct
+      distinctBindings(values)
         .sortBy(binding => (binding.formal.name, binding.declarationKey, binding.actual.verilog))
     }
   }
@@ -340,8 +334,7 @@ object ExternalFormalParameterRegistry {
     }
   }
 
-  /**
-    * Retain each actual expression against the exact concrete component
+  /** Retain each actual expression against the exact concrete component
     * instance that materialized its explicit formal. This prevents one child
     * instance from inheriting another instance's actual when both share the
     * same deterministic declaration identity.
@@ -464,8 +457,7 @@ object ExternalFormalParameterRegistry {
       }
   }
 
-  /**
-    * Recover a binding for clone-derived leaves from the symbolic width copied
+  /** Recover a binding for clone-derived leaves from the symbolic width copied
     * by ParameterizedWidth and the exact owning component instance. No concrete
     * integer witness or emitted name participates in this lookup.
     */
@@ -494,7 +486,7 @@ object ExternalFormalParameterRegistry {
           }
       }.toVector
 
-      candidates.distinct match {
+      distinctBindings(candidates) match {
         case Vector() => None
         case Vector(binding) =>
           retained.update(
@@ -516,20 +508,27 @@ object ExternalFormalParameterRegistry {
 
   private[core] def normalizedExpression(
       expression: ElaborationIntegerExpression
-  ): ElaborationIntegerExpression =
-    expression.copy(
+  ): ElaborationIntegerExpression = {
+    val normalized = expression.copy(
       parameters = expression.parameters.distinct.sortBy(_.name),
       sourceLocation = None,
       parameterRoots = distinctRoots(expression.completedParameterRoots)
     )
+    expression.preserveProjectionOn(
+      normalized,
+      "formal actual normalization"
+    )
+  }
 
   private def normalizedSchema(
       expression: ElaborationIntegerExpression
   ): ElaborationIntegerExpression =
-    normalizedExpression(expression).copy(parameterRoots = Vector.empty)
+    normalizedExpression(expression).copy(
+      parameterRoots = Vector.empty,
+      exactDomain = None
+    )
 
-  /**
-    * Canonical module-definition schema projection. Callers must first prove
+  /** Canonical module-definition schema projection. Callers must first prove
     * the shared formal declaration key and owner; instance-local declaration
     * roots are deliberately absent from this schema-only representation.
     */
@@ -546,11 +545,14 @@ object ExternalFormalParameterRegistry {
     val rootsCompatible =
       leftRoots.size == rightRoots.size &&
         leftRoots.forall(root => rightRoots.exists(_ eq root))
-    rootsCompatible && normalizedSchema(left) == normalizedSchema(right)
+    rootsCompatible &&
+    ElabInt.equivalentExpression(
+      normalizedExpression(left),
+      normalizedExpression(right)
+    )
   }
 
-  /**
-    * Compare only the direct canonical formal schema after exact owner/slot
+  /** Compare only the direct canonical formal schema after exact owner/slot
     * authority has already been established. This must never be used for leaf
     * recovery or actual-expression ambiguity checks.
     */
@@ -569,14 +571,22 @@ object ExternalFormalParameterRegistry {
       case _                 => false
     })
 
-  private def distinctExpressions(
+  private[core] def distinctExpressions(
       expressions: Vector[ElaborationIntegerExpression]
   ): Vector[ElaborationIntegerExpression] =
     expressions.foldLeft(Vector.empty[ElaborationIntegerExpression]) {
-      case (known, expression)
-          if known.exists(equivalentExpression(_, expression)) =>
+      case (known, expression) if known.exists(equivalentExpression(_, expression)) =>
         known
       case (known, expression) => known :+ expression
+    }
+
+  private def distinctBindings(
+      bindings: Vector[ExternalFormalParameterBinding]
+  ): Vector[ExternalFormalParameterBinding] =
+    bindings.foldLeft(Vector.empty[ExternalFormalParameterBinding]) {
+      case (known, binding) if known.exists(equivalentBinding(_, binding)) =>
+        known
+      case (known, binding) => known :+ binding
     }
 
   private def distinctRoots(
@@ -584,7 +594,7 @@ object ExternalFormalParameterRegistry {
   ): Vector[ElaborationIntegerParameterRoot] =
     roots.foldLeft(Vector.empty[ElaborationIntegerParameterRoot]) {
       case (known, root) if known.exists(_ eq root) => known
-      case (known, root)                           => known :+ root
+      case (known, root)                            => known :+ root
     }
 
   private[core] def equivalentBinding(
@@ -626,17 +636,19 @@ object ExternalFormalParameterRegistry {
     reapRoots()
     val lookup = new ExternalFormalRootIdentityRef(root, null)
     declarations.get(lookup).foreach { byKey =>
-      byKey.values.find { existing =>
-        existing.ownerClassName == binding.ownerClassName &&
-        existing.formal.name == binding.formal.name &&
-        existing.declarationKey != binding.declarationKey
-      }.foreach { existing =>
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-DUPLICATE-DECLARATION",
-          s"component definition '${binding.ownerClassName}' declares formal slot '${binding.formal.name}' at multiple explicit call sites",
-          binding.sourceLocation.orElse(existing.sourceLocation)
-        )
-      }
+      byKey.values
+        .find { existing =>
+          existing.ownerClassName == binding.ownerClassName &&
+          existing.formal.name == binding.formal.name &&
+          existing.declarationKey != binding.declarationKey
+        }
+        .foreach { existing =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-FORMAL-DUPLICATE-DECLARATION",
+            s"component definition '${binding.ownerClassName}' declares formal slot '${binding.formal.name}' at multiple explicit call sites",
+            binding.sourceLocation.orElse(existing.sourceLocation)
+          )
+        }
 
       byKey.get(binding.declarationKey) match {
         case Some(existing) if existing.formal.default != binding.formal.default =>

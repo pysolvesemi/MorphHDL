@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - parameterized-verilog
+      - 'agent/increment-53e-*'
   pull_request:
     branches:
       - main
@@ -27,9 +28,10 @@ jobs:
       - name: Check out complete history
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      - name: Prove zero Mem.scala and native phase coupling
+      - name: Prove reviewed typed Mem overload and native phase ownership
         shell: bash
         run: bash morphhdl/scripts/check-external-memory-boundary.sh
 
@@ -52,6 +54,7 @@ jobs:
       - name: Check out sources
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Install pinned Mill bootstrap

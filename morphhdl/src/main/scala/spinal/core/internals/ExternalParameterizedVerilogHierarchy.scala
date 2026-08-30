@@ -7,8 +7,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import spinal.core._
 
-/**
-  * MorphHDL-owned external analysis for ordinary Component hierarchy.
+/** MorphHDL-owned external analysis for ordinary Component hierarchy.
   *
   * The concrete SpinalHDL graph remains authoritative for component
   * construction, naming, port order and instance connections. This helper
@@ -67,7 +66,15 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       minimum: BigInt,
       maximum: BigInt,
       parameters: Vector[ElaborationIntegerParameter],
-      parameterRoots: Set[ElaborationIntegerParameterRoot]
+      parameterRoots: Set[ElaborationIntegerParameterRoot],
+      exactDomain: Option[ElaborationExactDomain[BigInt]],
+      projection: Option[ProjectionSignature]
+  )
+
+  private final case class ProjectionSignature(
+      root: ElaborationIntegerParameterRoot,
+      admitted: Set[BigInt],
+      representative: BigInt
   )
 
   private final case class PortRewrite(name: String, width: BindingExpr)
@@ -103,14 +110,12 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           "^\\s*\\)\\s+[A-Za-z_][A-Za-z0-9_$]*\\s*\\(\\s*$".r
 
         val plainStarts = lines.zipWithIndex.collect {
-          case (line, index)
-              if plainStartPattern.findFirstIn(line).nonEmpty =>
+          case (line, index) if plainStartPattern.findFirstIn(line).nonEmpty =>
             val indent = plainStartPattern.findFirstMatchIn(line).get.group(1)
             (index, index, indent)
         }
         val parameterizedStarts = lines.zipWithIndex.flatMap {
-          case (line, index)
-              if parameterizedStartPattern.findFirstIn(line).nonEmpty =>
+          case (line, index) if parameterizedStartPattern.findFirstIn(line).nonEmpty =>
             val terminator =
               (index + 1 until lines.size).find(candidate =>
                 anyParameterizedTerminatorPattern
@@ -140,11 +145,11 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           (bodyStart + 1 until lines.size)
             .find(index => lines(index).trim == ");")
             .getOrElse {
-            fail(
-              "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-INSTANCE-NOT-FOUND",
-              s"normal Verilog emission did not terminate instance '${instance.instanceName}'"
-            )
-          }
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-INSTANCE-NOT-FOUND",
+                s"normal Verilog emission did not terminate instance '${instance.instanceName}'"
+              )
+            }
         var block = lines.slice(bodyStart, end + 1)
 
         instance.ports.foreach { port =>
@@ -161,7 +166,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           val lineIndex = matchingLines.head
           val connectionPattern =
             ("(\\." + Pattern.quote(port.name) + "\\s*\\(\\s*)" +
-              "([A-Za-z_][A-Za-z0-9_$]*)(\\s*)\\[[^\\]]+\\](\\s*\\))").r
+              "([A-Za-z_][A-Za-z0-9_$]*)(\\s*)(?:\\[[^\\]]+\\])?(\\s*\\))").r
           val matches = connectionPattern.findAllMatchIn(block(lineIndex)).toVector
           if (matches.size != 1) {
             fail(
@@ -184,29 +189,29 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           declarationRanges += signalName -> port.width.range
         }
 
-        val bindingLines = instance.bindings.zipWithIndex.map {
-          case ((name, expression), index) =>
-            val comma = if (index == instance.bindings.size - 1) "" else ","
-            s"${indent}  .$name(${expression.render})$comma"
+        val bindingLines = instance.bindings.zipWithIndex.map { case ((name, expression), index) =>
+          val comma = if (index == instance.bindings.size - 1) "" else ","
+          s"${indent}  .$name(${expression.render})$comma"
         }
         val header =
           Vector(s"${indent}${instance.definitionName} #(") ++
             bindingLines ++
             Vector(s"${indent}) ${instance.instanceName} (")
         val rewrittenBlock = header ++ block.drop(1)
-        current =
-          (lines.take(start) ++ rewrittenBlock ++ lines.drop(end + 1)).mkString("\n")
+        current = (lines.take(start) ++ rewrittenBlock ++ lines.drop(end + 1)).mkString("\n")
       }
 
       val grouped = declarationRanges.groupBy(_._1)
-      grouped.collectFirst {
-        case (name, values) if values.map(_._2).distinct.size != 1 => name
-      }.foreach { name =>
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-CONFLICT",
-          s"hierarchy connections infer conflicting declaration widths for signal '$name'"
-        )
-      }
+      grouped
+        .collectFirst {
+          case (name, values) if values.map(_._2).distinct.size != 1 => name
+        }
+        .foreach { name =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-CONFLICT",
+            s"hierarchy connections infer conflicting declaration widths for signal '$name'"
+          )
+        }
       (
         current,
         grouped.toVector.map { case (name, values) => name -> values.head._2 }
@@ -222,7 +227,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     val assignments = ArrayBuffer.empty[DataAssignmentStatement]
     component.dslBody.walkLeafStatements {
       case assignment: DataAssignmentStatement => assignments += assignment
-      case _                                    =>
+      case _                                   =>
     }
 
     val instances = component.children.toVector.map { child =>
@@ -240,14 +245,16 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       _.bindings.flatMap(_._2.parameters)
     )
     val grouped = referenced.groupBy(_.name)
-    grouped.collectFirst {
-      case (name, values) if values.distinct.size != 1 => name
-    }.foreach { name =>
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
-        s"parameter '$name' has conflicting hierarchy binding declarations on component '${component.definitionName}'"
-      )
-    }
+    grouped
+      .collectFirst {
+        case (name, values) if values.distinct.size != 1 => name
+      }
+      .foreach { name =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
+          s"parameter '$name' has conflicting hierarchy binding declarations on component '${component.definitionName}'"
+        )
+      }
     new Plan(
       parameters = grouped.toVector.map(_._2.head).sortBy(_.name),
       hasParameterizedInstances = instances.exists(_.bindings.nonEmpty),
@@ -275,6 +282,26 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       )
     }
 
+    ExternalFormalParameterRegistry.bindingsOf(child).foreach { binding =>
+      if (binding.actual.exactDomain.nonEmpty) {
+        ParameterizedStructure
+          .projectedChildEvaluationOf(
+            parent,
+            child,
+            binding.actual,
+            s"formal actual '${binding.formal.name}' of child '$instanceName'",
+            binding.sourceLocation.orElse(binding.actual.sourceLocation)
+          )
+          .getOrElse {
+            fail(
+              "SPINAL-ELAB-DOMAIN-PROJECTION-EVIDENCE-MISSING",
+              s"formal actual '${binding.formal.name}' of child '$instanceName' lost its exact typed evaluation evidence",
+              binding.sourceLocation.orElse(binding.actual.sourceLocation)
+            )
+          }
+      }
+    }
+
     val actualPorts = indexedPorts(child, "actual", instanceName)
     val canonicalPorts = indexedPorts(canonical, "canonical", instanceName)
     if (actualPorts.map(_._1) != canonicalPorts.map(_._1)) {
@@ -284,242 +311,244 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       )
     }
 
-    actualPorts.zip(canonicalPorts).foreach {
-      case ((name, actual), (_, expected)) =>
-        val actualDirection = directionOf(actual)
-        val expectedDirection = directionOf(expected)
-        if (
-          actualDirection != expectedDirection ||
-          actual.getClass != expected.getClass ||
-          actual.getBitsWidth != expected.getBitsWidth
-        ) {
-          fail(
-            "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-LAYOUT-MISMATCH",
-            s"port '$name' of instance '$instanceName' differs from canonical definition '$definitionName' in direction, data type or concrete witness width"
-          )
-        }
+    actualPorts.zip(canonicalPorts).foreach { case ((name, actual), (_, expected)) =>
+      val actualDirection = directionOf(actual)
+      val expectedDirection = directionOf(expected)
+      if (
+        actualDirection != expectedDirection ||
+        actual.getClass != expected.getClass ||
+        actual.getBitsWidth != expected.getBitsWidth
+      ) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-LAYOUT-MISMATCH",
+          s"port '$name' of instance '$instanceName' differs from canonical definition '$definitionName' in direction, data type or concrete witness width"
+        )
+      }
     }
 
     val actualByName = actualPorts.toMap
     val canonicalByName = canonicalPorts.toMap
     val canonicalParameters = componentParameters(canonical)
-    val bindings = canonicalParameters.map { parameter =>
-      val parameterPorts = canonicalPorts.collect {
-        case (name, port)
-            if ParameterizedWidth.parameterOf(port).exists(_.name == parameter.name) =>
-          name
-      }
-      if (parameterPorts.isEmpty) {
-        val expression = componentOnlyBinding(
-          canonical = canonical,
-          child = child,
-          parameter = parameter,
-          definitionName = definitionName,
-          instanceName = instanceName
-        )
-        validateParameterBinding(expression, parameter, instanceName, pc)
-        parameter.name -> expression
-      } else {
-        parameterPorts.foreach { name =>
-        val actualSchema = ParameterizedWidth.parameterOf(actualByName(name)).getOrElse {
-          fail(
-            "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
-            s"port '$name' of instance '$instanceName' lost canonical parameter '${parameter.name}'"
-          )
+    val bindings = canonicalParameters
+      .map { parameter =>
+        val parameterPorts = canonicalPorts.collect {
+          case (name, port) if ParameterizedWidth.parameterOf(port).exists(_.name == parameter.name) =>
+            name
         }
-        if (actualSchema != parameter) {
-          fail(
-            "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
-            s"port '$name' of instance '$instanceName' declares parameter '${actualSchema.name}' in [${actualSchema.minimum}, ${actualSchema.maximum}] with default ${actualSchema.default}, but canonical definition '$definitionName' requires '${parameter.name}' in [${parameter.minimum}, ${parameter.maximum}] with default ${parameter.default}"
+        if (parameterPorts.isEmpty) {
+          val expression = componentOnlyBinding(
+            canonical = canonical,
+            child = child,
+            parameter = parameter,
+            definitionName = definitionName,
+            instanceName = instanceName
           )
-        }
-      }
+          validateParameterBinding(expression, parameter, instanceName, pc)
+          parameter.name -> expression
+        } else {
+          parameterPorts.foreach { name =>
+            val actualSchema = ParameterizedWidth.parameterOf(actualByName(name)).getOrElse {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
+                s"port '$name' of instance '$instanceName' lost canonical parameter '${parameter.name}'"
+              )
+            }
+            if (actualSchema != parameter) {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
+                s"port '$name' of instance '$instanceName' declares parameter '${actualSchema.name}' in [${actualSchema.minimum}, ${actualSchema.maximum}] with default ${actualSchema.default}, but canonical definition '$definitionName' requires '${parameter.name}' in [${parameter.minimum}, ${parameter.maximum}] with default ${parameter.default}"
+              )
+            }
+          }
 
-      val connectionBindings = distinctBindings(parameterPorts.flatMap { name =>
+          val connectionBindings = distinctBindings(parameterPorts.flatMap { name =>
+            connectionEvidence(
+              parent,
+              child,
+              actualByName(name),
+              assignments,
+              s"port '$name' of instance '$instanceName'"
+            )
+          })
+          val canonicalPortFormals = parameterPorts.flatMap { name =>
+            ExternalFormalParameterRegistry.bindingOf(canonicalByName(name))
+          }
+          val actualPortFormals = parameterPorts.flatMap { name =>
+            ExternalFormalParameterRegistry.bindingOf(actualByName(name))
+          }
+          val canonicalFormals = retainedFormals(
+            component = canonical,
+            portFormals = canonicalPortFormals,
+            parameterPorts = parameterPorts,
+            parameter = parameter,
+            role = "canonical",
+            instanceName = instanceName
+          )
+          val actualFormals = retainedFormals(
+            component = child,
+            portFormals = actualPortFormals,
+            parameterPorts = parameterPorts,
+            parameter = parameter,
+            role = "actual",
+            instanceName = instanceName
+          )
+          val hasExplicitFormal = canonicalFormals.nonEmpty || actualFormals.nonEmpty
+
+          val expression =
+            if (hasExplicitFormal) {
+              if (
+                canonicalFormals.size != parameterPorts.size ||
+                actualFormals.size != parameterPorts.size
+              ) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-FORMAL-LAYOUT-CONFLICT",
+                  s"formal slot '${parameter.name}' of instance '$instanceName' is not retained on every canonical and actual packed port"
+                )
+              }
+              (canonicalFormals ++ actualFormals).foreach { binding =>
+                if (binding.formal != parameter) {
+                  fail(
+                    "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SCHEMA-CONFLICT",
+                    s"formal slot '${binding.formal.name}' does not match canonical child parameter '${parameter.name}' of '$definitionName'",
+                    binding.sourceLocation
+                  )
+                }
+              }
+              val canonicalKeys = canonicalFormals.map(_.declarationKey).distinct
+              val actualKeys = actualFormals.map(_.declarationKey).distinct
+              if (
+                canonicalKeys.size != 1 || actualKeys.size != 1 ||
+                canonicalKeys.head != actualKeys.head
+              ) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+                  s"formal slot '${parameter.name}' of instance '$instanceName' does not map to one canonical declaration identity",
+                  actualFormals.flatMap(_.sourceLocation).headOption
+                )
+              }
+              val actualExpressions = ExternalFormalParameterRegistry
+                .distinctExpressions(actualFormals.map(_.actual))
+                .map(ExternalFormalParameterRegistry.normalizedExpression)
+              if (actualExpressions.size != 1) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS",
+                  s"formal slot '${parameter.name}' of instance '$instanceName' maps to multiple actual expressions: ${actualExpressions.map(_.verilog).sorted.mkString(", ")}",
+                  actualFormals.flatMap(_.sourceLocation).headOption
+                )
+              }
+              val explicit = ExpressionBinding(actualExpressions.head)
+              if (connectionBindings.isEmpty) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
+                  s"no direct parent connection validates actual '${explicit.render}' for formal '${parameter.name}' of instance '$instanceName'"
+                )
+              }
+              if (
+                connectionBindings.size != 1 ||
+                bindingSignature(connectionBindings.head) != bindingSignature(explicit)
+              ) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-FORMAL-ACTUAL-CONNECTION-CONFLICT",
+                  s"connections of instance '$instanceName' constrain formal '${parameter.name}' with ${connectionBindings
+                      .map(_.render)
+                      .sorted
+                      .mkString(", ")}, but explicit actual is '${explicit.render}'",
+                  actualFormals.flatMap(_.sourceLocation).headOption
+                )
+              }
+              explicit
+            } else {
+              if (connectionBindings.isEmpty) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
+                  s"no direct parent connection constrains parameter '${parameter.name}' of instance '$instanceName'"
+                )
+              }
+              if (connectionBindings.size != 1) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-CONFLICT",
+                  s"connections of instance '$instanceName' constrain parameter '${parameter.name}' with ${connectionBindings.map(_.render).sorted.mkString(", ")}"
+                )
+              }
+              connectionBindings.head
+            }
+
+          validateParameterBinding(expression, parameter, instanceName, pc)
+          parameter.name -> expression
+        }
+      }
+      .sortBy(_._1)
+
+    val canonicalParameterNames = canonicalParameters.map(_.name).toSet
+    canonicalPorts.foreach { case (name, expectedPort) =>
+      val expectedWidth = ParameterizedWidth
+        .expressionOf(expectedPort)
+        .filter(_.parameters.nonEmpty)
+      val actualWidth = ParameterizedWidth
+        .expressionOf(actualByName(name))
+        .filter(_.parameters.nonEmpty)
+      if (expectedWidth.isEmpty && actualWidth.nonEmpty) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
+          s"port '$name' of instance '$instanceName' is symbolic while canonical definition '$definitionName' is concrete"
+        )
+      }
+      if (expectedWidth.nonEmpty && actualWidth.isEmpty) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
+          s"port '$name' of instance '$instanceName' is concrete while canonical definition '$definitionName' is symbolic"
+        )
+      }
+      if (expectedWidth.isEmpty) {
         connectionEvidence(
           parent,
           child,
           actualByName(name),
           assignments,
-          s"port '$name' of instance '$instanceName'"
-        )
-      })
-      val canonicalPortFormals = parameterPorts.flatMap { name =>
-        ExternalFormalParameterRegistry.bindingOf(canonicalByName(name))
+          s"concrete port '$name' of instance '$instanceName'",
+          allowConcreteInternal = true
+        ).foreach { expression =>
+          if (expression.isSymbolic || expression.default != BigInt(expectedPort.getBitsWidth)) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-WIDTH-MISMATCH",
+              s"concrete child port '$name' of instance '$instanceName' has width ${expectedPort.getBitsWidth}, but parent connection has width '${expression.render}'"
+            )
+          }
+        }
       }
-      val actualPortFormals = parameterPorts.flatMap { name =>
-        ExternalFormalParameterRegistry.bindingOf(actualByName(name))
-      }
-      val canonicalFormals = retainedFormals(
-        component = canonical,
-        portFormals = canonicalPortFormals,
-        parameterPorts = parameterPorts,
-        parameter = parameter,
-        role = "canonical",
-        instanceName = instanceName
-      )
-      val actualFormals = retainedFormals(
-        component = child,
-        portFormals = actualPortFormals,
-        parameterPorts = parameterPorts,
-        parameter = parameter,
-        role = "actual",
-        instanceName = instanceName
-      )
-      val hasExplicitFormal = canonicalFormals.nonEmpty || actualFormals.nonEmpty
-
-      val expression =
-        if (hasExplicitFormal) {
-          if (
-            canonicalFormals.size != parameterPorts.size ||
-            actualFormals.size != parameterPorts.size
-          ) {
-            fail(
-              "SPINAL-PARAMETERIZED-VERILOG-FORMAL-LAYOUT-CONFLICT",
-              s"formal slot '${parameter.name}' of instance '$instanceName' is not retained on every canonical and actual packed port"
-            )
-          }
-          (canonicalFormals ++ actualFormals).foreach { binding =>
-            if (binding.formal != parameter) {
-              fail(
-                "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SCHEMA-CONFLICT",
-                s"formal slot '${binding.formal.name}' does not match canonical child parameter '${parameter.name}' of '$definitionName'",
-                binding.sourceLocation
-              )
-            }
-          }
-          val canonicalKeys = canonicalFormals.map(_.declarationKey).distinct
-          val actualKeys = actualFormals.map(_.declarationKey).distinct
-          if (
-            canonicalKeys.size != 1 || actualKeys.size != 1 ||
-            canonicalKeys.head != actualKeys.head
-          ) {
-            fail(
-              "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
-              s"formal slot '${parameter.name}' of instance '$instanceName' does not map to one canonical declaration identity",
-              actualFormals.flatMap(_.sourceLocation).headOption
-            )
-          }
-          val actualExpressions = actualFormals.map(binding =>
-            ExternalFormalParameterRegistry.normalizedExpression(binding.actual)
-          ).distinct
-          if (actualExpressions.size != 1) {
-            fail(
-              "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS",
-              s"formal slot '${parameter.name}' of instance '$instanceName' maps to multiple actual expressions: ${actualExpressions.map(_.verilog).sorted.mkString(", ")}",
-              actualFormals.flatMap(_.sourceLocation).headOption
-            )
-          }
-          val explicit = ExpressionBinding(actualExpressions.head)
-          if (connectionBindings.isEmpty) {
-            fail(
-              "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
-              s"no direct parent connection validates actual '${explicit.render}' for formal '${parameter.name}' of instance '$instanceName'"
-            )
-          }
-          if (
-            connectionBindings.size != 1 ||
-            bindingSignature(connectionBindings.head) != bindingSignature(explicit)
-          ) {
-            fail(
-              "SPINAL-PARAMETERIZED-VERILOG-FORMAL-ACTUAL-CONNECTION-CONFLICT",
-              s"connections of instance '$instanceName' constrain formal '${parameter.name}' with ${connectionBindings.map(_.render).sorted.mkString(", ")}, but explicit actual is '${explicit.render}'",
-              actualFormals.flatMap(_.sourceLocation).headOption
-            )
-          }
-          explicit
-        } else {
-          if (connectionBindings.isEmpty) {
-            fail(
-              "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
-              s"no direct parent connection constrains parameter '${parameter.name}' of instance '$instanceName'"
-            )
-          }
-          if (connectionBindings.size != 1) {
-            fail(
-              "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-CONFLICT",
-              s"connections of instance '$instanceName' constrain parameter '${parameter.name}' with ${connectionBindings.map(_.render).sorted.mkString(", ")}"
-            )
-          }
-          connectionBindings.head
-        }
-
-        validateParameterBinding(expression, parameter, instanceName, pc)
-        parameter.name -> expression
-      }
-    }.sortBy(_._1)
-
-    val canonicalParameterNames = canonicalParameters.map(_.name).toSet
-    canonicalPorts.foreach {
-      case (name, expectedPort) =>
-        val expectedWidth = ParameterizedWidth
-          .expressionOf(expectedPort)
-          .filter(_.parameters.nonEmpty)
-        val actualWidth = ParameterizedWidth
-          .expressionOf(actualByName(name))
-          .filter(_.parameters.nonEmpty)
-        if (expectedWidth.isEmpty && actualWidth.nonEmpty) {
-          fail(
-            "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
-            s"port '$name' of instance '$instanceName' is symbolic while canonical definition '$definitionName' is concrete"
-          )
-        }
-        if (expectedWidth.nonEmpty && actualWidth.isEmpty) {
-          fail(
-            "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
-            s"port '$name' of instance '$instanceName' is concrete while canonical definition '$definitionName' is symbolic"
-          )
-        }
-        if (expectedWidth.isEmpty) {
-          connectionEvidence(
-            parent,
-            child,
-            actualByName(name),
-            assignments,
-            s"concrete port '$name' of instance '$instanceName'",
-            allowConcreteInternal = true
-          ).foreach { expression =>
-            if (expression.isSymbolic || expression.default != BigInt(expectedPort.getBitsWidth)) {
-              fail(
-                "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-WIDTH-MISMATCH",
-                s"concrete child port '$name' of instance '$instanceName' has width ${expectedPort.getBitsWidth}, but parent connection has width '${expression.render}'"
-              )
-            }
-          }
-        }
     }
 
     val actualParameterNames = componentParameters(child).map(_.name).toSet
     if (actualParameterNames != canonicalParameterNames) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-CANONICAL-SCHEMA-CONFLICT",
-        s"instance '$instanceName' parameter dependency set ${actualParameterNames.toVector.sorted.mkString(",")} differs from canonical definition '$definitionName' set ${canonicalParameterNames.toVector.sorted.mkString(",")}"
+        s"instance '$instanceName' parameter dependency set ${actualParameterNames.toVector.sorted
+            .mkString(",")} differs from canonical definition '$definitionName' set ${canonicalParameterNames.toVector.sorted
+            .mkString(",")}"
       )
     }
 
     val bindingMap = bindings.toMap
-    val ports = canonicalPorts.flatMap {
-      case (name, port) =>
-        ParameterizedWidth.expressionOf(port).flatMap { definitionWidth =>
-          val expression = ParameterizedWidth.parameterOf(port) match {
-            case Some(parameter) => bindingMap(parameter.name)
-            case None =>
-              instantiateDerivedPortWidth(
-                definitionWidth,
-                bindingMap,
-                definitionName,
-                instanceName,
-                name
-              )
-          }
-          if (expression.isSymbolic) Some(PortRewrite(name, expression)) else None
+    val ports = canonicalPorts.flatMap { case (name, port) =>
+      ParameterizedWidth.expressionOf(port).flatMap { definitionWidth =>
+        val expression = ParameterizedWidth.parameterOf(port) match {
+          case Some(parameter) => bindingMap(parameter.name)
+          case None =>
+            instantiateDerivedPortWidth(
+              definitionWidth,
+              bindingMap,
+              definitionName,
+              instanceName,
+              name
+            )
         }
+        if (expression.isSymbolic) Some(PortRewrite(name, expression)) else None
+      }
     }
     InstancePlan(definitionName, instanceName, bindings, ports)
   }
 
-  /**
-    * Substitute one definition-side derived packed width with the already
+  /** Substitute one definition-side derived packed width with the already
     * proven actual bindings of this exact child instance. Direct formal widths
     * keep the older identity-preserving path above; this helper covers only
     * expressions such as `addressWidth(DEPTH + 1)`.
@@ -600,7 +629,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     if (missing.nonEmpty) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
-        s"derived width '${definition.verilog}' of port '$portName' on canonical child '$definitionName' does not contain retained formal identifiers ${missing.toVector.sorted.mkString(", ")} for instance '$instanceName'"
+        s"derived width '${definition.verilog}' of port '$portName' on canonical child '$definitionName' does not contain retained formal identifiers ${missing.toVector.sorted
+            .mkString(", ")} for instance '$instanceName'"
       )
     }
 
@@ -620,21 +650,28 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     val actualRoots = replacements.values.toVector
       .flatMap(_.parameterRoots)
       .toSet
-    actualRoots.groupBy(_.name).collectFirst {
-      case (name, roots) if roots.size > 1 => name -> roots
-    }.foreach { case (name, roots) =>
-      fail(
-        "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED",
-        s"derived width of port '$portName' on instance '$instanceName' combines independently sourced actual declarations for parameter '$name'",
-        roots.iterator.flatMap(_.sourceLocation).toVector.headOption
-      )
-    }
+    actualRoots
+      .groupBy(_.name)
+      .collectFirst {
+        case (name, roots) if roots.size > 1 => name -> roots
+      }
+      .foreach { case (name, roots) =>
+        fail(
+          "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED",
+          s"derived width of port '$portName' on instance '$instanceName' combines independently sourced actual declarations for parameter '$name'",
+          roots.iterator.flatMap(_.sourceLocation).toVector.headOption
+        )
+      }
     ExpressionBinding(
       definition.copy(
         verilog = rendered.toString,
         parameters = actualParameters,
         sourceLocation = None,
-        parameterRoots = actualRoots.toVector.sortBy(_.name)
+        parameterRoots = actualRoots.toVector.sortBy(_.name),
+        // This BindingExpr is a rendered parent-actual substitution, not a
+        // child-root typed carrier. Definition-side exact evidence must never
+        // be copied onto the independently rooted actual expression.
+        exactDomain = None
       )
     )
   }
@@ -655,14 +692,16 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component)
     val grouped = values.groupBy(_.name)
-    grouped.collectFirst {
-      case (name, declarations) if declarations.distinct.size != 1 => name
-    }.foreach { name =>
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
-        s"component '${component.definitionName}' has conflicting hierarchy parameter declarations for '$name'"
-      )
-    }
+    grouped
+      .collectFirst {
+        case (name, declarations) if declarations.distinct.size != 1 => name
+      }
+      .foreach { name =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
+          s"component '${component.definitionName}' has conflicting hierarchy parameter declarations for '$name'"
+        )
+      }
     grouped.toVector.map(_._2.head).sortBy(_.name)
   }
 
@@ -713,11 +752,9 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         all.flatMap(_.sourceLocation).headOption
       )
     }
-    val actualExpressions = actualBindings
-      .map(binding =>
-        ExternalFormalParameterRegistry.normalizedExpression(binding.actual)
-      )
-      .distinct
+    val actualExpressions = ExternalFormalParameterRegistry
+      .distinctExpressions(actualBindings.map(_.actual))
+      .map(ExternalFormalParameterRegistry.normalizedExpression)
     if (actualExpressions.size != 1) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS",
@@ -753,8 +790,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     }
   }
 
-  /**
-    * Prefer exact per-port metadata. If a later native transformation has
+  /** Prefer exact per-port metadata. If a later native transformation has
     * removed it from every selected port, recover only from the exact owning
     * component identity retained by the external formal registry. A partial
     * loss remains an error because it cannot prove one complete slot layout.
@@ -788,11 +824,9 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
             componentBindings.flatMap(_.sourceLocation).headOption
           )
         }
-        val expressions = componentBindings
-          .map(binding =>
-            ExternalFormalParameterRegistry.normalizedExpression(binding.actual)
-          )
-          .distinct
+        val expressions = ExternalFormalParameterRegistry
+          .distinctExpressions(componentBindings.map(_.actual))
+          .map(ExternalFormalParameterRegistry.normalizedExpression)
         if (expressions.size != 1) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS",
@@ -819,14 +853,17 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       }
       name -> port
     }
-    ports.groupBy(_._1).collectFirst {
-      case (name, values) if values.size != 1 => name
-    }.foreach { name =>
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-LAYOUT-MISMATCH",
-        s"$role child interface of instance '$instanceName' contains duplicate port '$name'"
-      )
-    }
+    ports
+      .groupBy(_._1)
+      .collectFirst {
+        case (name, values) if values.size != 1 => name
+      }
+      .foreach { name =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-LAYOUT-MISMATCH",
+          s"$role child interface of instance '$instanceName' contains duplicate port '$name'"
+        )
+      }
     ports
   }
 
@@ -955,7 +992,9 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
   }
 
   private def distinctBindings(values: Vector[BindingExpr]): Vector[BindingExpr] =
-    values.groupBy(bindingSignature).toVector
+    values
+      .groupBy(bindingSignature)
+      .toVector
       .sortBy { case (signature, _) =>
         (signature.render, signature.minimum, signature.maximum, signature.default)
       }
@@ -968,7 +1007,18 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       minimum = value.minimum,
       maximum = value.maximum,
       parameters = value.parameters.distinct.sortBy(_.name),
-      parameterRoots = value.parameterRoots
+      parameterRoots = value.parameterRoots,
+      exactDomain = value match {
+        case ExpressionBinding(expression) => expression.exactDomain
+        case _                             => None
+      },
+      projection = value match {
+        case ExpressionBinding(expression) =>
+          expression.projectionProvenance.map { value =>
+            ProjectionSignature(value.root, value.admitted, value.representative)
+          }
+        case _ => None
+      }
     )
 
   private def references(expression: Expression, target: Expression): Boolean = {

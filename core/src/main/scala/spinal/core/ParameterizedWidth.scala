@@ -6,8 +6,7 @@ import scala.collection.mutable
 
 import spinal.core.internals.{DataAssignmentStatement, Resize}
 
-/**
-  * Elaboration metadata for one public integer parameter used directly as a
+/** Elaboration metadata for one public integer parameter used directly as a
   * packed width.
   *
   * The concrete `default` remains the width used by ordinary SpinalHDL
@@ -20,13 +19,13 @@ final case class ElaborationIntegerParameter(
     minimum: BigInt,
     maximum: BigInt
 ) {
+
   /** Stable identity for callers which retain this exact direct declaration. */
   private[spinal] lazy val declarationRoot: ElaborationIntegerParameterRoot =
     ElaborationIntegerParameterRoot.fresh(name)
 }
 
-/**
-  * Identity-bearing provenance for one declaration of an elaboration-time
+/** Identity-bearing provenance for one declaration of an elaboration-time
   * parameter. Two declarations can intentionally have the same public name
   * and schema; they are still independent roots until a caller explicitly
   * proves otherwise by carrying this exact object through derived expressions.
@@ -39,6 +38,7 @@ final class ElaborationIntegerParameterRoot private (
 }
 
 object ElaborationIntegerParameterRoot {
+
   /** Allocate provenance for one exact frontend parameter declaration. */
   def fresh(
       name: String,
@@ -56,14 +56,15 @@ object ElaborationIntegerParameterRoot {
   }
 }
 
-
-/**
-  * Backend-neutral integer expression retained during ordinary SpinalHDL
+/** Backend-neutral integer expression retained during ordinary SpinalHDL
   * elaboration for symbolic widths, hierarchy, structure, processes and memory
   * geometry.
   *
   * `default` is the concrete witness used by the native SpinalHDL graph.
-  * `minimum` and `maximum` describe the complete admitted parameter domain.
+  * Before structural projection, `minimum` and `maximum` describe the complete
+  * admitted parameter domain. An exact branch projection may narrow all three
+  * fields and records its admitted root values privately on that exact
+  * expression object; a case-class copy deliberately loses that authority.
   */
 final case class ElaborationIntegerExpression(
     verilog: String,
@@ -73,10 +74,80 @@ final case class ElaborationIntegerExpression(
     parameters: Vector[ElaborationIntegerParameter],
     generateIndex: Option[String] = None,
     sourceLocation: Option[String] = None,
-    parameterRoots: Vector[ElaborationIntegerParameterRoot] = Vector.empty
+    parameterRoots: Vector[ElaborationIntegerParameterRoot] = Vector.empty,
+    private[spinal] val exactDomain: Option[
+      ElaborationExactDomain[BigInt]
+    ] = None
 ) {
-  /**
-    * Complete provenance allocated once for this exact expression object.
+  @transient private[this] var _projectionProvenance: ElaborationProjectionProvenance = null
+
+  /** Attach construction provenance to this exact projected expression.
+    * Generated case-class copies start with an empty slot by design.
+    */
+  private[spinal] def attachProjection(
+      domain: ElaborationExactDomain[BigInt],
+      admitted: Set[BigInt],
+      representative: BigInt,
+      role: String,
+      sourceLocation: Option[String]
+  ): ElaborationIntegerExpression = synchronized {
+    val incoming = ElaborationProjectionProvenance.integer(
+      this,
+      domain,
+      admitted,
+      representative,
+      role,
+      sourceLocation
+    )
+    if (
+      (_projectionProvenance ne null) &&
+      !_projectionProvenance.sameAs(incoming)
+    ) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-ELAB-DOMAIN-PROJECTION-CONFLICT",
+        s"$role expression '$verilog' already carries conflicting exact projection provenance",
+        sourceLocation.orElse(this.sourceLocation)
+      )
+    }
+    _projectionProvenance = incoming
+    this
+  }
+
+  /** Projection provenance for this expression object only. */
+  private[spinal] def projectionProvenance: Option[ElaborationProjectionProvenance] = synchronized {
+    Option(_projectionProvenance)
+  }
+
+  /** Explicitly preserve private provenance across one trusted normalization. */
+  private[spinal] def preserveProjectionOn(
+      target: ElaborationIntegerExpression,
+      role: String
+  ): ElaborationIntegerExpression =
+    projectionProvenance match {
+      case None => target
+      case Some(projection) =>
+        val domain = target.exactDomain match {
+          case Some(value)
+              if exactDomain.exists(_ eq value) &&
+                (value.root eq projection.root) =>
+            value
+          case _ =>
+            ParameterizedVerilogException.fail(
+              "SPINAL-ELAB-DOMAIN-PROJECTION-EVIDENCE-IDENTITY-MISMATCH",
+              s"$role cannot transfer projection provenance to a different exact-domain object",
+              target.sourceLocation.orElse(sourceLocation)
+            )
+        }
+        target.attachProjection(
+          domain,
+          projection.admitted,
+          projection.representative,
+          role,
+          target.sourceLocation.orElse(sourceLocation)
+        )
+    }
+
+  /** Complete provenance allocated once for this exact expression object.
     * Re-converting the same carrier therefore preserves declaration identity,
     * and copies preserve the identities of their exact parameter objects.
     */
@@ -96,8 +167,77 @@ final case class ElaborationBooleanExpression(
     default: Boolean,
     parameters: Vector[ElaborationIntegerParameter],
     sourceLocation: Option[String] = None,
-    parameterRoots: Vector[ElaborationIntegerParameterRoot] = Vector.empty
+    parameterRoots: Vector[ElaborationIntegerParameterRoot] = Vector.empty,
+    private[spinal] val exactDomain: Option[
+      ElaborationExactDomain[Boolean]
+    ] = None
 ) {
+  @transient private[this] var _projectionProvenance: ElaborationProjectionProvenance = null
+
+  /** Boolean counterpart of exact integer projection attachment. */
+  private[spinal] def attachProjection(
+      domain: ElaborationExactDomain[Boolean],
+      admitted: Set[BigInt],
+      representative: BigInt,
+      role: String,
+      sourceLocation: Option[String]
+  ): ElaborationBooleanExpression = synchronized {
+    val incoming = ElaborationProjectionProvenance.boolean(
+      this,
+      domain,
+      admitted,
+      representative,
+      role,
+      sourceLocation
+    )
+    if (
+      (_projectionProvenance ne null) &&
+      !_projectionProvenance.sameAs(incoming)
+    ) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-ELAB-DOMAIN-PROJECTION-CONFLICT",
+        s"$role predicate '$verilog' already carries conflicting exact projection provenance",
+        sourceLocation.orElse(this.sourceLocation)
+      )
+    }
+    _projectionProvenance = incoming
+    this
+  }
+
+  /** Projection provenance for this predicate object only. */
+  private[spinal] def projectionProvenance: Option[ElaborationProjectionProvenance] = synchronized {
+    Option(_projectionProvenance)
+  }
+
+  /** Boolean counterpart of trusted projection-preserving normalization. */
+  private[spinal] def preserveProjectionOn(
+      target: ElaborationBooleanExpression,
+      role: String
+  ): ElaborationBooleanExpression =
+    projectionProvenance match {
+      case None => target
+      case Some(projection) =>
+        val domain = target.exactDomain match {
+          case Some(value)
+              if exactDomain.exists(_ eq value) &&
+                (value.root eq projection.root) =>
+            value
+          case _ =>
+            ParameterizedVerilogException.fail(
+              "SPINAL-ELAB-DOMAIN-PROJECTION-EVIDENCE-IDENTITY-MISMATCH",
+              s"$role cannot transfer projection provenance to a different exact-domain object",
+              target.sourceLocation.orElse(sourceLocation)
+            )
+        }
+        target.attachProjection(
+          domain,
+          projection.admitted,
+          projection.representative,
+          role,
+          target.sourceLocation.orElse(sourceLocation)
+        )
+    }
+
   /** Boolean counterpart of integer-expression identity completion. */
   private[core] lazy val completedParameterRoots: Vector[
     ElaborationIntegerParameterRoot
@@ -178,8 +318,7 @@ private[core] final class RetainedResizeIdentityRef(
   }
 }
 
-/**
-  * MorphHDL-owned symbolic-width registry and native-factory adapters.
+/** MorphHDL-owned symbolic-width registry and native-factory adapters.
   *
   * Native data and factory algorithms remain authoritative. The audited typed
   * `Bits`, `UInt` and `SInt` overloads attach retained geometry to the value
@@ -188,6 +327,12 @@ private[core] final class RetainedResizeIdentityRef(
   * the ordinary SpinalHDL algorithms.
   */
 object ParameterizedWidth {
+  /** Capture-only marker for one exact typed Resize carrier. MorphHDL consumes
+    * and removes it before native input normalization; unlike tagAutoResize it
+    * must never change native width inference or assignment semantics.
+    */
+  private[spinal] object TypedResizeCaptureTag extends SpinalTag
+
   private val PortableParameterName = "[A-Za-z_][A-Za-z0-9_]*".r
   private val queue = new ReferenceQueue[BaseType]()
   private val retained = mutable.HashMap.empty[RetainedWidthIdentityRef, RetainedWidth]
@@ -220,7 +365,7 @@ object ParameterizedWidth {
     reapResizes()
     val lookup = new RetainedResizeIdentityRef(resize, null)
     retainedResizes.get(lookup) match {
-      case Some(existing) if existing == expression => ()
+      case Some(existing) if ElabInt.equivalentExpression(existing, expression) => ()
       case Some(existing) =>
         ParameterizedVerilogException.fail(
           "SPINAL-PARAMETERIZED-VERILOG-RESIZE-PROVENANCE-CONFLICT",
@@ -242,15 +387,41 @@ object ParameterizedWidth {
 
   private def retain(data: BaseType, metadata: RetainedWidth): Unit = synchronized {
     reap()
-    retained.update(new RetainedWidthIdentityRef(data, queue), metadata)
+    val lookup = new RetainedWidthIdentityRef(data, null)
+    retained.get(lookup) match {
+      case Some(existing) if equivalentMetadata(existing, metadata) => ()
+      case Some(existing) =>
+        ParameterizedVerilogException.fail(
+          "SPINAL-PARAMETERIZED-VERILOG-WIDTH-PROVENANCE-CONFLICT",
+          "one exact native data leaf is associated with conflicting typed width expressions",
+          metadata.sourceLocation.orElse(existing.sourceLocation)
+        )
+      case None =>
+        retained.update(new RetainedWidthIdentityRef(data, queue), metadata)
+    }
   }
+
+  private def equivalentMetadata(
+      left: RetainedWidth,
+      right: RetainedWidth
+  ): Boolean =
+    left.directParameter == right.directParameter &&
+      ((left.expression, right.expression) match {
+        case (None, None)       => true
+        case (Some(l), Some(r)) => ElabInt.equivalentExpression(l, r)
+        case _                  => false
+      })
 
   private def completeExpression(
       expression: ElaborationIntegerExpression
   ): ElaborationIntegerExpression = {
     val roots = expression.completedParameterRoots
     if (roots == expression.parameterRoots) expression
-    else expression.copy(parameterRoots = roots)
+    else
+      expression.preserveProjectionOn(
+        expression.copy(parameterRoots = roots),
+        "parameterized-width root normalization"
+      )
   }
 
   private def retainedExpression(
@@ -306,8 +477,7 @@ object ParameterizedWidth {
     }
   }
 
-  /**
-    * Validate all redundant concrete and symbolic width fields before mutating
+  /** Validate all redundant concrete and symbolic width fields before mutating
     * the native value. Public case-class construction must not permit an
     * incoherent witness to reach the retained-width registry.
     */
@@ -451,8 +621,7 @@ object ParameterizedWidth {
     data
   }
 
-  /**
-    * Attach one typed target width to a native resize result and retain the
+  /** Attach one typed target width to a native resize result and retain the
     * exact internal Resize node before weak-clone normalization can remove the
     * result object. The association is by JVM identity and is generic across
     * all native algorithms.
@@ -461,7 +630,7 @@ object ParameterizedWidth {
     if (width == null)
       throw new IllegalArgumentException("typed resize width must not be null")
     val result = attach(data, width.toParameterizedBitCount("typed resize"))
-    val expression = width.expression
+    val expression = expressionOf(result).getOrElse(width.expression)
     if (expression.parameters.nonEmpty && result.hasOnlyOneStatement) {
       result.head match {
         case assignment: DataAssignmentStatement
@@ -476,6 +645,10 @@ object ParameterizedWidth {
                   expression.sourceLocation
                 )
               }
+              // A witness-sized Resize may be normalized away before
+              // publication. This private marker lets MorphHDL retain exact
+              // identities without making the resize native-auto-resizable.
+              result.addTag(TypedResizeCaptureTag)
               retainResize(resize, expression)
             case _ =>
           }
@@ -534,8 +707,7 @@ object ParameterizedWidth {
     metadataOf(from).foreach(retain(to, _))
   }
 
-  /**
-    * Copy concrete and symbolic leaf geometry in deterministic data-model order.
+  /** Copy concrete and symbolic leaf geometry in deterministic data-model order.
     * This is the external replacement for the former native `BaseType.clone`
     * hook.
     */
@@ -549,20 +721,19 @@ object ParameterizedWidth {
         s"symbolic shape clone changed leaf count ${sourceLeaves.size} -> ${targetLeaves.size}"
       )
     }
-    sourceLeaves.zip(targetLeaves).zipWithIndex.foreach {
-      case ((source, target), index) =>
-        if (source.getClass != target.getClass) {
-          throw new IllegalArgumentException(
-            s"symbolic shape clone changed leaf $index from ${source.getClass.getName} " +
-              s"to ${target.getClass.getName}"
-          )
-        }
-        (source, target) match {
-          case (sourceVector: BitVector, targetVector: BitVector) =>
-            targetVector.setWidth(sourceVector.getBitsWidth)
-          case _ =>
-        }
-        copy(source, target)
+    sourceLeaves.zip(targetLeaves).zipWithIndex.foreach { case ((source, target), index) =>
+      if (source.getClass != target.getClass) {
+        throw new IllegalArgumentException(
+          s"symbolic shape clone changed leaf $index from ${source.getClass.getName} " +
+            s"to ${target.getClass.getName}"
+        )
+      }
+      (source, target) match {
+        case (sourceVector: BitVector, targetVector: BitVector) =>
+          targetVector.setWidth(sourceVector.getBitsWidth)
+        case _ =>
+      }
+      copy(source, target)
     }
     to
   }
@@ -571,8 +742,7 @@ object ParameterizedWidth {
   def cloneOf[T <: Data](data: T): T =
     copyShape(data, spinal.core.cloneOf(data))
 
-  /**
-    * Native HardType algorithm supplied with an externally shape-preserving
+  /** Native HardType algorithm supplied with an externally shape-preserving
     * generator. A stable template is cloned on every invocation.
     */
   def HardType[T <: Data](dataType: => T): spinal.core.HardType[T] = {
@@ -614,17 +784,20 @@ object ParameterizedWidth {
       )
     }
     val values = associated.map(_._2)
-    values.groupBy(_.name).collectFirst {
-      case (name, schemas) if schemas.distinct.size != 1 => name
-    }.foreach { name =>
-      ParameterizedVerilogException.fail(
-        "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
-        s"parameter '$name' has conflicting declarations on component '${component.definitionName}'",
-        associated.find(_._2.name == name).flatMap { case (baseType, _) =>
-          sourceLocationOf(baseType)
-        }
-      )
-    }
+    values
+      .groupBy(_.name)
+      .collectFirst {
+        case (name, schemas) if schemas.distinct.size != 1 => name
+      }
+      .foreach { name =>
+        ParameterizedVerilogException.fail(
+          "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
+          s"parameter '$name' has conflicting declarations on component '${component.definitionName}'",
+          associated.find(_._2.name == name).flatMap { case (baseType, _) =>
+            sourceLocationOf(baseType)
+          }
+        )
+      }
     val associatedRoots = leaves.flatMap { baseType =>
       expressionOf(baseType).toVector.flatMap(
         _.parameterRoots.map(root => baseType -> root)
@@ -634,10 +807,13 @@ object ParameterizedWidth {
       .groupBy(_._2.name)
       .collectFirst {
         case (name, roots)
-            if roots.map(_._2).foldLeft(Vector.empty[ElaborationIntegerParameterRoot]) {
-              case (known, root) if known.exists(_ eq root) => known
-              case (known, root)                           => known :+ root
-            }.size > 1 =>
+            if roots
+              .map(_._2)
+              .foldLeft(Vector.empty[ElaborationIntegerParameterRoot]) {
+                case (known, root) if known.exists(_ eq root) => known
+                case (known, root)                            => known :+ root
+              }
+              .size > 1 =>
           name
       }
       .foreach { name =>
