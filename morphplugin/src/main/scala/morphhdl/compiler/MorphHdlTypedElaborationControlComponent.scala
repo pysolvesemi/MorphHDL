@@ -6,13 +6,12 @@ import scala.tools.nsc.Phase
 import scala.tools.nsc.plugins.PluginComponent
 
 /**
-  * Small pre-typer syntax bridge for explicitly typed `ElabInt`/`ElabBool`
-  * expressions.
+  * Pre-typer syntax bridge for neutral `spinal.core.ElabInt` / `ElabBool`
+  * control flow.
   *
-  * Unlike the legacy native-Int shadow transformer, this phase never infers
-  * symbolic provenance from an ordinary Scala `Int` or `Boolean`. It rewrites
-  * only syntax that directly references declarations whose source type is
-  * `ElabInt` or `ElabBool`.
+  * The carrier type already owns symbolic provenance. This phase performs
+  * syntax lowering only; it never discovers or reconstructs symbolism from a
+  * plain Scala `Int` or `Boolean`.
   */
 final class MorphHdlTypedElaborationControlComponent(val global: Global)
     extends PluginComponent {
@@ -21,11 +20,14 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
   override val phaseName: String = "morphhdl-typed-elaboration-control"
   override val runsAfter: List[String] = List("parser")
   override val runsBefore: List[String] =
-    List(
-      "morphhdl-native-int-shadow-expressions",
-      "morphhdl-natural-symbolic-conditionals",
-      "namer"
-    )
+    List("morphhdl-natural-symbolic-conditionals", "namer")
+
+  private final case class TypedNames(
+      integers: Set[TermName],
+      booleans: Set[TermName]
+  ) {
+    def nonEmpty: Boolean = integers.nonEmpty || booleans.nonEmpty
+  }
 
   private def eligible(unit: CompilationUnit): Boolean = {
     val path = Option(unit.source)
@@ -33,51 +35,30 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       .map(_.path.replace('\\', '/'))
       .getOrElse("")
     val content = Option(unit.source).map(_.content.mkString).getOrElse("")
-    !path.contains("/frontend/src/main/scala/") &&
-      !path.contains("/morphplugin/src/main/scala/") &&
-      !path.contains("/morphruntime/src/main/scala/") &&
-      !path.endsWith("/core/src/main/scala/spinal/core/ElabInt.scala") &&
+    !path.contains("/morphplugin/src/main/scala/") &&
       (content.contains("ElabInt") || content.contains("ElabBool"))
   }
 
   private def decoded(name: Name): String = name.decodedName.toString
 
-  private def terminalName(tree: Tree): String = tree match {
-    case Ident(name)       => decoded(name)
-    case Select(_, name)   => decoded(name)
-    case TypeApply(fun, _) => terminalName(fun)
-    case _                 => ""
-  }
-
-  private def path(tree: Tree): String = tree match {
+  private def simpleTypeName(tree: Tree): String = tree match {
     case Ident(name)        => decoded(name)
-    case Select(base, name) =>
-      val prefix = path(base)
-      if (prefix.isEmpty) decoded(name) else s"$prefix.${decoded(name)}"
-    case This(name)         => decoded(name)
-    case _                  => ""
-  }
-
-  private final case class TypedNames(
-      integers: Set[TermName],
-      booleans: Set[TermName]
-  ) {
-    val all: Set[TermName] = integers ++ booleans
+    case Select(_, name)    => decoded(name)
+    case AppliedTypeTree(t, _) => simpleTypeName(t)
+    case _                  => tree.toString.split('.').lastOption.getOrElse("")
   }
 
   private def declaredTypedNames(tree: Tree): TypedNames = {
     val integers = mutable.LinkedHashSet.empty[TermName]
     val booleans = mutable.LinkedHashSet.empty[TermName]
-
-    def typeName(tree: Tree): String = terminalName(tree)
-
     object Collector extends Traverser {
       override def traverse(current: Tree): Unit = current match {
-        case value: ValDef if typeName(value.tpt) == "ElabInt" =>
-          integers += value.name
-          super.traverse(current)
-        case value: ValDef if typeName(value.tpt) == "ElabBool" =>
-          booleans += value.name
+        case value: ValDef =>
+          simpleTypeName(value.tpt) match {
+            case "ElabInt"  => integers += value.name
+            case "ElabBool" => booleans += value.name
+            case _          =>
+          }
           super.traverse(current)
         case _ => super.traverse(current)
       }
@@ -97,6 +78,9 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     Finder.traverse(tree)
     found
   }
+
+  private def referencesTyped(tree: Tree, names: TypedNames): Boolean =
+    references(tree, names.integers) || references(tree, names.booleans)
 
   private def helperMethod(name: String): Tree = {
     val root = Ident(termNames.ROOTPKG)
@@ -128,7 +112,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       Option(unit.source)
         .flatMap(source => Option(source.file))
         .map(_.path)
-        .filter(_.nonEmpty)
+        .filter(value => value.length != 0)
         .getOrElse("<typed-elaboration>")
 
     private def sourceLine(tree: Tree): Int =
@@ -161,10 +145,9 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       }
     }
 
-    private def rewriteCondition(tree: Tree): Tree =
+    private def condition(tree: Tree): Tree =
       new ConditionTransformer().transform(tree)
 
-    /** Minimal source tokenization retained to distinguish `else if` from a braced nested if. */
     private def sourceTokens(from: Int, until: Int): Vector[String] = {
       val content = Option(unit.source).map(_.content).getOrElse(Array.empty[Char])
       val start = math.max(0, math.min(from, content.length))
@@ -176,11 +159,11 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
       while (index < end) {
         val current = content(index)
-        if (Character.isWhitespace(current)) index += 1
-        else if (current == '/' && has(1) && content(index + 1) == '/') {
+        if (Character.isWhitespace(current)) {
+          index += 1
+        } else if (current == '/' && has(1) && content(index + 1) == '/') {
           index += 2
-          while (index < end && content(index) != '\n' && content(index) != '\r')
-            index += 1
+          while (index < end && content(index) != '\n' && content(index) != '\r') index += 1
         } else if (current == '/' && has(1) && content(index + 1) == '*') {
           index += 2
           var depth = 1
@@ -195,15 +178,24 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           }
         } else if (current == '"') {
           tokens += "<string>"
-          index += 1
-          var escaped = false
-          var closed = false
-          while (index < end && !closed) {
-            val value = content(index)
-            if (escaped) escaped = false
-            else if (value == '\\') escaped = true
-            else if (value == '"') closed = true
+          if (index + 2 < end && content(index + 1) == '"' && content(index + 2) == '"') {
+            index += 3
+            while (
+              index + 2 < end &&
+              !(content(index) == '"' && content(index + 1) == '"' && content(index + 2) == '"')
+            ) index += 1
+            index = math.min(end, index + 3)
+          } else {
             index += 1
+            var escaped = false
+            var closed = false
+            while (index < end && !closed) {
+              val value = content(index)
+              if (escaped) escaped = false
+              else if (value == '\\') escaped = true
+              else if (value == '"') closed = true
+              index += 1
+            }
           }
         } else if (current == '\'') {
           tokens += "<char>"
@@ -220,8 +212,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         } else if (Character.isJavaIdentifierStart(current)) {
           val tokenStart = index
           index += 1
-          while (index < end && Character.isJavaIdentifierPart(content(index)))
-            index += 1
+          while (index < end && Character.isJavaIdentifierPart(content(index))) index += 1
           tokens += new String(content, tokenStart, index - tokenStart)
         } else {
           tokens += current.toString
@@ -242,63 +233,36 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       }
     }
 
-    private def symbolicCondition(tree: Tree): Boolean =
-      references(tree, names.all)
-
-    private def function0(body: Tree): Tree = Function(Nil, transform(body))
-
-    private def collectChain(
-        original: If
-    ): (Vector[(Tree, Tree, Int)], Tree) = {
+    private def collectChain(tree: If): (Vector[(Tree, Tree, Int)], Tree) = {
       val alternatives = Vector.newBuilder[(Tree, Tree, Int)]
-      var current = original
-      var otherwise: Tree = original.elsep
+      var current = tree
+      var otherwise: Tree = tree.elsep
       var done = false
       while (!done) {
-        if (symbolicCondition(current.cond)) {
-          alternatives += ((rewriteCondition(current.cond), current.thenp, sourceLine(current)))
-          current.elsep match {
-            case next: If if symbolicCondition(next.cond) && directElseIf(current, next) =>
-              current = next
-            case other =>
-              otherwise = other
-              done = true
-          }
-        } else {
-          otherwise = current
-          done = true
+        alternatives += ((condition(current.cond), transform(current.thenp), sourceLine(current)))
+        current.elsep match {
+          case next: If
+              if referencesTyped(next.cond, names) && directElseIf(current, next) =>
+            current = next
+          case other =>
+            otherwise = transform(other)
+            done = true
         }
       }
       alternatives.result() -> otherwise
     }
 
-    private def rewriteSingle(original: If): Tree = {
-      val rewritten = Apply(
-        Apply(
-          Apply(
-            helperMethod("selectSymbolic"),
-            List(
-              rewriteCondition(original.cond),
-              Literal(Constant(sourceFile)),
-              Literal(Constant(sourceLine(original)))
-            )
-          ),
-          List(transform(original.thenp))
-        ),
-        List(transform(original.elsep))
-      )
-      rewritten.setPos(original.pos)
-    }
+    private def function0(body: Tree): Tree = Function(Nil, body)
 
-    private def rewriteChain(original: If): Tree = {
+    private def rewriteIf(original: If): Tree = {
       val (alternatives, otherwise) = collectChain(original)
       val sequence = Apply(
         scalaSeqApply,
-        alternatives.map { case (condition, body, line) =>
+        alternatives.map { case (predicate, body, line) =>
           Apply(
             tuple4Apply,
             List(
-              condition,
+              predicate,
               function0(body),
               Literal(Constant(sourceFile)),
               Literal(Constant(line))
@@ -307,7 +271,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         }.toList
       )
       val rewritten = Apply(
-        helperMethod("selectSymbolicChain"),
+        helperMethod("select"),
         List(
           sequence,
           function0(otherwise),
@@ -318,49 +282,54 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       rewritten.setPos(original.pos)
     }
 
-    private def rewriteRequire(
-        original: Apply,
-        arguments: List[Tree]
+    private def rewriteGenerate(
+        original: Tree,
+        predicate: Tree,
+        body: Tree
     ): Tree = {
-      val condition = rewriteCondition(arguments.head)
-      val rewritten = arguments match {
-        case _ :: Nil =>
-          Apply(
-            helperMethod("requireCondition"),
-            List(
-              condition,
-              Literal(Constant(sourceFile)),
-              Literal(Constant(sourceLine(original)))
-            )
+      val rewritten = Apply(
+        Apply(
+          helperMethod("generate"),
+          List(
+            condition(predicate),
+            Literal(Constant(sourceFile)),
+            Literal(Constant(sourceLine(original)))
           )
-        case _ :: message :: Nil =>
-          Apply(
-            helperMethod("requireCondition"),
-            List(
-              condition,
-              transform(message),
-              Literal(Constant(sourceFile)),
-              Literal(Constant(sourceLine(original)))
-            )
-          )
-        case _ => super.transform(original)
-      }
+        ),
+        List(transform(body))
+      )
+      rewritten.setPos(original.pos)
+    }
+
+    private def rewriteAssert(
+        original: Tree,
+        fun: Tree,
+        predicate: Tree,
+        rest: List[Tree]
+    ): Tree = {
+      val rewritten = Apply(
+        helperMethod("require"),
+        List(
+          condition(predicate),
+          Literal(Constant(sourceFile)),
+          Literal(Constant(sourceLine(original)))
+        ) ++ rest.map(transform)
+      )
       rewritten.setPos(original.pos)
     }
 
     override def transform(tree: Tree): Tree = tree match {
-      case original: If if symbolicCondition(original.cond) =>
-        original.elsep match {
-          case next: If if symbolicCondition(next.cond) && directElseIf(original, next) =>
-            rewriteChain(original)
-          case _ => rewriteSingle(original)
-        }
-      case original @ Apply(fun, arguments)
-          if arguments.nonEmpty && arguments.size <= 2 &&
-            terminalName(fun) == "require" &&
-            symbolicCondition(arguments.head) &&
-            Set("require", "Predef.require", "scala.Predef.require").contains(path(fun)) =>
-        rewriteRequire(original, arguments)
+      case original: If if referencesTyped(original.cond, names) =>
+        rewriteIf(original)
+      case original @ Apply(Select(predicate, operator), List(body))
+          if decoded(operator) == "generate" && referencesTyped(predicate, names) =>
+        rewriteGenerate(original, predicate, body)
+      case original @ Apply(fun, predicate :: rest)
+          if (decoded(fun.symbolOption.map(_.name).getOrElse(termNames.EMPTY)) == "require" ||
+            decoded(fun.symbolOption.map(_.name).getOrElse(termNames.EMPTY)) == "assert" ||
+            fun.toString == "require" || fun.toString == "assert") &&
+            referencesTyped(predicate, names) =>
+        rewriteAssert(original, fun, predicate, rest)
       case _ => super.transform(tree)
     }
   }
@@ -369,7 +338,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     override def apply(unit: CompilationUnit): Unit =
       if (eligible(unit)) {
         val names = declaredTypedNames(unit.body)
-        if (names.all.nonEmpty)
+        if (names.nonEmpty)
           unit.body = new TypedControlTransformer(unit, names).transform(unit.body)
       }
   }
