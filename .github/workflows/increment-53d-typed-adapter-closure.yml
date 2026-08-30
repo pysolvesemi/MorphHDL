@@ -1,0 +1,173 @@
+name: Close Increment 53d typed StreamWidthAdapter implementation
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-typed-adapter-closure.yml
+      - lib/src/main/scala/spinal/lib/Stream.scala
+      - morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala
+      - core/src/main/scala/spinal/core/ElabInt.scala
+      - core/src/main/scala/spinal/core/ParameterizedWidth.scala
+      - core/src/main/scala/spinal/core/Bits.scala
+      - core/src/main/scala/spinal/core/UInt.scala
+      - core/src/main/scala/spinal/core/SInt.scala
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53d-typed-adapter-closure
+  cancel-in-progress: true
+
+jobs:
+  source-contract:
+    name: Source and architecture contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Verify permanent direct-typed implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          stream = Path('lib/src/main/scala/spinal/lib/Stream.scala').read_text()
+          start = stream.index('object StreamWidthAdapter {')
+          end = stream.index('//padding=true allow', start)
+          body = stream[start:end]
+          assert 'widthOfExpr(input.payload)' in body
+          assert 'widthOfExpr(output.payload)' in body
+          assert 'ElabInt.requireSingleSymbolicRoot' in body
+          assert 'NativeIntShadow' not in body
+          assert 'withWidthFunctionBoundary' not in body
+          assert 'rewriteParameterizedStreamWidthAdapter' not in stream
+
+          test = Path(
+            'morphhdl/src/test/scala/morphhdl/'
+            'ParameterizedStreamWidthAdapterTests.scala'
+          ).read_text()
+          fixture_start = test.index('object ParameterizedStreamWidthAdapterSmoke {')
+          fixture_end = test.index('class ParameterizedStreamWidthAdapterTests', fixture_start)
+          fixture = test[fixture_start:fixture_end]
+          assert 'equalWidth: ElabInt' in fixture
+          assert 'downWidth: ElabInt' in fixture
+          assert 'upWidth: ElabInt' in fixture
+          assert '.asElabInt' in fixture
+          assert 'NativeIntShadow' not in fixture
+          assert 'formalComponent' not in fixture
+          assert 'SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED' in test
+
+          widths = Path('core/src/main/scala/spinal/core/ParameterizedWidth.scala').read_text()
+          assert 'def attachResize[T <: BitVector]' in widths
+          assert 'def resizeExpressionOf' in widths
+          PY
+          git diff --check
+
+  mill:
+    name: Mill Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12.18", "2.13.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+      - name: Run focused and cross-component typed regressions
+        shell: bash
+        run: |
+          /tmp/mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.TypedElaborationControlTests \
+            morphhdl.ParameterizedStreamWidthAdapterTests \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.NaturalSymbolicConditionalTests \
+            morphhdl.NativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.HierarchyParameterBindingTests
+
+  sbt:
+    name: SBT Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12.18", "2.13.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+          submodules: recursive
+      - name: Compile production and tests
+        shell: bash
+        run: sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+      - name: Run focused and cross-component typed regressions
+        shell: bash
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.NaturalSymbolicConditionalTests morphhdl.NativeIntShadowExpressionTests morphhdl.ExternalNativeIntShadowExpressionTests morphhdl.HierarchyParameterBindingTests"
+
+  record:
+    name: Record validated typed adapter implementation
+    needs: [source-contract, mill, sbt]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Record immutable validation status
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha="$(git rev-parse HEAD)"
+          stream_sha="$(sha256sum lib/src/main/scala/spinal/lib/Stream.scala | awk '{print $1}')"
+          test_sha="$(sha256sum morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala | awk '{print $1}')"
+          cat > docs/morphhdl/increment-53d-typed-adapter-closure-status.md <<EOF
+          # Increment 53d typed StreamWidthAdapter implementation status
+
+          - Source commit: \`$source_sha\`
+          - Native Stream source SHA-256: \`$stream_sha\`
+          - Typed proof source SHA-256: \`$test_sha\`
+          - Mill Scala 2.12.18: PASS
+          - Mill Scala 2.13.12: PASS
+          - SBT Scala 2.12.18: PASS
+          - SBT Scala 2.13.12: PASS
+          - Native-shadow use in typed adapter implementation: NONE
+          - Independent symbolic roots: rejected by stable diagnostic
+
+          This record covers implementation and cross-component regression gates. Increment 53d remains open until the dedicated simulation, synthesis, determinism, and formal-equivalence gates are also green.
+          EOF
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add docs/morphhdl/increment-53d-typed-adapter-closure-status.md
+          git commit -m 'Record validated Increment 53d typed adapter implementation'
+          git pull --rebase origin agent/increment-53d-typed-elabint-pivot
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot
