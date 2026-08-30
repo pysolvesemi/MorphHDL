@@ -7,8 +7,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import spinal.core.internals._
 
-/**
-  * Opaque snapshot of the ordinary SpinalHDL statements created by one
+/** Opaque snapshot of the ordinary SpinalHDL statements created by one
   * structural body. Frontend code can capture and register it, while the MorphHDL-owned external lowering inspects the native AST objects.
   */
 final class ParameterizedStructuralBlock private[core] (
@@ -32,8 +31,7 @@ final class ParameterizedStructuralPending private[core] (
     private[core] val sourceLocation: Option[String]
 )
 
-/**
-  * MorphHDL-owned structural-capture registry retained from Increment 33.
+/** MorphHDL-owned structural-capture registry retained from Increment 33.
   *
   * The normal SpinalHDL graph remains authoritative. Parameterized mode
   * elaborates one representative body, records exactly which declarations,
@@ -49,6 +47,10 @@ object ParameterizedStructure {
     val regions = ArrayBuffer.empty[StructuralRegion]
     val pending = mutable.LinkedHashMap.empty[Long, ParameterizedStructuralPending]
     val labels = mutable.LinkedHashMap.empty[String, Option[String]]
+    val typedPredicateRoots = new IdentityHashMap[
+      ElaborationIntegerParameterRoot,
+      StructuralPredicateRoot
+    ]()
     var nextPendingId = 0L
     var nextCaptureId = 0L
     var assignmentValidationScheduled = false
@@ -84,11 +86,11 @@ object ParameterizedStructure {
       val default: BigInt,
       val minimum: BigInt,
       val maximum: BigInt,
-      val parameters: Vector[ElaborationIntegerParameter]
+      val parameters: Vector[ElaborationIntegerParameter],
+      val elaborationRoot: Option[ElaborationIntegerParameterRoot] = None
   )
 
-  /**
-    * Exact truth set for one compiler-proven predicate over a bounded native
+  /** Exact truth set for one compiler-proven predicate over a bounded native
     * constructor argument.  This evidence is optional and never inferred from
     * rendered Verilog text.
     */
@@ -110,8 +112,7 @@ object ParameterizedStructure {
     }
   }
 
-  /**
-    * Exact bounded root values under which one captured assignment may exist.
+  /** Exact bounded root values under which one captured assignment may exist.
     * Construction is internal and derives only from captured statement identity
     * plus compiler-proven structural predicate domains.
     */
@@ -123,9 +124,32 @@ object ParameterizedStructure {
     require(values.nonEmpty)
     require(
       BigInt(values.size) <=
-        ExternalNativeIntShadowRegistry.MaximumStructuralPredicateDomainSize
+        ElaborationExactDomain.MaximumDomainSize
     )
     require(values.forall(value => value >= root.minimum && value <= root.maximum))
+  }
+
+  /** Exact bounded root values admitted by the final owner of one native
+    * declaration or memory. `captured` distinguishes a structural owner from
+    * an ordinary module-scope declaration; both are established only by JVM
+    * identity in the native AST.
+    */
+  private[core] final case class ExactNativeObjectDomain(
+      values: Set[BigInt],
+      captured: Boolean
+  ) {
+    require(values != null && values.nonEmpty)
+    require(BigInt(values.size) <= ElaborationExactDomain.MaximumDomainSize)
+  }
+
+  /** Exact typed expression results certified for one native object's owner. */
+  private[core] final case class ExactProjectedObjectEvaluation(
+      rootValues: Set[BigInt],
+      results: Vector[(BigInt, BigInt)],
+      captured: Boolean
+  ) {
+    require(rootValues != null && rootValues.nonEmpty)
+    require(results != null && results.map(_._1).toSet == rootValues)
   }
 
   private[core] sealed trait StructuralRegion {
@@ -196,16 +220,30 @@ object ParameterizedStructure {
       path: Vector[AlternativeStep]
   )
 
+  private final case class CapturedDeclaration(
+      declaration: BaseType,
+      path: Vector[AlternativeStep]
+  )
+
+  private final case class CapturedMemory(
+      memory: Mem[_],
+      path: Vector[AlternativeStep]
+  )
+
+  private final case class CapturedChild(
+      child: Component,
+      path: Vector[AlternativeStep]
+  )
+
   private val activeCapture = new ThreadLocal[CaptureState]()
 
   /** True only while constructing a component for parameterized Verilog. */
   def captureEnabled: Boolean =
     (Component.current ne null) &&
       (try GlobalData.get.config.parameterizedVerilog
-       catch { case _: Throwable => false })
+      catch { case _: Throwable => false })
 
-  /**
-    * Capture one representative ordinary SpinalHDL body.
+  /** Capture one representative ordinary SpinalHDL body.
     *
     * Only declarations, data and declaration-local initialization assignments,
     * ordinary native memories, native when/switch hardware trees and child
@@ -259,12 +297,12 @@ object ParameterizedStructure {
       val statements =
         component.dslBody.statementIterable.toVector.filterNot(value =>
           beforeStatements.exists(_ eq value) ||
-          nestedStatements.exists(_ eq value)
+            nestedStatements.exists(_ eq value)
         )
       val children =
         component.children.toVector.filterNot(value =>
           beforeChildren.exists(_ eq value) ||
-          nestedChildren.exists(_ eq value)
+            nestedChildren.exists(_ eq value)
         )
 
       val nestedStatementIdentities =
@@ -293,18 +331,18 @@ object ParameterizedStructure {
       }
       statements.foreach(recordHardwareStatement)
 
-      val declarations = hardwareStatements.collect {
-        case value: BaseType => value
+      val declarations = hardwareStatements.collect { case value: BaseType =>
+        value
       }.toVector
-      val assignments = hardwareStatements.collect {
-        case value: DataAssignmentStatement => value
+      val assignments = hardwareStatements.collect { case value: DataAssignmentStatement =>
+        value
       }.toVector
-      val initializations = hardwareStatements.collect {
-        case value: InitAssignmentStatement => value
+      val initializations = hardwareStatements.collect { case value: InitAssignmentStatement =>
+        value
       }.toVector
       val memories = hardwareStatements.collect { case value: Mem[_] => value }.toVector
-      val memoryPorts = hardwareStatements.collect {
-        case value: MemPortStatement => value
+      val memoryPorts = hardwareStatements.collect { case value: MemPortStatement =>
+        value
       }.toVector
       memoryPorts.find(port => !memories.exists(_ eq port.mem)).foreach { port =>
         fail(
@@ -324,14 +362,14 @@ object ParameterizedStructure {
         }
 
       val unsupported = hardwareStatements.filterNot {
-        case _: BaseType                 => true
-        case _: DataAssignmentStatement  => true
-        case _: InitAssignmentStatement  => true
-        case _: Mem[_]                   => true
-        case _: MemPortStatement         => true
-        case _: WhenStatement            => true
-        case _: SwitchStatement          => true
-        case _                           => false
+        case _: BaseType                => true
+        case _: DataAssignmentStatement => true
+        case _: InitAssignmentStatement => true
+        case _: Mem[_]                  => true
+        case _: MemPortStatement        => true
+        case _: WhenStatement           => true
+        case _: SwitchStatement         => true
+        case _                          => false
       }
 
       unsupported.headOption.foreach { value =>
@@ -474,7 +512,7 @@ object ParameterizedStructure {
     }
     val duplicate = state.vecIndices.exists { value =>
       (value.vector eq vector) && (value.selected eq selected) &&
-      value.index == index
+      ElabInt.equivalentExpression(value.index, index)
     }
     if (!duplicate)
       state.vecIndices += StructuralVecIndex(
@@ -489,9 +527,7 @@ object ParameterizedStructure {
     val storage = storageOf(component)
     if (!storage.assignmentValidationScheduled) {
       storage.assignmentValidationScheduled = true
-      component.addPrePopTask(() =>
-        authorizeMutuallyExclusiveAssignments(component)
-      )
+      component.addPrePopTask(() => authorizeMutuallyExclusiveAssignments(component))
     }
   }
 
@@ -532,18 +568,14 @@ object ParameterizedStructure {
       if (entries.size > 1) {
         val capturedStatements =
           new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
-        entries.foreach(value =>
-          capturedStatements.put(value.statement, java.lang.Boolean.TRUE)
-        )
+        entries.foreach(value => capturedStatements.put(value.statement, java.lang.Boolean.TRUE))
         val targetAssignments = graphAssignments
           .filter(value => value.finalTarget eq target)
           .toVector
         val completeCapture =
           targetAssignments.size == entries.size &&
-          targetAssignments.forall(capturedStatements.containsKey) &&
-          entries.forall(value =>
-            targetAssignments.exists(_ eq value.statement)
-          )
+            targetAssignments.forall(capturedStatements.containsKey) &&
+            entries.forall(value => targetAssignments.exists(_ eq value.statement))
         val pairwiseCompatible = entries.indices.forall { left =>
           (left + 1 until entries.size).forall { right =>
             sameAlternativePath(entries(left).path, entries(right).path) ||
@@ -553,9 +585,7 @@ object ParameterizedStructure {
         val alternatives = ArrayBuffer.empty[ArrayBuffer[CapturedAssignment]]
         entries.foreach { captured =>
           alternatives
-            .find(group =>
-              sameAlternativePath(group.head.path, captured.path)
-            )
+            .find(group => sameAlternativePath(group.head.path, captured.path))
             .getOrElse {
               val group = ArrayBuffer.empty[CapturedAssignment]
               alternatives += group
@@ -563,9 +593,8 @@ object ParameterizedStructure {
             } += captured
         }
         val hasExclusiveAlternatives = alternatives.size > 1
-        val alternativesAreLocallySafe = alternatives.forall(group =>
-          nativeOverlapSafe(component, target, group.toVector)
-        )
+        val alternativesAreLocallySafe =
+          alternatives.forall(group => nativeOverlapSafe(component, target, group.toVector))
         if (
           completeCapture && hasExclusiveAlternatives &&
           pairwiseCompatible && alternativesAreLocallySafe
@@ -574,8 +603,7 @@ object ParameterizedStructure {
     }
   }
 
-  /**
-    * Replay native definite-assignment overlap rules for one structural path.
+  /** Replay native definite-assignment overlap rules for one structural path.
     * This proves that an allowOverride tag suppresses only false overlap between
     * parameter alternatives, never an overlap already present inside a branch.
     */
@@ -586,9 +614,7 @@ object ParameterizedStructure {
   ): Boolean = {
     val selected =
       new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
-    captured.foreach(value =>
-      selected.put(value.statement, java.lang.Boolean.TRUE)
-    )
+    captured.foreach(value => selected.put(value.statement, java.lang.Boolean.TRUE))
     val seen =
       new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
     val width = target.getBitsWidth
@@ -607,8 +633,7 @@ object ParameterizedStructure {
         case value: BaseType if value eq target =>
           bits.add(width - 1, 0)
           Some(bits -> true)
-        case value: BitVectorAssignmentExpression
-            if value.finalTarget eq target =>
+        case value: BitVectorAssignmentExpression if value.finalTarget eq target =>
           val range = value.getMinAssignedBits
           bits.add(range)
           Some(bits -> (range.hi == width - 1 && range.lo == 0))
@@ -627,8 +652,7 @@ object ParameterizedStructure {
       }
 
       scope.foreachStatements {
-        case statement: DataAssignmentStatement
-            if selected.containsKey(statement) =>
+        case statement: DataAssignmentStatement if selected.containsKey(statement) =>
           seen.put(statement, java.lang.Boolean.TRUE)
           val poison = statement.source match {
             case literal: Literal => literal.hasPoison()
@@ -666,9 +690,7 @@ object ParameterizedStructure {
             branches.forall(_.touched)
           ) {
             val intersection = branches.head.definite.clone()
-            branches.tail.foreach(value =>
-              intersection.intersect(value.definite)
-            )
+            branches.tail.foreach(value => intersection.intersect(value.definite))
             definite.add(intersection)
           }
         case _ =>
@@ -689,9 +711,142 @@ object ParameterizedStructure {
         block: ParameterizedStructuralBlock,
         path: Vector[AlternativeStep]
     ): Unit = {
-      block.assignments.foreach(value =>
-        values += CapturedAssignment(value, path)
-      )
+      block.assignments.foreach(value => values += CapturedAssignment(value, path))
+      block.regions.foreach(value => visitRegion(value, path))
+    }
+
+    def visitRegion(
+        region: StructuralRegion,
+        path: Vector[AlternativeStep]
+    ): Unit = region match {
+      case value: StructuralFor =>
+        visitBlock(value.body, path)
+      case value: StructuralIf =>
+        visitBlock(
+          value.whenTrue,
+          path :+ AlternativeStep(value, branch = 0)
+        )
+        visitBlock(
+          value.whenFalse,
+          path :+ AlternativeStep(value, branch = 1)
+        )
+      case value: StructuralCase =>
+        value.choices.zipWithIndex.foreach { case (choice, index) =>
+          visitBlock(
+            choice.body,
+            path :+ AlternativeStep(value, branch = index)
+          )
+        }
+        visitBlock(
+          value.defaultBody,
+          path :+ AlternativeStep(value, branch = value.choices.size)
+        )
+    }
+
+    regions.foreach(value => visitRegion(value, Vector.empty))
+    values.toVector
+  }
+
+  private def capturedDeclarations(
+      regions: Vector[StructuralRegion]
+  ): Vector[CapturedDeclaration] = {
+    val values = ArrayBuffer.empty[CapturedDeclaration]
+
+    def visitBlock(
+        block: ParameterizedStructuralBlock,
+        path: Vector[AlternativeStep]
+    ): Unit = {
+      block.declarations.foreach(value => values += CapturedDeclaration(value, path))
+      block.regions.foreach(value => visitRegion(value, path))
+    }
+
+    def visitRegion(
+        region: StructuralRegion,
+        path: Vector[AlternativeStep]
+    ): Unit = region match {
+      case value: StructuralFor =>
+        visitBlock(value.body, path)
+      case value: StructuralIf =>
+        visitBlock(
+          value.whenTrue,
+          path :+ AlternativeStep(value, branch = 0)
+        )
+        visitBlock(
+          value.whenFalse,
+          path :+ AlternativeStep(value, branch = 1)
+        )
+      case value: StructuralCase =>
+        value.choices.zipWithIndex.foreach { case (choice, index) =>
+          visitBlock(
+            choice.body,
+            path :+ AlternativeStep(value, branch = index)
+          )
+        }
+        visitBlock(
+          value.defaultBody,
+          path :+ AlternativeStep(value, branch = value.choices.size)
+        )
+    }
+
+    regions.foreach(value => visitRegion(value, Vector.empty))
+    values.toVector
+  }
+
+  private def capturedMemories(
+      regions: Vector[StructuralRegion]
+  ): Vector[CapturedMemory] = {
+    val values = ArrayBuffer.empty[CapturedMemory]
+
+    def visitBlock(
+        block: ParameterizedStructuralBlock,
+        path: Vector[AlternativeStep]
+    ): Unit = {
+      block.memories.foreach(value => values += CapturedMemory(value, path))
+      block.regions.foreach(value => visitRegion(value, path))
+    }
+
+    def visitRegion(
+        region: StructuralRegion,
+        path: Vector[AlternativeStep]
+    ): Unit = region match {
+      case value: StructuralFor =>
+        visitBlock(value.body, path)
+      case value: StructuralIf =>
+        visitBlock(
+          value.whenTrue,
+          path :+ AlternativeStep(value, branch = 0)
+        )
+        visitBlock(
+          value.whenFalse,
+          path :+ AlternativeStep(value, branch = 1)
+        )
+      case value: StructuralCase =>
+        value.choices.zipWithIndex.foreach { case (choice, index) =>
+          visitBlock(
+            choice.body,
+            path :+ AlternativeStep(value, branch = index)
+          )
+        }
+        visitBlock(
+          value.defaultBody,
+          path :+ AlternativeStep(value, branch = value.choices.size)
+        )
+    }
+
+    regions.foreach(value => visitRegion(value, Vector.empty))
+    values.toVector
+  }
+
+  private def capturedChildren(
+      regions: Vector[StructuralRegion]
+  ): Vector[CapturedChild] = {
+    val values = ArrayBuffer.empty[CapturedChild]
+
+    def visitBlock(
+        block: ParameterizedStructuralBlock,
+        path: Vector[AlternativeStep]
+    ): Unit = {
+      block.children.foreach(value => values += CapturedChild(value, path))
       block.regions.foreach(value => visitRegion(value, path))
     }
 
@@ -735,8 +890,7 @@ object ParameterizedStructure {
           case 1 => value.condition.default
           case _ => false
         }
-      case value: StructuralCase
-          if step.branch >= 0 && step.branch < value.choices.size =>
+      case value: StructuralCase if step.branch >= 0 && step.branch < value.choices.size =>
         value.choices(step.branch).value != value.selector.default
       case value: StructuralCase if step.branch == value.choices.size =>
         value.choices.exists(_.value == value.selector.default)
@@ -756,8 +910,7 @@ object ParameterizedStructure {
       path.forall(validAlternativeStep) &&
       path.exists(inactiveAtWitness)
 
-  /**
-    * Exact captured data-assignment identities that occur only below a branch
+  /** Exact captured data-assignment identities that occur only below a branch
     * which the concrete elaboration witness does not select. Invalid or
     * branchless paths fail closed, as does an identity also seen on an active
     * path.
@@ -791,8 +944,7 @@ object ParameterizedStructure {
     values.toVector
   }
 
-  /**
-    * Resolve the exact predicate-domain intersection for one captured data
+  /** Resolve the exact predicate-domain intersection for one captured data
     * assignment. Every alternative step must carry compiler-proven bounded
     * evidence for one shared root. Missing, ambiguous, impossible or oversized
     * paths fail closed.
@@ -802,17 +954,13 @@ object ParameterizedStructure {
       statement: DataAssignmentStatement
   ): Option[CapturedAssignmentDomain] = {
     if (component == null || statement == null) return None
-    val matches = capturedAssignments(regionsOf(component)).filter(value =>
-      value.statement eq statement
-    )
+    val matches = capturedAssignments(regionsOf(component)).filter(value => value.statement eq statement)
     if (matches.size != 1 || matches.head.path.isEmpty) return None
 
     val constrained = matches.head.path.map { step =>
       step.region match {
         case value: StructuralIf =>
-          value.predicateDomain.flatMap(domain =>
-            domain.valuesFor(step.branch).map(allowed => domain -> allowed)
-          )
+          value.predicateDomain.flatMap(domain => domain.valuesFor(step.branch).map(allowed => domain -> allowed))
         case _ => None
       }
     }
@@ -824,10 +972,10 @@ object ParameterizedStructure {
     if (
       root == null ||
       BigInt(universe.size) >
-        ExternalNativeIntShadowRegistry.MaximumStructuralPredicateDomainSize ||
-      domains.exists { case (domain, _) =>
-        (domain.root ne root) || domain.universe != universe
-      }
+        ElaborationExactDomain.MaximumDomainSize ||
+        domains.exists { case (domain, _) =>
+          (domain.root ne root) || domain.universe != universe
+        }
     ) return None
 
     val values = domains.foldLeft(universe) { case (remaining, (_, allowed)) =>
@@ -835,6 +983,511 @@ object ParameterizedStructure {
     }
     if (values.isEmpty) None
     else Some(CapturedAssignmentDomain(root, values))
+  }
+
+  /** Resolve the final structural owner of one exact native declaration over
+    * one exact typed root. A declaration absent from captured blocks is treated
+    * as module-scope only after its JVM identity is found in the component AST.
+    */
+  private[core] def exactDeclarationDomainOf(
+      component: Component,
+      declaration: BaseType,
+      root: ElaborationIntegerParameterRoot,
+      universe: Set[BigInt],
+      role: String,
+      sourceLocation: Option[String]
+  ): ExactNativeObjectDomain = {
+    if (component == null || declaration == null) {
+      fail(
+        "SPINAL-ELAB-PROJECTION-OBJECT-NULL",
+        s"$role requires a non-null component and native declaration",
+        sourceLocation
+      )
+    }
+    val matches = capturedDeclarations(regionsOf(component)).collect {
+      case value if value.declaration eq declaration => value.path
+    }
+    exactNativeObjectDomainOf(
+      component,
+      matches,
+      allStatementsOf(component).exists(_ eq declaration),
+      root,
+      universe,
+      role,
+      sourceLocation
+    )
+  }
+
+  /** Exact-assignment counterpart of [[exactDeclarationDomainOf]]. The
+    * assignment itself, rather than its target declaration, owns expressions
+    * that are introduced only while lowering that surviving assignment.
+    */
+  private[core] def exactAssignmentDomainOf(
+      component: Component,
+      assignment: DataAssignmentStatement,
+      root: ElaborationIntegerParameterRoot,
+      universe: Set[BigInt],
+      role: String,
+      sourceLocation: Option[String]
+  ): ExactNativeObjectDomain = {
+    if (component == null || assignment == null) {
+      fail(
+        "SPINAL-ELAB-PROJECTION-OBJECT-NULL",
+        s"$role requires a non-null component and native assignment",
+        sourceLocation
+      )
+    }
+    val matches = capturedAssignments(regionsOf(component)).collect {
+      case value if value.statement eq assignment => value.path
+    }
+    exactNativeObjectDomainOf(
+      component,
+      matches,
+      allStatementsOf(component).exists(_ eq assignment),
+      root,
+      universe,
+      role,
+      sourceLocation
+    )
+  }
+
+  /** Exact-memory counterpart of [[exactDeclarationDomainOf]]. */
+  private[core] def exactMemoryDomainOf(
+      component: Component,
+      memory: Mem[_],
+      root: ElaborationIntegerParameterRoot,
+      universe: Set[BigInt],
+      role: String,
+      sourceLocation: Option[String]
+  ): ExactNativeObjectDomain = {
+    if (component == null || memory == null) {
+      fail(
+        "SPINAL-ELAB-PROJECTION-OBJECT-NULL",
+        s"$role requires a non-null component and native memory",
+        sourceLocation
+      )
+    }
+    val matches = capturedMemories(regionsOf(component)).collect {
+      case value if value.memory eq memory => value.path
+    }
+    exactNativeObjectDomainOf(
+      component,
+      matches,
+      allStatementsOf(component).exists(_ eq memory),
+      root,
+      universe,
+      role,
+      sourceLocation
+    )
+  }
+
+  /** Exact-child counterpart of [[exactDeclarationDomainOf]]. */
+  private[core] def exactChildDomainOf(
+      parent: Component,
+      child: Component,
+      root: ElaborationIntegerParameterRoot,
+      universe: Set[BigInt],
+      role: String,
+      sourceLocation: Option[String]
+  ): ExactNativeObjectDomain = {
+    if (parent == null || child == null) {
+      fail(
+        "SPINAL-ELAB-PROJECTION-OBJECT-NULL",
+        s"$role requires a non-null parent and native child component",
+        sourceLocation
+      )
+    }
+    val matches = capturedChildren(regionsOf(parent)).collect {
+      case value if value.child eq child => value.path
+    }
+    exactNativeObjectDomainOf(
+      parent,
+      matches,
+      parent.children.exists(_ eq child),
+      root,
+      universe,
+      role,
+      sourceLocation
+    )
+  }
+
+  /** Validate one projected integer expression against the exact structural
+    * owner of a native declaration. Expressions without exact typed evidence
+    * are outside this validator and return `None`.
+    */
+  private[core] def projectedDeclarationEvaluationOf(
+      component: Component,
+      declaration: BaseType,
+      expression: ElaborationIntegerExpression,
+      role: String,
+      sourceLocation: Option[String]
+  ): Option[ExactProjectedObjectEvaluation] =
+    projectedObjectEvaluationOf(
+      expression,
+      role,
+      sourceLocation,
+      (root, universe) =>
+        exactDeclarationDomainOf(
+          component,
+          declaration,
+          root,
+          universe,
+          role,
+          sourceLocation
+        )
+    )
+
+  /** Require a projected expression to cover every root value for which one
+    * exact assignment survives. Unlike declaration geometry, an expression
+    * introduced into an assignment is not rebased to that owner's
+    * representative: module-scope operands may be used safely in a narrower
+    * branch. Identity, evidence and owner dominance remain mandatory.
+    */
+  private[core] def validateProjectedAssignmentDominance(
+      component: Component,
+      assignment: DataAssignmentStatement,
+      expression: ElaborationIntegerExpression,
+      role: String,
+      sourceLocation: Option[String]
+  ): Unit = {
+    if (expression == null) {
+      fail(
+        "SPINAL-ELAB-DOMAIN-PROJECTION-NULL",
+        s"$role requires a non-null retained expression",
+        sourceLocation
+      )
+    }
+    expression.exactDomain.foreach { domain =>
+      val projection = expression.projectionProvenance.getOrElse {
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-IDENTITY-MISSING",
+          s"$role expression '${expression.verilog}' has exact evidence but no projection provenance on this exact expression object",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      if (projection.root ne domain.root) {
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-ROOT-IDENTITY-MISMATCH",
+          s"$role expression '${expression.verilog}' projection and exact evidence have different root identities",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      if (!projection.admitted.subsetOf(domain.evidenceValues)) {
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-OUTSIDE-EVIDENCE",
+          s"$role expression '${expression.verilog}' projection admits values without exact evaluation evidence",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      val expectedRepresentative =
+        if (projection.admitted.contains(domain.parameter.default))
+          domain.parameter.default
+        else projection.admitted.min
+      if (projection.representative != expectedRepresentative) {
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-REPRESENTATIVE-INVALID",
+          s"$role expression '${expression.verilog}' has non-deterministic projection representative ${projection.representative}",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+
+      val owner = exactAssignmentDomainOf(
+        component,
+        assignment,
+        domain.root,
+        domain.universe,
+        role,
+        sourceLocation
+      )
+      if (!owner.values.subsetOf(projection.admitted)) {
+        val escaped = owner.values -- projection.admitted
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-OWNER-SCOPE-MISMATCH",
+          s"$role expression '${expression.verilog}' was projected for root values ${projection.admitted.toVector.sorted
+              .mkString(", ")}, but its exact native owner also exists for ${escaped.toVector.sorted.mkString(", ")}",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      owner.values.foreach { rootValue =>
+        if (domain.evaluate(rootValue).isEmpty) {
+          fail(
+            "SPINAL-ELAB-DOMAIN-PROJECTION-EVIDENCE-INCOMPLETE",
+            s"$role expression '${expression.verilog}' has no exact evaluation at ${domain.root.name}=$rootValue",
+            sourceLocation.orElse(expression.sourceLocation)
+          )
+        }
+      }
+    }
+  }
+
+  /** Exact-memory counterpart of [[projectedDeclarationEvaluationOf]]. */
+  private[core] def projectedMemoryEvaluationOf(
+      component: Component,
+      memory: Mem[_],
+      expression: ElaborationIntegerExpression,
+      role: String,
+      sourceLocation: Option[String]
+  ): Option[ExactProjectedObjectEvaluation] =
+    projectedObjectEvaluationOf(
+      expression,
+      role,
+      sourceLocation,
+      (root, universe) =>
+        exactMemoryDomainOf(
+          component,
+          memory,
+          root,
+          universe,
+          role,
+          sourceLocation
+        )
+    )
+
+  /** Exact-child actual counterpart of [[projectedDeclarationEvaluationOf]]. */
+  private[core] def projectedChildEvaluationOf(
+      parent: Component,
+      child: Component,
+      expression: ElaborationIntegerExpression,
+      role: String,
+      sourceLocation: Option[String]
+  ): Option[ExactProjectedObjectEvaluation] =
+    projectedObjectEvaluationOf(
+      expression,
+      role,
+      sourceLocation,
+      (root, universe) =>
+        exactChildDomainOf(
+          parent,
+          child,
+          root,
+          universe,
+          role,
+          sourceLocation
+        )
+    )
+
+  private def projectedObjectEvaluationOf(
+      expression: ElaborationIntegerExpression,
+      role: String,
+      sourceLocation: Option[String],
+      ownerDomain: (
+          ElaborationIntegerParameterRoot,
+          Set[BigInt]
+      ) => ExactNativeObjectDomain
+  ): Option[ExactProjectedObjectEvaluation] = {
+    if (expression == null) {
+      fail(
+        "SPINAL-ELAB-DOMAIN-PROJECTION-NULL",
+        s"$role requires a non-null retained expression",
+        sourceLocation
+      )
+    }
+    expression.exactDomain.map { domain =>
+      val projection = expression.projectionProvenance.getOrElse {
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-IDENTITY-MISSING",
+          s"$role expression '${expression.verilog}' has exact evidence but no projection provenance on this exact expression object",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      if (projection.root ne domain.root) {
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-ROOT-IDENTITY-MISMATCH",
+          s"$role expression '${expression.verilog}' projection and exact evidence have different root identities",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      if (!projection.admitted.subsetOf(domain.evidenceValues)) {
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-OUTSIDE-EVIDENCE",
+          s"$role expression '${expression.verilog}' projection admits values without exact evaluation evidence",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      val expectedRepresentative =
+        if (projection.admitted.contains(domain.parameter.default))
+          domain.parameter.default
+        else projection.admitted.min
+      if (projection.representative != expectedRepresentative) {
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-REPRESENTATIVE-INVALID",
+          s"$role expression '${expression.verilog}' has non-deterministic projection representative ${projection.representative}",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+
+      val owner = ownerDomain(domain.root, domain.universe)
+      if (!owner.values.subsetOf(projection.admitted)) {
+        val escaped = owner.values -- projection.admitted
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-OWNER-SCOPE-MISMATCH",
+          s"$role expression '${expression.verilog}' was projected for root values ${projection.admitted.toVector.sorted
+              .mkString(", ")}, but its exact native owner also exists for ${escaped.toVector.sorted.mkString(", ")}",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      val ownerRepresentative =
+        if (owner.values.contains(domain.parameter.default))
+          domain.parameter.default
+        else owner.values.min
+      val ownerDefault = domain.evaluate(ownerRepresentative).getOrElse {
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-EVIDENCE-INCOMPLETE",
+          s"$role expression '${expression.verilog}' has no exact evaluation at final-owner representative ${domain.root.name}=$ownerRepresentative",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      if (expression.default != ownerDefault) {
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-OWNER-REPRESENTATIVE-MISMATCH",
+          s"$role expression '${expression.verilog}' was constructed with default ${expression.default}, but its final native owner requires representative ${domain.root.name}=$ownerRepresentative and default $ownerDefault",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      val results = owner.values.toVector.sorted.map { rootValue =>
+        val result = domain.evaluate(rootValue).getOrElse {
+          fail(
+            "SPINAL-ELAB-DOMAIN-PROJECTION-EVIDENCE-INCOMPLETE",
+            s"$role expression '${expression.verilog}' has no exact evaluation at ${domain.root.name}=$rootValue",
+            sourceLocation.orElse(expression.sourceLocation)
+          )
+        }
+        if (result < expression.minimum || result > expression.maximum) {
+          fail(
+            "SPINAL-ELAB-DOMAIN-PROJECTION-BOUNDS-MISMATCH",
+            s"$role expression '${expression.verilog}' evaluates to $result at ${domain.root.name}=$rootValue, outside retained bounds [${expression.minimum}, ${expression.maximum}]",
+            sourceLocation.orElse(expression.sourceLocation)
+          )
+        }
+        rootValue -> result
+      }
+      val projectedDefault = domain.evaluate(projection.representative).getOrElse {
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-EVIDENCE-INCOMPLETE",
+          s"$role expression '${expression.verilog}' has no exact evaluation at representative ${domain.root.name}=${projection.representative}",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      if (expression.default != projectedDefault) {
+        fail(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-DEFAULT-MISMATCH",
+          s"$role expression '${expression.verilog}' retains default ${expression.default}, but its exact projection representative evaluates to $projectedDefault",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      ExactProjectedObjectEvaluation(owner.values, results, owner.captured)
+    }
+  }
+
+  private def exactNativeObjectDomainOf(
+      component: Component,
+      matches: Vector[Vector[AlternativeStep]],
+      presentInComponent: Boolean,
+      root: ElaborationIntegerParameterRoot,
+      universe: Set[BigInt],
+      role: String,
+      sourceLocation: Option[String]
+  ): ExactNativeObjectDomain = {
+    if (component == null || root == null || universe == null) {
+      fail(
+        "SPINAL-ELAB-PROJECTION-OWNERSHIP-NULL",
+        s"$role requires a non-null component, exact root and universe",
+        sourceLocation
+      )
+    }
+    if (
+      universe.isEmpty ||
+      BigInt(universe.size) > ElaborationExactDomain.MaximumDomainSize
+    ) {
+      fail(
+        "SPINAL-ELAB-PROJECTION-UNIVERSE-INVALID",
+        s"$role exact root '${root.name}' has an empty or oversized universe",
+        sourceLocation.orElse(root.sourceLocation)
+      )
+    }
+    if (matches.size > 1) {
+      fail(
+        "SPINAL-ELAB-PROJECTION-OBJECT-OWNERSHIP-AMBIGUOUS",
+        s"$role exact native object is captured by ${matches.size} structural paths",
+        sourceLocation
+      )
+    }
+    if (matches.isEmpty) {
+      if (!presentInComponent) {
+        fail(
+          "SPINAL-ELAB-PROJECTION-OBJECT-NOT-OWNED",
+          s"$role exact native object is not owned by the component AST",
+          sourceLocation
+        )
+      }
+      return ExactNativeObjectDomain(universe, captured = false)
+    }
+
+    val values = matches.head.foldLeft(universe) { (remaining, step) =>
+      step.region match {
+        case value: StructuralIf =>
+          val domain = value.predicateDomain.getOrElse {
+            fail(
+              "SPINAL-ELAB-PROJECTION-STRUCTURAL-DOMAIN-UNPROVEN",
+              s"$role is captured below a structural conditional without exact typed predicate evidence",
+              sourceLocation.orElse(value.sourceLocation)
+            )
+          }
+          val predicateRoot = domain.root.elaborationRoot.getOrElse {
+            fail(
+              "SPINAL-ELAB-PROJECTION-STRUCTURAL-DOMAIN-UNPROVEN",
+              s"$role is captured below a structural conditional whose root has no exact typed identity",
+              sourceLocation.orElse(value.sourceLocation)
+            )
+          }
+          val allowed = domain.valuesFor(step.branch).getOrElse {
+            fail(
+              "SPINAL-ELAB-PROJECTION-STRUCTURAL-DOMAIN-UNPROVEN",
+              s"$role is captured below an invalid structural alternative",
+              sourceLocation.orElse(value.sourceLocation)
+            )
+          }
+          if (allowed.isEmpty) {
+            fail(
+              "SPINAL-ELAB-PROJECTION-STRUCTURAL-DOMAIN-EMPTY",
+              s"$role is captured below an impossible typed structural alternative",
+              sourceLocation.orElse(value.sourceLocation)
+            )
+          }
+          if (predicateRoot eq root) {
+            if (domain.universe != universe) {
+              fail(
+                "SPINAL-ELAB-PROJECTION-ROOT-DOMAIN-MISMATCH",
+                s"$role structural root '${root.name}' has a universe different from its retained exact evidence",
+                sourceLocation.orElse(value.sourceLocation)
+              )
+            }
+            remaining intersect allowed
+          } else remaining
+
+        case value: StructuralCase =>
+          fail(
+            "SPINAL-ELAB-PROJECTION-STRUCTURAL-DOMAIN-UNPROVEN",
+            s"$role is captured below a structural case without exact per-alternative root evidence",
+            sourceLocation.orElse(value.sourceLocation)
+          )
+
+        case value =>
+          fail(
+            "SPINAL-ELAB-PROJECTION-STRUCTURAL-DOMAIN-UNPROVEN",
+            s"$role is captured below unsupported structural region '${value.getClass.getSimpleName}'",
+            sourceLocation.orElse(value.sourceLocation)
+          )
+      }
+    }
+    if (values.isEmpty) {
+      fail(
+        "SPINAL-ELAB-PROJECTION-STRUCTURAL-DOMAIN-EMPTY",
+        s"$role exact structural owner admits no value of root '${root.name}'",
+        sourceLocation.orElse(root.sourceLocation)
+      )
+    }
+    ExactNativeObjectDomain(values, captured = true)
   }
 
   private def mutuallyExclusive(
@@ -849,10 +1502,9 @@ object ParameterizedStructure {
       left: Vector[AlternativeStep],
       right: Vector[AlternativeStep]
   ): Boolean =
-    left.size == right.size && left.zip(right).forall {
-      case (leftStep, rightStep) =>
-        (leftStep.region eq rightStep.region) &&
-          leftStep.branch == rightStep.branch
+    left.size == right.size && left.zip(right).forall { case (leftStep, rightStep) =>
+      (leftStep.region eq rightStep.region) &&
+      leftStep.branch == rightStep.branch
     }
 
   /** Shared fail-closed exclusivity proof used by graph validation and RTL relocation. */
@@ -894,11 +1546,8 @@ object ParameterizedStructure {
 
     val (leftImpossible, leftDomains) = constrainedDomains(left)
     val (rightImpossible, rightDomains) = constrainedDomains(right)
-    leftImpossible || rightImpossible || leftDomains.exists {
-      case (root, leftValues) =>
-        rightDomains.get(root).exists(rightValues =>
-          (leftValues intersect rightValues).isEmpty
-        )
+    leftImpossible || rightImpossible || leftDomains.exists { case (root, leftValues) =>
+      rightDomains.get(root).exists(rightValues => (leftValues intersect rightValues).isEmpty)
     }
   }
 
@@ -965,6 +1614,62 @@ object ParameterizedStructure {
     token
   }
 
+  /** Build exact typed predicate evidence and reuse one structural root for the
+    * exact declaration identity throughout a component.
+    */
+  private[core] def typedPredicateDomainOf(
+      component: Component,
+      condition: ElaborationBooleanExpression
+  ): StructuralPredicateDomain = {
+    if (component == null || condition == null) {
+      fail(
+        "SPINAL-ELAB-CONTROL-PREDICATE-DOMAIN-NULL",
+        "typed predicate-domain construction requires a component and condition",
+        Option(condition).flatMap(_.sourceLocation)
+      )
+    }
+    ElabInt.validateExpression(condition, "typed structural predicate")
+    val exact = condition.exactDomain.getOrElse {
+      fail(
+        "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING",
+        s"typed structural predicate '${condition.verilog}' lacks exact single-root evidence",
+        condition.sourceLocation
+      )
+    }
+    val storage = storageOf(component)
+    var structuralRoot = storage.typedPredicateRoots.get(exact.root)
+    if (structuralRoot == null) {
+      structuralRoot = new StructuralPredicateRoot(
+        exact.parameter.name,
+        exact.parameter.default,
+        exact.parameter.minimum,
+        exact.parameter.maximum,
+        Vector(exact.parameter),
+        Some(exact.root)
+      )
+      storage.typedPredicateRoots.put(exact.root, structuralRoot)
+    } else if (
+      structuralRoot.default != exact.parameter.default ||
+      structuralRoot.minimum != exact.parameter.minimum ||
+      structuralRoot.maximum != exact.parameter.maximum ||
+      structuralRoot.parameters != Vector(exact.parameter) ||
+      !structuralRoot.elaborationRoot.exists(_ eq exact.root)
+    ) {
+      fail(
+        "SPINAL-ELAB-DOMAIN-ROOT-SCHEMA-MISMATCH",
+        s"typed structural root '${exact.parameter.name}' was reused with an incompatible schema",
+        condition.sourceLocation.orElse(exact.root.sourceLocation)
+      )
+    }
+    StructuralPredicateDomain(
+      root = structuralRoot,
+      universe = exact.universe,
+      whenTrue = exact.evaluations.collect { case (rootValue, true) =>
+        rootValue
+      }.toSet
+    )
+  }
+
   def registerIf(
       pending: ParameterizedStructuralPending,
       condition: ElaborationBooleanExpression,
@@ -1026,15 +1731,18 @@ object ParameterizedStructure {
         sourceLocation
       )
     }
-    choices.groupBy(_._1).collectFirst {
-      case (value, entries) if entries.size != 1 => value
-    }.foreach { value =>
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CASE-CHOICE-DUPLICATE",
-        s"generate-case contains duplicate literal choice $value",
-        sourceLocation
-      )
-    }
+    choices
+      .groupBy(_._1)
+      .collectFirst {
+        case (value, entries) if entries.size != 1 => value
+      }
+      .foreach { value =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CASE-CHOICE-DUPLICATE",
+          s"generate-case contains duplicate literal choice $value",
+          sourceLocation
+        )
+      }
     choices.foreach { case (_, label, _) =>
       reserveName(storage, label, "generate-case choice label", sourceLocation)
     }
@@ -1087,8 +1795,7 @@ object ParameterizedStructure {
     storage.toVector.flatMap(_.regions).toVector
   }
 
-  /**
-    * Width evidence for a hierarchy boundary that uses a recorded symbolic
+  /** Width evidence for a hierarchy boundary that uses a recorded symbolic
     * slice. Normalization may wrap the recorded access, so descendants are
     * searched by identity and must agree on one expression.
     */
@@ -1112,7 +1819,14 @@ object ParameterizedStructure {
       }
     }
     visit(expression)
-    found.distinct.toVector match {
+    val distinct = found.toVector.foldLeft(
+      Vector.empty[ElaborationIntegerExpression]
+    ) {
+      case (known, value) if known.exists(ElabInt.equivalentExpression(_, value)) =>
+        known
+      case (known, value) => known :+ value
+    }
+    distinct match {
       case Vector()      => None
       case Vector(value) => Some(value)
       case _ =>
@@ -1176,7 +1890,8 @@ object ParameterizedStructure {
     if (actualCaptureId != expectedCaptureId) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-CONTEXT-MISMATCH",
-        s"structural region expected capture ${expectedCaptureId.getOrElse("root")} but active capture is ${actualCaptureId.getOrElse("root")}",
+        s"structural region expected capture ${expectedCaptureId
+            .getOrElse("root")} but active capture is ${actualCaptureId.getOrElse("root")}",
         sourceLocation
       )
     }
@@ -1307,17 +2022,20 @@ object ParameterizedStructure {
     }
     val distinct = roots.foldLeft(Vector.empty[ElaborationIntegerParameterRoot]) {
       case (known, root) if known.exists(_ eq root) => known
-      case (known, root)                           => known :+ root
+      case (known, root)                            => known :+ root
     }
-    distinct.groupBy(_.name).collectFirst {
-      case (name, declarations) if declarations.size > 1 => name
-    }.foreach { name =>
-      fail(
-        "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED",
-        s"$role combines independently sourced declarations for parameter '$name'",
-        distinct.find(_.name == name).flatMap(_.sourceLocation).orElse(sourceLocation)
-      )
-    }
+    distinct
+      .groupBy(_.name)
+      .collectFirst {
+        case (name, declarations) if declarations.size > 1 => name
+      }
+      .foreach { name =>
+        fail(
+          "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED",
+          s"$role combines independently sourced declarations for parameter '$name'",
+          distinct.find(_.name == name).flatMap(_.sourceLocation).orElse(sourceLocation)
+        )
+      }
   }
 
   private def validateParameters(
@@ -1357,15 +2075,17 @@ object ParameterizedStructure {
       }
     }
     val grouped = parameters.groupBy(_.name)
-    grouped.collectFirst {
-      case (name, values) if values.distinct.size != 1 => name
-    }.foreach { name =>
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
-        s"structural parameter '$name' has conflicting declarations",
-        sourceLocation
-      )
-    }
+    grouped
+      .collectFirst {
+        case (name, values) if values.distinct.size != 1 => name
+      }
+      .foreach { name =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
+          s"structural parameter '$name' has conflicting declarations",
+          sourceLocation
+        )
+      }
     grouped.toVector.map(_._2.head).sortBy(_.name)
   }
 

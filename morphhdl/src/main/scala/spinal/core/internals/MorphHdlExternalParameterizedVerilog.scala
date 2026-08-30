@@ -281,6 +281,13 @@ object MorphHdlExternalParameterizedVerilog {
       case (_, record) => retainInteger(record.expression)
     }
 
+    ExternalParameterizedAutoResize
+      .normalizedTypedUIntResizeBoundariesOf(component)
+      .foreach { boundary =>
+        retainInteger(boundary.sourceWidth)
+        retainInteger(boundary.targetWidth)
+      }
+
     def retainRegion(region: ParameterizedStructure.StructuralRegion): Unit = {
       region match {
         case value: ParameterizedStructure.StructuralFor  =>
@@ -574,6 +581,7 @@ object MorphHdlExternalParameterizedVerilog {
   ): Vector[ElaborationIntegerParameter] = {
     val values =
       ParameterizedWidth.parametersOf(component) ++
+        ExternalParameterizedAutoResize.parametersOf(component) ++
         ExternalParameterizedMemoryRegistry.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
@@ -592,6 +600,7 @@ object MorphHdlExternalParameterizedVerilog {
 
   private def hasParameterizedMetadata(component: Component): Boolean =
     ParameterizedWidth.parametersOf(component).nonEmpty ||
+      ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
       ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
       ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
       ParameterizedVerilogStructural.hasRegions(component) ||
@@ -614,11 +623,13 @@ object MorphHdlExternalParameterizedVerilog {
       component: Component
   ): Boolean =
     ParameterizedWidth.parametersOf(component).nonEmpty ||
+      ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
       ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
       ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
       ParameterizedProcess.parametersOf(component).nonEmpty ||
       component.children.exists { child =>
         ParameterizedWidth.parametersOf(child).nonEmpty ||
+          ExternalParameterizedAutoResize.parametersOf(child).nonEmpty ||
           ExternalParameterizedMemoryRegistry.parametersOf(child).nonEmpty ||
           ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty ||
           ParameterizedStructure.parametersOf(child).nonEmpty ||

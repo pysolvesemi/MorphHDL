@@ -6,6 +6,7 @@ on:
       - main
       - parameterized-verilog
       - 'agent/increment-53d-*'
+      - 'agent/increment-53e-*'
   pull_request:
     branches:
       - main
@@ -28,6 +29,7 @@ jobs:
       - name: Check out complete history
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Syntax-check and test both guard contracts

@@ -1,6 +1,7 @@
 package spinal.core
 
 import java.lang.ref.{ReferenceQueue, WeakReference}
+import java.util.IdentityHashMap
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -31,8 +32,7 @@ private[core] final class ExternalParameterizedValueIdentityRef(
   }
 }
 
-/**
-  * MorphHDL-owned exact-object registry for symbolic integer values used by an
+/** MorphHDL-owned exact-object registry for symbolic integer values used by an
   * otherwise ordinary native hardware expression. It does not discover values
   * from concrete literals, names, ports or module identities.
   */
@@ -101,7 +101,7 @@ object ExternalParameterizedValueRegistry {
       sourceLocation.orElse(expression.sourceLocation)
     )
     retained.get(key) match {
-      case Some(existing) if existing != incoming =>
+      case Some(existing) if !equivalentRecord(existing, incoming) =>
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-VALUE-CONFLICT",
           "one exact UInt object received conflicting retained value expressions",
@@ -119,6 +119,14 @@ object ExternalParameterizedValueRegistry {
     value
   }
 
+  private def equivalentRecord(
+      left: ExternalParameterizedValueRecord,
+      right: ExternalParameterizedValueRecord
+  ): Boolean =
+    left.witness == right.witness &&
+      left.sourceLocation == right.sourceLocation &&
+      ElabInt.equivalentExpression(left.expression, right.expression)
+
   def recordOf(value: UInt): Option[ExternalParameterizedValueRecord] = synchronized {
     if (value == null) None
     else {
@@ -133,11 +141,11 @@ object ExternalParameterizedValueRegistry {
       case value: UInt => recordOf(value).foreach(record => values += value -> record)
       case _           =>
     }
-    values
-      .groupBy { case (value, _) => System.identityHashCode(value) }
-      .values
-      .map(_.head)
-      .toVector
+    val seen = new IdentityHashMap[UInt, java.lang.Boolean]()
+    values.toVector
+      .filter { case (value, _) =>
+        seen.put(value, java.lang.Boolean.TRUE) == null
+      }
       .sortBy { case (value, record) =>
         (Option(value.getName()).getOrElse(""), record.expression.verilog)
       }
@@ -151,14 +159,16 @@ object ExternalParameterizedValueRegistry {
     )
     val parameters = expressions.flatMap(_.parameters)
     val grouped = parameters.groupBy(_.name)
-    grouped.collectFirst {
-      case (name, declarations) if declarations.distinct.size != 1 => name
-    }.foreach { name =>
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
-        s"parameter '$name' has conflicting retained UInt value declarations"
-      )
-    }
+    grouped
+      .collectFirst {
+        case (name, declarations) if declarations.distinct.size != 1 => name
+      }
+      .foreach { name =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
+          s"parameter '$name' has conflicting retained UInt value declarations"
+        )
+      }
     grouped.toVector.map(_._2.head).sortBy(_.name)
   }
 

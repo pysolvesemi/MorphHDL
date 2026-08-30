@@ -36,22 +36,50 @@
       "path": "core/src/main/scala/spinal/core/ElabInt.scala",
       "change": "added",
       "classification": "typed-helper",
-      "blob": "190d5478f300d98bdc5ff46fec4b30f848248642",
-      "reason": "provide the single neutral ElabInt and ElabBool carrier owned by core with exact declaration-root identity"
+      "blob": "b0dc24e9a93349c6f9c0bd0ebf3fe2f153b302fe",
+      "reason": "provide the single neutral ElabInt and ElabBool carrier with exact declaration-root, evidence and projection identity"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationExactDomain.scala",
+      "change": "added",
+      "classification": "typed-helper",
+      "blob": "1ea2a9d83a74143b27a71d66fbd898a34de443b5",
+      "reason": "provide identity-rooted exhaustive evidence and branch-local construction projection for bounded typed expressions"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationProjectionRegistry.scala",
+      "change": "added",
+      "classification": "typed-helper",
+      "blob": "a8279f4b0667616c4f666c3f7e0b45ca6dec1ffe",
+      "reason": "retain private expression-identity provenance for exact branch projection ownership"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Mem.scala",
+      "change": "modified",
+      "classification": "typed-formal-or-overload",
+      "blob": "9d9e69f55c78ead0b806398bbafef6e2ea0c8aa3",
+      "reason": "add the typed memory-depth overload while keeping native Mem construction authoritative"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Misc.scala",
+      "change": "modified",
+      "classification": "typed-formal-or-overload",
+      "blob": "b19000ecd3a028900f2f60fba397059d18a867d9",
+      "reason": "add typed log2Up and isPow2 overloads without changing concrete helpers"
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedMemory.scala",
       "change": "modified",
       "classification": "typed-helper",
-      "blob": "07dda84cb1af444da7719a9dc440ece1e9fb237d",
-      "reason": "preserve exact declaration-root provenance through typed memory metadata"
+      "blob": "2a4e227655940935a3f0de24d02cd5f5f3f53beb",
+      "reason": "validate and retain exact declaration-root and projected typed memory-depth provenance"
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
       "change": "modified",
       "classification": "typed-helper",
-      "blob": "b2c953063e5b232ed3e1c8c78b3e33628672cc26",
-      "reason": "retain typed widths, exact declaration roots and exact native Resize identity"
+      "blob": "56f5d0f50e8ec40cfbda4299d2b8d6fd518fecae",
+      "reason": "retain typed widths, exact evidence, projection ownership and exact native Resize identity"
     },
     {
       "path": "core/src/main/scala/spinal/core/SInt.scala",
@@ -68,6 +96,13 @@
       "reason": "preserve typed factory direction and exact typed resize geometry"
     },
     {
+      "path": "core/src/main/scala/spinal/core/Vec.scala",
+      "change": "modified",
+      "classification": "typed-formal-or-overload",
+      "blob": "0d55e325eb7cf4233cddd8b2377344a1cca3e06c",
+      "reason": "add typed Vec builders that require one exact active branch-local size"
+    },
+    {
       "path": "core/src/main/scala/spinal/core/core.scala",
       "change": "modified",
       "classification": "typed-helper",
@@ -78,8 +113,8 @@
       "path": "lib/src/main/scala/spinal/lib/Stream.scala",
       "change": "modified",
       "classification": "typed-mechanical-propagation",
-      "blob": "1733a6f443259b7dad7672cbfa2386b2099e8dc4",
-      "reason": "mechanically carry typed widths through the existing native StreamWidthAdapter algorithm"
+      "blob": "33e8497dabeaa2eb0acdaebe8a89f0f8c547f7d3",
+      "reason": "carry typed depth and branch-local geometry through the existing native StreamFifo algorithm"
     }
   ]
 }

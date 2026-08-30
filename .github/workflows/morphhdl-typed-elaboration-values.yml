@@ -5,6 +5,7 @@ on:
     branches:
       - parameterized-verilog
       - 'agent/increment-53d-*'
+      - 'agent/increment-53e-*'
   pull_request:
     branches:
       - parameterized-verilog
@@ -24,6 +25,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Check single-owner typed carrier boundaries
         shell: bash
@@ -63,6 +66,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
       - name: Compile production and test sources

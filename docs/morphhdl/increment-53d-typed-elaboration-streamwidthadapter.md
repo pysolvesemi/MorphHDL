@@ -93,5 +93,6 @@ final head for Scala 2.12.18 and 2.13.12:
   the typed production path;
 - no MorphHDL-authored replacement StreamWidthAdapter algorithm.
 
-StreamFifo and StreamFifoCC typed depth migration belongs to Increment 53e and
-is not a prerequisite for closing this increment.
+StreamFifo typed depth migration belongs to Increment 53e and is not a
+prerequisite for closing this increment. StreamFifoCC remains part of the later
+typed-primitive closure rather than the 53e scope.

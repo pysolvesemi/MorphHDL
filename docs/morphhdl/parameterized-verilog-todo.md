@@ -225,8 +225,8 @@ retained for traceability:
 ### Typed architecture dependency graph from Increment 53d
 
 - Increment 53d depends on merged Increment 53c and is the mandatory pivot to
-  typed elaboration values. It is now the first unchecked sequential target.
-- Increment 53e depends on merged Increment 53d and migrates native StreamFifo
+  typed elaboration values; that pivot is implemented and merged.
+- Increment 53e follows merged Increment 53d and migrates native StreamFifo
   depth and branch-local geometry to the typed path.
 - Increment 53f depends on merged Increment 53e and closes typed Counter, Mem,
   Vec, helper and finite-range primitives needed by broad library reuse.
@@ -493,7 +493,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   bridge manifest. The legacy shadow-width implementation remains only as an
   oracle and must not be used by the migrated adapter.
 
-- [ ] **Increment 53e — Typed StreamFifo depth and branch-local geometry**
+- [x] **Increment 53e — Typed StreamFifo depth and branch-local geometry**
 
   **Dependencies:** Increment 53d implemented and merged.
 

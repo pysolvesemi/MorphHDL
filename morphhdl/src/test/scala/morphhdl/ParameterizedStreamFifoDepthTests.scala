@@ -11,23 +11,21 @@ import spinal.core._
 import spinal.lib._
 
 import morphhdl.frontend.HdlInt
-import morphhdl.frontend.HdlInt.hdlIntToParameterizedMemoryDepth
 
-final class NativeParameterizedStreamFifoHarness(depth: HdlInt)
-    extends Component {
+final class NativeParameterizedStreamFifoHarness(depth: HdlInt) extends Component {
   setDefinitionName("NativeParameterizedStreamFifoHarness")
 
   val io = new Bundle {
     val push = slave Stream (Bits(8 bits))
     val pop = master Stream (Bits(8 bits))
-    val flush = in Bool()
+    val flush = in Bool ()
     val occupancy = out UInt (4 bits)
     val availability = out UInt (4 bits)
   }
 
   val fifo = spinal.lib.StreamFifo(
     HardType(Bits(8 bits)),
-    depth
+    depth.asElabInt
   )
   fifo.setName("fifo")
   fifo.io.push << io.push
@@ -37,8 +35,7 @@ final class NativeParameterizedStreamFifoHarness(depth: HdlInt)
   io.availability := fifo.io.availability.resized
 }
 
-final class UnsafeStructuralAssignmentHarness(depth: HdlInt)
-    extends Component {
+final class UnsafeStructuralAssignmentHarness(depth: HdlInt) extends Component {
   setDefinitionName("UnsafeStructuralAssignmentHarness")
   val observed = out(Bool())
   observed := False
@@ -46,7 +43,70 @@ final class UnsafeStructuralAssignmentHarness(depth: HdlInt)
   else observed := False
 }
 
+object SymbolicStreamFifoFormalHelperHarness {
+  sealed trait Operation {
+    def id: String
+    def invoke(fifo: StreamFifo[Bits]): Unit
+  }
+
+  case object CheckLastPush extends Operation {
+    override val id = "check-last-push"
+    override def invoke(fifo: StreamFifo[Bits]): Unit = {
+      fifo.formalCheckLastPush(_.orR)
+      ()
+    }
+  }
+
+  case object CheckRam extends Operation {
+    override val id = "check-ram"
+    override def invoke(fifo: StreamFifo[Bits]): Unit = {
+      fifo.formalCheckRam(_.orR)
+      ()
+    }
+  }
+
+  case object Contains extends Operation {
+    override val id = "contains"
+    override def invoke(fifo: StreamFifo[Bits]): Unit = {
+      fifo.formalContains(_.orR)
+      ()
+    }
+  }
+
+  case object Count extends Operation {
+    override val id = "count"
+    override def invoke(fifo: StreamFifo[Bits]): Unit = {
+      fifo.formalCount(_.orR)
+      ()
+    }
+  }
+
+  case object FullToEmpty extends Operation {
+    override val id = "full-to-empty"
+    override def invoke(fifo: StreamFifo[Bits]): Unit = {
+      fifo.formalFullToEmpty()
+      ()
+    }
+  }
+
+  val Operations = Vector(CheckLastPush, CheckRam, Contains, Count, FullToEmpty)
+}
+
+final class SymbolicStreamFifoFormalHelperHarness(
+    depth: HdlInt,
+    operation: SymbolicStreamFifoFormalHelperHarness.Operation
+) extends Component {
+  val fifo = spinal.lib.StreamFifo(
+    HardType(Bits(8 bits)),
+    depth.asElabInt
+  )
+  operation.invoke(fifo)
+}
+
 class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
+  private val SymbolicFormalDepthCode =
+    "SPINAL-ELAB-STREAMFIFO-FORMAL-SYMBOLIC-DEPTH-UNSUPPORTED"
+
   private val ExpectedStreamFifoModuleInventory =
     Vector("NativeParameterizedStreamFifoHarness", "StreamFifo").sorted
 
@@ -66,14 +126,36 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       .findFirstIn(verilog)
       .getOrElse(fail("Native StreamFifo module definition is missing"))
 
-  private def component(): NativeParameterizedStreamFifoHarness = {
+  private def component(default: Int = 5): NativeParameterizedStreamFifoHarness = {
     val depth = HdlInt.param(
       "DEPTH",
-      default = BigInt(5),
+      default = BigInt(default),
       min = BigInt(1),
       max = BigInt(8)
     )
     new NativeParameterizedStreamFifoHarness(depth)
+  }
+
+  test("default depth one still captures the native storage alternative") {
+    withTemporaryDirectory { directory =>
+      val config = synchronousResetConfig(directory)
+      config.netlistFileName = "stream_fifo_default_one.v"
+      val report = MorphVerilog(config)(component(default = 1))
+      val verilog = read(directory.resolve(config.netlistFileName))
+      val nativeStreamFifo = nativeStreamFifoDefinition(verilog)
+
+      assert(report.parameters.map(parameter => parameter.name -> parameter.default) == Vector("DEPTH" -> BigInt(1)))
+      assert(verilog.contains("parameter integer DEPTH = 1"))
+      assert(verilog.contains(".DEPTH(DEPTH)"))
+      assert(
+        verilog.contains("[0:DEPTH-1]") ||
+          verilog.contains("[0:(DEPTH - 1)]")
+      )
+      assert("""DEPTH\s*\)?\s*>\s*\(?\s*1""".r.findFirstIn(nativeStreamFifo).nonEmpty)
+      assert(
+        streamFifoModuleInventory(verilog) == ExpectedStreamFifoModuleInventory
+      )
+    }
   }
 
   test("one native StreamFifo definition preserves depths 1, 3, 5 and 8") {
@@ -132,19 +214,25 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
         parameterized.contains("[0:DEPTH-1]") ||
           parameterized.contains("[0:(DEPTH - 1)]")
       )
-      assert(parameterized.contains("clog2(DEPTH, 1)"))
+      // Typed log2Up preserves log2Up(1) == 0.  Its use as a packed width is
+      // valid here because the declaration is owned by the DEPTH > 1 branch.
+      assert(parameterized.contains("clog2(DEPTH, 0)"))
       assert(parameterized.contains("function integer clog2;"))
       assert(!parameterized.contains("morphhdl_address_width"))
       assert(!parameterized.contains("morphhdl_ceil_log2"))
       val nativeStreamFifo = nativeStreamFifoDefinition(parameterized)
+      val depthOneCondition =
+        """DEPTH\s*\)?\s*==\s*\(?\s*1""".r.findFirstMatchIn(nativeStreamFifo)
+      val storageCondition =
+        """DEPTH\s*\)?\s*>\s*\(?\s*1""".r.findFirstMatchIn(nativeStreamFifo)
       assert(nativeStreamFifo.contains("generate"))
-      assert(nativeStreamFifo.contains("DEPTH == 1"))
-      assert(nativeStreamFifo.contains("DEPTH > 1"))
+      assert(depthOneCondition.nonEmpty)
+      assert(storageCondition.nonEmpty)
       assert(
         nativeStreamFifo.contains("DEPTH & (DEPTH - 1)") ||
           nativeStreamFifo.contains("DEPTH & (DEPTH-1)")
       )
-      val logicAlternative = nativeStreamFifo.indexOf("DEPTH > 1")
+      val logicAlternative = storageCondition.get.start
       val powerOfTwoAlternative = nativeStreamFifo.indexOf("DEPTH &")
       assert(logicAlternative >= 0 && powerOfTwoAlternative > logicAlternative)
       assert(parameterized.contains("io_push_ready"))
@@ -220,6 +308,45 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
         streamFifoModules == ExpectedStreamFifoModuleInventory,
         s"Unexpected StreamFifo module inventory: ${streamFifoModules.mkString(", ")}"
       )
+    }
+  }
+
+  test("symbolic formal helpers fail closed independently of the default witness") {
+    import SymbolicStreamFifoFormalHelperHarness._
+
+    withTemporaryDirectory { directory =>
+      val observedCodes = for {
+        default <- Vector(1, 5)
+        operation <- Operations
+      } yield {
+        val target = directory.resolve(s"default-$default-${operation.id}")
+        Files.createDirectories(target)
+        val config = synchronousResetConfig(target)
+        config.netlistFileName = "symbolic_stream_fifo_formal_helper.v"
+        val depth = HdlInt.param(
+          "DEPTH",
+          default = BigInt(default),
+          min = BigInt(1),
+          max = BigInt(8)
+        )
+
+        MorphVerilog.tryGenerate(config) {
+          new SymbolicStreamFifoFormalHelperHarness(depth, operation)
+        } match {
+          case Left(failure) =>
+            assert(
+              failure.detail.contains(SymbolicFormalDepthCode),
+              failure.detail
+            )
+            SymbolicFormalDepthCode
+          case Right(report) =>
+            fail(
+              s"Expected $SymbolicFormalDepthCode for default $default and ${operation.id}, received $report"
+            )
+        }
+      }
+
+      assert(observedCodes.toSet == Set(SymbolicFormalDepthCode))
     }
   }
 
@@ -412,7 +539,7 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
     val simulationLog = run(directory, Seq("vvp", executable.toString))
     if (
       simulationLog._1 != 0 ||
-        !simulationLog._2.contains(s"PASS depth=$selectedDepth")
+      !simulationLog._2.contains(s"PASS depth=$selectedDepth")
     ) {
       println(s"--- BEGIN PARAMETERIZED FIFO RTL depth=$selectedDepth ---")
       println(read(rtl))
@@ -474,8 +601,8 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
     finally {
       val stream = Files.walk(directory)
       try {
-        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach {
-          path => Files.deleteIfExists(path)
+        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach { path =>
+          Files.deleteIfExists(path)
         }
       } finally stream.close()
     }

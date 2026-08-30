@@ -6,8 +6,8 @@ import scala.collection.mutable.ArrayBuffer
 
 import spinal.core._
 
-/**
-  * Exact, generation-local provenance for native UInt `.resized` assignments.
+/** Exact, generation-local provenance for native UInt `.resized` assignments
+  * and explicit typed UInt resize carriers that may be normalized away.
   *
   * SpinalHDL removes `tagAutoResize` while normalizing inputs, before the
   * MorphHDL publication pass validates symbolic widths. Capture therefore runs
@@ -23,7 +23,10 @@ object ExternalParameterizedAutoResize {
       outer: DataAssignmentStatement,
       target: UInt,
       resizeSource: UInt,
-      sourceDriver: DataAssignmentStatement
+      sourceDriver: DataAssignmentStatement,
+      typedTarget: Option[ElaborationIntegerExpression],
+      typedResize: Option[ResizeUInt],
+      typedInput: Option[UInt]
   )
 
   private final case class Record(
@@ -31,7 +34,21 @@ object ExternalParameterizedAutoResize {
       outer: DataAssignmentStatement,
       target: UInt,
       resizeSource: UInt,
-      sourceDriver: DataAssignmentStatement
+      sourceDriver: DataAssignmentStatement,
+      typedTarget: Option[ElaborationIntegerExpression],
+      typedResize: Option[ResizeUInt],
+      typedInput: Option[UInt]
+  )
+
+  /** Exact capture-time lineage for one explicit typed UInt resize whose
+    * carrier was normalized into its fixed consumer. The publication rewrite
+    * uses both retained width expressions to reconstruct the removed resize;
+    * this record alone never authorizes direct-assignment equivalence.
+    */
+  private[internals] final case class NormalizedTypedUIntResizeBoundary(
+      source: UInt,
+      sourceWidth: ElaborationIntegerExpression,
+      targetWidth: ElaborationIntegerExpression
   )
 
   private final case class SyntheticBooleanRecord(
@@ -64,12 +81,14 @@ object ExternalParameterizedAutoResize {
       new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
     ParameterizedStructure
       .capturedWitnessInactiveDataAssignmentsOf(component)
-      .foreach(statement =>
-        witnessInactiveAssignments.put(statement, java.lang.Boolean.TRUE)
-      )
+      .foreach(statement => witnessInactiveAssignments.put(statement, java.lang.Boolean.TRUE))
     val candidatesBySource =
       new IdentityHashMap[UInt, ArrayBuffer[Candidate]]()
     val drivingUseCount = new IdentityHashMap[BaseType, java.lang.Integer]()
+    val typedResizeCarriers =
+      new IdentityHashMap[BitVector, java.lang.Boolean]()
+    val directTypedConsumers =
+      new IdentityHashMap[BitVector, ArrayBuffer[DataAssignmentStatement]]()
     val syntheticBySource =
       new IdentityHashMap[UInt, java.lang.Boolean]()
     val syntheticRecords = ArrayBuffer.empty[SyntheticBooleanRecord]
@@ -90,6 +109,27 @@ object ExternalParameterizedAutoResize {
 
     component.dslBody.walkLeafStatements {
       case outer: DataAssignmentStatement =>
+        outer.target match {
+          case value: BitVector
+              if (outer.finalTarget eq value) &&
+                value.hasTag(ParameterizedWidth.TypedResizeCaptureTag) =>
+            typedResizeCarriers.put(value, java.lang.Boolean.TRUE)
+          case _ =>
+        }
+        (outer.target, outer.source) match {
+          case (target: BitVector, source: BitVector)
+              if (outer.finalTarget eq target) &&
+                (target.component eq component) &&
+                (source.component eq component) &&
+                source.hasTag(ParameterizedWidth.TypedResizeCaptureTag) =>
+            var consumers = directTypedConsumers.get(source)
+            if (consumers == null) {
+              consumers = ArrayBuffer.empty[DataAssignmentStatement]
+              directTypedConsumers.put(source, consumers)
+            }
+            consumers += outer
+          case _ =>
+        }
         syntheticBooleanRecord(
           component,
           outer,
@@ -107,7 +147,8 @@ object ExternalParameterizedAutoResize {
                 (resizeSource.component eq component) &&
                 resizeSource.isComb &&
                 resizeSource.isDirectionLess &&
-                resizeSource.hasTag(tagAutoResize) &&
+                (resizeSource.hasTag(tagAutoResize) ||
+                  resizeSource.hasTag(ParameterizedWidth.TypedResizeCaptureTag)) &&
                 !syntheticBySource.containsKey(resizeSource) &&
                 resizeSource.hasOnlyOneStatement =>
             val sourceDriver = resizeSource.head match {
@@ -120,19 +161,67 @@ object ExternalParameterizedAutoResize {
               case _ => None
             }
             sourceDriver.foreach { driver =>
-              val candidate = Candidate(
-                component,
-                outer,
-                target,
-                resizeSource,
-                driver
-              )
-              var candidates = candidatesBySource.get(resizeSource)
-              if (candidates == null) {
-                candidates = ArrayBuffer.empty[Candidate]
-                candidatesBySource.put(resizeSource, candidates)
+              val typedCapture =
+                resizeSource.hasTag(ParameterizedWidth.TypedResizeCaptureTag)
+              val typedTarget =
+                if (typedCapture)
+                  ParameterizedWidth
+                    .expressionOf(resizeSource)
+                    .filter(_.parameters.nonEmpty)
+                else None
+              if (typedCapture && typedTarget.isEmpty) {
+                ParameterizedVerilogException.fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-NORMALIZED-TYPED-RESIZE-TARGET-WIDTH-MISSING",
+                  "a typed UInt resize capture marker has no exact symbolic target-width provenance"
+                )
               }
-              candidates += candidate
+              val typedLineage = typedTarget.flatMap { expected =>
+                driver.source match {
+                  case resize: ResizeUInt
+                      if resize.getTypeObject == TypeUInt &&
+                        resize.size == resizeSource.getBitsWidth =>
+                    resize.input match {
+                      case input: UInt
+                          if ParameterizedWidth
+                              .resizeExpressionOf(resize)
+                              .exists { retained =>
+                                ExternalFormalParameterRegistry
+                                  .equivalentExpression(retained, expected)
+                              } =>
+                        Some(resize -> input)
+                      case _ => None
+                    }
+                  case _ => None
+                }
+              }
+              if (typedTarget.nonEmpty && typedLineage.isEmpty) {
+                ParameterizedVerilogException.fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-NORMALIZED-TYPED-RESIZE-LINEAGE-UNPROVEN",
+                  "a symbolic typed UInt resize reached native normalization without exact Resize/input lineage",
+                  typedTarget.flatMap(_.sourceLocation)
+                )
+              }
+              if (
+                resizeSource.hasTag(tagAutoResize) ||
+                typedCapture
+              ) {
+                val candidate = Candidate(
+                  component,
+                  outer,
+                  target,
+                  resizeSource,
+                  driver,
+                  typedTarget,
+                  typedLineage.map(_._1),
+                  typedLineage.map(_._2)
+                )
+                var candidates = candidatesBySource.get(resizeSource)
+                if (candidates == null) {
+                  candidates = ArrayBuffer.empty[Candidate]
+                  candidatesBySource.put(resizeSource, candidates)
+                }
+                candidates += candidate
+              }
             }
           case _ =>
         }
@@ -152,7 +241,10 @@ object ExternalParameterizedAutoResize {
           candidate.outer,
           candidate.target,
           candidate.resizeSource,
-          candidate.sourceDriver
+          candidate.sourceDriver,
+          candidate.typedTarget,
+          candidate.typedResize,
+          candidate.typedInput
         )
         provisional += record
       }
@@ -177,6 +269,15 @@ object ExternalParameterizedAutoResize {
         owners.get(record.outer).size == 1 &&
         owners.get(record.sourceDriver).size == 1
       ) {
+        record.typedTarget.foreach { expected =>
+          ParameterizedStructure.validateProjectedAssignmentDominance(
+            component,
+            record.outer,
+            expected,
+            "typed UInt resize capture target width",
+            expected.sourceLocation
+          )
+        }
         storage.byStatement.put(record.outer, record)
         storage.byStatement.put(record.sourceDriver, record)
         storage.byResizeSource.put(record.resizeSource, record)
@@ -185,6 +286,209 @@ object ExternalParameterizedAutoResize {
     storage.syntheticBoolean ++= syntheticRecords
     if (!storage.byStatement.isEmpty || storage.syntheticBoolean.nonEmpty) {
       component.userCache.update(StorageKey, storage)
+    }
+
+    def survivesUnnamedRemoval(value: BitVector): Boolean = {
+      val useCount = drivingUseCount.get(value)
+      !value.isDirectionLess || value.isNamed || value.dontSimplify ||
+      useCount == null || useCount.intValue() != 1
+    }
+
+    /** The generalized whole-assignment path renders a symbolic narrowing
+      * select from the original Resize input. Admit only the small native
+      * fixed-width expression grammar used by StreamWidthAdapter; a witness
+      * width for any other node is not exact publication-time evidence.
+      */
+    def hasInvariantPackedWidth(expression: Expression): Boolean = {
+      val states =
+        new IdentityHashMap[Expression, java.lang.Boolean]()
+      val activeBases =
+        new IdentityHashMap[BaseType, java.lang.Boolean]()
+
+      def visit(current: Expression): Boolean = {
+        if (current == null) return false
+        current match {
+          // Width inference treats a self-reference reached through one
+          // already-reviewed fixed declaration as that declaration's width.
+          case value: BaseType if activeBases.containsKey(value) => return true
+          case _ =>
+        }
+        val known = states.get(current)
+        // FALSE marks an active or already-rejected generic node. Only the
+        // explicit BaseType case above may close its own fixed-width cycle.
+        if (known != null) return known.booleanValue()
+        states.put(current, java.lang.Boolean.FALSE)
+
+        val invariant = current match {
+          case value: BaseType
+              if (value.component ne component) ||
+                value.hasTag(tagAutoResize) ||
+                value.hasTag(ParameterizedWidth.TypedResizeCaptureTag) ||
+                ParameterizedWidth.expressionOf(value).nonEmpty ||
+                (value match {
+                  case uint: UInt =>
+                    ExternalParameterizedValueRegistry.recordOf(uint).nonEmpty
+                  case _ => false
+                }) =>
+            false
+          case value: BaseType =>
+            val fullDrivers = ArrayBuffer.empty[DataAssignmentStatement]
+            value.foreachStatements {
+              case driver: DataAssignmentStatement
+                  if (driver.target eq value) &&
+                    (driver.finalTarget eq value) =>
+                fullDrivers += driver
+              case _ =>
+            }
+            activeBases.put(value, java.lang.Boolean.TRUE)
+            try {
+              if (fullDrivers.nonEmpty)
+                fullDrivers.forall(driver => visit(driver.source))
+              else value.isInput
+            } finally activeBases.remove(value)
+          case value: BitVectorLiteral =>
+            value.getWidth >= 0
+          case value: Operator.Bits.Cat =>
+            value.getWidth == value.left.getWidth + value.right.getWidth &&
+              visit(value.left) && visit(value.right)
+          case value: CastBitVectorToBitVector =>
+            value.input != null &&
+              value.getWidth == value.input.getWidth &&
+              visit(value.input)
+          case value: Operator.BitVector.ShiftRightByIntFixedWidth =>
+            value.source != null &&
+              value.getWidth == value.source.getWidth &&
+              visit(value.source)
+          case value: Operator.BitVector.ShiftLeftByIntFixedWidth =>
+            value.source != null &&
+              value.getWidth == value.source.getWidth &&
+              visit(value.source)
+          case value: Operator.BitVector.ShiftRightByInt =>
+            value.source != null && value.shift >= 0 &&
+              value.getWidth == Math.max(
+                0,
+                value.source.getWidth - value.shift
+              ) &&
+              visit(value.source)
+          case value: Operator.BitVector.ShiftLeftByInt =>
+            value.source != null && value.shift >= 0 &&
+              BigInt(value.getWidth) ==
+                BigInt(value.source.getWidth) + BigInt(value.shift) &&
+              visit(value.source)
+          // Resize may carry another typed target; memory reads and all
+          // unreviewed operators need their own publication-time width proof.
+          case _ => false
+        }
+        if (invariant) states.put(current, java.lang.Boolean.TRUE)
+        invariant
+      }
+
+      visit(expression)
+    }
+
+    def reviewedWholeAssignmentBoundary(value: BitVector): Boolean = {
+      val consumers = directTypedConsumers.get(value)
+      if (consumers == null || consumers.size != 1) return false
+
+      val outer = consumers.head
+      val target = outer.target match {
+        case candidate: BitVector
+            if (outer.finalTarget eq candidate) &&
+              (outer.source eq value) &&
+              candidate.getBitsWidth == value.getBitsWidth =>
+          candidate
+        case _ => return false
+      }
+      val targetWidth =
+        ParameterizedWidth.expressionOf(target).filter(_.parameters.nonEmpty)
+      val resizeWidth =
+        ParameterizedWidth.expressionOf(value).filter(_.parameters.nonEmpty)
+      val resize =
+        if (!value.hasOnlyOneStatement) None
+        else
+          value.head match {
+            case driver: DataAssignmentStatement
+                if (driver.target eq value) &&
+                  (driver.finalTarget eq value) =>
+              driver.source match {
+                case candidate: Resize
+                    if candidate.getTypeObject == value.getTypeObject &&
+                      candidate.size == value.getBitsWidth &&
+                      candidate.input.getWidth != 0 &&
+                      candidate.input.getWidth != candidate.size =>
+                  Some(candidate)
+                case _ => None
+              }
+            case _ => None
+          }
+
+      (targetWidth, resizeWidth, resize) match {
+        case (Some(expected), Some(retained), Some(operation))
+            if ExternalFormalParameterRegistry.equivalentExpression(
+              expected,
+              retained
+            ) &&
+              ParameterizedWidth
+                .resizeExpressionOf(operation)
+                .exists(expression =>
+                  ExternalFormalParameterRegistry.equivalentExpression(
+                    expression,
+                    retained
+                  )
+                ) &&
+              hasInvariantPackedWidth(operation.input) &&
+              retained.maximum <= BigInt(operation.input.getWidth) &&
+              survivesUnnamedRemoval(target) =>
+          ParameterizedStructure.validateProjectedAssignmentDominance(
+            component,
+            outer,
+            retained,
+            "typed packed resize whole-assignment target width",
+            retained.sourceLocation
+          )
+          true
+        case _ => false
+      }
+    }
+
+    val typedCarrierIterator = typedResizeCarriers.keySet().iterator()
+    while (typedCarrierIterator.hasNext) {
+      val value = typedCarrierIterator.next()
+      val useCount = drivingUseCount.get(value)
+      val reviewedNormalizedUIntBoundary = value match {
+        case uint: UInt =>
+          Option(storage.byResizeSource.get(uint)).exists { record =>
+            val targetUseCount = drivingUseCount.get(record.target)
+            !record.target.isDirectionLess || record.target.isNamed ||
+            record.target.dontSimplify || targetUseCount == null ||
+            targetUseCount.intValue() != 1
+          }
+        case _ => false
+      }
+      val reviewedDirectBoundary =
+        reviewedNormalizedUIntBoundary ||
+          reviewedWholeAssignmentBoundary(value)
+      // The capture tag intentionally prevents native simplification while
+      // identities are collected. Judge the next phase only after consuming
+      // that marker, exactly as publication will see the carrier.
+      value.removeTag(ParameterizedWidth.TypedResizeCaptureTag)
+      if (
+        useCount != null && useCount.intValue() == 1 &&
+        value.isComb && value.isDirectionLess && value.isUnnamed &&
+        !value.dontSimplify &&
+        !reviewedDirectBoundary
+      ) {
+        ParameterizedVerilogException.fail(
+          "SPINAL-PARAMETERIZED-VERILOG-NESTED-TYPED-RESIZE-UNSUPPORTED",
+          "a one-use typed packed resize is nested in an expression without a reviewed native reconstruction boundary; assign it to an explicit retained carrier first",
+          ParameterizedWidth.expressionOf(value).flatMap(_.sourceLocation)
+        )
+      }
+    }
+    component.dslBody.walkDeclarations {
+      case value: BitVector =>
+        value.removeTag(ParameterizedWidth.TypedResizeCaptureTag)
+      case _ =>
     }
   }
 
@@ -215,6 +519,7 @@ object ExternalParameterizedAutoResize {
             (target.component eq component) &&
             (source.component eq component) &&
             !source.hasTag(tagAutoResize) &&
+            !source.hasTag(ParameterizedWidth.TypedResizeCaptureTag) &&
             transient(source) &&
             source.getBitsWidth == 1 &&
             ParameterizedWidth.expressionOf(target).exists { expression =>
@@ -288,15 +593,60 @@ object ExternalParameterizedAutoResize {
       storageOf(component)
         .flatMap(storage => Option(storage.byResizeSource.get(source.asInstanceOf[UInt])))
         .filter(record => validRecord(component, record))
-        .filter(record =>
-          ParameterizedWidth.expressionOf(record.target).exists(_.parameters.nonEmpty)
-        )
+        .filter(record => typedTargetMatches(record, record.target))
+        .filter(record => ParameterizedWidth.expressionOf(record.target).exists(_.parameters.nonEmpty))
         .map(_.target)
     }
   }
 
-  /**
-    * Prove that a surviving statement is one exact edge of a captured native
+  /** Return the exact source-driver statement for one captured resize clone. */
+  private[internals] def sourceDriverOfResizeSource(
+      component: Component,
+      source: BaseType
+  ): Option[DataAssignmentStatement] = {
+    if (component == null || source == null || !source.isInstanceOf[UInt]) None
+    else {
+      storageOf(component)
+        .flatMap(storage => Option(storage.byResizeSource.get(source.asInstanceOf[UInt])))
+        .filter(record => validRecord(component, record))
+        // A typed explicit resize retains its own target width. Reusing its
+        // pre-resize driver width would erase the explicit conversion.
+        .filter(_.typedTarget.isEmpty)
+        .map(_.sourceDriver)
+    }
+  }
+
+  /** Exact surviving outer Resize, its captured assignment and whole target. */
+  private[internals] def materializedResizeBoundary(
+      component: Component,
+      resize: Resize
+  ): Option[(DataAssignmentStatement, UInt)] = {
+    if (
+      component == null || resize == null ||
+      !resize.isInstanceOf[ResizeUInt] || resize.getTypeObject != TypeUInt
+    ) return None
+
+    val matches = ArrayBuffer.empty[Record]
+    storageOf(component).foreach { storage =>
+      val iterator = storage.byResizeSource.values().iterator()
+      while (iterator.hasNext) {
+        val record = iterator.next()
+        if (
+          validRecord(component, record) &&
+          typedTargetMatches(record, record.target) &&
+          (record.outer.source eq resize) &&
+          (resize.input eq record.resizeSource) &&
+          resize.size == record.target.getBitsWidth
+        ) matches += record
+      }
+    }
+    matches.toVector match {
+      case Vector(record) => Some(record.outer -> record.target)
+      case _              => None
+    }
+  }
+
+  /** Prove that a surviving statement is one exact edge of a captured native
     * UInt `.resized` boundary.
     */
   private[internals] def proves(
@@ -314,6 +664,7 @@ object ExternalParameterizedAutoResize {
             ((assignment eq record.sourceDriver) && (target eq record.resizeSource))
         val currentSource = assignment.source
         exactEdge &&
+        typedTargetMatches(record, target) &&
         (assignment.target eq target) &&
         (assignment.finalTarget eq target) &&
         (target.component eq component) &&
@@ -323,6 +674,150 @@ object ExternalParameterizedAutoResize {
         !currentSource.isInstanceOf[Resize]
       }
   }
+
+  /** Recover one exact explicit typed UInt resize whose carrier was removed by
+    * native input normalization. Capture-time Resize/input identities and the
+    * surviving outer edge must all agree. Merely matching witness widths is
+    * insufficient: callers must reconstruct the removed resize semantics.
+    */
+  private[internals] def normalizedTypedUIntResizeBoundary(
+      component: Component,
+      assignment: DataAssignmentStatement,
+      target: UInt
+  ): Option[NormalizedTypedUIntResizeBoundary] = {
+    if (component == null || assignment == null || target == null) return None
+    storageOf(component)
+      .flatMap(storage => Option(storage.byStatement.get(assignment)))
+      .filter(record => validRecord(component, record))
+      .flatMap { record =>
+        val untypedConsumer =
+          ParameterizedWidth
+            .expressionOf(target)
+            .forall(_.parameters.isEmpty)
+        if (
+          !(assignment eq record.outer) ||
+          !(target eq record.target) ||
+          !untypedConsumer ||
+          !(assignment.target eq target) ||
+          !(assignment.finalTarget eq target) ||
+          !(target.component eq component)
+        ) None
+        else {
+          val lineage = for {
+            resize <- record.typedResize
+            input <- record.typedInput
+            expected <- record.typedTarget
+            if (assignment.source eq input)
+            if (resize.input eq input)
+            if resize.getTypeObject == TypeUInt
+            if resize.size == record.resizeSource.getBitsWidth
+            if ParameterizedWidth.resizeExpressionOf(resize).exists { retained =>
+              ExternalFormalParameterRegistry
+                .equivalentExpression(retained, expected)
+            }
+          } yield (resize, input, expected)
+          lineage.map { case (_, input, expected) =>
+            if (input.component ne component) {
+              ParameterizedVerilogException.fail(
+                "SPINAL-PARAMETERIZED-VERILOG-NORMALIZED-TYPED-RESIZE-SOURCE-OWNER-UNSUPPORTED",
+                "a normalized typed UInt resize cannot move a child-owned or foreign source into its parent's fixed consumer",
+                expected.sourceLocation
+              )
+            }
+            val sourceWidth = ParameterizedWidth.expressionOf(input).orElse {
+              if (input.isInput)
+                Some(ElabInt.literal(input.getBitsWidth).expression)
+              else None
+            }.getOrElse {
+              ParameterizedVerilogException.fail(
+                "SPINAL-PARAMETERIZED-VERILOG-NORMALIZED-TYPED-RESIZE-SOURCE-WIDTH-UNPROVEN",
+                "a normalized typed UInt resize has an internal source without retained width provenance",
+                expected.sourceLocation
+              )
+            }
+            if (sourceWidth.default != BigInt(input.getBitsWidth)) {
+              ParameterizedVerilogException.fail(
+                "SPINAL-PARAMETERIZED-VERILOG-NORMALIZED-TYPED-RESIZE-SOURCE-WITNESS-MISMATCH",
+                s"normalized typed UInt resize source witness ${input.getBitsWidth} does not match retained width '${sourceWidth.verilog}' default ${sourceWidth.default}",
+                sourceWidth.sourceLocation.orElse(expected.sourceLocation)
+              )
+            }
+            ParameterizedStructure.validateProjectedAssignmentDominance(
+              component,
+              assignment,
+              sourceWidth,
+              "normalized typed UInt resize source width",
+              sourceWidth.sourceLocation.orElse(expected.sourceLocation)
+            )
+            ParameterizedStructure.validateProjectedAssignmentDominance(
+              component,
+              assignment,
+              expected,
+              "normalized typed UInt resize target width",
+              expected.sourceLocation.orElse(sourceWidth.sourceLocation)
+            )
+            NormalizedTypedUIntResizeBoundary(input, sourceWidth, expected)
+          }
+        }
+      }
+  }
+
+  /** All exact normalized typed UInt resize boundaries owned by one component.
+    * The assignment walk preserves native graph identity and deterministic
+    * declaration order; no rendered-name inference participates.
+    */
+  private[internals] def normalizedTypedUIntResizeBoundariesOf(
+      component: Component
+  ): Vector[NormalizedTypedUIntResizeBoundary] = {
+    if (component == null) return Vector.empty
+    val boundaries = ArrayBuffer.empty[NormalizedTypedUIntResizeBoundary]
+    component.dslBody.walkLeafStatements {
+      case assignment: DataAssignmentStatement
+          if assignment.target eq assignment.finalTarget =>
+        assignment.target match {
+          case target: UInt =>
+            normalizedTypedUIntResizeBoundary(
+              component,
+              assignment,
+              target
+            ).foreach(boundaries += _)
+          case _ =>
+        }
+      case _ =>
+    }
+    boundaries.toVector
+  }
+
+  private[internals] def parametersOf(
+      component: Component
+  ): Vector[ElaborationIntegerParameter] =
+    normalizedTypedUIntResizeBoundariesOf(component)
+      .flatMap(boundary =>
+        boundary.sourceWidth.parameters ++ boundary.targetWidth.parameters
+      )
+      .distinct
+      .sortBy(_.name)
+
+  /** Whether one exact fixed consumer has a mandatory reconstruction record.
+    * This does not claim that the normalized direct assignment is equivalent.
+    */
+  private[internals] def preservesFixedTypedResizeConsumer(
+      component: Component,
+      assignment: DataAssignmentStatement,
+      target: UInt
+  ): Boolean =
+    normalizedTypedUIntResizeBoundary(component, assignment, target).nonEmpty
+
+  /** An explicit typed resize may authorize only a consumer with the exact
+    * retained target expression. Native `.resized` records carry no typed
+    * target and keep their ordinary whole-target behavior.
+    */
+  private def typedTargetMatches(record: Record, target: UInt): Boolean =
+    record.typedTarget.forall { expected =>
+      ParameterizedWidth.expressionOf(target).exists { actual =>
+        ExternalFormalParameterRegistry.equivalentExpression(expected, actual)
+      }
+    }
 
   private def validSyntheticBooleanRecord(
       component: Component,
@@ -359,8 +854,7 @@ object ExternalParameterizedAutoResize {
         expression.default == BigInt(record.target.getBitsWidth)
       }
 
-  /**
-    * Recover the symbolic target of the exact native Resize materialized after
+  /** Recover the symbolic target of the exact native Resize materialized after
     * capture for a witness-inactive Bool-to-UInt assignment. The Resize does
     * not exist during capture, so its identity is bound lazily through the
     * surviving outer assignment and cast edges. Zero or ambiguous matches fail
@@ -392,7 +886,23 @@ object ExternalParameterizedAutoResize {
     }
   }
 
-  private def validRecord(component: Component, record: Record): Boolean =
+  private def validRecord(component: Component, record: Record): Boolean = {
+    val typedLineageValid = record.typedTarget match {
+      case None => record.typedResize.isEmpty && record.typedInput.isEmpty
+      case Some(expected) =>
+        (record.typedResize, record.typedInput) match {
+          case (Some(resize), Some(input)) =>
+            resize.getTypeObject == TypeUInt &&
+              (resize.input eq input) &&
+              input.component != null &&
+              resize.size == record.resizeSource.getBitsWidth &&
+              ParameterizedWidth.resizeExpressionOf(resize).exists { retained =>
+                ExternalFormalParameterRegistry
+                  .equivalentExpression(retained, expected)
+              }
+          case _ => false
+        }
+    }
     (record.component eq component) &&
       (record.outer ne null) &&
       (record.sourceDriver ne null) &&
@@ -405,7 +915,10 @@ object ExternalParameterizedAutoResize {
       (record.sourceDriver.target eq record.resizeSource) &&
       (record.sourceDriver.finalTarget eq record.resizeSource) &&
       (record.target.component eq component) &&
+      typedTargetMatches(record, record.resizeSource) &&
+      typedLineageValid &&
       record.target.getBitsWidth > 0
+  }
 
   private def storageOf(component: Component): Option[Storage] =
     component.userCache.get(StorageKey).map(_.asInstanceOf[Storage])

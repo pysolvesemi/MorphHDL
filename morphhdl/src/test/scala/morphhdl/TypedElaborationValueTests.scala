@@ -133,7 +133,7 @@ class TypedElaborationValueTests extends AnyFunSuite {
     val error = intercept[ParameterizedVerilogException] {
       first <= independent
     }
-    assert(error.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED")
+    assert(error.code == "SPINAL-ELAB-DOMAIN-EXACT-CORRELATION-UNSUPPORTED")
   }
 
   test("symbolic-to-Int conversion is deliberately unavailable") {
