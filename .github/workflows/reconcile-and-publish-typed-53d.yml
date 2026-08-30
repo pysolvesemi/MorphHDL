@@ -1,0 +1,173 @@
+name: Reconcile and publish typed Increment 53d
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/reconcile-and-publish-typed-53d.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: reconcile-and-publish-typed-increment-53d
+  cancel-in-progress: true
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      GH_TOKEN: ${{ github.token }}
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out staging source
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Save approved typed artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/typed53d
+          for path in \
+            docs/morphhdl/parameterized-verilog-todo.md \
+            docs/morphhdl/typed-elaboration-architecture.md \
+            core/src/main/scala/spinal/core/ElabInt.scala \
+            morphruntime/src/main/scala/spinal/core/ElabControl.scala \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala \
+            morphhdl/src/test/scala/morphhdl/TypedElaborationControlTests.scala \
+            morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py; do
+            test -f "$path"
+            mkdir -p "/tmp/typed53d/$(dirname "$path")"
+            cp "$path" "/tmp/typed53d/$path"
+          done
+
+      - name: Ensure typed roadmap is merged
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin parameterized-verilog
+          if ! git show origin/parameterized-verilog:docs/morphhdl/typed-elaboration-architecture.md >/dev/null 2>&1; then
+            git checkout --detach origin/parameterized-verilog
+            cp /tmp/typed53d/docs/morphhdl/parameterized-verilog-todo.md docs/morphhdl/parameterized-verilog-todo.md
+            cp /tmp/typed53d/docs/morphhdl/typed-elaboration-architecture.md docs/morphhdl/typed-elaboration-architecture.md
+            git diff --check
+            git config user.name 'MorphHDL Agent'
+            git config user.email 'morphhdl-agent@users.noreply.github.com'
+            git add docs/morphhdl/parameterized-verilog-todo.md docs/morphhdl/typed-elaboration-architecture.md
+            git commit -m 'Adopt typed elaboration architecture from Increment 53d'
+            git push --force origin HEAD:agent/typed-elaboration-roadmap-approved
+            number="$(gh pr list --head agent/typed-elaboration-roadmap-approved --base parameterized-verilog --state open --json number --jq '.[0].number // empty')"
+            if [ -z "$number" ]; then
+              url="$(gh pr create --head agent/typed-elaboration-roadmap-approved --base parameterized-verilog --title 'Adopt typed elaboration architecture from Increment 53d' --body 'Makes the typed ElabInt/ElabBool architecture authoritative for Increment 53d and all later parameterization work.')"
+              number="${url##*/}"
+            fi
+            gh pr merge "$number" --squash --admin --subject 'Adopt typed elaboration architecture from Increment 53d'
+          fi
+          git fetch origin parameterized-verilog
+          git show origin/parameterized-verilog:docs/morphhdl/typed-elaboration-architecture.md | grep -Fq 'Approved production architecture from Increment 53d onward'
+          git show origin/parameterized-verilog:docs/morphhdl/parameterized-verilog-todo.md | grep -Fq 'Increment 54 — Typed StreamFifo depth and structural-domain validation'
+
+      - name: Rebuild clean typed 53d candidate from merged policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout --detach origin/parameterized-verilog
+          for path in \
+            core/src/main/scala/spinal/core/ElabInt.scala \
+            morphruntime/src/main/scala/spinal/core/ElabControl.scala \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala \
+            morphhdl/src/test/scala/morphhdl/TypedElaborationControlTests.scala; do
+            mkdir -p "$(dirname "$path")"
+            cp "/tmp/typed53d/$path" "$path"
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala')
+          text = path.read_text()
+          entry = 'new MorphHdlTypedElaborationControlComponent(global)'
+          if entry not in text:
+              for marker in (
+                  'new MorphHdlNaturalSymbolicConditionalComponent(global)',
+                  'new MorphHdlNativeIntShadowExpressionComponent(global)',
+              ):
+                  if marker in text:
+                      text = text.replace(marker, entry + ',\n    ' + marker, 1)
+                      break
+              else:
+                  raise SystemExit('MorphHDL compiler component list not found')
+          path.write_text(text)
+          PY
+          python3 /tmp/typed53d/morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py
+          git diff --check
+
+      - name: Verify architecture and native edit scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'final class ElabInt' core/src/main/scala/spinal/core/ElabInt.scala
+          grep -Fq 'final class ElabBool' core/src/main/scala/spinal/core/ElabInt.scala
+          grep -Fq 'MorphHdlTypedElaborationControlComponent' morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala
+          grep -Fq 'TypedElaborationControlTests' morphhdl/src/test/scala/morphhdl/TypedElaborationControlTests.scala
+          if grep -R -E 'implicit[[:space:]]+def[[:space:]].*ElabInt.*Int|implicit[[:space:]]+def[[:space:]].*ElabBool.*Boolean' core/src/main/scala/spinal/core/ElabInt.scala; then
+            echo 'Implicit typed-to-primitive conversion is forbidden' >&2
+            exit 1
+          fi
+          changed_native="$(git diff --name-only origin/parameterized-verilog -- core lib idslplugin | sort)"
+          printf '%s\n' "$changed_native"
+          test -z "$(printf '%s\n' "$changed_native" | grep -v -E '^(core/src/main/scala/spinal/core/ElabInt.scala|lib/src/main/scala/spinal/lib/Stream.scala)$' || true)"
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate SBT Scala 2.13.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch '++2.13.12' compile Test/compile 'morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.ParameterizedStreamWidthAdapterTests'
+
+      - name: Validate SBT Scala 2.12.18
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch '++2.12.18' compile Test/compile 'morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.ParameterizedStreamWidthAdapterTests'
+
+      - name: Validate Mill Scala 2.13.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.13.12].testOnly morphhdl.TypedElaborationControlTests morphhdl.ParameterizedStreamWidthAdapterTests
+
+      - name: Validate Mill Scala 2.12.18
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.12.18].testOnly morphhdl.TypedElaborationControlTests morphhdl.ParameterizedStreamWidthAdapterTests
+
+      - name: Publish exact validated candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Implement typed Increment 53d StreamWidthAdapter path'
+          git push --force origin HEAD:agent/increment-53d-typed-streamwidthadapter
+          number="$(gh pr list --head agent/increment-53d-typed-streamwidthadapter --base parameterized-verilog --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$number" ]; then
+            gh pr create --draft --head agent/increment-53d-typed-streamwidthadapter --base parameterized-verilog --title 'Increment 53d: typed elaboration and native StreamWidthAdapter' --body 'Implements the typed ElabInt/ElabBool production path and migrates the existing native StreamWidthAdapter algorithm without a replacement implementation. Draft until full CI and formal closure pass.'
+          fi

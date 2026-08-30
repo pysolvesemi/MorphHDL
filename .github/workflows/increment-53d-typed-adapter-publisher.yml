@@ -1,0 +1,127 @@
+name: Publish validated Increment 53d typed StreamWidthAdapter
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-typed-adapter-publisher.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53d-typed-adapter-publisher
+  cancel-in-progress: true
+
+jobs:
+  validate-sbt:
+    name: SBT typed adapter Scala ${{ matrix.scala_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12.18", "2.13.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+          submodules: recursive
+      - name: Apply typed adapter migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py
+          git diff --check
+      - name: Compile complete production path
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+      - name: Run typed and inherited witnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.NaturalSymbolicConditionalTests morphhdl.NativeIntShadowExpressionTests"
+
+  validate-mill:
+    name: Mill typed adapter Scala ${{ matrix.scala_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12.18", "2.13.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+      - name: Apply typed adapter migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py
+          git diff --check
+      - name: Compile and run typed and inherited witnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.ParameterizedStreamWidthAdapterTests \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.NaturalSymbolicConditionalTests \
+            morphhdl.NativeIntShadowExpressionTests
+
+  publish:
+    name: Publish typed adapter implementation
+    needs: [validate-sbt, validate-mill]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Apply final typed migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py
+          git diff --check
+      - name: Commit production files and remove temporary publishers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add \
+            lib/src/main/scala/spinal/lib/Stream.scala \
+            docs/morphhdl/increment-53d-typed-native-change-manifest.md
+          git rm -f --ignore-unmatch \
+            .github/workflows/increment-53d-typed-pivot-source-export.yml \
+            .github/workflows/increment-53d-typed-foundation.yml \
+            .github/workflows/increment-53d-typed-adapter-probe.yml \
+            .github/workflows/increment-53d-typed-adapter-publisher.yml \
+            .github/workflows/increment-53d-typed-roadmap-publisher.yml \
+            morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py \
+            morphhdl/scripts/apply-typed-elaboration-roadmap.py
+          git diff --cached --check
+          git commit -m 'Migrate StreamWidthAdapter to typed elaboration widths'
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot

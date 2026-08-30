@@ -1,0 +1,29 @@
+name: Gate Increment 53d on merged typed policy
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-base-policy-gate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: parameterized-verilog
+          fetch-depth: 1
+      - name: Verify authoritative typed roadmap is merged
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'Authoritative typed-elaboration architecture from Increment 53d onward' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Increment 53d — Typed elaboration pivot and native StreamWidthAdapter closure' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Approved production architecture from Increment 53d onward' docs/morphhdl/typed-elaboration-architecture.md

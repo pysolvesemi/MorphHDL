@@ -1,0 +1,135 @@
+name: Publish typed Increment 53d candidate
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/publish-typed-53d-candidate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-typed-increment-53d-candidate
+  cancel-in-progress: true
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out clean typed 53d branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-streamwidthadapter
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Import typed foundation from approved staging branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin agent/increment-53d-typed-elabint-pivot
+          for path in \
+            core/src/main/scala/spinal/core/ElabInt.scala \
+            morphruntime/src/main/scala/spinal/core/ElabControl.scala \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala \
+            morphhdl/src/test/scala/morphhdl/TypedElaborationControlTests.scala; do
+            mkdir -p "$(dirname "$path")"
+            git show "origin/agent/increment-53d-typed-elabint-pivot:$path" > "$path"
+          done
+          git show origin/agent/increment-53d-typed-elabint-pivot:morphhdl/scripts/apply-increment-53d-typed-streamwidthadapter.py > /tmp/apply-typed-adapter.py
+          chmod +x /tmp/apply-typed-adapter.py
+
+      - name: Register typed compiler component and apply native adapter migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala')
+          text = path.read_text()
+          name = 'new MorphHdlTypedElaborationControlComponent(global)'
+          if name not in text:
+              markers = [
+                  'new MorphHdlNaturalSymbolicConditionalComponent(global)',
+                  'new MorphHdlNativeIntShadowExpressionComponent(global)'
+              ]
+              for marker in markers:
+                  if marker in text:
+                      text = text.replace(marker, name + ',\n    ' + marker, 1)
+                      break
+              else:
+                  raise SystemExit('cannot locate MorphHDL compiler component list')
+          path.write_text(text)
+          PY
+          python3 /tmp/apply-typed-adapter.py
+          git diff --check
+
+      - name: Verify typed architecture boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'final class ElabInt' core/src/main/scala/spinal/core/ElabInt.scala
+          grep -Fq 'final class ElabBool' core/src/main/scala/spinal/core/ElabInt.scala
+          grep -Fq 'MorphHdlTypedElaborationControlComponent' morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala
+          grep -Fq 'TypedElaborationControlTests' morphhdl/src/test/scala/morphhdl/TypedElaborationControlTests.scala
+          ! grep -R --line-number -E 'implicit +def +.*ElabInt.*Int|implicit +def +.*ElabBool.*Boolean' core/src/main/scala/spinal/core/ElabInt.scala
+          ! grep -R --line-number 'StreamWidthAdapter' morphhdl/src/main morphruntime/src/main morphplugin/src/main | grep -E 'replacement|rewriteParameterized|class +Morph.*StreamWidthAdapter' || true
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Compile and test with SBT Scala 2.13.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch '++2.13.12' compile Test/compile \
+            'morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.ParameterizedStreamWidthAdapterTests'
+
+      - name: Compile and test with SBT Scala 2.12.18
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch '++2.12.18' compile Test/compile \
+            'morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.ParameterizedStreamWidthAdapterTests'
+
+      - name: Test typed contracts with Mill Scala 2.13.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.13.12].testOnly \
+            morphhdl.TypedElaborationControlTests \
+            morphhdl.ParameterizedStreamWidthAdapterTests
+
+      - name: Test typed contracts with Mill Scala 2.12.18
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[2.12.18].testOnly \
+            morphhdl.TypedElaborationControlTests \
+            morphhdl.ParameterizedStreamWidthAdapterTests
+
+      - name: Commit validated typed candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          test -n "$(git diff --cached --name-only)"
+          git commit -m 'Implement typed Increment 53d StreamWidthAdapter path'
+          git push origin HEAD:agent/increment-53d-typed-streamwidthadapter

@@ -2134,15 +2134,16 @@ object HIGHER_FIRST extends SlicesOrder
 
 object StreamWidthAdapter {
   def apply[T <: Data,T2 <: Data](input : Stream[T],output : Stream[T2], endianness: Endianness = LITTLE, padding : Boolean = false): Unit = {
-    val inputWidth = widthOf(input.payload)
-    val outputWidth = widthOf(output.payload)
+    val inputWidth: ElabInt = widthOfExpr(input.payload)
+    val outputWidth: ElabInt = widthOfExpr(output.payload)
     if(inputWidth == outputWidth) {
       output.arbitrationFrom(input)
       output.payload.assignFromBits(input.payload.asBits)
     } else if(inputWidth > outputWidth) new Composite(input, "widthAdapter") {
       require(inputWidth % outputWidth == 0 || padding)
-      val factor = (inputWidth + outputWidth - 1) / outputWidth
-      val paddedInputWidth = factor * outputWidth
+      val factorExpr = (inputWidth + outputWidth - 1) / outputWidth
+      val factor = factorExpr.constantInt("StreamWidthAdapter downsize factor")
+      val paddedInputWidth = outputWidth * factor
       val counter = Counter(factor,inc = output.fire)
       output.valid := input.valid
       endianness match {
@@ -2152,12 +2153,13 @@ object StreamWidthAdapter {
       input.ready := output.ready && counter.willOverflowIfInc
     } else new Composite(input, "widthAdapter"){
       require(outputWidth % inputWidth == 0 || padding)
-      val factor  = (outputWidth + inputWidth - 1) / inputWidth
-      val paddedOutputWidth = factor * inputWidth
+      val factorExpr = (outputWidth + inputWidth - 1) / inputWidth
+      val factor  = factorExpr.constantInt("StreamWidthAdapter upsize factor")
+      val paddedOutputWidth = inputWidth * factor
       val counter = Counter(factor,inc = input.fire)
       val buffer  = Reg(Bits(paddedOutputWidth - inputWidth bits))
       when(input.fire){
-        buffer := input.payload ## (buffer >> inputWidth)
+        buffer := input.payload ## (buffer >> inputWidth.constantInt("StreamWidthAdapter input chunk width"))
       }
       output.valid := input.valid && counter.willOverflowIfInc
       endianness match {

@@ -1,0 +1,45 @@
+name: Publish typed elaboration roadmap pivot
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-typed-pivot-source-export.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-roadmap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+          submodules: false
+
+      - name: Apply approved roadmap pivot
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d morphhdl/scripts/typed-roadmap.patch.gz.b64 | gzip -d > "${RUNNER_TEMP}/typed-roadmap.patch"
+          git apply --check "${RUNNER_TEMP}/typed-roadmap.patch"
+          git apply "${RUNNER_TEMP}/typed-roadmap.patch"
+          git diff --check
+          grep -Fq 'Increment 53d — Typed elaboration carriers' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'zero-native-edit architecture for all future' docs/morphhdl/parameterized-verilog-todo.md
+
+      - name: Commit controlling roadmap
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MorphHDL Agent"
+          git config user.email "morphhdl-agent@users.noreply.github.com"
+          git add docs/morphhdl/parameterized-verilog-todo.md
+          git commit -m "Pivot roadmap to typed elaboration architecture"
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot

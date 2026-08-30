@@ -1,0 +1,109 @@
+name: Validate full typed Increment 53d candidate
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/validate-full-typed-53d-candidate.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: validate-full-typed-increment-53d
+  cancel-in-progress: true
+
+jobs:
+  wait-for-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      candidate_sha: ${{ steps.wait.outputs.candidate_sha }}
+    steps:
+      - name: Wait for a published typed candidate
+        id: wait
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init repo
+          cd repo
+          git remote add origin https://github.com/${{ github.repository }}.git
+          for _ in $(seq 1 120); do
+            git fetch --quiet origin parameterized-verilog agent/increment-53d-typed-streamwidthadapter || true
+            base="$(git rev-parse FETCH_HEAD 2>/dev/null || true)"
+            candidate="$(git ls-remote origin refs/heads/agent/increment-53d-typed-streamwidthadapter | awk '{print $1}')"
+            main="$(git ls-remote origin refs/heads/parameterized-verilog | awk '{print $1}')"
+            if [ -n "$candidate" ] && [ "$candidate" != "$main" ]; then
+              echo "candidate_sha=$candidate" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo 'typed candidate was not published in time' >&2
+          exit 1
+
+  full-suite:
+    name: Full suite Scala ${{ matrix.scala_version }}
+    needs: wait-for-candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - name: Check out exact typed candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.wait-for-candidate.outputs.candidate_sha }}
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: SBT production compile and complete MorphHDL tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch '++${{ matrix.scala_version }}' compile Test/compile 'morph/test'
+
+      - name: Mill complete MorphHDL tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].test
+
+      - name: Re-run typed adapter and inherited formal witnesses explicitly
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch '++${{ matrix.scala_version }}' \
+            'morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.NativeStreamFifoFormalEquivalenceTests morphhdl.NativeAxi4SlaveFactoryFormalEquivalenceTests morphhdl.NativeSpinalEnumLocalparamFormalEquivalenceTests'
+
+  publish-status:
+    needs: [wait-for-candidate, full-suite]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Mark candidate PR ready for adapter-specific formal closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          number="$(gh pr list --repo '${{ github.repository }}' --head agent/increment-53d-typed-streamwidthadapter --base parameterized-verilog --state open --json number --jq '.[0].number')"
+          test -n "$number"
+          gh pr comment --repo '${{ github.repository }}' "$number" --body "Full dual-Scala SBT/Mill suite and inherited formal regressions passed on exact candidate ${{ needs.wait-for-candidate.outputs.candidate_sha }}. Dedicated StreamWidthAdapter equivalence and mutation closure remains before merge."

@@ -1,0 +1,49 @@
+name: Publish clean typed-elaboration roadmap
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/publish-clean-typed-roadmap.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out typed pivot source
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+
+      - name: Validate and publish roadmap-only branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'Authoritative typed-elaboration architecture from Increment 53d onward' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Increment 53d — Typed elaboration pivot and native StreamWidthAdapter closure' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Increment 54 — Typed StreamFifo depth and structural-domain validation' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Shadow-native-Int production retirement' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Approved production architecture from Increment 53d onward' docs/morphhdl/typed-elaboration-architecture.md
+
+          tmp="$(mktemp -d)"
+          cp docs/morphhdl/parameterized-verilog-todo.md "$tmp/parameterized-verilog-todo.md"
+          cp docs/morphhdl/typed-elaboration-architecture.md "$tmp/typed-elaboration-architecture.md"
+
+          git checkout --detach origin/parameterized-verilog
+          cp "$tmp/parameterized-verilog-todo.md" docs/morphhdl/parameterized-verilog-todo.md
+          cp "$tmp/typed-elaboration-architecture.md" docs/morphhdl/typed-elaboration-architecture.md
+          git diff --check
+
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add docs/morphhdl/parameterized-verilog-todo.md docs/morphhdl/typed-elaboration-architecture.md
+          test "$(git diff --cached --name-only | wc -l)" -eq 2
+          git commit -m 'Adopt typed elaboration architecture from Increment 53d'
+          git push --force origin HEAD:agent/typed-elaboration-roadmap-approved

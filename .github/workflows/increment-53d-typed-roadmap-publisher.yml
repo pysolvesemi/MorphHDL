@@ -1,0 +1,47 @@
+name: Publish Increment 53d typed-elaboration roadmap pivot
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-typed-roadmap-publisher.yml
+      - morphhdl/scripts/apply-typed-elaboration-roadmap.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53d-typed-roadmap-publisher
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Apply approved roadmap
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/apply-typed-elaboration-roadmap.py
+          git diff --check
+          grep -Fq 'Authoritative typed-elaboration architecture from Increment 53d onward' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Increment 53d — Typed elaboration pivot and native StreamWidthAdapter closure' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Shadow-native-Int production retirement' docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Approved production architecture from Increment 53d onward' docs/morphhdl/typed-elaboration-architecture.md
+      - name: Commit permanent roadmap
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add docs/morphhdl/parameterized-verilog-todo.md docs/morphhdl/typed-elaboration-architecture.md
+          git diff --cached --check
+          git commit -m 'Adopt typed elaboration architecture from Increment 53d'
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot

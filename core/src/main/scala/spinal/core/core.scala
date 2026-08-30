@@ -39,6 +39,9 @@ package object core extends BaseTypeFactory with BaseTypeCast {
   type Module = spinal.core.Component
   type dontName = spinal.core.DontName @field
 
+  /** Parameter-preserving counterpart of [[widthOf]] for typed native APIs. */
+  def widthOfExpr[T <: Data](that: T): ElabInt = ElabInt.packedWidthOf(that)
+
   /**
     * Scala implicit
     */

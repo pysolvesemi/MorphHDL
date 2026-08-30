@@ -380,7 +380,8 @@ class ParameterizedStreamWidthAdapterTests extends AnyFunSuite {
       case Left(failure) =>
         assert(
           failure.detail.contains("MORPH-FRONTEND-NATIVE-WIDTH-FUNCTION-ROOT-AMBIGUOUS") ||
-            failure.detail.contains("MORPH-FRONTEND-NATIVE-INT-EXPRESSION-OPERAND-UNPROVEN"),
+            failure.detail.contains("MORPH-FRONTEND-NATIVE-INT-EXPRESSION-OPERAND-UNPROVEN") ||
+            failure.detail.contains("SPINAL-ELAB-INT-DOMAIN-NOT-CONSTANT"),
           failure.detail
         )
       case Right(report) =>
