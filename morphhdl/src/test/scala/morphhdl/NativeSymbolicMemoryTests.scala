@@ -33,6 +33,35 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
     read_data := read_word
   }
 
+  private final class NativeAddressDepthRootMemory(
+      memoryDepth: HdlInt,
+      addressDepth: HdlInt
+  ) extends Component {
+    setDefinitionName("NativeAddressDepthRootMemory")
+
+    val read_enable = in(Bool())
+    val write_enable = in(Bool())
+    val address = in(
+      morphhdl.frontend.UInt(addressDepth.addressWidth bits)
+    )
+    val write_data = in(Bits(8 bits))
+    val read_data = out(Bits(8 bits))
+
+    val memory = morphhdl.frontend
+      .Mem(
+        morphhdl.frontend.HardType(Bits(8 bits)),
+        memoryDepth
+      )
+      .setName("memory")
+    val read_word = memory.readSync(
+      address,
+      enable = read_enable,
+      readUnderWrite = readFirst
+    )
+    memory.write(address, write_data, enable = write_enable)
+    read_data := read_word
+  }
+
   private final class NativeSimpleDualPortMemory(
       width: HdlInt,
       depth: HdlInt
@@ -150,6 +179,41 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
       val writeIndex = verilog.indexOf("memory[address] <= write_data;")
       assert(readIndex >= 0 && writeIndex > readIndex)
       assert(count(verilog, "always @(posedge clk)") == 1)
+    }
+  }
+
+  test("memory address width accepts one shared depth declaration root") {
+    withTemporaryDirectory { directory =>
+      val depth = HdlInt.param("DEPTH", default = 5, min = 1, max = 8)
+      val verilog = emitMorph(
+        directory,
+        "native_shared_address_depth_root.v",
+        new NativeAddressDepthRootMemory(depth, depth)
+      )
+
+      val declaration = "parameter\\s+integer\\s+DEPTH\\s*=\\s*5".r
+      assert(declaration.findAllMatchIn(verilog).size == 1)
+      assert(verilog.contains("clog2(DEPTH, 1)"))
+      assert(verilog.contains("if (address < DEPTH) begin"))
+    }
+  }
+
+  test("memory address width rejects an independent same-schema depth root") {
+    withTemporaryDirectory { directory =>
+      val memoryDepth =
+        HdlInt.param("DEPTH", default = 5, min = 1, max = 8)
+      val addressDepth =
+        HdlInt.param("DEPTH", default = 5, min = 1, max = 8)
+      val result = MorphVerilog.tryGenerate(
+        config(directory, "native_independent_address_depth_root.v")
+      ) {
+        new NativeAddressDepthRootMemory(memoryDepth, addressDepth)
+      }
+
+      assertFailure(
+        result,
+        "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED"
+      )
     }
   }
 

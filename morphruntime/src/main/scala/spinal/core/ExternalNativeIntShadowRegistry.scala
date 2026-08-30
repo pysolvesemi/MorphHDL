@@ -1078,14 +1078,20 @@ object ExternalNativeIntShadowRegistry {
       )
     }
 
-    val definition = formalExpression(binding.formal)
-    if (!equivalentExpression(capture.definitionExpression, definition)) {
+    val reconstructedDefinition = formalExpression(binding.formal)
+    if (!ExternalFormalParameterRegistry.equivalentCanonicalFormalSchema(
+          capture.definitionExpression,
+          reconstructedDefinition
+        )) {
       fail(
         "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-DEFINITION-MISMATCH",
-        s"shadow capture '${capture.token.role}' retained definition root '${capture.definitionExpression.verilog}' but canonical formal is '${definition.verilog}'",
+        s"shadow capture '${capture.token.role}' retained definition root '${capture.definitionExpression.verilog}' but canonical formal is '${reconstructedDefinition.verilog}'",
         binding.sourceLocation.orElse(sourceOf(capture.token))
       )
     }
+    // The reconstructed expression proves only the formal schema. Preserve the
+    // capture's exact declaration root in every lowered definition-side slot.
+    val definition = capture.definitionExpression
     val slots = finalizeSlots(capture, definition, binding.actual)
     val predicates = finalizePredicates(capture, definition, binding.actual)
     val incoming = ExternalNativeIntComponentShadowRecord(
@@ -1138,17 +1144,23 @@ object ExternalNativeIntShadowRegistry {
       )
     }
 
-    val definition = formalBinding match {
-      case Some(binding) => formalExpression(binding.formal)
-      case None          => capture.definitionExpression
-    }
-    if (!equivalentExpression(capture.definitionExpression, definition)) {
+    val reconstructedDefinition = formalBinding.map(binding =>
+      formalExpression(binding.formal)
+    )
+    if (!reconstructedDefinition.forall(definition =>
+          ExternalFormalParameterRegistry.equivalentCanonicalFormalSchema(
+            capture.definitionExpression,
+            definition
+          )
+        )) {
       fail(
         "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-DEFINITION-MISMATCH",
-        s"shadow capture '${capture.token.role}' retained definition root '${capture.definitionExpression.verilog}' but attached region definition is '${definition.verilog}'",
+        s"shadow capture '${capture.token.role}' retained definition root '${capture.definitionExpression.verilog}' but attached region definition is '${reconstructedDefinition.map(_.verilog).getOrElse(capture.definitionExpression.verilog)}'",
         formalBinding.flatMap(_.sourceLocation).orElse(sourceOf(capture.token))
       )
     }
+    // Schema reconstruction never replaces the exact capture provenance.
+    val definition = capture.definitionExpression
     val actual = formalBinding.map(_.actual).getOrElse(capture.expression)
     val incoming = ExternalNativeIntRegionShadowRecord(
       boundaryToken = capture.token,
@@ -1745,12 +1757,26 @@ object ExternalNativeIntShadowRegistry {
   ): Boolean =
     ExternalFormalParameterRegistry.equivalentExpression(left, right)
 
-  private def equivalentBooleanExpression(
+  private[core] def equivalentBooleanExpression(
       left: ElaborationBooleanExpression,
       right: ElaborationBooleanExpression
-  ): Boolean =
-    left.verilog == right.verilog && left.default == right.default &&
-      left.parameters == right.parameters
+  ): Boolean = {
+    val leftRoots = distinctBooleanRoots(left.completedParameterRoots)
+    val rightRoots = distinctBooleanRoots(right.completedParameterRoots)
+    val sameRoots =
+      leftRoots.size == rightRoots.size &&
+        leftRoots.forall(root => rightRoots.exists(_ eq root))
+    sameRoots && left.verilog == right.verilog &&
+      left.default == right.default && left.parameters == right.parameters
+  }
+
+  private def distinctBooleanRoots(
+      roots: Vector[ElaborationIntegerParameterRoot]
+  ): Vector[ElaborationIntegerParameterRoot] =
+    roots.foldLeft(Vector.empty[ElaborationIntegerParameterRoot]) {
+      case (known, root) if known.exists(_ eq root) => known
+      case (known, root)                           => known :+ root
+    }
 
   private def formalExpression(
       formal: ElaborationIntegerParameter

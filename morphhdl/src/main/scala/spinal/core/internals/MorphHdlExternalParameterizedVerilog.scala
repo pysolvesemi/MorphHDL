@@ -87,6 +87,12 @@ object MorphHdlExternalParameterizedVerilog {
 
     val components = componentGraph(top)
     components.foreach(ExternalParameterizedMemoryRegistry.discover)
+    components.foreach(component =>
+      validateComponentParameterRootInventory(
+        component,
+        includeChildActuals = false
+      )
+    )
     validateFormalDeclarations(components)
     val groups = components.groupBy(componentName)
     val canonicalByName = groups.toVector.map { case (name, candidates) =>
@@ -211,6 +217,132 @@ object MorphHdlExternalParameterizedVerilog {
         s"native component ${component.getClass.getName} has no definition name"
       )
     }
+
+  /**
+    * Validate the complete parameter namespace which one emitted module may
+    * collapse into its Verilog header. Each individual metadata registry also
+    * validates its own inventory, but a same-named declaration can otherwise
+    * arrive through two different registries (or two direct-child actuals)
+    * with equal schemas and lose its declaration identity at the later
+    * schema-only merge.
+    */
+  private[internals] def validateComponentParameterRootInventory(
+      component: Component,
+      includeChildActuals: Boolean
+  ): Unit = {
+    final case class RootUse(
+        root: ElaborationIntegerParameterRoot,
+        sourceLocation: Option[String]
+    )
+
+    val uses = ArrayBuffer.empty[RootUse]
+    val schemas = ArrayBuffer.empty[(ElaborationIntegerParameter, Option[String])]
+
+    def retainInteger(expression: ElaborationIntegerExpression): Unit = {
+      ElabInt.validateExpression(
+        expression,
+        s"component '${componentName(component)}' parameter inventory"
+      )
+      expression.parameters.foreach(parameter =>
+        schemas += (parameter -> expression.sourceLocation)
+      )
+      expression.completedParameterRoots.foreach { root =>
+        uses += RootUse(root, root.sourceLocation.orElse(expression.sourceLocation))
+      }
+    }
+
+    def retainBoolean(expression: ElaborationBooleanExpression): Unit = {
+      ElabInt.validateExpression(
+        expression,
+        s"component '${componentName(component)}' parameter inventory"
+      )
+      expression.parameters.foreach(parameter =>
+        schemas += (parameter -> expression.sourceLocation)
+      )
+      expression.completedParameterRoots.foreach { root =>
+        uses += RootUse(root, root.sourceLocation.orElse(expression.sourceLocation))
+      }
+    }
+
+    component.dslBody.walkLeafStatements {
+      case baseType: BaseType =>
+        ParameterizedWidth.expressionOf(baseType).foreach(retainInteger)
+      case _ =>
+    }
+
+    ExternalParameterizedMemoryRegistry.memoriesOf(component).foreach { memory =>
+      ExternalParameterizedMemoryRegistry.metadataOf(memory).foreach { metadata =>
+        retainInteger(metadata.depth)
+        retainInteger(metadata.elementWidth)
+      }
+    }
+
+    ExternalParameterizedValueRegistry.valuesOf(component).foreach {
+      case (_, record) => retainInteger(record.expression)
+    }
+
+    def retainRegion(region: ParameterizedStructure.StructuralRegion): Unit = {
+      region match {
+        case value: ParameterizedStructure.StructuralFor  =>
+          retainInteger(value.count)
+        case value: ParameterizedStructure.StructuralIf   =>
+          retainBoolean(value.condition)
+        case value: ParameterizedStructure.StructuralCase =>
+          retainInteger(value.selector)
+      }
+      region.blocks.foreach(_.regions.foreach(retainRegion))
+    }
+    ParameterizedStructure.regionsOf(component).foreach(retainRegion)
+
+    ParameterizedProcess
+      .loopsOf(component)
+      .foreach(loop => retainInteger(loop.count))
+
+    if (includeChildActuals) {
+      component.children.foreach { child =>
+        ExternalFormalParameterRegistry
+          .bindingsOf(child)
+          .foreach(binding => retainInteger(binding.actual))
+      }
+    }
+
+    schemas
+      .groupBy(_._1.name)
+      .toVector
+      .sortBy(_._1)
+      .collectFirst {
+        case (name, declarations)
+            if declarations.map(_._1).distinct.size > 1 =>
+          name -> declarations
+      }
+      .foreach { case (name, declarations) =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
+          s"component '${componentName(component)}' has conflicting declarations for parameter '$name' across its complete emitted parameter inventory",
+          declarations.iterator.flatMap(_._2).toVector.headOption
+        )
+      }
+
+    val distinct = uses.foldLeft(Vector.empty[RootUse]) {
+      case (known, use) if known.exists(value => value.root eq use.root) => known
+      case (known, use)                                                  => known :+ use
+    }
+    distinct
+      .groupBy(_.root.name)
+      .toVector
+      .sortBy(_._1)
+      .collectFirst {
+        case (name, declarations) if declarations.size > 1 =>
+          name -> declarations
+      }
+      .foreach { case (name, declarations) =>
+        fail(
+          "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED",
+          s"component '${componentName(component)}' combines independently sourced declarations for parameter '$name' across its complete emitted parameter inventory",
+          declarations.iterator.flatMap(_.sourceLocation).toVector.headOption
+        )
+      }
+  }
 
   /**
     * Validate source-stable formal declarations across the complete concrete
@@ -413,7 +545,9 @@ object MorphHdlExternalParameterizedVerilog {
           else "directionless",
         dataClass = port.getClass.getName,
         concreteWidth = port.getBitsWidth,
-        retained = ParameterizedWidth.expressionOf(port)
+        retained = ParameterizedWidth
+          .expressionOf(port)
+          .map(ExternalFormalParameterRegistry.normalizedDefinitionSchema)
       )
     }
     val duplicatePorts = ports.groupBy(_.name).collectFirst {
@@ -461,7 +595,8 @@ object MorphHdlExternalParameterizedVerilog {
       ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
       ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
       ParameterizedVerilogStructural.hasRegions(component) ||
-      ParameterizedVerilogProcesses.hasLoops(component)
+      ParameterizedVerilogProcesses.hasLoops(component) ||
+      ExternalFormalParameterRegistry.bindingsOf(component).nonEmpty
 
   /**
     * Preserve the publication order that existed before Increment 42:
@@ -485,7 +620,10 @@ object MorphHdlExternalParameterizedVerilog {
       component.children.exists { child =>
         ParameterizedWidth.parametersOf(child).nonEmpty ||
           ExternalParameterizedMemoryRegistry.parametersOf(child).nonEmpty ||
-          ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty
+          ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty ||
+          ParameterizedStructure.parametersOf(child).nonEmpty ||
+          ParameterizedProcess.parametersOf(child).nonEmpty ||
+          ExternalFormalParameterRegistry.bindingsOf(child).nonEmpty
       }
 
   private def moduleBlocks(lines: Vector[String]): Vector[ModuleBlock] = {

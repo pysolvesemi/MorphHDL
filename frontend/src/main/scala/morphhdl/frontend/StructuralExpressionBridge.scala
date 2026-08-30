@@ -117,7 +117,11 @@ private[frontend] object StructuralExpressionBridge {
       maximum = maximum,
       parameters = parameters,
       generateIndex = indexName,
-      sourceLocation = Some(value.origin.rendered)
+      sourceLocation = Some(value.origin.rendered),
+      parameterRoots = parameterRoots(
+        value.parameters,
+        value.booleanParameters
+      )
     )
   }
 
@@ -183,7 +187,11 @@ private[frontend] object StructuralExpressionBridge {
       verilog = renderBoolean(value.expression, value.origin),
       default = value.witness,
       parameters = schemas(value.integerParameters, value.parameters, value.origin),
-      sourceLocation = Some(value.origin.rendered)
+      sourceLocation = Some(value.origin.rendered),
+      parameterRoots = parameterRoots(
+        value.integerParameters,
+        value.parameters
+      )
     )
   }
 
@@ -207,6 +215,15 @@ private[frontend] object StructuralExpressionBridge {
     }
     grouped.toVector.map(_._2.head).sortBy(_.name)
   }
+
+  private def parameterRoots(
+      integers: Set[ParameterToken],
+      booleans: Set[BooleanParameterToken]
+  ) =
+    (integers.toVector.map(_.elaborationRoot) ++
+      booleans.toVector.map(_.elaborationRoot)).sortBy(root =>
+      (root.name, root.sourceLocation.getOrElse(""))
+    )
 
   private def integerSchema(
       token: ParameterToken,

@@ -38,15 +38,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Prove native width files match Increment 0
+      - name: Validate the native-source boundary
         shell: bash
         run: |
-          git diff --exit-code \
-            8c4241396cd718a36227dcd89a2e6a29d9077f11 HEAD -- \
-            core/src/main/scala/spinal/core/BaseType.scala \
-            core/src/main/scala/spinal/core/Bits.scala \
-            core/src/main/scala/spinal/core/SInt.scala \
-            core/src/main/scala/spinal/core/UInt.scala
+          set -euo pipefail
+          if [[ -f morphhdl/contracts/typed-native-source-overlay.json ]]; then
+            python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          else
+            git diff --exit-code \
+              8c4241396cd718a36227dcd89a2e6a29d9077f11 HEAD -- \
+              core/src/main/scala/spinal/core/BaseType.scala \
+              core/src/main/scala/spinal/core/Bits.scala \
+              core/src/main/scala/spinal/core/SInt.scala \
+              core/src/main/scala/spinal/core/UInt.scala
+          fi
 
       - name: Install pinned Mill bootstrap
         shell: bash

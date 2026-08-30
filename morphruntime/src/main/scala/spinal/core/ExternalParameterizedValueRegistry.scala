@@ -144,7 +144,12 @@ object ExternalParameterizedValueRegistry {
   }
 
   def parametersOf(component: Component): Vector[ElaborationIntegerParameter] = {
-    val parameters = valuesOf(component).flatMap(_._2.expression.parameters)
+    val expressions = valuesOf(component).map(_._2.expression)
+    ElabInt.validateParameterRootInventory(
+      s"retained UInt values on component '${component.definitionName}'",
+      expressions
+    )
+    val parameters = expressions.flatMap(_.parameters)
     val grouped = parameters.groupBy(_.name)
     grouped.collectFirst {
       case (name, declarations) if declarations.distinct.size != 1 => name

@@ -155,6 +155,20 @@ object formalComponent {
     }
 
     val ownerClassName = component.getClass.getName
+    val provisionalFormal = definitionExpression.parameters match {
+      case Vector(formal)
+          if definitionExpression.verilog == formal.name &&
+            definitionExpression.default == formal.default &&
+            definitionExpression.minimum == formal.minimum &&
+            definitionExpression.maximum == formal.maximum =>
+        formal
+      case _ =>
+        FrontendException.failAt(
+          "MORPH-FRONTEND-FORMAL-PARAMETER-PROVISIONAL-SCHEMA-MISMATCH",
+          s"formalComponent slot '$name' did not retain one direct provisional formal",
+          origin
+        )
+    }
     val binding = HdlInt.formalBindingForOwner(
       actual = actual,
       name = name,
@@ -162,7 +176,8 @@ object formalComponent {
       maximum = maximum,
       ownerClassName = ownerClassName,
       declarationKey = s"external-native-int::$ownerClassName::$name",
-      origin = origin
+      origin = origin,
+      provisionalFormal = Some(provisionalFormal)
     )
     geometry match {
       case Some(selector) =>

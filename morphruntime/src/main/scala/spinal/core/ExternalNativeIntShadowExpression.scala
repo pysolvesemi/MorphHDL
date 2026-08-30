@@ -100,7 +100,8 @@ private[core] object ExternalNativeIntRelativeExpression {
       default: BigInt,
       minimum: BigInt,
       maximum: BigInt,
-      parameters: Vector[ElaborationIntegerParameter]
+      parameters: Vector[ElaborationIntegerParameter],
+      parameterRoots: Vector[ElaborationIntegerParameterRoot] = Vector.empty
   ) {
     def expression(sourceLocation: String): ElaborationIntegerExpression =
       ElaborationIntegerExpression(
@@ -109,7 +110,8 @@ private[core] object ExternalNativeIntRelativeExpression {
         minimum = minimum,
         maximum = maximum,
         parameters = parameters,
-        sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
+        sourceLocation = Option(sourceLocation).filter(_.nonEmpty),
+        parameterRoots = parameterRoots
       )
   }
 
@@ -217,7 +219,14 @@ private[core] object ExternalNativeIntRelativeExpression {
       case Root =>
         checked(
           "root",
-          Facts(root.verilog, root.default, root.minimum, root.maximum, root.parameters)
+          Facts(
+            root.verilog,
+            root.default,
+            root.minimum,
+            root.maximum,
+            root.parameters,
+            root.completedParameterRoots
+          )
         )
       case Literal(number) =>
         checked("literal", Facts(number.toString, number, number, number, Vector.empty))
@@ -232,7 +241,8 @@ private[core] object ExternalNativeIntRelativeExpression {
               l.default + r.default,
               l.minimum + r.minimum,
               l.maximum + r.maximum,
-              mergeParameters(l, r)
+              mergeParameters(l, r),
+              ElabInt.mergeParameterRoots(l.parameterRoots, r.parameterRoots)
             )
           )
         } yield out
@@ -247,7 +257,8 @@ private[core] object ExternalNativeIntRelativeExpression {
               l.default - r.default,
               l.minimum - r.maximum,
               l.maximum - r.minimum,
-              mergeParameters(l, r)
+              mergeParameters(l, r),
+              ElabInt.mergeParameterRoots(l.parameterRoots, r.parameterRoots)
             )
           )
         } yield out
@@ -268,7 +279,8 @@ private[core] object ExternalNativeIntRelativeExpression {
               l.default * r.default,
               products.min,
               products.max,
-              mergeParameters(l, r)
+              mergeParameters(l, r),
+              ElabInt.mergeParameterRoots(l.parameterRoots, r.parameterRoots)
             )
           )
         } yield out
@@ -290,7 +302,8 @@ private[core] object ExternalNativeIntRelativeExpression {
               l.default / r.default,
               values.min,
               values.max,
-              mergeParameters(l, r)
+              mergeParameters(l, r),
+              ElabInt.mergeParameterRoots(l.parameterRoots, r.parameterRoots)
             )
           )
         } yield out
@@ -312,7 +325,8 @@ private[core] object ExternalNativeIntRelativeExpression {
               l.default % r.default,
               minimum,
               maximum,
-              mergeParameters(l, r)
+              mergeParameters(l, r),
+              ElabInt.mergeParameterRoots(l.parameterRoots, r.parameterRoots)
             )
           )
         } yield out
@@ -327,7 +341,8 @@ private[core] object ExternalNativeIntRelativeExpression {
               l.default.min(r.default),
               l.minimum.min(r.minimum),
               l.maximum.min(r.maximum),
-              mergeParameters(l, r)
+              mergeParameters(l, r),
+              ElabInt.mergeParameterRoots(l.parameterRoots, r.parameterRoots)
             )
           )
         } yield out
@@ -342,7 +357,8 @@ private[core] object ExternalNativeIntRelativeExpression {
               l.default.max(r.default),
               l.minimum.max(r.minimum),
               l.maximum.max(r.maximum),
-              mergeParameters(l, r)
+              mergeParameters(l, r),
+              ElabInt.mergeParameterRoots(l.parameterRoots, r.parameterRoots)
             )
           )
         } yield out
@@ -356,7 +372,8 @@ private[core] object ExternalNativeIntRelativeExpression {
               -value.default,
               -value.maximum,
               -value.minimum,
-              value.parameters
+              value.parameters,
+              value.parameterRoots
             )
           )
         } yield out
@@ -369,7 +386,8 @@ private[core] object ExternalNativeIntRelativeExpression {
               ceilLog2(value.default),
               ceilLog2(value.minimum),
               ceilLog2(value.maximum),
-              value.parameters
+              value.parameters,
+              value.parameterRoots
             )
             checked("ceilLog2", out)
           }
@@ -383,7 +401,8 @@ private[core] object ExternalNativeIntRelativeExpression {
               addressWidth(value.default),
               addressWidth(value.minimum),
               addressWidth(value.maximum),
-              value.parameters
+              value.parameters,
+              value.parameterRoots
             )
             checked("addressWidth", out)
           }
@@ -397,7 +416,8 @@ private[core] object ExternalNativeIntRelativeExpression {
               log2Down(value.default),
               log2Down(value.minimum),
               log2Down(value.maximum),
-              value.parameters
+              value.parameters,
+              value.parameterRoots
             )
             checked("log2Down", out)
           }
@@ -413,7 +433,8 @@ private[core] object ExternalNativeIntRelativeExpression {
                 if (value.default) BigInt(1) else BigInt(0),
                 BigInt(0),
                 BigInt(1),
-                value.parameters
+                value.parameters,
+                value.parameterRoots
               )
             )
           }
@@ -547,7 +568,11 @@ private[core] object ExternalNativeIntRelativePredicate {
           verilog = s"(${l.verilog} $symbol ${r.verilog})",
           default = default,
           parameters = mergeParameters(l, r),
-          sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
+          sourceLocation = Option(sourceLocation).filter(_.nonEmpty),
+          parameterRoots = ElabInt.mergeParameterRoots(
+            l.parameterRoots,
+            r.parameterRoots
+          )
         )
       }
     case PowerOfTwo(value) =>
@@ -557,7 +582,8 @@ private[core] object ExternalNativeIntRelativePredicate {
             s"((${facts.verilog} > 0) && ((${facts.verilog} & (${facts.verilog} - 1)) == 0))",
           default = isPowerOfTwo(facts.default),
           parameters = facts.parameters,
-          sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
+          sourceLocation = Option(sourceLocation).filter(_.nonEmpty),
+          parameterRoots = facts.parameterRoots
         )
       }
     case Constant(value) =>
@@ -577,7 +603,11 @@ private[core] object ExternalNativeIntRelativePredicate {
         verilog = s"((${l.verilog}) && (${r.verilog}))",
         default = l.default && r.default,
         parameters = mergeParameters(l.parameters, r.parameters),
-        sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
+        sourceLocation = Option(sourceLocation).filter(_.nonEmpty),
+        parameterRoots = ElabInt.mergeParameterRoots(
+          l.parameterRoots,
+          r.parameterRoots
+        )
       )
     case Or(left, right) =>
       for {
@@ -587,7 +617,11 @@ private[core] object ExternalNativeIntRelativePredicate {
         verilog = s"((${l.verilog}) || (${r.verilog}))",
         default = l.default || r.default,
         parameters = mergeParameters(l.parameters, r.parameters),
-        sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
+        sourceLocation = Option(sourceLocation).filter(_.nonEmpty),
+        parameterRoots = ElabInt.mergeParameterRoots(
+          l.parameterRoots,
+          r.parameterRoots
+        )
       )
     case Not(value) =>
       lower(value, root, sourceLocation).map { operand =>
@@ -595,7 +629,8 @@ private[core] object ExternalNativeIntRelativePredicate {
           verilog = s"(!(${operand.verilog}))",
           default = !operand.default,
           parameters = operand.parameters,
-          sourceLocation = Option(sourceLocation).filter(_.nonEmpty)
+          sourceLocation = Option(sourceLocation).filter(_.nonEmpty),
+          parameterRoots = operand.parameterRoots
         )
       }
   }

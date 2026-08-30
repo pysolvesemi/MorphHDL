@@ -262,6 +262,15 @@ private[internals] object ParameterizedVerilogMemories {
       memory.component,
       source
     )
+    ElabInt.validateParameterRootInventory(
+      s"native memory '${memory.getName()}' geometry",
+      Vector(
+        metadata.depth,
+        metadata.elementWidth,
+        readAddressWidth,
+        writeAddressWidth
+      )
+    )
     validateAddressWidth(read.address, readAddressWidth, metadata.depth, "read", memory, pc, source)
     validateAddressWidth(write.address, writeAddressWidth, metadata.depth, "write", memory, pc, source)
     if (!equivalentWidth(readAddressWidth, writeAddressWidth)) {
@@ -362,7 +371,8 @@ private[internals] object ParameterizedVerilogMemories {
       minimum = portableAddressWidth(depth.minimum),
       maximum = portableAddressWidth(depth.maximum),
       parameters = depth.parameters,
-      sourceLocation = source.orElse(depth.sourceLocation)
+      sourceLocation = source.orElse(depth.sourceLocation),
+      parameterRoots = depth.completedParameterRoots
     )
 
   private def portableAddressWidth(value: BigInt): BigInt = {
@@ -402,8 +412,9 @@ private[internals] object ParameterizedVerilogMemories {
               Some(widthOf(value, source))
             case _ => None
           }
-        }.distinct
-        widths.size == 1 && equivalentWidth(widths.head, native)
+        }
+        val distinct = distinctWidths(widths)
+        distinct.size == 1 && equivalentWidth(distinct.head, native)
       case _ => false
     }
     if (
@@ -435,7 +446,9 @@ private[internals] object ParameterizedVerilogMemories {
         source.orElse(width.sourceLocation)
       )
     }
-    val exact = compact(width.verilog) == compact(s"clog2(${depth.verilog}, 1)")
+    val exact =
+      compact(width.verilog) == compact(s"clog2(${depth.verilog}, 1)") &&
+        sameParameterRoots(width, depth)
     val conservative =
       width.minimum.isValidInt && width.minimum <= 65536 &&
         (BigInt(1) << width.minimum.toInt) >= depth.maximum
@@ -465,15 +478,7 @@ private[internals] object ParameterizedVerilogMemories {
       }
     }
     walk(expression)
-    val distinct = retained.groupBy { value =>
-      (
-        compact(value.verilog),
-        value.default,
-        value.minimum,
-        value.maximum,
-        value.parameters.sortBy(_.name)
-      )
-    }.values.map(_.head).toVector
+    val distinct = distinctWidths(retained.toVector)
     if (distinct.size > 1) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ADDRESS-WIDTH-AMBIGUOUS",
@@ -500,7 +505,34 @@ private[internals] object ParameterizedVerilogMemories {
     compact(left.verilog) == compact(right.verilog) &&
       left.default == right.default && left.minimum == right.minimum &&
       left.maximum == right.maximum &&
-      left.parameters.sortBy(_.name) == right.parameters.sortBy(_.name)
+      left.parameters.sortBy(_.name) == right.parameters.sortBy(_.name) &&
+      sameParameterRoots(left, right)
+
+  private def sameParameterRoots(
+      left: ElaborationIntegerExpression,
+      right: ElaborationIntegerExpression
+  ): Boolean = {
+    val leftRoots = distinctParameterRoots(left.completedParameterRoots)
+    val rightRoots = distinctParameterRoots(right.completedParameterRoots)
+    leftRoots.size == rightRoots.size &&
+    leftRoots.forall(root => rightRoots.exists(_ eq root))
+  }
+
+  private def distinctParameterRoots(
+      roots: Vector[ElaborationIntegerParameterRoot]
+  ): Vector[ElaborationIntegerParameterRoot] =
+    roots.foldLeft(Vector.empty[ElaborationIntegerParameterRoot]) {
+      case (known, root) if known.exists(_ eq root) => known
+      case (known, root)                           => known :+ root
+    }
+
+  private def distinctWidths(
+      values: Vector[ElaborationIntegerExpression]
+  ): Vector[ElaborationIntegerExpression] =
+    values.foldLeft(Vector.empty[ElaborationIntegerExpression]) {
+      case (known, value) if known.exists(equivalentWidth(_, value)) => known
+      case (known, value)                                           => known :+ value
+    }
 
   private def requireType(
       expression: Expression,
@@ -565,7 +597,7 @@ private[internals] object ParameterizedVerilogMemories {
       plan.writeAddress -> plan.writeAddressWidth
     ).groupBy(_._1).toVector.sortBy(_._1).map {
       case (name, values) =>
-        val widths = values.map(_._2).distinct
+        val widths = distinctWidths(values.map(_._2))
         if (widths.size != 1) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ADDRESS-TYPE-MISMATCH",

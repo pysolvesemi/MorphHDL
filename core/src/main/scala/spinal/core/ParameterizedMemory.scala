@@ -294,10 +294,15 @@ object ParameterizedMemory {
   }
 
   def parametersOf(component: Component): Vector[ElaborationIntegerParameter] = {
-    val referenced = memoriesOf(component).flatMap { memory =>
+    val expressions = memoriesOf(component).flatMap { memory =>
       val metadata = metadataOf(memory).get
-      metadata.depth.parameters ++ metadata.elementWidth.parameters
+      Vector(metadata.depth, metadata.elementWidth)
     }
+    ElabInt.validateParameterRootInventory(
+      s"native-memory component '${component.definitionName}'",
+      expressions
+    )
+    val referenced = expressions.flatMap(_.parameters)
     val grouped = referenced.groupBy(_.name)
     grouped.collectFirst {
       case (name, schemas) if schemas.distinct.size != 1 => name
@@ -337,7 +342,11 @@ object ParameterizedMemory {
       minimum = left.minimum + right.minimum,
       maximum = left.maximum + right.maximum,
       parameters = (left.parameters ++ right.parameters).distinct.sortBy(_.name),
-      sourceLocation = left.sourceLocation.orElse(right.sourceLocation)
+      sourceLocation = left.sourceLocation.orElse(right.sourceLocation),
+      parameterRoots = ElabInt.mergeParameterRoots(
+        left.completedParameterRoots,
+        right.completedParameterRoots
+      )
     )
 
   private def fail(

@@ -5,54 +5,11 @@ parameterized-Verilog front door. It supersedes component-by-component
 recommendations in earlier increment notes when those recommendations conflict
 with this roadmap.
 
-## Architecture supersession — typed elaboration values (approved 2026-08-29)
-
-This section supersedes every earlier roadmap requirement that parameterized
-Verilog must be achieved with zero changes to upstream-owned SpinalHDL APIs.
-The zero-diff experiments remain useful regression evidence, but they are no
-longer the production architecture or a constraint on future increments.
-
-MorphHDL will use a small typed elaboration-value layer instead of attempting
-to reconstruct symbolic meaning after Scala has erased it to ordinary `Int` or
-`Boolean` values:
-
-- Neutral low-level `ElabInt` and `ElabBool` carriers (final names may be
-  refined) retain a concrete witness, bounded symbolic expression and source
-  identity.
-- Existing `Int` and `Boolean` overloads remain available and elaborate as
-  ordinary parameter-free SpinalHDL.
-- Parameter-sensitive overloads accept typed elaboration values. `Int` may be
-  lifted to a literal carrier, but no implicit symbolic-to-`Int` or
-  symbolic-to-`Boolean` conversion is permitted.
-- Selected SpinalHDL `core` and `lib` APIs may receive small reviewed type,
-  signature, helper-overload and mechanical compatibility changes. The native
-  hardware algorithms remain authoritative and must not be reimplemented in
-  MorphHDL.
-- Typed arithmetic, comparisons, equality, log/address helpers, ranges,
-  widths, depths, offsets and structural predicates remain symbolic until
-  lowering. Unsupported operations fail at the typed boundary.
-- Natural syntax such as `if (depth == 1)` is retained by a small compiler
-  bridge that rewrites only statically proven `ElabBool` conditions. It lowers
-  syntax; it does not reconstruct provenance from source positions or equal
-  concrete witnesses.
-- Concrete `widthOf(Data): Int` remains for compatibility. A typed helper such
-  as `widthOfExpr(Data): ElabInt`, or an equivalent type-directed call-site
-  bridge, retains symbolic width.
-- Captured non-witness alternatives are validated in their narrowed parameter
-  domains and are not inserted as simultaneously active statements into a
-  concrete witness graph.
-- The native-source manifest distinguishes approved typed carrier/helper API
-  adaptations from algorithm changes. Unreviewed algorithm edits,
-  component-specific reconstruction and emitted-name recognition remain
-  prohibited; byte-for-byte zero diff is no longer required for approved typed
-  API adaptations.
-- The existing native-`Int` shadow/provenance machinery is compatibility
-  scaffolding only. New component support must use typed elaboration values,
-  and the shadow path will be retired after typed parity is proven.
-
-This typed architecture controls Increment 53d and every later
-parameterization increment. When an older description conflicts with this
-section, this section wins.
+The approved production architecture from Increment 53d onward is documented
+in [Typed elaboration architecture](typed-elaboration-architecture.md). That
+decision supersedes the earlier zero-native-edit architecture for all future
+unchecked increments. Completed zero-diff increments remain historical evidence
+and regression oracles; they are not constraints on the new implementation.
 
 ## Roadmap discipline
 
@@ -63,35 +20,53 @@ section, this section wins.
 - Every parallel branch must start from a merged dependency state and must
   incorporate the latest `parameterized-verilog` before final validation. An
   open branch or pull request never satisfies another increment dependency.
-- Parameterizable values remain typed symbolic objects through elaboration;
-  they must not be replaced by their concrete defaults before symbolic RTL is
-  captured.
-- The production path must lower ordinary SpinalHDL component logic. A new
-  component-specific ParamRTL adapter is not an acceptable substitute for that
-  integration.
-- Existing atomic ParamRTL nodes and their fixtures remain regression oracles
-  while the generic path is built. Their presence does not establish
-  single-source support.
-- Controlled SpinalHDL changes are permitted only for neutral typed
-  elaboration carriers, parameter-sensitive signatures/overloads, generic
-  helpers and minimum mechanical compatibility. The existing hardware
-  algorithm must remain authoritative.
-- Concrete `Int`/`Boolean` calls must preserve ordinary SpinalHDL elaboration
-  and parameter-free Verilog. Typed calls must retain exact symbolic identity,
-  bounded domains and hierarchy bindings without implicit witness extraction.
-- Every preservation increment must retain the applicable concrete parity,
-  simulation, lint, synthesis, mutation, determinism, strict Verilog-2001 and
-  dual-Scala gates already established by Increments 29 through 37.
+- Parameterizable elaboration values must remain typed symbolic objects through
+  the native algorithm. They must never be converted to ordinary Scala `Int` or
+  `Boolean` and reconstructed later from witnesses, source positions, component
+  names, emitted names or object-shape guesses.
+- The neutral low-level carriers are `spinal.core.ElabInt`,
+  `spinal.core.ElabBool` and their typed range/width adapters. User-facing
+  `HdlInt`/`HdlBool` values may construct or bind those carriers, but native
+  `core` and `lib` code must not depend on the higher-level MorphHDL frontend.
+- Existing `Int`/`Boolean` APIs remain available for ordinary concrete
+  SpinalHDL. A literal call must select the concrete overload and generate the
+  same parameter-free native RTL. There must be no implicit conversion from a
+  symbolic elaboration value back to `Int` or `Boolean`.
+- Small reviewed changes to SpinalHDL `core`, `lib` and helper signatures are
+  explicitly allowed when they only introduce typed parameter carriers,
+  overloads or mechanical propagation needed by the existing algorithm. Such
+  changes must be listed in an approved native-change manifest and must not
+  reimplement, fork or duplicate a library algorithm.
+- A small compiler bridge may lower natural Scala syntax such as `if`, `else
+  if`, typed equality, `require`, Boolean match and finite typed ranges only
+  when the source operands are statically proven `ElabInt`/`ElabBool`. It must
+  not instrument arbitrary native `Int`/`Boolean` code or recover erased
+  provenance after typing.
+- Native algorithms remain authoritative. A separately authored
+  StreamFifo/StreamWidthAdapter/Counter/Mem implementation, component-name
+  recognizer, emitted-signal recognizer or component-specific ParamRTL adapter
+  is not an acceptable production substitute.
+- Legacy native-`Int` shadow propagation and branch reconstruction may remain
+  temporarily as compatibility and regression scaffolding, but no new feature
+  may depend on it. The typed migration increments must retire it from the
+  production path after parity is proven.
+- Existing atomic ParamRTL nodes and historical zero-diff fixtures remain
+  regression oracles. Their presence does not establish typed single-source
+  support.
+- Every increment must retain the applicable concrete parity, simulation,
+  lint, synthesis, formal equivalence, mutation, determinism, strict
+  Verilog-2001 and dual-Scala gates already established by earlier increments.
 - An increment checkbox may change from `[ ]` to `[x]` only after its
-  implementation and review are complete and the full applicable local gates
-  pass. Updating this checkbox is the final source change before publication.
+  implementation and review are complete and every applicable final-head gate
+  passes. Updating the checkbox is the final source change before publication.
 - The suggested next sequential increment after completion is the first
   unchecked entry whose dependencies are satisfied. Independently eligible
   siblings may additionally be identified as parallel candidates.
 
-The source audit and classification behind Increments 38 through 58 are
-recorded in
+The earlier source audit remains recorded in
 [Native SpinalHDL source-preservation audit](native-spinal-source-preservation-audit.md).
+It is historical input to the approved-change manifest, not a requirement to
+restore an exactly zero-diff native tree.
 
 ## Corrective increments
 
@@ -164,7 +139,12 @@ recorded in
   retaining the library algorithm and handshake semantics. Prove depths 1, 3,
   5 and 8 without regenerating or specializing the module.
 
-## Native-source preservation increments
+## Historical native-source preservation increments
+
+The completed increments in this section record the previous zero-native-edit
+approach. Their tests remain valuable, but their architectural restrictions are
+superseded for every unchecked increment by the typed elaboration architecture.
+
 
 - [x] **Increment 38 — Native-source inventory and zero-diff guard**
 
@@ -229,44 +209,36 @@ recorded in
   concrete-default parity and override tests without component-specific RTL
   reconstruction.
 
-### Dependency graph and parallel execution for Increments 45 through 58
+### Historical dependency graph through Increment 53c
 
-After Increment 44 is implemented and merged:
+The dependencies below describe the completed zero-native-edit work and are
+retained for traceability:
 
-- Increments 45, 46 and 48 are independent parallel starts.
-- Increment 47 depends only on Increment 46 and may overlap unfinished work on
-  Increments 45 and 48.
-- Increment 49 depends only on Increment 47; Increment 50 depends only on
-  Increment 49. This native-`Int` chain may continue while 45 or 48 remains in
-  progress.
-- Increment 51 joins the explicit-condition path and native-`Int` path; it
-  depends on Increments 48 and 50.
-- Increment 52 depends only on Increment 51.
-- Increment 53 joins memory provenance and symbolic control flow; it depends
-  on Increments 45 and 52.
-- Increment 53a is a corrective formal-equivalence closure and depends only on
-  the merged Increment 53.
-- Increment 53b depends only on the merged Increment 53. Increments 53a and 53b
-  may execute independently.
-- Increment 53b.1 is a corrective enum-naming closure and depends only on
-  the merged Increment 53b.
-- Increment 53c depends on the merged Increment 53b and may overlap
-  Increments 53a and 53b.1 once Increment 53b is merged.
-- Increment 53d starts after the merged Increment 53c; Increments 53d through 53g form the typed migration chain.
-- Increment 54 requires the merged Increment 53g.
-  Increments 54 through 58 then form a strict sequential closure chain.
+- Increments 45, 46 and 48 were independent parallel starts.
+- Increment 47 depended on Increment 46; Increment 49 depended on 47;
+  Increment 50 depended on 49.
+- Increment 51 joined the explicit-condition and native-`Int` paths; Increment
+  52 extended that branch-reconstruction path.
+- Increment 53 joined memory provenance and symbolic control flow.
+- Increments 53a, 53b, 53b.1 and 53c supplied formal, enum and AXI closure.
 
-Dependencies are transitive. Two increments with no dependency edge between
-them are intentionally eligible for parallel implementation and review.
+### Typed architecture dependency graph from Increment 53d
 
-Native-looking source compatibility is a closure requirement. Temporary
-MorphHDL constructor aliases such as `MorphCounter`, `MorphStream` and
-`MorphFlow` may remain as regression scaffolding while Increments 45 through 55
-stabilize the generic provenance and zero-native-diff architecture, but they
-must not become the required application-facing migration surface. Increments
-56 through 58 replace that temporary construction surface with ordinary-looking
-SpinalHDL library calls and retire the compatibility path only after parity is
-proven.
+- Increment 53d depends on merged Increment 53c and is the mandatory pivot to
+  typed elaboration values. It is now the first unchecked sequential target.
+- Increment 53e depends on merged Increment 53d and migrates native StreamFifo
+  depth and branch-local geometry to the typed path.
+- Increment 53f depends on merged Increment 53e and closes typed Counter, Mem,
+  Vec, helper and finite-range primitives needed by broad library reuse.
+- Increment 53g depends on merged Increment 53f and removes native-`Int` shadow
+  reconstruction and component-specific recognizers from the production path.
+- Increments 54 through 58 then form a strict sequential consolidation,
+  compatibility, migration and retirement chain.
+
+Dependencies are transitive. No future increment may add a new dependency on
+the superseded native-`Int` shadow path. Temporary MorphHDL constructor aliases
+may remain only as regression scaffolding until typed native-looking parity is
+proved.
 
 - [x] **Increment 45 — Automatic native `Mem` symbolic-depth provenance**
 
@@ -492,137 +464,136 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   2.12.18 and 2.13.12 in the pinned formal toolchain while retaining the native
   source-preservation boundary.
 
-- [ ] **Increment 53d — Typed elaboration values and native StreamWidthAdapter migration**
+- [x] **Increment 53d — Typed elaboration carriers and native StreamWidthAdapter migration**
 
   **Dependencies:** Increment 53c implemented and merged.
 
-  Replace native-`Int`/`widthOf` shadow reconstruction with the approved typed
-  architecture. Introduce neutral low-level `ElabInt` and `ElabBool` carriers,
-  preserve concrete `Int`/`Boolean` overloads, and prohibit implicit
-  symbolic-to-concrete conversion. Add typed arithmetic, comparison/equality,
-  Boolean, `widthOfExpr`, bit-count, resize, subdivision and Counter helpers
-  required by the existing native `StreamWidthAdapter` algorithm. The native
-  algorithm may receive only type/signature/helper-mechanical edits; it must
-  not be copied or reimplemented in MorphHDL. Simplify natural conditional
-  lowering to statically proven typed conditions. Prove equal-width, downsize
-  and upsize behavior, backpressure, deterministic dual-Scala Verilog-2001,
-  lint, synthesis and sequential formal equivalence against independently
-  generated concrete witnesses. Component-name/source-file recognition is not
-  permitted in the typed production path.
+  Replace the production native-`Int` reconstruction path for relational width
+  logic with neutral `spinal.core.ElabInt` and `spinal.core.ElabBool` carriers.
+  Each carrier must retain one concrete witness, the exact bounded expression,
+  parameter schemas and source identity through the native algorithm. Preserve
+  ordinary `Int`/`Boolean` overloads for parameter-free SpinalHDL and prohibit
+  implicit symbolic-to-concrete conversion.
 
-- [ ] **Increment 53e — Typed StreamFifo and StreamFifoCC migration**
+  Add typed arithmetic, comparison, equality/inequality, Boolean combination,
+  `elabWidthOf`, packed-width, resize and constant-factor Counter adapters.
+  Extend the compiler only with a small statically typed syntax bridge for
+  natural `if / else if / else`, typed `==`/`!=` and `require`; it must never
+  discover symbolic meaning from an ordinary Scala `Int`, component name,
+  source-file special case, emitted identifier or equal witness.
+
+  Mechanically migrate the authoritative native `StreamWidthAdapter` algorithm
+  to obtain its two widths as `ElabInt`; retain its equal-width, downsize and
+  upsize code unchanged apart from typed signatures/helpers. Concrete `Int`
+  calls must remain parameter-free and behaviorally identical. Prove equal,
+  downsize and upsize parameter domains, backpressure and byte order, reject
+  independent ambiguous roots, and run dual-Scala compilation, deterministic
+  Verilog-2001 lint/synthesis, simulation and concrete-specialization formal
+  equivalence. Record every approved native source change in the typed native
+  bridge manifest. The legacy shadow-width implementation remains only as an
+  oracle and must not be used by the migrated adapter.
+
+- [ ] **Increment 53e — Typed StreamFifo depth and branch-local geometry**
 
   **Dependencies:** Increment 53d implemented and merged.
 
-  Migrate native StreamFifo and StreamFifoCC parameter-sensitive depth and
-  geometry APIs to typed elaboration values while preserving their algorithms.
-  Add generic typed overloads for Mem, Vec, ranges, log/address helpers,
-  counters, mixed hardware/elaboration arithmetic and structural alternatives.
-  Validate each captured branch in its narrowed domain rather than inside a
-  concrete witness graph. Preserve ordinary concrete calls and prove literal,
-  power-of-two, non-power-of-two and cross-clock configurations.
+  Migrate the real native StreamFifo depth path to `ElabInt` while retaining the
+  existing `Int` overload and the authoritative FIFO algorithm. Add the typed
+  `log2Up`, `isPow2`, Boolean-to-integer, memory/Vec depth, finite range and
+  generate adapters needed by that source. A symbolic alternative must be
+  validated in its own narrowed parameter domain rather than injected into the
+  default-witness graph. Prove one parameterized definition at depths 1, 3, 5
+  and 8, ordinary concrete parity, complete handshake/storage behavior and
+  sequential formal equivalence on both supported Scala versions. No native-
+  `Int` shadow capture, component-name recognizer or separate FIFO is allowed.
 
-- [ ] **Increment 53f — Typed native-library parameter surface**
+- [ ] **Increment 53f — Typed parameter-sensitive primitive closure**
 
   **Dependencies:** Increment 53e implemented and merged.
 
-  Audit parameter-sensitive `Int`/`Boolean` APIs in supported SpinalHDL core
-  and library components and migrate reusable surfaces to typed elaboration
-  values. Limit changes to signatures, overloads and generic helpers; never
-  change the hardware algorithms. Add compile-time diagnostics for accidental
-  witness extraction and representative Counter, memory, Stream/Flow, AXI and
-  hierarchy proofs on both supported Scala versions.
+  Generalize typed elaboration through Counter limits, Mem/Vec depths, address
+  and logarithm helpers, slices, resize, finite structural/procedural ranges and
+  child formal bindings. Keep concrete overloads authoritative for literal
+  calls and fail closed when a typed operation cannot prove a finite legal
+  domain. Migrate representative native Counter, Stream/Flow, memory and
+  hierarchy users without algorithm duplication and prove parity on both Scala
+  lanes.
 
-- [ ] **Increment 53g — Native-shadow compatibility retirement**
+- [ ] **Increment 53g — Retire native-Int shadow reconstruction from production**
 
   **Dependencies:** Increment 53f implemented and merged.
 
-  Move production parameterization to typed elaboration values, retain the
-  native-`Int` shadow path only behind an explicit legacy compatibility switch,
-  and remove component/source-name recognizers from default compilation. Prove
-  every migrated contract with the legacy path disabled, then deprecate the
-  compatibility API with deterministic diagnostics.
+  Remove the parser-wide native-`Int` provenance, source-position alias,
+  constructor-boundary and component-specific branch-reconstruction machinery
+  from the production compiler path. Keep narrowly scoped historical fixtures
+  only as explicit regression oracles where useful. Add guards that reject new
+  references from production code to native-`Int` shadow capture, file-specific
+  component eligibility, witness-value inference and emitted-name recognition.
+  Re-run all migrated library, formal, simulation, lint, synthesis and
+  determinism gates before deleting obsolete runtime registries.
 
-- [ ] **Increment 54 — Typed elaboration module layering and cleanup**
+- [ ] **Increment 54 — Typed elaboration layering and canonical IR cleanup**
 
   **Dependencies:** Increment 53g implemented and merged.
 
-  Move remaining MorphHDL-specific parameter metadata, capture and lowering
-  files out of native `core`, `lib` and `idslplugin` source trees into
-  MorphHDL-owned modules/packages. Remove build coupling that requires a forked
-  native implementation while retaining both Scala 2.12.18 and 2.13.12 support,
-  source locations, diagnostics and public MorphHDL behavior. Publish the
-  stable canonical MorphHDL-owned post-parameterization IR/API required by
-  downstream optional passes.
+  Consolidate the neutral `ElabInt`/`ElabBool` expression model, typed control
+  bridge and approved native adapters into stable low-level packages that do
+  not depend on the high-level MorphHDL frontend. Remove circular build
+  coupling and obsolete shadow registries while preserving source locations,
+  bounded diagnostics and the canonical post-parameterization IR/API required
+  by optional passes.
 
-- [ ] **Increment 55 — Upstream parity and approved typed-patch manifest**
+- [ ] **Increment 55 — Concrete compatibility and approved-native-change audit**
 
   **Dependencies:** Increment 54 implemented and merged.
 
-  Restore every upstream-owned runtime, library, emitter, phase and compiler
-  plugin file identified by the audit to the selected upstream snapshot. Add an
-  exact native-source manifest gate with no exception unless previously
-  approved. Run the complete inherited validation inventory and all concrete,
-  parameter-override, simulation, lint, synthesis, mutation and determinism
-  gates for Increments 29 through 54.
+  Replace the old zero-diff gate with an exact approved-change manifest. Prove
+  that only reviewed parameter-sensitive signatures, overloads and mechanical
+  propagation hooks differ from the selected SpinalHDL baseline. Run complete
+  ordinary `SpinalVerilog` parity, binary/source compatibility checks where
+  applicable, and all inherited parameterized simulation, lint, synthesis,
+  formal, mutation and determinism gates. Unrelated native source must remain
+  byte-identical.
 
-- [ ] **Increment 56 — Native-looking SpinalHDL library-call provenance bridge**
+- [ ] **Increment 56 — Native-looking typed library-call surface**
 
   **Dependencies:** Increment 55 implemented and merged.
 
-  Make the application source call the ordinary-looking imported SpinalHDL
-  constructors directly, for example `Counter(width bits)`,
-  `Stream(Bits(width bits))` and `Flow(Bits(width bits))`, while keeping the
-  returned objects exactly `spinal.lib.Counter`, `spinal.lib.Stream` and
-  `spinal.lib.Flow`. Implement the symbolic call boundary in MorphHDL-owned
-  code, using a typed compiler transformation, deterministic call-site token or
-  equivalent mechanism that passes only the concrete witness into the
-  untouched native constructor and then associates the exact symbolic origin
-  with the returned native object. Do not add a provenance-losing implicit
-  `ParameterizedBitCount`-to-`BitCount` conversion, modify `Counter.scala` or
-  `Stream.scala`, recognize emitted signal/component names, or reconstruct a
-  library algorithm. Ordinary concrete `Counter`, `Stream` and `Flow` calls
-  must remain unchanged when no MorphHDL symbolic value is present. Prove the
-  bridge on Scala 2.12.18 and 2.13.12 and fail closed if a symbolic call cannot
-  be associated unambiguously with one native result object.
+  Make application source use ordinary imported SpinalHDL constructors and
+  methods while overload resolution selects concrete `Int`/`Boolean` behavior
+  for literals and typed `ElabInt`/`ElabBool` behavior for parameters. Cover
+  Counter, Stream, Flow, Mem, Vec and hierarchy calls without MorphHDL-prefixed
+  production constructors, implicit symbolic-to-concrete conversion or runtime
+  provenance reconstruction.
 
-- [ ] **Increment 57 — Native-looking Counter, Stream and Flow migration proof**
+- [ ] **Increment 57 — Broad native library migration and proof**
 
   **Dependencies:** Increment 56 implemented and merged.
 
-  Migrate the production-facing Increment 44 fixtures and examples from
-  `MorphCounter`, `MorphStream` and `MorphFlow` constructor aliases to ordinary
-  `spinal.lib` imports and native-looking constructor calls. Prove that the
-  resulting source still executes the untouched native Counter and Stream/Flow
-  pipeline methods, that the concrete-default `SpinalVerilog` result preserves
-  parity, and that non-default parameter overrides produce the same legal
-  Verilog-2001 behavior. Include Counter increment/clear/wrap/completion,
-  Stream `m2sPipe`/`s2mPipe`/`halfPipe`, Flow `m2sPipe`, static-depth FIFO
-  payload propagation, and negative provenance tests showing that unrelated
-  fixed-width user assignments are not treated as native-library internals.
-  The test source must not require MorphHDL-prefixed library constructor names.
+  Migrate the remaining reviewed parameter-sensitive library algorithms to the
+  typed elaboration surface using only mechanical signature/helper changes.
+  Preserve each authoritative algorithm and prove concrete parity plus
+  parameter override behavior across Counter, Stream/Flow pipelines, FIFOs,
+  memory users and representative bus/register-map components. Expand the
+  approved native-change manifest only with independently reviewed entries.
 
-- [ ] **Increment 58 — Migration and adapter retirement**
+- [ ] **Increment 58 — Legacy adapter and shadow-path retirement**
 
   **Dependencies:** Increment 57 implemented and merged.
 
-  Migrate the remaining reviewed artifacts to the zero-native-edit,
-  native-looking single-source lowering path, preserve their simulation, lint,
-  synthesis, mutation and determinism gates, and deprecate the dual-factory,
-  component-specific and MorphHDL-prefixed library-constructor production
-  paths. Keep old aliases and atomic contracts only as explicit compatibility
-  and regression oracles where removal would unnecessarily break historical
-  tests. Finalize the stable post-parameterization, pre-emission production
-  handoff used by optional MorphHDL-owned IR passes.
+  Remove or deprecate dual-factory, component-specific, emitted-name and native-
+  `Int` shadow production paths after every supported feature has typed parity.
+  Keep old atomic contracts only as explicit compatibility or mutation oracles.
+  Finalize the stable typed post-parameterization, pre-emission handoff used by
+  optional MorphHDL-owned IR passes.
 
 ## Completion target
 
-The roadmap is complete when ordinary concrete SpinalHDL calls remain compatible
-and parameter-free while typed elaboration values retain public parameters through the real algorithms,
-including parameter-dependent native Scala expressions and structural
-alternatives, producing one readable parameterized Verilog-2001 definition per
-logical component without separately handwritten ParamRTL implementations,
-component-name rewrites or unapproved native-source modifications. Application
-RTL must be able to use native-looking SpinalHDL library construction without
-requiring `MorphCounter`, `MorphStream`, `MorphFlow` or equivalent
-MorphHDL-prefixed constructor aliases.
+The roadmap is complete when parameter-sensitive SpinalHDL algorithms retain
+`ElabInt`/`ElabBool` values from API entry through elaboration and lower one
+readable parameterized Verilog-2001 definition per logical component. Literal
+`Int`/`Boolean` calls must still produce ordinary parameter-free SpinalHDL.
+Native algorithms must remain authoritative, approved native changes must be
+small and mechanical, and the production implementation must not reconstruct
+symbolic meaning from erased Scala values, component names, source-file special
+cases, emitted identifiers or equal concrete witnesses.

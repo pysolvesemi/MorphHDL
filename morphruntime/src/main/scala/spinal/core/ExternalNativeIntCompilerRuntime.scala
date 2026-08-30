@@ -229,7 +229,11 @@ object ExternalNativeIntCompilerRuntime {
       minimum = left.minimum + right.minimum,
       maximum = left.maximum + right.maximum,
       parameters = (left.parameters ++ right.parameters).distinct.sortBy(_.name),
-      sourceLocation = left.sourceLocation.orElse(right.sourceLocation)
+      sourceLocation = left.sourceLocation.orElse(right.sourceLocation),
+      parameterRoots = ElabInt.mergeParameterRoots(
+        left.completedParameterRoots,
+        right.completedParameterRoots
+      )
     )
 
   private def packedWidthExpression(data: Data): ElaborationIntegerExpression = {
@@ -763,7 +767,8 @@ object ExternalNativeIntCompilerRuntime {
           parameters = expression.parameters,
           sourceLocation = expression.sourceLocation.orElse(
             Some(rendered(sourceFile, sourceLine))
-          )
+          ),
+          parameterRoots = expression.completedParameterRoots
         )
         val carrier = component.rework {
           val value = UInt(1 bits)

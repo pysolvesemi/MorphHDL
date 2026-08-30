@@ -199,6 +199,7 @@ abstract class BitVector extends BaseType with Widthable {
     */
   def resize(width: Int): BitVector
   def resize(width: BitCount): BitVector
+  def resize(width: ElabInt): BitVector
 
   private[core] override def calcWidth: Int = {
     if (isFixedWidth) return fixedWidth

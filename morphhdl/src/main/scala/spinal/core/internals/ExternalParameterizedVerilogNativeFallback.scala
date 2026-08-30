@@ -48,9 +48,14 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
           ParameterizedProcess.parametersOf(component).nonEmpty ||
           ParameterizedStructure.parametersOf(component).nonEmpty ||
-          component.children.exists(
-            child => ParameterizedWidth.parametersOf(child).nonEmpty
-          )
+          component.children.exists { child =>
+            ParameterizedWidth.parametersOf(child).nonEmpty ||
+              ExternalParameterizedMemoryRegistry.parametersOf(child).nonEmpty ||
+              ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty ||
+              ParameterizedProcess.parametersOf(child).nonEmpty ||
+              ParameterizedStructure.parametersOf(child).nonEmpty ||
+              ExternalFormalParameterRegistry.bindingsOf(child).nonEmpty
+          }
       )
 
   def rewrite(component: Component, verilog: String, pc: PhaseContext): String =
@@ -63,6 +68,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       canonicalOf: Component => Component
   ): String = {
     val hierarchy = ExternalParameterizedVerilogHierarchy.analyze(component, pc, canonicalOf)
+    MorphHdlExternalParameterizedVerilog.validateComponentParameterRootInventory(
+      component,
+      includeChildActuals = true
+    )
     val analysis = new Analysis(
       component,
       pc,
@@ -507,6 +516,30 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
   }
 
   /**
+    * Resolve typed and legacy shadow resize provenance through exact native
+    * Resize identity. Both paths may coexist during migration only when their
+    * expressions are equivalent.
+    */
+  private def retainedResizeExpression(
+      resize: Resize
+  ): Option[ElaborationIntegerExpression] = {
+    val typed = ParameterizedWidth.resizeExpressionOf(resize)
+    val legacy = ExternalParameterizedResizeRegistry.expressionOf(resize)
+    (typed, legacy) match {
+      case (Some(left), Some(right))
+          if !ExternalFormalParameterRegistry.equivalentExpression(left, right) =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-RESIZE-PROVENANCE-CONFLICT",
+          s"one exact native Resize target is associated with conflicting typed expression '${left.verilog}' and legacy expression '${right.verilog}'",
+          left.sourceLocation.orElse(right.sourceLocation)
+        )
+      case (Some(value), _) => Some(value)
+      case (_, Some(value)) => Some(value)
+      case _                => None
+    }
+  }
+
+  /**
     * Replace a concrete witness LSB slice emitted for one exact native Resize
     * with the retained symbolic target range. The eligible assignment, target
     * and Resize node are discovered from the normalized graph by JVM identity;
@@ -532,8 +565,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           case (target: BitVector, resize: Resize)
               if (target.component eq component) && target.isComb &&
                 target.getBitsWidth == resize.size =>
-            ExternalParameterizedResizeRegistry
-              .expressionOf(resize)
+            retainedResizeExpression(resize)
               .filter(_.parameters.nonEmpty)
               .foreach { expression =>
                 if (expression.default != BigInt(resize.size)) {
@@ -926,6 +958,18 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     lazy val parameters: Vector[ElaborationIntegerParameter] = {
       val referenced =
         symbolicDeclarationWidths.flatMap(_._2.parameters) ++ hierarchyParameters
+      val retainedRoots =
+        symbolicDeclarationWidths.flatMap(_._2.parameterRoots)
+      retainedRoots.groupBy(_.name).collectFirst {
+        case (name, roots) if distinctParameterRoots(roots).size != 1 =>
+          name -> roots
+      }.foreach { case (name, roots) =>
+        fail(
+          "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED",
+          s"component '${component.definitionName}' retains independently sourced declarations for parameter '$name'",
+          roots.flatMap(_.sourceLocation).headOption
+        )
+      }
       val grouped = referenced.groupBy(_.name)
       grouped.collectFirst {
         case (name, values) if values.distinct.size != 1 => name
@@ -1171,7 +1215,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             expression.default,
             expression.minimum,
             expression.maximum,
-            expression.parameters.distinct.sortBy(_.name)
+            expression.parameters.distinct.sortBy(_.name),
+            validatedParameterRoots(
+              expression.parameterRoots,
+              s"retained native Counter width '${expression.verilog}'",
+              expression.sourceLocation
+            )
           )
           targetWidth == retained &&
           sourceWidth.default == targetWidth.default &&
@@ -1355,7 +1404,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           expression.default,
           expression.minimum,
           expression.maximum,
-          expression.parameters.distinct.sortBy(_.name)
+          expression.parameters.distinct.sortBy(_.name),
+          validatedParameterRoots(
+            expression.parameterRoots,
+            s"retained width '${expression.verilog}'",
+            expression.sourceLocation
+          )
         )
         retainedOrigins.put(value, expression)
         value
@@ -1586,7 +1640,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
 
       private def inferResize(resize: Resize): WidthExpr = {
         val retainedExpression =
-          ExternalParameterizedResizeRegistry.expressionOf(resize).map { expression =>
+          retainedResizeExpression(resize).map { expression =>
             if (expression.default != BigInt(resize.size)) {
               fail(
                 "SPINAL-PARAMETERIZED-VERILOG-RESIZE-WITNESS-MISMATCH",
@@ -1673,6 +1727,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     def minimum: BigInt
     def maximum: BigInt
     def parameters: Vector[ElaborationIntegerParameter]
+    def parameterRoots: Vector[ElaborationIntegerParameterRoot]
     def precedence: Int
     def render: String
 
@@ -1686,18 +1741,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     override val minimum: BigInt = value
     override val maximum: BigInt = value
     override val parameters: Vector[ElaborationIntegerParameter] = Vector.empty
+    override val parameterRoots: Vector[ElaborationIntegerParameterRoot] = Vector.empty
     override val precedence: Int = 100
     override val render: String = value.toString
-  }
-
-  private final case class WidthParameter(value: ElaborationIntegerParameter)
-      extends WidthExpr {
-    override val default: BigInt = value.default
-    override val minimum: BigInt = value.minimum
-    override val maximum: BigInt = value.maximum
-    override val parameters: Vector[ElaborationIntegerParameter] = Vector(value)
-    override val precedence: Int = 100
-    override val render: String = value.name
   }
 
   private final case class WidthRetained(
@@ -1705,7 +1751,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       default: BigInt,
       minimum: BigInt,
       maximum: BigInt,
-      parameters: Vector[ElaborationIntegerParameter]
+      parameters: Vector[ElaborationIntegerParameter],
+      parameterRoots: Vector[ElaborationIntegerParameterRoot]
   ) extends WidthExpr {
     override val precedence: Int = 100
   }
@@ -1722,6 +1769,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
   ) extends WidthExpr {
     override val parameters: Vector[ElaborationIntegerParameter] =
       (left.parameters ++ right.parameters).distinct.sortBy(_.name)
+    override val parameterRoots: Vector[ElaborationIntegerParameterRoot] =
+      validatedParameterRoots(
+        left.parameterRoots ++ right.parameterRoots,
+        s"derived native width '${left.render} $operator ${right.render}'",
+        None
+      )
 
     private def operand(value: WidthExpr, rightOperand: Boolean): String = {
       val needsParentheses =
@@ -1744,9 +1797,42 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
   ) extends WidthExpr {
     override val parameters: Vector[ElaborationIntegerParameter] =
       (whenTrue.parameters ++ whenFalse.parameters).distinct.sortBy(_.name)
+    override val parameterRoots: Vector[ElaborationIntegerParameterRoot] =
+      validatedParameterRoots(
+        whenTrue.parameterRoots ++ whenFalse.parameterRoots,
+        s"selected native width '$condition'",
+        None
+      )
     override val precedence: Int = 10
     override val render: String =
       s"$condition ? ${whenTrue.render} : ${whenFalse.render}"
+  }
+
+  /** Preserve declaration provenance with JVM identity semantics. */
+  private def distinctParameterRoots(
+      roots: Vector[ElaborationIntegerParameterRoot]
+  ): Vector[ElaborationIntegerParameterRoot] =
+    roots.foldLeft(Vector.empty[ElaborationIntegerParameterRoot]) {
+      case (known, root) if known.exists(_ eq root) => known
+      case (known, root)                           => known :+ root
+    }.sortBy(_.name)
+
+  private def validatedParameterRoots(
+      roots: Vector[ElaborationIntegerParameterRoot],
+      role: String,
+      sourceLocation: Option[String]
+  ): Vector[ElaborationIntegerParameterRoot] = {
+    val distinct = distinctParameterRoots(roots)
+    distinct.groupBy(_.name).collectFirst {
+      case (name, declarations) if declarations.size > 1 => name
+    }.foreach { name =>
+      fail(
+        "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED",
+        s"$role combines independently sourced declarations for parameter '$name'",
+        distinct.find(_.name == name).flatMap(_.sourceLocation).orElse(sourceLocation)
+      )
+    }
+    distinct
   }
 
   private def widthAdd(left: WidthExpr, right: WidthExpr): WidthExpr =

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/increment-53d-native-streamwidth-adapter
+      - agent/increment-53d-typed-streamwidthadapter-clean
       - parameterized-verilog
   pull_request:
     branches:
@@ -19,34 +20,68 @@ concurrency:
 
 jobs:
   source-boundary:
-    name: Native StreamWidthAdapter source boundary
+    name: Typed native StreamWidthAdapter source boundary
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Check out complete history
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Prove untouched native library and generic MorphHDL support
+      - name: Prove typed native algorithm and audited source changes
         shell: bash
-        run: bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          test -f core/src/main/scala/spinal/core/ElabInt.scala
+          test ! -e morphruntime/src/main/scala/spinal/core/ElabInt.scala
+          python3 - <<'PY'
+          from pathlib import Path
+          stream = Path('lib/src/main/scala/spinal/lib/Stream.scala').read_text()
+          start = stream.index('object StreamWidthAdapter {')
+          end = stream.index('//padding=true allow', start)
+          body = stream[start:end]
+          for token in (
+              'val inputWidth: ElabInt = widthOfExpr(input.payload)',
+              'val outputWidth: ElabInt = widthOfExpr(output.payload)',
+              'ElabInt.requireSingleSymbolicRoot',
+              'val factorExpr',
+              'constantInt("StreamWidthAdapter downsize factor")',
+              'constantInt("StreamWidthAdapter upsize factor")',
+          ):
+              assert token in body, token
+          for forbidden in (
+              'NativeIntShadow',
+              'withWidthFunctionBoundary',
+              'rewriteParameterizedStreamWidthAdapter',
+              'MorphStreamWidthAdapter',
+              'StreamFifo',
+              'StreamFifoCC',
+          ):
+              assert forbidden not in body, forbidden
+
+          bridge = Path(
+              'morphplugin/src/main/scala/morphhdl/compiler/'
+              'MorphHdlTypedElaborationControlComponent.scala'
+          ).read_text()
+          for forbidden in ('StreamWidthAdapter', 'StreamFifo', 'StreamFifoCC'):
+              assert forbidden not in bridge, forbidden
+          PY
 
   contracts:
-    name: Native StreamWidthAdapter proof Scala ${{ matrix.scala_version }}
+    name: Typed native StreamWidthAdapter proof Scala ${{ matrix.scala_version }}
     needs: source-boundary
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     container:
-      image: ghcr.io/spinalhdl/docker:latest
+      image: ghcr.io/spinalhdl/docker:v1.2.0
     env:
       XDG_CACHE_HOME: /tmp/morphhdl-cache
     strategy:
       fail-fast: false
       matrix:
-        scala_version:
-          - "2.12.18"
-          - "2.13.12"
+        scala_version: ['2.12.18', '2.13.12']
     steps:
       - name: Check out sources
         uses: actions/checkout@v4
@@ -62,12 +97,15 @@ jobs:
             --output /tmp/morphhdl-mill
           chmod +x /tmp/morphhdl-mill
 
-      - name: Validate native StreamWidthAdapter and inherited contracts
+      - name: Validate typed adapter, formal proof, and inherited contracts
         shell: bash
         run: |
           set -euo pipefail
           /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.TypedElaborationControlTests \
+            morphhdl.TypedParameterizedFactoryDirectionTests \
             morphhdl.ParameterizedStreamWidthAdapterTests \
+            morphhdl.TypedStreamWidthAdapterFormalEquivalenceTests \
             morphhdl.ParameterizedStreamFifoDepthTests \
             morphhdl.BackendSyncMergeIsolationTests \
             morphhdl.CapturedAssignmentNormalizationTests \
@@ -82,3 +120,5 @@ jobs:
             morphhdl.HierarchyParameterBindingTests \
             morphhdl.MorphSingleSourceVerilogTests \
             morphhdl.integration.ExternalSpinalVerilogBaselineTests
+          /tmp/morphhdl-mill tester[${{ matrix.scala_version }}].testOnly \
+            spinal.lib.SpinalSimStreamWidthAdapterTester

@@ -4,6 +4,8 @@ import java.lang.ref.{ReferenceQueue, WeakReference}
 
 import scala.collection.mutable
 
+import spinal.core.internals.{DataAssignmentStatement, Resize}
+
 /**
   * Elaboration metadata for one public integer parameter used directly as a
   * packed width.
@@ -17,7 +19,42 @@ final case class ElaborationIntegerParameter(
     default: BigInt,
     minimum: BigInt,
     maximum: BigInt
-)
+) {
+  /** Stable identity for callers which retain this exact direct declaration. */
+  private[spinal] lazy val declarationRoot: ElaborationIntegerParameterRoot =
+    ElaborationIntegerParameterRoot.fresh(name)
+}
+
+/**
+  * Identity-bearing provenance for one declaration of an elaboration-time
+  * parameter. Two declarations can intentionally have the same public name
+  * and schema; they are still independent roots until a caller explicitly
+  * proves otherwise by carrying this exact object through derived expressions.
+  */
+final class ElaborationIntegerParameterRoot private (
+    val name: String,
+    val sourceLocation: Option[String]
+) {
+  override def toString: String = s"ElaborationIntegerParameterRoot($name)"
+}
+
+object ElaborationIntegerParameterRoot {
+  /** Allocate provenance for one exact frontend parameter declaration. */
+  def fresh(
+      name: String,
+      sourceLocation: Option[String] = None
+  ): ElaborationIntegerParameterRoot = {
+    require(name != null && name.nonEmpty, "parameter-root name must not be empty")
+    if (sourceLocation == null || sourceLocation.exists(_ == null)) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-ELAB-INT-PARAMETER-ROOT-SOURCE-OPTION-NULL",
+        s"parameter root '$name' must retain a non-null source-location option",
+        None
+      )
+    }
+    new ElaborationIntegerParameterRoot(name, sourceLocation)
+  }
+}
 
 
 /**
@@ -35,16 +72,42 @@ final case class ElaborationIntegerExpression(
     maximum: BigInt,
     parameters: Vector[ElaborationIntegerParameter],
     generateIndex: Option[String] = None,
-    sourceLocation: Option[String] = None
-)
+    sourceLocation: Option[String] = None,
+    parameterRoots: Vector[ElaborationIntegerParameterRoot] = Vector.empty
+) {
+  /**
+    * Complete provenance allocated once for this exact expression object.
+    * Re-converting the same carrier therefore preserves declaration identity,
+    * and copies preserve the identities of their exact parameter objects.
+    */
+  private[core] lazy val completedParameterRoots: Vector[
+    ElaborationIntegerParameterRoot
+  ] = {
+    val rootedNames = parameterRoots.map(_.name).toSet
+    parameterRoots ++ parameters
+      .filterNot(parameter => rootedNames.contains(parameter.name))
+      .map(_.declarationRoot)
+  }
+}
 
 /** Boolean counterpart used by retained parameter-controlled metadata. */
 final case class ElaborationBooleanExpression(
     verilog: String,
     default: Boolean,
     parameters: Vector[ElaborationIntegerParameter],
-    sourceLocation: Option[String] = None
-)
+    sourceLocation: Option[String] = None,
+    parameterRoots: Vector[ElaborationIntegerParameterRoot] = Vector.empty
+) {
+  /** Boolean counterpart of integer-expression identity completion. */
+  private[core] lazy val completedParameterRoots: Vector[
+    ElaborationIntegerParameterRoot
+  ] = {
+    val rootedNames = parameterRoots.map(_.name).toSet
+    parameterRoots ++ parameters
+      .filterNot(parameter => rootedNames.contains(parameter.name))
+      .map(_.declarationRoot)
+  }
+}
 
 /** A concrete witness bit count with an optional bounded symbolic expression. */
 final case class ParameterizedBitCount(
@@ -95,23 +158,80 @@ private[core] final class RetainedWidthIdentityRef(
   }
 }
 
+/** Weak identity key for one exact native Resize expression. */
+private[core] final class RetainedResizeIdentityRef(
+    value: Resize,
+    queue: ReferenceQueue[Resize]
+) extends WeakReference[Resize](value, queue) {
+  private val identityHash = System.identityHashCode(value)
+
+  override def hashCode(): Int = identityHash
+
+  override def equals(other: Any): Boolean = other match {
+    case that: RetainedResizeIdentityRef =>
+      (this eq that) || {
+        val left = get()
+        val right = that.get()
+        (left ne null) && (right ne null) && (left eq right)
+      }
+    case _ => false
+  }
+}
+
 /**
   * MorphHDL-owned symbolic-width registry and native-factory adapters.
   *
-  * Native `BaseType`, `Bits`, `UInt` and `SInt` source remains untouched. The
-  * registry associates retained geometry with concrete native objects by
-  * identity. Clone-sensitive APIs are wrapped externally and still delegate to
+  * Native data and factory algorithms remain authoritative. The audited typed
+  * `Bits`, `UInt` and `SInt` overloads attach retained geometry to the value
+  * returned by those factories; this registry associates that geometry with
+  * concrete native objects by identity. Clone-sensitive APIs still delegate to
   * the ordinary SpinalHDL algorithms.
   */
 object ParameterizedWidth {
+  private val PortableParameterName = "[A-Za-z_][A-Za-z0-9_]*".r
   private val queue = new ReferenceQueue[BaseType]()
   private val retained = mutable.HashMap.empty[RetainedWidthIdentityRef, RetainedWidth]
+  private val resizeQueue = new ReferenceQueue[Resize]()
+  private val retainedResizes = mutable.HashMap.empty[
+    RetainedResizeIdentityRef,
+    ElaborationIntegerExpression
+  ]
 
   private def reap(): Unit = {
     var reference = queue.poll().asInstanceOf[RetainedWidthIdentityRef]
     while (reference != null) {
       retained.remove(reference)
       reference = queue.poll().asInstanceOf[RetainedWidthIdentityRef]
+    }
+  }
+
+  private def reapResizes(): Unit = {
+    var reference = resizeQueue.poll().asInstanceOf[RetainedResizeIdentityRef]
+    while (reference != null) {
+      retainedResizes.remove(reference)
+      reference = resizeQueue.poll().asInstanceOf[RetainedResizeIdentityRef]
+    }
+  }
+
+  private def retainResize(
+      resize: Resize,
+      expression: ElaborationIntegerExpression
+  ): Unit = synchronized {
+    reapResizes()
+    val lookup = new RetainedResizeIdentityRef(resize, null)
+    retainedResizes.get(lookup) match {
+      case Some(existing) if existing == expression => ()
+      case Some(existing) =>
+        ParameterizedVerilogException.fail(
+          "SPINAL-PARAMETERIZED-VERILOG-RESIZE-PROVENANCE-CONFLICT",
+          s"one exact native Resize target is associated with conflicting typed expressions '${existing.verilog}' and '${expression.verilog}'",
+          expression.sourceLocation.orElse(existing.sourceLocation)
+        )
+      case None =>
+        retainedResizes.update(
+          new RetainedResizeIdentityRef(resize, resizeQueue),
+          expression
+        )
     }
   }
 
@@ -125,8 +245,18 @@ object ParameterizedWidth {
     retained.update(new RetainedWidthIdentityRef(data, queue), metadata)
   }
 
-  private def retainedExpression(width: ParameterizedBitCount): Option[ElaborationIntegerExpression] =
-    width.expression.orElse {
+  private def completeExpression(
+      expression: ElaborationIntegerExpression
+  ): ElaborationIntegerExpression = {
+    val roots = expression.completedParameterRoots
+    if (roots == expression.parameterRoots) expression
+    else expression.copy(parameterRoots = roots)
+  }
+
+  private def retainedExpression(
+      width: ParameterizedBitCount
+  ): Option[ElaborationIntegerExpression] =
+    width.expression.map(completeExpression).orElse {
       width.parameter.map { parameter =>
         ElaborationIntegerExpression(
           verilog = parameter.name,
@@ -134,17 +264,184 @@ object ParameterizedWidth {
           minimum = parameter.minimum,
           maximum = parameter.maximum,
           parameters = Vector(parameter),
-          sourceLocation = width.sourceLocation
+          sourceLocation = width.sourceLocation,
+          parameterRoots = Vector(parameter.declarationRoot)
         )
       }
     }
 
+  private def validateParameterSchema(
+      parameter: ElaborationIntegerParameter,
+      sourceLocation: Option[String]
+  ): Unit = {
+    if (parameter == null) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-NULL",
+        "symbolic width carries a null parameter declaration",
+        sourceLocation
+      )
+    }
+    if (
+      parameter.name == null ||
+      !PortableParameterName.pattern.matcher(parameter.name).matches()
+    ) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-NAME-INVALID",
+        s"parameter name '${parameter.name}' is not a portable Verilog identifier",
+        sourceLocation
+      )
+    }
+    if (
+      parameter.default == null || parameter.minimum == null ||
+      parameter.maximum == null || parameter.minimum < 0 ||
+      parameter.maximum < parameter.minimum ||
+      parameter.default < parameter.minimum || parameter.default > parameter.maximum ||
+      !parameter.default.isValidInt || parameter.maximum > BigInt(Int.MaxValue)
+    ) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-DOMAIN-INVALID",
+        s"parameter '${parameter.name}' must have a non-negative bounded Scala Int domain with its default inside that domain",
+        sourceLocation
+      )
+    }
+  }
+
+  /**
+    * Validate all redundant concrete and symbolic width fields before mutating
+    * the native value. Public case-class construction must not permit an
+    * incoherent witness to reach the retained-width registry.
+    */
+  private def validateWidth(
+      width: ParameterizedBitCount
+  ): Option[ElaborationIntegerExpression] = {
+    if (width == null)
+      throw new IllegalArgumentException("symbolic bit count must not be null")
+    if (
+      width.sourceLocation == null ||
+      width.sourceLocation.exists(_ == null)
+    ) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-PARAMETERIZED-VERILOG-SOURCE-OPTION-NULL",
+        "symbolic width source-location option must not be null",
+        None
+      )
+    }
+    if (width.parameter == null) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-OPTION-NULL",
+        "symbolic width parameter option must not be null",
+        width.sourceLocation
+      )
+    }
+    if (width.value < 1) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-PARAMETERIZED-VERILOG-EXPRESSION-DOMAIN-NONPOSITIVE",
+        s"concrete width ${width.value} must be positive",
+        width.sourceLocation
+      )
+    }
+    if (width.expression == null) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-PARAMETERIZED-VERILOG-EXPRESSION-OPTION-NULL",
+        "symbolic width expression option must not be null",
+        width.sourceLocation
+      )
+    }
+    if (width.parameter.exists(_ == null)) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-NULL",
+        "symbolic width carries a null direct parameter declaration",
+        width.sourceLocation
+      )
+    }
+    if (width.expression.exists(_ == null)) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-PARAMETERIZED-VERILOG-EXPRESSION-NULL",
+        "symbolic width carries a null retained expression",
+        width.sourceLocation
+      )
+    }
+
+    width.parameter.foreach(validateParameterSchema(_, width.sourceLocation))
+    width.expression.foreach { expression =>
+      ElabInt.validateExpression(expression, "parameterized bit-count expression")
+      expression.parameters.foreach(
+        validateParameterSchema(_, expression.sourceLocation.orElse(width.sourceLocation))
+      )
+    }
+    width.parameter.foreach { parameter =>
+      if (parameter.default != BigInt(width.value)) {
+        ParameterizedVerilogException.fail(
+          "SPINAL-PARAMETERIZED-VERILOG-WITNESS-MISMATCH",
+          s"concrete width ${width.value} does not match direct parameter '${parameter.name}' default ${parameter.default}",
+          width.sourceLocation
+        )
+      }
+    }
+    for {
+      parameter <- width.parameter
+      expression <- width.expression
+    } {
+      val isExactDirectExpression =
+        expression.verilog.trim == parameter.name &&
+          (expression.parameters match {
+            case Vector(expressionParameter) => expressionParameter eq parameter
+            case _                           => false
+          }) &&
+          expression.default == parameter.default &&
+          expression.minimum == parameter.minimum &&
+          expression.maximum == parameter.maximum
+      if (!isExactDirectExpression) {
+        ParameterizedVerilogException.fail(
+          "SPINAL-PARAMETERIZED-VERILOG-DIRECT-PARAMETER-EXPRESSION-MISMATCH",
+          s"direct parameter '${parameter.name}' does not match retained expression '${expression.verilog}' and its bounds",
+          expression.sourceLocation.orElse(width.sourceLocation)
+        )
+      }
+    }
+
+    val expression = retainedExpression(width)
+    expression.foreach { value =>
+      ElabInt.validateExpression(value, "parameterized bit-count expression")
+      if (value.minimum < 1) {
+        ParameterizedVerilogException.fail(
+          "SPINAL-PARAMETERIZED-VERILOG-EXPRESSION-DOMAIN-NONPOSITIVE",
+          s"width expression '${value.verilog}' reaches ${value.minimum}; every retained width must stay positive",
+          value.sourceLocation.orElse(width.sourceLocation)
+        )
+      }
+      if (value.maximum > BigInt(Int.MaxValue)) {
+        ParameterizedVerilogException.fail(
+          "SPINAL-PARAMETERIZED-VERILOG-EXPRESSION-DOMAIN-TOO-LARGE",
+          s"width expression '${value.verilog}' reaches ${value.maximum}, above the Scala Int width domain",
+          value.sourceLocation.orElse(width.sourceLocation)
+        )
+      }
+      if (value.default != BigInt(width.value)) {
+        ParameterizedVerilogException.fail(
+          "SPINAL-PARAMETERIZED-VERILOG-WITNESS-MISMATCH",
+          s"concrete width ${width.value} does not match retained expression default ${value.default}",
+          value.sourceLocation.orElse(width.sourceLocation)
+        )
+      }
+    }
+    expression
+  }
+
   /** Attach a symbolic width to one concrete native bit vector. */
   def attach[T <: BitVector](data: T, width: ParameterizedBitCount): T = {
     if (data == null) throw new IllegalArgumentException("symbolic-width target must not be null")
-    if (width == null) throw new IllegalArgumentException("symbolic bit count must not be null")
+    val expression = validatedWidthExpression(width)
+    attachValidated(data, width, expression)
+  }
+
+  /** Commit one width whose complete symbolic metadata was already validated. */
+  private[spinal] def attachValidated[T <: BitVector](
+      data: T,
+      width: ParameterizedBitCount,
+      expression: Option[ElaborationIntegerExpression]
+  ): T = {
     data.setWidth(width.value)
-    val expression = retainedExpression(width)
     if (expression.exists(_.parameters.nonEmpty)) {
       retain(
         data,
@@ -154,17 +451,80 @@ object ParameterizedWidth {
     data
   }
 
+  /**
+    * Attach one typed target width to a native resize result and retain the
+    * exact internal Resize node before weak-clone normalization can remove the
+    * result object. The association is by JVM identity and is generic across
+    * all native algorithms.
+    */
+  def attachResize[T <: BitVector](data: T, width: ElabInt): T = {
+    if (width == null)
+      throw new IllegalArgumentException("typed resize width must not be null")
+    val result = attach(data, width.toParameterizedBitCount("typed resize"))
+    val expression = width.expression
+    if (expression.parameters.nonEmpty && result.hasOnlyOneStatement) {
+      result.head match {
+        case assignment: DataAssignmentStatement
+            if (assignment.target eq result) &&
+              (assignment.finalTarget eq result) =>
+          assignment.source match {
+            case resize: Resize if resize.size == result.getBitsWidth =>
+              if (expression.default != BigInt(resize.size)) {
+                ParameterizedVerilogException.fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-RESIZE-WITNESS-MISMATCH",
+                  s"native Resize target ${resize.size} does not match typed width default ${expression.default}",
+                  expression.sourceLocation
+                )
+              }
+              retainResize(resize, expression)
+            case _ =>
+          }
+        case _ =>
+      }
+    }
+    result
+  }
+
+  /** Validate a typed resize before the native resize node is constructed. */
+  private[spinal] def validatedResizeWitness(width: ElabInt): Int = {
+    if (width == null)
+      throw new IllegalArgumentException("typed resize width must not be null")
+    width.toParameterizedBitCount("typed resize").value
+  }
+
+  /** Look up one typed target width only by exact native Resize identity. */
+  def resizeExpressionOf(
+      resize: Resize
+  ): Option[ElaborationIntegerExpression] = synchronized {
+    if (resize == null) None
+    else {
+      reapResizes()
+      retainedResizes.get(new RetainedResizeIdentityRef(resize, null))
+    }
+  }
+
+  /** Validate a symbolic width and return the exact retained expression. */
+  private[spinal] def validatedWidthExpression(
+      width: ParameterizedBitCount
+  ): Option[ElaborationIntegerExpression] =
+    validateWidth(width)
+
   /** MorphHDL shadow factories; each delegates to the untouched native factory. */
+  private[spinal] def validatedWidthWitness(width: ParameterizedBitCount): Int = {
+    validatedWidthExpression(width)
+    width.value
+  }
+
   def Bits(width: ParameterizedBitCount): spinal.core.Bits =
-    attach(spinal.core.Bits(BitCount(width.value)), width)
+    attach(spinal.core.Bits(BitCount(validatedWidthWitness(width))), width)
   def Bits(width: BitCount): spinal.core.Bits = spinal.core.Bits(width)
 
   def UInt(width: ParameterizedBitCount): spinal.core.UInt =
-    attach(spinal.core.UInt(BitCount(width.value)), width)
+    attach(spinal.core.UInt(BitCount(validatedWidthWitness(width))), width)
   def UInt(width: BitCount): spinal.core.UInt = spinal.core.UInt(width)
 
   def SInt(width: ParameterizedBitCount): spinal.core.SInt =
-    attach(spinal.core.SInt(BitCount(width.value)), width)
+    attach(spinal.core.SInt(BitCount(validatedWidthWitness(width))), width)
   def SInt(width: BitCount): spinal.core.SInt = spinal.core.SInt(width)
 
   /** Copy registry ownership between already-created native leaves. */
@@ -265,6 +625,30 @@ object ParameterizedWidth {
         }
       )
     }
+    val associatedRoots = leaves.flatMap { baseType =>
+      expressionOf(baseType).toVector.flatMap(
+        _.parameterRoots.map(root => baseType -> root)
+      )
+    }
+    associatedRoots
+      .groupBy(_._2.name)
+      .collectFirst {
+        case (name, roots)
+            if roots.map(_._2).foldLeft(Vector.empty[ElaborationIntegerParameterRoot]) {
+              case (known, root) if known.exists(_ eq root) => known
+              case (known, root)                           => known :+ root
+            }.size > 1 =>
+          name
+      }
+      .foreach { name =>
+        ParameterizedVerilogException.fail(
+          "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED",
+          s"component '${component.definitionName}' combines independently sourced declarations for parameter '$name'",
+          associatedRoots.find(_._2.name == name).flatMap { case (baseType, _) =>
+            sourceLocationOf(baseType)
+          }
+        )
+      }
     values.distinct.sortBy(_.name).toVector
   }
 }
@@ -274,7 +658,7 @@ final class ParameterizedVerilogException(
     val detail: String,
     val sourceLocation: Option[String] = None
 ) extends IllegalArgumentException(
-      s"[$code] ${sourceLocation.map(_ + ": ").getOrElse("")}$detail"
+      s"[$code] ${Option(sourceLocation).flatten.map(_ + ": ").getOrElse("")}$detail"
     )
 
 private[core] object ParameterizedVerilogException {
@@ -283,5 +667,9 @@ private[core] object ParameterizedVerilogException {
       detail: String,
       sourceLocation: Option[String] = None
   ): Nothing =
-    throw new ParameterizedVerilogException(code, detail, sourceLocation)
+    throw new ParameterizedVerilogException(
+      code,
+      detail,
+      Option(sourceLocation).flatten
+    )
 }
