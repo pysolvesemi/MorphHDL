@@ -1,0 +1,135 @@
+name: Diagnose Increment 53d publisher source contract
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-source-contract-diagnostic.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Apply candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          for patch in \
+            morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
+            morphhdl/scripts/increment-53d-typed-factory-dispatch.patch.gz.b64 \
+            morphhdl/scripts/increment-53d-typed-factory-direction-test.patch.gz.b64 \
+            morphhdl/scripts/increment-53d-typed-manifest-update.patch.gz.b64
+          do
+            echo "APPLY $patch"
+            base64 -d "$patch" | gzip -d | git apply --whitespace=nowarn
+          done
+          git diff --check
+      - name: Print exact changed-file scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== git status ==='
+          git status --short
+          echo '=== all changed paths ==='
+          git diff --name-only HEAD | sort
+          echo '=== native changed paths ==='
+          git diff --name-only HEAD -- core lib idslplugin | sort
+      - name: Diagnose architecture assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u - <<'PY'
+          from pathlib import Path
+
+          print('CHECK factories')
+          factories = {
+              'Bits.scala': 'ParameterizedWidth.attach(Bits(), width)',
+              'UInt.scala': 'ParameterizedWidth.attach(UInt(), width)',
+              'SInt.scala': 'ParameterizedWidth.attach(SInt(), width)',
+          }
+          for name, required in factories.items():
+              text = Path('core/src/main/scala/spinal/core', name).read_text()
+              print(name, required in text)
+              assert required in text, (name, required)
+
+          print('CHECK adapter source')
+          stream = Path('lib/src/main/scala/spinal/lib/Stream.scala').read_text()
+          start = stream.index('object StreamWidthAdapter {')
+          end = stream.index('//padding=true allow', start)
+          body = stream[start:end]
+          checks = (
+              ('typed input width', 'val inputWidth: ElabInt = widthOfExpr(input.payload)' in body),
+              ('typed output width', 'val outputWidth: ElabInt = widthOfExpr(output.payload)' in body),
+              ('single root', 'ElabInt.requireSingleSymbolicRoot' in body),
+              ('factor expression', 'val factorExpr' in body),
+              ('down constant', 'constantInt("StreamWidthAdapter downsize factor")' in body),
+              ('up constant', 'constantInt("StreamWidthAdapter upsize factor")' in body),
+              ('no shadow', 'NativeIntShadow' not in body),
+              ('no boundary helper', 'withWidthFunctionBoundary' not in body),
+              ('no rewrite', 'rewriteParameterizedStreamWidthAdapter' not in stream),
+          )
+          for label, ok in checks:
+              print(label, ok)
+              assert ok, label
+
+          print('CHECK adapter fixture')
+          adapter_test = Path(
+              'morphhdl/src/test/scala/morphhdl/'
+              'ParameterizedStreamWidthAdapterTests.scala'
+          ).read_text()
+          fixture_start = adapter_test.index('object ParameterizedStreamWidthAdapterSmoke {')
+          fixture_end = adapter_test.index(
+              'class ParameterizedStreamWidthAdapterTests', fixture_start
+          )
+          fixture = adapter_test[fixture_start:fixture_end]
+          fixture_checks = (
+              ('equal ElabInt', 'equalWidth: ElabInt' in fixture),
+              ('down ElabInt', 'downWidth: ElabInt' in fixture),
+              ('up ElabInt', 'upWidth: ElabInt' in fixture),
+              ('asElabInt', '.asElabInt' in fixture),
+              ('no fixture shadow', 'NativeIntShadow' not in fixture),
+              ('no fixture formal component', 'formalComponent' not in fixture),
+              ('independent-root diagnostic', 'SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED' in adapter_test),
+          )
+          for label, ok in fixture_checks:
+              print(label, ok)
+              assert ok, label
+
+          print('CHECK direction regression')
+          direction_test = Path(
+              'morphhdl/src/test/scala/morphhdl/'
+              'TypedParameterizedFactoryDirectionTests.scala'
+          ).read_text()
+          for declaration in (
+              'val bitsIn = in Bits (width bits)',
+              'val bitsOut = out Bits (width bits)',
+              'val uintIn = in UInt (width bits)',
+              'val uintOut = out UInt (width bits)',
+              'val sintIn = in SInt (width bits)',
+              'val sintOut = out SInt (width bits)',
+          ):
+              print(declaration, declaration in direction_test)
+              assert declaration in direction_test, declaration
+
+          print('CHECK manifest')
+          manifest = Path(
+              'docs/morphhdl/increment-53d-typed-native-change-manifest.md'
+          ).read_text()
+          for name in ('Bits.scala', 'UInt.scala', 'SInt.scala', 'Stream.scala'):
+              print(name, name in manifest)
+              assert name in manifest, name
+          label = 'no bypass of virtual packed-data factories'
+          print(label, label in manifest)
+          assert label in manifest, label
+          print('ALL ARCHITECTURE ASSERTIONS PASS')
+          PY
