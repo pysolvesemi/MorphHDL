@@ -1,0 +1,197 @@
+name: Validate and publish Increment 53d direct typed StreamWidthAdapter
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-direct-typed-port-fix.yml
+      - morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64
+      - morphhdl/scripts/apply-increment-53d-direct-typed-port-fix.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53d-direct-typed-port-fix
+  cancel-in-progress: true
+
+jobs:
+  source-contract:
+    name: Direct typed source contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Apply direct typed candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
+            | gzip -d \
+            | git apply --whitespace=nowarn
+          python3 morphhdl/scripts/apply-increment-53d-direct-typed-port-fix.py
+          git diff --check
+          actual="$(git diff --name-only | sort)"
+          expected="$(printf '%s\n' \
+            docs/morphhdl/increment-53d-typed-native-change-manifest.md \
+            lib/src/main/scala/spinal/lib/Stream.scala \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala | sort)"
+          test "$actual" = "$expected"
+      - name: Enforce direct typed boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          stream = Path('lib/src/main/scala/spinal/lib/Stream.scala').read_text()
+          start = stream.index('object StreamWidthAdapter {')
+          end = stream.index('//padding=true allow', start)
+          body = stream[start:end]
+          assert 'widthOfExpr(input.payload)' in body
+          assert 'widthOfExpr(output.payload)' in body
+          assert 'ElabInt.requireSingleSymbolicRoot' in body
+          assert 'NativeIntShadow' not in body
+          assert 'withWidthFunctionBoundary' not in body
+
+          test = Path(
+            'morphhdl/src/test/scala/morphhdl/'
+            'ParameterizedStreamWidthAdapterTests.scala'
+          ).read_text()
+          fixture_start = test.index('object ParameterizedStreamWidthAdapterSmoke {')
+          fixture_end = test.index('class ParameterizedStreamWidthAdapterTests', fixture_start)
+          fixture = test[fixture_start:fixture_end]
+          assert 'equalWidth: ElabInt' in fixture
+          assert 'downWidth: ElabInt' in fixture
+          assert 'upWidth: ElabInt' in fixture
+          assert '.asElabInt' in fixture
+          assert 'spinal.core.Bits(' in fixture
+          assert 'morphhdl.frontend.Bits(' not in fixture
+          assert 'NativeIntShadow' not in fixture
+          assert 'formalComponent' not in fixture
+          assert 'SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED' in test
+
+          widths = Path('core/src/main/scala/spinal/core/ParameterizedWidth.scala').read_text()
+          assert 'def attachResize[T <: BitVector]' in widths
+          assert 'def resizeExpressionOf' in widths
+          PY
+
+  sbt:
+    name: SBT direct typed adapter Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12.18", "2.13.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+          submodules: recursive
+      - name: Apply direct typed candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
+            | gzip -d \
+            | git apply --whitespace=nowarn
+          python3 morphhdl/scripts/apply-increment-53d-direct-typed-port-fix.py
+          git diff --check
+      - name: Compile production and test sources
+        shell: bash
+        run: sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+      - name: Run adapter and typed cross-component regressions
+        shell: bash
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.NaturalSymbolicConditionalTests morphhdl.NativeIntShadowExpressionTests morphhdl.ExternalNativeIntShadowExpressionTests morphhdl.HierarchyParameterBindingTests"
+
+  mill:
+    name: Mill direct typed adapter Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ["2.12.18", "2.13.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+      - name: Apply direct typed candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
+            | gzip -d \
+            | git apply --whitespace=nowarn
+          python3 morphhdl/scripts/apply-increment-53d-direct-typed-port-fix.py
+          git diff --check
+      - name: Run adapter and typed cross-component regressions
+        shell: bash
+        run: |
+          /tmp/mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.TypedElaborationControlTests \
+            morphhdl.ParameterizedStreamWidthAdapterTests \
+            morphhdl.ParameterizedStreamFifoDepthTests \
+            morphhdl.NaturalSymbolicConditionalTests \
+            morphhdl.NativeIntShadowExpressionTests \
+            morphhdl.ExternalNativeIntShadowExpressionTests \
+            morphhdl.HierarchyParameterBindingTests
+
+  publish:
+    name: Publish direct typed adapter source
+    needs: [source-contract, sbt, mill]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Commit validated production, test, and audit changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d morphhdl/scripts/increment-53d-direct-typed-adapter.patch.gz.b64 \
+            | gzip -d \
+            | git apply --whitespace=nowarn
+          python3 morphhdl/scripts/apply-increment-53d-direct-typed-port-fix.py
+          git diff --check
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git add \
+            docs/morphhdl/increment-53d-typed-native-change-manifest.md \
+            lib/src/main/scala/spinal/lib/Stream.scala \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala
+          actual="$(git diff --cached --name-only | sort)"
+          expected="$(printf '%s\n' \
+            docs/morphhdl/increment-53d-typed-native-change-manifest.md \
+            lib/src/main/scala/spinal/lib/Stream.scala \
+            morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala | sort)"
+          test "$actual" = "$expected"
+          git diff --cached --check
+          git commit -m 'Use direct ElabInt widths in StreamWidthAdapter'
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot
