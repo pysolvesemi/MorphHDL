@@ -120,3 +120,5 @@ jobs:
             morphhdl.HierarchyParameterBindingTests \
             morphhdl.MorphSingleSourceVerilogTests \
             morphhdl.integration.ExternalSpinalVerilogBaselineTests
+          /tmp/morphhdl-mill tester[${{ matrix.scala_version }}].testOnly \
+            spinal.lib.SpinalSimStreamWidthAdapterTester

@@ -128,17 +128,27 @@ final class HdlInt private[frontend] (
             useOrigin
           )
         }
+        val schema = ElaborationIntegerParameter(
+          parameter.name,
+          parameter.default,
+          minimum,
+          maximum
+        )
         val width = ParameterizedBitCount(
           parameter.default.toInt,
-          parameter = Some(
-            ElaborationIntegerParameter(
-              parameter.name,
-              parameter.default,
-              minimum,
-              maximum
+          parameter = Some(schema),
+          sourceLocation = Some(useOrigin.rendered),
+          expression = Some(
+            spinal.core.ElaborationIntegerExpression(
+              verilog = parameter.name,
+              default = parameter.default,
+              minimum = minimum,
+              maximum = maximum,
+              parameters = Vector(schema),
+              sourceLocation = Some(useOrigin.rendered),
+              parameterRoots = Vector(token.elaborationRoot)
             )
-          ),
-          sourceLocation = Some(useOrigin.rendered)
+          )
         )
         formalBinding match {
           case Some(binding) => ExternalFormalParameterRegistry.retain(width, binding)
@@ -734,7 +744,13 @@ object HdlInt {
           maximum
         )
       ),
-      sourceLocation = Some(origin.rendered)
+      sourceLocation = Some(origin.rendered),
+      parameterRoots = Vector(
+        spinal.core.ElaborationIntegerParameterRoot.fresh(
+          name,
+          Some(origin.rendered)
+        )
+      )
     )
   }
 

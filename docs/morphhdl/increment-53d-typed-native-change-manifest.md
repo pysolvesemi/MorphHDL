@@ -5,12 +5,14 @@ native change. The original algorithm remains authoritative.
 
 | File | Classification | Change | Algorithm impact |
 |---|---|---|---|
-| `core/src/main/scala/spinal/core/Bits.scala` | typed factory dispatch preservation | the `ParameterizedBitCount` overload attaches typed width metadata to the result of the virtual `Bits()` factory instead of constructing a separate value | none; preserves native `in`/`out`/`master`/`slave` direction dispatch |
-| `core/src/main/scala/spinal/core/UInt.scala` | typed factory dispatch preservation | the `ParameterizedBitCount` overload attaches typed width metadata to the result of the virtual `UInt()` factory instead of constructing a separate value | none; preserves native `in`/`out` direction dispatch |
-| `core/src/main/scala/spinal/core/SInt.scala` | typed factory dispatch preservation | the `ParameterizedBitCount` overload attaches typed width metadata to the result of the virtual `SInt()` factory instead of constructing a separate value | none; preserves native `in`/`out` direction dispatch |
-| `lib/src/main/scala/spinal/lib/Stream.scala` | typed helper and mechanical propagation | `StreamWidthAdapter` obtains payload geometry with `widthOfExpr`, keeps width arithmetic typed, and extracts only domain-proven constant factors/chunk widths for existing host-side collection and counter APIs | none; equal-width, downsize, upsize, ordering, buffering and ready/valid logic are unchanged |
-
-Neutral carrier definition: `core/src/main/scala/spinal/core/ElabInt.scala`.
+| `core/src/main/scala/spinal/core/BitVector.scala` | `typed-formal-or-overload` | declares the typed `resize(ElabInt)` entry point on the authoritative native bit-vector API | none; the existing resize implementation remains authoritative |
+| `core/src/main/scala/spinal/core/Bits.scala` | `typed-formal-or-overload` | the `ParameterizedBitCount` overload attaches typed width metadata to the result of the virtual `Bits()` factory instead of constructing a separate value | none; preserves native `in`/`out`/`master`/`slave` direction dispatch |
+| `core/src/main/scala/spinal/core/ElabInt.scala` | `typed-helper` | owns the neutral `ElabInt`/`ElabBool` carriers, bounded operators, exact declaration-root identity and fail-closed domain checks | none; this is carrier metadata below the native algorithms |
+| `core/src/main/scala/spinal/core/ParameterizedWidth.scala` | `typed-helper` | retains typed packed-width and exact native `Resize` identity metadata, including parameter declaration roots | none; native data construction and resize nodes remain authoritative |
+| `core/src/main/scala/spinal/core/SInt.scala` | `typed-formal-or-overload` | the `ParameterizedBitCount` overload attaches typed width metadata to the result of the virtual `SInt()` factory instead of constructing a separate value | none; preserves native `in`/`out` direction dispatch |
+| `core/src/main/scala/spinal/core/UInt.scala` | `typed-formal-or-overload` | the `ParameterizedBitCount` overload attaches typed width metadata to the result of the virtual `UInt()` factory instead of constructing a separate value | none; preserves native `in`/`out` direction dispatch |
+| `core/src/main/scala/spinal/core/core.scala` | `typed-helper` | adds `widthOfExpr` so native algorithms can obtain packed geometry without erasing a retained expression to `Int` | none; delegates to the existing packed-width traversal |
+| `lib/src/main/scala/spinal/lib/Stream.scala` | `typed-mechanical-propagation` | `StreamWidthAdapter` obtains payload geometry with `widthOfExpr`, keeps width arithmetic typed, and extracts only domain-proven constant factors/chunk widths for existing host-side collection and counter APIs | none; equal-width, downsize, upsize, ordering, buffering and ready/valid logic are unchanged |
 
 Forbidden changes checked by CI:
 

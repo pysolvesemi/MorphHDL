@@ -521,13 +521,34 @@ object ExternalFormalParameterRegistry {
   ): ElaborationIntegerExpression =
     expression.copy(
       parameters = expression.parameters.distinct.sortBy(_.name),
-      sourceLocation = None
+      sourceLocation = None,
+      parameterRoots = Vector.empty
     )
 
   private[core] def equivalentExpression(
       left: ElaborationIntegerExpression,
       right: ElaborationIntegerExpression
-  ): Boolean = normalizedExpression(left) == normalizedExpression(right)
+  ): Boolean = {
+    val leftRoots = distinctRoots(left.parameterRoots)
+    val rightRoots = distinctRoots(right.parameterRoots)
+    // Reconstructed canonical formals are intentionally rootless schema
+    // witnesses. When both expressions carry exact typed provenance, require
+    // the same declaration objects in addition to the normalized schema.
+    val rootsCompatible =
+      leftRoots.isEmpty || rightRoots.isEmpty || {
+        leftRoots.size == rightRoots.size &&
+        leftRoots.forall(root => rightRoots.exists(_ eq root))
+      }
+    rootsCompatible && normalizedExpression(left) == normalizedExpression(right)
+  }
+
+  private def distinctRoots(
+      roots: Vector[ElaborationIntegerParameterRoot]
+  ): Vector[ElaborationIntegerParameterRoot] =
+    roots.foldLeft(Vector.empty[ElaborationIntegerParameterRoot]) {
+      case (known, root) if known.exists(_ eq root) => known
+      case (known, root)                           => known :+ root
+    }
 
   private[core] def equivalentBinding(
       left: ExternalFormalParameterBinding,

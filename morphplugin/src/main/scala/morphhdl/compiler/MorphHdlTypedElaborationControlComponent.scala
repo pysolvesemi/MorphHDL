@@ -99,31 +99,59 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       finally scopes = scopes.tail
     }
 
-    def referencesKind(current: Tree, accepted: Set[BindingKind]): Boolean = {
-      var found = false
-      object Finder extends Traverser {
-        override def traverse(value: Tree): Unit = if (!found) value match {
-          case Ident(name: TermName) if lookup(name).exists(accepted.contains) =>
-            found = true
-          case Select(This(_), name: TermName)
-              if lookup(name).exists(accepted.contains) =>
-            found = true
-          case _: DefDef | _: ClassDef | _: ModuleDef | _: Function =>
-          case _ => super.traverse(value)
+    /**
+      * Infer only the carrier expressions which can be proven from the
+      * untyped syntax tree and explicitly typed lexical bindings.  In
+      * particular, do not propagate carrier meaning through an arbitrary
+      * method call or member selection merely because its subtree mentions an
+      * `ElabInt`/`ElabBool`: `width.parameters.size`,
+      * `width.parameters.nonEmpty` and `Seq(width).nonEmpty` are ordinary
+      * Scala values.
+      */
+    def expressionKind(current: Tree): BindingKind = current match {
+      case Ident(name: TermName) => lookup(name).getOrElse(OrdinaryBinding)
+      case Select(This(_), name: TermName) =>
+        lookup(name).getOrElse(OrdinaryBinding)
+
+      case Apply(Select(receiver, operator), List(argument)) =>
+        val receiverKind = expressionKind(receiver)
+        decoded(operator) match {
+          case "+" | "-" | "*" | "/" | "%"
+              if receiverKind == TypedIntegerBinding =>
+            TypedIntegerBinding
+          case "<" | "<=" | ">" | ">="
+              if receiverKind == TypedIntegerBinding =>
+            TypedBooleanBinding
+          case "elabEq" | "elabNe"
+              if receiverKind == TypedIntegerBinding =>
+            TypedBooleanBinding
+          case "==" | "!="
+              if receiverKind == TypedIntegerBinding =>
+            TypedBooleanBinding
+          case "==" | "!="
+              if expressionKind(argument) == TypedIntegerBinding =>
+            TypedBooleanBinding
+          case "&&" | "||" if receiverKind == TypedBooleanBinding =>
+            TypedBooleanBinding
+          case _ => OrdinaryBinding
         }
-      }
-      Finder.traverse(current)
-      found
+
+      case Select(receiver, operator)
+          if decoded(operator) == "unary_!" &&
+            expressionKind(receiver) == TypedBooleanBinding =>
+        TypedBooleanBinding
+      case Apply(Select(receiver, operator), Nil)
+          if decoded(operator) == "unary_!" &&
+            expressionKind(receiver) == TypedBooleanBinding =>
+        TypedBooleanBinding
+      case _ => OrdinaryBinding
     }
 
-    def referencesInteger(current: Tree): Boolean =
-      referencesKind(current, Set[BindingKind](TypedIntegerBinding))
+    def isTypedInteger(current: Tree): Boolean =
+      expressionKind(current) == TypedIntegerBinding
 
-    def referencesTyped(current: Tree): Boolean =
-      referencesKind(
-        current,
-        Set[BindingKind](TypedIntegerBinding, TypedBooleanBinding)
-      )
+    def isTypedBoolean(current: Tree): Boolean =
+      expressionKind(current) == TypedBooleanBinding
 
     def patternNames(pattern: Tree): Vector[TermName] = {
       val names = mutable.ArrayBuffer.empty[TermName]
@@ -207,23 +235,23 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           }
 
         case original: If =>
-          if (referencesTyped(original.cond)) mark(typedIfs, original)
+          if (isTypedBoolean(original.cond)) mark(typedIfs, original)
           super.traverse(original)
 
         case original @ Apply(Select(predicate, operator), List(_))
             if decoded(operator) == "generate" =>
-          if (referencesTyped(predicate)) mark(typedGenerates, original)
+          if (isTypedBoolean(predicate)) mark(typedGenerates, original)
           super.traverse(original)
 
         case original @ Apply(fun, predicate :: _)
             if terminalName(fun) == "require" || terminalName(fun) == "assert" =>
-          if (referencesTyped(predicate)) mark(typedRequires, original)
+          if (isTypedBoolean(predicate)) mark(typedRequires, original)
           super.traverse(original)
 
         case original @ Apply(Select(left, operator), List(right))
             if decoded(operator) == "==" || decoded(operator) == "!=" =>
-          val leftTyped = referencesInteger(left)
-          val rightTyped = referencesInteger(right)
+          val leftTyped = isTypedInteger(left)
+          val rightTyped = isTypedInteger(right)
           if (leftTyped || rightTyped)
             typedEqualities.put(
               original,
@@ -510,6 +538,10 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       case original @ Apply(_, predicate :: rest)
           if classified.typedRequires.containsKey(original) =>
         rewriteAssert(original, predicate, rest)
+      case original @ Apply(Select(_, operator), List(_))
+          if (decoded(operator) == "==" || decoded(operator) == "!=") &&
+            classified.typedEqualities.containsKey(original) =>
+        condition(original)
       case _ => super.transform(tree)
     }
   }
@@ -521,7 +553,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         if (
           !classified.typedIfs.isEmpty ||
           !classified.typedGenerates.isEmpty ||
-          !classified.typedRequires.isEmpty
+          !classified.typedRequires.isEmpty ||
+          !classified.typedEqualities.isEmpty
         )
           unit.body =
             new TypedControlTransformer(unit, classified).transform(unit.body)

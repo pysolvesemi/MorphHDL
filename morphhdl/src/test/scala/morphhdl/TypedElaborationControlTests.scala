@@ -62,6 +62,37 @@ object TypedElaborationLexicalScopeSmoke {
   }
 }
 
+/**
+  * A typed carrier may be an ordinary value inside a Scala expression.  Merely
+  * mentioning it must not turn the expression's Boolean result into typed
+  * elaboration control.
+  */
+object TypedElaborationLexicalMentionSmoke {
+  def sequenceNonEmpty(width: ElabInt): Boolean =
+    if (Seq(width).nonEmpty) true else false
+
+  def parameterCountEqualsOne(width: ElabInt): Boolean =
+    if (width.parameters.size == 1) true else false
+
+  def requireParameterMetadata(width: ElabInt): Unit =
+    require(width.parameters.nonEmpty, "expected one symbolic parameter")
+
+  def ordinaryGenerate(width: ElabInt): String =
+    Seq(width).nonEmpty.generate("ordinary")
+
+  def typedNestedControl(width: ElabInt): Boolean =
+    if ((width + 1 > 8) && width.elabNe(99)) true else false
+
+  def typedGenerate(width: ElabInt): String =
+    (width > 0).generate("typed")
+
+  def standaloneEqual(width: ElabInt): ElabBool =
+    width == width
+
+  def standaloneNotEqual(width: ElabInt): ElabBool =
+    width != width
+}
+
 class TypedElaborationControlTests extends AnyFunSuite {
   import TypedElaborationControlSmoke._
 
@@ -100,11 +131,88 @@ class TypedElaborationControlTests extends AnyFunSuite {
     assert(error.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED")
   }
 
+  test("same-named same-schema declarations remain independent symbolic roots") {
+    val first = HdlInt.param("WIDTH", default = 8, min = 1, max = 16).asElabInt
+    val second = HdlInt.param("WIDTH", default = 8, min = 1, max = 16).asElabInt
+    val error = intercept[ParameterizedVerilogException] {
+      ElabInt.requireSingleSymbolicRoot("typed same-name unit test", first, second)
+    }
+    assert(error.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED")
+
+    val arithmeticError = intercept[ParameterizedVerilogException] {
+      first + second
+    }
+    assert(
+      arithmeticError.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED"
+    )
+
+    val booleanError = intercept[ParameterizedVerilogException] {
+      (first > 0) && (second > 0)
+    }
+    assert(booleanError.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED")
+  }
+
+  test("copies and derived expressions preserve one symbolic root identity") {
+    val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 16)
+    val typed = width.asElabInt
+    val copied = width.asElabInt
+    val frontendDerived =
+      (width + HdlInt.literal(BigInt(1))).asElabInt
+    val coreDerived = (typed * 2) - 1
+
+    ElabInt.requireSingleSymbolicRoot(
+      "typed derived unit test",
+      typed,
+      copied,
+      frontendDerived,
+      coreDerived
+    )
+    assert(typed.elabEq(copied).isAlwaysTrue)
+  }
+
+  test("direct HdlInt bit counts retain declaration identity through width metadata") {
+    val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 16)
+    val first = ElabInt.fromExpression(width.bits.expression.get)
+    val copied = ElabInt.fromExpression(width.bits.expression.get)
+    ElabInt.requireSingleSymbolicRoot("direct bit-count copy", first, copied)
+
+    val independent = HdlInt
+      .param("WIDTH", default = 8, min = 1, max = 16)
+      .bits
+      .expression
+      .map(ElabInt.fromExpression)
+      .get
+    val error = intercept[ParameterizedVerilogException] {
+      ElabInt.requireSingleSymbolicRoot(
+        "direct bit-count independent root",
+        first,
+        independent
+      )
+    }
+    assert(error.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED")
+  }
+
   test("ordinary bindings shadow same-named typed bindings in the same source unit") {
     assert(TypedElaborationLexicalScopeSmoke.ordinaryEqual(8, 8))
     assert(!TypedElaborationLexicalScopeSmoke.ordinaryEqual(8, 9))
     assert(TypedElaborationLexicalScopeSmoke.ordinaryNested(8))
     assert(!TypedElaborationLexicalScopeSmoke.ordinaryNested(7))
+  }
+
+  test("lexical carrier mentions remain ordinary unless the expression result is typed") {
+    val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 16).asElabInt
+
+    assert(TypedElaborationLexicalMentionSmoke.sequenceNonEmpty(width))
+    assert(TypedElaborationLexicalMentionSmoke.parameterCountEqualsOne(width))
+    TypedElaborationLexicalMentionSmoke.requireParameterMetadata(width)
+    assert(TypedElaborationLexicalMentionSmoke.ordinaryGenerate(width) == "ordinary")
+    assert(TypedElaborationLexicalMentionSmoke.typedNestedControl(width))
+    assert(TypedElaborationLexicalMentionSmoke.typedGenerate(width) == "typed")
+
+    val equal = TypedElaborationLexicalMentionSmoke.standaloneEqual(width)
+    val notEqual = TypedElaborationLexicalMentionSmoke.standaloneNotEqual(width)
+    assert(equal.isAlwaysTrue)
+    assert(notEqual.isAlwaysFalse)
   }
 
   private def withTemporaryDirectory(body: Path => Unit): Unit = {

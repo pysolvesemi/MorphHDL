@@ -36,15 +36,15 @@
       "path": "core/src/main/scala/spinal/core/ElabInt.scala",
       "change": "added",
       "classification": "typed-helper",
-      "blob": "6ed3d282d32eadc92e710e2c37e7ccca7fd01516",
-      "reason": "provide the single neutral ElabInt and ElabBool carrier owned by core"
+      "blob": "70b9da4041b5a24fe16a4292f8865dd6f1eb5804",
+      "reason": "provide the single neutral ElabInt and ElabBool carrier owned by core with exact declaration-root identity"
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
       "change": "modified",
       "classification": "typed-helper",
-      "blob": "a3166a36a7530a9ce675283e0d3ab4d489dbbf0b",
-      "reason": "retain typed widths and exact native Resize identity"
+      "blob": "e2e09919a44556b6b1aed9bfb70d8e92fb202a06",
+      "reason": "retain typed widths, exact declaration roots and exact native Resize identity"
     },
     {
       "path": "core/src/main/scala/spinal/core/SInt.scala",

@@ -21,6 +21,30 @@ final case class ElaborationIntegerParameter(
     maximum: BigInt
 )
 
+/**
+  * Identity-bearing provenance for one declaration of an elaboration-time
+  * parameter. Two declarations can intentionally have the same public name
+  * and schema; they are still independent roots until a caller explicitly
+  * proves otherwise by carrying this exact object through derived expressions.
+  */
+final class ElaborationIntegerParameterRoot private (
+    val name: String,
+    val sourceLocation: Option[String]
+) {
+  override def toString: String = s"ElaborationIntegerParameterRoot($name)"
+}
+
+object ElaborationIntegerParameterRoot {
+  /** Allocate provenance for one exact frontend parameter declaration. */
+  def fresh(
+      name: String,
+      sourceLocation: Option[String] = None
+  ): ElaborationIntegerParameterRoot = {
+    require(name != null && name.nonEmpty, "parameter-root name must not be empty")
+    new ElaborationIntegerParameterRoot(name, sourceLocation)
+  }
+}
+
 
 /**
   * Backend-neutral integer expression retained during ordinary SpinalHDL
@@ -37,7 +61,8 @@ final case class ElaborationIntegerExpression(
     maximum: BigInt,
     parameters: Vector[ElaborationIntegerParameter],
     generateIndex: Option[String] = None,
-    sourceLocation: Option[String] = None
+    sourceLocation: Option[String] = None,
+    parameterRoots: Vector[ElaborationIntegerParameterRoot] = Vector.empty
 )
 
 /** Boolean counterpart used by retained parameter-controlled metadata. */
@@ -45,7 +70,8 @@ final case class ElaborationBooleanExpression(
     verilog: String,
     default: Boolean,
     parameters: Vector[ElaborationIntegerParameter],
-    sourceLocation: Option[String] = None
+    sourceLocation: Option[String] = None,
+    parameterRoots: Vector[ElaborationIntegerParameterRoot] = Vector.empty
 )
 
 /** A concrete witness bit count with an optional bounded symbolic expression. */

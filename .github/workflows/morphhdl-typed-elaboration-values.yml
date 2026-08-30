@@ -39,6 +39,7 @@ jobs:
           grep -Fq 'def elabEq' "$carrier"
           grep -Fq 'def elabNe' "$carrier"
           grep -Fq 'def constantInt' "$carrier"
+          test "$(grep -Fc 'private[spinal] def witness' "$carrier")" -eq 2
           ! grep -Eq 'implicit[[:space:]]+def[[:space:]].*ElabInt.*Int' "$carrier"
           ! grep -Eq 'implicit[[:space:]]+def[[:space:]].*ElabBool.*Boolean' "$carrier"
           ! grep -Eq 'StreamFifo|StreamFifoCC|StreamWidthAdapter' "$carrier"
@@ -72,4 +73,4 @@ jobs:
         shell: bash
         run: |
           sbt -batch "++${{ matrix.scala_version }}" \
-            "morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.TypedParameterizedFactoryDirectionTests"
+            "morph/testOnly morphhdl.TypedElaborationValueTests morphhdl.TypedElaborationControlTests morphhdl.TypedParameterizedFactoryDirectionTests"

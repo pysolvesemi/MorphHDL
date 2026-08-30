@@ -67,7 +67,22 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import json
           from pathlib import Path
+
+          overlay = json.loads(
+              Path('morphhdl/contracts/typed-native-source-overlay.json').read_text()
+          )
+          reviewed_manifest = Path(
+              'docs/morphhdl/increment-53d-typed-native-change-manifest.md'
+          ).read_text()
+          for entry in overlay['entries']:
+              matching_rows = [
+                  line for line in reviewed_manifest.splitlines()
+                  if f"`{entry['path']}`" in line
+              ]
+              assert len(matching_rows) == 1, entry['path']
+              assert f"`{entry['classification']}`" in matching_rows[0], entry['path']
 
           stream = Path('lib/src/main/scala/spinal/lib/Stream.scala').read_text()
           start = stream.index('object StreamWidthAdapter {')
@@ -118,13 +133,19 @@ jobs:
               'implicit def toBoolean',
           ):
               assert forbidden not in carrier, forbidden
+          assert carrier.count('private[spinal] def witness') == 2
           assert not Path('morphruntime/src/main/scala/spinal/core/ElabInt.scala').exists()
 
           bridge = Path(
               'morphplugin/src/main/scala/morphhdl/compiler/'
               'MorphHdlTypedElaborationControlComponent.scala'
           ).read_text()
-          for token in ('TypedIntegerBinding', 'TypedBooleanBinding', 'referencesTyped'):
+          for token in (
+              'TypedIntegerBinding',
+              'TypedBooleanBinding',
+              'def expressionKind',
+              'if (isTypedBoolean(original.cond))',
+          ):
               assert token in bridge, token
           for forbidden in (
               'NativeIntShadow',
@@ -193,7 +214,10 @@ jobs:
         run: sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
       - name: Run complete MorphHDL test suite
         shell: bash
-        run: sbt -batch "++${{ matrix.scala_version }}" morph/test
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" morph/test
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "tester/testOnly spinal.lib.SpinalSimStreamWidthAdapterTester"
 
   mill-full:
     name: Mill complete suite Scala ${{ matrix.scala_version }}

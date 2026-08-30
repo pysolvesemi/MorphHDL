@@ -1,4 +1,8 @@
 .github/workflows/increment-53d-typed-streamwidthadapter.yml
+.github/workflows/morphhdl-enum-localparams.yml
+.github/workflows/morphhdl-external-symbolic-width.yml
+.github/workflows/morphhdl-native-axi4-slave-factory-formal-equivalence.yml
+.github/workflows/morphhdl-native-axi4-slave-factory-offsets.yml
 .github/workflows/morphhdl-native-source-guard.yml
 .github/workflows/morphhdl-native-stream-width-adapter.yml
 .github/workflows/morphhdl-typed-elaboration-values.yml
@@ -12,7 +16,10 @@ core/src/main/scala/spinal/core/core.scala
 docs/morphhdl/increment-53d-typed-native-change-manifest.md
 docs/morphhdl/parameterized-verilog-todo.md
 docs/morphhdl/typed-elaboration-architecture.md
+frontend/src/main/scala/morphhdl/frontend/BooleanParameterToken.scala
 frontend/src/main/scala/morphhdl/frontend/HdlInt.scala
+frontend/src/main/scala/morphhdl/frontend/ParameterToken.scala
+frontend/src/main/scala/morphhdl/frontend/StructuralExpressionBridge.scala
 lib/src/main/scala/spinal/lib/Stream.scala
 morphhdl/contracts/increment-53d-source-scope.txt
 morphhdl/contracts/typed-native-source-overlay.json
@@ -21,9 +28,11 @@ morphhdl/scripts/check-typed-native-source-overlay.py
 morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
 morphhdl/src/test/scala/morphhdl/ParameterizedStreamWidthAdapterTests.scala
 morphhdl/src/test/scala/morphhdl/TypedElaborationControlTests.scala
+morphhdl/src/test/scala/morphhdl/TypedElaborationValueTests.scala
 morphhdl/src/test/scala/morphhdl/TypedParameterizedFactoryDirectionTests.scala
 morphhdl/src/test/scala/morphhdl/TypedStreamWidthAdapterFormalEquivalenceTests.scala
 morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala
 morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala
 morphruntime/src/main/scala/spinal/core/ElabControl.scala
 morphruntime/src/main/scala/spinal/core/ElabInt.scala
+morphruntime/src/main/scala/spinal/core/ExternalFormalParameterRegistry.scala

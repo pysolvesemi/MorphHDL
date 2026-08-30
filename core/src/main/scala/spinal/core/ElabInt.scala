@@ -13,7 +13,7 @@ final class ElabInt private[core] (
 ) {
   ElabInt.validateExpression(expression, "ElabInt")
 
-  def witness: Int = expression.default.toInt
+  private[spinal] def witness: Int = expression.default.toInt
   def minimum: BigInt = expression.minimum
   def maximum: BigInt = expression.maximum
   def parameters: Vector[ElaborationIntegerParameter] = expression.parameters
@@ -118,7 +118,7 @@ final class ElabBool private[core] (
     private[core] val expression: ElaborationBooleanExpression,
     private[core] val truth: ElabBool.Truth
 ) {
-  def witness: Boolean = expression.default
+  private[spinal] def witness: Boolean = expression.default
   def parameters: Vector[ElaborationIntegerParameter] = expression.parameters
   def sourceLocation: Option[String] = expression.sourceLocation
   def isAlwaysTrue: Boolean = truth == ElabBool.AlwaysTrue
@@ -157,7 +157,9 @@ object ElabBool {
   ): ElabBool = {
     if (expression == null)
       throw new IllegalArgumentException("ElabBool expression must not be null")
-    new ElabBool(expression, truth)
+    val normalized = ElabInt.withCompleteParameterRoots(expression)
+    ElabInt.validateExpression(normalized, "ElabBool expression")
+    new ElabBool(normalized, truth)
   }
 
   private def not(value: ElabBool): ElabBool = {
@@ -171,7 +173,8 @@ object ElabBool {
         verilog = s"!(${value.expression.verilog})",
         default = !value.expression.default,
         parameters = value.expression.parameters,
-        sourceLocation = value.expression.sourceLocation
+        sourceLocation = value.expression.sourceLocation,
+        parameterRoots = value.expression.parameterRoots
       ),
       truth
     )
@@ -192,7 +195,11 @@ object ElabBool {
           right.expression.parameters,
           left.expression.sourceLocation.orElse(right.expression.sourceLocation)
         ),
-        sourceLocation = left.expression.sourceLocation.orElse(right.expression.sourceLocation)
+        sourceLocation = left.expression.sourceLocation.orElse(right.expression.sourceLocation),
+        parameterRoots = ElabInt.mergeParameterRoots(
+          left.expression.parameterRoots,
+          right.expression.parameterRoots
+        )
       ),
       truth
     )
@@ -213,7 +220,11 @@ object ElabBool {
           right.expression.parameters,
           left.expression.sourceLocation.orElse(right.expression.sourceLocation)
         ),
-        sourceLocation = left.expression.sourceLocation.orElse(right.expression.sourceLocation)
+        sourceLocation = left.expression.sourceLocation.orElse(right.expression.sourceLocation),
+        parameterRoots = ElabInt.mergeParameterRoots(
+          left.expression.parameterRoots,
+          right.expression.parameterRoots
+        )
       ),
       truth
     )
@@ -243,7 +254,7 @@ object ElabInt {
 
   def fromExpression(expression: ElaborationIntegerExpression): ElabInt = {
     validateExpression(expression, "ElabInt expression")
-    new ElabInt(expression)
+    new ElabInt(withCompleteParameterRoots(expression))
   }
 
   /** Retain the total packed width of one native Data value. */
@@ -282,11 +293,14 @@ object ElabInt {
         )
       }
     }
-    if (grouped.size > 1) {
+    val roots = distinctParameterRoots(
+      values.toVector.flatMap(_.expression.parameterRoots)
+    )
+    if (roots.size > 1) {
       fail(
         "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED",
-        s"$role currently accepts one symbolic root, but found ${grouped.keys.toVector.sorted.mkString(", ")}",
-        values.toVector.flatMap(_.sourceLocation).headOption
+        s"$role currently accepts one symbolic root, but found independently sourced declarations ${roots.map(_.name).sorted.mkString(", ")}",
+        roots.flatMap(_.sourceLocation).headOption
       )
     }
   }
@@ -392,7 +406,11 @@ object ElabInt {
           right.expression.parameters,
           location
         ),
-        sourceLocation = location
+        sourceLocation = location,
+        parameterRoots = mergeParameterRoots(
+          left.expression.parameterRoots,
+          right.expression.parameterRoots
+        )
       )
     )
   }
@@ -416,7 +434,11 @@ object ElabInt {
           right.expression.parameters,
           left.sourceLocation.orElse(right.sourceLocation)
         ),
-        sourceLocation = left.sourceLocation.orElse(right.sourceLocation)
+        sourceLocation = left.sourceLocation.orElse(right.sourceLocation),
+        parameterRoots = mergeParameterRoots(
+          left.expression.parameterRoots,
+          right.expression.parameterRoots
+        )
       ),
       truth
     )
@@ -454,7 +476,11 @@ object ElabInt {
           right.expression.parameters,
           left.sourceLocation.orElse(right.sourceLocation)
         ),
-        sourceLocation = left.sourceLocation.orElse(right.sourceLocation)
+        sourceLocation = left.sourceLocation.orElse(right.sourceLocation),
+        parameterRoots = mergeParameterRoots(
+          left.expression.parameterRoots,
+          right.expression.parameterRoots
+        )
       ),
       truth
     )
@@ -487,7 +513,70 @@ object ElabInt {
       left.minimum == right.minimum &&
       left.maximum == right.maximum &&
       left.parameters == right.parameters &&
-      left.generateIndex == right.generateIndex
+      left.generateIndex == right.generateIndex &&
+      sameParameterRoots(left.parameterRoots, right.parameterRoots)
+
+  private[core] def withCompleteParameterRoots(
+      expression: ElaborationIntegerExpression
+  ): ElaborationIntegerExpression = {
+    val rootedNames = expression.parameterRoots.map(_.name).toSet
+    val missing = expression.parameters
+      .filterNot(parameter => rootedNames.contains(parameter.name))
+      .map(parameter =>
+        ElaborationIntegerParameterRoot.fresh(
+          parameter.name,
+          expression.sourceLocation
+        )
+      )
+    if (missing.isEmpty) expression
+    else
+      expression.copy(
+        parameterRoots = mergeParameterRoots(expression.parameterRoots, missing)
+      )
+  }
+
+  private[core] def withCompleteParameterRoots(
+      expression: ElaborationBooleanExpression
+  ): ElaborationBooleanExpression = {
+    val rootedNames = expression.parameterRoots.map(_.name).toSet
+    val missing = expression.parameters
+      .filterNot(parameter => rootedNames.contains(parameter.name))
+      .map(parameter =>
+        ElaborationIntegerParameterRoot.fresh(
+          parameter.name,
+          expression.sourceLocation
+        )
+      )
+    if (missing.isEmpty) expression
+    else
+      expression.copy(
+        parameterRoots = mergeParameterRoots(expression.parameterRoots, missing)
+      )
+  }
+
+  private[core] def mergeParameterRoots(
+      left: Vector[ElaborationIntegerParameterRoot],
+      right: Vector[ElaborationIntegerParameterRoot]
+  ): Vector[ElaborationIntegerParameterRoot] =
+    distinctParameterRoots(left ++ right)
+
+  private def distinctParameterRoots(
+      roots: Vector[ElaborationIntegerParameterRoot]
+  ): Vector[ElaborationIntegerParameterRoot] =
+    roots.foldLeft(Vector.empty[ElaborationIntegerParameterRoot]) {
+      case (known, root) if known.exists(_ eq root) => known
+      case (known, root)                           => known :+ root
+    }
+
+  private def sameParameterRoots(
+      left: Vector[ElaborationIntegerParameterRoot],
+      right: Vector[ElaborationIntegerParameterRoot]
+  ): Boolean = {
+    val leftDistinct = distinctParameterRoots(left)
+    val rightDistinct = distinctParameterRoots(right)
+    leftDistinct.size == rightDistinct.size &&
+    leftDistinct.forall(root => rightDistinct.exists(_ eq root))
+  }
 
   private[core] def validateExpression(
       expression: ElaborationIntegerExpression,
@@ -508,6 +597,68 @@ object ElabInt {
       )
     }
     mergeParameters(expression.parameters, Vector.empty, expression.sourceLocation)
+    validateParameterRoots(
+      expression.verilog,
+      expression.parameters,
+      expression.parameterRoots,
+      expression.sourceLocation,
+      role
+    )
+  }
+
+  private def validateParameterRoots(
+      verilog: String,
+      parameters: Vector[ElaborationIntegerParameter],
+      roots: Vector[ElaborationIntegerParameterRoot],
+      sourceLocation: Option[String],
+      role: String
+  ): Unit = {
+    roots.foreach { root =>
+      if (root == null) {
+        fail(
+          "SPINAL-ELAB-INT-PARAMETER-ROOT-NULL",
+          s"$role '$verilog' carries a null parameter root",
+          sourceLocation
+        )
+      }
+      if (!parameters.exists(_.name == root.name)) {
+        fail(
+          "SPINAL-ELAB-INT-PARAMETER-ROOT-UNKNOWN",
+          s"$role '$verilog' carries provenance for unknown parameter '${root.name}'",
+          root.sourceLocation.orElse(sourceLocation)
+        )
+      }
+    }
+    val distinctRoots = distinctParameterRoots(roots)
+    distinctRoots.groupBy(_.name).collectFirst {
+      case (name, declarations) if declarations.size > 1 => name
+    }.foreach { name =>
+      fail(
+        "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED",
+        s"$role '$verilog' combines independently sourced declarations for parameter '$name'",
+        distinctRoots
+          .filter(_.name == name)
+          .flatMap(_.sourceLocation)
+          .headOption
+          .orElse(sourceLocation)
+      )
+    }
+  }
+
+  private[core] def validateExpression(
+      expression: ElaborationBooleanExpression,
+      role: String
+  ): Unit = {
+    if (expression == null)
+      throw new IllegalArgumentException(s"$role must not be null")
+    mergeParameters(expression.parameters, Vector.empty, expression.sourceLocation)
+    validateParameterRoots(
+      expression.verilog,
+      expression.parameters,
+      expression.parameterRoots,
+      expression.sourceLocation,
+      role
+    )
   }
 
   private[core] def fail(
