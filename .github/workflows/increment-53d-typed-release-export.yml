@@ -1,0 +1,40 @@
+name: Export latest typed Increment 53d source
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-typed-release-export.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Create exact-head source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD > /tmp/typed-inc53d-head.txt
+          tar --exclude=.git --exclude='*/target' --exclude='*/out' -czf /tmp/morphhdl-inc53d-typed-latest.tar.gz .
+      - name: Publish fixed diagnostic release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=inc53d-typed-source-latest
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" /tmp/morphhdl-inc53d-typed-latest.tar.gz /tmp/typed-inc53d-head.txt --clobber
+          else
+            gh release create "$tag" /tmp/morphhdl-inc53d-typed-latest.tar.gz /tmp/typed-inc53d-head.txt --title 'Increment 53d typed source snapshot' --notes 'Temporary exact-head implementation snapshot for typed Increment 53d validation.' --target "$(git rev-parse HEAD)"
+          fi
