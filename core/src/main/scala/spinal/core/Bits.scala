@@ -215,10 +215,7 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
 
   /** Resize while retaining the exact typed target width. */
   override def resize(width: ElabInt): Bits =
-    ParameterizedWidth.attach(
-      resize(width.witness),
-      width.toParameterizedBitCount("typed resize")
-    )
+    ParameterizedWidth.attachResize(resize(width.witness), width)
 
   override def resizeFactory: Resize = new ResizeBits
 

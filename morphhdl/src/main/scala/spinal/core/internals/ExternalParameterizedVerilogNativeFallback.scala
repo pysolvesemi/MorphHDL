@@ -507,6 +507,30 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
   }
 
   /**
+    * Resolve typed and legacy shadow resize provenance through exact native
+    * Resize identity. Both paths may coexist during migration only when their
+    * expressions are equivalent.
+    */
+  private def retainedResizeExpression(
+      resize: Resize
+  ): Option[ElaborationIntegerExpression] = {
+    val typed = ParameterizedWidth.resizeExpressionOf(resize)
+    val legacy = ExternalParameterizedResizeRegistry.expressionOf(resize)
+    (typed, legacy) match {
+      case (Some(left), Some(right))
+          if !ExternalFormalParameterRegistry.equivalentExpression(left, right) =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-RESIZE-PROVENANCE-CONFLICT",
+          s"one exact native Resize target is associated with conflicting typed expression '${left.verilog}' and legacy expression '${right.verilog}'",
+          left.sourceLocation.orElse(right.sourceLocation)
+        )
+      case (Some(value), _) => Some(value)
+      case (_, Some(value)) => Some(value)
+      case _                => None
+    }
+  }
+
+  /**
     * Replace a concrete witness LSB slice emitted for one exact native Resize
     * with the retained symbolic target range. The eligible assignment, target
     * and Resize node are discovered from the normalized graph by JVM identity;
@@ -532,8 +556,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           case (target: BitVector, resize: Resize)
               if (target.component eq component) && target.isComb &&
                 target.getBitsWidth == resize.size =>
-            ExternalParameterizedResizeRegistry
-              .expressionOf(resize)
+            retainedResizeExpression(resize)
               .filter(_.parameters.nonEmpty)
               .foreach { expression =>
                 if (expression.default != BigInt(resize.size)) {
@@ -1586,7 +1609,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
 
       private def inferResize(resize: Resize): WidthExpr = {
         val retainedExpression =
-          ExternalParameterizedResizeRegistry.expressionOf(resize).map { expression =>
+          retainedResizeExpression(resize).map { expression =>
             if (expression.default != BigInt(resize.size)) {
               fail(
                 "SPINAL-PARAMETERIZED-VERILOG-RESIZE-WITNESS-MISMATCH",

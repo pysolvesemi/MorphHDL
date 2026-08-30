@@ -447,7 +447,7 @@ class UInt extends BitVector with Num[UInt] with MinMaxProvider with DataPrimiti
   /** Resize while retaining the exact typed target width. */
   override def resize(width: ElabInt): this.type =
     ParameterizedWidth
-      .attach(resize(width.witness), width.toParameterizedBitCount("typed resize"))
+      .attachResize(resize(width.witness), width)
       .asInstanceOf[this.type]
 
   override def minValue: BigInt = BigInt(0)
