@@ -32,16 +32,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          git fetch origin parameterized-verilog
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             base="${{ github.event.pull_request.base.sha }}"
           elif [ "${GITHUB_REF_NAME}" = "parameterized-verilog" ]; then
             base="$(git rev-parse HEAD^)"
           else
-            git fetch origin parameterized-verilog
             base="$(git merge-base HEAD origin/parameterized-verilog)"
           fi
 
-          actual="$(git diff --name-only "$base"...HEAD | sort)"
+          actual="$(git diff --name-only --diff-filter=ACMRTD "$base"...HEAD | sort)"
           expected="$(printf '%s\n' \
             .github/workflows/increment-53d-typed-streamwidthadapter.yml \
             core/src/main/scala/spinal/core/BitVector.scala \
@@ -63,18 +63,21 @@ jobs:
             morphhdl/src/test/scala/morphhdl/TypedStreamWidthAdapterFormalEquivalenceTests.scala \
             morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala \
             morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala \
-            morphruntime/src/main/scala/spinal/core/ElabControl.scala | sort)"
+            morphruntime/src/main/scala/spinal/core/ElabControl.scala \
+            morphruntime/src/main/scala/spinal/core/ElabInt.scala | sort)"
+
           if [ "$actual" != "$expected" ]; then
-            echo "Unexpected Increment 53d file inventory" >&2
-            echo "--- expected ---" >&2
+            echo 'Unexpected Increment 53d file inventory' >&2
+            echo '--- expected ---' >&2
             printf '%s\n' "$expected" >&2
-            echo "--- actual ---" >&2
+            echo '--- actual ---' >&2
             printf '%s\n' "$actual" >&2
             exit 1
           fi
 
-          if printf '%s\n' "$actual" | grep -E '(\.patch(\.gz\.b64)?$|apply-increment-53d|publisher|diagnostic|status\.md$)'; then
-            echo "Temporary patch/publisher/diagnostic artifact entered the clean delta" >&2
+          test ! -e morphruntime/src/main/scala/spinal/core/ElabInt.scala
+          if printf '%s\n' "$actual" | grep -E '(\.tmp$|\.patch(\.gz\.b64)?$|apply-increment-53d|publisher|diagnostic|status\.md$|clean-tree-marker)'; then
+            echo 'Temporary Increment 53d artifact entered the canonical delta' >&2
             exit 1
           fi
           git diff --check "$base"...HEAD
@@ -86,71 +89,108 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          stream = Path("lib/src/main/scala/spinal/lib/Stream.scala").read_text()
-          start = stream.index("object StreamWidthAdapter {")
-          end = stream.index("//padding=true allow", start)
+          stream = Path('lib/src/main/scala/spinal/lib/Stream.scala').read_text()
+          start = stream.index('object StreamWidthAdapter {')
+          end = stream.index('//padding=true allow', start)
           adapter = stream[start:end]
           for token in (
-              "val inputWidth: ElabInt = widthOfExpr(input.payload)",
-              "val outputWidth: ElabInt = widthOfExpr(output.payload)",
-              "ElabInt.requireSingleSymbolicRoot",
-              "val factorExpr",
-              "constantInt(\"StreamWidthAdapter downsize factor\")",
-              "constantInt(\"StreamWidthAdapter upsize factor\")",
+              'val inputWidth: ElabInt = widthOfExpr(input.payload)',
+              'val outputWidth: ElabInt = widthOfExpr(output.payload)',
+              'ElabInt.requireSingleSymbolicRoot',
+              'val factorExpr',
+              'constantInt("StreamWidthAdapter downsize factor")',
+              'constantInt("StreamWidthAdapter upsize factor")',
           ):
               assert token in adapter, token
           for forbidden in (
-              "NativeIntShadow",
-              "withWidthFunctionBoundary",
-              "rewriteParameterizedStreamWidthAdapter",
-              "MorphStreamWidthAdapter",
+              'NativeIntShadow',
+              'withWidthFunctionBoundary',
+              'rewriteParameterizedStreamWidthAdapter',
+              'MorphStreamWidthAdapter',
+              'StreamFifoCC',
           ):
               assert forbidden not in adapter, forbidden
 
           factories = {
-              "Bits.scala": "ParameterizedWidth.attach(Bits(), width)",
-              "UInt.scala": "ParameterizedWidth.attach(UInt(), width)",
-              "SInt.scala": "ParameterizedWidth.attach(SInt(), width)",
+              'Bits.scala': 'ParameterizedWidth.attach(Bits(), width)',
+              'UInt.scala': 'ParameterizedWidth.attach(UInt(), width)',
+              'SInt.scala': 'ParameterizedWidth.attach(SInt(), width)',
           }
           for name, token in factories.items():
-              text = Path("core/src/main/scala/spinal/core", name).read_text()
-              assert token in text, (name, token)
+              value = Path('core/src/main/scala/spinal/core', name).read_text()
+              assert token in value, (name, token)
 
-          carrier = Path("core/src/main/scala/spinal/core/ElabInt.scala").read_text()
-          assert "final class ElabInt" in carrier
-          assert "final class ElabBool" in carrier
-          assert "def elabEq" in carrier
-          assert "def elabNe" in carrier
-          assert "def requireSingleSymbolicRoot" in carrier
-          assert "implicit def" not in carrier
+          carrier_path = Path('core/src/main/scala/spinal/core/ElabInt.scala')
+          carrier = carrier_path.read_text()
+          for token in (
+              'final class ElabInt',
+              'final class ElabBool',
+              'def isAlwaysTrue',
+              'def isAlwaysFalse',
+              'def elabEq',
+              'def elabNe',
+              'def requireSingleSymbolicRoot',
+          ):
+              assert token in carrier, token
+          for forbidden in (
+              'implicit def elabIntToInt',
+              'implicit def toInt',
+              'implicit def elabBoolToBoolean',
+              'implicit def toBoolean',
+          ):
+              assert forbidden not in carrier, forbidden
+          assert not Path('morphruntime/src/main/scala/spinal/core/ElabInt.scala').exists()
 
           bridge = Path(
-              "morphplugin/src/main/scala/morphhdl/compiler/"
-              "MorphHdlTypedElaborationControlComponent.scala"
+              'morphplugin/src/main/scala/morphhdl/compiler/'
+              'MorphHdlTypedElaborationControlComponent.scala'
           ).read_text()
-          assert "TypedIntegerBinding" in bridge
-          assert "TypedBooleanBinding" in bridge
-          assert "NativeIntShadow" not in bridge
-          assert "StreamWidthAdapter" not in bridge
-          assert "StreamFifo" not in bridge
+          for token in ('TypedIntegerBinding', 'TypedBooleanBinding', 'referencesTyped'):
+              assert token in bridge, token
+          for forbidden in (
+              'NativeIntShadow',
+              'StreamWidthAdapter',
+              'StreamFifo',
+              'StreamFifoCC',
+              'normalizedPath.endsWith',
+          ):
+              assert forbidden not in bridge, forbidden
 
           fixture = Path(
-              "morphhdl/src/test/scala/morphhdl/"
-              "ParameterizedStreamWidthAdapterTests.scala"
+              'morphhdl/src/test/scala/morphhdl/'
+              'ParameterizedStreamWidthAdapterTests.scala'
           ).read_text()
-          assert "equalWidth: ElabInt" in fixture
-          assert "downWidth: ElabInt" in fixture
-          assert "upWidth: ElabInt" in fixture
-          assert "NativeIntShadow" not in fixture
-          assert "formalComponent" not in fixture
-          assert "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED" in fixture
+          for token in (
+              'equalWidth: ElabInt',
+              'downWidth: ElabInt',
+              'upWidth: ElabInt',
+              'val downInputPayload = in Bits (downWidth bits)',
+              'SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED',
+          ):
+              assert token in fixture, token
+          fixture_body = fixture.split(
+              'object ParameterizedStreamWidthAdapterSmoke {'
+          )[1].split('class ParameterizedStreamWidthAdapterTests')[0]
+          assert 'NativeIntShadow' not in fixture_body
+          assert 'formalComponent' not in fixture_body
+
+          direction = Path(
+              'morphhdl/src/test/scala/morphhdl/'
+              'TypedParameterizedFactoryDirectionTests.scala'
+          ).read_text()
+          for kind in ('Bits', 'UInt', 'SInt'):
+              assert f'typed {kind} factory lost input direction' in direction
+              assert f'typed {kind} factory lost output direction' in direction
 
           formal = Path(
-              "morphhdl/src/test/scala/morphhdl/"
-              "TypedStreamWidthAdapterFormalEquivalenceTests.scala"
+              'morphhdl/src/test/scala/morphhdl/'
+              'TypedStreamWidthAdapterFormalEquivalenceTests.scala'
           ).read_text()
-          assert "equiv_status -assert" in formal
-          assert "mutation produces a genuine counterexample" in formal
+          assert 'equiv_status -assert' in formal
+          assert 'mutation produces a genuine counterexample' in formal
+          assert 'Witness(5, 9, 9)' in formal
+          assert 'Witness(8, 12, 12)' in formal
+          assert 'Witness(16, 16, 16)' in formal
           PY
 
   sbt-full:
@@ -163,9 +203,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala_version:
-          - "2.12.18"
-          - "2.13.12"
+        scala_version: ['2.12.18', '2.13.12']
     steps:
       - uses: actions/checkout@v4
         with:
@@ -176,7 +214,7 @@ jobs:
         run: sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
       - name: Run complete MorphHDL test suite
         shell: bash
-        run: sbt -batch "++${{ matrix.scala_version }}" "morph/test"
+        run: sbt -batch "++${{ matrix.scala_version }}" morph/test
 
   mill-full:
     name: Mill complete suite Scala ${{ matrix.scala_version }}
@@ -190,9 +228,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala_version:
-          - "2.12.18"
-          - "2.13.12"
+        scala_version: ['2.12.18', '2.13.12']
     steps:
       - uses: actions/checkout@v4
         with:
@@ -209,8 +245,30 @@ jobs:
         shell: bash
         run: /tmp/mill morph[${{ matrix.scala_version }}].test
 
-  typed-without-native-shadow:
-    name: Typed adapter without native-Int shadow Scala ${{ matrix.scala_version }}
+  formal:
+    name: Typed StreamWidthAdapter formal Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Run positive equivalence and deliberate mutation proof
+        shell: bash
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.TypedStreamWidthAdapterFormalEquivalenceTests"
+
+  no-shadow:
+    name: Typed path without native-Int shadow Scala ${{ matrix.scala_version }}
     needs: source-contract
     runs-on: ubuntu-latest
     timeout-minutes: 240
@@ -219,32 +277,53 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scala_version:
-          - "2.12.18"
-          - "2.13.12"
+        scala_version: ['2.12.18', '2.13.12']
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
-      - name: Disable legacy native-Int shadow registration in this proof workspace
+      - name: Disable legacy native-Int shadow registration in this workspace
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
           path = Path(
-              "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala"
+              'morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala'
           )
-          text = path.read_text()
-          needle = "      new MorphHdlNativeIntShadowExpressionComponent(global),\n"
-          assert text.count(needle) == 1
-          path.write_text(text.replace(needle, "", 1))
+          value = path.read_text()
+          needle = '      new MorphHdlNativeIntShadowExpressionComponent(global),\n'
+          assert value.count(needle) == 1
+          path.write_text(value.replace(needle, '', 1))
           PY
-          git diff --check
-      - name: Compile and run direct typed regressions
+          ! grep -q 'new MorphHdlNativeIntShadowExpressionComponent' \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala
+      - name: Compile and run direct typed witnesses without the shadow plugin
         shell: bash
         run: |
           sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
           sbt -batch "++${{ matrix.scala_version }}" \
-            "morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.TypedParameterizedFactoryDirectionTests morphhdl.ParameterizedStreamWidthAdapterTests"
+            "morph/testOnly morphhdl.TypedElaborationControlTests morphhdl.TypedParameterizedFactoryDirectionTests morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.TypedStreamWidthAdapterFormalEquivalenceTests"
+
+  closure:
+    name: Increment 53d canonical closure
+    if: always()
+    needs: [source-contract, sbt-full, mill-full, formal, no-shadow]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every canonical gate
+        shell: bash
+        env:
+          SOURCE: ${{ needs.source-contract.result }}
+          SBT: ${{ needs.sbt-full.result }}
+          MILL: ${{ needs.mill-full.result }}
+          FORMAL: ${{ needs.formal.result }}
+          NO_SHADOW: ${{ needs.no-shadow.result }}
+        run: |
+          set -euo pipefail
+          test "$SOURCE" = success
+          test "$SBT" = success
+          test "$MILL" = success
+          test "$FORMAL" = success
+          test "$NO_SHADOW" = success
