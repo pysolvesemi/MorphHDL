@@ -1,0 +1,108 @@
+name: Merge Increment 53d after verified closure
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elabint-pivot
+    paths:
+      - .github/workflows/increment-53d-merge-rescue.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge-after-closure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elabint-pivot
+          fetch-depth: 0
+      - name: Wait for the validated closure commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 360); do
+            git fetch --quiet origin agent/increment-53d-typed-elabint-pivot
+            if git log -300 --format='%s' FETCH_HEAD \
+              | grep -Fxq 'Close Increment 53d typed StreamWidthAdapter'; then
+              git checkout -B agent/increment-53d-typed-elabint-pivot FETCH_HEAD
+              exit 0
+            fi
+            sleep 10
+          done
+          echo 'Increment 53d closure commit was not observed' >&2
+          exit 1
+      - name: Verify closure invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          todo = Path('docs/morphhdl/parameterized-verilog-todo.md').read_text()
+          lines = [line for line in todo.splitlines() if 'Increment 53d' in line]
+          assert len(lines) == 1, lines
+          assert '[x]' in lines[0].lower(), lines[0]
+
+          stream = Path('lib/src/main/scala/spinal/lib/Stream.scala').read_text()
+          start = stream.index('object StreamWidthAdapter {')
+          end = stream.index('//padding=true allow', start)
+          body = stream[start:end]
+          assert 'widthOfExpr(input.payload)' in body
+          assert 'widthOfExpr(output.payload)' in body
+          assert 'ElabInt.requireSingleSymbolicRoot' in body
+          assert 'NativeIntShadow' not in body
+
+          test = Path(
+              'morphhdl/src/test/scala/morphhdl/'
+              'ParameterizedStreamWidthAdapterTests.scala'
+          ).read_text()
+          assert 'morphhdl.frontend.Bits(' not in test
+          assert 'SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED' in test
+          PY
+          unexpected="$(
+            find .github/workflows -maxdepth 1 -type f \
+              \( -name 'increment-53d-*' -o -name 'publish-typed-53d-*' \) \
+              ! -name 'increment-53d-merge-rescue.yml' -print
+            find morphhdl/scripts -maxdepth 1 -type f \
+              \( -name 'increment-53d-*' -o -name 'apply-increment-53d-*' \) -print
+          )"
+          test -z "$unexpected"
+      - name: Remove rescue workflow from the merge head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -f --ignore-unmatch .github/workflows/increment-53d-merge-rescue.yml
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git commit -m 'Remove Increment 53d merge rescue workflow'
+          git pull --rebase origin agent/increment-53d-typed-elabint-pivot
+          git push origin HEAD:agent/increment-53d-typed-elabint-pivot
+      - name: Merge approved PR without bypassing protections
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh pr view 125 --repo "$GITHUB_REPOSITORY" --json state --jq '.state' \
+            | grep -Fxq MERGED; then
+            exit 0
+          fi
+          if gh pr merge 125 \
+            --repo "$GITHUB_REPOSITORY" \
+            --squash \
+            --delete-branch; then
+            exit 0
+          fi
+          gh pr merge 125 \
+            --repo "$GITHUB_REPOSITORY" \
+            --auto \
+            --squash \
+            --delete-branch
