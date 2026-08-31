@@ -1,9 +1,6 @@
 name: Increment 53f workspace export
 
 on:
-  push:
-    branches:
-      - agent/increment-53f-typed-primitives
   workflow_dispatch:
 
 permissions:
@@ -14,14 +11,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Archive workspace
-        run: |
-          set -euo pipefail
-          git archive --format=tar.gz --output=/tmp/morphhdl-inc53f.tar.gz HEAD
-      - uses: actions/upload-artifact@v4
-        with:
-          name: morphhdl-inc53f-workspace
-          path: /tmp/morphhdl-inc53f.tar.gz
-          retention-days: 1
+      - run: echo "manual exporter paused"
