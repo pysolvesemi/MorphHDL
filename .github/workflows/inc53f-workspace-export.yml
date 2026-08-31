@@ -1,4 +1,4 @@
-name: Increment 53f checkpoint validation
+name: Increment 53f checkpoint transfer diagnostic
 
 on:
   push:
@@ -7,44 +7,25 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-
-concurrency:
-  group: increment-53f-checkpoint-validation
-  cancel-in-progress: false
+  contents: read
 
 jobs:
-  compile-and-publish:
-    if: github.actor != 'github-actions[bot]'
+  diagnose:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
           ref: agent/increment-53f-typed-primitives
-      - name: Reconstruct and verify checkpoint
+      - name: Reconstruct staged patch without applying it
         shell: bash
         run: |
           set -euo pipefail
           cat .inc53f/patch.* | base64 -d > /tmp/inc53f.patch
-          echo 'f8ca7e78197c14609a23e9decadef5919a72b3c48e53c83c065c3aa7833a6407  /tmp/inc53f.patch' | sha256sum -c -
-          git apply --check /tmp/inc53f.patch
-          git apply /tmp/inc53f.patch
-          git diff --check
-      - name: Compile both Scala lanes
-        shell: bash
-        run: |
-          set -euo pipefail
-          sbt -batch ++2.12.18 'core/compile' 'morphruntime/compile' 'lib/compile'
-          sbt -batch ++2.13.12 'core/compile' 'morphruntime/compile' 'lib/compile'
-      - name: Publish compiled checkpoint
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          rm -rf .inc53f
-          git rm .github/workflows/inc53f-workspace-export.yml
-          git add -A
-          git commit -m 'feat(53f): retain typed Counter and primitive safety'
-          git push origin HEAD:agent/increment-53f-typed-primitives
+          sha256sum /tmp/inc53f.patch
+          wc -c /tmp/inc53f.patch
+          git apply --check /tmp/inc53f.patch || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: increment-53f-reconstructed-patch
+          path: /tmp/inc53f.patch
+          retention-days: 1
