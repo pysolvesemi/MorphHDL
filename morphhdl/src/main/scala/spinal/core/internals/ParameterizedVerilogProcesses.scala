@@ -1,13 +1,13 @@
 package spinal.core.internals
 
+import java.util.IdentityHashMap
 import java.util.regex.{Matcher, Pattern}
 
 import scala.collection.mutable
 
 import spinal.core._
 
-/**
-  * MorphHDL-owned Increment 34 replacement of one witnessed native assignment with a
+/** MorphHDL-owned Increment 34 replacement of one witnessed native assignment with a
   * parameter-bounded Verilog-2001 procedural `for`.
   *
   * Normal SpinalHDL elaboration and process grouping remain authoritative. The
@@ -17,6 +17,20 @@ import spinal.core._
   * independently by [[ParameterizedVerilogStructural]].
   */
 private[internals] object ParameterizedVerilogProcesses {
+  private sealed trait SliceSide
+  private case object TargetSlice extends SliceSide
+  private case object SourceSlice extends SliceSide
+
+  private final case class ValidatedSlice(
+      retained: ParameterizedStructure.StructuralSlice,
+      side: SliceSide
+  )
+
+  private final case class ValidatedLoop(
+      retained: ParameterizedProceduralFor,
+      slices: Vector[ValidatedSlice]
+  )
+
   private final case class PlannedLoop(
       lineIndex: Int,
       processStart: Int,
@@ -41,17 +55,43 @@ private[internals] object ParameterizedVerilogProcesses {
     }
 
     validateNames(component, loops, pc)
+    val liveStatementCounts =
+      new IdentityHashMap[Statement, java.lang.Integer]()
+    val liveAssignments = Vector.newBuilder[DataAssignmentStatement]
+    component.dslBody.walkStatements { statement =>
+      val count = Option(liveStatementCounts.get(statement)).fold(0)(_.intValue)
+      liveStatementCounts.put(statement, java.lang.Integer.valueOf(count + 1))
+      statement match {
+        case assignment: DataAssignmentStatement => liveAssignments += assignment
+        case _                                   =>
+      }
+    }
+    val finalLiveAssignments = liveAssignments.result()
+    val claimedAssignments =
+      new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+    val validatedLoops = loops.map(loop =>
+      validateLoop(
+        component,
+        loop,
+        liveStatementCounts,
+        finalLiveAssignments,
+        claimedAssignments
+      )
+    )
     val normalized = verilog.replace("\r\n", "\n").replace('\r', '\n')
     val originalLines = normalized.split("\n", -1).toVector
-    val plans = loops.map(loop => planLoop(loop, originalLines))
-    plans.groupBy(_.lineIndex).collectFirst {
-      case (line, values) if values.size != 1 => line
-    }.foreach { line =>
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-PROCESS-MARKER-OVERLAP",
-        s"multiple procedural loops resolved to emitted line ${line + 1}"
-      )
-    }
+    val plans = validatedLoops.map(loop => planLoop(loop, originalLines))
+    plans
+      .groupBy(_.lineIndex)
+      .collectFirst {
+        case (line, values) if values.size != 1 => line
+      }
+      .foreach { line =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PROCESS-MARKER-OVERLAP",
+          s"multiple procedural loops resolved to emitted line ${line + 1}"
+        )
+      }
 
     val replacementByLine = plans.map(plan => plan.lineIndex -> plan.lines).toMap
     val declarationIndex = plans.map(_.processStart).min
@@ -69,7 +109,7 @@ private[internals] object ParameterizedVerilogProcesses {
       }
     }
     val result = rewritten.result().mkString("\n")
-    if (loops.exists(loop => result.contains(loop.marker))) {
+    if (loops.exists(loop => markerOccurrences(result, loop.marker) != 0)) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-PROCESS-MARKER-LEAK",
         "one or more internal procedural-loop markers remained in emitted Verilog"
@@ -79,11 +119,12 @@ private[internals] object ParameterizedVerilogProcesses {
   }
 
   private def planLoop(
-      loop: ParameterizedProceduralFor,
+      validated: ValidatedLoop,
       lines: Vector[String]
   ): PlannedLoop = {
+    val loop = validated.retained
     val markerLines = lines.zipWithIndex.collect {
-      case (line, index) if line.contains(loop.marker) => index
+      case (line, index) if markerOccurrences(line, loop.marker) != 0 => index
     }
     if (markerLines.size != 1) {
       fail(
@@ -93,18 +134,20 @@ private[internals] object ParameterizedVerilogProcesses {
       )
     }
     val lineIndex = markerLines.head
-    val processStart = (lineIndex to 0 by -1).find { index =>
-      lines(index).trim.startsWith("always @(")
-    }.getOrElse {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-PROCESS-CONTEXT-NOT-FOUND",
-        s"retained assignment for procedural loop '${loop.label}' was not emitted inside an always block",
-        loop.sourceLocation
-      )
-    }
+    val processStart = (lineIndex to 0 by -1)
+      .find { index =>
+        lines(index).trim.startsWith("always @(")
+      }
+      .getOrElse {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PROCESS-CONTEXT-NOT-FOUND",
+          s"retained assignment for procedural loop '${loop.label}' was not emitted inside an always block",
+          loop.sourceLocation
+        )
+      }
 
     val original = removeMarker(lines(lineIndex), loop.marker)
-    val rewrittenAssignment = rewriteSlices(original, loop)
+    val rewrittenAssignment = rewriteSlices(original, validated)
     val indentation = original.takeWhile(_.isWhitespace)
     val statement = rewrittenAssignment.trim
     PlannedLoop(
@@ -119,7 +162,15 @@ private[internals] object ParameterizedVerilogProcesses {
   }
 
   private def removeMarker(line: String, marker: String): String = {
-    val withoutMarker = line.replace(marker, "")
+    val pattern = markerPattern(marker)
+    val matcher = pattern.matcher(line)
+    if (!matcher.find() || matcher.find()) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PROCESS-MARKER-CARDINALITY-MISMATCH",
+        s"emitted procedural assignment contains ${markerOccurrences(line, marker)} exact '$marker' markers; exactly one is required"
+      )
+    }
+    val withoutMarker = pattern.matcher(line).replaceFirst("")
     val withoutEmptyComment =
       withoutMarker.replaceFirst("""\s*//\s*$""", "")
     withoutEmptyComment.replaceFirst("""\s+$""", "")
@@ -127,44 +178,280 @@ private[internals] object ParameterizedVerilogProcesses {
 
   private def rewriteSlices(
       line: String,
-      loop: ParameterizedProceduralFor
-  ): String =
-    loop.slices.foldLeft(line) { case (current, slice) =>
-      val sourceName = Option(slice.source.getName()).filter(_.nonEmpty).getOrElse {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-NAME-MISSING",
-          "one procedural-loop packed-slice source has no stable native name",
-          slice.sourceLocation.orElse(loop.sourceLocation)
-        )
+      validated: ValidatedLoop
+  ): String = {
+    val loop = validated.retained
+    val assignment =
+      """^([ \t]*)(.*?)([ \t]*(?:<=|=)[ \t]*)(.*?)(;[ \t]*(?://.*)?)$""".r
+    val (indentation, initialTarget, operator, initialSource, suffix) =
+      line match {
+        case assignment(indent, target, assignmentOperator, source, end) =>
+          (indent, target, assignmentOperator, source, end)
+        case _ =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-PROCESS-ASSIGNMENT-NOT-FOUND",
+            s"retained procedural loop '${loop.label}' did not map to one complete native assignment line",
+            loop.sourceLocation
+          )
       }
-      val quoted = Pattern.quote(sourceName)
-      val high = slice.offset.default + slice.width.default - 1
-      val low = slice.offset.default
-      val descending =
-        ("""(?<![A-Za-z0-9_$])""" + quoted +
-          """\s*\[\s*""" + high + """\s*:\s*""" + low + """\s*\]""").r
-      val indexed =
-        ("""(?<![A-Za-z0-9_$])""" + quoted +
-          """\s*\[\s*""" + low + """\s*\+:\s*""" +
-          slice.width.default + """\s*\]""").r
-      val replacement =
-        s"$sourceName[${slice.offset.verilog} +: ${slice.width.verilog}]"
-      val descendingRewritten =
-        descending.replaceAllIn(current, Matcher.quoteReplacement(replacement))
-      val rewritten =
-        indexed.replaceAllIn(
-          descendingRewritten,
-          Matcher.quoteReplacement(replacement)
-        )
-      if (rewritten == current) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-NOT-FOUND",
-          s"native assignment for loop '${loop.label}' did not contain witnessed slice '$sourceName[$high:$low]'",
-          slice.sourceLocation.orElse(loop.sourceLocation)
-        )
+    val rewritten = validated.slices.foldLeft(initialTarget -> initialSource) { case ((target, source), planned) =>
+      planned.side match {
+        case TargetSlice =>
+          rewriteSliceOccurrence(target, loop, planned.retained) -> source
+        case SourceSlice =>
+          target -> rewriteSliceOccurrence(source, loop, planned.retained)
       }
-      rewritten
     }
+    indentation + rewritten._1 + operator + rewritten._2 + suffix
+  }
+
+  private def rewriteSliceOccurrence(
+      region: String,
+      loop: ParameterizedProceduralFor,
+      slice: ParameterizedStructure.StructuralSlice
+  ): String = {
+    val sourceName = Option(slice.source.getName()).filter(_.nonEmpty).getOrElse {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-NAME-MISSING",
+        "one procedural-loop packed-slice source has no stable native name",
+        slice.sourceLocation.orElse(loop.sourceLocation)
+      )
+    }
+    val quoted = Pattern.quote(sourceName)
+    val high = slice.offset.default + slice.width.default - 1
+    val low = slice.offset.default
+    val descending =
+      ("""(?<![A-Za-z0-9_$])""" + quoted +
+        """\s*\[\s*""" + high + """\s*:\s*""" + low + """\s*\]""").r
+    val indexed =
+      ("""(?<![A-Za-z0-9_$])""" + quoted +
+        """\s*\[\s*""" + low + """\s*\+:\s*""" +
+        slice.width.default + """\s*\]""").r
+    val replacement =
+      s"$sourceName[${slice.offset.verilog} +: ${slice.width.verilog}]"
+    val occurrences =
+      descending.findAllMatchIn(region).size + indexed.findAllMatchIn(region).size
+    if (occurrences != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-EMITTED-CARDINALITY-MISMATCH",
+        s"native assignment for loop '${loop.label}' contains $occurrences witnessed slices '$sourceName[$high:$low]' on its retained assignment side; exactly one identity-authorized occurrence is required",
+        slice.sourceLocation.orElse(loop.sourceLocation)
+      )
+    }
+    val descendingRewritten = descending.replaceFirstIn(
+      region,
+      Matcher.quoteReplacement(replacement)
+    )
+    if (descendingRewritten != region) descendingRewritten
+    else indexed.replaceFirstIn(region, Matcher.quoteReplacement(replacement))
+  }
+
+  private def validateLoop(
+      component: Component,
+      loop: ParameterizedProceduralFor,
+      liveStatementCounts: IdentityHashMap[Statement, java.lang.Integer],
+      liveAssignments: Vector[DataAssignmentStatement],
+      claimedAssignments: IdentityHashMap[
+        DataAssignmentStatement,
+        java.lang.Boolean
+      ]
+  ): ValidatedLoop = {
+    val source = loop.sourceLocation
+    val retained = loop.assignment
+    if (retained == null || retained.target == null || retained.source == null) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PROCESS-ASSIGNMENT-EVIDENCE-STALE",
+        s"procedural loop '${loop.label}' retained no complete native assignment identity",
+        source
+      )
+    }
+    val retainedCount = identityCount(liveStatementCounts, retained)
+    if (retainedCount != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PROCESS-ASSIGNMENT-EVIDENCE-STALE",
+        s"procedural loop '${loop.label}' retained assignment identity is live $retainedCount times; exactly one is required",
+        source
+      )
+    }
+    if (
+      (retained.finalTarget.component ne component) ||
+      claimedAssignments.put(retained, java.lang.Boolean.TRUE) != null
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PROCESS-ASSIGNMENT-EVIDENCE-CARDINALITY",
+        s"procedural loop '${loop.label}' does not own one unique live assignment in the published component",
+        source
+      )
+    }
+    val retainedMarkerCount =
+      markerOccurrences(Option(retained.locationString).getOrElse(""), loop.marker)
+    val markerOwners = liveAssignments.filter(assignment =>
+      markerOccurrences(
+        Option(assignment.locationString).getOrElse(""),
+        loop.marker
+      ) != 0
+    )
+    val liveMarkerCount = markerOwners
+      .map(assignment =>
+        markerOccurrences(
+          Option(assignment.locationString).getOrElse(""),
+          loop.marker
+        )
+      )
+      .sum
+    if (
+      retainedMarkerCount != 1 || liveMarkerCount != 1 ||
+      markerOwners.size != 1 || (markerOwners.head ne retained)
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PROCESS-MARKER-LINEAGE-MISMATCH",
+        s"procedural loop '${loop.label}' retained $retainedMarkerCount exact markers while $liveMarkerCount markers occur on ${markerOwners.size} live assignments; exactly its retained assignment must own one marker",
+        source
+      )
+    }
+    if (loop.slices.isEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-EVIDENCE-MISSING",
+        s"procedural loop '${loop.label}' retained no packed-slice identities",
+        source
+      )
+    }
+
+    val claimedSlices =
+      new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+    val claimedResults = new IdentityHashMap[BitVector, java.lang.Boolean]()
+    val validated = loop.slices.map { slice =>
+      val sliceSource = Option(slice).flatMap(_.sourceLocation).orElse(source)
+      if (
+        slice == null || slice.source == null || slice.result == null ||
+        slice.assignment == null
+      ) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-EVIDENCE-STALE",
+          s"procedural loop '${loop.label}' retained an incomplete packed-slice identity",
+          sliceSource
+        )
+      }
+      val anchor = slice.assignment
+      if (anchor.target == null || anchor.source == null) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-EVIDENCE-STALE",
+          s"procedural loop '${loop.label}' retained a slice anchor without complete target/source expressions",
+          sliceSource
+        )
+      }
+      if (
+        claimedSlices.put(anchor, java.lang.Boolean.TRUE) != null ||
+        claimedResults.put(slice.result, java.lang.Boolean.TRUE) != null ||
+        claimedAssignments.put(anchor, java.lang.Boolean.TRUE) != null
+      ) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-EVIDENCE-CARDINALITY",
+          s"procedural loop '${loop.label}' reuses one retained slice anchor or result identity",
+          sliceSource
+        )
+      }
+      val anchorCount = identityCount(liveStatementCounts, anchor)
+      val resultCount = identityCount(liveStatementCounts, slice.result)
+      if (anchorCount > 1 || resultCount > 1 || anchorCount != resultCount) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-EVIDENCE-STALE",
+          s"procedural loop '${loop.label}' slice anchor/result are live $anchorCount/$resultCount times; both must be retained once or consumed together",
+          sliceSource
+        )
+      }
+      val witnessLineage = anchor.source match {
+        case access: BitVectorRangedAccessFixed =>
+          (access.source eq slice.source) &&
+          BigInt(access.lo) == slice.offset.default &&
+          BigInt(access.hi - access.lo + 1) == slice.width.default
+        case _ => false
+      }
+      if (
+        (slice.source.component ne component) ||
+        (resultCount == 1 && (slice.result.component ne component)) ||
+        (anchor.target ne slice.result) ||
+        (anchor.finalTarget ne slice.result) || !witnessLineage
+      ) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-LINEAGE-MISMATCH",
+          s"procedural loop '${loop.label}' retained slice no longer has one exact result assignment from its witnessed source range (source owner: ${slice.source.component eq component}; result owner: ${slice.result.component eq component}; direct target: ${anchor.target eq slice.result}; final target: ${anchor.finalTarget eq slice.result}; witnessed range: $witnessLineage)",
+          sliceSource
+        )
+      }
+
+      val sourceResultCount =
+        expressionIdentityCount(retained.source, slice.result)
+      val sourceWitnessCount =
+        expressionIdentityCount(retained.source, anchor.source)
+      val targetResultCount =
+        expressionIdentityCount(retained.target, slice.result)
+      val directTarget = retained.target match {
+        case target: RangedAssignmentFixed =>
+          (target.out eq slice.source) &&
+          BigInt(target.lo) == slice.offset.default &&
+          BigInt(target.hi - target.lo + 1) == slice.width.default
+        case _ => false
+      }
+      val sourceLineageCount = sourceResultCount + sourceWitnessCount
+      val targetLineageCount = targetResultCount + (if (directTarget) 1 else 0)
+      if (sourceLineageCount > 1 || targetLineageCount > 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-LINEAGE-CARDINALITY",
+          s"procedural loop '${loop.label}' uses one retained slice $sourceLineageCount times as a source and $targetLineageCount times as a target",
+          sliceSource
+        )
+      }
+      val side =
+        if (sourceLineageCount == 1 && targetResultCount == 0) SourceSlice
+        else if (sourceLineageCount == 0 && targetLineageCount == 1) TargetSlice
+        else {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-LINEAGE-MISMATCH",
+            s"procedural loop '${loop.label}' cannot map one retained slice identity uniquely to its final target or source expression",
+            sliceSource
+          )
+        }
+      ValidatedSlice(slice, side)
+    }
+    if (validated.count(_.side == TargetSlice) != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PROCESS-ASSIGNMENT-LINEAGE-MISMATCH",
+        s"procedural loop '${loop.label}' retains ${validated.count(_.side == TargetSlice)} exact target slices; exactly one is required",
+        source
+      )
+    }
+    ValidatedLoop(loop, validated)
+  }
+
+  private def identityCount(
+      counts: IdentityHashMap[Statement, java.lang.Integer],
+      statement: Statement
+  ): Int = Option(counts.get(statement)).fold(0)(_.intValue)
+
+  private def expressionIdentityCount(
+      root: Expression,
+      expected: Expression
+  ): Int = {
+    if (root == null || expected == null) return 0
+    if (root eq expected) return 1
+    var count = 0
+    root.foreachExpression(value => count += expressionIdentityCount(value, expected))
+    count
+  }
+
+  private def markerPattern(marker: String): Pattern =
+    Pattern.compile(
+      "(?<![A-Za-z0-9_$])" + Pattern.quote(marker) +
+        "(?![A-Za-z0-9_$])"
+    )
+
+  private def markerOccurrences(value: String, marker: String): Int = {
+    val matcher = markerPattern(marker).matcher(Option(value).getOrElse(""))
+    var count = 0
+    while (matcher.find()) count += 1
+    count
+  }
 
   private def validateNames(
       component: Component,
@@ -184,6 +471,7 @@ private[internals] object ParameterizedVerilogProcesses {
     val parameterNames =
       (
         ParameterizedWidth.parametersOf(component) ++
+          ParameterizedVerilogVecs.parametersOf(component) ++
           ParameterizedStructure.parametersOf(component) ++
           ParameterizedProcess.parametersOf(component)
       ).map(_.name).toSet
@@ -224,14 +512,17 @@ private[internals] object ParameterizedVerilogProcesses {
         )
       }
     }
-    allNames.groupBy(_._1).collectFirst {
-      case (name, values) if values.size != 1 => name
-    }.foreach { name =>
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-PROCESS-NAME-DUPLICATE",
-        s"procedural loop name '$name' is reused"
-      )
-    }
+    allNames
+      .groupBy(_._1)
+      .collectFirst {
+        case (name, values) if values.size != 1 => name
+      }
+      .foreach { name =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-PROCESS-NAME-DUPLICATE",
+          s"procedural loop name '$name' is reused"
+        )
+      }
   }
 
   private def fail(

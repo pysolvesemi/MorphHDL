@@ -1,15 +1,8 @@
 package morphhdl.frontend
 
-import spinal.core.{
-  Component,
-  Data,
-  ExternalNativeIntFormalizationRegistry,
-  ExternalNativeIntFormalizationToken,
-  ExternalNativeIntShadowRegistry
-}
+import spinal.core.{Component, Data, ExternalAnalyzedNativeIntFormalizationPublisher}
 
-/**
-  * Explicit external boundary for a native component constructor whose
+/** Explicit external boundary for a native component constructor whose
   * geometry argument remains an ordinary Scala `Int`.
   *
   * The constructor receives only the checked concrete witness. The caller then
@@ -58,8 +51,7 @@ object formalComponent {
       Some(geometry)
     )
 
-  /**
-    * Retain one exact component-level formal whose native `Int` controls
+  /** Retain one exact component-level formal whose native `Int` controls
     * storage or structural choices but is not itself a packed child-port width.
     * Internal symbolic metadata must still prove the definition dependency;
     * this method supplies only the exact formal-to-actual hierarchy binding.
@@ -118,43 +110,18 @@ object formalComponent {
         origin
       )
     }
-    val actualExpression = HdlInt.nativeIntExpression(
+    val analyzed = StructuralExpressionBridge.analyzedWidth(
       actual,
       s"formalComponent '$name' native constructor argument",
-      origin
+      sourceLocation = Some(origin.rendered)
     )
     val definitionExpression = HdlInt.provisionalFormalExpression(
-      actual = actualExpression,
+      actual = analyzed.expression,
       name = name,
       minimum = minimum,
       maximum = maximum,
       origin = origin
     )
-    val token = ExternalNativeIntFormalizationToken(
-      callSite = origin.rendered,
-      valueOrigin = actual.origin.rendered,
-      role =
-        if (geometry.isDefined) s"formalComponent($name)"
-        else s"formalComponent.parameter($name)"
-    )
-    val shadow = ExternalNativeIntShadowRegistry.captureWithDefinition(
-      expression = actualExpression,
-      definitionExpression = definitionExpression,
-      token = token,
-      argumentName = name
-    ) {
-      constructor(actualExpression.default.toInt)
-    }
-    val component = shadow.result
-    if (component == null) {
-      FrontendException.failAt(
-        "MORPH-FRONTEND-FORMAL-COMPONENT-RESULT-NULL",
-        s"formalComponent slot '$name' constructor returned null",
-        origin
-      )
-    }
-
-    val ownerClassName = component.getClass.getName
     val provisionalFormal = definitionExpression.parameters match {
       case Vector(formal)
           if definitionExpression.verilog == formal.name &&
@@ -169,37 +136,41 @@ object formalComponent {
           origin
         )
     }
-    val binding = HdlInt.formalBindingForOwner(
-      actual = actual,
-      name = name,
-      minimum = minimum,
-      maximum = maximum,
-      ownerClassName = ownerClassName,
-      declarationKey = s"external-native-int::$ownerClassName::$name",
-      origin = origin,
-      provisionalFormal = Some(provisionalFormal)
-    )
+    val capture = ExternalAnalyzedNativeIntFormalizationPublisher.captureComponent(
+      analyzed = analyzed,
+      parent = parent,
+      formal = provisionalFormal,
+      geometry = geometry.isDefined,
+      callSite = origin.rendered,
+      valueOrigin = actual.origin.rendered
+    ) {
+      constructor(analyzed.expression.default.toInt)
+    }
+    val component = capture.result
+    if (component == null) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-FORMAL-COMPONENT-RESULT-NULL",
+        s"formalComponent slot '$name' constructor returned null",
+        origin
+      )
+    }
+    if (actual.formalBinding.nonEmpty) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-FORMAL-PARAMETER-NESTED",
+        s"formal parameter '$name' cannot use another component-definition formal as its instance actual",
+        origin
+      )
+    }
     geometry match {
       case Some(selector) =>
-        ExternalNativeIntFormalizationRegistry.attachComponent(
-          parent = parent,
-          component = component,
-          geometry = selector(component),
-          binding = binding,
-          token = token
+        ExternalAnalyzedNativeIntFormalizationPublisher.publishComponent(
+          capture,
+          selector(component)
         )
       case None =>
-        ExternalNativeIntFormalizationRegistry.attachComponentParameter(
-          parent = parent,
-          component = component,
-          binding = binding,
-          token = token
+        ExternalAnalyzedNativeIntFormalizationPublisher.publishComponentParameter(
+          capture
         )
     }
-    ExternalNativeIntShadowRegistry.attachComponent(
-      component = component,
-      binding = binding,
-      capture = shadow
-    )
   }
 }

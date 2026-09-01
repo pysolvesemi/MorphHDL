@@ -161,9 +161,12 @@ object ExternalParameterizedMemoryRegistry {
   ): Mem[T] = {
     if (wordType == null)
       throw new IllegalArgumentException("native memory word type must not be null")
-    if (depth == null)
-      throw new IllegalArgumentException("symbolic native memory depth must not be null")
-    attach(spinal.core.Mem(wordType, depth.value), depth)
+    val checkedDepth = validateDepthExpression(depth)
+    attachValidated(
+      spinal.core.Mem(wordType, depth.value),
+      depth,
+      checkedDepth
+    )
   }
 
   /** Associate a bounded depth with an already-created ordinary native Mem. */
@@ -173,7 +176,19 @@ object ExternalParameterizedMemoryRegistry {
   ): Mem[T] = {
     if (memory == null)
       throw new IllegalArgumentException("native memory must not be null")
-    validateDepth(memory, depth)
+    val checkedDepth = validateDepth(memory, depth)
+    attachValidated(
+      memory,
+      depth,
+      checkedDepth
+    )
+  }
+
+  private def attachValidated[T <: Data](
+      memory: Mem[T],
+      depth: ParameterizedMemoryDepth,
+      checkedDepth: ElaborationIntegerExpression
+  ): Mem[T] = {
     if (metadataOf(memory).nonEmpty) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-METADATA-DUPLICATE",
@@ -188,10 +203,10 @@ object ExternalParameterizedMemoryRegistry {
     retain(
       memory,
       ParameterizedMemoryMetadata(
-        depth = depth.expression,
+        depth = checkedDepth,
         elementWidth = elementWidth,
         sourceLocation = depth.sourceLocation
-          .orElse(depth.expression.sourceLocation)
+          .orElse(checkedDepth.sourceLocation)
           .orElse(elementWidth.sourceLocation)
       )
     )
@@ -205,10 +220,8 @@ object ExternalParameterizedMemoryRegistry {
   private[core] def discover(component: Component): Unit = {
     allMemoriesOf(component).foreach { memory =>
       if (metadataOf(memory).isEmpty) {
-        val symbolic =
-          ExternalParameterizedHardTypeRegistry
-            .expressionsOf(memory.wordType)
-            .exists(_.exists(_.parameters.nonEmpty))
+        val symbolic = elementExpressionsOf(memory, sourceLocation = None)
+          .exists(_.exists(_.parameters.nonEmpty))
         if (symbolic) {
           val elementWidth = elementWidthOf(memory, sourceLocation = None)
           retain(
@@ -239,7 +252,21 @@ object ExternalParameterizedMemoryRegistry {
           left.sourceLocation.orElse(right.sourceLocation)
         )
       case (Some(left), Some(right)) =>
-        Some(left.copy(sourceLocation = left.sourceLocation.orElse(right.sourceLocation)))
+        val normalizedDepth = left.depth.preserveExactAuthorityOn(
+          left.depth.preserveProjectionOn(
+            left.depth.copy(
+              sourceLocation = left.depth.sourceLocation.orElse(right.depth.sourceLocation)
+            ),
+            "external memory depth normalization"
+          ),
+          "external memory depth normalization"
+        )
+        Some(
+          left.copy(
+            depth = normalizedDepth,
+            sourceLocation = left.sourceLocation.orElse(right.sourceLocation)
+          )
+        )
       case (Some(value), None) => Some(value)
       case (None, Some(value)) => Some(value)
       case _                   => None
@@ -296,7 +323,23 @@ object ExternalParameterizedMemoryRegistry {
   private def validateDepth(
       memory: Mem[_],
       depth: ParameterizedMemoryDepth
-  ): Unit = {
+  ): ElaborationIntegerExpression = {
+    val expression = validateDepthExpression(depth)
+    if (memory.wordCount != depth.value) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-DOMAIN-INVALID",
+        s"native memory depth '${expression.verilog}' must have witness ${memory.wordCount}, not ${depth.value}",
+        depth.sourceLocation.orElse(expression.sourceLocation)
+      )
+    }
+    expression
+  }
+
+  private def validateDepthExpression(
+      depth: ParameterizedMemoryDepth
+  ): ElaborationIntegerExpression = {
+    if (depth == null)
+      throw new IllegalArgumentException("symbolic native memory depth must not be null")
     if (depth.value < 1) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-NOT-POSITIVE",
@@ -304,7 +347,15 @@ object ExternalParameterizedMemoryRegistry {
         depth.sourceLocation
       )
     }
-    if (depth.expression.generateIndex.nonEmpty) {
+    if (depth.expression == null)
+      throw new IllegalArgumentException("symbolic native memory depth expression must not be null")
+    val expression = validateCompleteFiniteExpression(
+      depth.expression,
+      role = "external native-memory depth",
+      missingCode = "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-EXACT-DOMAIN-MISSING",
+      invalidCode = "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-DOMAIN-INVALID"
+    )
+    if (expression.generateIndex.nonEmpty) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-GENERATE-DEPENDENT",
         "native memory depth cannot depend on a generate index",
@@ -312,18 +363,62 @@ object ExternalParameterizedMemoryRegistry {
       )
     }
     if (
-      depth.expression.default != BigInt(depth.value) ||
-      depth.expression.minimum < 1 ||
-      depth.expression.maximum < depth.expression.minimum ||
-      depth.expression.maximum > BigInt(Int.MaxValue) ||
-      memory.wordCount != depth.value
+      expression.default != BigInt(depth.value) ||
+      expression.minimum < 1 ||
+      expression.maximum < expression.minimum ||
+      expression.maximum > BigInt(Int.MaxValue)
     ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-DOMAIN-INVALID",
-        s"native memory depth '${depth.expression.verilog}' must have witness ${memory.wordCount} and a finite positive Int-sized domain",
-        depth.sourceLocation.orElse(depth.expression.sourceLocation)
+        s"native memory depth '${expression.verilog}' must have witness ${depth.value} and a finite positive Int-sized domain",
+        depth.sourceLocation.orElse(expression.sourceLocation)
       )
     }
+    expression
+  }
+
+  /** Require one concrete literal or one identity-rooted symbolic evaluator
+    * before external metadata may influence emitted memory geometry. Its table
+    * must exactly cover the full domain or the still-authorized private branch
+    * projection. An inexact carrier cannot be upgraded here: public bounds,
+    * Verilog text and legacy native-Int shadow evidence are never sufficient.
+    */
+  private def validateCompleteFiniteExpression(
+      raw: ElaborationIntegerExpression,
+      role: String,
+      missingCode: String,
+      invalidCode: String
+  ): ElaborationIntegerExpression = {
+    if (raw == null)
+      throw new IllegalArgumentException(s"$role expression must not be null")
+    val expression = raw
+    ElabInt.validateExpression(expression, role)
+    if (expression.parameters.nonEmpty && expression.exactDomain.isEmpty) {
+      fail(
+        missingCode,
+        s"$role '${expression.verilog}' must retain authoritative exact single-root evidence",
+        expression.sourceLocation
+      )
+    }
+
+    val domain = ElabInt.requireAuthoritativeIntegerDomain(
+      expression,
+      role,
+      invalidCode,
+      requireExactExtrema = true
+    )
+
+    val evaluated = domain
+      .map(_.evaluations.map(_._2))
+      .getOrElse(Vector(expression.default))
+    if (evaluated.exists(_ < 1)) {
+      fail(
+        invalidCode,
+        s"$role '${expression.verilog}' must retain a positive finite Int-sized evaluation table",
+        expression.sourceLocation.orElse(domain.flatMap(_.root.sourceLocation))
+      )
+    }
+    expression
   }
 
   private def elementWidthOf(
@@ -338,10 +433,8 @@ object ExternalParameterizedMemoryRegistry {
         sourceLocation
       )
     }
-    val expressions =
-      ExternalParameterizedHardTypeRegistry
-        .expressionsOf(memory.wordType)
-        .getOrElse(concreteWidths.map(literal))
+    val expressions = elementExpressionsOf(memory, sourceLocation)
+      .getOrElse(concreteWidths.map(literal))
     if (expressions.size != concreteWidths.size) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-TYPE-UNSUPPORTED",
@@ -349,7 +442,22 @@ object ExternalParameterizedMemoryRegistry {
         sourceLocation
       )
     }
-    expressions.zip(concreteWidths).zipWithIndex.foreach {
+    val checkedExpressions = expressions.zipWithIndex.map { case (expression, index) =>
+      if (expression.generateIndex.nonEmpty) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID",
+          s"native memory element leaf $index cannot depend on a generate index",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      validateCompleteFiniteExpression(
+        expression,
+        role = s"external native-memory element leaf $index",
+        missingCode = "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-EXACT-DOMAIN-MISSING",
+        invalidCode = "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID"
+      )
+    }
+    checkedExpressions.zip(concreteWidths).zipWithIndex.foreach {
       case ((expression, concreteWidth), index)
           if expression.default != BigInt(concreteWidth) ||
             expression.minimum < 1 ||
@@ -361,7 +469,12 @@ object ExternalParameterizedMemoryRegistry {
         )
       case _ =>
     }
-    val elementWidth = expressions.reduce(add)
+    val elementWidth = validateCompleteFiniteExpression(
+      checkedExpressions.reduce(add),
+      role = "external native-memory aggregate element width",
+      missingCode = "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-EXACT-DOMAIN-MISSING",
+      invalidCode = "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID"
+    )
     if (
       elementWidth.default != BigInt(memory.getWidth) ||
       elementWidth.minimum < 1 || elementWidth.maximum < elementWidth.minimum
@@ -373,6 +486,49 @@ object ExternalParameterizedMemoryRegistry {
       )
     }
     elementWidth
+  }
+
+  /** Resolve the exact leaf expressions already instantiated by Mem.
+    *
+    * A frontend-created HardType also retains the same expressions in its
+    * external identity registry. Direct native HardType construction has no
+    * such entry, so its one authoritative Mem evaluation is recovered from
+    * `wordTypeLeaves` without invoking the generator again. If both sources
+    * exist they must describe the same retained leaf functions.
+    */
+  private def elementExpressionsOf(
+      memory: Mem[_],
+      sourceLocation: Option[String]
+  ): Option[Vector[ElaborationIntegerExpression]] = {
+    val leafExpressions = memory.wordTypeLeaves.map { leaf =>
+      ParameterizedWidth.expressionOf(leaf).getOrElse(literal(leaf.getBitsWidth))
+    }
+    val symbolicLeaves = leafExpressions.exists(_.parameters.nonEmpty)
+    ExternalParameterizedHardTypeRegistry.expressionsOf(memory.wordType) match {
+      case Some(retained) if symbolicLeaves =>
+        if (
+          retained.size != leafExpressions.size ||
+          !retained.zip(leafExpressions).forall { case (left, right) =>
+            ElabInt.equivalentExpression(left, right)
+          }
+        ) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-METADATA-CONFLICT",
+            "native memory retained HardType geometry conflicts with its instantiated leaf geometry",
+            sourceLocation
+              .orElse(
+                retained.iterator.flatMap(_.sourceLocation).toSeq.headOption
+              )
+              .orElse(
+                leafExpressions.iterator.flatMap(_.sourceLocation).toSeq.headOption
+              )
+          )
+        }
+        Some(retained)
+      case Some(retained)         => Some(retained)
+      case None if symbolicLeaves => Some(leafExpressions)
+      case None                   => None
+    }
   }
 
   private def literal(value: Int): ElaborationIntegerExpression =

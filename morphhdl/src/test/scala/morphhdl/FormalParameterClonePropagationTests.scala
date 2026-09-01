@@ -138,25 +138,9 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
     )
     ExternalFormalParameterRegistry.retainComponent(this, binding)
 
-    private val independentRoot =
-      ElaborationIntegerParameterRoot.fresh("WIDTH")
-    private val independentExpression = ElaborationIntegerExpression(
-      verilog = "WIDTH",
-      default = 8,
-      minimum = 1,
-      maximum = 16,
-      parameters = Vector(schema),
-      parameterRoots = Vector(independentRoot)
-    )
-    val unbound = out(
-      ParameterizedWidth.Bits(
-        ParameterizedBitCount(
-          value = 8,
-          parameter = Some(schema),
-          expression = Some(independentExpression)
-        )
-      )
-    )
+    private val independentWidth =
+      HdlInt.param("WIDTH", default = 8, min = 1, max = 16).asElabInt
+    val unbound = out(Bits(independentWidth bits))
 
     require(
       ExternalFormalParameterRegistry.bindingOf(unbound).isEmpty,
@@ -170,38 +154,21 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
 
     private val formal =
       ElaborationIntegerParameter("WIDTH", default = 8, minimum = 1, maximum = 16)
-    private val actualSchema = ElaborationIntegerParameter(
-      "ACTUAL_WIDTH",
-      default = 8,
-      minimum = 1,
-      maximum = 16
-    )
-    private def actual(root: ElaborationIntegerParameterRoot) =
-      ElaborationIntegerExpression(
-        verilog = "ACTUAL_WIDTH",
-        default = 8,
-        minimum = 1,
-        maximum = 16,
-        parameters = Vector(actualSchema),
-        parameterRoots = Vector(root)
-      )
-    private def binding(root: ElaborationIntegerParameterRoot) =
+    private val firstActual =
+      HdlInt.param("ACTUAL_WIDTH", default = 8, min = 1, max = 16).asElabInt
+    private val secondActual =
+      HdlInt.param("ACTUAL_WIDTH", default = 8, min = 1, max = 16).asElabInt
+    private def binding(actual: ElabInt) =
       ExternalFormalParameterBinding(
         formal = formal,
-        actual = actual(root),
+        actual = actual.bits.expression.get,
         declarationKey = "independent-actual-roots-probe::WIDTH",
         ownerClassName = getClass.getName,
         sourceLocation = None
       )
 
-    ExternalFormalParameterRegistry.retainComponent(
-      this,
-      binding(ElaborationIntegerParameterRoot.fresh("ACTUAL_WIDTH"))
-    )
-    ExternalFormalParameterRegistry.retainComponent(
-      this,
-      binding(ElaborationIntegerParameterRoot.fresh("ACTUAL_WIDTH"))
-    )
+    ExternalFormalParameterRegistry.retainComponent(this, binding(firstActual))
+    ExternalFormalParameterRegistry.retainComponent(this, binding(secondActual))
   }
 
   private final class FormalRegistryPreflightProbe extends Component {
@@ -405,18 +372,13 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
       "formal-batch-preflight::invalid",
       child.getClass.getName
     )
-    private val token = ExternalNativeIntFormalizationToken(
-      callSite = "formal-batch-preflight",
-      valueOrigin = "formal-batch-preflight",
-      role = "formal batch preflight"
-    )
     val batchConflictCode = captureCode {
-      ExternalNativeIntFormalizationRegistry.attachComponent(
+      ExternalNativeIntFormalizationTestAccess.attachComponentGeometry(
         this,
         child,
         Vector(child.first, child.second),
         invalidIncoming,
-        token
+        callSite = "formal-batch-preflight"
       )
     }
     val firstLeafUnchanged =
@@ -511,8 +473,7 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
     val second = new PendingOwnerB(sharedWidth, sharedFormal)
   }
 
-  private final class FormalRegionOnFormalParamProbe(actual: HdlInt)
-      extends Component {
+  private final class FormalRegionOnFormalParamProbe(actual: HdlInt) extends Component {
     setDefinitionName("FormalRegionOnFormalParamProbe")
 
     @dontName
@@ -557,18 +518,13 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
       "malformed-native-region-preflight::WIDTH",
       getClass.getName
     )
-    private val token = ExternalNativeIntFormalizationToken(
-      callSite = "malformed-native-region-preflight",
-      valueOrigin = "malformed-native-region-preflight",
-      role = "malformed native region preflight"
-    )
     val malformedExpressionCode = captureCode {
-      ExternalNativeIntFormalizationRegistry.attachRegion(
+      ExternalNativeIntFormalizationTestAccess.attachRegion(
         this,
         data,
         malformedExpression,
-        token,
-        Some(formalBinding)
+        Some(formalBinding),
+        callSite = "malformed-native-region-preflight"
       )
     }
     val metadataUnchanged =
@@ -853,8 +809,8 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
     finally {
       val stream = Files.walk(directory)
       try {
-        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach {
-          path => Files.deleteIfExists(path)
+        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach { path =>
+          Files.deleteIfExists(path)
         }
       } finally stream.close()
     }

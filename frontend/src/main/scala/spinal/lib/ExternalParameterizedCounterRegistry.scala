@@ -34,8 +34,7 @@ final case class ExternalParameterizedCounterMetadata(
     private[spinal] nativeNextAssignments: Vector[DataAssignmentStatement]
 )
 
-/**
-  * MorphHDL-owned sidecar for native Counter construction.
+/** MorphHDL-owned sidecar for native Counter construction.
   *
   * The native Counter is elaborated first from the concrete witness. Only after
   * its unmodified algorithm has built the ordinary graph are its two state
@@ -60,28 +59,30 @@ object ExternalParameterizedCounterRegistry {
   }
 
   private def expressionOf(width: ParameterizedBitCount): ElaborationIntegerExpression =
-    width.expression.orElse {
-      width.parameter.map { parameter =>
+    width.expression
+      .orElse {
+        width.parameter.map { parameter =>
+          ElaborationIntegerExpression(
+            verilog = parameter.name,
+            default = parameter.default,
+            minimum = parameter.minimum,
+            maximum = parameter.maximum,
+            parameters = Vector(parameter),
+            sourceLocation = width.sourceLocation,
+            parameterRoots = Vector(parameter.declarationRoot)
+          )
+        }
+      }
+      .getOrElse {
         ElaborationIntegerExpression(
-          verilog = parameter.name,
-          default = parameter.default,
-          minimum = parameter.minimum,
-          maximum = parameter.maximum,
-          parameters = Vector(parameter),
-          sourceLocation = width.sourceLocation,
-          parameterRoots = Vector(parameter.declarationRoot)
+          verilog = width.value.toString,
+          default = BigInt(width.value),
+          minimum = BigInt(width.value),
+          maximum = BigInt(width.value),
+          parameters = Vector.empty,
+          sourceLocation = width.sourceLocation
         )
       }
-    }.getOrElse {
-      ElaborationIntegerExpression(
-        verilog = width.value.toString,
-        default = BigInt(width.value),
-        minimum = BigInt(width.value),
-        maximum = BigInt(width.value),
-        parameters = Vector.empty,
-        sourceLocation = width.sourceLocation
-      )
-    }
 
   /** Construct the untouched native full-range Counter and retain its width. */
   def create(width: ParameterizedBitCount): Counter = {
@@ -91,7 +92,7 @@ object ExternalParameterizedCounterRegistry {
   }
 
   /** Associate symbolic geometry with an already-created native full-range Counter. */
-  def attach(counter: Counter, width: ParameterizedBitCount): Counter = {
+  def attach(counter: Counter, width: ParameterizedBitCount): Counter = synchronized {
     if (counter == null)
       throw new IllegalArgumentException("native Counter must not be null")
     if (width == null)
@@ -130,21 +131,21 @@ object ExternalParameterizedCounterRegistry {
       "native Counter did not expose its expected next-value assignments"
     )
 
+    reap()
+    val key = new ExternalCounterIdentityRef(counter, null)
+    if (retained.contains(key))
+      throw new IllegalArgumentException("native Counter already carries external symbolic geometry")
+
+    val checkedExpression = ParameterizedWidth.attachExistingAll(
+      Vector(counter.valueNext, counter.value),
+      width
+    )
     val metadata = ExternalParameterizedCounterMetadata(
-      expressionOf(width),
+      checkedExpression.getOrElse(expressionOf(width)),
       width.sourceLocation,
       nativeNextAssignments.toVector
     )
-    synchronized {
-      reap()
-      val key = new ExternalCounterIdentityRef(counter, null)
-      if (retained.contains(key))
-        throw new IllegalArgumentException("native Counter already carries external symbolic geometry")
-      retained.update(new ExternalCounterIdentityRef(counter, queue), metadata)
-    }
-
-    ParameterizedWidth.attach(counter.valueNext, width)
-    ParameterizedWidth.attach(counter.value, width)
+    retained.update(new ExternalCounterIdentityRef(counter, queue), metadata)
     counter
   }
 
@@ -156,8 +157,7 @@ object ExternalParameterizedCounterRegistry {
     }
   }
 
-  /**
-    * Return the retained width only when `assignment` is one of the exact
+  /** Return the retained width only when `assignment` is one of the exact
     * next-value statements created by the untouched native Counter constructor.
     * Statements added by callers after construction are deliberately excluded.
     */
@@ -172,15 +172,14 @@ object ExternalParameterizedCounterRegistry {
         case (reference, metadata) if {
               val counter = reference.get()
               counter != null && (counter.valueNext eq data) &&
-                metadata.nativeNextAssignments.exists(_ eq assignment)
+              metadata.nativeNextAssignments.exists(_ eq assignment)
             } =>
           metadata.width
       }
     }
   }
 
-  /**
-    * Return the retained symbolic width only for the native registered state
+  /** Return the retained symbolic width only for the native registered state
     * whose full-range boundary comparison must remain width-polymorphic.
     * Ordinary symbolic-width signals and user-authored fixed literals are not
     * included in this provenance query.

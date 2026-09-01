@@ -26,8 +26,7 @@ private[core] final class ExternalParameterizedResizeIdentityRef(
   }
 }
 
-/**
-  * MorphHDL-owned symbolic target-width provenance for untouched native
+/** MorphHDL-owned symbolic target-width provenance for untouched native
   * BitVector `resize` calls.
   *
   * Native SpinalHDL first materializes a weak-clone result driven by an exact
@@ -53,20 +52,68 @@ object ExternalParameterizedResizeRegistry {
     }
   }
 
-  /** Attach one symbolic target expression to one exact native Resize node. */
-  def attach(
+  /** Attach one symbolic target expression to one exact native Resize node.
+    *
+    * This is a compiler-runtime sink, not a public metadata publication API.
+    * The exact weak-clone target, its sole native assignment, the retained
+    * expression object and the Resize source must all still be the identities
+    * observed by the compiler hook. Equal widths or copied expression metadata
+    * never recover that authority.
+    */
+  private[spinal] def attach(
       resize: Resize,
+      target: BitVector,
       expression: ElaborationIntegerExpression
   ): Unit = synchronized {
     if (resize == null)
       throw new IllegalArgumentException("symbolic resize target must not be null")
+    if (target == null)
+      throw new IllegalArgumentException("symbolic resize result must not be null")
     if (expression == null)
       throw new IllegalArgumentException("symbolic resize expression must not be null")
     if (expression.parameters.isEmpty) return
-    if (expression.default != BigInt(resize.size)) {
+
+    ElabInt.validateExpression(expression, "external native Resize expression")
+    ParameterizedWidth.expressionOf(target) match {
+      case Some(retained) if retained eq expression =>
+      case Some(_) =>
+        ParameterizedVerilogException.fail(
+          "SPINAL-PARAMETERIZED-VERILOG-RESIZE-EXPRESSION-IDENTITY-MISMATCH",
+          "native Resize publication received copied or foreign retained-width metadata",
+          expression.sourceLocation
+        )
+      case None =>
+        ParameterizedVerilogException.fail(
+          "SPINAL-PARAMETERIZED-VERILOG-RESIZE-TARGET-WIDTH-MISSING",
+          "native Resize publication target has no exact retained symbolic width",
+          expression.sourceLocation
+        )
+    }
+
+    val exactAssignment =
+      if (!target.hasOnlyOneStatement) false
+      else
+        target.head match {
+          case assignment: spinal.core.internals.DataAssignmentStatement =>
+            (assignment.target eq target) &&
+            (assignment.finalTarget eq target) &&
+            (assignment.source eq resize)
+          case _ => false
+        }
+    if (!exactAssignment) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-PARAMETERIZED-VERILOG-RESIZE-TARGET-IDENTITY-MISMATCH",
+        "native Resize publication target is not driven solely by the exact retained Resize node",
+        expression.sourceLocation
+      )
+    }
+    if (
+      expression.default != BigInt(resize.size) ||
+      target.getBitsWidth != resize.size
+    ) {
       ParameterizedVerilogException.fail(
         "SPINAL-PARAMETERIZED-VERILOG-RESIZE-WITNESS-MISMATCH",
-        s"native Resize target ${resize.size} does not match retained symbolic default ${expression.default}",
+        s"native Resize target ${resize.size}, result width ${target.getBitsWidth} and retained symbolic default ${expression.default} must agree",
         expression.sourceLocation
       )
     }
@@ -74,11 +121,7 @@ object ExternalParameterizedResizeRegistry {
     reap()
     val lookup = new ExternalParameterizedResizeIdentityRef(resize, null)
     retained.get(lookup) match {
-      case Some(existing)
-          if ExternalFormalParameterRegistry.equivalentExpression(
-            existing,
-            expression
-          ) =>
+      case Some(existing) if existing eq expression =>
         ()
       case Some(existing) =>
         ParameterizedVerilogException.fail(

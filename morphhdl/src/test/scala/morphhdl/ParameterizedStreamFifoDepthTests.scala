@@ -43,70 +43,108 @@ final class UnsafeStructuralAssignmentHarness(depth: HdlInt) extends Component {
   else observed := False
 }
 
-object SymbolicStreamFifoFormalHelperHarness {
-  sealed trait Operation {
-    def id: String
-    def invoke(fifo: StreamFifo[Bits]): Unit
-  }
-
-  case object CheckLastPush extends Operation {
-    override val id = "check-last-push"
-    override def invoke(fifo: StreamFifo[Bits]): Unit = {
-      fifo.formalCheckLastPush(_.orR)
-      ()
-    }
-  }
-
-  case object CheckRam extends Operation {
-    override val id = "check-ram"
-    override def invoke(fifo: StreamFifo[Bits]): Unit = {
-      fifo.formalCheckRam(_.orR)
-      ()
-    }
-  }
-
-  case object Contains extends Operation {
-    override val id = "contains"
-    override def invoke(fifo: StreamFifo[Bits]): Unit = {
-      fifo.formalContains(_.orR)
-      ()
-    }
-  }
-
-  case object Count extends Operation {
-    override val id = "count"
-    override def invoke(fifo: StreamFifo[Bits]): Unit = {
-      fifo.formalCount(_.orR)
-      ()
-    }
-  }
-
-  case object FullToEmpty extends Operation {
-    override val id = "full-to-empty"
-    override def invoke(fifo: StreamFifo[Bits]): Unit = {
-      fifo.formalFullToEmpty()
-      ()
-    }
-  }
-
-  val Operations = Vector(CheckLastPush, CheckRam, Contains, Count, FullToEmpty)
-}
-
 final class SymbolicStreamFifoFormalHelperHarness(
     depth: HdlInt,
-    operation: SymbolicStreamFifoFormalHelperHarness.Operation
+    directDepth: Boolean = false,
+    useVecStorage: Boolean = false
 ) extends Component {
-  val fifo = spinal.lib.StreamFifo(
+  setDefinitionName("SymbolicStreamFifoFormalHelperHarness")
+  private val typedDepth = depth.asElabInt
+
+  val io = new Bundle {
+    val push = slave Stream (Bits(8 bits))
+    val pop = master Stream (Bits(8 bits))
+    val flush = in Bool ()
+    val needle = in Bits (8 bits)
+    val lastPush = out Bool ()
+    val ramChecks = out Bits (typedDepth bits)
+    val contains = out Bool ()
+    val count = out UInt ((typedDepth + 1).addressWidth + 1 bits)
+    val wordContains = out Bool ()
+    val wordCount = out UInt ((typedDepth + 1).addressWidth + 1 bits)
+  }
+
+  val fifo =
+    if (directDepth)
+      StreamFifo(
+        HardType(Bits(8 bits)),
+        typedDepth,
+        withAsyncRead = useVecStorage,
+        withBypass = false,
+        allowExtraMsb = true,
+        forFMax = false,
+        useVec = useVecStorage,
+        initPayload = None
+      )
+    else spinal.lib.StreamFifo(HardType(Bits(8 bits)), typedDepth)
+
+  fifo.io.push << io.push
+  io.pop << fifo.io.pop
+  fifo.io.flush := io.flush
+
+  io.lastPush := fifo.formalCheckLastPush(_.orR)
+  io.ramChecks := fifo.formalCheckRam(_.orR).asBits
+  io.contains := fifo.formalContains(_.orR)
+  io.count := fifo.formalCount(_.orR).resized
+  io.wordContains := fifo.formalContains(io.needle)
+  io.wordCount := fifo.formalCount(io.needle).resized
+  fifo.formalFullToEmpty()
+}
+
+final class ConcreteStreamFifoFormalHelperHarness(
+    useTypedLiteral: Boolean,
+    payloadGeneratorHit: () => Unit = () => ()
+) extends Component {
+  setDefinitionName("ConcreteStreamFifoFormalHelperHarness")
+  val io = new Bundle {
+    val push = slave Stream (Bits(8 bits))
+    val pop = master Stream (Bits(8 bits))
+    val flush = in Bool ()
+    val needle = in Bits (8 bits)
+    val lastPush = out Bool ()
+    val ramChecks = out Bits (5 bits)
+    val contains = out Bool ()
+    val count = out UInt (4 bits)
+    val wordContains = out Bool ()
+    val wordCount = out UInt (4 bits)
+  }
+  private val payloadType = HardType {
+    payloadGeneratorHit()
+    Bits(8 bits)
+  }
+  val fifo = spinal.core.formal.FormalDut {
+    if (useTypedLiteral)
+      spinal.lib.StreamFifo(payloadType, ElabInt.literal(5))
+    else spinal.lib.StreamFifo(payloadType, 5)
+  }
+  fifo.io.push << io.push
+  io.pop << fifo.io.pop
+  fifo.io.flush := io.flush
+  io.lastPush := fifo.formalCheckLastPush(_.orR)
+  io.ramChecks := fifo.formalCheckRam(_.orR).asBits
+  io.contains := fifo.formalContains(_.orR)
+  io.count := fifo.formalCount(_.orR).resized
+  io.wordContains := fifo.formalContains(io.needle)
+  io.wordCount := fifo.formalCount(io.needle).resized
+  fifo.formalFullToEmpty()
+}
+
+final class NonpositiveStreamFifoFormalHelperHarness(depth: HdlInt) extends Component {
+  val fifo = new StreamFifo(
     HardType(Bits(8 bits)),
-    depth.asElabInt
+    depth.asElabInt,
+    withAsyncRead = false,
+    withBypass = false,
+    allowExtraMsb = true,
+    forFMax = false,
+    useVec = false,
+    initPayload = None
   )
-  operation.invoke(fifo)
+  val observed = out(Bool())
+  observed := fifo.formalCheckLastPush(_.orR)
 }
 
 class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
-  private val SymbolicFormalDepthCode =
-    "SPINAL-ELAB-STREAMFIFO-FORMAL-SYMBOLIC-DEPTH-UNSUPPORTED"
-
   private val ExpectedStreamFifoModuleInventory =
     Vector("NativeParameterizedStreamFifoHarness", "StreamFifo").sorted
 
@@ -121,10 +159,41 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       .toVector
       .sorted
 
+  private def assertTypedStoragePopIndex(verilog: String): Unit = {
+    val declarations = verilog
+      .split("\\r?\\n")
+      .map(_.replaceAll("\\s+", ""))
+      .filter(_.contains("typed_storage_pop_index"))
+    val exactLog2Width = """clog2\(\(*DEPTH\)*,0\)""".r
+    assert(
+      declarations.exists(line => exactLog2Width.findFirstIn(line).nonEmpty),
+      s"missing exact symbolic storage pop-index declaration:\n${declarations.mkString("\n")}"
+    )
+  }
+
   private def nativeStreamFifoDefinition(verilog: String): String =
     "(?ms)^\\s*module\\s+StreamFifo\\b.*?^\\s*endmodule\\b".r
       .findFirstIn(verilog)
       .getOrElse(fail("Native StreamFifo module definition is missing"))
+
+  private def concreteFifoGraph(
+      fifo: StreamFifo[_ <: Data]
+  ): Vector[String] =
+    Vector(
+      s"depth=${fifo.depth}",
+      s"withAsyncRead=${fifo.withAsyncRead}",
+      s"withBypass=${fifo.withBypass}",
+      s"allowExtraMsb=${fifo.allowExtraMsb}",
+      s"withExtraMsb=${fifo.withExtraMsb}",
+      s"forFMax=${fifo.forFMax}",
+      s"useVec=${fifo.useVec}",
+      s"payloadWidth=${fifo.io.push.payload.getBitsWidth}",
+      s"occupancyWidth=${fifo.io.occupancy.getBitsWidth}",
+      s"availabilityWidth=${fifo.io.availability.getBitsWidth}",
+      s"bypass=${fifo.bypass != null}",
+      s"oneStage=${fifo.oneStage != null}",
+      s"storage=${fifo.logic != null}"
+    )
 
   private def component(default: Int = 5): NativeParameterizedStreamFifoHarness = {
     val depth = HdlInt.param(
@@ -155,6 +224,7 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       assert(
         streamFifoModuleInventory(verilog) == ExpectedStreamFifoModuleInventory
       )
+      assertTypedStoragePopIndex(nativeStreamFifo)
     }
   }
 
@@ -241,6 +311,7 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       assert(parameterized.contains("io_availability"))
       assert(!parameterized.contains("ParamRTL"))
       assert(!parameterized.contains("rewriteParameterizedStreamFifoDepth"))
+      assertTypedStoragePopIndex(nativeStreamFifo)
 
       assert(!concrete.contains("parameter integer DEPTH"))
       assert(concrete.contains("[0:4]"))
@@ -248,9 +319,12 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
 
       val rtl = parameterizedDirectory.resolve("stream_fifo_parameterized_depth.v")
       Vector(1, 3, 5, 8).foreach { selectedDepth =>
-        lintDepth(parameterizedDirectory, rtl, selectedDepth)
-        simulateDepth(parameterizedDirectory, rtl, selectedDepth)
-        synthesizeDepth(parameterizedDirectory, rtl, selectedDepth)
+        if (commandAvailable("verilator"))
+          lintDepth(parameterizedDirectory, rtl, selectedDepth)
+        if (commandAvailable("iverilog") && commandAvailable("vvp"))
+          simulateDepth(parameterizedDirectory, rtl, selectedDepth)
+        if (commandAvailable("yosys"))
+          synthesizeDepth(parameterizedDirectory, rtl, selectedDepth)
       }
     }
   }
@@ -311,42 +385,513 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
     }
   }
 
-  test("symbolic formal helpers fail closed independently of the default witness") {
-    import SymbolicStreamFifoFormalHelperHarness._
-
+  test("symbolic formal helpers remain live at depths 1, 3, 5 and 8") {
     withTemporaryDirectory { directory =>
-      val observedCodes = for {
-        default <- Vector(1, 5)
-        operation <- Operations
-      } yield {
-        val target = directory.resolve(s"default-$default-${operation.id}")
+      val config = synchronousResetConfig(directory)
+      config.includeFormal
+      config.netlistFileName = "symbolic_stream_fifo_formal_helpers.v"
+      val depth = HdlInt.param(
+        "DEPTH",
+        default = BigInt(1),
+        min = BigInt(1),
+        max = BigInt(8)
+      )
+      val report = MorphVerilog(config) {
+        new SymbolicStreamFifoFormalHelperHarness(depth)
+      }
+      val rtl = directory.resolve(config.netlistFileName)
+      val verilog = read(rtl)
+      val compact = verilog.replaceAll("\\s+", "")
+
+      assert(
+        report.parameters.map(parameter => parameter.name -> parameter.default) ==
+          Vector("DEPTH" -> BigInt(1))
+      )
+      assert(verilog.contains("module SymbolicStreamFifoFormalHelperHarness #("))
+      assert(compact.contains("[DEPTH-1:0]io_ramChecks"), verilog)
+      assert(
+        compact.contains("[DEPTH-1:0]typed_formal_ram_mask_one"),
+        verilog
+      )
+      assert(
+        compact.contains("[(clog2((DEPTH+1),1)+1)-1:0]io_count"),
+        verilog
+      )
+      assert(
+        compact.contains("[(clog2((DEPTH+1),1)+1)-1:0]io_wordCount"),
+        verilog
+      )
+      assert(verilog.contains("morphhdl_finite_fold_index_"), verilog)
+      assert(
+        "for\\s*\\([^;]+;\\s*[^;]+<\\s*DEPTH\\s*;".r
+          .findFirstIn(verilog)
+          .nonEmpty,
+        verilog
+      )
+      assert(verilog.contains("formal_last_push"), verilog)
+      assert(verilog.contains("formal_ram_check"), verilog)
+      assert(verilog.contains("formal_ram_condition"), verilog)
+      assert(verilog.contains("formal_ram_mask"), verilog)
+      assert(
+        "(?m)^\\s*cover\\s*\\(".r.findAllMatchIn(verilog).size == 1,
+        verilog
+      )
+      val formalFifo = nativeStreamFifoDefinition(verilog)
+      assert(
+        """DEPTH\s*\)?\s*==\s*\(?\s*1""".r
+          .findFirstIn(formalFifo)
+          .nonEmpty,
+        formalFifo
+      )
+      assert(
+        """DEPTH\s*\)?\s*>\s*\(?\s*1""".r
+          .findFirstIn(formalFifo)
+          .nonEmpty,
+        formalFifo
+      )
+      assert(
+        """(?m)^\s*(?:assign\s+)?formal_full_to_empty\s*=""".r
+          .findAllMatchIn(formalFifo)
+          .size == 2,
+        formalFifo
+      )
+
+      Vector(1, 3, 5, 8).foreach { selectedDepth =>
+        if (commandAvailable("verilator"))
+          lintFormalHelpers(directory, rtl, selectedDepth)
+        if (commandAvailable("iverilog") && commandAvailable("vvp"))
+          simulateFormalHelpers(directory, rtl, selectedDepth)
+        if (commandAvailable("yosys"))
+          synthesizeFormalHelpers(directory, rtl, selectedDepth)
+      }
+    }
+  }
+
+  private def lintFormalHelpers(
+      directory: Path,
+      rtl: Path,
+      selectedDepth: Int
+  ): Unit = {
+    val result = run(
+      directory,
+      Seq(
+        "verilator",
+        "--lint-only",
+        "--language",
+        "1364-2001",
+        "-Wall",
+        "-Wno-DECLFILENAME",
+        "-Wno-WIDTH",
+        "-Wno-UNUSED",
+        "--top-module",
+        "SymbolicStreamFifoFormalHelperHarness",
+        s"-GDEPTH=$selectedDepth",
+        rtl.toString
+      )
+    )
+    assert(
+      result._1 == 0,
+      s"formal-helper Verilator lint failed for DEPTH=$selectedDepth:\n${result._2}"
+    )
+  }
+
+  private def simulateFormalHelpers(
+      directory: Path,
+      rtl: Path,
+      selectedDepth: Int
+  ): Unit = {
+    val top = s"SymbolicStreamFifoFormalHelpersDepth${selectedDepth}Tb"
+    val testbench = directory.resolve(s"$top.v")
+    val output = directory.resolve(s"formal_helpers_depth_$selectedDepth.out")
+    val source =
+      s"""`timescale 1ns/1ps
+         |module $top;
+         |  parameter integer DEPTH = $selectedDepth;
+         |  function integer tb_clog2;
+         |    input integer value;
+         |    integer shifted;
+         |    begin
+         |      shifted = value - 1;
+         |      tb_clog2 = 0;
+         |      while (shifted > 0) begin
+         |        shifted = shifted >> 1;
+         |        tb_clog2 = tb_clog2 + 1;
+         |      end
+         |    end
+         |  endfunction
+         |  localparam integer COUNT_WIDTH = tb_clog2(DEPTH + 1) + 1;
+         |  // Preserve the inherited concrete helper behavior: at depth one,
+         |  // the one-stage buffer is visible both in formalCheckRam and in
+         |  // formalCheckOutputStage, so formalCount reports two.
+         |  localparam integer EXPECTED_MISMATCH_PREDICATE_COUNT =
+         |    (DEPTH == 1) ? 2 : 1;
+         |  localparam integer EXPECTED_MATCHING_PREDICATE_COUNT =
+         |    (DEPTH == 1) ? 2 : 1;
+         |  localparam integer EXPECTED_MATCHING_WORD_COUNT =
+         |    (DEPTH == 1) ? 2 : 1;
+         |  localparam integer MATCHING_PUSH_COUNT = (DEPTH == 1) ? 1 : 3;
+         |  reg clk = 1'b0;
+         |  reg reset = 1'b1;
+         |  reg io_push_valid = 1'b0;
+         |  wire io_push_ready;
+         |  reg [7:0] io_push_payload = 8'h00;
+         |  wire io_pop_valid;
+         |  reg io_pop_ready = 1'b0;
+         |  wire [7:0] io_pop_payload;
+         |  reg io_flush = 1'b0;
+         |  reg [7:0] io_needle = 8'h02;
+         |  wire io_lastPush;
+         |  wire [DEPTH-1:0] io_ramChecks;
+         |  wire io_contains;
+         |  wire [COUNT_WIDTH-1:0] io_count;
+         |  wire io_wordContains;
+         |  wire [COUNT_WIDTH-1:0] io_wordCount;
+         |  integer timeout;
+         |  integer drained;
+         |
+         |  always #5 clk = ~clk;
+         |
+         |  SymbolicStreamFifoFormalHelperHarness #(.DEPTH(DEPTH)) dut (
+         |    .io_push_valid(io_push_valid),
+         |    .io_push_ready(io_push_ready),
+         |    .io_push_payload(io_push_payload),
+         |    .io_pop_valid(io_pop_valid),
+         |    .io_pop_ready(io_pop_ready),
+         |    .io_pop_payload(io_pop_payload),
+         |    .io_flush(io_flush),
+         |    .io_needle(io_needle),
+         |    .io_lastPush(io_lastPush),
+         |    .io_ramChecks(io_ramChecks),
+         |    .io_contains(io_contains),
+         |    .io_count(io_count),
+         |    .io_wordContains(io_wordContains),
+         |    .io_wordCount(io_wordCount),
+         |    .clk(clk),
+         |    .reset(reset)
+         |  );
+         |
+         |  task tick;
+         |    begin
+         |      @(posedge clk);
+         |      #1;
+         |    end
+         |  endtask
+         |
+         |  task fail;
+         |    input [511:0] reason;
+         |    begin
+         |      $$display("FAIL formal helpers DEPTH=%0d: %0s", DEPTH, reason);
+         |      $$display("STATE ready=%b valid=%b last=%b checks=%b contains=%b count=%0d wordContains=%b wordCount=%0d",
+         |        io_push_ready, io_pop_valid, io_lastPush, io_ramChecks,
+         |        io_contains, io_count, io_wordContains, io_wordCount);
+         |      $$finish(2);
+         |    end
+         |  endtask
+         |
+         |  task push_word;
+         |    input [7:0] value;
+         |    begin
+         |      io_push_payload = value;
+         |      io_push_valid = 1'b1;
+         |      timeout = 0;
+         |      while (!io_push_ready && timeout < 30) begin
+         |        tick;
+         |        timeout = timeout + 1;
+         |      end
+         |      if (!io_push_ready) fail("push timeout");
+         |      tick;
+         |      io_push_valid = 1'b0;
+         |    end
+         |  endtask
+         |
+         |  task wait_for_pop;
+         |    begin
+         |      timeout = 0;
+         |      while (!io_pop_valid && timeout < 30) begin
+         |        tick;
+         |        timeout = timeout + 1;
+         |      end
+         |      if (!io_pop_valid) fail("pop-valid timeout");
+         |    end
+         |  endtask
+         |
+         |  task drain_words;
+         |    input integer amount;
+         |    begin
+         |      io_pop_ready = 1'b1;
+         |      drained = 0;
+         |      timeout = 0;
+         |      while (drained < amount && timeout < 100) begin
+         |        if (io_pop_valid) drained = drained + 1;
+         |        tick;
+         |        timeout = timeout + 1;
+         |      end
+         |      io_pop_ready = 1'b0;
+         |      if (drained != amount) fail("drain timeout");
+         |    end
+         |  endtask
+         |
+         |  task check_empty;
+         |    begin
+         |      timeout = 0;
+         |      while ((io_contains !== 1'b0 || io_count !== 0 ||
+         |              io_wordContains !== 1'b0 || io_wordCount !== 0) && timeout < 30) begin
+         |        tick;
+         |        timeout = timeout + 1;
+         |      end
+         |      if (io_contains !== 1'b0) fail("contains remained set after drain");
+         |      if (io_count !== 0) fail("count remained set after drain");
+         |      if (io_wordContains !== 1'b0) fail("word contains remained set after drain");
+         |      if (io_wordCount !== 0) fail("word count remained set after drain");
+         |    end
+         |  endtask
+         |
+         |  initial begin
+         |    repeat (3) tick;
+         |    reset = 1'b0;
+         |    tick;
+         |    if (io_ramChecks !== {DEPTH{1'b0}}) fail("RAM checks nonzero after reset");
+         |    if (io_contains !== 1'b0) fail("contains nonzero after reset");
+         |    if (io_count !== 0) fail("count nonzero after reset");
+         |    if (io_wordContains !== 1'b0) fail("word contains nonzero after reset");
+         |    if (io_wordCount !== 0) fail("word count nonzero after reset");
+         |
+         |    // A nonzero word distinct from the needle discriminates the
+         |    // predicate and word overloads.
+         |    push_word(8'h01);
+         |    repeat (3) tick;
+         |    wait_for_pop;
+         |    if (io_contains !== 1'b1) fail("predicate contains missed mismatching word");
+         |    if (io_count !== EXPECTED_MISMATCH_PREDICATE_COUNT)
+         |      fail("predicate count missed mismatching word");
+         |    if (io_wordContains !== 1'b0) fail("word contains aliased predicate");
+         |    if (io_wordCount !== 0) fail("word count aliased predicate");
+         |    if (io_lastPush !== 1'b1) fail("last-push missed mismatching word");
+         |    drain_words(1);
+         |    check_empty;
+         |
+         |    // At storage depths, hold three distinguishable items while pop
+         |    // is stalled. The middle word matches and the final word is
+         |    // zero, making a previous-item/off-by-one lastPush observable
+         |    // while live RAM checks remain visible.
+         |    if (DEPTH == 1) begin
+         |      push_word(8'h02);
+         |    end else begin
+         |      push_word(8'h00);
+         |      push_word(8'h02);
+         |      push_word(8'h00);
+         |    end
+         |    repeat (3) tick;
+         |    wait_for_pop;
+         |    if (DEPTH > 1 && io_pop_payload !== 8'h00)
+         |      fail("FIFO ordering did not retain first stalled word");
+         |    if (DEPTH > 1 && io_ramChecks === {DEPTH{1'b0}})
+         |      fail("RAM helper mask/fold remained unexercised");
+         |    if (io_contains !== 1'b1) fail("predicate contains missed matching phase");
+         |    if (io_count !== EXPECTED_MATCHING_PREDICATE_COUNT)
+         |      fail("predicate count mismatch in matching phase");
+         |    if (io_wordContains !== 1'b1) fail("word contains missed needle");
+         |    if (io_wordCount !== EXPECTED_MATCHING_WORD_COUNT)
+         |      fail("word count mismatch in matching phase");
+         |    if (DEPTH == 1 && io_lastPush !== 1'b1)
+         |      fail("depth-one last-push missed matching word");
+         |    if (DEPTH > 1 && io_lastPush !== 1'b0)
+         |      fail("last-push selected the previous rather than final word");
+         |    drain_words(MATCHING_PUSH_COUNT);
+         |    check_empty;
+         |    $$display("PASS formal helpers DEPTH=%0d", DEPTH);
+         |    $$finish;
+         |  end
+         |endmodule
+         |""".stripMargin
+    Files.write(testbench, source.getBytes(StandardCharsets.UTF_8))
+    val compile = run(
+      directory,
+      Seq(
+        "iverilog",
+        "-g2001",
+        "-s",
+        top,
+        "-o",
+        output.toString,
+        rtl.toString,
+        testbench.toString
+      )
+    )
+    assert(
+      compile._1 == 0,
+      s"formal-helper Icarus compile failed for DEPTH=$selectedDepth:\n${compile._2}"
+    )
+    val simulation = run(directory, Seq("vvp", output.toString))
+    assert(
+      simulation._1 == 0 &&
+        simulation._2.contains(s"PASS formal helpers DEPTH=$selectedDepth"),
+      s"formal-helper simulation failed for DEPTH=$selectedDepth:\n${simulation._2}"
+    )
+  }
+
+  private def synthesizeFormalHelpers(
+      directory: Path,
+      rtl: Path,
+      selectedDepth: Int
+  ): Unit = {
+    val script = directory.resolve(s"formal_helpers_depth_$selectedDepth.ys")
+    Files.write(
+      script,
+      s"""read_verilog -formal -defer ${rtl.toString}
+         |chparam -set DEPTH $selectedDepth SymbolicStreamFifoFormalHelperHarness
+         |hierarchy -check -top SymbolicStreamFifoFormalHelperHarness
+         |prep -top SymbolicStreamFifoFormalHelperHarness
+         |check -assert
+         |""".stripMargin.getBytes(StandardCharsets.UTF_8)
+    )
+    val result = run(directory, Seq("yosys", "-q", "-s", script.toString))
+    assert(
+      result._1 == 0,
+      s"formal-helper Yosys synthesis failed for DEPTH=$selectedDepth:\n${result._2}"
+    )
+  }
+
+  test("symbolic formal helpers support one-stage storage and Vec-storage domains") {
+    withTemporaryDirectory { directory =>
+      val domains = Vector(
+        ("one", 1, 1, 1, Vector(1), false),
+        ("storage", 3, 2, 8, Vector(3, 5, 8), false),
+        ("vec_storage", 1, 1, 8, Vector(1, 3, 4, 5, 8), true)
+      )
+      domains.foreach { case (label, default, minimum, maximum, depths, useVecStorage) =>
+        val target = directory.resolve(label)
         Files.createDirectories(target)
         val config = synchronousResetConfig(target)
-        config.netlistFileName = "symbolic_stream_fifo_formal_helper.v"
+        config.includeFormal
+        config.netlistFileName = s"symbolic_stream_fifo_formal_$label.v"
         val depth = HdlInt.param(
           "DEPTH",
           default = BigInt(default),
-          min = BigInt(1),
-          max = BigInt(8)
+          min = BigInt(minimum),
+          max = BigInt(maximum)
         )
-
-        MorphVerilog.tryGenerate(config) {
-          new SymbolicStreamFifoFormalHelperHarness(depth, operation)
-        } match {
-          case Left(failure) =>
+        MorphVerilog(config) {
+          new SymbolicStreamFifoFormalHelperHarness(
+            depth,
+            directDepth = true,
+            useVecStorage = useVecStorage
+          )
+        }
+        val rtl = target.resolve(config.netlistFileName)
+        val verilog = read(rtl)
+        assert(verilog.contains("formal_last_push"), verilog)
+        assert(verilog.contains("formal_ram_check"), verilog)
+        assert(verilog.contains("morphhdl_finite_fold_index_"), verilog)
+        assert(
+          "(?m)^\\s*cover\\s*\\(".r.findAllMatchIn(verilog).size == 1,
+          verilog
+        )
+        if (maximum > 1) {
+          assertTypedStoragePopIndex(nativeStreamFifoDefinition(verilog))
+          val compactLines = verilog.split("\\r?\\n").map(_.replaceAll("\\s+", ""))
+          val exactAddressWidth =
+            """.*\[\(?clog2\(\(*DEPTH\)*,1\)\)?-1:0\].*""".r
+          Vector(
+            "typed_formal_last_push_index",
+            "typed_formal_ram_push_index",
+            "typed_formal_ram_pop_index"
+          ).foreach { name =>
+            val matchingDeclarations = compactLines.filter(_.contains(name))
             assert(
-              failure.detail.contains(SymbolicFormalDepthCode),
-              failure.detail
+              matchingDeclarations.exists(line =>
+                exactAddressWidth.pattern.matcher(line).matches()
+              ),
+              s"missing exact DEPTH address-width declaration for $name:\n${matchingDeclarations.mkString("\n")}"
             )
-            SymbolicFormalDepthCode
-          case Right(report) =>
-            fail(
-              s"Expected $SymbolicFormalDepthCode for default $default and ${operation.id}, received $report"
-            )
+          }
+        }
+        if (useVecStorage) {
+          Vector(
+            "typed_vec_write_index",
+            "typed_vec_write_target",
+            "typed_vec_write_data"
+          ).foreach(name => assert(verilog.contains(name), verilog))
+        }
+        depths.foreach { selectedDepth =>
+          if (commandAvailable("verilator"))
+            lintFormalHelpers(target, rtl, selectedDepth)
+          if (commandAvailable("iverilog") && commandAvailable("vvp"))
+            simulateFormalHelpers(target, rtl, selectedDepth)
+          if (commandAvailable("yosys"))
+            synthesizeFormalHelpers(target, rtl, selectedDepth)
         }
       }
+    }
+  }
 
-      assert(observedCodes.toSet == Set(SymbolicFormalDepthCode))
+  test("typed literal formal helpers preserve ordinary concrete RTL") {
+    withTemporaryDirectory { directory =>
+      val ordinaryDirectory = directory.resolve("ordinary")
+      val typedDirectory = directory.resolve("typed")
+      Files.createDirectories(ordinaryDirectory)
+      Files.createDirectories(typedDirectory)
+      val ordinaryConfig = synchronousResetConfig(ordinaryDirectory)
+      ordinaryConfig.includeFormal
+      ordinaryConfig.netlistFileName = "concrete_formal_helpers.v"
+      var ordinaryGeneratorCalls = 0
+      var ordinaryGraph = Vector.empty[String]
+      SpinalVerilog(ordinaryConfig) {
+        val dut = new ConcreteStreamFifoFormalHelperHarness(
+          useTypedLiteral = false,
+          payloadGeneratorHit = () => ordinaryGeneratorCalls += 1
+        )
+        ordinaryGraph = concreteFifoGraph(dut.fifo)
+        dut
+      }
+      val typedConfig = synchronousResetConfig(typedDirectory)
+      typedConfig.includeFormal
+      typedConfig.netlistFileName = "concrete_formal_helpers.v"
+      var typedGeneratorCalls = 0
+      var typedGraph = Vector.empty[String]
+      SpinalVerilog(typedConfig) {
+        val dut = new ConcreteStreamFifoFormalHelperHarness(
+          useTypedLiteral = true,
+          payloadGeneratorHit = () => typedGeneratorCalls += 1
+        )
+        typedGraph = concreteFifoGraph(dut.fifo)
+        dut
+      }
+      assert(
+        java.util.Arrays.equals(
+          Files.readAllBytes(ordinaryDirectory.resolve("concrete_formal_helpers.v")),
+          Files.readAllBytes(typedDirectory.resolve("concrete_formal_helpers.v"))
+        )
+      )
+      assert(typedGeneratorCalls == ordinaryGeneratorCalls)
+      assert(typedGeneratorCalls > 0)
+      assert(typedGraph == ordinaryGraph)
+    }
+  }
+
+  test("symbolic formal helpers reject a nonpositive depth domain") {
+    withTemporaryDirectory { directory =>
+      val config = synchronousResetConfig(directory)
+      config.netlistFileName = "nonpositive_formal_helpers.v"
+      MorphVerilog.tryGenerate(config) {
+        val depth = HdlInt.param(
+          "DEPTH",
+          default = BigInt(1),
+          min = BigInt(0),
+          max = BigInt(8)
+        )
+        new NonpositiveStreamFifoFormalHelperHarness(depth)
+      } match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-ELAB-STREAMFIFO-FORMAL-DEPTH-DOMAIN-NONPOSITIVE"
+            ),
+            failure.detail
+          )
+        case Right(report) =>
+          fail(s"expected nonpositive formal-depth failure, received $report")
+      }
     }
   }
 
@@ -507,6 +1052,28 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
          |    if (io_occupancy !== 1) fail("post-drain occupancy mismatch");
          |    if (io_availability !== (DEPTH - 1)) fail("post-drain availability mismatch");
          |    io_push_valid = 1'b0;
+         |    io_pop_ready = 1'b1;
+         |    timeout = 0;
+         |    while (!io_pop_valid && timeout < 50) begin
+         |      tick;
+         |      timeout = timeout + 1;
+         |    end
+         |    if (!io_pop_valid) fail("post-wrap pop timeout");
+         |    if (io_pop_payload !== 8'hA5) fail("post-wrap payload mismatch");
+         |    tick;
+         |    io_pop_ready = 1'b0;
+         |    if (io_occupancy !== 0) fail("post-wrap occupancy mismatch");
+         |
+         |    io_push_payload = 8'hA6;
+         |    io_push_valid = 1'b1;
+         |    timeout = 0;
+         |    while (!io_push_ready && timeout < 50) begin
+         |      tick;
+         |      timeout = timeout + 1;
+         |    end
+         |    if (!io_push_ready) fail("pre-flush push timeout");
+         |    tick;
+         |    io_push_valid = 1'b0;
          |    io_flush = 1'b1;
          |    tick;
          |    io_flush = 1'b0;
@@ -580,6 +1147,9 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
         resetActiveLevel = HIGH
       )
     )
+
+  private def commandAvailable(name: String): Boolean =
+    Process(Seq("sh", "-c", s"command -v $name >/dev/null 2>&1")).! == 0
 
   private def run(directory: Path, command: Seq[String]): (Int, String) = {
     val log = new StringBuilder

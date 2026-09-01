@@ -14,8 +14,7 @@ private[morphhdl] object SymbolicDataShapesContractFixture {
     val sint = morphhdl.frontend.SInt(width bits)
   }
 
-  /**
-    * One ordinary SpinalHDL component exercises symbolic shape retention.
+  /** One ordinary SpinalHDL component exercises symbolic shape retention.
     * Its logic is deliberately limited to equal-shape leaf assignments and
     * one unconditional, uninitialized register path.
     */
@@ -76,6 +75,10 @@ private[morphhdl] object SymbolicDataShapesContractFixture {
     }
 
     private def createVecPorts(): Unit = {
+      // Keep the original concrete two-element logical Vec in this long-lived
+      // fixture. Its typed element leaves now exercise Increment 53f's generic
+      // single-packed-vector publication; symbolic depth is covered by the
+      // focused typed-Vec fixtures rather than changing this contract's shape.
       if (reverseConstructionOrder) {
         vecOut = out(Vec(payloadType, 2)).setName("vec_out")
         vecIn = in(Vec(payloadType, 2)).setName("vec_in")

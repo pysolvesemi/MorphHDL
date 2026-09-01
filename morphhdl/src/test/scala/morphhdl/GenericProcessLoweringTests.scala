@@ -88,6 +88,19 @@ object GenericProcessLoweringSmoke {
     dout := state
   }
 
+  final class NarrowSourceProceduralLoopTop(width: HdlInt, lanes: HdlInt) extends Component {
+    setDefinitionName("NarrowSourceProceduralLoopMustFailClosed")
+
+    val din = in(morphhdl.frontend.Bits(width bits))
+    val dout = out(morphhdl.frontend.Bits(width bits))
+    dout := 0
+    (0 until lanes).named("p_narrow_lane", "narrow_lane").foreach { lane =>
+      val laneWidth = HdlInt.literal(BigInt(4))
+      dout(lane * laneWidth, laneWidth) :=
+        din(lane * laneWidth, laneWidth)
+    }
+  }
+
   def genericCombinational(): Component = {
     val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
     new GenericCombinational(width)
@@ -246,6 +259,30 @@ class GenericProcessLoweringTests extends AnyFunSuite {
       )
       assert(!verilog.contains("genvar word"))
       assert(!verilog.contains("MORPH_PROC_FOR"))
+    }
+  }
+
+  test("a witness-valid procedural slice rejects a narrower retained source domain") {
+    withTemporaryDirectory { directory =>
+      val rtl = directory.resolve("narrow_source_procedural_loop.v")
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = rtl.getFileName.toString
+      val failure = MorphVerilog.tryGenerate(config) {
+        val width = HdlInt.param("WIDTH", default = 16, min = 8, max = 16)
+        val lanes = HdlInt.param("LANES", default = 4, min = 1, max = 4)
+        new NarrowSourceProceduralLoopTop(width, lanes)
+      } match {
+        case Left(value) => value
+        case Right(value) =>
+          fail(s"expected complete-domain procedural-slice rejection, received $value")
+      }
+      assert(
+        failure.detail.contains(
+          "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-DOMAIN-UNSUPPORTED"
+        ),
+        failure.detail
+      )
+      assert(!Files.exists(rtl), "escaping procedural slice published partial RTL")
     }
   }
 
@@ -429,26 +466,30 @@ class GenericProcessLoweringTests extends AnyFunSuite {
     )
 
     val compileLog = new StringBuilder
-    val compileResult = scala.sys.process.Process(
-      Seq(
-        "iverilog",
-        "-g2001",
-        "-s",
-        "procedural_loop_tb",
-        "-o",
-        executable.toString,
-        verilog.toString,
-        testbench.toString
-      ),
-      directory.toFile
-    ).!(ProcessLogger(line => compileLog.append(line).append('\n')))
+    val compileResult = scala.sys.process
+      .Process(
+        Seq(
+          "iverilog",
+          "-g2001",
+          "-s",
+          "procedural_loop_tb",
+          "-o",
+          executable.toString,
+          verilog.toString,
+          testbench.toString
+        ),
+        directory.toFile
+      )
+      .!(ProcessLogger(line => compileLog.append(line).append('\n')))
     assert(compileResult == 0, compileLog.toString)
 
     val simulationLog = new StringBuilder
-    val simulationResult = scala.sys.process.Process(
-      Seq("vvp", executable.toString),
-      directory.toFile
-    ).!(ProcessLogger(line => simulationLog.append(line).append('\n')))
+    val simulationResult = scala.sys.process
+      .Process(
+        Seq("vvp", executable.toString),
+        directory.toFile
+      )
+      .!(ProcessLogger(line => simulationLog.append(line).append('\n')))
     assert(simulationResult == 0, simulationLog.toString)
     assert(simulationLog.toString.contains("PASS procedural loop"))
     assert(!simulationLog.toString.contains("FAIL"))
@@ -463,8 +504,8 @@ class GenericProcessLoweringTests extends AnyFunSuite {
     finally {
       val stream = Files.walk(directory)
       try {
-        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach {
-          path => Files.deleteIfExists(path)
+        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach { path =>
+          Files.deleteIfExists(path)
         }
       } finally stream.close()
     }

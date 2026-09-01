@@ -20,6 +20,52 @@ final class ElabInt private[core] (
   def isConcrete: Boolean = expression.parameters.isEmpty
   def isDomainConstant: Boolean = minimum == maximum
 
+  /** Prove this exact definition-side expression before a native library
+    * adapter is allowed to consume its retained bounds.  The object method
+    * deliberately observes the unprojected carrier; callers which subsequently
+    * project it must still validate that narrower expression at its use site.
+    */
+  private[spinal] def requireAuthoritativeIntegerDomain(
+      role: String,
+      failureCode: String,
+      requireExactExtrema: Boolean
+  ): Option[ElaborationExactDomain[BigInt]] =
+    ElabInt.requireAuthoritativeIntegerDomain(
+      expression,
+      role,
+      failureCode,
+      requireExactExtrema
+    )
+
+  /** Validate the untouched definition-side carrier before projection can
+    * normalize its witness or interval, then validate the exact projected
+    * carrier under the consumer's existing extrema policy.  This ordering is
+    * what prevents malformed public summaries from laundering themselves
+    * through an otherwise legitimate branch projection.
+    */
+  private[spinal] def authoritativeProjectedExpression(
+      role: String,
+      failureCode: String,
+      requireProjectedExactExtrema: Boolean
+  ): ElaborationIntegerExpression = {
+    val symbolic = expression.parameters.nonEmpty
+    if (symbolic)
+      requireAuthoritativeIntegerDomain(
+        role,
+        failureCode,
+        requireExactExtrema = false
+      )
+    val projected = projectedExpression(role)
+    if (symbolic)
+      ElabInt.requireAuthoritativeIntegerDomain(
+        projected,
+        role,
+        failureCode,
+        requireProjectedExactExtrema
+      )
+    projected
+  }
+
   /** Expression projected only for the currently captured structural branch. */
   private[spinal] def projectedExpression(
       role: String
@@ -39,6 +85,11 @@ final class ElabInt private[core] (
 
   /** Typed ceiling logarithm which retains this bounded expression. */
   def log2Up: ElabInt = ElabInt.log2UpValue(this)
+
+  /** Minimum positive packed width which can address every value below this
+    * positive bound. Unlike [[log2Up]], a bound of one has width one.
+    */
+  def addressWidth: ElabInt = ElabInt.addressWidthValue(this)
 
   /** Typed power-of-two predicate over this bounded expression. */
   def isPow2: ElabBool = ElabInt.isPow2Value(this)
@@ -121,7 +172,11 @@ final class ElabInt private[core] (
   private[spinal] def toParameterizedBitCount(
       role: String
   ): ParameterizedBitCount = {
-    val projected = projectedExpression(role)
+    val projected = authoritativeProjectedExpression(
+      role,
+      "SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED",
+      requireProjectedExactExtrema = false
+    )
     if (projected.minimum < 1 || projected.maximum < projected.minimum) {
       ElabInt.fail(
         "SPINAL-ELAB-INT-WIDTH-DOMAIN-INVALID",
@@ -219,22 +274,42 @@ object ElabBool {
   ): ElabBool = {
     if (expression == null)
       throw new IllegalArgumentException("ElabBool expression must not be null")
-    ElabInt.validateExpression(expression, "ElabBool expression")
-    val normalized = ElabInt.withCompleteParameterRoots(expression)
+    val certified =
+      ElabInt.attachDerivedExactAuthority(expression, "ElabBool expression")
+    ElabInt.validateExpression(certified, "ElabBool expression")
+    val normalized = ElabInt.withCompleteParameterRoots(certified)
     ElabInt.validateExpression(normalized, "ElabBool expression")
     new ElabBool(normalized, truth)
   }
 
+  private[core] def derived(
+      expression: ElaborationBooleanExpression,
+      truth: Truth,
+      role: String
+  ): ElabBool =
+    apply(
+      ElabInt.authorizeDerivedProjection(
+        ElabInt.attachDerivedExactAuthority(expression, role),
+        role
+      ),
+      truth
+    )
+
   private[spinal] def projectExpression(
       expression: ElaborationBooleanExpression,
       role: String
-  ): ElaborationBooleanExpression =
+  ): ElaborationBooleanExpression = {
+    ElabInt.requireAuthoritativeBooleanDomain(
+      expression,
+      role,
+      "SPINAL-ELAB-BOOL-EXACT-DOMAIN-REQUIRED"
+    )
     expression.exactDomain match {
       case Some(domain) =>
         val requested = ElaborationDomainContext.admitted(domain)
         ElabInt.requireProjectionSubset(
           expression.projectionProvenance,
-          domain.root,
+          domain,
           requested,
           role,
           expression.sourceLocation
@@ -287,14 +362,20 @@ object ElabBool {
         }
         expression
     }
+  }
 
-  private[core] def projectedTruth(value: ElabBool): Truth =
+  private[core] def projectedTruth(value: ElabBool): Truth = {
+    ElabInt.requireAuthoritativeBooleanDomain(
+      value.expression,
+      "typed Boolean truth projection",
+      "SPINAL-ELAB-BOOL-EXACT-DOMAIN-REQUIRED"
+    )
     value.expression.exactDomain match {
       case Some(domain) =>
         val requested = ElaborationDomainContext.admitted(domain)
         ElabInt.requireProjectionSubset(
           value.expression.projectionProvenance,
-          domain.root,
+          domain,
           requested,
           "typed Boolean truth projection",
           value.sourceLocation
@@ -327,6 +408,7 @@ object ElabBool {
         }
       case None => value.truth
     }
+  }
 
   private def not(value: ElabBool): ElabBool = {
     val truth = value.truth match {
@@ -334,16 +416,17 @@ object ElabBool {
       case AlwaysFalse => AlwaysTrue
       case Unknown     => Unknown
     }
-    apply(
+    derived(
       ElaborationBooleanExpression(
         verilog = s"!(${value.expression.verilog})",
         default = !value.expression.default,
         parameters = value.expression.parameters,
         sourceLocation = value.expression.sourceLocation,
         parameterRoots = value.expression.parameterRoots,
-        exactDomain = mapDomain(value.expression.exactDomain)(result => !result)
+        exactDomain = mapDomain(value.expression)(result => !result)
       ),
-      truth
+      truth,
+      "typed Boolean negation"
     )
   }
 
@@ -353,7 +436,7 @@ object ElabBool {
       case (AlwaysTrue, AlwaysTrue)            => AlwaysTrue
       case _                                   => Unknown
     }
-    apply(
+    derived(
       ElaborationBooleanExpression(
         verilog = s"((${left.expression.verilog}) && (${right.expression.verilog}))",
         default = left.expression.default && right.expression.default,
@@ -369,7 +452,8 @@ object ElabBool {
         ),
         exactDomain = combineDomains(left, right)(_ && _)
       ),
-      truth
+      truth,
+      "typed Boolean conjunction"
     )
   }
 
@@ -379,7 +463,7 @@ object ElabBool {
       case (AlwaysFalse, AlwaysFalse)        => AlwaysFalse
       case _                                 => Unknown
     }
-    apply(
+    derived(
       ElaborationBooleanExpression(
         verilog = s"((${left.expression.verilog}) || (${right.expression.verilog}))",
         default = left.expression.default || right.expression.default,
@@ -395,17 +479,19 @@ object ElabBool {
         ),
         exactDomain = combineDomains(left, right)(_ || _)
       ),
-      truth
+      truth,
+      "typed Boolean disjunction"
     )
   }
 
   private def toElabInt(value: ElabBool): ElabInt = {
+    requireAuthoritativeSource(value.expression, "Boolean-to-integer expression")
     val bounds = value.truth match {
       case AlwaysTrue  => BigInt(1) -> BigInt(1)
       case AlwaysFalse => BigInt(0) -> BigInt(0)
       case Unknown     => BigInt(0) -> BigInt(1)
     }
-    ElabInt.fromExpression(
+    ElabInt.fromDerivedExpression(
       ElaborationIntegerExpression(
         verilog = s"((${value.expression.verilog}) ? 1 : 0)",
         default = if (value.expression.default) BigInt(1) else BigInt(0),
@@ -415,6 +501,11 @@ object ElabBool {
         sourceLocation = value.expression.sourceLocation,
         parameterRoots = value.expression.parameterRoots,
         exactDomain = value.expression.exactDomain.map { domain =>
+          requireSourceProjection(
+            value.expression,
+            domain,
+            "Boolean-to-integer expression"
+          )
           val evaluations = ElabInt
             .activeDomainEvaluations(
               domain,
@@ -431,14 +522,45 @@ object ElabBool {
             "Boolean-to-integer expression"
           )
         }
-      )
+      ),
+      "Boolean-to-integer expression"
     )
   }
 
+  private def requireSourceProjection(
+      expression: ElaborationBooleanExpression,
+      domain: ElaborationExactDomain[Boolean],
+      role: String
+  ): Unit =
+    ElabInt.requireProjectionSubset(
+      expression.projectionProvenance,
+      domain,
+      ElaborationDomainContext.admitted(domain),
+      role,
+      expression.sourceLocation
+    )
+
+  /** A typed derivation must never be the operation which first turns public
+    * Boolean metadata into declaration authority. Validate the untouched
+    * source before checkedDerivedDomain is allowed to construct a trusted
+    * result domain.
+    */
+  private def requireAuthoritativeSource(
+      expression: ElaborationBooleanExpression,
+      role: String
+  ): Unit =
+    ElabInt.requireAuthoritativeBooleanDomain(
+      expression,
+      role,
+      "SPINAL-ELAB-BOOL-EXACT-DOMAIN-REQUIRED"
+    )
+
   private def mapDomain(
-      domain: Option[ElaborationExactDomain[Boolean]]
-  )(operation: Boolean => Boolean): Option[ElaborationExactDomain[Boolean]] =
-    domain.map { value =>
+      expression: ElaborationBooleanExpression
+  )(operation: Boolean => Boolean): Option[ElaborationExactDomain[Boolean]] = {
+    requireAuthoritativeSource(expression, "typed Boolean expression")
+    expression.exactDomain.map { value =>
+      requireSourceProjection(expression, value, "typed Boolean expression")
       val evaluations = ElabInt
         .activeDomainEvaluations(
           value,
@@ -455,13 +577,22 @@ object ElabBool {
         "typed Boolean expression"
       )
     }
+  }
 
   private def combineDomains(
       left: ElabBool,
       right: ElabBool
   )(operation: (Boolean, Boolean) => Boolean): Option[
     ElaborationExactDomain[Boolean]
-  ] =
+  ] = {
+    requireAuthoritativeSource(left.expression, "typed Boolean expression")
+    requireAuthoritativeSource(right.expression, "typed Boolean expression")
+    left.expression.exactDomain.foreach { domain =>
+      requireSourceProjection(left.expression, domain, "typed Boolean expression")
+    }
+    right.expression.exactDomain.foreach { domain =>
+      requireSourceProjection(right.expression, domain, "typed Boolean expression")
+    }
     (left.expression.exactDomain, right.expression.exactDomain) match {
       case (Some(leftDomain), Some(rightDomain)) if leftDomain.root eq rightDomain.root =>
         if (leftDomain.universe != rightDomain.universe) {
@@ -548,6 +679,7 @@ object ElabBool {
         )
         None
     }
+  }
 }
 
 object ElabInt {
@@ -585,11 +717,428 @@ object ElabInt {
     new ElabInt(withCompleteParameterRoots(expression))
   }
 
+  /** Test-only/internal constructor for malformed exact-domain fixtures which
+    * need to exercise a deeper consumer diagnostic. Public callers must use
+    * [[fromExpression]], where copied exact metadata is rejected.
+    */
+  private[spinal] def fromTrustedExactExpressionForTest(
+      expression: ElaborationIntegerExpression
+  ): ElabInt = {
+    val certified = authenticateExactExpressionForTest(expression)
+    validateExpression(certified, "trusted exact-domain test fixture")
+    new ElabInt(withCompleteParameterRoots(certified))
+  }
+
+  private[spinal] def authenticateExactExpressionForTest(
+      expression: ElaborationIntegerExpression
+  ): ElaborationIntegerExpression =
+    attachDerivedExactAuthority(expression, "trusted exact-domain test fixture")
+
+  /** Fail closed before one retained integer expression authorizes native
+    * geometry or values.
+    *
+    * A parameter-free carrier is authoritative only when it is the canonical
+    * numeric literal.  A symbolic carrier must retain one exact declaration
+    * root, the exact same parameter-schema object, and one unique evaluation
+    * for every value in its full domain or in its still-authorized branch
+    * projection.  Rendered names and case-class-equal schema copies never
+    * recover that authority.
+    *
+    * Exact evaluation results must stay inside the retained interval and the
+    * representative result must equal the concrete witness. Some generic
+    * integer operations intentionally retain conservative interval bounds for
+    * correlated expressions, so callers choose whether exact extrema are also
+    * mandatory.
+    */
+  private[spinal] def requireAuthoritativeIntegerDomain(
+      expression: ElaborationIntegerExpression,
+      role: String,
+      failureCode: String,
+      requireExactExtrema: Boolean
+  ): Option[ElaborationExactDomain[BigInt]] = {
+    validateExpression(expression, role)
+    val source = expression.sourceLocation
+
+    def reject(detail: String): Nothing =
+      fail(failureCode, s"$role $detail", source)
+
+    val roots = distinctParameterRoots(expression.completedParameterRoots)
+    if (expression.parameters.isEmpty) {
+      if (
+        roots.nonEmpty || expression.exactDomain.nonEmpty ||
+        expression.generateIndex.nonEmpty ||
+        expression.minimum != expression.default ||
+        expression.maximum != expression.default ||
+        expression.verilog.trim != expression.default.toString
+      )
+        reject(
+          s"parameter-free expression '${expression.verilog}' is not one canonical numeric literal"
+        )
+      return None
+    }
+
+    if (expression.generateIndex.nonEmpty)
+      reject(
+        s"symbolic expression '${expression.verilog}' also depends on a generate index"
+      )
+
+    val domain = expression.exactDomain.getOrElse {
+      reject(
+        s"symbolic expression '${expression.verilog}' lacks complete exact-domain evidence"
+      )
+    }
+    val schema = expression.parameters match {
+      case Vector(value) => value
+      case _ =>
+        reject(
+          s"symbolic expression '${expression.verilog}' does not retain exactly one parameter schema"
+        )
+    }
+    if (
+      roots.size != 1 || (roots.head ne domain.root) ||
+      (schema ne domain.parameter) || schema.name != domain.root.name ||
+      !domain.root.isAuthoritativeSchema(schema)
+    )
+      reject(
+        s"symbolic expression '${expression.verilog}' exact evidence does not retain its one authoritative declaration root and schema identity"
+      )
+
+    requireProjectionSubset(
+      expression.projectionProvenance,
+      domain,
+      ElaborationDomainContext.admitted(domain),
+      role,
+      source
+    )
+
+    val evaluations = domain.evaluations
+    if (evaluations.exists(entry => entry == null || entry._1 == null || entry._2 == null))
+      reject(
+        s"symbolic expression '${expression.verilog}' contains null exact-domain evidence"
+      )
+
+    val keys = evaluations.map(_._1)
+    val universe = domain.universe
+    val projection = expression.projectionProvenance
+    val requiredValues = projection match {
+      case Some(value) =>
+        if (
+          (value.root ne domain.root) || value.admitted.isEmpty ||
+          !value.admitted.subsetOf(universe)
+        )
+          reject(
+            s"symbolic expression '${expression.verilog}' carries foreign or invalid projection authority"
+          )
+        val representative =
+          if (value.admitted.contains(schema.default)) schema.default
+          else value.admitted.min
+        if (value.representative != representative)
+          reject(
+            s"symbolic expression '${expression.verilog}' carries a non-deterministic projection representative"
+          )
+        value.admitted
+      case None =>
+        if (domain.evidenceValues != universe)
+          reject(
+            s"symbolic expression '${expression.verilog}' carries branch-partial evidence without projection authority"
+          )
+        universe
+    }
+    if (keys.size != keys.distinct.size || keys.toSet != requiredValues)
+      reject(
+        s"symbolic expression '${expression.verilog}' does not evaluate every authorized root value exactly once"
+      )
+
+    val results = evaluations.map(_._2)
+    results
+      .zip(keys)
+      .collectFirst {
+        case (result, rootValue)
+            if !result.isValidInt || result < expression.minimum ||
+              result > expression.maximum =>
+          rootValue -> result
+      }
+      .foreach { case (rootValue, result) =>
+        reject(
+          s"symbolic expression '${expression.verilog}' evaluates to $result at ${schema.name}=$rootValue outside its retained Int interval [${expression.minimum}, ${expression.maximum}]"
+        )
+      }
+    if (
+      requireExactExtrema &&
+      (results.min != expression.minimum || results.max != expression.maximum)
+    )
+      reject(
+        s"symbolic expression '${expression.verilog}' retained interval [${expression.minimum}, ${expression.maximum}] does not equal its exact extrema [${results.min}, ${results.max}]"
+      )
+
+    val representative = projection
+      .map(_.representative)
+      .getOrElse(schema.default)
+    if (!domain.evaluate(representative).contains(expression.default))
+      reject(
+        s"symbolic expression '${expression.verilog}' concrete witness ${expression.default} does not equal its exact representative evaluation"
+      )
+    Some(domain)
+  }
+
+  /** Boolean counterpart of [[requireAuthoritativeIntegerDomain]]. A
+    * parameter-free predicate may retain any fully authored concrete Boolean
+    * expression, but it must not smuggle symbolic roots or exact evidence. A
+    * symbolic predicate must retain one authoritative declaration root and
+    * schema, exactly one result for every full-domain or identity-authorized
+    * projected root value, and the exact representative default.
+    */
+  private[spinal] def requireAuthoritativeBooleanDomain(
+      expression: ElaborationBooleanExpression,
+      role: String,
+      failureCode: String
+  ): Option[ElaborationExactDomain[Boolean]] = {
+    validateExpression(expression, role)
+    val source = expression.sourceLocation
+
+    def reject(detail: String): Nothing =
+      fail(failureCode, s"$role $detail", source)
+
+    val roots = distinctParameterRoots(expression.completedParameterRoots)
+    if (expression.parameters.isEmpty) {
+      if (
+        roots.nonEmpty || expression.exactDomain.nonEmpty ||
+        expression.projectionProvenance.nonEmpty
+      )
+        reject(
+          s"parameter-free predicate '${expression.verilog}' carries symbolic exact-domain authority"
+        )
+      return None
+    }
+
+    val domain = expression.exactDomain.getOrElse {
+      reject(
+        s"symbolic predicate '${expression.verilog}' lacks complete exact-domain evidence"
+      )
+    }
+    val schema = expression.parameters match {
+      case Vector(value) => value
+      case _ =>
+        reject(
+          s"symbolic predicate '${expression.verilog}' does not retain exactly one parameter schema"
+        )
+    }
+    if (
+      roots.size != 1 || (roots.head ne domain.root) ||
+      (schema ne domain.parameter) || schema.name != domain.root.name ||
+      !domain.root.isAuthoritativeSchema(schema)
+    )
+      reject(
+        s"symbolic predicate '${expression.verilog}' exact evidence does not retain its one authoritative declaration root and schema identity"
+      )
+
+    requireProjectionSubset(
+      expression.projectionProvenance,
+      domain,
+      ElaborationDomainContext.admitted(domain),
+      role,
+      source
+    )
+
+    val evaluations = domain.evaluations
+    evaluations.zipWithIndex.foreach { case (entry, index) =>
+      if (entry == null)
+        reject(
+          s"symbolic predicate '${expression.verilog}' contains a null exact-domain entry at index $index"
+        )
+      if (
+        entry.productElement(0) == null ||
+        entry.productElement(1) == null
+      )
+        reject(
+          s"symbolic predicate '${expression.verilog}' contains null exact-domain evidence at index $index"
+        )
+    }
+
+    val keys = evaluations.map(_._1)
+    val universe = domain.universe
+    val projection = expression.projectionProvenance
+    val requiredValues = projection match {
+      case Some(value) =>
+        if (
+          (value.root ne domain.root) || value.admitted.isEmpty ||
+          !value.admitted.subsetOf(universe)
+        )
+          reject(
+            s"symbolic predicate '${expression.verilog}' carries foreign or invalid projection authority"
+          )
+        val representative =
+          if (value.admitted.contains(schema.default)) schema.default
+          else value.admitted.min
+        if (value.representative != representative)
+          reject(
+            s"symbolic predicate '${expression.verilog}' carries a non-deterministic projection representative"
+          )
+        value.admitted
+      case None =>
+        if (domain.evidenceValues != universe)
+          reject(
+            s"symbolic predicate '${expression.verilog}' carries branch-partial evidence without projection authority"
+          )
+        universe
+    }
+    if (keys.size != keys.distinct.size || keys.toSet != requiredValues)
+      reject(
+        s"symbolic predicate '${expression.verilog}' does not evaluate every authorized root value exactly once"
+      )
+
+    val representative = projection
+      .map(_.representative)
+      .getOrElse(schema.default)
+    if (!domain.evaluate(representative).contains(expression.default))
+      reject(
+        s"symbolic predicate '${expression.verilog}' concrete witness ${expression.default} does not equal its exact representative evaluation"
+      )
+    Some(domain)
+  }
+
+  /** Preserve private branch authority across one trusted typed operation.
+    * Public case-class construction and copying never call these helpers. The
+    * derived summary is normalized to the exact active evaluator before the
+    * provenance is attached, matching the ordinary projection path.
+    */
+  private[core] def attachDerivedExactAuthority(
+      expression: ElaborationIntegerExpression,
+      role: String
+  ): ElaborationIntegerExpression =
+    expression.exactDomain match {
+      case Some(domain) => expression.attachExactAuthority(domain, role)
+      case None         => expression
+    }
+
+  private[core] def attachDerivedExactAuthority(
+      expression: ElaborationBooleanExpression,
+      role: String
+  ): ElaborationBooleanExpression =
+    expression.exactDomain match {
+      case Some(domain) => expression.attachExactAuthority(domain, role)
+      case None         => expression
+    }
+
+  private[core] def authorizeDerivedProjection(
+      expression: ElaborationIntegerExpression,
+      role: String
+  ): ElaborationIntegerExpression =
+    expression.exactDomain match {
+      case Some(domain) if domain.evidenceValues != domain.universe =>
+        val admitted = domain.evidenceValues
+        val representative =
+          if (admitted.contains(domain.parameter.default))
+            domain.parameter.default
+          else admitted.min
+        val results = domain.evaluations.map(_._2)
+        expression
+          .copy(
+            default = domain.evaluate(representative).get,
+            minimum = results.min,
+            maximum = results.max
+          )
+          .attachProjection(
+            domain,
+            admitted,
+            representative,
+            role,
+            expression.sourceLocation
+          )
+      case _ => expression
+    }
+
+  private[core] def authorizeDerivedProjection(
+      expression: ElaborationBooleanExpression,
+      role: String
+  ): ElaborationBooleanExpression =
+    expression.exactDomain match {
+      case Some(domain) if domain.evidenceValues != domain.universe =>
+        val admitted = domain.evidenceValues
+        val representative =
+          if (admitted.contains(domain.parameter.default))
+            domain.parameter.default
+          else admitted.min
+        expression
+          .copy(default = domain.evaluate(representative).get)
+          .attachProjection(
+            domain,
+            admitted,
+            representative,
+            role,
+            expression.sourceLocation
+          )
+      case _ => expression
+    }
+
+  private[core] def fromDerivedExpression(
+      expression: ElaborationIntegerExpression,
+      role: String
+  ): ElabInt = {
+    val certified = attachDerivedExactAuthority(expression, role)
+    validateExpression(certified, role)
+    val authorized = authorizeDerivedProjection(certified, role)
+    val completed = withCompleteParameterRoots(authorized)
+    validateExpression(completed, role)
+
+    if (completed.parameters.isEmpty) {
+      if (
+        completed.completedParameterRoots.nonEmpty ||
+        completed.exactDomain.nonEmpty ||
+        completed.generateIndex.nonEmpty ||
+        completed.projectionProvenance.nonEmpty ||
+        completed.minimum != completed.default ||
+        completed.maximum != completed.default
+      ) {
+        fail(
+          "SPINAL-ELAB-INT-DERIVED-CONCRETE-AUTHORITY-INVALID",
+          s"$role parameter-free result '${completed.verilog}' must reduce to one rootless exact Int literal before it can authorize another typed operation",
+          completed.sourceLocation
+        )
+      }
+      // A trusted typed derivation has already validated every source before it
+      // reaches this helper. Collapse its parameter-free result to the same
+      // canonical literal used by the public literal constructor. Public raw
+      // expressions never enter this path, so their authored text cannot be
+      // laundered into concrete authority.
+      fromBigInt(completed.default)
+    } else new ElabInt(completed)
+  }
+
   /** Attach exhaustive, single-root evidence produced from a typed frontend
     * AST.  The root is taken from the expression's explicit provenance, never
     * recovered from its rendered Verilog text.
     */
   def fromSingleRootExpression(
+      expression: ElaborationIntegerExpression,
+      evaluations: Vector[(BigInt, BigInt)],
+      permit: ExternalCompilerPermit
+  ): ElabInt = {
+    ExternalCompilerPermit.requireAnalyzedSingleRoot(
+      permit,
+      expression,
+      evaluations
+    )
+    fromSingleRootExpressionTrusted(expression, evaluations)
+  }
+
+  /** Raw expression/table pairs are self-consistent metadata, not proof that
+    * the rendered expression came from the frontend AST analyzer.
+    */
+  def fromSingleRootExpression(
+      expression: ElaborationIntegerExpression,
+      evaluations: Vector[(BigInt, BigInt)]
+  ): ElabInt =
+    ParameterizedVerilogException.fail(
+      "SPINAL-ELAB-INT-ANALYZED-SOURCE-AUTHORIZATION-REQUIRED",
+      "single-root exact-domain publication requires one opaque frontend-analysis permit",
+      Option(expression).flatMap(_.sourceLocation)
+    )
+
+  /** Internal typed derivations already own the AST/domain construction and do
+    * not cross the analyzed-frontend metadata boundary.
+    */
+  private[spinal] def fromSingleRootExpressionTrusted(
       expression: ElaborationIntegerExpression,
       evaluations: Vector[(BigInt, BigInt)]
   ): ElabInt = {
@@ -664,13 +1213,14 @@ object ElabInt {
         )
     }
     val exactResults = domain.evaluations.map(_._2)
-    new ElabInt(
-      normalized.copy(
+    val exactExpression = normalized
+      .copy(
         minimum = exactResults.min,
         maximum = exactResults.max,
         exactDomain = Some(domain)
       )
-    )
+      .attachExactAuthority(domain, "single-root ElabInt expression")
+    new ElabInt(exactExpression)
   }
 
   /** Definition-side direct formal used by typed native component adapters. */
@@ -681,7 +1231,7 @@ object ElabInt {
     if (parameter == null)
       throw new IllegalArgumentException("direct ElabInt parameter must not be null")
     val root = parameter.declarationRoot
-    fromSingleRootExpression(
+    fromSingleRootExpressionTrusted(
       ElaborationIntegerExpression(
         verilog = parameter.name,
         default = parameter.default,
@@ -700,13 +1250,23 @@ object ElabInt {
   private[spinal] def projectExpression(
       expression: ElaborationIntegerExpression,
       role: String
-  ): ElaborationIntegerExpression =
+  ): ElaborationIntegerExpression = {
+    // Projection is the common authority boundary for witness, extrema,
+    // constant-only helpers and every concrete-overload delegation. Validate
+    // parameter-free carriers here as well: only a canonical literal (including
+    // a trusted derivation normalized by fromDerivedExpression) may be consumed.
+    requireAuthoritativeIntegerDomain(
+      expression,
+      role,
+      "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING",
+      requireExactExtrema = false
+    )
     expression.exactDomain match {
       case Some(domain) =>
         val requested = ElaborationDomainContext.admitted(domain)
         requireProjectionSubset(
           expression.projectionProvenance,
-          domain.root,
+          domain,
           requested,
           role,
           expression.sourceLocation
@@ -773,6 +1333,7 @@ object ElabInt {
         }
         expression
     }
+  }
 
   /** Neutral exact evaluator used by captured-domain backend proofs. */
   private[spinal] def evaluateExact(
@@ -793,6 +1354,21 @@ object ElabInt {
         "packedWidthOf received a null Data value",
         None
       )
+    data match {
+      case vector: Vec[_] if ParameterizedVec.shapeOf(vector).nonEmpty =>
+        return ParameterizedVec
+          .logicalPackedWidthExpressionOf(vector)
+          .map(fromExpression)
+          .getOrElse {
+            val shape = ParameterizedVec.shapeOf(vector).get
+            fail(
+              "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED",
+              s"typed Vec packed width '${shape.elementLeaves.map(_.width.verilog).mkString(" + ")} times ${shape.depth.verilog}' combines independently sourced symbolic roots",
+              shape.sourceLocation
+            )
+          }
+      case _ =>
+    }
     val leaves = data.flatten.toVector
     leaves
       .map { leaf =>
@@ -916,7 +1492,7 @@ object ElabInt {
     }
     def evaluate(input: BigInt): BigInt =
       if (input == 0) BigInt(0) else BigInt((input - 1).bitLength)
-    fromExpression(
+    fromDerivedExpression(
       ElaborationIntegerExpression(
         verilog = s"morphhdl_ceil_log2(${value.expression.verilog})",
         default = evaluate(projectedDefault(value)),
@@ -926,11 +1502,43 @@ object ElabInt {
         sourceLocation = value.sourceLocation,
         parameterRoots = value.expression.parameterRoots,
         exactDomain = mapIntegerDomain(value.expression.exactDomain)(evaluate)
+      ),
+      "typed ceiling-logarithm expression"
+    )
+  }
+
+  private def addressWidthValue(value: ElabInt): ElabInt = {
+    if (value.minimum < 1) {
+      fail(
+        "SPINAL-ELAB-INT-ADDRESS-WIDTH-DOMAIN-NONPOSITIVE",
+        s"addressWidth input '${value.expression.verilog}' reaches ${value.minimum}",
+        value.sourceLocation
       )
+    }
+    def evaluate(input: BigInt): BigInt =
+      BigInt(math.max(1, (input - 1).bitLength))
+    fromDerivedExpression(
+      ElaborationIntegerExpression(
+        verilog = s"morphhdl_address_width(${value.expression.verilog})",
+        default = evaluate(projectedDefault(value)),
+        minimum = evaluate(value.minimum),
+        maximum = evaluate(value.maximum),
+        parameters = value.expression.parameters,
+        sourceLocation = value.sourceLocation,
+        parameterRoots = value.expression.parameterRoots,
+        exactDomain = mapIntegerDomain(value.expression.exactDomain)(evaluate)
+      ),
+      "typed address-width expression"
     )
   }
 
   private def isPow2Value(value: ElabInt): ElabBool = {
+    if (value.expression.parameters.nonEmpty)
+      value.requireAuthoritativeIntegerDomain(
+        role = "typed power-of-two predicate",
+        failureCode = "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING",
+        requireExactExtrema = false
+      )
     def evaluate(input: BigInt): Boolean = input >= 0 && input.bitCount == 1
     val exactDomain = value.expression.exactDomain.map { domain =>
       val evaluations = activeDomainEvaluations(
@@ -956,7 +1564,7 @@ object ElabInt {
         else ElabBool.AlwaysFalse
       case _ => ElabBool.Unknown
     }
-    ElabBool(
+    ElabBool.derived(
       ElaborationBooleanExpression(
         verilog =
           s"((${value.expression.verilog} > 0) && ((${value.expression.verilog} & (${value.expression.verilog} - 1)) == 0))",
@@ -966,7 +1574,8 @@ object ElabInt {
         parameterRoots = value.expression.parameterRoots,
         exactDomain = exactDomain
       ),
-      truth
+      truth,
+      "typed power-of-two predicate"
     )
   }
 
@@ -979,7 +1588,7 @@ object ElabInt {
       )
     }
     def evaluate(exponent: BigInt): BigInt = BigInt(1) << exponent.toInt
-    fromExpression(
+    fromDerivedExpression(
       ElaborationIntegerExpression(
         verilog = s"(1 << (${value.expression.verilog}))",
         default = evaluate(projectedDefault(value)),
@@ -989,7 +1598,8 @@ object ElabInt {
         sourceLocation = value.sourceLocation,
         parameterRoots = value.expression.parameterRoots,
         exactDomain = mapIntegerDomain(value.expression.exactDomain)(evaluate)
-      )
+      ),
+      "typed power-of-two expression"
     )
   }
 
@@ -1009,7 +1619,7 @@ object ElabInt {
         location
       )
     }
-    fromExpression(
+    fromDerivedExpression(
       ElaborationIntegerExpression(
         verilog = s"(${left.expression.verilog} $operation ${right.expression.verilog})",
         default = default,
@@ -1036,7 +1646,8 @@ object ElabInt {
               throw new IllegalArgumentException(s"unsupported exact integer operation '$other'")
           }
         }
-      )
+      ),
+      "typed integer expression"
     )
   }
 
@@ -1050,7 +1661,7 @@ object ElabInt {
         if (left.witness == right.witness) ElabBool.AlwaysTrue
         else ElabBool.AlwaysFalse
       } else ElabBool.Unknown
-    ElabBool(
+    ElabBool.derived(
       ElaborationBooleanExpression(
         verilog = s"((${left.expression.verilog}) == (${right.expression.verilog}))",
         default = projectedDefault(left) == projectedDefault(right),
@@ -1066,7 +1677,8 @@ object ElabInt {
         ),
         exactDomain = combineIntegerBooleanDomains(left, right)(_ == _)
       ),
-      truth
+      truth,
+      "typed equality predicate"
     )
   }
 
@@ -1102,7 +1714,7 @@ object ElabInt {
           case _                                     => ElabBool.Unknown
         }
       }
-    ElabBool(
+    ElabBool.derived(
       ElaborationBooleanExpression(
         verilog = s"((${left.expression.verilog}) $operation (${right.expression.verilog}))",
         default = witness,
@@ -1125,7 +1737,8 @@ object ElabInt {
           }
         }
       ),
-      truth
+      truth,
+      "typed comparison predicate"
     )
   }
 
@@ -1372,6 +1985,13 @@ object ElabInt {
       sourceLocation: Option[String],
       role: String
   ): ElaborationExactDomain[A] = {
+    if (!source.root.isAuthoritativeSchema(source.parameter)) {
+      fail(
+        "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING",
+        s"$role cannot derive exact evidence from an unbound or replacement declaration schema",
+        sourceLocation.orElse(source.root.sourceLocation)
+      )
+    }
     val covered = evaluations.map(_._1).toSet
     if (covered == source.universe) {
       ElaborationExactDomain.checked(
@@ -1473,6 +2093,60 @@ object ElabInt {
       sameExactDomain(left.exactDomain, right.exactDomain) &&
       sameProjection(left.projectionProvenance, right.projectionProvenance)
 
+  /** Exhaustive same-root value-function equivalence.
+    *
+    * This deliberately ignores only authored rendering.  Parameter schemas,
+    * declaration-root identities, generate-index context, summaries and every
+    * exact-domain evaluation must still agree.  Partial evidence additionally
+    * requires the same live projection provenance; a complete domain may
+    * compare an unprojected expression with an explicitly full-domain
+    * projection because neither narrows the admitted root values.
+    */
+  private[core] def equivalentExactFunction(
+      left: ElaborationIntegerExpression,
+      right: ElaborationIntegerExpression
+  ): Boolean = {
+    if (left == null || right == null) return false
+
+    val sameSummary =
+      left.default == right.default &&
+        left.minimum == right.minimum &&
+        left.maximum == right.maximum &&
+        left.parameters == right.parameters &&
+        left.generateIndex == right.generateIndex &&
+        sameParameterRoots(
+          left.completedParameterRoots,
+          right.completedParameterRoots
+        )
+    if (!sameSummary) return false
+
+    (left.exactDomain, right.exactDomain) match {
+      case (Some(l), Some(r))
+          if (l.root eq r.root) &&
+            l.parameter == r.parameter &&
+            l.universe == r.universe &&
+            l.evaluations == r.evaluations =>
+        val complete =
+          l.evidenceValues == l.universe &&
+            r.evidenceValues == r.universe
+        val exactProjection =
+          (left.projectionProvenance, right.projectionProvenance) match {
+            case (Some(a), Some(b)) => a.sameAs(b)
+            case (None, None)       => complete
+            case _                  => false
+          }
+        val redundantFullProjection = complete &&
+          nonNarrowingProjection(left.projectionProvenance, l) &&
+          nonNarrowingProjection(right.projectionProvenance, r)
+        exactProjection || redundantFullProjection
+
+      // Parameter-free expressions and legacy values without exact evidence
+      // retain the stricter authored-identity rule.
+      case (None, None) => equivalentExpression(left, right)
+      case _            => false
+    }
+  }
+
   private[core] def equivalentBooleanExpression(
       left: ElaborationBooleanExpression,
       right: ElaborationBooleanExpression
@@ -1501,15 +2175,28 @@ object ElabInt {
       case _ => false
     }
 
-  private[core] def requireProjectionSubset(
+  private[core] def requireProjectionSubset[A](
       existing: Option[ElaborationProjectionProvenance],
-      root: ElaborationIntegerParameterRoot,
+      domain: ElaborationExactDomain[A],
       admitted: Set[BigInt],
       role: String,
       sourceLocation: Option[String]
-  ): Unit =
+  ): Unit = {
+    if (
+      domain.evidenceValues != domain.universe &&
+      existing.isEmpty
+    ) {
+      fail(
+        "SPINAL-ELAB-DOMAIN-PROJECTION-IDENTITY-MISSING",
+        s"$role carries branch-partial exact evidence without its original projection authority",
+        sourceLocation.orElse(domain.root.sourceLocation)
+      )
+    }
     existing.foreach { projection =>
-      if ((projection.root ne root) || !admitted.subsetOf(projection.admitted)) {
+      if (
+        (projection.root ne domain.root) ||
+        !admitted.subsetOf(projection.admitted)
+      ) {
         fail(
           "SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION",
           s"$role cannot expand branch projection from ${projection.admitted.toVector.sorted
@@ -1518,6 +2205,7 @@ object ElabInt {
         )
       }
     }
+  }
 
   private def sameProjection(
       left: Option[ElaborationProjectionProvenance],
@@ -1529,14 +2217,23 @@ object ElabInt {
       case (Some(_), None) | (None, Some(_)) => false
     }
 
+  private def nonNarrowingProjection[A](
+      projection: Option[ElaborationProjectionProvenance],
+      domain: ElaborationExactDomain[A]
+  ): Boolean =
+    projection.forall(value => (value.root eq domain.root) && value.admitted == domain.universe)
+
   private[core] def withCompleteParameterRoots(
       expression: ElaborationIntegerExpression
   ): ElaborationIntegerExpression = {
     val completed = expression.completedParameterRoots
     if (completed == expression.parameterRoots) expression
     else
-      expression.preserveProjectionOn(
-        expression.copy(parameterRoots = completed),
+      expression.preserveExactAuthorityOn(
+        expression.preserveProjectionOn(
+          expression.copy(parameterRoots = completed),
+          "integer parameter-root normalization"
+        ),
         "integer parameter-root normalization"
       )
   }
@@ -1547,8 +2244,11 @@ object ElabInt {
     val completed = expression.completedParameterRoots
     if (completed == expression.parameterRoots) expression
     else
-      expression.preserveProjectionOn(
-        expression.copy(parameterRoots = completed),
+      expression.preserveExactAuthorityOn(
+        expression.preserveProjectionOn(
+          expression.copy(parameterRoots = completed),
+          "Boolean parameter-root normalization"
+        ),
         "Boolean parameter-root normalization"
       )
   }
@@ -1682,6 +2382,13 @@ object ElabInt {
         expression.sourceLocation
       )
     }
+    if (expression.exactDomain.nonEmpty && !expression.hasExactAuthority) {
+      fail(
+        "SPINAL-ELAB-DOMAIN-EXACT-AUTHORITY-MISSING",
+        s"$role '${expression.verilog}' carries copied or unauthenticated exact-domain evidence",
+        expression.sourceLocation
+      )
+    }
     mergeParameters(expression.parameters, Vector.empty, expression.sourceLocation)
     validateParameterRoots(
       expression.verilog,
@@ -1794,6 +2501,13 @@ object ElabInt {
       fail(
         "SPINAL-ELAB-DOMAIN-EVIDENCE-OPTION-NULL",
         s"$role '${expression.verilog}' must retain a non-null exact-domain option",
+        expression.sourceLocation
+      )
+    }
+    if (expression.exactDomain.nonEmpty && !expression.hasExactAuthority) {
+      fail(
+        "SPINAL-ELAB-DOMAIN-EXACT-AUTHORITY-MISSING",
+        s"$role '${expression.verilog}' carries copied or unauthenticated exact-domain evidence",
         expression.sourceLocation
       )
     }

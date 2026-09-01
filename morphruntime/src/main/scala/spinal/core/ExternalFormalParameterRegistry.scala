@@ -19,6 +19,22 @@ final case class ExternalFormalParameterBinding(
     sourceLocation: Option[String]
 )
 
+/** Opaque, per-component declaration capability for the typed ElabInt formal
+  * path. Equality is deliberately JVM identity; rendered declaration keys and
+  * component class names are not authority for this token.
+  */
+private[spinal] final class ExternalTypedFormalDeclarationToken private[core] ()
+
+/** One typed formal capability retained against an exact component or leaf
+  * identity. Canonical and concrete instances intentionally receive different
+  * tokens; the backend relates them only through its exact canonical-instance
+  * map and exact port layout.
+  */
+private[spinal] final case class ExternalTypedFormalBinding(
+    binding: ExternalFormalParameterBinding,
+    declarationToken: ExternalTypedFormalDeclarationToken
+)
+
 /** One component-local formal binding plus the exact definition-side width
   * expression observed on an explicitly attached leaf, when one exists.
   *
@@ -120,6 +136,21 @@ private[core] final class ExternalFormalComponentIdentityRef(
   * type is changed.
   */
 object ExternalFormalParameterRegistry {
+  private[core] final case class PreparedLeafAttachment(
+      owner: Component,
+      data: Vector[BitVector],
+      width: ParameterizedBitCount,
+      binding: ExternalFormalParameterBinding,
+      retainedWidth: ElaborationIntegerExpression,
+      root: Component
+  )
+
+  private[core] final case class PreparedComponentAttachment(
+      component: Component,
+      binding: ExternalFormalParameterBinding,
+      root: Component
+  )
+
   private val bitCountQueue = new ReferenceQueue[ParameterizedBitCount]()
   private val leafQueue = new ReferenceQueue[BaseType]()
   private val rootQueue = new ReferenceQueue[Component]()
@@ -133,6 +164,10 @@ object ExternalFormalParameterRegistry {
     ExternalFormalLeafIdentityRef,
     ExternalFormalParameterBinding
   ]
+  private val typedRetained = mutable.HashMap.empty[
+    ExternalFormalLeafIdentityRef,
+    ExternalTypedFormalBinding
+  ]
   private val declarations = mutable.HashMap.empty[
     ExternalFormalRootIdentityRef,
     mutable.HashMap[String, ExternalFormalParameterBinding]
@@ -140,6 +175,10 @@ object ExternalFormalParameterRegistry {
   private val instanceBindings = mutable.HashMap.empty[
     ExternalFormalComponentIdentityRef,
     mutable.HashMap[String, Vector[ExternalFormalInstanceBinding]]
+  ]
+  private val typedInstanceBindings = mutable.HashMap.empty[
+    ExternalFormalComponentIdentityRef,
+    Vector[ExternalTypedFormalBinding]
   ]
 
   private def reapBitCounts(): Unit = {
@@ -154,6 +193,7 @@ object ExternalFormalParameterRegistry {
     var reference = leafQueue.poll().asInstanceOf[ExternalFormalLeafIdentityRef]
     while (reference != null) {
       retained.remove(reference)
+      typedRetained.remove(reference)
       reference = leafQueue.poll().asInstanceOf[ExternalFormalLeafIdentityRef]
     }
   }
@@ -171,6 +211,7 @@ object ExternalFormalParameterRegistry {
       componentQueue.poll().asInstanceOf[ExternalFormalComponentIdentityRef]
     while (reference != null) {
       instanceBindings.remove(reference)
+      typedInstanceBindings.remove(reference)
       reference = componentQueue.poll().asInstanceOf[ExternalFormalComponentIdentityRef]
     }
   }
@@ -260,6 +301,20 @@ object ExternalFormalParameterRegistry {
       width: ParameterizedBitCount,
       binding: ExternalFormalParameterBinding
   ): Unit = synchronized {
+    commitAttachAll(preflightAttachAll(owner, data, width, binding))
+  }
+
+  /** Validate the complete formal/width/owner publication without retaining a
+    * declaration, component binding, leaf binding or symbolic width. The
+    * native formalization transaction consumes this plan only after both its
+    * formal and shadow sides have preflighted successfully.
+    */
+  private[core] def preflightAttachAll(
+      owner: Component,
+      data: Vector[BitVector],
+      width: ParameterizedBitCount,
+      binding: ExternalFormalParameterBinding
+  ): PreparedLeafAttachment = synchronized {
     if (owner == null)
       throw new IllegalArgumentException("formal component owner must not be null")
     if (data == null || data.exists(_ == null))
@@ -278,13 +333,23 @@ object ExternalFormalParameterRegistry {
     val root = validateDeclarationForDesign(owner, binding)
     validateInstanceBinding(owner, binding, Some(retainedWidth))
     data.foreach(validateLeafBinding(_, binding))
+    validateWidthPublication(data, width, retainedWidth)
 
-    data.foreach(
-      ParameterizedWidth.attachValidated(_, width, Some(retainedWidth))
+    PreparedLeafAttachment(owner, data, width, binding, retainedWidth, root)
+  }
+
+  /** Commit only a previously validated formal leaf plan. */
+  private[core] def commitAttachAll(
+      prepared: PreparedLeafAttachment
+  ): Unit = synchronized {
+    ParameterizedWidth.attachExistingAll(prepared.data, prepared.width)
+    retainDeclaration(prepared.root, prepared.binding)
+    retainInstanceBinding(
+      prepared.owner,
+      prepared.binding,
+      Some(prepared.retainedWidth)
     )
-    retainDeclaration(root, binding)
-    retainInstanceBinding(owner, binding, Some(retainedWidth))
-    data.foreach(retainLeafBinding(_, binding))
+    prepared.data.foreach(retainLeafBinding(_, prepared.binding))
   }
 
   /** Retain one explicit definition-formal/instance-actual pair against the
@@ -294,6 +359,13 @@ object ExternalFormalParameterRegistry {
       component: Component,
       binding: ExternalFormalParameterBinding
   ): Unit = synchronized {
+    commitRetainComponent(preflightRetainComponent(component, binding))
+  }
+
+  private[core] def preflightRetainComponent(
+      component: Component,
+      binding: ExternalFormalParameterBinding
+  ): PreparedComponentAttachment = synchronized {
     if (component == null)
       throw new IllegalArgumentException("formal component must not be null")
     if (binding == null)
@@ -301,9 +373,137 @@ object ExternalFormalParameterRegistry {
     validateBinding(binding)
     val root = validateDeclarationForDesign(component, binding)
     validateInstanceBinding(component, binding, definitionExpression = None)
+    PreparedComponentAttachment(component, binding, root)
+  }
 
-    retainDeclaration(root, binding)
-    retainInstanceBinding(component, binding, definitionExpression = None)
+  private[core] def commitRetainComponent(
+      prepared: PreparedComponentAttachment
+  ): Unit = synchronized {
+    retainDeclaration(prepared.root, prepared.binding)
+    retainInstanceBinding(
+      prepared.component,
+      prepared.binding,
+      definitionExpression = None
+    )
+  }
+
+  /** Retain one Increment-53f typed formal through an opaque per-instance
+    * capability. The exact component lookup and exact dependent port leaves are
+    * authoritative; the legacy key/class fields created below are diagnostics
+    * only and are never consulted by typed validation or hierarchy matching.
+    */
+  private[spinal] def retainTypedComponent(
+      component: Component,
+      formal: ElaborationIntegerParameter,
+      actual: ElaborationIntegerExpression,
+      sourceLocation: Option[String]
+  ): ExternalTypedFormalBinding = synchronized {
+    if (component == null)
+      throw new IllegalArgumentException("typed formal component must not be null")
+    if (formal == null)
+      throw new IllegalArgumentException("typed formal declaration must not be null")
+    if (actual == null)
+      throw new IllegalArgumentException("typed formal actual must not be null")
+    if (sourceLocation == null)
+      throw new IllegalArgumentException("typed formal source-location option must not be null")
+    val binding = ExternalFormalParameterBinding(
+      formal = formal,
+      actual = actual,
+      declarationKey = s"typed-elab::${formal.name}",
+      ownerClassName = component.getClass.getName,
+      sourceLocation = sourceLocation
+    )
+    validateTypedBindingPayload(formal, actual, sourceLocation)
+    reapComponents()
+    reapLeaves()
+
+    val componentLookup = new ExternalFormalComponentIdentityRef(component, null)
+    val existing = typedInstanceBindings.getOrElse(componentLookup, Vector.empty)
+    existing.headOption.foreach { previous =>
+      fail(
+        "SPINAL-ELAB-FORMAL-TYPED-TOKEN-DUPLICATE",
+        s"exact typed child component already retains opaque formal capability '${previous.binding.formal.name}' and cannot add '${formal.name}'",
+        sourceLocation.orElse(previous.binding.sourceLocation)
+      )
+    }
+    instanceBindings.get(componentLookup).filter(_.nonEmpty).foreach { _ =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-AUTHORITY-MIXED",
+        s"exact child component cannot mix opaque typed formal '${formal.name}' with legacy formal authority",
+        sourceLocation
+      )
+    }
+
+    val token = new ExternalTypedFormalDeclarationToken()
+    val retainedBinding = ExternalTypedFormalBinding(binding, token)
+    val dependentPorts = component.getOrdredNodeIo.toVector.filter { port =>
+      ParameterizedWidth.expressionOf(port).exists { expression =>
+        expression.completedParameterRoots.exists(_ eq formal.declarationRoot)
+      }
+    }
+    dependentPorts.foreach { port =>
+      if (port.component ne component) {
+        fail(
+          "SPINAL-ELAB-FORMAL-TYPED-LEAF-OWNER-MISMATCH",
+          s"typed formal slot '${formal.name}' selected a port outside its exact child component",
+          sourceLocation
+        )
+      }
+      typedRetained
+        .get(new ExternalFormalLeafIdentityRef(port, null))
+        .foreach { previous =>
+          fail(
+            "SPINAL-ELAB-FORMAL-TYPED-LEAF-CONFLICT",
+            s"one exact child port is claimed by opaque typed formal capabilities '${previous.binding.formal.name}' and '${formal.name}'",
+            sourceLocation.orElse(previous.binding.sourceLocation)
+          )
+        }
+      retained
+        .get(new ExternalFormalLeafIdentityRef(port, null))
+        .foreach { previous =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-FORMAL-AUTHORITY-MIXED",
+            s"one exact child port cannot mix opaque typed formal '${formal.name}' with legacy formal '${previous.formal.name}'",
+            sourceLocation.orElse(previous.sourceLocation)
+          )
+        }
+    }
+
+    typedInstanceBindings.update(
+      new ExternalFormalComponentIdentityRef(component, componentQueue),
+      existing :+ retainedBinding
+    )
+    dependentPorts.foreach { port =>
+      typedRetained.update(
+        new ExternalFormalLeafIdentityRef(port, leafQueue),
+        retainedBinding
+      )
+    }
+    retainedBinding
+  }
+
+  /** Opaque typed capabilities for one exact component identity. */
+  private[spinal] def typedBindingsOf(
+      component: Component
+  ): Vector[ExternalTypedFormalBinding] = synchronized {
+    if (component == null) Vector.empty
+    else {
+      reapComponents()
+      typedInstanceBindings
+        .get(new ExternalFormalComponentIdentityRef(component, null))
+        .getOrElse(Vector.empty)
+    }
+  }
+
+  /** Opaque typed capability attached to one exact dependent port identity. */
+  private[spinal] def typedBindingOf(
+      data: BaseType
+  ): Option[ExternalTypedFormalBinding] = synchronized {
+    if (data == null) None
+    else {
+      reapLeaves()
+      typedRetained.get(new ExternalFormalLeafIdentityRef(data, null))
+    }
   }
 
   /** Exact component-identity bindings retained for diagnostics and adapters. */
@@ -318,7 +518,12 @@ object ExternalFormalParameterRegistry {
         .toVector
         .flatMap(_.valuesIterator.flatMap(_.iterator))
         .map(_.binding)
-      distinctBindings(values)
+      val typed = typedInstanceBindings
+        .get(new ExternalFormalComponentIdentityRef(component, null))
+        .toVector
+        .flatten
+        .map(_.binding)
+      distinctBindings(values ++ typed)
         .sortBy(binding => (binding.formal.name, binding.declarationKey, binding.actual.verilog))
     }
   }
@@ -328,8 +533,10 @@ object ExternalFormalParameterRegistry {
     if (data == null) None
     else {
       reapLeaves()
-      retained
+      typedRetained
         .get(new ExternalFormalLeafIdentityRef(data, null))
+        .map(_.binding)
+        .orElse(retained.get(new ExternalFormalLeafIdentityRef(data, null)))
         .orElse(recoverBinding(data))
     }
   }
@@ -377,6 +584,16 @@ object ExternalFormalParameterRegistry {
       definitionExpression: Option[ElaborationIntegerExpression]
   ): Unit = {
     reapComponents()
+    typedInstanceBindings
+      .get(new ExternalFormalComponentIdentityRef(component, null))
+      .filter(_.nonEmpty)
+      .foreach { typed =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-AUTHORITY-MIXED",
+          s"exact component cannot attach legacy formal '${binding.formal.name}' after opaque typed formal '${typed.head.binding.formal.name}'",
+          binding.sourceLocation.orElse(typed.head.binding.sourceLocation)
+        )
+      }
     val existing = instanceBindings
       .get(new ExternalFormalComponentIdentityRef(component, null))
       .flatMap(_.get(binding.declarationKey))
@@ -445,6 +662,15 @@ object ExternalFormalParameterRegistry {
       binding: ExternalFormalParameterBinding
   ): Unit = {
     reapLeaves()
+    typedRetained
+      .get(new ExternalFormalLeafIdentityRef(data, null))
+      .foreach { typed =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-AUTHORITY-MIXED",
+          s"one exact native leaf cannot attach legacy formal '${binding.formal.name}' after opaque typed formal '${typed.binding.formal.name}'",
+          binding.sourceLocation.orElse(typed.binding.sourceLocation)
+        )
+      }
     retained
       .get(new ExternalFormalLeafIdentityRef(data, null))
       .filterNot(equivalentBinding(_, binding))
@@ -455,6 +681,41 @@ object ExternalFormalParameterRegistry {
           binding.sourceLocation.orElse(existing.sourceLocation)
         )
       }
+  }
+
+  /** Mirror the conflict portion of ParameterizedWidth.attachExistingAll so a
+    * formal transaction cannot consume its token before discovering a stale
+    * or foreign retained-width claim. Concrete leaf widths were already
+    * checked by the formal region preflight against retainedWidth.default.
+    */
+  private def validateWidthPublication(
+      data: Vector[BitVector],
+      width: ParameterizedBitCount,
+      retainedWidth: ElaborationIntegerExpression
+  ): Unit = {
+    data.zipWithIndex.foreach { case (target, index) =>
+      if (target.getBitsWidth != width.value) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-WITNESS-MISMATCH",
+          s"existing symbolic-width target $index has concrete width ${target.getBitsWidth}, not validated width ${width.value}",
+          width.sourceLocation.orElse(retainedWidth.sourceLocation)
+        )
+      }
+      val existingParameter = ParameterizedWidth.parameterOf(target)
+      val existingExpression = ParameterizedWidth.expressionOf(target)
+      val compatible =
+        existingParameter == width.parameter &&
+          existingExpression.exists(
+            ElabInt.equivalentExpression(_, retainedWidth)
+          )
+      if ((existingParameter.nonEmpty || existingExpression.nonEmpty) && !compatible) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-WIDTH-PROVENANCE-CONFLICT",
+          "one exact native data leaf is associated with conflicting typed width expressions",
+          width.sourceLocation.orElse(existingExpression.flatMap(_.sourceLocation))
+        )
+      }
+    }
   }
 
   /** Recover a binding for clone-derived leaves from the symbolic width copied
@@ -514,8 +775,11 @@ object ExternalFormalParameterRegistry {
       sourceLocation = None,
       parameterRoots = distinctRoots(expression.completedParameterRoots)
     )
-    expression.preserveProjectionOn(
-      normalized,
+    expression.preserveExactAuthorityOn(
+      expression.preserveProjectionOn(
+        normalized,
+        "formal actual normalization"
+      ),
       "formal actual normalization"
     )
   }
@@ -726,35 +990,12 @@ object ExternalFormalParameterRegistry {
   private[core] def validateBinding(
       binding: ExternalFormalParameterBinding
   ): Unit = {
-    val identifier = "[A-Za-z_][A-Za-z0-9_]*".r
-    if (
-      binding.sourceLocation == null ||
-      binding.sourceLocation.exists(_ == null)
-    ) {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SOURCE-OPTION-NULL",
-        "formal parameter binding must retain a non-null source-location option",
-        None
-      )
-    }
+    validateTypedBindingPayload(
+      binding.formal,
+      binding.actual,
+      binding.sourceLocation
+    )
     val formal = binding.formal
-    if (formal == null) {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SCHEMA-NULL",
-        "formal parameter binding must retain a non-null formal declaration",
-        binding.sourceLocation
-      )
-    }
-    if (
-      formal.name == null ||
-      !identifier.pattern.matcher(formal.name).matches()
-    ) {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-NAME-INVALID",
-        s"formal parameter name '${formal.name}' is not a portable Verilog identifier",
-        binding.sourceLocation
-      )
-    }
     if (binding.declarationKey == null || binding.declarationKey.isEmpty) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-FORMAL-IDENTITY-MISSING",
@@ -769,6 +1010,45 @@ object ExternalFormalParameterRegistry {
         binding.sourceLocation
       )
     }
+  }
+
+  /** Validate the schema and actual shared by both formal paths without
+    * consulting legacy source/class identity text. The opaque typed path calls
+    * this helper directly; only validateBinding adds key/owner requirements.
+    */
+  private def validateTypedBindingPayload(
+      formal: ElaborationIntegerParameter,
+      actual: ElaborationIntegerExpression,
+      sourceLocation: Option[String]
+  ): Unit = {
+    val identifier = "[A-Za-z_][A-Za-z0-9_]*".r
+    if (
+      sourceLocation == null ||
+      sourceLocation.exists(_ == null)
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SOURCE-OPTION-NULL",
+        "formal parameter binding must retain a non-null source-location option",
+        None
+      )
+    }
+    if (formal == null) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SCHEMA-NULL",
+        "formal parameter binding must retain a non-null formal declaration",
+        sourceLocation
+      )
+    }
+    if (
+      formal.name == null ||
+      !identifier.pattern.matcher(formal.name).matches()
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-NAME-INVALID",
+        s"formal parameter name '${formal.name}' is not a portable Verilog identifier",
+        sourceLocation
+      )
+    }
     if (
       formal.default == null || formal.minimum == null ||
       formal.maximum == null || formal.minimum < 1 ||
@@ -779,21 +1059,28 @@ object ExternalFormalParameterRegistry {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-FORMAL-DOMAIN-INVALID",
         s"formal slot '${formal.name}' must have a positive finite Int-sized domain containing default ${formal.default}",
-        binding.sourceLocation
+        sourceLocation
       )
     }
-    val actual = binding.actual
     if (actual == null) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-FORMAL-ACTUAL-NULL",
         s"formal slot '${formal.name}' must retain a non-null actual expression",
-        binding.sourceLocation
+        sourceLocation
       )
     }
     ElabInt.validateExpression(
       actual,
       "formal parameter actual expression"
     )
+    if (!isCanonicalDirectParameterActual(actual)) {
+      ElabInt.requireAuthoritativeIntegerDomain(
+        actual,
+        "formal parameter actual expression",
+        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-ACTUAL-AUTHORITY-MISSING",
+        requireExactExtrema = false
+      )
+    }
     if (
       actual.default != formal.default ||
       actual.minimum < formal.minimum || actual.maximum > formal.maximum ||
@@ -802,10 +1089,30 @@ object ExternalFormalParameterRegistry {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-FORMAL-ACTUAL-DOMAIN-UNSUPPORTED",
         s"actual expression '${actual.verilog}' in [${actual.minimum}, ${actual.maximum}] with default ${actual.default} is incompatible with formal '${formal.name}' in [${formal.minimum}, ${formal.maximum}] with default ${formal.default}",
-        binding.sourceLocation.orElse(actual.sourceLocation)
+        sourceLocation.orElse(actual.sourceLocation)
       )
     }
   }
+
+  /** Preserve the legacy direct-parameter binding surface without allowing it
+    * to become an authority recovery path for derived or copied exact-domain
+    * expressions. The exact declaration schema and its one completed root are
+    * the only authority in this compatibility case.
+    */
+  private def isCanonicalDirectParameterActual(
+      actual: ElaborationIntegerExpression
+  ): Boolean =
+    actual.exactDomain.isEmpty && actual.generateIndex.isEmpty &&
+      (actual.parameters match {
+        case Vector(parameter) =>
+          val roots = distinctRoots(actual.completedParameterRoots)
+          actual.verilog == parameter.name &&
+          actual.default == parameter.default &&
+          actual.minimum == parameter.minimum &&
+          actual.maximum == parameter.maximum &&
+          roots.size == 1 && (roots.head eq parameter.declarationRoot)
+        case _ => false
+      })
 
   /** Validate every width field before a formal declaration is reserved. */
   private def validateFormalWidth(

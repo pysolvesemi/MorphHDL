@@ -63,11 +63,7 @@ object ExternalNativeIntShadowExpressionSmoke {
       "WIDTH",
       minimum = BigInt(1),
       maximum = BigInt(32)
-    )(
-      value => new Leaf(value)
-    )(
-      value => Vector(value.din, value.dout)
-    )
+    )(value => new Leaf(value))(value => Vector(value.din, value.dout))
     leaf.din := din
     dout := leaf.dout
   }
@@ -114,10 +110,8 @@ object ExternalNativeIntShadowExpressionSmoke {
 
     val din = in(UInt(8 bits))
     val dout = out(UInt(8 bits))
-    val leaf = formalComponent(width, "WIDTH", minimum, maximum)(
-      value => new FailureLeaf(value, mode)
-    )(
-      value => Vector(value.din, value.dout)
+    val leaf = formalComponent(width, "WIDTH", minimum, maximum)(value => new FailureLeaf(value, mode))(value =>
+      Vector(value.din, value.dout)
     )
     leaf.din := din
     dout := leaf.dout
@@ -332,14 +326,12 @@ class ExternalNativeIntShadowExpressionTests extends AnyFunSuite {
       parameters = Vector(parameter),
       sourceLocation = source
     )
-    val token = ExternalNativeIntFormalizationToken(
-      callSite = source.get,
-      valueOrigin = source.get,
-      role = "conflict-proof"
-    )
-
     val failure = intercept[ParameterizedVerilogException] {
-      ExternalNativeIntShadowRegistry.capture(expression, token, "WIDTH") {
+      ExternalNativeIntFormalizationTestAccess.withDefinitionExpressionBoundary(
+        expression,
+        source.get,
+        role = "conflict-proof"
+      ) {
         ExternalNativeIntShadowRegistry.captureArgumentTracked(
           8,
           "root",
@@ -465,9 +457,7 @@ class ExternalNativeIntShadowExpressionTests extends AnyFunSuite {
     assert(value.parameterRoots.nonEmpty)
     assert(value.parameterRoots.size == root.parameterRoots.size)
     assert(
-      value.parameterRoots.forall(candidate =>
-        root.parameterRoots.exists(_ eq candidate)
-      )
+      value.parameterRoots.forall(candidate => root.parameterRoots.exists(_ eq candidate))
     )
   }
 
@@ -478,9 +468,7 @@ class ExternalNativeIntShadowExpressionTests extends AnyFunSuite {
     assert(value.parameterRoots.nonEmpty)
     assert(value.parameterRoots.size == root.parameterRoots.size)
     assert(
-      value.parameterRoots.forall(candidate =>
-        root.parameterRoots.exists(_ eq candidate)
-      )
+      value.parameterRoots.forall(candidate => root.parameterRoots.exists(_ eq candidate))
     )
   }
 

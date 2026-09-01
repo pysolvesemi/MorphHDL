@@ -10,7 +10,15 @@ import scala.util.matching.Regex
 
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
-import spinal.core.internals.{ExternalParameterizedAutoResize, Phase, PhaseRemoveIntermediateUnnameds}
+import spinal.core.internals.{
+  DataAssignmentStatement,
+  ExternalParameterizedAutoResize,
+  Phase,
+  PhaseContext,
+  PhaseMisc,
+  PhaseNormalizeNodeInputs,
+  PhaseRemoveIntermediateUnnameds
+}
 import spinal.lib._
 
 import morphhdl.frontend.HdlInt
@@ -103,6 +111,93 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
 
     first := shared
     second := shared ^ value
+  }
+
+  private final class WitnessInactiveAutoResize(
+      depth: HdlInt,
+      reuse: Boolean
+  ) extends Component {
+    setDefinitionName(
+      if (reuse) "WitnessInactiveReusedAutoResize"
+      else "WitnessInactiveAutoResize"
+    )
+
+    private val elabDepth = depth.asElabInt
+    val source = in UInt (1 bits)
+    val observed = out Bool ()
+    observed := source.orR
+
+    val storage = ElabControl.generateSymbolic(
+      elabDepth > 1,
+      "GenericExpressionAndStreamTests.scala",
+      120
+    ) {
+      new Area {
+        val normalized = UInt(elabDepth.addressWidth bits)
+          .setName("inactive_normalized_index")
+          .dontSimplifyIt()
+        val shared = source.resized
+        normalized := shared
+        if (reuse) {
+          val duplicate = UInt(1 bits)
+            .setName("inactive_duplicate_consumer")
+            .dontSimplifyIt()
+          duplicate := shared
+        }
+      }
+    }
+  }
+
+  /** The source and target are equal at WIDTH=3, while WIDTH=4 requires one
+    * bit of unsigned narrowing.  Keeping the native `.resized` clone named and
+    * non-simplifiable forces the exact materialized boundary used by Stream's
+    * symbolic index carriers.
+    */
+  private final class NativeWitnessEqualNarrowingAutoResize(
+      width: HdlInt,
+      reuse: Boolean
+  ) extends Component {
+    setDefinitionName(
+      if (reuse) "NativeWitnessEqualNarrowingReusedAutoResize"
+      else "NativeWitnessEqualNarrowingAutoResize"
+    )
+
+    private val elabWidth = width.asElabInt
+    private val sourceWidth =
+      elabWidth + elabWidth.elabEq(4).toElabInt
+    val source = in UInt (sourceWidth bits)
+    val observed = out UInt (elabWidth bits)
+    val duplicateObserved = out(UInt(sourceWidth bits))
+      .setName("duplicate_observed")
+    val carrier = source.resized
+      .setName("native_narrowing_resize")
+      .dontSimplifyIt()
+
+    observed := carrier
+    if (reuse) duplicateObserved := carrier
+    else duplicateObserved := 0
+
+    val retainedSourceDriver = carrier.head match {
+      case assignment: DataAssignmentStatement => assignment
+      case other =>
+        throw new IllegalStateException(
+          s"native narrowing carrier retained unexpected driver $other"
+        )
+    }
+    val retainedOuter = observed.head match {
+      case assignment: DataAssignmentStatement => assignment
+      case other =>
+        throw new IllegalStateException(
+          s"native narrowing target retained unexpected driver $other"
+        )
+    }
+    val retainedDuplicateDriver = duplicateObserved.head match {
+      case assignment: DataAssignmentStatement => assignment
+      case other =>
+        throw new IllegalStateException(
+          s"native narrowing duplicate target retained unexpected driver $other"
+        )
+    }
   }
 
   test("ordinary assignments muxes arithmetic concatenation slicing and resize reuse native Verilog emission") {
@@ -296,6 +391,159 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
     assert(!phases.head.isInstanceOf[PhaseRemoveIntermediateUnnameds])
   }
 
+  test("witness-inactive auto-resize provenance retains exact one-use ownership") {
+    withTemporaryDirectory { directory =>
+      val depth = HdlInt.param("DEPTH", default = 1, min = 1, max = 8)
+      val safeConfig = SpinalConfig(targetDirectory = directory.toString)
+      safeConfig.netlistFileName = "witness_inactive_auto_resize.v"
+
+      MorphVerilog(safeConfig) {
+        new WitnessInactiveAutoResize(depth, reuse = false)
+      }
+      val safe = new String(
+        Files.readAllBytes(directory.resolve(safeConfig.netlistFileName)),
+        StandardCharsets.UTF_8
+      )
+      assert(safe.contains("inactive_normalized_index"), safe)
+
+      val reusedConfig = SpinalConfig(targetDirectory = directory.toString)
+      reusedConfig.netlistFileName = "witness_inactive_reused_auto_resize.v"
+      MorphVerilog.tryGenerate(reusedConfig) {
+        new WitnessInactiveAutoResize(depth, reuse = true)
+      } match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH"
+            ),
+            failure.detail
+          )
+        case Right(report) =>
+          fail(s"Expected inactive reused auto-resize rejection, received $report")
+      }
+    }
+  }
+
+  test("materialized native auto-resize proves witness-equal narrowing over the complete domain") {
+    withTemporaryDirectory { directory =>
+      Vector(3, 4).foreach { default =>
+        val width = HdlInt.param("WIDTH", default = default, min = 3, max = 4)
+        val safeConfig = SpinalConfig(targetDirectory = directory.toString)
+        safeConfig.netlistFileName =
+          s"native_witness_equal_narrowing_$default.v"
+
+        MorphVerilog(safeConfig) {
+          new NativeWitnessEqualNarrowingAutoResize(width, reuse = false)
+        }
+        val verilog = read(directory.resolve(safeConfig.netlistFileName))
+        val compact = verilog.replaceAll("\\s+", "")
+        assert(
+          verilog.contains(s"parameter integer WIDTH = $default"),
+          verilog
+        )
+        assert(hasDeclarationWidth(verilog, "observed", "[WIDTH-1:0]"), verilog)
+        val emittedSourceWidth = declarationWidth(verilog, "source")
+        assert(emittedSourceWidth.nonEmpty, verilog)
+        assert(
+          declarationWidth(verilog, "native_narrowing_resize") == emittedSourceWidth,
+          verilog
+        )
+        assert(emittedSourceWidth.get != "[WIDTH-1:0]", verilog)
+        assert(compact.contains("WIDTH)==(4"), verilog)
+        assert(compact.contains("assignnative_narrowing_resize=source;"), verilog)
+        val observedAssignment =
+          if (default == 3) "assignobserved=native_narrowing_resize;"
+          else "assignobserved=native_narrowing_resize[WIDTH-1:0];"
+        assert(compact.contains(observedAssignment), verilog)
+      }
+
+      val width = HdlInt.param("WIDTH", default = 3, min = 3, max = 4)
+      val reusedConfig = SpinalConfig(targetDirectory = directory.toString)
+      reusedConfig.netlistFileName = "native_witness_equal_narrowing_reused.v"
+      MorphVerilog.tryGenerate(reusedConfig) {
+        new NativeWitnessEqualNarrowingAutoResize(width, reuse = true)
+      } match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH"
+            ),
+            failure.detail
+          )
+        case Right(report) =>
+          fail(s"Expected narrowing carrier reuse rejection, received $report")
+      }
+      assert(!Files.exists(directory.resolve(reusedConfig.netlistFileName)))
+    }
+  }
+
+  test("materialized native auto-resize rejects stale edges and post-capture reuse") {
+    withTemporaryDirectory { directory =>
+      Vector("outer", "source_driver", "reuse").foreach { role =>
+        val width = HdlInt.param("WIDTH", default = 4, min = 3, max = 4)
+        val config = SpinalConfig(targetDirectory = directory.toString)
+        config.netlistFileName = s"stale_native_narrowing_$role.v"
+        var fixture: NativeWitnessEqualNarrowingAutoResize = null
+
+        config.phasesInserters += { phases: ArrayBuffer[Phase] =>
+          val normalized = phases.indexWhere(_.isInstanceOf[PhaseNormalizeNodeInputs])
+          require(
+            normalized >= 0,
+            "stale native auto-resize fixture found no input-normalization phase"
+          )
+          phases.insert(
+            normalized + 1,
+            new PhaseMisc {
+              override def impl(pc: PhaseContext): Unit = {
+                if (pc.config.parameterizedVerilog) {
+                  require(fixture != null, "stale native auto-resize fixture was not elaborated")
+                  val retained =
+                    role match {
+                      case "source_driver" => fixture.retainedSourceDriver
+                      case "reuse"         => fixture.retainedDuplicateDriver
+                      case _               => fixture.retainedOuter
+                    }
+                  val target = retained.target
+                  val source =
+                    if (role == "reuse") fixture.carrier
+                    else retained.source
+                  val parent = retained.parentScope
+                  require(
+                    parent != null,
+                    s"retained native $role edge lost its scope before adversarial replacement"
+                  )
+                  retained.removeStatement()
+                  parent.append(DataAssignmentStatement(target, source))
+                }
+              }
+            }
+          )
+        }
+
+        MorphVerilog.tryGenerate(config) {
+          fixture = new NativeWitnessEqualNarrowingAutoResize(
+            width,
+            reuse = false
+          )
+          fixture
+        } match {
+          case Left(failure) =>
+            assert(
+              failure.detail.contains(
+                "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH"
+              ) || failure.detail.contains(
+                "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-UNSUPPORTED"
+              ),
+              failure.detail
+            )
+          case Right(report) =>
+            fail(s"Expected stale native $role rejection, received $report")
+        }
+        assert(!Files.exists(directory.resolve(config.netlistFileName)))
+      }
+    }
+  }
+
   test("derived packed widths are proven over the complete parameter domain") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
@@ -405,6 +653,16 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
       (java.util.regex.Pattern.quote(range) + "\\s+" +
         java.util.regex.Pattern.quote(name) + "(?=\\s*[,;])").r
     pattern.findFirstIn(verilog).nonEmpty
+  }
+
+  private def declarationWidth(verilog: String, name: String): Option[String] = {
+    val pattern =
+      ("(?m)^\\s*(?:(?:input|output)\\s+wire|wire|reg)\\s+" +
+        "(\\[[^\\r\\n]+?\\])\\s+" +
+        java.util.regex.Pattern.quote(name) + "(?=\\s*[,;])").r
+    pattern
+      .findFirstMatchIn(verilog)
+      .map(_.group(1).replaceAll("\\s+", ""))
   }
 
   private def nativeModule(verilog: String): String =

@@ -26,7 +26,9 @@ object ExternalParameterizedAutoResize {
       sourceDriver: DataAssignmentStatement,
       typedTarget: Option[ElaborationIntegerExpression],
       typedResize: Option[ResizeUInt],
-      typedInput: Option[UInt]
+      typedInput: Option[UInt],
+      witnessInactive: Boolean,
+      inactiveTargetWidth: Option[ElaborationIntegerExpression]
   )
 
   private final case class Record(
@@ -37,7 +39,9 @@ object ExternalParameterizedAutoResize {
       sourceDriver: DataAssignmentStatement,
       typedTarget: Option[ElaborationIntegerExpression],
       typedResize: Option[ResizeUInt],
-      typedInput: Option[UInt]
+      typedInput: Option[UInt],
+      witnessInactive: Boolean,
+      inactiveTargetWidth: Option[ElaborationIntegerExpression]
   )
 
   /** Exact capture-time lineage for one explicit typed UInt resize whose
@@ -75,6 +79,160 @@ object ExternalParameterizedAutoResize {
     }
   }
 
+  private def structuralBlocksOf(
+      component: Component
+  ): Vector[ParameterizedStructuralBlock] = {
+    val values = Vector.newBuilder[ParameterizedStructuralBlock]
+    def visitBlock(block: ParameterizedStructuralBlock): Unit = {
+      values += block
+      block.regions.foreach(visitRegion)
+    }
+    def visitRegion(region: ParameterizedStructure.StructuralRegion): Unit =
+      region.blocks.foreach(visitBlock)
+    ParameterizedStructure.regionsOf(component).foreach(visitRegion)
+    values.result()
+  }
+
+  /** A witness-inactive auto-resize is admitted only when both of its exact
+    * assignment edges still belong to one unique retained structural block.
+    * This rejects cross-branch references, duplicate capture entries and
+    * same-name/same-width replacement statements.
+    */
+  private def exactWitnessInactiveOwner(
+      component: Component,
+      outer: DataAssignmentStatement,
+      sourceDriver: DataAssignmentStatement
+  ): Boolean = {
+    if (
+      component == null || outer == null || sourceDriver == null ||
+      (outer eq sourceDriver)
+    ) return false
+
+    val inactive =
+      new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+    ParameterizedStructure
+      .capturedWitnessInactiveDataAssignmentsOf(component)
+      .foreach(value => inactive.put(value, java.lang.Boolean.TRUE))
+    if (!inactive.containsKey(outer) || !inactive.containsKey(sourceDriver))
+      return false
+
+    val blocks = structuralBlocksOf(component)
+    val outerOccurrences =
+      blocks.iterator.map(_.assignments.count(_ eq outer)).sum
+    val driverOccurrences =
+      blocks.iterator.map(_.assignments.count(_ eq sourceDriver)).sum
+    if (outerOccurrences != 1 || driverOccurrences != 1) return false
+
+    blocks.count { block =>
+      block.assignments.exists(_ eq outer) &&
+      block.assignments.exists(_ eq sourceDriver)
+    } == 1
+  }
+
+  /** The target-width bridge is consumed after native normalization, so a
+    * capture-time statement identity is useful only if both exact edges still
+    * have one current owner.  Inactive edges remain owned by their retained
+    * structural block; ordinary edges must each occur once in the live graph.
+    */
+  private def exactCurrentOwner(component: Component, record: Record): Boolean = {
+    if (record.witnessInactive)
+      exactWitnessInactiveOwner(component, record.outer, record.sourceDriver)
+    else {
+      def occurrences(statement: DataAssignmentStatement): Int = {
+        var count = 0
+        component.dslBody.walkStatements {
+          case candidate: DataAssignmentStatement if candidate eq statement =>
+            count += 1
+          case _ =>
+        }
+        count
+      }
+      occurrences(record.outer) == 1 && occurrences(record.sourceDriver) == 1
+    }
+  }
+
+  /** Recheck the resize clone's one-use property against the current exact
+    * live/inactive statement inventory.  This prevents a phase inserted after
+    * capture from reusing the carrier while retaining the old capability.
+    */
+  private def exactCurrentResizeSourceUse(
+      component: Component,
+      source: UInt
+  ): Boolean = {
+    val statements =
+      new IdentityHashMap[Statement, java.lang.Boolean]()
+    var uses = 0
+    def visit(statement: Statement): Unit = {
+      if (
+        statement != null &&
+        statements.put(statement, java.lang.Boolean.TRUE) == null
+      ) {
+        statement.walkDrivingExpressions {
+          case value: BaseType if value eq source => uses += 1
+          case _                                  =>
+        }
+      }
+    }
+    component.dslBody.walkStatements(visit)
+    ParameterizedStructure
+      .capturedWitnessInactiveStatementsOf(component)
+      .foreach(visit)
+    uses == 1
+  }
+
+  private def validCurrentRecord(
+      component: Component,
+      record: Record
+  ): Boolean = {
+    val retainedOuterShape = record.outer.source match {
+      case direct if direct eq record.resizeSource => true
+      case resize: ResizeUInt
+          if (resize.input eq record.resizeSource) &&
+            resize.size == record.target.getBitsWidth =>
+        true
+      case _ => false
+    }
+    val requiresCurrentEdges =
+      retainedOuterShape || record.resizeSource.isNamed ||
+        record.resizeSource.dontSimplify
+    validRecord(component, record) &&
+      (record.resizeSource.component eq component) &&
+      (!requiresCurrentEdges ||
+        (exactCurrentOwner(component, record) &&
+          exactCurrentResizeSourceUse(component, record.resizeSource)))
+  }
+
+  /** Revalidate the exact retained symbolic target expression at every record
+    * consumer. Capture-time dominance is not a transferable capability: a
+    * replaced width metadata object, lost projection or widened owner must
+    * invalidate the record before it can authorize native reconstruction.
+    */
+  private def validWitnessInactiveTarget(
+      component: Component,
+      record: Record
+  ): Boolean = {
+    if (!record.witnessInactive)
+      return record.inactiveTargetWidth.isEmpty
+
+    record.inactiveTargetWidth match {
+      case Some(expected)
+          if expected.parameters.nonEmpty &&
+            expected.exactDomain.nonEmpty &&
+            ParameterizedWidth
+              .expressionOf(record.target)
+              .exists(_ eq expected) =>
+        ParameterizedStructure.validateProjectedAssignmentDominance(
+          component,
+          record.outer,
+          expected,
+          "witness-inactive native auto-resize target width",
+          expected.sourceLocation
+        )
+        true
+      case _ => false
+    }
+  }
+
   private def captureComponent(component: Component): Unit = {
     component.userCache.remove(StorageKey)
     val witnessInactiveAssignments =
@@ -85,6 +243,8 @@ object ExternalParameterizedAutoResize {
     val candidatesBySource =
       new IdentityHashMap[UInt, ArrayBuffer[Candidate]]()
     val drivingUseCount = new IdentityHashMap[BaseType, java.lang.Integer]()
+    val liveDrivingUseCount =
+      new IdentityHashMap[BaseType, java.lang.Integer]()
     val typedResizeCarriers =
       new IdentityHashMap[BitVector, java.lang.Boolean]()
     val directTypedConsumers =
@@ -93,11 +253,34 @@ object ExternalParameterizedAutoResize {
       new IdentityHashMap[UInt, java.lang.Boolean]()
     val syntheticRecords = ArrayBuffer.empty[SyntheticBooleanRecord]
 
-    component.dslBody.walkStatements { statement =>
+    // `captureInto` can append statements to an exact owner which is inactive
+    // at the concrete witness. Such statements are not necessarily reachable
+    // from the live DSL scope at this phase, but every driving use must still
+    // participate in the one-use proof. Merge the two exact inventories by JVM
+    // identity; never count a statement twice merely because capture retains
+    // it alongside the live graph.
+    val scanStatements = ArrayBuffer.empty[Statement]
+    val scannedStatements =
+      new IdentityHashMap[Statement, java.lang.Boolean]()
+    def retainScanStatement(statement: Statement): Unit = {
+      if (
+        statement != null &&
+        scannedStatements.put(statement, java.lang.Boolean.TRUE) == null
+      ) scanStatements += statement
+    }
+    component.dslBody.walkStatements(retainScanStatement)
+    ParameterizedStructure
+      .capturedWitnessInactiveStatementsOf(component)
+      .foreach(retainScanStatement)
+
+    def countDrivingUses(
+        statement: Statement,
+        counts: IdentityHashMap[BaseType, java.lang.Integer]
+    ): Unit =
       statement.walkDrivingExpressions {
         case source: BaseType =>
-          val previous = drivingUseCount.get(source)
-          drivingUseCount.put(
+          val previous = counts.get(source)
+          counts.put(
             source,
             java.lang.Integer.valueOf(
               if (previous == null) 1 else previous.intValue() + 1
@@ -105,64 +288,74 @@ object ExternalParameterizedAutoResize {
           )
         case _ =>
       }
-    }
 
-    component.dslBody.walkLeafStatements {
-      case outer: DataAssignmentStatement =>
-        outer.target match {
-          case value: BitVector
-              if (outer.finalTarget eq value) &&
-                value.hasTag(ParameterizedWidth.TypedResizeCaptureTag) =>
-            typedResizeCarriers.put(value, java.lang.Boolean.TRUE)
-          case _ =>
-        }
-        (outer.target, outer.source) match {
-          case (target: BitVector, source: BitVector)
-              if (outer.finalTarget eq target) &&
-                (target.component eq component) &&
-                (source.component eq component) &&
-                source.hasTag(ParameterizedWidth.TypedResizeCaptureTag) =>
-            var consumers = directTypedConsumers.get(source)
-            if (consumers == null) {
-              consumers = ArrayBuffer.empty[DataAssignmentStatement]
-              directTypedConsumers.put(source, consumers)
-            }
-            consumers += outer
-          case _ =>
-        }
-        syntheticBooleanRecord(
-          component,
-          outer,
-          witnessInactiveAssignments,
-          drivingUseCount
-        ).foreach { record =>
-          record.resizeSource.addTag(tagAutoResize)
-          syntheticBySource.put(record.resizeSource, java.lang.Boolean.TRUE)
-          syntheticRecords += record
-        }
-        (outer.target, outer.source) match {
-          case (target: UInt, resizeSource: UInt)
-              if (outer.finalTarget eq target) &&
-                (target.component eq component) &&
-                (resizeSource.component eq component) &&
-                resizeSource.isComb &&
-                resizeSource.isDirectionLess &&
-                (resizeSource.hasTag(tagAutoResize) ||
-                  resizeSource.hasTag(ParameterizedWidth.TypedResizeCaptureTag)) &&
-                !syntheticBySource.containsKey(resizeSource) &&
-                resizeSource.hasOnlyOneStatement =>
-            val sourceDriver = resizeSource.head match {
-              case driver: DataAssignmentStatement
-                  if (driver.target eq resizeSource) &&
-                    (driver.finalTarget eq resizeSource) &&
-                    driver.source.isInstanceOf[WidthProvider] &&
-                    driver.source.getTypeObject == TypeUInt =>
-                Some(driver)
-              case _ => None
-            }
-            sourceDriver.foreach { driver =>
-              val typedCapture =
-                resizeSource.hasTag(ParameterizedWidth.TypedResizeCaptureTag)
+    component.dslBody.walkStatements(statement =>
+      countDrivingUses(statement, liveDrivingUseCount)
+    )
+    scanStatements.foreach(statement =>
+      countDrivingUses(statement, drivingUseCount)
+    )
+
+    def retainCandidate(
+        outer: DataAssignmentStatement,
+        allowTypedCapture: Boolean
+    ): Unit = {
+      (outer.target, outer.source) match {
+        case (target: UInt, resizeSource: UInt)
+            if (outer.finalTarget eq target) &&
+              (target.component eq component) &&
+              (resizeSource.component eq component) &&
+              resizeSource.isComb &&
+              resizeSource.isDirectionLess &&
+              (resizeSource.hasTag(tagAutoResize) ||
+                (allowTypedCapture && resizeSource.hasTag(
+                  ParameterizedWidth.TypedResizeCaptureTag
+                ))) &&
+              !syntheticBySource.containsKey(resizeSource) &&
+              resizeSource.hasOnlyOneStatement =>
+          val sourceDriver = resizeSource.head match {
+            case driver: DataAssignmentStatement
+                if (driver.target eq resizeSource) &&
+                  (driver.finalTarget eq resizeSource) &&
+                  driver.source.isInstanceOf[WidthProvider] &&
+                  driver.source.getTypeObject == TypeUInt =>
+              Some(driver)
+            case _ => None
+          }
+          sourceDriver.foreach { driver =>
+            val outerInactive = witnessInactiveAssignments.containsKey(outer)
+            val driverInactive = witnessInactiveAssignments.containsKey(driver)
+            val witnessInactive = outerInactive || driverInactive
+            val typedCapture =
+              resizeSource.hasTag(ParameterizedWidth.TypedResizeCaptureTag)
+            // Live explicit typed-resize carriers keep their pre-existing
+            // reviewed path even when their enclosing structural alternative
+            // is inactive at the witness. The new authority below is only for
+            // native `.resized` edges discovered through exact inactive
+            // structure.
+            val securedWitnessInactive = witnessInactive && !typedCapture
+            val inactiveTargetWidth =
+              if (securedWitnessInactive)
+                ParameterizedWidth
+                  .expressionOf(target)
+                  .filter(expression =>
+                    expression.parameters.nonEmpty &&
+                      expression.exactDomain.nonEmpty
+                  )
+              else None
+            // The new inactive path is intentionally native `.resized` only.
+            // Explicit typed-resize normalization keeps its existing live-only
+            // capture surface and must receive a separately reviewed renderer.
+            val exactInactiveOwner =
+              !securedWitnessInactive ||
+                exactWitnessInactiveOwner(component, outer, driver)
+            val inactiveBoundaryProven =
+              !securedWitnessInactive ||
+                (!typedCapture && resizeSource.hasTag(tagAutoResize) &&
+                  outerInactive && driverInactive &&
+                  inactiveTargetWidth.nonEmpty &&
+                  exactInactiveOwner)
+            if (inactiveBoundaryProven) {
               val typedTarget =
                 if (typedCapture)
                   ParameterizedWidth
@@ -201,39 +394,87 @@ object ExternalParameterizedAutoResize {
                   typedTarget.flatMap(_.sourceLocation)
                 )
               }
-              if (
-                resizeSource.hasTag(tagAutoResize) ||
-                typedCapture
-              ) {
-                val candidate = Candidate(
-                  component,
-                  outer,
-                  target,
-                  resizeSource,
-                  driver,
-                  typedTarget,
-                  typedLineage.map(_._1),
-                  typedLineage.map(_._2)
-                )
-                var candidates = candidatesBySource.get(resizeSource)
-                if (candidates == null) {
-                  candidates = ArrayBuffer.empty[Candidate]
-                  candidatesBySource.put(resizeSource, candidates)
-                }
-                candidates += candidate
+              val candidate = Candidate(
+                component,
+                outer,
+                target,
+                resizeSource,
+                driver,
+                typedTarget,
+                typedLineage.map(_._1),
+                typedLineage.map(_._2),
+                securedWitnessInactive,
+                inactiveTargetWidth
+              )
+              var candidates = candidatesBySource.get(resizeSource)
+              if (candidates == null) {
+                candidates = ArrayBuffer.empty[Candidate]
+                candidatesBySource.put(resizeSource, candidates)
               }
+              candidates += candidate
             }
+          }
+        case _ =>
+      }
+    }
+
+    val liveAssignments =
+      new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+    component.dslBody.walkLeafStatements {
+      case outer: DataAssignmentStatement =>
+        liveAssignments.put(outer, java.lang.Boolean.TRUE)
+        outer.target match {
+          case value: BitVector
+              if (outer.finalTarget eq value) &&
+                value.hasTag(ParameterizedWidth.TypedResizeCaptureTag) =>
+            typedResizeCarriers.put(value, java.lang.Boolean.TRUE)
           case _ =>
         }
+        (outer.target, outer.source) match {
+          case (target: BitVector, source: BitVector)
+              if (outer.finalTarget eq target) &&
+                (target.component eq component) &&
+                (source.component eq component) &&
+                source.hasTag(ParameterizedWidth.TypedResizeCaptureTag) =>
+            var consumers = directTypedConsumers.get(source)
+            if (consumers == null) {
+              consumers = ArrayBuffer.empty[DataAssignmentStatement]
+              directTypedConsumers.put(source, consumers)
+            }
+            consumers += outer
+          case _ =>
+        }
+        syntheticBooleanRecord(
+          component,
+          outer,
+          witnessInactiveAssignments,
+          liveDrivingUseCount
+        ).foreach { record =>
+          record.resizeSource.addTag(tagAutoResize)
+          syntheticBySource.put(record.resizeSource, java.lang.Boolean.TRUE)
+          syntheticRecords += record
+        }
+        retainCandidate(outer, allowTypedCapture = true)
       case _ =>
     }
+
+    // Only exact identities absent from the live leaf walk enter the new
+    // inactive candidate path. Synthetic Bool widening remains deliberately
+    // confined to its previous live-surface discovery above.
+    ParameterizedStructure
+      .capturedWitnessInactiveDataAssignmentsOf(component)
+      .filterNot(liveAssignments.containsKey)
+      .foreach(outer => retainCandidate(outer, allowTypedCapture = false))
 
     val provisional = ArrayBuffer.empty[Record]
     val iterator = candidatesBySource.values().iterator()
     while (iterator.hasNext) {
       val candidates = iterator.next()
       val source = candidates.head.resizeSource
-      val useCount = drivingUseCount.get(source)
+      val useCount =
+        if (candidates.head.typedTarget.nonEmpty)
+          liveDrivingUseCount.get(source)
+        else drivingUseCount.get(source)
       if (candidates.size == 1 && useCount != null && useCount.intValue() == 1) {
         val candidate = candidates.head
         val record = Record(
@@ -244,7 +485,9 @@ object ExternalParameterizedAutoResize {
           candidate.sourceDriver,
           candidate.typedTarget,
           candidate.typedResize,
-          candidate.typedInput
+          candidate.typedInput,
+          candidate.witnessInactive,
+          candidate.inactiveTargetWidth
         )
         provisional += record
       }
@@ -267,7 +510,14 @@ object ExternalParameterizedAutoResize {
     provisional.foreach { record =>
       if (
         owners.get(record.outer).size == 1 &&
-        owners.get(record.sourceDriver).size == 1
+        owners.get(record.sourceDriver).size == 1 &&
+        (!record.witnessInactive ||
+          exactWitnessInactiveOwner(
+            component,
+            record.outer,
+            record.sourceDriver
+          )) &&
+        validWitnessInactiveTarget(component, record)
       ) {
         record.typedTarget.foreach { expected =>
           ParameterizedStructure.validateProjectedAssignmentDominance(
@@ -289,7 +539,7 @@ object ExternalParameterizedAutoResize {
     }
 
     def survivesUnnamedRemoval(value: BitVector): Boolean = {
-      val useCount = drivingUseCount.get(value)
+      val useCount = liveDrivingUseCount.get(value)
       !value.isDirectionLess || value.isNamed || value.dontSimplify ||
       useCount == null || useCount.intValue() != 1
     }
@@ -454,11 +704,11 @@ object ExternalParameterizedAutoResize {
     val typedCarrierIterator = typedResizeCarriers.keySet().iterator()
     while (typedCarrierIterator.hasNext) {
       val value = typedCarrierIterator.next()
-      val useCount = drivingUseCount.get(value)
+      val useCount = liveDrivingUseCount.get(value)
       val reviewedNormalizedUIntBoundary = value match {
         case uint: UInt =>
           Option(storage.byResizeSource.get(uint)).exists { record =>
-            val targetUseCount = drivingUseCount.get(record.target)
+            val targetUseCount = liveDrivingUseCount.get(record.target)
             !record.target.isDirectionLess || record.target.isNamed ||
             record.target.dontSimplify || targetUseCount == null ||
             targetUseCount.intValue() != 1
@@ -583,7 +833,13 @@ object ExternalParameterizedAutoResize {
     phases.insert(boundary, new CapturePhase)
   }
 
-  /** Return the exact whole UInt target that sizes a captured resize source. */
+  /** Return the exact whole UInt target that sizes one captured native
+    * `.resized` source in its current assignment context.  This is narrower
+    * than ordinary source-driver recovery: the exact source edge and either
+    * the direct outer edge or its one materialized native Resize must still be
+    * present, and the target must retain complete typed width evidence which
+    * dominates that exact outer assignment.
+    */
   private[internals] def targetOfResizeSource(
       component: Component,
       source: BaseType
@@ -592,10 +848,39 @@ object ExternalParameterizedAutoResize {
     else {
       storageOf(component)
         .flatMap(storage => Option(storage.byResizeSource.get(source.asInstanceOf[UInt])))
-        .filter(record => validRecord(component, record))
-        .filter(record => typedTargetMatches(record, record.target))
-        .filter(record => ParameterizedWidth.expressionOf(record.target).exists(_.parameters.nonEmpty))
-        .map(_.target)
+        .filter(record => validCurrentRecord(component, record))
+        // Explicit typed resize carriers retain their own target semantics and
+        // must stay on the pre-existing typed reconstruction path.
+        .filter(_.typedTarget.isEmpty)
+        .filter(record => proves(component, record.sourceDriver, record.resizeSource))
+        .filter { record =>
+          record.outer.source match {
+            case direct if direct eq record.resizeSource =>
+              proves(component, record.outer, record.target)
+            case resize: ResizeUInt =>
+              materializedResizeBoundary(component, resize).exists {
+                case (assignment, target) =>
+                  (assignment eq record.outer) && (target eq record.target)
+              }
+            case _ => false
+          }
+        }
+        .flatMap { record =>
+          ParameterizedWidth.expressionOf(record.target) match {
+            case Some(expression)
+                if expression.parameters.nonEmpty &&
+                  expression.exactDomain.nonEmpty =>
+              ParameterizedStructure.validateProjectedAssignmentDominance(
+                component,
+                record.outer,
+                expression,
+                "native auto-resize context target width",
+                expression.sourceLocation
+              )
+              Some(record.target)
+            case _ => None
+          }
+        }
     }
   }
 
@@ -632,7 +917,8 @@ object ExternalParameterizedAutoResize {
       while (iterator.hasNext) {
         val record = iterator.next()
         if (
-          validRecord(component, record) &&
+          validCurrentRecord(component, record) &&
+          proves(component, record.sourceDriver, record.resizeSource) &&
           typedTargetMatches(record, record.target) &&
           (record.outer.source eq resize) &&
           (resize.input eq record.resizeSource) &&
@@ -915,6 +1201,15 @@ object ExternalParameterizedAutoResize {
       (record.sourceDriver.target eq record.resizeSource) &&
       (record.sourceDriver.finalTarget eq record.resizeSource) &&
       (record.target.component eq component) &&
+      (!record.witnessInactive ||
+        (record.resizeSource.component eq component)) &&
+      (!record.witnessInactive ||
+        exactWitnessInactiveOwner(
+          component,
+          record.outer,
+          record.sourceDriver
+        )) &&
+      validWitnessInactiveTarget(component, record) &&
       typedTargetMatches(record, record.resizeSource) &&
       typedLineageValid &&
       record.target.getBitsWidth > 0

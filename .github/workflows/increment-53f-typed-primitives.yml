@@ -1,0 +1,439 @@
+name: Increment 53f typed primitive closure
+
+on:
+  push:
+    branches:
+      - agent/increment-53f-typed-primitives
+  pull_request:
+    branches:
+      - parameterized-verilog
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-53f-typed-primitives-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-contract:
+    name: Typed architecture and exact source scope
+    if: github.event_name != 'pull_request' || github.head_ref == 'agent/increment-53f-typed-primitives'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact head with complete history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact permanent Increment 53f delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin parameterized-verilog
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="$(git merge-base HEAD origin/parameterized-verilog)"
+          fi
+
+          scope=morphhdl/contracts/increment-53f-source-scope.txt
+          todo=docs/morphhdl/parameterized-verilog-todo.md
+          test -f "$scope"
+          test -s "$scope"
+          test "$(cat "$scope")" = "$(sort -u "$scope")"
+          # The implementation head carries a real dependency-graph edit in the
+          # roadmap while 53f is still unchecked.  The eventual closure commit
+          # changes only the checkbox, so both heads have the same exact path
+          # inventory and are checked by this one immutable source scope.
+          test "$(grep -Fxc "$todo" "$scope")" = 1
+          test "$(grep -Ec '^- \[( |x)\] \*\*Increment 53f — Typed parameter-sensitive primitive closure\*\*$' "$todo")" = 1
+          actual="$(git diff --name-only --diff-filter=ACMRTD "$base"...HEAD | sort)"
+          expected="$(cat "$scope")"
+          if [ "$actual" != "$expected" ]; then
+            echo 'Unexpected Increment 53f file inventory' >&2
+            echo '--- expected ---' >&2
+            printf '%s\n' "$expected" >&2
+            echo '--- actual ---' >&2
+            printf '%s\n' "$actual" >&2
+            exit 1
+          fi
+
+          test ! -e morphruntime/src/main/scala/spinal/core/ElabInt.scala
+          if printf '%s\n' "$actual" | grep -E '(\.tmp$|\.patch(\.gz\.b64)?$|apply-increment-53f|publisher|diagnostic|status\.md$|clean-tree-marker)'; then
+            echo 'Temporary Increment 53f artifact entered the canonical delta' >&2
+            exit 1
+          fi
+          git diff --check "$base"...HEAD
+
+      - name: Verify reviewed native scope and generic typed boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin parameterized-verilog
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="$(git merge-base HEAD origin/parameterized-verilog)"
+          fi
+
+          bash -n morphhdl/scripts/check-typed-vec-boundary.sh
+          bash -n morphhdl/scripts/check-typed-primitive-closure-boundary.sh
+          bash morphhdl/scripts/check-typed-primitive-closure-boundary.sh
+
+          python3 - "$base" <<'PY'
+          import json
+          import re
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          base = sys.argv[1]
+          manifest = Path(
+              'docs/morphhdl/increment-53f-typed-native-change-manifest.md'
+          ).read_text()
+          overlay = json.loads(Path(
+              'morphhdl/contracts/typed-native-source-overlay.json'
+          ).read_text())
+
+          allowed_classes = {
+              'typed-formal-or-overload',
+              'typed-helper',
+              'typed-mechanical-propagation',
+          }
+          assert overlay['schema_version'] == 1
+          assert overlay['repository'] == 'pysolvesemi/MorphHDL'
+          assert overlay['hash_format'] == 'git-sha1'
+          assert overlay['base']['commit'] == (
+              'ce7e306f8a0dea685317e37dbe01fb4a743f04eb'
+          ), 'cumulative typed-native overlay base changed'
+          assert overlay['base']['tree'] == (
+              'fdd49d3ebbf4947c9baa956fb2e9ce08a2949ffb'
+          ), 'cumulative typed-native overlay base tree changed'
+          assert overlay['source_roots'] == ['core', 'idslplugin', 'lib']
+          assert set(overlay['classifications']) == allowed_classes
+
+          overlay_rows = {}
+          for entry in overlay['entries']:
+              path = entry['path']
+              assert path not in overlay_rows, f'duplicate overlay path: {path}'
+              assert entry['classification'] in allowed_classes, (
+                  path, entry['classification']
+              )
+              overlay_rows[path] = entry['classification']
+
+          rows = {}
+          for line in manifest.splitlines():
+              match = re.match(r"\| `([^`]+)` \| `([^`]+)` \|", line)
+              if match:
+                  path, classification = match.groups()
+                  if path in rows:
+                      raise AssertionError(f'duplicate manifest path: {path}')
+                  rows[path] = classification
+          assert rows, 'typed native-change manifest has no reviewed rows'
+          assert list(rows) == sorted(rows), 'typed native-change manifest is not sorted'
+          assert all(path.startswith(('core/', 'idslplugin/', 'lib/')) for path in rows)
+          assert set(rows.values()).issubset(allowed_classes), (
+              'typed native-change manifest contains an unapproved classification', rows
+          )
+          for path, classification in rows.items():
+              assert path in overlay_rows, (
+                  f'Increment 53f manifest path is absent from cumulative overlay: {path}'
+              )
+              assert overlay_rows[path] == classification, (
+                  f'Increment 53f classification differs from cumulative overlay: {path}',
+                  classification,
+                  overlay_rows[path],
+              )
+
+          actual = subprocess.check_output(
+              [
+                  'git', 'diff', '--name-only', '--diff-filter=ACMRTD',
+                  f'{base}...HEAD', '--', 'core', 'idslplugin', 'lib'
+              ],
+              text=True,
+          ).splitlines()
+          assert sorted(actual) == sorted(rows), (
+              'native delta differs from reviewed manifest', sorted(actual), sorted(rows)
+          )
+
+          formal = {
+              'morphhdl/src/test/scala/morphhdl/TypedParameterizedVecFormalEquivalenceTests.scala':
+                  'class TypedParameterizedVecFormalEquivalenceTests',
+              'morphhdl/src/test/scala/morphhdl/TypedPrimitiveClosureFormalEquivalenceTests.scala':
+                  'class TypedPrimitiveClosureFormalEquivalenceTests',
+              'morphhdl/src/test/scala/morphhdl/NativeStreamFifoFormalEquivalenceTests.scala':
+                  'class NativeStreamFifoFormalEquivalenceTests',
+          }
+          for path, declaration in formal.items():
+              source = Path(path)
+              assert source.is_file(), path
+              assert declaration in source.read_text(), (path, declaration)
+          PY
+
+  sbt-full:
+    name: SBT complete suite Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Compile all production and test sources
+        shell: bash
+        run: sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+      - name: Run complete MorphHDL and native compatibility suites
+        shell: bash
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" morph/test
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "tester/testOnly spinal.lib.CounterTester spinal.lib.SpinalSimStreamFifoTester"
+
+  mill-full:
+    name: Mill complete suite Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+      - name: Run complete MorphHDL and native compatibility suites
+        shell: bash
+        run: |
+          /tmp/mill morph[${{ matrix.scala_version }}].test
+          /tmp/mill tester[${{ matrix.scala_version }}].testOnly \
+            spinal.lib.CounterTester spinal.lib.SpinalSimStreamFifoTester
+
+  typed-regressions:
+    name: Typed primitive regressions Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Run exact-domain, Vec, memory, hierarchy and compatibility contracts
+        shell: bash
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly spinal.core.TypedElaborationPrimitiveTests spinal.core.TypedExactDomainControlTests spinal.core.TypedExactDomainSafetyTests spinal.core.TypedProjectionOwnershipTests spinal.core.TypedVecShapeTests spinal.core.TypedPrimitiveClosureTests spinal.core.CentralTypedAuthorityAdversarialTests spinal.core.CounterRegistryAtomicityTests spinal.core.NativeIntFormalizationAtomicityTests spinal.core.ShadowStructuralPredicateAuthorityTests spinal.core.FiniteMemIdentityAdversarialTests spinal.core.FiniteFormalBoundaryTests spinal.core.FiniteBitsIndexTests spinal.core.ScalarStructuralIdentityAdversarialTests spinal.core.StructuralIdentityAdversarialTests spinal.core.ProceduralIdentityAdversarialTests spinal.core.PackedVecIdentityAdversarialTests spinal.core.VecEmittedIdentityAdversarialTests spinal.core.internals.RetainedWidthExpressionEquivalenceTests spinal.core.internals.ParameterizedVerilogTests morphhdl.TypedElaborationValueTests morphhdl.TypedElaborationControlTests morphhdl.TypedParameterizedFactoryDirectionTests morphhdl.CapturedDomainWidthEquivalenceTests morphhdl.FormalParameterIdentityTests morphhdl.GenericProcessLoweringTests morphhdl.NativeSymbolicMemoryTests morphhdl.NativeMemAutoProvenanceTests morphhdl.HierarchyParameterBindingTests morphhdl.TypedParameterizedVecTests morphhdl.TypedCounterAllOnesTests morphhdl.CounterSingleAuthorityParityTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.StreamFifoCompatibilityTests"
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "frontend/testOnly morphhdl.frontend.HdlIntTests"
+
+  primitive-v2001:
+    name: Primitive V2001 lint, simulation and synthesis Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Verify strict Verilog-2001 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v verilator
+          command -v iverilog
+          command -v vvp
+          command -v yosys
+          verilator --version
+          iverilog -V
+          yosys -V
+      - name: Exercise one definition at multiple widths and depths
+        shell: bash
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly spinal.core.TypedPrimitiveClosureTests morphhdl.TypedParameterizedVecTests morphhdl.TypedCounterAllOnesTests morphhdl.CounterSingleAuthorityParityTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.StreamFifoCompatibilityTests morphhdl.NativeSymbolicMemoryTests"
+
+  formal:
+    name: Typed primitive formal equivalence Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      MORPHDL_RUN_TYPED_VEC_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_TYPED_PRIMITIVE_CLOSURE_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_STREAMFIFO_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_TYPED_VEC_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/vec
+      MORPHDL_TYPED_PRIMITIVE_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/closure
+      MORPHDL_STREAMFIFO_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/streamfifo
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Verify pinned formal toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v yosys
+          command -v sby
+          command -v yices-smt2
+          command -v iverilog
+          command -v vvp
+          command -v verilator
+          yosys_version="$(yosys -V)"
+          sby_help="$(sby -h 2>&1)"
+          sby_sha256="$(sha256sum "$(command -v sby)")"
+          yices_version="$(yices-smt2 --version)"
+          iverilog_version="$(iverilog -V 2>&1)"
+          verilator_version="$(verilator --version)"
+          printf '%s\n' \
+            "$yosys_version" \
+            "$sby_sha256" \
+            "$yices_version" \
+            "$iverilog_version" \
+            "$verilator_version"
+          grep -Eq '^Yosys 0\.41([ +]|$)' <<<"$yosys_version"
+          grep -q 'usage: sby' <<<"$sby_help"
+          test -n "$yices_version"
+          yosys -Q -p 'help abc' >/tmp/morphhdl-yosys-abc-help.txt 2>&1
+          grep -q 'ABC' /tmp/morphhdl-yosys-abc-help.txt
+      - name: Prove typed specializations and mutation controls
+        shell: bash
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.TypedParameterizedVecFormalEquivalenceTests morphhdl.TypedPrimitiveClosureFormalEquivalenceTests morphhdl.NativeStreamFifoFormalEquivalenceTests"
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "tester/testOnly spinal.lib.CounterFormalTester"
+      - name: Retain proof statuses and mutation counterexamples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53f-typed-primitives-formal-scala-${{ matrix.scala_version }}
+          path: formal-artifacts/scala-${{ matrix.scala_version }}
+          if-no-files-found: error
+          retention-days: 14
+
+  no-shadow:
+    name: Typed primitives without native-Int shadow Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 260
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Disable legacy native-Int shadow registration in this workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path(
+              'morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala'
+          )
+          value = path.read_text()
+          needle = '      new MorphHdlNativeIntShadowExpressionComponent(global),\n'
+          assert value.count(needle) == 1
+          path.write_text(value.replace(needle, '', 1))
+          PY
+          ! grep -q 'new MorphHdlNativeIntShadowExpressionComponent' \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala
+      - name: Compile and exercise direct typed primitives without shadow registration
+        shell: bash
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly spinal.core.TypedElaborationPrimitiveTests spinal.core.TypedExactDomainControlTests spinal.core.TypedExactDomainSafetyTests spinal.core.TypedProjectionOwnershipTests spinal.core.TypedVecShapeTests spinal.core.TypedPrimitiveClosureTests spinal.core.CentralTypedAuthorityAdversarialTests spinal.core.CounterRegistryAtomicityTests spinal.core.NativeIntFormalizationAtomicityTests spinal.core.ShadowStructuralPredicateAuthorityTests spinal.core.FiniteMemIdentityAdversarialTests spinal.core.FiniteFormalBoundaryTests spinal.core.FiniteBitsIndexTests spinal.core.ScalarStructuralIdentityAdversarialTests spinal.core.StructuralIdentityAdversarialTests spinal.core.ProceduralIdentityAdversarialTests spinal.core.PackedVecIdentityAdversarialTests spinal.core.VecEmittedIdentityAdversarialTests spinal.core.internals.RetainedWidthExpressionEquivalenceTests spinal.core.internals.ParameterizedVerilogTests morphhdl.TypedElaborationValueTests morphhdl.TypedElaborationControlTests morphhdl.TypedParameterizedFactoryDirectionTests morphhdl.CapturedDomainWidthEquivalenceTests morphhdl.FormalParameterIdentityTests morphhdl.GenericProcessLoweringTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.StreamFifoCompatibilityTests morphhdl.NativeSymbolicMemoryTests morphhdl.NativeMemAutoProvenanceTests morphhdl.HierarchyParameterBindingTests morphhdl.TypedParameterizedVecTests morphhdl.TypedCounterAllOnesTests morphhdl.CounterSingleAuthorityParityTests"
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "frontend/testOnly morphhdl.frontend.HdlIntTests"
+
+  # Merge policy also requires the separately triggered
+  # "MorphHDL baseline / Strict Verilog-2001 contracts" status. GitHub Actions
+  # cannot model that cross-workflow status as a `needs` edge here.
+  closure:
+    name: Increment 53f canonical closure
+    if: always() && (github.event_name != 'pull_request' || github.head_ref == 'agent/increment-53f-typed-primitives')
+    needs:
+      - source-contract
+      - sbt-full
+      - mill-full
+      - typed-regressions
+      - primitive-v2001
+      - formal
+      - no-shadow
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every canonical gate
+        shell: bash
+        env:
+          SOURCE: ${{ needs.source-contract.result }}
+          SBT: ${{ needs.sbt-full.result }}
+          MILL: ${{ needs.mill-full.result }}
+          TYPED: ${{ needs.typed-regressions.result }}
+          V2001: ${{ needs.primitive-v2001.result }}
+          FORMAL: ${{ needs.formal.result }}
+          NO_SHADOW: ${{ needs.no-shadow.result }}
+        run: |
+          set -euo pipefail
+          test "$SOURCE" = success
+          test "$SBT" = success
+          test "$MILL" = success
+          test "$TYPED" = success
+          test "$V2001" = success
+          test "$FORMAL" = success
+          test "$NO_SHADOW" = success

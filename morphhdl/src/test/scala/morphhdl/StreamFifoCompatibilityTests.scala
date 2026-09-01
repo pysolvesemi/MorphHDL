@@ -103,6 +103,11 @@ class StreamFifoCompatibilityTests extends AnyFunSuite {
       val verilog = new String(bytes, java.nio.charset.StandardCharsets.UTF_8)
       assert(verilog.contains("module LegacyNamedStreamFifoTop ("))
       assert(!verilog.contains("parameter integer DEPTH"))
+      assert(!verilog.contains("typed_vec_write_index"))
+      assert(!verilog.contains("typed_vec_write_target"))
+      assert(!verilog.contains("typed_vec_write_data"))
+      assert(!verilog.contains("typed_vec_read_data"))
+      assert(!verilog.contains("typed_storage_pop_index"))
     }
   }
 
@@ -134,6 +139,35 @@ class StreamFifoCompatibilityTests extends AnyFunSuite {
         )
         assert(!verilog.contains("parameter integer DEPTH"))
         assert(!verilog.contains(".DEPTH("))
+      }
+    }
+  }
+
+  test("full-config typed literal Vec storage is byte-identical to native Int construction") {
+    withTemporaryDirectory { directory =>
+      Depths.foreach { depth =>
+        val native = emitConfiguredVecConcrete(directory, depth, typed = false)
+        val typed = emitConfiguredVecConcrete(directory, depth, typed = true)
+
+        assert(
+          java.util.Arrays.equals(
+            Files.readAllBytes(native),
+            Files.readAllBytes(typed)
+          ),
+          s"full-config native Int and typed-literal Vec RTL differed at depth $depth"
+        )
+
+        val verilog = new String(
+          Files.readAllBytes(typed),
+          java.nio.charset.StandardCharsets.UTF_8
+        )
+        Vector(
+          "typed_vec_write_index",
+          "typed_vec_write_target",
+          "typed_vec_write_data",
+          "typed_vec_read_data",
+          "typed_storage_pop_index"
+        ).foreach(name => assert(!verilog.contains(name), verilog))
       }
     }
   }
@@ -208,6 +242,48 @@ class StreamFifoCompatibilityTests extends AnyFunSuite {
     io.availability := fifo.io.availability.resized
   }
 
+  private final class ConfiguredVecParityTop(
+      depthValue: Int,
+      typed: Boolean
+  ) extends Component {
+    setDefinitionName(s"ConfiguredVecStreamFifoParityDepth$depthValue")
+
+    val io = new Bundle {
+      val push = slave(Stream(Bits(8 bits)))
+      val pop = master(Stream(Bits(8 bits)))
+      val flush = in Bool ()
+    }
+
+    private val payloadType = HardType(Bits(8 bits))
+    val fifo =
+      if (typed)
+        StreamFifo(
+          payloadType,
+          ElabInt.literal(depthValue),
+          withAsyncRead = true,
+          withBypass = true,
+          allowExtraMsb = false,
+          forFMax = true,
+          useVec = true,
+          initPayload = None
+        )
+      else
+        new StreamFifo(
+          payloadType,
+          depthValue,
+          withAsyncRead = true,
+          withBypass = true,
+          allowExtraMsb = false,
+          forFMax = true,
+          useVec = true,
+          initPayload = None
+        )
+
+    fifo.io.push << io.push
+    io.pop << fifo.io.pop
+    fifo.io.flush := io.flush
+  }
+
   private final class LegacyNamedConstructorTop extends Component {
     setDefinitionName("LegacyNamedStreamFifoTop")
 
@@ -243,6 +319,21 @@ class StreamFifoCompatibilityTests extends AnyFunSuite {
     val config = concreteConfig(directory)
     config.netlistFileName = s"concrete_stream_fifo_depth_$depth.v"
     SpinalVerilog(config)(new ConcreteParityTop(depth, entry))
+    directory.resolve(config.netlistFileName)
+  }
+
+  private def emitConfiguredVecConcrete(
+      root: Path,
+      depth: Int,
+      typed: Boolean
+  ): Path = {
+    val directory = root.resolve(
+      s"depth-$depth-configured-vec-${if (typed) "typed" else "native"}"
+    )
+    Files.createDirectories(directory)
+    val config = concreteConfig(directory)
+    config.netlistFileName = s"configured_vec_stream_fifo_depth_$depth.v"
+    SpinalVerilog(config)(new ConfiguredVecParityTop(depth, typed))
     directory.resolve(config.netlistFileName)
   }
 

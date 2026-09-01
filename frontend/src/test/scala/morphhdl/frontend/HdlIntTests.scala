@@ -5,21 +5,371 @@ import java.nio.file.Files
 
 import scala.collection.JavaConverters._
 
-import morphhdl.frontend.ParamRtlFrontend.integerParameter
-import morphhdl.paramrtl.BoolExpr.{
-  Equal,
-  GreaterThan,
-  GreaterThanOrEqual,
-  LessThan,
-  LessThanOrEqual,
-  NotEqual
-}
+import morphhdl.frontend.ParamRtlFrontend.{captureItems, integerParameter}
+import morphhdl.paramrtl.BoolExpr.{Equal, GreaterThan, GreaterThanOrEqual, LessThan, LessThanOrEqual, NotEqual}
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
-import morphhdl.paramrtl.IntExpr.{Add, Divide, Literal, Max, Min, Modulo, Multiply, Negate, ParameterRef, Subtract}
+import morphhdl.paramrtl.IntExpr.{
+  Add,
+  Divide,
+  Literal,
+  Max,
+  Min,
+  Modulo,
+  Multiply,
+  Negate,
+  ParameterRef,
+  Subtract
+}
 import morphhdl.paramrtl.IntegerParameter
 import org.scalatest.funsuite.AnyFunSuite
+import spinal.core.{ElabInt, ExternalAnalyzedFrontendPermitIssuer, ParameterizedVerilogException}
 
 class HdlIntTests extends AnyFunSuite {
+  private def sameIdentity(left: AnyRef, right: AnyRef): Boolean =
+    left eq right
+
+  test("analyzed integer wrapper issues one permit only") {
+    val depth = HdlInt.param("DEPTH", default = 2, min = 1, max = 3)
+    val analyzed =
+      StructuralExpressionBridge.analyzedWidth(depth, "permit replay test")
+
+    assert(ExternalAnalyzedFrontendPermitIssuer.singleRoot(analyzed) ne null)
+    val replay = intercept[FrontendException] {
+      ExternalAnalyzedFrontendPermitIssuer.singleRoot(analyzed)
+    }
+    assert(
+      replay.code ==
+        "MORPH-FRONTEND-ANALYZED-INTEGER-AUTHORIZATION-CONSUMED"
+    )
+  }
+
+  test("single-root permit binds exact metadata identities and consumes on success") {
+    val depth = HdlInt.param("DEPTH", default = 2, min = 1, max = 3)
+    val analyzed =
+      StructuralExpressionBridge.analyzedWidth(depth, "permit identity test")
+    val evaluations = analyzed.singleRootEvaluations.get
+    val permit = ExternalAnalyzedFrontendPermitIssuer.singleRoot(analyzed)
+
+    val copiedExpression = analyzed.expression.copy()
+    val copiedExpressionError = intercept[ParameterizedVerilogException] {
+      ElabInt.fromSingleRootExpression(copiedExpression, evaluations, permit)
+    }
+    assert(
+      copiedExpressionError.code ==
+        "SPINAL-ELAB-INT-ANALYZED-SOURCE-AUTHORIZATION-MISMATCH"
+    )
+
+    val copiedEvaluations = Vector.newBuilder[(BigInt, BigInt)]
+    copiedEvaluations ++= evaluations
+    val copiedTable = copiedEvaluations.result()
+    assert(!(copiedTable.asInstanceOf[AnyRef] eq evaluations.asInstanceOf[AnyRef]))
+    val copiedTableError = intercept[ParameterizedVerilogException] {
+      ElabInt.fromSingleRootExpression(analyzed.expression, copiedTable, permit)
+    }
+    assert(
+      copiedTableError.code ==
+        "SPINAL-ELAB-INT-ANALYZED-SOURCE-AUTHORIZATION-MISMATCH"
+    )
+
+    val retained =
+      ElabInt.fromSingleRootExpression(analyzed.expression, evaluations, permit)
+    assert(retained.minimum == 1)
+    assert(retained.maximum == 3)
+    val replay = intercept[ParameterizedVerilogException] {
+      ElabInt.fromSingleRootExpression(analyzed.expression, evaluations, permit)
+    }
+    assert(
+      replay.code ==
+        "SPINAL-ELAB-INT-ANALYZED-SOURCE-AUTHORIZATION-MISMATCH"
+    )
+  }
+
+  test("analyzed structural integer publication is kind target and replay bound") {
+    val index = HdlInt.param("INDEX", default = 1, min = 0, max = 3)
+    val target = new Object
+    val foreignTarget = new Object
+    val analyzed = StructuralExpressionBridge.analyzedStructuralInteger(
+      index,
+      "structural publisher lifecycle",
+      Map.empty,
+      AnalyzedStructuralIntegerKind.ProcessSliceOffset,
+      Vector(target)
+    )
+
+    val wrongKind = intercept[FrontendException] {
+      analyzed.claim(
+        AnalyzedStructuralIntegerKind.StructuralSliceOffset,
+        Vector(target)
+      )
+    }
+    assert(
+      wrongKind.code ==
+        "MORPH-FRONTEND-ANALYZED-STRUCTURAL-INTEGER-KIND-MISMATCH"
+    )
+    val wrongTarget = intercept[FrontendException] {
+      analyzed.claim(
+        AnalyzedStructuralIntegerKind.ProcessSliceOffset,
+        Vector(foreignTarget)
+      )
+    }
+    assert(
+      wrongTarget.code ==
+        "MORPH-FRONTEND-ANALYZED-STRUCTURAL-INTEGER-TARGET-MISMATCH"
+    )
+
+    val (sourceIdentity, expression) = analyzed.claim(
+      AnalyzedStructuralIntegerKind.ProcessSliceOffset,
+      Vector(target)
+    )
+    assert(sameIdentity(sourceIdentity, index))
+    assert(expression eq analyzed.expression)
+    val replay = intercept[FrontendException] {
+      analyzed.claim(
+        AnalyzedStructuralIntegerKind.ProcessSliceOffset,
+        Vector(target)
+      )
+    }
+    assert(
+      replay.code ==
+        "MORPH-FRONTEND-ANALYZED-STRUCTURAL-INTEGER-AUTHORIZATION-CONSUMED"
+    )
+  }
+
+  test("analyzed structural Boolean publication consumes its exact target once") {
+    val enabled = HdlBool.param("ENABLED", default = true)
+    val target = new Object
+    val analyzed = StructuralExpressionBridge.analyzedStructuralBoolean(
+      enabled,
+      "structural Boolean publisher lifecycle",
+      AnalyzedStructuralBooleanKind.StructuralIfCondition,
+      Vector(target)
+    )
+
+    val (sourceIdentity, expression, singleRootEvaluations) = analyzed.claim(
+      AnalyzedStructuralBooleanKind.StructuralIfCondition,
+      Vector(target)
+    )
+    assert(sameIdentity(sourceIdentity, enabled))
+    assert(expression eq analyzed.expression)
+    assert(
+      singleRootEvaluations.contains(
+        Vector(BigInt(0) -> false, BigInt(1) -> true)
+      )
+    )
+    val replay = intercept[FrontendException] {
+      analyzed.claim(
+        AnalyzedStructuralBooleanKind.StructuralIfCondition,
+        Vector(target)
+      )
+    }
+    assert(
+      replay.code ==
+        "MORPH-FRONTEND-ANALYZED-STRUCTURAL-BOOLEAN-AUTHORIZATION-CONSUMED"
+    )
+  }
+
+  test("prepared structural Boolean publication binds targets and branch captures once") {
+    import spinal.core.{assert => _, _}
+
+    val directory = Files.createTempDirectory("morphhdl-prepared-bool-predicate-")
+    var foreignTarget: ParameterizedVerilogException = null
+    var trueReplay: ParameterizedVerilogException = null
+    var consumedReplay: ParameterizedVerilogException = null
+    try {
+      SpinalVerilog(
+        SpinalConfig(
+          targetDirectory = directory.toString,
+          headerWithRepoHash = false,
+          withTimescale = false,
+          printFilelist = false
+        ).copy(parameterizedVerilog = true)
+      ) {
+        new Component {
+          setDefinitionName("PreparedBooleanPredicateLifecycle")
+          val origin = SourceOrigin("PreparedBooleanPredicateLifecycle.scala", 1)
+          val builder = NativeStructuralFrontend.startGenerateIf(
+            HdlBool.param("ENABLED", default = true),
+            names = None,
+            whenTrue = {
+              val trueWire = Bool()
+              trueWire := True
+            },
+            origin
+          )
+          val token = builder.nativeToken
+
+          foreignTarget = intercept[ParameterizedVerilogException] {
+            ExternalAnalyzedStructuralPublisher.requirePreparedStructuralIf(
+              token.preparedCondition,
+              this,
+              new Object,
+              token.expression,
+              Some(origin.rendered)
+            )
+          }
+          trueReplay = intercept[ParameterizedVerilogException] {
+            ExternalAnalyzedStructuralPublisher.captureStructuralIfBranch(
+              token.preparedCondition,
+              branch = 0,
+              sourceLocation = Some(origin.rendered)
+            ) { () }
+          }
+
+          token.otherwise(
+            {
+              val falseWire = Bool()
+              falseWire := False
+            },
+            origin
+          )
+          consumedReplay = intercept[ParameterizedVerilogException] {
+            ExternalAnalyzedStructuralPublisher.captureStructuralIfBranch(
+              token.preparedCondition,
+              branch = 1,
+              sourceLocation = Some(origin.rendered)
+            ) { () }
+          }
+        }
+      }
+
+      assert(
+        foreignTarget.code ==
+          "SPINAL-ELAB-BOOL-ANALYZED-PREDICATE-TARGET-MISMATCH"
+      )
+      assert(
+        trueReplay.code ==
+          "SPINAL-ELAB-BOOL-ANALYZED-PREDICATE-BRANCH-REPLAY"
+      )
+      assert(
+        consumedReplay.code ==
+          "SPINAL-ELAB-BOOL-ANALYZED-PREDICATE-AUTHORIZATION-CONSUMED"
+      )
+    } finally {
+      val stream = Files.walk(directory)
+      try {
+        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach { path =>
+          Files.deleteIfExists(path)
+        }
+      } finally stream.close()
+    }
+  }
+
+  test("analyzed structural case retains its active generate-index context") {
+    val count = HdlInt.param("CASE_COUNT", default = 3, min = 1, max = 3)
+    val target = new Object
+    var analyzed: AnalyzedStructuralInteger = null
+    captureItems {
+      for (index <- (0 until count).named("g_case", "case_index")) {
+        analyzed = StructuralExpressionBridge.analyzedStructuralInteger(
+          index.asHdlInt("nested structural case selector"),
+          "nested structural case selector",
+          Map(
+            "case_index" -> StructuralExpressionBridge.GenerateIndexFacts(
+              default = BigInt(0),
+              minimum = BigInt(0),
+              maximum = BigInt(2)
+            )
+          ),
+          AnalyzedStructuralIntegerKind.StructuralCaseSelector,
+          Vector(target)
+        )
+      }
+    }
+
+    assert(analyzed.expression.generateIndex.contains("case_index"))
+    assert(analyzed.expression.minimum == 0)
+    assert(analyzed.expression.maximum == 2)
+  }
+
+  test("forged structural metadata cannot enter analyzed publication APIs") {
+    assertTypeError("""
+      import spinal.core._
+      val forged = ElaborationIntegerExpression(
+        verilog = "DEPTH + 1000",
+        default = BigInt(2),
+        minimum = BigInt(1),
+        maximum = BigInt(3),
+        parameters = Vector.empty
+      )
+      ExternalAnalyzedStructuralPublisher.captureProcessRange(
+        forged,
+        null,
+        new Object,
+        "g_forged",
+        "forged_index",
+        None
+      ) { () }
+    """)
+    assertTypeError("""
+      import spinal.core._
+      val forged = ElaborationIntegerExpression(
+        verilog = "DEPTH + 1000",
+        default = BigInt(2),
+        minimum = BigInt(1),
+        maximum = BigInt(3),
+        parameters = Vector.empty
+      )
+      ParameterizedProcess.captureAnalyzedFrontendRange(
+        null,
+        "g_forged",
+        "forged_index",
+        forged,
+        None
+      ) { () }
+    """)
+    assertTypeError("""
+      import spinal.core._
+      val forged = ElaborationIntegerExpression(
+        verilog = "DEPTH + 1000",
+        default = BigInt(2),
+        minimum = BigInt(1),
+        maximum = BigInt(3),
+        parameters = Vector.empty
+      )
+      ParameterizedStructure.registerFor(
+        null,
+        "g_forged",
+        "forged_index",
+        forged,
+        null,
+        None
+      )
+    """)
+    assertTypeError("""
+      import spinal.core._
+      ParameterizedStructure.registerIf(
+        null,
+        null,
+        "g_forged_true",
+        "g_forged_false",
+        null,
+        null,
+        None
+      )
+    """)
+    assertTypeError("""
+      import spinal.core._
+      ExternalStructuralPredicatePermit.analyzed(
+        new Object,
+        null,
+        Vector(BigInt(0) -> false),
+        null,
+        new Object
+      )
+    """)
+    assertTypeError("""
+      import spinal.core._
+      ParameterizedStructure.analyzedPredicateDomainOf(
+        null,
+        new Object,
+        new Object,
+        null,
+        Vector(BigInt(0) -> false),
+        null
+      )
+    """)
+  }
+
   test("converts Int to HdlInt without changing ordinary Int ranges") {
     final case class Config(lanes: HdlInt)
 
@@ -83,20 +433,22 @@ class HdlIntTests extends AnyFunSuite {
       expressions.map(_.witness) ==
         Vector[BigInt](11, 11, 5, 12, 24, 24, 4, 4, 2, 3, 3, 12)
     )
-    assert(expressions.map(_.expression) == Vector(
-      Add(ParameterRef("WIDTH"), Literal(3)),
-      Add(Literal(3), ParameterRef("WIDTH")),
-      Subtract(ParameterRef("WIDTH"), Literal(3)),
-      Subtract(Literal(20), ParameterRef("WIDTH")),
-      Multiply(ParameterRef("WIDTH"), Literal(3)),
-      Multiply(Literal(3), ParameterRef("WIDTH")),
-      Divide(ParameterRef("WIDTH"), Literal(2)),
-      Divide(Literal(32), ParameterRef("WIDTH")),
-      Modulo(ParameterRef("WIDTH"), Literal(3)),
-      Modulo(Literal(19), ParameterRef("WIDTH")),
-      Min(ParameterRef("WIDTH"), Literal(3)),
-      Max(ParameterRef("WIDTH"), Literal(12))
-    ))
+    assert(
+      expressions.map(_.expression) == Vector(
+        Add(ParameterRef("WIDTH"), Literal(3)),
+        Add(Literal(3), ParameterRef("WIDTH")),
+        Subtract(ParameterRef("WIDTH"), Literal(3)),
+        Subtract(Literal(20), ParameterRef("WIDTH")),
+        Multiply(ParameterRef("WIDTH"), Literal(3)),
+        Multiply(Literal(3), ParameterRef("WIDTH")),
+        Divide(ParameterRef("WIDTH"), Literal(2)),
+        Divide(Literal(32), ParameterRef("WIDTH")),
+        Modulo(ParameterRef("WIDTH"), Literal(3)),
+        Modulo(Literal(19), ParameterRef("WIDTH")),
+        Min(ParameterRef("WIDTH"), Literal(3)),
+        Max(ParameterRef("WIDTH"), Literal(12))
+      )
+    )
   }
 
   test("retains exact witnesses and expression trees for every integer comparison direction") {
@@ -443,12 +795,14 @@ class HdlIntTests extends AnyFunSuite {
       HdlInt.param("WIDTH", default = 8, min = 9, max = 64).bits
     }
     val tooLarge = intercept[FrontendException] {
-      HdlInt.param(
-        "WIDTH",
-        default = 8,
-        min = 1,
-        max = BigInt(Int.MaxValue) + 1
-      ).bits
+      HdlInt
+        .param(
+          "WIDTH",
+          default = 8,
+          min = 1,
+          max = BigInt(Int.MaxValue) + 1
+        )
+        .bits
     }
 
     assert(nonpositive.code == "MORPH-FRONTEND-SPINAL-WIDTH-DOMAIN-NONPOSITIVE")

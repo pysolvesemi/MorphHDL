@@ -2,8 +2,7 @@ package spinal.core
 
 import java.util.{Collections, IdentityHashMap, Set => JavaSet}
 
-/**
-  * Synthetic structural blocks used by MorphHDL-owned frontend transforms.
+/** Synthetic structural blocks used by MorphHDL-owned frontend transforms.
   *
   * User-authored structural bodies must continue to pass through
   * [[ParameterizedStructure.captureBlock]], which rejects bodies that produce
@@ -30,6 +29,8 @@ object ParameterizedStructuralSynthetic {
       children = Vector.empty,
       slices = Vector.empty,
       vecIndices = Vector.empty,
+      memoryIndices = Vector.empty,
+      scalarOperators = Vector.empty,
       regions = Vector.empty,
       sourceLocation = sourceLocation
     )

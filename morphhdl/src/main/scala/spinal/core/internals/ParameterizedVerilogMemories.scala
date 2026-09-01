@@ -40,6 +40,15 @@ private[internals] object ParameterizedVerilogMemories {
       sourceLocation: Option[String]
   )
 
+  private final case class StructuralAsyncPlan(
+      memory: Mem[_],
+      metadata: ParameterizedMemoryMetadata,
+      memoryName: String,
+      sourceLocation: Option[String],
+      capturedReads: Vector[MemReadAsync],
+      hasUncapturedPorts: Boolean
+  )
+
   private final case class LineRange(start: Int, endInclusive: Int)
 
   def rewrite(component: Component, verilog: String, pc: PhaseContext): String = {
@@ -60,7 +69,19 @@ private[internals] object ParameterizedVerilogMemories {
     }
 
     val normalized = verilog.replace("\r\n", "\n").replace('\r', '\n')
-    val plan = analyze(memories.head, component, pc)
+    val structuralAsync = analyzeStructuralAsync(memories.head, component, pc)
+    structuralAsync match {
+      case Some(plan) if !plan.hasUncapturedPorts =>
+        return rewriteStructuralAsync(component, normalized, plan)
+      case _ =>
+    }
+
+    val plan = analyze(
+      memories.head,
+      component,
+      pc,
+      structuralAsync.toVector.flatMap(_.capturedReads)
+    )
     val used = identifiers(normalized)
     val helperNeeded =
       Vector(
@@ -114,41 +135,210 @@ private[internals] object ParameterizedVerilogMemories {
     val process = renderProcess(plan, processLabel, helperName)
     lines = lines.patch(endmodule, Vector("") ++ process ++ Vector(""), 0)
 
-    if (helperNeeded) {
-      val moduleLine = lines.indexWhere(_.trim.startsWith(s"module ${component.definitionName}"))
-      val portEnd =
-        if (moduleLine < 0) -1
-        else (moduleLine + 1 until lines.size).find(index => lines(index).trim == ");").getOrElse(-1)
-      if (portEnd < 0) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-NOT-FOUND",
-          s"normal Verilog emission did not contain a complete module header for '${component.definitionName}'"
-        )
-      }
-      lines = lines.patch(
-        portEnd + 1,
-        Vector("") ++ renderPortableLogFunction(helperName) ++ Vector(""),
-        0
+    if (helperNeeded)
+      lines = insertPortableLogFunction(component, lines, helperName)
+
+    lines.mkString("\n")
+  }
+
+  /** A finite structural Mem read owns only the exact async ports captured in
+    * its generate body.  It needs symbolic array geometry, not the generic
+    * 1R1W process policy.  Recognizing that path by retained statement identity
+    * keeps ordinary async symbolic memories outside the reviewed surface.
+    */
+  private def analyzeStructuralAsync(
+      memory: Mem[_],
+      component: Component,
+      pc: PhaseContext
+  ): Option[StructuralAsyncPlan] = {
+    val blocks = ParameterizedStructure
+      .regionsOf(component)
+      .flatMap(ParameterizedStructure.allBlocks)
+    val matchingBlocks = blocks.filter(_.memoryIndices.exists(value => value.memory eq memory))
+    if (matchingBlocks.isEmpty) return None
+
+    val metadata = ExternalParameterizedMemoryRegistry.metadataOf(memory).get
+    val source = metadata.sourceLocation
+    if (metadata.elementWidth.parameters.nonEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-ASYNC-MEM-ELEMENT-WIDTH-UNSUPPORTED",
+        s"finite structural memory '${memory.getName()}' requires one concrete native element width; symbolic packed element geometry remains owned by the reviewed 1R1W contract",
+        source
+      )
+    }
+    if (memory.initialContent != null) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-INITIALIZATION-UNSUPPORTED",
+        s"finite structural memory '${memory.getName()}' has initialization",
+        source
+      )
+    }
+    if (memory.forceMemToBlackboxTranslation) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-BLACKBOX-UNSUPPORTED",
+        s"finite structural memory '${memory.getName()}' requests black-box translation",
+        source
       )
     }
 
+    val ports = ArrayBuffer.empty[MemPortStatement]
+    memory.foreachStatements {
+      case value: MemPortStatement => ports += value
+      case _                       =>
+    }
+    val captured = new IdentityHashMap[Statement, java.lang.Boolean]()
+    def retain(value: Statement): Unit = {
+      if (captured.put(value, java.lang.Boolean.TRUE) == null) {
+        value match {
+          case tree: TreeStatement => tree.foreachStatements(retain)
+          case _                   =>
+        }
+      }
+    }
+    matchingBlocks.flatMap(_.statements).foreach(retain)
+    val capturedPorts = ports.filter(captured.containsKey).toVector
+    val reads = capturedPorts.collect { case value: MemReadAsync => value }
+    if (ports.isEmpty || capturedPorts.isEmpty || reads.size != capturedPorts.size) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-PORT-SHAPE-UNSUPPORTED",
+        s"finite structural memory '${memory.getName()}' requires every port retained by its exact structural owner to be asynchronous; found ${reads.size} async ports among ${capturedPorts.size} retained ports and ${ports.size} total ports",
+        source
+      )
+    }
+    val selections = matchingBlocks.flatMap(_.memoryIndices).filter(value => value.memory eq memory)
+    if (
+      selections.isEmpty ||
+      selections.exists(value =>
+        (value.port.mem ne memory) ||
+          !reads.exists(_ eq value.port) ||
+          !captured.containsKey(value.port)
+      ) ||
+      selections.indices.exists { left =>
+        selections.indices.exists(right => left < right && (selections(left).port eq selections(right).port))
+      }
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEM-PORT-IDENTITY-MISMATCH",
+        s"finite structural memory '${memory.getName()}' lost its unique captured async-port identities",
+        source
+      )
+    }
+    reads.foreach { read =>
+      if (read.hasTag(AllowMixedWidth) || read.getWidth != memory.getWidth) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-MEMORY-MIXED-WIDTH-UNSUPPORTED",
+          s"finite structural memory '${memory.getName()}' uses a mixed-width asynchronous port",
+          source
+        )
+      }
+      requireType(read.address, TypeUInt, "finite structural read address", memory, source)
+      if (read.address.getWidth < 1 || read.address.getWidth > pc.config.bitVectorWidthMax) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ADDRESS-WIDTH-INVALID",
+          s"finite structural memory '${memory.getName()}' has an invalid ${read.address.getWidth}-bit native address witness",
+          source
+        )
+      }
+    }
+
+    val projectedDepth =
+      if (metadata.depth.exactDomain.nonEmpty)
+        ParameterizedStructure.projectedMemoryEvaluationOf(
+          component,
+          memory,
+          metadata.depth,
+          s"finite structural memory '${memory.getName()}' depth",
+          source.orElse(metadata.depth.sourceLocation)
+        )
+      else None
+    val depthMinimum =
+      projectedDepth.map(_.results.map(_._2).min).getOrElse(metadata.depth.minimum)
+    val depthMaximum =
+      projectedDepth.map(_.results.map(_._2).max).getOrElse(metadata.depth.maximum)
+    if (
+      metadata.depth.default != BigInt(memory.wordCount) ||
+      depthMinimum < 1 || depthMaximum > BigInt(Int.MaxValue)
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-DOMAIN-INVALID",
+        s"finite structural memory '${memory.getName()}' depth '${metadata.depth.verilog}' does not match concrete witness ${memory.wordCount} or leaves the positive Int domain",
+        source
+      )
+    }
+    if (
+      metadata.elementWidth.default != BigInt(memory.getWidth) ||
+      metadata.elementWidth.minimum < 1 ||
+      metadata.elementWidth.maximum > BigInt(pc.config.bitVectorWidthMax)
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID",
+        s"finite structural memory '${memory.getName()}' element width '${metadata.elementWidth.verilog}' is outside the complete supported width domain",
+        source
+      )
+    }
+    ElabInt.validateParameterRootInventory(
+      s"finite structural memory '${memory.getName()}' geometry",
+      Vector(metadata.depth, metadata.elementWidth)
+    )
+    Some(
+      StructuralAsyncPlan(
+        memory,
+        metadata,
+        stableName(memory, "finite structural memory", source),
+        source,
+        reads,
+        ports.exists(value => !captured.containsKey(value))
+      )
+    )
+  }
+
+  private def rewriteStructuralAsync(
+      component: Component,
+      normalized: String,
+      plan: StructuralAsyncPlan
+  ): String = {
+    val helperNeeded =
+      Vector(plan.metadata.depth, plan.metadata.elementWidth).exists(expression =>
+        PortableLogCall.findFirstIn(expression.verilog).nonEmpty
+      ) || PortableLogCall.findFirstIn(normalized).nonEmpty
+    val used = identifiers(normalized)
+    val helperName =
+      if (!helperNeeded || !declaresIdentifier(normalized, "clog2")) "clog2"
+      else firstAvailable("clog2", used)
+    var lines = normalized.split("\\n", -1).toVector
+    if (helperNeeded)
+      lines = lines.map(line => replacePortableLogName(line, helperName))
+    lines = rewriteMemoryDeclaration(
+      lines,
+      plan.memory,
+      plan.memoryName,
+      plan.metadata,
+      helperName,
+      plan.sourceLocation
+    )
+    if (helperNeeded)
+      lines = insertPortableLogFunction(component, lines, helperName)
     lines.mkString("\n")
   }
 
   private def analyze(
       memory: Mem[_],
       component: Component,
-      pc: PhaseContext
+      pc: PhaseContext,
+      ignoredStructuralReads: Vector[MemReadAsync] = Vector.empty
   ): MemoryPlan = {
     val metadata = ExternalParameterizedMemoryRegistry.metadataOf(memory).get
     val source = metadata.sourceLocation
     val reads = ArrayBuffer.empty[MemReadSync]
     val writes = ArrayBuffer.empty[MemWrite]
     val unsupported = ArrayBuffer.empty[MemPortStatement]
+    val ignored = new IdentityHashMap[MemPortStatement, java.lang.Boolean]()
+    ignoredStructuralReads.foreach(value => ignored.put(value, java.lang.Boolean.TRUE))
     memory.foreachStatements {
-      case value: MemReadSync      => reads += value
-      case value: MemWrite         => writes += value
-      case value: MemPortStatement => unsupported += value
+      case value: MemPortStatement if ignored.containsKey(value) =>
+      case value: MemReadSync                                    => reads += value
+      case value: MemWrite                                       => writes += value
+      case value: MemPortStatement                               => unsupported += value
     }
     if (reads.size != 1 || writes.size != 1 || unsupported.nonEmpty) {
       fail(
@@ -343,7 +533,7 @@ private[internals] object ParameterizedVerilogMemories {
     }
     val readEnable = stableName(read.readEnable, "read enable", source)
     val writeEnable = stableName(write.writeEnable, "write enable", source)
-    val writeData = stableName(write.data, "write data", source)
+    val writeData = stablePackedName(write.data, "write data", source)
     val clock = stableName(read.clockDomain.clock, "memory clock", source)
 
     val nonAddressRoles = Vector(
@@ -460,13 +650,14 @@ private[internals] object ParameterizedVerilogMemories {
     }
     val addressAssignments = address match {
       case target: BaseType => assignmentsOf(target)
-      case _ => Vector.empty
+      case _                => Vector.empty
     }
     // A native Mem has one address type across its reviewed read/write ports.
-    // One exactly reconstructible typed boundary may retain that shared fixed
-    // ABI only when the current concrete port still covers the complete native
-    // address domain. A smaller branch representative must be promoted.
-    val memoryHasFixedTypedResizeConsumer = {
+    // One exact retained native resize edge or reconstructible typed boundary
+    // may retain that shared fixed ABI only when the current concrete port
+    // still covers the complete native address domain. A smaller branch
+    // representative must be promoted.
+    val memoryHasFixedResizeConsumer = {
       val portAddresses = ArrayBuffer.empty[UInt]
       memory.foreachStatements {
         case port: MemReadSync =>
@@ -483,16 +674,22 @@ private[internals] object ParameterizedVerilogMemories {
       }
       portAddresses.exists { target =>
         val assignments = assignmentsOf(target)
-        assignments.size == 1 &&
+        assignments.size == 1 && {
+          val assignment = assignments.head
           ExternalParameterizedAutoResize.preservesFixedTypedResizeConsumer(
             memory.component,
-            assignments.head,
+            assignment,
+            target
+          ) || ExternalParameterizedAutoResize.proves(
+            memory.component,
+            assignment,
             target
           )
+        }
       }
     }
-    val fixedTypedResizeConsumerCoversAddressDomain =
-      memoryHasFixedTypedResizeConsumer &&
+    val fixedResizeConsumerCoversAddressDomain =
+      memoryHasFixedResizeConsumer &&
         retainedIsConcreteWitness &&
         retained.minimum >= native.maximum
     val driverProvesNativeWidth = address match {
@@ -520,7 +717,7 @@ private[internals] object ParameterizedVerilogMemories {
       retainedIsConcreteWitness &&
       native.default == retained.default &&
       driverProvesNativeWidth &&
-      !fixedTypedResizeConsumerCoversAddressDomain
+      !fixedResizeConsumerCoversAddressDomain
     ) native
     else retained
   }
@@ -581,8 +778,12 @@ private[internals] object ParameterizedVerilogMemories {
       )
     }
     val exact =
-      compact(width.verilog) == compact(s"clog2(${depth.verilog}, 1)") &&
-        sameParameterRoots(width, depth)
+      provesAddressCapacityOnMemoryOwner(
+        width,
+        nativeMemoryAddressWidth(depth, source),
+        memory,
+        source
+      )
     val conservative =
       width.minimum.isValidInt && width.minimum <= 65536 &&
         (BigInt(1) << width.minimum.toInt) >= depth.maximum
@@ -845,31 +1046,48 @@ private[internals] object ParameterizedVerilogMemories {
       lines: Vector[String],
       plan: MemoryPlan,
       helperName: String
+  ): Vector[String] =
+    rewriteMemoryDeclaration(
+      lines,
+      plan.memory,
+      plan.memoryName,
+      plan.metadata,
+      helperName,
+      plan.sourceLocation
+    )
+
+  private def rewriteMemoryDeclaration(
+      lines: Vector[String],
+      memory: Mem[_],
+      memoryName: String,
+      metadata: ParameterizedMemoryMetadata,
+      helperName: String,
+      sourceLocation: Option[String]
   ): Vector[String] = {
-    val concreteRange = ("\\[0\\s*:\\s*" + (plan.memory.wordCount - 1) + "\\]").r
+    val concreteRange = ("\\[0\\s*:\\s*" + (memory.wordCount - 1) + "\\]").r
     val candidates = lines.zipWithIndex.collect {
       case (line, index)
-          if containsIdentifier(line, plan.memoryName) &&
+          if containsIdentifier(line, memoryName) &&
             concreteRange.findFirstIn(line).nonEmpty && line.contains("reg") =>
         index
     }
     if (candidates.size != 1) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DECLARATION-NOT-FOUND",
-        s"normal Verilog emission contains ${candidates.size} declarations matching memory '${plan.memoryName}'",
-        plan.sourceLocation
+        s"normal Verilog emission contains ${candidates.size} declarations matching memory '$memoryName'",
+        sourceLocation
       )
     }
     val index = candidates.head
     val line = lines(index)
-    val namePattern = identifierPattern(plan.memoryName)
+    val namePattern = identifierPattern(memoryName)
     val nameMatch = namePattern.findFirstMatchIn(line).get
     var prefix = line.substring(0, nameMatch.start)
     var suffix = line.substring(nameMatch.end)
 
-    if (plan.metadata.elementWidth.parameters.nonEmpty) {
+    if (metadata.elementWidth.parameters.nonEmpty) {
       val packed = "\\[[^\\]]+\\]\\s*$".r
-      val range = s"[${render(plan.metadata.elementWidth, helperName)}-1:0]"
+      val range = s"[${render(metadata.elementWidth, helperName)}-1:0]"
       packed.findFirstMatchIn(prefix) match {
         case Some(value) =>
           prefix = prefix.substring(0, value.start) + range + " "
@@ -877,14 +1095,14 @@ private[internals] object ParameterizedVerilogMemories {
           prefix = prefix + range + " "
       }
     }
-    if (plan.metadata.depth.parameters.nonEmpty) {
-      val depthRange = s"[0:${render(plan.metadata.depth, helperName)}-1]"
+    if (metadata.depth.parameters.nonEmpty) {
+      val depthRange = s"[0:${render(metadata.depth, helperName)}-1]"
       suffix = concreteRange.replaceFirstIn(
         suffix,
         Matcher.quoteReplacement(depthRange)
       )
     }
-    lines.updated(index, prefix + plan.memoryName + suffix)
+    lines.updated(index, prefix + memoryName + suffix)
   }
 
   private def renderProcess(
@@ -1002,6 +1220,33 @@ private[internals] object ParameterizedVerilogMemories {
       "  endfunction"
     )
 
+  private def insertPortableLogFunction(
+      component: Component,
+      lines: Vector[String],
+      helperName: String
+  ): Vector[String] = {
+    val moduleLine = lines.indexWhere(
+      _.trim.startsWith(s"module ${component.definitionName}")
+    )
+    val portEnd =
+      if (moduleLine < 0) -1
+      else
+        (moduleLine + 1 until lines.size)
+          .find(index => lines(index).trim == ");")
+          .getOrElse(-1)
+    if (portEnd < 0) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MODULE-HEADER-NOT-FOUND",
+        s"normal Verilog emission did not contain a complete module header for '${component.definitionName}'"
+      )
+    }
+    lines.patch(
+      portEnd + 1,
+      Vector("") ++ renderPortableLogFunction(helperName) ++ Vector(""),
+      0
+    )
+  }
+
   private def render(
       expression: ElaborationIntegerExpression,
       helperName: String
@@ -1057,6 +1302,21 @@ private[internals] object ParameterizedVerilogMemories {
         s"$role is not a named native AST value",
         source
       )
+  }
+
+  /** Native Mem writes normalize UInt/SInt payloads through a transparent
+    * same-width `.asBits` cast. Verilog needs only the named packed source, so
+    * peel that ordinary native cast without inventing a separate memory data
+    * path.
+    */
+  private def stablePackedName(
+      value: AnyRef,
+      role: String,
+      source: Option[String]
+  ): String = value match {
+    case cast: CastBitVectorToBitVector if cast.input != null && cast.getWidth == cast.input.getWidth =>
+      stableName(cast.input, role, source)
+    case _ => stableName(value, role, source)
   }
 
   private def compact(value: String): String = value.replaceAll("\\s+", "")

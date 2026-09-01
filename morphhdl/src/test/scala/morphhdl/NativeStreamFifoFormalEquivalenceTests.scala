@@ -47,6 +47,107 @@ final class NativeConcreteStreamFifoFormalHarness(depth: Int) extends Component 
   io.availability := fifo.io.availability.resized
 }
 
+/** Independent native-Int reference for every public StreamFifo formal helper.
+  * The storage choice is a Scala literal on both proof legs; only the typed leg
+  * below retains DEPTH as an elaboration parameter.
+  */
+final class NativeConcreteStreamFifoFormalHelperHarness(
+    depth: Int,
+    useVecStorage: Boolean
+) extends Component {
+  require(Vector(1, 3, 5, 8).contains(depth))
+  private val storage = if (useVecStorage) "Vec" else "Mem"
+  setDefinitionName(
+    s"NativeConcreteStreamFifoFormalHelperHarness${storage}Depth$depth"
+  )
+
+  val io = new Bundle {
+    val push = slave Stream (Bits(8 bits))
+    val pop = master Stream (Bits(8 bits))
+    val flush = in Bool ()
+    val needle = in Bits (8 bits)
+    val occupancy = out UInt (4 bits)
+    val lastPush = out Bool ()
+    val ramChecks = out Bits (depth bits)
+    val contains = out Bool ()
+    val count = out UInt ((log2Up(depth + 1) + 1) bits)
+    val wordContains = out Bool ()
+    val wordCount = out UInt ((log2Up(depth + 1) + 1) bits)
+  }
+
+  val fifo = spinal.core.formal.FormalDut {
+    new StreamFifo(
+      HardType(Bits(8 bits)),
+      depth,
+      withAsyncRead = useVecStorage,
+      withBypass = false,
+      allowExtraMsb = true,
+      forFMax = false,
+      useVec = useVecStorage,
+      initPayload = None
+    )
+  }
+  fifo.setDefinitionName(s"ConcreteFormalHelperFifo${storage}Depth$depth")
+  fifo.io.push << io.push
+  io.pop << fifo.io.pop
+  fifo.io.flush := io.flush
+  io.occupancy := fifo.io.occupancy.resized
+  io.lastPush := fifo.formalCheckLastPush(_.orR)
+  io.ramChecks := fifo.formalCheckRam(_.orR).asBits
+  io.contains := fifo.formalContains(_.orR)
+  io.count := fifo.formalCount(_.orR).resized
+  io.wordContains := fifo.formalContains(io.needle)
+  io.wordCount := fifo.formalCount(io.needle).resized
+}
+
+/** One typed formal-helper definition specialized independently by the formal
+  * tool at each admitted DEPTH. This is deliberately not an ElabInt literal
+  * wrapper around the native reference above.
+  */
+final class TypedStreamFifoFormalHelperHarness(
+    depth: HdlInt,
+    useVecStorage: Boolean
+) extends Component {
+  private val typedDepth = depth.asElabInt
+  private val storage = if (useVecStorage) "Vec" else "Mem"
+  setDefinitionName(s"TypedStreamFifoFormalHelperHarness$storage")
+
+  val io = new Bundle {
+    val push = slave Stream (Bits(8 bits))
+    val pop = master Stream (Bits(8 bits))
+    val flush = in Bool ()
+    val needle = in Bits (8 bits)
+    val occupancy = out UInt (4 bits)
+    val lastPush = out Bool ()
+    val ramChecks = out Bits (typedDepth bits)
+    val contains = out Bool ()
+    val count = out UInt (((typedDepth + 1).addressWidth + 1) bits)
+    val wordContains = out Bool ()
+    val wordCount = out UInt (((typedDepth + 1).addressWidth + 1) bits)
+  }
+
+  val fifo = StreamFifo(
+    HardType(Bits(8 bits)),
+    typedDepth,
+    withAsyncRead = useVecStorage,
+    withBypass = false,
+    allowExtraMsb = true,
+    forFMax = false,
+    useVec = useVecStorage,
+    initPayload = None
+  )
+  fifo.io.push << io.push
+  io.pop << fifo.io.pop
+  fifo.io.flush := io.flush
+  io.occupancy := fifo.io.occupancy.resized
+  io.lastPush := fifo.formalCheckLastPush(_.orR)
+  io.ramChecks := fifo.formalCheckRam(_.orR).asBits
+  io.contains := fifo.formalContains(_.orR)
+  io.count := fifo.formalCount(_.orR).resized
+  io.wordContains := fifo.formalContains(io.needle)
+  io.wordCount := fifo.formalCount(io.needle).resized
+}
+
 class NativeStreamFifoFormalEquivalenceTests extends AnyFunSuite {
   private val Depths = Vector(1, 3, 5, 8)
   private val FormalGateEnvironment =
@@ -68,9 +169,25 @@ class NativeStreamFifoFormalEquivalenceTests extends AnyFunSuite {
       concrete: Path
   )
 
+  private final case class GeneratedFormalHelperDuts(
+      candidateByStorage: Map[Boolean, Path],
+      concreteByStorageAndDepth: Map[(Boolean, Int), Path]
+  )
+
+  private final case class PreparedFormalHelperDuts(
+      mem: PreparedDuts,
+      vec: PreparedDuts
+  )
+
   test("formal witnesses are independent native-Int elaborations sharing one Morph definition") {
     withTemporaryDirectory { directory =>
       validateGeneratedDuts(generateDuts(directory))
+    }
+  }
+
+  test("formal-helper witnesses are independent native-Int and typed Mem Vec elaborations") {
+    withTemporaryDirectory { directory =>
+      validateGeneratedFormalHelperDuts(generateFormalHelperDuts(directory))
     }
   }
 
@@ -147,6 +264,107 @@ class NativeStreamFifoFormalEquivalenceTests extends AnyFunSuite {
     }
   }
 
+  test("typed-specialized formal helpers match native-Int Mem and Vec witnesses at depths 1 3 5 and 8") {
+    if (!sys.env.get(FormalGateEnvironment).contains("1")) {
+      cancel(
+        s"Set $FormalGateEnvironment=1 only in the pinned formal container"
+      )
+    }
+
+    withFormalWorkspace { directory =>
+      requireFormalTool(directory, Seq("yosys", "-V"), "Yosys")
+      requireFormalTool(directory, Seq("sby", "-h"), "SymbiYosys")
+      requireFormalTool(
+        directory,
+        Seq("yices-smt2", "--version"),
+        "Yices SMT2"
+      )
+      requireFormalTool(
+        directory,
+        Seq("yosys", "-Q", "-p", "help abc"),
+        "Yosys ABC integration"
+      )
+
+      val generated = generateFormalHelperDuts(directory)
+      validateGeneratedFormalHelperDuts(generated)
+      val preparedByDepth = Depths.map { depth =>
+        depth -> PreparedFormalHelperDuts(
+          mem = prepareFormalHelperDuts(
+            directory,
+            generated,
+            depth,
+            useVecStorage = false
+          ),
+          vec = prepareFormalHelperDuts(
+            directory,
+            generated,
+            depth,
+            useVecStorage = true
+          )
+        )
+      }.toMap
+
+      Depths.foreach { depth =>
+        val miter = directory.resolve(
+          s"stream_fifo_formal_helper_equivalence_depth_$depth.v"
+        )
+        write(
+          miter,
+          formalHelperEquivalenceMiter(
+            depth,
+            mutateMemCandidateWordContains = false
+          )
+        )
+        val config = directory.resolve(
+          s"stream_fifo_formal_helper_equivalence_depth_$depth.sby"
+        )
+        write(
+          config,
+          formalHelperPositiveSby(
+            preparedByDepth(depth),
+            miter,
+            formalHelperMiterModule(depth)
+          )
+        )
+        runSby(
+          directory,
+          config,
+          expectedStatus = "PASS",
+          requireCounterexample = false
+        )
+      }
+
+      val mutationDepth = 3
+      val mutationMiter = directory.resolve(
+        "stream_fifo_formal_helper_equivalence_depth_3_mutation.v"
+      )
+      write(
+        mutationMiter,
+        formalHelperEquivalenceMiter(
+          mutationDepth,
+          mutateMemCandidateWordContains = true
+        )
+      )
+      val mutationConfig = directory.resolve(
+        "stream_fifo_formal_helper_equivalence_depth_3_mutation.sby"
+      )
+      write(
+        mutationConfig,
+        formalHelperMutationSby(
+          preparedByDepth(mutationDepth),
+          mutationMiter,
+          formalHelperMiterModule(mutationDepth)
+        )
+      )
+      runSby(
+        directory,
+        mutationConfig,
+        expectedStatus = "FAIL",
+        requireCounterexample = true
+      )
+    }
+  }
+
   private def generateDuts(directory: Path): GeneratedDuts = {
     val parameterizedDirectory = directory.resolve("parameterized")
     Files.createDirectories(parameterizedDirectory)
@@ -179,6 +397,129 @@ class NativeStreamFifoFormalEquivalenceTests extends AnyFunSuite {
     }.toMap
 
     GeneratedDuts(parameterized, concreteByDepth)
+  }
+
+  private def generateFormalHelperDuts(
+      directory: Path
+  ): GeneratedFormalHelperDuts = {
+    val candidateByStorage = Vector(false, true).map { useVecStorage =>
+      val storage = storageStem(useVecStorage)
+      val candidateDirectory =
+        directory.resolve(s"formal-helper-typed-$storage")
+      Files.createDirectories(candidateDirectory)
+      val config = synchronousResetConfig(candidateDirectory)
+      config.netlistFileName = s"stream_fifo_formal_helper_typed_$storage.v"
+      val depth = HdlInt.param(
+        "DEPTH",
+        default = BigInt(5),
+        min = BigInt(1),
+        max = BigInt(8)
+      )
+      MorphVerilog(config) {
+        new TypedStreamFifoFormalHelperHarness(depth, useVecStorage)
+      }
+      useVecStorage -> candidateDirectory.resolve(config.netlistFileName)
+    }.toMap
+
+    val concreteByStorageAndDepth = (for {
+      useVecStorage <- Vector(false, true)
+      depth <- Depths
+    } yield {
+      val storage = storageStem(useVecStorage)
+      val concreteDirectory =
+        directory.resolve(s"formal-helper-native-$storage-depth-$depth")
+      Files.createDirectories(concreteDirectory)
+      val config = synchronousResetConfig(concreteDirectory)
+      config.netlistFileName = s"stream_fifo_formal_helper_native_${storage}_depth_$depth.v"
+      SpinalVerilog(config) {
+        new NativeConcreteStreamFifoFormalHelperHarness(
+          depth,
+          useVecStorage
+        )
+      }
+      (useVecStorage -> depth) -> concreteDirectory.resolve(config.netlistFileName)
+    }).toMap
+
+    GeneratedFormalHelperDuts(
+      candidateByStorage,
+      concreteByStorageAndDepth
+    )
+  }
+
+  private def validateGeneratedFormalHelperDuts(
+      generated: GeneratedFormalHelperDuts
+  ): Unit = {
+    assert(generated.candidateByStorage.keySet == Set(false, true))
+    assert(
+      generated.concreteByStorageAndDepth.keySet ==
+        (for {
+          useVecStorage <- Set(false, true)
+          depth <- Depths
+        } yield useVecStorage -> depth)
+    )
+
+    generated.candidateByStorage.foreach { case (useVecStorage, path) =>
+      val storage = storageClassStem(useVecStorage)
+      val candidate = read(path)
+      assert(candidate.contains("parameter integer DEPTH = 5"), candidate)
+      assert(
+        candidate.contains(s"module TypedStreamFifoFormalHelperHarness$storage #("),
+        candidate
+      )
+      assert(candidate.contains("formal_last_push"), candidate)
+      assert(candidate.contains("formal_ram_check"), candidate)
+      assert(candidate.contains("typed_formal_ram_mask_one"), candidate)
+      assert(candidate.contains("morphhdl_finite_fold_index_"), candidate)
+      assert(!candidate.contains("formal_ram_mask_view"), candidate)
+      assert(
+        """formal_ram_mask(?:_[0-9]+)?\s*\[\s*stream_fifo_formal_ram_mask_index_[A-Za-z0-9_$]+\s*\+:\s*1\s*\]""".r
+          .findFirstIn(candidate)
+          .nonEmpty,
+        candidate
+      )
+      assert(
+        """formal_ram_mask(?:_[0-9]+)?\s*\[\s*0\s*\]""".r
+          .findFirstIn(candidate)
+          .isEmpty,
+        candidate
+      )
+      assert(
+        """(?m)^\s*(?:wire|reg)\s+(?:\[[^\]]+\]\s+)?[A-Za-z_][A-Za-z0-9_$]*formal_ram_check[A-Za-z0-9_$]*\s*\[""".r
+          .findFirstIn(candidate)
+          .isEmpty,
+        candidate
+      )
+      assert(
+        candidate.contains("typed_formal_word_count") &&
+          candidate.contains("typed_formal_predicate_count"),
+        candidate
+      )
+    }
+
+    generated.concreteByStorageAndDepth.foreach { case ((useVecStorage, depth), path) =>
+      val storage = storageClassStem(useVecStorage)
+      val concrete = read(path)
+      assert(!concrete.contains("parameter integer DEPTH"), concrete)
+      assert(
+        concrete.contains(
+          s"module NativeConcreteStreamFifoFormalHelperHarness${storage}Depth$depth"
+        ),
+        concrete
+      )
+      assert(
+        depth == 1 ||
+          ("\\[" + (depth - 1) + ":0\\]\\s+io_ramChecks").r
+            .findFirstIn(concrete)
+            .nonEmpty,
+        concrete
+      )
+    }
+
+    assert(
+      generated.concreteByStorageAndDepth.values.map(read).toSet.size ==
+        Depths.size * 2,
+      "formal-helper references were not eight independent native-Int elaborations"
+    )
   }
 
   private def validateGeneratedDuts(generated: GeneratedDuts): Unit = {
@@ -283,6 +624,63 @@ class NativeStreamFifoFormalEquivalenceTests extends AnyFunSuite {
     PreparedDuts(candidate, concrete)
   }
 
+  private def prepareFormalHelperDuts(
+      directory: Path,
+      generated: GeneratedFormalHelperDuts,
+      depth: Int,
+      useVecStorage: Boolean
+  ): PreparedDuts = {
+    val storage = storageStem(useVecStorage)
+    val candidate = directory.resolve(
+      s"formal_helper_${storage}_candidate_depth_$depth.il"
+    )
+    val candidateScript = directory.resolve(
+      s"prepare_formal_helper_${storage}_candidate_depth_$depth.ys"
+    )
+    write(
+      candidateScript,
+      s"""read_verilog -defer ${yosysPath(generated.candidateByStorage(useVecStorage))}
+         |chparam -set DEPTH $depth ${typedFormalHelperTop(useVecStorage)}
+         |hierarchy -check -top ${typedFormalHelperTop(useVecStorage)}
+         |flatten
+         |proc
+         |opt_clean
+         |memory_dff
+         |memory_collect
+         |opt_clean
+         |check -assert
+         |rename -top ${candidateFormalHelperTop(useVecStorage, depth)}
+         |write_rtlil ${yosysPath(candidate)}
+         |""".stripMargin
+    )
+    runYosys(directory, candidateScript, candidate)
+
+    val concrete = directory.resolve(
+      s"formal_helper_${storage}_reference_depth_$depth.il"
+    )
+    val concreteScript = directory.resolve(
+      s"prepare_formal_helper_${storage}_reference_depth_$depth.ys"
+    )
+    write(
+      concreteScript,
+      s"""read_verilog -defer ${yosysPath(generated.concreteByStorageAndDepth(useVecStorage -> depth))}
+         |hierarchy -check -top ${nativeFormalHelperTop(useVecStorage, depth)}
+         |flatten
+         |proc
+         |opt_clean
+         |memory_dff
+         |memory_collect
+         |opt_clean
+         |check -assert
+         |rename -top ${concreteFormalHelperTop(useVecStorage, depth)}
+         |write_rtlil ${yosysPath(concrete)}
+         |""".stripMargin
+    )
+    runYosys(directory, concreteScript, concrete)
+
+    PreparedDuts(candidate, concrete)
+  }
+
   /** An assertion miter for the complete generated top-level harnesses.
     *
     * The initial transition forces the shared synchronous reset and performs
@@ -364,6 +762,104 @@ class NativeStreamFifoFormalEquivalenceTests extends AnyFunSuite {
        |""".stripMargin
   }
 
+  private def formalHelperEquivalenceMiter(
+      depth: Int,
+      mutateMemCandidateWordContains: Boolean
+  ): String = {
+    val countWidth = log2Up(depth + 1) + 1
+    val memCandidateWordContains =
+      if (mutateMemCandidateWordContains)
+        "(mem_candidate_word_contains ^ 1'b1)"
+      else "mem_candidate_word_contains"
+
+    def wires(prefix: String): String =
+      s"""  wire ${prefix}_push_ready;
+         |  wire ${prefix}_pop_valid;
+         |  wire [7:0] ${prefix}_pop_payload;
+         |  wire [3:0] ${prefix}_occupancy;
+         |  wire ${prefix}_last_push;
+         |  wire [${depth - 1}:0] ${prefix}_ram_checks;
+         |  wire ${prefix}_contains;
+         |  wire [${countWidth - 1}:0] ${prefix}_count;
+         |  wire ${prefix}_word_contains;
+         |  wire [${countWidth - 1}:0] ${prefix}_word_count;
+         |""".stripMargin
+
+    def instance(top: String, name: String, prefix: String): String =
+      s"""  $top $name (
+         |    .io_push_valid(push_valid),
+         |    .io_push_ready(${prefix}_push_ready),
+         |    .io_push_payload(push_payload),
+         |    .io_pop_valid(${prefix}_pop_valid),
+         |    .io_pop_ready(pop_ready),
+         |    .io_pop_payload(${prefix}_pop_payload),
+         |    .io_flush(flush),
+         |    .io_needle(needle),
+         |    .io_occupancy(${prefix}_occupancy),
+         |    .io_lastPush(${prefix}_last_push),
+         |    .io_ramChecks(${prefix}_ram_checks),
+         |    .io_contains(${prefix}_contains),
+         |    .io_count(${prefix}_count),
+         |    .io_wordContains(${prefix}_word_contains),
+         |    .io_wordCount(${prefix}_word_count),
+         |    .clk(clk),
+         |    .reset(reset)
+         |  );
+         |""".stripMargin
+
+    s"""module ${formalHelperMiterModule(depth)} (
+       |  input wire clk,
+       |  input wire reset,
+       |  input wire push_valid,
+       |  input wire [7:0] push_payload,
+       |  input wire pop_ready,
+       |  input wire flush,
+       |  input wire [7:0] needle
+       |);
+       |${wires("mem_reference")}${wires("mem_candidate")}${wires("vec_reference")}${wires("vec_candidate")}
+       |${instance(concreteFormalHelperTop(useVecStorage = false, depth = depth), "mem_reference_dut", "mem_reference")}
+       |${instance(
+        candidateFormalHelperTop(useVecStorage = false, depth = depth),
+        "mem_candidate_dut",
+        "mem_candidate"
+      )}
+       |${instance(concreteFormalHelperTop(useVecStorage = true, depth = depth), "vec_reference_dut", "vec_reference")}
+       |${instance(candidateFormalHelperTop(useVecStorage = true, depth = depth), "vec_candidate_dut", "vec_candidate")}
+       |  always @* begin
+       |    if ($$initstate)
+       |      assume(reset);
+       |    if (!$$initstate) begin
+       |      assert(mem_reference_push_ready == mem_candidate_push_ready);
+       |      assert(mem_reference_pop_valid == mem_candidate_pop_valid);
+       |      assert(mem_reference_occupancy == mem_candidate_occupancy);
+       |      if (mem_reference_pop_valid && mem_candidate_pop_valid)
+       |        assert(mem_reference_pop_payload == mem_candidate_pop_payload);
+       |      if ((mem_reference_occupancy != 0) && (mem_candidate_occupancy != 0))
+       |        assert(mem_reference_last_push == mem_candidate_last_push);
+       |      assert(mem_reference_ram_checks == mem_candidate_ram_checks);
+       |      assert(mem_reference_contains == mem_candidate_contains);
+       |      assert(mem_reference_count == mem_candidate_count);
+       |      assert(mem_reference_word_contains == $memCandidateWordContains);
+       |      assert(mem_reference_word_count == mem_candidate_word_count);
+       |
+       |      assert(vec_reference_push_ready == vec_candidate_push_ready);
+       |      assert(vec_reference_pop_valid == vec_candidate_pop_valid);
+       |      assert(vec_reference_occupancy == vec_candidate_occupancy);
+       |      if (vec_reference_pop_valid && vec_candidate_pop_valid)
+       |        assert(vec_reference_pop_payload == vec_candidate_pop_payload);
+       |      if ((vec_reference_occupancy != 0) && (vec_candidate_occupancy != 0))
+       |        assert(vec_reference_last_push == vec_candidate_last_push);
+       |      assert(vec_reference_ram_checks == vec_candidate_ram_checks);
+       |      assert(vec_reference_contains == vec_candidate_contains);
+       |      assert(vec_reference_count == vec_candidate_count);
+       |      assert(vec_reference_word_contains == vec_candidate_word_contains);
+       |      assert(vec_reference_word_count == vec_candidate_word_count);
+       |    end
+       |  end
+       |endmodule
+       |""".stripMargin
+  }
+
   private def positiveSby(
       prepared: PreparedDuts,
       miter: Path,
@@ -426,6 +922,85 @@ class NativeStreamFifoFormalEquivalenceTests extends AnyFunSuite {
        |${prepared.concrete.toAbsolutePath}
        |${miter.toAbsolutePath}
        |""".stripMargin
+
+  private def formalHelperPositiveSby(
+      prepared: PreparedFormalHelperDuts,
+      miter: Path,
+      top: String
+  ): String =
+    formalHelperSby(
+      prepared,
+      miter,
+      top,
+      mode = "prove",
+      depth = None,
+      expected = "pass",
+      engine = "abc pdr",
+      timeout = 600
+    )
+
+  private def formalHelperMutationSby(
+      prepared: PreparedFormalHelperDuts,
+      miter: Path,
+      top: String
+  ): String =
+    formalHelperSby(
+      prepared,
+      miter,
+      top,
+      mode = "bmc",
+      depth = Some(6),
+      expected = "fail",
+      engine = "smtbmc yices",
+      timeout = 120
+    )
+
+  private def formalHelperSby(
+      prepared: PreparedFormalHelperDuts,
+      miter: Path,
+      top: String,
+      mode: String,
+      depth: Option[Int],
+      expected: String,
+      engine: String,
+      timeout: Int
+  ): String = {
+    val depthOption = depth.map(value => s"depth $value\n").getOrElse("")
+    val inputs = Vector(
+      prepared.mem.candidate,
+      prepared.mem.concrete,
+      prepared.vec.candidate,
+      prepared.vec.concrete
+    )
+    val reads = inputs
+      .map(path => s"read_rtlil ${path.getFileName}")
+      .mkString("\n")
+    val files = (inputs :+ miter)
+      .map(_.toAbsolutePath.toString)
+      .mkString("\n")
+    s"""[options]
+       |mode $mode
+       |${depthOption}expect $expected
+       |multiclock off
+       |timeout $timeout
+       |
+       |[engines]
+       |$engine
+       |
+       |[script]
+       |$reads
+       |read_verilog -formal ${miter.getFileName}
+       |hierarchy -check -top $top
+       |prep -top $top
+       |memory_map
+       |setundef -undriven -anyseq
+       |opt_clean
+       |check -assert
+       |
+       |[files]
+       |$files
+       |""".stripMargin
+  }
 
   private def runSby(
       directory: Path,
@@ -541,6 +1116,36 @@ class NativeStreamFifoFormalEquivalenceTests extends AnyFunSuite {
 
   private def concreteFormalTop(depth: Int): String =
     s"ConcreteStreamFifoFormalReferenceDepth$depth"
+
+  private def storageStem(useVecStorage: Boolean): String =
+    if (useVecStorage) "vec" else "mem"
+
+  private def storageClassStem(useVecStorage: Boolean): String =
+    if (useVecStorage) "Vec" else "Mem"
+
+  private def typedFormalHelperTop(useVecStorage: Boolean): String =
+    s"TypedStreamFifoFormalHelperHarness${storageClassStem(useVecStorage)}"
+
+  private def nativeFormalHelperTop(
+      useVecStorage: Boolean,
+      depth: Int
+  ): String =
+    s"NativeConcreteStreamFifoFormalHelperHarness${storageClassStem(useVecStorage)}Depth$depth"
+
+  private def candidateFormalHelperTop(
+      useVecStorage: Boolean,
+      depth: Int
+  ): String =
+    s"TypedStreamFifoFormalHelper${storageClassStem(useVecStorage)}CandidateDepth$depth"
+
+  private def concreteFormalHelperTop(
+      useVecStorage: Boolean,
+      depth: Int
+  ): String =
+    s"NativeStreamFifoFormalHelper${storageClassStem(useVecStorage)}ReferenceDepth$depth"
+
+  private def formalHelperMiterModule(depth: Int): String =
+    s"NativeStreamFifoFormalHelperMiterDepth$depth"
 
   private def yosysPath(path: Path): String = {
     val absolute = path.toAbsolutePath.normalize.toString

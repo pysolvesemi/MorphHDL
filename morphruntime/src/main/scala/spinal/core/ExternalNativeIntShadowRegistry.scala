@@ -12,6 +12,7 @@ import ExternalNativeIntRelativePredicate.{Comparison, Constant, PowerOfTwo}
   */
 final class ExternalNativeIntShadowCapture[A] private[core] (
     val result: A,
+    private[core] val owner: Component,
     private[core] val expression: ElaborationIntegerExpression,
     private[core] val definitionExpression: ElaborationIntegerExpression,
     private[core] val token: ExternalNativeIntFormalizationToken,
@@ -19,6 +20,88 @@ final class ExternalNativeIntShadowCapture[A] private[core] (
     private[core] val pendingSlots: Vector[ExternalNativeIntShadowPendingSlot],
     private[core] val pendingPredicates: Vector[ExternalNativeIntShadowPendingPredicate]
 )
+
+/** Exact one-use authority for publishing one compiler-shadowed native
+  * Boolean as one structural generate-if.
+  *
+  * The constructor is package-private and every retained target is compared by
+  * object identity before the raw structural sink is entered.  Rendered
+  * expressions, equal witnesses and copied case-class values therefore cannot
+  * stand in for the exact predicate resolved inside the active shadow boundary.
+  */
+final class ExternalNativeIntStructuralPredicateReceipt private[core] (
+    val condition: ElaborationBooleanExpression,
+    private[core] val predicateDomain: Option[
+      ParameterizedStructure.StructuralPredicateDomain
+    ],
+    private[core] val owner: Component,
+    private[core] val pending: ParameterizedStructuralPending,
+    private[core] val whenTrueLabel: String,
+    private[core] val whenFalseLabel: String,
+    private[core] val whenTrue: ParameterizedStructuralBlock,
+    private[core] val whenFalse: ParameterizedStructuralBlock,
+    private[core] val sourceLocation: Option[String]
+) {
+  private[this] var consumed = false
+
+  private[core] def publish(
+      expectedCondition: ElaborationBooleanExpression,
+      expectedPending: ParameterizedStructuralPending,
+      expectedWhenTrueLabel: String,
+      expectedWhenFalseLabel: String,
+      expectedWhenTrue: ParameterizedStructuralBlock,
+      expectedWhenFalse: ParameterizedStructuralBlock,
+      expectedSourceLocation: Option[String]
+  )(body: => Unit): Unit = synchronized {
+    if (consumed) {
+      fail(
+        "MORPH-FRONTEND-NATIVE-INT-STRUCTURAL-PREDICATE-REPLAY",
+        "native Int structural predicate receipt was already consumed",
+        sourceLocation
+      )
+    }
+    if (
+      (Component.current ne owner) || (expectedPending eq null) ||
+      (expectedPending.component ne owner)
+    ) {
+      fail(
+        "MORPH-FRONTEND-NATIVE-INT-STRUCTURAL-PREDICATE-OWNER-MISMATCH",
+        "native Int structural predicate receipt was presented from a foreign Component owner",
+        expectedSourceLocation.orElse(sourceLocation)
+      )
+    }
+    if (expectedCondition ne condition) {
+      fail(
+        "MORPH-FRONTEND-NATIVE-INT-STRUCTURAL-PREDICATE-CONDITION-MISMATCH",
+        "native Int structural predicate receipt requires its exact lowered condition object",
+        expectedSourceLocation.orElse(sourceLocation)
+      )
+    }
+    if (
+      (expectedPending ne pending) ||
+      expectedWhenTrueLabel != whenTrueLabel ||
+      expectedWhenFalseLabel != whenFalseLabel ||
+      (expectedWhenTrue ne whenTrue) ||
+      (expectedWhenFalse ne whenFalse) ||
+      expectedSourceLocation != sourceLocation
+    ) {
+      fail(
+        "MORPH-FRONTEND-NATIVE-INT-STRUCTURAL-PREDICATE-TARGET-MISMATCH",
+        "native Int structural predicate receipt does not authorize this exact pending target, labels, blocks and source",
+        expectedSourceLocation.orElse(sourceLocation)
+      )
+    }
+    body
+    consumed = true
+  }
+
+  private def fail(
+      code: String,
+      detail: String,
+      source: Option[String]
+  ): Nothing =
+    ParameterizedVerilogException.fail(code, detail, source)
+}
 
 private[core] final case class ExternalNativeIntShadowPendingSlot(
     token: ExternalNativeIntShadowSlotToken,
@@ -117,6 +200,16 @@ private[core] final class ExternalNativeIntExpressionIdentityRef(
 object ExternalNativeIntShadowRegistry {
   private[core] val MaximumStructuralPredicateDomainSize =
     ElaborationExactDomain.MaximumDomainSize
+
+  private[core] final case class PreparedComponentAttachment(
+      component: Component,
+      incoming: ExternalNativeIntComponentShadowRecord
+  )
+
+  private[core] final case class PreparedRegionAttachment(
+      data: Data,
+      incoming: ExternalNativeIntRegionShadowRecord
+  )
 
   private final case class DefinitionExpressionEvidence(
       root: ParameterizedStructure.StructuralPredicateRoot,
@@ -234,12 +327,14 @@ object ExternalNativeIntShadowRegistry {
   }
 
   /** Execute one untouched constructor with an active shadow scope. */
-  def capture[A](
+  private[spinal] def capture[A](
+      owner: Component,
       expression: ElaborationIntegerExpression,
       token: ExternalNativeIntFormalizationToken,
       argumentName: String
   )(body: => A): ExternalNativeIntShadowCapture[A] =
     captureWithDefinition(
+      owner = owner,
       expression = expression,
       definitionExpression = expression,
       token = token,
@@ -251,7 +346,8 @@ object ExternalNativeIntShadowRegistry {
     * structural branch capture; final attachment proves it matches the
     * canonical formal created for the returned child Component.
     */
-  def captureWithDefinition[A](
+  private[spinal] def captureWithDefinition[A](
+      owner: Component,
       expression: ElaborationIntegerExpression,
       definitionExpression: ElaborationIntegerExpression,
       token: ExternalNativeIntFormalizationToken,
@@ -259,6 +355,11 @@ object ExternalNativeIntShadowRegistry {
   )(body: => A): ExternalNativeIntShadowCapture[A] = {
     validateBoundaryExpression(expression, token)
     validateBoundaryExpression(definitionExpression, token)
+    if (owner == null)
+      throw new IllegalArgumentException(
+        "native Int shadow capture owner must not be null"
+      )
+    token.requireCapture(owner, expression, definitionExpression)
     if (definitionExpression.default != expression.default) {
       fail(
         "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-DEFINITION-DEFAULT-MISMATCH",
@@ -285,8 +386,11 @@ object ExternalNativeIntShadowRegistry {
         requireBoundary = true
       )
       val result = body
+      if (result != null)
+        token.bindCaptureResult(result.asInstanceOf[AnyRef])
       new ExternalNativeIntShadowCapture[A](
         result = result,
+        owner = owner,
         expression = expression,
         definitionExpression = definitionExpression,
         token = token,
@@ -322,6 +426,7 @@ object ExternalNativeIntShadowRegistry {
       token: ExternalNativeIntFormalizationToken
   )(body: => A): A = {
     validateBoundaryExpression(expression, token)
+    token.claimNativeWidth(expression)
     val previous = Option(active.get()).getOrElse(Nil)
     val boundary = new ActiveBoundary(
       expression = expression,
@@ -897,11 +1002,30 @@ object ExternalNativeIntShadowRegistry {
       if (positiveWidth)
         ExternalNativeIntRelativeExpression.positiveWidth(tracked.expression)
       else tracked.expression
-    val definition = lowerFinalExpression(
+    val lowered = lowerFinalExpression(
       relative,
       boundary.definitionExpression,
       sourceLocation
     )
+    val definition = boundary.definitionExpression.exactDomain match {
+      case Some(domain) if domain.hasCompleteCoverage =>
+        val evaluations = domain.evaluations.map { case (rootValue, _) =>
+          val result = ExternalNativeIntRelativeExpression
+            .evaluate(relative, rootValue)
+            .getOrElse {
+              fail(
+                "MORPH-FRONTEND-NATIVE-INT-EXPRESSION-DOMAIN-UNPROVEN",
+                s"tracked definition expression '${lowered.verilog}' is undefined at ${domain.parameter.name}=$rootValue",
+                Option(sourceLocation).filter(_.nonEmpty).orElse(lowered.sourceLocation)
+              )
+            }
+          rootValue -> result
+        }
+        ElabInt
+          .fromSingleRootExpressionTrusted(lowered, evaluations)
+          .projectedExpression("compiler shadow definition expression")
+      case _ => lowered
+    }
     if (definition.default != BigInt(witness)) {
       fail(
         "MORPH-FRONTEND-NATIVE-INT-SHADOW-DEFAULT-MISMATCH",
@@ -927,6 +1051,44 @@ object ExternalNativeIntShadowRegistry {
       sourceLocation: String
   ): ElaborationBooleanExpression =
     definitionPredicateEvidenceTracked(reference, witness, sourceLocation)._1
+
+  /** Issue the exact one-use structural publication receipt derived from one
+    * tracked predicate.  Target construction remains outside the shadow
+    * registry, but every target identity is sealed into the receipt at the same
+    * point that the predicate reference is resolved.
+    */
+  private[core] def definitionPredicateReceiptTracked(
+      reference: String,
+      witness: Boolean,
+      owner: Component,
+      pending: ParameterizedStructuralPending,
+      whenTrueLabel: String,
+      whenFalseLabel: String,
+      whenTrue: ParameterizedStructuralBlock,
+      whenFalse: ParameterizedStructuralBlock,
+      sourceLocation: Option[String]
+  ): ExternalNativeIntStructuralPredicateReceipt = {
+    val rendered = sourceLocation.getOrElse {
+      fail(
+        "MORPH-FRONTEND-NATIVE-INT-STRUCTURAL-PREDICATE-SOURCE-MISSING",
+        "native Int structural predicate receipt requires one source location",
+        None
+      )
+    }
+    val (condition, predicateDomain) =
+      definitionPredicateEvidenceTracked(reference, witness, rendered)
+    new ExternalNativeIntStructuralPredicateReceipt(
+      condition,
+      predicateDomain,
+      owner,
+      pending,
+      whenTrueLabel,
+      whenFalseLabel,
+      whenTrue,
+      whenFalse,
+      sourceLocation
+    )
+  }
 
   /** Return the lowered predicate together with optional exact bounded-domain
     * evidence.  Structural replay consumes the evidence only to prove that two
@@ -1032,11 +1194,24 @@ object ExternalNativeIntShadowRegistry {
   }
 
   /** Attach a completed capture to one exact native child Component. */
-  def attachComponent[C <: Component](
+  private[spinal] def attachComponent[C <: Component](
       component: C,
       binding: ExternalFormalParameterBinding,
       capture: ExternalNativeIntShadowCapture[C]
   ): C = synchronized {
+    commitComponent(preflightComponent(component, binding, capture))
+    component
+  }
+
+  /** Compute every shadow slot, predicate and conflict before either native
+    * formalization registry mutates. The returned plan contains exact object
+    * identities and its commit path performs only one map insertion.
+    */
+  private[core] def preflightComponent[C <: Component](
+      component: C,
+      binding: ExternalFormalParameterBinding,
+      capture: ExternalNativeIntShadowCapture[C]
+  ): PreparedComponentAttachment = synchronized {
     if (component == null)
       throw new IllegalArgumentException("native Int shadow component must not be null")
     if (binding == null)
@@ -1048,6 +1223,13 @@ object ExternalNativeIntShadowRegistry {
         "MORPH-FRONTEND-NATIVE-INT-SHADOW-RESULT-MISMATCH",
         s"shadow capture '${capture.token.role}' was attached to a different Component identity",
         sourceOf(capture.token)
+      )
+    }
+    if ((capture.owner eq null) || (component.parent ne capture.owner)) {
+      fail(
+        "MORPH-FRONTEND-NATIVE-INT-SHADOW-OWNER-MISMATCH",
+        s"shadow capture '${capture.token.role}' belongs to a different exact parent Component",
+        binding.sourceLocation.orElse(sourceOf(capture.token))
       )
     }
     if (component.getClass.getName != binding.ownerClassName) {
@@ -1103,22 +1285,45 @@ object ExternalNativeIntShadowRegistry {
           binding.sourceLocation.orElse(sourceOf(capture.token))
         )
       case Some(_) =>
-      case None =>
-        components.update(
-          new ExternalNativeIntShadowComponentIdentityRef(component, componentQueue),
-          existing :+ incoming
-        )
+      case None    =>
     }
-    component
+    PreparedComponentAttachment(component, incoming)
+  }
+
+  private[core] def commitComponent(
+      prepared: PreparedComponentAttachment
+  ): Unit = synchronized {
+    val lookup =
+      new ExternalNativeIntShadowComponentIdentityRef(prepared.component, null)
+    val existing = components.getOrElse(lookup, Vector.empty)
+    if (!existing.exists(record => equivalentComponentRecord(record, prepared.incoming))) {
+      components.update(
+        new ExternalNativeIntShadowComponentIdentityRef(
+          prepared.component,
+          componentQueue
+        ),
+        existing :+ prepared.incoming
+      )
+    }
   }
 
   /** Attach a completed capture to one exact native Data region. */
-  def attachRegion[T <: Data](
+  private[spinal] def attachRegion[T <: Data](
       owner: Component,
       data: T,
       formalBinding: Option[ExternalFormalParameterBinding],
       capture: ExternalNativeIntShadowCapture[T]
   ): T = synchronized {
+    commitRegion(preflightRegion(owner, data, formalBinding, capture))
+    data
+  }
+
+  private[core] def preflightRegion[T <: Data](
+      owner: Component,
+      data: T,
+      formalBinding: Option[ExternalFormalParameterBinding],
+      capture: ExternalNativeIntShadowCapture[T]
+  ): PreparedRegionAttachment = synchronized {
     if (owner == null)
       throw new IllegalArgumentException("native Int shadow region owner must not be null")
     if (data == null)
@@ -1130,6 +1335,13 @@ object ExternalNativeIntShadowRegistry {
         "MORPH-FRONTEND-NATIVE-INT-SHADOW-RESULT-MISMATCH",
         s"shadow capture '${capture.token.role}' was attached to a different Data identity",
         sourceOf(capture.token)
+      )
+    }
+    if (capture.owner ne owner) {
+      fail(
+        "MORPH-FRONTEND-NATIVE-INT-SHADOW-OWNER-MISMATCH",
+        s"shadow capture '${capture.token.role}' belongs to a different exact region owner",
+        formalBinding.flatMap(_.sourceLocation).orElse(sourceOf(capture.token))
       )
     }
 
@@ -1172,13 +1384,25 @@ object ExternalNativeIntShadowRegistry {
           sourceOf(capture.token)
         )
       case Some(_) =>
-      case None =>
-        regions.update(
-          new ExternalNativeIntShadowRegionIdentityRef(data, regionQueue),
-          incoming
-        )
+      case None    =>
     }
-    data
+    PreparedRegionAttachment(data, incoming)
+  }
+
+  private[core] def commitRegion(
+      prepared: PreparedRegionAttachment
+  ): Unit = synchronized {
+    val lookup =
+      new ExternalNativeIntShadowRegionIdentityRef(prepared.data, null)
+    if (!regions.contains(lookup)) {
+      regions.update(
+        new ExternalNativeIntShadowRegionIdentityRef(
+          prepared.data,
+          regionQueue
+        ),
+        prepared.incoming
+      )
+    }
   }
 
   def componentRecordsOf(
@@ -1702,8 +1926,8 @@ object ExternalNativeIntShadowRegistry {
       left: ExternalNativeIntComponentShadowRecord,
       right: ExternalNativeIntComponentShadowRecord
   ): Boolean =
-    left.boundaryToken == right.boundaryToken &&
-      left.parentBoundaryToken == right.parentBoundaryToken &&
+    (left.boundaryToken eq right.boundaryToken) &&
+      sameOptionalToken(left.parentBoundaryToken, right.parentBoundaryToken) &&
       left.ownerClassName == right.ownerClassName &&
       ExternalFormalParameterRegistry.equivalentBinding(left.binding, right.binding) &&
       equivalentSlots(left.slots, right.slots) &&
@@ -1713,8 +1937,8 @@ object ExternalNativeIntShadowRegistry {
       left: ExternalNativeIntRegionShadowRecord,
       right: ExternalNativeIntRegionShadowRecord
   ): Boolean =
-    left.boundaryToken == right.boundaryToken &&
-      left.parentBoundaryToken == right.parentBoundaryToken &&
+    (left.boundaryToken eq right.boundaryToken) &&
+      sameOptionalToken(left.parentBoundaryToken, right.parentBoundaryToken) &&
       left.ownerClassName == right.ownerClassName &&
       ((left.formalBinding, right.formalBinding) match {
         case (Some(x), Some(y)) => ExternalFormalParameterRegistry.equivalentBinding(x, y)
@@ -1742,6 +1966,16 @@ object ExternalNativeIntShadowRegistry {
       x.token == y.token && x.witness == y.witness &&
       equivalentBooleanExpression(x.definitionExpression, y.definitionExpression) &&
       equivalentBooleanExpression(x.actualExpression, y.actualExpression)
+    }
+
+  private def sameOptionalToken(
+      left: Option[ExternalNativeIntFormalizationToken],
+      right: Option[ExternalNativeIntFormalizationToken]
+  ): Boolean =
+    (left, right) match {
+      case (None, None)       => true
+      case (Some(a), Some(b)) => a eq b
+      case _                  => false
     }
 
   private def equivalentExpression(

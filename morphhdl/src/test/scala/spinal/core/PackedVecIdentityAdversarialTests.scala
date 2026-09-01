@@ -1,0 +1,448 @@
+package spinal.core
+
+import java.nio.file.{Files, Path}
+
+import scala.collection.JavaConverters._
+
+import org.scalatest.funsuite.AnyFunSuite
+
+import morphhdl.MorphVerilog
+import morphhdl.frontend.HdlInt
+import spinal.core.internals.{BitsBitAccessFixed, Operator, Resize}
+import spinal.lib._
+
+/** Adversarial packed-Vec fixtures kept in `spinal.core` so they can corrupt
+  * one exact retained native expression without exposing the identity
+  * registry to public MorphHDL users. Publication must validate the live AST
+  * geometry and fail closed instead of reconstructing the operation that the
+  * authoritative native Vec algorithm originally produced.
+  */
+private object PackedVecIdentityAdversarialFixture {
+  sealed trait ProjectedCoverageMutation
+  case object KeepProjectedCoverage extends ProjectedCoverageMutation
+  case object KeepActiveStorageCoverage extends ProjectedCoverageMutation
+  case object ReplaceProjectedSchema extends ProjectedCoverageMutation
+  case object NarrowProjectedAdmission extends ProjectedCoverageMutation
+
+  final class MutatedPackedReadWrapper(depth: ElabInt) extends Component {
+    setDefinitionName("MutatedPackedReadWrapperMustFailClosed")
+    val vecIn = in(Vec(Bool(), depth)).setName("vec_in")
+    val unrelated = in(Bits(8 bits)).setName("unrelated")
+    val bitsOut = out(Bits(depth bits)).setName("bits_out")
+
+    val packedValue = vecIn.asBits.setName("packed_value").dontSimplifyIt()
+    val operation = ParameterizedVec
+      .operationsOf(vecIn)
+      .collect { case value: ParameterizedVecPackedRead => value }
+      .last
+    val wrapper = operation.resultAssignments.find(statement => statement.finalTarget eq operation.result).getOrElse {
+      throw new IllegalStateException(
+        "packed-read adversarial fixture retained no logical witness wrapper"
+      )
+    }
+    wrapper.source match {
+      case resize: Resize => resize.input = unrelated
+      case other =>
+        throw new IllegalStateException(
+          s"packed-read adversarial fixture expected Resize, found ${other.getClass.getName}"
+        )
+    }
+
+    bitsOut := packedValue
+  }
+
+  final class MutatedPackedAssignmentSlice(depth: ElabInt) extends Component {
+    setDefinitionName("MutatedPackedAssignmentSliceMustFailClosed")
+    val bitsIn = in(Bits(depth bits)).setName("bits_in")
+    val bitsOut = out(Bits(depth bits)).setName("bits_out")
+
+    val values = Vec(Bool(), depth).setName("values").dontSimplifyIt()
+    values.assignFromBits(bitsIn)
+    val operation = ParameterizedVec
+      .operationsOf(values)
+      .collect { case value: ParameterizedVecPackedAssignment => value }
+      .last
+    val firstLeaf = values.vec.head.flatten.head
+    val firstAssignment = operation.assignments.find(statement => statement.finalTarget eq firstLeaf).getOrElse {
+      throw new IllegalStateException(
+        "packed-assignment adversarial fixture retained no first-leaf assignment"
+      )
+    }
+
+    // Element zero belongs at packed bit zero. Keep the same exact live
+    // statement and source carrier, but corrupt its native slice to bit one.
+    // A mere `contains carrier` proof would incorrectly accept this graph.
+    val wrongSlice = new BitsBitAccessFixed
+    wrongSlice.source = operation.carrier
+    wrongSlice.bitId = 1
+    firstAssignment.source = wrongSlice
+
+    val packedValue = values.asBits.setName("packed_value").dontSimplifyIt()
+    bitsOut := packedValue
+  }
+
+  final class MutatedPackedReadOrder(depth: ElabInt) extends Component {
+    setDefinitionName("MutatedPackedReadOrderMustFailClosed")
+    val vecIn = in(Vec(Bool(), depth)).setName("vec_in")
+    val bitsOut = out(Bits(depth bits)).setName("bits_out")
+
+    val packedValue = vecIn.asBits.setName("packed_value").dontSimplifyIt()
+    val operation = ParameterizedVec
+      .operationsOf(vecIn)
+      .collect { case value: ParameterizedVecPackedRead => value }
+      .last
+    val packing = operation.carrierAssignments.find(statement => statement.finalTarget eq operation.carrier).getOrElse {
+      throw new IllegalStateException(
+        "packed-read ordering fixture retained no carrier assignment"
+      )
+    }
+    packing.source match {
+      case cat: Operator.Bits.Cat =>
+        val originalLeft = cat.left
+        cat.left = cat.right
+        cat.right = originalLeft
+      case other =>
+        throw new IllegalStateException(
+          s"packed-read ordering fixture expected Cat, found ${other.getClass.getName}"
+        )
+    }
+
+    bitsOut := packedValue
+  }
+
+  /** Exercise the default-inactive StreamFifo storage owner which motivated
+    * branch-local Vec write coverage.  The returned `checks` Vec retains one
+    * exact whole-Vec assignment from the child-owned structural Vec, so its
+    * public packed read reaches the projected-loop correlation proof.
+    */
+  final class ProjectedFiniteVecWriteCoverage(
+      depth: ElabInt,
+      mutation: ProjectedCoverageMutation
+  ) extends Component {
+    setDefinitionName("ProjectedFiniteVecWriteCoverage")
+
+    val push = slave(Stream(Bits(8 bits))).setName("push")
+    val pop = master(Stream(Bits(8 bits))).setName("pop")
+    val flush = in(Bool()).setName("flush")
+    val checksOut = out(Bits(depth bits)).setName("checks_out")
+
+    val fifo = StreamFifo(
+      HardType(Bits(8 bits)),
+      depth,
+      withAsyncRead = false,
+      withBypass = false,
+      allowExtraMsb = true,
+      forFMax = false,
+      useVec = false,
+      initPayload = None
+    )
+    fifo.io.push << push
+    pop << fifo.io.pop
+    fifo.io.flush := flush
+
+    val checks = fifo.formalCheckRam(_.orR)
+    checksOut := checks.asBits
+
+    mutateProjectedWriteLoop(fifo, checks, mutation)
+  }
+
+  private final case class StructuralLoopSlot(
+      block: ParameterizedStructuralBlock,
+      loop: ParameterizedStructure.StructuralFor
+  )
+
+  /** Locate the tested loop solely through retained object relationships:
+    * the caller Vec's exact whole-assignment source, that source Vec's exact
+    * structural selector and the selector alias's captured assignment.  No
+    * emitted name, label or source position participates in discovery.
+    */
+  private def mutateProjectedWriteLoop(
+      fifo: Component,
+      published: Vec[Bool],
+      mutation: ProjectedCoverageMutation
+  ): Unit = {
+    def soleWholeSource(vector: Vec[_], role: String): Vec[_] = {
+      val sources = ParameterizedVec
+        .operationsOf(vector)
+        .collect { case value: ParameterizedVecWholeAssignment => value.source }
+      require(
+        sources.size == 1,
+        s"projected coverage fixture retained ${sources.size} $role whole-Vec sources"
+      )
+      sources.head
+    }
+
+    // The published parent Vec is driven from the pulled child-output Vec;
+    // that pulled carrier is in turn driven from the child's exact internal
+    // structural Vec. Follow both retained assignment identities.
+    val pulled = soleWholeSource(published, "published")
+    val source = soleWholeSource(pulled, "pulled-output")
+
+    def slotsOf(
+        regions: Vector[ParameterizedStructure.StructuralRegion]
+    ): Vector[StructuralLoopSlot] =
+      regions.flatMap { region =>
+        region.blocks.flatMap { block =>
+          block.regions.collect {
+            case loop: ParameterizedStructure.StructuralFor =>
+              StructuralLoopSlot(block, loop)
+          } ++ slotsOf(block.regions)
+        }
+      }
+
+    val candidates = slotsOf(ParameterizedStructure.regionsOf(fifo)).flatMap {
+      slot =>
+        val selections = slot.loop.body.vecIndices.filter { selection =>
+          (selection.vector eq source) &&
+          slot.loop.finiteIndexToken.exists { loopToken =>
+            selection.finiteIndexToken.exists(_ eq loopToken)
+          }
+        }
+        val assignments = selections.flatMap { selection =>
+          val resultLeaves = selection.result.flatten.toVector
+          slot.loop.body.assignments.filter(assignment =>
+            resultLeaves.exists(leaf =>
+              (assignment.target eq leaf) &&
+                (assignment.finalTarget eq leaf)
+            )
+          )
+        }
+        (selections, assignments) match {
+          case (Vector(selection), Vector(assignment)) =>
+            ParameterizedStructure
+              .capturedAssignmentDomainOf(fifo, assignment)
+              .map(domain => (slot, selection, assignment, domain))
+              .toVector
+          case _ => Vector.empty
+        }
+    }
+    require(
+      candidates.size == 1,
+      s"projected coverage fixture retained ${candidates.size} exact structural write loops"
+    )
+    val (slot, _, _, assignmentDomain) = candidates.head
+    val original = slot.loop.count
+    val exact = original.exactDomain.getOrElse {
+      throw new IllegalStateException(
+        "projected coverage loop lost its exact domain"
+      )
+    }
+    val projection = original.projectionProvenance.getOrElse {
+      throw new IllegalStateException(
+        "projected coverage loop lost its projection provenance"
+      )
+    }
+    require(
+      projection.admitted == assignmentDomain.values,
+      "projected coverage fixture began with mismatched loop and assignment domains"
+    )
+    mutation match {
+      case KeepActiveStorageCoverage =>
+        require(
+          assignmentDomain.values(exact.parameter.default) &&
+            assignmentDomain.values.size > 1,
+          "active-storage coverage fixture must exercise the default and a non-singleton storage branch"
+        )
+      case _ =>
+        require(
+          !assignmentDomain.values(exact.parameter.default) &&
+            assignmentDomain.values.size > 1,
+          "projected coverage fixture must exercise an inactive default and a non-singleton storage branch"
+        )
+    }
+
+    val replacement = mutation match {
+      case KeepProjectedCoverage | KeepActiveStorageCoverage => original
+
+      case ReplaceProjectedSchema =>
+        val replacementSchema = exact.parameter.copy()
+        require(
+          replacementSchema == exact.parameter &&
+            (replacementSchema ne exact.parameter),
+          "replacement schema must be value-equal but identity-distinct"
+        )
+        original
+          .copy(parameters = Vector(replacementSchema))
+          .attachProjection(
+            exact,
+            projection.admitted,
+            projection.representative,
+            "adversarial projected Vec schema replacement",
+            original.sourceLocation
+          )
+
+      case NarrowProjectedAdmission =>
+        val narrowed = projection.admitted - projection.admitted.min
+        require(
+          narrowed.nonEmpty && narrowed != assignmentDomain.values,
+          "narrowed projection must differ from the captured assignment domain"
+        )
+        val representative =
+          if (narrowed(exact.parameter.default)) exact.parameter.default
+          else narrowed.min
+        val results = narrowed.toVector.sorted.map { rootValue =>
+          exact.evaluate(rootValue).getOrElse {
+            throw new IllegalStateException(
+              s"projected coverage domain has no result at root value $rootValue"
+            )
+          }
+        }
+        original
+          .copy(
+            default = exact.evaluate(representative).get,
+            minimum = results.min,
+            maximum = results.max
+          )
+          .attachProjection(
+            exact,
+            narrowed,
+            representative,
+            "adversarial projected Vec admitted-set narrowing",
+            original.sourceLocation
+          )
+    }
+
+    if (replacement ne original) {
+      val position = slot.block.regions.indexWhere(_ eq slot.loop)
+      require(
+        position >= 0,
+        "projected coverage loop lost its exact mutable owner"
+      )
+      slot.block.regions = slot.block.regions.updated(
+        position,
+        slot.loop.copy(count = replacement)
+      )
+    }
+  }
+}
+
+class PackedVecIdentityAdversarialTests extends AnyFunSuite {
+  import PackedVecIdentityAdversarialFixture._
+
+  test("packed Vec read rejects a live Resize whose input identity changed") {
+    expectFailure(
+      "mutated_packed_read_wrapper.v",
+      "SPINAL-PARAMETERIZED-VERILOG-VEC-PACKED-READ-EVIDENCE-MISMATCH",
+      new MutatedPackedReadWrapper(parameter("DEPTH", 3, 1, 8))
+    )
+  }
+
+  test("packed Vec assignment rejects a live leaf with the wrong slice") {
+    expectFailure(
+      "mutated_packed_assignment_slice.v",
+      "SPINAL-PARAMETERIZED-VERILOG-VEC-PACKED-ASSIGNMENT-SLICE-MISMATCH",
+      new MutatedPackedAssignmentSlice(parameter("DEPTH", 3, 1, 8))
+    )
+  }
+
+  test("packed Vec read rejects a live Cat with reordered leaves") {
+    expectFailure(
+      "mutated_packed_read_order.v",
+      "SPINAL-PARAMETERIZED-VERILOG-VEC-PACKED-READ-LAYOUT-MISMATCH",
+      new MutatedPackedReadOrder(parameter("DEPTH", 3, 1, 8))
+    )
+  }
+
+  test("projected finite Vec write covers an inactive default storage branch") {
+    withTemporaryDirectory { directory =>
+      val fileName = "projected_finite_vec_write.v"
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = fileName
+      MorphVerilog(config) {
+        new ProjectedFiniteVecWriteCoverage(
+          parameter("DEPTH", 1, 1, 8),
+          KeepProjectedCoverage
+        )
+      }
+      assert(Files.exists(directory.resolve(fileName)))
+    }
+  }
+
+  test("projected finite Vec write counts an inactive one-stage identity once") {
+    withTemporaryDirectory { directory =>
+      val fileName = "active_storage_finite_vec_write.v"
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = fileName
+      MorphVerilog(config) {
+        new ProjectedFiniteVecWriteCoverage(
+          parameter("DEPTH", 3, 1, 8),
+          KeepActiveStorageCoverage
+        )
+      }
+      assert(Files.exists(directory.resolve(fileName)))
+    }
+  }
+
+  test("projected finite Vec write rejects a value-equal replacement schema") {
+    expectFailure(
+      "projected_finite_vec_replacement_schema.v",
+      "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-DOMINANCE-UNPROVEN",
+      new ProjectedFiniteVecWriteCoverage(
+        parameter("DEPTH", 1, 1, 8),
+        ReplaceProjectedSchema
+      )
+    )
+  }
+
+  test("projected finite Vec write rejects a different admitted set") {
+    expectFailure(
+      "projected_finite_vec_admitted_set.v",
+      "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONTINUOUS-ASSIGNMENT-DOMINANCE-UNPROVEN",
+      new ProjectedFiniteVecWriteCoverage(
+        parameter("DEPTH", 1, 1, 8),
+        NarrowProjectedAdmission
+      )
+    )
+  }
+
+  private def expectFailure(
+      fileName: String,
+      code: String,
+      component: => Component
+  ): Unit =
+    withTemporaryDirectory { directory =>
+      val rtl = directory.resolve(fileName)
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = fileName
+      val failure = MorphVerilog.tryGenerate(config)(component) match {
+        case Left(value)  => value
+        case Right(value) => fail(s"expected $code rejection, received $value")
+      }
+      assert(failure.detail.contains(code), failure.detail)
+      assert(!Files.exists(rtl), s"$code published partial RTL")
+    }
+
+  private def parameter(
+      name: String,
+      default: Int,
+      minimum: Int,
+      maximum: Int
+  ): ElabInt =
+    HdlInt
+      .param(
+        name,
+        default = BigInt(default),
+        min = BigInt(minimum),
+        max = BigInt(maximum)
+      )
+      .asElabInt
+
+  private def withTemporaryDirectory(body: Path => Unit): Unit = {
+    val directory = Files.createTempDirectory("morphhdl-packed-vec-identity-")
+    try body(directory)
+    finally {
+      if (Files.exists(directory)) {
+        val paths = Files.walk(directory)
+        try
+          paths
+            .iterator()
+            .asScala
+            .toVector
+            .sortBy(_.getNameCount)
+            .reverse
+            .foreach(Files.deleteIfExists)
+        finally paths.close()
+      }
+    }
+  }
+}

@@ -1,7 +1,6 @@
 package spinal.core
 
-/**
-  * Typed scalar-formal boundary for one ordinary native child Component.
+/** Typed scalar-formal boundary for one ordinary native child Component.
   *
   * The constructor receives a fresh definition-side [[ElabInt]] root.  The
   * child instance retains the caller's exact actual expression through the
@@ -22,42 +21,34 @@ private[spinal] object ElabFormalComponent {
         s"typed formal '$name' requires a non-null ElabInt actual",
         None
       )
-    val expression = actual.projectedExpression("typed formal actual")
-    val source = expression.sourceLocation.orElse(Some(s"<typed-formal:$name>"))
-    val exact = expression.exactDomain.getOrElse {
-      fail(
-        "SPINAL-ELAB-FORMAL-ACTUAL-EXACT-DOMAIN-REQUIRED",
-        s"typed formal '$name' actual '${expression.verilog}' must retain exact single-root evidence",
-        source
-      )
-    }
-    val roots = expression.completedParameterRoots.foldLeft(
-      Vector.empty[ElaborationIntegerParameterRoot]
-    ) { (known, root) =>
-      if (known.exists(_ eq root)) known else known :+ root
-    }
-    val schemaMatches = expression.parameters match {
-      case Vector(parameter) =>
-        parameter == exact.parameter && parameter.name == exact.root.name
-      case _ => false
-    }
-    if (
-      roots.size != 1 || !(roots.head eq exact.root) || !schemaMatches
+    val authoredFailureCode =
+      if (actual.parameters.isEmpty)
+        "SPINAL-ELAB-FORMAL-ACTUAL-LITERAL-INVALID"
+      else "SPINAL-ELAB-FORMAL-ACTUAL-EXACT-DOMAIN-REQUIRED"
+    actual.requireAuthoritativeIntegerDomain(
+      "typed formal actual",
+      authoredFailureCode,
+      requireExactExtrema = false
     )
-      fail(
-        "SPINAL-ELAB-FORMAL-ACTUAL-EXACT-DOMAIN-REQUIRED",
-        s"typed formal '$name' actual '${expression.verilog}' must retain one exact declaration root and its matching parameter schema",
-        source.orElse(exact.root.sourceLocation)
-      )
+    val expression = actual.projectedExpression("typed formal actual")
+    ElabInt.requireAuthoritativeIntegerDomain(
+      expression,
+      "typed formal actual",
+      authoredFailureCode,
+      requireExactExtrema = true
+    )
+    val source = expression.sourceLocation.orElse(Some(s"<typed-formal:$name>"))
+    // A validated parameter-free expression is the literal-authoritative path:
+    // the generic formal registry emits that concrete actual directly while the
+    // child definition still receives its fresh formal. Symbolic expressions
+    // retain the shared validator's exact root/schema JVM identity.
     if (constructor == null)
       fail(
         "SPINAL-ELAB-FORMAL-CONSTRUCTOR-NULL",
         s"typed formal '$name' requires a non-null constructor",
         source
       )
-    if (
-      name == null || !PortableIdentifier.pattern.matcher(name).matches()
-    )
+    if (name == null || !PortableIdentifier.pattern.matcher(name).matches())
       fail(
         "SPINAL-ELAB-FORMAL-NAME-INVALID",
         s"typed formal name '$name' is not a portable Verilog identifier",
@@ -106,16 +97,65 @@ private[spinal] object ElabFormalComponent {
         source
       )
     }
-    val ownerClassName = component.getClass.getName
-    val binding = ExternalFormalParameterBinding(
-      formal = formal,
-      actual = expression,
-      declarationKey = s"typed-elab::$ownerClassName::$name",
-      ownerClassName = ownerClassName,
-      sourceLocation = source
+    // The typed registry mints one opaque per-instance declaration capability
+    // and attaches it to this exact component and its exact dependent ports.
+    // Class, definition, instance and source-key text remain diagnostics only.
+    ExternalFormalParameterRegistry.retainTypedComponent(
+      component,
+      formal,
+      expression,
+      source
     )
-    ExternalFormalParameterRegistry.retainComponent(component, binding)
+    ParameterizedVec.retainComponentFormal(component, formal, expression)
     component
+  }
+
+  /** Recover the caller-side actual only through this exact child's opaque
+    * typed capability, and refresh Vecs created after the constructor returned.
+    *
+    * Native helpers may add hierarchy surfaces later through `rework`/`pull`.
+    * Those Vecs did not exist during [[parameter]], so they must receive the
+    * same exact formal capability before a caller-owned actual-depth clone is
+    * allowed to bridge them. Class names, formal names and rendered
+    * expressions do not participate in this lookup.
+    */
+  private[spinal] def parentActualAndRefreshVecFormals(
+      component: Component
+  ): Option[ElabInt] = {
+    if (component == null)
+      throw new IllegalArgumentException(
+        "typed formal publication component must not be null"
+      )
+    ExternalFormalParameterRegistry.typedBindingsOf(component) match {
+      case Vector() => None
+      case Vector(retained) =>
+        val binding = retained.binding
+        val parent = Option(Component.current).getOrElse {
+          fail(
+            "SPINAL-ELAB-FORMAL-PUBLICATION-PARENT-MISSING",
+            "late typed formal publication requires the active exact parent component",
+            binding.sourceLocation
+          )
+        }
+        if (component.parent ne parent)
+          fail(
+            "SPINAL-ELAB-FORMAL-PUBLICATION-PARENT-MISMATCH",
+            "late typed formal publication is not executing in the exact child parent",
+            binding.sourceLocation
+          )
+        ParameterizedVec.retainComponentFormal(
+          component,
+          binding.formal,
+          binding.actual
+        )
+        Some(ElabInt.fromExpression(binding.actual))
+      case values =>
+        fail(
+          "SPINAL-ELAB-FORMAL-PUBLICATION-BINDING-AMBIGUOUS",
+          s"late typed formal publication found ${values.size} opaque bindings on one exact child",
+          values.iterator.flatMap(_.binding.sourceLocation).toVector.headOption
+        )
+    }
   }
 
   private def fail(

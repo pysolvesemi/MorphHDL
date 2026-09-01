@@ -16,6 +16,79 @@ class ParameterizedVerilogTests extends AnyFunSuite {
   private val width =
     ElaborationIntegerParameter("WIDTH", default = 8, minimum = 1, maximum = 64)
 
+  test("retained integer helper audit distinguishes named associations from expression calls") {
+    val association =
+      "    .morphhdl_synthetic_bus (morphhdl_synthetic_actual),"
+    assert(
+      ExternalParameterizedVerilogNativeFallback.lowerRetainedIntegerHelpers(
+        association,
+        "AssociationGrammar"
+      ) == association
+    )
+    Vector(
+      "    .morphhdl_address_width(morphhdl_synthetic_actual),",
+      "    .morphhdl_ceil_log2(morphhdl_synthetic_actual),",
+      "    . morphhdl_address_width(morphhdl_synthetic_actual),",
+      "    . morphhdl_ceil_log2(morphhdl_synthetic_actual),"
+    ).foreach { reviewedHelperAssociation =>
+      assert(
+        ExternalParameterizedVerilogNativeFallback.lowerRetainedIntegerHelpers(
+          reviewedHelperAssociation,
+          "AssociationGrammar"
+        ) == reviewedHelperAssociation
+      )
+    }
+
+    Vector(
+      "assign observed = morphhdl_unsupported_integer_helper(source);" ->
+        "morphhdl_unsupported_integer_helper(",
+      "assign observed = child.morphhdl_unsupported_integer_helper(source);" ->
+        "morphhdl_unsupported_integer_helper(",
+      "assign observed = child\n  .morphhdl_unsupported_integer_helper(source);" ->
+        "morphhdl_unsupported_integer_helper(",
+      "assign observed = child\n  .morphhdl_address_width(source);" ->
+        "morphhdl_address_width(",
+      "assign observed = child\n  .morphhdl_ceil_log2(source);" ->
+        "morphhdl_ceil_log2(",
+      "assign observed = child.\n  morphhdl_address_width(source);" ->
+        "morphhdl_address_width(",
+      "assign observed = child.\n  morphhdl_ceil_log2(source);" ->
+        "morphhdl_ceil_log2(",
+      "assign observed = child.\n  morphhdl_unsupported_integer_helper(source);" ->
+        "morphhdl_unsupported_integer_helper(",
+      "assign observed = child // ,\n  .morphhdl_unsupported_integer_helper(source);" ->
+        "morphhdl_unsupported_integer_helper(",
+      "    .ordinary_port (morphhdl_unsupported_integer_helper(source))," ->
+        "morphhdl_unsupported_integer_helper("
+    ).foreach { case (body, helper) =>
+      val error = intercept[ParameterizedVerilogException] {
+        ExternalParameterizedVerilogNativeFallback.lowerRetainedIntegerHelpers(
+          association + "\n  " + body,
+          "AssociationGrammar"
+        )
+      }
+      assert(
+        error.code ==
+          "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-UNSUPPORTED"
+      )
+      assert(error.detail.contains(helper))
+    }
+
+    Vector(
+      "// morphhdl_unsupported_integer_helper(source)",
+      "/* morphhdl_unsupported_integer_helper(source) */",
+      "initial $display(\"morphhdl_unsupported_integer_helper(source)\");",
+      "wire \\morphhdl_unsupported_integer_helper(source) ;"
+    ).foreach { nonCodeOccurrence =>
+      assert(
+        ExternalParameterizedVerilogNativeFallback.lowerRetainedIntegerHelpers(
+          nonCodeOccurrence,
+          "AssociationGrammar"
+        ) == nonCodeOccurrence
+      )
+    }
+  }
+
   test("external Verilog retains a direct UInt width parameter and canonical port order") {
     withTemporaryDirectory { directory =>
       val report = generateParameterized(directory, reversePorts = true)
@@ -227,10 +300,10 @@ class ParameterizedVerilogTests extends AnyFunSuite {
         val retained = out(UInt(8 bits))
 
         dout := din
-        retained := U(8, 8 bits)
+        retained.assignFrom(UIntLiteral(BigInt(8), null, 8))
         ExternalParameterizedValueRegistry.attach(
           retained,
-          directExpression(retainedValue),
+          exactDirectExpression(retainedValue),
           witness = 8,
           sourceLocation = None
         )
@@ -240,6 +313,142 @@ class ParameterizedVerilogTests extends AnyFunSuite {
     assert(error.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED")
     assert(error.detail.contains("SHARED"))
     assert(error.detail.contains("complete emitted parameter inventory"))
+  }
+
+  test("retained value rewrite rejects a stale same-name emitted right-hand side") {
+    withTemporaryDirectory { directory =>
+      val binaryWidth = ElaborationIntegerParameter("BINARY_WIDTH", 4, 2, 8)
+      val hexWidth = ElaborationIntegerParameter("HEX_WIDTH", 8, 6, 8)
+      val report = SpinalVerilog(concreteConfig(directory)) {
+        new Component {
+          setDefinitionName("RetainedValueEmittedLineage")
+          val observedBinary = out(UInt(4 bits)).setName("observed_binary")
+          val observedHex = out(UInt(8 bits)).setName("observed_hex")
+          val retainedBinary = ParameterizedWidth
+            .UInt(ParameterizedBitCount(4, binaryWidth))
+            .setName("retained_binary")
+          val retainedHex = ParameterizedWidth
+            .UInt(ParameterizedBitCount(8, hexWidth))
+            .setName("retained_hex")
+          retainedBinary.assignFrom(UIntLiteral(BigInt(3), null, 4))
+          retainedHex.assignFrom(UIntLiteral(BigInt(42), null, 8))
+          ExternalParameterizedValueRegistry.attach(
+            retainedBinary,
+            ElabInt.literal(3).expression,
+            witness = 3,
+            sourceLocation = None
+          )
+          ExternalParameterizedValueRegistry.attach(
+            retainedHex,
+            ElabInt.literal(42).expression,
+            witness = 42,
+            sourceLocation = None
+          )
+          observedBinary := retainedBinary
+          observedHex := retainedHex
+        }
+      }
+      val native = read(directory.resolve("RetainedValueEmittedLineage.v"))
+      def emittedAssignment(name: String): scala.util.matching.Regex.Match = {
+        val assignment =
+          ("(?m)^(\\s*assign\\s+" + java.util.regex.Pattern.quote(name) +
+            "\\s*=\\s*)(.*?)(;\\s*)$").r
+        assignment.findFirstMatchIn(native).getOrElse {
+          fail(s"retained value '$name' has no native witness assignment:\n$native")
+        }
+      }
+      val emittedBinary = emittedAssignment("retained_binary")
+      val emittedHex = emittedAssignment("retained_hex")
+      assert(emittedBinary.group(2).trim == "4'b0011", native)
+      assert(emittedHex.group(2).trim == "8'h2a", native)
+
+      val rewritten = ExternalParameterizedVerilogNativeFallback
+        .rewriteRetainedValueAssignments(report.toplevel, native)
+      assert(rewritten.contains("assign retained_binary = (3);"), rewritten)
+      assert(rewritten.contains("assign retained_hex = (42);"), rewritten)
+
+      Vector(
+        (emittedBinary, "4'b0100"),
+        (emittedHex, "8'h2b")
+      ).foreach { case (emitted, replacement) =>
+        val stale =
+          native.substring(0, emitted.start(2)) + replacement +
+            native.substring(emitted.end(2))
+        val error = intercept[ParameterizedVerilogException] {
+          ExternalParameterizedVerilogNativeFallback
+            .rewriteRetainedValueAssignments(report.toplevel, stale)
+        }
+        assert(
+          error.code ==
+            "SPINAL-PARAMETERIZED-VERILOG-VALUE-EMITTED-LINEAGE-MISMATCH"
+        )
+        assert(error.detail.contains("0 exact native witness edges"))
+      }
+    }
+  }
+
+  test("retained resize rewrite rejects an additional same-target assignment") {
+    withTemporaryDirectory { directory =>
+      val targetWidth =
+        HdlInt.param("TARGET", default = 5, min = 5, max = 7).asElabInt
+      val report = SpinalVerilog(concreteConfig(directory)) {
+        new Component {
+          setDefinitionName("RetainedResizeEmittedLineage")
+          val source = in(Bits(4 bits)).setName("source")
+          val observed = out(Bits(targetWidth bits)).setName("observed")
+          val retained = source
+            .resize(targetWidth)
+            .setName("retained_grow_resize")
+            .dontSimplifyIt()
+          observed := retained
+        }
+      }
+      val native = read(directory.resolve("RetainedResizeEmittedLineage.v"))
+      val assignment =
+        "(?m)^(\\s*assign\\s+retained_grow_resize\\s*=\\s*)(.*?)(;\\s*)$".r
+          .findFirstMatchIn(native)
+          .getOrElse {
+            fail(s"retained resize has no native witness assignment:\n$native")
+          }
+      assert(
+        assignment.group(2).replaceAll("\\s+", "") == "{1'd0,source}",
+        native
+      )
+
+      val rewritten = ExternalParameterizedVerilogNativeFallback
+        .rewriteRetainedResizeAssignments(report.toplevel, native)
+      assert(
+        rewritten
+          .replaceAll("\\s+", "")
+          .contains(
+            "assignretained_grow_resize={1'b0,source};"
+          ),
+        rewritten
+      )
+
+      Vector(
+        assignment.group(0) -> 2,
+        "assign retained_grow_resize = source;" -> 1
+      ).foreach { case (duplicate, exactRewriteCount) =>
+        val error = intercept[ParameterizedVerilogException] {
+          ExternalParameterizedVerilogNativeFallback
+            .rewriteRetainedResizeAssignments(
+              report.toplevel,
+              native + "\n" + duplicate + "\n"
+            )
+        }
+        assert(
+          error.code ==
+            "SPINAL-PARAMETERIZED-VERILOG-RESIZE-ASSIGNMENT-NOT-UNIQUE"
+        )
+        assert(error.detail.contains("2 module-scope target assignments"))
+        assert(
+          error.detail.contains(
+            s"$exactRewriteCount exact native Resize rewrites"
+          )
+        )
+      }
+    }
   }
 
   test("component inventory rejects independent roots from separate child actuals") {
@@ -289,6 +498,68 @@ class ParameterizedVerilogTests extends AnyFunSuite {
     assert(error.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED")
     assert(error.detail.contains("ACTUAL"))
     assert(error.detail.contains("complete emitted parameter inventory"))
+  }
+
+  test("component-only formal binding rejects a forged rootless actual before RTL") {
+    withTemporaryDirectory { directory =>
+      val formal =
+        ElaborationIntegerParameter("P", default = 4, minimum = 1, maximum = 8)
+
+      final class Child extends Component {
+        setDefinitionName("ForgedComponentOnlyFormalChild")
+        val din = in(
+          ParameterizedWidth.UInt(ParameterizedBitCount(formal.default.toInt, formal))
+        )
+        val dout = out(
+          ParameterizedWidth.UInt(ParameterizedBitCount(formal.default.toInt, formal))
+        )
+        dout := din
+      }
+
+      var forgedChild: Child = null
+      final class Top extends Component {
+        setDefinitionName("ForgedComponentOnlyFormalTop")
+        val child = new Child
+        forgedChild = child
+        child.setName("child")
+        child.din := 0
+
+        val forgedActual = ElaborationIntegerExpression(
+          verilog = "0",
+          default = formal.default,
+          minimum = formal.default,
+          maximum = formal.default,
+          parameters = Vector.empty
+        )
+        ExternalFormalParameterRegistry.retainComponent(
+          child,
+          ExternalFormalParameterBinding(
+            formal = formal,
+            actual = forgedActual,
+            declarationKey = "ForgedComponentOnlyFormalChild:P",
+            ownerClassName = child.getClass.getName,
+            sourceLocation = None
+          )
+        )
+      }
+
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "forged_component_only_formal.v"
+      val wrapped = intercept[MorphVerilogException] {
+        MorphVerilog(config)(new Top)
+      }
+      val error = findParameterized(wrapped).getOrElse {
+        fail(s"Expected ParameterizedVerilogException, received ${wrapped.failure}")
+      }
+
+      assert(
+        error.code ==
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-ACTUAL-AUTHORITY-MISSING"
+      )
+      assert(error.detail.contains("not one canonical numeric literal"))
+      assert(ExternalFormalParameterRegistry.bindingsOf(forgedChild).isEmpty)
+      assert(!Files.exists(directory.resolve(config.netlistFileName)))
+    }
   }
 
   test("component inventory rejects independent sibling actual roots for scalar structural formals") {
@@ -441,10 +712,10 @@ class ParameterizedVerilogTests extends AnyFunSuite {
 
   test("native memory inventories reject independent same-name geometry roots") {
     withTemporaryDirectory { directory =>
-      val depth = directExpression(
+      val depth = exactDirectExpression(
         ElaborationIntegerParameter("SIZE", 8, 1, 64)
       )
-      val elementWidth = directExpression(
+      val elementWidth = exactDirectExpression(
         ElaborationIntegerParameter("SIZE", 8, 1, 64)
       )
       val report = SpinalVerilog(concreteConfig(directory)) {
@@ -504,10 +775,10 @@ class ParameterizedVerilogTests extends AnyFunSuite {
 
   test("retained UInt inventory rejects independent same-name roots") {
     withTemporaryDirectory { directory =>
-      val first = directExpression(
+      val first = exactDirectExpression(
         ElaborationIntegerParameter("VALUE", 8, 1, 16)
       )
-      val second = directExpression(
+      val second = exactDirectExpression(
         ElaborationIntegerParameter("VALUE", 8, 1, 16)
       )
       val report = SpinalVerilog(concreteConfig(directory)) {
@@ -515,8 +786,8 @@ class ParameterizedVerilogTests extends AnyFunSuite {
           setDefinitionName("IndependentRetainedValues")
           val firstValue = out(UInt(8 bits))
           val secondValue = out(UInt(8 bits))
-          firstValue := U(8, 8 bits)
-          secondValue := U(8, 8 bits)
+          firstValue.assignFrom(UIntLiteral(BigInt(8), null, 8))
+          secondValue.assignFrom(UIntLiteral(BigInt(8), null, 8))
           ExternalParameterizedValueRegistry.attach(
             firstValue,
             first,
@@ -639,6 +910,11 @@ class ParameterizedVerilogTests extends AnyFunSuite {
       parameterRoots = Vector(parameter.declarationRoot)
     )
 
+  private def exactDirectExpression(
+      parameter: ElaborationIntegerParameter
+  ): ElaborationIntegerExpression =
+    ElabInt.directParameter(parameter, sourceLocation = None).expression
+
   private def rootlessDirectExpression(
       parameter: ElaborationIntegerParameter
   ): ElaborationIntegerExpression =
@@ -657,9 +933,7 @@ class ParameterizedVerilogTests extends AnyFunSuite {
     assert(left.parameterRoots.nonEmpty)
     assert(left.parameterRoots.size == right.parameterRoots.size)
     assert(
-      left.parameterRoots.forall(root =>
-        right.parameterRoots.exists(_ eq root)
-      )
+      left.parameterRoots.forall(root => right.parameterRoots.exists(_ eq root))
     )
   }
 

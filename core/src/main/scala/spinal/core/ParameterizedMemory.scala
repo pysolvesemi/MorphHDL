@@ -11,6 +11,19 @@ final case class ParameterizedMemoryDepth(
     sourceLocation: Option[String] = None
 )
 
+object ParameterizedMemoryDepth {
+
+  /** Build public native-memory metadata only through the typed exact-domain
+    * validator. The case-class constructor remains source-compatible, while
+    * every registry consumer independently revalidates even hand-built values.
+    */
+  def checked(
+      depth: ElabInt,
+      role: String = "symbolic native memory depth"
+  ): ParameterizedMemoryDepth =
+    ParameterizedMemory.depthOf(depth, role)
+}
+
 /** Internal immutable contract retained on one ordinary Spinal Mem. */
 private[core] final case class ParameterizedMemoryMetadata(
     depth: ElaborationIntegerExpression,
@@ -46,16 +59,61 @@ object ParameterizedMemory {
   ): ParameterizedMemoryDepth = {
     if (depth == null)
       throw new IllegalArgumentException("typed memory depth must not be null")
-    val expression = depth.projectedExpression(role)
+    val expression = depth.authoritativeProjectedExpression(
+      role,
+      failureCode = "SPINAL-ELAB-INT-MEMORY-DEPTH-DOMAIN-INVALID",
+      requireProjectedExactExtrema = true
+    )
+    if (expression.parameters.isEmpty) {
+      if (
+        expression.default != BigInt(depth.witness) ||
+        expression.minimum != expression.default ||
+        expression.maximum != expression.default ||
+        expression.default < 1 || !expression.default.isValidInt
+      ) {
+        fail(
+          "SPINAL-ELAB-INT-MEMORY-DEPTH-DOMAIN-INVALID",
+          s"$role '${expression.verilog}' must retain one positive Int-sized literal witness ${depth.witness}",
+          expression.sourceLocation
+        )
+      }
+      return ParameterizedMemoryDepth(
+        value = depth.witness,
+        expression = expression,
+        sourceLocation = expression.sourceLocation
+      )
+    }
+    val exact = expression.exactDomain.getOrElse {
+      fail(
+        "SPINAL-ELAB-MEMORY-DEPTH-EXACT-DOMAIN-MISSING",
+        s"$role '${expression.verilog}' must retain complete exact-domain evidence before typed Mem construction",
+        expression.sourceLocation
+      )
+    }
+    val evaluations = ElabInt.activeDomainEvaluations(
+      exact,
+      role,
+      expression.sourceLocation
+    )
+    val evaluatedDepths = evaluations.map(_._2)
+    val exactRoot = expression.completedParameterRoots match {
+      case Vector(root) => root eq exact.root
+      case _            => false
+    }
     if (
       expression.default != BigInt(depth.witness) ||
       expression.minimum < 1 ||
       expression.maximum < expression.minimum ||
-      expression.maximum > BigInt(Int.MaxValue)
+      expression.maximum > BigInt(Int.MaxValue) ||
+      !exactRoot || evaluatedDepths.isEmpty ||
+      evaluatedDepths.exists(value => value < 1 || !value.isValidInt) ||
+      evaluatedDepths.min != expression.minimum ||
+      evaluatedDepths.max != expression.maximum ||
+      !evaluatedDepths.contains(expression.default)
     ) {
       fail(
         "SPINAL-ELAB-INT-MEMORY-DEPTH-DOMAIN-INVALID",
-        s"$role '${expression.verilog}' must have a finite positive Int-sized domain and witness ${depth.witness}",
+        s"$role '${expression.verilog}' must retain one exact public parameter root, a positive finite Int-sized domain, and witness ${depth.witness}",
         expression.sourceLocation
       )
     }
@@ -64,37 +122,6 @@ object ParameterizedMemory {
       expression = expression,
       sourceLocation = expression.sourceLocation
     )
-  }
-
-  /** Retain a symbolic element shape on an ordinary fixed-depth Mem.
-    *
-    * Most Spinal library memories, including StreamFifo storage, intentionally
-    * keep their depth as a Scala Int.  Their payload HardType can nevertheless
-    * carry a public packed-width expression.  Tag only those memories whose
-    * element width actually references a parameter so ordinary concrete Mem
-    * construction remains indistinguishable from the upstream path.
-    */
-  private[core] def attachStatic[T <: Data](memory: Mem[T]): Mem[T] = {
-    val leaves = memory.wordType().flatten.toVector
-    val hasSymbolicElement = leaves.exists { leaf =>
-      ParameterizedWidth.expressionOf(leaf).exists(_.parameters.nonEmpty)
-    }
-    if (!hasSymbolicElement) memory
-    else {
-      val elementWidth = elementWidthOf(
-        memory,
-        leaves,
-        sourceLocation = None
-      )
-      attachMetadata(
-        memory,
-        ParameterizedMemoryMetadata(
-          depth = literal(memory.wordCount),
-          elementWidth = elementWidth,
-          sourceLocation = elementWidth.sourceLocation
-        )
-      )
-    }
   }
 
   /** Retain one bounded depth on the single native Mem owned by a library
@@ -159,7 +186,7 @@ object ParameterizedMemory {
       )
     }
 
-    val leaves = memory.wordType().asInstanceOf[Data].flatten.toVector
+    val leaves = memory.wordTypeLeaves
     if (leaves.isEmpty) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-TYPE-UNSUPPORTED",
@@ -236,7 +263,7 @@ object ParameterizedMemory {
 
     val elementWidth = elementWidthOf(
       memory,
-      memory.wordType().flatten.toVector,
+      memory.wordTypeLeaves,
       depth.sourceLocation.orElse(depth.expression.sourceLocation)
     )
     attachMetadata(
@@ -312,6 +339,106 @@ object ParameterizedMemory {
       case None => base
     }
   }
+
+  /** Typed depth retained by one native Mem. Ordinary concrete memories keep
+    * their existing Scala-Int construction and are represented by a literal.
+    */
+  private[core] def depthExpressionOf(memory: Mem[_]): ElabInt = {
+    if (memory == null)
+      throw new IllegalArgumentException("typed memory must not be null")
+    metadataOf(memory)
+      .map(metadata => ElabInt.fromExpression(metadata.depth))
+      .getOrElse(ElabInt.literal(memory.wordCount))
+  }
+
+  /** Portable positive address geometry for a native Mem. */
+  private[core] def addressWidthOf(memory: Mem[_]): ElabInt =
+    metadataOf(memory) match {
+      case Some(metadata) =>
+        withRetainedDepthDomain(metadata) {
+          ElabInt.fromExpression(metadata.depth).addressWidth
+        }
+      case None => depthExpressionOf(memory).addressWidth
+    }
+
+  /** Concrete width consumed only by ordinary native Mem port validation.
+    * Symbolic metadata remains authoritative and is not replaced by this
+    * reviewed elaboration witness.
+    */
+  private[core] def nativePortAddressWidthOf(memory: Mem[_]): Int =
+    metadataOf(memory) match {
+      case Some(metadata) =>
+        withRetainedDepthDomain(metadata) {
+          ElabInt.fromExpression(metadata.depth).addressWidth.witness
+        }
+      case None => memory.addressWidth
+    }
+
+  /** Parameter-preserving address geometry for one mixed-width native port.
+    *
+    * The ordinary Mem path deliberately returns None so its historical
+    * getAddressWidth and normalization formulas remain byte-for-byte
+    * authoritative.  A tagged Mem instead derives the port word count from
+    * the retained depth expression before taking its positive address width;
+    * adding independent logarithms is not equivalent for non-power-of-two
+    * depths or aspect ratios.
+    */
+  private[core] def portAddressWidthOf(
+      memory: Mem[_],
+      aspectRatio: Int
+  ): Option[ElabInt] =
+    metadataOf(memory).map { metadata =>
+      validateAspectRatio(metadata, aspectRatio)
+      withRetainedDepthDomain(metadata) {
+        portAddressWidthExpression(metadata, aspectRatio)
+      }
+    }
+
+  /** Audited concrete witness for ordinary native Mem port normalization.
+    * The witness is consumed before the retained owner domain is released.
+    */
+  private[core] def portAddressWidthWitnessOf(
+      memory: Mem[_],
+      aspectRatio: Int
+  ): Option[Int] =
+    metadataOf(memory).map { metadata =>
+      validateAspectRatio(metadata, aspectRatio)
+      withRetainedDepthDomain(metadata) {
+        portAddressWidthExpression(metadata, aspectRatio).witness
+      }
+    }
+
+  private def portAddressWidthExpression(
+      metadata: ParameterizedMemoryMetadata,
+      aspectRatio: Int
+  ): ElabInt =
+    (ElabInt.fromExpression(metadata.depth) *
+      ElabInt.literal(aspectRatio)).addressWidth
+
+  private def validateAspectRatio(
+      metadata: ParameterizedMemoryMetadata,
+      aspectRatio: Int
+  ): Unit =
+    if (aspectRatio < 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ASPECT-RATIO-INVALID",
+        s"native typed memory port aspect ratio $aspectRatio must be positive",
+        metadata.sourceLocation
+      )
+    }
+
+  private def withRetainedDepthDomain[T](
+      metadata: ParameterizedMemoryMetadata
+  )(body: => T): T =
+    metadata.depth.exactDomain match {
+      case Some(domain) =>
+        ElaborationDomainContext.withAdmitted(
+          domain.root,
+          domain.evidenceValues,
+          metadata.sourceLocation.orElse(metadata.depth.sourceLocation)
+        )(body)
+      case None => body
+    }
 
   private[core] def memoriesOf(component: Component): Vector[Mem[_]] = {
     val values = ArrayBuffer.empty[Mem[_]]

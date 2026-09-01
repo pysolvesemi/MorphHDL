@@ -1,9 +1,8 @@
 package morphhdl.frontend
 
-import spinal.core.{ExternalNativeIntShadowRegistry, ParameterizedStructure}
+import spinal.core.ParameterizedStructure
 
-/**
-  * Compiler-plugin bridge for ordinary Scala `if` syntax whose Boolean
+/** Compiler-plugin bridge for ordinary Scala `if` syntax whose Boolean
   * predicate is proven to originate from an Increment 50 shadow-native `Int`
   * expression.
   *
@@ -26,21 +25,21 @@ object NativeIntSymbolicConditional {
     val origin = SourceOrigin(sourceFile, sourceLine)
     if (!ParameterizedStructure.captureEnabled) {
       if (condition) ifTrue else ifFalse
-    } else withCapture(origin) {
-      captureOne(
-        condition,
-        predicateReference,
-        origin,
-        origin,
-        None,
-        () => ifTrue,
-        () => ifFalse
-      )
-    }
+    } else
+      withCapture(origin) {
+        captureOne(
+          condition,
+          predicateReference,
+          origin,
+          origin,
+          None,
+          () => ifTrue,
+          () => ifFalse
+        )
+      }
   }
 
-  /**
-    * Retain one source-ordered `if / else if / ... / else` chain. Consecutive
+  /** Retain one source-ordered `if / else if / ... / else` chain. Consecutive
     * proven native predicates become one recursively nested structural region;
     * an ordinary Scala conditional in the final else body remains concrete.
     */
@@ -68,35 +67,36 @@ object NativeIntSymbolicConditional {
         else otherwise()
       }
       select(0)
-    } else withCapture(SourceOrigin(ordered.head._4, ordered.head._5)) {
-      def capture(index: Int): T = {
-        val (conditionThunk, reference, body, file, line) = ordered(index)
-        val origin = SourceOrigin(file, line)
-        val continuation = index + 1 < ordered.size
-        val falseOrigin =
-          if (continuation) {
-            val (_, _, _, nextFile, nextLine) = ordered(index + 1)
-            SourceOrigin(nextFile, nextLine)
-          } else defaultOrigin
-        val falseBody = () => {
-          if (continuation) capture(index + 1)
-          else otherwise()
+    } else
+      withCapture(SourceOrigin(ordered.head._4, ordered.head._5)) {
+        def capture(index: Int): T = {
+          val (conditionThunk, reference, body, file, line) = ordered(index)
+          val origin = SourceOrigin(file, line)
+          val continuation = index + 1 < ordered.size
+          val falseOrigin =
+            if (continuation) {
+              val (_, _, _, nextFile, nextLine) = ordered(index + 1)
+              SourceOrigin(nextFile, nextLine)
+            } else defaultOrigin
+          val falseBody = () => {
+            if (continuation) capture(index + 1)
+            else otherwise()
+          }
+          val names =
+            if (continuation) Some(elseIfContinuationNames(origin))
+            else None
+          captureOne(
+            conditionThunk(),
+            reference,
+            origin,
+            falseOrigin,
+            names,
+            body,
+            falseBody
+          )
         }
-        val names =
-          if (continuation) Some(elseIfContinuationNames(origin))
-          else None
-        captureOne(
-          conditionThunk(),
-          reference,
-          origin,
-          falseOrigin,
-          names,
-          body,
-          falseBody
-        )
+        capture(0)
       }
-      capture(0)
-    }
   }
 
   private def captureOne[T](
@@ -108,16 +108,11 @@ object NativeIntSymbolicConditional {
       ifTrue: () => T,
       ifFalse: () => T
   ): T = {
-    val expression = ExternalNativeIntShadowRegistry.definitionPredicateTracked(
-      predicateReference,
-      condition,
-      origin.rendered
-    )
     var trueValue: Option[T] = None
     var falseValue: Option[T] = None
     val builder = NativeStructuralFrontend.startGenerateIfExpression(
       condition,
-      expression,
+      predicateReference,
       names = names,
       whenTrue = { trueValue = Some(ifTrue()); () },
       origin = origin
@@ -137,8 +132,7 @@ object NativeIntSymbolicConditional {
     )
   }
 
-  /**
-    * Guard one compiler-classified Scala side effect. Ordinary concrete
+  /** Guard one compiler-classified Scala side effect. Ordinary concrete
     * SpinalHDL keeps its source behavior. MorphVerilog rejects the effect
     * before evaluating the retained alternative, so rejected capture cannot
     * mutate external state or perform I/O while discovering source branches.

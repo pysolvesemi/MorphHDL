@@ -27,6 +27,8 @@ jobs:
     steps:
       - name: Check out sources
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install Verilog-2001 validation tools
         shell: bash
@@ -77,6 +79,7 @@ jobs:
       - name: Check out sources
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           submodules: recursive
 
@@ -173,16 +176,26 @@ jobs:
           test "$(grep -Ec '^[[:space:]]*parameter integer WIDTH = 8$' \
             "${symbolic_data_shapes}")" = "1"
           test "$(grep -Ec '\[WIDTH-1:0\]' \
-            "${symbolic_data_shapes}")" = "45"
+            "${symbolic_data_shapes}")" = "33"
+          test "$(grep -Ec \
+            '^[[:space:]]*(input|output)[[:space:]]+wire[[:space:]]+\[[^]]*WIDTH[^]]*\][[:space:]]+vec_(in|out),?$' \
+            "${symbolic_data_shapes}")" = "2"
+          ! grep -Eq '\bvec_(in|out)_[0-9]+' "${symbolic_data_shapes}"
           test "$(grep -Ec '^[[:space:]]*always @\(posedge clk\)' \
             "${symbolic_data_shapes}")" = "1"
           test "$(grep -Fc 'function integer clog2;' \
             target/morphhdl/generated/run-1/derived_width.v)" = "1"
           test "$(grep -Fc 'function integer clog2;' \
             target/morphhdl/generated/run-1/single_port_memory.v)" = "1"
+          test "$(grep -Ec \
+            '^[[:space:]]*reg[[:space:]]+\[WIDTH-1:0\][[:space:]]+memory[[:space:]]+\[0:DEPTH-1\];$' \
+            target/morphhdl/generated/run-1/single_port_memory.v)" = "1"
           test "$(grep -Fc 'function integer clog2;' \
             target/morphhdl/generated/run-1/parameterized_counter.v)" = "1"
           test "$(grep -Fc 'function integer clog2;' \
+            target/morphhdl/generated/run-1/simple_dual_port_memory.v)" = "1"
+          test "$(grep -Ec \
+            '^[[:space:]]*reg[[:space:]]+\[WIDTH-1:0\][[:space:]]+memory[[:space:]]+\[0:DEPTH-1\];$' \
             target/morphhdl/generated/run-1/simple_dual_port_memory.v)" = "1"
           test "$(grep -Fc 'function integer clog2;' \
             target/morphhdl/generated/run-1/synchronous_stream_fifo.v)" = "1"

@@ -86,7 +86,19 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
       assert(normalizedVerilog.contains("[WIDTH-1:0] bits_in"))
       assert(normalizedVerilog.contains("[WIDTH-1:0] uint_in"))
       assert(normalizedVerilog.contains("[WIDTH-1:0] sint_in"))
-      assert(normalizedVerilog.contains("[WIDTH-1:0] vec_in_0_bits"))
+      val packedVecPort =
+        """\b(input|output)\s+wire\s+\[([^\]]+)\]\s+(vec_in|vec_out)\b""".r
+          .findAllMatchIn(normalizedVerilog)
+          .map(value => value.group(1) -> (value.group(2), value.group(3)))
+          .toVector
+      assert(packedVecPort.size == 2)
+      assert(packedVecPort.map(_._1).toSet == Set("input", "output"))
+      assert(packedVecPort.map(_._2._2).toSet == Set("vec_in", "vec_out"))
+      packedVecPort.foreach { case (_, (range, _)) =>
+        assert(range.contains("WIDTH"))
+        assert(range.contains("*"))
+      }
+      assert(!normalizedVerilog.matches(".*\\bvec_(in|out)_[0-9]+.*"))
       assert(normalizedVerilog.contains("[WIDTH-1:0] stream_in_payload_sint"))
       assert(normalizedVerilog.contains("[WIDTH-1:0] flow_out_payload_uint"))
       assert(normalizedVerilog.contains("[WIDTH-1:0] internal_payload_bits"))
@@ -298,6 +310,67 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("single-source includeFormal retains native COVER publication") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.includeFormal
+      config.netlistFileName = "formal_parameterized_wire.v"
+
+      val report = MorphVerilog(config) {
+        formalDirectWire("FormalParameterizedWire", "WIDTH", defaultWidth = 8)
+      }
+      val verilog = read(directory.resolve(config.netlistFileName))
+
+      assert(report.parameters.map(_.name) == Vector("WIDTH"))
+      assert("(?m)^\\s*cover\\s*\\(".r.findFirstIn(verilog).nonEmpty, verilog)
+    }
+  }
+
+  test("single-source formal configuration rejects unpaired and other flags") {
+    withTemporaryDirectory { directory =>
+      val formalFlagOnly = SpinalConfig(
+        targetDirectory = directory.resolve("formal_flag_only").toString
+      )
+      formalFlagOnly.flags += GenerationFlags.formal
+
+      val formalAssertsOnly = SpinalConfig(
+        targetDirectory = directory.resolve("formal_asserts_only").toString,
+        formalAsserts = true
+      )
+
+      val simulation = SpinalConfig(
+        targetDirectory = directory.resolve("simulation").toString
+      )
+      simulation.includeSimulation
+
+      val multiple = SpinalConfig(
+        targetDirectory = directory.resolve("multiple").toString
+      )
+      multiple.includeFormal
+      multiple.includeSimulation
+
+      Vector(
+        formalFlagOnly,
+        formalAssertsOnly,
+        simulation,
+        multiple
+      ).foreach { config =>
+        var factoryRuns = 0
+        val result = MorphVerilog.tryGenerate(config) {
+          factoryRuns += 1
+          genericDirectWire("RejectedFormalConfig", "WIDTH", defaultWidth = 8)
+        }
+        result match {
+          case Left(failure) =>
+            assert(failure.stage == MorphVerilogStage.Configuration)
+          case Right(report) =>
+            fail(s"Expected formal configuration failure, received $report")
+        }
+        assert(factoryRuns == 0)
+      }
+    }
+  }
+
   private def genericDirectWire(
       componentName: String,
       parameterName: String,
@@ -308,6 +381,23 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
       setDefinitionName(componentName)
       val payload = in(morphhdl.frontend.UInt(width bits))
       val result = out(morphhdl.frontend.UInt(width bits))
+      result := payload
+    }
+  }
+
+  private def formalDirectWire(
+      componentName: String,
+      parameterName: String,
+      defaultWidth: Int
+  ): Component = {
+    val width =
+      HdlInt.param(parameterName, default = defaultWidth, min = 1, max = 64)
+    new Component {
+      setDefinitionName(componentName)
+      val payload = in(morphhdl.frontend.UInt(width bits))
+      val result = out(morphhdl.frontend.UInt(width bits))
+      val seen = RegInit(False) setWhen payload.orR
+      cover(seen)
       result := payload
     }
   }

@@ -7,8 +7,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import spinal.core.internals._
 
-/**
-  * One safe parameter-bounded loop retained inside an ordinary native process.
+/** One safe parameter-bounded loop retained inside an ordinary native process.
   *
   * The Scala body is elaborated once at index zero, so `assignment` remains a
   * normal SpinalHDL statement and therefore continues through the inherited
@@ -25,8 +24,7 @@ private[core] final case class ParameterizedProceduralFor(
     sourceLocation: Option[String]
 )
 
-/**
-  * MorphHDL-owned Increment 34 classifier for parameter-bounded ranges.
+/** MorphHDL-owned Increment 34 classifier for parameter-bounded ranges.
   *
   * Bodies that construct declarations or child Components remain structural
   * generate regions. A body containing exactly one direct assignment to an
@@ -57,8 +55,7 @@ object ParameterizedProcess {
 
   def captureActive: Boolean = activeCapture.get() ne null
 
-  /**
-    * Capture and classify one representative range body without executing it
+  /** Capture and classify one representative range body without executing it
     * twice. The body stays in the caller's real DSL scope so ordinary child
     * hierarchy and process ownership remain identical to concrete elaboration.
     */
@@ -68,6 +65,44 @@ object ParameterizedProcess {
       indexName: String,
       count: ElaborationIntegerExpression,
       sourceLocation: Option[String]
+  )(body: => Unit): Unit =
+    captureRangeImpl(
+      component,
+      label,
+      indexName,
+      count,
+      sourceLocation,
+      requireExactDomain = true
+    )(body)
+
+  /** Established HdlInt entry point. StructuralExpressionBridge has already
+    * exhaustively validated its (possibly multi-root) frontend AST through
+    * IntExpressionAnalysis. Keeping this as a distinct API makes that proof
+    * provenance explicit without fabricating a typed single-root side table.
+    */
+  private[spinal] def captureAnalyzedFrontendRange(
+      component: Component,
+      label: String,
+      indexName: String,
+      count: ElaborationIntegerExpression,
+      sourceLocation: Option[String]
+  )(body: => Unit): Unit =
+    captureRangeImpl(
+      component,
+      label,
+      indexName,
+      count,
+      sourceLocation,
+      requireExactDomain = false
+    )(body)
+
+  private def captureRangeImpl(
+      component: Component,
+      label: String,
+      indexName: String,
+      count: ElaborationIntegerExpression,
+      sourceLocation: Option[String],
+      requireExactDomain: Boolean
   )(body: => Unit): Unit = {
     if (component eq null) {
       fail(
@@ -85,7 +120,7 @@ object ParameterizedProcess {
     }
     validateName(label, "loop label", sourceLocation)
     validateName(indexName, "loop index", sourceLocation)
-    validateCount(count, sourceLocation)
+    validateCount(count, sourceLocation, requireExactDomain)
 
     val originalScope = DslScopeStack.get
     if ((originalScope eq null) || (originalScope.component ne component)) {
@@ -114,13 +149,9 @@ object ParameterizedProcess {
     }
 
     val statements =
-      originalScope.statementIterable.toVector.filterNot(value =>
-        beforeStatements.exists(_ eq value)
-      )
+      originalScope.statementIterable.toVector.filterNot(value => beforeStatements.exists(_ eq value))
     val children =
-      component.children.toVector.filterNot(value =>
-        beforeChildren.exists(_ eq value)
-      )
+      component.children.toVector.filterNot(value => beforeChildren.exists(_ eq value))
     var committed = false
     try {
       classify(
@@ -131,6 +162,7 @@ object ParameterizedProcess {
         label,
         indexName,
         count,
+        requireExactDomain,
         sourceLocation
       )
       committed = true
@@ -143,7 +175,7 @@ object ParameterizedProcess {
   }
 
   /** Record one symbolic packed slice while the range role is undecided. */
-  def recordSlice(
+  private[spinal] def recordSlice(
       source: BitVector,
       result: BitVector,
       offset: ElaborationIntegerExpression,
@@ -183,14 +215,27 @@ object ParameterizedProcess {
         sourceLocation
       )
     }
+    ParameterizedStructure.validateSliceCompleteDomain(
+      source,
+      offset,
+      width,
+      sourceLocation,
+      "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-DOMAIN-UNSUPPORTED"
+    )
     val duplicate = state.slices.exists { value =>
       (value.source eq source) && (value.result eq result) &&
       value.offset == offset && value.width == width
     }
     if (!duplicate) {
+      val assignment = ParameterizedStructure.sliceAssignment(
+        source,
+        result,
+        sourceLocation
+      )
       state.slices += ParameterizedStructure.StructuralSlice(
         source,
         result,
+        assignment,
         offset,
         width,
         sourceLocation
@@ -199,12 +244,12 @@ object ParameterizedProcess {
   }
 
   /** Preserve structural Vec evidence while the range role is undecided. */
-  def recordVecIndex(
-      vector: Vec[_],
-      selected: Data,
+  private[spinal] def recordVecIndex[T <: Data](
+      vector: Vec[T],
+      selected: T,
       index: ElaborationIntegerExpression,
       sourceLocation: Option[String]
-  ): Unit = {
+  ): T = {
     val state = requireCapture("Vec index", sourceLocation)
     if ((vector eq null) || (selected eq null)) {
       fail(
@@ -220,28 +265,28 @@ object ParameterizedProcess {
         sourceLocation
       )
     }
+    val carrierLength = ParameterizedVec
+      .shapeOf(vector)
+      .map(_.carrierCapacity)
+      .getOrElse(vector.carrierLength)
     if (
-      index.default < 0 || index.default >= vector.length ||
-      index.minimum < 0 || index.maximum >= vector.length
+      index.default < 0 || index.default >= carrierLength ||
+      index.minimum < 0 || index.maximum >= carrierLength
     ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-PROCESS-VEC-DOMAIN-UNSUPPORTED",
-        s"Vec index '${index.verilog}' reaches [${index.minimum}, ${index.maximum}], outside 0 until ${vector.length}",
+        s"Vec index '${index.verilog}' reaches [${index.minimum}, ${index.maximum}], outside 0 until $carrierLength",
         sourceLocation
       )
     }
-    val duplicate = state.vecIndices.exists { value =>
-      (value.vector eq vector) && (value.selected eq selected) &&
-      value.index == index
-    }
-    if (!duplicate) {
-      state.vecIndices += ParameterizedStructure.StructuralVecIndex(
-        vector,
-        selected,
-        index,
-        sourceLocation
-      )
-    }
+    val retained = ParameterizedStructure.createVecIndexAlias(
+      vector,
+      selected,
+      index,
+      sourceLocation
+    )
+    state.vecIndices += retained
+    retained.result.asInstanceOf[T]
   }
 
   /** Public process-loop parameter inventory for MorphVerilog reports. */
@@ -253,14 +298,16 @@ object ParameterizedProcess {
     )
     val values = expressions.flatMap(_.parameters)
     val grouped = values.groupBy(_.name)
-    grouped.collectFirst {
-      case (name, declarations) if declarations.distinct.size != 1 => name
-    }.foreach { name =>
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
-        s"process-loop parameter '$name' has conflicting declarations"
-      )
-    }
+    grouped
+      .collectFirst {
+        case (name, declarations) if declarations.distinct.size != 1 => name
+      }
+      .foreach { name =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-SCHEMA-CONFLICT",
+          s"process-loop parameter '$name' has conflicting declarations"
+        )
+      }
     grouped.toVector.map(_._2.head).sortBy(_.name)
   }
 
@@ -277,14 +324,16 @@ object ParameterizedProcess {
       label: String,
       indexName: String,
       count: ElaborationIntegerExpression,
+      requireExactDomain: Boolean,
       sourceLocation: Option[String]
   ): Unit = {
     val declarations = statements.collect { case value: BaseType => value }
     val structuralDeclarations = declarations.filterNot { declaration =>
-      state.slices.exists(slice => slice.result eq declaration)
+      state.slices.exists(slice => slice.result eq declaration) ||
+      state.vecIndices.exists(_.result.flatten.exists(_ eq declaration))
     }
-    val assignments = statements.collect {
-      case value: DataAssignmentStatement => value
+    val assignments = statements.collect { case value: DataAssignmentStatement =>
+      value
     }
     val memories = statements.collect { case value: Mem[_] => value }
     val memoryPorts = statements.collect { case value: MemPortStatement => value }
@@ -319,7 +368,10 @@ object ParameterizedProcess {
       )
     }
 
-    if (children.nonEmpty || structuralDeclarations.nonEmpty || memories.nonEmpty || memoryPorts.nonEmpty) {
+    val hasNativeStructuralConstruction =
+      children.nonEmpty || structuralDeclarations.nonEmpty ||
+        memories.nonEmpty || memoryPorts.nonEmpty
+    if (hasNativeStructuralConstruction || state.vecIndices.nonEmpty) {
       unsupported.headOption.foreach { value =>
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALA-SIDE-EFFECT-UNSUPPORTED",
@@ -335,18 +387,22 @@ object ParameterizedProcess {
         )
       }
 
-      assignments.find { assignment =>
-        val target = assignment.finalTarget
-        val declaredInBody = declarations.exists(_ eq target)
-        val ownedByNewChild = children.exists(child => target.component eq child)
-        !declaredInBody && !ownedByNewChild
-      }.foreach { assignment =>
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-MIXED-STRUCTURAL-PROCESS-LOOP-UNSUPPORTED",
-          s"one parameterized range mixes structural construction with a process assignment to '${assignment.finalTarget.getName()}'; split the structural and procedural loops",
-          sourceLocation
-        )
-      }
+      if (hasNativeStructuralConstruction)
+        assignments
+          .find { assignment =>
+            val target = assignment.finalTarget
+            val declaredInBody = declarations.exists(_ eq target)
+            val ownedByNewChild = children.exists(child => target.component eq child)
+            !declaredInBody && !ownedByNewChild
+          }
+          .foreach { assignment =>
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-MIXED-STRUCTURAL-PROCESS-LOOP-UNSUPPORTED",
+              s"one parameterized range mixes structural construction with a process assignment to '${assignment.finalTarget
+                  .getName()}'; split the structural and procedural loops",
+              sourceLocation
+            )
+          }
       if (
         declarations.isEmpty && assignments.isEmpty && memories.isEmpty &&
         memoryPorts.isEmpty && children.isEmpty && state.slices.isEmpty &&
@@ -361,6 +417,7 @@ object ParameterizedProcess {
 
       // Structural range bodies must retain inferred memories as native
       // declarations until MorphHDL relocates them into the generate region.
+      state.slices.foreach(_.result.dontSimplifyIt())
       memories.foreach(_.preventAsBlackBox())
 
       val block = new ParameterizedStructuralBlock(
@@ -372,16 +429,31 @@ object ParameterizedProcess {
         state.slices.toVector,
         state.vecIndices.toVector,
         Vector.empty,
+        ParameterizedStructure.capturedScalarOperators(
+          component,
+          statements
+        ),
+        Vector.empty,
         sourceLocation
       )
-      ParameterizedStructure.registerFor(
-        component,
-        label,
-        indexName,
-        count,
-        block,
-        sourceLocation
-      )
+      if (requireExactDomain)
+        ParameterizedStructure.registerExactFor(
+          component,
+          label,
+          indexName,
+          count,
+          block,
+          sourceLocation
+        )
+      else
+        ParameterizedStructure.registerFor(
+          component,
+          label,
+          indexName,
+          count,
+          block,
+          sourceLocation
+        )
       return
     }
 
@@ -430,9 +502,7 @@ object ParameterizedProcess {
       )
     }
 
-    val targetSlices = state.slices.filter(slice =>
-      matchesTargetSlice(assignment, slice)
-    )
+    val targetSlices = state.slices.filter(slice => matchesTargetSlice(assignment, slice))
     if (targetSlices.size != 1) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-PROCESS-LOOP-TARGET-SLICE-UNSUPPORTED",
@@ -457,14 +527,6 @@ object ParameterizedProcess {
           slice.sourceLocation.orElse(sourceLocation)
         )
       }
-      val sourceWidth = BigInt(slice.source.getBitsWidth)
-      if (slice.offset.maximum + slice.width.maximum > sourceWidth) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-DOMAIN-UNSUPPORTED",
-          s"slice '${slice.offset.verilog} +: ${slice.width.verilog}' can reach bit ${slice.offset.maximum + slice.width.maximum - 1}, outside concrete capacity $sourceWidth",
-          slice.sourceLocation.orElse(sourceLocation)
-        )
-      }
     }
 
     val storage = storageOf(component)
@@ -472,10 +534,9 @@ object ParameterizedProcess {
     reserveName(storage, indexName, "procedural loop index", sourceLocation)
     storage.nextMarkerId += 1
     val marker = s"MORPH_PROC_FOR_${storage.nextMarkerId}"
-    assignment.locationString =
-      Option(assignment.locationString)
-        .map(value => s"$value $marker")
-        .getOrElse(marker)
+    assignment.locationString = Option(assignment.locationString)
+      .map(value => s"$value $marker")
+      .getOrElse(marker)
 
     storage.loops += ParameterizedProceduralFor(
       label,
@@ -506,8 +567,8 @@ object ParameterizedProcess {
     val matchesWitness = assignment.target match {
       case target: RangedAssignmentFixed =>
         (target.out eq slice.source) &&
-          BigInt(target.lo) == slice.offset.default &&
-          BigInt(target.getWidth) == slice.width.default
+        BigInt(target.lo) == slice.offset.default &&
+        BigInt(target.getWidth) == slice.width.default
       case _ => containsIdentity(assignment.target, slice.result)
     }
     matchesWitness && !containsIdentity(assignment.source, slice.result)
@@ -520,9 +581,7 @@ object ParameterizedProcess {
     val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
     var found = false
     def visit(value: Expression): Unit = {
-      if (
-        !found && (value ne null) && !visited.containsKey(value)
-      ) {
+      if (!found && (value ne null) && !visited.containsKey(value)) {
         visited.put(value, java.lang.Boolean.TRUE)
         if (value eq target) found = true
         else value.foreachExpression(visit)
@@ -572,11 +631,10 @@ object ParameterizedProcess {
 
   private def validateCount(
       count: ElaborationIntegerExpression,
-      sourceLocation: Option[String]
+      sourceLocation: Option[String],
+      requireExactDomain: Boolean
   ): Unit = {
-    if (
-      (count eq null) || count.verilog == null || count.verilog.trim.isEmpty
-    ) {
+    if ((count eq null) || count.verilog == null || count.verilog.trim.isEmpty) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-PROCESS-COUNT-INVALID",
         "parameterized loop count has no portable Verilog expression",
@@ -584,14 +642,36 @@ object ParameterizedProcess {
       )
     }
     if (
-      count.default < 1 || count.minimum < 0 ||
+      count.minimum < 0 ||
       count.maximum < count.minimum ||
       count.default < count.minimum || count.default > count.maximum ||
       count.maximum > BigInt(Int.MaxValue)
     ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-PROCESS-COUNT-DOMAIN-UNSUPPORTED",
-        s"loop count '${count.verilog}' must have a positive witness and a non-negative Int-sized bounded domain",
+        s"loop count '${count.verilog}' must have a non-negative Int-sized bounded domain containing its default",
+        sourceLocation
+      )
+    }
+    val exactDomain =
+      if (requireExactDomain)
+        ElabFiniteRange.requireCompleteSymbolicDomain(
+          count,
+          "parameterized process-loop count",
+          "SPINAL-PARAMETERIZED-VERILOG-PROCESS-COUNT-EXACT-DOMAIN-REQUIRED"
+        )
+      else None
+    val hasPositiveRepresentative = exactDomain match {
+      case Some((exact, admitted)) =>
+        exact.evaluations.exists { case (rootValue, result) =>
+          admitted.contains(rootValue) && result > 0
+        }
+      case None => count.maximum > 0
+    }
+    if (!hasPositiveRepresentative) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-PROCESS-COUNT-DOMAIN-UNSUPPORTED",
+        s"loop count '${count.verilog}' has no ${if (requireExactDomain) "exact" else "frontend-analyzed"} positive-domain point for its index-zero representative body",
         sourceLocation
       )
     }

@@ -54,6 +54,15 @@ trait VecFactory {
   def Vec[T <: Data](firstElement: T, followingElements: T*): Vec[T] = Vec(List(firstElement) ++ followingElements)
 
   class VecBuilder {
+
+    /** One authoritative native carrier construction path shared by the
+      * historical Int factory and typed symbolic-depth metadata attachment.
+      * Keeping the by-name evaluation here preserves the exact element and
+      * HardType generator call order of ordinary Vec.fill.
+      */
+    private[core] def fillCarrier[T <: Data](size: Int)(dataType: => T): Vec[T] =
+      Vec((0 until size).map(_ => dataType), HardType(dataType)).setElementsParents()
+
     def tabulate[T <: Data](size: Int)(gen: (Int) => T): Vec[T] = {
       Vec((0 until size).map(gen(_))).setElementsParents()
     }
@@ -73,19 +82,15 @@ trait VecFactory {
       tabulate(n1)(i => tabulate(n2, n3, n4, n5)(f(i, _, _, _, _)))
 
     def fill[T <: Data](size: Int)(dataType: => T): Vec[T] = {
-      Vec((0 until size).map(_ => dataType), HardType(dataType)).setElementsParents()
+      val vector = fillCarrier(size)(dataType)
+      ParameterizedVec.attachConcreteDepthIfSymbolicElement(vector, size)
     }
 
     /** Typed counterpart used by native algorithms whose enclosing structural
       * branch retains the exact symbolic size.
       */
     def fill[T <: Data](size: ElabInt)(dataType: => T): Vec[T] = {
-      if (size == null)
-        throw new IllegalArgumentException("typed Vec size must not be null")
-      Vec(
-        size.finiteRangeFromZero("typed Vec size").map(_ => dataType),
-        HardType(dataType)
-      ).setElementsParents()
+      ParameterizedVec.create(size, "typed Vec size")(dataType)
     }
     def fill[T <: Data](n1: Int, n2: Int)(elem: => T): Vec[Vec[T]] =
       tabulate(n1)(_ => fill(n2)(elem))
@@ -102,21 +107,69 @@ trait VecFactory {
   val Vec = new VecBuilder()
 }
 
-class VecAccessAssign[T <: Data](enables: Seq[Bool], tos: Seq[BaseType], vec: Vec[T]) extends Assignable {
+class VecAccessAssign[T <: Data](
+    enables: Seq[Bool],
+    tos: Seq[BaseType],
+    vec: Vec[T],
+    address: UInt,
+    elementLeafIndex: Int,
+    carrierAddress: UInt,
+    decoderOne: UInt,
+    decoder: UInt
+) extends Assignable {
+
+  /** Keep the historical JVM constructor available to existing native users. */
+  def this(enables: Seq[Bool], tos: Seq[BaseType], vec: Vec[T]) =
+    this(enables, tos, vec, null, -1, null, null, null)
+
+  private[core] def this(
+      enables: Seq[Bool],
+      tos: Seq[BaseType],
+      vec: Vec[T],
+      address: UInt,
+      elementLeafIndex: Int
+  ) = this(enables, tos, vec, address, elementLeafIndex, null, null, null)
 
   override def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit loc: Location): Unit = {
-    for ((enable, to) <- (enables, tos).zipped) {
-      when(enable) {
-        val thatSafe = that /*match {
-          case that: AssignmentNode => that.clone(to)
-          case _ => that
-        }*/
-        target match {
-          case a: BitVectorAssignmentExpression =>
-            to.compositAssignFrom(thatSafe, a.copyWithTarget(to.asInstanceOf[BitVector]), kind)
-          case bt: BaseType => to.compositAssignFrom(thatSafe, to, kind)
+    def assignNative(): Unit = {
+      for ((enable, to) <- (enables, tos).zipped) {
+        when(enable) {
+          val thatSafe = that /*match {
+            case that: AssignmentNode => that.clone(to)
+            case _ => that
+          }*/
+          target match {
+            case a: BitVectorAssignmentExpression =>
+              to.compositAssignFrom(thatSafe, a.copyWithTarget(to.asInstanceOf[BitVector]), kind)
+            case bt: BaseType => to.compositAssignFrom(thatSafe, to, kind)
+          }
         }
       }
+    }
+
+    if (ParameterizedVec.shapeOf(vec).nonEmpty) {
+      if (address == null || elementLeafIndex < 0) {
+        ParameterizedVec.rejectUnsupported(
+          vec,
+          "legacy dynamic Vec write without typed address evidence"
+        )
+      }
+      val (_, assignments) =
+        ParameterizedVec.captureAssignments(vec)(assignNative())
+      ParameterizedVec.recordDynamicWrite(
+        vec,
+        address,
+        carrierAddress,
+        decoderOne,
+        decoder,
+        enables,
+        tos,
+        elementLeafIndex,
+        assignments,
+        kind
+      )
+    } else {
+      assignNative()
     }
   }
 
@@ -155,9 +208,28 @@ class Vec[T <: Data](var _dataType: HardType[T], val vec: Vector[T]) extends Mul
     if (OwnableRef.proposal(e, this)) e.setPartialName(i.toString, Nameable.DATAMODEL_WEAK)
   }
 
-  def range = vec.indices
+  /** Physical native geometry used only by the audited typed-Vec carrier
+    * implementation. Public collection geometry below must remain logical.
+    */
+  private[core] def carrierLength: Int = vec.size
+  private[core] def carrierRange = vec.indices
+  private[core] def carrierBitsWidth: Int = super.getBitsWidth
 
-  override def length: Int = vec.size
+  def range =
+    ParameterizedVec
+      .logicalLengthOf(this, "Vec.range")
+      .map(0 until _)
+      .getOrElse(carrierRange)
+
+  override def length: Int =
+    ParameterizedVec
+      .logicalLengthOf(this, "Vec.length")
+      .getOrElse(carrierLength)
+
+  override def getBitsWidth: Int =
+    ParameterizedVec
+      .logicalBitsWidthOf(this, "Vec.getBitsWidth")
+      .getOrElse(carrierBitsWidth)
 
   override def equals(that: Any): Boolean = that match {
     case that: Vec[_] => instanceCounter == that.instanceCounter
@@ -189,12 +261,14 @@ class Vec[T <: Data](var _dataType: HardType[T], val vec: Vector[T]) extends Mul
 
   /** Access an element of the vector by an `Int` index */
   override def apply(idx: Int): T = {
+    ParameterizedVec.validateStaticIndex(this, idx)
     if (idx < 0 || idx >= vec.size)
       SpinalError(s"Static Vec($idx) is outside the range (${vec.size - 1} downto 0) of ${this}")
     vec(idx)
   }
 
   def apply(range: Range): Vec[T] = {
+    ParameterizedVec.rejectUnsupported(this, "Vec range selection")
     Vec(range.map(vec(_)))
   }
 
@@ -212,16 +286,26 @@ class Vec[T <: Data](var _dataType: HardType[T], val vec: Vector[T]) extends Mul
     }
     //    val ret = SeqMux(vec.take(Math.min(vec.length, 1 << address.getWidth)), address)
     var finalAddress = address
-    val bitNeeded = log2Up(elements.size)
-
-    if (bitNeeded < finalAddress.getWidth) {
-      if (finalAddress.hasTag(tagAutoResize)) {
-        finalAddress = address.resize(bitNeeded)
-      } else {
-        SpinalError(
-          s"Too many bit to address the vector (${finalAddress.getWidth} in place of $bitNeeded)\n at\n${ScalaLocated.long}"
-        )
-      }
+    ParameterizedVec.shapeOf(this) match {
+      case Some(shape) =>
+        val carrierWidth = log2Up(shape.carrierCapacity)
+        if (carrierWidth > 0 && finalAddress.getWidth != carrierWidth) {
+          // This resized node belongs only to the finite audited carrier graph.
+          // Publication consumes the operation record and original typed
+          // address, never this witness implementation detail.
+          finalAddress = address.resize(carrierWidth)
+        }
+      case None =>
+        val bitNeeded = log2Up(elements.size)
+        if (bitNeeded < finalAddress.getWidth) {
+          if (finalAddress.hasTag(tagAutoResize)) {
+            finalAddress = address.resize(bitNeeded)
+          } else {
+            SpinalError(
+              s"Too many bit to address the vector (${finalAddress.getWidth} in place of $bitNeeded)\n at\n${ScalaLocated.long}"
+            )
+          }
+        }
     }
 
     val ret = dataType()
@@ -249,15 +333,20 @@ class Vec[T <: Data](var _dataType: HardType[T], val vec: Vector[T]) extends Mul
     ret
   }
 
-  private def fixAddress(address: UInt): UInt = if (widthOf(address) != log2Up(length)) {
-    if (address.hasTag(tagAutoResize)) {
-      address.resize(log2Up(length))
+  private def fixAddress(address: UInt): UInt = {
+    if (ParameterizedVec.shapeOf(this).nonEmpty) {
+      ParameterizedVec.validateDynamicAddress(this, address)
+      address
+    } else if (widthOf(address) != log2Up(length)) {
+      if (address.hasTag(tagAutoResize)) {
+        address.resize(log2Up(length))
+      } else {
+        LocatedPendingError(s"Vec address width mismatch.\n- Vec : $this\n- Address width : ${widthOf(address)}\n")
+        address
+      }
     } else {
-      LocatedPendingError(s"Vec address width mismatch.\n- Vec : $this\n- Address width : ${widthOf(address)}\n")
       address
     }
-  } else {
-    address
   }
 
   def read(address: UInt): T = {
@@ -265,6 +354,7 @@ class Vec[T <: Data](var _dataType: HardType[T], val vec: Vector[T]) extends Mul
     if (readMap.contains(key)) return readMap(key)
     val trueAddress = fixAddress(address)
     val ret = readEmu(trueAddress)
+    ParameterizedVec.recordDynamicAccess(this, trueAddress, ret, writable = false)
 
     readMap += (key -> ret)
     ret
@@ -276,19 +366,57 @@ class Vec[T <: Data](var _dataType: HardType[T], val vec: Vector[T]) extends Mul
     val trueAddress = fixAddress(address)
 
     val ret = readEmu(trueAddress)
-    val enables = (U(1) << trueAddress).asBools
-
-    for ((accessE, to) <- (ret.flatten, vecTransposed).zipped) {
-      accessE.compositeAssign = new VecAccessAssign[T](enables, to, this)
+    val carrierAddress = ParameterizedVec.shapeOf(this) match {
+      case Some(shape)
+          if shape.carrierCapacity > 1 &&
+            trueAddress.getBitsWidth != log2Up(shape.carrierCapacity) =>
+        trueAddress.resize(log2Up(shape.carrierCapacity))
+      case _ => trueAddress
     }
+    val decoderOne = U(1)
+    val decoder = decoderOne << carrierAddress
+    ParameterizedVec.shapeOf(this).foreach { _ =>
+      carrierAddress.dontSimplifyIt()
+      decoderOne.dontSimplifyIt()
+      decoder.dontSimplifyIt()
+    }
+    val enables = decoder.asBools
+    ParameterizedVec.shapeOf(this).foreach { _ =>
+      enables.foreach(_.dontSimplifyIt())
+    }
+
+    for (
+      ((accessE, to), leafIndex) <-
+        ret.flatten.zip(vecTransposed).zipWithIndex
+    ) {
+      accessE.compositeAssign = new VecAccessAssign[T](
+        enables,
+        to,
+        this,
+        trueAddress,
+        leafIndex,
+        carrierAddress,
+        decoderOne,
+        decoder
+      )
+    }
+
+    ParameterizedVec.recordDynamicAccess(this, trueAddress, ret, writable = true)
 
     accessMap += (key -> ret)
     ret
   }
 
+  /** Direct dynamic write through the authoritative indexed-access algorithm. */
+  def write(address: UInt, data: T): Unit = {
+    this(address) := data
+  }
+
   // TODO sub element composite assignment, as well for indexed access (std)
   /** Access an element of the vector by a `oneHot` value */
   def oneHotAccess(oneHot: Bits): T = {
+
+    ParameterizedVec.rejectUnsupported(this, "one-hot Vec access")
 
     if (elements.size != oneHot.getWidth) {
       SpinalError(
@@ -324,9 +452,24 @@ class Vec[T <: Data](var _dataType: HardType[T], val vec: Vector[T]) extends Mul
   protected override def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit loc: Location): Unit = {
     that match {
       case that: Vec[T] =>
+        val parameterized = ParameterizedVec.requireCompatible(this, that)
         if (that.vec.size != this.vec.size) throw new Exception("Can't assign Vec with a different size")
-        for ((to, from) <- (this.vec, that.vec).zipped) {
-          to.compositAssignFrom(from, to, kind)
+        def assignNative(): Unit = {
+          for ((to, from) <- (this.vec, that.vec).zipped) {
+            to.compositAssignFrom(from, to, kind)
+          }
+        }
+        if (parameterized) {
+          val (_, assignments) =
+            ParameterizedVec.captureAssignments(this)(assignNative())
+          ParameterizedVec.recordWholeAssignment(
+            this,
+            that,
+            assignments,
+            kind
+          )
+        } else {
+          assignNative()
         }
       case _ => throw new Exception("Undefined assignment")
     }
@@ -344,18 +487,92 @@ class Vec[T <: Data](var _dataType: HardType[T], val vec: Vector[T]) extends Mul
     elementsCache
   }
 
-  override def clone: this.type = new Vec[T](dataType, vec.map(cloneOf(_))).asInstanceOf[this.type]
+  override def clone: this.type = {
+    ParameterizedVec.shapeOf(this) match {
+      case Some(_) =>
+        val cloned =
+          new Vec[T](dataType, vec.map(ParameterizedWidth.cloneOf(_)))
+        ParameterizedVec.copyShape(this, cloned).asInstanceOf[this.type]
+      case None =>
+        new Vec[T](dataType, vec.map(cloneOf(_))).asInstanceOf[this.type]
+    }
+  }
 
-  override def toString() = s"${getDisplayName()} : Vec of $length elements"
+  override def asBits: Bits = {
+    ParameterizedVec.recordPackedRead(this, super.asBits)
+  }
+
+  override def assignFromBits(bits: Bits): Unit = {
+    if (ParameterizedVec.shapeOf(this).nonEmpty) {
+      ParameterizedVec.validatePackedAssignment(this, bits)
+      val physicalWidth = carrierBitsWidth
+      val carrier =
+        if (bits.getBitsWidth == physicalWidth) bits
+        else bits.resize(physicalWidth).dontSimplifyIt()
+      val (_, assignments) =
+        ParameterizedVec.captureAssignments(this)(super.assignFromBits(carrier))
+      ParameterizedVec.recordPackedAssignment(this, bits, carrier, assignments)
+    } else {
+      super.assignFromBits(bits)
+    }
+  }
+
+  override def assignFromBits(bits: Bits, hi: Int, lo: Int): Unit = {
+    ParameterizedVec.rejectUnsupported(this, "ranged packed assignment to Vec")
+    super.assignFromBits(bits, hi, lo)
+  }
+
+  private[core] override def autoConnect(that: Data)(implicit loc: Location): Unit = {
+    that match {
+      case peer: Vec[_] if ParameterizedVec.requireCompatible(this, peer) =>
+        val (_, assignments) = ParameterizedVec.captureAssignments(
+          Vector(this, peer)
+        )(super.autoConnect(that))
+        ParameterizedVec.recordAutoConnect(this, peer, assignments)
+      case _ => super.autoConnect(that)
+    }
+  }
+
+  private[core] override def isEqualTo(that: Any): Bool = {
+    ParameterizedVec.rejectUnsupported(this, "Vec equality")
+    super.isEqualTo(that)
+  }
+
+  private[core] override def isNotEqualTo(that: Any): Bool = {
+    ParameterizedVec.rejectUnsupported(this, "Vec inequality")
+    super.isNotEqualTo(that)
+  }
+
+  private[core] override def isEqualToSim(that: Any): Bool = {
+    ParameterizedVec.rejectUnsupported(this, "four-state Vec equality")
+    super.isEqualToSim(that)
+  }
+
+  override def getZero: this.type = {
+    ParameterizedVec.rejectUnsupported(this, "Vec zero construction")
+    super.getZero
+  }
+
+  override def toString() = {
+    val depth = ParameterizedVec
+      .logicalDepthDisplayOf(this)
+      .getOrElse(carrierLength.toString)
+    s"${getDisplayName()} : Vec of $depth elements"
+  }
 }
 
 class VecBitwisePimper[T <: Data with BitwiseOp[T]](pimped: Vec[T]) extends BitwiseOp[Vec[T]] {
   override def |(other: Vec[T]): Vec[T] = map2with(_ | _)(other)
   override def &(other: Vec[T]): Vec[T] = map2with(_ & _)(other)
   override def ^(other: Vec[T]): Vec[T] = map2with(_ ^ _)(other)
-  override def unary_~ : Vec[T] = Vec(pimped.map(~_))
+  override def unary_~ : Vec[T] = {
+    ParameterizedVec.rejectUnsupported(pimped, "bitwise Vec inversion")
+    Vec(pimped.map(~_))
+  }
 
   private def map2with(f: (T, T) => T)(other: Vec[T]): Vec[T] = {
+    ParameterizedVec.rejectUnsupported(pimped, "bitwise Vec operation")
+    ParameterizedVec.rejectUnsupported(other, "bitwise Vec operation")
     if (pimped.length != other.length)
       SpinalError(
         s"Cannot apply a bitwise operation on vectors with different sizes (${pimped.length} vs ${other.length})"

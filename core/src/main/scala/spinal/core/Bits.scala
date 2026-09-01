@@ -23,14 +23,16 @@ package spinal.core
 import spinal.core.internals._
 import spinal.idslplugin.Location
 
-/**
-  * Bits factory used for instance by the IODirection to create a in/out Bits
+/** Bits factory used for instance by the IODirection to create a in/out Bits
   */
 trait BitsFactory {
+
   /** Create a new Bits */
   def Bits(u: Unit = ()): Bits = new Bits()
+
   /** Create a new Bits of a given width */
   def Bits(width: BitCount): Bits = Bits().setWidth(width.value)
+
   /** Create a new Bits while retaining one typed elaboration width. */
   def Bits(width: ParameterizedBitCount): Bits = {
     ParameterizedWidth.validatedWidthWitness(width)
@@ -38,9 +40,7 @@ trait BitsFactory {
   }
 }
 
-
-/**
-  * The `Bits` type corresponds to a vector of bits that does not convey any arithmetic meaning.
+/** The `Bits` type corresponds to a vector of bits that does not convey any arithmetic meaning.
   *
   * @example {{{
   *     val myBits1 = Bits(32 bits)
@@ -51,9 +51,9 @@ trait BitsFactory {
   *
   * @see  [[https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Data%20types/bits.html `Bits` Documentation]]
   */
-class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[Bits] with BitwiseOp[Bits]{
+class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[Bits] with BitwiseOp[Bits] {
 
-  override def getTypeObject  = TypeBits
+  override def getTypeObject = TypeBits
 
   override def opName: String = "Bits"
 
@@ -61,8 +61,7 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
 
   private[spinal] override def _data: Bits = this
 
-  /**
-    * Concatenation between two Bits
+  /** Concatenation between two Bits
     * @example{{{ val myBits2 = bits1 ## bits2 }}}
     * @param right a Bits to append
     * @return a new Bits of width (w(this) + w(right))
@@ -75,16 +74,14 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
   override def ^(right: Bits): Bits = wrapBinaryOperator(right, new Operator.Bits.Xor)
   override def unary_~ : Bits = wrapUnaryOperator(new Operator.Bits.Not)
 
-  /**
-    * Logical shift right (output width will decrease)
+  /** Logical shift right (output width will decrease)
     * @example{{{ val result = myBits >> 4 }}}
     * @param that the number of shift
     * @return a Bits of width : w(this) - that bits
     */
   def >>(that: Int): Bits = wrapConstantOperator(new Operator.Bits.ShiftRightByInt(that))
 
-  /**
-    * Logical shift left (output width will increase)
+  /** Logical shift left (output width will increase)
     * @example{{{ val result = myBits << 4 }}}
     * @param that the number of shift
     * @return a Bits of width : w(this) + that bits
@@ -93,39 +90,41 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
 
   /** Logical shift right (output width == input width) */
   def >>(that: UInt): Bits = wrapBinaryOperator(that, new Operator.Bits.ShiftRightByUInt)
+
   /** Logical shift left (output width will increase of w(this) + max(that) bits */
   def <<(that: UInt): Bits = wrapBinaryOperator(that, new Operator.Bits.ShiftLeftByUInt)
 
-  /**
-    * Logical shift right (output width == input width)
+  /** Logical shift right (output width == input width)
     * @example{{{ val result = myBits |>> 4 }}}
     * @param that the number of shift
     * @return a Bits of width : w(this)
     */
-  def |>>(that: Int): Bits  = wrapConstantOperator(new Operator.Bits.ShiftRightByIntFixedWidth(that))
+  def |>>(that: Int): Bits = wrapConstantOperator(new Operator.Bits.ShiftRightByIntFixedWidth(that))
+
   /** Logical shift left (output width == input width) */
-  def |<<(that: Int): Bits  = wrapConstantOperator(new Operator.Bits.ShiftLeftByIntFixedWidth(that))
+  def |<<(that: Int): Bits = wrapConstantOperator(new Operator.Bits.ShiftLeftByIntFixedWidth(that))
+
   /** Logical shift Right (output width == input width) */
   def |>>(that: UInt): Bits = this >> that
+
   /** Logical shift left (output width == input width) */
   def |<<(that: UInt): Bits = wrapBinaryOperator(that, new Operator.Bits.ShiftLeftByUIntFixedWidth)
 
   override def rotateLeft(that: Int): Bits = {
-    val width   = widthOf(this)
+    val width = widthOf(this)
     val thatMod = that % width
     this(this.high - thatMod downto 0) ## this(this.high downto this.high - thatMod + 1)
   }
 
   override def rotateRight(that: Int): Bits = {
-    val width   = widthOf(this)
+    val width = widthOf(this)
     val thatMod = that % width
     this(thatMod - 1 downto 0) ## this(this.high downto thatMod)
   }
 
   override def #*(count: Int): Bits = wrapUnaryOperator(new Operator.Bits.Repeat(count))
 
-  /**
-    * Assign a range value to a Bits
+  /** Assign a range value to a Bits
     * @example{{{ core.io.interrupt = (0 -> uartCtrl.io.interrupt, 1 -> timerCtrl.io.interrupt, default -> false)}}}
     * @param rangesValue The first range value
     * @param _rangesValues Others range values
@@ -135,20 +134,18 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
     B.applyTuples(this, rangesValues)
   }
 
-  def :=(value : String) : Unit = this := B(value)
+  def :=(value: String): Unit = this := B(value)
 
   override def assignFromBits(bits: Bits): Unit = this := bits
-  override def assignFromBits(bits: Bits, hi: Int, lo: Int): Unit = this (hi downto lo).assignFromBits(bits)
+  override def assignFromBits(bits: Bits, hi: Int, lo: Int): Unit = this(hi downto lo).assignFromBits(bits)
 
-  /**
-    * Cast a Bits to a SInt
+  /** Cast a Bits to a SInt
     * @example {{{ val mySInt = myBits.asSInt }}}
     * @return a SInt data
     */
   def asSInt: SInt = wrapCast(SInt(), new CastBitsToSInt)
 
-  /**
-    * Cast a Bits to an UInt
+  /** Cast a Bits to an UInt
     * @example {{{ val myUInt = myBits.asUInt }}}
     * @return an UInt data
     */
@@ -160,8 +157,7 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
     ret
   }
 
-  /**
-    * Cast a Bits to a given data type
+  /** Cast a Bits to a given data type
     * @example{{{ val myUInt = myBits.toDataType(UInt) }}}
     * @param dataType the wanted data type
     * @return a new data type assign with the value of Bits
@@ -195,37 +191,36 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
 
   def valueRange: Range = {
     assert(getWidth < 32)
-    0 to (1 << getWidth)-1
+    0 to (1 << getWidth) - 1
   }
 
   /** Return a resized representation of x.
-   * 
-   *  If enlarged, it is extended with zero padding at MSB as necessary.
-   */
+    *
+    *  If enlarged, it is extended with zero padding at MSB as necessary.
+    */
   override def resize(width: Int): Bits = wrapWithWeakClone({
-    val node   = new ResizeBits
+    val node = new ResizeBits
     node.input = this
-    node.size  = width
+    node.size = width
     node
   })
 
   /** Return a resized representation of x.
-   * 
-   *  If enlarged, it is extended with zero padding at MSB as necessary.
-   */
-  override def resize(width: BitCount) : Bits = resize(width.value)
+    *
+    *  If enlarged, it is extended with zero padding at MSB as necessary.
+    */
+  override def resize(width: BitCount): Bits = resize(width.value)
 
   /** Resize while retaining the exact typed target width. */
-  override def resize(width: ElabInt): Bits =
-    ParameterizedWidth.attachResize(
-      resize(ParameterizedWidth.validatedResizeWitness(width)),
-      width
-    )
+  override def resize(width: ElabInt): Bits = {
+    val witness = ParameterizedWidth.validatedResizeWitness(width)
+    if (width.isConcrete) resize(witness)
+    else ParameterizedWidth.attachResize(resize(witness), width)
+  }
 
   override def resizeFactory: Resize = new ResizeBits
 
-  /**
-    * Resize by keeping MSB at the same place
+  /** Resize by keeping MSB at the same place
     * If the final size is bigger than the original size, the leftmost bits are filled with zeroes
     * if the final size is smaller, only width MSB are kept
     * @param width Final width
@@ -241,10 +236,12 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
     }
   }
 
-  override def apply(bitId: Int): Bool  = newExtract(bitId, new BitsBitAccessFixed)
+  override def apply(bitId: Int): Bool = newExtract(bitId, new BitsBitAccessFixed)
   override def apply(bitId: UInt): Bool = newExtract(bitId, new BitsBitAccessFloating)
-  override def apply(offset: Int, bitCount: BitCount): this.type  = newExtract(offset+bitCount.value-1,offset, new BitsRangedAccessFixed).setWidth(bitCount.value)
-  override def apply(offset: UInt, bitCount: BitCount): this.type = newExtract(offset,bitCount.value, new BitsRangedAccessFloating).setWidth(bitCount.value)
+  override def apply(offset: Int, bitCount: BitCount): this.type =
+    newExtract(offset + bitCount.value - 1, offset, new BitsRangedAccessFixed).setWidth(bitCount.value)
+  override def apply(offset: UInt, bitCount: BitCount): this.type =
+    newExtract(offset, bitCount.value, new BitsRangedAccessFloating).setWidth(bitCount.value)
 
   private[core] override def weakClone: this.type = new Bits().asInstanceOf[this.type]
   override def getZero: this.type = B(0, this.getWidth bits).asInstanceOf[this.type]
@@ -263,15 +260,15 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
   override private[core] def formalPast(delay: Int) = this.wrapUnaryOperator(new Operator.Formal.PastBits(delay))
   def reversed = B(asBools.reverse).asInstanceOf[this.type]
 
-  override def assignFormalRandom(kind: Operator.Formal.RandomExpKind) = this.assignFrom(new Operator.Formal.RandomExpBits(kind, widthOf(this)))
+  override def assignFormalRandom(kind: Operator.Formal.RandomExpKind) =
+    this.assignFrom(new Operator.Formal.RandomExpBits(kind, widthOf(this)))
 
-  /**
-   * Return a instance of the parameter which alias this.Bits in both read and assignments accesses.
-   * Useful for union like data structures.
-   * @param t The type in which the alias will be
-   * @return The alias
-   */
-  def aliasAs[T <: Data](t : HardType[T]) : T = {
+  /** Return a instance of the parameter which alias this.Bits in both read and assignments accesses.
+    * Useful for union like data structures.
+    * @param t The type in which the alias will be
+    * @return The alias
+    */
+  def aliasAs[T <: Data](t: HardType[T]): T = {
     val wrap = t()
     wrap.assignFromBits(this.asBits.resized)
     var offsetCounter = 0
@@ -281,7 +278,9 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
       e.compositeAssign = new Assignable {
         val offset = offsetCounter
 
-        override protected def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit loc: Location): Unit = {
+        override protected def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit
+            loc: Location
+        ): Unit = {
           def getBits(w: Int) = that match {
             case that: BitVector if widthOf(that) != w => {
               val tmp = cloneOf(that).setWidth(w)
@@ -292,11 +291,20 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
           }
 
           target match {
-            case x: BaseType => Bits.this.compositAssignFrom(getBits(eWidth), RangedAssignmentFixed(Bits.this, offset + eWidth - 1, offset), kind)
+            case x: BaseType =>
+              Bits.this.compositAssignFrom(
+                getBits(eWidth),
+                RangedAssignmentFixed(Bits.this, offset + eWidth - 1, offset),
+                kind
+              )
             case x: BitAssignmentFixed => Bits.this(offset + x.bitId).compositAssignFrom(that, Bits.this, kind)
-            case x: BitAssignmentFloating => Bits.this(offset + x.bitId.asInstanceOf[UInt]).compositAssignFrom(that, Bits.this, kind)
-            case x: RangedAssignmentFixed => Bits.this(offset + x.hi downto offset + x.lo).compositAssignFrom(getBits(x.getWidth), Bits.this, kind)
-            case x: RangedAssignmentFloating => Bits.this(offset + x.offset.asInstanceOf[UInt], x.bitCount bits).compositAssignFrom(getBits(x.getWidth), Bits.this, kind)
+            case x: BitAssignmentFloating =>
+              Bits.this(offset + x.bitId.asInstanceOf[UInt]).compositAssignFrom(that, Bits.this, kind)
+            case x: RangedAssignmentFixed =>
+              Bits.this(offset + x.hi downto offset + x.lo).compositAssignFrom(getBits(x.getWidth), Bits.this, kind)
+            case x: RangedAssignmentFloating =>
+              Bits.this(offset + x.offset.asInstanceOf[UInt], x.bitCount bits)
+                .compositAssignFrom(getBits(x.getWidth), Bits.this, kind)
           }
         }
 

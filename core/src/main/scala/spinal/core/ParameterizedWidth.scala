@@ -34,6 +34,43 @@ final class ElaborationIntegerParameterRoot private (
     val name: String,
     val sourceLocation: Option[String]
 ) {
+  private[this] var authoritativeSchema: ElaborationIntegerParameter = null
+
+  /** Trusted exact-domain construction binds one declaration root to one
+    * exact schema object. Public expression/domain copying can retain the root
+    * reference, but it can never bind a replacement schema during validation.
+    */
+  private[spinal] def bindAuthoritativeSchema(
+      schema: ElaborationIntegerParameter,
+      role: String,
+      useLocation: Option[String]
+  ): Unit = synchronized {
+    if (schema == null) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-ELAB-DOMAIN-ROOT-SCHEMA-IDENTITY-CONFLICT",
+        s"$role cannot bind declaration root '$name' to a null schema",
+        useLocation.orElse(sourceLocation)
+      )
+    }
+    if (authoritativeSchema eq null) authoritativeSchema = schema
+    else if (authoritativeSchema ne schema) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-ELAB-DOMAIN-ROOT-SCHEMA-IDENTITY-CONFLICT",
+        s"$role cannot bind declaration root '$name' to a replacement schema object",
+        useLocation.orElse(sourceLocation)
+      )
+    }
+  }
+
+  /** Validation is read-only: an unbound or differently bound root is never
+    * repaired from public metadata.
+    */
+  private[spinal] def isAuthoritativeSchema(
+      schema: ElaborationIntegerParameter
+  ): Boolean = synchronized {
+    (authoritativeSchema ne null) && (authoritativeSchema eq schema)
+  }
+
   override def toString: String = s"ElaborationIntegerParameterRoot($name)"
 }
 
@@ -80,6 +117,53 @@ final case class ElaborationIntegerExpression(
     ] = None
 ) {
   @transient private[this] var _projectionProvenance: ElaborationProjectionProvenance = null
+  @transient private[this] var _exactAuthorityDomain: ElaborationExactDomain[BigInt] = null
+
+  /** Certify exact evidence on this JVM object only. Generated case-class
+    * copies deliberately start without this stamp even though Scala copies the
+    * constructor field containing the domain.
+    */
+  private[spinal] def attachExactAuthority(
+      domain: ElaborationExactDomain[BigInt],
+      role: String
+  ): ElaborationIntegerExpression = synchronized {
+    if (domain == null || !exactDomain.exists(_ eq domain)) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-ELAB-DOMAIN-EXACT-AUTHORITY-IDENTITY-MISMATCH",
+        s"$role cannot certify an exact domain that is not retained by expression '$verilog'",
+        sourceLocation
+      )
+    }
+    if ((_exactAuthorityDomain ne null) && (_exactAuthorityDomain ne domain)) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-ELAB-DOMAIN-EXACT-AUTHORITY-CONFLICT",
+        s"$role cannot replace exact authority on expression '$verilog'",
+        sourceLocation
+      )
+    }
+    _exactAuthorityDomain = domain
+    this
+  }
+
+  private[spinal] def hasExactAuthority: Boolean = synchronized {
+    exactDomain match {
+      case Some(domain) => _exactAuthorityDomain eq domain
+      case None         => _exactAuthorityDomain eq null
+    }
+  }
+
+  private[spinal] def preserveExactAuthorityOn(
+      target: ElaborationIntegerExpression,
+      role: String
+  ): ElaborationIntegerExpression = synchronized {
+    if (target == null)
+      throw new IllegalArgumentException(s"$role exact-authority target must not be null")
+    exactDomain match {
+      case Some(domain) if _exactAuthorityDomain eq domain =>
+        target.attachExactAuthority(domain, role)
+      case _ => target
+    }
+  }
 
   /** Attach construction provenance to this exact projected expression.
     * Generated case-class copies start with an empty slot by design.
@@ -110,6 +194,7 @@ final case class ElaborationIntegerExpression(
       )
     }
     _projectionProvenance = incoming
+    attachExactAuthority(domain, role)
     this
   }
 
@@ -173,6 +258,49 @@ final case class ElaborationBooleanExpression(
     ] = None
 ) {
   @transient private[this] var _projectionProvenance: ElaborationProjectionProvenance = null
+  @transient private[this] var _exactAuthorityDomain: ElaborationExactDomain[Boolean] = null
+
+  private[spinal] def attachExactAuthority(
+      domain: ElaborationExactDomain[Boolean],
+      role: String
+  ): ElaborationBooleanExpression = synchronized {
+    if (domain == null || !exactDomain.exists(_ eq domain)) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-ELAB-DOMAIN-EXACT-AUTHORITY-IDENTITY-MISMATCH",
+        s"$role cannot certify an exact domain that is not retained by predicate '$verilog'",
+        sourceLocation
+      )
+    }
+    if ((_exactAuthorityDomain ne null) && (_exactAuthorityDomain ne domain)) {
+      ParameterizedVerilogException.fail(
+        "SPINAL-ELAB-DOMAIN-EXACT-AUTHORITY-CONFLICT",
+        s"$role cannot replace exact authority on predicate '$verilog'",
+        sourceLocation
+      )
+    }
+    _exactAuthorityDomain = domain
+    this
+  }
+
+  private[spinal] def hasExactAuthority: Boolean = synchronized {
+    exactDomain match {
+      case Some(domain) => _exactAuthorityDomain eq domain
+      case None         => _exactAuthorityDomain eq null
+    }
+  }
+
+  private[spinal] def preserveExactAuthorityOn(
+      target: ElaborationBooleanExpression,
+      role: String
+  ): ElaborationBooleanExpression = synchronized {
+    if (target == null)
+      throw new IllegalArgumentException(s"$role exact-authority target must not be null")
+    exactDomain match {
+      case Some(domain) if _exactAuthorityDomain eq domain =>
+        target.attachExactAuthority(domain, role)
+      case _ => target
+    }
+  }
 
   /** Boolean counterpart of exact integer projection attachment. */
   private[spinal] def attachProjection(
@@ -201,6 +329,7 @@ final case class ElaborationBooleanExpression(
       )
     }
     _projectionProvenance = incoming
+    attachExactAuthority(domain, role)
     this
   }
 
@@ -327,6 +456,7 @@ private[core] final class RetainedResizeIdentityRef(
   * the ordinary SpinalHDL algorithms.
   */
 object ParameterizedWidth {
+
   /** Capture-only marker for one exact typed Resize carrier. MorphHDL consumes
     * and removes it before native input normalization; unlike tagAutoResize it
     * must never change native width inference or assignment semantics.
@@ -418,8 +548,11 @@ object ParameterizedWidth {
     val roots = expression.completedParameterRoots
     if (roots == expression.parameterRoots) expression
     else
-      expression.preserveProjectionOn(
-        expression.copy(parameterRoots = roots),
+      expression.preserveExactAuthorityOn(
+        expression.preserveProjectionOn(
+          expression.copy(parameterRoots = roots),
+          "parameterized-width root normalization"
+        ),
         "parameterized-width root normalization"
       )
   }
@@ -476,6 +609,20 @@ object ParameterizedWidth {
       )
     }
   }
+
+  private def isExactDirectParameterExpression(
+      parameter: ElaborationIntegerParameter,
+      expression: ElaborationIntegerExpression
+  ): Boolean =
+    expression.verilog.trim == parameter.name &&
+      (expression.parameters match {
+        case Vector(expressionParameter) => expressionParameter eq parameter
+        case _                           => false
+      }) &&
+      expression.generateIndex.isEmpty &&
+      expression.default == parameter.default &&
+      expression.minimum == parameter.minimum &&
+      expression.maximum == parameter.maximum
 
   /** Validate all redundant concrete and symbolic width fields before mutating
     * the native value. Public case-class construction must not permit an
@@ -552,21 +699,34 @@ object ParameterizedWidth {
       parameter <- width.parameter
       expression <- width.expression
     } {
-      val isExactDirectExpression =
-        expression.verilog.trim == parameter.name &&
-          (expression.parameters match {
-            case Vector(expressionParameter) => expressionParameter eq parameter
-            case _                           => false
-          }) &&
-          expression.default == parameter.default &&
-          expression.minimum == parameter.minimum &&
-          expression.maximum == parameter.maximum
-      if (!isExactDirectExpression) {
+      if (!isExactDirectParameterExpression(parameter, expression)) {
         ParameterizedVerilogException.fail(
           "SPINAL-PARAMETERIZED-VERILOG-DIRECT-PARAMETER-EXPRESSION-MISMATCH",
           s"direct parameter '${parameter.name}' does not match retained expression '${expression.verilog}' and its bounds",
           expression.sourceLocation.orElse(width.sourceLocation)
         )
+      }
+    }
+    width.expression.foreach { value =>
+      if (value.parameters.nonEmpty) {
+        // The legacy direct-parameter case is authoritative by construction:
+        // its emitted text, complete schema and declaration root are the same
+        // public parameter. Every derived symbolic expression must instead
+        // retain exhaustive typed evaluation evidence.
+        val safeLegacyDirect = value.exactDomain.isEmpty && width.parameter.exists { parameter =>
+          isExactDirectParameterExpression(parameter, value) &&
+          (value.completedParameterRoots match {
+            case Vector(root) => root eq parameter.declarationRoot
+            case _            => false
+          })
+        }
+        if (!safeLegacyDirect)
+          ElabInt.requireAuthoritativeIntegerDomain(
+            value,
+            "parameterized bit-count expression",
+            "SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED",
+            requireExactExtrema = false
+          )
       }
     }
 
@@ -603,6 +763,65 @@ object ParameterizedWidth {
     if (data == null) throw new IllegalArgumentException("symbolic-width target must not be null")
     val expression = validatedWidthExpression(width)
     attachValidated(data, width, expression)
+  }
+
+  /** Atomically associate one already-sized native shape with a validated width.
+    *
+    * Library adapters such as the native full-range Counter have multiple
+    * authoritative state leaves. Validate the public bit-count and every
+    * existing registry claim before retaining any one leaf, so a caught
+    * validation failure cannot leave a partial publication capability behind.
+    * The native leaves already have their ordinary constructor width; this
+    * helper never resizes or otherwise changes their hardware graph.
+    */
+  private[spinal] def attachExistingAll(
+      data: Vector[BitVector],
+      width: ParameterizedBitCount
+  ): Option[ElaborationIntegerExpression] = synchronized {
+    if (data == null || data.isEmpty || data.exists(_ == null))
+      throw new IllegalArgumentException(
+        "existing symbolic-width targets must be non-null and non-empty"
+      )
+    val expression = validateWidth(width)
+    data.zipWithIndex.foreach { case (target, index) =>
+      if (target.getBitsWidth != width.value) {
+        ParameterizedVerilogException.fail(
+          "SPINAL-PARAMETERIZED-VERILOG-WITNESS-MISMATCH",
+          s"existing symbolic-width target $index has concrete width ${target.getBitsWidth}, not validated width ${width.value}",
+          width.sourceLocation.orElse(expression.flatMap(_.sourceLocation))
+        )
+      }
+    }
+
+    if (expression.exists(_.parameters.nonEmpty)) {
+      val incoming = RetainedWidth(
+        width.parameter,
+        expression,
+        width.sourceLocation
+      )
+      reap()
+      data.foreach { target =>
+        retained
+          .get(new RetainedWidthIdentityRef(target, null))
+          .filterNot(equivalentMetadata(_, incoming))
+          .foreach { existing =>
+            ParameterizedVerilogException.fail(
+              "SPINAL-PARAMETERIZED-VERILOG-WIDTH-PROVENANCE-CONFLICT",
+              "one exact native data leaf is associated with conflicting typed width expressions",
+              incoming.sourceLocation.orElse(existing.sourceLocation)
+            )
+          }
+      }
+      data.foreach { target =>
+        val lookup = new RetainedWidthIdentityRef(target, null)
+        if (!retained.contains(lookup))
+          retained.update(
+            new RetainedWidthIdentityRef(target, queue),
+            incoming
+          )
+      }
+    }
+    expression
   }
 
   /** Commit one width whose complete symbolic metadata was already validated. */
@@ -756,6 +975,35 @@ object ParameterizedWidth {
   /** Untouched native Vec algorithm driven by the retained HardType. */
   def Vec[T <: Data](dataType: => T, size: Int): spinal.core.Vec[T] =
     spinal.core.Vec(HardType(dataType), size)
+
+  /** Typed-depth overload; literal depths delegate inside the native Vec
+    * factory, while symbolic depths retain factorized Vec geometry.
+    */
+  def Vec[T <: Data](dataType: => T, size: ElabInt): spinal.core.Vec[T] = {
+    if (size == null)
+      throw new IllegalArgumentException("typed Vec size must not be null")
+    if (size.isConcrete) Vec(dataType, size.witness)
+    else {
+      // Match the Int helper above: after create has proved depth authority,
+      // evaluate the authored generator once and clone one stable,
+      // shape-preserving HardType through the native Vec construction path.
+      lazy val retainedType = HardType(dataType)
+      ParameterizedVec.create(size, "typed Vec size")(retainedType())
+    }
+  }
+
+  def Vec[T <: Data](dataType: spinal.core.HardType[T], size: Int): spinal.core.Vec[T] =
+    spinal.core.Vec(dataType, size)
+
+  def Vec[T <: Data](
+      dataType: spinal.core.HardType[T],
+      size: ElabInt
+  ): spinal.core.Vec[T] = {
+    if (size == null)
+      throw new IllegalArgumentException("typed Vec size must not be null")
+    if (size.isConcrete) Vec(dataType, size.witness)
+    else ParameterizedVec.create(size, "typed Vec size")(dataType())
+  }
 
   def isRetained(data: BaseType): Boolean = metadataOf(data).nonEmpty
 

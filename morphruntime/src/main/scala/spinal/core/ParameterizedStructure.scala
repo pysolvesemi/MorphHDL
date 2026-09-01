@@ -2,6 +2,7 @@ package spinal.core
 
 import java.util.IdentityHashMap
 
+import scala.collection.Seq
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
@@ -11,14 +12,52 @@ import spinal.core.internals._
   * structural body. Frontend code can capture and register it, while the MorphHDL-owned external lowering inspects the native AST objects.
   */
 final class ParameterizedStructuralBlock private[core] (
-    private[core] val statements: Vector[Statement],
-    private[core] val declarations: Vector[BaseType],
-    private[core] val assignments: Vector[DataAssignmentStatement],
-    private[core] val memories: Vector[Mem[_]],
-    private[core] val children: Vector[Component],
-    private[core] val slices: Vector[ParameterizedStructure.StructuralSlice],
-    private[core] val vecIndices: Vector[ParameterizedStructure.StructuralVecIndex],
-    private[core] val regions: Vector[ParameterizedStructure.StructuralRegion],
+    private[core] var statements: Vector[Statement],
+    private[core] var declarations: Vector[BaseType],
+    private[core] var assignments: Vector[DataAssignmentStatement],
+    private[core] var memories: Vector[Mem[_]],
+    private[core] var children: Vector[Component],
+    private[core] var slices: Vector[ParameterizedStructure.StructuralSlice],
+    private[core] var vecIndices: Vector[ParameterizedStructure.StructuralVecIndex],
+    private[core] var memoryIndices: Vector[ParameterizedStructure.StructuralMemoryIndex],
+    private[core] var scalarOperators: Vector[ParameterizedStructure.StructuralScalarOperator],
+    private[core] var regions: Vector[ParameterizedStructure.StructuralRegion],
+    private[core] val sourceLocation: Option[String]
+) {
+
+  /** Extend this exact captured owner with native statements elaborated later.
+    * The supplement has already passed the same capture validator, and is
+    * merged by identity before final structural ownership analysis.
+    */
+  private[core] def append(
+      supplement: ParameterizedStructuralBlock
+  ): Unit = synchronized {
+    if (supplement == null)
+      throw new IllegalArgumentException("structural owner supplement must not be null")
+    statements = statements ++ supplement.statements
+    declarations = declarations ++ supplement.declarations
+    assignments = assignments ++ supplement.assignments
+    memories = memories ++ supplement.memories
+    children = children ++ supplement.children
+    slices = slices ++ supplement.slices
+    vecIndices = vecIndices ++ supplement.vecIndices
+    memoryIndices = memoryIndices ++ supplement.memoryIndices
+    scalarOperators = scalarOperators ++ supplement.scalarOperators
+    regions = regions ++ supplement.regions
+  }
+}
+
+/** Exact handle for extending one already captured structural branch.
+  *
+  * The handle contains no rendered name or source-position key. Its component,
+  * capture and elaboration-root identities must all still match when a native
+  * library helper appends statements to that branch.
+  */
+final class ParameterizedStructuralOwner private[core] (
+    private[core] val component: Component,
+    private[core] val captureId: Long,
+    private[core] val root: ElaborationIntegerParameterRoot,
+    private[core] val admitted: Set[BigInt],
     private[core] val sourceLocation: Option[String]
 )
 
@@ -51,34 +90,75 @@ object ParameterizedStructure {
       ElaborationIntegerParameterRoot,
       StructuralPredicateRoot
     ]()
+    val blocksByCaptureId = mutable.LinkedHashMap.empty[
+      Long,
+      ParameterizedStructuralBlock
+    ]
     var nextPendingId = 0L
     var nextCaptureId = 0L
+    var nextVecAliasId = 0L
     var assignmentValidationScheduled = false
   }
 
   private final class CaptureState(
       val component: Component,
       val sourceLocation: Option[String],
-      val id: Long
+      val id: Long,
+      val ownerRoot: Option[ElaborationIntegerParameterRoot]
   ) {
     val slices = ArrayBuffer.empty[StructuralSlice]
     val vecIndices = ArrayBuffer.empty[StructuralVecIndex]
+    val memoryIndices = ArrayBuffer.empty[StructuralMemoryIndex]
     val regions = ArrayBuffer.empty[StructuralRegion]
   }
 
   private[core] final case class StructuralSlice(
       source: BitVector,
       result: BitVector,
+      assignment: DataAssignmentStatement,
       offset: ElaborationIntegerExpression,
       width: ElaborationIntegerExpression,
-      sourceLocation: Option[String]
+      sourceLocation: Option[String],
+      finiteIndexToken: Option[ElabFiniteIndexToken] = None
   )
 
-  private[core] final case class StructuralVecIndex(
-      vector: Vec[_],
+  /** Identity-retained alias for one native static Vec element selected by a
+    * generate index.
+    *
+    * `selected` remains the authoritative witnessed carrier. `result` is a
+    * fresh, directionless capture-local clone. Publication substitutes only
+    * that unique alias, never the witnessed carrier; the same mechanism is
+    * consequently valid when the caller uses the returned element on either
+    * side of an assignment.
+    */
+  private[core] final class StructuralVecIndex(
+      val vector: Vec[_],
+      val selected: Data,
+      val result: Data,
+      val staticAccess: Option[ParameterizedVecStaticIndex],
+      val index: ElaborationIntegerExpression,
+      val finiteIndexToken: Option[ElabFiniteIndexToken],
+      val sourceLocation: Option[String]
+  )
+
+  /** One exact native asynchronous read selected by a retained generate index.
+    * The ordinary Mem port remains authoritative; publication changes only its
+    * witnessed constant address into the enclosing Verilog generate index.
+    */
+  private[core] final case class StructuralMemoryIndex(
+      memory: Mem[_],
+      port: MemReadAsync,
+      address: Expression with WidthProvider,
+      addressWitness: BitVectorLiteral,
+      addressAssignment: Option[DataAssignmentStatement],
+      readBits: Bits,
+      readBitsAssignment: DataAssignmentStatement,
       selected: Data,
+      selectedAssignments: Vector[DataAssignmentStatement],
+      selectedSupportAssignments: Vector[Vector[DataAssignmentStatement]],
       index: ElaborationIntegerExpression,
-      sourceLocation: Option[String]
+      sourceLocation: Option[String],
+      finiteIndexToken: Option[ElabFiniteIndexToken] = None
   )
 
   private[core] final class StructuralPredicateRoot(
@@ -164,6 +244,7 @@ object ParameterizedStructure {
       indexName: String,
       count: ElaborationIntegerExpression,
       body: ParameterizedStructuralBlock,
+      finiteIndexToken: Option[ElabFiniteIndexToken],
       sourceLocation: Option[String]
   ) extends StructuralRegion {
     override val blocks: Vector[ParameterizedStructuralBlock] = Vector(body)
@@ -195,6 +276,18 @@ object ParameterizedStructure {
       body: ParameterizedStructuralBlock
   )
 
+  /** One Bool type-node operator reached from an exact captured native
+    * statement. Ownership is retained only through the result, direct driver,
+    * operator and ordered operand identities; emitted names are replay
+    * evidence in the external backend, never lookup authority.
+    */
+  private[core] final case class StructuralScalarOperator(
+      result: BaseType,
+      assignment: DataAssignmentStatement,
+      operator: Operator,
+      sources: Vector[Expression]
+  )
+
   private[core] final case class StructuralCase(
       selector: ElaborationIntegerExpression,
       choices: Vector[StructuralCaseChoice],
@@ -217,6 +310,11 @@ object ParameterizedStructure {
 
   private final case class CapturedAssignment(
       statement: DataAssignmentStatement,
+      path: Vector[AlternativeStep]
+  )
+
+  private final case class CapturedStatement(
+      statement: Statement,
       path: Vector[AlternativeStep]
   )
 
@@ -253,6 +351,28 @@ object ParameterizedStructure {
   def captureBlock(
       component: Component,
       sourceLocation: Option[String]
+  )(body: => Unit): ParameterizedStructuralBlock =
+    captureBlockWithOwnerRoot(component, sourceLocation, None)(body)
+
+  /** Capture a body whose active capture id is owned by one exact root.
+    * Installing the branch-domain constraint and the root binding is one
+    * atomic operation: independently nested constraints can never lend their
+    * root to another active capture.
+    */
+  private[spinal] def captureExactBlock(
+      component: Component,
+      root: ElaborationIntegerParameterRoot,
+      admitted: Set[BigInt],
+      sourceLocation: Option[String]
+  )(body: => Unit): ParameterizedStructuralBlock =
+    ElaborationDomainContext.withAdmitted(root, admitted, sourceLocation) {
+      captureBlockWithOwnerRoot(component, sourceLocation, Some(root))(body)
+    }
+
+  private def captureBlockWithOwnerRoot(
+      component: Component,
+      sourceLocation: Option[String],
+      ownerRoot: Option[ElaborationIntegerParameterRoot]
   )(body: => Unit): ParameterizedStructuralBlock = {
     if (component eq null) {
       fail(
@@ -278,7 +398,8 @@ object ParameterizedStructure {
     val state = new CaptureState(
       component,
       sourceLocation,
-      storage.nextCaptureId
+      storage.nextCaptureId,
+      ownerRoot
     )
     activeCapture.set(state)
 
@@ -344,13 +465,31 @@ object ParameterizedStructure {
       val memoryPorts = hardwareStatements.collect { case value: MemPortStatement =>
         value
       }.toVector
-      memoryPorts.find(port => !memories.exists(_ eq port.mem)).foreach { port =>
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FOREIGN-MEMORY-PORT-UNSUPPORTED",
-          s"structural body emitted a memory port for '${Option(port.mem).flatMap(value => Option(value.getName())).getOrElse("<unnamed>")}' without declaring that memory inside the same captured block",
-          sourceLocation
+      val scalarOperators = capturedScalarOperators(
+        component,
+        hardwareStatements.toVector
+      )
+      memoryPorts
+        .find(port =>
+          !memories.exists(_ eq port.mem) &&
+            !state.memoryIndices.exists(value => value.port eq port) &&
+            // An unrelated ordinary read of the same existing Mem is legal
+            // only while that captured body still contains the exact indexed
+            // port which proves ownership of the foreign memory. Removing the
+            // retained port and replacing it with same-name/text hardware does
+            // not satisfy this identity co-presence requirement.
+            !state.memoryIndices.exists(value =>
+              (value.memory eq port.mem) &&
+                memoryPorts.exists(candidate => candidate eq value.port)
+            )
         )
-      }
+        .foreach { port =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FOREIGN-MEMORY-PORT-UNSUPPORTED",
+            s"structural body emitted a memory port for '${Option(port.mem).flatMap(value => Option(value.getName())).getOrElse("<unnamed>")}' without declaring that memory inside the same captured block",
+            sourceLocation
+          )
+        }
       initializations
         .find(value => !declarations.exists(_ eq value.finalTarget))
         .foreach { value =>
@@ -389,7 +528,8 @@ object ParameterizedStructure {
       if (
         declarations.isEmpty && assignments.isEmpty && memories.isEmpty &&
         memoryPorts.isEmpty && children.isEmpty && state.slices.isEmpty &&
-        state.vecIndices.isEmpty && state.regions.isEmpty
+        state.vecIndices.isEmpty && state.memoryIndices.isEmpty &&
+        state.regions.isEmpty
       ) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SCALA-SIDE-EFFECT-UNSUPPORTED",
@@ -410,6 +550,44 @@ object ParameterizedStructure {
         if (value.isComb) value.noBackendCombMerge()
         if (value.isReg) value.addTag(noBackendSyncMerge)
       }
+
+      // A directionless finite-Vec alias may be the target of an ordinary
+      // whole-leaf assignment. The native witness graph contains no bridge
+      // from that alias to the output carrier (publication substitutes the
+      // alias directly with the exact generated packed slice), so permit only
+      // those exact reachable carrier leaves to remain undriven until the
+      // structural lowering consumes the retained identity. RHS-only aliases
+      // do not grant this exception, and packed/partial alias targets remain
+      // subject to the backend's fail-closed whole-leaf validation.
+      state.vecIndices.foreach { access =>
+        val aliasLeaves = access.result.flatten.toVector
+        val aliasPaths = access.result.flattenLocalName.toVector
+        val writtenLeafIndices = aliasLeaves.indices.filter { leafIndex =>
+          assignments.exists(value =>
+            (value.finalTarget eq aliasLeaves(leafIndex)) &&
+              (value.target eq aliasLeaves(leafIndex))
+          )
+        }
+        writtenLeafIndices.foreach { leafIndex =>
+          (access.index.minimum.toInt to access.index.maximum.toInt).foreach { elementIndex =>
+            val element = access.vector.vec(elementIndex).asInstanceOf[Data]
+            val leaves = element.flatten.toVector
+            val paths = element.flattenLocalName.toVector
+            if (
+              leaves.size != aliasLeaves.size || paths != aliasPaths ||
+              leaves(leafIndex).getClass != aliasLeaves(leafIndex).getClass ||
+              leaves(leafIndex).getBitsWidth != aliasLeaves(leafIndex).getBitsWidth
+            ) {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-LAYOUT-MISMATCH",
+                s"structural Vec LHS carrier element $elementIndex no longer matches its exact alias leaf layout",
+                access.sourceLocation.orElse(sourceLocation)
+              )
+            }
+            leaves(leafIndex).addTag(allowFloating)
+          }
+        }
+      }
       memories.foreach(_.preventAsBlackBox())
       memoryPorts.foreach(port => port.isVital = true)
 
@@ -421,9 +599,20 @@ object ParameterizedStructure {
         children,
         state.slices.toVector,
         state.vecIndices.toVector,
+        state.memoryIndices.toVector,
+        scalarOperators,
         state.regions.toVector,
         sourceLocation
       )
+      storage.blocksByCaptureId.get(state.id) match {
+        case Some(existing) if existing ne result =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-ID-CONFLICT",
+            s"structural capture id ${state.id} was registered more than once",
+            sourceLocation
+          )
+        case _ => storage.blocksByCaptureId(state.id) = result
+      }
       accepted = true
       result
     } finally {
@@ -434,8 +623,532 @@ object ParameterizedStructure {
     }
   }
 
+  /** Retain portable Bool operator helpers reached by exact captured native
+    * statements, including When conditions whose anonymous type-node
+    * declaration and driver were created outside the statement's root-scope
+    * list. A helper is admitted only with one live whole-target driver and an
+    * exact supported operator/operand graph.
+    */
+  private[core] def capturedScalarOperators(
+      component: Component,
+      statements: Vector[Statement]
+  ): Vector[StructuralScalarOperator] = {
+    if (component == null || statements == null || statements.isEmpty)
+      return Vector.empty
+
+    val live = new IdentityHashMap[Statement, java.lang.Boolean]()
+    allStatementsOf(component).foreach(value => live.put(value, java.lang.Boolean.TRUE))
+    val captured = new IdentityHashMap[Statement, java.lang.Boolean]()
+    statements.foreach(value => captured.put(value, java.lang.Boolean.TRUE))
+    def supported(operator: Operator): Boolean = operator match {
+      case _: Operator.Bool.And      => true
+      case _: Operator.Bool.Equal    => true
+      case _: Operator.Bool.Not      => true
+      case _: Operator.Bool.NotEqual => true
+      case _: Operator.Bool.Or       => true
+      case _: Operator.Bool.Xor      => true
+      case _                         => false
+    }
+
+    def directSources(operator: Operator): Vector[Expression] = {
+      val sources = ArrayBuffer.empty[Expression]
+      operator.foreachExpression(value => sources += value)
+      sources.toVector
+    }
+
+    def scan(
+        seeds: Vector[Statement]
+    ): (
+        Vector[StructuralScalarOperator],
+        IdentityHashMap[BaseType, java.lang.Boolean]
+    ) = {
+      val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
+      val retained = new IdentityHashMap[BaseType, java.lang.Boolean]()
+      val referenced = new IdentityHashMap[BaseType, java.lang.Boolean]()
+      val values = ArrayBuffer.empty[StructuralScalarOperator]
+
+      def visit(value: Expression): Unit = {
+        if (
+          value != null &&
+          visited.put(value, java.lang.Boolean.TRUE) == null
+        ) {
+          value match {
+            case result: BaseType =>
+              referenced.put(result, java.lang.Boolean.TRUE)
+              if (
+                result.isTypeNode &&
+                result.getTypeObject == TypeBool &&
+                result.getBitsWidth == 1 &&
+                live.containsKey(result) &&
+                captured.containsKey(result) &&
+                !retained.containsKey(result)
+              ) {
+                val assignments = ArrayBuffer.empty[DataAssignmentStatement]
+                result.foreachStatements {
+                  case assignment: DataAssignmentStatement
+                      if (assignment.finalTarget eq result) &&
+                        (assignment.target eq result) &&
+                        live.containsKey(assignment) &&
+                        captured.containsKey(assignment) =>
+                    assignments += assignment
+                  case _ =>
+                }
+                assignments.toVector match {
+                  case Vector(assignment) if assignment.source.isInstanceOf[Operator] =>
+                    val operator = assignment.source.asInstanceOf[Operator]
+                    val sources = directSources(operator)
+                    if (
+                      supported(operator) &&
+                      sources.nonEmpty &&
+                      sources.forall {
+                        case source: BaseType =>
+                          source.getTypeObject == TypeBool &&
+                          source.getBitsWidth == 1
+                        case _ => false
+                      }
+                    ) {
+                      retained.put(result, java.lang.Boolean.TRUE)
+                      values += StructuralScalarOperator(
+                        result,
+                        assignment,
+                        operator,
+                        sources
+                      )
+                    }
+                  case _ =>
+                }
+              }
+            case _ =>
+          }
+          value.foreachExpression(visit)
+        }
+      }
+
+      seeds.foreach(_.foreachExpression(visit))
+      values.toVector -> referenced
+    }
+
+    val (direct, _) = scan(statements)
+    direct.foreach { value =>
+      value.result.setAsVital().dontSimplifyIt().noBackendCombMerge()
+      // The result identity alone cannot preserve its replay proof when a
+      // later native simplification replaces one anonymous Bool operand. Keep
+      // the exact ordered BaseType operands live as graph evidence; they are
+      // still only revalidated (never promoted or looked up by name) by the
+      // publication backend.
+      value.sources.foreach {
+        case source: BaseType =>
+          source.setAsVital().dontSimplifyIt()
+          if (source.isComb) source.noBackendCombMerge()
+          if (source.isReg) source.addTag(noBackendSyncMerge)
+        case _ =>
+      }
+    }
+    direct
+  }
+
+  /** Retain the exact active structural owner for a later native helper.
+    *
+    * The caller supplies its typed control carrier explicitly so the handle
+    * can retain the current admitted root values. This is intentionally not a
+    * lookup by a generated label, Scala source position or emitted signal.
+    */
+  def currentOwner(
+      control: ElabInt,
+      role: String
+  ): ParameterizedStructuralOwner = {
+    if (control == null)
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-CONTROL-NULL",
+        s"$role requires a non-null typed control carrier"
+      )
+    if (!captureEnabled)
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-CAPTURE-DISABLED",
+        s"$role requires parameterized structural capture",
+        control.sourceLocation
+      )
+    val state = activeCapture.get()
+    val component =
+      if (state ne null) state.component
+      else
+        Option(Component.current).getOrElse {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-COMPONENT-MISSING",
+            s"$role requires an active Component",
+            control.sourceLocation
+          )
+        }
+    val exact = control.expression.exactDomain.getOrElse {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-DOMAIN-MISSING",
+        s"$role control '${control.expression.verilog}' lacks exact single-root evidence",
+        control.sourceLocation
+      )
+    }
+    if (
+      (state ne null) &&
+      (!state.ownerRoot.exists(_ eq exact.root) ||
+        !ElaborationDomainContext.constrains(exact.root))
+    )
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-ACTIVE-ROOT-MISMATCH",
+        s"$role control '${control.expression.verilog}' is not constrained by the active structural branch",
+        control.sourceLocation.orElse(exact.root.sourceLocation)
+      )
+    val admitted = ElaborationDomainContext.admitted(exact)
+    if (admitted.isEmpty)
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-DOMAIN-EMPTY",
+        s"$role control '${control.expression.verilog}' has an empty active domain",
+        control.sourceLocation
+      )
+    storageOf(component)
+    new ParameterizedStructuralOwner(
+      component,
+      if (state eq null) 0L else state.id,
+      exact.root,
+      admitted,
+      control.sourceLocation
+    )
+  }
+
+  /** Elaborate one validated native supplement inside an exact earlier owner.
+    *
+    * `captureBlock` remains the authority for accepted hardware. Consequently
+    * an extension cannot smuggle a Scala-only side effect into publication,
+    * and all declarations, assignments, memories, ports and nested regions are
+    * attributed to the original branch before the backend computes ownership.
+    */
+  def captureInto[T](
+      owner: ParameterizedStructuralOwner,
+      control: ElabInt,
+      role: String
+  )(body: => T): T = {
+    if (owner == null)
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-NULL",
+        s"$role requires a retained structural owner",
+        Option(control).flatMap(_.sourceLocation)
+      )
+    if (control == null)
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-CONTROL-NULL",
+        s"$role requires a non-null typed control carrier",
+        owner.sourceLocation
+      )
+    if (activeCapture.get() ne null)
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-NESTED-EXTENSION",
+        s"$role cannot extend an owner while another structural capture is active",
+        owner.sourceLocation.orElse(control.sourceLocation)
+      )
+    val current = Option(Component.current).getOrElse {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-COMPONENT-MISSING",
+        s"$role requires an active Component",
+        owner.sourceLocation.orElse(control.sourceLocation)
+      )
+    }
+    val expectedComponent = owner.component
+    if (
+      (current ne expectedComponent) &&
+      (expectedComponent.parent ne current)
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-COMPONENT-MISMATCH",
+        s"$role attempted to extend a structural owner from an unrelated Component",
+        owner.sourceLocation.orElse(control.sourceLocation)
+      )
+    }
+    val exact = control.expression.exactDomain.getOrElse {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-DOMAIN-MISSING",
+        s"$role control '${control.expression.verilog}' lacks exact single-root evidence",
+        control.sourceLocation.orElse(owner.sourceLocation)
+      )
+    }
+    if (exact.root ne owner.root)
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-ROOT-MISMATCH",
+        s"$role control '${control.expression.verilog}' has a different exact root from its retained owner",
+        control.sourceLocation.orElse(owner.sourceLocation)
+      )
+    if (!owner.admitted.subsetOf(exact.evidenceValues))
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-EVIDENCE-INCOMPLETE",
+        s"$role owner admits root values without exact control evidence",
+        control.sourceLocation.orElse(owner.sourceLocation)
+      )
+    val storage = storageOption(expectedComponent).getOrElse {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-STORAGE-MISSING",
+        s"$role component lost its structural capture storage",
+        owner.sourceLocation.orElse(control.sourceLocation)
+      )
+    }
+    val target =
+      if (owner.captureId == 0L) None
+      else
+        Some(
+          storage.blocksByCaptureId.getOrElse(
+            owner.captureId,
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-CAPTURE-MISSING",
+              s"$role capture ${owner.captureId} is not registered on its retained Component",
+              owner.sourceLocation.orElse(control.sourceLocation)
+            )
+          )
+        )
+
+    var result: Option[T] = None
+    def captureSupplement(): ParameterizedStructuralBlock =
+      captureExactBlock(
+        expectedComponent,
+        owner.root,
+        owner.admitted,
+        owner.sourceLocation.orElse(control.sourceLocation)
+      ) {
+        result = Some(body)
+        ()
+      }
+    val supplement =
+      if (current eq expectedComponent) captureSupplement()
+      else expectedComponent.rework(captureSupplement())
+    target match {
+      case Some(block) =>
+        block.append(supplement)
+        // `captureInto` may reopen a Component whose original pre-pop task has
+        // already run. Re-evaluate the complete exact owner graph after each
+        // supplement so the final mutually-exclusive alternative can receive
+        // the same narrowly proven allowOverride authorization as statements
+        // captured during initial construction.
+        authorizeMutuallyExclusiveAssignments(expectedComponent)
+      case None =>
+        // Module-scope symbolic alternatives (for example a domain proven
+        // DEPTH >= 2) have no enclosing structural block. Their directly
+        // emitted native statements already remain at module scope; promote
+        // only the validated nested generate regions, exactly once.
+        supplement.regions.foreach { region =>
+          if (storage.regions.exists(_ eq region))
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-REGION-DUPLICATE",
+              s"$role attempted to promote one nested region more than once",
+              owner.sourceLocation.orElse(control.sourceLocation)
+            )
+          storage.regions += region
+        }
+    }
+    result.getOrElse {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-RESULT-MISSING",
+        s"$role extension did not execute",
+        owner.sourceLocation.orElse(control.sourceLocation)
+      )
+    }
+  }
+
+  /** Prove that a set of retained branch owners exactly and uniquely covers
+    * the current typed domain before a later helper extends those branches.
+    */
+  def requireOwnerCoverage(
+      component: Component,
+      control: ElabInt,
+      owners: Seq[ParameterizedStructuralOwner],
+      role: String
+  ): Unit = {
+    if (component == null || control == null || owners == null)
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-COVERAGE-NULL",
+        s"$role requires a non-null Component, control and owner collection",
+        Option(control).flatMap(_.sourceLocation)
+      )
+    val exact = control.expression.exactDomain.getOrElse {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-DOMAIN-MISSING",
+        s"$role control '${control.expression.verilog}' lacks exact single-root evidence",
+        control.sourceLocation
+      )
+    }
+    val expected = ElaborationDomainContext.admitted(exact)
+    val retained = owners.filter(_ != null).toVector
+    if (retained.isEmpty)
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-COVERAGE-EMPTY",
+        s"$role has no retained structural owner",
+        control.sourceLocation
+      )
+    var covered = Set.empty[BigInt]
+    retained.foreach { owner =>
+      if (owner.component ne component)
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-COMPONENT-MISMATCH",
+          s"$role includes an owner from a different Component",
+          owner.sourceLocation.orElse(control.sourceLocation)
+        )
+      if (owner.root ne exact.root)
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-ROOT-MISMATCH",
+          s"$role includes an owner from a different exact root",
+          owner.sourceLocation.orElse(control.sourceLocation)
+        )
+      val overlap = covered intersect owner.admitted
+      if (overlap.nonEmpty)
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-COVERAGE-OVERLAP",
+          s"$role owners overlap at ${overlap.toVector.sorted.mkString(", ")}",
+          owner.sourceLocation.orElse(control.sourceLocation)
+        )
+      covered ++= owner.admitted
+    }
+    if (covered != expected) {
+      val missing = expected -- covered
+      val escaped = covered -- expected
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-OWNER-COVERAGE-MISMATCH",
+        s"$role owner coverage is incomplete or escaped (missing: ${missing.toVector.sorted
+            .mkString(", ")}; escaped: ${escaped.toVector.sorted.mkString(", ")})",
+        control.sourceLocation
+      )
+    }
+  }
+
+  /** Record the one-bit native slice selected by an exact finite index.
+    *
+    * Generic symbolic slices must compare their widest offset with the
+    * source's narrowest width because their expressions may vary
+    * independently. An [[ElabFiniteIndex]] instead carries the private count
+    * which created its generate index. Admit the correlated one-bit slice only
+    * when the source's retained packed width is the exact same pointwise
+    * function of the same declaration root. No native witness, rendered name
+    * or reconstructed parameter schema is authority for this exception.
+    */
+  private[core] def recordFiniteIndexSlice(
+      source: Bits,
+      result: Bits,
+      index: ElaborationIntegerExpression,
+      count: ElaborationIntegerExpression,
+      finiteIndexToken: ElabFiniteIndexToken,
+      sourceLocation: Option[String]
+  ): Unit = {
+    val state = requireCapture("finite-index packed bit", sourceLocation)
+    if ((source eq null) || (result eq null)) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FINITE-INDEX-NULL",
+        "finite-index packed bit requires non-null source and result",
+        sourceLocation
+      )
+    }
+    if (index == null || count == null || finiteIndexToken == null) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FINITE-INDEX-DOMAIN-NULL",
+        "finite-index packed bit requires non-null index/count expressions and opaque range identity",
+        sourceLocation
+      )
+    }
+    if (index.generateIndex.isEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FINITE-INDEX-NOT-INDEXED",
+        s"finite index '${index.verilog}' does not depend on the active generate index",
+        sourceLocation
+      )
+    }
+    val generateIndex = index.generateIndex.get
+    if (
+      index.verilog != generateIndex || index.parameters.nonEmpty ||
+      index.completedParameterRoots.nonEmpty || index.exactDomain.nonEmpty ||
+      index.projectionProvenance.nonEmpty
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FINITE-INDEX-SHAPE-MISMATCH",
+        s"finite index '${index.verilog}' must be the exact rootless direct generate index '$generateIndex'",
+        sourceLocation
+      )
+    }
+    val component = Option(Component.current).getOrElse {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FINITE-INDEX-COMPONENT-MISSING",
+        "finite-index packed bit requires an active Component",
+        sourceLocation
+      )
+    }
+    if (
+      (state.component ne component) || (source.component ne component) ||
+      (result.component ne component)
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FINITE-INDEX-COMPONENT-MISMATCH",
+        "finite-index packed source, result and capture must belong to the active Component",
+        sourceLocation
+      )
+    }
+    if (
+      index.default != 0 || index.minimum != 0 ||
+      count.minimum < 1 || index.maximum != count.maximum - 1 ||
+      index.default >= source.getBitsWidth || result.getBitsWidth != 1
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FINITE-INDEX-DOMAIN-MISMATCH",
+        s"finite index '${index.verilog}' in [${index.minimum}, ${index.maximum}] must select one witnessed bit inside its positive enclosing count '${count.verilog}' in [${count.minimum}, ${count.maximum}]",
+        sourceLocation.orElse(count.sourceLocation)
+      )
+    }
+
+    val retainedWidth = ParameterizedVec
+      .packedWidthExpressionOf(source)
+      .orElse(ParameterizedWidth.expressionOf(source))
+      .getOrElse {
+        fail(
+          "SPINAL-ELAB-FINITE-INDEX-BITS-SOURCE-WIDTH-MISSING",
+          s"finite-index Bits source has only native witness width ${source.getBitsWidth}; exact typed width provenance is required",
+          sourceLocation.orElse(count.sourceLocation)
+        )
+      }
+    val projectedWidth = ElabInt.projectExpression(
+      retainedWidth,
+      "finite-index Bits source width"
+    )
+    val projectedCount = ElabInt.projectExpression(
+      count,
+      "finite-index Bits enclosing count"
+    )
+    ElabFiniteRange.requireCompleteSymbolicDomain(
+      projectedWidth,
+      "finite-index Bits source width",
+      "SPINAL-ELAB-FINITE-INDEX-BITS-EXACT-DOMAIN-REQUIRED"
+    )
+    ElabFiniteRange.requireCompleteSymbolicDomain(
+      projectedCount,
+      "finite-index Bits enclosing count",
+      "SPINAL-ELAB-FINITE-INDEX-BITS-EXACT-DOMAIN-REQUIRED"
+    )
+    if (
+      !ElabFiniteRange.equivalentLogicalCount(
+        projectedWidth,
+        projectedCount
+      )
+    ) {
+      fail(
+        "SPINAL-ELAB-FINITE-INDEX-BITS-WIDTH-MISMATCH",
+        s"finite-index Bits source width '${projectedWidth.verilog}' does not match enclosing count '${projectedCount.verilog}'",
+        projectedWidth.sourceLocation.orElse(projectedCount.sourceLocation)
+      )
+    }
+
+    val assignment = retainSliceAssignment(source, result, sourceLocation)
+    state.slices += StructuralSlice(
+      source,
+      result,
+      assignment,
+      index,
+      ElabInt.literal(1).expression,
+      sourceLocation,
+      Some(finiteIndexToken)
+    )
+  }
+
   /** Record one symbolic fixed-width packed slice selected at its witness. */
-  def recordSlice(
+  private[spinal] def recordSlice(
       source: BitVector,
       result: BitVector,
       offset: ElaborationIntegerExpression,
@@ -475,16 +1188,143 @@ object ParameterizedStructure {
         sourceLocation
       )
     }
-    state.slices += StructuralSlice(source, result, offset, width, sourceLocation)
+    validateSliceCompleteDomain(
+      source,
+      offset,
+      width,
+      sourceLocation,
+      "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SLICE-DOMAIN-UNSUPPORTED"
+    )
+    val assignment = retainSliceAssignment(source, result, sourceLocation)
+    state.slices += StructuralSlice(
+      source,
+      result,
+      assignment,
+      offset,
+      width,
+      sourceLocation
+    )
+  }
+
+  /** Require one indexed packed slice to fit the source at every admitted
+    * parameter value and every generated index. Exact typed-domain tables do
+    * not enumerate the generate index, so correlation cannot be inferred from
+    * a shared parameter root; compare the slice's widest reach against the
+    * source's narrowest retained width.
+    */
+  private[core] def validateSliceCompleteDomain(
+      source: BitVector,
+      offset: ElaborationIntegerExpression,
+      width: ElaborationIntegerExpression,
+      sourceLocation: Option[String],
+      failureCode: String
+  ): Unit = {
+    val sourceWidthExpression =
+      (source match {
+        case bits: Bits => ParameterizedVec.packedWidthExpressionOf(bits)
+        case _          => None
+      }).orElse(ParameterizedWidth.expressionOf(source))
+        .getOrElse(ElabInt.literal(source.getBitsWidth).expression)
+    if (offset.maximum + width.maximum > sourceWidthExpression.minimum) {
+      fail(
+        failureCode,
+        s"slice '${offset.verilog} +: ${width.verilog}' reaches offset [${offset.minimum}, ${offset.maximum}] and width [${width.minimum}, ${width.maximum}], beyond source width '${sourceWidthExpression.verilog}' in [${sourceWidthExpression.minimum}, ${sourceWidthExpression.maximum}] over its complete domain",
+        sourceLocation.orElse(sourceWidthExpression.sourceLocation)
+      )
+    }
+  }
+
+  /** Keep the exact native carrier assignment which materializes one witnessed
+    * packed slice. Structural publication is then able to rewrite that one
+    * assignment instead of every coincident textual slice in the captured
+    * body.
+    */
+  private[core] def retainSliceAssignment(
+      source: BitVector,
+      result: BitVector,
+      sourceLocation: Option[String]
+  ): DataAssignmentStatement = {
+    result.dontSimplifyIt()
+    sliceAssignment(source, result, sourceLocation)
+  }
+
+  /** Resolve the one exact native assignment which materializes a witnessed
+    * packed slice without changing its simplification policy. Procedural range
+    * capture needs the identity proof during classification, but must leave the
+    * carrier eligible for native inlining into the marked process statement.
+    */
+  private[core] def sliceAssignment(
+      source: BitVector,
+      result: BitVector,
+      sourceLocation: Option[String]
+  ): DataAssignmentStatement = {
+    val assignments = ArrayBuffer.empty[DataAssignmentStatement]
+    result.foreachStatements {
+      case value: DataAssignmentStatement
+          if (value.finalTarget eq result) &&
+            expressionContains(value.source, source) =>
+        assignments += value
+      case _ =>
+    }
+    if (assignments.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SLICE-LINEAGE-MISMATCH",
+        s"structural packed slice result retains ${assignments.size} exact native assignments from its source; exactly one is required",
+        sourceLocation
+      )
+    }
+    assignments.head
   }
 
   /** Record one internal static Vec element selected by a generate index. */
-  def recordVecIndex(
-      vector: Vec[_],
-      selected: Data,
+  private[spinal] def recordVecIndex[T <: Data](
+      vector: Vec[T],
+      selected: T,
       index: ElaborationIntegerExpression,
       sourceLocation: Option[String]
-  ): Unit = {
+  ): T =
+    recordVecIndexImpl(
+      vector,
+      selected,
+      index,
+      None,
+      sourceLocation
+    )
+
+  /** Exact typed finite-range counterpart. The token is not a public selector
+    * attribute: it is the opaque identity of the one foreach invocation which
+    * created both this index and its eventual StructuralFor.
+    */
+  private[core] def recordVecIndex[T <: Data](
+      vector: Vec[T],
+      selected: T,
+      index: ElaborationIntegerExpression,
+      finiteIndexToken: ElabFiniteIndexToken,
+      sourceLocation: Option[String]
+  ): T = {
+    if (finiteIndexToken == null) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-FINITE-INDEX-TOKEN-NULL",
+        "typed finite Vec access requires one non-null opaque range identity",
+        sourceLocation
+      )
+    }
+    recordVecIndexImpl(
+      vector,
+      selected,
+      index,
+      Some(finiteIndexToken),
+      sourceLocation
+    )
+  }
+
+  private def recordVecIndexImpl[T <: Data](
+      vector: Vec[T],
+      selected: T,
+      index: ElaborationIntegerExpression,
+      finiteIndexToken: Option[ElabFiniteIndexToken],
+      sourceLocation: Option[String]
+  ): T = {
     val state = requireCapture("Vec index", sourceLocation)
     if ((vector eq null) || (selected eq null)) {
       fail(
@@ -500,27 +1340,464 @@ object ParameterizedStructure {
         sourceLocation
       )
     }
+    val carrierLength = ParameterizedVec
+      .shapeOf(vector)
+      .map(_.carrierCapacity)
+      .getOrElse(vector.carrierLength)
     if (
-      index.default < 0 || index.default >= vector.length ||
-      index.minimum < 0 || index.maximum >= vector.length
+      index.default < 0 || index.default >= carrierLength ||
+      index.minimum < 0 || index.maximum >= carrierLength
     ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-DOMAIN-UNSUPPORTED",
-        s"Vec index '${index.verilog}' reaches [${index.minimum}, ${index.maximum}], outside 0 until ${vector.length}",
+        s"Vec index '${index.verilog}' reaches [${index.minimum}, ${index.maximum}], outside 0 until $carrierLength",
         sourceLocation
       )
     }
-    val duplicate = state.vecIndices.exists { value =>
-      (value.vector eq vector) && (value.selected eq selected) &&
-      ElabInt.equivalentExpression(value.index, index)
-    }
-    if (!duplicate)
-      state.vecIndices += StructuralVecIndex(
-        vector,
-        selected,
-        index,
+    val retained = createVecIndexAliasImpl(
+      vector,
+      selected,
+      index,
+      finiteIndexToken,
+      sourceLocation
+    )
+    state.vecIndices += retained
+    retained.result.asInstanceOf[T]
+  }
+
+  /** Create the distinct identity anchor shared by the typed runtime and the
+    * optional structural frontend. The caller remains responsible for adding
+    * the returned record to its exact active capture.
+    */
+  private[core] def createVecIndexAlias[T <: Data](
+      vector: Vec[T],
+      selected: T,
+      index: ElaborationIntegerExpression,
+      sourceLocation: Option[String]
+  ): StructuralVecIndex =
+    createVecIndexAliasImpl(
+      vector,
+      selected,
+      index,
+      None,
+      sourceLocation
+    )
+
+  private def createVecIndexAliasImpl[T <: Data](
+      vector: Vec[T],
+      selected: T,
+      index: ElaborationIntegerExpression,
+      finiteIndexToken: Option[ElabFiniteIndexToken],
+      sourceLocation: Option[String]
+  ): StructuralVecIndex = {
+    if (
+      finiteIndexToken == null ||
+      finiteIndexToken.exists(_ == null)
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-FINITE-INDEX-TOKEN-NULL",
+        "structural Vec alias requires a non-null opaque-token option",
         sourceLocation
       )
+    }
+    val component = Option(Component.current).getOrElse {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-COMPONENT-MISSING",
+        "structural Vec alias requires an active Component",
+        sourceLocation
+      )
+    }
+    if ((vector.component ne component) || (selected.component ne component)) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-COMPONENT-MISMATCH",
+        "structural Vec alias and its witnessed element must belong to the active Component",
+        sourceLocation
+      )
+    }
+
+    // The alias itself no longer reads the witnessed carrier in the native
+    // graph. Preserve every exact element that the finite selector may reach,
+    // so an internal (non-port) Vec cannot disappear before packed structural
+    // publication consumes its retained identity.
+    (index.minimum.toInt to index.maximum.toInt).foreach { elementIndex =>
+      vector.vec(elementIndex).asInstanceOf[Data].flatten.foreach { leaf =>
+        leaf.setAsVital()
+        leaf.dontSimplifyIt()
+        if (leaf.isComb) leaf.noBackendCombMerge()
+        if (leaf.isReg) leaf.addTag(noBackendSyncMerge)
+      }
+    }
+
+    val selectedLeaves = selected.flatten.toVector
+    val selectedPaths = selected.flattenLocalName.toVector
+    if (selectedLeaves.isEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-ELEMENT-EMPTY",
+        "structural Vec elements must contain at least one packed leaf",
+        sourceLocation
+      )
+    }
+    val result = ParameterizedWidth.cloneOf(selected)
+    result.setAsDirectionLess()
+    result.setName(nextVecAliasName(component))
+    result.dontSimplifyIt()
+    result.flatten.foreach { leaf =>
+      leaf.setAsVital()
+      // The alias is intentionally undriven in the native witness graph. Its
+      // only semantics are the exact capture-local substitution performed by
+      // MorphHDL after native checks and emission.
+      leaf.addTag(allowFloating)
+    }
+    val resultLeaves = result.flatten.toVector
+    val resultPaths = result.flattenLocalName.toVector
+    if (
+      resultLeaves.size != selectedLeaves.size ||
+      selectedPaths.size != selectedLeaves.size ||
+      resultPaths != selectedPaths
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-LAYOUT-MISMATCH",
+        s"structural Vec alias has ${resultLeaves.size} leaves and paths ${resultPaths
+            .mkString("[", ", ", "]")} for a ${selectedLeaves.size}-leaf element with paths ${selectedPaths
+            .mkString("[", ", ", "]")}",
+        sourceLocation
+      )
+    }
+    resultLeaves.zip(selectedLeaves).foreach { case (resultLeaf, selectedLeaf) =>
+      if (
+        (resultLeaf eq selectedLeaf) ||
+        resultLeaf.getClass != selectedLeaf.getClass ||
+        resultLeaf.getBitsWidth != selectedLeaf.getBitsWidth
+      ) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-LAYOUT-MISMATCH",
+          "structural Vec alias changed one witnessed element leaf identity, type or width",
+          sourceLocation
+        )
+      }
+    }
+
+    val retained = new StructuralVecIndex(
+      vector,
+      selected,
+      result,
+      retainedStaticVecAccess(vector, selected, index, sourceLocation),
+      index,
+      finiteIndexToken,
+      sourceLocation
+    )
+    retained
+  }
+
+  private def nextVecAliasName(component: Component): String = {
+    val storage = storageOf(component)
+    storage.synchronized {
+      storage.nextVecAliasId += 1
+      s"morphhdl_structural_vec_alias_${storage.nextVecAliasId}"
+    }
+  }
+
+  /** Retain the exact typed static-access record created immediately before a
+    * structural Vec selection is registered. Other constant accesses to the
+    * same carrier element, including accesses in sibling alternatives, are not
+    * evidence for this selection.
+    */
+  private[core] def retainedStaticVecAccess(
+      vector: Vec[_],
+      selected: Data,
+      index: ElaborationIntegerExpression,
+      sourceLocation: Option[String]
+  ): Option[ParameterizedVecStaticIndex] =
+    ParameterizedVec.shapeOf(vector).map { _ =>
+      val matching = ParameterizedVec.operationsOf(vector).reverse.collect {
+        case value: ParameterizedVecStaticIndex
+            if value.index == index.default.toInt &&
+              (value.selected eq selected) =>
+          value
+      }
+      matching.headOption.getOrElse {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-STATIC-EVIDENCE-MISSING",
+          s"structural Vec witness ${index.default} lost its exact typed static-access record",
+          sourceLocation
+        )
+      }
+    }
+
+  /** Record one native asynchronous read of an existing Mem selected by the
+    * enclosing structural generate index.
+    */
+  private[spinal] def recordMemoryIndex(
+      memory: Mem[_],
+      port: MemReadAsync,
+      selected: Data,
+      index: ElaborationIntegerExpression,
+      finiteIndexToken: ElabFiniteIndexToken,
+      sourceLocation: Option[String]
+  ): Unit = {
+    val state = requireCapture("Mem index", sourceLocation)
+    if (
+      (memory eq null) || (port eq null) || (selected eq null) ||
+      finiteIndexToken == null
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEM-NULL",
+        "structural Mem selection requires a native Mem, read port, selected value and opaque range identity",
+        sourceLocation
+      )
+    }
+    if (port.mem ne memory) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEM-PORT-MISMATCH",
+        "structural Mem selection port does not belong to its retained memory",
+        sourceLocation
+      )
+    }
+    val generateIndex = index.generateIndex.getOrElse {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEM-NOT-INDEXED",
+        s"Mem index '${index.verilog}' does not depend on the active generate index",
+        sourceLocation
+      )
+    }
+    val address = port.address
+    val (addressWitness, addressAssignment) = address match {
+      case literal: BitVectorLiteral if !literal.hasPoison() && literal.getValue() == index.default =>
+        literal -> None
+      case target: BaseType =>
+        val assignments = ArrayBuffer.empty[DataAssignmentStatement]
+        target.foreachStatements {
+          case value: DataAssignmentStatement if (value.finalTarget eq target) && (value.target eq target) =>
+            assignments += value
+          case _ =>
+        }
+        val matching = assignments.collect {
+          case value if value.source.isInstanceOf[BitVectorLiteral] && {
+                val literal = value.source.asInstanceOf[BitVectorLiteral]
+                !literal.hasPoison() && literal.getValue() == index.default
+              } =>
+            value -> value.source.asInstanceOf[BitVectorLiteral]
+        }
+        if (assignments.size != 1 || matching.size != 1) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEM-ADDRESS-LINEAGE-MISMATCH",
+            s"structural Mem selection address retains ${assignments.size} exact direct assignments and ${matching.size} literal witness assignments for ${index.default}; exactly one shared identity is required",
+            sourceLocation
+          )
+        }
+        target.setName(
+          s"morphhdl_structural_mem_address_${generateIndex}_${state.memoryIndices.size + 1}"
+        )
+        target.setAsVital()
+        target.dontSimplifyIt()
+        if (target.isComb) target.noBackendCombMerge()
+        if (target.isReg) target.addTag(noBackendSyncMerge)
+        matching.head._2 -> Some(matching.head._1)
+      case _ =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEM-ADDRESS-LINEAGE-MISMATCH",
+          s"structural Mem selection must retain the exact native literal address witness ${index.default}",
+          sourceLocation
+        )
+    }
+    val readBits = port.elaborationReadBits
+    if (readBits == null) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEM-READ-LINEAGE-MISSING",
+        "structural Mem selection port lost its native readBits carrier",
+        sourceLocation
+      )
+    }
+    readBits.setAsVital()
+    readBits.dontSimplifyIt()
+    readBits.noBackendCombMerge()
+    selected.flatten.foreach { leaf =>
+      leaf.setAsVital()
+      leaf.dontSimplifyIt()
+      if (leaf.isComb) leaf.noBackendCombMerge()
+      if (leaf.isReg) leaf.addTag(noBackendSyncMerge)
+    }
+    val readBitsAssignments = ArrayBuffer.empty[DataAssignmentStatement]
+    readBits.foreachStatements {
+      case value: DataAssignmentStatement
+          if (value.finalTarget eq readBits) &&
+            (value.target eq readBits) &&
+            (value.source eq port) =>
+        readBitsAssignments += value
+      case _ =>
+    }
+    if (readBitsAssignments.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEM-READ-BRIDGE-MISMATCH",
+        s"structural Mem readBits retains ${readBitsAssignments.size} exact direct assignments from its native port; exactly one is required",
+        sourceLocation
+      )
+    }
+    var selectedOffset = 0
+    val selectedLineages = selected.flatten.zipWithIndex.map { case (leaf, leafIndex) =>
+      val assignments = ArrayBuffer.empty[DataAssignmentStatement]
+      leaf.foreachStatements {
+        case value: DataAssignmentStatement if value.finalTarget eq leaf =>
+          assignments += value
+        case _ =>
+      }
+      val matching = assignments.flatMap { value =>
+        memoryReadLineage(value.source, readBits, port).collect {
+          case lineage
+              if lineage.low == selectedOffset &&
+                lineage.width == leaf.getBitsWidth =>
+            value -> lineage.support
+        }
+      }
+      if (assignments.size != 1 || matching.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEM-READ-LINEAGE-MISMATCH",
+          s"structural Mem selected leaf $leafIndex has ${assignments.size} direct assignments and ${matching.size} exact packed lineages from bits $selectedOffset through ${selectedOffset + leaf.getBitsWidth - 1} of its retained native read port; exactly one shared identity is required",
+          sourceLocation
+        )
+      }
+      selectedOffset += leaf.getBitsWidth
+      matching.head
+    }.toVector
+    val selectedAssignments = selectedLineages.map(_._1)
+    val selectedSupportAssignments = selectedLineages.map(_._2)
+    if (
+      selectedAssignments.indices.exists { left =>
+        selectedAssignments.indices.exists { right =>
+          left < right &&
+          (selectedAssignments(left) eq selectedAssignments(right))
+        }
+      }
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEM-READ-LINEAGE-MISMATCH",
+        "structural Mem selected leaves share one ambiguous native assignment",
+        sourceLocation
+      )
+    }
+    if (index.default < 0 || index.default >= memory.wordCount || index.minimum < 0) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEM-WITNESS-UNSUPPORTED",
+        s"Mem index '${index.verilog}' has invalid witness/domain [${index.minimum}, ${index.maximum}] for native depth ${memory.wordCount}",
+        sourceLocation
+      )
+    }
+    if (state.memoryIndices.exists(value => value.port eq port)) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-MEM-PORT-DUPLICATE",
+        "one native Mem port was recorded more than once in one structural body",
+        sourceLocation
+      )
+    }
+    state.memoryIndices += StructuralMemoryIndex(
+      memory,
+      port,
+      address,
+      addressWitness,
+      addressAssignment,
+      readBits,
+      readBitsAssignments.head,
+      selected,
+      selectedAssignments,
+      selectedSupportAssignments,
+      index,
+      sourceLocation,
+      Some(finiteIndexToken)
+    )
+  }
+
+  /** Exact native packed lineage used by MultiData.assignFromBits.  Fixed
+    * accesses and the ordinary cast/type-node copies are followed only through
+    * their unique assignment identities; arbitrary operators are never
+    * admitted as memory-read evidence.
+    */
+  private[core] final case class StructuralMemoryReadLineage(
+      low: Int,
+      width: Int,
+      support: Vector[DataAssignmentStatement]
+  )
+
+  private[core] def memoryReadLineage(
+      root: Expression,
+      readBits: Bits,
+      port: MemReadAsync
+  ): Option[StructuralMemoryReadLineage] = {
+    val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
+
+    def trace(value: Expression): Option[StructuralMemoryReadLineage] = {
+      if (
+        value == null ||
+        visited.put(value, java.lang.Boolean.TRUE) != null
+      ) return None
+
+      value match {
+        case source if (source eq readBits) || (source eq port) =>
+          Some(StructuralMemoryReadLineage(0, readBits.getBitsWidth, Vector.empty))
+        case access: BitVectorRangedAccessFixed =>
+          trace(access.source).flatMap { parent =>
+            val width = access.getWidth
+            if (
+              access.lo < 0 || width < 1 ||
+              access.lo + width > parent.width
+            ) None
+            else
+              Some(
+                StructuralMemoryReadLineage(
+                  parent.low + access.lo,
+                  width,
+                  parent.support
+                )
+              )
+          }
+        case access: BitVectorBitAccessFixed =>
+          trace(access.source).flatMap { parent =>
+            if (access.bitId < 0 || access.bitId >= parent.width) None
+            else
+              Some(
+                StructuralMemoryReadLineage(
+                  parent.low + access.bitId,
+                  1,
+                  parent.support
+                )
+              )
+          }
+        case cast: CastBitsToUInt => trace(cast.input)
+        case cast: CastBitsToSInt => trace(cast.input)
+        case cast: CastBitsToEnum => trace(cast.input)
+        case intermediate: BaseType if intermediate ne readBits =>
+          val drivers = ArrayBuffer.empty[DataAssignmentStatement]
+          intermediate.foreachStatements {
+            case value: DataAssignmentStatement
+                if (value.finalTarget eq intermediate) &&
+                  (value.target eq intermediate) =>
+              drivers += value
+            case _ =>
+          }
+          if (drivers.size != 1) None
+          else
+            trace(drivers.head.source).map(lineage => lineage.copy(support = drivers.head +: lineage.support))
+        case _ => None
+      }
+    }
+
+    trace(root)
+  }
+
+  private def expressionContains(
+      root: Expression,
+      target: Expression
+  ): Boolean = {
+    if (root == null || target == null) return false
+    val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
+    var found = false
+    def visit(value: Expression): Unit = {
+      if (!found && value != null && visited.put(value, java.lang.Boolean.TRUE) == null) {
+        if (value eq target) found = true
+        else value.foreachExpression(visit)
+      }
+    }
+    visit(root)
+    found
   }
 
   private def scheduleAssignmentValidation(component: Component): Unit = {
@@ -747,6 +2024,69 @@ object ParameterizedStructure {
     values.toVector
   }
 
+  /** Retain every exact statement below a structural alternative, including
+    * tree controls and memory ports whose driving expressions do not occur in
+    * a DataAssignmentStatement. This is deliberately separate from the
+    * assignment inventory used by structural publication: pre-normalization
+    * provenance capture needs a complete driving-use universe.
+    */
+  private def capturedStatements(
+      regions: Vector[StructuralRegion]
+  ): Vector[CapturedStatement] = {
+    val values = ArrayBuffer.empty[CapturedStatement]
+
+    def visitStatement(
+        statement: Statement,
+        path: Vector[AlternativeStep]
+    ): Unit = {
+      values += CapturedStatement(statement, path)
+      statement match {
+        case tree: TreeStatement =>
+          tree.foreachStatements(value => visitStatement(value, path))
+        case _ =>
+      }
+    }
+
+    def visitBlock(
+        block: ParameterizedStructuralBlock,
+        path: Vector[AlternativeStep]
+    ): Unit = {
+      block.statements.foreach(value => visitStatement(value, path))
+      block.regions.foreach(value => visitRegion(value, path))
+    }
+
+    def visitRegion(
+        region: StructuralRegion,
+        path: Vector[AlternativeStep]
+    ): Unit = region match {
+      case value: StructuralFor =>
+        visitBlock(value.body, path)
+      case value: StructuralIf =>
+        visitBlock(
+          value.whenTrue,
+          path :+ AlternativeStep(value, branch = 0)
+        )
+        visitBlock(
+          value.whenFalse,
+          path :+ AlternativeStep(value, branch = 1)
+        )
+      case value: StructuralCase =>
+        value.choices.zipWithIndex.foreach { case (choice, index) =>
+          visitBlock(
+            choice.body,
+            path :+ AlternativeStep(value, branch = index)
+          )
+        }
+        visitBlock(
+          value.defaultBody,
+          path :+ AlternativeStep(value, branch = value.choices.size)
+        )
+    }
+
+    regions.foreach(value => visitRegion(value, Vector.empty))
+    values.toVector
+  }
+
   private def capturedDeclarations(
       regions: Vector[StructuralRegion]
   ): Vector[CapturedDeclaration] = {
@@ -930,6 +2270,39 @@ object ParameterizedStructure {
     val seen =
       new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
     val values = ArrayBuffer.empty[DataAssignmentStatement]
+    captured.foreach { value =>
+      val statement = value.statement
+      if (
+        witnessInactive(value.path) &&
+        !active.containsKey(statement) &&
+        !seen.containsKey(statement)
+      ) {
+        seen.put(statement, java.lang.Boolean.TRUE)
+        values += statement
+      }
+    }
+    values.toVector
+  }
+
+  /** Exact captured statement identities which occur only below a branch the
+    * concrete witness does not select. Unlike the assignment-only view, this
+    * includes tree controls and memory ports so a one-use provenance proof
+    * cannot miss a direct selector/address consumer. Identities also present
+    * on an active path fail closed and are excluded.
+    */
+  private[core] def capturedWitnessInactiveStatementsOf(
+      component: Component
+  ): Vector[Statement] = {
+    if (component eq null) return Vector.empty
+    val captured = capturedStatements(regionsOf(component))
+    val active = new IdentityHashMap[Statement, java.lang.Boolean]()
+    captured.foreach { value =>
+      if (!witnessInactive(value.path))
+        active.put(value.statement, java.lang.Boolean.TRUE)
+    }
+
+    val seen = new IdentityHashMap[Statement, java.lang.Boolean]()
+    val values = ArrayBuffer.empty[Statement]
     captured.foreach { value =>
       val statement = value.statement
       if (
@@ -1551,27 +2924,101 @@ object ParameterizedStructure {
     }
   }
 
-  def registerFor(
+  private[spinal] def registerFor(
       component: Component,
       label: String,
       indexName: String,
       count: ElaborationIntegerExpression,
       body: ParameterizedStructuralBlock,
       sourceLocation: Option[String]
+  ): Unit =
+    registerForImpl(
+      component,
+      label,
+      indexName,
+      count,
+      body,
+      Some(new ElabFiniteIndexToken()),
+      sourceLocation,
+      requireExactDomain = false
+    )
+
+  /** Typed finite-range entry point. Unlike the established frontend-analyzed
+    * structural bridge, this path requires a complete exact single-root table
+    * before its representative body can be registered.
+    */
+  private[spinal] def registerExactFor(
+      component: Component,
+      label: String,
+      indexName: String,
+      count: ElaborationIntegerExpression,
+      body: ParameterizedStructuralBlock,
+      sourceLocation: Option[String]
+  ): Unit =
+    registerExactFor(
+      component,
+      label,
+      indexName,
+      count,
+      body,
+      new ElabFiniteIndexToken(),
+      sourceLocation
+    )
+
+  /** Exact typed finite-range registration carrying the same opaque identity
+    * as every Vec selection made by this foreach index.
+    */
+  private[spinal] def registerExactFor(
+      component: Component,
+      label: String,
+      indexName: String,
+      count: ElaborationIntegerExpression,
+      body: ParameterizedStructuralBlock,
+      finiteIndexToken: ElabFiniteIndexToken,
+      sourceLocation: Option[String]
   ): Unit = {
-    ElabInt.validateExpression(count, "generate count")
-    val normalizedCount = ElabInt.withCompleteParameterRoots(count)
-    val storage = storageOf(component)
-    reserveName(storage, label, "generate label", sourceLocation)
-    reserveName(storage, indexName, "generate index", sourceLocation)
-    validateIntegerExpression(normalizedCount, "generate count")
-    if (normalizedCount.default < 1) {
+    if (finiteIndexToken == null) {
       fail(
-        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-COUNT-NONPOSITIVE",
-        s"generate count '${normalizedCount.verilog}' has non-positive concrete witness ${normalizedCount.default}",
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FINITE-INDEX-TOKEN-NULL",
+        "typed finite generate-for requires one non-null opaque range identity",
         sourceLocation
       )
     }
+    registerForImpl(
+      component,
+      label,
+      indexName,
+      count,
+      body,
+      Some(finiteIndexToken),
+      sourceLocation,
+      requireExactDomain = true
+    )
+  }
+
+  private def registerForImpl(
+      component: Component,
+      label: String,
+      indexName: String,
+      count: ElaborationIntegerExpression,
+      body: ParameterizedStructuralBlock,
+      finiteIndexToken: Option[ElabFiniteIndexToken],
+      sourceLocation: Option[String],
+      requireExactDomain: Boolean
+  ): Unit = {
+    if (
+      finiteIndexToken == null ||
+      finiteIndexToken.exists(_ == null)
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FINITE-INDEX-TOKEN-NULL",
+        "generate-for requires a non-null opaque-token option",
+        sourceLocation
+      )
+    }
+    ElabInt.validateExpression(count, "generate count")
+    val normalizedCount = ElabInt.withCompleteParameterRoots(count)
+    validateIntegerExpression(normalizedCount, "generate count")
     if (
       normalizedCount.minimum < 0 ||
       normalizedCount.maximum > BigInt(Int.MaxValue)
@@ -1582,6 +3029,57 @@ object ParameterizedStructure {
         sourceLocation
       )
     }
+    val exactDomain =
+      if (requireExactDomain)
+        ElabFiniteRange.requireCompleteSymbolicDomain(
+          normalizedCount,
+          "structural generate count",
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-COUNT-EXACT-DOMAIN-REQUIRED"
+        )
+      else None
+    val hasPositiveRepresentative = exactDomain match {
+      case Some((exact, admitted)) =>
+        exact.evaluations.exists { case (rootValue, result) =>
+          admitted.contains(rootValue) && result > 0
+        }
+      case None => normalizedCount.maximum > 0
+    }
+    if (!hasPositiveRepresentative) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-COUNT-NONPOSITIVE",
+        s"generate count '${normalizedCount.verilog}' has no ${if (requireExactDomain) "exact"
+          else "structurally validated"} positive-domain point for its index-zero representative body",
+        sourceLocation
+      )
+    }
+    finiteIndexToken.foreach { token =>
+      body.synchronized {
+        body.vecIndices = body.vecIndices.map { selection =>
+          selection.finiteIndexToken match {
+            case Some(existing) if existing eq token => selection
+            case Some(_) =>
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-FINITE-INDEX-TOKEN-CONFLICT",
+                "one exact structural Vec selection belongs to a different finite-range identity than its captured generate-for",
+                selection.sourceLocation.orElse(sourceLocation)
+              )
+            case None =>
+              new StructuralVecIndex(
+                selection.vector,
+                selection.selected,
+                selection.result,
+                selection.staticAccess,
+                selection.index,
+                Some(token),
+                selection.sourceLocation
+              )
+          }
+        }
+      }
+    }
+    val storage = storageOf(component)
+    reserveName(storage, label, "generate label", sourceLocation)
+    reserveName(storage, indexName, "generate index", sourceLocation)
     registerRegion(
       component,
       currentCaptureId(component, sourceLocation),
@@ -1590,6 +3088,7 @@ object ParameterizedStructure {
         indexName,
         normalizedCount,
         body,
+        finiteIndexToken,
         sourceLocation
       ),
       sourceLocation
@@ -1614,6 +3113,90 @@ object ParameterizedStructure {
     token
   }
 
+  /** Certify an analyzer-private exhaustive predicate table, then publish only
+    * the resulting structural-domain capability.  The opaque permit binds the
+    * exact source, expression, table, component and operation identities; raw
+    * expression/table pairs cannot enter this path.
+    */
+  private[spinal] def analyzedPredicateDomainOf(
+      component: Component,
+      operationIdentity: AnyRef,
+      sourceIdentity: AnyRef,
+      condition: ElaborationBooleanExpression,
+      evaluations: Vector[(BigInt, Boolean)],
+      permit: ExternalStructuralPredicatePermit
+  ): StructuralPredicateDomain = {
+    if (
+      component == null || operationIdentity == null || sourceIdentity == null ||
+      condition == null || evaluations == null
+    ) {
+      fail(
+        "SPINAL-ELAB-CONTROL-ANALYZED-PREDICATE-DOMAIN-NULL",
+        "analyzed predicate-domain construction requires non-null exact publication identities",
+        Option(condition).flatMap(_.sourceLocation)
+      )
+    }
+    ExternalStructuralPredicatePermit.requireAnalyzed(
+      permit,
+      sourceIdentity,
+      condition,
+      evaluations,
+      component,
+      operationIdentity
+    )
+    ElabInt.validateExpression(condition, "analyzed structural predicate")
+    if (condition.exactDomain.nonEmpty) {
+      fail(
+        "SPINAL-ELAB-DOMAIN-PROJECTION-RECERTIFICATION-UNSUPPORTED",
+        s"analyzed structural predicate '${condition.verilog}' already carries exact evidence",
+        condition.sourceLocation
+      )
+    }
+    val normalized = ElabInt.withCompleteParameterRoots(condition)
+    val root = normalized.parameterRoots match {
+      case Vector(value) => value
+      case values =>
+        fail(
+          "SPINAL-ELAB-DOMAIN-ROOT-COUNT-UNSUPPORTED",
+          s"analyzed structural predicate '${normalized.verilog}' retains ${values.size} roots",
+          normalized.sourceLocation
+        )
+    }
+    val parameter = normalized.parameters match {
+      case Vector(value) => value
+      case values =>
+        fail(
+          "SPINAL-ELAB-DOMAIN-PARAMETER-COUNT-UNSUPPORTED",
+          s"analyzed structural predicate '${normalized.verilog}' retains ${values.size} parameter schemas",
+          normalized.sourceLocation
+        )
+    }
+    val exact = ElaborationExactDomain.checked(
+      root,
+      parameter,
+      evaluations,
+      normalized.sourceLocation,
+      s"analyzed structural predicate '${normalized.verilog}'"
+    )
+    val certified = normalized
+      .copy(exactDomain = Some(exact))
+      .attachExactAuthority(exact, "analyzed structural predicate certification")
+    val authoritative = ElabInt
+      .requireAuthoritativeBooleanDomain(
+        certified,
+        "analyzed structural predicate",
+        "SPINAL-ELAB-BOOL-ANALYZED-PREDICATE-DOMAIN-INVALID"
+      )
+      .getOrElse {
+        fail(
+          "SPINAL-ELAB-BOOL-ANALYZED-PREDICATE-DOMAIN-INVALID",
+          s"analyzed structural predicate '${normalized.verilog}' did not retain one exact domain",
+          normalized.sourceLocation
+        )
+      }
+    structuralPredicateDomainOf(component, authoritative, normalized.sourceLocation)
+  }
+
   /** Build exact typed predicate evidence and reuse one structural root for the
     * exact declaration identity throughout a component.
     */
@@ -1636,6 +3219,14 @@ object ParameterizedStructure {
         condition.sourceLocation
       )
     }
+    structuralPredicateDomainOf(component, exact, condition.sourceLocation)
+  }
+
+  private def structuralPredicateDomainOf(
+      component: Component,
+      exact: ElaborationExactDomain[Boolean],
+      sourceLocation: Option[String]
+  ): StructuralPredicateDomain = {
     val storage = storageOf(component)
     var structuralRoot = storage.typedPredicateRoots.get(exact.root)
     if (structuralRoot == null) {
@@ -1658,7 +3249,7 @@ object ParameterizedStructure {
       fail(
         "SPINAL-ELAB-DOMAIN-ROOT-SCHEMA-MISMATCH",
         s"typed structural root '${exact.parameter.name}' was reused with an incompatible schema",
-        condition.sourceLocation.orElse(exact.root.sourceLocation)
+        sourceLocation.orElse(exact.root.sourceLocation)
       )
     }
     StructuralPredicateDomain(
@@ -1670,7 +3261,7 @@ object ParameterizedStructure {
     )
   }
 
-  def registerIf(
+  private[spinal] def registerIf(
       pending: ParameterizedStructuralPending,
       condition: ElaborationBooleanExpression,
       whenTrueLabel: String,
@@ -1711,7 +3302,7 @@ object ParameterizedStructure {
     storage.pending.remove(pending.id)
   }
 
-  def registerCase(
+  private[spinal] def registerCase(
       pending: ParameterizedStructuralPending,
       selector: ElaborationIntegerExpression,
       choices: Vector[(BigInt, String, ParameterizedStructuralBlock)],

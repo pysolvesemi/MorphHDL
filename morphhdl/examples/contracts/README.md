@@ -9,9 +9,12 @@ These files are executable output contracts for the parameterized backend.
   without a separately authored ParamRTL `Design`.
 - `symbolic_data_shapes.v` is owned by Increment 30. One ordinary component
   carries `WIDTH` through native Bits/UInt/SInt leaves, cloneOf, HardType,
-  Bundle, static Vec, Stream and Flow payloads, an internal wire and one
-  unconditional uninitialized register path. Concrete Bool clock and protocol
-  controls stay one bit; the Verilog ABI is deterministically flattened.
+  Bundle, Vec, Stream and Flow payloads, an internal wire and one unconditional
+  uninitialized register path. Increment 53f retains the Vec's logical
+  two-element, three-leaf shape while publishing `vec_in` and `vec_out` as
+  single `6 * WIDTH` packed Verilog-2001 ports. Concrete Bool clock and
+  protocol controls stay one bit; the rest of the aggregate ABI remains
+  deterministically flattened by leaf.
 - `derived_width.v` is owned by Increments 3, 23 and 24. Its two frontend public
   parameters feed an acyclic local-parameter expression graph; Increment 23
   clamps parameter-derived padding with typed `Min` and floors the final width
@@ -118,7 +121,8 @@ These files are executable output contracts for the parameterized backend.
   `synchronous_stream_m2s_pipe.v`. Increment 29 migrates the first artifact to
   the native single-source width bridge without changing that inventory.
   Increment 30 extends the path to twenty-one files with
-  `symbolic_data_shapes.v`. CI
+  `symbolic_data_shapes.v`; Increment 53f upgrades that artifact's Vec boundary
+  without changing the twenty-one-file inventory. CI
   performs a normal and reverse-construction run, requires an exact
   twenty-one-file inventory, checks
   byte identity with these goldens, and gives that unmodified directory to the
@@ -129,8 +133,10 @@ These files are executable output contracts for the parameterized backend.
   mutations that freeze either symbolic port at eight bits under the 64-bit
   override. `SymbolicDataShapesTb` checks all direct, aggregate, Vec, Stream,
   Flow and register paths at widths 1, 8, 13 and 64. Yosys proves the complete
-  flattened ABI and internal/register widths and rejects fixed-width
-  mutations at the 64-bit override. `DerivedWidthTb` checks widths 37, 4, 20, 29, 25 and 7 in six
+  flattened ABI, packed `6 * WIDTH` Vec ports and internal/register widths and
+  rejects fixed-width mutations at the 64-bit override. The memory fixtures
+  separately retain unpacked `reg [WIDTH-1:0] memory [0:DEPTH-1]` storage.
+  `DerivedWidthTb` checks widths 37, 4, 20, 29, 25 and 7 in six
   simultaneous instances of the same emitted module while exercising lane
   counts one, two, three and four. `ParameterForwardingTb`
   checks forwarded widths 32, 1, 15, 24 and 20 through five simultaneous

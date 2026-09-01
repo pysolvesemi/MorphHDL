@@ -46,6 +46,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
           ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
           ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
+          ParameterizedVerilogVecs.hasVectors(component) ||
           ParameterizedProcess.parametersOf(component).nonEmpty ||
           ParameterizedStructure.parametersOf(component).nonEmpty ||
           component.children.exists { child =>
@@ -53,6 +54,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             ExternalParameterizedAutoResize.parametersOf(child).nonEmpty ||
             ExternalParameterizedMemoryRegistry.parametersOf(child).nonEmpty ||
             ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty ||
+            ParameterizedVerilogVecs.hasVectors(child) ||
             ParameterizedProcess.parametersOf(child).nonEmpty ||
             ParameterizedStructure.parametersOf(child).nonEmpty ||
             ExternalFormalParameterRegistry.bindingsOf(child).nonEmpty
@@ -79,6 +81,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       hierarchy.parameters ++
         ExternalParameterizedMemoryRegistry.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
+        ParameterizedVerilogVecs.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component),
       hierarchy.hasParameterizedInstances
@@ -138,7 +141,17 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       if (isCanonicalDirectSurface(component))
         canonicalizeDeclarations(component, rewrittenNormalizedTypedResizes)
       else rewrittenNormalizedTypedResizes
-    lowerRetainedIntegerHelpers(canonical, component.definitionName)
+    val withVectors = ParameterizedVerilogVecs.rewrite(
+      component,
+      canonical,
+      pc
+    )
+    val withFiniteFolds = ParameterizedVerilogFiniteFolds.rewrite(
+      component,
+      withVectors,
+      pc
+    )
+    lowerRetainedIntegerHelpers(withFiniteFolds, component.definitionName)
   }
 
   private def ensureParameterHeader(
@@ -241,19 +254,34 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
   private val FunctionIntegerName =
     "(?m)^\\s*function\\s+integer\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*;\\s*$".r
 
+  private sealed trait NativeHelperContext
+  private case object NativeHelperBareCall extends NativeHelperContext
+  private case object NativeHelperNamedAssociation extends NativeHelperContext
+  private case object NativeHelperHierarchy extends NativeHelperContext
+  private case object NativeHelperOtherToken extends NativeHelperContext
+  private case object NativeHelperNonCode extends NativeHelperContext
+
+  private sealed trait NativeHelperPrefixToken
+  private case object NativePrefixIdentifier extends NativeHelperPrefixToken
+  private case object NativePrefixDot extends NativeHelperPrefixToken
+  private case object NativePrefixLeftParen extends NativeHelperPrefixToken
+  private case object NativePrefixComma extends NativeHelperPrefixToken
+  private case object NativePrefixOther extends NativeHelperPrefixToken
+
   /** Compiler-shadow helper names are an internal expression IR, not Verilog
     * functions. Lower the reviewed positive-width helpers after every other
     * native rewrite so declarations, structural alternatives and memories all
     * share one collision-safe IEEE-1364 implementation.
     */
-  private def lowerRetainedIntegerHelpers(
+  private[internals] def lowerRetainedIntegerHelpers(
       verilog: String,
       definitionName: String
   ): String = {
-    val needsAddressWidth = verilog.contains(NativeAddressWidthHelper + "(")
-    val needsCeilLog2 = verilog.contains(NativeCeilLog2Helper + "(")
+    val needsAddressWidth =
+      containsNativeUnaryCall(verilog, NativeAddressWidthHelper)
+    val needsCeilLog2 = containsNativeUnaryCall(verilog, NativeCeilLog2Helper)
     if (!needsAddressWidth && !needsCeilLog2) {
-      NativeIntegerHelper.findFirstIn(verilog).foreach { helper =>
+      firstUnsupportedNativeIntegerHelper(verilog).foreach { helper =>
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-UNSUPPORTED",
           s"module '$definitionName' retains unsupported native Int helper '${helper.trim}'"
@@ -293,7 +321,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         argument => s"$helperName($argument, 0)",
         definitionName
       )
-    NativeIntegerHelper.findFirstIn(lowered).foreach { helper =>
+    firstUnsupportedNativeIntegerHelper(lowered).foreach { helper =>
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-NATIVE-INT-HELPER-UNSUPPORTED",
         s"module '$definitionName' retains unsupported native Int helper '${helper.trim}'"
@@ -302,6 +330,125 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
 
     if (existingPortableHelpers.nonEmpty) lowered
     else insertPortableLogFunction(lowered, definitionName, helperName)
+  }
+
+  /** A module instance may contain `.port (` or `.parameter (` immediately
+    * after its opening parenthesis or a preceding association comma. That
+    * token is a named association, not an expression helper call. Exclude only
+    * that local grammar after the hierarchy/Vec passes have already proved and
+    * emitted it. Physical lines are not syntax: a wrapped hierarchical
+    * expression such as `instance\n.morphhdl_helper(...)` must remain visible
+    * to this fail-closed audit.
+    */
+  private def firstUnsupportedNativeIntegerHelper(
+      value: String
+  ): Option[String] =
+    NativeIntegerHelper
+      .findAllMatchIn(value)
+      .find { helper =>
+        nativeHelperContext(value, helper.start) match {
+          case NativeHelperNamedAssociation | NativeHelperNonCode => false
+          case _                                                  => true
+        }
+      }
+      .map(_.matched)
+
+  /** Classify the token immediately before one helper identifier while
+    * treating Verilog whitespace, comments, strings and escaped identifiers
+    * as lexical syntax rather than raw characters. The same classifier drives
+    * detection, rewriting and the final unsupported-helper audit, so trivia
+    * cannot turn a hierarchical call into a bare call or named association.
+    */
+  private def nativeHelperContext(
+      value: String,
+      helperStart: Int
+  ): NativeHelperContext = {
+    if (value == null || helperStart < 0 || helperStart > value.length)
+      return NativeHelperNonCode
+
+    var previous: NativeHelperPrefixToken = null
+    var beforePrevious: NativeHelperPrefixToken = null
+
+    def retain(token: NativeHelperPrefixToken): Unit = {
+      beforePrevious = previous
+      previous = token
+    }
+
+    var index = 0
+    while (index < helperStart) {
+      val current = value.charAt(index)
+      if (current.isWhitespace) {
+        index += 1
+      } else if (
+        current == '/' && index + 1 < value.length &&
+        value.charAt(index + 1) == '/'
+      ) {
+        val newline = value.indexOf('\n', index + 2)
+        if (newline < 0 || newline >= helperStart)
+          return NativeHelperNonCode
+        index = newline + 1
+      } else if (
+        current == '/' && index + 1 < value.length &&
+        value.charAt(index + 1) == '*'
+      ) {
+        val end = value.indexOf("*/", index + 2)
+        if (end < 0 || end + 2 > helperStart)
+          return NativeHelperNonCode
+        index = end + 2
+      } else if (current == '"') {
+        var cursor = index + 1
+        var escaped = false
+        var closed = false
+        while (cursor < value.length && !closed) {
+          val character = value.charAt(cursor)
+          if (escaped) escaped = false
+          else if (character == '\\') escaped = true
+          else if (character == '"') closed = true
+          cursor += 1
+        }
+        if (!closed || cursor > helperStart)
+          return NativeHelperNonCode
+        retain(NativePrefixOther)
+        index = cursor
+      } else if (current == '\\') {
+        var cursor = index + 1
+        while (cursor < value.length && !value.charAt(cursor).isWhitespace)
+          cursor += 1
+        if (cursor > helperStart) return NativeHelperNonCode
+        retain(NativePrefixIdentifier)
+        index = cursor
+      } else if (isIdentifierCharacter(current)) {
+        var cursor = index + 1
+        while (
+          cursor < value.length &&
+          isIdentifierCharacter(value.charAt(cursor))
+        ) cursor += 1
+        if (cursor > helperStart) return NativeHelperNonCode
+        retain(NativePrefixIdentifier)
+        index = cursor
+      } else {
+        retain(
+          current match {
+            case '.' => NativePrefixDot
+            case '(' => NativePrefixLeftParen
+            case ',' => NativePrefixComma
+            case _   => NativePrefixOther
+          }
+        )
+        index += 1
+      }
+    }
+
+    previous match {
+      case NativePrefixDot =>
+        beforePrevious match {
+          case null | NativePrefixLeftParen | NativePrefixComma =>
+            NativeHelperNamedAssociation
+          case _ => NativeHelperHierarchy
+        }
+      case NativePrefixIdentifier => NativeHelperOtherToken
+      case _                       => NativeHelperBareCall
+    }
   }
 
   private def replaceNativeUnaryCalls(
@@ -315,9 +462,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     var cursor = 0
     var next = value.indexOf(marker, cursor)
     while (next >= 0) {
-      val beforeIsIdentifier =
-        next > 0 && isIdentifierCharacter(value.charAt(next - 1))
-      if (beforeIsIdentifier) {
+      val beforeDisallowsCall =
+        nativeHelperContext(value, next) != NativeHelperBareCall
+      if (beforeDisallowsCall) {
         out.append(value.substring(cursor, next + marker.length))
         cursor = next + marker.length
       } else {
@@ -352,6 +499,19 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     }
     out.append(value.substring(cursor))
     out.toString
+  }
+
+  private def containsNativeUnaryCall(
+      value: String,
+      functionName: String
+  ): Boolean = {
+    val marker = functionName + "("
+    var next = value.indexOf(marker)
+    while (next >= 0) {
+      if (nativeHelperContext(value, next) == NativeHelperBareCall) return true
+      next = value.indexOf(marker, next + marker.length)
+    }
+    false
   }
 
   private def insertPortableLogFunction(
@@ -474,18 +634,34 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     * emitted name is read from that object after normal Spinal naming. No port,
     * component or user signal name is used as a discovery key.
     */
-  private def rewriteRetainedValueAssignments(
+  private[internals] def rewriteRetainedValueAssignments(
       component: Component,
       verilog: String
   ): String = {
     val records = ExternalParameterizedValueRegistry.valuesOf(component)
     if (records.isEmpty) return verilog
 
-    records.foreach { case (value, record) =>
+    val liveAssignments = ArrayBuffer.empty[DataAssignmentStatement]
+    component.dslBody.walkStatements {
+      case assignment: DataAssignmentStatement => liveAssignments += assignment
+      case _                                   =>
+    }
+    val claimedAssignments =
+      new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+
+    val validated = records.map { case (value, record) =>
+      val witnessLiteral = validateRetainedValueAssignmentLineage(
+        component,
+        value,
+        record,
+        liveAssignments.toVector,
+        claimedAssignments
+      )
       validateRetainedValueProjection(component, value, record)
+      (value, record, witnessLiteral)
     }
 
-    val named = records.map { case (value, record) =>
+    val named = validated.map { case (value, record, witnessLiteral) =>
       val name = Option(value.getName()).filter(_.nonEmpty).getOrElse {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-VALUE-NAME-MISSING",
@@ -493,13 +669,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           record.sourceLocation.orElse(record.expression.sourceLocation)
         )
       }
-      name -> record
+      (name, record, witnessLiteral)
     }
     named
-      .groupBy(_._1)
+      .groupBy { case (name, _, _) => name }
       .collectFirst {
-        case (name, values) if distinctValueRecords(values.map(_._2).toVector).size != 1 =>
-          name
+        case (name, values) if values.size != 1 => name
       }
       .foreach { name =>
         fail(
@@ -509,56 +684,127 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
 
     var lines = verilog.split("\n", -1).toVector
-    val uniqueNamed = named.foldLeft(
-      Vector.empty[(String, ExternalParameterizedValueRecord)]
-    ) { case (known, value @ (name, record)) =>
-      if (
-        known.exists { case (existingName, existingRecord) =>
-          existingName == name && equivalentValueRecord(existingRecord, record)
+    named
+      .sortBy { case (name, _, _) => -name.length }
+      .foreach { case (name, record, witnessLiteral) =>
+        val pattern = (
+          "^(\\s*assign\\s+" + Pattern.quote(name) +
+            "\\s*=\\s*)(.*?)(;\\s*)$"
+        ).r
+        val expectedWitness = emittedRetainedWitness(witnessLiteral)
+        var targetCount = 0
+        var exactLineageCount = 0
+        lines = lines.map { line =>
+          line match {
+            case pattern(prefix, rhs, suffix) =>
+              targetCount += 1
+              if (rhs.trim == expectedWitness) {
+                exactLineageCount += 1
+                prefix + "(" + record.expression.verilog + ")" + suffix
+              } else line
+            case _ => line
+          }
         }
-      ) known
-      else known :+ value
-    }
-    uniqueNamed.sortBy { case (name, _) => -name.length }.foreach { case (name, record) =>
-      val pattern = (
-        "^(\\s*assign\\s+" + Pattern.quote(name) +
-          "\\s*=\\s*)(.*?)(;\\s*)$"
-      ).r
-      var count = 0
-      lines = lines.map { line =>
-        line match {
-          case pattern(prefix, _, suffix) =>
-            count += 1
-            prefix + "(" + record.expression.verilog + ")" + suffix
-          case _ => line
+        if (targetCount != 1 || exactLineageCount != 1) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-VALUE-EMITTED-LINEAGE-MISMATCH",
+            s"retained native UInt carrier '$name' maps to $targetCount emitted target assignments and $exactLineageCount exact native witness edges; exactly its retained direct literal emission is required",
+            record.sourceLocation.orElse(record.expression.sourceLocation)
+          )
         }
       }
-      if (count != 1) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-VALUE-ASSIGNMENT-NOT-UNIQUE",
-          s"retained native UInt carrier '$name' maps to $count continuous assignments",
-          record.sourceLocation.orElse(record.expression.sourceLocation)
-        )
-      }
-    }
     lines.mkString("\n")
   }
 
-  private def equivalentValueRecord(
-      left: ExternalParameterizedValueRecord,
-      right: ExternalParameterizedValueRecord
-  ): Boolean =
-    left.witness == right.witness &&
-      ElabInt.equivalentExpression(left.expression, right.expression)
+  /** Mirror the inherited emitter's poison-free BitVector literal syntax for
+    * the exact retained witness source.  The final signal name locates a
+    * candidate assignment only; this source-derived text is the authorization
+    * for replacing that assignment's right-hand side.
+    */
+  private def emittedRetainedWitness(literal: BitVectorLiteral): String = {
+    val width = literal.getWidth
+    if (width > 4)
+      s"${width}'h${literal.hexString(width, false)}"
+    else
+      s"${width}'b${literal.getBitsStringOn(width, 'x')}"
+  }
 
-  private def distinctValueRecords(
-      values: Vector[ExternalParameterizedValueRecord]
-  ): Vector[ExternalParameterizedValueRecord] =
-    values.foldLeft(Vector.empty[ExternalParameterizedValueRecord]) {
-      case (known, value) if known.exists(equivalentValueRecord(_, value)) =>
-        known
-      case (known, value) => known :+ value
+  private def validateRetainedValueAssignmentLineage(
+      component: Component,
+      value: UInt,
+      record: ExternalParameterizedValueRecord,
+      liveAssignments: Vector[DataAssignmentStatement],
+      claimedAssignments: IdentityHashMap[
+        DataAssignmentStatement,
+        java.lang.Boolean
+      ]
+  ): BitVectorLiteral = {
+    val source = record.sourceLocation.orElse(record.expression.sourceLocation)
+    val retainedAssignment = record.assignment.getOrElse {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-VALUE-ASSIGNMENT-EVIDENCE-STALE",
+        "one retained native UInt carrier lost its weakly retained witness assignment identity",
+        source
+      )
     }
+    val retainedWitnessSource = record.witnessSource.getOrElse {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-VALUE-ASSIGNMENT-LINEAGE-MISMATCH",
+        "one retained native UInt carrier lost its weakly retained literal witness source identity",
+        source
+      )
+    }
+    if (value.component ne component) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-VALUE-COMPONENT-MISMATCH",
+        "one retained native UInt carrier is not owned by the component being published",
+        source
+      )
+    }
+    if (!liveAssignments.exists(_ eq retainedAssignment)) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-VALUE-ASSIGNMENT-EVIDENCE-STALE",
+        "one retained native UInt carrier lost its exact witness assignment identity",
+        source
+      )
+    }
+    val exactTargets = liveAssignments.filter(_.finalTarget eq value)
+    if (
+      exactTargets.size != 1 ||
+      (exactTargets.head ne retainedAssignment)
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-VALUE-ASSIGNMENT-EVIDENCE-AMBIGUOUS",
+        s"one retained native UInt carrier has ${exactTargets.size} live assignments; exactly its retained witness assignment is required",
+        source
+      )
+    }
+    val exactWitnessLiteral = retainedWitnessSource match {
+      case literal: BitVectorLiteral if !literal.hasPoison() && literal.getValue() == record.witness =>
+        Some(literal)
+      case _ => None
+    }
+    if (
+      (retainedAssignment.target ne value) ||
+      (retainedAssignment.finalTarget ne value) ||
+      (retainedAssignment.source ne retainedWitnessSource) ||
+      exactWitnessLiteral.isEmpty
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-VALUE-ASSIGNMENT-LINEAGE-MISMATCH",
+        "one retained native UInt carrier changed its exact direct literal witness source",
+        source
+      )
+    }
+    if (claimedAssignments.put(retainedAssignment, java.lang.Boolean.TRUE) != null) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-VALUE-ASSIGNMENT-EVIDENCE-REUSED",
+        "one native witness assignment was claimed by multiple retained UInt values",
+        source
+      )
+    }
+    exactWitnessLiteral.get
+  }
 
   private def validateRetainedValueProjection(
       component: Component,
@@ -597,8 +843,18 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         )
       }
 
-    val widthsByRoot = ParameterizedWidth.expressionOf(value) match {
-      case Some(width) if width.exactDomain.nonEmpty =>
+    val retainedWidth = ParameterizedWidth.expressionOf(value)
+    val pointwiseWidth = retainedWidth.filter { width =>
+      (record.expression.exactDomain, width.exactDomain) match {
+        case (Some(valueDomain), Some(widthDomain)) =>
+          (valueDomain.root eq widthDomain.root) &&
+          valueDomain.parameter == widthDomain.parameter &&
+          valueDomain.evidenceValues == widthDomain.evidenceValues
+        case _ => false
+      }
+    }
+    val widthsByRoot = pointwiseWidth match {
+      case Some(width) =>
         val widthEvaluation = ParameterizedStructure
           .projectedDeclarationEvaluationOf(
             component,
@@ -622,7 +878,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           )
         }
         widthEvaluation.results.toMap
-      case Some(width) =>
+      case None if retainedWidth.nonEmpty =>
+        val width = retainedWidth.get
         evaluation.rootValues.iterator.map(_ -> width.minimum).toMap
       case None =>
         evaluation.rootValues.iterator
@@ -632,7 +889,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     evaluation.results
       .collectFirst {
         case (rootValue, result) if widthsByRoot.get(rootValue).forall { width =>
-              width < 1 || !width.isValidInt || result >= (BigInt(1) << width.toInt)
+              width < 1 || BigInt(result.bitLength) > width
             } =>
           rootValue -> (result -> widthsByRoot.get(rootValue))
       }
@@ -667,21 +924,30 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     }
   }
 
-  /** Replace a concrete witness LSB slice emitted for one exact native Resize
-    * with the retained symbolic target range. The eligible assignment, target
-    * and Resize node are discovered from the normalized graph by JVM identity;
-    * emitted names are used only after that proof to address the corresponding
-    * native Verilog assignment. Other Resize renderings remain owned by the
-    * native emitter.
+  /** Replace target-witness syntax emitted for one exact native Resize. A
+    * narrowing slice receives the retained symbolic range; a proven unsigned
+    * widening replaces the native witness-sized zero prefix with one invariant
+    * zero bit, preserving unsignedness while the symbolic target declaration
+    * performs any remaining zero extension. The
+    * eligible assignment, target and Resize node are discovered from the
+    * normalized graph by JVM identity; emitted names are used only after that
+    * proof to address the corresponding native Verilog assignment. Other
+    * Resize renderings remain owned by the native emitter.
     */
-  private def rewriteRetainedResizeAssignments(
+  private[internals] def rewriteRetainedResizeAssignments(
       component: Component,
       verilog: String
   ): String = {
     final case class RetainedResizeAssignment(
+        assignment: DataAssignmentStatement,
+        resize: Resize,
+        target: BitVector,
+        source: Option[BaseType],
         targetName: String,
         sourceName: Option[String],
         witnessSize: Int,
+        inputWitnessSize: Int,
+        unsigned: Boolean,
         expression: ElaborationIntegerExpression
     )
 
@@ -710,14 +976,38 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                         "one captured native auto-resize source is not a direct packed signal"
                       )
                   }
-                  ParameterizedWidth
-                    .expressionOf(autoTarget)
-                    .map(expression => expression -> Some(sourceName))
+                  Some(ParameterizedWidth.expressionOf(autoTarget) -> sourceName)
                 case _ => None
               }
-            retainedResizeExpression(resize)
-              .map(expression => expression -> Option.empty[String])
-              .orElse(capturedAutoResize)
+            val retainedPublication =
+              (retainedResizeExpression(resize), capturedAutoResize) match {
+                case (Some(typed), Some((Some(captured), sourceName))) =>
+                  if (
+                    !ExternalFormalParameterRegistry.equivalentExpression(
+                      typed,
+                      captured
+                    )
+                  ) {
+                    fail(
+                      "SPINAL-PARAMETERIZED-VERILOG-RESIZE-PROVENANCE-CONFLICT",
+                      s"one exact native Resize target is associated with conflicting typed expression '${typed.verilog}' and captured source-qualified expression '${captured.verilog}'",
+                      typed.sourceLocation.orElse(captured.sourceLocation)
+                    )
+                  }
+                  Some(typed -> Some(sourceName))
+                case (Some(typed), Some((None, sourceName))) =>
+                  // Native input normalization may move the symbolic width
+                  // from the exact target onto the materialized Resize.  The
+                  // captured boundary still supplies exact source identity;
+                  // the Resize-local typed publication supplies the width.
+                  Some(typed -> Some(sourceName))
+                case (Some(typed), None) =>
+                  Some(typed -> Option.empty[String])
+                case (None, Some((Some(captured), sourceName))) =>
+                  Some(captured -> Some(sourceName))
+                case (None, _) => None
+              }
+            retainedPublication
               .filter(_._1.parameters.nonEmpty)
               .foreach { case (expression, sourceName) =>
                 if (expression.default != BigInt(resize.size)) {
@@ -734,12 +1024,25 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                     expression.sourceLocation
                   )
                 }
-                retained += RetainedResizeAssignment(
-                  targetName,
-                  sourceName,
-                  resize.size,
-                  expression
-                )
+                // A witness-equal Resize emits no target-specific syntax: the
+                // symbolic declaration itself applies any proven one-sided
+                // sizing at other domain points. Do not claim a text rewrite
+                // when there is nothing exact to replace.
+                if (resize.size != resize.input.getWidth) {
+                  retained += RetainedResizeAssignment(
+                    assignment,
+                    resize,
+                    target,
+                    sourceName.map(_ => resize.input.asInstanceOf[BaseType]),
+                    targetName,
+                    sourceName,
+                    resize.size,
+                    resize.input.getWidth,
+                    resize.getTypeObject == TypeBits ||
+                      resize.getTypeObject == TypeUInt,
+                    expression
+                  )
+                }
               }
           case _ =>
         }
@@ -752,9 +1055,18 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     ) { case (known, value) =>
       if (
         known.exists { existing =>
+          (existing.assignment eq value.assignment) &&
+          (existing.resize eq value.resize) &&
+          (existing.target eq value.target) &&
+          existing.source.size == value.source.size &&
+          existing.source.zip(value.source).forall { case (left, right) =>
+            left eq right
+          } &&
           existing.targetName == value.targetName &&
           existing.sourceName == value.sourceName &&
           existing.witnessSize == value.witnessSize &&
+          existing.inputWitnessSize == value.inputWitnessSize &&
+          existing.unsigned == value.unsigned &&
           ElabInt.equivalentExpression(existing.expression, value.expression)
         }
       ) known
@@ -763,7 +1075,27 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     val grouped = unique.groupBy(_.targetName)
     grouped
       .collectFirst {
-        case (name, values) if values.size != 1 => name
+        case (name, values)
+            if values.size > 1 && {
+              val first = values.head
+              values.exists(_.sourceName.isEmpty) ||
+              values.exists(value => !(value.target eq first.target)) ||
+              values.tail.exists(value => value.assignment eq first.assignment) ||
+              values.tail.exists(value => value.resize eq first.resize) ||
+              values.tail.exists(value =>
+                value.source.exists(source =>
+                  first.source.exists(_ eq source)
+                )
+              ) ||
+              values.flatMap(_.sourceName).distinct.size != values.size ||
+              values.exists(value =>
+                !ElabInt.equivalentExpression(
+                  value.expression,
+                  first.expression
+                )
+              )
+            } =>
+          name
       }
       .foreach { name =>
         fail(
@@ -773,8 +1105,19 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
 
     var lines = verilog.split("\n", -1).toVector
-    grouped.toVector.sortBy { case (name, _) => -name.length }.foreach { case (name, values) =>
-      val record = values.head
+    grouped.toVector
+      .sortBy { case (name, _) => -name.length }
+      .flatMap { case (_, values) =>
+        values.sortBy(value =>
+          (
+            value.sourceName.getOrElse(""),
+            value.witnessSize,
+            value.inputWitnessSize
+          )
+        )
+      }
+      .foreach { record =>
+      val name = record.targetName
       val assignmentPattern = (
         "^(\\s*assign\\s+" + Pattern.quote(name) +
           "\\s*=\\s*)(.*?)(;\\s*)$"
@@ -789,41 +1132,94 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           s"[$expression-1:0]"
         else s"[($expression)-1:0]"
       }
-      var assignmentCount = 0
-      lines = record.sourceName match {
-        case None =>
-          lines.map { line =>
-            line match {
-              case assignmentPattern(prefix, rhs, suffix) =>
-                assignmentCount += 1
-                rhs match {
-                  case concreteRange(source, trailing) =>
-                    prefix + source + symbolicRange + trailing + suffix
-                  case _ => line
-                }
-              case _ => line
+      val targetCount =
+        lines.count(line => assignmentPattern.findFirstIn(line).nonEmpty)
+      var exactRewriteCount = 0
+      lines = if (record.witnessSize < record.inputWitnessSize) {
+        record.sourceName match {
+          case None =>
+            lines.map { line =>
+              line match {
+                case assignmentPattern(prefix, rhs, suffix) =>
+                  rhs match {
+                    case concreteRange(source, trailing) =>
+                      exactRewriteCount += 1
+                      prefix + source + symbolicRange + trailing + suffix
+                    case _ => line
+                  }
+                case _ => line
+              }
             }
-          }
-        case Some(sourceName) =>
-          val exactEdge = (
-            "^(\\s*(?:assign\\s+)?" + Pattern.quote(name) +
-              "\\s*=\\s*)" + Pattern.quote(sourceName) +
-              "(\\s*)\\[\\s*" + (record.witnessSize - 1) +
-              "\\s*:\\s*0\\s*\\](\\s*;\\s*)$"
-          ).r
-          lines.map { line =>
-            line match {
-              case exactEdge(prefix, spacing, suffix) =>
-                assignmentCount += 1
-                prefix + sourceName + spacing + symbolicRange + suffix
-              case _ => line
+          case Some(sourceName) =>
+            val exactEdge = (
+              "^(\\s*(?:assign\\s+)?" + Pattern.quote(name) +
+                "\\s*=\\s*)" + Pattern.quote(sourceName) +
+                "(\\s*)\\[\\s*" + (record.witnessSize - 1) +
+                "\\s*:\\s*0\\s*\\](\\s*;\\s*)$"
+            ).r
+            lines.map { line =>
+              line match {
+                case exactEdge(prefix, spacing, suffix) =>
+                  exactRewriteCount += 1
+                  prefix + sourceName + spacing + symbolicRange + suffix
+                case _ => line
+              }
             }
-          }
+        }
+      } else {
+        if (!record.unsigned) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-SIGNED-RESIZE-GROW-DOMAIN-UNSUPPORTED",
+            s"retained signed Resize target '$name' uses witness-specific sign extension",
+            record.expression.sourceLocation
+          )
+        }
+        val padding = record.witnessSize - record.inputWitnessSize
+        val concreteGrow = (
+          "^\\{\\s*" + padding + "'d0\\s*,\\s*(.*?)\\s*\\}$"
+        ).r
+        record.sourceName match {
+          case None =>
+            lines.map { line =>
+              line match {
+                case assignmentPattern(prefix, rhs, suffix) =>
+                  rhs match {
+                    case concreteGrow(source) =>
+                      exactRewriteCount += 1
+                      prefix + "{1'b0, " + source.trim + "}" + suffix
+                    case _ => line
+                  }
+                case _ => line
+              }
+            }
+          case Some(sourceName) =>
+            val exactGrowEdge = (
+              "^(\\s*(?:assign\\s+)?" + Pattern.quote(name) +
+                "\\s*=\\s*)\\{\\s*" + padding +
+                "'d0\\s*,\\s*" + Pattern.quote(sourceName) +
+                "\\s*\\}(\\s*;\\s*)$"
+            ).r
+            lines.map { line =>
+              line match {
+                case exactGrowEdge(prefix, suffix) =>
+                  exactRewriteCount += 1
+                  prefix + "{1'b0, " + sourceName + "}" + suffix
+                case _ => line
+              }
+            }
+        }
       }
-      if (assignmentCount != 1) {
+      // A source-qualified captured auto-resize may live inside a structural
+      // generate branch, where publication has already converted its exact
+      // assignment to procedural syntax.  Its live target/Resize/source graph
+      // identities and unique emitted source edge remain authoritative.  The
+      // weaker explicit typed-resize path has no source identity and must
+      // still prove one unique module-scope target assignment.
+      val targetAssignmentUnique = record.sourceName.nonEmpty || targetCount == 1
+      if (!targetAssignmentUnique || exactRewriteCount != 1) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-RESIZE-ASSIGNMENT-NOT-UNIQUE",
-          s"retained native Resize target '$name' maps to $assignmentCount exact emitted assignments",
+          s"retained native Resize target '$name' maps to $targetCount module-scope target assignments and $exactRewriteCount exact native Resize rewrites; one exact rewrite and one target assignment for an unqualified typed resize are required",
           record.expression.sourceLocation
         )
       }
@@ -852,8 +1248,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
 
     val captured = ArrayBuffer.empty[NormalizedTypedUIntResizeAssignment]
     component.dslBody.walkLeafStatements {
-      case assignment: DataAssignmentStatement
-          if assignment.target == assignment.finalTarget =>
+      case assignment: DataAssignmentStatement if assignment.target == assignment.finalTarget =>
         assignment.target match {
           case target: UInt =>
             ExternalParameterizedAutoResize
@@ -953,10 +1348,13 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       .groupBy(_.sourceName)
       .collectFirst {
         case (name, values)
-            if values.map(_.source).foldLeft(Vector.empty[UInt]) {
-              case (known, source) if known.exists(_ eq source) => known
-              case (known, source)                              => known :+ source
-            }.size != 1 =>
+            if values
+              .map(_.source)
+              .foldLeft(Vector.empty[UInt]) {
+                case (known, source) if known.exists(_ eq source) => known
+                case (known, source)                              => known :+ source
+              }
+              .size != 1 =>
           name
       }
       .foreach { name =>
@@ -1286,6 +1684,123 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     private val treeStatements = ArrayBuffer.empty[TreeStatement]
     private val widthInference = new WidthInference
 
+    /** Exact native statements whose logical width and layout are owned by
+      * the typed Vec packed-operation validator.  The ordinary native graph
+      * deliberately uses finite-capacity carriers and witness-width wrappers;
+      * asking the generic assignment pass to reinterpret those implementation
+      * nodes can reject a valid logical Vec width before the authoritative Vec
+      * lineage check runs.  Membership is solely by retained statement
+      * identity, and the Vec backend still requires each statement to be live
+      * before publication.
+      */
+    private lazy val exactPackedVecEvidenceAssignments = {
+      val retained =
+        new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+      ParameterizedVec.retainedVectorsOf(component).foreach { vector =>
+        ParameterizedVec.operationsOf(vector).foreach {
+          case value: ParameterizedVecPackedRead =>
+            (value.resultAssignments ++ value.carrierAssignments)
+              .foreach(assignment => retained.put(assignment, java.lang.Boolean.TRUE))
+          case value: ParameterizedVecPackedAssignment =>
+            (value.assignments ++ value.carrierAssignments)
+              .foreach(assignment => retained.put(assignment, java.lang.Boolean.TRUE))
+          case _ =>
+        }
+      }
+      retained
+    }
+
+    /** Distinct full-capacity carriers beneath typed Vec packing are internal
+      * native audit nodes, not declarations whose finite witness construction
+      * defines a public symbolic width.  The Vec backend later validates and
+      * rewrites these exact identities to the factorized logical packed range.
+      */
+    private lazy val exactPackedVecFiniteCarriers = {
+      val retained = new IdentityHashMap[BaseType, java.lang.Boolean]()
+      ParameterizedVec.retainedVectorsOf(component).foreach { vector =>
+        ParameterizedVec.operationsOf(vector).foreach {
+          case value: ParameterizedVecPackedRead if value.carrier ne value.result =>
+            retained.put(value.carrier, java.lang.Boolean.TRUE)
+          case value: ParameterizedVecPackedAssignment if value.carrier ne value.source =>
+            retained.put(value.carrier, java.lang.Boolean.TRUE)
+          case _ =>
+        }
+      }
+      retained
+    }
+
+    /** Exact decoder witnesses retained for typed Vec dynamic writes are
+      * finite native implementation nodes. Their one-shifted carrier geometry
+      * is revalidated by the Vec backend from the retained statement, operand,
+      * target, width, and guard identities before publication.
+      */
+    private lazy val exactDynamicVecDecoderAssignments = {
+      val retained =
+        new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+      ParameterizedVec.retainedVectorsOf(component).foreach { vector =>
+        ParameterizedVec.operationsOf(vector).foreach {
+          case value: ParameterizedVecDynamicWrite =>
+            value.decoderAssignments.foreach { assignment =>
+              retained.put(assignment, java.lang.Boolean.TRUE)
+            }
+          case _ =>
+        }
+      }
+      retained
+    }
+
+    private lazy val exactDynamicVecDecoders = {
+      val retained = new IdentityHashMap[BaseType, java.lang.Boolean]()
+      ParameterizedVec.retainedVectorsOf(component).foreach { vector =>
+        ParameterizedVec.operationsOf(vector).foreach {
+          case value: ParameterizedVecDynamicWrite =>
+            retained.put(value.decoder, java.lang.Boolean.TRUE)
+          case _ =>
+        }
+      }
+      retained
+    }
+
+    private def isExactPackedVecEvidenceAssignment(
+        assignment: DataAssignmentStatement
+    ): Boolean =
+      assignment != null &&
+        exactPackedVecEvidenceAssignments.containsKey(assignment)
+
+    private def isExactDynamicVecDecoderAssignment(
+        assignment: DataAssignmentStatement
+    ): Boolean =
+      assignment != null &&
+        exactDynamicVecDecoderAssignments.containsKey(assignment)
+
+    /** Exact direct literal assignments retained by ElabValue are validated by
+      * their identity registry before publication and rewritten from that same
+      * identity after native emission. The generic width pass must not reject
+      * their deliberately concrete construction witness first.
+      */
+    private lazy val exactRetainedValueEvidenceAssignments = {
+      val retained =
+        new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+      ExternalParameterizedValueRegistry.valuesOf(component).foreach { case (_, record) =>
+        record.assignment.foreach { assignment =>
+          retained.put(assignment, java.lang.Boolean.TRUE)
+        }
+      }
+      retained
+    }
+
+    private def isExactRetainedValueEvidenceAssignment(
+        assignment: DataAssignmentStatement
+    ): Boolean =
+      assignment != null &&
+        exactRetainedValueEvidenceAssignments.containsKey(assignment)
+
+    private def isExactPackedVecFiniteCarrier(baseType: BaseType): Boolean =
+      baseType != null && exactPackedVecFiniteCarriers.containsKey(baseType)
+
+    private def isExactDynamicVecDecoder(baseType: BaseType): Boolean =
+      baseType != null && exactDynamicVecDecoders.containsKey(baseType)
+
     component.dslBody.walkDeclarations {
       case baseType: BaseType if !baseType.isSuffix => declarations += baseType
       case memory: Mem[_]                           => memories += memory
@@ -1303,8 +1818,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     private lazy val normalizedTypedResizeBoundaries =
       assignments.toVector.flatMap { assignment =>
         assignment.target match {
-          case target: UInt
-              if assignment.target == assignment.finalTarget =>
+          case target: UInt if assignment.target == assignment.finalTarget =>
             ExternalParameterizedAutoResize
               .normalizedTypedUIntResizeBoundary(
                 component,
@@ -1392,10 +1906,19 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         )
       }
       val ports = declarations.distinct.filter(_.isIo)
-      if (!ports.exists(_.isInput) || !ports.exists(_.isOutput)) {
+      val hasNativeInput = ports.exists(port => port.isInput && !port.isOutput && !port.isInOut)
+      val hasNativeOutput = ports.exists(port => port.isOutput && !port.isInput && !port.isInOut)
+      val ordinaryPortSurface = hasNativeInput && hasNativeOutput
+      val exactStructuralVecOutputSurface =
+        !hasParameterizedHierarchy &&
+          ParameterizedVerilogVecs.isExactStructuralOutputSurface(
+            component,
+            ports.toVector
+          )
+      if (!ordinaryPortSurface && !exactStructuralVecOutputSurface) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-PORT-DIRECTIONS-UNSUPPORTED",
-          s"component '${component.definitionName}' must expose at least one native input and one native output"
+          s"component '${component.definitionName}' must expose at least one native input and one native output, or one exact output-only finite structural typed-Vec surface"
         )
       }
 
@@ -1500,60 +2023,81 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         if (!isHierarchyBoundary(assignment)) {
           assignment.finalTarget match {
             case target: BitVector if assignment.target == target && assignment.source.isInstanceOf[WidthProvider] =>
-              val targetWidth = widthInference.ofBase(target)
-              val sourceWidth = widthInference.ofExpression(assignment.source)
-              val nativeCounterNext = isNativeCounterNextAssignment(
-                assignment,
-                target,
-                targetWidth,
-                sourceWidth
-              )
-              val provenAutoResize = isProvenAutoResizeAssignment(
-                assignment,
-                target,
-                targetWidth,
-                sourceWidth
-              )
-              val provenModularUpdate = isProvenModularUIntUpdate(
-                assignment,
-                target,
-                targetWidth,
-                sourceWidth
-              )
-              val provenCapturedDomainEquivalent =
-                isProvenCapturedDomainWidthEquivalence(
+              // Typed Vec packing records only statements whose source shape
+              // and native carrier layout are checked by exact identity in the
+              // Vec backend. Recognize that complete evidence set before
+              // asking this generic pass to reinterpret finite witness nodes.
+              if (
+                !isExactPackedVecEvidenceAssignment(assignment) &&
+                !isExactDynamicVecDecoderAssignment(assignment) &&
+                !isExactRetainedValueEvidenceAssignment(assignment)
+              ) {
+                val targetWidth = widthInference.ofBase(target)
+                val sourceWidth = widthInference.ofExpression(assignment.source)
+                val nativeCounterNext = isNativeCounterNextAssignment(
                   assignment,
+                  target,
                   targetWidth,
                   sourceWidth
                 )
-              val provenInvariantTargetWidth =
-                targetWidth.isSymbolic &&
-                  targetWidth.minimum == targetWidth.maximum &&
-                  sourceWidth.default == targetWidth.default
-              if (
-                targetWidth.isSymbolic && sourceWidth.isSymbolic &&
-                targetWidth != sourceWidth && !nativeCounterNext &&
-                !provenAutoResize && !provenModularUpdate &&
-                !provenCapturedDomainEquivalent
-              ) {
-                fail(
-                  "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
-                  s"assignment to '${target.getName()}' crosses symbolic width expressions '${targetWidth.render}' and '${sourceWidth.render}'",
-                  ParameterizedWidth.sourceLocationOf(target)
+                val provenAutoResize = isProvenAutoResizeAssignment(
+                  assignment,
+                  target,
+                  targetWidth,
+                  sourceWidth
                 )
-              }
-              if (
-                targetWidth.isSymbolic && !sourceWidth.isSymbolic &&
-                !isUnfixedLiteral(assignment.source) && !nativeCounterNext &&
-                !provenAutoResize && !provenModularUpdate &&
-                !provenInvariantTargetWidth &&
-                !provenCapturedDomainEquivalent
-              ) {
-                fail(
-                  "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
-                  s"assignment to symbolic signal '${target.getName()}' uses concrete-width expression ${sourceWidth.render}; explicit domain-safe conversion is required",
-                  ParameterizedWidth.sourceLocationOf(target)
+                val provenModularUpdate = isProvenModularUIntUpdate(
+                  assignment,
+                  target,
+                  targetWidth,
+                  sourceWidth
                 )
+                val provenCapturedDomainEquivalent =
+                  isProvenCapturedDomainWidthEquivalence(
+                    assignment,
+                    targetWidth,
+                    sourceWidth
+                  )
+                val provenCompleteDomainEquivalent =
+                  isProvenCompleteDomainWidthEquivalence(
+                    targetWidth,
+                    sourceWidth
+                  )
+                val provenInvariantZero =
+                  targetWidth.isSymbolic && targetWidth.minimum > 0 &&
+                    isInvariantZero(assignment.source)
+                val provenInvariantTargetWidth =
+                  targetWidth.isSymbolic &&
+                    targetWidth.minimum == targetWidth.maximum &&
+                    sourceWidth.default == targetWidth.default
+                if (
+                  targetWidth.isSymbolic && sourceWidth.isSymbolic &&
+                  !equivalentWidthExpression(targetWidth, sourceWidth) &&
+                  !nativeCounterNext &&
+                  !provenAutoResize && !provenModularUpdate &&
+                  !provenCapturedDomainEquivalent &&
+                  !provenCompleteDomainEquivalent
+                ) {
+                  fail(
+                    "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
+                    s"assignment to '${target.getName()}' crosses symbolic width expressions '${targetWidth.render}' and '${sourceWidth.render}'",
+                    ParameterizedWidth.sourceLocationOf(target)
+                  )
+                }
+                if (
+                  targetWidth.isSymbolic && !sourceWidth.isSymbolic &&
+                  !isUnfixedLiteral(assignment.source) && !nativeCounterNext &&
+                  !provenAutoResize && !provenModularUpdate &&
+                  !provenInvariantTargetWidth &&
+                  !provenCapturedDomainEquivalent &&
+                  !provenInvariantZero
+                ) {
+                  fail(
+                    "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH",
+                    s"assignment to symbolic signal '${target.getName()}' uses concrete-width expression ${sourceWidth.render}; explicit domain-safe conversion is required",
+                    ParameterizedWidth.sourceLocationOf(target)
+                  )
+                }
               }
             case _ =>
           }
@@ -1590,6 +2134,130 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             target.nonEmpty && target == source && target.exists(_ > 0)
           }
         }
+    }
+
+    /** Prove unsigned narrowing/equality over the exact structural owner of a
+      * captured assignment. Missing, non-positive or growing points all fail
+      * closed; equality at the concrete witness is not sufficient.
+      */
+    private def isProvenCapturedDomainWidthNarrowOrEqual(
+        assignment: DataAssignmentStatement,
+        targetWidth: WidthExpr,
+        sourceWidth: WidthExpr
+    ): Boolean = {
+      if (!targetWidth.isSymbolic) return false
+      ParameterizedStructure
+        .capturedAssignmentDomainOf(component, assignment)
+        .exists { domain =>
+          domain.values.forall { value =>
+            val target = widthInference.evaluate(
+              targetWidth,
+              domain.root,
+              value
+            )
+            val source = widthInference.evaluate(
+              sourceWidth,
+              domain.root,
+              value
+            )
+            target.exists(targetValue =>
+              targetValue > 0 &&
+                source.exists(sourceValue =>
+                  sourceValue > 0 && targetValue <= sourceValue
+                )
+            )
+          }
+        }
+    }
+
+    /** Prove width equality over one complete typed root without correlating
+      * independently sourced equal-schema domains. WidthSelect represents the
+      * maximum/minimum across alternative assignment widths; disjoint partial
+      * exact tables therefore contribute only where each arm has evidence.
+      */
+    private def isProvenCompleteDomainWidthEquivalence(
+        left: WidthExpr,
+        right: WidthExpr
+    ): Boolean =
+      isProvenCompleteDomainWidthRelation(left, right)(_ == _)
+
+    /** Prove unsigned narrowing/equality over one complete typed root. */
+    private def isProvenCompleteDomainWidthNarrowOrEqual(
+        target: WidthExpr,
+        source: WidthExpr
+    ): Boolean =
+      isProvenCompleteDomainWidthRelation(target, source)(_ <= _)
+
+    private def isProvenCompleteDomainWidthRelation(
+        left: WidthExpr,
+        right: WidthExpr
+    )(
+        relation: (BigInt, BigInt) => Boolean
+    ): Boolean = {
+      def domainsOf(
+          expression: WidthExpr
+      ): Vector[ElaborationExactDomain[BigInt]] = expression match {
+        case retained: WidthRetained => retained.exactDomain.toVector
+        case binary: WidthBinary =>
+          domainsOf(binary.left) ++ domainsOf(binary.right)
+        case select: WidthSelect =>
+          domainsOf(select.whenTrue) ++ domainsOf(select.whenFalse)
+        case _ => Vector.empty
+      }
+
+      val domains = domainsOf(left) ++ domainsOf(right)
+      if (domains.isEmpty) return false
+      val roots = domains.foldLeft(
+        Vector.empty[ElaborationIntegerParameterRoot]
+      ) { (known, domain) =>
+        if (known.exists(_ eq domain.root)) known else known :+ domain.root
+      }
+      if (roots.size != 1) return false
+      val universe = domains.head.universe
+      if (universe.isEmpty || domains.exists(_.universe != universe))
+        return false
+      val root = roots.head
+
+      def evaluate(
+          expression: WidthExpr,
+          rootValue: BigInt
+      ): Option[BigInt] = expression match {
+        case WidthLiteral(value) => Some(value)
+        case retained: WidthRetained =>
+          retained.exactDomain
+            .filter(domain => domain.root eq root)
+            .flatMap(_.evaluate(rootValue))
+        case binary: WidthBinary =>
+          for {
+            l <- evaluate(binary.left, rootValue)
+            r <- evaluate(binary.right, rootValue)
+            result <- binary.operator match {
+              case "+" => Some(l + r)
+              case "-" => Some(l - r)
+              case "*" => Some(l * r)
+              case _   => None
+            }
+          } yield result
+        case select: WidthSelect =>
+          (evaluate(select.whenTrue, rootValue), evaluate(select.whenFalse, rootValue)) match {
+            case (Some(l), Some(r))  => Some(select.selection.select(l, r))
+            case (Some(value), None) => Some(value)
+            case (None, Some(value)) => Some(value)
+            case _                   => None
+          }
+        case _ => None
+      }
+
+      universe.forall { rootValue =>
+        val l = evaluate(left, rootValue)
+        val r = evaluate(right, rootValue)
+        l.exists(leftValue =>
+          leftValue > 0 &&
+            r.exists(rightValue =>
+              rightValue > 0 && relation(leftValue, rightValue)
+            )
+        )
+      }
     }
 
     /** Native Counter elaboration intentionally uses the concrete witness width
@@ -1748,6 +2416,20 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case _ => false
       }
 
+    /** Zero is invariant under every unsigned resize/cast width. This proof is
+      * local to the exact source tree and does not authorize any nonzero
+      * concrete witness assignment to a symbolic target.
+      */
+    private def isInvariantZero(expression: Expression): Boolean =
+      expression match {
+        case literal: BitVectorLiteral =>
+          !literal.hasPoison() && literal.getValue() == 0
+        case resize: Resize => isInvariantZero(resize.input)
+        case cast: CastBitVectorToBitVector =>
+          isInvariantZero(cast.input)
+        case _ => false
+      }
+
     private def isHierarchyBoundary(
         assignment: DataAssignmentStatement
     ): Boolean =
@@ -1806,20 +2488,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       private def retained(
           expression: ElaborationIntegerExpression
       ): WidthExpr = {
-        val value = WidthRetained(
-          expression.verilog,
-          expression.default,
-          expression.minimum,
-          expression.maximum,
-          expression.parameters.distinct.sortBy(_.name),
-          validatedParameterRoots(
-            expression.parameterRoots,
-            s"retained width '${expression.verilog}'",
-            expression.sourceLocation
-          ),
-          expression.exactDomain,
-          projectionSignatureOf(expression)
-        )
+        val value = retainedWidthExpression(expression)
         retainedOrigins.put(value, expression)
         value
       }
@@ -1865,6 +2534,15 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           declaration: BitVector,
           expression: WidthExpr
       ): Option[Vector[BigInt]] = {
+        declaration match {
+          case bits: Bits if ParameterizedVec.packedShapeOf(bits).nonEmpty =>
+            // The exact packed-result identity already carries its complete
+            // factorized Vec geometry.  Its width may intentionally combine
+            // independent element-width and depth roots, so it is not a
+            // single-owner structural projection.
+            return None
+          case _ =>
+        }
         val origins = projectedOriginsOf(expression).foldLeft(
           Vector.empty[ElaborationIntegerExpression]
         ) { (known, origin) =>
@@ -1981,34 +2659,100 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           case None =>
             activeBases += baseType
             val result =
-              ExternalParameterizedAutoResize
-                .sourceDriverOfResizeSource(component, baseType)
-                .map { driver =>
-                  val sourceWidth = ofExpression(driver.source)
-                  if (sourceWidth.default != BigInt(baseType.getBitsWidth)) {
-                    fail(
-                      "SPINAL-PARAMETERIZED-VERILOG-AUTO-RESIZE-SOURCE-WITNESS-MISMATCH",
-                      s"captured native auto-resize source has ${baseType.getBitsWidth} bits but its exact driver width '${sourceWidth.render}' has default ${sourceWidth.default}"
-                    )
-                  }
-                  sourceWidth
+              exactPackedVecWidth(baseType)
+                .orElse {
+                  if (
+                    isExactPackedVecFiniteCarrier(baseType) ||
+                    isExactDynamicVecDecoder(baseType)
+                  )
+                    Some(WidthLiteral(baseType.getBitsWidth))
+                  else None
                 }
                 .getOrElse {
-                  ParameterizedWidth.expressionOf(baseType) match {
-                    case Some(expression) => retained(expression)
-                    case None =>
-                      baseType match {
-                        case _: Bool              => WidthLiteral(1)
-                        case bitVector: BitVector => inferUntaggedBitVector(bitVector)
-                        case _                    => WidthLiteral(baseType.getBitsWidth)
+                  ExternalParameterizedAutoResize
+                    .sourceDriverOfResizeSource(component, baseType)
+                    .map { driver =>
+                      val sourceWidth = ofExpression(driver.source)
+                      if (sourceWidth.default != BigInt(baseType.getBitsWidth)) {
+                        fail(
+                          "SPINAL-PARAMETERIZED-VERILOG-AUTO-RESIZE-SOURCE-WITNESS-MISMATCH",
+                          s"captured native auto-resize source has ${baseType.getBitsWidth} bits but its exact driver width '${sourceWidth.render}' has default ${sourceWidth.default}"
+                        )
                       }
-                  }
+                      val witnessInactive = ParameterizedStructure
+                        .capturedWitnessInactiveDataAssignmentsOf(component)
+                        .exists(_ eq driver)
+                      val exactBoundary = ExternalParameterizedAutoResize
+                        .targetOfResizeSource(component, baseType)
+                        .nonEmpty
+                      val fixedWitnessSafe = witnessInactive && exactBoundary &&
+                        ParameterizedStructure
+                          .capturedAssignmentDomainOf(component, driver)
+                          .exists { domain =>
+                            domain.values.forall { value =>
+                              evaluate(sourceWidth, domain.root, value)
+                                .exists(width =>
+                                  width > 0 &&
+                                    width <= BigInt(baseType.getBitsWidth)
+                                )
+                            }
+                          }
+                      // A witness-inactive `.resized` clone is emitted only
+                      // inside its exact captured owner.  Keep its concrete
+                      // carrier width when the exhaustive owner domain proves
+                      // that the original source can only be zero-extended,
+                      // never truncated, before the exact outer Resize.
+                      if (fixedWitnessSafe)
+                        WidthLiteral(baseType.getBitsWidth)
+                      else sourceWidth
+                    }
+                    .getOrElse {
+                      ParameterizedWidth.expressionOf(baseType) match {
+                        case Some(expression) => retained(expression)
+                        case None =>
+                          baseType match {
+                            case _: Bool              => WidthLiteral(1)
+                            case bitVector: BitVector => inferUntaggedBitVector(bitVector)
+                            case _                    => WidthLiteral(baseType.getBitsWidth)
+                          }
+                      }
+                    }
                 }
             activeBases -= baseType
             baseCache(baseType) = result
             result
         }
       }
+
+      /** Recover only the exact logical width retained on Vec.asBits.  The
+        * finite carrier Resize beneath this value is an audited implementation
+        * detail and can cross the public width domain by construction.
+        */
+      private def exactPackedVecWidth(baseType: BaseType): Option[WidthExpr] =
+        baseType match {
+          case bits: Bits =>
+            ParameterizedVec.packedShapeOf(bits).map { shape =>
+              // A single-root packed width already has one exact typed
+              // expression produced by the core Vec algorithm. Prefer that
+              // retained identity so ordinary typed widths such as DEPTH and
+              // DEPTH * 24 compare through their common exact domain instead
+              // of differing only because this fallback re-associated the
+              // equivalent factors as DEPTH * 1 or DEPTH * (8 + 8 + 8).
+              ParameterizedVec
+                .packedWidthExpressionOf(bits)
+                .map(retained)
+                .getOrElse {
+                  // Independently rooted element-width and depth expressions
+                  // cannot form one core exact-domain expression. Preserve
+                  // their factorized geometry directly for that case.
+                  val elementWidth = shape.elementLeaves
+                    .map(leaf => retained(leaf.width))
+                    .foldLeft[WidthExpr](WidthLiteral(0))(widthAdd)
+                  widthMultiply(retained(shape.depth), elementWidth)
+                }
+            }
+          case _ => None
+        }
 
       private def inferUntaggedBitVector(bitVector: BitVector): WidthExpr = {
         val fullAssignments = ArrayBuffer.empty[DataAssignmentStatement]
@@ -2191,6 +2935,84 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         Option(found)
       }
 
+      /** Classify one explicit symbolic Resize against the complete source
+        * geometry.  Bounds prove a relation only when their Cartesian product
+        * cannot cross.  Overlapping same-root widths instead require the exact
+        * retained evaluation tables; equal parameter names or witnesses never
+        * establish correlation.
+        */
+      private def validateRetainedResizeDomain(
+          resize: Resize,
+          target: WidthExpr,
+          source: WidthExpr,
+          sourceLocation: Option[String]
+      ): Unit = {
+        if (source.default != BigInt(resize.input.getWidth)) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-RESIZE-SOURCE-WITNESS-MISMATCH",
+            s"native Resize input has ${resize.input.getWidth} bits, but its retained width '${source.render}' has default ${source.default}",
+            sourceLocation
+          )
+        }
+        if (source.minimum < 1 || target.minimum < 1) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-NONPOSITIVE",
+            s"resize from '${source.render}' in [${source.minimum}, ${source.maximum}] to '${target.render}' in [${target.minimum}, ${target.maximum}] must stay positive over its complete legal domain",
+            sourceLocation
+          )
+        }
+
+        val exactComparisons = (target, source) match {
+          case (left: WidthRetained, right: WidthRetained) =>
+            (left.exactDomain, right.exactDomain) match {
+              case (Some(l), Some(r))
+                  if (l.root eq r.root) &&
+                    l.parameter == r.parameter &&
+                    l.evidenceValues == r.evidenceValues &&
+                    l.evidenceValues.nonEmpty &&
+                    (left.projection == right.projection ||
+                      (l.evidenceValues == l.universe &&
+                        r.evidenceValues == r.universe)) =>
+                Some(l.evidenceValues.toVector.sorted.map { rootValue =>
+                  val targetValue = l.byRootValue(rootValue)
+                  val sourceValue = r.byRootValue(rootValue)
+                  targetValue.compare(sourceValue)
+                })
+              case _ => None
+            }
+          case _ => None
+        }
+
+        val (alwaysNarrowOrEqual, alwaysGrowOrEqual) =
+          exactComparisons match {
+            case Some(comparisons) =>
+              comparisons.forall(_ <= 0) -> comparisons.forall(_ >= 0)
+            case None =>
+              (target.maximum <= source.minimum) ->
+                (target.minimum >= source.maximum)
+          }
+
+        if (!alwaysNarrowOrEqual && !alwaysGrowOrEqual) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-CROSSING-UNSUPPORTED",
+            s"resize from '${source.render}' in [${source.minimum}, ${source.maximum}] to '${target.render}' in [${target.minimum}, ${target.maximum}] crosses narrowing and widening over its complete legal domain",
+            sourceLocation
+          )
+        }
+
+        val hasStrictGrowth = exactComparisons match {
+          case Some(comparisons) => comparisons.exists(_ > 0)
+          case None              => target.maximum > source.minimum
+        }
+        if (resize.getTypeObject == TypeSInt && alwaysGrowOrEqual && hasStrictGrowth) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-SIGNED-RESIZE-GROW-DOMAIN-UNSUPPORTED",
+            s"signed resize from '${source.render}' to '${target.render}' grows over its complete legal domain, but the native witness renderer freezes the source sign-bit index",
+            sourceLocation
+          )
+        }
+      }
+
       private def inferResize(resize: Resize): WidthExpr = {
         val retainedExpression =
           retainedResizeExpression(resize).map { expression =>
@@ -2203,6 +3025,14 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             }
             retained(expression)
           }
+        retainedExpression.foreach { target =>
+          validateRetainedResizeDomain(
+            resize,
+            target,
+            ofExpression(resize.input),
+            retainedResizeExpression(resize).flatMap(_.sourceLocation)
+          )
+        }
         val retainedTarget =
           ExternalParameterizedAutoResize
             .syntheticBooleanResizeTarget(component, resize)
@@ -2214,14 +3044,27 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             .flatMap { case (assignment, target) =>
               val targetWidth = ofBase(target)
               val inputWidth = ofExpression(resize.input)
-              if (
-                isProvenCapturedDomainWidthEquivalence(
-                  assignment,
-                  targetWidth,
-                  inputWidth
-                )
-              ) Some(targetWidth)
-              else None
+              val exactNativeBoundary = resize.input match {
+                case source: BaseType =>
+                  ExternalParameterizedAutoResize
+                    .targetOfResizeSource(component, source)
+                    .exists(_ eq target)
+                case _ => false
+              }
+              if (!exactNativeBoundary) None
+              else {
+                val alwaysNarrowOrEqual =
+                  isProvenCapturedDomainWidthNarrowOrEqual(
+                    assignment,
+                    targetWidth,
+                    inputWidth
+                  ) ||
+                    isProvenCompleteDomainWidthNarrowOrEqual(
+                      targetWidth,
+                      inputWidth
+                    )
+                if (alwaysNarrowOrEqual) Some(targetWidth) else None
+              }
             }
         retainedExpression
           .orElse(capturedAutoResizeTarget)
@@ -2333,6 +3176,42 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       admitted: Set[BigInt],
       representative: BigInt
   )
+
+  /** Construct the exact retained-width summary used by native width
+    * inference. Keeping this conversion outside WidthInference gives the
+    * package-local semantic tests a narrow probe without exposing WidthExpr
+    * or any publication internals.
+    */
+  private def retainedWidthExpression(
+      expression: ElaborationIntegerExpression
+  ): WidthRetained =
+    WidthRetained(
+      expression.verilog,
+      expression.default,
+      expression.minimum,
+      expression.maximum,
+      expression.parameters.distinct.sortBy(_.name),
+      validatedParameterRoots(
+        expression.parameterRoots,
+        s"retained width '${expression.verilog}'",
+        expression.sourceLocation
+      ),
+      expression.exactDomain,
+      projectionSignatureOf(expression)
+    )
+
+  /** Package-local semantic boundary for adversarial retained-expression
+    * tests. Production assignment analysis reaches the same comparator through
+    * WidthInference.retained.
+    */
+  private[internals] def equivalentRetainedWidthExpressions(
+      left: ElaborationIntegerExpression,
+      right: ElaborationIntegerExpression
+  ): Boolean =
+    equivalentWidthExpression(
+      retainedWidthExpression(left),
+      retainedWidthExpression(right)
+    )
 
   private def projectionSignatureOf(
       expression: ElaborationIntegerExpression
@@ -2550,8 +3429,23 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
 
     (left, right) match {
       case (l: WidthRetained, r: WidthRetained) =>
-        l.projection == r.projection &&
-        exactWidthDomainEquivalent(l.exactDomain, r.exactDomain)
+        l.default == r.default &&
+        l.minimum == r.minimum &&
+        l.maximum == r.maximum &&
+        l.parameters == r.parameters &&
+        l.parameterRoots.size == r.parameterRoots.size &&
+        l.parameterRoots.zip(r.parameterRoots).forall { case (leftRoot, rightRoot) =>
+          leftRoot eq rightRoot
+        } &&
+        exactWidthDomainEquivalent(l.exactDomain, r.exactDomain) &&
+        // Projection provenance remains authoritative for a partial active
+        // domain.  A full-domain expression may legitimately lose only that
+        // redundant slot while passing through native algebra (for example
+        // DEPTH versus 1 * DEPTH), because the exhaustive exact table already
+        // proves every admitted root value.
+        (l.projection == r.projection ||
+          (completeWidthDomain(l.exactDomain) &&
+            completeWidthDomain(r.exactDomain)))
 
       case (
             WidthBinary(lOperator, lLeft, lRight, _, _, _, lPrecedence, lCommutative),
@@ -2591,6 +3485,11 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         l.evaluations == r.evaluations
       case _ => false
     }
+
+  private def completeWidthDomain(
+      domain: Option[ElaborationExactDomain[BigInt]]
+  ): Boolean =
+    domain.exists(value => value.evidenceValues == value.universe)
 
   private def canonicalBinary(
       operator: String,

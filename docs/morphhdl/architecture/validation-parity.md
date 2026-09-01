@@ -420,6 +420,16 @@ same-name schemas, compatible direct assignments, one concrete clock and sole
 drivers before emission. Untagged non-Bool packed leaves and unsupported
 statements fail closed.
 
+Increment 53f extends the inherited width and IO guards with identity-retained
+typed Vec depth and recursive element geometry. The ordinary native Vec remains
+the logical collection during elaboration; strict Verilog-2001 then publishes
+one packed vector whose width is the exact element-width/depth product. The
+`SymbolicDataShapes` fixture makes its two three-leaf Vec one `6 * WIDTH` port,
+and the structural checker rejects exploded or unpacked Vec ports. Separate
+single- and simple-dual-port memory fixtures continue to require
+`reg [WIDTH-1:0] memory [0:DEPTH-1]`, preventing the Vec lowering from
+flattening RAM storage.
+
 The twenty-first fixture covers widths 1, 8, 13 and 64. Normal and reverse
 construction runs must match byte-for-byte; strict Verilog parsing, simulation
 and Yosys synthesis prove the flat ABI and internal/register widths. These

@@ -92,8 +92,7 @@ object CapturedDomainWidthEquivalenceSmoke {
     observed := source.resize(width)
   }
 
-  final class TypedResizeUnprovenInternalSource(width: ElabInt)
-      extends Component {
+  final class TypedResizeUnprovenInternalSource(width: ElabInt) extends Component {
     setDefinitionName("TypedResizeUnprovenInternalSource")
 
     val incoming = in UInt (3 bits)
@@ -128,8 +127,7 @@ object CapturedDomainWidthEquivalenceSmoke {
     outgoing := incoming
   }
 
-  final class TypedResizeForeignSourceConsumer(width: ElabInt)
-      extends Component {
+  final class TypedResizeForeignSourceConsumer(width: ElabInt) extends Component {
     setDefinitionName("TypedResizeForeignSourceConsumer")
 
     val source = in UInt (3 bits)
@@ -140,12 +138,11 @@ object CapturedDomainWidthEquivalenceSmoke {
     observed := child.outgoing.resize(width)
   }
 
-  final class TypedResizeNarrowAssignmentOwner(width: ElabInt)
-      extends Component {
+  final class TypedResizeNarrowAssignmentOwner(width: ElabInt) extends Component {
     setDefinitionName("TypedResizeNarrowAssignmentOwner")
 
     val source = in UInt (width bits)
-    val observed = out Bool()
+    val observed = out Bool ()
     observed := source.orR
 
     if (width == 2) {
@@ -178,8 +175,7 @@ object CapturedDomainWidthEquivalenceSmoke {
     observed := (source.resize(targetWidth).asBits ## False)
   }
 
-  final class TypedBitsResizeWholeAssignment(targetWidth: ElabInt)
-      extends Component {
+  final class TypedBitsResizeWholeAssignment(targetWidth: ElabInt) extends Component {
     setDefinitionName("TypedBitsResizeWholeAssignment")
 
     val source = in Bits (16 bits)
@@ -188,14 +184,52 @@ object CapturedDomainWidthEquivalenceSmoke {
     observed := source.resize(targetWidth)
   }
 
-  final class TypedBitsResizeCrossingInputWidth(targetWidth: ElabInt)
-      extends Component {
+  final class TypedBitsResizeCrossingInputWidth(targetWidth: ElabInt) extends Component {
     setDefinitionName("TypedBitsResizeCrossingInputWidth")
 
     val source = in Bits (4 bits)
     val observed = out Bits (targetWidth bits)
 
     observed := source.resize(targetWidth)
+  }
+
+  final class TypedBitsResizeNamedCrossingCarrier(targetWidth: ElabInt) extends Component {
+    setDefinitionName("TypedBitsResizeNamedCrossingCarrier")
+
+    val source = in Bits (4 bits)
+    val observed = out Bits (targetWidth bits)
+    val retained = source
+      .resize(targetWidth)
+      .setName("retained_crossing_resize")
+      .dontSimplifyIt()
+
+    observed := retained
+  }
+
+  final class TypedBitsResizeNamedGrowCarrier(targetWidth: ElabInt) extends Component {
+    setDefinitionName("TypedBitsResizeNamedGrowCarrier")
+
+    val source = in Bits (4 bits)
+    val observed = out Bits (targetWidth bits)
+    val retained = source
+      .resize(targetWidth)
+      .setName("retained_grow_resize")
+      .dontSimplifyIt()
+
+    observed := retained
+  }
+
+  final class TypedSIntResizeNamedGrowCarrier(width: ElabInt) extends Component {
+    setDefinitionName("TypedSIntResizeNamedGrowCarrier")
+
+    val source = in SInt (width bits)
+    val observed = out SInt ((width + 1) bits)
+    val retained = source
+      .resize(width + 1)
+      .setName("retained_signed_grow")
+      .dontSimplifyIt()
+
+    observed := retained
   }
 
   final class TypedBitsResizeNamedFixedCarrier(
@@ -213,8 +247,7 @@ object CapturedDomainWidthEquivalenceSmoke {
     observed := carrier.resize(targetWidth)
   }
 
-  final class TypedBitsResizeTransientCast(targetWidth: ElabInt)
-      extends Component {
+  final class TypedBitsResizeTransientCast(targetWidth: ElabInt) extends Component {
     setDefinitionName("TypedBitsResizeTransientCast")
 
     val source = in SInt (3 bits)
@@ -575,6 +608,80 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
     }
   }
 
+  test("a named retained resize cannot bypass complete crossing-domain validation") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      val fileName = "typed_bits_resize_named_crossing_carrier.v"
+      config.netlistFileName = fileName
+      val targetWidth =
+        HdlInt.param("TARGET", default = 3, min = 3, max = 5).asElabInt
+
+      MorphVerilog.tryGenerate(config) {
+        new TypedBitsResizeNamedCrossingCarrier(targetWidth)
+      } match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-CROSSING-UNSUPPORTED"
+            ),
+            failure.detail
+          )
+        case Right(report) =>
+          fail(s"Expected named crossing-domain resize rejection, received $report")
+      }
+      assert(!Files.exists(directory.resolve(fileName)))
+    }
+  }
+
+  test("a named unsigned grow rewrites the exact native witness prefix") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      val fileName = "typed_bits_resize_named_grow_carrier.v"
+      config.netlistFileName = fileName
+      val targetWidth =
+        HdlInt.param("TARGET", default = 5, min = 5, max = 7).asElabInt
+
+      MorphVerilog(config) {
+        new TypedBitsResizeNamedGrowCarrier(targetWidth)
+      }
+
+      val verilog = new String(
+        Files.readAllBytes(directory.resolve(fileName)),
+        StandardCharsets.UTF_8
+      )
+      val compact = verilog.replaceAll("\\s+", "")
+      assert(verilog.contains("parameter integer TARGET = 5"), verilog)
+      assert(compact.contains("[TARGET-1:0]retained_grow_resize"), verilog)
+      assert(compact.contains("retained_grow_resize={1'b0,source};"), verilog)
+      assert(!compact.contains("retained_grow_resize={1'd0,source};"), verilog)
+    }
+  }
+
+  test("a symbolic signed grow fails before freezing its witness sign index") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      val fileName = "typed_sint_resize_named_grow_carrier.v"
+      config.netlistFileName = fileName
+      val width =
+        HdlInt.param("WIDTH", default = 8, min = 4, max = 12).asElabInt
+
+      MorphVerilog.tryGenerate(config) {
+        new TypedSIntResizeNamedGrowCarrier(width)
+      } match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-PARAMETERIZED-VERILOG-SIGNED-RESIZE-GROW-DOMAIN-UNSUPPORTED"
+            ),
+            failure.detail
+          )
+        case Right(report) =>
+          fail(s"Expected symbolic signed-grow resize rejection, received $report")
+      }
+      assert(!Files.exists(directory.resolve(fileName)))
+    }
+  }
+
   test("a named fixed carrier cannot launder a symbolic resize input width") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
@@ -669,9 +776,7 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
     // Parentheses are renderer punctuation here. Removing only those leaves an
     // exact token-level contract for source & ~({S{1'b1}} << T): S is the
     // retained source width, while T is the explicit typed resize WIDTH.
-    val normalizedRhs = compactRhs.filterNot(character =>
-      character == '(' || character == ')'
-    )
+    val normalizedRhs = compactRhs.filterNot(character => character == '(' || character == ')')
     val expectedRhs =
       s"source&~{$expectedSourceWidth{1'b1}}<<WIDTH"
     assert(normalizedRhs == expectedRhs, verilog)
@@ -708,8 +813,8 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
     finally {
       val stream = Files.walk(directory)
       try {
-        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach {
-          path => Files.deleteIfExists(path)
+        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach { path =>
+          Files.deleteIfExists(path)
         }
       } finally stream.close()
     }

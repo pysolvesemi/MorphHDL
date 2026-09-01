@@ -222,10 +222,10 @@ require_property frontend.symbolic_width positive-direct-public-hdlint
 require_property frontend.symbolic_width_domain positive-finite-within-bit-vector-limit
 require_property frontend.symbolic_width_types bits-uint-sint
 require_property frontend.symbolic_width_locations port-internal-register
-require_property frontend.symbolic_width_propagation clone-hardtype-bundle-static-vec-stream-flow
+require_property frontend.symbolic_width_propagation clone-hardtype-bundle-vec-stream-flow
 require_property frontend.symbolic_width_logic ordinary-assignment-mux-arithmetic-concat-fixed-slice-domain-invariant-narrowing-resize
 require_property frontend.concrete_bool_controls true
-require_property frontend.symbolic_vec_length false
+require_property frontend.symbolic_vec_length positive-finite-elabint
 require_property frontend.literal_width concrete-bits-uint-sint-no-symbolic-tag
 require_property frontend.single_source_literal_bitvector_ports reject-when-no-symbolic-schema
 require_property frontend.legacy_spinalverilog concrete-witness
@@ -237,6 +237,9 @@ require_property frontend.single_source_hierarchy ordinary-component-direct-pack
 require_property frontend.single_source_parameter_binding connection-inferred-named-width-parameter-or-literal
 require_property implementation.single_source_hierarchy true
 require_property implementation.single_source_parameter_binding true
+require_property aggregate.vec.logical_shape typed-depth-and-element-layout
+require_property aggregate.vec.verilog2001_storage single-packed-vector
+require_property memory.verilog2001_storage unpacked-array
 require_property parameter.boolean_encoding integer
 require_property parameter.integer_comparison true
 require_property parameter.integer_conditional true
@@ -554,40 +557,61 @@ symbolic_ports = {
     "bits_in", "bundle_in_bits", "bundle_in_sint", "bundle_in_uint",
     "flow_in_payload_bits", "flow_in_payload_sint", "flow_in_payload_uint",
     "sint_in", "stream_in_payload_bits", "stream_in_payload_sint",
-    "stream_in_payload_uint", "uint_in", "vec_in_0_bits", "vec_in_0_sint",
-    "vec_in_0_uint", "vec_in_1_bits", "vec_in_1_sint", "vec_in_1_uint",
+    "stream_in_payload_uint", "uint_in",
     "bits_out", "bundle_out_bits", "bundle_out_sint", "bundle_out_uint",
     "flow_out_payload_bits", "flow_out_payload_sint", "flow_out_payload_uint",
     "register_out_bits", "register_out_sint", "register_out_uint", "sint_out",
     "stream_out_payload_bits", "stream_out_payload_sint",
-    "stream_out_payload_uint", "uint_out", "vec_out_0_bits", "vec_out_0_sint",
-    "vec_out_0_uint", "vec_out_1_bits", "vec_out_1_sint", "vec_out_1_uint",
+    "stream_out_payload_uint", "uint_out",
 }
+vec_ports = {"vec_in", "vec_out"}
 bool_ports = {
     "clk", "flow_in_valid", "stream_in_valid", "stream_out_ready",
     "flow_out_valid", "stream_in_ready", "stream_out_valid",
 }
 port_pattern = re.compile(
-    r"^  (input|output)\s+wire\s+(?:(\[WIDTH-1:0\])\s+)?([A-Za-z0-9_]+),?$",
+    r"^  (input|output)\s+wire\s+(?:(\[[^\]]+\])\s+)?([A-Za-z0-9_]+),?$",
     re.MULTILINE,
 )
 ports = {name: (direction, packed) for direction, packed, name in port_pattern.findall(source)}
-if set(ports) != symbolic_ports | bool_ports:
+if set(ports) != symbolic_ports | vec_ports | bool_ports:
     raise SystemExit("native symbolic-data-shape port inventory changed")
 if any(ports[name][1] != "[WIDTH-1:0]" for name in symbolic_ports):
     raise SystemExit("a symbolic data-shape port lost WIDTH")
 if any(ports[name][1] for name in bool_ports):
     raise SystemExit("a concrete Bool control gained a packed symbolic range")
-if source.count("[WIDTH-1:0]") != 45:
-    raise SystemExit("expected exactly 39 symbolic ports and six symbolic internals")
+if ports["vec_in"][0] != "input" or ports["vec_out"][0] != "output":
+    raise SystemExit("packed Vec port directions changed")
+if ports["vec_in"][1] != ports["vec_out"][1]:
+    raise SystemExit("packed Vec input and output ranges differ")
+vec_range = ports["vec_in"][1]
+if vec_range is None:
+    raise SystemExit("Vec ports lost their packed range")
+compact_vec_range = re.sub(r"\s+", "", vec_range)
+if (
+    "WIDTH" not in compact_vec_range
+    or "*" not in compact_vec_range
+    or not re.fullmatch(r"\[[()WIDTH+*0-9-]+:0\]", compact_vec_range)
+):
+    raise SystemExit("Vec packed range lost its typed width/depth factors")
+for width in range(1, 65):
+    high = compact_vec_range[1:-3].replace("WIDTH", str(width))
+    if eval(high, {"__builtins__": {}}, {}) != 6 * width - 1:
+        raise SystemExit("Vec packed range is not six WIDTH bits")
+if re.search(r"\bvec_(in|out)_[0-9]+", source):
+    raise SystemExit("Vec escaped as exploded element ports")
+if source.count("[WIDTH-1:0]") != 33:
+    raise SystemExit("expected exactly 27 ordinary symbolic ports and six symbolic internals")
 if len(re.findall(r"\bparameter\s+integer\s+WIDTH\s*=\s*8\b", source)) != 1:
     raise SystemExit("expected exactly one WIDTH public parameter")
 if len(re.findall(r"^  wire\s+\[WIDTH-1:0\]\s+internal_payload_", source, re.MULTILINE)) != 3:
     raise SystemExit("expected three symbolic internal Bundle leaves")
 if len(re.findall(r"^  reg\s+\[WIDTH-1:0\]\s+payload_register_", source, re.MULTILINE)) != 3:
     raise SystemExit("expected three symbolic register Bundle leaves")
-if len(re.findall(r"^  assign\s+", source, re.MULTILINE)) != 27:
+if len(re.findall(r"^  assign\s+", source, re.MULTILINE)) != 22:
     raise SystemExit("expected the exact direct equal-shape assignment inventory")
+if source.count("  assign vec_out = vec_in;") != 1:
+    raise SystemExit("packed Vec is not one direct structural assignment")
 if len(re.findall(r"^  always @\(posedge clk\) begin$", source, re.MULTILINE)) != 1:
     raise SystemExit("expected one bounded unconditional register process")
 if len(re.findall(r"^    payload_register_(bits|uint|sint) <= bundle_in_\1;$", source, re.MULTILINE)) != 3:
@@ -600,13 +624,25 @@ then
   exit 1
 fi
 
+for memory_contract in "$single_port_memory_file" "$simple_dual_port_memory_file"; do
+  if ! grep -Eq \
+      '^[[:space:]]*reg[[:space:]]+\[WIDTH-1:0\][[:space:]]+memory[[:space:]]+\[0:DEPTH-1\];$' \
+      "$memory_contract"; then
+    echo "Vec/Memory storage distinction changed: Mem must remain an unpacked array" >&2
+    exit 1
+  fi
+done
+
 if [[ "$(grep -Ec '^[[:space:]]*SymbolicDataShapesCase[[:space:]]*#' "$examples_dir/symbolic_data_shapes_tb.v")" != "4" ]] ||
    [[ "$(grep -Fc '.WIDTH(1),' "$examples_dir/symbolic_data_shapes_tb.v")" != "1" ]] ||
    [[ "$(grep -Fc '.WIDTH(8),' "$examples_dir/symbolic_data_shapes_tb.v")" != "1" ]] ||
    [[ "$(grep -Fc '.WIDTH(13),' "$examples_dir/symbolic_data_shapes_tb.v")" != "1" ]] ||
    [[ "$(grep -Fc '.WIDTH(64),' "$examples_dir/symbolic_data_shapes_tb.v")" != "1" ]] ||
-   [[ "$(grep -Fc '.USE_DEFAULT(1)' "$examples_dir/symbolic_data_shapes_tb.v")" != "1" ]]; then
-  echo "SymbolicDataShapes testbench does not retain default, minimum, awkward and maximum cases" >&2
+   [[ "$(grep -Fc '.USE_DEFAULT(1)' "$examples_dir/symbolic_data_shapes_tb.v")" != "1" ]] ||
+   [[ "$(grep -Fc 'localparam integer VEC_WIDTH = 6 * WIDTH;' "$examples_dir/symbolic_data_shapes_tb.v")" != "1" ]] ||
+   [[ "$(grep -Ec '^[[:space:]]*\.vec_(in|out)[[:space:]]*\(' "$examples_dir/symbolic_data_shapes_tb.v")" != "4" ]] ||
+   grep -Eq '\bvec_(in|out)_[0-9]+' "$examples_dir/symbolic_data_shapes_tb.v"; then
+  echo "SymbolicDataShapes testbench lost its four width cases or packed Vec ABI" >&2
   exit 1
 fi
 
@@ -1886,12 +1922,11 @@ yosys_symbolic_data_shapes_synthesize_and_check() {
     flow_in_payload_bits flow_in_payload_sint flow_in_payload_uint \
     sint_in \
     stream_in_payload_bits stream_in_payload_sint stream_in_payload_uint \
-    uint_in \
-    vec_in_0_bits vec_in_0_sint vec_in_0_uint \
-    vec_in_1_bits vec_in_1_sint vec_in_1_uint
+    uint_in
   do
     port_args+=(--port "$name:input:$expected_width")
   done
+  port_args+=(--port "vec_in:input:$((6 * expected_width))")
   for name in \
     bits_out \
     bundle_out_bits bundle_out_sint bundle_out_uint \
@@ -1899,12 +1934,11 @@ yosys_symbolic_data_shapes_synthesize_and_check() {
     register_out_bits register_out_sint register_out_uint \
     sint_out \
     stream_out_payload_bits stream_out_payload_sint stream_out_payload_uint \
-    uint_out \
-    vec_out_0_bits vec_out_0_sint vec_out_0_uint \
-    vec_out_1_bits vec_out_1_sint vec_out_1_uint
+    uint_out
   do
     port_args+=(--port "$name:output:$expected_width")
   done
+  port_args+=(--port "vec_out:output:$((6 * expected_width))")
   for name in clk flow_in_valid stream_in_valid stream_out_ready; do
     port_args+=(--port "$name:input:1")
   done
@@ -1958,6 +1992,10 @@ yosys_symbolic_data_shapes_width_mutation_must_fail \
   fixed-packed-input \
   'input  wire [WIDTH-1:0] bits_in,' \
   'input  wire [7:0] bits_in,'
+yosys_symbolic_data_shapes_width_mutation_must_fail \
+  fixed-packed-vec-input \
+  'input wire [((WIDTH + WIDTH + WIDTH) * 2)-1:0] vec_in,' \
+  'input wire [47:0] vec_in,'
 yosys_symbolic_data_shapes_width_mutation_must_fail \
   fixed-register-leaf \
   'reg        [WIDTH-1:0] payload_register_sint;' \

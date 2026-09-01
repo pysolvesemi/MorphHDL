@@ -94,13 +94,15 @@ True symbolic `Vec` and general finite-range lowering remain part of Increment
 53f. Increment 53e never silently unrolls the global default when the active
 size varies.
 
-The existing FIFO formal-inspection helpers still require a concrete depth
-because they enumerate storage locations in Scala. Calling `formalCheckLastPush`,
-`formalCheckRam`, `formalContains`, `formalCount`, or `formalFullToEmpty` on a
-symbolic FIFO fails with a stable typed-elaboration diagnostic; the last helper
-is guarded because it directly inspects the storage branch. The result is
-independent of the parameter's default witness. General symbolic lowering of
-those inspection helpers belongs to the finite-range closure in Increment 53f.
+At the Increment 53e closure boundary, the existing FIFO formal-inspection
+helpers still required a concrete depth because they enumerated storage
+locations in Scala. Increment 53f closes that documented deferral for
+`formalCheckLastPush`, `formalCheckRam`, both `formalContains` and `formalCount`
+overloads, and `formalFullToEmpty`. The generic typed finite-range and fold
+machinery retains the symbolic depth, while exact branch-owner tokens extend
+the already captured one-stage or storage alternative. This later closure does
+not change what 53e proved: no helper may recover geometry from the default
+witness, an emitted name, a source position, or a component recognizer.
 
 ## Legacy shadow removal for StreamFifo
 

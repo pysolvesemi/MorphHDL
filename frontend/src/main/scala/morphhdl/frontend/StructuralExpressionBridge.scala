@@ -6,8 +6,201 @@ import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
 import morphhdl.paramrtl.IntExpr
 import spinal.core.{ElaborationBooleanExpression, ElaborationIntegerExpression, ElaborationIntegerParameter}
 
+/** Opaque result of one completed frontend integer-AST analysis.  The visible
+  * fields are immutable identities; construction alone is insufficient unless
+  * the analyzer-private seal also validates.
+  */
+final class AnalyzedFrontendInteger private[frontend] (
+    val sourceIdentity: AnyRef,
+    val expression: ElaborationIntegerExpression,
+    val singleRootEvaluations: Option[Vector[(BigInt, BigInt)]],
+    private val analyzerSeal: AnyRef
+) {
+  private[this] var singleRootIssued = false
+
+  def requireAnalyzerAuthentication(): Unit =
+    if (!StructuralExpressionBridge.authenticates(analyzerSeal)) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ANALYZED-INTEGER-AUTHORIZATION-INVALID",
+        "analyzed integer wrapper was not constructed by the frontend AST analyzer",
+        SourceOrigin("<analyzed-integer>", 1)
+      )
+    }
+
+  def claimSingleRoot(): (
+      AnyRef,
+      ElaborationIntegerExpression,
+      Vector[(BigInt, BigInt)]
+  ) = synchronized {
+    requireAnalyzerAuthentication()
+    if (singleRootIssued) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ANALYZED-INTEGER-AUTHORIZATION-CONSUMED",
+        "analyzed integer wrapper already issued its single-root permit",
+        SourceOrigin("<analyzed-integer>", 1)
+      )
+    }
+    val evaluations = singleRootEvaluations.getOrElse {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ANALYZED-INTEGER-SINGLE-ROOT-EVIDENCE-MISSING",
+        "analyzed integer wrapper has no exhaustive single-root evaluation table",
+        SourceOrigin("<analyzed-integer>", 1)
+      )
+    }
+    singleRootIssued = true
+    (sourceIdentity, expression, evaluations)
+  }
+}
+
+sealed abstract class AnalyzedStructuralIntegerKind private[frontend] (
+    val label: String
+)
+
+object AnalyzedStructuralIntegerKind {
+  case object ProcessRangeCount extends AnalyzedStructuralIntegerKind("process-range-count")
+  case object StructuralCaseSelector extends AnalyzedStructuralIntegerKind("structural-case-selector")
+  case object ProcessSliceOffset extends AnalyzedStructuralIntegerKind("process-slice-offset")
+  case object ProcessSliceWidth extends AnalyzedStructuralIntegerKind("process-slice-width")
+  case object StructuralSliceOffset extends AnalyzedStructuralIntegerKind("structural-slice-offset")
+  case object StructuralSliceWidth extends AnalyzedStructuralIntegerKind("structural-slice-width")
+  case object ProcessVecIndex extends AnalyzedStructuralIntegerKind("process-vec-index")
+  case object StructuralVecIndex extends AnalyzedStructuralIntegerKind("structural-vec-index")
+}
+
+sealed abstract class AnalyzedStructuralBooleanKind private[frontend] (
+    val label: String
+)
+
+object AnalyzedStructuralBooleanKind {
+  case object StructuralIfCondition extends AnalyzedStructuralBooleanKind("structural-if-condition")
+}
+
+/** One analyzed structural integer publication, bound to its exact operation
+  * kind and target identities.  The descriptive EIE is returned only by the
+  * successful one-shot claim.
+  */
+final class AnalyzedStructuralInteger private[frontend] (
+    val sourceIdentity: AnyRef,
+    val expression: ElaborationIntegerExpression,
+    private val publicationKind: AnalyzedStructuralIntegerKind,
+    private val targetIdentities: Vector[AnyRef],
+    private val origin: SourceOrigin,
+    private val analyzerSeal: AnyRef
+) {
+  private[this] var consumed = false
+
+  def claim(
+      expectedKind: AnalyzedStructuralIntegerKind,
+      expectedTargets: Vector[AnyRef]
+  ): (AnyRef, ElaborationIntegerExpression) = synchronized {
+    if (!StructuralExpressionBridge.authenticatesStructuralInteger(analyzerSeal)) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ANALYZED-STRUCTURAL-INTEGER-AUTHORIZATION-INVALID",
+        "structural integer wrapper was not constructed by the frontend AST analyzer",
+        origin
+      )
+    }
+    if ((expectedKind eq null) || !(publicationKind eq expectedKind)) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ANALYZED-STRUCTURAL-INTEGER-KIND-MISMATCH",
+        s"analyzed structural integer '${publicationKind.label}' cannot authorize '${Option(expectedKind).map(_.label).getOrElse("<null>")}' publication",
+        origin
+      )
+    }
+    if (!sameTargetIdentities(expectedTargets)) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ANALYZED-STRUCTURAL-INTEGER-TARGET-MISMATCH",
+        s"analyzed structural integer '${publicationKind.label}' was presented to a foreign publication target",
+        origin
+      )
+    }
+    if (consumed) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ANALYZED-STRUCTURAL-INTEGER-AUTHORIZATION-CONSUMED",
+        s"analyzed structural integer '${publicationKind.label}' was already published",
+        origin
+      )
+    }
+    consumed = true
+    sourceIdentity -> expression
+  }
+
+  private def sameTargetIdentities(expected: Vector[AnyRef]): Boolean =
+    (expected ne null) && expected.size == targetIdentities.size &&
+      expected.zip(targetIdentities).forall { case (left, right) => left eq right }
+}
+
+final class AnalyzedStructuralBoolean private[frontend] (
+    val sourceIdentity: AnyRef,
+    val expression: ElaborationBooleanExpression,
+    private val singleRootEvaluations: Option[Vector[(BigInt, Boolean)]],
+    private val publicationKind: AnalyzedStructuralBooleanKind,
+    private val targetIdentities: Vector[AnyRef],
+    private val origin: SourceOrigin,
+    private val analyzerSeal: AnyRef
+) {
+  private[this] var consumed = false
+
+  def claim(
+      expectedKind: AnalyzedStructuralBooleanKind,
+      expectedTargets: Vector[AnyRef]
+  ): (
+      AnyRef,
+      ElaborationBooleanExpression,
+      Option[Vector[(BigInt, Boolean)]]
+  ) = synchronized {
+    if (!StructuralExpressionBridge.authenticatesStructuralBoolean(analyzerSeal)) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ANALYZED-STRUCTURAL-BOOLEAN-AUTHORIZATION-INVALID",
+        "structural Boolean wrapper was not constructed by the frontend AST analyzer",
+        origin
+      )
+    }
+    if ((expectedKind eq null) || !(publicationKind eq expectedKind)) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ANALYZED-STRUCTURAL-BOOLEAN-KIND-MISMATCH",
+        s"analyzed structural Boolean '${publicationKind.label}' cannot authorize '${Option(expectedKind).map(_.label).getOrElse("<null>")}' publication",
+        origin
+      )
+    }
+    if (!sameTargetIdentities(expectedTargets)) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ANALYZED-STRUCTURAL-BOOLEAN-TARGET-MISMATCH",
+        s"analyzed structural Boolean '${publicationKind.label}' was presented to a foreign publication target",
+        origin
+      )
+    }
+    if (consumed) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ANALYZED-STRUCTURAL-BOOLEAN-AUTHORIZATION-CONSUMED",
+        s"analyzed structural Boolean '${publicationKind.label}' was already published",
+        origin
+      )
+    }
+    consumed = true
+    (sourceIdentity, expression, singleRootEvaluations)
+  }
+
+  private def sameTargetIdentities(expected: Vector[AnyRef]): Boolean =
+    (expected ne null) && expected.size == targetIdentities.size &&
+      expected.zip(targetIdentities).forall { case (left, right) => left eq right }
+}
+
 /** Converts the guarded frontend expressions into backend-neutral core metadata. */
 private[frontend] object StructuralExpressionBridge {
+  private object AnalyzerSeal
+  private object StructuralIntegerAnalyzerSeal
+  private object StructuralBooleanAnalyzerSeal
+
+  private[frontend] def authenticates(value: AnyRef): Boolean =
+    value eq AnalyzerSeal
+
+  private[frontend] def authenticatesStructuralInteger(value: AnyRef): Boolean =
+    value eq StructuralIntegerAnalyzerSeal
+
+  private[frontend] def authenticatesStructuralBoolean(value: AnyRef): Boolean =
+    value eq StructuralBooleanAnalyzerSeal
+
   final case class GenerateIndexFacts(
       default: BigInt,
       minimum: BigInt,
@@ -138,6 +331,98 @@ private[frontend] object StructuralExpressionBridge {
       allowPortableLogHelper = true
     )
 
+  /** Analyze and retain one exact integer carrier together with any exhaustive
+    * single-root table derived from the same HdlInt AST.  No API accepts a raw
+    * expression/table pair and turns it into this wrapper.
+    */
+  def analyzedWidth(
+      value: HdlInt,
+      role: String,
+      sourceLocation: Option[String] = None
+  ): AnalyzedFrontendInteger = {
+    val analyzed = integerImpl(
+      value,
+      role,
+      NativeStructuralFrontend.currentGenerateIndices,
+      allowPortableLogHelper = true
+    )
+    val expression = sourceLocation match {
+      case Some(location) => analyzed.copy(sourceLocation = Some(location))
+      case None           => analyzed
+    }
+    new AnalyzedFrontendInteger(
+      sourceIdentity = value,
+      expression = expression,
+      singleRootEvaluations = singleRootEvaluations(value),
+      analyzerSeal = AnalyzerSeal
+    )
+  }
+
+  def analyzedStructuralInteger(
+      value: HdlInt,
+      role: String,
+      generateIndices: Map[String, GenerateIndexFacts],
+      kind: AnalyzedStructuralIntegerKind,
+      targets: Vector[AnyRef]
+  ): AnalyzedStructuralInteger = {
+    if (value eq null)
+      throw new IllegalArgumentException("structural integer source must not be null")
+    if (kind eq null)
+      throw new IllegalArgumentException("structural integer publication kind must not be null")
+    requirePublicationTargets(targets, role, value.origin)
+    new AnalyzedStructuralInteger(
+      sourceIdentity = value,
+      expression = integerImpl(
+        value,
+        role,
+        generateIndices,
+        allowPortableLogHelper = false
+      ),
+      publicationKind = kind,
+      targetIdentities = targets,
+      origin = value.origin,
+      analyzerSeal = StructuralIntegerAnalyzerSeal
+    )
+  }
+
+  def analyzedStructuralBoolean(
+      value: HdlBool,
+      role: String,
+      kind: AnalyzedStructuralBooleanKind,
+      targets: Vector[AnyRef]
+  ): AnalyzedStructuralBoolean = {
+    if (value eq null)
+      throw new IllegalArgumentException("structural Boolean source must not be null")
+    if (kind eq null)
+      throw new IllegalArgumentException("structural Boolean publication kind must not be null")
+    requirePublicationTargets(targets, role, value.origin)
+    new AnalyzedStructuralBoolean(
+      sourceIdentity = value,
+      expression = boolean(value, role),
+      singleRootEvaluations = singleRootBooleanEvaluations(value),
+      publicationKind = kind,
+      targetIdentities = targets,
+      origin = value.origin,
+      analyzerSeal = StructuralBooleanAnalyzerSeal
+    )
+  }
+
+  private def requirePublicationTargets(
+      targets: Vector[AnyRef],
+      role: String,
+      origin: SourceOrigin
+  ): Unit =
+    if (
+      (targets eq null) || targets.isEmpty ||
+      targets.exists(target => target eq null)
+    ) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ANALYZED-STRUCTURAL-TARGET-MISSING",
+        s"$role requires non-null exact publication targets",
+        origin
+      )
+    }
+
   /** Exhaustive evaluation of one bounded frontend AST for the neutral typed
     * elaboration carrier.  This is rooted in the exact ParameterToken object;
     * rendered identifiers are not used to infer provenance.
@@ -146,7 +431,7 @@ private[frontend] object StructuralExpressionBridge {
       value: HdlInt
   ): Option[Vector[(BigInt, BigInt)]] = {
     if (
-      value == null || value.parameters.size != 1 ||
+      (value eq null) || value.parameters.size != 1 ||
       value.booleanParameters.nonEmpty || value.localDeclaration.nonEmpty ||
       value.localParameters.nonEmpty || value.booleanLocalParameters.nonEmpty ||
       value.scope.nonEmpty
@@ -179,6 +464,79 @@ private[frontend] object StructuralExpressionBridge {
       rootValue += 1
     }
     Some(builder.result())
+  }
+
+  /** Exhaustive evaluation of one bounded frontend Boolean AST over its exact
+    * declaration-token root.  This evidence never comes from rendered
+    * identifiers: the sole admitted root is selected from the HdlBool's exact
+    * ParameterToken or BooleanParameterToken identity.
+    */
+  private def singleRootBooleanEvaluations(
+      value: HdlBool
+  ): Option[Vector[(BigInt, Boolean)]] = {
+    if (
+      (value eq null) || value.localDeclaration.nonEmpty ||
+      value.localParameters.nonEmpty || value.booleanLocalParameters.nonEmpty ||
+      value.integerParameters.size + value.parameters.size != 1
+    ) return None
+
+    value.integerParameters.toVector match {
+      case Vector(token) if value.parameters.isEmpty =>
+        val parameterFacts =
+          IntExpressionAnalysis.parameterFacts(token.declaration).getOrElse(return None)
+        val minimum = parameterFacts.interval.lower.getOrElse(return None)
+        val maximum = parameterFacts.interval.upper.getOrElse(return None)
+        val size = maximum - minimum + 1
+        if (size < 1 || size > spinal.core.ElabInt.MaximumExactDomainSize)
+          return None
+
+        val builder = Vector.newBuilder[(BigInt, Boolean)]
+        var rootValue = minimum
+        while (rootValue <= maximum) {
+          val point = IntExprFacts(rootValue, IntInterval.point(rootValue))
+          val result = BoolExpressionAnalysis
+            .evaluateDefault(
+              value.expression,
+              booleanParameters = Map.empty,
+              integerParameters = Map(token.declaration.name -> point),
+              localParameters = Map.empty,
+              generateIndices = Map.empty,
+              booleanLocalParameters = Map.empty
+            )
+            .fold(_ => return None, identity)
+          builder += rootValue -> result
+          rootValue += 1
+        }
+        Some(builder.result())
+
+      case Vector() =>
+        value.parameters.toVector match {
+          case Vector(token) =>
+            val builder = Vector.newBuilder[(BigInt, Boolean)]
+            var rootValue = BigInt(0)
+            while (rootValue <= 1) {
+              val result = BoolExpressionAnalysis
+                .evaluateDefault(
+                  value.expression,
+                  booleanParameters = Map(
+                    token.declaration.name ->
+                      token.declaration.copy(default = rootValue == 1)
+                  ),
+                  integerParameters = Map.empty,
+                  localParameters = Map.empty,
+                  generateIndices = Map.empty,
+                  booleanLocalParameters = Map.empty
+                )
+                .fold(_ => return None, identity)
+              builder += rootValue -> result
+              rootValue += 1
+            }
+            Some(builder.result())
+          case _ => None
+        }
+
+      case _ => None
+    }
   }
 
   def integer(
@@ -295,23 +653,13 @@ private[frontend] object StructuralExpressionBridge {
         origin
       )
     }
-    ElaborationIntegerParameter(
-      declaration.name,
-      declaration.default,
-      minimum,
-      maximum
-    )
+    token.canonicalSchema(minimum, maximum)
   }
 
   private def booleanSchema(
       token: BooleanParameterToken
   ): ElaborationIntegerParameter =
-    ElaborationIntegerParameter(
-      token.declaration.name,
-      if (token.declaration.default) BigInt(1) else BigInt(0),
-      minimum = BigInt(0),
-      maximum = BigInt(1)
-    )
+    token.canonicalSchema
 
   private def rejectLocalParameters(
       role: String,

@@ -5,8 +5,7 @@ package object frontend {
 
   import spinal.core._
 
-  /**
-    * MorphHDL-owned symbolic data factories. These shadow only explicit
+  /** MorphHDL-owned symbolic data factories. These shadow only explicit
     * `morphhdl.frontend` calls and delegate concrete construction to untouched
     * SpinalHDL factories.
     */
@@ -28,9 +27,34 @@ package object frontend {
   def Reg[T <: Data](dataType: => T): T = ParameterizedWidth.Reg(dataType)
   def Vec[T <: Data](dataType: => T, size: Int): spinal.core.Vec[T] =
     ParameterizedWidth.Vec(dataType, size)
+  def Vec[T <: Data](dataType: => T, size: ElabInt): spinal.core.Vec[T] =
+    ParameterizedWidth.Vec(dataType, size)
+  def Vec[T <: Data](dataType: => T, size: HdlInt)(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): spinal.core.Vec[T] =
+    ParameterizedWidth.Vec(dataType, size.asElabInt)
 
-  /**
-    * Adds an HdlInt overload to the untouched native Mem companion. The native
+  def Vec[T <: Data](
+      dataType: spinal.core.HardType[T],
+      size: Int
+  ): spinal.core.Vec[T] =
+    ParameterizedWidth.Vec(dataType, size)
+  def Vec[T <: Data](
+      dataType: spinal.core.HardType[T],
+      size: ElabInt
+  ): spinal.core.Vec[T] =
+    ParameterizedWidth.Vec(dataType, size)
+  def Vec[T <: Data](
+      dataType: spinal.core.HardType[T],
+      size: HdlInt
+  )(implicit
+      file: sourcecode.File,
+      line: sourcecode.Line
+  ): spinal.core.Vec[T] =
+    ParameterizedWidth.Vec(dataType, size.asElabInt)
+
+  /** Adds an HdlInt overload to the untouched native Mem companion. The native
     * constructor receives only the checked concrete witness; exact symbolic
     * provenance is retained externally against the returned Mem identity.
     */
@@ -84,8 +108,7 @@ package object frontend {
       HdlInt.literal(BigInt(left)) % right
   }
 
-  /**
-    * Parameter-controlled structural generate-if for ordinary SpinalHDL
+  /** Parameter-controlled structural generate-if for ordinary SpinalHDL
     * Component construction. Keeping it as an HdlBool extension avoids
     * colliding with the established ParamRtlFrontend.generateIf import.
     */
@@ -115,8 +138,7 @@ package object frontend {
     }
   }
 
-  /**
-    * Parameter-controlled structural generate-case for ordinary SpinalHDL
+  /** Parameter-controlled structural generate-case for ordinary SpinalHDL
     * Component construction.
     */
   implicit final class StructuralGenerateCaseOps(private val selector: HdlInt) extends AnyVal {
@@ -127,15 +149,13 @@ package object frontend {
       val origin = SourceOrigin.capture
       try FrontendSession.startGenerateCase(selector, origin)
       catch {
-        case error: FrontendException
-            if error.code == "MORPH-FRONTEND-SESSION-MISSING" =>
+        case error: FrontendException if error.code == "MORPH-FRONTEND-SESSION-MISSING" =>
           NativeStructuralFrontend.startGenerateCase(selector, origin)
       }
     }
   }
 
-  /**
-    * Static-witness packed slice which retains a generate-index expression for
+  /** Static-witness packed slice which retains a generate-index expression for
     * the native Verilog structural rewrite.
     */
   implicit final class StructuralBitVectorOps[T <: BitVector](private val source: T) {
@@ -148,24 +168,41 @@ package object frontend {
       val widthValue = witnessInt(width, "packed-slice width", origin)
       val result = source(offsetValue, widthValue bits)
       if (ParameterizedStructure.captureEnabled) {
-        val offsetExpression =
-          StructuralExpressionBridge.integer(offset, "packed-slice offset")
-        val widthExpression =
-          StructuralExpressionBridge.integer(width, "packed-slice width")
-        if (ParameterizedProcess.captureActive) {
-          ParameterizedProcess.recordSlice(
+        val processCapture = ParameterizedProcess.captureActive
+        val targets = Vector[AnyRef](source, result)
+        val generateIndices = NativeStructuralFrontend.currentGenerateIndices
+        val offsetAnalysis = StructuralExpressionBridge.analyzedStructuralInteger(
+          offset,
+          "packed-slice offset",
+          generateIndices,
+          if (processCapture)
+            AnalyzedStructuralIntegerKind.ProcessSliceOffset
+          else AnalyzedStructuralIntegerKind.StructuralSliceOffset,
+          targets
+        )
+        val widthAnalysis = StructuralExpressionBridge.analyzedStructuralInteger(
+          width,
+          "packed-slice width",
+          generateIndices,
+          if (processCapture)
+            AnalyzedStructuralIntegerKind.ProcessSliceWidth
+          else AnalyzedStructuralIntegerKind.StructuralSliceWidth,
+          targets
+        )
+        if (processCapture) {
+          ExternalAnalyzedStructuralPublisher.recordProcessSlice(
+            offsetAnalysis,
+            widthAnalysis,
             source,
             result,
-            offsetExpression,
-            widthExpression,
             Some(origin.rendered)
           )
         } else {
-          ParameterizedStructure.recordSlice(
+          ExternalAnalyzedStructuralPublisher.recordStructuralSlice(
+            offsetAnalysis,
+            widthAnalysis,
             source,
             result,
-            offsetExpression,
-            widthExpression,
             Some(origin.rendered)
           )
         }
@@ -196,24 +233,32 @@ package object frontend {
       }
       val selected = vector(indexValue)
       if (ParameterizedStructure.captureEnabled) {
-        val expression = StructuralExpressionBridge.integer(index, "Vec index")
-        if (ParameterizedProcess.captureActive) {
-          ParameterizedProcess.recordVecIndex(
+        val processCapture = ParameterizedProcess.captureActive
+        val analysis = StructuralExpressionBridge.analyzedStructuralInteger(
+          index,
+          "Vec index",
+          NativeStructuralFrontend.currentGenerateIndices,
+          if (processCapture)
+            AnalyzedStructuralIntegerKind.ProcessVecIndex
+          else AnalyzedStructuralIntegerKind.StructuralVecIndex,
+          Vector[AnyRef](vector, selected)
+        )
+        if (processCapture) {
+          ExternalAnalyzedStructuralPublisher.recordProcessVecIndex(
+            analysis,
             vector,
             selected,
-            expression,
             Some(origin.rendered)
           )
         } else {
-          ParameterizedStructure.recordVecIndex(
+          ExternalAnalyzedStructuralPublisher.recordStructuralVecIndex(
+            analysis,
             vector,
             selected,
-            expression,
             Some(origin.rendered)
           )
         }
-      }
-      selected
+      } else selected
     }
 
     def apply(index: GenIndex)(implicit
@@ -230,8 +275,7 @@ package object frontend {
   ): GenerateIfBuilder =
     try FrontendSession.startGenerateIf(condition, names, whenTrue, origin)
     catch {
-      case error: FrontendException
-          if error.code == "MORPH-FRONTEND-SESSION-MISSING" =>
+      case error: FrontendException if error.code == "MORPH-FRONTEND-SESSION-MISSING" =>
         NativeStructuralFrontend.startGenerateIf(condition, names, whenTrue, origin)
     }
 

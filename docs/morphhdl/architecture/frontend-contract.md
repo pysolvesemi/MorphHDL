@@ -77,9 +77,13 @@ symbolic tag and remains one bit.
 
 Only whole-leaf same-type assignments with identical parameter schemas, direct
 Bool-to-Bool control assignments and the bounded register path are accepted.
-Vec length is still a Scala constant. Derived widths, partial aggregates,
-expressions, conditional or resettable processes and Stream algorithms remain
-explicitly unsupported here and cannot specialize to the default silently.
+At the Increment 30 boundary Vec length was still a Scala constant. Increment
+53f now accepts a positive finite `ElabInt` Vec depth while retaining the
+logical depth and recursive element layout on the ordinary native Vec. The
+strict Verilog-2001 boundary is one packed vector; `Mem` remains a distinct
+unpacked memory array. Derived widths, partial aggregates, expressions,
+conditional or resettable processes and Stream algorithms outside their later
+typed increments cannot specialize to the default silently.
 
 The names are part of the v1 source contract:
 
