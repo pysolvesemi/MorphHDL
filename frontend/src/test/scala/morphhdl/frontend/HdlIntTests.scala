@@ -187,9 +187,8 @@ class HdlIntTests extends AnyFunSuite {
         new Component {
           setDefinitionName("PreparedBooleanPredicateLifecycle")
           val origin = SourceOrigin("PreparedBooleanPredicateLifecycle.scala", 1)
-          val condition = HdlBool.param("ENABLED", default = true)
           val builder = NativeStructuralFrontend.startGenerateIf(
-            condition,
+            HdlBool.param("ENABLED", default = true),
             names = None,
             whenTrue = {
               val trueWire = Bool()

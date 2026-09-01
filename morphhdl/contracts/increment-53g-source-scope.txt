@@ -27,7 +27,6 @@ frontend/src/main/scala/morphhdl/frontend/formalRegion.scala
 frontend/src/main/scala/morphhdl/frontend/package.scala
 frontend/src/main/scala/spinal/core/ExternalAnalyzedNativeIntFormalizationPublisher.scala
 frontend/src/main/scala/spinal/lib/ExternalParameterizedCounterRegistry.scala
-frontend/src/test/scala/morphhdl/frontend/HdlIntTests.scala
 morphhdl/contracts/increment-53g-production-retirement.contract
 morphhdl/contracts/increment-53g-source-scope.txt
 morphhdl/scripts/check-external-formalization-boundary.sh
