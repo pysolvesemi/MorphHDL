@@ -507,7 +507,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   sequential formal equivalence on both supported Scala versions. No native-
   `Int` shadow capture, component-name recognizer or separate FIFO is allowed.
 
-- [ ] **Increment 53f — Typed parameter-sensitive primitive closure**
+- [x] **Increment 53f — Typed parameter-sensitive primitive closure**
 
   **Dependency graph:** Increment 53e is implemented and merged; Increment 53g
   remains blocked until every Increment 53f closure gate passes.
