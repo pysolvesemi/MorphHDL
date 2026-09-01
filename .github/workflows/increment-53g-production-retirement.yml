@@ -253,6 +253,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
       - name: Verify pinned formal toolchain
+        shell: bash
         run: |
           command -v yosys
           command -v sby
