@@ -123,6 +123,7 @@ jobs:
           sbt -batch "++${{ matrix.scala_version }}" \
             "tester/testOnly spinal.lib.CounterTester spinal.lib.SpinalSimStreamFifoTester spinal.lib.SpinalSimStreamWidthAdapterTester"
       - name: Package production modules and prove retired classes absent
+        shell: bash
         run: |
           set -euo pipefail
           sbt -batch "++${{ matrix.scala_version }}" \
