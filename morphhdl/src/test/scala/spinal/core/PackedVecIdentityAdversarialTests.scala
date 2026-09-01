@@ -1,5 +1,6 @@
 package spinal.core
 
+import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
 
 import scala.collection.JavaConverters._
@@ -354,7 +355,9 @@ class PackedVecIdentityAdversarialTests extends AnyFunSuite {
           KeepProjectedCoverage
         )
       }
-      assert(Files.exists(directory.resolve(fileName)))
+      val rtl = directory.resolve(fileName)
+      assert(Files.exists(rtl))
+      assertProjectedAggregateDominance(rtl)
     }
   }
 
@@ -369,7 +372,9 @@ class PackedVecIdentityAdversarialTests extends AnyFunSuite {
           KeepActiveStorageCoverage
         )
       }
-      assert(Files.exists(directory.resolve(fileName)))
+      val rtl = directory.resolve(fileName)
+      assert(Files.exists(rtl))
+      assertProjectedAggregateDominance(rtl)
     }
   }
 
@@ -393,6 +398,58 @@ class PackedVecIdentityAdversarialTests extends AnyFunSuite {
         NarrowProjectedAdmission
       )
     )
+  }
+
+  private val FormalRamCheckAggregate =
+    """(?<![A-Za-z0-9_$])(formal_ram_check(?:_[0-9]+_morphhdl_vec)?)(?![A-Za-z0-9_$])""".r
+
+  private def assertProjectedAggregateDominance(rtl: Path): Unit = {
+    val verilog = new String(Files.readAllBytes(rtl), StandardCharsets.UTF_8)
+    val streamFifo =
+      "(?ms)^\\s*module\\s+StreamFifo\\b.*?^\\s*endmodule\\b".r
+        .findFirstIn(verilog)
+        .getOrElse(fail(s"projected Vec fixture emitted no StreamFifo module:\n$verilog"))
+    val generateStart = "(?m)^\\s*generate\\s*$".r
+      .findFirstMatchIn(streamFifo)
+      .map(_.start)
+      .getOrElse(fail(s"projected Vec fixture emitted no generate region:\n$streamFifo"))
+    val names = FormalRamCheckAggregate
+      .findAllMatchIn(streamFifo)
+      .map(_.group(1))
+      .toSet
+    assert(names.nonEmpty, s"projected Vec fixture retained no RAM-check aggregate:\n$streamFifo")
+
+    names.foreach { name =>
+      val quoted = java.util.regex.Pattern.quote(name)
+      val declarations =
+        ("(?m)^\\s*wire\\s+\\[[^\\]]*DEPTH[^\\]]*\\]\\s+" +
+          quoted + "\\s*;\\s*$").r.findAllMatchIn(streamFifo).toVector
+      val allDeclarations =
+        ("(?m)^\\s*(?:wire|reg)\\b[^;]*\\b" + quoted +
+          "\\s*;\\s*$").r.findAllMatchIn(streamFifo).toVector
+      assert(
+        declarations.size == 1 &&
+          allDeclarations.size == 1 &&
+          declarations.head.start == allDeclarations.head.start &&
+          declarations.head.start < generateStart,
+        s"projected Vec aggregate '$name' is not declared exactly once at module scope:\n$streamFifo"
+      )
+      val slices =
+        ("(?m)^\\s*assign\\s+" + quoted +
+          "\\s*\\[([^\\]]+)\\]\\s*=").r
+          .findAllMatchIn(streamFifo)
+          .map(_.group(1).replaceAll("\\s+", ""))
+          .toVector
+      assert(
+        slices.size == 2 &&
+          slices.count(_ == "(0)+:1") == 1 &&
+          slices.count(value =>
+            value.contains("stream_fifo_formal_ram_mask_index") &&
+              value.endsWith("+:1")
+          ) == 1,
+        s"projected Vec aggregate '$name' lost one exact branch slice driver: ${slices.mkString(", ")}\n$streamFifo"
+      )
+    }
   }
 
   private def expectFailure(

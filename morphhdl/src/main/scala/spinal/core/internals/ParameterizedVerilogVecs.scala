@@ -148,9 +148,20 @@ private[internals] object ParameterizedVerilogVecs {
       supportAssignments: Vector[DataAssignmentStatement]
   )
 
+  private[internals] final case class PackedReadAggregateDeclarationUse(
+      consumerLines: Set[Int],
+      declarations: Vector[(BaseType, Int)],
+      consumers: Vector[DataAssignmentStatement],
+      root: ElaborationIntegerParameterRoot,
+      universe: Set[BigInt],
+      role: String,
+      sourceLocation: Option[String]
+  )
+
   private[internals] final case class PackedReadStructuralEvidence(
       transientLines: Set[Int],
-      coveredLeafUses: Set[(Int, String)]
+      coveredLeafUses: Set[(Int, String)],
+      aggregateDeclarationUses: Vector[PackedReadAggregateDeclarationUse]
   )
 
   def hasVectors(component: Component): Boolean =
@@ -399,15 +410,17 @@ private[internals] object ParameterizedVerilogVecs {
   /** Identify only native support assignments that the exact retained
     * `MultiData.asBits` carrier proof will erase during Vec publication.
     *
-    * Structural capture runs before Vec publication.  A packed read formed
-    * outside a captured owner can therefore leave one temporary module-scope
-    * printer alias referring to a Vec leaf whose declaration and driver have
-    * already moved into that owner.  That alias is not a real cross-owner
-    * consumer: [[rewritePackedReadCarrierGraph]] removes it after re-auditing
-    * the same exact assignment identities and carrier layout.  Expose its
-    * emitted line here so the structural dominance audit can defer only this
-    * identity-proven transient edge.  A name, RHS text, width, or coincident
-    * assignment can never create this evidence.
+    * Structural capture runs before Vec publication. A packed read formed
+    * outside a captured owner therefore needs a two-part handoff: transient
+    * printer aliases are removed by [[rewritePackedReadCarrierGraph]], while
+    * the exact module-owned leaf declarations needed by the surviving packed
+    * aggregate consumer remain at module scope. Both parts are authorized only
+    * after re-auditing the retained assignment identities, complete disjoint
+    * captured-driver coverage, exact declaration identities and carrier
+    * layout. Expose those emitted locations here so structural lowering can
+    * defer only the proven aliases and avoid relocating only the proven native
+    * declarations. A name, RHS text, width, or coincident assignment can never
+    * create this evidence.
     */
   def exactPackedReadStructuralEvidence(
       component: Component,
@@ -415,7 +428,7 @@ private[internals] object ParameterizedVerilogVecs {
       pc: PhaseContext
   ): PackedReadStructuralEvidence = {
     if (component == null || lines.isEmpty)
-      return PackedReadStructuralEvidence(Set.empty, Set.empty)
+      return PackedReadStructuralEvidence(Set.empty, Set.empty, Vector.empty)
 
     val live = new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
     val liveAssignments = ArrayBuffer.empty[DataAssignmentStatement]
@@ -435,6 +448,28 @@ private[internals] object ParameterizedVerilogVecs {
         ParameterizedStructure
           .capturedWitnessInactiveDataAssignmentsOf(component)
           .filterNot(live.containsKey)
+
+    def exactCompleteDepth(plan: VecPlan) =
+      plan.shape.depth.exactDomain.filter { domain =>
+        domain.evaluations.size == domain.evidenceValues.size &&
+        domain.evidenceValues == domain.universe &&
+        (plan.shape.depth.completedParameterRoots match {
+          case Vector(root) => root eq domain.root
+          case _            => false
+        })
+      }
+
+    def exactInternalDeclarations(plan: VecPlan): Vector[(BaseType, Int)] =
+      plan.leaves.flatMap { leaf =>
+        val declaration = parseDeclaration(
+          lines,
+          leaf.name,
+          plan.sourceLocation
+        )
+        if (declaration.direction.isEmpty)
+          Vector(leaf.value -> declaration.lineIndex)
+        else Vector.empty
+      }
 
     val plans = analyze(component, publicationVectors(component), pc)
     val evidence = plans.flatMap { plan =>
@@ -501,19 +536,38 @@ private[internals] object ParameterizedVerilogVecs {
                 if (!parsed.continuous) Vector.empty
                 else
                   coveredLeaves.collect {
-                    case leafName
-                        if containsReferenceIdentifier(parsed.rhs, leafName) =>
+                    case leafName if containsReferenceIdentifier(parsed.rhs, leafName) =>
                       parsed.lineIndex -> leafName
                   }.toVector
               }.toSet
+              val exactAggregateUse =
+                exactCompleteDepth(plan)
+                  .filter(_ =>
+                    carrier.continuous &&
+                      coveredLeaves == plan.leaves.map(_.name).toSet
+                  )
+                  .toVector
+                  .map { domain =>
+                    PackedReadAggregateDeclarationUse(
+                      Set(carrier.lineIndex),
+                      exactInternalDeclarations(plan),
+                      Vector(carriers.head),
+                      domain.root,
+                      domain.universe,
+                      "packed Vec read aggregate consumer",
+                      operation.sourceLocation
+                    )
+                  }
               PackedReadStructuralEvidence(
                 aliases.map(_.lineIndex).toSet,
-                coveredUses
+                coveredUses,
+                exactAggregateUse
               )
             }
 
         case operation: ParameterizedVecWholeAssignment =>
-          plans.find(_.vector eq operation.source)
+          plans
+            .find(_.vector eq operation.source)
             .toVector
             .flatMap { source =>
               val coveredLeaves = exactCapturedLeafCoverage(
@@ -532,36 +586,60 @@ private[internals] object ParameterizedVerilogVecs {
                   "branch-covered whole Vec assignment",
                   operation.sourceLocation
                 )
-                val coveredUses = plan.leaves.flatMap { targetLeaf =>
+                val parsedUses = plan.leaves.map { targetLeaf =>
                   val sourceLeaf = source.leaf(
                     targetLeaf.elementIndex,
                     targetLeaf.leafIndex
                   )
-                  if (!coveredLeaves(sourceLeaf.name)) Vector.empty
-                  else {
-                    val assignment = operation.assignments.find(value =>
+                  val assignment = operation.assignments
+                    .find(value =>
                       (value.finalTarget eq targetLeaf.value) &&
                         (value.source eq sourceLeaf.value)
-                    ).get
-                    val targetName = requiredBaseName(
-                      assignment.finalTarget,
-                      "branch-covered whole Vec target",
-                      operation.sourceLocation
                     )
-                    val parsed = findAssignment(
-                      lines,
-                      targetName,
-                      Some(sourceLeaf.name),
-                      "branch-covered whole Vec assignment",
-                      operation.sourceLocation
-                    )
-                    if (parsed.continuous)
-                      Vector(parsed.lineIndex -> sourceLeaf.name)
-                    else Vector.empty
-                  }
+                    .get
+                  val targetName = requiredBaseName(
+                    assignment.finalTarget,
+                    "branch-covered whole Vec target",
+                    operation.sourceLocation
+                  )
+                  val parsed = findAssignment(
+                    lines,
+                    targetName,
+                    Some(sourceLeaf.name),
+                    "branch-covered whole Vec assignment",
+                    operation.sourceLocation
+                  )
+                  (assignment, sourceLeaf, parsed)
+                }
+                val coveredUses = parsedUses.flatMap {
+                  case (_, sourceLeaf, parsed) if coveredLeaves(sourceLeaf.name) && parsed.continuous =>
+                    Vector(parsed.lineIndex -> sourceLeaf.name)
+                  case _ => Vector.empty
                 }.toSet
+                val exactAggregateUse =
+                  exactCompleteDepth(source)
+                    .filter(_ =>
+                      coveredLeaves == source.leaves.map(_.name).toSet &&
+                        parsedUses.forall(_._3.continuous)
+                    )
+                    .toVector
+                    .map { domain =>
+                      PackedReadAggregateDeclarationUse(
+                        parsedUses.map(_._3.lineIndex).toSet,
+                        exactInternalDeclarations(source),
+                        parsedUses.map(_._1),
+                        domain.root,
+                        domain.universe,
+                        "branch-covered whole Vec aggregate consumer",
+                        operation.sourceLocation
+                      )
+                    }
                 Vector(
-                  PackedReadStructuralEvidence(Set.empty, coveredUses)
+                  PackedReadStructuralEvidence(
+                    Set.empty,
+                    coveredUses,
+                    exactAggregateUse
+                  )
                 )
               }
             }
@@ -570,7 +648,8 @@ private[internals] object ParameterizedVerilogVecs {
     }
     PackedReadStructuralEvidence(
       evidence.flatMap(_.transientLines).toSet,
-      evidence.flatMap(_.coveredLeafUses).toSet
+      evidence.flatMap(_.coveredLeafUses).toSet,
+      evidence.flatMap(_.aggregateDeclarationUses)
     )
   }
 

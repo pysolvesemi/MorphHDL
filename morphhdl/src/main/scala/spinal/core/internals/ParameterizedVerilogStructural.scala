@@ -192,9 +192,71 @@ private[internals] object ParameterizedVerilogStructural {
       lines,
       continuousResolution
     )
+    val capturedBeforeAggregateDeclarations =
+      rawPlans.flatMap(_.ranges).flatMap(_.indices).toSet
+    val packedReadEvidence =
+      ParameterizedVerilogVecs.exactPackedReadStructuralEvidence(
+        component,
+        lines,
+        pc
+      )
+    val moduleScopeAggregateUses =
+      packedReadEvidence.aggregateDeclarationUses
+        .filter(use =>
+          use.consumerLines.nonEmpty &&
+            use.consumerLines.forall(index => !capturedBeforeAggregateDeclarations(index))
+        )
+    moduleScopeAggregateUses.foreach { use =>
+      use.consumers.foreach { assignment =>
+        val owner = ParameterizedStructure.exactAssignmentDomainOf(
+          component,
+          assignment,
+          use.root,
+          use.universe,
+          use.role,
+          use.sourceLocation
+        )
+        if (owner.captured || owner.values != use.universe) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-AGGREGATE-CONSUMER-OWNER-MISMATCH",
+            s"${use.role} is not one exact module-scope assignment over its complete typed root domain",
+            use.sourceLocation
+          )
+        }
+      }
+      use.declarations.foreach { case (declaration, _) =>
+        val owner = ParameterizedStructure.exactDeclarationDomainOf(
+          component,
+          declaration,
+          use.root,
+          use.universe,
+          s"${use.role} source declaration",
+          use.sourceLocation
+        )
+        if (owner.captured || owner.values != use.universe) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-AGGREGATE-DECLARATION-OWNER-MISMATCH",
+            s"${use.role} source is not one exact module-scope declaration over its complete typed root domain",
+            use.sourceLocation
+          )
+        }
+      }
+    }
+    val moduleScopeAggregateDeclarations =
+      moduleScopeAggregateUses
+        .flatMap(_.declarations)
+        .foldLeft(Vector.empty[(BaseType, Int)]) {
+          case (known, value) if known.exists(_._1 eq value._1) => known
+          case (known, value)                                   => known :+ value
+        }
+    val declarationScopedRawPlans = retainExactAggregateDeclarationsAtModuleScope(
+      rawPlans,
+      lines,
+      moduleScopeAggregateDeclarations
+    )
     val (resolvedPlans, sharedProcessRanges) =
       resolveSharedProceduralProcesses(
-        rawPlans,
+        declarationScopedRawPlans,
         lines,
         alternativePaths,
         containmentPaths,
@@ -1123,6 +1185,66 @@ private[internals] object ParameterizedVerilogStructural {
             s"native module-scope line ${index + 1} references branch-local '$name': '$line'"
           )
         }
+    }
+  }
+
+  /** Keep a packed aggregate's native leaf declarations at module scope when
+    * its exact retained consumer survives there and every live leaf value is
+    * already proven to have complete, disjoint captured-driver coverage.
+    *
+    * Structural capture precedes typed Vec publication. Moving one of these
+    * declarations into a single generate alternative would make the later
+    * collapsed aggregate invisible both to sibling alternatives and to its
+    * module-scope packed bridge. The evidence passed here comes exclusively
+    * from [[ParameterizedVerilogVecs.exactPackedReadStructuralEvidence]];
+    * emitted names only locate the corresponding standalone native
+    * declarations after that identity/domain proof.
+    */
+  private def retainExactAggregateDeclarationsAtModuleScope(
+      plans: Vector[BlockPlan],
+      lines: Vector[String],
+      exactDeclarations: Vector[(BaseType, Int)]
+  ): Vector[BlockPlan] = {
+    if (exactDeclarations.isEmpty) return plans
+
+    val proceduralRanges = proceduralBlocks(lines, None)
+    exactDeclarations.foreach { case (declaration, index) =>
+      if (
+        index < 0 || index >= lines.size ||
+        standaloneDeclarationName(lines(index)).isEmpty ||
+        proceduralRanges.exists(_.indices.contains(index))
+      ) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-AGGREGATE-DECLARATION-MISMATCH",
+          s"identity-proven branch-covered Vec declaration line ${index + 1} is not one standalone native module-item declaration"
+        )
+      }
+    }
+    val exactDeclarationLines = exactDeclarations.map(_._2).toSet
+
+    def excludeDeclarations(range: LineRange): Vector[LineRange] = {
+      val excluded = exactDeclarationLines.toVector
+        .filter(index => range.indices.contains(index))
+        .sorted
+      if (excluded.isEmpty) Vector(range)
+      else {
+        val retained = ArrayBuffer.empty[LineRange]
+        var start = range.start
+        excluded.foreach { index =>
+          if (start < index) retained += LineRange(start, index - 1)
+          start = index + 1
+        }
+        if (start <= range.end) retained += LineRange(start, range.end)
+        retained.toVector
+      }
+    }
+
+    plans.map { plan =>
+      val ranges = plan.ranges.flatMap(excludeDeclarations)
+      val body = stripCommonIndent(
+        ranges.flatMap(_.indices.map(lines)).mkString("\n").trim
+      )
+      plan.copy(ranges = ranges, body = body)
     }
   }
 

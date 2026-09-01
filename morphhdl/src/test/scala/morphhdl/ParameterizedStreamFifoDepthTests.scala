@@ -151,6 +151,9 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
   private val ModuleDeclaration =
     """(?m)^\s*module\s+([A-Za-z_][A-Za-z0-9_$]*)\b""".r
 
+  private val FormalRamCheckAggregate =
+    """(?<![A-Za-z0-9_$])(formal_ram_check(?:_[0-9]+_morphhdl_vec)?)(?![A-Za-z0-9_$])""".r
+
   private def streamFifoModuleInventory(verilog: String): Vector[String] =
     ModuleDeclaration
       .findAllMatchIn(verilog)
@@ -175,6 +178,57 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
     "(?ms)^\\s*module\\s+StreamFifo\\b.*?^\\s*endmodule\\b".r
       .findFirstIn(verilog)
       .getOrElse(fail("Native StreamFifo module definition is missing"))
+
+  private def assertFormalRamCheckAggregateDominance(
+      verilog: String
+  ): Unit = {
+    val names = FormalRamCheckAggregate
+      .findAllMatchIn(verilog)
+      .map(_.group(1))
+      .toSet
+    assert(
+      names.size == 5,
+      s"expected five formal RAM-check aggregates, found ${names.toVector.sorted.mkString(", ")}:\n$verilog"
+    )
+    val generateStart = "(?m)^\\s*generate\\s*$".r
+      .findFirstMatchIn(verilog)
+      .map(_.start)
+      .getOrElse(fail(s"formal StreamFifo generate region is missing:\n$verilog"))
+
+    names.foreach { name =>
+      val quoted = java.util.regex.Pattern.quote(name)
+      val declarations =
+        ("(?m)^\\s*wire\\s+\\[[^\\]]*DEPTH[^\\]]*\\]\\s+" +
+          quoted + "\\s*;\\s*$").r.findAllMatchIn(verilog).toVector
+      val allDeclarations =
+        ("(?m)^\\s*(?:wire|reg)\\b[^;]*\\b" + quoted +
+          "\\s*;\\s*$").r.findAllMatchIn(verilog).toVector
+      assert(
+        declarations.size == 1 &&
+          allDeclarations.size == 1 &&
+          declarations.head.start == allDeclarations.head.start &&
+          declarations.head.start < generateStart,
+        s"formal RAM-check aggregate '$name' is not declared exactly once at module scope:\n$verilog"
+      )
+
+      val slices =
+        ("(?m)^\\s*assign\\s+" + quoted +
+          "\\s*\\[([^\\]]+)\\]\\s*=").r
+          .findAllMatchIn(verilog)
+          .map(_.group(1).replaceAll("\\s+", ""))
+          .toVector
+      assert(
+        slices.size == 2 &&
+          slices.count(_ == "(0)+:1") == 1 &&
+          slices.count(value =>
+            value.contains("stream_fifo_formal_ram_mask_index") &&
+              value.endsWith("+:1")
+          ) == 1,
+        s"formal RAM-check aggregate '$name' does not retain one depth-one and one storage slice driver: ${slices
+            .mkString(", ")}\n$verilog"
+      )
+    }
+  }
 
   private def concreteFifoGraph(
       fifo: StreamFifo[_ <: Data]
@@ -437,6 +491,7 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
         verilog
       )
       val formalFifo = nativeStreamFifoDefinition(verilog)
+      assertFormalRamCheckAggregateDominance(formalFifo)
       assert(
         """DEPTH\s*\)?\s*==\s*\(?\s*1""".r
           .findFirstIn(formalFifo)
@@ -498,11 +553,13 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
   private def simulateFormalHelpers(
       directory: Path,
       rtl: Path,
-      selectedDepth: Int
+      selectedDepth: Int,
+      outputStageEnabled: Boolean = true
   ): Unit = {
     val top = s"SymbolicStreamFifoFormalHelpersDepth${selectedDepth}Tb"
     val testbench = directory.resolve(s"$top.v")
     val output = directory.resolve(s"formal_helpers_depth_$selectedDepth.out")
+    val depthOneExpectedCount = if (outputStageEnabled) 2 else 1
     val source =
       s"""`timescale 1ns/1ps
          |module $top;
@@ -520,15 +577,15 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
          |    end
          |  endfunction
          |  localparam integer COUNT_WIDTH = tb_clog2(DEPTH + 1) + 1;
-         |  // Preserve the inherited concrete helper behavior: at depth one,
-         |  // the one-stage buffer is visible both in formalCheckRam and in
-         |  // formalCheckOutputStage, so formalCount reports two.
+         |  // Preserve the inherited concrete helper behavior. A synchronous
+         |  // depth-one buffer is visible in both helpers and reports two;
+         |  // async Vec storage has no formal output stage and reports one.
          |  localparam integer EXPECTED_MISMATCH_PREDICATE_COUNT =
-         |    (DEPTH == 1) ? 2 : 1;
+         |    (DEPTH == 1) ? $depthOneExpectedCount : 1;
          |  localparam integer EXPECTED_MATCHING_PREDICATE_COUNT =
-         |    (DEPTH == 1) ? 2 : 1;
+         |    (DEPTH == 1) ? $depthOneExpectedCount : 1;
          |  localparam integer EXPECTED_MATCHING_WORD_COUNT =
-         |    (DEPTH == 1) ? 2 : 1;
+         |    (DEPTH == 1) ? $depthOneExpectedCount : 1;
          |  localparam integer MATCHING_PUSH_COUNT = (DEPTH == 1) ? 1 : 3;
          |  reg clk = 1'b0;
          |  reg reset = 1'b1;
@@ -817,7 +874,12 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
           if (commandAvailable("verilator"))
             lintFormalHelpers(target, rtl, selectedDepth)
           if (commandAvailable("iverilog") && commandAvailable("vvp"))
-            simulateFormalHelpers(target, rtl, selectedDepth)
+            simulateFormalHelpers(
+              target,
+              rtl,
+              selectedDepth,
+              outputStageEnabled = !useVecStorage
+            )
           if (commandAvailable("yosys"))
             synthesizeFormalHelpers(target, rtl, selectedDepth)
         }
