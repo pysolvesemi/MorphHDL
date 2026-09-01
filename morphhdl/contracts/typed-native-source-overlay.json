@@ -43,7 +43,7 @@
       "path": "core/src/main/scala/spinal/core/ElabInt.scala",
       "change": "added",
       "classification": "typed-helper",
-      "blob": "d8e29ceeb991bfa67aeb949ebf04cf5cd76ae75b",
+      "blob": "0b51a1ed79df4a544f8228f3441ae308e5971438",
       "reason": "provide the single neutral ElabInt and ElabBool carrier with exact declaration-root, evidence and projection identity"
     },
     {
@@ -141,7 +141,7 @@
       "path": "lib/src/main/scala/spinal/lib/Counter.scala",
       "change": "modified",
       "classification": "typed-mechanical-propagation",
-      "blob": "5c2f225f501f6a68fbd5adc6029fda07138eb933",
+      "blob": "1a7f2d10e2d39134e67441bc74c2ccfcb045061d",
       "reason": "carry exact typed state-count and limit geometry through the authoritative native Counter algorithm"
     },
     {

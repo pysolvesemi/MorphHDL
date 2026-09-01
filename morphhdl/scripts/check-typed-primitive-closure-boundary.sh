@@ -545,13 +545,13 @@ for token in \
   'private def applyOneStep(' \
   'private def naturalWrapControl(' \
   'private def stepTrickControl(' \
-  'algorithm.generateWhen(algorithm.not(naturalWrapControl(policy)))' \
+  'algorithm.select(algorithm.not(naturalWrapControl(policy)))' \
   'algorithm.select(stepTrickControl(bothWrap, handleOverflow))' \
   'value.witness > 1' \
   'value.exact > 1' \
   'val bothIncOnly = incOnly' \
   'val bothDecOnly = decOnly' \
-  'algorithm.withBothTarget { target =>' \
+  'algorithm.withUpdateTarget { target =>' \
   'emitStepTrick(bothIncOnly, bothDecOnly, target)' \
   'emitComparedSteps(' \
   'value.requireAuthoritativeIntegerDomain(' \
@@ -631,9 +631,8 @@ unique_tokens = {
     "natural-wrap control": "private def naturalWrapControl(",
     "step-trick control": "private def stepTrickControl(",
     "single-step body": "private def applyOneStep(",
-    "boundary control": "algorithm.generateWhen(algorithm.not(naturalWrapControl(policy)))",
+    "boundary control": "algorithm.select(algorithm.not(naturalWrapControl(policy)))",
     "direction topology": "direction match",
-    "Both target capture": "algorithm.withBothTarget { target =>",
     "step-trick selection": "algorithm.select(stepTrickControl(bothWrap, handleOverflow))",
     "step-trick body": "private def emitStepTrick(",
     "compared-step body": "private def emitComparedSteps(",
@@ -647,6 +646,16 @@ for label, token in unique_tokens.items():
             f"Counter {label} must occur exactly once in the shared algorithm; "
             f"found source={count}, body={body_count}"
         )
+
+update_target = "algorithm.withUpdateTarget { target =>"
+if counter.count(update_target) != 3 or algorithm.count(update_target) != 3:
+    raise SystemExit(
+        "Counter up, down and bidirectional paths must each use the one typed update-target seam"
+    )
+if adapters.count("val target = UInt(bounds.valueWidth bits).allowOverride()") != 1:
+    raise SystemExit(
+        "Counter typed adapter must isolate exactly one exhaustive structural scratch target"
+    )
 
 if algorithm.count("typedBounds == null") != 1:
     raise SystemExit(
@@ -728,6 +737,8 @@ for token in \
   'start <- Vector(0, 3)' \
   'handleOverflow = false' \
   'StateCounts = Vector(1, 4, 5)' \
+  'assertModuleScopeTemporariesDeclared(typedVerilog)' \
+  'assertDirectionalNaturalWrapDrivers(typedVerilog)' \
   'PASS Counter single authority STATE_COUNT='; do
   grep -Fq "$token" "$counter_parity_tests"
 done

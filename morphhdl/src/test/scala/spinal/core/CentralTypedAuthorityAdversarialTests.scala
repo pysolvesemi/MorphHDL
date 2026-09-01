@@ -12,6 +12,7 @@ import spinal.lib.{Counter, StreamFifo}
 class CentralTypedAuthorityAdversarialTests extends AnyFunSuite {
   test("trusted concrete derivations normalize to canonical literal authority") {
     val derived = (ElabInt.literal(8) + 4) / 3
+    val remainder = ElabInt.literal(12) % 8
 
     assert(derived.expression.verilog == "4")
     assert(derived.expression.default == 4)
@@ -19,6 +20,13 @@ class CentralTypedAuthorityAdversarialTests extends AnyFunSuite {
     assert(derived.expression.maximum == 4)
     assert(derived.bits.value == 4)
     assert(derived.slices.value == 4)
+
+    assert(remainder.expression.verilog == "4")
+    assert(remainder.expression.default == 4)
+    assert(remainder.expression.minimum == 4)
+    assert(remainder.expression.maximum == 4)
+    assert(remainder.bits.value == 4)
+    assert(remainder.slices.value == 4)
 
     val overflow = intercept[ParameterizedVerilogException] {
       ElabInt.literal(Int.MaxValue) + 1

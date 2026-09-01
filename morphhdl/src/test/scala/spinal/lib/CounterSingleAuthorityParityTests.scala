@@ -134,6 +134,19 @@ package morphhdl {
   class CounterSingleAuthorityParityTests extends AnyFunSuite {
     private val StateCounts = Vector(1, 4, 5)
 
+    private val TemporaryIdentifier =
+      """\b(_zz[A-Za-z0-9_$]*)\b""".r
+    private val TemporaryDeclaration =
+      """^\s*(?:wire|reg)\b[^;]*\b(_zz[A-Za-z0-9_$]*)\s*;\s*$""".r
+    private val DirectTemporaryAlias =
+      """(?m)^\s*assign\s+(_zz[A-Za-z0-9_$]*)\s*=\s*(_zz[A-Za-z0-9_$]*)\s*;\s*$""".r
+    private val ProceduralTemporaryAssignment =
+      """(?m)^\s*(_zz[A-Za-z0-9_$]*)\s*=\s*(_zz[A-Za-z0-9_$]*)\s*;\s*$""".r
+    private val NaturalWrapAlternatives =
+      """(?s)^\s*if \(!.*? begin : \S+\n(.*?)\n\s*end else begin : \S+\n(.*?)\n\s*end\s*$""".r
+
+    private final case class BranchDriver(target: String, arithmetic: String)
+
     test("typed Counter specializations match independent concrete policy matrices") {
       withTemporaryDirectory { directory =>
         val typedDirectory = directory.resolve("typed")
@@ -153,6 +166,8 @@ package morphhdl {
         val typedRtl = typedDirectory.resolve(typedConfig.netlistFileName)
         val typedVerilog = read(typedRtl)
         assert(typedVerilog.contains("parameter integer STATE_COUNT = 1"))
+        assertModuleScopeTemporariesDeclared(typedVerilog)
+        assertDirectionalNaturalWrapDrivers(typedVerilog)
 
         StateCounts.foreach { selected =>
           val concreteDirectory = directory.resolve(s"concrete_$selected")
@@ -181,6 +196,100 @@ package morphhdl {
         }
       }
     }
+
+    /** A dependency used by ordinary module-scope logic must never have only
+      * its declaration relocated beneath a generated Counter alternative.
+      * Restrict this audit to native `_zz` temporaries so ports, parameters,
+      * functions and generate-local carriers remain outside the assertion.
+      */
+    private def assertModuleScopeTemporariesDeclared(verilog: String): Unit = {
+      val marker = "\n  generate\n"
+      val firstGenerate = verilog.indexOf(marker)
+      assert(firstGenerate >= 0, s"missing typed Counter generate region:\n$verilog")
+      val moduleScope = verilog.substring(0, firstGenerate)
+      val referenced = TemporaryIdentifier
+        .findAllMatchIn(moduleScope)
+        .map(_.group(1))
+        .toSet
+      val declared = moduleScope
+        .split("\n", -1)
+        .flatMap(line =>
+          TemporaryDeclaration.findFirstMatchIn(line).map(_.group(1))
+        )
+        .toSet
+      val escaped = referenced -- declared
+      assert(
+        escaped.isEmpty,
+        s"module-scope Counter logic references generate-local temporaries ${escaped.toVector.sorted.mkString(", ")}:\n$verilog"
+      )
+    }
+
+    /** The up/down natural-wrap decision must retain a complete arithmetic
+      * owner in both generated alternatives.  The non-natural branch adds one
+      * boundary override; the natural branch keeps the same target and exact
+      * arithmetic source without that override.
+      */
+    private def assertDirectionalNaturalWrapDrivers(verilog: String): Unit = {
+      val generated = verilog
+        .split("\n  generate\n", -1)
+        .drop(1)
+        .toVector
+        .map { suffix =>
+          val end = suffix.indexOf("\n  endgenerate")
+          assert(end >= 0, s"unterminated typed Counter generate region:\n$suffix")
+          suffix.substring(0, end)
+        }
+      val naturalWrap = generated.filter(_.trim.startsWith("if (!"))
+      assert(
+        naturalWrap.size == 2,
+        s"expected two directional natural-wrap alternatives, found ${naturalWrap.size}:\n$verilog"
+      )
+
+      naturalWrap.foreach {
+        case NaturalWrapAlternatives(nonNaturalBody, naturalBody) =>
+          val nonNatural = branchDriver(nonNaturalBody, verilog)
+          val natural = branchDriver(naturalBody, verilog)
+          assert(
+            nonNatural == natural,
+            s"natural-wrap alternatives do not drive one target from one arithmetic source: $nonNatural / $natural\n$verilog"
+          )
+          assert(
+            proceduralAssignmentsTo(nonNaturalBody, nonNatural.target) == 2,
+            s"non-natural-wrap branch lost its arithmetic default or boundary override for '${nonNatural.target}':\n$verilog"
+          )
+          assert(
+            proceduralAssignmentsTo(naturalBody, natural.target) == 1,
+            s"natural-wrap branch must retain exactly its arithmetic driver for '${natural.target}':\n$verilog"
+          )
+        case block =>
+          fail(s"typed Counter natural-wrap region has unexpected geometry:\n$block\n$verilog")
+      }
+    }
+
+    private def branchDriver(body: String, verilog: String): BranchDriver = {
+      val aliases = DirectTemporaryAlias
+        .findAllMatchIn(body)
+        .map(value => value.group(1) -> value.group(2))
+        .toMap
+      val drivers = ProceduralTemporaryAssignment
+        .findAllMatchIn(body)
+        .flatMap { value =>
+          aliases
+            .get(value.group(2))
+            .map(arithmetic => BranchDriver(value.group(1), arithmetic))
+        }
+        .toVector
+      assert(
+        drivers.size == 1,
+        s"typed Counter alternative retained ${drivers.size} complete arithmetic drivers instead of one:\n$body\n$verilog"
+      )
+      drivers.head
+    }
+
+    private def proceduralAssignmentsTo(body: String, target: String): Int =
+      ("(?m)^\\s*" + java.util.regex.Pattern.quote(target) + "\\s*=").r
+        .findAllMatchIn(body)
+        .size
 
     private def simulateParity(
         directory: Path,

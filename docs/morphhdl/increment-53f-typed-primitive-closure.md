@@ -110,6 +110,12 @@ missing values are rejected before projection. A typed initial value must lie
 inside every admitted start/end interval, not merely inside the default
 witness interval.
 
+Each directional natural-wrap choice is exhaustive: both generated alternatives
+own one complete arithmetic update behind the typed adapter's isolated scratch
+target, and only the non-natural alternative adds the boundary override. This
+keeps shared state declarations at module scope and prevents partial relocation
+of the native process. Concrete selection remains static on `valueNext`.
+
 Typed `addressWidth` is shared by Counter, Mem and Vec algorithms and stays at
 least one bit for a positive one-element domain. Memory port normalization may
 read one reviewed witness width internally, but the retained `Mem` depth and

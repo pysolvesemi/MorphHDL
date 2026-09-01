@@ -1471,14 +1471,16 @@ object ElabInt {
         left.sourceLocation.orElse(right.sourceLocation)
       )
     }
+    val default = projectedDefault(left) % projectedDefault(right)
+    val concrete = left.isConcrete && right.isConcrete
     val maximum = (right.maximum - 1).min(left.maximum).max(BigInt(0))
     binary(
       "%",
       left,
       right,
-      BigInt(0),
-      maximum,
-      projectedDefault(left) % projectedDefault(right)
+      if (concrete) default else BigInt(0),
+      if (concrete) default else maximum,
+      default
     )
   }
 

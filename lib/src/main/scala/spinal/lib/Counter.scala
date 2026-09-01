@@ -620,14 +620,13 @@ class Counter private[lib] (
     def and(left: AlgorithmControl, right: AlgorithmControl): AlgorithmControl
     def or(left: AlgorithmControl, right: AlgorithmControl): AlgorithmControl
     def not(value: AlgorithmControl): AlgorithmControl
-    def generateWhen(value: AlgorithmControl)(body: => Unit): Unit
     def select(value: AlgorithmControl)(ifTrue: => Unit)(ifFalse: => Unit): Unit
     def stepType(): UInt
     def prepareDecrementStep(step: UInt): UInt
     def assignDecrementStep(step: UInt, prepared: UInt): Unit
     def assignArithmetic(target: UInt, source: UInt): Unit
     def assignStepSum(target: UInt, source: UInt): Unit
-    def withBothTarget(body: UInt => Unit): Unit
+    def withUpdateTarget(body: UInt => Unit): Unit
     def clearValue(initial: AlgorithmValue, prototype: UInt): UInt
   }
 
@@ -684,9 +683,6 @@ class Counter private[lib] (
     def not(value: AlgorithmControl): AlgorithmControl =
       control(!concrete(value))
 
-    def generateWhen(value: AlgorithmControl)(body: => Unit): Unit =
-      if (concrete(value)) body
-
     def select(value: AlgorithmControl)(ifTrue: => Unit)(
         ifFalse: => Unit
     ): Unit =
@@ -700,7 +696,7 @@ class Counter private[lib] (
       target := source.resized
     def assignStepSum(target: UInt, source: UInt): Unit =
       target := source.resized
-    def withBothTarget(body: UInt => Unit): Unit = body(valueNext)
+    def withUpdateTarget(body: UInt => Unit): Unit = body(valueNext)
     def clearValue(initial: AlgorithmValue, prototype: UInt): UInt =
       U(initial.witness, valueWidthWitness bits)
   }
@@ -769,15 +765,6 @@ class Counter private[lib] (
     def not(value: AlgorithmControl): AlgorithmControl =
       new TypedAlgorithmControl(!typed(value))
 
-    def generateWhen(value: AlgorithmControl)(body: => Unit): Unit =
-      ElabControl.generateSymbolic(
-        typed(value),
-        sourcecode.File(),
-        sourcecode.Line()
-      ) {
-        body
-      }
-
     def select(value: AlgorithmControl)(ifTrue: => Unit)(
         ifFalse: => Unit
     ): Unit =
@@ -801,8 +788,13 @@ class Counter private[lib] (
     def assignStepSum(target: UInt, source: UInt): Unit =
       target := source.resized
 
-    def withBothTarget(body: UInt => Unit): Unit = {
-      val target = UInt(bounds.valueWidth bits)
+    def withUpdateTarget(body: UInt => Unit): Unit = {
+      // Exact structural alternatives are mutually exclusive in the retained
+      // typed domain, but ordinary Spinal overlap checking sees both captured
+      // bodies at module scope.  Isolate only that exhaustive update surface
+      // behind one explicit scratch target; the public valueNext process and
+      // its clear override remain ordinary single-authority hardware.
+      val target = UInt(bounds.valueWidth bits).allowOverride()
       target.dontSimplifyIt()
       body(target)
       valueNext := target
@@ -880,13 +872,20 @@ class Counter private[lib] (
       prepared: PreparedBoundary,
       target: UInt
   ): Unit = {
-    // Keep the authoritative update as a whole-target native resize. MorphHDL
-    // captures this exact assignment before Spinal removes its resize marker.
-    algorithm.assignArithmetic(target, arith)
-    algorithm.generateWhen(algorithm.not(naturalWrapControl(policy))) {
+    // Keep each symbolic alternative's authoritative update as a complete
+    // whole-target native resize.  The native emitter coalesces assignments to
+    // one target into one procedural process; capturing only the conditional
+    // boundary override would therefore move that complete process below one
+    // generate branch and leave the natural-wrap branch without its arithmetic
+    // driver.  Concrete selection remains static and emits the historical
+    // single process, while typed selection retains two exhaustive owners.
+    algorithm.select(algorithm.not(naturalWrapControl(policy))) {
+      algorithm.assignArithmetic(target, arith)
       when(boundary) {
         target := algorithm.boundaryValue(prepared)
       }
+    } {
+      algorithm.assignArithmetic(target, arith)
     }
   }
 
@@ -954,23 +953,27 @@ class Counter private[lib] (
 
   direction match {
     case CounterDirection.Up =>
-      emitDirectionalStep(
-        value + U(effectiveInc),
-        willOverflow,
-        upper,
-        wrapTo = algorithm.lower,
-        pinTo = algorithm.upper,
-        target = valueNext
-      )
+      algorithm.withUpdateTarget { target =>
+        emitDirectionalStep(
+          value + U(effectiveInc),
+          willOverflow,
+          upper,
+          wrapTo = algorithm.lower,
+          pinTo = algorithm.upper,
+          target = target
+        )
+      }
     case CounterDirection.Down =>
-      emitDirectionalStep(
-        value - U(effectiveDec),
-        willUnderflow,
-        lower,
-        wrapTo = algorithm.upper,
-        pinTo = algorithm.lower,
-        target = valueNext
-      )
+      algorithm.withUpdateTarget { target =>
+        emitDirectionalStep(
+          value - U(effectiveDec),
+          willUnderflow,
+          lower,
+          wrapTo = algorithm.upper,
+          pinTo = algorithm.lower,
+          target = target
+        )
+      }
     case CounterDirection.Both =>
       // Resolve lazy controls before a typed adapter captures either structural
       // alternative, and retain one target across the shared algorithm.
@@ -979,7 +982,7 @@ class Counter private[lib] (
       val bothWillOverflow = willOverflow
       val bothWillUnderflow = willUnderflow
       val bothWrap = upper == BoundaryPolicy.Wrap && lower == BoundaryPolicy.Wrap
-      algorithm.withBothTarget { target =>
+      algorithm.withUpdateTarget { target =>
         val upperBoundary = preparedBoundary(
           upper,
           wrapTo = algorithm.lower,
