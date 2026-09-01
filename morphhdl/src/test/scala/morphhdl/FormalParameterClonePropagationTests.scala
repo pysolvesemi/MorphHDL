@@ -8,7 +8,7 @@ import scala.collection.JavaConverters._
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 
-import morphhdl.frontend.{formalParam, formalRegion, HdlInt}
+import morphhdl.frontend.{formalParam, HdlInt}
 
 object FormalParameterClonePropagationSmoke {
   final class Leaf(actualWidth: HdlInt) extends Component {
@@ -118,64 +118,8 @@ object FormalParameterClonePropagationSmoke {
 class FormalParameterClonePropagationTests extends AnyFunSuite {
   import FormalParameterClonePropagationSmoke._
 
-  private final class RootlessRecoveryProbe extends Component {
-    setDefinitionName("FormalRootlessRecoveryProbe")
-
-    private val schema =
-      ElaborationIntegerParameter("WIDTH", default = 8, minimum = 1, maximum = 16)
-    private val binding = ExternalFormalParameterBinding(
-      formal = schema,
-      actual = ElaborationIntegerExpression(
-        verilog = "8",
-        default = 8,
-        minimum = 8,
-        maximum = 8,
-        parameters = Vector.empty
-      ),
-      declarationKey = "rootless-recovery-probe::WIDTH",
-      ownerClassName = getClass.getName,
-      sourceLocation = None
-    )
-    ExternalFormalParameterRegistry.retainComponent(this, binding)
-
-    private val independentWidth =
-      HdlInt.param("WIDTH", default = 8, min = 1, max = 16).asElabInt
-    val unbound = out(Bits(independentWidth bits))
-
-    require(
-      ExternalFormalParameterRegistry.bindingOf(unbound).isEmpty,
-      "a rootless component formal must not recover an independently rooted leaf"
-    )
-    unbound := 0
-  }
-
-  private final class IndependentActualRootsProbe extends Component {
-    setDefinitionName("FormalIndependentActualRootsProbe")
-
-    private val formal =
-      ElaborationIntegerParameter("WIDTH", default = 8, minimum = 1, maximum = 16)
-    private val firstActual =
-      HdlInt.param("ACTUAL_WIDTH", default = 8, min = 1, max = 16).asElabInt
-    private val secondActual =
-      HdlInt.param("ACTUAL_WIDTH", default = 8, min = 1, max = 16).asElabInt
-    private def binding(actual: ElabInt) =
-      ExternalFormalParameterBinding(
-        formal = formal,
-        actual = actual.bits.expression.get,
-        declarationKey = "independent-actual-roots-probe::WIDTH",
-        ownerClassName = getClass.getName,
-        sourceLocation = None
-      )
-
-    ExternalFormalParameterRegistry.retainComponent(this, binding(firstActual))
-    ExternalFormalParameterRegistry.retainComponent(this, binding(secondActual))
-  }
-
   private final class FormalRegistryPreflightProbe extends Component {
     setDefinitionName("FormalRegistryPreflightProbe")
-
-    val attached = out(Bits(8 bits))
-    attached := 0
 
     private val retainFormal = ElaborationIntegerParameter(
       "RETAIN_WIDTH",
@@ -216,200 +160,26 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
       minimum = 1,
       maximum = 16
     )
-    private val wrongAttachFormal = ElaborationIntegerParameter(
-      "WRONG_ATTACH_WIDTH",
-      default = 8,
-      minimum = 1,
-      maximum = 16
-    )
-    private val invalidAttachBinding = binding(
-      attachFormal,
-      "formal-registry-preflight::invalid-attach",
-      getClass.getName
-    )
-    val invalidAttachCode = captureCode {
-      ExternalFormalParameterRegistry.attach(
-        this,
-        attached,
-        ParameterizedBitCount(8, wrongAttachFormal),
-        invalidAttachBinding
-      )
-    }
     private val validAttachBinding = binding(
       attachFormal,
       "formal-registry-preflight::valid-attach",
       getClass.getName
     )
-    ExternalFormalParameterRegistry.attach(
-      this,
-      attached,
+    private val attachWidth = ExternalFormalParameterRegistry.retain(
       ParameterizedBitCount(8, attachFormal),
       validAttachBinding
     )
+    val attached = out(
+      ExternalFormalParameterRegistry.attach(
+        ParameterizedWidth.Bits(attachWidth),
+        attachWidth
+      )
+    )
+    attached := 0
     val attachRetrySucceeded =
       ExternalFormalParameterRegistry
         .bindingOf(attached)
         .exists(_.declarationKey == validAttachBinding.declarationKey)
-  }
-
-  private final class InvalidFormalActualPreflightProbe extends Component {
-    setDefinitionName("InvalidFormalActualPreflightProbe")
-
-    val keepAlive = out(Bool())
-    keepAlive := False
-
-    private val malformedFormal = ElaborationIntegerParameter(
-      "MALFORMED_ACTUAL_WIDTH",
-      default = 8,
-      minimum = 1,
-      maximum = 16
-    )
-    private val actualSchema = ElaborationIntegerParameter(
-      "ACTUAL_WIDTH",
-      default = 8,
-      minimum = 1,
-      maximum = 16
-    )
-    private val malformedActual = ElaborationIntegerExpression(
-      verilog = "ACTUAL_WIDTH",
-      default = 8,
-      minimum = 1,
-      maximum = 16,
-      parameters = Vector(actualSchema),
-      parameterRoots = null
-    )
-    val malformedActualCode = captureCode {
-      ExternalFormalParameterRegistry.retainComponent(
-        this,
-        binding(
-          malformedFormal,
-          "formal-actual-preflight::invalid-roots",
-          getClass.getName,
-          malformedActual
-        )
-      )
-    }
-    ExternalFormalParameterRegistry.retainComponent(
-      this,
-      binding(
-        malformedFormal,
-        "formal-actual-preflight::valid-roots",
-        getClass.getName
-      )
-    )
-    val malformedRetrySucceeded = true
-
-    private val nullFormal = ElaborationIntegerParameter(
-      "NULL_ACTUAL_WIDTH",
-      default = 8,
-      minimum = 1,
-      maximum = 16
-    )
-    val nullActualCode = captureCode {
-      ExternalFormalParameterRegistry.retainComponent(
-        this,
-        binding(
-          nullFormal,
-          "formal-actual-preflight::invalid-null",
-          getClass.getName,
-          null
-        )
-      )
-    }
-    ExternalFormalParameterRegistry.retainComponent(
-      this,
-      binding(
-        nullFormal,
-        "formal-actual-preflight::valid-null",
-        getClass.getName
-      )
-    )
-    val nullRetrySucceeded = true
-  }
-
-  private final class FormalBatchLeaf extends Component {
-    setDefinitionName("FormalBatchPreflightLeaf")
-
-    val first = in(Bits(8 bits))
-    val second = out(Bits(8 bits))
-    second := first
-  }
-
-  private final class FormalBatchPreflightProbe extends Component {
-    setDefinitionName("FormalBatchPreflightProbe")
-
-    val child = new FormalBatchLeaf
-    child.first := 0
-    val observed = out(Bits(8 bits))
-    observed := child.second
-
-    private val seedFormal = ElaborationIntegerParameter(
-      "SEED_WIDTH",
-      default = 8,
-      minimum = 1,
-      maximum = 16
-    )
-    private val seedBinding = binding(
-      seedFormal,
-      "formal-batch-preflight::seed",
-      child.getClass.getName
-    )
-    ExternalFormalParameterRegistry.attach(
-      child,
-      child.second,
-      ParameterizedBitCount(8, seedFormal),
-      seedBinding
-    )
-
-    private val incomingFormal = ElaborationIntegerParameter(
-      "WIDTH",
-      default = 8,
-      minimum = 1,
-      maximum = 16
-    )
-    private val invalidIncoming = binding(
-      incomingFormal,
-      "formal-batch-preflight::invalid",
-      child.getClass.getName
-    )
-    val batchConflictCode = captureCode {
-      ExternalNativeIntFormalizationTestAccess.attachComponentGeometry(
-        this,
-        child,
-        Vector(child.first, child.second),
-        invalidIncoming,
-        callSite = "formal-batch-preflight"
-      )
-    }
-    val firstLeafUnchanged =
-      ExternalFormalParameterRegistry.bindingOf(child.first).isEmpty &&
-        ParameterizedWidth.expressionOf(child.first).isEmpty
-    val conflictingLeafPreserved =
-      ExternalFormalParameterRegistry
-        .bindingOf(child.second)
-        .exists(_.declarationKey == seedBinding.declarationKey) &&
-        ParameterizedWidth
-          .expressionOf(child.second)
-          .exists(_.verilog == seedFormal.name)
-    val componentRecordUnchanged =
-      ExternalNativeIntFormalizationRegistry.componentRecordsOf(child).isEmpty
-    val formalBindingsUnchanged =
-      ExternalFormalParameterRegistry
-        .bindingsOf(child)
-        .map(_.declarationKey) == Vector(seedBinding.declarationKey)
-    val regionRecordsUnchanged =
-      ExternalNativeIntFormalizationRegistry.regionOf(child.first).isEmpty &&
-        ExternalNativeIntFormalizationRegistry.regionOf(child.second).isEmpty
-
-    ExternalFormalParameterRegistry.retainComponent(
-      child,
-      binding(
-        incomingFormal,
-        "formal-batch-preflight::valid",
-        child.getClass.getName
-      )
-    )
-    val declarationRetrySucceeded = true
   }
 
   private final class PendingOwnerA(
@@ -448,15 +218,16 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
         )
       )
     }
-    ExternalFormalParameterRegistry.retainComponent(
-      this,
+    private val retryWidth = ParameterizedBitCount(8, sharedFormal)
+    ExternalFormalParameterRegistry.retain(
+      retryWidth,
       binding(
         sharedFormal,
         "formal-pending-preflight::retry-owner-b",
         getClass.getName
       )
     )
-    val declarationRetrySucceeded = true
+    val retainRetrySucceeded = true
   }
 
   private final class PendingDeclarationPreflightProbe extends Component {
@@ -471,66 +242,6 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
     private val sharedWidth = ParameterizedBitCount(8, sharedFormal)
     val first = new PendingOwnerA(sharedWidth, sharedFormal)
     val second = new PendingOwnerB(sharedWidth, sharedFormal)
-  }
-
-  private final class FormalRegionOnFormalParamProbe(actual: HdlInt) extends Component {
-    setDefinitionName("FormalRegionOnFormalParamProbe")
-
-    @dontName
-    private val width = formalParam(actual, "WIDTH")
-    val data = out(formalRegion(width)(value => Bits(value bits)))
-    data := 0
-
-    private val retainedBinding =
-      ExternalFormalParameterRegistry.bindingOf(data).getOrElse {
-        throw new IllegalStateException("formalRegion lost its formal binding")
-      }
-    val exactSchemaRetained = ParameterizedWidth
-      .expressionOf(data)
-      .exists(_.parameters match {
-        case Vector(parameter) => parameter eq retainedBinding.formal
-        case _                 => false
-      })
-  }
-
-  private final class MalformedNativeRegionPreflightProbe extends Component {
-    setDefinitionName("MalformedNativeRegionPreflightProbe")
-
-    val data = out(Bits(8 bits))
-    data := 0
-
-    private val formal = ElaborationIntegerParameter(
-      "WIDTH",
-      default = 8,
-      minimum = 1,
-      maximum = 16
-    )
-    private val malformedExpression = ElaborationIntegerExpression(
-      verilog = "WIDTH",
-      default = 8,
-      minimum = 1,
-      maximum = 16,
-      parameters = Vector(formal),
-      parameterRoots = null
-    )
-    private val formalBinding = binding(
-      formal,
-      "malformed-native-region-preflight::WIDTH",
-      getClass.getName
-    )
-    val malformedExpressionCode = captureCode {
-      ExternalNativeIntFormalizationTestAccess.attachRegion(
-        this,
-        data,
-        malformedExpression,
-        Some(formalBinding),
-        callSite = "malformed-native-region-preflight"
-      )
-    }
-    val metadataUnchanged =
-      ExternalNativeIntFormalizationRegistry.regionOf(data).isEmpty &&
-        ExternalFormalParameterRegistry.bindingOf(data).isEmpty &&
-        ParameterizedWidth.expressionOf(data).isEmpty
   }
 
   private def literalActual: ElaborationIntegerExpression =
@@ -646,38 +357,7 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
     }
   }
 
-  test("rootless component formals do not wildcard-recover rooted leaves") {
-    withTemporaryDirectory { directory =>
-      val config = SpinalConfig(targetDirectory = directory.toString)
-      config.netlistFileName = "formal_rootless_recovery_probe.v"
-      // The assertion runs during construction. Ordinary publication then
-      // proves the intentionally unbound symbolic metadata is not consumed as
-      // a MorphHDL formal hierarchy binding.
-      SpinalVerilog(config)(new RootlessRecoveryProbe)
-    }
-  }
-
-  test("one formal slot rejects independently rooted same-schema actuals") {
-    withTemporaryDirectory { directory =>
-      val config = SpinalConfig(targetDirectory = directory.toString)
-      config.netlistFileName = "formal_independent_actual_roots_probe.v"
-      MorphVerilog.tryGenerate(config)(new IndependentActualRootsProbe) match {
-        case Left(failure) =>
-          assert(
-            failure.detail.contains(
-              "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS"
-            ),
-            failure.detail
-          )
-        case Right(report) =>
-          fail(
-            "Expected independent formal-slot root ambiguity, received " + report
-          )
-      }
-    }
-  }
-
-  test("invalid formal widths do not reserve retain or attach declarations") {
+  test("invalid formal widths do not reserve declarations and retained widths attach") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
       config.netlistFileName = "formal_registry_preflight_probe.v"
@@ -688,54 +368,11 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
           "SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-SCHEMA-MISMATCH"
       )
       assert(probe.retainRetrySucceeded)
-      assert(
-        probe.invalidAttachCode ==
-          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-SCHEMA-MISMATCH"
-      )
       assert(probe.attachRetrySucceeded)
     }
   }
 
-  test("malformed formal actuals fail typed preflight without reserving declarations") {
-    withTemporaryDirectory { directory =>
-      val config = SpinalConfig(targetDirectory = directory.toString)
-      config.netlistFileName = "formal_actual_preflight_probe.v"
-      val probe =
-        SpinalVerilog(config)(new InvalidFormalActualPreflightProbe).toplevel
-
-      assert(
-        probe.malformedActualCode ==
-          "SPINAL-ELAB-INT-PARAMETER-ROOT-NULL"
-      )
-      assert(probe.malformedRetrySucceeded)
-      assert(
-        probe.nullActualCode ==
-          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-ACTUAL-NULL"
-      )
-      assert(probe.nullRetrySucceeded)
-    }
-  }
-
-  test("formal region batches preflight every leaf before committing metadata") {
-    withTemporaryDirectory { directory =>
-      val config = SpinalConfig(targetDirectory = directory.toString)
-      config.netlistFileName = "formal_batch_preflight_probe.v"
-      val probe = SpinalVerilog(config)(new FormalBatchPreflightProbe).toplevel
-
-      assert(
-        probe.batchConflictCode ==
-          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-METADATA-CONFLICT"
-      )
-      assert(probe.firstLeafUnchanged)
-      assert(probe.conflictingLeafPreserved)
-      assert(probe.componentRecordUnchanged)
-      assert(probe.formalBindingsUnchanged)
-      assert(probe.regionRecordsUnchanged)
-      assert(probe.declarationRetrySucceeded)
-    }
-  }
-
-  test("pending conflicts do not reserve declarations for the losing owner") {
+  test("pending conflicts do not reserve declarations for a two-argument retry") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
       config.netlistFileName = "formal_pending_preflight_probe.v"
@@ -746,35 +383,7 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
         probe.second.pendingConflictCode ==
           "SPINAL-PARAMETERIZED-VERILOG-FORMAL-METADATA-CONFLICT"
       )
-      assert(probe.second.declarationRetrySucceeded)
-    }
-  }
-
-  test("formalRegion reuses the exact formal schema object") {
-    withTemporaryDirectory { directory =>
-      val actual =
-        HdlInt.param("ACTUAL_WIDTH", default = 8, min = 1, max = 16)
-      val config = SpinalConfig(targetDirectory = directory.toString)
-      config.netlistFileName = "formal_region_exact_schema_probe.v"
-      val probe =
-        SpinalVerilog(config)(new FormalRegionOnFormalParamProbe(actual)).toplevel
-
-      assert(probe.exactSchemaRetained)
-    }
-  }
-
-  test("malformed native region expressions fail typed preflight before attachment") {
-    withTemporaryDirectory { directory =>
-      val config = SpinalConfig(targetDirectory = directory.toString)
-      config.netlistFileName = "malformed_native_region_preflight_probe.v"
-      val probe =
-        SpinalVerilog(config)(new MalformedNativeRegionPreflightProbe).toplevel
-
-      assert(
-        probe.malformedExpressionCode ==
-          "SPINAL-ELAB-INT-PARAMETER-ROOT-NULL"
-      )
-      assert(probe.metadataUnchanged)
+      assert(probe.second.retainRetrySucceeded)
     }
   }
 

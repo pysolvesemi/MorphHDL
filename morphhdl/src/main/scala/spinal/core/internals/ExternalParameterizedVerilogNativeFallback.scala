@@ -120,13 +120,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       .split("\\n", -1)
       .map(line => rewriteDeclarationLine(line, widthsByName))
       .mkString("\n")
-    val rewrittenCounterBoundaries = rewriteSymbolicCounterBoundaryComparisons(
-      rewrittenDeclarations,
-      analysis.symbolicCounterBoundaryWidths
-    )
     val rewrittenValues = rewriteRetainedValueAssignments(
       component,
-      rewrittenCounterBoundaries
+      rewrittenDeclarations
     )
     val rewrittenResizes = rewriteRetainedResizeAssignments(
       component,
@@ -268,7 +264,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
   private case object NativePrefixComma extends NativeHelperPrefixToken
   private case object NativePrefixOther extends NativeHelperPrefixToken
 
-  /** Compiler-shadow helper names are an internal expression IR, not Verilog
+  /** Typed symbolic helper names are an internal expression IR, not Verilog
     * functions. Lower the reviewed positive-width helpers after every other
     * native rewrite so declarations, structural alternatives and memories all
     * share one collision-safe IEEE-1364 implementation.
@@ -902,27 +898,11 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
   }
 
-  /** Resolve typed and legacy shadow resize provenance through exact native
-    * Resize identity. Both paths may coexist during migration only when their
-    * expressions are equivalent.
-    */
+  /** Resolve typed resize provenance through exact native Resize identity. */
   private def retainedResizeExpression(
       resize: Resize
-  ): Option[ElaborationIntegerExpression] = {
-    val typed = ParameterizedWidth.resizeExpressionOf(resize)
-    val legacy = ExternalParameterizedResizeRegistry.expressionOf(resize)
-    (typed, legacy) match {
-      case (Some(left), Some(right)) if !ExternalFormalParameterRegistry.equivalentExpression(left, right) =>
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-RESIZE-PROVENANCE-CONFLICT",
-          s"one exact native Resize target is associated with conflicting typed expression '${left.verilog}' and legacy expression '${right.verilog}'",
-          left.sourceLocation.orElse(right.sourceLocation)
-        )
-      case (Some(value), _) => Some(value)
-      case (_, Some(value)) => Some(value)
-      case _                => None
-    }
-  }
+  ): Option[ElaborationIntegerExpression] =
+    ParameterizedWidth.resizeExpressionOf(resize)
 
   /** Replace target-witness syntax emitted for one exact native Resize. A
     * narrowing slice receives the retained symbolic range; a proven unsigned
@@ -1409,83 +1389,6 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     lines.mkString("\n")
   }
 
-  /** Preserve the untouched native full-range Counter boundary comparison when
-    * its concrete witness state is widened externally. Only state leaves whose
-    * provenance was retained by ExternalParameterizedCounterRegistry are
-    * eligible; fixed-width literals written by users are intentionally left
-    * unchanged.
-    */
-  private def rewriteSymbolicCounterBoundaryComparisons(
-      verilog: String,
-      boundaries: Vector[(String, ElaborationIntegerExpression)]
-  ): String = {
-    val literalSyntax = "[0-9]+'[sS]?[bBoOdDhH][0-9a-fA-F_xXzZ_]+"
-    val literalParser =
-      "(?i)^([0-9]+)'([s]?)([bodh])([0-9a-f_xz_]+)$".r
-
-    def literalValue(digits: String, radix: String): Option[BigInt] = {
-      if (
-        digits.exists(character =>
-          character == 'x' || character == 'X' ||
-            character == 'z' || character == 'Z'
-        )
-      ) None
-      else {
-        val base = radix.toLowerCase match {
-          case "b" => 2
-          case "o" => 8
-          case "d" => 10
-          case "h" => 16
-        }
-        Some(BigInt(digits.replace("_", ""), base))
-      }
-    }
-
-    def isWitnessAllOnes(
-        literal: String,
-        width: ElaborationIntegerExpression
-    ): Boolean = literal match {
-      case literalParser(sizeText, _, radix, digits) if width.default.isValidInt && width.default > 0 =>
-        val size = BigInt(sizeText)
-        size == width.default &&
-        literalValue(digits, radix).contains((BigInt(1) << size.toInt) - 1)
-      case _ => false
-    }
-
-    boundaries.distinct.foldLeft(verilog) { case (current, (name, width)) =>
-      if (width.parameters.isEmpty || !width.default.isValidInt || width.default < 1) current
-      else {
-        val repeatCount =
-          if ("[A-Za-z_][A-Za-z0-9_$]*".r.pattern.matcher(width.verilog).matches())
-            width.verilog
-          else s"(${width.verilog})"
-        val replacement = s"{$repeatCount{1'b1}}"
-        val signal = Pattern.quote(name)
-        val left =
-          ("(^|[^A-Za-z0-9_$])(" + signal +
-            "\\s*(?:===|!==|==|!=)\\s*)(" + literalSyntax + ")").r
-        val right =
-          ("(^|[^A-Za-z0-9_$])(" + literalSyntax +
-            ")(\\s*(?:===|!==|==|!=)\\s*" + signal +
-            ")(?=$|[^A-Za-z0-9_$])").r
-        val afterLeft = left.replaceAllIn(
-          current,
-          matched =>
-            if (isWitnessAllOnes(matched.group(3), width))
-              matched.group(1) + matched.group(2) + replacement
-            else matched.matched
-        )
-        right.replaceAllIn(
-          afterLeft,
-          matched =>
-            if (isWitnessAllOnes(matched.group(2), width))
-              matched.group(1) + replacement + matched.group(3)
-            else matched.matched
-        )
-      }
-    }
-  }
-
   private final case class RenderedDeclaration(
       indent: String,
       syntax: String,
@@ -1840,17 +1743,6 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case _ => None
       }
 
-    lazy val symbolicCounterBoundaryWidths: Vector[(String, ElaborationIntegerExpression)] =
-      declarations.distinct.toVector.flatMap {
-        case bitVector: BitVector =>
-          spinal.lib.ExternalParameterizedCounterRegistry
-            .boundaryWidthOf(bitVector)
-            .flatMap { expression =>
-              Option(bitVector.getName()).filter(_.nonEmpty).map(_ -> expression)
-            }
-        case _ => None
-      }
-
     lazy val parameters: Vector[ElaborationIntegerParameter] = {
       val normalizedResizeExpressions =
         normalizedTypedResizeBoundaries.flatMap { boundary =>
@@ -2034,12 +1926,6 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               ) {
                 val targetWidth = widthInference.ofBase(target)
                 val sourceWidth = widthInference.ofExpression(assignment.source)
-                val nativeCounterNext = isNativeCounterNextAssignment(
-                  assignment,
-                  target,
-                  targetWidth,
-                  sourceWidth
-                )
                 val provenAutoResize = isProvenAutoResizeAssignment(
                   assignment,
                   target,
@@ -2073,7 +1959,6 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 if (
                   targetWidth.isSymbolic && sourceWidth.isSymbolic &&
                   !equivalentWidthExpression(targetWidth, sourceWidth) &&
-                  !nativeCounterNext &&
                   !provenAutoResize && !provenModularUpdate &&
                   !provenCapturedDomainEquivalent &&
                   !provenCompleteDomainEquivalent
@@ -2086,7 +1971,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 }
                 if (
                   targetWidth.isSymbolic && !sourceWidth.isSymbolic &&
-                  !isUnfixedLiteral(assignment.source) && !nativeCounterNext &&
+                  !isUnfixedLiteral(assignment.source) &&
                   !provenAutoResize && !provenModularUpdate &&
                   !provenInvariantTargetWidth &&
                   !provenCapturedDomainEquivalent &&
@@ -2259,41 +2144,6 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         )
       }
     }
-
-    /** Native Counter elaboration intentionally uses the concrete witness width
-      * in its arithmetic and zero-valued clear path. Accept that widening only
-      * for statements captured by exact object identity at Counter construction;
-      * user-authored assignments to the public valueNext signal are not covered.
-      */
-    private def isNativeCounterNextAssignment(
-        assignment: DataAssignmentStatement,
-        target: BitVector,
-        targetWidth: WidthExpr,
-        sourceWidth: WidthExpr
-    ): Boolean =
-      spinal.lib.ExternalParameterizedCounterRegistry
-        .nativeNextAssignmentWidthOf(target, assignment)
-        .exists { expression =>
-          val retained = WidthRetained(
-            expression.verilog,
-            expression.default,
-            expression.minimum,
-            expression.maximum,
-            expression.parameters.distinct.sortBy(_.name),
-            validatedParameterRoots(
-              expression.parameterRoots,
-              s"retained native Counter width '${expression.verilog}'",
-              expression.sourceLocation
-            ),
-            expression.exactDomain,
-            projectionSignatureOf(expression)
-          )
-          targetWidth == retained &&
-          sourceWidth.default == targetWidth.default &&
-          sourceWidth.minimum >= targetWidth.minimum &&
-          sourceWidth.maximum <= targetWidth.maximum &&
-          sourceWidth.parameters.forall(targetWidth.parameters.contains)
-        }
 
     /** Native UInt `.resized` is an explicit whole-target sizing boundary.
       * Authorize it only when pre-normalization capture and the surviving
@@ -2502,15 +2352,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case WidthLiteral(literal) => Some(literal)
         case retained: WidthRetained =>
           Option(retainedOrigins.get(retained)).flatMap(origin =>
-            root.elaborationRoot
-              .flatMap(elaborationRoot => ElabInt.evaluateExact(origin, elaborationRoot, value))
-              .orElse(
-                ExternalNativeIntShadowRegistry.evaluateDefinitionExpression(
-                  origin,
-                  root,
-                  value
-                )
-              )
+            root.elaborationRoot.flatMap(elaborationRoot =>
+              ElabInt.evaluateExact(origin, elaborationRoot, value)
+            )
           )
         case WidthBinary(operator, left, right, _, _, _, _, _) =>
           for {

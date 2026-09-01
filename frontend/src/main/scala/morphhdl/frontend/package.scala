@@ -54,23 +54,6 @@ package object frontend {
   ): spinal.core.Vec[T] =
     ParameterizedWidth.Vec(dataType, size.asElabInt)
 
-  /** Adds an HdlInt overload to the untouched native Mem companion. The native
-    * constructor receives only the checked concrete witness; exact symbolic
-    * provenance is retained externally against the returned Mem identity.
-    */
-  implicit final class NativeMemFactoryOps(
-      private val factory: spinal.core.Mem.type
-  ) extends AnyVal {
-    def apply[T <: Data](
-        wordType: spinal.core.HardType[T],
-        wordCount: HdlInt
-    )(implicit
-        file: sourcecode.File,
-        line: sourcecode.Line
-    ): spinal.core.Mem[T] =
-      NativeMemAutoProvenance.create(factory, wordType, wordCount)
-  }
-
   implicit def intToHdlInt(value: Int)(implicit
       file: sourcecode.File,
       line: sourcecode.Line

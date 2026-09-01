@@ -1,14 +1,12 @@
 name: MorphHDL native Int shadow provenance
 
+# Stable required-check name. Since Increment 53g this workflow proves that
+# native-Int shadow provenance is absent and that the typed replacement builds.
 on:
   push:
-    branches:
-      - main
-      - parameterized-verilog
+    branches: [main, parameterized-verilog]
   pull_request:
-    branches:
-      - main
-      - parameterized-verilog
+    branches: [main, parameterized-verilog]
   workflow_dispatch:
 
 permissions:
@@ -22,58 +20,30 @@ jobs:
   source-boundary:
     name: Native Int shadow source boundary
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - name: Check out complete history
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Prove exact identity and zero-native-diff ownership
-        shell: bash
-        run: bash morphhdl/scripts/check-native-int-shadow-provenance-boundary.sh
+      - uses: actions/checkout@v4
+      - name: Prove production and guard-fixture absence
+        run: |
+          python3 morphhdl/scripts/check-production-retirement.py --self-test
+          bash morphhdl/scripts/check-native-int-shadow-provenance-boundary.sh
 
   contracts:
     name: Native Int shadow proof Scala ${{ matrix.scala_version }}
     needs: source-boundary
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     container:
-      image: ghcr.io/spinalhdl/docker:latest
-    env:
-      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      image: ghcr.io/spinalhdl/docker:v1.2.0
     strategy:
       fail-fast: false
       matrix:
-        scala_version:
-          - "2.12.18"
-          - "2.13.12"
+        scala_version: ['2.12.18', '2.13.12']
     steps:
-      - name: Check out sources
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-
-      - name: Install pinned Mill bootstrap
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --location --retry 5 --retry-all-errors \
-            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
-            --output /tmp/morphhdl-mill
-          chmod +x /tmp/morphhdl-mill
-
-      - name: Validate selected arguments, locals, nesting, replay and inherited contracts
-        shell: bash
-        run: |
-          set -euo pipefail
-          /tmp/morphhdl-mill frontend[${{ matrix.scala_version }}].testOnly \
-            morphhdl.frontend.HdlIntTests
-          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
-            morphhdl.ExternalNativeIntShadowProvenanceTests \
-            morphhdl.ExternalNativeIntFormalizationTests \
-            morphhdl.FormalParameterIdentityTests \
-            morphhdl.FormalParameterClonePropagationTests \
-            morphhdl.HierarchyParameterBindingTests \
-            morphhdl.MorphSingleSourceVerilogTests \
-            morphhdl.integration.ExternalSpinalVerilogBaselineTests
+          submodules: recursive
+      - name: Exercise the typed replacement path
+        run: >-
+          sbt -batch "++${{ matrix.scala_version }}"
+          "morph/testOnly morphhdl.TypedElaborationValueTests"

@@ -1609,7 +1609,7 @@ object ParameterizedVec {
 
   /** Recover an aggregate binding when the child was constructed directly
     * from the parent's exact ElabInt root and therefore has no explicit
-    * formalComponent slot.  Canonical and actual Vecs must share the complete
+    * typed child-formal slot. Canonical and actual Vecs must share the complete
     * exact function/root layout; equal schemas or rendered expressions alone
     * cannot bridge independently rooted declarations.
     */

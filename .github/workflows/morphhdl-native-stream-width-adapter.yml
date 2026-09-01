@@ -109,12 +109,6 @@ jobs:
             morphhdl.ParameterizedStreamFifoDepthTests \
             morphhdl.BackendSyncMergeIsolationTests \
             morphhdl.CapturedAssignmentNormalizationTests \
-            morphhdl.NativeIntSymbolicConditionalTests \
-            morphhdl.NativeIntNestedSymbolicControlFlowTests \
-            morphhdl.NativeMemAutoProvenanceTests \
-            morphhdl.ExternalNativeIntFormalizationTests \
-            morphhdl.ExternalNativeIntShadowExpressionTests \
-            morphhdl.ExternalNativeIntShadowProvenanceTests \
             morphhdl.FormalParameterIdentityTests \
             morphhdl.FormalParameterClonePropagationTests \
             morphhdl.HierarchyParameterBindingTests \

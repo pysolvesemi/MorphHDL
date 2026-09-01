@@ -765,65 +765,6 @@ object ParameterizedWidth {
     attachValidated(data, width, expression)
   }
 
-  /** Atomically associate one already-sized native shape with a validated width.
-    *
-    * Library adapters such as the native full-range Counter have multiple
-    * authoritative state leaves. Validate the public bit-count and every
-    * existing registry claim before retaining any one leaf, so a caught
-    * validation failure cannot leave a partial publication capability behind.
-    * The native leaves already have their ordinary constructor width; this
-    * helper never resizes or otherwise changes their hardware graph.
-    */
-  private[spinal] def attachExistingAll(
-      data: Vector[BitVector],
-      width: ParameterizedBitCount
-  ): Option[ElaborationIntegerExpression] = synchronized {
-    if (data == null || data.isEmpty || data.exists(_ == null))
-      throw new IllegalArgumentException(
-        "existing symbolic-width targets must be non-null and non-empty"
-      )
-    val expression = validateWidth(width)
-    data.zipWithIndex.foreach { case (target, index) =>
-      if (target.getBitsWidth != width.value) {
-        ParameterizedVerilogException.fail(
-          "SPINAL-PARAMETERIZED-VERILOG-WITNESS-MISMATCH",
-          s"existing symbolic-width target $index has concrete width ${target.getBitsWidth}, not validated width ${width.value}",
-          width.sourceLocation.orElse(expression.flatMap(_.sourceLocation))
-        )
-      }
-    }
-
-    if (expression.exists(_.parameters.nonEmpty)) {
-      val incoming = RetainedWidth(
-        width.parameter,
-        expression,
-        width.sourceLocation
-      )
-      reap()
-      data.foreach { target =>
-        retained
-          .get(new RetainedWidthIdentityRef(target, null))
-          .filterNot(equivalentMetadata(_, incoming))
-          .foreach { existing =>
-            ParameterizedVerilogException.fail(
-              "SPINAL-PARAMETERIZED-VERILOG-WIDTH-PROVENANCE-CONFLICT",
-              "one exact native data leaf is associated with conflicting typed width expressions",
-              incoming.sourceLocation.orElse(existing.sourceLocation)
-            )
-          }
-      }
-      data.foreach { target =>
-        val lookup = new RetainedWidthIdentityRef(target, null)
-        if (!retained.contains(lookup))
-          retained.update(
-            new RetainedWidthIdentityRef(target, queue),
-            incoming
-          )
-      }
-    }
-    expression
-  }
-
   /** Commit one width whose complete symbolic metadata was already validated. */
   private[spinal] def attachValidated[T <: BitVector](
       data: T,

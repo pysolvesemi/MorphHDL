@@ -7,8 +7,6 @@ import org.scalatest.funsuite.AnyFunSuite
 
 import spinal.core._
 
-import morphhdl.frontend.{formalComponent, HdlInt, NativeIntShadow}
-
 object BackendSyncMergeIsolationSmoke {
   final class RegisterPair(isolateProcesses: Boolean) extends Component {
     setDefinitionName(
@@ -52,62 +50,6 @@ object BackendSyncMergeIsolationSmoke {
     rightOut := registers.rightState
   }
 
-  final class CapturedMemoryLeaf(width: Int) extends Component {
-    setDefinitionName("CapturedSynchronousMemoryLeaf")
-
-    val payloadIn = in(Bits(width bits))
-    val payloadOut = out(Bits(width bits))
-    val readEnable = in(Bool())
-    val writeEnable = in(Bool())
-    val address = in(UInt(2 bits))
-    val writeData = in(Bits(8 bits))
-    val readData = out(Bits(8 bits))
-
-    payloadOut := payloadIn
-
-    @dontName val root = NativeIntShadow.captureArgument(width, "root")
-    if (root > 2) {
-      val memory = Mem(Bits(8 bits), 4).setName("captured_memory")
-      val readWord = memory
-        .readSync(
-          address,
-          enable = readEnable,
-          readUnderWrite = readFirst
-        )
-        .setName("captured_read_word")
-      memory.write(address, writeData, enable = writeEnable)
-
-      val delayed = RegNext(readWord).setName("captured_delayed")
-      readData := delayed
-    } else {
-      val fallback = RegNext(writeData).setName("fallback_delayed")
-      readData := fallback
-    }
-  }
-
-  final class CapturedMemoryTop(width: HdlInt) extends Component {
-    setDefinitionName("CapturedSynchronousMemoryTop")
-
-    val payloadIn = in(morphhdl.frontend.Bits(width bits))
-    val payloadOut = out(morphhdl.frontend.Bits(width bits))
-    val readEnable = in(Bool())
-    val writeEnable = in(Bool())
-    val address = in(UInt(2 bits))
-    val writeData = in(Bits(8 bits))
-    val readData = out(Bits(8 bits))
-
-    val leaf = formalComponent(width, "WIDTH", BigInt(1), BigInt(4))(
-      value => new CapturedMemoryLeaf(value)
-    )(value => Vector(value.payloadIn, value.payloadOut))
-
-    leaf.payloadIn := payloadIn
-    leaf.readEnable := readEnable
-    leaf.writeEnable := writeEnable
-    leaf.address := address
-    leaf.writeData := writeData
-    payloadOut := leaf.payloadOut
-    readData := leaf.readData
-  }
 }
 
 class BackendSyncMergeIsolationTests extends AnyFunSuite {
@@ -156,38 +98,6 @@ class BackendSyncMergeIsolationTests extends AnyFunSuite {
     }
   }
 
-  test("captured memory read feeding a register retains native synchronous-memory recognition") {
-    withTemporaryDirectory { directory =>
-      val width = HdlInt.param("WIDTH", default = 3, min = 1, max = 4)
-      val verilog = emitMorph(
-        directory,
-        "captured_synchronous_memory.v",
-        new CapturedMemoryTop(width)
-      )
-
-      val leaf = moduleBody(verilog, "CapturedSynchronousMemoryLeaf")
-      val compactLeaf = leaf.replaceAll("\\s+", "")
-      assert(compactLeaf.contains("if((WIDTH>2))begin"))
-      assert(leaf.contains("captured_memory [0:3]"))
-      assert(
-        leaf.contains(
-          "captured_memory_spinal_port0 <= captured_memory[address];"
-        )
-      )
-      assert(
-        leaf.contains("assign captured_read_word =")
-      )
-      assert(leaf.contains("captured_delayed <= captured_read_word;"))
-      val trueBranchStart = leaf.indexOf("begin : g_if_")
-      val falseBranchStart = leaf.indexOf("end else begin", trueBranchStart)
-      assert(trueBranchStart >= 0 && falseBranchStart > trueBranchStart)
-      val trueBranch = leaf.substring(trueBranchStart, falseBranchStart)
-      assert(occurrences(trueBranch, "always @(posedge clk)") == 2)
-      assert(occurrences(leaf, "input  wire          clk") == 1)
-      assert(!leaf.contains("clk_1"))
-    }
-  }
-
   private def emitConcrete(
       directory: Path,
       filename: String,
@@ -197,25 +107,6 @@ class BackendSyncMergeIsolationTests extends AnyFunSuite {
     config.netlistFileName = filename
     SpinalVerilog(config)(component)
     read(directory.resolve(filename))
-  }
-
-  private def emitMorph(
-      directory: Path,
-      filename: String,
-      component: => Component
-  ): String = {
-    val config = SpinalConfig(targetDirectory = directory.toString)
-    config.netlistFileName = filename
-    MorphVerilog(config)(component)
-    read(directory.resolve(filename))
-  }
-
-  private def moduleBody(verilog: String, definitionName: String): String = {
-    val start = verilog.indexOf(s"module $definitionName")
-    assert(start >= 0, s"missing module $definitionName")
-    val end = verilog.indexOf("endmodule", start)
-    assert(end > start, s"unterminated module $definitionName")
-    verilog.substring(start, end)
   }
 
   private def occurrences(value: String, token: String): Int =
