@@ -1123,6 +1123,39 @@ if (( ${#missing_tools[@]} > 0 )); then
   exit 0
 fi
 
+# Verilator 5 split the legacy UNUSED and WIDTH warning families into the
+# narrower UNUSEDSIGNAL, WIDTHEXPAND and WIDTHTRUNC names used below. The
+# canonical MorphHDL container intentionally retains Verilator 4.228, so map
+# only those reviewed suppressions back to their historical family names.
+verilator_executable="$(command -v verilator)"
+verilator_version="$($verilator_executable --version)"
+verilator_major="$(
+  sed -nE 's/^Verilator ([0-9]+)(\..*)?$/\1/p' <<<"$verilator_version"
+)"
+if [[ -z "$verilator_major" ]]; then
+  echo "Cannot parse Verilator version: $verilator_version" >&2
+  exit 1
+fi
+
+verilator() {
+  local argument
+  local -a translated=()
+  for argument in "$@"; do
+    if (( verilator_major < 5 )); then
+      case "$argument" in
+        -Wno-UNUSEDSIGNAL)
+          argument=-Wno-UNUSED
+          ;;
+        -Wno-WIDTHEXPAND|-Wno-WIDTHTRUNC)
+          argument=-Wno-WIDTH
+          ;;
+      esac
+    fi
+    translated+=("$argument")
+  done
+  "$verilator_executable" "${translated[@]}"
+}
+
 tmp_dir="$(mktemp -d /tmp/morphhdl-contracts.XXXXXX)"
 cleanup() {
   rm -rf -- "$tmp_dir"

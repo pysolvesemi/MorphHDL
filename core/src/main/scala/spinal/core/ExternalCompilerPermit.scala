@@ -1,7 +1,7 @@
 package spinal.core
 
-/** Opaque authority for one expression emitted by an analyzed frontend or by
-  * the native-Int compiler bridge.
+/** Opaque authority for one expression emitted by an analyzed frontend or
+  * typed compiler analysis.
   *
   * Public rendered metadata is never authority by itself.  A permit is bound
   * to the exact analyzed carrier identities and is intentionally a plain final

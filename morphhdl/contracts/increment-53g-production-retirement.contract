@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "repository": "pysolvesemi/MorphHDL",
+  "production_source_roots": [
+    "backends/verilog/src/main",
+    "core/src/main",
+    "frontend/src/main",
+    "idslpayload/src/main",
+    "idslplugin/src/main",
+    "lib/src/main",
+    "morphhdl-passes/src/main",
+    "morphhdl/src/main",
+    "morphplugin/src/main",
+    "morphruntime/src/main",
+    "paramrtl/src/main",
+    "scalaplugin/src/main",
+    "sim/src/main",
+    "tester/src/main"
+  ],
+  "source_extensions": [
+    ".java",
+    ".scala"
+  ],
+  "removed_paths": [
+    "frontend/src/main/scala/morphhdl/frontend/NativeIntShadow.scala",
+    "frontend/src/main/scala/morphhdl/frontend/NativeIntSymbolicConditional.scala",
+    "frontend/src/main/scala/morphhdl/frontend/NativeMemAutoProvenance.scala",
+    "frontend/src/main/scala/morphhdl/frontend/formalComponent.scala",
+    "frontend/src/main/scala/morphhdl/frontend/formalRegion.scala",
+    "frontend/src/main/scala/spinal/core/ExternalAnalyzedNativeIntFormalizationPublisher.scala",
+    "frontend/src/main/scala/spinal/lib/ExternalParameterizedCounterRegistry.scala",
+    "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeAxi4SlaveFactoryParameterizationComponent.scala",
+    "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala",
+    "morphruntime/src/main/scala/spinal/core/ExternalNativeAxi4SlaveFactoryParameterization.scala",
+    "morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala",
+    "morphruntime/src/main/scala/spinal/core/ExternalNativeIntFormalComponent.scala",
+    "morphruntime/src/main/scala/spinal/core/ExternalNativeIntFormalizationRegistry.scala",
+    "morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowExpression.scala",
+    "morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala",
+    "morphruntime/src/main/scala/spinal/core/ExternalNativeIntStructuralPublisher.scala",
+    "morphruntime/src/main/scala/spinal/core/ExternalParameterizedResizeRegistry.scala"
+  ],
+  "forbidden_source_rules": [
+    {
+      "id": "retired-native-int-production-symbol",
+      "description": "Deleted native-Int shadow, formalization, AXI recognizer, automatic-memory and Counter-registry symbols must not return to production.",
+      "pattern": "(?:\\b(?:ExternalAnalyzedNativeIntFormal[A-Za-z0-9_]*|ExternalCounterIdentityRef|ExternalNativeAxi4[A-Za-z0-9_]*|ExternalNativeInt[A-Za-z0-9_]*|ExternalParameterizedCounter[A-Za-z0-9_]*|ExternalParameterizedResize[A-Za-z0-9_]*|MorphHdlNativeAxi4SlaveFactoryParameterizationComponent|MorphHdlNativeIntShadowExpressionComponent|NativeIntShadow[A-Za-z0-9_]*|NativeIntSymbolicConditional|NativeMemAutoProvenance|shadowInt)\\b|\\bformal(?:Component|Region)\\s*(?=[.(]))",
+      "self_test_source": "object Forbidden { val registry = ExternalNativeIntShadowRegistry }",
+      "path_prefixes": [
+        "backends/verilog/src/main/",
+        "core/src/main/",
+        "frontend/src/main/",
+        "idslpayload/src/main/",
+        "idslplugin/src/main/",
+        "lib/src/main/",
+        "morphhdl-passes/src/main/",
+        "morphhdl/src/main/",
+        "morphplugin/src/main/",
+        "morphruntime/src/main/",
+        "paramrtl/src/main/",
+        "scalaplugin/src/main/",
+        "sim/src/main/",
+        "tester/src/main/"
+      ],
+      "allow_paths": []
+    },
+    {
+      "id": "retired-constructor-boundary-api",
+      "description": "Constructor and region capture entry points from the native-Int reconstruction path are forbidden in production.",
+      "pattern": "\\b(?:attachAll|attachComponentAtomically|attachComponentParameterAtomically|attachExistingAll|attachRegionAtomically|captureWithDefinition|commitAttachAll|commitRetainComponent|constructorBoundary(?:Key|Registry)?|definitionPredicateReceiptTracked|preflightAttachAll|preflightRetainComponent|retainComponent)\\b",
+      "self_test_source": "object Forbidden { captureWithDefinition(value) }",
+      "path_prefixes": [
+        "core/src/main/",
+        "frontend/src/main/",
+        "morphhdl/src/main/",
+        "morphplugin/src/main/",
+        "morphruntime/src/main/"
+      ],
+      "allow_paths": []
+    },
+    {
+      "id": "file-specific-compiler-eligibility",
+      "description": "Compiler eligibility may depend on typed syntax, never a component source filename or component-name string.",
+      "pattern": "(?:(?:path|sourceFile|normalizedPath)\\s*\\.\\s*(?:contains|endsWith|startsWith|matches)\\s*\\(\\s*\"[^\"\\n]*\\.scala\"|(?:path|sourceFile|normalizedPath)\\s*==\\s*\"[^\"\\n]*\\.scala\"|(?:source|content)\\.contains\\s*\\(\\s*\"(?:Axi4SlaveFactory|Counter|Mem|StreamFifo|StreamFifoCC|StreamWidthAdapter)\")",
+      "self_test_source": "object Forbidden { val eligible = path.endsWith(\"/lib/src/main/scala/spinal/lib/Counter.scala\") }",
+      "path_prefixes": [
+        "morphplugin/src/main/"
+      ],
+      "allow_paths": []
+    },
+    {
+      "id": "source-position-alias-reconstruction",
+      "description": "Parser-wide native-Int reconstruction may not turn source positions into aliases or constructor-boundary identities; explicit formal declarations remain outside this rule.",
+      "pattern": "\\b(?:argumentReference|constructorReference|expressionReference|resultReference|sourcePositionAlias|sourcePositionKey|sourceSiteAlias)\\b",
+      "self_test_source": "object Forbidden { val sourcePositionAlias = file + line }",
+      "path_prefixes": [
+        "frontend/src/main/",
+        "morphhdl/src/main/",
+        "morphplugin/src/main/",
+        "morphruntime/src/main/"
+      ],
+      "allow_paths": []
+    },
+    {
+      "id": "witness-value-inference",
+      "description": "No production registry or lowering phase may rediscover symbolic ownership by matching concrete witnesses, defaults, or widths.",
+      "pattern": "(?:\\b(?:inferFromWitness|matchConcreteWitness|witnessValueInference)\\b|(?:groupBy|find|collectFirst)\\s*\\([^\\n)]*(?:\\.witness\\b|\\.default\\b|getBitsWidth))",
+      "self_test_source": "object Forbidden { val owner = records.find(_.witness == value) }",
+      "path_prefixes": [
+        "frontend/src/main/",
+        "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedAutoResize.scala",
+        "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala",
+        "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
+        "morphplugin/src/main/",
+        "morphruntime/src/main/"
+      ],
+      "allow_paths": []
+    },
+    {
+      "id": "emitted-name-recognition",
+      "description": "Production metadata discovery may not search or group graph objects by emitted component or signal names.",
+      "pattern": "(?:\\b(?:componentNameRecognizer|emittedNameLookup|recognizeByEmittedName|signalNameRecognizer)\\b|(?:groupBy|find|collectFirst)\\s*\\([^\\n)]*(?:getName\\s*\\(|definitionName\\b|instanceName\\b|signalName\\b))",
+      "self_test_source": "object Forbidden { val owner = records.find(_.getName() == emitted) }",
+      "path_prefixes": [
+        "frontend/src/main/",
+        "morphplugin/src/main/",
+        "morphruntime/src/main/"
+      ],
+      "allow_paths": []
+    }
+  ],
+  "expected_plugin_components": [
+    "MorphHdlTypedElaborationControlComponent",
+    "MorphHdlNaturalSymbolicConditionalComponent"
+  ],
+  "plugin_descriptor": "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala",
+  "forbidden_jar_class_prefixes": [
+    "morphhdl/compiler/MorphHdlNativeAxi4SlaveFactoryParameterizationComponent",
+    "morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent",
+    "morphhdl/frontend/NativeIntShadow",
+    "morphhdl/frontend/NativeIntSymbolicConditional",
+    "morphhdl/frontend/NativeMemAutoProvenance",
+    "morphhdl/frontend/formalComponent",
+    "morphhdl/frontend/formalRegion",
+    "spinal/core/ExternalAnalyzedNativeIntFormalCapture",
+    "spinal/core/ExternalAnalyzedNativeIntFormalizationPublisher",
+    "spinal/core/ExternalFormalParameterRegistry$PreparedComponentAttachment",
+    "spinal/core/ExternalFormalParameterRegistry$PreparedLeafAttachment",
+    "spinal/core/ExternalNativeAxi4",
+    "spinal/core/ExternalNativeAxi4SlaveFactoryParameterization",
+    "spinal/core/ExternalNativeInt",
+    "spinal/core/ExternalNativeIntCompilerRuntime",
+    "spinal/core/ExternalNativeIntFormalComponent",
+    "spinal/core/ExternalNativeIntFormalizationRegistry",
+    "spinal/core/ExternalNativeIntFormalizationToken",
+    "spinal/core/ExternalNativeIntShadow",
+    "spinal/core/ExternalNativeIntStructuralPublisher",
+    "spinal/core/ExternalParameterizedResize",
+    "spinal/core/ExternalParameterizedResizeRegistry",
+    "spinal/lib/ExternalCounterIdentityRef",
+    "spinal/lib/ExternalParameterizedCounterMetadata",
+    "spinal/lib/ExternalParameterizedCounterRegistry"
+  ]
+}

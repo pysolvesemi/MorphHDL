@@ -2149,20 +2149,6 @@ object ElabInt {
     }
   }
 
-  private[core] def equivalentBooleanExpression(
-      left: ElaborationBooleanExpression,
-      right: ElaborationBooleanExpression
-  ): Boolean =
-    left.verilog == right.verilog &&
-      left.default == right.default &&
-      left.parameters == right.parameters &&
-      sameParameterRoots(
-        left.completedParameterRoots,
-        right.completedParameterRoots
-      ) &&
-      sameExactDomain(left.exactDomain, right.exactDomain) &&
-      sameProjection(left.projectionProvenance, right.projectionProvenance)
-
   private def sameExactDomain[A](
       left: Option[ElaborationExactDomain[A]],
       right: Option[ElaborationExactDomain[A]]

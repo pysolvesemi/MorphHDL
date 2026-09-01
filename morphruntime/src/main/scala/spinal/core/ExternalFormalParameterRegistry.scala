@@ -36,15 +36,11 @@ private[spinal] final case class ExternalTypedFormalBinding(
 )
 
 /** One component-local formal binding plus the exact definition-side width
-  * expression observed on an explicitly attached leaf, when one exists.
-  *
-  * Component-only native Int formals have no packed definition expression.
-  * Keeping that absence explicit is important: a reconstructed rootless schema
-  * is not declaration authority for recovering an independently rooted leaf.
+  * expression observed on its explicitly attached leaf.
   */
 private[core] final case class ExternalFormalInstanceBinding(
     binding: ExternalFormalParameterBinding,
-    definitionExpression: Option[ElaborationIntegerExpression]
+    definitionExpression: ElaborationIntegerExpression
 )
 
 /** Weak identity key for a transient ParameterizedBitCount adapter value. */
@@ -136,21 +132,6 @@ private[core] final class ExternalFormalComponentIdentityRef(
   * type is changed.
   */
 object ExternalFormalParameterRegistry {
-  private[core] final case class PreparedLeafAttachment(
-      owner: Component,
-      data: Vector[BitVector],
-      width: ParameterizedBitCount,
-      binding: ExternalFormalParameterBinding,
-      retainedWidth: ElaborationIntegerExpression,
-      root: Component
-  )
-
-  private[core] final case class PreparedComponentAttachment(
-      component: Component,
-      binding: ExternalFormalParameterBinding,
-      root: Component
-  )
-
   private val bitCountQueue = new ReferenceQueue[ParameterizedBitCount]()
   private val leafQueue = new ReferenceQueue[BaseType]()
   private val rootQueue = new ReferenceQueue[Component]()
@@ -270,121 +251,13 @@ object ExternalFormalParameterRegistry {
         )
       }
 
-      validateInstanceBinding(currentComponent, binding, Some(retainedWidth))
+      validateInstanceBinding(currentComponent, binding, retainedWidth)
       validateLeafBinding(data, binding)
 
-      retainInstanceBinding(currentComponent, binding, Some(retainedWidth))
+      retainInstanceBinding(currentComponent, binding, retainedWidth)
       retainLeafBinding(data, binding)
     }
     data
-  }
-
-  /** Attach an explicit formal to one exact native leaf after an untouched
-    * constructor has returned. The supplied component identity is
-    * authoritative; neither the concrete width nor an emitted name is used to
-    * discover the owner or the leaf.
-    */
-  def attach[T <: BitVector](
-      owner: Component,
-      data: T,
-      width: ParameterizedBitCount,
-      binding: ExternalFormalParameterBinding
-  ): T = synchronized {
-    attachAll(owner, Vector(data), width, binding)
-    data
-  }
-
-  /** Atomically attach one formal to every exact leaf in a prepared region. */
-  private[core] def attachAll(
-      owner: Component,
-      data: Vector[BitVector],
-      width: ParameterizedBitCount,
-      binding: ExternalFormalParameterBinding
-  ): Unit = synchronized {
-    commitAttachAll(preflightAttachAll(owner, data, width, binding))
-  }
-
-  /** Validate the complete formal/width/owner publication without retaining a
-    * declaration, component binding, leaf binding or symbolic width. The
-    * native formalization transaction consumes this plan only after both its
-    * formal and shadow sides have preflighted successfully.
-    */
-  private[core] def preflightAttachAll(
-      owner: Component,
-      data: Vector[BitVector],
-      width: ParameterizedBitCount,
-      binding: ExternalFormalParameterBinding
-  ): PreparedLeafAttachment = synchronized {
-    if (owner == null)
-      throw new IllegalArgumentException("formal component owner must not be null")
-    if (data == null || data.exists(_ == null))
-      throw new IllegalArgumentException("formal packed leaves must not be null")
-    if (data.isEmpty)
-      throw new IllegalArgumentException("formal packed leaves must not be empty")
-    if (width == null)
-      throw new IllegalArgumentException("formal symbolic bit count must not be null")
-    if (binding == null)
-      throw new IllegalArgumentException("formal parameter binding must not be null")
-
-    validateBinding(binding)
-    val retainedWidth =
-      validateFormalWidth(width, binding, "external native Int adapter")
-    data.foreach(validateExactOwner(owner, _, binding))
-    val root = validateDeclarationForDesign(owner, binding)
-    validateInstanceBinding(owner, binding, Some(retainedWidth))
-    data.foreach(validateLeafBinding(_, binding))
-    validateWidthPublication(data, width, retainedWidth)
-
-    PreparedLeafAttachment(owner, data, width, binding, retainedWidth, root)
-  }
-
-  /** Commit only a previously validated formal leaf plan. */
-  private[core] def commitAttachAll(
-      prepared: PreparedLeafAttachment
-  ): Unit = synchronized {
-    ParameterizedWidth.attachExistingAll(prepared.data, prepared.width)
-    retainDeclaration(prepared.root, prepared.binding)
-    retainInstanceBinding(
-      prepared.owner,
-      prepared.binding,
-      Some(prepared.retainedWidth)
-    )
-    prepared.data.foreach(retainLeafBinding(_, prepared.binding))
-  }
-
-  /** Retain one explicit definition-formal/instance-actual pair against the
-    * exact component object, independent of any later port traversal.
-    */
-  def retainComponent(
-      component: Component,
-      binding: ExternalFormalParameterBinding
-  ): Unit = synchronized {
-    commitRetainComponent(preflightRetainComponent(component, binding))
-  }
-
-  private[core] def preflightRetainComponent(
-      component: Component,
-      binding: ExternalFormalParameterBinding
-  ): PreparedComponentAttachment = synchronized {
-    if (component == null)
-      throw new IllegalArgumentException("formal component must not be null")
-    if (binding == null)
-      throw new IllegalArgumentException("formal parameter binding must not be null")
-    validateBinding(binding)
-    val root = validateDeclarationForDesign(component, binding)
-    validateInstanceBinding(component, binding, definitionExpression = None)
-    PreparedComponentAttachment(component, binding, root)
-  }
-
-  private[core] def commitRetainComponent(
-      prepared: PreparedComponentAttachment
-  ): Unit = synchronized {
-    retainDeclaration(prepared.root, prepared.binding)
-    retainInstanceBinding(
-      prepared.component,
-      prepared.binding,
-      definitionExpression = None
-    )
   }
 
   /** Retain one Increment-53f typed formal through an opaque per-instance
@@ -549,7 +422,7 @@ object ExternalFormalParameterRegistry {
   private def retainInstanceBinding(
       component: Component,
       binding: ExternalFormalParameterBinding,
-      definitionExpression: Option[ElaborationIntegerExpression]
+      definitionExpression: ElaborationIntegerExpression
   ): Unit = {
     val lookup = new ExternalFormalComponentIdentityRef(component, null)
     val byKey = instanceBindings.get(lookup).getOrElse {
@@ -565,14 +438,7 @@ object ExternalFormalParameterRegistry {
     val incoming = ExternalFormalInstanceBinding(binding, definitionExpression)
     existing.indexWhere(candidate => equivalentBinding(candidate.binding, binding)) match {
       case index if index >= 0 =>
-        (existing(index).definitionExpression, definitionExpression) match {
-          case (None, Some(_)) =>
-            byKey.update(
-              binding.declarationKey,
-              existing.updated(index, incoming)
-            )
-          case _ =>
-        }
+        byKey.update(binding.declarationKey, existing.updated(index, incoming))
       case _ =>
         byKey.update(binding.declarationKey, existing :+ incoming)
     }
@@ -581,7 +447,7 @@ object ExternalFormalParameterRegistry {
   private def validateInstanceBinding(
       component: Component,
       binding: ExternalFormalParameterBinding,
-      definitionExpression: Option[ElaborationIntegerExpression]
+      definitionExpression: ElaborationIntegerExpression
   ): Unit = {
     reapComponents()
     typedInstanceBindings
@@ -610,7 +476,7 @@ object ExternalFormalParameterRegistry {
     }
 
     val definitionExpressions =
-      distinctExpressions((existing :+ incoming).flatMap(_.definitionExpression))
+      distinctExpressions((existing :+ incoming).map(_.definitionExpression))
     if (definitionExpressions.size > 1) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS",
@@ -683,41 +549,6 @@ object ExternalFormalParameterRegistry {
       }
   }
 
-  /** Mirror the conflict portion of ParameterizedWidth.attachExistingAll so a
-    * formal transaction cannot consume its token before discovering a stale
-    * or foreign retained-width claim. Concrete leaf widths were already
-    * checked by the formal region preflight against retainedWidth.default.
-    */
-  private def validateWidthPublication(
-      data: Vector[BitVector],
-      width: ParameterizedBitCount,
-      retainedWidth: ElaborationIntegerExpression
-  ): Unit = {
-    data.zipWithIndex.foreach { case (target, index) =>
-      if (target.getBitsWidth != width.value) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-WITNESS-MISMATCH",
-          s"existing symbolic-width target $index has concrete width ${target.getBitsWidth}, not validated width ${width.value}",
-          width.sourceLocation.orElse(retainedWidth.sourceLocation)
-        )
-      }
-      val existingParameter = ParameterizedWidth.parameterOf(target)
-      val existingExpression = ParameterizedWidth.expressionOf(target)
-      val compatible =
-        existingParameter == width.parameter &&
-          existingExpression.exists(
-            ElabInt.equivalentExpression(_, retainedWidth)
-          )
-      if ((existingParameter.nonEmpty || existingExpression.nonEmpty) && !compatible) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-WIDTH-PROVENANCE-CONFLICT",
-          "one exact native data leaf is associated with conflicting typed width expressions",
-          width.sourceLocation.orElse(existingExpression.flatMap(_.sourceLocation))
-        )
-      }
-    }
-  }
-
   /** Recover a binding for clone-derived leaves from the symbolic width copied
     * by ParameterizedWidth and the exact owning component instance. No concrete
     * integer witness or emitted name participates in this lookup.
@@ -740,9 +571,7 @@ object ExternalFormalParameterRegistry {
           .collect {
             case slot
                 if slot.binding.ownerClassName == component.getClass.getName &&
-                  slot.definitionExpression.exists(
-                    equivalentExpression(retainedWidth, _)
-                  ) =>
+                  equivalentExpression(retainedWidth, slot.definitionExpression) =>
               slot.binding
           }
       }.toVector

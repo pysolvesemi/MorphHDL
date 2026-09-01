@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the approved typed-elaboration overlay on preserved native sources."""
+"""Compatibility entry point for the historical typed native-source overlay."""
 
 from __future__ import annotations
 
@@ -14,6 +14,8 @@ from typing import Any, Dict, Mapping, Optional, Sequence
 
 EXPECTED_REPOSITORY = "pysolvesemi/MorphHDL"
 DEFAULT_MANIFEST = "morphhdl/contracts/typed-native-source-overlay.json"
+RETIREMENT_MANIFEST = "morphhdl/contracts/increment-53g-production-retirement.contract"
+RETIREMENT_GUARD = "morphhdl/scripts/check-production-retirement.py"
 EXPECTED_SOURCE_ROOTS = ["core", "idslplugin", "lib"]
 ALLOWED_CLASSIFICATIONS = {
     "typed-formal-or-overload",
@@ -301,9 +303,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args(argv)
     try:
-        if args.self_test:
-            self_test()
-            return 0
         if args.repo_root:
             root = Path(args.repo_root).resolve()
         else:
@@ -317,6 +316,29 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if result.returncode != 0:
                 raise OverlayError(result.stderr.strip() or "not inside a Git repository")
             root = Path(result.stdout.strip()).resolve()
+
+        # Increment 53g intentionally changes reviewed native typed files while
+        # retiring the reconstruction path. Keep this stable command for older
+        # required workflows, but reverse its contract once the closed 53g
+        # manifest exists. Historical worktrees without that manifest continue
+        # to validate their original positive overlay.
+        retirement_manifest = root / RETIREMENT_MANIFEST
+        if retirement_manifest.is_file():
+            command = [
+                sys.executable,
+                str(root / RETIREMENT_GUARD),
+                "--repo-root",
+                str(root),
+                "--manifest",
+                str(retirement_manifest),
+            ]
+            if args.self_test:
+                command.append("--self-test")
+            return subprocess.run(command, check=False).returncode
+
+        if args.self_test:
+            self_test()
+            return 0
         manifest = Path(args.manifest)
         if not manifest.is_absolute():
             manifest = root / manifest

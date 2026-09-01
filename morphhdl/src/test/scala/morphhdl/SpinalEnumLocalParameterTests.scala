@@ -325,14 +325,14 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
       val legacyConfig = formalConfig(legacyDirectory)
       legacyConfig.netlistFileName = "enum_macro.v"
       SpinalVerilog(legacyConfig) {
-        formalComponent()
+        buildFormalEnumComponent()
       }
       val legacyRtl = legacyDirectory.resolve("enum_macro.v")
 
       val localizedConfig = formalConfig(localizedDirectory)
       localizedConfig.netlistFileName = "enum_localparam.v"
       val report = MorphVerilog(localizedConfig) {
-        formalComponent()
+        buildFormalEnumComponent()
       }
       val localizedRtl = localizedDirectory.resolve("enum_localparam.v")
 
@@ -385,7 +385,7 @@ class SpinalEnumLocalParameterTests extends AnyFunSuite {
     new Inc53bEnumTop(width)
   }
 
-  private def formalComponent(): Inc53bFormalEnumTop = {
+  private def buildFormalEnumComponent(): Inc53bFormalEnumTop = {
     val width = HdlInt.param("WIDTH", default = 4, min = 1, max = 16)
     new Inc53bFormalEnumTop(width)
   }

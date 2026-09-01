@@ -7,7 +7,6 @@ import spinal.core.{
   ElaborationBooleanExpression,
   ExternalAnalyzedStructuralPredicate,
   ExternalAnalyzedStructuralPublisher,
-  ExternalNativeIntStructuralPublisher,
   ParameterizedStructuralBlock,
   ParameterizedStructuralPending,
   ParameterizedStructure
@@ -117,7 +116,6 @@ private[frontend] object NativeStructuralFrontend {
         analyzed.expression,
         prepared,
         publicationIdentity,
-        null,
         resolved,
         whenTrue,
         origin
@@ -129,37 +127,10 @@ private[frontend] object NativeStructuralFrontend {
         null,
         null,
         null,
-        null,
         resolved,
         whenTrue,
         origin
       )
-  }
-
-  /** Increment 51 entry point for a proven shadow-native Boolean predicate.
-    * Resolution is deferred until both captured alternatives exist, allowing
-    * the registry to bind its one-use receipt to the complete structural target.
-    */
-  private[frontend] def startGenerateIfExpression(
-      conditionWitness: Boolean,
-      predicateReference: String,
-      names: Option[GenerateIfNames],
-      whenTrue: => Unit,
-      origin: SourceOrigin
-  ): GenerateIfBuilder = {
-    val component = requireComponent("generateIf", origin)
-    val resolved = names.getOrElse(generatedIfNames(origin))
-    startGenerateIfResolved(
-      component,
-      conditionWitness,
-      null,
-      null,
-      null,
-      predicateReference,
-      resolved,
-      whenTrue,
-      origin
-    )
   }
 
   private def startGenerateIfResolved(
@@ -168,60 +139,45 @@ private[frontend] object NativeStructuralFrontend {
       expression: ElaborationBooleanExpression,
       preparedCondition: ExternalAnalyzedStructuralPredicate,
       publicationIdentity: AnyRef,
-      shadowPredicateReference: String,
       resolved: GenerateIfNames,
       whenTrue: => Unit,
       origin: SourceOrigin
   ): GenerateIfBuilder = {
     if (ParameterizedStructure.captureEnabled) {
-      if (preparedCondition ne null) {
-        if (expression eq null) {
-          FrontendException.failAt(
-            "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-EXPRESSION-MISSING",
-            "native symbolic conditional requires one retained definition predicate",
-            origin
-          )
-        }
-        if (expression.default != conditionWitness) {
-          FrontendException.failAt(
-            "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-DEFAULT-MISMATCH",
-            s"native symbolic conditional witness $conditionWitness disagrees with retained definition default ${expression.default}",
-            origin
-          )
-        }
-        if (publicationIdentity eq null) {
-          FrontendException.failAt(
-            "MORPH-FRONTEND-ANALYZED-STRUCTURAL-BOOLEAN-TARGET-MISMATCH",
-            "analyzed structural condition lost its exact publication identity",
-            origin
-          )
-        }
-        ExternalAnalyzedStructuralPublisher.requirePreparedStructuralIf(
-          preparedCondition,
-          component,
-          publicationIdentity,
-          expression,
-          Some(origin.rendered)
-        )
-      } else if (shadowPredicateReference == null || shadowPredicateReference.trim.isEmpty) {
+      if (expression eq null) {
         FrontendException.failAt(
-          "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-REFERENCE-UNRESOLVED",
-          "native symbolic conditional requires one exact compiler predicate reference",
+          "MORPH-FRONTEND-ANALYZED-STRUCTURAL-BOOLEAN-EXPRESSION-MISSING",
+          "analyzed structural condition requires one retained expression",
           origin
         )
       }
+      if (expression.default != conditionWitness) {
+        FrontendException.failAt(
+          "MORPH-FRONTEND-ANALYZED-STRUCTURAL-BOOLEAN-DEFAULT-MISMATCH",
+          s"analyzed structural condition witness $conditionWitness disagrees with retained default ${expression.default}",
+          origin
+        )
+      }
+      if ((preparedCondition eq null) || (publicationIdentity eq null)) {
+        FrontendException.failAt(
+          "MORPH-FRONTEND-ANALYZED-STRUCTURAL-BOOLEAN-TARGET-MISMATCH",
+          "analyzed structural condition lost its exact publication identity",
+          origin
+        )
+      }
+      ExternalAnalyzedStructuralPublisher.requirePreparedStructuralIf(
+        preparedCondition,
+        component,
+        publicationIdentity,
+        expression,
+        Some(origin.rendered)
+      )
       val whenTrueBlock =
-        if (preparedCondition ne null)
-          ExternalAnalyzedStructuralPublisher.captureStructuralIfBranch(
-            preparedCondition,
-            branch = 0,
-            sourceLocation = Some(origin.rendered)
-          )(whenTrue)
-        else
-          ParameterizedStructure.captureBlock(
-            component,
-            Some(origin.rendered)
-          )(whenTrue)
+        ExternalAnalyzedStructuralPublisher.captureStructuralIfBranch(
+          preparedCondition,
+          branch = 0,
+          sourceLocation = Some(origin.rendered)
+        )(whenTrue)
       val pending = ParameterizedStructure.beginPending(
         component,
         "generate-if",
@@ -235,7 +191,6 @@ private[frontend] object NativeStructuralFrontend {
           expression,
           preparedCondition,
           publicationIdentity,
-          shadowPredicateReference,
           resolved,
           whenTrueBlock,
           origin,
@@ -252,7 +207,6 @@ private[frontend] object NativeStructuralFrontend {
           expression = null,
           preparedCondition = null,
           publicationIdentity = null,
-          shadowPredicateReference = null,
           names = resolved,
           whenTrueBlock = null,
           origin = origin,
@@ -362,10 +316,9 @@ private[frontend] final class NativeGenerateIfToken(
     val component: Component,
     val pending: ParameterizedStructuralPending,
     val conditionWitness: Boolean,
-    val expression: spinal.core.ElaborationBooleanExpression,
+    val expression: ElaborationBooleanExpression,
     val preparedCondition: ExternalAnalyzedStructuralPredicate,
     val publicationIdentity: AnyRef,
-    val shadowPredicateReference: String,
     val names: GenerateIfNames,
     val whenTrueBlock: ParameterizedStructuralBlock,
     val origin: SourceOrigin,
@@ -383,54 +336,21 @@ private[frontend] final class NativeGenerateIfToken(
     }
     if (parameterized) {
       val whenFalse =
-        if (preparedCondition ne null)
-          ExternalAnalyzedStructuralPublisher.captureStructuralIfBranch(
-            preparedCondition,
-            branch = 1,
-            sourceLocation = Some(callOrigin.rendered)
-          )(body)
-        else
-          ParameterizedStructure.captureBlock(
-            component,
-            Some(callOrigin.rendered)
-          )(body)
-      if (preparedCondition ne null) {
-        ExternalAnalyzedStructuralPublisher.registerStructuralIf(
+        ExternalAnalyzedStructuralPublisher.captureStructuralIfBranch(
           preparedCondition,
-          publicationIdentity,
-          pending,
-          names.whenTrue,
-          names.whenFalse,
-          whenTrueBlock,
-          whenFalse,
-          Some(origin.rendered)
-        )
-      } else {
-        // The separately adjudicated legacy compiler-shadow route is not an
-        // analyzed-HdlBool publication and never enters the analyzed publisher.
-        val sourceLocation = Some(origin.rendered)
-        val receipt =
-          ExternalNativeIntStructuralPublisher.definitionPredicateTracked(
-            shadowPredicateReference,
-            conditionWitness,
-            pending,
-            names.whenTrue,
-            names.whenFalse,
-            whenTrueBlock,
-            whenFalse,
-            sourceLocation
-          )
-        ExternalNativeIntStructuralPublisher.registerIf(
-          receipt,
-          receipt.condition,
-          pending,
-          names.whenTrue,
-          names.whenFalse,
-          whenTrueBlock,
-          whenFalse,
-          sourceLocation
-        )
-      }
+          branch = 1,
+          sourceLocation = Some(callOrigin.rendered)
+        )(body)
+      ExternalAnalyzedStructuralPublisher.registerStructuralIf(
+        preparedCondition,
+        publicationIdentity,
+        pending,
+        names.whenTrue,
+        names.whenFalse,
+        whenTrueBlock,
+        whenFalse,
+        Some(origin.rendered)
+      )
     } else if (!conditionWitness) {
       body
     }

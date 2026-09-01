@@ -520,7 +520,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   hierarchy users without algorithm duplication and prove parity on both Scala
   lanes.
 
-- [ ] **Increment 53g — Retire native-Int shadow reconstruction from production**
+- [x] **Increment 53g — Retire native-Int shadow reconstruction from production**
 
   **Dependencies:** Increment 53f implemented and merged.
 

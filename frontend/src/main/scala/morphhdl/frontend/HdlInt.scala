@@ -31,8 +31,7 @@ import spinal.core.{
   ElaborationIntegerParameter,
   ExternalFormalParameterBinding,
   ExternalFormalParameterRegistry,
-  ParameterizedBitCount,
-  ParameterizedMemoryDepth
+  ParameterizedBitCount
 }
 
 final class HdlInt private[frontend] (
@@ -196,38 +195,6 @@ final class HdlInt private[frontend] (
       StructuralExpressionBridge.analyzedWidth(this, "typed elaboration integer")
     HdlInt.exactSingleRootElabInt(analyzed)
       .getOrElse(spinal.core.ElabInt.fromExpression(analyzed.expression))
-  }
-
-  /** Retain one bounded native Mem word-count expression. */
-  private[frontend] def toParameterizedMemoryDepth(implicit
-      file: sourcecode.File,
-      line: sourcecode.Line
-  ): ParameterizedMemoryDepth = {
-    val useOrigin = SourceOrigin.capture
-    requireLoopInvariant("SpinalHDL memory depth")
-    val analyzed = StructuralExpressionBridge.analyzedWidth(
-      this,
-      "SpinalHDL memory depth",
-      sourceLocation = Some(useOrigin.rendered)
-    )
-    val retained = analyzed.expression
-    if (
-      retained.default != witness || retained.minimum < 1 ||
-      retained.maximum < retained.minimum ||
-      retained.maximum > BigInt(Int.MaxValue) || !witness.isValidInt
-    ) {
-      FrontendException.failAt(
-        "MORPH-FRONTEND-SPINAL-MEMORY-DEPTH-DOMAIN-INVALID",
-        s"memory depth '${retained.verilog}' must have concrete witness $witness and a finite positive Int-sized domain",
-        useOrigin
-      )
-    }
-    val typed = HdlInt.exactSingleRootElabInt(analyzed)
-      .getOrElse(spinal.core.ElabInt.fromExpression(retained))
-    ParameterizedMemoryDepth.checked(
-      typed,
-      role = "SpinalHDL memory depth"
-    )
   }
 
   /** Preserve exhaustive frontend evaluation evidence on native bit-count
@@ -547,17 +514,6 @@ object HdlInt {
 
   private val PortableIdentifier = "[A-Za-z_][A-Za-z0-9_]*".r
 
-  import scala.language.implicitConversions
-
-  /** Allow ordinary Mem(wordType, depth) to retain an HdlInt depth. */
-  implicit def hdlIntToParameterizedMemoryDepth(
-      value: HdlInt
-  )(implicit
-      file: sourcecode.File,
-      line: sourcecode.Line
-  ): ParameterizedMemoryDepth =
-    value.toParameterizedMemoryDepth(file, line)
-
   /** Adds SpinalHDL's ordinary `width bits` spelling only to an actual
     * `HdlInt`. Keeping this syntax in the receiver type's implicit scope
     * prevents the existing `Int => HdlInt` conversion from competing with
@@ -679,17 +635,17 @@ object HdlInt {
     )
   }
 
-  /** Prove one HdlInt can cross an untouched native Int API as a positive,
-    * bounded concrete witness while retaining its complete symbolic geometry.
+  /** Retain one positive, bounded formal actual with complete symbolic
+    * geometry.
     */
-  private[frontend] def nativeIntExpression(
+  private[frontend] def formalActualExpression(
       actual: HdlInt,
       role: String,
       origin: SourceOrigin
   ): spinal.core.ElaborationIntegerExpression = {
     if (actual eq null) {
       FrontendException.failAt(
-        "MORPH-FRONTEND-NATIVE-INT-ACTUAL-NULL",
+        "MORPH-FRONTEND-FORMAL-ACTUAL-NULL",
         s"$role requires one non-null HdlInt expression",
         origin
       )
@@ -705,7 +661,7 @@ object HdlInt {
       !retained.default.isValidInt
     ) {
       FrontendException.failAt(
-        "MORPH-FRONTEND-NATIVE-INT-GEOMETRY-DOMAIN-INVALID",
+        "MORPH-FRONTEND-FORMAL-ACTUAL-DOMAIN-INVALID",
         s"$role expression '${retained.verilog}' must have concrete witness ${actual.witness} and a finite positive Int-sized domain, received default ${retained.default} in [${retained.minimum}, ${retained.maximum}]",
         origin
       )
@@ -714,7 +670,7 @@ object HdlInt {
       case Some(exact) =>
         exact.bits.expression.getOrElse {
           FrontendException.failAt(
-            "MORPH-FRONTEND-NATIVE-INT-EXACT-EXPRESSION-MISSING",
+            "MORPH-FRONTEND-FORMAL-ACTUAL-EXACT-EXPRESSION-MISSING",
             s"$role single-root expression '${retained.verilog}' lost its exact symbolic carrier",
             origin
           )
@@ -739,72 +695,7 @@ object HdlInt {
     }
   }
 
-  /** Build the provisional canonical definition root used while an untouched
-    * native child constructor is still executing. Final component attachment
-    * revalidates this expression against the owner-specific formal binding.
-    */
-  private[frontend] def provisionalFormalExpression(
-      actual: spinal.core.ElaborationIntegerExpression,
-      name: String,
-      minimum: BigInt,
-      maximum: BigInt,
-      origin: SourceOrigin
-  ): spinal.core.ElaborationIntegerExpression = {
-    if (actual eq null) {
-      FrontendException.failAt(
-        "MORPH-FRONTEND-FORMAL-PARAMETER-ACTUAL-NULL",
-        "formal parameter construction requires one non-null instance actual expression",
-        origin
-      )
-    }
-    if (
-      name == null ||
-      !PortableIdentifier.pattern.matcher(name).matches()
-    ) {
-      FrontendException.failAt(
-        "MORPH-FRONTEND-FORMAL-PARAMETER-NAME-INVALID",
-        s"formal parameter name '$name' is not a portable Verilog identifier",
-        origin
-      )
-    }
-    if (minimum < 1 || maximum < minimum || maximum > BigInt(Int.MaxValue)) {
-      FrontendException.failAt(
-        "MORPH-FRONTEND-FORMAL-PARAMETER-DOMAIN-INVALID",
-        s"formal parameter '$name' requires a positive non-empty Int-sized domain, received [$minimum, $maximum]",
-        origin
-      )
-    }
-    if (
-      actual.minimum < minimum || actual.maximum > maximum ||
-      actual.default < minimum || actual.default > maximum
-    ) {
-      FrontendException.failAt(
-        "MORPH-FRONTEND-FORMAL-PARAMETER-ACTUAL-DOMAIN-UNSUPPORTED",
-        s"actual expression '${actual.verilog}' in [${actual.minimum}, ${actual.maximum}] with default ${actual.default} is incompatible with formal '$name' in [$minimum, $maximum]",
-        origin
-      )
-    }
-    val formal = spinal.core.ElaborationIntegerParameter(
-      name,
-      actual.default,
-      minimum,
-      maximum
-    )
-    spinal.core.ElaborationIntegerExpression(
-      verilog = name,
-      default = actual.default,
-      minimum = minimum,
-      maximum = maximum,
-      parameters = Vector(formal),
-      sourceLocation = Some(origin.rendered)
-    )
-  }
-
-  /** Build a definition-side formal for an explicitly supplied component
-    * owner. Unlike `formalParam`, this helper does not depend on
-    * `Component.current`; it is used after an untouched native Int constructor
-    * has returned its exact component object.
-    */
+  /** Build one definition-side formal for the current component owner. */
   private[frontend] def formalBindingForOwner(
       actual: HdlInt,
       name: String,
@@ -812,8 +703,7 @@ object HdlInt {
       maximum: BigInt,
       ownerClassName: String,
       declarationKey: String,
-      origin: SourceOrigin,
-      provisionalFormal: Option[ElaborationIntegerParameter] = None
+      origin: SourceOrigin
   ): ExternalFormalParameterBinding = {
     if (actual eq null) {
       FrontendException.failAt(
@@ -853,13 +743,6 @@ object HdlInt {
         origin
       )
     }
-    if (provisionalFormal == null || provisionalFormal.exists(_ == null)) {
-      FrontendException.failAt(
-        "MORPH-FRONTEND-FORMAL-PARAMETER-PROVISIONAL-NULL",
-        s"formal parameter '$name' requires a non-null provisional-formal option",
-        origin
-      )
-    }
     if (actual.formalBinding.nonEmpty) {
       FrontendException.failAt(
         "MORPH-FRONTEND-FORMAL-PARAMETER-NESTED",
@@ -868,20 +751,7 @@ object HdlInt {
       )
     }
 
-    provisionalFormal.foreach { formal =>
-      if (
-        formal.name != name || formal.default != actual.witness ||
-        formal.minimum != minimum || formal.maximum != maximum
-      ) {
-        FrontendException.failAt(
-          "MORPH-FRONTEND-FORMAL-PARAMETER-PROVISIONAL-SCHEMA-MISMATCH",
-          s"provisional formal '${formal.name}' with default ${formal.default} in [${formal.minimum}, ${formal.maximum}] does not match requested formal '$name' with default ${actual.witness} in [$minimum, $maximum]",
-          origin
-        )
-      }
-    }
-
-    val retainedActual = nativeIntExpression(
+    val retainedActual = formalActualExpression(
       actual,
       s"formal parameter '$name' actual",
       origin
@@ -894,13 +764,11 @@ object HdlInt {
       )
     }
 
-    val formal = provisionalFormal.getOrElse(
-      ElaborationIntegerParameter(
-        name,
-        retainedActual.default,
-        minimum,
-        maximum
-      )
+    val formal = ElaborationIntegerParameter(
+      name,
+      retainedActual.default,
+      minimum,
+      maximum
     )
     ExternalFormalParameterBinding(
       formal = formal,

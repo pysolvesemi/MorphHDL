@@ -1054,7 +1054,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     if (canonicalBindings.isEmpty || actualBindings.isEmpty) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-UNRESOLVED",
-        s"scalar parameter '${parameter.name}' of canonical child '$definitionName' requires one exact formalComponent.parameter binding on canonical and actual instance '$instanceName'"
+        s"scalar parameter '${parameter.name}' of canonical child '$definitionName' requires one exact typed scalar-formal binding on canonical and actual instance '$instanceName'"
       )
     }
 

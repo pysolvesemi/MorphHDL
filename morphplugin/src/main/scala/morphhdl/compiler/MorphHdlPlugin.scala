@@ -10,8 +10,6 @@ final class MorphHdlPlugin(val global: Global) extends Plugin {
     "Typed MorphHDL source transformations for parameter-preserving elaboration"
   override val components: List[PluginComponent] =
     List(
-      new MorphHdlNativeAxi4SlaveFactoryParameterizationComponent(global),
-      new MorphHdlNativeIntShadowExpressionComponent(global),
       new MorphHdlTypedElaborationControlComponent(global),
       new MorphHdlNaturalSymbolicConditionalComponent(global)
     )

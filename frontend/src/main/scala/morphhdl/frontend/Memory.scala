@@ -1,9 +1,9 @@
 package morphhdl.frontend
 
-import spinal.core.{Data, ExternalParameterizedMemoryRegistry, HardType, Mem => SpinalMem}
+import spinal.core.{Data, HardType, Mem => SpinalMem}
 
 /**
-  * MorphHDL shadow factory for an ordinary SpinalHDL Mem with retained depth.
+  * MorphHDL typed adapter for an ordinary SpinalHDL Mem with retained depth.
   * The returned object is the native Mem and all port algorithms remain native.
   */
 object Mem {
@@ -13,10 +13,7 @@ object Mem {
   )(implicit file: sourcecode.File, line: sourcecode.Line): SpinalMem[T] = {
     if (wordCount == null)
       throw new IllegalArgumentException("symbolic native memory depth must not be null")
-    ExternalParameterizedMemoryRegistry.create(
-      wordType,
-      wordCount.toParameterizedMemoryDepth(file, line)
-    )
+    SpinalMem(wordType, wordCount.asElabInt)
   }
 
   def apply[T <: Data](wordType: HardType[T], wordCount: Int): SpinalMem[T] =

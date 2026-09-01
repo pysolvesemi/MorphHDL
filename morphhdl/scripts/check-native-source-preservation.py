@@ -15,6 +15,8 @@ DEFAULT_MANIFEST = "morphhdl/contracts/native-source-preservation.json"
 OVERLAY_MANIFEST = "morphhdl/contracts/typed-native-source-overlay.json"
 OVERLAY_GUARD = "morphhdl/scripts/check-typed-native-source-overlay.py"
 SCRIPT_PATH = "morphhdl/scripts/check-native-source-preservation.py"
+RETIREMENT_MANIFEST = "morphhdl/contracts/increment-53g-production-retirement.contract"
+RETIREMENT_GUARD = "morphhdl/scripts/check-production-retirement.py"
 
 
 class GuardError(RuntimeError):
@@ -163,6 +165,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     try:
         root = repository_root(arguments.repo_root)
+        # Increment 53g reverses this historical positive-preservation
+        # contract. Keep the stable command path for required checks, but make
+        # it prove that the retired production machinery is absent.
+        if (root / RETIREMENT_MANIFEST).is_file():
+            command = [
+                sys.executable,
+                str(root / RETIREMENT_GUARD),
+                "--repo-root",
+                str(root),
+                "--manifest",
+                str(root / RETIREMENT_MANIFEST),
+            ]
+            if arguments.self_test:
+                command.append("--self-test")
+            run(command)
+            return 0
         manifest_path = Path(arguments.manifest)
         if not manifest_path.is_absolute():
             manifest_path = root / manifest_path

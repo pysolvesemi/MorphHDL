@@ -166,8 +166,8 @@ private object FiniteFormalBoundaryFixture {
   }
 
   /** Exercise the registry directly after the ordinary typed boundary has
-    * installed its one exact capability. Both rejected calls deliberately use
-    * metadata which would look plausible to a text-based authority join.
+    * installed its one exact capability. A rejected duplicate typed claim must
+    * leave the original opaque capability and its exact port tokens unchanged.
     */
   final class TypedRegistryAtomicityTop(actual: ElabInt) extends Component {
     setDefinitionName("TypedRegistryAtomicityTop")
@@ -201,74 +201,6 @@ private object FiniteFormalBoundaryFixture {
       ExternalFormalParameterRegistry.typedBindingsOf(child)
     val portTokensAfterDuplicate =
       Vector(child.din, child.dout).map(port => typedPortTokenOf(port))
-
-    // Keep the exact diagnostic key/owner strings of the typed record, while
-    // changing the public schema object. Text therefore agrees even though no
-    // opaque legacy capability exists.
-    val forgedLegacyBinding = originalCapability.binding.copy(
-      formal = originalCapability.binding.formal.copy(
-        maximum = originalCapability.binding.formal.maximum + 1
-      )
-    )
-    val mixedFailure = caughtParameterizedFailure {
-      ExternalFormalParameterRegistry.retainComponent(
-        child,
-        forgedLegacyBinding
-      )
-    }
-    val capabilitiesAfterMixed =
-      ExternalFormalParameterRegistry.typedBindingsOf(child)
-    val bindingsAfterMixed = ExternalFormalParameterRegistry.bindingsOf(child)
-    val portTokensAfterMixed =
-      Vector(child.din, child.dout).map(port => typedPortTokenOf(port))
-  }
-
-  /** Install a public legacy component claim from inside the constructor. The
-    * enclosing typed formal boundary must reject it before minting any token or
-    * attaching one to a port, even though all diagnostic text matches what that
-    * typed record would have used.
-    */
-  final class LegacyBeforeTypedLeaf(
-      width: ElabInt,
-      parentActual: ElabInt
-  ) extends Component {
-    setDefinitionName("LegacyBeforeTypedLeaf")
-    val din = in(spinal.core.Bits(width bits)).setName("din")
-    val dout = out(spinal.core.Bits(width bits)).setName("dout")
-    dout := ~din
-
-    val formal = width.expression.parameters match {
-      case Vector(value) => value
-      case other =>
-        throw new IllegalStateException(
-          s"legacy-before-typed fixture received ${other.size} formal schemas"
-        )
-    }
-    val legacyBinding = ExternalFormalParameterBinding(
-      formal = formal,
-      actual = parentActual.expression,
-      declarationKey = s"typed-elab::${formal.name}",
-      ownerClassName = getClass.getName,
-      sourceLocation = Some("<legacy-before-typed-test>")
-    )
-    ExternalFormalParameterRegistry.retainComponent(this, legacyBinding)
-  }
-
-  final class LegacyBeforeTypedTop(
-      actual: ElabInt,
-      observeChild: LegacyBeforeTypedLeaf => Unit
-  ) extends Component {
-    setDefinitionName("LegacyBeforeTypedTop")
-    ElabFormalComponent.parameter(
-      actual,
-      "CHILD_WIDTH",
-      BigInt(1),
-      BigInt(8)
-    ) { width =>
-      val child = new LegacyBeforeTypedLeaf(width, actual)
-      observeChild(child)
-      child
-    }
   }
 
   final class TypedFiniteDefaultTop(count: ElabInt) extends Component {
@@ -642,7 +574,7 @@ class FiniteFormalBoundaryTests extends AnyFunSuite {
     }
   }
 
-  test("duplicate and typed-to-legacy claims are atomic despite matching diagnostic text") {
+  test("duplicate typed claims are atomic and preserve opaque tokens") {
     withTemporaryDirectory { directory =>
       var top: TypedRegistryAtomicityTop = null
       val verilog = emitText(
@@ -676,36 +608,6 @@ class FiniteFormalBoundaryTests extends AnyFunSuite {
           .zip(top.originalPortTokens)
           .forall { case (after, before) => after eq before }
       )
-
-      assert(
-        top.forgedLegacyBinding.declarationKey ==
-          top.originalCapability.binding.declarationKey
-      )
-      assert(
-        top.forgedLegacyBinding.ownerClassName ==
-          top.originalCapability.binding.ownerClassName
-      )
-      assert(
-        top.mixedFailure.code ==
-          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-AUTHORITY-MIXED"
-      )
-      assert(
-        top.capabilitiesAfterMixed match {
-          case Vector(value) => value eq top.originalCapability
-          case _             => false
-        }
-      )
-      assert(
-        top.bindingsAfterMixed match {
-          case Vector(value) => value eq top.originalCapability.binding
-          case _             => false
-        }
-      )
-      assert(
-        top.portTokensAfterMixed
-          .zip(top.originalPortTokens)
-          .forall { case (after, before) => after eq before }
-      )
       assert(!verilog.contains("SECOND_WIDTH"), verilog)
       assert(
         "parameter\\s+integer\\s+CHILD_WIDTH\\b".r
@@ -713,60 +615,6 @@ class FiniteFormalBoundaryTests extends AnyFunSuite {
           .size == 1,
         verilog
       )
-    }
-  }
-
-  test("a matching constructor legacy claim blocks typed registration before token or RTL publication") {
-    withTemporaryDirectory { directory =>
-      val filename = "legacy_before_typed.v"
-      var attemptedChild: LegacyBeforeTypedLeaf = null
-      val generation = MorphVerilog.tryGenerate(config(directory, filename)) {
-        val actual = HdlInt
-          .param(
-            "PARENT_WIDTH",
-            default = BigInt(2),
-            min = BigInt(1),
-            max = BigInt(4)
-          )
-          .asElabInt
-        new LegacyBeforeTypedTop(actual, child => attemptedChild = child)
-      }
-
-      generation match {
-        case Left(failure) =>
-          assert(
-            failure.detail.contains(
-              "SPINAL-PARAMETERIZED-VERILOG-FORMAL-AUTHORITY-MIXED"
-            ),
-            failure.detail
-          )
-        case Right(report) =>
-          fail(s"Expected mixed formal-authority failure, received $report")
-      }
-      assert(attemptedChild ne null)
-      assert(
-        attemptedChild.legacyBinding.declarationKey ==
-          s"typed-elab::${attemptedChild.legacyBinding.formal.name}"
-      )
-      assert(
-        attemptedChild.legacyBinding.ownerClassName ==
-          attemptedChild.getClass.getName
-      )
-      assert(
-        ExternalFormalParameterRegistry
-          .typedBindingsOf(attemptedChild)
-          .isEmpty
-      )
-      Vector(attemptedChild.din, attemptedChild.dout).foreach { port =>
-        assert(ExternalFormalParameterRegistry.typedBindingOf(port).isEmpty)
-      }
-      assert(
-        ExternalFormalParameterRegistry.bindingsOf(attemptedChild) match {
-          case Vector(value) => value eq attemptedChild.legacyBinding
-          case _             => false
-        }
-      )
-      assert(!Files.exists(directory.resolve(filename)))
     }
   }
 

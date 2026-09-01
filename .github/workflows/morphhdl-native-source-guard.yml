@@ -1,5 +1,7 @@
 name: MorphHDL native source guard
 
+# Stable required-check name. Increment 53g replaces positive preservation of
+# legacy native-Int machinery with a fail-closed production-retirement guard.
 on:
   push:
     branches:
@@ -7,10 +9,9 @@ on:
       - parameterized-verilog
       - 'agent/increment-53d-*'
       - 'agent/increment-53e-*'
+      - 'agent/increment-53g-*'
   pull_request:
-    branches:
-      - main
-      - parameterized-verilog
+    branches: [main, parameterized-verilog]
   workflow_dispatch:
 
 permissions:
@@ -26,46 +27,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Check out complete history
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-
-      - name: Syntax-check and test both guard contracts
-        shell: bash
+      - name: Syntax-check and self-test the retirement boundary
         run: |
-          set -euo pipefail
           python3 -m py_compile \
-            morphhdl/scripts/check-native-source-preservation.py \
-            morphhdl/scripts/check-typed-native-source-overlay.py
-          python3 morphhdl/scripts/check-native-source-preservation.py --self-test
-          python3 morphhdl/scripts/check-native-source-preservation.py \
-            --manifest ./morphhdl/contracts/native-source-preservation.json
-          if [ -f morphhdl/contracts/typed-native-source-overlay.json ]; then
-            python3 morphhdl/scripts/check-typed-native-source-overlay.py --self-test
-          fi
-
-      - name: Verify reviewed native-source state
-        shell: bash
-        run: |
-          set -euo pipefail
-          overlay=morphhdl/contracts/typed-native-source-overlay.json
-          if [ ! -f "$overlay" ]; then
-            python3 morphhdl/scripts/check-native-source-preservation.py
-            exit 0
-          fi
-
-          base="$(python3 - <<'PY'
-          import json
-          from pathlib import Path
-          print(json.loads(Path('morphhdl/contracts/typed-native-source-overlay.json').read_text())['base']['commit'])
-          PY
-          )"
-          worktree="${RUNNER_TEMP}/morphhdl-native-pre-typed"
-          rm -rf "$worktree"
-          git worktree add --detach "$worktree" "$base"
-          trap 'git worktree remove --force "$worktree" >/dev/null 2>&1 || true' EXIT
-          python3 "$worktree/morphhdl/scripts/check-native-source-preservation.py" \
-            --repo-root "$worktree"
-          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+            morphhdl/scripts/check-production-retirement.py \
+            morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-production-retirement.py --self-test
+      - name: Verify the reviewed production state
+        run: python3 morphhdl/scripts/check-production-retirement.py

@@ -1,18 +1,12 @@
 name: MorphHDL native AXI4 Slave Factory parameterized offsets
 
-# Increment 53c preserves bounded symbolic register-map addresses while the
-# untouched spinal.lib.bus.amba4.axi.Axi4SlaveFactory remains the only factory
-# implementation used by application source.
+# Stable required-check name. Increment 53g retires the file-specific AXI4
+# parser component; this workflow now proves absence plus typed-path health.
 on:
   push:
-    branches:
-      - main
-      - parameterized-verilog
-      - agent/increment-53c-native-axi4-slave-factory-offsets
+    branches: [main, parameterized-verilog]
   pull_request:
-    branches:
-      - main
-      - parameterized-verilog
+    branches: [main, parameterized-verilog]
   workflow_dispatch:
 
 permissions:
@@ -26,44 +20,17 @@ jobs:
   source-boundary:
     name: Real native AXI4 factory and audited native-source boundary
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - name: Check out complete history
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Prove the native integration boundary
-        shell: bash
+      - uses: actions/checkout@v4
+      - name: Prove component-specific recognizer retirement
         run: |
-          set -euo pipefail
-          if [[ -f morphhdl/contracts/typed-native-source-overlay.json ]]; then
-            python3 morphhdl/scripts/check-typed-native-source-overlay.py
-          else
-            python3 morphhdl/scripts/check-native-source-preservation.py
-          fi
-          test -f morphruntime/src/main/scala/spinal/core/ExternalNativeAxi4SlaveFactoryParameterization.scala
-          test -f morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeAxi4SlaveFactoryParameterizationComponent.scala
-          test -f morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryParameterizedOffsetTests.scala
-          grep -Fq 'import spinal.lib.bus.amba4.axi.{Axi4, Axi4Config, Axi4SlaveFactory}' \
-            morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryParameterizedOffsetTests.scala
-          grep -Fq 'val factory = Axi4SlaveFactory(io.axi)' \
-            morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryParameterizedOffsetTests.scala
-          grep -Fq 'factory.readAndWrite(baseRegister, offset)' \
-            morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryParameterizedOffsetTests.scala
+          python3 morphhdl/scripts/check-production-retirement.py --self-test
+          python3 morphhdl/scripts/check-production-retirement.py
           if grep -R -n -E '(^|[[:space:]])(class|trait|object)[[:space:]]+Axi4SlaveFactory([[:space:]]|\{|$)' \
               morphruntime morphplugin morphhdl/src/main; then
-            echo 'Increment 53c must not implement a MorphHDL Axi4SlaveFactory replacement' >&2
+            echo 'MorphHDL must not implement an Axi4SlaveFactory replacement' >&2
             exit 1
-          fi
-          if [[ ! -f morphhdl/contracts/typed-native-source-overlay.json && -n "${GITHUB_BASE_REF:-}" ]]; then
-            git fetch --no-tags origin "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
-            changed="$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")"
-            if grep -Eq '^(core|lib|idslplugin)/src/main/' <<<"${changed}"; then
-              echo 'Increment 53c must not modify native SpinalHDL production sources' >&2
-              grep -E '^(core|lib|idslplugin)/src/main/' <<<"${changed}" >&2
-              exit 1
-            fi
           fi
 
   contracts:
@@ -72,128 +39,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     container:
-      image: ghcr.io/spinalhdl/docker@sha256:7666918d726d498af9979dc004012a9baa1c758be8d1a63c615a000ac06db793
-    env:
-      XDG_CACHE_HOME: /tmp/morphhdl-cache
-      MORPHDL_NATIVE_AXI4_ARTIFACT_DIR: /tmp/morphhdl-native-axi4-artifacts
+      image: ghcr.io/spinalhdl/docker:v1.2.0
     strategy:
       fail-fast: false
       matrix:
-        scala_version:
-          - "2.12.18"
-          - "2.13.12"
+        scala_version: ['2.12.18', '2.13.12']
     steps:
-      - name: Check out sources
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-
-      - name: Install pinned Mill bootstrap
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --location --retry 5 --retry-all-errors \
-            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
-            --output /tmp/morphhdl-mill
-          chmod +x /tmp/morphhdl-mill
-
-      - name: Run real native AXI4 factory offset contract
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/morphhdl-axi4-offset-logs \
-            "${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}"
-          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
-            morphhdl.NativeAxi4SlaveFactoryParameterizedOffsetTests \
-            2>&1 | tee /tmp/morphhdl-axi4-offset-logs/focused-scala-${{ matrix.scala_version }}.log
-
-      - name: Validate emitted RTL with strict Verilog-2001 tools
-        shell: bash
-        run: |
-          set -euo pipefail
-          parameterized="${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}/native_axi4_parameterized.v"
-          concrete_top="${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}/native_axi4_concrete_top.v"
-          concrete_block="${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}/native_axi4_concrete_block.v"
-          test -s "${parameterized}"
-          test -s "${concrete_top}"
-          test -s "${concrete_block}"
-
-          {
-            echo '== tool versions =='
-            iverilog -V
-            verilator --version
-            yosys -V
-
-            echo '== Icarus Verilog-2001 =='
-            iverilog -g2001 -Wall -Wimplicit \
-              -s NativeAxi4SlaveFactoryParameterizedTop \
-              -o /tmp/native_axi4_parameterized_default.vvp \
-              "${parameterized}"
-            iverilog -g2001 -Wall -Wimplicit \
-              -P NativeAxi4SlaveFactoryParameterizedTop.TOP_OFFSET=80 \
-              -s NativeAxi4SlaveFactoryParameterizedTop \
-              -o /tmp/native_axi4_parameterized_offset_80.vvp \
-              "${parameterized}"
-            iverilog -g2001 -Wall -Wimplicit \
-              -s NativeAxi4SlaveFactoryParameterizedTop \
-              -o /tmp/native_axi4_concrete_top.vvp \
-              "${concrete_top}"
-            iverilog -g2001 -Wall -Wimplicit \
-              -s NativeAxi4SlaveFactoryRegisterBlock \
-              -o /tmp/native_axi4_concrete_block.vvp \
-              "${concrete_block}"
-
-            echo '== Verilator Verilog-2001 lint =='
-            verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
-              --top-module NativeAxi4SlaveFactoryParameterizedTop \
-              "${parameterized}"
-            verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
-              -GTOP_OFFSET=80 \
-              --top-module NativeAxi4SlaveFactoryParameterizedTop \
-              "${parameterized}"
-            verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
-              --top-module NativeAxi4SlaveFactoryParameterizedTop \
-              "${concrete_top}"
-            verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
-              --top-module NativeAxi4SlaveFactoryRegisterBlock \
-              "${concrete_block}"
-
-            echo '== Yosys Verilog-2001 synthesis =='
-            yosys -q -p "read_verilog -noautowire ${parameterized}; hierarchy -check -top NativeAxi4SlaveFactoryParameterizedTop; proc; opt; check -assert; synth -top NativeAxi4SlaveFactoryParameterizedTop; check -assert"
-            yosys -q -p "read_verilog -noautowire ${parameterized}; chparam -set TOP_OFFSET 80 NativeAxi4SlaveFactoryParameterizedTop; hierarchy -check -top NativeAxi4SlaveFactoryParameterizedTop; proc; opt; check -assert; synth -top NativeAxi4SlaveFactoryParameterizedTop; check -assert"
-            yosys -q -p "read_verilog -noautowire ${concrete_top}; hierarchy -check -top NativeAxi4SlaveFactoryParameterizedTop; proc; opt; check -assert; synth -top NativeAxi4SlaveFactoryParameterizedTop; check -assert"
-            yosys -q -p "read_verilog -noautowire ${concrete_block}; hierarchy -check -top NativeAxi4SlaveFactoryRegisterBlock; proc; opt; check -assert; synth -top NativeAxi4SlaveFactoryRegisterBlock; check -assert"
-          } 2>&1 | tee /tmp/morphhdl-axi4-offset-logs/verilog-2001-scala-${{ matrix.scala_version }}.log
-
-      - name: Run inherited MorphHDL regression contracts
-        shell: bash
-        run: |
-          set -euo pipefail
-          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
-            morphhdl.ParameterizedStreamFifoDepthTests \
-            morphhdl.BackendSyncMergeIsolationTests \
-            morphhdl.CapturedAssignmentNormalizationTests \
-            morphhdl.NativeIntSymbolicConditionalTests \
-            morphhdl.NativeIntNestedSymbolicControlFlowTests \
-            morphhdl.NativeMemAutoProvenanceTests \
-            morphhdl.ExternalNativeIntFormalizationTests \
-            morphhdl.ExternalNativeIntShadowExpressionTests \
-            morphhdl.ExternalNativeIntShadowProvenanceTests \
-            morphhdl.FormalParameterIdentityTests \
-            morphhdl.FormalParameterClonePropagationTests \
-            morphhdl.HierarchyParameterBindingTests \
-            morphhdl.MorphSingleSourceVerilogTests \
-            morphhdl.SpinalEnumLocalParameterTests \
-            morphhdl.integration.ExternalSpinalVerilogBaselineTests \
-            2>&1 | tee /tmp/morphhdl-axi4-offset-logs/regressions-scala-${{ matrix.scala_version }}.log
-
-      - name: Preserve focused output and witness RTL
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-axi4-factory-offset-scala-${{ matrix.scala_version }}
-          path: |
-            /tmp/morphhdl-axi4-offset-logs
-            /tmp/morphhdl-native-axi4-artifacts
-          if-no-files-found: error
-          retention-days: 7
+          submodules: recursive
+      - name: Exercise neutral typed expressions and hierarchy
+        run: >-
+          sbt -batch "++${{ matrix.scala_version }}"
+          "morph/testOnly morphhdl.TypedElaborationValueTests morphhdl.HierarchyParameterBindingTests"

@@ -514,15 +514,8 @@ class TypedPrimitiveClosureTests extends AnyFunSuite {
         parameter("STATE_COUNT", default = 1, minimum = 1, maximum = 8)
       val (_, stateVerilog, _) = emitMorph(
         directory.resolve("state"),
-        "typed_state_counter.v", {
-          val dut = new TypedStateCounter(stateCount)
-          assert(
-            spinal.lib.ExternalParameterizedCounterRegistry
-              .metadataOf(dut.counter)
-              .isEmpty
-          )
-          dut
-        }
+        "typed_state_counter.v",
+        new TypedStateCounter(stateCount)
       )
       val stateCompact = compactWhitespace(stateVerilog)
       assert(stateVerilog.contains("parameter integer STATE_COUNT = 1"))
