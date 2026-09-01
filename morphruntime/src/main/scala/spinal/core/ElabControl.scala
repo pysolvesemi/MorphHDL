@@ -1,5 +1,7 @@
 package spinal.core
 
+import scala.collection.mutable
+
 /** Runtime half of the typed elaboration control-flow bridge.
   *
   * The compiler plugin routes only conditions already declared as
@@ -9,6 +11,11 @@ package spinal.core
   */
 object ElabControl {
   private val ElseIfMarkerPrefix = "morphhdl_else_if_"
+  private object GeneratedIfOrdinalStorageKey
+
+  private final class GeneratedIfOrdinals {
+    val byBase = mutable.HashMap.empty[String, Int]
+  }
 
   def selectSymbolic[T](
       condition: ElabBool,
@@ -193,13 +200,13 @@ object ElabControl {
       ParameterizedStructure.typedPredicateDomainOf(component, condition.expression)
     var trueValue: Option[T] = None
     var falseValue: Option[T] = None
-    val trueBlock = ParameterizedStructure.captureBlock(
+    val trueBlock = ParameterizedStructure.captureExactBlock(
       component,
+      exact.root,
+      trueValues,
       source
     ) {
-      ElaborationDomainContext.withAdmitted(exact.root, trueValues, source) {
-        trueValue = Some(ifTrue())
-      }
+      trueValue = Some(ifTrue())
       ()
     }
     val pending = ParameterizedStructure.beginPending(
@@ -207,20 +214,16 @@ object ElabControl {
       "typed-generate-if",
       Some(rendered(sourceFile, sourceLine))
     )
-    val falseBlock = ParameterizedStructure.captureBlock(
+    val falseBlock = ParameterizedStructure.captureExactBlock(
       component,
+      exact.root,
+      falseValues,
       Some(rendered(falseFile, falseLine))
     ) {
-      ElaborationDomainContext.withAdmitted(
-        exact.root,
-        falseValues,
-        Some(rendered(falseFile, falseLine))
-      ) {
-        falseValue = Some(ifFalse())
-      }
+      falseValue = Some(ifFalse())
       ()
     }
-    val base = generatedIfBase(sourceFile, sourceLine)
+    val base = nextGeneratedIfBase(component, sourceFile, sourceLine)
     ParameterizedStructure.registerIf(
       pending,
       projectedCondition,
@@ -270,10 +273,13 @@ object ElabControl {
     val predicateDomain =
       ParameterizedStructure.typedPredicateDomainOf(component, condition.expression)
     var capturedValue: Option[T] = None
-    val trueBlock = ParameterizedStructure.captureBlock(component, source) {
-      ElaborationDomainContext.withAdmitted(exact.root, trueValues, source) {
-        capturedValue = Some(body())
-      }
+    val trueBlock = ParameterizedStructure.captureExactBlock(
+      component,
+      exact.root,
+      trueValues,
+      source
+    ) {
+      capturedValue = Some(body())
       ()
     }
     val pending = ParameterizedStructure.beginPending(
@@ -282,7 +288,7 @@ object ElabControl {
       source
     )
     val falseBlock = ParameterizedStructuralSynthetic.emptyBlock(source)
-    val base = generatedIfBase(sourceFile, sourceLine)
+    val base = nextGeneratedIfBase(component, sourceFile, sourceLine)
     ParameterizedStructure.registerIf(
       pending,
       projectedCondition,
@@ -324,6 +330,28 @@ object ElabControl {
       case _                                                  => "source"
     }
     s"g_if_${safeStem}_l$line"
+  }
+
+  /** Keep the existing source-derived label for the first typed conditional at
+    * one call site, then disambiguate repeated native-library invocations by
+    * exact component-local capture order. Labels remain presentation only;
+    * structural ownership and expression identity never depend on the suffix.
+    */
+  private def nextGeneratedIfBase(
+      component: Component,
+      file: String,
+      line: Int
+  ): String = {
+    val base = generatedIfBase(file, line)
+    val ordinals = component.userCache
+      .getOrElseUpdate(
+        GeneratedIfOrdinalStorageKey,
+        new GeneratedIfOrdinals
+      )
+      .asInstanceOf[GeneratedIfOrdinals]
+    val ordinal = ordinals.byBase.getOrElse(base, 0) + 1
+    ordinals.byBase(base) = ordinal
+    if (ordinal == 1) base else s"${base}_$ordinal"
   }
 
   private def rendered(file: String, line: Int): String =

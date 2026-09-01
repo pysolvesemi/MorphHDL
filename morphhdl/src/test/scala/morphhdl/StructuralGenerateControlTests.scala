@@ -78,8 +78,7 @@ object StructuralGenerateControlSmoke {
     }
   }
 
-  final class StructuralConditionalTop(enable: HdlBool, mode: HdlInt)
-      extends Component {
+  final class StructuralConditionalTop(enable: HdlBool, mode: HdlInt) extends Component {
     setDefinitionName("StructuralConditionalTop")
 
     val din = in(morphhdl.frontend.Bits(8 bits))
@@ -87,11 +86,13 @@ object StructuralGenerateControlSmoke {
 
     alive := din.orR
 
-    enable.generateIf("g_enabled", "g_disabled") {
-      attachSink(din)
-    }.otherwise {
-      attachSink(~din)
-    }
+    enable
+      .generateIf("g_enabled", "g_disabled") {
+        attachSink(din)
+      }
+      .otherwise {
+        attachSink(~din)
+      }
 
     mode.generateCase
       .choice(BigInt(0), "g_mode_zero") {
@@ -113,8 +114,7 @@ object StructuralGenerateControlSmoke {
     }
   }
 
-  final class TypedPredicateRootsTop(first: ElabInt, second: ElabInt)
-      extends Component {
+  final class TypedPredicateRootsTop(first: ElabInt, second: ElabInt) extends Component {
     setDefinitionName("TypedPredicateRootsTop")
 
     val din = in(morphhdl.frontend.Bits(8 bits))
@@ -141,8 +141,7 @@ object StructuralGenerateControlSmoke {
     }
   }
 
-  final class StructuralCountCaseRootsTop(count: HdlInt, selector: HdlInt)
-      extends Component {
+  final class StructuralCountCaseRootsTop(count: HdlInt, selector: HdlInt) extends Component {
     setDefinitionName("StructuralCountCaseRootsTop")
 
     val din = in(morphhdl.frontend.Bits(8 bits))
@@ -197,7 +196,7 @@ object StructuralGenerateControlSmoke {
       val body = ParameterizedStructure.captureBlock(this, None) {
         attachSink(din)
       }
-      ParameterizedStructure.registerFor(
+      ParameterizedStructureTestAccess.registerFor(
         this,
         s"g_rootless_count_$suffix",
         s"rootless_index_$suffix",
@@ -218,7 +217,7 @@ object StructuralGenerateControlSmoke {
       val whenFalse = ParameterizedStructure.captureBlock(this, None) {
         attachSink(~din)
       }
-      ParameterizedStructure.registerIf(
+      ParameterizedStructureTestAccess.registerIf(
         pending,
         condition,
         s"g_rootless_true_$suffix",
@@ -240,7 +239,7 @@ object StructuralGenerateControlSmoke {
       val default = ParameterizedStructure.captureBlock(this, None) {
         attachSink(~din)
       }
-      ParameterizedStructure.registerCase(
+      ParameterizedStructureTestAccess.registerCase(
         pending,
         selector,
         Vector((BigInt(0), s"g_rootless_zero_$suffix", choice)),
@@ -687,8 +686,8 @@ class StructuralGenerateControlTests extends AnyFunSuite {
     finally {
       val stream = Files.walk(directory)
       try {
-        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach {
-          path => Files.deleteIfExists(path)
+        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach { path =>
+          Files.deleteIfExists(path)
         }
       } finally stream.close()
     }

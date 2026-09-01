@@ -79,6 +79,19 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
 
   private final case class PortRewrite(name: String, width: BindingExpr)
 
+  private final case class AggregateBindingEvidence(
+      present: Boolean,
+      bindings: Vector[BindingExpr],
+      canonicalPorts: Vector[BaseType]
+  )
+
+  private final case class FormalBindingEvidence(
+      binding: ExternalFormalParameterBinding,
+      typedToken: Option[ExternalTypedFormalDeclarationToken]
+  ) {
+    def isTyped: Boolean = typedToken.nonEmpty
+  }
+
   private final case class InstancePlan(
       definitionName: String,
       instanceName: String,
@@ -329,13 +342,47 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     val actualByName = actualPorts.toMap
     val canonicalByName = canonicalPorts.toMap
     val canonicalParameters = componentParameters(canonical)
+    val aggregateEvidence = canonicalParameters.map { parameter =>
+      parameter.name -> pulledAggregateBindingEvidence(
+        parent,
+        child,
+        canonical,
+        actualPorts,
+        canonicalPorts,
+        assignments,
+        parameter,
+        instanceName
+      )
+    }.toMap
     val bindings = canonicalParameters
       .map { parameter =>
         val parameterPorts = canonicalPorts.collect {
           case (name, port) if ParameterizedWidth.parameterOf(port).exists(_.name == parameter.name) =>
             name
         }
-        if (parameterPorts.isEmpty) {
+        val aggregate = aggregateEvidence(parameter.name)
+        if (aggregate.present) {
+          val uncovered = parameterPorts.filterNot { name =>
+            aggregate.canonicalPorts.exists(_ eq canonicalByName(name))
+          }
+          if (uncovered.nonEmpty) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-AGGREGATE-SURFACE-MIXED",
+              s"parameter '${parameter.name}' of instance '$instanceName' appears on exact pulled Vec ports and unrelated scalar ports ${uncovered.sorted
+                  .mkString(", ")}"
+            )
+          }
+          val expressions = distinctBindings(aggregate.bindings)
+          if (expressions.size != 1) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-CONFLICT",
+              s"exact pulled Vec ports of instance '$instanceName' constrain parameter '${parameter.name}' with ${expressions.map(_.render).sorted.mkString(", ")}"
+            )
+          }
+          val expression = expressions.head
+          validateParameterBinding(expression, parameter, instanceName, pc)
+          parameter.name -> expression
+        } else if (parameterPorts.isEmpty) {
           val expression = componentOnlyBinding(
             canonical = canonical,
             child = child,
@@ -371,10 +418,10 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
             )
           })
           val canonicalPortFormals = parameterPorts.flatMap { name =>
-            ExternalFormalParameterRegistry.bindingOf(canonicalByName(name))
+            formalBindingEvidenceOf(canonicalByName(name))
           }
           val actualPortFormals = parameterPorts.flatMap { name =>
-            ExternalFormalParameterRegistry.bindingOf(actualByName(name))
+            formalBindingEvidenceOf(actualByName(name))
           }
           val canonicalFormals = retainedFormals(
             component = canonical,
@@ -405,7 +452,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
                   s"formal slot '${parameter.name}' of instance '$instanceName' is not retained on every canonical and actual packed port"
                 )
               }
-              (canonicalFormals ++ actualFormals).foreach { binding =>
+              (canonicalFormals ++ actualFormals).foreach { evidence =>
+                val binding = evidence.binding
                 if (binding.formal != parameter) {
                   fail(
                     "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SCHEMA-CONFLICT",
@@ -414,26 +462,20 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
                   )
                 }
               }
-              val canonicalKeys = canonicalFormals.map(_.declarationKey).distinct
-              val actualKeys = actualFormals.map(_.declarationKey).distinct
-              if (
-                canonicalKeys.size != 1 || actualKeys.size != 1 ||
-                canonicalKeys.head != actualKeys.head
-              ) {
-                fail(
-                  "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
-                  s"formal slot '${parameter.name}' of instance '$instanceName' does not map to one canonical declaration identity",
-                  actualFormals.flatMap(_.sourceLocation).headOption
-                )
-              }
+              validateMappedFormalIdentity(
+                canonicalFormals,
+                actualFormals,
+                parameter,
+                instanceName
+              )
               val actualExpressions = ExternalFormalParameterRegistry
-                .distinctExpressions(actualFormals.map(_.actual))
+                .distinctExpressions(actualFormals.map(_.binding.actual))
                 .map(ExternalFormalParameterRegistry.normalizedExpression)
               if (actualExpressions.size != 1) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS",
                   s"formal slot '${parameter.name}' of instance '$instanceName' maps to multiple actual expressions: ${actualExpressions.map(_.verilog).sorted.mkString(", ")}",
-                  actualFormals.flatMap(_.sourceLocation).headOption
+                  actualFormals.flatMap(_.binding.sourceLocation).headOption
                 )
               }
               val explicit = ExpressionBinding(actualExpressions.head)
@@ -445,7 +487,10 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
               }
               if (
                 connectionBindings.size != 1 ||
-                bindingSignature(connectionBindings.head) != bindingSignature(explicit)
+                !sameFormalActualConnection(
+                  connectionBindings.head,
+                  explicit
+                )
               ) {
                 fail(
                   "SPINAL-PARAMETERIZED-VERILOG-FORMAL-ACTUAL-CONNECTION-CONFLICT",
@@ -453,7 +498,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
                       .map(_.render)
                       .sorted
                       .mkString(", ")}, but explicit actual is '${explicit.render}'",
-                  actualFormals.flatMap(_.sourceLocation).headOption
+                  actualFormals.flatMap(_.binding.sourceLocation).headOption
                 )
               }
               explicit
@@ -480,6 +525,10 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       .sortBy(_._1)
 
     val canonicalParameterNames = canonicalParameters.map(_.name).toSet
+    val aggregatePorts = aggregateEvidence.valuesIterator
+      .filter(_.present)
+      .flatMap(_.canonicalPorts)
+      .toVector
     canonicalPorts.foreach { case (name, expectedPort) =>
       val expectedWidth = ParameterizedWidth
         .expressionOf(expectedPort)
@@ -499,7 +548,10 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           s"port '$name' of instance '$instanceName' is concrete while canonical definition '$definitionName' is symbolic"
         )
       }
-      if (expectedWidth.isEmpty) {
+      if (
+        expectedWidth.isEmpty &&
+        !aggregatePorts.exists(_ eq expectedPort)
+      ) {
         connectionEvidence(
           parent,
           child,
@@ -689,6 +741,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       ParameterizedWidth.parametersOf(component) ++
         ExternalParameterizedMemoryRegistry.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
+        ParameterizedVerilogVecs.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component)
     val grouped = values.groupBy(_.name)
@@ -705,6 +758,243 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     grouped.toVector.map(_._2.head).sortBy(_.name)
   }
 
+  /** Classify a pulled typed Vec port as one aggregate hierarchy surface.
+    *
+    * Discovery starts from the canonical Vec object and its exact flattened
+    * port identities, then maps those identities to the actual instance by
+    * native port ordinal.  The parent connection is admitted only when that
+    * exact actual Vec retained a packed-read operation whose exact result is
+    * consumed in the parent. Rendered port, signal and parameter names are
+    * used only after this identity proof for diagnostics/publication.
+    */
+  private def pulledAggregateBindingEvidence(
+      parent: Component,
+      child: Component,
+      canonical: Component,
+      actualPorts: Vector[(String, BaseType)],
+      canonicalPorts: Vector[(String, BaseType)],
+      assignments: Vector[DataAssignmentStatement],
+      parameter: ElaborationIntegerParameter,
+      instanceName: String
+  ): AggregateBindingEvidence = {
+    val bindings = ArrayBuffer.empty[BindingExpr]
+    val covered = ArrayBuffer.empty[BaseType]
+    var present = false
+
+    def vectorLeaves(vector: Vec[_]): Vector[BaseType] =
+      vector.vec.flatMap(element => element.asInstanceOf[Data].flatten).toVector
+
+    def exactReferences(expression: Expression, target: Expression): Boolean = {
+      var found = false
+      def visit(current: Expression): Unit =
+        if (!found && current != null) {
+          if (current eq target) found = true
+          else current.foreachExpression(visit)
+        }
+      visit(expression)
+      found
+    }
+
+    def registryFormals(
+        component: Component,
+        role: String
+    ): Vector[FormalBindingEvidence] = {
+      val typed = ExternalFormalParameterRegistry.typedBindingsOf(component)
+      if (typed.nonEmpty) {
+        if (typed.size != 1) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-AGGREGATE-FORMAL-IDENTITY-CONFLICT",
+            s"candidate pulled Vec surface of instance '$instanceName' retains ${typed.size} opaque $role formal capabilities; exactly one is required",
+            typed.flatMap(_.binding.sourceLocation).headOption
+          )
+        }
+        val value = typed.head
+        val schemaMatches =
+          if (role == "canonical") value.binding.formal eq parameter
+          else value.binding.formal == parameter
+        if (schemaMatches)
+          Vector(
+            FormalBindingEvidence(
+              value.binding,
+              Some(value.declarationToken)
+            )
+          )
+        else Vector.empty
+      } else
+        ExternalFormalParameterRegistry
+          .bindingsOf(component)
+          .filter(_.formal == parameter)
+          .map(FormalBindingEvidence(_, None))
+    }
+
+    val canonicalRegistryFormals = registryFormals(canonical, "canonical")
+    val actualRegistryFormals = registryFormals(child, "actual")
+
+    def exactVecFormals(
+        vector: Vec[_],
+        candidates: Vector[FormalBindingEvidence]
+    ): Vector[FormalBindingEvidence] = {
+      val retained = ParameterizedVec.formalBindingsOf(vector)
+      candidates.filter { candidate =>
+        retained.exists { binding =>
+          (binding.formal eq candidate.binding.formal) &&
+          ElabInt.equivalentExactFunction(
+            binding.actual,
+            candidate.binding.actual
+          )
+        }
+      }
+    }
+
+    val actualVectors = ParameterizedVec.vectorsOf(child)
+    ParameterizedVec.vectorsOf(canonical).foreach { canonicalVector =>
+      val canonicalShape = ParameterizedVec.shapeOf(canonicalVector).getOrElse {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-VEC-SHAPE-MISSING",
+          s"canonical pulled Vec of instance '$instanceName' lost its retained shape"
+        )
+      }
+      val dimensions =
+        canonicalShape.depth +: canonicalShape.elementLeaves.map(_.width)
+      val canonicalFormals = exactVecFormals(
+        canonicalVector,
+        canonicalRegistryFormals
+      )
+      if (canonicalFormals.size > 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-AGGREGATE-FORMAL-IDENTITY-CONFLICT",
+          s"candidate pulled Vec surface of instance '$instanceName' retains multiple exact canonical formal identities for parameter '${parameter.name}'",
+          canonicalFormals.flatMap(_.binding.sourceLocation).headOption
+        )
+      }
+      val dependsOnParameter = canonicalFormals.headOption match {
+        case Some(canonicalBinding) =>
+          dimensions.exists(
+            _.completedParameterRoots.exists(
+              _ eq canonicalBinding.binding.formal.declarationRoot
+            )
+          )
+        case None =>
+          dimensions.exists(
+            ParameterizedVec.isExactDirectParameterSchema(_, parameter)
+          )
+      }
+      val canonicalLeaves = vectorLeaves(canonicalVector)
+      if (
+        dependsOnParameter && canonicalLeaves.nonEmpty &&
+        canonicalLeaves.forall(_.isIo)
+      ) {
+        val portOrdinals = canonicalLeaves.map { leaf =>
+          canonicalPorts.indexWhere { case (_, port) => port eq leaf }
+        }
+        if (portOrdinals.exists(_ < 0)) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-PORT-LAYOUT-MISMATCH",
+            s"canonical pulled Vec of instance '$instanceName' is not wholly represented by exact canonical port identities",
+            canonicalShape.sourceLocation
+          )
+        }
+        val actualLeaves = portOrdinals.map(index => actualPorts(index)._2)
+        val candidates = actualVectors.filter { vector =>
+          val leaves = vectorLeaves(vector)
+          leaves.size == actualLeaves.size &&
+          leaves.zip(actualLeaves).forall { case (left, right) => left eq right }
+        }
+        if (candidates.size > 1) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-AGGREGATE-IDENTITY-AMBIGUOUS",
+            s"canonical pulled Vec of instance '$instanceName' maps to ${candidates.size} actual Vec identities",
+            canonicalShape.sourceLocation
+          )
+        }
+        candidates.headOption.foreach { actualVector =>
+          val actualFormals = exactVecFormals(
+            actualVector,
+            actualRegistryFormals
+          )
+          val formalPair = (canonicalFormals, actualFormals) match {
+            case (Vector(canonicalBinding), Vector(actualBinding)) =>
+              validateMappedFormalIdentity(
+                Vector(canonicalBinding),
+                Vector(actualBinding),
+                parameter,
+                instanceName
+              )
+              Some(canonicalBinding.binding -> actualBinding.binding)
+            case (Vector(), Vector()) => None
+            case _ =>
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-AGGREGATE-FORMAL-IDENTITY-CONFLICT",
+                s"candidate pulled Vec surface of instance '$instanceName' does not retain one matching canonical and actual formal declaration identity for parameter '${parameter.name}'",
+                (canonicalFormals ++ actualFormals)
+                  .flatMap(_.binding.sourceLocation)
+                  .headOption
+              )
+          }
+          val reads = ParameterizedVec.operationsOf(actualVector).collect {
+            case read: ParameterizedVecPackedRead
+                if assignments.exists(assignment =>
+                  (assignment.finalTarget.component eq parent) &&
+                    (exactReferences(assignment.source, read.result) ||
+                      exactReferences(assignment.source, read.carrier))
+                ) =>
+              read
+          }
+          if (reads.nonEmpty) {
+            present = true
+            val actual = formalPair
+              .flatMap { case (canonicalBinding, actualBinding) =>
+                ParameterizedVec.exactAggregateHierarchyBinding(
+                  canonicalVector,
+                  actualVector,
+                  canonicalBinding.formal,
+                  canonicalBinding.actual,
+                  actualBinding.formal,
+                  actualBinding.actual
+                )
+              }
+              .orElse {
+                if (formalPair.isEmpty)
+                  ParameterizedVec.exactDirectAggregateHierarchyBinding(
+                    canonicalVector,
+                    actualVector,
+                    parameter
+                  )
+                else None
+              }
+              .getOrElse {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-AGGREGATE-SHAPE-MISMATCH",
+                  s"exact pulled Vec port of instance '$instanceName' does not preserve the canonical root/function layout for parameter '${parameter.name}'",
+                  canonicalShape.sourceLocation
+                )
+              }
+            reads.foreach { read =>
+              if (
+                !ParameterizedVec.exactPackedShapeMatches(
+                  actualVector,
+                  read.result
+                ) ||
+                ParameterizedVec.packedWidthExpressionOf(read.result).isEmpty
+              ) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-AGGREGATE-PACKED-IDENTITY-MISMATCH",
+                  s"exact pulled Vec port of instance '$instanceName' lost its identity-owned packed shape",
+                  canonicalShape.sourceLocation
+                )
+              }
+            }
+            bindings += ExpressionBinding(actual)
+            canonicalLeaves.foreach { leaf =>
+              if (!covered.exists(_ eq leaf)) covered += leaf
+            }
+          }
+        }
+      }
+    }
+    AggregateBindingEvidence(present, bindings.toVector, covered.toVector)
+  }
+
   private def componentOnlyBinding(
       canonical: Component,
       child: Component,
@@ -712,14 +1002,54 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       definitionName: String,
       instanceName: String
   ): BindingExpr = {
-    val canonicalBindings =
-      ExternalFormalParameterRegistry
-        .bindingsOf(canonical)
-        .filter(_.formal == parameter)
-    val actualBindings =
-      ExternalFormalParameterRegistry
-        .bindingsOf(child)
-        .filter(_.formal == parameter)
+    val canonicalTyped = ExternalFormalParameterRegistry.typedBindingsOf(canonical)
+    val actualTyped = ExternalFormalParameterRegistry.typedBindingsOf(child)
+    val hasTyped = canonicalTyped.nonEmpty || actualTyped.nonEmpty
+    val (canonicalBindings, actualBindings) =
+      if (hasTyped) {
+        if (canonicalTyped.size != 1 || actualTyped.size != 1) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+            s"scalar typed formal '${parameter.name}' of instance '$instanceName' requires one opaque capability on each exact mapped component",
+            (canonicalTyped ++ actualTyped).flatMap(_.binding.sourceLocation).headOption
+          )
+        }
+        val canonicalEvidence = FormalBindingEvidence(
+          canonicalTyped.head.binding,
+          Some(canonicalTyped.head.declarationToken)
+        )
+        val actualEvidence = FormalBindingEvidence(
+          actualTyped.head.binding,
+          Some(actualTyped.head.declarationToken)
+        )
+        if (
+          !(canonicalEvidence.binding.formal eq parameter) ||
+          actualEvidence.binding.formal != parameter
+        ) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SCHEMA-CONFLICT",
+            s"scalar typed formal of instance '$instanceName' does not preserve its exact canonical declaration and compatible actual schema",
+            Vector(canonicalEvidence, actualEvidence).flatMap(_.binding.sourceLocation).headOption
+          )
+        }
+        validateMappedFormalIdentity(
+          Vector(canonicalEvidence),
+          Vector(actualEvidence),
+          parameter,
+          instanceName
+        )
+        Vector(canonicalEvidence) -> Vector(actualEvidence)
+      } else {
+        val canonicalLegacy = ExternalFormalParameterRegistry
+          .bindingsOf(canonical)
+          .filter(_.formal == parameter)
+          .map(FormalBindingEvidence(_, None))
+        val actualLegacy = ExternalFormalParameterRegistry
+          .bindingsOf(child)
+          .filter(_.formal == parameter)
+          .map(FormalBindingEvidence(_, None))
+        canonicalLegacy -> actualLegacy
+      }
 
     if (canonicalBindings.isEmpty || actualBindings.isEmpty) {
       fail(
@@ -729,37 +1059,28 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     }
 
     val all = canonicalBindings ++ actualBindings
-    if (all.exists(_.formal != parameter)) {
+    if (all.exists(_.binding.formal != parameter)) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SCHEMA-CONFLICT",
         s"scalar formal of instance '$instanceName' does not match canonical child parameter '${parameter.name}' of '$definitionName'",
-        all.flatMap(_.sourceLocation).headOption
+        all.flatMap(_.binding.sourceLocation).headOption
       )
     }
-    val declarationKeys = all.map(_.declarationKey).distinct
-    if (declarationKeys.size != 1) {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
-        s"scalar formal '${parameter.name}' of instance '$instanceName' does not map to one canonical declaration identity",
-        all.flatMap(_.sourceLocation).headOption
+    if (!hasTyped)
+      validateMappedFormalIdentity(
+        canonicalBindings,
+        actualBindings,
+        parameter,
+        instanceName
       )
-    }
-    val owners = all.map(_.ownerClassName).distinct
-    if (owners.size != 1) {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
-        s"scalar formal '${parameter.name}' of instance '$instanceName' maps to multiple definition owners",
-        all.flatMap(_.sourceLocation).headOption
-      )
-    }
     val actualExpressions = ExternalFormalParameterRegistry
-      .distinctExpressions(actualBindings.map(_.actual))
+      .distinctExpressions(actualBindings.map(_.binding.actual))
       .map(ExternalFormalParameterRegistry.normalizedExpression)
     if (actualExpressions.size != 1) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS",
         s"scalar formal '${parameter.name}' of instance '$instanceName' maps to multiple actual expressions: ${actualExpressions.map(_.verilog).sorted.mkString(", ")}",
-        actualBindings.flatMap(_.sourceLocation).headOption
+        actualBindings.flatMap(_.binding.sourceLocation).headOption
       )
     }
     ExpressionBinding(actualExpressions.head)
@@ -797,12 +1118,12 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     */
   private def retainedFormals(
       component: Component,
-      portFormals: Vector[ExternalFormalParameterBinding],
+      portFormals: Vector[FormalBindingEvidence],
       parameterPorts: Vector[String],
       parameter: ElaborationIntegerParameter,
       role: String,
       instanceName: String
-  ): Vector[ExternalFormalParameterBinding] = {
+  ): Vector[FormalBindingEvidence] = {
     if (portFormals.size == parameterPorts.size) portFormals
     else if (portFormals.nonEmpty) {
       fail(
@@ -810,32 +1131,195 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         s"formal slot '${parameter.name}' of instance '$instanceName' is retained on only ${portFormals.size} of ${parameterPorts.size} $role packed ports"
       )
     } else {
-      val componentBindings =
-        ExternalFormalParameterRegistry
-          .bindingsOf(component)
-          .filter(_.formal == parameter)
+      val typedAll = ExternalFormalParameterRegistry.typedBindingsOf(component)
+      if (typedAll.size > 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+          s"typed component on the $role side of instance '$instanceName' retains ${typedAll.size} opaque formal capabilities; ElabFormalComponent admits exactly one",
+          typedAll.flatMap(_.binding.sourceLocation).headOption
+        )
+      }
+      val typed = typedAll.flatMap { value =>
+        val schemaMatches =
+          if (role == "canonical") value.binding.formal eq parameter
+          else value.binding.formal == parameter
+        if (schemaMatches)
+          Some(
+            FormalBindingEvidence(value.binding, Some(value.declarationToken))
+          )
+        else None
+      }
+      val all = ExternalFormalParameterRegistry
+        .bindingsOf(component)
+        .filter(_.formal == parameter)
+      val legacy = all
+        .filterNot(binding => typed.exists(value => value.binding eq binding))
+        .map(FormalBindingEvidence(_, None))
+      if (typed.nonEmpty && legacy.nonEmpty) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-AUTHORITY-MIXED",
+          s"formal slot '${parameter.name}' of instance '$instanceName' mixes opaque typed and legacy $role declarations",
+          (typed ++ legacy).flatMap(_.binding.sourceLocation).headOption
+        )
+      }
+      val componentBindings = typed ++ legacy
       if (componentBindings.isEmpty) Vector.empty
       else {
-        val declarationKeys = componentBindings.map(_.declarationKey).distinct
-        if (declarationKeys.size != 1) {
-          fail(
-            "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
-            s"formal slot '${parameter.name}' of instance '$instanceName' maps to multiple $role component declaration identities",
-            componentBindings.flatMap(_.sourceLocation).headOption
-          )
-        }
+        validateOneSideFormalIdentity(
+          componentBindings,
+          parameter,
+          role,
+          instanceName
+        )
         val expressions = ExternalFormalParameterRegistry
-          .distinctExpressions(componentBindings.map(_.actual))
+          .distinctExpressions(componentBindings.map(_.binding.actual))
           .map(ExternalFormalParameterRegistry.normalizedExpression)
         if (expressions.size != 1) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-AMBIGUOUS",
             s"formal slot '${parameter.name}' of instance '$instanceName' maps to multiple $role component actual expressions: ${expressions.map(_.verilog).sorted.mkString(", ")}",
-            componentBindings.flatMap(_.sourceLocation).headOption
+            componentBindings.flatMap(_.binding.sourceLocation).headOption
           )
         }
         Vector.fill(parameterPorts.size)(componentBindings.head)
       }
+    }
+  }
+
+  private def formalBindingEvidenceOf(
+      port: BaseType
+  ): Option[FormalBindingEvidence] =
+    ExternalFormalParameterRegistry
+      .typedBindingOf(port)
+      .map(value => FormalBindingEvidence(value.binding, Some(value.declarationToken)))
+      .orElse(
+        ExternalFormalParameterRegistry
+          .bindingOf(port)
+          .map(FormalBindingEvidence(_, None))
+      )
+
+  private def distinctTypedTokens(
+      values: Vector[FormalBindingEvidence]
+  ): Vector[ExternalTypedFormalDeclarationToken] =
+    values
+      .flatMap(_.typedToken)
+      .foldLeft(
+        Vector.empty[ExternalTypedFormalDeclarationToken]
+      ) {
+        case (known, token) if known.exists(_ eq token) => known
+        case (known, token)                             => known :+ token
+      }
+
+  /** Typed authority is one opaque token on each exact mapped component plus
+    * its exact leaf layout. Tokens are intentionally not compared across the
+    * canonical/actual boundary. Legacy declaration keys and owner class names
+    * remain isolated in the non-typed branch below.
+    */
+  private def validateMappedFormalIdentity(
+      canonical: Vector[FormalBindingEvidence],
+      actual: Vector[FormalBindingEvidence],
+      parameter: ElaborationIntegerParameter,
+      instanceName: String
+  ): Unit = {
+    val all = canonical ++ actual
+    val typed = all.filter(_.isTyped)
+    if (typed.nonEmpty) {
+      validateTypedMappedFormalIdentity(
+        canonical,
+        actual,
+        parameter,
+        instanceName
+      )
+    } else {
+      val canonicalKeys = canonical.map(_.binding.declarationKey).distinct
+      val actualKeys = actual.map(_.binding.declarationKey).distinct
+      val owners = all.map(_.binding.ownerClassName).distinct
+      if (
+        canonicalKeys.size != 1 || actualKeys.size != 1 ||
+        canonicalKeys.head != actualKeys.head || owners.size != 1
+      ) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+          s"legacy formal slot '${parameter.name}' of instance '$instanceName' does not map to one canonical declaration identity",
+          all.flatMap(_.binding.sourceLocation).headOption
+        )
+      }
+    }
+  }
+
+  private def validateTypedMappedFormalIdentity(
+      canonical: Vector[FormalBindingEvidence],
+      actual: Vector[FormalBindingEvidence],
+      parameter: ElaborationIntegerParameter,
+      instanceName: String
+  ): Unit = {
+    val all = canonical ++ actual
+    if (!all.forall(_.isTyped)) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-AUTHORITY-MIXED",
+        s"formal slot '${parameter.name}' of instance '$instanceName' mixes opaque typed and legacy authority",
+        all.flatMap(_.binding.sourceLocation).headOption
+      )
+    }
+    validateTypedOneSideFormalIdentity(
+      canonical,
+      parameter,
+      "canonical",
+      instanceName
+    )
+    validateTypedOneSideFormalIdentity(
+      actual,
+      parameter,
+      "actual",
+      instanceName
+    )
+    if (!canonical.forall(value => value.binding.formal eq parameter)) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+        s"typed formal slot '${parameter.name}' of instance '$instanceName' is not retained by the exact canonical declaration object",
+        canonical.flatMap(_.binding.sourceLocation).headOption
+      )
+    }
+  }
+
+  private def validateOneSideFormalIdentity(
+      values: Vector[FormalBindingEvidence],
+      parameter: ElaborationIntegerParameter,
+      role: String,
+      instanceName: String
+  ): Unit = {
+    if (values.forall(_.isTyped)) {
+      validateTypedOneSideFormalIdentity(
+        values,
+        parameter,
+        role,
+        instanceName
+      )
+    } else {
+      val keys = values.map(_.binding.declarationKey).distinct
+      val owners = values.map(_.binding.ownerClassName).distinct
+      if (keys.size != 1 || owners.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+          s"legacy formal slot '${parameter.name}' of instance '$instanceName' maps to multiple $role declaration identities",
+          values.flatMap(_.binding.sourceLocation).headOption
+        )
+      }
+    }
+  }
+
+  private def validateTypedOneSideFormalIdentity(
+      values: Vector[FormalBindingEvidence],
+      parameter: ElaborationIntegerParameter,
+      role: String,
+      instanceName: String
+  ): Unit = {
+    if (!values.forall(_.isTyped) || distinctTypedTokens(values).size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
+        s"typed formal slot '${parameter.name}' of instance '$instanceName' does not map to one opaque $role declaration capability",
+        values.flatMap(_.binding.sourceLocation).headOption
+      )
     }
   }
 
@@ -1020,6 +1504,83 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         case _ => None
       }
     )
+
+  /** Compare one exact parent connection with its explicit instance actual.
+    *
+    * Established HdlInt formals retain their actual through the frontend's
+    * bounded AST proof, while a later packed-width adapter may enrich that same
+    * declaration-root function with a complete exact table. That enrichment is
+    * not a conflicting actual. The fallback below admits only this one-sided,
+    * full-domain refinement after rendered algebra, summaries, schemas and JVM
+    * declaration-root identities already match; partial evidence and two
+    * disagreeing exact functions remain rejected.
+    */
+  private def sameFormalActualConnection(
+      connection: BindingExpr,
+      explicit: BindingExpr
+  ): Boolean = {
+    if (bindingSignature(connection) == bindingSignature(explicit)) return true
+
+    (connection, explicit) match {
+      case (ExpressionBinding(left), ExpressionBinding(right)) if ElabInt.equivalentExactFunction(left, right) =>
+        true
+      case (ExpressionBinding(left), ExpressionBinding(right)) =>
+        val leftBase = bindingSignature(connection).copy(
+          exactDomain = None,
+          projection = None
+        )
+        val rightBase = bindingSignature(explicit).copy(
+          exactDomain = None,
+          projection = None
+        )
+
+        def isCompleteRefinement(
+            expression: ElaborationIntegerExpression
+        ): Boolean =
+          expression.exactDomain.exists { domain =>
+            val roots = expression.completedParameterRoots.foldLeft(
+              Vector.empty[ElaborationIntegerParameterRoot]
+            ) { (known, root) =>
+              if (known.exists(_ eq root)) known else known :+ root
+            }
+            val authoritativeIdentity = expression.parameters match {
+              case Vector(schema) =>
+                roots match {
+                  case Vector(root) =>
+                    (root eq domain.root) &&
+                    (schema eq domain.parameter) &&
+                    schema.name == domain.root.name
+                  case _ => false
+                }
+              case _ => false
+            }
+            val results = domain.evaluations.map(_._2)
+            authoritativeIdentity &&
+            domain.hasCompleteCoverage &&
+            results.nonEmpty &&
+            results.min == expression.minimum &&
+            results.max == expression.maximum &&
+            domain
+              .evaluate(domain.parameter.default)
+              .contains(expression.default) &&
+            expression.projectionProvenance.forall { projection =>
+              (projection.root eq domain.root) &&
+              projection.admitted == domain.universe &&
+              projection.representative == domain.parameter.default
+            }
+          }
+
+        val oneSidedCompleteRefinement =
+          (left.exactDomain.isEmpty &&
+            left.projectionProvenance.isEmpty &&
+            isCompleteRefinement(right)) ||
+            (right.exactDomain.isEmpty &&
+              right.projectionProvenance.isEmpty &&
+              isCompleteRefinement(left))
+        leftBase == rightBase && oneSidedCompleteRefinement
+      case _ => false
+    }
+  }
 
   private def references(expression: Expression, target: Expression): Boolean = {
     var found = false

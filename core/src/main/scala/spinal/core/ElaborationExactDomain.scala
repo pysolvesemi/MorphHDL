@@ -1,7 +1,6 @@
 package spinal.core
 
-/**
-  * Exact, bounded evaluation evidence for one typed elaboration expression.
+/** Exact, bounded evaluation evidence for one typed elaboration expression.
   *
   * The root is compared by JVM identity.  Rendered names, equal schemas and
   * equal witnesses never establish correlation between declarations.
@@ -22,11 +21,19 @@ private[spinal] final case class ElaborationExactDomain[A](
       .boundedValues(parameter.minimum, parameter.maximum)
       .toSet
 
+  /** True only when the retained vector has one evaluation for every admitted
+    * root value.  Checking both vector cardinality and key-set coverage keeps a
+    * duplicate entry from disguising one missing point.
+    */
+  private[spinal] def hasCompleteCoverage: Boolean =
+    evaluations.size == evidenceValues.size && evidenceValues == universe
+
   private[spinal] def evaluate(rootValue: BigInt): Option[A] =
     byRootValue.get(rootValue)
 }
 
 private[spinal] object ElaborationExactDomain {
+
   /** Shared fail-closed cap for exhaustive typed structural evidence. */
   val MaximumDomainSize: BigInt = BigInt(65536)
 
@@ -46,8 +53,7 @@ private[spinal] object ElaborationExactDomain {
       requireComplete = true
     )
 
-  /**
-    * Retain evidence which is defined only in the currently admitted branch.
+  /** Retain evidence which is defined only in the currently admitted branch.
     * Projection rejects this carrier if it is later observed from a wider
     * domain, so excluded invalid points can never be treated as evaluations.
     */
@@ -140,7 +146,8 @@ private[spinal] object ElaborationExactDomain {
     if (unexpected.nonEmpty) {
       fail(
         "SPINAL-ELAB-DOMAIN-EVIDENCE-OUTSIDE-UNIVERSE",
-        s"$role contains root values outside [${parameter.minimum}, ${parameter.maximum}]: ${unexpected.toVector.sorted.mkString(", ")}",
+        s"$role contains root values outside [${parameter.minimum}, ${parameter.maximum}]: ${unexpected.toVector.sorted
+            .mkString(", ")}",
         sourceLocation
       )
     }
@@ -158,6 +165,7 @@ private[spinal] object ElaborationExactDomain {
         sourceLocation
       )
     }
+    root.bindAuthoritativeSchema(parameter, role, sourceLocation)
     ElaborationExactDomain(
       root,
       parameter,
@@ -278,8 +286,7 @@ private[spinal] object ElaborationDomainContext {
     current.foldLeft(domain.universe)(_ intersect _)
   }
 
-  /**
-    * Require every root value admitted at the observation site to have an
+  /** Require every root value admitted at the observation site to have an
     * evaluation. Partial evidence is legal only while its originating narrowed
     * branch remains active.
     */
@@ -293,7 +300,8 @@ private[spinal] object ElaborationDomainContext {
     if (missing.nonEmpty) {
       fail(
         "SPINAL-ELAB-DOMAIN-EVIDENCE-SCOPE-MISMATCH",
-        s"$role for '${domain.parameter.name}' is defined only for root values ${domain.evidenceValues.toVector.sorted.mkString(", ")}, but the active domain also admits ${missing.toVector.sorted.mkString(", ")}",
+        s"$role for '${domain.parameter.name}' is defined only for root values ${domain.evidenceValues.toVector.sorted
+            .mkString(", ")}, but the active domain also admits ${missing.toVector.sorted.mkString(", ")}",
         sourceLocation.orElse(domain.root.sourceLocation)
       )
     }

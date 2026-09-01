@@ -187,13 +187,13 @@ class TypedProjectionOwnershipTests extends AnyFunSuite {
   test("branch-projected metadata cannot escape to a module-scope declaration") {
     val error = interceptParameterized(() => new ModuleEscape(depth(default = 1)))
     assert(
-      error.code == "SPINAL-ELAB-DOMAIN-PROJECTION-OWNER-SCOPE-MISMATCH"
+      error.code == "SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION"
     )
   }
 
   test("case-class expression copy loses exact projection authority") {
     val error = interceptParameterized(() => new CopiedExpression(depth(default = 1)))
-    assert(error.code == "SPINAL-ELAB-DOMAIN-PROJECTION-IDENTITY-MISSING")
+    assert(error.code == "SPINAL-ELAB-DOMAIN-EXACT-AUTHORITY-MISSING")
   }
 
   private def depth(default: Int): ElabInt =

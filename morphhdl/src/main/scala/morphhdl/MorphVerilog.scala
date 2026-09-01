@@ -7,7 +7,11 @@ import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
 
 import spinal.core.{Component, SpinalConfig, SpinalReport, SpinalVerilog, SystemVerilog, VHDL, Verilog}
-import spinal.core.internals.{ExternalParameterizedAutoResize, MorphHdlExternalEnumLocalizer, MorphHdlExternalParameterizedVerilog}
+import spinal.core.internals.{
+  ExternalParameterizedAutoResize,
+  MorphHdlExternalEnumLocalizer,
+  MorphHdlExternalParameterizedVerilog
+}
 
 import morphhdl.backend.verilog2001.{Verilog2001Capability => V2001Capability, Verilog2001Emitter}
 import morphhdl.integration.ExternalSpinalVerilog
@@ -52,8 +56,7 @@ object MorphVerilog {
 
   private final case class ChildShape(shape: ModuleShape, count: BigInt)
 
-  /**
-    * Exact compile-time facts for one reachable symbolic module instance.
+  /** Exact compile-time facts for one reachable symbolic module instance.
     *
     * Integer bindings, Boolean bindings and derived integer/Boolean locals vary per instance.
     * The Boolean declarations stored here carry the exact effective defaults
@@ -71,8 +74,7 @@ object MorphVerilog {
   def apply[T <: Component](program: => MorphProgram[T]): MorphVerilogReport =
     apply(SpinalConfig())(program)
 
-  /**
-    * Generate parameterized Verilog from the same ordinary Component factory
+  /** Generate parameterized Verilog from the same ordinary Component factory
     * that SpinalHDL elaborates and validates.
     *
     * The extra implicit parameter keeps this source-compatible overload
@@ -134,13 +136,16 @@ object MorphVerilog {
   private def tryGenerateDual[T <: Component](
       config: SpinalConfig
   )(program: => MorphProgram[T]): Either[MorphVerilogFailure, MorphVerilogReport] = {
-    val checkedConfig = validateConfig(config)
+    val checkedConfig = validateConfig(
+      config,
+      allowSingleSourceFormal = false
+    )
     checkedConfig match {
       case Left(failure) => Left(failure)
       case Right(_) =>
         evaluateProgram(program) match {
           case Left(failure) => Left(failure)
-          case Right(value)   => run(config, value)
+          case Right(value)  => run(config, value)
         }
     }
   }
@@ -150,7 +155,10 @@ object MorphVerilog {
   )(component: => T)(implicit
       singleSource: DummyImplicit
   ): Either[MorphVerilogFailure, MorphSingleSourceVerilogReport] = {
-    val checkedConfig = validateConfig(config)
+    val checkedConfig = validateConfig(
+      config,
+      allowSingleSourceFormal = true
+    )
     checkedConfig match {
       case Left(failure) => Left(failure)
       case Right(_)      => runSingleSource(config, component)
@@ -210,15 +218,15 @@ object MorphVerilog {
   ): Either[MorphVerilogFailure, SpinalReport[T]] =
     try {
       val nativeConfig = copyForSingleSource(config, workspace)
-      val external = ExternalSpinalVerilog.transform(nativeConfig) {
+      val external = ExternalSpinalVerilog.transformWithCanonicalIdentity(nativeConfig) {
         val value = component
         if (value == null) {
           throw new IllegalArgumentException("component factory returned null")
         }
         value
-      } { pc =>
+      } { (pc, canonicalOf) =>
         try {
-          MorphHdlExternalParameterizedVerilog.rewrite(pc)
+          MorphHdlExternalParameterizedVerilog.rewrite(pc, canonicalOf)
           MorphHdlExternalEnumLocalizer.rewrite(pc)
         } finally ExternalParameterizedAutoResize.clearGraph(pc.topLevel)
       }
@@ -354,7 +362,7 @@ object MorphVerilog {
   ): Either[MorphVerilogFailure, ValidatedDesign] =
     try {
       ParamRtlValidator.validate(design) match {
-        case Right(validated) => Right(validated)
+        case Right(validated)  => Right(validated)
         case Left(diagnostics) => Left(diagnosticFailure(ParamRtlValidation, diagnostics))
       }
     } catch {
@@ -367,7 +375,7 @@ object MorphVerilog {
   ): Either[MorphVerilogFailure, ValidatedDesign] =
     try {
       V2001Capability.verify(design) match {
-        case Right(capable) => Right(capable)
+        case Right(capable)    => Right(capable)
         case Left(diagnostics) => Left(diagnosticFailure(Verilog2001Capability, diagnostics))
       }
     } catch {
@@ -420,7 +428,10 @@ object MorphVerilog {
         Left(MorphVerilogFailure(DefaultShapeAgreement, errorMessage(error), cause = Some(error)))
     }
 
-  private def validateConfig(config: SpinalConfig): Either[MorphVerilogFailure, Unit] = {
+  private def validateConfig(
+      config: SpinalConfig,
+      allowSingleSourceFormal: Boolean
+  ): Either[MorphVerilogFailure, Unit] = {
     try {
       if (config == null) {
         Left(MorphVerilogFailure(Configuration, "SpinalConfig must not be null"))
@@ -483,11 +494,17 @@ object MorphVerilog {
         if (config.keepAll) {
           errors += "keepAll is not supported by the direct parameterized emitter"
         }
-        if (config.flags.nonEmpty) {
+        val supportedSingleSourceFormal =
+          allowSingleSourceFormal &&
+            config.flags.size == 1 &&
+            config.flags.contains(spinal.core.GenerationFlags.formal) &&
+            config.formalAsserts
+        if (config.flags.nonEmpty && !supportedSingleSourceFormal) {
           errors += "generation flags are not supported by the direct parameterized emitter"
         }
         if (
-          config.formalAsserts || config.noAssert || config.noAssertAtTimeZero ||
+          (!supportedSingleSourceFormal && config.formalAsserts) ||
+          config.noAssert || config.noAssertAtTimeZero ||
           config.reportIncludeSourceLocation
         ) {
           errors += "assertion-output changes are not supported by the direct parameterized emitter"
@@ -663,29 +680,31 @@ object MorphVerilog {
       val retained =
         spinal.core.ParameterizedWidth.parametersOf(report.toplevel) ++
           spinal.core.ParameterizedMemory.parametersOf(report.toplevel) ++
+          spinal.core.ParameterizedVec.parametersOf(report.toplevel) ++
           spinal.core.ExternalParameterizedValueRegistry.parametersOf(report.toplevel) ++
           spinal.core.ParameterizedStructure.parametersOf(report.toplevel) ++
           spinal.core.ParameterizedProcess.parametersOf(report.toplevel) ++
           hierarchyActualParameters
       val grouped = retained.groupBy(_.name)
-      grouped.collectFirst {
-        case (name, values) if values.distinct.size != 1 => name
-      }.foreach { name =>
-        throw new IllegalArgumentException(
-          s"retained parameter '$name' has conflicting declarations"
-        )
-      }
+      grouped
+        .collectFirst {
+          case (name, values) if values.distinct.size != 1 => name
+        }
+        .foreach { name =>
+          throw new IllegalArgumentException(
+            s"retained parameter '$name' has conflicting declarations"
+          )
+        }
       Right(
-        grouped.toVector.map(_._2.head).sortBy(_.name).map {
-          parameter =>
-            morphhdl.paramrtl.IntegerParameter(
-              parameter.name,
-              parameter.default,
-              Vector[morphhdl.paramrtl.IntConstraint](
-                morphhdl.paramrtl.IntConstraint.MinInclusive(parameter.minimum),
-                morphhdl.paramrtl.IntConstraint.MaxInclusive(parameter.maximum)
-              )
+        grouped.toVector.map(_._2.head).sortBy(_.name).map { parameter =>
+          morphhdl.paramrtl.IntegerParameter(
+            parameter.name,
+            parameter.default,
+            Vector[morphhdl.paramrtl.IntConstraint](
+              morphhdl.paramrtl.IntConstraint.MinInclusive(parameter.minimum),
+              morphhdl.paramrtl.IntConstraint.MaxInclusive(parameter.maximum)
             )
+          )
         }
       )
     } catch {
@@ -739,7 +758,7 @@ object MorphVerilog {
                   if (firstModule < 0) firstModule = index
                   moduleNames :+= name
                   insideModule = true
-                case _ if firstModule < 0 =>
+                case _ if firstModule < 0                             =>
                 case _ if trimmed.isEmpty || trimmed.startsWith("//") =>
                 case _ =>
                   failure = Some(
@@ -809,21 +828,23 @@ object MorphVerilog {
 
   private def concreteModuleShape(top: Component): ModuleShape = {
     def loop(component: Component, isTop: Boolean): ModuleShape = {
-      val ports = component.getAllIo.toVector.map { port =>
-        PortShape(
-          name = port.getName(),
-          direction =
-            if (port.isInput) "input"
-            else if (port.isOutput) "output"
-            else if (port.isInOut) "inout"
-            else "directionless",
-          width = BigInt(port.getBitsWidth),
-          signedness = port match {
-            case _: spinal.core.SInt => "signed"
-            case _                   => "unsigned"
-          }
-        )
-      }.sortBy(_.name)
+      val ports = component.getAllIo.toVector
+        .map { port =>
+          PortShape(
+            name = port.getName(),
+            direction =
+              if (port.isInput) "input"
+              else if (port.isOutput) "output"
+              else if (port.isInOut) "inout"
+              else "directionless",
+            width = BigInt(port.getBitsWidth),
+            signedness = port match {
+              case _: spinal.core.SInt => "signed"
+              case _                   => "unsigned"
+            }
+          )
+        }
+        .sortBy(_.name)
       val children = component.children.toVector
         .map(child => loop(child, isTop = false))
         .groupBy(identity)
@@ -898,39 +919,41 @@ object MorphVerilog {
       module: morphhdl.paramrtl.ModuleDef,
       context: SymbolicContext
   ): Either[String, Vector[PortShape]] = {
-    module.ports.foldLeft[Either[String, Vector[PortShape]]](Right(Vector.empty)) {
-      case (Left(detail), _) => Left(detail)
-      case (Right(shapes), port) =>
-        IntExpressionAnalysis
-          .analyze(
-            port.dataType.width,
-            context.integerParameters,
-            context.localParameters,
-            context.booleanParameters,
-            Map.empty,
-            context.booleanLocalParameters
-          ) match {
-          case Left(failure) =>
-            Left(s"cannot evaluate default width for '${module.name}.${port.name}': $failure")
-          case Right(widthFacts) =>
-            val direction = port.direction match {
-              case morphhdl.paramrtl.PortDirection.Input  => "input"
-              case morphhdl.paramrtl.PortDirection.Output => "output"
-            }
-            val signedness = port.dataType.signedness match {
-              case morphhdl.paramrtl.Signedness.Signed   => "signed"
-              case morphhdl.paramrtl.Signedness.Unsigned => "unsigned"
-            }
-            Right(
-              shapes :+ PortShape(
-                port.name,
-                direction,
-                widthFacts.defaultValue,
-                signedness
+    module.ports
+      .foldLeft[Either[String, Vector[PortShape]]](Right(Vector.empty)) {
+        case (Left(detail), _) => Left(detail)
+        case (Right(shapes), port) =>
+          IntExpressionAnalysis
+            .analyze(
+              port.dataType.width,
+              context.integerParameters,
+              context.localParameters,
+              context.booleanParameters,
+              Map.empty,
+              context.booleanLocalParameters
+            ) match {
+            case Left(failure) =>
+              Left(s"cannot evaluate default width for '${module.name}.${port.name}': $failure")
+            case Right(widthFacts) =>
+              val direction = port.direction match {
+                case morphhdl.paramrtl.PortDirection.Input  => "input"
+                case morphhdl.paramrtl.PortDirection.Output => "output"
+              }
+              val signedness = port.dataType.signedness match {
+                case morphhdl.paramrtl.Signedness.Signed   => "signed"
+                case morphhdl.paramrtl.Signedness.Unsigned => "unsigned"
+              }
+              Right(
+                shapes :+ PortShape(
+                  port.name,
+                  direction,
+                  widthFacts.defaultValue,
+                  signedness
+                )
               )
-            )
-        }
-    }.map(_.sortBy(_.name))
+          }
+      }
+      .map(_.sortBy(_.name))
   }
 
   private def symbolicChildren(
@@ -1076,7 +1099,9 @@ object MorphVerilog {
             }
         }
         .flatMap { booleanParameters =>
-          design.moduleFacts(target.name).orderedLocalDeclarations
+          design
+            .moduleFacts(target.name)
+            .orderedLocalDeclarations
             .foldLeft[
               Either[
                 String,
@@ -1165,7 +1190,7 @@ object MorphVerilog {
           case parameterized: spinal.core.ParameterizedVerilogException =>
             Some(parameterized.getMessage)
           case frontend: morphhdl.frontend.FrontendException => Some(errorMessage(frontend))
-          case _                                              => find(current.getCause)
+          case _                                             => find(current.getCause)
         }
 
     find(error).getOrElse(errorMessage(error))

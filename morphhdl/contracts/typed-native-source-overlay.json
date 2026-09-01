@@ -29,21 +29,28 @@
       "path": "core/src/main/scala/spinal/core/Bits.scala",
       "change": "modified",
       "classification": "typed-formal-or-overload",
-      "blob": "2b86a9d7f79a715edb115ee6ac2fb8076a729934",
+      "blob": "b87dc7717873de6f00e3fa2c2671d8fd1a89717d",
       "reason": "preserve typed factory direction and exact typed resize geometry"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Data.scala",
+      "change": "modified",
+      "classification": "typed-mechanical-propagation",
+      "blob": "81c8a40ec7407d42d1368e7c541f7f0cdb5ee845",
+      "reason": "mechanically preserve exact typed width and Vec metadata through authoritative native hierarchy-pull cloning"
     },
     {
       "path": "core/src/main/scala/spinal/core/ElabInt.scala",
       "change": "added",
       "classification": "typed-helper",
-      "blob": "b0dc24e9a93349c6f9c0bd0ebf3fe2f153b302fe",
+      "blob": "0b51a1ed79df4a544f8228f3441ae308e5971438",
       "reason": "provide the single neutral ElabInt and ElabBool carrier with exact declaration-root, evidence and projection identity"
     },
     {
       "path": "core/src/main/scala/spinal/core/ElaborationExactDomain.scala",
       "change": "added",
       "classification": "typed-helper",
-      "blob": "1ea2a9d83a74143b27a71d66fbd898a34de443b5",
+      "blob": "b4ce850d2a1f6af160ee06eca95b23c9c0d564b4",
       "reason": "provide identity-rooted exhaustive evidence and branch-local construction projection for bounded typed expressions"
     },
     {
@@ -54,10 +61,24 @@
       "reason": "retain private expression-identity provenance for exact branch projection ownership"
     },
     {
+      "path": "core/src/main/scala/spinal/core/ExternalCompilerPermit.scala",
+      "change": "added",
+      "classification": "typed-helper",
+      "blob": "02b40fcdb30151a661d0bd8d05ae0ad57e6c42bf",
+      "reason": "provide one-use exact-expression analyzer capabilities for the external typed frontend boundary"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ExternalStructuralPredicatePermit.scala",
+      "change": "added",
+      "classification": "typed-helper",
+      "blob": "17a509a3e1c3e2bcbd61fef3b6cf90e46a7148eb",
+      "reason": "provide one-use exact-identity capability for analyzer-exhaustive structural Boolean predicate publication"
+    },
+    {
       "path": "core/src/main/scala/spinal/core/Mem.scala",
       "change": "modified",
       "classification": "typed-formal-or-overload",
-      "blob": "9d9e69f55c78ead0b806398bbafef6e2ea0c8aa3",
+      "blob": "37d0db7159691358f93758d6fde8d30bb16b1e42",
       "reason": "add the typed memory-depth overload while keeping native Mem construction authoritative"
     },
     {
@@ -71,36 +92,43 @@
       "path": "core/src/main/scala/spinal/core/ParameterizedMemory.scala",
       "change": "modified",
       "classification": "typed-helper",
-      "blob": "2a4e227655940935a3f0de24d02cd5f5f3f53beb",
+      "blob": "fec4ebb22d8e5b5cfa0e5d617795c77db94edd99",
       "reason": "validate and retain exact declaration-root and projected typed memory-depth provenance"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
+      "change": "added",
+      "classification": "typed-helper",
+      "blob": "18bb15432ad11396c6e5fd28768581706ffd3087",
+      "reason": "retain exact logical Vec depth, recursive shape, finite carrier audit and native-operation identity evidence"
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
       "change": "modified",
       "classification": "typed-helper",
-      "blob": "56f5d0f50e8ec40cfbda4299d2b8d6fd518fecae",
+      "blob": "d378d25a856b4abcac1ee4d18f8200bc75005060",
       "reason": "retain typed widths, exact evidence, projection ownership and exact native Resize identity"
     },
     {
       "path": "core/src/main/scala/spinal/core/SInt.scala",
       "change": "modified",
       "classification": "typed-formal-or-overload",
-      "blob": "b552b08817dbfd19bdc7ff6d6ab8066046445749",
+      "blob": "6830e571542358277dc8302319eadadfded77d9b",
       "reason": "preserve typed factory direction and exact typed resize geometry"
     },
     {
       "path": "core/src/main/scala/spinal/core/UInt.scala",
       "change": "modified",
       "classification": "typed-formal-or-overload",
-      "blob": "6a65fb46e5cfa74ac2b34d582fa1bb3a838572d6",
+      "blob": "10c8696e7dce64d8c20dcc57845cd59e27c6ae62",
       "reason": "preserve typed factory direction and exact typed resize geometry"
     },
     {
       "path": "core/src/main/scala/spinal/core/Vec.scala",
       "change": "modified",
-      "classification": "typed-formal-or-overload",
-      "blob": "0d55e325eb7cf4233cddd8b2377344a1cca3e06c",
-      "reason": "add typed Vec builders that require one exact active branch-local size"
+      "classification": "typed-mechanical-propagation",
+      "blob": "738db4ad521a87218347bd6346e463dd7c68c4f5",
+      "reason": "mechanically retain exact typed Vec depth, recursive shape and native-operation identity through authoritative Vec construction and cloning"
     },
     {
       "path": "core/src/main/scala/spinal/core/core.scala",
@@ -110,10 +138,17 @@
       "reason": "add the parameter-preserving widthOfExpr helper"
     },
     {
+      "path": "lib/src/main/scala/spinal/lib/Counter.scala",
+      "change": "modified",
+      "classification": "typed-mechanical-propagation",
+      "blob": "1a7f2d10e2d39134e67441bc74c2ccfcb045061d",
+      "reason": "carry exact typed state-count and limit geometry through the authoritative native Counter algorithm"
+    },
+    {
       "path": "lib/src/main/scala/spinal/lib/Stream.scala",
       "change": "modified",
       "classification": "typed-mechanical-propagation",
-      "blob": "33e8497dabeaa2eb0acdaebe8a89f0f8c547f7d3",
+      "blob": "039e050533fd089cd1b7d099ef86f97ee28b900f",
       "reason": "carry typed depth and branch-local geometry through the existing native StreamFifo algorithm"
     }
   ]

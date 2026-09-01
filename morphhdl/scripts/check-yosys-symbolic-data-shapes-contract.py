@@ -89,16 +89,23 @@ def main():
             ("bits_out", "bits_in"),
             ("uint_out", "uint_in"),
             ("sint_out", "sint_in"),
+            ("vec_out", "vec_in"),
             ("stream_out_valid", "stream_in_valid"),
             ("stream_in_ready", "stream_out_ready"),
             ("flow_out_valid", "flow_in_valid"),
         )
         payload_prefix_pairs = (
-            ("vec_out_0", "vec_in_0"),
-            ("vec_out_1", "vec_in_1"),
             ("stream_out_payload", "stream_in_payload"),
             ("flow_out_payload", "flow_in_payload"),
         )
+        for vec_port in ("vec_in", "vec_out"):
+            vec_bits = bits(ports, vec_port)
+            if len(vec_bits) != 6 * args.width:
+                return fail(
+                    "{} width is {}, expected {} (two three-leaf elements)".format(
+                        vec_port, len(vec_bits), 6 * args.width
+                    )
+                )
         for target, source in direct_pairs:
             if bits(ports, target) != bits(ports, source):
                 return fail("{} is not a direct alias of {}".format(target, source))

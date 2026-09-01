@@ -5,22 +5,22 @@ import scala.collection.mutable.ArrayBuffer
 import spinal.core.{
   Component,
   ElaborationBooleanExpression,
-  ParameterizedProcess,
+  ExternalAnalyzedStructuralPredicate,
+  ExternalAnalyzedStructuralPublisher,
+  ExternalNativeIntStructuralPublisher,
   ParameterizedStructuralBlock,
   ParameterizedStructuralPending,
   ParameterizedStructure
 }
 
-/**
-  * Native SpinalHDL structural bridge used when no explicit ParamRTL capture
+/** Native SpinalHDL structural bridge used when no explicit ParamRTL capture
   * session is active.
   */
 private[frontend] object NativeStructuralFrontend {
   private val activeIndices =
     new ThreadLocal[Map[String, StructuralExpressionBridge.GenerateIndexFacts]]
 
-  private[frontend] def currentGenerateIndices
-      : Map[String, StructuralExpressionBridge.GenerateIndexFacts] =
+  private[frontend] def currentGenerateIndices: Map[String, StructuralExpressionBridge.GenerateIndexFacts] =
     Option(activeIndices.get()).getOrElse(Map.empty)
 
   def runRange(range: HdlRange, body: GenIndex => Unit): Unit = {
@@ -35,30 +35,31 @@ private[frontend] object NativeStructuralFrontend {
     val names = range.names.getOrElse(HdlRange.generatedNames(range.origin))
 
     if (ParameterizedStructure.captureEnabled) {
-      val count = StructuralExpressionBridge.integer(
+      val publicationIdentity = new Object
+      val analyzedCount = StructuralExpressionBridge.analyzedStructuralInteger(
         range.end,
         "native parameterized loop count",
-        Map.empty
+        Map.empty,
+        AnalyzedStructuralIntegerKind.ProcessRangeCount,
+        Vector(component, publicationIdentity)
       )
-      if (count.default <= 0 || !count.default.isValidInt) {
-        FrontendException.failAt(
-          if (count.default <= 0)
-            "MORPH-FRONTEND-GENERATE-COUNT-NONPOSITIVE"
-          else "MORPH-FRONTEND-GENERATE-COUNT-TOO-LARGE",
-          s"generate-loop concrete witness must be a positive Scala Int, received ${count.default}",
-          range.origin
-        )
-      }
+      val count = analyzedCount.expression
+      // ParameterizedProcess consumes the complete bounds already proven by
+      // this HdlInt bridge before executing the representative body. In
+      // particular, a public default of zero cannot reject an otherwise legal
+      // [0, N] domain: index zero is justified by a positive analyzed point,
+      // while a zero specialization executes no generated iterations.
       val facts = StructuralExpressionBridge.GenerateIndexFacts(
         default = BigInt(0),
         minimum = BigInt(0),
         maximum = count.maximum - 1
       )
-      ParameterizedProcess.captureRange(
+      ExternalAnalyzedStructuralPublisher.captureProcessRange(
+        analyzedCount,
         component,
+        publicationIdentity,
         names.label,
         names.index,
-        count,
         Some(range.origin.rendered)
       ) {
         withGenerateIndices(Map(names.index -> facts)) {
@@ -94,55 +95,133 @@ private[frontend] object NativeStructuralFrontend {
         origin
       )
     }
-    val expression =
-      if (ParameterizedStructure.captureEnabled)
-        StructuralExpressionBridge.boolean(
-          condition,
-          "native structural generate-if condition"
-        )
-      else null
-    startGenerateIfExpression(
-      condition.witness,
-      expression,
-      names,
-      whenTrue,
-      origin
-    )
+    val component = requireComponent("generateIf", origin)
+    val resolved = names.getOrElse(generatedIfNames(origin))
+    if (ParameterizedStructure.captureEnabled) {
+      val publicationIdentity = new Object
+      val analyzed = StructuralExpressionBridge.analyzedStructuralBoolean(
+        condition,
+        "native structural generate-if condition",
+        AnalyzedStructuralBooleanKind.StructuralIfCondition,
+        Vector(component, publicationIdentity)
+      )
+      val prepared = ExternalAnalyzedStructuralPublisher.prepareStructuralIf(
+        analyzed,
+        publicationIdentity,
+        component,
+        Some(origin.rendered)
+      )
+      startGenerateIfResolved(
+        component,
+        condition.witness,
+        analyzed.expression,
+        prepared,
+        publicationIdentity,
+        null,
+        resolved,
+        whenTrue,
+        origin
+      )
+    } else
+      startGenerateIfResolved(
+        component,
+        condition.witness,
+        null,
+        null,
+        null,
+        null,
+        resolved,
+        whenTrue,
+        origin
+      )
   }
 
-  /**
-    * Increment 51 entry point for a proven shadow-native Boolean predicate.
-    * The caller supplies the already resolved canonical definition expression;
-    * the runtime Boolean remains the ordinary witness used by SpinalHDL.
+  /** Increment 51 entry point for a proven shadow-native Boolean predicate.
+    * Resolution is deferred until both captured alternatives exist, allowing
+    * the registry to bind its one-use receipt to the complete structural target.
     */
   private[frontend] def startGenerateIfExpression(
       conditionWitness: Boolean,
-      expression: ElaborationBooleanExpression,
+      predicateReference: String,
       names: Option[GenerateIfNames],
       whenTrue: => Unit,
       origin: SourceOrigin
   ): GenerateIfBuilder = {
     val component = requireComponent("generateIf", origin)
     val resolved = names.getOrElse(generatedIfNames(origin))
+    startGenerateIfResolved(
+      component,
+      conditionWitness,
+      null,
+      null,
+      null,
+      predicateReference,
+      resolved,
+      whenTrue,
+      origin
+    )
+  }
+
+  private def startGenerateIfResolved(
+      component: Component,
+      conditionWitness: Boolean,
+      expression: ElaborationBooleanExpression,
+      preparedCondition: ExternalAnalyzedStructuralPredicate,
+      publicationIdentity: AnyRef,
+      shadowPredicateReference: String,
+      resolved: GenerateIfNames,
+      whenTrue: => Unit,
+      origin: SourceOrigin
+  ): GenerateIfBuilder = {
     if (ParameterizedStructure.captureEnabled) {
-      if (expression eq null) {
+      if (preparedCondition ne null) {
+        if (expression eq null) {
+          FrontendException.failAt(
+            "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-EXPRESSION-MISSING",
+            "native symbolic conditional requires one retained definition predicate",
+            origin
+          )
+        }
+        if (expression.default != conditionWitness) {
+          FrontendException.failAt(
+            "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-DEFAULT-MISMATCH",
+            s"native symbolic conditional witness $conditionWitness disagrees with retained definition default ${expression.default}",
+            origin
+          )
+        }
+        if (publicationIdentity eq null) {
+          FrontendException.failAt(
+            "MORPH-FRONTEND-ANALYZED-STRUCTURAL-BOOLEAN-TARGET-MISMATCH",
+            "analyzed structural condition lost its exact publication identity",
+            origin
+          )
+        }
+        ExternalAnalyzedStructuralPublisher.requirePreparedStructuralIf(
+          preparedCondition,
+          component,
+          publicationIdentity,
+          expression,
+          Some(origin.rendered)
+        )
+      } else if (shadowPredicateReference == null || shadowPredicateReference.trim.isEmpty) {
         FrontendException.failAt(
-          "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-EXPRESSION-MISSING",
-          "native symbolic conditional requires one retained definition predicate",
+          "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-REFERENCE-UNRESOLVED",
+          "native symbolic conditional requires one exact compiler predicate reference",
           origin
         )
       }
-      if (expression.default != conditionWitness) {
-        FrontendException.failAt(
-          "MORPH-FRONTEND-NATIVE-INT-SYMBOLIC-CONDITIONAL-DEFAULT-MISMATCH",
-          s"native symbolic conditional witness $conditionWitness disagrees with retained definition default ${expression.default}",
-          origin
-        )
-      }
-      val whenTrueBlock = ParameterizedStructure.captureBlock(
-        component,
-        Some(origin.rendered)
-      )(whenTrue)
+      val whenTrueBlock =
+        if (preparedCondition ne null)
+          ExternalAnalyzedStructuralPublisher.captureStructuralIfBranch(
+            preparedCondition,
+            branch = 0,
+            sourceLocation = Some(origin.rendered)
+          )(whenTrue)
+        else
+          ParameterizedStructure.captureBlock(
+            component,
+            Some(origin.rendered)
+          )(whenTrue)
       val pending = ParameterizedStructure.beginPending(
         component,
         "generate-if",
@@ -154,6 +233,9 @@ private[frontend] object NativeStructuralFrontend {
           pending,
           conditionWitness,
           expression,
+          preparedCondition,
+          publicationIdentity,
+          shadowPredicateReference,
           resolved,
           whenTrueBlock,
           origin,
@@ -168,6 +250,9 @@ private[frontend] object NativeStructuralFrontend {
           pending = null,
           conditionWitness = conditionWitness,
           expression = null,
+          preparedCondition = null,
+          publicationIdentity = null,
+          shadowPredicateReference = null,
           names = resolved,
           whenTrueBlock = null,
           origin = origin,
@@ -190,10 +275,13 @@ private[frontend] object NativeStructuralFrontend {
       )
     }
     if (ParameterizedStructure.captureEnabled) {
-      val expression = StructuralExpressionBridge.integer(
+      val publicationIdentity = new Object
+      val analyzedSelector = StructuralExpressionBridge.analyzedStructuralInteger(
         selector,
         "native structural generate-case selector",
-        Map.empty
+        currentGenerateIndices,
+        AnalyzedStructuralIntegerKind.StructuralCaseSelector,
+        Vector(component, publicationIdentity)
       )
       val pending = ParameterizedStructure.beginPending(
         component,
@@ -205,7 +293,8 @@ private[frontend] object NativeStructuralFrontend {
           component,
           pending,
           selector,
-          expression,
+          analyzedSelector,
+          publicationIdentity,
           origin,
           parameterized = true
         )
@@ -216,7 +305,8 @@ private[frontend] object NativeStructuralFrontend {
           component = component,
           pending = null,
           selector = selector,
-          expression = null,
+          analyzedSelector = null,
+          publicationIdentity = null,
           origin = origin,
           parameterized = false
         )
@@ -273,6 +363,9 @@ private[frontend] final class NativeGenerateIfToken(
     val pending: ParameterizedStructuralPending,
     val conditionWitness: Boolean,
     val expression: spinal.core.ElaborationBooleanExpression,
+    val preparedCondition: ExternalAnalyzedStructuralPredicate,
+    val publicationIdentity: AnyRef,
+    val shadowPredicateReference: String,
     val names: GenerateIfNames,
     val whenTrueBlock: ParameterizedStructuralBlock,
     val origin: SourceOrigin,
@@ -289,19 +382,55 @@ private[frontend] final class NativeGenerateIfToken(
       )
     }
     if (parameterized) {
-      val whenFalse = ParameterizedStructure.captureBlock(
-        component,
-        Some(callOrigin.rendered)
-      )(body)
-      ParameterizedStructure.registerIf(
-        pending,
-        expression,
-        names.whenTrue,
-        names.whenFalse,
-        whenTrueBlock,
-        whenFalse,
-        Some(origin.rendered)
-      )
+      val whenFalse =
+        if (preparedCondition ne null)
+          ExternalAnalyzedStructuralPublisher.captureStructuralIfBranch(
+            preparedCondition,
+            branch = 1,
+            sourceLocation = Some(callOrigin.rendered)
+          )(body)
+        else
+          ParameterizedStructure.captureBlock(
+            component,
+            Some(callOrigin.rendered)
+          )(body)
+      if (preparedCondition ne null) {
+        ExternalAnalyzedStructuralPublisher.registerStructuralIf(
+          preparedCondition,
+          publicationIdentity,
+          pending,
+          names.whenTrue,
+          names.whenFalse,
+          whenTrueBlock,
+          whenFalse,
+          Some(origin.rendered)
+        )
+      } else {
+        // The separately adjudicated legacy compiler-shadow route is not an
+        // analyzed-HdlBool publication and never enters the analyzed publisher.
+        val sourceLocation = Some(origin.rendered)
+        val receipt =
+          ExternalNativeIntStructuralPublisher.definitionPredicateTracked(
+            shadowPredicateReference,
+            conditionWitness,
+            pending,
+            names.whenTrue,
+            names.whenFalse,
+            whenTrueBlock,
+            whenFalse,
+            sourceLocation
+          )
+        ExternalNativeIntStructuralPublisher.registerIf(
+          receipt,
+          receipt.condition,
+          pending,
+          names.whenTrue,
+          names.whenFalse,
+          whenTrueBlock,
+          whenFalse,
+          sourceLocation
+        )
+      }
     } else if (!conditionWitness) {
       body
     }
@@ -313,7 +442,8 @@ private[frontend] final class NativeGenerateCaseToken(
     val component: Component,
     val pending: ParameterizedStructuralPending,
     val selector: HdlInt,
-    val expression: spinal.core.ElaborationIntegerExpression,
+    val analyzedSelector: AnalyzedStructuralInteger,
+    val publicationIdentity: AnyRef,
     val origin: SourceOrigin,
     val parameterized: Boolean
 ) {
@@ -373,9 +503,10 @@ private[frontend] final class NativeGenerateCaseToken(
         component,
         Some(callOrigin.rendered)
       )(body)
-      ParameterizedStructure.registerCase(
+      ExternalAnalyzedStructuralPublisher.registerStructuralCase(
+        analyzedSelector,
+        publicationIdentity,
         pending,
-        expression,
         choices.toVector.sortBy(_._1),
         label,
         defaultBlock,

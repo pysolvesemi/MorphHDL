@@ -3,13 +3,141 @@ package spinal.core
 import java.nio.file.Files
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ArrayBuffer
 
 import org.scalatest.funsuite.AnyFunSuite
 
 import morphhdl.frontend.HdlInt
+import spinal.core.internals.{DataAssignmentStatement, Resize}
+
+private object TypedElaborationPrimitiveFixture {
+  final case class ResizeGraph(
+      kind: String,
+      operation: String,
+      targetWidth: Int,
+      resultClass: String,
+      resultWidth: Int,
+      resultIsFixedWidth: Boolean,
+      resultHasOneAssignment: Boolean,
+      assignmentTargetsResult: Boolean,
+      resizeClass: String,
+      resizeWidth: Int,
+      resizeInputIsSource: Boolean,
+      resizeInputWidth: Int,
+      retainedResultWidth: Boolean,
+      retainedResizeWidth: Boolean
+  )
+
+  final class LiteralResizeParity(
+      useTypedLiteral: Boolean,
+      captured: ArrayBuffer[ResizeGraph]
+  ) extends Component {
+    setDefinitionName("LiteralResizeParity")
+
+    val bitsSource = in(Bits(8 bits)).setName("bits_source")
+    val uintSource = in(UInt(8 bits)).setName("uint_source")
+    val sintSource = in(SInt(8 bits)).setName("sint_source")
+
+    private def bitsResize(width: Int): Bits =
+      if (useTypedLiteral) bitsSource.resize(ElabInt.literal(width))
+      else bitsSource.resize(width)
+
+    private def uintResize(width: Int): UInt =
+      if (useTypedLiteral) uintSource.resize(ElabInt.literal(width))
+      else uintSource.resize(width)
+
+    private def sintResize(width: Int): SInt =
+      if (useTypedLiteral) sintSource.resize(ElabInt.literal(width))
+      else sintSource.resize(width)
+
+    private def capture(
+        kind: String,
+        operation: String,
+        targetWidth: Int,
+        source: BitVector,
+        result: BitVector
+    ): Unit = {
+      val hasOneAssignment = result.hasOnlyOneStatement
+      val assignment =
+        if (hasOneAssignment)
+          result.head match {
+            case value: DataAssignmentStatement => value
+            case other =>
+              throw new IllegalStateException(
+                s"$kind $operation resize result carried ${other.getClass.getName}"
+              )
+          }
+        else
+          throw new IllegalStateException(
+            s"$kind $operation resize result did not carry one assignment"
+          )
+      val resize = assignment.source match {
+        case value: Resize => value
+        case other =>
+          throw new IllegalStateException(
+            s"$kind $operation resize assignment carried ${other.getClass.getName}"
+          )
+      }
+
+      captured += ResizeGraph(
+        kind = kind,
+        operation = operation,
+        targetWidth = targetWidth,
+        resultClass = result.getClass.getSimpleName,
+        resultWidth = result.getBitsWidth,
+        resultIsFixedWidth = result.isFixedWidth,
+        resultHasOneAssignment = hasOneAssignment,
+        assignmentTargetsResult = (assignment.target eq result) && (assignment.finalTarget eq result),
+        resizeClass = resize.getClass.getSimpleName,
+        resizeWidth = resize.size,
+        resizeInputIsSource = resize.input eq source,
+        resizeInputWidth = resize.input.getWidth,
+        retainedResultWidth = ParameterizedWidth.expressionOf(result).nonEmpty,
+        retainedResizeWidth = ParameterizedWidth.resizeExpressionOf(resize).nonEmpty
+      )
+    }
+
+    private def keep(
+        kind: String,
+        operation: String,
+        width: Int,
+        source: BitVector,
+        value: BitVector
+    ): Unit = {
+      value.setName(s"${kind.toLowerCase}_${operation}_value").dontSimplifyIt()
+      capture(kind, operation, width, source, value)
+      kind match {
+        case "Bits" =>
+          val output = out(Bits(width bits))
+            .setName(s"bits_${operation}_output")
+          output := value.asInstanceOf[Bits]
+        case "UInt" =>
+          val output = out(UInt(width bits))
+            .setName(s"uint_${operation}_output")
+          output := value.asInstanceOf[UInt]
+        case "SInt" =>
+          val output = out(SInt(width bits))
+            .setName(s"sint_${operation}_output")
+          output := value.asInstanceOf[SInt]
+      }
+    }
+
+    Vector("shrink" -> 3, "noop" -> 8, "grow" -> 12).foreach { case (operation, width) =>
+      keep("Bits", operation, width, bitsSource, bitsResize(width))
+    }
+    Vector("shrink" -> 3, "noop" -> 8, "grow" -> 12).foreach { case (operation, width) =>
+      keep("UInt", operation, width, uintSource, uintResize(width))
+    }
+    Vector("shrink" -> 3, "noop" -> 8, "grow" -> 12).foreach { case (operation, width) =>
+      keep("SInt", operation, width, sintSource, sintResize(width))
+    }
+  }
+}
 
 /** Primitive-level contracts used by the typed StreamFifo migration. */
 class TypedElaborationPrimitiveTests extends AnyFunSuite {
+  import TypedElaborationPrimitiveFixture._
+
   test("typed log2Up retains exact numeric semantics including zero-width results") {
     val literalCases = Vector(
       0 -> 0,
@@ -29,7 +157,7 @@ class TypedElaborationPrimitiveTests extends AnyFunSuite {
     }
 
     val zeroWidth = ElabInt.literal(1).log2Up
-    assert(zeroWidth.expression.verilog == "morphhdl_ceil_log2(1)")
+    assert(zeroWidth.expression.verilog == "0")
     val widthError = intercept[ParameterizedVerilogException] {
       zeroWidth.bits
     }
@@ -157,24 +285,34 @@ class TypedElaborationPrimitiveTests extends AnyFunSuite {
     assert(negativeError.code == "SPINAL-ELAB-INT-RANGE-DOMAIN-INVALID")
   }
 
-  test("typed Vec unrolls only a constant branch-local exact size") {
+  test("typed Vec retains symbolic depth independently of its audited native carrier") {
     val depth = typedDepth(default = 5)
     val root = exact(depth.expression).root
-    var globalError: ParameterizedVerilogException = null
+    var globalGeometryError: ParameterizedVerilogException = null
+    var globalCarrierLength = -1
+    var globalDepth: ElaborationIntegerExpression = null
     var narrowedLength = -1
-    var varyingError: ParameterizedVerilogException = null
+    var narrowedDepth: ElaborationIntegerExpression = null
+    var varyingGeometryError: ParameterizedVerilogException = null
+    var varyingCarrierLength = -1
+    var varyingDepth: ElaborationIntegerExpression = null
 
     withSpinalElaboration {
-      globalError = intercept[ParameterizedVerilogException] {
-        Vec(Bits(1 bit), depth)
+      val global = Vec(Bits(1 bit), depth)
+      globalGeometryError = intercept[ParameterizedVerilogException] {
+        global.length
       }
+      globalCarrierLength = global.carrierLength
+      globalDepth = ParameterizedVec.shapeOf(global).get.depth
 
-      narrowedLength = ElaborationDomainContext.withAdmitted(
+      ElaborationDomainContext.withAdmitted(
         root,
         Set(BigInt(3)),
         sourceLocation = None
       ) {
-        Vec(Bits(1 bit), depth).length
+        val narrowed = Vec(Bits(1 bit), depth)
+        narrowedLength = narrowed.length
+        narrowedDepth = ParameterizedVec.shapeOf(narrowed).get.depth
       }
 
       ElaborationDomainContext.withAdmitted(
@@ -182,15 +320,34 @@ class TypedElaborationPrimitiveTests extends AnyFunSuite {
         Set(BigInt(3), BigInt(5)),
         sourceLocation = None
       ) {
-        varyingError = intercept[ParameterizedVerilogException] {
-          Vec(Bits(1 bit), depth)
+        val varying = Vec(Bits(1 bit), depth)
+        varyingGeometryError = intercept[ParameterizedVerilogException] {
+          varying.length
         }
+        varyingCarrierLength = varying.carrierLength
+        varyingDepth = ParameterizedVec.shapeOf(varying).get.depth
       }
     }
 
-    assert(globalError.code == "SPINAL-ELAB-INT-RANGE-DOMAIN-NOT-CONSTANT")
+    assert(globalGeometryError.code == "SPINAL-ELAB-VEC-OPERATION-UNSUPPORTED")
+    assert(globalCarrierLength == 8)
+    assert(globalDepth.verilog == "DEPTH")
+    assert(globalDepth.default == 5)
+    assert(globalDepth.minimum == 1)
+    assert(globalDepth.maximum == 8)
+
     assert(narrowedLength == 3)
-    assert(varyingError.code == "SPINAL-ELAB-INT-RANGE-DOMAIN-NOT-CONSTANT")
+    assert(narrowedDepth.verilog == "DEPTH")
+    assert(narrowedDepth.default == 3)
+    assert(narrowedDepth.minimum == 3)
+    assert(narrowedDepth.maximum == 3)
+
+    assert(varyingGeometryError.code == "SPINAL-ELAB-VEC-OPERATION-UNSUPPORTED")
+    assert(varyingCarrierLength == 5)
+    assert(varyingDepth.verilog == "DEPTH")
+    assert(varyingDepth.default == 5)
+    assert(varyingDepth.minimum == 3)
+    assert(varyingDepth.maximum == 5)
   }
 
   test("typed Mem retains global depth and uses the exact branch representative") {
@@ -232,16 +389,11 @@ class TypedElaborationPrimitiveTests extends AnyFunSuite {
     assert(narrowedMetadata.exactDomain.nonEmpty)
   }
 
-  test("typed Mem and Vec reject invalid inputs before native construction") {
-    var zeroDepthError: ParameterizedVerilogException = null
+  test("typed Mem and Vec reject null typed inputs before native construction") {
     var nullMemoryError: IllegalArgumentException = null
     var nullVecError: IllegalArgumentException = null
 
     withSpinalElaboration {
-      zeroDepthError = intercept[ParameterizedVerilogException] {
-        Mem(Bits(8 bits), ElabInt.literal(0))
-      }
-
       val nullSize: ElabInt = null
       nullMemoryError = intercept[IllegalArgumentException] {
         Mem(Bits(8 bits), nullSize)
@@ -251,9 +403,6 @@ class TypedElaborationPrimitiveTests extends AnyFunSuite {
       }
     }
 
-    assert(
-      zeroDepthError.code == "SPINAL-ELAB-INT-MEMORY-DEPTH-DOMAIN-INVALID"
-    )
     assert(nullMemoryError.getMessage == "typed memory depth must not be null")
     assert(nullVecError.getMessage == "typed Vec size must not be null")
   }
@@ -302,6 +451,32 @@ class TypedElaborationPrimitiveTests extends AnyFunSuite {
     assert(error.code == "SPINAL-ELAB-DOMAIN-SIZE-UNSUPPORTED")
   }
 
+  test("literal typed resize delegates to byte-authoritative native behavior") {
+    val directory = Files.createTempDirectory("morphhdl-literal-resize-parity-")
+    try {
+      val native = emitLiteralResize(directory.resolve("native"), useTyped = false)
+      val typed = emitLiteralResize(directory.resolve("typed"), useTyped = true)
+
+      assert(typed._1 == native._1, s"typed graph: ${typed._1}\nnative graph: ${native._1}")
+      native._1.foreach { graph =>
+        assert(graph.resultClass == graph.kind, graph)
+        assert(graph.resultWidth == graph.targetWidth, graph)
+        assert(graph.resultHasOneAssignment, graph)
+        assert(graph.assignmentTargetsResult, graph)
+        assert(graph.resizeClass == s"Resize${graph.kind}", graph)
+        assert(graph.resizeWidth == graph.targetWidth, graph)
+        assert(graph.resizeInputIsSource, graph)
+        assert(graph.resizeInputWidth == 8, graph)
+        assert(!graph.retainedResultWidth, graph)
+        assert(!graph.retainedResizeWidth, graph)
+      }
+      assert(
+        java.util.Arrays.equals(typed._2, native._2),
+        "ElabInt literal resize RTL differs from the authoritative Int overload"
+      )
+    } finally deleteTree(directory)
+  }
+
   private def typedDepth(default: Int): ElabInt =
     HdlInt
       .param(
@@ -322,6 +497,26 @@ class TypedElaborationPrimitiveTests extends AnyFunSuite {
   ): ElaborationExactDomain[Boolean] =
     expression.exactDomain.getOrElse(fail("Boolean exact-domain evidence is missing"))
 
+  private def emitLiteralResize(
+      directory: java.nio.file.Path,
+      useTyped: Boolean
+  ): (Vector[ResizeGraph], Array[Byte]) = {
+    Files.createDirectories(directory)
+    val captured = ArrayBuffer.empty[ResizeGraph]
+    val config = SpinalConfig(
+      targetDirectory = directory.toString,
+      headerWithRepoHash = false,
+      withTimescale = false,
+      printFilelist = false
+    )
+    val fileName = "LiteralResizeParity.v"
+    config.netlistFileName = fileName
+    SpinalVerilog(config) {
+      new LiteralResizeParity(useTyped, captured)
+    }
+    captured.toVector -> Files.readAllBytes(directory.resolve(fileName))
+  }
+
   private def withSpinalElaboration(body: => Unit): Unit = {
     val directory = Files.createTempDirectory("morphhdl-typed-primitives-")
     try {
@@ -339,13 +534,16 @@ class TypedElaborationPrimitiveTests extends AnyFunSuite {
           body
         }
       }
-    } finally {
-      val stream = Files.walk(directory)
-      try {
-        stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach { path =>
-          Files.deleteIfExists(path)
-        }
-      } finally stream.close()
-    }
+    } finally deleteTree(directory)
+  }
+
+  private def deleteTree(directory: java.nio.file.Path): Unit = {
+    if (!Files.exists(directory)) return
+    val stream = Files.walk(directory)
+    try {
+      stream.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach { path =>
+        Files.deleteIfExists(path)
+      }
+    } finally stream.close()
   }
 }

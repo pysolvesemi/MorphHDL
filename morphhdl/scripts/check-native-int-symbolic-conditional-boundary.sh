@@ -11,6 +11,7 @@ bash morphhdl/scripts/check-native-int-shadow-expression-boundary.sh
 
 registry_file="morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala"
 formal_file="frontend/src/main/scala/morphhdl/frontend/formalComponent.scala"
+formal_publisher_file="frontend/src/main/scala/spinal/core/ExternalAnalyzedNativeIntFormalizationPublisher.scala"
 structural_file="frontend/src/main/scala/morphhdl/frontend/NativeStructuralFrontend.scala"
 bridge_file="frontend/src/main/scala/morphhdl/frontend/NativeIntSymbolicConditional.scala"
 plugin_file="morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala"
@@ -20,6 +21,7 @@ doc_file="docs/morphhdl/increment-51-native-int-symbolic-conditionals.md"
 for required in \
   "$registry_file" \
   "$formal_file" \
+  "$formal_publisher_file" \
   "$structural_file" \
   "$bridge_file" \
   "$plugin_file" \
@@ -28,7 +30,8 @@ for required in \
   test -f "$required"
 done
 
-grep -Fq "captureWithDefinition" "$formal_file"
+grep -Fq "ExternalAnalyzedNativeIntFormalizationPublisher.captureComponent" "$formal_file"
+grep -Fq "ExternalNativeIntShadowRegistry.captureWithDefinition" "$formal_publisher_file"
 grep -Fq "definitionPredicateTracked" "$registry_file"
 grep -Fq "startGenerateIfExpression" "$structural_file"
 grep -Fq "selectSymbolicChain" "$bridge_file"

@@ -233,7 +233,13 @@ object ExternalNativeAxi4SlaveFactoryParameterization {
           val result = UInt(carrierWidth bits)
           ParameterizedWidth.copyShape(prototype, result)
           result.setName(s"${record.stableName}_case_$occurrence")
-          result := U(record.witness, carrierWidth bits)
+          result.assignFrom(
+            spinal.core.internals.UIntLiteral(
+              record.witness,
+              null,
+              carrierWidth
+            )
+          )
           ExternalParameterizedValueRegistry.attach(
             value = result,
             expression = record.expression,

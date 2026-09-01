@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.{AtomicInteger, AtomicReference}
 import scala.collection.mutable.ArrayBuffer
 
 import spinal.core.{BaseType, Component, SInt, SpinalConfig, SpinalReport, Verilog}
-import spinal.core.internals.{Phase, PhaseContext, PhaseMisc}
+import spinal.core.internals.{Phase, PhaseContext, PhaseMisc, PhaseVerilog}
 
 /** Immutable port geometry observed after normal SpinalHDL elaboration. */
 final case class NativePortSnapshot(
@@ -71,8 +71,7 @@ object NativeGraphSnapshot {
   }
 }
 
-/**
-  * Result of one normal SpinalHDL Verilog generation invoked through the
+/** Result of one normal SpinalHDL Verilog generation invoked through the
   * MorphHDL-owned external boundary.
   */
 final case class ExternalSpinalVerilogReport[T <: Component, A](
@@ -82,8 +81,7 @@ final case class ExternalSpinalVerilogReport[T <: Component, A](
     generatedSourcesPaths: Vector[String]
 )
 
-/**
-  * External elaboration, validation, graph-inspection and publication boundary.
+/** External elaboration, validation, graph-inspection and publication boundary.
   *
   * This implementation intentionally uses only APIs present in the recorded
   * upstream baseline: SpinalConfig.generateVerilog, SpinalConfig phase
@@ -106,7 +104,8 @@ object ExternalSpinalVerilog {
   private final class CapturePhase[T <: Component, A](
       attempt: Int,
       inspector: T => A,
-      afterPublication: PhaseContext => Unit,
+      afterPublication: (PhaseContext, Component => Component) => Unit,
+      canonicalOf: Component => Component,
       capture: AtomicReference[CapturedInspection[A]]
   ) extends PhaseMisc {
     override def impl(pc: PhaseContext): Unit = {
@@ -118,7 +117,7 @@ object ExternalSpinalVerilog {
       }
       val typedTop = top.asInstanceOf[T]
       val inspected = inspector(typedTop)
-      afterPublication(pc)
+      afterPublication(pc, canonicalOf)
       capture.set(CapturedInspection(attempt, typedTop, inspected))
     }
   }
@@ -133,8 +132,7 @@ object ExternalSpinalVerilog {
   )(component: => T): ExternalSpinalVerilogReport[T, NativeGraphSnapshot] =
     inspect(config)(component)((top: T) => NativeGraphSnapshot.capture(top))
 
-  /**
-    * Run a caller-supplied read-only graph inspector as the final configured
+  /** Run a caller-supplied read-only graph inspector as the final configured
     * phase, after normal native publication phases have run. The inspector may
     * retain object identities for later MorphHDL analysis, but must not mutate
     * the native graph.
@@ -142,10 +140,9 @@ object ExternalSpinalVerilog {
   def inspect[T <: Component, A](
       config: SpinalConfig
   )(component: => T)(inspector: T => A): ExternalSpinalVerilogReport[T, A] =
-    run(config)(component)(inspector, (_: PhaseContext) => ())
+    run(config)(component)(inspector, (_: PhaseContext, _: Component => Component) => ())
 
-  /**
-    * Run one MorphHDL-owned publication transform as the final configured phase,
+  /** Run one MorphHDL-owned publication transform as the final configured phase,
     * after native validation and Verilog emission. The callback may rewrite only
     * published artifacts; native graph mutation remains outside this boundary.
     */
@@ -156,6 +153,21 @@ object ExternalSpinalVerilog {
   ): ExternalSpinalVerilogReport[T, NativeGraphSnapshot] =
     run(config)(component)(
       (top: T) => NativeGraphSnapshot.capture(top),
+      (pc: PhaseContext, _: Component => Component) => afterPublication(pc)
+    )
+
+  /** Publication transform with the native Verilog emitter's exact
+    * concrete-instance to canonical-component identity map. The map is captured
+    * from the exact PhaseVerilog object already present in this phase plan;
+    * module/class/name text is never used to reconstruct it.
+    */
+  def transformWithCanonicalIdentity[T <: Component](
+      config: SpinalConfig
+  )(component: => T)(
+      afterPublication: (PhaseContext, Component => Component) => Unit
+  ): ExternalSpinalVerilogReport[T, NativeGraphSnapshot] =
+    run(config)(component)(
+      (top: T) => NativeGraphSnapshot.capture(top),
       afterPublication
     )
 
@@ -163,7 +175,7 @@ object ExternalSpinalVerilog {
       config: SpinalConfig
   )(component: => T)(
       inspector: T => A,
-      afterPublication: PhaseContext => Unit
+      afterPublication: (PhaseContext, Component => Component) => Unit
   ): ExternalSpinalVerilogReport[T, A] = {
     if (config == null) {
       throw new IllegalArgumentException("SpinalConfig must not be null")
@@ -182,10 +194,23 @@ object ExternalSpinalVerilog {
     val inserters = config.phasesInserters.clone()
     inserters += { phases: ArrayBuffer[Phase] =>
       val attempt = attempts.incrementAndGet()
+      val emitters = phases.collect { case phase: PhaseVerilog => phase }.toVector
+      if (emitters.size != 1) {
+        throw new IllegalStateException(
+          s"external canonical-identity capture requires exactly one native PhaseVerilog, found ${emitters.size}"
+        )
+      }
+      val emitter = emitters.head
+      val canonicalOf: Component => Component = value => {
+        if (value == null)
+          throw new IllegalArgumentException("canonical component lookup must not be null")
+        Option(emitter.emitedComponentRef.get(value)).getOrElse(value)
+      }
       val capturePhase = new CapturePhase[T, A](
         attempt,
         inspector,
         afterPublication,
+        canonicalOf,
         captured
       )
       phases += capturePhase

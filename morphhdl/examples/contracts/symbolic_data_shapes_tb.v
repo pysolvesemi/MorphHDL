@@ -7,6 +7,8 @@ module SymbolicDataShapesCase #(
   output reg failed
 );
 
+  localparam integer VEC_WIDTH = 6 * WIDTH;
+
   reg clk;
   reg [WIDTH-1:0] bits_in;
   reg [WIDTH-1:0] bundle_in_bits;
@@ -23,12 +25,7 @@ module SymbolicDataShapesCase #(
   reg stream_in_valid;
   reg stream_out_ready;
   reg [WIDTH-1:0] uint_in;
-  reg [WIDTH-1:0] vec_in_0_bits;
-  reg [WIDTH-1:0] vec_in_0_sint;
-  reg [WIDTH-1:0] vec_in_0_uint;
-  reg [WIDTH-1:0] vec_in_1_bits;
-  reg [WIDTH-1:0] vec_in_1_sint;
-  reg [WIDTH-1:0] vec_in_1_uint;
+  reg [VEC_WIDTH-1:0] vec_in;
 
   wire [WIDTH-1:0] bits_out;
   wire [WIDTH-1:0] bundle_out_bits;
@@ -48,12 +45,7 @@ module SymbolicDataShapesCase #(
   wire [WIDTH-1:0] stream_out_payload_uint;
   wire stream_out_valid;
   wire [WIDTH-1:0] uint_out;
-  wire [WIDTH-1:0] vec_out_0_bits;
-  wire [WIDTH-1:0] vec_out_0_sint;
-  wire [WIDTH-1:0] vec_out_0_uint;
-  wire [WIDTH-1:0] vec_out_1_bits;
-  wire [WIDTH-1:0] vec_out_1_sint;
-  wire [WIDTH-1:0] vec_out_1_uint;
+  wire [VEC_WIDTH-1:0] vec_out;
 
   function [WIDTH-1:0] pattern;
     input integer seed;
@@ -61,6 +53,16 @@ module SymbolicDataShapesCase #(
     begin
       for (bit_index = 0; bit_index < WIDTH; bit_index = bit_index + 1) begin
         pattern[bit_index] = (bit_index + seed) % 2;
+      end
+    end
+  endfunction
+
+  function [VEC_WIDTH-1:0] vec_pattern;
+    input integer seed;
+    integer bit_index;
+    begin
+      for (bit_index = 0; bit_index < VEC_WIDTH; bit_index = bit_index + 1) begin
+        vec_pattern[bit_index] = (bit_index + seed) % 2;
       end
     end
   endfunction
@@ -84,12 +86,7 @@ module SymbolicDataShapesCase #(
         .stream_in_valid           (stream_in_valid),
         .stream_out_ready          (stream_out_ready),
         .uint_in                   (uint_in),
-        .vec_in_0_bits             (vec_in_0_bits),
-        .vec_in_0_sint             (vec_in_0_sint),
-        .vec_in_0_uint             (vec_in_0_uint),
-        .vec_in_1_bits             (vec_in_1_bits),
-        .vec_in_1_sint             (vec_in_1_sint),
-        .vec_in_1_uint             (vec_in_1_uint),
+        .vec_in                    (vec_in),
         .bits_out                  (bits_out),
         .bundle_out_bits           (bundle_out_bits),
         .bundle_out_sint           (bundle_out_sint),
@@ -108,12 +105,7 @@ module SymbolicDataShapesCase #(
         .stream_out_payload_uint   (stream_out_payload_uint),
         .stream_out_valid          (stream_out_valid),
         .uint_out                  (uint_out),
-        .vec_out_0_bits            (vec_out_0_bits),
-        .vec_out_0_sint            (vec_out_0_sint),
-        .vec_out_0_uint            (vec_out_0_uint),
-        .vec_out_1_bits            (vec_out_1_bits),
-        .vec_out_1_sint            (vec_out_1_sint),
-        .vec_out_1_uint            (vec_out_1_uint)
+        .vec_out                   (vec_out)
       );
     end else begin : g_override
       SymbolicDataShapes #(
@@ -135,12 +127,7 @@ module SymbolicDataShapesCase #(
         .stream_in_valid           (stream_in_valid),
         .stream_out_ready          (stream_out_ready),
         .uint_in                   (uint_in),
-        .vec_in_0_bits             (vec_in_0_bits),
-        .vec_in_0_sint             (vec_in_0_sint),
-        .vec_in_0_uint             (vec_in_0_uint),
-        .vec_in_1_bits             (vec_in_1_bits),
-        .vec_in_1_sint             (vec_in_1_sint),
-        .vec_in_1_uint             (vec_in_1_uint),
+        .vec_in                    (vec_in),
         .bits_out                  (bits_out),
         .bundle_out_bits           (bundle_out_bits),
         .bundle_out_sint           (bundle_out_sint),
@@ -159,12 +146,7 @@ module SymbolicDataShapesCase #(
         .stream_out_payload_uint   (stream_out_payload_uint),
         .stream_out_valid          (stream_out_valid),
         .uint_out                  (uint_out),
-        .vec_out_0_bits            (vec_out_0_bits),
-        .vec_out_0_sint            (vec_out_0_sint),
-        .vec_out_0_uint            (vec_out_0_uint),
-        .vec_out_1_bits            (vec_out_1_bits),
-        .vec_out_1_sint            (vec_out_1_sint),
-        .vec_out_1_uint            (vec_out_1_uint)
+        .vec_out                   (vec_out)
       );
     end
   endgenerate
@@ -177,12 +159,7 @@ module SymbolicDataShapesCase #(
           (bundle_out_bits !== bundle_in_bits) ||
           (bundle_out_uint !== bundle_in_uint) ||
           (bundle_out_sint !== bundle_in_sint) ||
-          (vec_out_0_bits !== vec_in_0_bits) ||
-          (vec_out_0_uint !== vec_in_0_uint) ||
-          (vec_out_0_sint !== vec_in_0_sint) ||
-          (vec_out_1_bits !== vec_in_1_bits) ||
-          (vec_out_1_uint !== vec_in_1_uint) ||
-          (vec_out_1_sint !== vec_in_1_sint) ||
+          (vec_out !== vec_in) ||
           (stream_out_valid !== stream_in_valid) ||
           (stream_out_payload_bits !== stream_in_payload_bits) ||
           (stream_out_payload_uint !== stream_in_payload_uint) ||
@@ -208,12 +185,7 @@ module SymbolicDataShapesCase #(
     bundle_in_bits = pattern(4);
     bundle_in_uint = pattern(5);
     bundle_in_sint = pattern(6);
-    vec_in_0_bits = pattern(7);
-    vec_in_0_uint = pattern(8);
-    vec_in_0_sint = pattern(9);
-    vec_in_1_bits = pattern(10);
-    vec_in_1_uint = pattern(11);
-    vec_in_1_sint = pattern(12);
+    vec_in = vec_pattern(7);
     stream_in_valid = CASE_ID[0];
     stream_out_ready = !CASE_ID[0];
     stream_in_payload_bits = pattern(13);

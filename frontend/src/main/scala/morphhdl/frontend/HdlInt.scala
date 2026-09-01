@@ -128,30 +128,20 @@ final class HdlInt private[frontend] (
             useOrigin
           )
         }
-        val schema = formalBinding match {
-          case Some(binding) => binding.formal
-          case None =>
-            ElaborationIntegerParameter(
-              parameter.name,
-              parameter.default,
-              minimum,
-              maximum
-            )
-        }
-        val width = ParameterizedBitCount(
-          parameter.default.toInt,
-          parameter = Some(schema),
-          sourceLocation = Some(useOrigin.rendered),
-          expression = Some(
-            spinal.core.ElaborationIntegerExpression(
-              verilog = parameter.name,
-              default = parameter.default,
-              minimum = minimum,
-              maximum = maximum,
-              parameters = Vector(schema),
-              sourceLocation = Some(useOrigin.rendered),
-              parameterRoots = Vector(token.elaborationRoot)
-            )
+        val schema = token.canonicalSchema(minimum, maximum)
+        val analyzed = StructuralExpressionBridge.analyzedWidth(
+          this,
+          "SpinalHDL packed width",
+          sourceLocation = Some(useOrigin.rendered)
+        )
+        val retained = analyzed.expression
+        val width = exactSingleRootBitCount(
+          analyzed,
+          ParameterizedBitCount(
+            parameter.default.toInt,
+            parameter = Some(schema),
+            sourceLocation = Some(useOrigin.rendered),
+            expression = Some(retained)
           )
         )
         formalBinding match {
@@ -166,10 +156,12 @@ final class HdlInt private[frontend] (
             useOrigin
           )
         }
-        val retained = StructuralExpressionBridge.width(
+        val analyzed = StructuralExpressionBridge.analyzedWidth(
           this,
-          "SpinalHDL packed width"
+          "SpinalHDL packed width",
+          sourceLocation = Some(useOrigin.rendered)
         )
+        val retained = analyzed.expression
         validateSpinalWidthDomain(
           retained.default,
           retained.minimum,
@@ -184,11 +176,14 @@ final class HdlInt private[frontend] (
             useOrigin
           )
         }
-        ParameterizedBitCount(
-          witness.toInt,
-          parameter = None,
-          sourceLocation = Some(useOrigin.rendered),
-          expression = if (retained.parameters.nonEmpty) Some(retained) else None
+        exactSingleRootBitCount(
+          analyzed,
+          ParameterizedBitCount(
+            witness.toInt,
+            parameter = None,
+            sourceLocation = Some(useOrigin.rendered),
+            expression = if (retained.parameters.nonEmpty) Some(retained) else None
+          )
         )
     }
   }
@@ -197,13 +192,10 @@ final class HdlInt private[frontend] (
     * value to Scala `Int`.
     */
   def asElabInt: spinal.core.ElabInt = {
-    val retained =
-      StructuralExpressionBridge.width(this, "typed elaboration integer")
-    StructuralExpressionBridge.singleRootEvaluations(this) match {
-      case Some(evaluations) =>
-        spinal.core.ElabInt.fromSingleRootExpression(retained, evaluations)
-      case None => spinal.core.ElabInt.fromExpression(retained)
-    }
+    val analyzed =
+      StructuralExpressionBridge.analyzedWidth(this, "typed elaboration integer")
+    HdlInt.exactSingleRootElabInt(analyzed)
+      .getOrElse(spinal.core.ElabInt.fromExpression(analyzed.expression))
   }
 
   /** Retain one bounded native Mem word-count expression. */
@@ -213,10 +205,12 @@ final class HdlInt private[frontend] (
   ): ParameterizedMemoryDepth = {
     val useOrigin = SourceOrigin.capture
     requireLoopInvariant("SpinalHDL memory depth")
-    val retained = StructuralExpressionBridge.width(
+    val analyzed = StructuralExpressionBridge.analyzedWidth(
       this,
-      "SpinalHDL memory depth"
+      "SpinalHDL memory depth",
+      sourceLocation = Some(useOrigin.rendered)
     )
+    val retained = analyzed.expression
     if (
       retained.default != witness || retained.minimum < 1 ||
       retained.maximum < retained.minimum ||
@@ -228,12 +222,24 @@ final class HdlInt private[frontend] (
         useOrigin
       )
     }
-    ParameterizedMemoryDepth(
-      witness.toInt,
-      retained.copy(sourceLocation = Some(useOrigin.rendered)),
-      sourceLocation = Some(useOrigin.rendered)
+    val typed = HdlInt.exactSingleRootElabInt(analyzed)
+      .getOrElse(spinal.core.ElabInt.fromExpression(retained))
+    ParameterizedMemoryDepth.checked(
+      typed,
+      role = "SpinalHDL memory depth"
     )
   }
+
+  /** Preserve exhaustive frontend evaluation evidence on native bit-count
+    * carriers whenever the expression has one exact declaration root. Other
+    * width APIs retain their historical bounded fallback, while memory
+    * publication can consequently reject those inexact multi-root carriers.
+    */
+  private def exactSingleRootBitCount(
+      analyzed: AnalyzedFrontendInteger,
+      fallback: => ParameterizedBitCount
+  ): ParameterizedBitCount =
+    HdlInt.exactSingleRootElabInt(analyzed).map(_.bits).getOrElse(fallback)
 
   private def validateSpinalWidthDomain(
       default: BigInt,
@@ -525,6 +531,20 @@ final class HdlInt private[frontend] (
 }
 
 object HdlInt {
+  /** Consume one analyzer-sealed single-root table exactly once. Callers retain
+    * their existing canonical-literal or fail-closed multi-root fallback.
+    */
+  private def exactSingleRootElabInt(
+      analyzed: AnalyzedFrontendInteger
+  ): Option[spinal.core.ElabInt] =
+    analyzed.singleRootEvaluations.map { evaluations =>
+      spinal.core.ElabInt.fromSingleRootExpression(
+        analyzed.expression,
+        evaluations,
+        spinal.core.ExternalAnalyzedFrontendPermitIssuer.singleRoot(analyzed)
+      )
+    }
+
   private val PortableIdentifier = "[A-Za-z_][A-Za-z0-9_]*".r
 
   import scala.language.implicitConversions
@@ -639,7 +659,11 @@ object HdlInt {
       binding.formal.default,
       Vector[IntConstraint](MinInclusive(minimum), MaxInclusive(maximum))
     )
-    val token = new ParameterToken(declaration, origin)
+    val token = new ParameterToken(
+      declaration,
+      origin,
+      initialSchema = Some(binding.formal)
+    )
     new HdlInt(
       binding.formal.default,
       ParameterRef(name),
@@ -671,7 +695,8 @@ object HdlInt {
       )
     }
     actual.requireLoopInvariant(role)
-    val retained = StructuralExpressionBridge.width(actual, role)
+    val analyzed = StructuralExpressionBridge.analyzedWidth(actual, role)
+    val retained = analyzed.expression
     if (
       retained.default != actual.witness ||
       retained.minimum < 1 || retained.maximum < retained.minimum ||
@@ -685,13 +710,24 @@ object HdlInt {
         origin
       )
     }
+    val authoritative = exactSingleRootElabInt(analyzed) match {
+      case Some(exact) =>
+        exact.bits.expression.getOrElse {
+          FrontendException.failAt(
+            "MORPH-FRONTEND-NATIVE-INT-EXACT-EXPRESSION-MISSING",
+            s"$role single-root expression '${retained.verilog}' lost its exact symbolic carrier",
+            origin
+          )
+        }
+      case None => retained
+    }
     actual.formalBinding match {
       case Some(binding) =>
-        retained.parameters match {
+        authoritative.parameters match {
           case Vector(parameter)
-              if parameter == binding.formal &&
-                retained.verilog == binding.formal.name =>
-            retained.copy(parameters = Vector(binding.formal))
+              if (parameter eq binding.formal) &&
+                authoritative.verilog == binding.formal.name =>
+            authoritative
           case _ =>
             FrontendException.failAt(
               "MORPH-FRONTEND-FORMAL-PARAMETER-NOT-DIRECT",
@@ -699,7 +735,7 @@ object HdlInt {
               origin
             )
         }
-      case None => retained
+      case None => authoritative
     }
   }
 

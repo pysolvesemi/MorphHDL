@@ -37,7 +37,7 @@ object CapturedAssignmentNormalizationSmoke {
       when(load) {
         narrowState := 1
       }
-      dout := narrowState
+      dout := narrowState.resized
     }
   }
 
@@ -146,9 +146,9 @@ object CapturedAssignmentNormalizationSmoke {
             .setName("high_state")
         highState.init(0)
         when(load) {
-          highState := din
+          highState := din.resized
         }
-        dout := highState
+        dout := highState.resized
       } else {
         val middleState =
           morphhdl.frontend
@@ -156,9 +156,9 @@ object CapturedAssignmentNormalizationSmoke {
             .setName("middle_state")
         middleState.init(0)
         when(load) {
-          middleState := din
+          middleState := din.resized
         }
-        dout := middleState
+        dout := middleState.resized
       }
     } else {
       val lowState =
@@ -167,9 +167,9 @@ object CapturedAssignmentNormalizationSmoke {
           .setName("low_state")
       lowState.init(0)
       when(load) {
-        lowState := din
+        lowState := din.resized
       }
-      dout := lowState
+      dout := lowState.resized
     }
   }
 
@@ -492,6 +492,24 @@ object CapturedAssignmentNormalizationSmoke {
       observed := matching
     }
   }
+
+  final class UnsafeInactiveWideningCarrier(width: HdlInt)
+      extends Component {
+    setDefinitionName("CapturedUnsafeInactiveWideningCarrier")
+
+    val din = in(morphhdl.frontend.UInt(width bits))
+    val observed = out(Bool())
+
+    if ((width <= 3).named("g_carrier_safe", "g_carrier_unsafe")) {
+      observed := din.orR
+    } else {
+      val widened = morphhdl.frontend
+        .UInt(width bits)
+        .setName("unsafe_inactive_widening")
+      widened := din.resized
+      observed := widened.orR
+    }
+  }
 }
 
 class CapturedAssignmentNormalizationTests extends AnyFunSuite {
@@ -513,6 +531,8 @@ class CapturedAssignmentNormalizationTests extends AnyFunSuite {
       assert(verilog.contains("narrow_state"))
       assert(occurrences(verilog, "wide_state <=") >= 2)
       assert(occurrences(verilog, "narrow_state <=") >= 2)
+      assert(verilog.contains("{1'b0, _zz_dout}"))
+      assert(!verilog.contains("{2'd0, _zz_dout}"))
     }
   }
 
@@ -644,6 +664,31 @@ class CapturedAssignmentNormalizationTests extends AnyFunSuite {
         "low_state"
       ).foreach(token => assert(verilog.contains(token), s"missing $token"))
       assert(occurrences(verilog, "always @(posedge clk)") == 3)
+      assert(verilog.contains("{1'b0, _zz_dout_1}"), verilog)
+      assert(verilog.contains("{1'b0, _zz_dout_2}"), verilog)
+      assert(!verilog.contains("{3'd0, _zz_dout_1}"), verilog)
+      assert(!verilog.contains("{5'd0, _zz_dout_2}"), verilog)
+    }
+  }
+
+  test("witness-inactive auto-resize carriers cannot truncate a wider owner domain") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "captured_unsafe_inactive_widening.v"
+      MorphVerilog.tryGenerate(config) {
+        new UnsafeInactiveWideningCarrier(symbolicWidth(default = 3))
+      } match {
+        case Left(failure) =>
+          assert(
+            failure.detail.contains(
+              "SPINAL-ELAB-DOMAIN-PROJECTION-OWNER-REPRESENTATIVE-MISMATCH"
+            ),
+            failure.detail
+          )
+        case Right(report) =>
+          fail(s"Expected unsafe inactive widening rejection, received $report")
+      }
+      assert(!Files.exists(directory.resolve(config.netlistFileName)))
     }
   }
 

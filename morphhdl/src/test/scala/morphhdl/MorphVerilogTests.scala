@@ -915,27 +915,26 @@ class MorphVerilogTests extends AnyFunSuite {
   }
 
   test("portable address width agrees with concrete defaults at depths one two three and five") {
-    Vector(1 -> 1, 2 -> 1, 3 -> 2, 5 -> 3).foreach {
-      case (depth, expectedWidth) =>
-        withTemporaryDirectory { directory =>
-          val topName = s"AddressWidthDepth$depth"
-          val config = SpinalConfig(targetDirectory = directory.toString)
-          config.netlistFileName = s"address_width_depth_$depth.v"
-          val report = MorphVerilog(config) {
-            MorphProgram(
-              concreteWitness = passThroughWitness(topName, expectedWidth),
-              parameterizedDesign = addressWidthDesign(topName, depth)
-            )
-          }
-
-          val output = directory.resolve(s"address_width_depth_$depth.v")
-          assert(report.toplevelName == topName)
-          assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
-          assert(Files.isRegularFile(output))
-          val verilog = new String(Files.readAllBytes(output), StandardCharsets.UTF_8)
-          assert(verilog.contains(s"parameter integer DEPTH = $depth"))
-          assert(!verilog.contains("$clog2"))
+    Vector(1 -> 1, 2 -> 1, 3 -> 2, 5 -> 3).foreach { case (depth, expectedWidth) =>
+      withTemporaryDirectory { directory =>
+        val topName = s"AddressWidthDepth$depth"
+        val config = SpinalConfig(targetDirectory = directory.toString)
+        config.netlistFileName = s"address_width_depth_$depth.v"
+        val report = MorphVerilog(config) {
+          MorphProgram(
+            concreteWitness = passThroughWitness(topName, expectedWidth),
+            parameterizedDesign = addressWidthDesign(topName, depth)
+          )
         }
+
+        val output = directory.resolve(s"address_width_depth_$depth.v")
+        assert(report.toplevelName == topName)
+        assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
+        assert(Files.isRegularFile(output))
+        val verilog = new String(Files.readAllBytes(output), StandardCharsets.UTF_8)
+        assert(verilog.contains(s"parameter integer DEPTH = $depth"))
+        assert(!verilog.contains("$clog2"))
+      }
     }
   }
 
@@ -1431,6 +1430,32 @@ class MorphVerilogTests extends AnyFunSuite {
       var concreteRuns = 0
       var symbolicRuns = 0
       val config = SpinalConfig(targetDirectory = directory.toString, rtlHeader = "ignored")
+
+      val result = MorphVerilog.tryGenerate(config) {
+        MorphProgram(
+          concreteWitness = {
+            concreteRuns += 1
+            witness("ParameterizedWire")
+          },
+          parameterizedDesign = {
+            symbolicRuns += 1
+            validDesign("ParameterizedWire")
+          }
+        )
+      }
+
+      assertStage(result, MorphVerilogStage.Configuration)
+      assert(concreteRuns == 0)
+      assert(symbolicRuns == 0)
+    }
+  }
+
+  test("dual-factory includeFormal fails before either factory runs") {
+    withTemporaryDirectory { directory =>
+      var concreteRuns = 0
+      var symbolicRuns = 0
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.includeFormal
 
       val result = MorphVerilog.tryGenerate(config) {
         MorphProgram(
@@ -2164,10 +2189,10 @@ class MorphVerilogTests extends AnyFunSuite {
     val childPacked = PackedBits(morphhdl.paramrtl.IntExpr.Literal(childWidth), Unsigned)
     val child = ModuleDef(
       name = "HierarchyLeaf",
-          parameters = Vector.empty,
-          ports = Vector(
-            Port("leaf_in", Input, childPacked),
-            Port("leaf_out", Output, childPacked)
+      parameters = Vector.empty,
+      ports = Vector(
+        Port("leaf_in", Input, childPacked),
+        Port("leaf_out", Output, childPacked)
       ),
       items = Vector(ContinuousAssign(Ref("leaf_out"), Ref("leaf_in")))
     )
@@ -2622,9 +2647,8 @@ class MorphVerilogTests extends AnyFunSuite {
       items = top.items.map {
         case instance: ModuleItem.ModuleInstance =>
           instance.copy(
-            booleanParameterBindings = instance.booleanParameterBindings.map(binding =>
-              binding.copy(parameterName = "ENABLE")
-            )
+            booleanParameterBindings =
+              instance.booleanParameterBindings.map(binding => binding.copy(parameterName = "ENABLE"))
           )
         case item => item
       }
@@ -3002,21 +3026,24 @@ class MorphVerilogTests extends AnyFunSuite {
     val base = generateCaseDesign(requestedName, modeDefault = 0)
     val top = base.modules.find(_.name == requestedName).get
     val generate = top.items.collectFirst { case value: ModuleItem.GenerateCase => value }.get
-    val invalidChoice = generate.choices.find(_.value == 1).get.copy(
-      block = GenerateBlock(
-        "g_one",
-        Vector(
-          ModuleItem.ModuleInstance(
-            "selected_inst",
-            "MissingInactiveCaseLeaf",
-            portConnections = Vector(
-              PortConnection("one_in", Ref("din")),
-              PortConnection("one_out", Ref("dout"))
+    val invalidChoice = generate.choices
+      .find(_.value == 1)
+      .get
+      .copy(
+        block = GenerateBlock(
+          "g_one",
+          Vector(
+            ModuleItem.ModuleInstance(
+              "selected_inst",
+              "MissingInactiveCaseLeaf",
+              portConnections = Vector(
+                PortConnection("one_in", Ref("din")),
+                PortConnection("one_out", Ref("dout"))
+              )
             )
           )
         )
       )
-    )
     val invalidGenerate = generate.copy(
       choices = generate.choices.map(choice => if (choice.value == 1) invalidChoice else choice)
     )

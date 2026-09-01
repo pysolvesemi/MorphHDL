@@ -1,7 +1,6 @@
 package spinal.core
 
-/**
-  * Generic low-level boundary for a native child component whose ordinary
+/** Generic low-level boundary for a native child component whose ordinary
   * Scala `Int` constructor argument becomes a definition-side Verilog formal.
   *
   * The caller supplies a checked `ParameterizedMemoryDepth`, but this helper
@@ -101,21 +100,18 @@ private[spinal] object ExternalNativeIntFormalComponent {
       minimum,
       maximum
     )
-    val definitionExpression = ElaborationIntegerExpression(
-      verilog = name,
-      default = expression.default,
-      minimum = minimum,
-      maximum = maximum,
-      parameters = Vector(formal),
-      sourceLocation = Some(callSite),
-      parameterRoots = Vector(formal.declarationRoot)
-    )
-    val token = ExternalNativeIntFormalizationToken(
+    val definitionExpression =
+      ElabInt.directParameter(formal, Some(callSite)).expression
+    val token = ExternalNativeIntFormalizationToken.componentParameter(
+      parent = parent,
+      actual = expression,
+      definition = definitionExpression,
       callSite = callSite,
       valueOrigin = expression.sourceLocation.getOrElse(callSite),
       role = s"formalComponent.parameter($name)"
     )
     val capture = ExternalNativeIntShadowRegistry.captureWithDefinition(
+      owner = parent,
       expression = expression,
       definitionExpression = definitionExpression,
       token = token,
@@ -140,13 +136,8 @@ private[spinal] object ExternalNativeIntFormalComponent {
       ownerClassName = ownerClassName,
       sourceLocation = Some(callSite)
     )
-    ExternalNativeIntFormalizationRegistry.attachComponentParameter(
+    ExternalNativeIntFormalizationRegistry.attachComponentParameterAtomically(
       parent = parent,
-      component = component,
-      binding = binding,
-      token = token
-    )
-    ExternalNativeIntShadowRegistry.attachComponent(
       component = component,
       binding = binding,
       capture = capture

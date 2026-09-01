@@ -1,15 +1,8 @@
 package morphhdl.frontend
 
-import spinal.core.{
-  Component,
-  Data,
-  ExternalNativeIntFormalizationRegistry,
-  ExternalNativeIntFormalizationToken,
-  ExternalNativeIntShadowRegistry
-}
+import spinal.core.{Component, Data, ExternalAnalyzedNativeIntFormalizationPublisher}
 
-/**
-  * Explicit external boundary for one native `Int`-controlled Data region.
+/** Explicit external boundary for one native `Int`-controlled Data region.
   *
   * The supplied constructor receives only the checked concrete `Int` witness.
   * After the untouched native constructor returns, MorphHDL attaches the full
@@ -41,36 +34,21 @@ object formalRegion {
         origin
       )
     }
-    val expression = HdlInt.nativeIntExpression(
+    val analyzed = StructuralExpressionBridge.analyzedWidth(
       actual,
       "formalRegion native Int geometry",
-      origin
+      sourceLocation = Some(origin.rendered)
     )
-    val token = ExternalNativeIntFormalizationToken(
+    val capture = ExternalAnalyzedNativeIntFormalizationPublisher.captureRegion(
+      analyzed = analyzed,
+      owner = owner,
+      formalBinding = actual.formalBinding,
       callSite = origin.rendered,
       valueOrigin = actual.origin.rendered,
-      role = "formalRegion"
-    )
-    val shadow = ExternalNativeIntShadowRegistry.capture(
-      expression = expression,
-      token = token,
       argumentName = "regionArgument"
     ) {
-      constructor(expression.default.toInt)
+      constructor(analyzed.expression.default.toInt)
     }
-    val result = shadow.result
-    ExternalNativeIntFormalizationRegistry.attachRegion(
-      owner = owner,
-      data = result,
-      expression = expression,
-      token = token,
-      formalBinding = actual.formalBinding
-    )
-    ExternalNativeIntShadowRegistry.attachRegion(
-      owner = owner,
-      data = result,
-      formalBinding = actual.formalBinding,
-      capture = shadow
-    )
+    ExternalAnalyzedNativeIntFormalizationPublisher.publishRegion(capture)
   }
 }

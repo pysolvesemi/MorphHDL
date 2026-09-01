@@ -263,7 +263,8 @@ object ExternalNativeIntCompilerRuntime {
       case Vector() => body
       case Vector(root) =>
         val location = rendered(file, line)
-        val token = ExternalNativeIntFormalizationToken(
+        val token = ExternalNativeIntFormalizationToken.nativeWidth(
+          expression = root,
           callSite = location,
           valueOrigin = root.sourceLocation.getOrElse(location),
           role = "nativeWidthFunction"
@@ -377,7 +378,11 @@ object ExternalNativeIntCompilerRuntime {
                   (assignment.finalTarget eq value) =>
               assignment.source match {
                 case resize: spinal.core.internals.Resize if resize.size == value.getBitsWidth =>
-                  ExternalParameterizedResizeRegistry.attach(resize, expression)
+                  ExternalParameterizedResizeRegistry.attach(
+                    resize,
+                    value,
+                    expression
+                  )
                 case _ =>
               }
             case _ =>
@@ -671,37 +676,43 @@ object ExternalNativeIntCompilerRuntime {
                 sourceLine
               )
             }
-            val (expression, predicateDomain) =
-              ExternalNativeIntShadowRegistry.definitionPredicateEvidenceTracked(
-                predicateReference,
-                condition,
-                rendered(sourceFile, sourceLine)
-              )
             var capturedValue: Option[T] = None
+            val sourceLocation = Some(rendered(sourceFile, sourceLine))
             val trueBlock = ParameterizedStructure.captureBlock(
               component,
-              Some(rendered(sourceFile, sourceLine))
+              sourceLocation
             ) {
               capturedValue = Some(body)
             }
             val pending = ParameterizedStructure.beginPending(
               component,
               "generate-if",
-              Some(rendered(sourceFile, sourceLine))
+              sourceLocation
             )
             val falseBlock = ParameterizedStructuralSynthetic.emptyBlock(
-              Some(rendered(sourceFile, sourceLine))
+              sourceLocation
             )
             val base = generatedIfBase(sourceFile, sourceLine)
-            ParameterizedStructure.registerIf(
+            val receipt =
+              ExternalNativeIntStructuralPublisher.definitionPredicateTracked(
+                predicateReference,
+                condition,
+                pending,
+                base + "_true",
+                base + "_false",
+                trueBlock,
+                falseBlock,
+                sourceLocation
+              )
+            ExternalNativeIntStructuralPublisher.registerIf(
+              receipt,
+              receipt.condition,
               pending,
-              expression,
               base + "_true",
               base + "_false",
               trueBlock,
               falseBlock,
-              Some(rendered(sourceFile, sourceLine)),
-              predicateDomain
+              sourceLocation
             )
             if (condition) capturedValue.get else null.asInstanceOf[T]
           }
@@ -916,15 +927,10 @@ object ExternalNativeIntCompilerRuntime {
         sourceLine
       )
     }
-    val (expression, predicateDomain) =
-      ExternalNativeIntShadowRegistry.definitionPredicateEvidenceTracked(
-        predicateReference,
-        condition,
-        rendered(sourceFile, sourceLine)
-      )
+    val sourceLocation = Some(rendered(sourceFile, sourceLine))
     val trueBlock = ParameterizedStructure.captureBlock(
       component,
-      Some(rendered(sourceFile, sourceLine))
+      sourceLocation
     ) {
       ifTrue
       ()
@@ -932,21 +938,32 @@ object ExternalNativeIntCompilerRuntime {
     val pending = ParameterizedStructure.beginPending(
       component,
       "generate-if",
-      Some(rendered(sourceFile, sourceLine))
+      sourceLocation
     )
     val falseBlock = ParameterizedStructuralSynthetic.emptyBlock(
       Some(rendered(falseFile, falseLine))
     )
     val base = generatedIfBase(sourceFile, sourceLine)
-    ParameterizedStructure.registerIf(
+    val receipt =
+      ExternalNativeIntStructuralPublisher.definitionPredicateTracked(
+        predicateReference,
+        condition,
+        pending,
+        base + "_true",
+        base + "_false",
+        trueBlock,
+        falseBlock,
+        sourceLocation
+      )
+    ExternalNativeIntStructuralPublisher.registerIf(
+      receipt,
+      receipt.condition,
       pending,
-      expression,
       base + "_true",
       base + "_false",
       trueBlock,
       falseBlock,
-      Some(rendered(sourceFile, sourceLine)),
-      predicateDomain
+      sourceLocation
     )
   }
 
@@ -968,24 +985,19 @@ object ExternalNativeIntCompilerRuntime {
         sourceLine
       )
     }
-    val (expression, predicateDomain) =
-      ExternalNativeIntShadowRegistry.definitionPredicateEvidenceTracked(
-        predicateReference,
-        condition,
-        rendered(sourceFile, sourceLine)
-      )
+    val sourceLocation = Some(rendered(sourceFile, sourceLine))
     var trueValue: Option[T] = None
     var falseValue: Option[T] = None
     val trueBlock = ParameterizedStructure.captureBlock(
       component,
-      Some(rendered(sourceFile, sourceLine))
+      sourceLocation
     ) {
       trueValue = Some(ifTrue)
     }
     val pending = ParameterizedStructure.beginPending(
       component,
       "generate-if",
-      Some(rendered(sourceFile, sourceLine))
+      sourceLocation
     )
     val falseBlock = ParameterizedStructure.captureBlock(
       component,
@@ -994,15 +1006,26 @@ object ExternalNativeIntCompilerRuntime {
       falseValue = Some(ifFalse)
     }
     val base = generatedIfBase(sourceFile, sourceLine)
-    ParameterizedStructure.registerIf(
+    val receipt =
+      ExternalNativeIntStructuralPublisher.definitionPredicateTracked(
+        predicateReference,
+        condition,
+        pending,
+        base + "_true",
+        base + "_false",
+        trueBlock,
+        falseBlock,
+        sourceLocation
+      )
+    ExternalNativeIntStructuralPublisher.registerIf(
+      receipt,
+      receipt.condition,
       pending,
-      expression,
       base + "_true",
       base + "_false",
       trueBlock,
       falseBlock,
-      Some(rendered(sourceFile, sourceLine)),
-      predicateDomain
+      sourceLocation
     )
     if (condition) trueValue.get else falseValue.get
   }

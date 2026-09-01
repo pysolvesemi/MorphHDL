@@ -97,8 +97,14 @@ either factory runs, and mutable configuration collections are cloned so
 witness generation cannot mutate the caller's `SpinalConfig`. Output-affecting
 Spinal options that the direct parameterized emitter cannot honor (including
 headers, timescale changes, namespace and signal-name controls, line comments,
-assertion/ROM lowering, long-expression and component-binding controls, global
-prefixes, obfuscation and verbose logging) are rejected up front.
+ROM lowering, long-expression and component-binding controls, global prefixes,
+obfuscation and verbose logging) are rejected up front. Increment 53f admits
+one later, narrow exception for the single-source path: an exact
+`config.includeFormal` profile (the sole `formal` generation flag paired with
+`formalAsserts=true`) preserves native formal statements such as `cover`.
+The dual-factory path, an unpaired formal flag, `formalAsserts` alone,
+simulation or any combined generation-flag profile still fails during
+configuration before either factory runs.
 
 ## Executable evidence
 

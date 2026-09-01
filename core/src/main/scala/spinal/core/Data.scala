@@ -29,28 +29,30 @@ import scala.collection.Seq
 object DataAssign
 object InitAssign
 object InitialAssign
-class VarAssignementTag(val from : Data) extends SpinalTag {
+class VarAssignementTag(val from: Data) extends SpinalTag {
   var id = 0
 }
 
 trait DataPrimitives[T <: Data] {
 
-  private[spinal] def _data : T
+  private[spinal] def _data: T
 
   /** `isEqualTo` comparison between two hardware signals */
   def ===(that: T): Bool = _data isEqualTo that
-  
+
   /** `isNotEqualTo` comparison between two hardware signals */
   def =/=(that: T): Bool = _data isNotEqualTo that
   def =::=(that: T): Bool = _data isEqualToSim that
 
   /** Standard hardware assignment, equivalent to `<=` in VHDL/Verilog */
-  def := (that: T)(implicit loc: Location): Unit = _data assignFrom that
+  def :=(that: T)(implicit loc: Location): Unit = _data assignFrom that
 
   /** Use as `\=` to have the same behavioral as VHDL variable */
   def \(that: T): T = {
-    if(!this._data.isComb) {
-      SpinalWarning(s"\\= used on a non-combinatorial signals (${this._data}). This will generate a combinatorial value and the register will not be updated.")
+    if (!this._data.isComb) {
+      SpinalWarning(
+        s"\\= used on a non-combinatorial signals (${this._data}). This will generate a combinatorial value and the register will not be updated."
+      )
     }
 
     val globalData = GlobalData.get
@@ -72,10 +74,10 @@ trait DataPrimitives[T <: Data] {
       case (from: Data with Nameable, to: Data with Nameable) => {
         val t = from.getTag(classOf[VarAssignementTag]) match {
           case Some(t) => t
-          case None => new VarAssignementTag(from)
+          case None    => new VarAssignementTag(from)
         }
         t.id += 1
-        to.setCompositeName(t.from,t.id.toString, true)
+        to.setCompositeName(t.from, t.id.toString, true)
 
         from.removeTag(t)
         ret.addTag(t)
@@ -86,13 +88,13 @@ trait DataPrimitives[T <: Data] {
     ret
   }
 
-  def copyDirectionOf(that : T): Unit = {
+  def copyDirectionOf(that: T): Unit = {
     _data.copyDirectionOfImpl(that)
   }
 
   /** Automatic connection between two hardware signals or two bundles of the same type.
-    * 
-    * Direction is inferred by using signal direction (`in`/`out`). (Similar behavior to `:=`) 
+    *
+    * Direction is inferred by using signal direction (`in`/`out`). (Similar behavior to `:=`)
     */
   def <>(that: T)(implicit loc: Location): Unit = _data autoConnect that
 
@@ -101,15 +103,15 @@ trait DataPrimitives[T <: Data] {
     _data.initFrom(that)
     _data
   }
-  
+
   /** Set initial value only if ``that`` is not ``null`` */
   def initNull(that: T): T = {
-    if(that != null) init(that)
+    if (that != null) init(that)
     _data
   }
 
   /** Set initial value as 0 */
-  def initZero() : T = {
+  def initZero(): T = {
     _data.init(_data.getZero)
     _data
   }
@@ -126,7 +128,7 @@ trait DataPrimitives[T <: Data] {
       _data.component
     }
 
-    if(c != null) {
+    if (c != null) {
       val ctx = Component.push(c)
       _data.defaultImpl(that)
       ctx.restore()
@@ -134,15 +136,17 @@ trait DataPrimitives[T <: Data] {
     _data
   }
 
-  def switchAssign[T2 <: BaseType](sel : T2)(mappings: (Any, T)*): Unit = {
-    switch(sel){
-      for((s, v) <- mappings) s match {
-        case spinal.core.default => spinal.core.default{
-          _data := v
-        }
-        case _ => is(s){
-          _data := v
-        }
+  def switchAssign[T2 <: BaseType](sel: T2)(mappings: (Any, T)*): Unit = {
+    switch(sel) {
+      for ((s, v) <- mappings) s match {
+        case spinal.core.default =>
+          spinal.core.default {
+            _data := v
+          }
+        case _ =>
+          is(s) {
+            _data := v
+          }
       }
     }
   }
@@ -152,22 +156,17 @@ trait BaseTypePrimitives[T <: BaseType] {
 
   private[spinal] def _baseType: T = this.asInstanceOf[T]
 
-  def initial(that : T) = {
+  def initial(that: T) = {
     _baseType.initialFrom(that)
     _baseType
   }
 }
 
-
 /** Should not extends AnyVal, Because it create kind of strange call stack move that make error reporting miss accurate
   */
-class DataPimper[T <: Data](val _data: T) extends DataPrimitives[T]{
+class DataPimper[T <: Data](val _data: T) extends DataPrimitives[T] {}
 
-}
-
-class BaseTypePimper[T <: BaseType](val _data: T) {
-
-}
+class BaseTypePimper[T <: BaseType](val _data: T) {}
 
 //object PropagatePullNameTag extends SpinalTag
 
@@ -182,7 +181,12 @@ object Data {
     * @tparam T Type of the srcData
     * @return Readable signal in the finalComponent which is driven by srcData
     */
-  def doPull[T <: Data](srcData: T, finalComponent: Component, useCache: Boolean = false, propagateName: Boolean = false): T = {
+  def doPull[T <: Data](
+      srcData: T,
+      finalComponent: Component,
+      useCache: Boolean = false,
+      propagateName: Boolean = false
+  ): T = {
 
     val startComponent = srcData.component
 
@@ -192,7 +196,9 @@ object Data {
         return finalComponentCacheState.asInstanceOf[srcData.type]
     }
 
-    if (startComponent == finalComponent || (startComponent != null && finalComponent == startComponent.parent && srcData.isIo)) {
+    if (
+      startComponent == finalComponent || (startComponent != null && finalComponent == startComponent.parent && srcData.isIo)
+    ) {
       finalComponent.pulledDataCache.put(srcData, srcData)
       return srcData
     }
@@ -204,24 +210,24 @@ object Data {
     val commonComponent = {
       var srcPtr = srcData.component
       var dstPtr = finalComponent
-      if(dstPtr == null) {
+      if (dstPtr == null) {
         null
-      } else if(srcPtr == null) {
+      } else if (srcPtr == null) {
         while (dstPtr != null) {
           risePath += dstPtr
           dstPtr = dstPtr.parent
         }
         null
-      }else{
+      } else {
         while (srcPtr.level > dstPtr.level) srcPtr = srcPtr.parent
-        while (srcPtr.level < dstPtr.level){
+        while (srcPtr.level < dstPtr.level) {
           risePath += dstPtr
           dstPtr = dstPtr.parent
         }
         while (srcPtr != dstPtr) {
-          srcPtr  = srcPtr.parent
+          srcPtr = srcPtr.parent
           risePath += dstPtr
-          dstPtr  = dstPtr.parent
+          dstPtr = dstPtr.parent
         }
         srcPtr
       }
@@ -241,19 +247,25 @@ object Data {
     var currentData: T = srcData
     var currentComponent: Component = srcData.component
 
-    //Build the path from srcData to the commonComponent (falling path)
-    while(currentComponent != commonComponent){
-      if(useCache &&  currentComponent != null &&  currentComponent.parent != null && currentComponent.parent.pulledDataCache.contains(srcData)){
+    // Build the path from srcData to the commonComponent (falling path)
+    while (currentComponent != commonComponent) {
+      if (
+        useCache && currentComponent != null && currentComponent.parent != null && currentComponent.parent.pulledDataCache
+          .contains(srcData)
+      ) {
         currentData = currentComponent.parent.pulledDataCache(srcData).asInstanceOf[T]
         currentComponent = currentComponent.parent
       } else {
         if (currentData.component == currentComponent && currentData.isIo) {
-          //nothing to do
+          // nothing to do
         } else {
           val ctx = DslScopeStack.set(currentComponent.dslBody)
-          val copy = cloneOf(srcData).asOutput()
+          // A pulled typed value is a hierarchy surface, so preserve the
+          // exact external width/Vec metadata across the otherwise unchanged
+          // native clone before assigning the child-side output.
+          val copy = ParameterizedWidth.cloneOf(srcData).asOutput()
           if (propagateName)
-            copy.setPartialName(currentData, "", weak=true)
+            copy.setPartialName(currentData, "", weak = true)
           copy := currentData
           ctx.restore()
           currentData = copy
@@ -264,16 +276,16 @@ object Data {
       }
     }
 
-    //Build the path from commonComponent to the targetComponent (rising path)
-    for(riseTo <- risePath.reverseIterator){
-      if(useCache && riseTo != null && riseTo.pulledDataCache.contains(srcData)){
+    // Build the path from commonComponent to the targetComponent (rising path)
+    for (riseTo <- risePath.reverseIterator) {
+      if (useCache && riseTo != null && riseTo.pulledDataCache.contains(srcData)) {
         currentComponent = riseTo
         currentData = riseTo.pulledDataCache(srcData).asInstanceOf[T]
-      }else {
+      } else {
         val ctx = DslScopeStack.set(riseTo.dslBody)
-        val copy = cloneOf(srcData).asInput()
+        val copy = ParameterizedWidth.cloneOf(srcData).asInput()
         if (propagateName)
-          copy.setPartialName(currentData, "", weak=true)
+          copy.setPartialName(currentData, "", weak = true)
         ctx.restore()
         if (currentComponent != null) {
           val ctx = DslScopeStack.set(riseTo.parentScope)
@@ -296,17 +308,26 @@ object Data {
   }
 }
 
+trait InComponent {
+  def getComponent(): Component
 
-trait InComponent{
-  def getComponent() : Component
   /** Get current component with all parents */
   def getComponents(): Seq[Component] = {
     val component = getComponent()
-    if(component == null) Nil else component.parents() ++ Seq(component)
+    if (component == null) Nil else component.parents() ++ Seq(component)
   }
 }
 
-trait Data extends ContextUser with NameableByComponent with Assignable with SpinalTagReady with GlobalDataUser with ScalaLocated with OwnableRef with OverridedEqualsHashCode with InComponent{
+trait Data
+    extends ContextUser
+    with NameableByComponent
+    with Assignable
+    with SpinalTagReady
+    with GlobalDataUser
+    with ScalaLocated
+    with OwnableRef
+    with OverridedEqualsHashCode
+    with InComponent {
 
   private[core] var dir: IODirection = null
   private[core] def isIo = dir != null
@@ -314,13 +335,13 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
 
   var parent: Data = null
   def IFparent: Data = parent // TODO:Vec elem do not have parent
-  def getRootParent: Data = if(parent == null) this else parent.getRootParent
+  def getRootParent: Data = if (parent == null) this else parent.getRootParent
 
   /** Set a data as input */
   def asInput(): this.type = {
-    if(this.component != Component.current) {
-      LocatedPendingError(s"You should not set $this as input outside its own component." )
-    }else {
+    if (this.component != Component.current) {
+      LocatedPendingError(s"You should not set $this as input outside its own component.")
+    } else {
       dir = in
     }
     this
@@ -328,9 +349,9 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
 
   /** Set a data as output */
   def asOutput(): this.type = {
-    if(this.component != Component.current) {
-      LocatedPendingError(s"You should not set $this as output outside its own component." )
-    }else {
+    if (this.component != Component.current) {
+      LocatedPendingError(s"You should not set $this as output outside its own component.")
+    } else {
       dir = out
     }
     this
@@ -339,18 +360,18 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
   /** Set a signal as `inout` */
   def asInOut(): this.type = {
     assert(this.isAnalog, "inout can only be used on Analog signal")
-    if(this.component != Component.current) {
-      LocatedPendingError(s"You should not set $this as output outside its own component." )
-    }else {
+    if (this.component != Component.current) {
+      LocatedPendingError(s"You should not set $this as output outside its own component.")
+    } else {
       dir = inout
     }
     this
   }
 
-  def copyDirectionOfImpl(that : Data): this.type = {
-    if(this.component != Component.current) {
-      LocatedPendingError(s"You should not set $this as output outside its own component." )
-    }else {
+  def copyDirectionOfImpl(that: Data): this.type = {
+    if (this.component != Component.current) {
+      LocatedPendingError(s"You should not set $this as output outside its own component.")
+    } else {
       dir = that.dir
     }
     this
@@ -362,23 +383,25 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
     this
   }
 
-  @deprecated("use setAsDirectionLess instead","???")
+  @deprecated("use setAsDirectionLess instead", "???")
   def asDirectionLess(): this.type = setAsDirectionLess()
 
   /** Set baseType to reg */
   def setAsReg(): this.type
+
   /** Recursively set baseType to reg only for output */
   def setOutputAsReg(): this.type = {
     flatten.filter(_.dir == out).foreach(_.setAsReg())
     this
   }
+
   /** Set baseType to Combinatorial */
   def setAsComb(): this.type
 
-  def freeze() : this. type
-  def unfreeze() : this. type
+  def freeze(): this.type
+  def unfreeze(): this.type
 
-  def purify() : this.type = {
+  def purify(): this.type = {
     setAsDirectionLess()
     setAsComb()
     removeAssignments()
@@ -392,19 +415,19 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
   }
 
   def isOutput: Boolean = dir == out
-  def isInput:  Boolean = dir == in
-  def isInOut:  Boolean = dir == inout
+  def isInput: Boolean = dir == in
+  def isInOut: Boolean = dir == inout
   def getDirection = dir
 
   def isOutputOrInOut: Boolean = dir == out || dir == inout
-  def isInputOrInOut:  Boolean = dir ==  in || dir == inout
+  def isInputOrInOut: Boolean = dir == in || dir == inout
   def isDirectionLess: Boolean = dir == null
 
   /** Flip the direction of the signal.
-    * 
-    * `in` and `out` are swapped, `inout` stay the same. 
+    *
+    * `in` and `out` are swapped, `inout` stay the same.
     */
-  def flip(): this.type  = {
+  def flip(): this.type = {
     dir match {
       case `in`    => dir = out
       case `out`   => dir = in
@@ -414,22 +437,23 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
     this
   }
 
-  final def assignFrom(that: AnyRef, target: AnyRef = this) (implicit loc: Location)= compositAssignFrom(that, target, DataAssign)
+  final def assignFrom(that: AnyRef, target: AnyRef = this)(implicit loc: Location) =
+    compositAssignFrom(that, target, DataAssign)
 
   final def initFrom(that: AnyRef, target: AnyRef = this) = (that, target) match {
-    case (init: Data, target: Data) if ! target.isReg =>
+    case (init: Data, target: Data) if !target.isReg =>
       for ((e, initElement) <- (target.flatten, init.flatten).zipped) {
         def recursiveSearch(bt: BaseType): Unit = {
           if (bt.isReg)
-            bt.init (initElement)
-          else if(Statement.isFullToFullStatement(bt))
+            bt.init(initElement)
+          else if (Statement.isFullToFullStatement(bt))
             recursiveSearch(bt.head.source.asInstanceOf[BaseType])
           else
             LocatedPendingError(s"Try to set initial value of a data that is not a register ($this)")
         }
         recursiveSearch(e)
       }
-    case _ => compositAssignFrom(that,target,InitAssign)
+    case _ => compositAssignFrom(that, target, InitAssign)
   }
 
   def asData = this.asInstanceOf[Data]
@@ -439,10 +463,12 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
 
   def flatten: Seq[BaseType]
   def flattenLocalName: Seq[String]
-  def flattenForeach(body : BaseType => Unit) : Unit = flatten.foreach(body(_))
+  def flattenForeach(body: BaseType => Unit): Unit = flatten.foreach(body(_))
+
   /** Pull a signal to the top level (use for debugging) */
   def pull(): this.type = Data.doPull(this, Component.current, useCache = true, propagateName = false)
-  def pull(propagateName : Boolean): this.type = Data.doPull(this, Component.current, useCache = true, propagateName = propagateName)
+  def pull(propagateName: Boolean): this.type =
+    Data.doPull(this, Component.current, useCache = true, propagateName = propagateName)
 
   /** Concatenation between two signals */
   def ##(right: Data): Bits = this.asBits ## right.asBits
@@ -452,7 +478,8 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
 
   def assignFromBits(bits: Bits): Unit
   def assignFromBits(bits: Bits, hi: Int, low: Int): Unit
-  def assignFromBits(bits: Bits, offset: Int, bitCount: BitCount): Unit = this.assignFromBits(bits, offset + bitCount.value - 1, offset)
+  def assignFromBits(bits: Bits, offset: Int, bitCount: BitCount): Unit =
+    this.assignFromBits(bits, offset + bitCount.value - 1, offset)
 
   /** Clear all bits to ``False`` and return itself */
   def clearAll(): this.type = {
@@ -466,29 +493,29 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
     this
   }
 
-  def as[T <: Data](dataType: HardType[T]) : T = {
+  def as[T <: Data](dataType: HardType[T]): T = {
     val ret = dataType()
     ret.assignFromBits(this.asBits)
     ret
   }
 
   /** Assign the default 'x' value to all signals composing this type.
-    * 
-    * @see [[https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Data%20types/index.html#data-types Data type documentation]] 
+    *
+    * @see [[https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Data%20types/index.html#data-types Data type documentation]]
     * @see [[https://en.wikipedia.org/wiki/Don't-care_term#X_value "Don't care term" wikipedia article]]
     */
   def assignDontCare(): this.type = {
     flatten.foreach(_.assignDontCare())
     this
   }
-  def assignDontCareToUnasigned() : this.type = {
-    flattenForeach{ e =>
-      if(e.dlcIsEmpty) e.assignDontCare()
+  def assignDontCareToUnasigned(): this.type = {
+    flattenForeach { e =>
+      if (e.dlcIsEmpty) e.assignDontCare()
     }
     this
   }
 
-  def removeAssignments(data : Boolean = true, init : Boolean = true, initial : Boolean = true): this.type = {
+  def removeAssignments(data: Boolean = true, init: Boolean = true, initial: Boolean = true): this.type = {
     flattenForeach(_.removeAssignments(data, init, initial))
     this
   }
@@ -501,9 +528,9 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
   private[core] def isEqualToSim(that: Any): Bool
 
   /** Return a version of the signal which is allowed to be automatically resized where needed.
-    *  
-   * The resize operation is deferred until the point of assignment later. 
-   * The resize may widen or truncate, retaining the LSB.
+    *
+    * The resize operation is deferred until the point of assignment later.
+    * The resize may widen or truncate, retaining the LSB.
     * @see [[https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Semantic/assignments.html#width-checking Width checking Documentation]]
     */
   def resized: this.type = {
@@ -555,7 +582,9 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
     addTag(spinal.core.noBackendCombMerge)
   }
 
-  private[core] def autoConnect(that: Data)(implicit loc: Location): Unit// = (this.flatten, that.flatten).zipped.foreach(_ autoConnect _)
+  private[core] def autoConnect(
+      that: Data
+  )(implicit loc: Location): Unit // = (this.flatten, that.flatten).zipped.foreach(_ autoConnect _)
 
   private[core] def autoConnectBaseImpl(that: Data)(implicit loc: Location): Unit = {
 
@@ -566,13 +595,13 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
 
     val c = Component.current
 
-    if(thisTrue.component != c && thisTrue.component.parent != c){
+    if (thisTrue.component != c && thisTrue.component.parent != c) {
       LocatedPendingError(s"HIERARCHY VIOLATION, $thisTrue can't be used in $c at")
-    }else if(thatTrue.component != c && thatTrue.component.parent != c){
+    } else if (thatTrue.component != c && thatTrue.component.parent != c) {
       LocatedPendingError(s"HIERARCHY VIOLATION, $thatTrue can't be used in $c at")
     } else {
       def dirSolve(that: Data): IODirection = {
-        if(that.component == c)
+        if (that.component == c)
           that.dir
         else
           that.dir match {
@@ -589,35 +618,42 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
       def dirFormat(d: IODirection, wire: Data) = {
         d match {
           case _ if wire.isAnalog => "analog"
-          case `out` => "out"
-          case `in` => "in"
-          case `inout` => "inout"
-          case null => "directionless"
+          case `out`              => "out"
+          case `in`               => "in"
+          case `inout`            => "inout"
+          case null               => "directionless"
         }
       }
       def bundleInfo(wire: Data): String = {
         wire match {
           case null => ""
-          case b => s"\n      part of Bundle $b" + bundleInfo(b.parent)
+          case b    => s"\n      part of Bundle $b" + bundleInfo(b.parent)
         }
       }
       def thisThatInfo() =
         s"""
            |  $this (${dirFormat(this.dir, this)}, normalized: ${dirFormat(thisDir, this)})${bundleInfo(this)} and
-           |  $that (${dirFormat(that.dir, that)}, normalized: ${dirFormat(thatDir, that)})${bundleInfo(that)}""".stripMargin
+           |  $that (${dirFormat(that.dir, that)}, normalized: ${dirFormat(thatDir, that)})${bundleInfo(
+            that
+          )}""".stripMargin
 
       (thisDir, thatDir) match {
-        case (`out`, `in`) => this := that
-        case (`out`, null) => this := that
-        case (`in`, `out`) => that := this
-        case (`in`, null) => that := this
-        case (null, `in`) => this := that
-        case (null, `out`) => that := this
+        case (`out`, `in`)                       => this := that
+        case (`out`, null)                       => this := that
+        case (`in`, `out`)                       => that := this
+        case (`in`, null)                        => that := this
+        case (null, `in`)                        => this := that
+        case (null, `out`)                       => that := this
         case _ if this.isAnalog && that.isAnalog => this := that
         // errors
-        case _ if that.isAnalog || that.isAnalog => LocatedPendingError("AUTOCONNECT FAILED, can't connect analog to non-analog" + thisThatInfo())
-        case (null, null) => LocatedPendingError("AUTOCONNECT FAILED, directionless signals can't be autoconnected" + thisThatInfo())
-        case _ if thisDir != thisTrue.dir ^ thatDir != thatTrue.dir => LocatedPendingError("AUTOCONNECT FAILED, mismatched directions for connections between parent and child component" + thisThatInfo())
+        case _ if that.isAnalog || that.isAnalog =>
+          LocatedPendingError("AUTOCONNECT FAILED, can't connect analog to non-analog" + thisThatInfo())
+        case (null, null) =>
+          LocatedPendingError("AUTOCONNECT FAILED, directionless signals can't be autoconnected" + thisThatInfo())
+        case _ if thisDir != thisTrue.dir ^ thatDir != thatTrue.dir =>
+          LocatedPendingError(
+            "AUTOCONNECT FAILED, mismatched directions for connections between parent and child component" + thisThatInfo()
+          )
         case _ => LocatedPendingError("AUTOCONNECT FAILED, mismatched directions" + thisThatInfo())
       }
     }
@@ -641,12 +677,12 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
     this
   }
 
-  def isReg:    Boolean = flatten.forall(_.isReg)
-  def isComb:   Boolean = flatten.forall(_.isComb)
+  def isReg: Boolean = flatten.forall(_.isReg)
+  def isComb: Boolean = flatten.forall(_.isComb)
   def isAnalog: Boolean = flatten.forall(_.isAnalog)
-  def isRegOnAssign : Boolean = isReg
+  def isRegOnAssign: Boolean = isReg
 
-  def setAsAnalog(): this.type = {flatten.foreach(_.setAsAnalog()); this}
+  def setAsAnalog(): this.type = { flatten.foreach(_.setAsAnalog()); this }
 
   override def getRealSourceNoRec: Any = this
 
@@ -661,21 +697,19 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
     this
   }
 
-
   // TODO enable deprecation
-  //@deprecated("use randBoot() instead", since = "1.15.0")
-  def randBoot(u : Unit): this.type = randBoot()
-  
-  /**
-    * Useful for register that doesn't need a reset value in RTL,
+  // @deprecated("use randBoot() instead", since = "1.15.0")
+  def randBoot(u: Unit): this.type = randBoot()
+
+  /** Useful for register that doesn't need a reset value in RTL,
     * but need a random value for simulation (avoid x-propagation)
-    */  
+    */
   def randBoot(): this.type = {
-    if(!globalData.phaseContext.config.noRandBoot) flatten.foreach(_.addTag(spinal.core.randomBoot))
+    if (!globalData.phaseContext.config.noRandBoot) flatten.foreach(_.addTag(spinal.core.randomBoot))
     this
   }
 
-  def allowPruning() : this.type = {
+  def allowPruning(): this.type = {
     flatten.foreach(_.addTag(unusedTag))
     this
   }
@@ -684,15 +718,14 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
 
   override def clone: Data = {
     try {
-      val clazz            = this.getClass
-      val constructor      = clazz.getConstructors.head
+      val clazz = this.getClass
+      val constructor = clazz.getConstructors.head
       val constrParamCount = constructor.getParameterTypes.length
-
 
       def cleanCopy[T <: Data](that: T): T = {
         that match {
-          case pcb : PostInitCallback => pcb.postInitCallback()
-          case _ => 
+          case pcb: PostInitCallback => pcb.postInitCallback()
+          case _                     =>
         }
         that.purify()
         that
@@ -701,21 +734,20 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
       // No param =>
       if (constrParamCount == 0) return cleanCopy(constructor.newInstance().asInstanceOf[this.type])
 
-
       def constructorParamsAreVal: this.type = {
-        val outer         = clazz.getFields.find(_.getName == "$outer")
-        val constructor   = clazz.getDeclaredConstructors.head
+        val outer = clazz.getFields.find(_.getName == "$outer")
+        val constructor = clazz.getDeclaredConstructors.head
         val argumentCount = constructor.getParameterTypes.length - (if (outer.isDefined) 1 else 0)
-        val fields        = clazz.getDeclaredFields
+        val fields = clazz.getDeclaredFields
 
         val arguments = (0 until argumentCount) map { i =>
           val fieldName = fields(i).getName
-          val getter    = clazz.getMethod(fieldName)
-          val arg       = getter.invoke(this)
+          val getter = clazz.getMethod(fieldName)
+          val arg = getter.invoke(this)
 
-          if(arg.isInstanceOf[Data]){
+          if (arg.isInstanceOf[Data]) {
             cloneOf(arg.asInstanceOf[Data])
-          } else{
+          } else {
             arg
           }
         }
@@ -737,20 +769,20 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
       if (constrParamCount == 1) {
         var outerField = clazz.getFields.find(_.getName == "$outer")
 
-        if(outerField.isEmpty) outerField = clazz.getDeclaredFields.find(_.getName == "$outer")
+        if (outerField.isEmpty) outerField = clazz.getDeclaredFields.find(_.getName == "$outer")
 
-        if(outerField.isDefined){
+        if (outerField.isDefined) {
           val outer = outerField.get
           outer.setAccessible(true)
           return cleanCopy(constructor.newInstance(outer.get(this)).asInstanceOf[this.type])
         }
 
-        val c  = clazz.getMethod("getComponent").invoke(this).asInstanceOf[Component]
+        val c = clazz.getMethod("getComponent").invoke(this).asInstanceOf[Component]
         val pt = constructor.getParameterTypes.apply(0)
 
-        if(c.getClass.isAssignableFrom(pt)){
-          val copy =  constructor.newInstance(c).asInstanceOf[this.type]
-          if(copy.isInstanceOf[Bundle])
+        if (c.getClass.isAssignableFrom(pt)) {
+          val copy = constructor.newInstance(c).asInstanceOf[this.type]
+          if (copy.isInstanceOf[Bundle])
             copy.asInstanceOf[Bundle].hardtype = (HardType(constructor.newInstance(c).asInstanceOf[this.type]))
           return cleanCopy(copy)
         }
@@ -759,15 +791,15 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
       needCloneImpl()
 
     } catch {
-      case npe: java.lang.reflect.InvocationTargetException if npe.getCause.isInstanceOf[java.lang.NullPointerException] =>
+      case npe: java.lang.reflect.InvocationTargetException
+          if npe.getCause.isInstanceOf[java.lang.NullPointerException] =>
         needCloneImpl()
       case e: java.lang.Exception =>
         needCloneImpl()
     }
 
     def needCloneImpl(): this.type = {
-      SpinalError(
-        s"""
+      SpinalError(s"""
            |*** Spinal can't clone ${this.getClass} datatype
            |*** You have two way to solve that :
            |*** In place to declare a "class Bundle(args){}", create a "case class Bundle(args){}"
@@ -778,30 +810,28 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
     null
   }
 
-
-  def toIo(): this.type ={
+  def toIo(): this.type = {
     val subIo = this
-    val topIo = cloneOf(subIo)//.setPartialName(h, "", true)
+    val topIo = cloneOf(subIo) // .setPartialName(h, "", true)
     topIo.copyDirectionOf(subIo)
-    for((s,t) <- (subIo.flatten, topIo.flatten).zipped if s.isAnalog) t.setAsAnalog()
+    for ((s, t) <- (subIo.flatten, topIo.flatten).zipped if s.isAnalog) t.setAsAnalog()
     topIo <> subIo
     topIo.asInstanceOf[this.type]
   }
 
   /** Generate this if condition is true */
   @deprecated("does not work with <>, use 'someBool generate Type()' or 'if(condition) Type() else null' instead")
-  def genIf(cond: Boolean): this.type = if(cond) this else null
+  def genIf(cond: Boolean): this.type = if (cond) this else null
 
-  private [core] def formalPast(delay : Int) : this.type = {
+  private[core] def formalPast(delay: Int): this.type = {
     val ret = cloneOf(this)
-    for((to, from) <- (ret.flatten, this.flatten).zipped){
+    for ((to, from) <- (ret.flatten, this.flatten).zipped) {
       to := from.formalPast(delay)
     }
     ret.asInstanceOf[this.type]
   }
 
-
-  def wrapNext() : this.type = {
+  def wrapNext(): this.type = {
     val comb = CombInit(this)
     this := comb
     this.freeze()
@@ -809,34 +839,33 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
   }
 
   /** For a register, get the value it will have at the next clock, as a combinational signal. */
-  def getAheadValue() : this.type = {
+  def getAheadValue(): this.type = {
     assert(this.isReg, "Next value is only for regs")
 
     val ret = cloneOf(this)
 
-    for((dst, src) <- (ret.flatten, this.flatten).zipped){
+    for ((dst, src) <- (ret.flatten, this.flatten).zipped) {
       dst := src.getAheadValue()
     }
 
     ret.asInstanceOf[this.type]
   }
 
-  def getRtlPath(separator : String = "/") : String = {
+  def getRtlPath(separator: String = "/"): String = {
     (getComponents().tail.map(_.getName()) :+ this.getName()).mkString(separator)
   }
 
 //  def propagatePullName() : this.type = this.addTag(PropagatePullNameTag)
 
-  def assignFormalRandom(kind : Operator.Formal.RandomExpKind) : Unit = ???
-  def getMuxType[T <: Data](list : TraversableOnce[T]) : HardType[T] = HardType(cloneOf(this).asInstanceOf[T])
-  def toMuxInput[T <: Data](muxOutput : T) : T = this.asInstanceOf[T]
+  def assignFormalRandom(kind: Operator.Formal.RandomExpKind): Unit = ???
+  def getMuxType[T <: Data](list: TraversableOnce[T]): HardType[T] = HardType(cloneOf(this).asInstanceOf[T])
+  def toMuxInput[T <: Data](muxOutput: T): T = this.asInstanceOf[T]
 
   /** Return the `count` time concatenation of the signal.
     */
-  def #* (count : Int) : Bits =  this.asBits #* count
+  def #*(count: Int): Bits = this.asBits #* count
 
-  /**
-    * root interface
+  /** root interface
     */
   def rootIF(): Interface = {
     rootIFrec(this, Nil).head
@@ -847,9 +876,9 @@ trait Data extends ContextUser with NameableByComponent with Assignable with Spi
   }
 
   def rootIFrec(now: Data, lastRoot: List[Interface]): List[Interface] = {
-    if(now.IFparent == null) {
+    if (now.IFparent == null) {
       lastRoot
-    } else if(now.IFparent.isInstanceOf[Interface]) {
+    } else if (now.IFparent.isInstanceOf[Interface]) {
       now.IFparent match {
         case x: Interface if x.thisIsNotSVIF => rootIFrec(now.IFparent, lastRoot)
         case _ => rootIFrec(now.IFparent, now.IFparent.asInstanceOf[Interface] :: lastRoot)

@@ -5,12 +5,261 @@ import java.util.IdentityHashMap
 
 import scala.collection.mutable
 
-/** Deterministic source token for one explicit native-Int formalization call. */
-final case class ExternalNativeIntFormalizationToken(
-    callSite: String,
-    valueOrigin: String,
-    role: String
-)
+/** Opaque one-use authority for one exact native-Int boundary.
+  *
+  * Diagnostic strings are intentionally readable but never participate in an
+  * authorization decision. The private capability is bound to a typed kind,
+  * the exact owner and exact actual/definition expression objects at issuance,
+  * then proves the exact constructor result, formal binding and selected
+  * geometry before either formalization registry commits. A successful claim
+  * releases graph identities before the weak-key records retain this token.
+  */
+final class ExternalNativeIntFormalizationToken private[core] (
+    private[core] val kind: ExternalNativeIntFormalizationToken.Kind,
+    initialOwnerIdentity: AnyRef,
+    initialActualExpressionIdentity: ElaborationIntegerExpression,
+    initialDefinitionExpressionIdentity: ElaborationIntegerExpression,
+    val callSite: String,
+    val valueOrigin: String,
+    val role: String
+) {
+  private[this] var retainedOwnerIdentity: AnyRef = initialOwnerIdentity
+  private[this] var retainedActualExpressionIdentity: ElaborationIntegerExpression =
+    initialActualExpressionIdentity
+  private[this] var retainedDefinitionExpressionIdentity: ElaborationIntegerExpression =
+    initialDefinitionExpressionIdentity
+  private[this] var capturedResult: AnyRef = null
+  private[this] var consumed = false
+
+  /** Read-only preflight identities. Successful consumption releases their
+    * strong references so records kept behind weak keys cannot retain the
+    * native elaboration graph through this token. A replay observes capability
+    * consumption instead of a nullable identity.
+    */
+  private[core] def actualExpressionIdentity: ElaborationIntegerExpression = synchronized {
+    requireRetainedIdentity(retainedActualExpressionIdentity)
+    retainedActualExpressionIdentity
+  }
+
+  private[core] def definitionExpressionIdentity: ElaborationIntegerExpression = synchronized {
+    requireRetainedIdentity(retainedDefinitionExpressionIdentity)
+    retainedDefinitionExpressionIdentity
+  }
+
+  private[core] def requireCapture(
+      owner: AnyRef,
+      actual: ElaborationIntegerExpression,
+      definition: ElaborationIntegerExpression
+  ): Unit = synchronized {
+    if (
+      consumed || (kind eq ExternalNativeIntFormalizationToken.NativeWidth) ||
+      !(retainedOwnerIdentity eq owner) ||
+      !(retainedActualExpressionIdentity eq actual) ||
+      !(retainedDefinitionExpressionIdentity eq definition)
+    )
+      authorizationFailure(
+        "MORPH-FRONTEND-NATIVE-INT-FORMALIZATION-CAPTURE-MISMATCH",
+        "native Int capture received a consumed, foreign-kind, copied, or stale boundary capability"
+      )
+    if (capturedResult ne null)
+      authorizationFailure(
+        "MORPH-FRONTEND-NATIVE-INT-FORMALIZATION-CAPTURE-REPLAY",
+        "native Int boundary capability has already completed one constructor capture"
+      )
+  }
+
+  private[core] def bindCaptureResult(result: AnyRef): Unit = synchronized {
+    if (result == null)
+      authorizationFailure(
+        "MORPH-FRONTEND-NATIVE-INT-FORMALIZATION-RESULT-NULL",
+        "native Int boundary capability cannot bind a null constructor result"
+      )
+    if (consumed || (capturedResult ne null))
+      authorizationFailure(
+        "MORPH-FRONTEND-NATIVE-INT-FORMALIZATION-CAPTURE-REPLAY",
+        "native Int boundary capability cannot bind more than one constructor result"
+      )
+    capturedResult = result
+  }
+
+  private[core] def claimFinal(
+      expectedKind: ExternalNativeIntFormalizationToken.Kind,
+      owner: AnyRef,
+      target: AnyRef,
+      actual: ElaborationIntegerExpression,
+      definition: ElaborationIntegerExpression,
+      formal: Option[AnyRef],
+      geometry: Vector[AnyRef]
+  ): Unit = synchronized {
+    if (
+      consumed || !(kind eq expectedKind) ||
+      !(retainedOwnerIdentity eq owner) ||
+      !(retainedActualExpressionIdentity eq actual) ||
+      !(retainedDefinitionExpressionIdentity eq definition) ||
+      !(capturedResult eq target) || target == null || formal == null ||
+      formal.exists(_ == null) || geometry == null || geometry.exists(_ == null)
+    )
+      authorizationFailure(
+        "MORPH-FRONTEND-NATIVE-INT-FORMALIZATION-TARGET-MISMATCH",
+        "native Int boundary capability received a consumed, foreign, copied, or stale final target"
+      )
+
+    if (
+      ((kind eq ExternalNativeIntFormalizationToken.Region) &&
+        (geometry.size != 1 || !(geometry.head eq target))) ||
+      ((kind eq ExternalNativeIntFormalizationToken.ComponentGeometry) &&
+        geometry.isEmpty) ||
+      ((kind eq ExternalNativeIntFormalizationToken.ComponentParameter) &&
+        geometry.nonEmpty)
+    )
+      authorizationFailure(
+        "MORPH-FRONTEND-NATIVE-INT-FORMALIZATION-GEOMETRY-MISMATCH",
+        "native Int boundary capability received geometry incompatible with its typed boundary kind"
+      )
+
+    consumed = true
+    releaseIdentityAuthority()
+  }
+
+  private[core] def claimNativeWidth(
+      expression: ElaborationIntegerExpression
+  ): Unit = synchronized {
+    if (
+      consumed || !(kind eq ExternalNativeIntFormalizationToken.NativeWidth) ||
+      !(retainedOwnerIdentity eq expression) ||
+      !(retainedActualExpressionIdentity eq expression) ||
+      !(retainedDefinitionExpressionIdentity eq expression)
+    )
+      authorizationFailure(
+        "MORPH-FRONTEND-NATIVE-WIDTH-FUNCTION-CAPABILITY-MISMATCH",
+        "native width-function boundary received a consumed, copied, or foreign capability"
+      )
+    consumed = true
+    releaseIdentityAuthority()
+  }
+
+  private def releaseIdentityAuthority(): Unit = {
+    retainedOwnerIdentity = null
+    retainedActualExpressionIdentity = null
+    retainedDefinitionExpressionIdentity = null
+    capturedResult = null
+  }
+
+  private def requireRetainedIdentity(identity: AnyRef): Unit = {
+    if (consumed || (identity eq null))
+      authorizationFailure(
+        "MORPH-FRONTEND-NATIVE-INT-FORMALIZATION-TARGET-MISMATCH",
+        "native Int boundary capability has already released its exact preflight identities"
+      )
+  }
+
+  private def authorizationFailure(code: String, detail: String): Nothing =
+    ParameterizedVerilogException.fail(
+      code,
+      detail,
+      Option(callSite).filter(_.nonEmpty)
+    )
+}
+
+object ExternalNativeIntFormalizationToken {
+  private[core] sealed abstract class Kind private[ExternalNativeIntFormalizationToken] ()
+  private[core] case object Region extends Kind
+  private[core] case object ComponentGeometry extends Kind
+  private[core] case object ComponentParameter extends Kind
+  private[core] case object NativeWidth extends Kind
+
+  private def issue(
+      kind: Kind,
+      owner: AnyRef,
+      actual: ElaborationIntegerExpression,
+      definition: ElaborationIntegerExpression,
+      callSite: String,
+      valueOrigin: String,
+      role: String
+  ): ExternalNativeIntFormalizationToken = {
+    if (kind == null || owner == null || actual == null || definition == null)
+      throw new IllegalArgumentException(
+        "native Int formalization capability identities must not be null"
+      )
+    if (
+      callSite == null || callSite.trim.isEmpty || valueOrigin == null ||
+      valueOrigin.trim.isEmpty || role == null || role.trim.isEmpty
+    )
+      throw new IllegalArgumentException(
+        "native Int formalization diagnostics must not be empty"
+      )
+    new ExternalNativeIntFormalizationToken(
+      kind,
+      owner,
+      actual,
+      definition,
+      callSite,
+      valueOrigin,
+      role
+    )
+  }
+
+  private[core] def region(
+      owner: Component,
+      expression: ElaborationIntegerExpression,
+      callSite: String,
+      valueOrigin: String,
+      role: String
+  ): ExternalNativeIntFormalizationToken =
+    issue(Region, owner, expression, expression, callSite, valueOrigin, role)
+
+  private[core] def componentGeometry(
+      parent: Component,
+      actual: ElaborationIntegerExpression,
+      definition: ElaborationIntegerExpression,
+      callSite: String,
+      valueOrigin: String,
+      role: String
+  ): ExternalNativeIntFormalizationToken =
+    issue(
+      ComponentGeometry,
+      parent,
+      actual,
+      definition,
+      callSite,
+      valueOrigin,
+      role
+    )
+
+  private[core] def componentParameter(
+      parent: Component,
+      actual: ElaborationIntegerExpression,
+      definition: ElaborationIntegerExpression,
+      callSite: String,
+      valueOrigin: String,
+      role: String
+  ): ExternalNativeIntFormalizationToken =
+    issue(
+      ComponentParameter,
+      parent,
+      actual,
+      definition,
+      callSite,
+      valueOrigin,
+      role
+    )
+
+  private[core] def nativeWidth(
+      expression: ElaborationIntegerExpression,
+      callSite: String,
+      valueOrigin: String,
+      role: String
+  ): ExternalNativeIntFormalizationToken =
+    issue(
+      NativeWidth,
+      expression,
+      expression,
+      expression,
+      callSite,
+      valueOrigin,
+      role
+    )
+}
 
 /** Exact returned/selected Data-region metadata retained outside SpinalHDL. */
 final case class ExternalNativeIntRegionRecord(
@@ -69,8 +318,7 @@ private[core] final class ExternalNativeIntComponentIdentityRef(
   }
 }
 
-/**
-  * External identity/lifetime sidecar for native `Int` APIs.
+/** External identity/lifetime sidecar for native `Int` APIs.
   *
   * The concrete witness is passed to untouched SpinalHDL before this registry
   * is called. Symbolic provenance is then attached only to exact Data and
@@ -83,6 +331,33 @@ object ExternalNativeIntFormalizationRegistry {
       root: Data,
       leaves: Vector[BitVector],
       record: ExternalNativeIntRegionRecord
+  )
+
+  private sealed trait PreparedWidthPublication
+  private final case class PreparedFormalWidthPublication(
+      attachment: ExternalFormalParameterRegistry.PreparedLeafAttachment
+  ) extends PreparedWidthPublication
+  private final case class PreparedPlainWidthPublication(
+      leaves: Vector[BitVector],
+      width: ParameterizedBitCount
+  ) extends PreparedWidthPublication
+
+  private final case class PreparedRegionTransaction(
+      owner: Component,
+      regions: Vector[PreparedRegion],
+      widthPublication: PreparedWidthPublication
+  )
+
+  private final case class PreparedComponentTransaction(
+      component: Component,
+      regions: PreparedRegionTransaction,
+      record: ExternalNativeIntComponentRecord
+  )
+
+  private final case class PreparedComponentParameterTransaction(
+      component: Component,
+      formal: ExternalFormalParameterRegistry.PreparedComponentAttachment,
+      record: ExternalNativeIntComponentRecord
   )
 
   private val regionQueue = new ReferenceQueue[Data]()
@@ -101,8 +376,7 @@ object ExternalNativeIntFormalizationRegistry {
       regionQueue.poll().asInstanceOf[ExternalNativeIntRegionIdentityRef]
     while (reference != null) {
       regions.remove(reference)
-      reference =
-        regionQueue.poll().asInstanceOf[ExternalNativeIntRegionIdentityRef]
+      reference = regionQueue.poll().asInstanceOf[ExternalNativeIntRegionIdentityRef]
     }
   }
 
@@ -111,19 +385,189 @@ object ExternalNativeIntFormalizationRegistry {
       componentQueue.poll().asInstanceOf[ExternalNativeIntComponentIdentityRef]
     while (reference != null) {
       components.remove(reference)
-      reference =
-        componentQueue.poll().asInstanceOf[ExternalNativeIntComponentIdentityRef]
+      reference = componentQueue.poll().asInstanceOf[ExternalNativeIntComponentIdentityRef]
     }
   }
 
   /** Attach one retained expression to the exact Data returned by a region. */
-  def attachRegion[T <: Data](
+  private[spinal] def attachRegion[T <: Data](
       owner: Component,
       data: T,
       expression: ElaborationIntegerExpression,
       token: ExternalNativeIntFormalizationToken,
       formalBinding: Option[ExternalFormalParameterBinding]
   ): T = synchronized {
+    val prepared = preflightRegionTransaction(
+      owner,
+      data,
+      expression,
+      token,
+      formalBinding
+    )
+    commitRegionTransaction(prepared)
+    data
+  }
+
+  private[spinal] def attachRegionAtomically[T <: Data](
+      owner: Component,
+      data: T,
+      expression: ElaborationIntegerExpression,
+      formalBinding: Option[ExternalFormalParameterBinding],
+      capture: ExternalNativeIntShadowCapture[T]
+  ): T = synchronized {
+    if (capture == null)
+      throw new IllegalArgumentException(
+        "native Int atomic region capture must not be null"
+      )
+    val preparedFormal = preflightRegionTransaction(
+      owner,
+      data,
+      expression,
+      capture.token,
+      formalBinding
+    )
+    val preparedShadow = ExternalNativeIntShadowRegistry.preflightRegion(
+      owner,
+      data,
+      formalBinding,
+      capture
+    )
+    capture.token.claimFinal(
+      ExternalNativeIntFormalizationToken.Region,
+      owner,
+      data,
+      expression,
+      capture.definitionExpression,
+      formalBinding.map(_.asInstanceOf[AnyRef]),
+      Vector(data.asInstanceOf[AnyRef])
+    )
+    commitRegionTransaction(preparedFormal)
+    ExternalNativeIntShadowRegistry.commitRegion(preparedShadow)
+    data
+  }
+
+  /** Attach one component-definition formal and its parent-scope actual to the
+    * exact returned child and exact selected packed ports.
+    */
+  private[spinal] def attachComponent[C <: Component](
+      parent: Component,
+      component: C,
+      geometry: Iterable[Data],
+      binding: ExternalFormalParameterBinding,
+      token: ExternalNativeIntFormalizationToken
+  ): C = synchronized {
+    commitComponentTransaction(
+      preflightComponentTransaction(parent, component, geometry, binding, token)
+    )
+    component
+  }
+
+  private[spinal] def attachComponentAtomically[C <: Component](
+      parent: Component,
+      component: C,
+      geometry: Iterable[Data],
+      binding: ExternalFormalParameterBinding,
+      capture: ExternalNativeIntShadowCapture[C]
+  ): C = synchronized {
+    if (capture == null)
+      throw new IllegalArgumentException(
+        "native Int atomic component capture must not be null"
+      )
+    if (geometry == null)
+      throw new IllegalArgumentException(
+        "native Int atomic component geometry must not be null"
+      )
+    val exactGeometry = geometry.toVector
+    val preparedFormal = preflightComponentTransaction(
+      parent,
+      component,
+      exactGeometry,
+      binding,
+      capture.token
+    )
+    val preparedShadow = ExternalNativeIntShadowRegistry.preflightComponent(
+      component,
+      binding,
+      capture
+    )
+    capture.token.claimFinal(
+      ExternalNativeIntFormalizationToken.ComponentGeometry,
+      parent,
+      component,
+      capture.expression,
+      capture.definitionExpression,
+      Some(binding),
+      exactGeometry.map(_.asInstanceOf[AnyRef])
+    )
+    commitComponentTransaction(preparedFormal)
+    ExternalNativeIntShadowRegistry.commitComponent(preparedShadow)
+    component
+  }
+
+  /** Retain a native component formal that controls storage or structural
+    * choices without pretending that the scalar value is a packed port width.
+    * The child constructor's shadow capture and internal symbolic registries
+    * remain responsible for proving the definition-side parameter dependency.
+    */
+  private[spinal] def attachComponentParameter[C <: Component](
+      parent: Component,
+      component: C,
+      binding: ExternalFormalParameterBinding,
+      token: ExternalNativeIntFormalizationToken
+  ): C = synchronized {
+    commitComponentParameterTransaction(
+      preflightComponentParameterTransaction(
+        parent,
+        component,
+        binding,
+        token
+      )
+    )
+    component
+  }
+
+  private[spinal] def attachComponentParameterAtomically[C <: Component](
+      parent: Component,
+      component: C,
+      binding: ExternalFormalParameterBinding,
+      capture: ExternalNativeIntShadowCapture[C]
+  ): C = synchronized {
+    if (capture == null)
+      throw new IllegalArgumentException(
+        "native Int atomic component-parameter capture must not be null"
+      )
+    val preparedFormal = preflightComponentParameterTransaction(
+      parent,
+      component,
+      binding,
+      capture.token
+    )
+    val preparedShadow = ExternalNativeIntShadowRegistry.preflightComponent(
+      component,
+      binding,
+      capture
+    )
+    capture.token.claimFinal(
+      ExternalNativeIntFormalizationToken.ComponentParameter,
+      parent,
+      component,
+      capture.expression,
+      capture.definitionExpression,
+      Some(binding),
+      Vector.empty
+    )
+    commitComponentParameterTransaction(preparedFormal)
+    ExternalNativeIntShadowRegistry.commitComponent(preparedShadow)
+    component
+  }
+
+  private def preflightRegionTransaction[T <: Data](
+      owner: Component,
+      data: T,
+      expression: ElaborationIntegerExpression,
+      token: ExternalNativeIntFormalizationToken,
+      formalBinding: Option[ExternalFormalParameterBinding]
+  ): PreparedRegionTransaction = {
     validateCommon(owner, expression, token)
     if (data == null) {
       fail(
@@ -140,7 +584,6 @@ object ExternalNativeIntFormalizationRegistry {
       ExternalFormalParameterRegistry.validateBinding(binding)
       validateFormal(owner, expression, binding)
     }
-
     val prepared = prepareRegion(
       owner,
       data,
@@ -150,49 +593,28 @@ object ExternalNativeIntFormalizationRegistry {
       requireNativePort = false
     )
     preflightRegions(Vector(prepared))
-    attachPrepared(owner, Vector(prepared))
-    retainRegions(Vector(prepared))
-    data
+    PreparedRegionTransaction(
+      owner,
+      Vector(prepared),
+      preflightWidthPublication(owner, Vector(prepared))
+    )
   }
 
-  /**
-    * Attach one component-definition formal and its parent-scope actual to the
-    * exact returned child and exact selected packed ports.
-    */
-  def attachComponent[C <: Component](
+  private def commitRegionTransaction(
+      prepared: PreparedRegionTransaction
+  ): Unit = {
+    commitWidthPublication(prepared.widthPublication)
+    retainRegions(prepared.regions)
+  }
+
+  private def preflightComponentTransaction[C <: Component](
       parent: Component,
       component: C,
       geometry: Iterable[Data],
       binding: ExternalFormalParameterBinding,
       token: ExternalNativeIntFormalizationToken
-  ): C = synchronized {
-    if (parent == null) {
-      fail(
-        "MORPH-FRONTEND-FORMAL-COMPONENT-PARENT-MISSING",
-        "formalComponent requires one active parent Component",
-        sourceOf(token)
-      )
-    }
-    if (component == null) {
-      fail(
-        "MORPH-FRONTEND-FORMAL-COMPONENT-RESULT-NULL",
-        "formalComponent constructor returned null",
-        sourceOf(token)
-      )
-    }
-    if (binding == null) {
-      throw new IllegalArgumentException("formal component binding must not be null")
-    }
-    ExternalFormalParameterRegistry.validateBinding(binding)
-    if (component.parent ne parent) {
-      val actualParent =
-        Option(component.parent).map(_.getClass.getName).getOrElse("<none>")
-      fail(
-        "MORPH-FRONTEND-FORMAL-COMPONENT-PARENT-MISMATCH",
-        s"formalComponent returned a component owned by '$actualParent' instead of the exact active parent '${parent.getClass.getName}'",
-        sourceOf(token)
-      )
-    }
+  ): PreparedComponentTransaction = {
+    validateComponentTarget(parent, component, binding, token, parameterOnly = false)
     if (geometry == null) {
       fail(
         "MORPH-FRONTEND-FORMAL-COMPONENT-GEOMETRY-NULL",
@@ -200,7 +622,6 @@ object ExternalNativeIntFormalizationRegistry {
         sourceOf(token)
       )
     }
-
     val roots = geometry.toVector
     if (roots.isEmpty) {
       fail(
@@ -217,11 +638,9 @@ object ExternalNativeIntFormalizationRegistry {
       )
     }
 
-    // Definition-side packed geometry must be byte-for-byte canonical across
-    // instances. The binding retains each call-site location for diagnostics;
-    // the formal width expression intentionally omits that instance location.
-    val expression = formalExpression(binding.formal, sourceLocation = None)
+    val expression = token.definitionExpressionIdentity
     validateCommon(component, expression, token)
+    validateExactComponentBinding(token, binding, expression)
     validateFormal(component, expression, binding)
     val prepared = roots.map { root =>
       prepareRegion(
@@ -235,7 +654,11 @@ object ExternalNativeIntFormalizationRegistry {
     }
     rejectDuplicateIdentity(prepared)
     preflightRegions(prepared)
-
+    val regionTransaction = PreparedRegionTransaction(
+      component,
+      prepared,
+      preflightWidthPublication(component, prepared)
+    )
     val componentRecord = preflightComponentBinding(
       component = component,
       binding = binding,
@@ -243,54 +666,26 @@ object ExternalNativeIntFormalizationRegistry {
       regionCount = prepared.size,
       packedLeafCount = prepared.map(_.leaves.size).sum
     )
-    attachPrepared(component, prepared)
-    retainComponentBinding(component, componentRecord)
-    retainRegions(prepared)
-    component
+    PreparedComponentTransaction(component, regionTransaction, componentRecord)
   }
 
-  /**
-    * Retain a native component formal that controls storage or structural
-    * choices without pretending that the scalar value is a packed port width.
-    * The child constructor's shadow capture and internal symbolic registries
-    * remain responsible for proving the definition-side parameter dependency.
-    */
-  def attachComponentParameter[C <: Component](
+  private def commitComponentTransaction(
+      prepared: PreparedComponentTransaction
+  ): Unit = {
+    commitRegionTransaction(prepared.regions)
+    retainComponentBinding(prepared.component, prepared.record)
+  }
+
+  private def preflightComponentParameterTransaction[C <: Component](
       parent: Component,
       component: C,
       binding: ExternalFormalParameterBinding,
       token: ExternalNativeIntFormalizationToken
-  ): C = synchronized {
-    if (parent == null) {
-      fail(
-        "MORPH-FRONTEND-FORMAL-COMPONENT-PARENT-MISSING",
-        "formalComponent.parameter requires one active parent Component",
-        sourceOf(token)
-      )
-    }
-    if (component == null) {
-      fail(
-        "MORPH-FRONTEND-FORMAL-COMPONENT-RESULT-NULL",
-        "formalComponent.parameter constructor returned null",
-        sourceOf(token)
-      )
-    }
-    if (binding == null) {
-      throw new IllegalArgumentException("formal component binding must not be null")
-    }
-    ExternalFormalParameterRegistry.validateBinding(binding)
-    if (component.parent ne parent) {
-      val actualParent =
-        Option(component.parent).map(_.getClass.getName).getOrElse("<none>")
-      fail(
-        "MORPH-FRONTEND-FORMAL-COMPONENT-PARENT-MISMATCH",
-        s"formalComponent.parameter returned a component owned by '$actualParent' instead of the exact active parent '${parent.getClass.getName}'",
-        sourceOf(token)
-      )
-    }
-
-    val expression = formalExpression(binding.formal, sourceLocation = None)
+  ): PreparedComponentParameterTransaction = {
+    validateComponentTarget(parent, component, binding, token, parameterOnly = true)
+    val expression = token.definitionExpressionIdentity
     validateCommon(component, expression, token)
+    validateExactComponentBinding(token, binding, expression)
     validateFormal(component, expression, binding)
     val componentRecord = preflightComponentBinding(
       component = component,
@@ -299,9 +694,137 @@ object ExternalNativeIntFormalizationRegistry {
       regionCount = 0,
       packedLeafCount = 0
     )
-    ExternalFormalParameterRegistry.retainComponent(component, binding)
-    retainComponentBinding(component, componentRecord)
-    component
+    val formal = ExternalFormalParameterRegistry.preflightRetainComponent(
+      component,
+      binding
+    )
+    PreparedComponentParameterTransaction(component, formal, componentRecord)
+  }
+
+  private def commitComponentParameterTransaction(
+      prepared: PreparedComponentParameterTransaction
+  ): Unit = {
+    ExternalFormalParameterRegistry.commitRetainComponent(prepared.formal)
+    retainComponentBinding(prepared.component, prepared.record)
+  }
+
+  private def validateComponentTarget[C <: Component](
+      parent: Component,
+      component: C,
+      binding: ExternalFormalParameterBinding,
+      token: ExternalNativeIntFormalizationToken,
+      parameterOnly: Boolean
+  ): Unit = {
+    val label = if (parameterOnly) "formalComponent.parameter" else "formalComponent"
+    if (parent == null) {
+      fail(
+        "MORPH-FRONTEND-FORMAL-COMPONENT-PARENT-MISSING",
+        s"$label requires one active parent Component",
+        sourceOf(token)
+      )
+    }
+    if (component == null) {
+      fail(
+        "MORPH-FRONTEND-FORMAL-COMPONENT-RESULT-NULL",
+        s"$label constructor returned null",
+        sourceOf(token)
+      )
+    }
+    if (binding == null)
+      throw new IllegalArgumentException("formal component binding must not be null")
+    ExternalFormalParameterRegistry.validateBinding(binding)
+    if (component.parent ne parent) {
+      val actualParent =
+        Option(component.parent).map(_.getClass.getName).getOrElse("<none>")
+      fail(
+        "MORPH-FRONTEND-FORMAL-COMPONENT-PARENT-MISMATCH",
+        s"$label returned a component owned by '$actualParent' instead of the exact active parent '${parent.getClass.getName}'",
+        sourceOf(token)
+      )
+    }
+  }
+
+  private def validateExactComponentBinding(
+      token: ExternalNativeIntFormalizationToken,
+      binding: ExternalFormalParameterBinding,
+      definition: ElaborationIntegerExpression
+  ): Unit = {
+    val exactFormal = definition.parameters match {
+      case Vector(value) => value
+      case _             => null
+    }
+    if (
+      !(binding.actual eq token.actualExpressionIdentity) ||
+      !(definition eq token.definitionExpressionIdentity) ||
+      !(exactFormal eq binding.formal)
+    ) {
+      fail(
+        "MORPH-FRONTEND-NATIVE-INT-FORMALIZATION-BINDING-MISMATCH",
+        "native Int formalization received a copied or foreign actual, definition, or formal declaration identity",
+        binding.sourceLocation.orElse(sourceOf(token))
+      )
+    }
+  }
+
+  private def preflightWidthPublication(
+      owner: Component,
+      prepared: Vector[PreparedRegion]
+  ): PreparedWidthPublication = {
+    val first = prepared.head
+    val leaves = prepared.flatMap(_.leaves)
+    val width = bitCount(first.record.expression)
+    first.record.formalBinding match {
+      case Some(binding) =>
+        PreparedFormalWidthPublication(
+          ExternalFormalParameterRegistry.preflightAttachAll(
+            owner,
+            leaves,
+            width,
+            binding
+          )
+        )
+      case None =>
+        validatePlainWidthPublication(leaves, width, first.record.expression)
+        PreparedPlainWidthPublication(leaves, width)
+    }
+  }
+
+  private def commitWidthPublication(
+      prepared: PreparedWidthPublication
+  ): Unit = prepared match {
+    case PreparedFormalWidthPublication(attachment) =>
+      ExternalFormalParameterRegistry.commitAttachAll(attachment)
+    case PreparedPlainWidthPublication(leaves, width) =>
+      ParameterizedWidth.attachExistingAll(leaves, width)
+  }
+
+  private def validatePlainWidthPublication(
+      leaves: Vector[BitVector],
+      width: ParameterizedBitCount,
+      expression: ElaborationIntegerExpression
+  ): Unit = {
+    ParameterizedWidth.validatedWidthExpression(width)
+    leaves.zipWithIndex.foreach { case (leaf, index) =>
+      if (leaf.getBitsWidth != width.value) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-WITNESS-MISMATCH",
+          s"existing symbolic-width target $index has concrete width ${leaf.getBitsWidth}, not validated width ${width.value}",
+          width.sourceLocation.orElse(expression.sourceLocation)
+        )
+      }
+      val existingParameter = ParameterizedWidth.parameterOf(leaf)
+      val existingExpression = ParameterizedWidth.expressionOf(leaf)
+      val compatible =
+        existingParameter == width.parameter &&
+          existingExpression.exists(ElabInt.equivalentExpression(_, expression))
+      if ((existingParameter.nonEmpty || existingExpression.nonEmpty) && !compatible) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-WIDTH-PROVENANCE-CONFLICT",
+          "one exact native data leaf is associated with conflicting typed width expressions",
+          width.sourceLocation.orElse(existingExpression.flatMap(_.sourceLocation))
+        )
+      }
+    }
   }
 
   /** Exact-region record; equal concrete witnesses on other objects do not match. */
@@ -351,7 +874,7 @@ object ExternalNativeIntFormalizationRegistry {
           if !ExternalFormalParameterRegistry.equivalentBinding(
             value.binding,
             binding
-          ) || value.token != token ||
+          ) || !(value.token eq token) ||
             value.regionCount != incoming.regionCount ||
             value.packedLeafCount != incoming.packedLeafCount =>
         fail(
@@ -371,12 +894,14 @@ object ExternalNativeIntFormalizationRegistry {
     val componentLookup =
       new ExternalNativeIntComponentIdentityRef(component, null)
     val existing = components.getOrElse(componentLookup, Vector.empty)
-    if (!existing.exists(value =>
-          ExternalFormalParameterRegistry.equivalentBinding(
-            value.binding,
-            incoming.binding
-          ) && value.token == incoming.token
-        )) {
+    if (
+      !existing.exists(value =>
+        ExternalFormalParameterRegistry.equivalentBinding(
+          value.binding,
+          incoming.binding
+        ) && (value.token eq incoming.token)
+      )
+    ) {
       components.update(
         new ExternalNativeIntComponentIdentityRef(component, componentQueue),
         existing :+ incoming
@@ -497,35 +1022,6 @@ object ExternalNativeIntFormalizationRegistry {
     }
   }
 
-  private def attachPrepared(
-      owner: Component,
-      prepared: Vector[PreparedRegion]
-  ): Unit = {
-    prepared.headOption.foreach { first =>
-      first.record.formalBinding match {
-        case Some(binding) =>
-          val width = bitCount(first.record.expression)
-          ExternalFormalParameterRegistry.attachAll(
-            owner,
-            prepared.flatMap(_.leaves),
-            width,
-            binding
-          )
-        case None =>
-          val validated = prepared.map { region =>
-            val width = bitCount(region.record.expression)
-            val expression = ParameterizedWidth.validatedWidthExpression(width)
-            (region, width, expression)
-          }
-          validated.foreach { case (region, width, expression) =>
-            region.leaves.foreach(
-              ParameterizedWidth.attachValidated(_, width, expression)
-            )
-          }
-      }
-    }
-  }
-
   private def retainRegions(prepared: Vector[PreparedRegion]): Unit = {
     prepared.foreach { region =>
       val lookup = new ExternalNativeIntRegionIdentityRef(region.root, null)
@@ -581,10 +1077,12 @@ object ExternalNativeIntFormalizationRegistry {
       )
     }
     val expected = formalExpression(binding.formal, expression.sourceLocation)
-    if (!ExternalFormalParameterRegistry.equivalentCanonicalFormalSchema(
-          expression,
-          expected
-        )) {
+    if (
+      !ExternalFormalParameterRegistry.equivalentCanonicalFormalSchema(
+        expression,
+        expected
+      )
+    ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-FORMAL-WIDTH-SCHEMA-MISMATCH",
         s"formal slot '${binding.formal.name}' carries region expression '${expression.verilog}' instead of its direct definition formal",
@@ -612,7 +1110,7 @@ object ExternalNativeIntFormalizationRegistry {
       left: ExternalNativeIntRegionRecord,
       right: ExternalNativeIntRegionRecord
   ): Boolean =
-    left.token == right.token &&
+    (left.token eq right.token) &&
       left.ownerClassName == right.ownerClassName &&
       ExternalFormalParameterRegistry.equivalentExpression(
         left.expression,

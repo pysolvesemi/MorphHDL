@@ -78,11 +78,14 @@ artifact is replaced.
 - an internal Bundle wire; and
 - one uninitialized unconditional Bundle register clocked by `clk`.
 
-The output is strict IEEE 1364-2001 with one `WIDTH=8` public parameter and
-`[WIDTH-1:0]` on every packed payload leaf and internal declaration. Normal and
-reverse construction runs must be byte-identical and match the reviewed
-golden. Ordinary `SpinalVerilog` still emits the concrete eight-bit witness and
-no `WIDTH` parameter.
+Increment 30 originally emitted strict IEEE 1364-2001 with one `WIDTH=8`
+public parameter and `[WIDTH-1:0]` on every packed payload leaf and internal
+declaration. Increment 53f upgrades the reviewed artifact's two-element Vec
+boundary to one `6 * WIDTH` packed input and one packed output while retaining
+the logical Vec shape during elaboration; the other leaves remain unchanged.
+Normal and reverse construction runs must be byte-identical and match the
+reviewed golden. Ordinary `SpinalVerilog` still emits the concrete eight-bit
+witness and no `WIDTH` parameter.
 
 The Verilog text intentionally follows native Spinal style and does not add a
 `signed` declaration keyword for `SInt`; native signed arithmetic uses explicit

@@ -221,9 +221,18 @@ class TypedElaborationValueTests extends AnyFunSuite {
       )
     )
 
-    assert(value.minimum == minimum)
-    assert(value.maximum == maximum)
     assert(value.parameters == Vector(schema))
+    assert(
+      value.parameters.map(parameter => parameter.minimum -> parameter.maximum) ==
+        Vector(minimum -> maximum)
+    )
+    Vector[() => BigInt](() => value.minimum, () => value.maximum).foreach {
+      consume =>
+        val error = intercept[ParameterizedVerilogException] {
+          consume()
+        }
+        assert(error.code == "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING")
+    }
   }
 
   test("null retained parameter schemas fail deterministically") {
@@ -322,7 +331,8 @@ class TypedElaborationValueTests extends AnyFunSuite {
       maximum = 16,
       parameters = Vector(schema)
     )
-    val invalidWidth = ElabInt.fromExpression(invalidExpression)
+    val invalidWidth =
+      parameter("EXACT_INVALID_WIDTH", default = 8, minimum = 0, maximum = 16)
 
     final class ProbeBitsFactory extends spinal.core.BitsFactory {
       var nativeFactoryCalls = 0
@@ -485,15 +495,9 @@ class TypedElaborationValueTests extends AnyFunSuite {
   test("width attachment rejects incoherent witnesses before mutating native data") {
     val schema =
       ElaborationIntegerParameter("WIDTH", default = 8, minimum = 1, maximum = 16)
-    val expressionSchema =
-      ElaborationIntegerParameter("OTHER_WIDTH", default = 9, minimum = 1, maximum = 16)
-    val mismatchedExpression = ElaborationIntegerExpression(
-      verilog = "OTHER_WIDTH",
-      default = 9,
-      minimum = 1,
-      maximum = 16,
-      parameters = Vector(expressionSchema)
-    )
+    val mismatchedWidth =
+      parameter("OTHER_WIDTH", default = 9, minimum = 1, maximum = 16).bits
+        .copy(value = 8, parameter = None)
     var directError: ParameterizedVerilogException = null
     var expressionError: ParameterizedVerilogException = null
     var retainedWidths = Vector.empty[Int]
@@ -504,14 +508,7 @@ class TypedElaborationValueTests extends AnyFunSuite {
       }
       val expressionTarget = spinal.core.Bits(spinal.core.BitCount(8))
       expressionError = intercept[ParameterizedVerilogException] {
-        ParameterizedWidth.attach(
-          expressionTarget,
-          ParameterizedBitCount(
-            value = 8,
-            parameter = None,
-            expression = Some(mismatchedExpression)
-          )
-        )
+        ParameterizedWidth.attach(expressionTarget, mismatchedWidth)
       }
       retainedWidths = Vector(
         directTarget.getBitsWidth,

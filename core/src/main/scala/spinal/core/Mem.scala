@@ -95,12 +95,20 @@ object Mem {
     *
     * @see [[https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Sequential%20logic/memory.html RAM/ROM documentation]]
     */
-  def apply[T <: Data](wordType: HardType[T], wordCount: Int) = new Mem(wordType, wordCount)
+  def apply[T <: Data](wordType: HardType[T], wordCount: Int): Mem[T] =
+    new Mem[T](wordType, wordCount)
 
   /** Create a RAM while retaining one typed elaboration-time word count. */
-  def apply[T <: Data](wordType: HardType[T], wordCount: ElabInt) = {
-    val depth = ParameterizedMemory.depthOf(wordCount, "typed Mem depth")
-    ParameterizedMemory.attach(new Mem(wordType, depth.value), depth)
+  def apply[T <: Data](wordType: HardType[T], wordCount: ElabInt): Mem[T] = {
+    if (wordCount == null)
+      throw new IllegalArgumentException("typed memory depth must not be null")
+    if (wordCount.isConcrete)
+      apply[T](wordType, wordCount.witness)
+    else {
+      val depth = ParameterizedMemory.depthOf(wordCount, "typed Mem depth")
+      val memory: Mem[T] = apply[T](wordType, depth.value)
+      ParameterizedMemory.attach[T](memory, depth)
+    }
   }
 
   /** Create a RAM
@@ -177,7 +185,11 @@ class Mem[T <: Data](val wordType: HardType[T], val wordCount: Int)
 
   var preventMemToBlackboxTranslation = false
   var forceMemToBlackboxTranslation = false
-  val _widths = wordType().flatten.map(t => t.getBitsWidth).toVector // Force to fix width of each wire
+  // Preserve the one historical HardType evaluation and its exact flattening
+  // order. Typed metadata must inspect these leaves rather than invoking the
+  // user-supplied generator a second time.
+  private[core] val wordTypeLeaves = wordType().flatten.toVector
+  val _widths = wordTypeLeaves.map(t => t.getBitsWidth) // Force to fix width of each wire
   val width = _widths.sum
 
   def byteCount = ((width + 7) / 8) * wordCount
@@ -196,7 +208,27 @@ class Mem[T <: Data](val wordType: HardType[T], val wordCount: Int)
 
   override val getWidth: Int = width
 
+  /** Ordinary concrete SpinalHDL address width. */
   def addressWidth = log2Up(wordCount)
+
+  /** Parameter-preserving positive address width for typed native APIs. */
+  def addressWidthExpr: ElabInt = ParameterizedMemory.addressWidthOf(this)
+
+  /** Reviewed concrete witness used only by native Mem port normalization. */
+  private[core] def nativePortAddressWidth: Int =
+    ParameterizedMemory.nativePortAddressWidthOf(this)
+
+  /** Retained typed geometry for a mixed-width port, when this Mem is tagged. */
+  private[core] def parameterizedPortAddressWidth(
+      aspectRatio: Int
+  ): Option[ElabInt] =
+    ParameterizedMemory.portAddressWidthOf(this, aspectRatio)
+
+  /** Audited typed witness consumed only by ordinary native port APIs. */
+  private[core] def parameterizedPortAddressWidthWitness(
+      aspectRatio: Int
+  ): Option[Int] =
+    ParameterizedMemory.portAddressWidthWitnessOf(this, aspectRatio)
 
   def generateAsBlackBox(): this.type = {
     forceMemToBlackboxTranslation = true
@@ -323,7 +355,7 @@ class Mem[T <: Data](val wordType: HardType[T], val wordCount: Int)
       "Mem.apply(address : Int) purpose is only for formal testers"
     )
     assert(address >= 0 && address < wordCount, s"Address is out of the memory range. $address ")
-    component.rework(this.readAsync(U(address, addressWidth bits)))
+    component.rework(this.readAsync(U(address, nativePortAddressWidth bits)))
   }
 
   def formalContains(word: T): Bool = {
@@ -333,7 +365,11 @@ class Mem[T <: Data](val wordType: HardType[T], val wordCount: Int)
     (0 until wordCount).map(i => cond(apply(i))).reduce(_ || _)
   }
 
-  val addressType = HardType(UInt(addressWidth bit))
+  val addressType = HardType(
+    if (ParameterizedMemory.metadataOf(this).nonEmpty)
+      UInt(addressWidthExpr bits)
+    else UInt(addressWidth bit)
+  )
 
 //  def addressTypeAt(initialValue: BigInt) = U(initialValue, addressWidth bit)
 //
@@ -799,7 +835,10 @@ class MemReadAsync extends MemPortStatement with WidthProvider with ContextUser 
   var elaborationReadBits: Bits = null // Used only to cleanup mem(x) := y leftovers
 
   def getWordsCount = mem.wordCount * mem.width / getWidth
-  def getAddressWidth = log2Up(getWordsCount)
+  def getAddressWidth =
+    mem
+      .parameterizedPortAddressWidthWitness(aspectRatio)
+      .getOrElse(log2Up(getWordsCount))
 
   override def opName = s"$mem.readAsync(x)"
 
@@ -819,7 +858,9 @@ class MemReadAsync extends MemPortStatement with WidthProvider with ContextUser 
 
   override def normalizeInputs: Unit = {
     if (getWidth == 0) return
-    val addressReq = mem.addressWidth + log2Up(aspectRatio)
+    val addressReq = mem
+      .parameterizedPortAddressWidthWitness(aspectRatio)
+      .getOrElse(mem.addressWidth + log2Up(aspectRatio))
     address = InputNormalize.resizedOrUnfixedLit(
       address,
       addressReq,
@@ -846,9 +887,9 @@ class MemReadAsync extends MemPortStatement with WidthProvider with ContextUser 
       }
     }
 
-    if (address.getWidth != mem.addressWidth + log2Up(aspectRatio)) {
+    if (address.getWidth != addressReq) {
       PendingError(
-        s"Address used to read $mem doesn't match the required width, ${address.getWidth} bits in place of ${mem.addressWidth + log2Up(aspectRatio)} bits\n${this.getScalaLocationLong}"
+        s"Address used to read $mem doesn't match the required width, ${address.getWidth} bits in place of $addressReq bits\n${this.getScalaLocationLong}"
       )
       return
     }
@@ -890,7 +931,10 @@ class MemReadSync() extends MemPortStatement with WidthProvider with ContextUser
   var readUnderWrite: ReadUnderWritePolicy = null
 
   def getWordsCount = mem.wordCount * mem.width / getWidth
-  def getAddressWidth = log2Up(getWordsCount)
+  def getAddressWidth =
+    mem
+      .parameterizedPortAddressWidthWitness(aspectRatio)
+      .getOrElse(log2Up(getWordsCount))
 
   override def addAttribute(attribute: Attribute): this.type = addTag(attribute)
 
@@ -924,7 +968,9 @@ class MemReadSync() extends MemPortStatement with WidthProvider with ContextUser
 
   override def normalizeInputs: Unit = {
     if (getWidth == 0) return
-    val addressReq = mem.addressWidth + log2Up(aspectRatio)
+    val addressReq = mem
+      .parameterizedPortAddressWidthWitness(aspectRatio)
+      .getOrElse(mem.addressWidth + log2Up(aspectRatio))
     address = InputNormalize.resizedOrUnfixedLit(
       address,
       addressReq,
@@ -948,9 +994,9 @@ class MemReadSync() extends MemPortStatement with WidthProvider with ContextUser
       }
     }
 
-    if (address.getWidth != mem.addressWidth + log2Up(aspectRatio)) {
+    if (address.getWidth != addressReq) {
       PendingError(
-        s"Address used to read $mem doesn't match the required width, ${address.getWidth} bits in place of ${mem.addressWidth + log2Up(aspectRatio)} bits\n${this.getScalaLocationLong}"
+        s"Address used to read $mem doesn't match the required width, ${address.getWidth} bits in place of $addressReq bits\n${this.getScalaLocationLong}"
       )
       return
     }
@@ -996,7 +1042,10 @@ class MemWrite() extends MemPortStatement with WidthProvider {
   def getMaskWidth(default: Int = 1) = if (mask != null) mask.getWidth else default
   def getSymbolWidth = if (mask != null) width / mask.getWidth else 1
   def getWordsCount = mem.wordCount * mem.width / getWidth
-  def getAddressWidth = log2Up(getWordsCount)
+  def getAddressWidth =
+    mem
+      .parameterizedPortAddressWidthWitness(aspectRatio)
+      .getOrElse(log2Up(getWordsCount))
 
   override def dlcParent = mem
 
@@ -1029,7 +1078,9 @@ class MemWrite() extends MemPortStatement with WidthProvider {
 
   override def normalizeInputs: Unit = {
     if (getWidth == 0) return
-    val addressReq = mem.addressWidth + log2Up(aspectRatio)
+    val addressReq = mem
+      .parameterizedPortAddressWidthWitness(aspectRatio)
+      .getOrElse(mem.addressWidth + log2Up(aspectRatio))
     address = InputNormalize.resizedOrUnfixedLit(
       address,
       addressReq,
@@ -1067,7 +1118,7 @@ class MemWrite() extends MemPortStatement with WidthProvider {
 
     if (address.getWidth != addressReq) {
       PendingError(
-        s"Address used to write $mem doesn't match the required width, ${address.getWidth} bits in place of ${mem.addressWidth + log2Up(aspectRatio)} bits\n${this.getScalaLocationLong}"
+        s"Address used to write $mem doesn't match the required width, ${address.getWidth} bits in place of $addressReq bits\n${this.getScalaLocationLong}"
       )
       return
     }
@@ -1124,7 +1175,10 @@ class MemReadWrite() extends MemPortStatement with WidthProvider with ContextUse
   def getMaskWidth(default: Int = 1) = if (mask != null) mask.getWidth else default
   def getSymbolWidth = if (mask != null) width / mask.getWidth else 1
   def getWordsCount = mem.wordCount * mem.width / getWidth
-  def getAddressWidth = log2Up(getWordsCount)
+  def getAddressWidth =
+    mem
+      .parameterizedPortAddressWidthWitness(aspectRatio)
+      .getOrElse(log2Up(getWordsCount))
 
   override def opName = "Mem.readSync(x)"
 
@@ -1162,7 +1216,9 @@ class MemReadWrite() extends MemPortStatement with WidthProvider with ContextUse
 
   override def normalizeInputs: Unit = {
     if (getWidth == 0) return
-    val addressReq = mem.addressWidth + log2Up(aspectRatio)
+    val addressReq = mem
+      .parameterizedPortAddressWidthWitness(aspectRatio)
+      .getOrElse(mem.addressWidth + log2Up(aspectRatio))
     address = InputNormalize.resizedOrUnfixedLit(
       address,
       addressReq,
@@ -1193,7 +1249,7 @@ class MemReadWrite() extends MemPortStatement with WidthProvider with ContextUse
 
     if (address.getWidth != addressReq) {
       PendingError(
-        s"Address used to write $mem doesn't match the required width, ${address.getWidth} bits in place of ${mem.addressWidth + log2Up(aspectRatio)} bits\n${this.getScalaLocationLong}"
+        s"Address used to write $mem doesn't match the required width, ${address.getWidth} bits in place of $addressReq bits\n${this.getScalaLocationLong}"
       )
       return
     }
@@ -1244,7 +1300,10 @@ class MemReadAsyncWrite() extends MemPortStatement with WidthProvider with Conte
   def getMaskWidth(default: Int = 1) = if (mask != null) mask.getWidth else default
   def getSymbolWidth = if (mask != null) width / mask.getWidth else 1
   def getWordsCount = mem.wordCount * mem.width / getWidth
-  def getAddressWidth = log2Up(getWordsCount)
+  def getAddressWidth =
+    mem
+      .parameterizedPortAddressWidthWitness(aspectRatio)
+      .getOrElse(log2Up(getWordsCount))
 
   override def opName = "Mem.readAsyncWrite(x)"
 
@@ -1279,7 +1338,9 @@ class MemReadAsyncWrite() extends MemPortStatement with WidthProvider with Conte
 
   override def normalizeInputs: Unit = {
     if (getWidth == 0) return
-    val addressReq = mem.addressWidth + log2Up(aspectRatio)
+    val addressReq = mem
+      .parameterizedPortAddressWidthWitness(aspectRatio)
+      .getOrElse(mem.addressWidth + log2Up(aspectRatio))
     address = InputNormalize.resizedOrUnfixedLit(address, addressReq, new ResizeUInt, address, this)
 
     if (readUnderWrite == readFirst)
@@ -1307,7 +1368,7 @@ class MemReadAsyncWrite() extends MemPortStatement with WidthProvider with Conte
 
     if (address.getWidth != addressReq) {
       PendingError(
-        s"Address used to write $mem doesn't match the required width, ${address.getWidth} bits in place of ${mem.addressWidth + log2Up(aspectRatio)} bits\n${this.getScalaLocationLong}"
+        s"Address used to write $mem doesn't match the required width, ${address.getWidth} bits in place of $addressReq bits\n${this.getScalaLocationLong}"
       )
       return
     }

@@ -104,7 +104,7 @@ class TypedExactDomainSafetyTests extends AnyFunSuite {
       val error = intercept[ParameterizedVerilogException] {
         escaped.minimum
       }
-      assert(error.code == "SPINAL-ELAB-DOMAIN-EVIDENCE-SCOPE-MISMATCH")
+      assert(error.code == "SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION")
     }
 
     val expressionError = intercept[ParameterizedVerilogException] {
@@ -112,13 +112,15 @@ class TypedExactDomainSafetyTests extends AnyFunSuite {
     }
     assert(
       expressionError.code ==
-        "SPINAL-ELAB-DOMAIN-EVIDENCE-SCOPE-MISMATCH"
+        "SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION"
     )
 
     val truthError = intercept[ParameterizedVerilogException] {
       predicate.isSymbolic
     }
-    assert(truthError.code == "SPINAL-ELAB-DOMAIN-EVIDENCE-SCOPE-MISMATCH")
+    assert(
+      truthError.code == "SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION"
+    )
   }
 
   test("supplied exact results reject null out-of-range and out-of-bounds values") {
@@ -126,7 +128,7 @@ class TypedExactDomainSafetyTests extends AnyFunSuite {
     val root = ElaborationIntegerParameterRoot.fresh(parameter.name)
 
     val nullResult = intercept[ParameterizedVerilogException] {
-      ElabInt.fromSingleRootExpression(
+      ElabInt.fromSingleRootExpressionTrusted(
         testExpression(parameter, root, default = 2, minimum = 1, maximum = 3),
         Vector(
           BigInt(1) -> BigInt(1),
@@ -139,7 +141,7 @@ class TypedExactDomainSafetyTests extends AnyFunSuite {
 
     val tooLarge = BigInt(Int.MaxValue) + 1
     val outOfRange = intercept[ParameterizedVerilogException] {
-      ElabInt.fromSingleRootExpression(
+      ElabInt.fromSingleRootExpressionTrusted(
         testExpression(
           parameter,
           root,
@@ -160,7 +162,7 @@ class TypedExactDomainSafetyTests extends AnyFunSuite {
     )
 
     val outsideBounds = intercept[ParameterizedVerilogException] {
-      ElabInt.fromSingleRootExpression(
+      ElabInt.fromSingleRootExpressionTrusted(
         testExpression(parameter, root, default = 1, minimum = 0, maximum = 2),
         Vector(
           BigInt(1) -> BigInt(0),
@@ -175,10 +177,62 @@ class TypedExactDomainSafetyTests extends AnyFunSuite {
     )
   }
 
+  test("public raw exact-domain mint and copied rendered metadata fail closed") {
+    val parameter = testParameter
+    val root = ElaborationIntegerParameterRoot.fresh(parameter.name)
+    val raw = testExpression(
+      parameter,
+      root,
+      default = 2,
+      minimum = 1,
+      maximum = 3,
+      verilog = "DEPTH + 1000"
+    )
+    val evaluations = Vector(
+      BigInt(1) -> BigInt(1),
+      BigInt(2) -> BigInt(2),
+      BigInt(3) -> BigInt(3)
+    )
+
+    val rawMint = intercept[ParameterizedVerilogException] {
+      ElabInt.fromSingleRootExpression(raw, evaluations)
+    }
+    assert(
+      rawMint.code ==
+        "SPINAL-ELAB-INT-ANALYZED-SOURCE-AUTHORIZATION-REQUIRED"
+    )
+
+    val trusted = typedDepth(default = 2)
+    val copiedInteger = trusted.expression.copy(verilog = "DEPTH + 1000")
+    assert(copiedInteger.exactDomain.nonEmpty)
+    val copiedIntegerError = intercept[ParameterizedVerilogException] {
+      ElabInt.fromExpression(copiedInteger)
+    }
+    assert(
+      copiedIntegerError.code ==
+        "SPINAL-ELAB-DOMAIN-EXACT-AUTHORITY-MISSING"
+    )
+
+    val predicate = trusted > 1
+    val copiedPredicate = predicate.expression.copy(verilog = "DEPTH == 1000")
+    assert(copiedPredicate.exactDomain.nonEmpty)
+    val copiedPredicateError = intercept[ParameterizedVerilogException] {
+      ElabInt.requireAuthoritativeBooleanDomain(
+        copiedPredicate,
+        "copied predicate",
+        "SPINAL-ELAB-BOOL-EXACT-DOMAIN-REQUIRED"
+      )
+    }
+    assert(
+      copiedPredicateError.code ==
+        "SPINAL-ELAB-DOMAIN-EXACT-AUTHORITY-MISSING"
+    )
+  }
+
   test("conservative supplied bounds normalize to exact extrema") {
     val parameter = testParameter
     val root = ElaborationIntegerParameterRoot.fresh(parameter.name)
-    val value = ElabInt.fromSingleRootExpression(
+    val value = ElabInt.fromSingleRootExpressionTrusted(
       testExpression(
         parameter,
         root,
@@ -258,7 +312,10 @@ class TypedExactDomainSafetyTests extends AnyFunSuite {
         parameterRoots = Vector(rawParameter.declarationRoot)
       )
     )
-    assert(intercept[ParameterizedVerilogException](left + raw).code == expected)
+    assert(
+      intercept[ParameterizedVerilogException](left + raw).code ==
+        "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING"
+    )
   }
 
   test("partial Boolean evidence cannot escape into an independent root") {
@@ -280,7 +337,7 @@ class TypedExactDomainSafetyTests extends AnyFunSuite {
     }
     assert(
       error.code ==
-        "SPINAL-ELAB-DOMAIN-PARTIAL-CORRELATION-UNSUPPORTED"
+        "SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION"
     )
   }
 
@@ -338,7 +395,7 @@ class TypedExactDomainSafetyTests extends AnyFunSuite {
     }
 
     val error = intercept[ParameterizedVerilogException] {
-      ElabInt.fromSingleRootExpression(
+      ElabInt.fromSingleRootExpressionTrusted(
         projected,
         domain.universe.toVector.sorted.map(value => value -> (value % 2))
       )
@@ -348,14 +405,14 @@ class TypedExactDomainSafetyTests extends AnyFunSuite {
         "SPINAL-ELAB-DOMAIN-PROJECTION-RECERTIFICATION-UNSUPPORTED"
     )
     val copiedError = intercept[ParameterizedVerilogException] {
-      ElabInt.fromSingleRootExpression(
+      ElabInt.fromSingleRootExpressionTrusted(
         projected.copy(),
         domain.universe.toVector.sorted.map(value => value -> (value % 2))
       )
     }
     assert(
       copiedError.code ==
-        "SPINAL-ELAB-DOMAIN-PROJECTION-RECERTIFICATION-UNSUPPORTED"
+        "SPINAL-ELAB-DOMAIN-EXACT-AUTHORITY-MISSING"
     )
   }
 
@@ -398,8 +455,487 @@ class TypedExactDomainSafetyTests extends AnyFunSuite {
       ElabInt.fromExpression(escapedInteger.copy()).bits
     }
     assert(
-      copiedError.code == "SPINAL-ELAB-DOMAIN-EVIDENCE-SCOPE-MISMATCH"
+      copiedError.code == "SPINAL-ELAB-DOMAIN-EXACT-AUTHORITY-MISSING"
     )
+  }
+
+  test("derived projections retain authority while copied partial evidence cannot reacquire it") {
+    val depth = typedDepth(default = 1)
+    val root = exact(depth.expression).root
+
+    ElaborationDomainContext.withAdmitted(
+      root,
+      Set(BigInt(1), BigInt(2), BigInt(3)),
+      sourceLocation = None
+    ) {
+      val derived = (depth + 1).log2Up
+      assert(derived.minimum == 1)
+      assert(derived.maximum == 2)
+
+      val projectedInteger =
+        (depth + 0).projectedExpression("copied integer projection")
+      val integerError = intercept[ParameterizedVerilogException] {
+        ElabInt.fromExpression(projectedInteger.copy()).bits
+      }
+      assert(
+        integerError.code ==
+          "SPINAL-ELAB-DOMAIN-EXACT-AUTHORITY-MISSING"
+      )
+
+      val projectedBoolean =
+        (depth > 1).projectedExpression("copied Boolean projection")
+      val authorizedPredicate = depth > 1
+      val authorizedNegation = !authorizedPredicate
+      val authorizedConjunction = authorizedPredicate && true
+      val authorizedInteger = authorizedPredicate.toElabInt
+      assert(authorizedNegation.expression.projectionProvenance.nonEmpty)
+      assert(authorizedConjunction.expression.projectionProvenance.nonEmpty)
+      assert(authorizedInteger.expression.projectionProvenance.nonEmpty)
+
+      val copiedPredicate =
+        ElabBool(projectedBoolean.copy(), ElabBool.Unknown)
+      val copiedWitnessError = intercept[ParameterizedVerilogException] {
+        copiedPredicate.witness
+      }
+      val copiedTruthError = intercept[ParameterizedVerilogException] {
+        copiedPredicate.isAlwaysTrue
+      }
+      val copiedNegationError = intercept[ParameterizedVerilogException] {
+        !copiedPredicate
+      }
+      val copiedConjunctionError = intercept[ParameterizedVerilogException] {
+        copiedPredicate && true
+      }
+      val copiedIntegerError = intercept[ParameterizedVerilogException] {
+        copiedPredicate.toElabInt
+      }
+      Vector(
+        copiedWitnessError,
+        copiedTruthError,
+        copiedNegationError,
+        copiedConjunctionError,
+        copiedIntegerError
+      ).foreach { error =>
+        assert(
+          error.code ==
+            "SPINAL-ELAB-DOMAIN-PROJECTION-IDENTITY-MISSING"
+        )
+      }
+    }
+  }
+
+  test("authoritative Boolean domains reject forged summaries keys and schemas") {
+    val schema = ElaborationIntegerParameter(
+      "BOOLEAN_AUTHORITY",
+      default = 2,
+      minimum = 1,
+      maximum = 3
+    )
+    val root = ElaborationIntegerParameterRoot.fresh("BOOLEAN_AUTHORITY")
+    ElaborationExactDomain.checked[Boolean](
+      root,
+      schema,
+      Vector(
+        BigInt(1) -> false,
+        BigInt(2) -> true,
+        BigInt(3) -> true
+      ),
+      sourceLocation = None,
+      role = "Boolean authority root binding"
+    )
+
+    def predicate(
+        default: Boolean,
+        expressionSchema: ElaborationIntegerParameter,
+        domainSchema: ElaborationIntegerParameter,
+        evaluations: Vector[(BigInt, Boolean)]
+    ): ElabBool =
+      ElabBool(
+        ElaborationBooleanExpression(
+          verilog = "(BOOLEAN_AUTHORITY > 1)",
+          default = default,
+          parameters = Vector(expressionSchema),
+          parameterRoots = Vector(root),
+          exactDomain = Some(
+            ElaborationExactDomain[Boolean](
+              root,
+              domainSchema,
+              evaluations
+            )
+          )
+        ),
+        ElabBool.Unknown
+      )
+
+    val representativeMismatch = predicate(
+      default = false,
+      expressionSchema = schema,
+      domainSchema = schema,
+      evaluations = Vector(
+        BigInt(1) -> false,
+        BigInt(2) -> true,
+        BigInt(3) -> false
+      )
+    )
+    val representativeError = intercept[ParameterizedVerilogException] {
+      representativeMismatch.isAlwaysTrue
+    }
+
+    val foreignSchema = predicate(
+      default = true,
+      expressionSchema = schema.copy(),
+      domainSchema = schema,
+      evaluations = Vector(
+        BigInt(1) -> false,
+        BigInt(2) -> true,
+        BigInt(3) -> true
+      )
+    )
+    val schemaError = intercept[ParameterizedVerilogException] {
+      foreignSchema.witness
+    }
+
+    val copiedSchema = schema.copy()
+    val copiedSchemaEverywhere = predicate(
+      default = true,
+      expressionSchema = copiedSchema,
+      domainSchema = copiedSchema,
+      evaluations = Vector(
+        BigInt(1) -> false,
+        BigInt(2) -> true,
+        BigInt(3) -> true
+      )
+    )
+    val copiedSchemaError = intercept[ParameterizedVerilogException] {
+      copiedSchemaEverywhere.isAlwaysTrue
+    }
+
+    val duplicateKeys = predicate(
+      default = true,
+      expressionSchema = schema,
+      domainSchema = schema,
+      evaluations = Vector(
+        BigInt(1) -> false,
+        BigInt(1) -> true,
+        BigInt(2) -> true,
+        BigInt(3) -> true
+      )
+    )
+    val duplicateError = intercept[ParameterizedVerilogException] {
+      duplicateKeys.isAlwaysTrue
+    }
+
+    Vector(
+      representativeError,
+      schemaError,
+      copiedSchemaError,
+      duplicateError
+    ).foreach { error =>
+      assert(error.code == "SPINAL-ELAB-BOOL-EXACT-DOMAIN-REQUIRED")
+    }
+
+    val concreteDerived = ElabInt.literal(1).elabEq(1)
+    assert(concreteDerived.isAlwaysTrue)
+    assert(concreteDerived.witness)
+  }
+
+  test("integer derivations reject malformed raw evidence before projection") {
+    val schema = ElaborationIntegerParameter(
+      "INTEGER_DERIVATION_AUTHORITY",
+      default = 2,
+      minimum = 1,
+      maximum = 3
+    )
+    val root =
+      ElaborationIntegerParameterRoot.fresh("INTEGER_DERIVATION_AUTHORITY")
+    ElaborationExactDomain.checked[BigInt](
+      root,
+      schema,
+      Vector(
+        BigInt(1) -> BigInt(1),
+        BigInt(2) -> BigInt(2),
+        BigInt(3) -> BigInt(3)
+      ),
+      sourceLocation = None,
+      role = "integer derivation root binding"
+    )
+    val malformed = ElabInt.fromTrustedExactExpressionForTest(
+      ElaborationIntegerExpression(
+        verilog = "INTEGER_DERIVATION_AUTHORITY",
+        default = 2,
+        minimum = 1,
+        maximum = 3,
+        parameters = Vector(schema),
+        parameterRoots = Vector(root),
+        exactDomain = Some(
+          ElaborationExactDomain[BigInt](
+            root,
+            schema,
+            Vector(
+              BigInt(1) -> BigInt(4),
+              BigInt(2) -> BigInt(5),
+              BigInt(3) -> BigInt(6)
+            )
+          )
+        )
+      )
+    )
+
+    val arithmeticError = intercept[ParameterizedVerilogException] {
+      malformed + 0
+    }
+    val transformError = intercept[ParameterizedVerilogException] {
+      malformed.log2Up
+    }
+    val predicateError = intercept[ParameterizedVerilogException] {
+      malformed > 0
+    }
+    val copiedSchema = schema.copy()
+    val replacementBindingError = intercept[ParameterizedVerilogException] {
+      ElaborationExactDomain.checked[BigInt](
+        root,
+        copiedSchema,
+        Vector(
+          BigInt(1) -> BigInt(1),
+          BigInt(2) -> BigInt(2),
+          BigInt(3) -> BigInt(3)
+        ),
+        sourceLocation = None,
+        role = "replacement integer derivation root binding"
+      )
+    }
+    assert(
+      replacementBindingError.code ==
+        "SPINAL-ELAB-DOMAIN-ROOT-SCHEMA-IDENTITY-CONFLICT"
+    )
+    val copiedSchemaEverywhere = ElabInt.fromTrustedExactExpressionForTest(
+      ElaborationIntegerExpression(
+        verilog = "INTEGER_DERIVATION_AUTHORITY",
+        default = 2,
+        minimum = 1,
+        maximum = 3,
+        parameters = Vector(copiedSchema),
+        parameterRoots = Vector(root),
+        exactDomain = Some(
+          ElaborationExactDomain[BigInt](
+            root,
+            copiedSchema,
+            Vector(
+              BigInt(1) -> BigInt(1),
+              BigInt(2) -> BigInt(2),
+              BigInt(3) -> BigInt(3)
+            )
+          )
+        )
+      )
+    )
+    val copiedSchemaError = intercept[ParameterizedVerilogException] {
+      copiedSchemaEverywhere + 0
+    }
+    Vector(
+      arithmeticError,
+      transformError,
+      predicateError,
+      copiedSchemaError
+    ).foreach { error =>
+      assert(error.code == "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING")
+    }
+
+    val depth = typedDepth(default = 2)
+    val domain = exact(depth.expression)
+    ElaborationDomainContext.withAdmitted(
+      domain.root,
+      Set(BigInt(1), BigInt(2), BigInt(3)),
+      sourceLocation = None
+    ) {
+      val authorizedTransform = (depth + 0).log2Up
+      val authorizedPredicate = (depth + 0) > 1
+      assert(authorizedTransform.expression.projectionProvenance.nonEmpty)
+      assert(authorizedPredicate.expression.projectionProvenance.nonEmpty)
+      assert(authorizedTransform.minimum == 0)
+      assert(authorizedTransform.maximum == 2)
+      assert(authorizedPredicate.isSymbolic)
+    }
+  }
+
+  test("derived-domain operations cannot bind fresh public source metadata") {
+    val integerSchema = ElaborationIntegerParameter(
+      "FRESH_INTEGER_DERIVATION",
+      default = 2,
+      minimum = 1,
+      maximum = 3
+    )
+    val integerRoot =
+      ElaborationIntegerParameterRoot.fresh("FRESH_INTEGER_DERIVATION")
+    val integerDomain = ElaborationExactDomain[BigInt](
+      integerRoot,
+      integerSchema,
+      Vector(
+        BigInt(1) -> BigInt(1),
+        BigInt(2) -> BigInt(2),
+        BigInt(3) -> BigInt(3)
+      )
+    )
+    val rawInteger = ElabInt.fromTrustedExactExpressionForTest(
+      ElaborationIntegerExpression(
+        verilog = "FRESH_INTEGER_DERIVATION",
+        default = 2,
+        minimum = 1,
+        maximum = 3,
+        parameters = Vector(integerSchema),
+        parameterRoots = Vector(integerRoot),
+        exactDomain = Some(integerDomain)
+      )
+    )
+
+    assert(!integerRoot.isAuthoritativeSchema(integerSchema))
+    val pow2Error = intercept[ParameterizedVerilogException] {
+      rawInteger.isPow2
+    }
+    val genericHelperError = intercept[ParameterizedVerilogException] {
+      ElabInt.checkedDerivedDomain(
+        integerDomain,
+        integerDomain.evaluations.map { case (rootValue, result) =>
+          rootValue -> (result > 1)
+        },
+        sourceLocation = None,
+        role = "fresh public generic derivation"
+      )
+    }
+    Vector(pow2Error, genericHelperError).foreach { error =>
+      assert(error.code == "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING")
+    }
+    assert(!integerRoot.isAuthoritativeSchema(integerSchema))
+
+    val booleanSchema = ElaborationIntegerParameter(
+      "FRESH_BOOLEAN_DERIVATION",
+      default = 2,
+      minimum = 1,
+      maximum = 3
+    )
+    val booleanRoot =
+      ElaborationIntegerParameterRoot.fresh("FRESH_BOOLEAN_DERIVATION")
+    val rawBoolean = ElabBool(
+      ElaborationBooleanExpression(
+        verilog = "(FRESH_BOOLEAN_DERIVATION > 1)",
+        default = true,
+        parameters = Vector(booleanSchema),
+        parameterRoots = Vector(booleanRoot),
+        exactDomain = Some(
+          ElaborationExactDomain[Boolean](
+            booleanRoot,
+            booleanSchema,
+            Vector(
+              BigInt(1) -> false,
+              BigInt(2) -> true,
+              BigInt(3) -> true
+            )
+          )
+        )
+      ),
+      ElabBool.Unknown
+    )
+
+    assert(!booleanRoot.isAuthoritativeSchema(booleanSchema))
+    val negationError = intercept[ParameterizedVerilogException] {
+      !rawBoolean
+    }
+    val conjunctionError = intercept[ParameterizedVerilogException] {
+      rawBoolean && true
+    }
+    val disjunctionError = intercept[ParameterizedVerilogException] {
+      rawBoolean || false
+    }
+    val integerConversionError = intercept[ParameterizedVerilogException] {
+      rawBoolean.toElabInt
+    }
+    Vector(
+      negationError,
+      conjunctionError,
+      disjunctionError,
+      integerConversionError
+    ).foreach { error =>
+      assert(error.code == "SPINAL-ELAB-BOOL-EXACT-DOMAIN-REQUIRED")
+    }
+    assert(!booleanRoot.isAuthoritativeSchema(booleanSchema))
+  }
+
+  test("Boolean binary derivations validate both source identities and tables") {
+    val source = typedParameter(
+      "BOOLEAN_BINARY_AUTHORITY",
+      default = 2,
+      minimum = 1,
+      maximum = 3
+    )
+    val canonical = source > 1
+    val domain = exact(source.expression)
+    val schema = domain.parameter
+    val copiedSchema = schema.copy()
+
+    def predicate(
+        expressionSchema: ElaborationIntegerParameter,
+        domainSchema: ElaborationIntegerParameter,
+        evaluations: Vector[(BigInt, Boolean)]
+    ): ElabBool =
+      ElabBool(
+        ElaborationBooleanExpression(
+          verilog = "(BOOLEAN_BINARY_AUTHORITY > 1)",
+          default = true,
+          parameters = Vector(expressionSchema),
+          parameterRoots = Vector(domain.root),
+          exactDomain = Some(
+            ElaborationExactDomain[Boolean](
+              domain.root,
+              domainSchema,
+              evaluations
+            )
+          )
+        ),
+        ElabBool.Unknown
+      )
+
+    val copiedEverywhere = predicate(
+      copiedSchema,
+      copiedSchema,
+      Vector(
+        BigInt(1) -> false,
+        BigInt(2) -> true,
+        BigInt(3) -> true
+      )
+    )
+    val duplicateTable = predicate(
+      schema,
+      schema,
+      Vector(
+        BigInt(1) -> false,
+        BigInt(1) -> true,
+        BigInt(2) -> true,
+        BigInt(3) -> true
+      )
+    )
+
+    val copiedConjunctionError = intercept[ParameterizedVerilogException] {
+      canonical && copiedEverywhere
+    }
+    val copiedDisjunctionError = intercept[ParameterizedVerilogException] {
+      canonical || copiedEverywhere
+    }
+    val duplicateConjunctionError = intercept[ParameterizedVerilogException] {
+      canonical && duplicateTable
+    }
+    val duplicateDisjunctionError = intercept[ParameterizedVerilogException] {
+      canonical || duplicateTable
+    }
+    Vector(
+      copiedConjunctionError,
+      copiedDisjunctionError,
+      duplicateConjunctionError,
+      duplicateDisjunctionError
+    ).foreach { error =>
+      assert(error.code == "SPINAL-ELAB-BOOL-EXACT-DOMAIN-REQUIRED")
+    }
+    assert(domain.root.isAuthoritativeSchema(schema))
+    assert(!domain.root.isAuthoritativeSchema(copiedSchema))
   }
 
   test("equal exact summaries with different evaluations remain distinct") {
@@ -413,11 +949,11 @@ class TypedExactDomainSafetyTests extends AnyFunSuite {
       maximum = 2,
       verilog = "crossed(DEPTH)"
     )
-    val first = ElabInt.fromSingleRootExpression(
+    val first = ElabInt.fromSingleRootExpressionTrusted(
       expression,
       Vector(BigInt(1) -> BigInt(0), BigInt(2) -> BigInt(1), BigInt(3) -> BigInt(2))
     )
-    val second = ElabInt.fromSingleRootExpression(
+    val second = ElabInt.fromSingleRootExpressionTrusted(
       expression,
       Vector(BigInt(1) -> BigInt(2), BigInt(2) -> BigInt(1), BigInt(3) -> BigInt(0))
     )

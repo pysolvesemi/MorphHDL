@@ -1487,19 +1487,55 @@ object StreamFifo {
   def apply[T <: Data](
       dataType: HardType[T],
       depth: ElabInt
+  ): StreamFifo[T] =
+    apply(
+      dataType,
+      depth,
+      withAsyncRead = false,
+      withBypass = false,
+      allowExtraMsb = true,
+      forFMax = false,
+      useVec = false,
+      initPayload = None
+    )
+
+  /** Full typed-depth entry point for the native StreamFifo configuration.
+    * The ordinary constructor remains the sole FIFO algorithm; this factory
+    * only supplies a definition-side formal when symbolic capture needs one.
+    */
+  def apply[T <: Data](
+      dataType: HardType[T],
+      depth: ElabInt,
+      withAsyncRead: Boolean,
+      withBypass: Boolean,
+      allowExtraMsb: Boolean,
+      forFMax: Boolean,
+      useVec: Boolean,
+      initPayload: => Option[T]
   ): StreamFifo[T] = {
     if (depth == null)
       throw new IllegalArgumentException("StreamFifo typed depth must not be null")
-    if (depth.isConcrete || !ParameterizedStructure.captureEnabled)
+    if (depth.isConcrete)
+      new StreamFifo(
+        dataType,
+        depth.witness,
+        withAsyncRead,
+        withBypass,
+        allowExtraMsb,
+        forFMax,
+        useVec,
+        initPayload
+      )
+    else if (!ParameterizedStructure.captureEnabled)
       new StreamFifo(
         dataType,
         ElabInt.literal(depth.witness),
-        false,
-        false,
-        true,
-        false,
-        false,
-        None
+        withAsyncRead,
+        withBypass,
+        allowExtraMsb,
+        forFMax,
+        useVec,
+        initPayload
       )
     else
       ElabFormalComponent.parameter(
@@ -1511,7 +1547,18 @@ object StreamFifo {
         // infrastructure outside its definition-local storage alternative.
         minimum = BigInt(1),
         maximum = depth.maximum
-      )(formal => new StreamFifo(dataType, formal, false, false, true, false, false, None))
+      )(formal =>
+        new StreamFifo(
+          dataType,
+          formal,
+          withAsyncRead,
+          withBypass,
+          allowExtraMsb,
+          forFMax,
+          useVec,
+          initPayload
+        )
+      )
   }
 
 }
@@ -1584,12 +1631,12 @@ class StreamFifo[T <: Data](
     val occupancy = if (elabDepth.isConcrete) {
       out UInt (log2Up(depth + 1) bits)
     } else {
-      out UInt (log2Up(elabDepth + 1) bits)
+      out UInt ((elabDepth + 1).addressWidth bits)
     }
     val availability = if (elabDepth.isConcrete) {
       out UInt (log2Up(depth + 1) bits)
     } else {
-      out UInt (log2Up(elabDepth + 1) bits)
+      out UInt ((elabDepth + 1).addressWidth bits)
     }
     override def pushOccupancy = occupancy
     override def popOccupancy = occupancy
@@ -1615,12 +1662,37 @@ class StreamFifo[T <: Data](
   val depthIsZero: ElabBool = elabDepth == 0
   val depthIsOne: ElabBool = elabDepth == 1
   val depthHasStorage: ElabBool = elabDepth > 1
+  // Symbolic generate executes every native alternative once, even though its
+  // source-compatible return value is null outside the selected witness. Keep
+  // exact native references and capture-owner tokens explicitly so formal
+  // helpers added later can extend the original branch without discovering it
+  // from a source position, component name or emitted identifier.
+  private var formalBypassOwner: ParameterizedStructuralOwner = null
+  private var formalOneStageOwner: ParameterizedStructuralOwner = null
+  private var formalOneStageBuffer: Stream[T] = null
+  private var formalStorageOwner: ParameterizedStructuralOwner = null
+  private var formalStorageVec: Vec[T] = null
+  private var formalStorageRam: Mem[T] = null
+  private var formalStoragePush: UInt = null
+  private var formalStoragePop: UInt = null
+  private var formalStorageEmpty: Bool = null
+
   val bypass = depthIsZero generate new Area {
+    if (ParameterizedStructure.captureEnabled && !elabDepth.isConcrete)
+      formalBypassOwner = ParameterizedStructure.currentOwner(
+        elabDepth,
+        "StreamFifo depth-zero branch owner"
+      )
     io.push >> io.pop
     io.occupancy := 0
     io.availability := 0
   }
   val oneStage = depthIsOne generate new Area {
+    if (ParameterizedStructure.captureEnabled && !elabDepth.isConcrete)
+      formalOneStageOwner = ParameterizedStructure.currentOwner(
+        elabDepth,
+        "StreamFifo one-stage branch owner"
+      )
     val doFlush = CombInit(io.flush)
     val buffer = initPayload match {
       case Some(initValue) => io.push.m2sPipe(flush = doFlush, initPayload = initValue)
@@ -1637,8 +1709,14 @@ class StreamFifo[T <: Data](
         doFlush setWhen (io.pop.ready)
       }
     }
+    formalOneStageBuffer = buffer
   }
   val logic = depthHasStorage generate new Area {
+    if (ParameterizedStructure.captureEnabled && !elabDepth.isConcrete)
+      formalStorageOwner = ParameterizedStructure.currentOwner(
+        elabDepth,
+        "StreamFifo storage branch owner"
+      )
     val vec = useVec generate {
       initPayload match {
         case Some(initValue) => Vec(Reg(dataType) init (initValue), elabDepth)
@@ -1748,8 +1826,29 @@ class StreamFifo[T <: Data](
         write.data := io.push.payload
       }
       val onVec = useVec generate new Area {
-        when(io.push.fire) {
-          vec.write(ptr.push.resize(log2Up(elabDepth)), io.push.payload)
+        if (elabDepth.isConcrete) {
+          when(io.push.fire) {
+            vec.write(ptr.push.resize(log2Up(elabDepth)), io.push.payload)
+          }
+        } else {
+          val writeIndex = UInt(log2Up(elabDepth) bits)
+            .setName("typed_vec_write_index", weak = true)
+            .dontSimplifyIt()
+          writeIndex := ptr.push.resized
+          val writeTarget = vec(writeIndex)
+            .setName("typed_vec_write_target", weak = true)
+            // Keep the authoritative Vec decoder guards at module scope while
+            // retaining the native push-fire predicate and hold semantics
+            // exactly: the shared direct source holds the selected register
+            // unless the push fires.
+          val writeData = dataType()
+            .setName("typed_vec_write_data", weak = true)
+            .dontSimplifyIt()
+          writeData := writeTarget
+          when(io.push.fire) {
+            writeData := io.push.payload
+          }
+          writeTarget := writeData
         }
       }
     }
@@ -1757,7 +1856,15 @@ class StreamFifo[T <: Data](
     val pop = new Area {
       val addressGen = Stream(UInt(log2Up(elabDepth) bits))
       addressGen.valid := !ptr.empty
-      addressGen.payload := ptr.pop.resize(log2Up(elabDepth))
+      if (elabDepth.isConcrete) {
+        addressGen.payload := ptr.pop.resize(log2Up(elabDepth))
+      } else {
+        val storagePopIndex = UInt(log2Up(elabDepth) bits)
+          .setName("typed_storage_pop_index", weak = true)
+          .dontSimplifyIt()
+        storagePopIndex := ptr.pop.resized
+        addressGen.payload := storagePopIndex
+      }
       ptr.doPop := addressGen.fire
 
       val sync = !withAsyncRead generate new Area {
@@ -1774,7 +1881,13 @@ class StreamFifo[T <: Data](
 
       val async = withAsyncRead generate new Area {
         val readed = useVec match {
-          case true  => vec.read(addressGen.payload)
+          case true =>
+            val result = vec.read(addressGen.payload)
+            if (!elabDepth.isConcrete)
+              result
+                .setName("typed_vec_read_data", weak = true)
+                .dontSimplifyIt()
+            result
           case false => ram.readAsync(addressGen.payload)
         }
         io.pop << addressGen.translateWith(readed)
@@ -1800,84 +1913,623 @@ class StreamFifo[T <: Data](
       decr := io.push.fire
       io.availability := value.resized
     }
+
+    formalStorageVec = vec
+    formalStorageRam = ram
+    formalStoragePush = ptr.push
+    formalStoragePop = ptr.pop
+    formalStorageEmpty = ptr.empty
   }
 
-  private def requireConcreteFormalDepth(role: String): Unit = {
-    if (!elabDepth.isConcrete) {
-      throw new ParameterizedVerilogException(
-        "SPINAL-ELAB-STREAMFIFO-FORMAL-SYMBOLIC-DEPTH-UNSUPPORTED",
-        s"$role requires a concrete StreamFifo depth; symbolic depth cannot be witness-unrolled",
-        elabDepth.sourceLocation
+  /** Mechanics adapter for the one authoritative formal-helper algorithm.
+    *
+    * Concrete helpers retain the inherited Scala finite enumeration, native
+    * growing shift and active-witness branch selection. Symbolic helpers swap
+    * only those mechanics for exact finite capture, typed mask geometry and
+    * owner-local execution. Predicate application, last-push selection, RAM
+    * mask decisions and folds remain in the shared bodies below.
+    */
+  private sealed trait FormalHelperAdapter {
+    type Index
+    type Conditions
+    // Concrete keeps its native Vec mask; captured publication uses one flat
+    // exact-width Bits mask so the shared decisions form one Verilog process.
+    type Mask
+
+    def conditions(
+        role: String,
+        stableName: String,
+        existing: Option[Conditions]
+    )(body: Index => Bool): Conditions
+    def outerStorageConditions(stableName: String): Option[Conditions]
+    def storagePayload(index: Index): T
+    def selectCondition(
+        condition: Conditions,
+        index: UInt,
+        stableName: String
+    ): Bool
+    def previousStorageIndex(pointer: UInt, stableName: String): UInt
+    def checkedRam(
+        target: Vec[Bool],
+        mask: Mask,
+        condition: Conditions
+    )(combine: (Bool, Bool) => Bool): Vec[Bool]
+
+    def newMask(stableName: String): Mask
+    def assignMask(mask: Mask, value: Bits): Unit
+    def maskIndex(pointer: UInt, stableName: String): UInt
+    def maskOne(): UInt
+    def shiftMaskOne(one: UInt, index: UInt, stableName: String): UInt
+    def lowMask(value: UInt, stableName: String): Bits
+    def stabilizeMask(value: Bits, stableName: String): Bits
+    def clearMask(mask: Mask): Unit
+
+    def assignBool(target: Bool, value: Bool): Bool
+    def oneStageChecks(target: Vec[Bool], value: Bool): Vec[Bool]
+    def emptyChecks(target: Vec[Bool]): Vec[Bool]
+
+    def boolBranches(stableName: String)(
+        storage: Bool => Bool,
+        oneStageBranch: Bool => Bool,
+        bypass: Bool => Bool
+    ): Bool
+    def ramBranches(stableName: String)(
+        storage: Vec[Bool] => Vec[Bool],
+        oneStageBranch: Vec[Bool] => Vec[Bool],
+        bypass: Vec[Bool] => Vec[Bool]
+    ): Vec[Bool]
+
+    def reduceOr(checks: Vec[Bool]): Bool
+    def countOne(checks: Vec[Bool]): UInt
+    def growCountOperand(value: UInt, stableName: String): UInt
+    def countResult(stableName: String, value: UInt): UInt
+  }
+
+  private val concreteFormalHelperAdapter = new FormalHelperAdapter {
+    type Index = Int
+    type Conditions = IndexedSeq[Bool]
+    type Mask = Vec[Bool]
+
+    override def conditions(
+        role: String,
+        stableName: String,
+        existing: Option[IndexedSeq[Bool]]
+    )(body: Int => Bool): IndexedSeq[Bool] =
+      elabDepth.finiteRangeFromZero(role).map(body)
+
+    override def outerStorageConditions(
+        stableName: String
+    ): Option[IndexedSeq[Bool]] = None
+
+    override def storagePayload(index: Int): T =
+      if (useVec) formalStorageVec(index) else formalStorageRam(index)
+
+    override def selectCondition(
+        condition: IndexedSeq[Bool],
+        index: UInt,
+        stableName: String
+    ): Bool = condition(index.resized)
+
+    override def previousStorageIndex(
+        pointer: UInt,
+        stableName: String
+    ): UInt = {
+      val depthValue = ElabValue.uintLike(
+        elabDepth,
+        pointer,
+        "typed_formal_last_push_depth"
       )
+      (pointer +^ depthValue -^ 1) % depthValue
+    }
+
+    override def checkedRam(
+        target: Vec[Bool],
+        mask: Vec[Bool],
+        condition: IndexedSeq[Bool]
+    )(combine: (Bool, Bool) => Bool): Vec[Bool] =
+      Vec(mask.zipWithIndex.map { case (valid, index) =>
+        combine(valid, condition(index))
+      })
+
+    override def newMask(stableName: String): Vec[Bool] =
+      Vec(True, elabDepth)
+
+    override def assignMask(mask: Vec[Bool], value: Bits): Unit =
+      mask.assignFromBits(value)
+
+    override def maskIndex(pointer: UInt, stableName: String): UInt =
+      pointer.resize(log2Up(elabDepth))
+
+    override def maskOne(): UInt = U(1)
+
+    override def shiftMaskOne(
+        one: UInt,
+        index: UInt,
+        stableName: String
+    ): UInt = one << index
+
+    override def lowMask(value: UInt, stableName: String): Bits = value.asBits
+
+    override def stabilizeMask(value: Bits, stableName: String): Bits = value
+
+    override def clearMask(mask: Vec[Bool]): Unit = mask := mask.getZero
+
+    override def assignBool(target: Bool, value: Bool): Bool = value
+
+    override def oneStageChecks(target: Vec[Bool], value: Bool): Vec[Bool] =
+      Vec(value)
+
+    override def emptyChecks(target: Vec[Bool]): Vec[Bool] = Vec[Bool](Seq())
+
+    override def boolBranches(stableName: String)(
+        storage: Bool => Bool,
+        oneStageBranch: Bool => Bool,
+        bypass: Bool => Bool
+    ): Bool =
+      if (logic != null) storage(null)
+      else if (oneStage != null) oneStageBranch(null)
+      else bypass(null)
+
+    override def ramBranches(stableName: String)(
+        storage: Vec[Bool] => Vec[Bool],
+        oneStageBranch: Vec[Bool] => Vec[Bool],
+        bypass: Vec[Bool] => Vec[Bool]
+    ): Vec[Bool] =
+      if (logic != null) storage(null)
+      else if (oneStage != null) oneStageBranch(null)
+      else bypass(null)
+
+    override def reduceOr(checks: Vec[Bool]): Bool = checks.reduce(_ || _)
+
+    override def countOne(checks: Vec[Bool]): UInt = CountOne(checks)
+
+    override def growCountOperand(value: UInt, stableName: String): UInt =
+      value.expand
+
+    override def countResult(stableName: String, value: UInt): UInt = value
+  }
+
+  private val capturedFormalHelperAdapter = new FormalHelperAdapter {
+    type Index = ElabFiniteIndex
+    type Conditions = Vec[Bool]
+    type Mask = Bits
+
+    private var maskOrdinal = 0
+
+    override def conditions(
+        role: String,
+        stableName: String,
+        existing: Option[Vec[Bool]]
+    )(body: ElabFiniteIndex => Bool): Vec[Bool] = {
+      val result = existing.getOrElse(
+        Vec(Bool(), elabDepth).setName(stableName)
+      )
+      ElabFiniteRange.foreach(elabDepth, role) { index =>
+        index(result) := body(index)
+      }
+      result
+    }
+
+    override def outerStorageConditions(
+        stableName: String
+    ): Option[Vec[Bool]] =
+      Some(Vec(Bool(), elabDepth).setName(stableName))
+
+    override def storagePayload(index: ElabFiniteIndex): T =
+      if (useVec) index(formalStorageVec) else index(formalStorageRam)
+
+    override def selectCondition(
+        condition: Vec[Bool],
+        index: UInt,
+        stableName: String
+    ): Bool = condition.read(normalizedIndex(index, stableName))
+
+    override def previousStorageIndex(
+        pointer: UInt,
+        stableName: String
+    ): UInt = {
+      val normalized = normalizedIndex(pointer, s"${stableName}_pointer")
+      val lastIndex = ElabValue.uintLike(
+        elabDepth - 1,
+        normalized,
+        s"${stableName}_last_index"
+      )
+      val one = ElabValue.uintLike(
+        ElabInt.literal(1),
+        normalized,
+        s"${stableName}_one"
+      )
+      val decremented = ParameterizedWidth
+        .copyShape(normalized, normalized - one)
+        .setName(s"${stableName}_decremented", weak = true)
+        .dontSimplifyIt()
+      val result = UInt(elabDepth.addressWidth bits)
+        .setName(stableName)
+        .dontSimplifyIt()
+      result := decremented
+      when(normalized === 0) {
+        result := lastIndex
+      }
+      result
+    }
+
+    override def checkedRam(
+        target: Vec[Bool],
+        mask: Bits,
+        condition: Vec[Bool]
+    )(combine: (Bool, Bool) => Bool): Vec[Bool] = {
+      ElabFiniteRange.foreach(elabDepth, "stream_fifo_formal_ram_mask") { index =>
+        index(target) := combine(index(mask), index(condition))
+      }
+      target
+    }
+
+    override def newMask(stableName: String): Bits = {
+      maskOrdinal += 1
+      val allOnesName = s"${stableName}_all_ones_$maskOrdinal"
+      val result = Bits(elabDepth bits).setName(stableName, weak = true)
+      val allOnes = ElabValue
+        .uintAllOnes(elabDepth, s"${allOnesName}_zero")
+        .setName(allOnesName, weak = true)
+        .dontSimplifyIt()
+      result := allOnes.asBits
+      result
+    }
+
+    override def assignMask(mask: Bits, value: Bits): Unit =
+      mask := value
+
+    override def maskIndex(pointer: UInt, stableName: String): UInt =
+      normalizedIndex(pointer, stableName)
+
+    override def maskOne(): UInt = {
+      val result = UInt(elabDepth bits)
+        .setName("typed_formal_ram_mask_one", weak = true)
+      result := 1
+      result.setAsVital()
+      result.dontSimplifyIt()
+      result
+    }
+
+    override def shiftMaskOne(
+        one: UInt,
+        index: UInt,
+        stableName: String
+    ): UInt = {
+      val result = ParameterizedWidth
+        .copyShape(one, one |<< index)
+        .setName(stableName, weak = true)
+        .dontSimplifyIt()
+      result
+    }
+
+    override def lowMask(value: UInt, stableName: String): Bits = {
+      val resized = value
+        .resize(elabDepth)
+        .setName(s"${stableName}_uint", weak = true)
+      resized.dontSimplifyIt()
+      val result = resized.asBits.setName(stableName, weak = true)
+      result.dontSimplifyIt()
+      result
+    }
+
+    override def stabilizeMask(value: Bits, stableName: String): Bits = {
+      val result = Bits(elabDepth bits)
+        .setName(stableName, weak = true)
+        .dontSimplifyIt()
+      result := value
+      result
+    }
+
+    override def clearMask(mask: Bits): Unit = mask := 0
+
+    override def assignBool(target: Bool, value: Bool): Bool = {
+      target := value
+      target
+    }
+
+    override def oneStageChecks(target: Vec[Bool], value: Bool): Vec[Bool] = {
+      target(0) := value
+      target
+    }
+
+    override def emptyChecks(target: Vec[Bool]): Vec[Bool] = target
+
+    override def boolBranches(stableName: String)(
+        storage: Bool => Bool,
+        oneStageBranch: Bool => Bool,
+        bypass: Bool => Bool
+    ): Bool = {
+      val result = Bool().setName(stableName)
+      if (formalStorageOwner != null)
+        ParameterizedStructure.captureInto(
+          formalStorageOwner,
+          elabDepth,
+          s"StreamFifo $stableName storage owner"
+        ) {
+          storage(result)
+        }
+      if (formalOneStageOwner != null)
+        ParameterizedStructure.captureInto(
+          formalOneStageOwner,
+          elabDepth,
+          s"StreamFifo $stableName one-stage owner"
+        ) {
+          oneStageBranch(result)
+        }
+      result
+    }
+
+    override def ramBranches(stableName: String)(
+        storage: Vec[Bool] => Vec[Bool],
+        oneStageBranch: Vec[Bool] => Vec[Bool],
+        bypass: Vec[Bool] => Vec[Bool]
+    ): Vec[Bool] = {
+      val result = Vec(Bool(), elabDepth).setName(stableName)
+      if (formalStorageOwner != null)
+        ParameterizedStructure.captureInto(
+          formalStorageOwner,
+          elabDepth,
+          s"StreamFifo $stableName storage owner"
+        ) {
+          storage(result)
+        }
+      if (formalOneStageOwner != null)
+        ParameterizedStructure.captureInto(
+          formalOneStageOwner,
+          elabDepth,
+          s"StreamFifo $stableName one-stage owner"
+        ) {
+          oneStageBranch(result)
+        }
+      result
+    }
+
+    override def reduceOr(checks: Vec[Bool]): Bool =
+      ElabFiniteRange.reduceOr(checks.asBits, elabDepth)
+
+    override def countOne(checks: Vec[Bool]): UInt =
+      ElabFiniteRange.countOne(checks.asBits, elabDepth)(CountOne(checks))
+
+    override def growCountOperand(value: UInt, stableName: String): UInt = {
+      val result = value
+        .resize((elabDepth + 1).addressWidth + 1)
+        .setName(stableName, weak = true)
+      result.dontSimplifyIt()
+      result
+    }
+
+    override def countResult(stableName: String, value: UInt): UInt = {
+      val result = value
+        .resize((elabDepth + 1).addressWidth + 1)
+        .setName(stableName)
+      result.dontSimplifyIt()
+      result
+    }
+
+    /** Pointer registers may retain the native extra-MSB width while formal
+      * RAM addressing needs exactly the storage address width. Absorb that
+      * intentional mismatch once at the symbolic geometry boundary.
+      */
+    private def normalizedIndex(index: UInt, stableName: String): UInt = {
+      val result = UInt(elabDepth.addressWidth bits)
+        .setName(stableName, weak = true)
+        .dontSimplifyIt()
+      result := index.resized
+      result
     }
   }
 
+  private def formalStorageConditions[A <: FormalHelperAdapter](
+      adapter: A
+  )(
+      role: String,
+      stableName: String,
+      existing: Option[adapter.Conditions],
+      cond: T => Bool
+  ): adapter.Conditions =
+    adapter.conditions(role, stableName, existing) { index =>
+      cond(adapter.storagePayload(index))
+    }
+
+  private def formalLowMask[A <: FormalHelperAdapter](
+      adapter: A,
+      one: UInt,
+      index: UInt,
+      stableName: String
+  ): Bits =
+    adapter.lowMask(
+      adapter.shiftMaskOne(one, index, s"${stableName}_shifted_one") - one,
+      stableName
+    )
+
+  private def formalCheckLastPushAlgorithm[A <: FormalHelperAdapter](
+      adapter: A,
+      cond: T => Bool
+  ): Bool = {
+    // The carrier is declared before branch capture so its retained Vec shape
+    // covers the complete depth domain. Predicate drivers and the packed
+    // dynamic selector both remain local to the storage owner.
+    val outerCondition =
+      adapter.outerStorageConditions("formal_last_push_condition")
+    adapter.boolBranches("formal_last_push")(
+      storage = target => {
+        val condition = formalStorageConditions(
+          adapter
+        )(
+          "stream_fifo_formal_last_push",
+          "formal_last_push_condition",
+          outerCondition,
+          cond
+        )
+        val lastPushIndex = adapter.previousStorageIndex(
+          formalStoragePush,
+          "typed_formal_last_push_previous_index"
+        )
+        adapter.assignBool(
+          target,
+          adapter.selectCondition(
+            condition,
+            lastPushIndex,
+            "typed_formal_last_push_index"
+          )
+        )
+      },
+      oneStageBranch = target => adapter.assignBool(target, cond(formalOneStageBuffer.payload)),
+      bypass = target => adapter.assignBool(target, cond(io.push.payload))
+    )
+  }
+
+  private def formalCheckRamAlgorithm[A <: FormalHelperAdapter](
+      adapter: A,
+      cond: T => Bool
+  ): Vec[Bool] = {
+    adapter.ramBranches("formal_ram_check")(
+      storage = target => {
+        val condition = formalStorageConditions(
+          adapter
+        )(
+          "stream_fifo_formal_ram_condition",
+          "formal_ram_condition",
+          None,
+          cond
+        )
+        // Mask all valid storage payloads in the inclusive/exclusive interval
+        // [popIndex, pushIndex), including the wrapped and empty cases.
+        val mask = adapter.newMask("formal_ram_mask")
+        val pushIndex = adapter.maskIndex(
+          formalStoragePush,
+          "typed_formal_ram_push_index"
+        )
+        val popIndex = adapter.maskIndex(
+          formalStoragePop,
+          "typed_formal_ram_pop_index"
+        )
+        val one = adapter.maskOne()
+        val popMask = ~formalLowMask(
+          adapter,
+          one,
+          popIndex,
+          "typed_formal_ram_pop_low_mask"
+        )
+        val pushMask = formalLowMask(
+          adapter,
+          one,
+          pushIndex,
+          "typed_formal_ram_push_low_mask"
+        )
+        val orderedMask = adapter.stabilizeMask(
+          pushMask & popMask,
+          "typed_formal_ram_ordered_mask"
+        )
+        val wrappedMask = adapter.stabilizeMask(
+          pushMask | popMask,
+          "typed_formal_ram_wrapped_mask"
+        )
+        when(popIndex < pushIndex) {
+          adapter.assignMask(mask, orderedMask)
+        }.elsewhen(popIndex > pushIndex) {
+          adapter.assignMask(mask, wrappedMask)
+        }.elsewhen(formalStorageEmpty) {
+          adapter.clearMask(mask)
+        }
+        adapter.checkedRam(target, mask, condition) { (valid, predicate) =>
+          valid & predicate
+        }
+      },
+      oneStageBranch = target =>
+        adapter.oneStageChecks(
+          target,
+          formalOneStageBuffer.valid & cond(formalOneStageBuffer.payload)
+        ),
+      bypass = target => adapter.emptyChecks(target)
+    )
+  }
+
+  private def formalContainsAlgorithm[A <: FormalHelperAdapter](
+      adapter: A,
+      cond: T => Bool
+  ): Bool = {
+    val checks = formalCheckRamAlgorithm(adapter, cond)
+    adapter.reduceOr(checks) || formalCheckOutputStage(cond)
+  }
+
+  private def formalCountAlgorithm[A <: FormalHelperAdapter](
+      adapter: A,
+      stableName: String,
+      cond: T => Bool
+  ): UInt = {
+    val checks = formalCheckRamAlgorithm(adapter, cond)
+    // Mirror the native +^ graph through adapter-owned expansion mechanics so
+    // the symbolic operands retain the exact fold width before the one shared
+    // addition is built.
+    val storageCount = adapter.growCountOperand(
+      adapter.countOne(checks),
+      "typed_formal_storage_count"
+    )
+    val outputCount = adapter.growCountOperand(
+      U(formalCheckOutputStage(cond)),
+      "typed_formal_output_count"
+    )
+    val count = storageCount + outputCount
+    adapter.countResult(stableName, count)
+  }
+
+  private def formalFullToEmptyAlgorithm(empty: Bool): Bool = {
+    val was_full = RegInit(False) setWhen (!io.push.ready)
+    was_full && empty
+  }
+
+  private def capturedFormalResult[R <: Data](
+      role: String
+  )(body: FormalHelperAdapter => R): R = {
+    requirePositiveSymbolicFormalDepth(role)
+    requireSymbolicFormalOwnerCoverage(role)
+    val local = this.rework(body(capturedFormalHelperAdapter))
+    local.pull()
+  }
+
+  /** A pulled typed Vec remains owned by the FIFO child. Reattach the child's
+    * exact late-created Vec formal, construct one caller-owned Vec from the
+    * opaque binding actual, and keep the native whole-Vec assignment as the
+    * exact hierarchy bridge. A subsequent public `asBits` is consequently
+    * recorded against a carrier owned by that same caller.
+    */
+  private def publishCapturedFormalChecks(checks: Vec[Bool]): Vec[Bool] = {
+    val callerDepth = ElabFormalComponent
+      .parentActualAndRefreshVecFormals(this)
+      .getOrElse(elabDepth)
+    val result = Vec(Bool(), callerDepth)
+    result := checks
+    result
+  }
+
   def formalCheckLastPush(cond: T => Bool): Bool = {
-    requireConcreteFormalDepth("StreamFifo.formalCheckLastPush")
-    new Composite(this) {
-      val lastPush = if (logic != null) {
-        val condition = elabDepth
-          .finiteRangeFromZero("StreamFifo formal last-push range")
-          .map(x => cond(if (useVec) logic.vec(x) else logic.ram(x)))
-        val depthValue = ElabValue.uintLike(elabDepth, logic.ptr.push, "typed_formal_last_push_depth")
-        val lastPushIdx = (logic.ptr.push +^ depthValue -^ 1) % depthValue
-        condition(lastPushIdx.resized)
-      } else if (oneStage != null) {
-        cond(oneStage.buffer.payload)
-      } else {
-        cond(io.push.payload)
+    if (elabDepth.isConcrete) {
+      new Composite(this) {
+        val lastPush = formalCheckLastPushAlgorithm(
+          concreteFormalHelperAdapter,
+          cond
+        )
+      }.lastPush
+    } else
+      capturedFormalResult("StreamFifo.formalCheckLastPush") { adapter =>
+        formalCheckLastPushAlgorithm(adapter, cond)
       }
-    }.lastPush
   }
 
   // check a condition against all valid payloads in the FIFO RAM
   def formalCheckRam(cond: T => Bool): Vec[Bool] = {
-    requireConcreteFormalDepth("StreamFifo.formalCheckRam")
-    new Composite(this) {
-      val vec = if (logic != null) {
-        val condition = elabDepth
-          .finiteRangeFromZero("StreamFifo formal RAM range")
-          .map(x => cond(if (useVec) logic.vec(x) else logic.ram(x)))
-        // create mask for all valid payloads in FIFO RAM
-        // inclusive [popd_idx, push_idx) exclusive
-        // assume FIFO RAM is full with valid payloads
-        //           [ ...  push_idx ... ]
-        //           [ ...  pop_idx  ... ]
-        // mask      [ 1 1 1 1 1 1 1 1 1 ]
-        val mask = Vec(True, elabDepth)
-        val push_idx = logic.ptr.push.resize(log2Up(elabDepth))
-        val pop_idx = logic.ptr.pop.resize(log2Up(elabDepth))
-        // pushMask(i)==0 indicates location i was popped
-        val popMask = (~((U(1) << pop_idx) - 1)).asBits
-        // pushMask(i)==1 indicates location i was pushed
-        val pushMask = ((U(1) << push_idx) - 1).asBits
-        // no wrap   [ ... popd_idx ... push_idx ... ]
-        // popMask   [ 0 0 1 1 1 1  1 1 1 1 1 1 1 1 1]
-        // pushpMask [ 1 1 1 1 1 1  1 1 0 0 0 0 0 0 0] &
-        // mask      [ 0 0 1 1 1 1  1 1 0 0 0 0 0 0 0]
-        when(pop_idx < push_idx) {
-          mask.assignFromBits(pushMask & popMask)
-          // wrapped   [ ... push_idx ... popd_idx ... ]
-          // popMask   [ 0 0 0 0 0 0  0 0 1 1 1 1 1 1 1]
-          // pushpMask [ 1 1 0 0 0 0  0 0 0 0 0 0 0 0 0] |
-          // mask      [ 1 1 0 0 0 0  0 0 1 1 1 1 1 1 1]
-        }.elsewhen(pop_idx > push_idx) {
-          mask.assignFromBits(pushMask | popMask)
-          // empty?
-          //           [ ...  push_idx ... ]
-          //           [ ...  pop_idx  ... ]
-          // mask      [ 0 0 0 0 0 0 0 0 0 ]
-        }.elsewhen(logic.ptr.empty) {
-          mask := mask.getZero
-        }
-        val check = mask.zipWithIndex.map { case (x, id) => x & condition(id) }
-        Vec(check)
-      } else if (oneStage != null) {
-        Vec(oneStage.buffer.valid & cond(oneStage.buffer.payload))
-      } else {
-        Vec[Bool](Seq())
+    if (elabDepth.isConcrete) {
+      new Composite(this) {
+        val vec = formalCheckRamAlgorithm(concreteFormalHelperAdapter, cond)
+      }.vec
+    } else {
+      val pulled = capturedFormalResult("StreamFifo.formalCheckRam") { adapter =>
+        formalCheckRamAlgorithm(adapter, cond)
       }
-    }.vec
+      publishCapturedFormalChecks(pulled)
+    }
   }
 
   def formalCheckOutputStage(cond: T => Bool): Bool = {
@@ -1890,29 +2542,116 @@ class StreamFifo[T <: Data](
   //  Vec(formalCheckOutputStage(cond) +: formalCheckRam(cond))
   // }
 
-  def formalContains(word: T): Bool = {
-    formalCheckRam(_ === word.pull()).reduce(_ || _) || formalCheckOutputStage(_ === word.pull())
-  }
+  def formalContains(word: T): Bool =
+    if (elabDepth.isConcrete) {
+      val pulledWord = word.pull()
+      formalContainsAlgorithm(concreteFormalHelperAdapter, _ === pulledWord)
+    } else
+      capturedFormalResult("StreamFifo.formalContains") { adapter =>
+        val pulledWord = word.pull()
+        formalContainsAlgorithm(adapter, _ === pulledWord)
+      }
+
   def formalContains(cond: T => Bool): Bool = {
-    formalCheckRam(cond).reduce(_ || _) || formalCheckOutputStage(cond)
+    if (elabDepth.isConcrete)
+      formalContainsAlgorithm(concreteFormalHelperAdapter, cond)
+    else
+      capturedFormalResult("StreamFifo.formalContains") { adapter =>
+        formalContainsAlgorithm(adapter, cond)
+      }
   }
 
-  def formalCount(word: T): UInt = {
-    // occurance count in RAM and in m2sPipe()
-    CountOne(formalCheckRam(_ === word.pull())) +^ U(formalCheckOutputStage(_ === word.pull()))
-  }
+  def formalCount(word: T): UInt =
+    if (elabDepth.isConcrete) {
+      val pulledWord = word.pull()
+      formalCountAlgorithm(
+        concreteFormalHelperAdapter,
+        "typed_formal_word_count",
+        _ === pulledWord
+      )
+    } else
+      capturedFormalResult("StreamFifo.formalCount") { adapter =>
+        val pulledWord = word.pull()
+        formalCountAlgorithm(
+          adapter,
+          "typed_formal_word_count",
+          _ === pulledWord
+        )
+      }
+
   def formalCount(cond: T => Bool): UInt = {
-    // occurance count in RAM and in m2sPipe()
-    CountOne(formalCheckRam(cond)) +^ U(formalCheckOutputStage(cond))
+    if (elabDepth.isConcrete)
+      formalCountAlgorithm(
+        concreteFormalHelperAdapter,
+        "typed_formal_predicate_count",
+        cond
+      )
+    else
+      capturedFormalResult("StreamFifo.formalCount") { adapter =>
+        formalCountAlgorithm(adapter, "typed_formal_predicate_count", cond)
+      }
   }
 
   def formalFullToEmpty() = {
-    requireConcreteFormalDepth("StreamFifo.formalFullToEmpty")
-    new Area {
-      val was_full = RegInit(False) setWhen (!io.push.ready)
-      cover(was_full && logic.ptr.empty)
+    if (elabDepth.isConcrete) {
+      new Area {
+        cover(formalFullToEmptyAlgorithm(logic.ptr.empty))
+      }
+    } else {
+      requirePositiveSymbolicFormalDepth("StreamFifo.formalFullToEmpty")
+      requireSymbolicFormalOwnerCoverage("StreamFifo.formalFullToEmpty")
+      this.rework {
+        // AssertStatement has no generic identity-to-emitted-process bridge in
+        // structural capture. Keep one exact module-scope observation point
+        // instead: each mutually-exclusive typed owner drives this retained
+        // Bool, while the ordinary native cover remains outside every captured
+        // branch. Branch-local registers therefore cannot escape their
+        // generate owner, and an arbitrary captured assertion still fails
+        // closed in ParameterizedStructure.
+        val reachedEmpty = Bool().setName("formal_full_to_empty")
+        reachedEmpty.dontSimplifyIt()
+        if (formalStorageOwner != null)
+          ParameterizedStructure.captureInto(
+            formalStorageOwner,
+            elabDepth,
+            "StreamFifo formal full-to-empty storage owner"
+          ) {
+            reachedEmpty := formalFullToEmptyAlgorithm(formalStorageEmpty)
+          }
+        if (formalOneStageOwner != null)
+          ParameterizedStructure.captureInto(
+            formalOneStageOwner,
+            elabDepth,
+            "StreamFifo formal full-to-empty one-stage owner"
+          ) {
+            reachedEmpty := formalFullToEmptyAlgorithm(
+              !formalOneStageBuffer.valid
+            )
+          }
+        cover(reachedEmpty)
+        new Area {}
+      }
     }
   }
+
+  private def requirePositiveSymbolicFormalDepth(role: String): Unit = {
+    val expression = elabDepth.projectedExpression(role)
+    if (expression.minimum < 1)
+      throw new ParameterizedVerilogException(
+        "SPINAL-ELAB-STREAMFIFO-FORMAL-DEPTH-DOMAIN-NONPOSITIVE",
+        s"$role requires a strictly positive symbolic StreamFifo depth, but '${expression.verilog}' reaches ${expression.minimum}",
+        elabDepth.sourceLocation
+      )
+  }
+
+  private def requireSymbolicFormalOwnerCoverage(role: String): Unit =
+    ParameterizedStructure.requireOwnerCoverage(
+      this,
+      elabDepth,
+      Seq(formalOneStageOwner, formalStorageOwner),
+      role
+    )
+
 }
 
 object StreamFifoLowLatency {
