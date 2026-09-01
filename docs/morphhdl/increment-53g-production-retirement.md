@@ -90,10 +90,11 @@ repository tree. It proves all of the following without modifying the checkout:
 - narrowing any canonical rule definition or source prefix fails;
 - a clean JAR passes and a JAR containing a retired Scala companion fails.
 
-The old native-source, native-shadow, native-conditional and external-
-formalization script paths remain as compatibility entry points for stable
-required checks. Under 53g they delegate to the negative retirement guard; they
-no longer require the deleted machinery to exist.
+The old native-source, typed-overlay, native-shadow, native-conditional and
+external-formalization script paths remain as compatibility entry points for
+stable required checks. Under 53g they delegate to the negative retirement
+guard; they no longer require the deleted machinery to exist. Historical
+worktrees without the 53g manifest retain the original typed-overlay audit.
 
 ## Canonical validation
 

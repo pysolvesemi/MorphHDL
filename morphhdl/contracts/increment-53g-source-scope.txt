@@ -40,6 +40,7 @@ morphhdl/scripts/check-native-source-preservation.py
 morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
 morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
 morphhdl/scripts/check-production-retirement.py
+morphhdl/scripts/check-typed-native-source-overlay.py
 morphhdl/scripts/check-typed-primitive-closure-boundary.sh
 morphhdl/scripts/prove-native-axi4-factory-offset-equivalence.py
 morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
