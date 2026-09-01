@@ -113,6 +113,12 @@ elaboration is involved.
 | Determinism | Byte-identical repeated emission for the core emitter, adapter, FIFO and enum-localization paths |
 | Closure | Every preceding result must be `success`; a skipped gate cannot close the increment |
 
+The shared V2001 contract keeps its narrow Verilator 5 warning names. When the
+canonical pinned container supplies pre-5 Verilator, the runner translates only
+`UNUSEDSIGNAL` to the historical `UNUSED` family and the split width warnings
+to `WIDTH`; every other lint option and every modern-tool invocation is
+unchanged.
+
 The permanent workflows that previously proved native-`Int` shadow,
 formalization or AXI recognizer behavior retain their workflow and job names
 where practical. Their semantics are reversed: they now prove production

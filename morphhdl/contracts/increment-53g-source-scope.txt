@@ -29,6 +29,7 @@ frontend/src/main/scala/spinal/core/ExternalAnalyzedNativeIntFormalizationPublis
 frontend/src/main/scala/spinal/lib/ExternalParameterizedCounterRegistry.scala
 morphhdl/contracts/increment-53g-production-retirement.contract
 morphhdl/contracts/increment-53g-source-scope.txt
+morphhdl/scripts/check-contracts.sh
 morphhdl/scripts/check-external-formalization-boundary.sh
 morphhdl/scripts/check-external-memory-boundary.sh
 morphhdl/scripts/check-native-int-nested-control-flow-boundary.sh
