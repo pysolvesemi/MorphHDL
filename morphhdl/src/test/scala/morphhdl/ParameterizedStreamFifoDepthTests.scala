@@ -230,6 +230,97 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
     }
   }
 
+  private def assertFormalHelperSymbolicGeometry(verilog: String): Unit = {
+    val depthWideDeclarations =
+      """(?m)^\s*(?:wire|reg)\s+\[[^\]]*DEPTH[^\]]*\]\s+([A-Za-z_][A-Za-z0-9_$]*)\s*;\s*$""".r
+        .findAllMatchIn(verilog)
+        .map(_.group(1))
+        .toSet
+    val allOnes = depthWideDeclarations.filter(
+      _.matches("formal_ram_mask_all_ones_[0-9]+")
+    )
+    val allOnesZero = depthWideDeclarations.filter(
+      _.matches("formal_ram_mask_all_ones_[0-9]+_zero")
+    )
+    val shiftedOne = depthWideDeclarations.filter(
+      _.matches(
+        "typed_formal_ram_(?:pop|push)_low_mask_shifted_one(?:_[0-9]+)?"
+      )
+    )
+    assert(
+      allOnes.size == 5 && allOnesZero.size == 5,
+      s"formal RAM defaults do not retain five DEPTH-wide complement carriers: ones=${allOnes.toVector.sorted.mkString(", ")} zero=${allOnesZero.toVector.sorted.mkString(", ")}\n$verilog"
+    )
+    assert(
+      shiftedOne.count(_.contains("_pop_")) == 5 &&
+        shiftedOne.count(_.contains("_push_")) == 5,
+      s"formal RAM low masks do not retain ten DEPTH-wide shift carriers: ${shiftedOne.toVector.sorted.mkString(", ")}\n$verilog"
+    )
+
+    val complementOrdinals =
+      """(?m)^\s*assign\s+formal_ram_mask_all_ones_([0-9]+)\s*=\s*\(\s*~\s+formal_ram_mask_all_ones_([0-9]+)_zero\s*\)\s*;\s*$""".r
+        .findAllMatchIn(verilog)
+        .map(value => value.group(1) -> value.group(2))
+        .toVector
+    assert(
+      complementOrdinals.size == 5 &&
+        complementOrdinals.forall { case (result, zero) => result == zero },
+      s"formal RAM defaults are not driven by their DEPTH-wide complemented zero carriers: ${complementOrdinals.mkString(", ")}\n$verilog"
+    )
+    val defaultMaskAssignments =
+      """(?m)^\s*(formal_ram_mask(?:_[0-9]+)?)\s*=\s*formal_ram_mask_all_ones_([0-9]+)\s*;\s*$""".r
+        .findAllMatchIn(verilog)
+        .map(value => value.group(1) -> value.group(2))
+        .toVector
+    assert(
+      defaultMaskAssignments.map(_._1).distinct.size == 5 &&
+        defaultMaskAssignments.map(_._2).distinct.size == 5,
+      s"formal RAM masks do not each default from one typed all-ones carrier: ${defaultMaskAssignments.mkString(", ")}\n$verilog"
+    )
+    assert(
+      """(?m)^\s*formal_ram_mask(?:_[0-9]+)?\s*=\s*[0-9]+'b1+\s*;\s*$""".r
+        .findFirstIn(verilog)
+        .isEmpty,
+      s"formal RAM default retained a construction-width all-ones literal:\n$verilog"
+    )
+    assert(
+      """(?m)^\s*(?:wire|reg)\b[^;]*\b_zz_+typed_formal_ram_(?:pop|push)_low_mask(?:_uint)?\b[^;]*;\s*$""".r
+        .findFirstIn(verilog)
+        .isEmpty,
+      s"formal RAM low mask retained an anonymous construction-width shift carrier:\n$verilog"
+    )
+
+    val compactLines = verilog
+      .split("\\r?\\n")
+      .map(_.replaceAll("\\s+", ""))
+    Vector(
+      "typed_formal_last_push_previous_index_pointer",
+      "typed_formal_last_push_previous_index_last_index",
+      "typed_formal_last_push_previous_index_one",
+      "typed_formal_last_push_previous_index_decremented",
+      "typed_formal_last_push_previous_index",
+      "typed_formal_last_push_index"
+    ).foreach { name =>
+      assert(
+        compactLines.exists(
+          _.contains(s"[clog2(DEPTH,1)-1:0]$name;")
+        ),
+        s"last-push predecessor '$name' does not retain exact DEPTH address width:\n$verilog"
+      )
+    }
+    val compact = compactLines.mkString
+    assert(
+      compact.contains(
+        "assigntyped_formal_last_push_previous_index_last_index=((DEPTH-1));"
+      ) &&
+        compact.contains(
+          "typed_formal_last_push_previous_index=typed_formal_last_push_previous_index_decremented;"
+        ) &&
+        !compact.contains("typed_formal_last_push_depth"),
+      s"last-push did not retain the exact-width wrapped-predecessor algorithm:\n$verilog"
+    )
+  }
+
   private def concreteFifoGraph(
       fifo: StreamFifo[_ <: Data]
   ): Vector[String] =
@@ -492,6 +583,7 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
       )
       val formalFifo = nativeStreamFifoDefinition(verilog)
       assertFormalRamCheckAggregateDominance(formalFifo)
+      assertFormalHelperSymbolicGeometry(formalFifo)
       assert(
         """DEPTH\s*\)?\s*==\s*\(?\s*1""".r
           .findFirstIn(formalFifo)
@@ -845,7 +937,9 @@ class ParameterizedStreamFifoDepthTests extends AnyFunSuite {
           verilog
         )
         if (maximum > 1) {
-          assertTypedStoragePopIndex(nativeStreamFifoDefinition(verilog))
+          val formalFifo = nativeStreamFifoDefinition(verilog)
+          assertTypedStoragePopIndex(formalFifo)
+          assertFormalHelperSymbolicGeometry(formalFifo)
           val compactLines = verilog.split("\\r?\\n").map(_.replaceAll("\\s+", ""))
           val exactAddressWidth =
             """.*\[\(?clog2\(\(*DEPTH\)*,1\)\)?-1:0\].*""".r

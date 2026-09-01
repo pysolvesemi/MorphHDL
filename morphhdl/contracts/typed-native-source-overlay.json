@@ -148,7 +148,7 @@
       "path": "lib/src/main/scala/spinal/lib/Stream.scala",
       "change": "modified",
       "classification": "typed-mechanical-propagation",
-      "blob": "ba425c1c15dba9d118306fc50388411a77c2bd51",
+      "blob": "039e050533fd089cd1b7d099ef86f97ee28b900f",
       "reason": "carry typed depth and branch-local geometry through the existing native StreamFifo algorithm"
     }
   ]

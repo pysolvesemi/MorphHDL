@@ -110,7 +110,7 @@ algorithms = source[algorithm_start:algorithm_end]
 
 for label, token in {
     "storage predicate application": "cond(adapter.storagePayload(index))",
-    "last-push arithmetic": "(formalStoragePush +^ depthValue -^ 1) % depthValue",
+    "last-push selection": "val lastPushIndex = adapter.previousStorageIndex(",
     "ordered RAM predicate": "when(popIndex < pushIndex)",
     "wrapped RAM predicate": "elsewhen(popIndex > pushIndex)",
     "empty RAM predicate": "elsewhen(formalStorageEmpty)",
@@ -170,6 +170,7 @@ adapter_start = source.index("  private sealed trait FormalHelperAdapter")
 adapter_end = source.index("  private def formalStorageConditions[", adapter_start)
 adapters = source[adapter_start:adapter_end]
 for token in (
+    "override def previousStorageIndex(",
     "override def conditions(",
     "override def boolBranches(",
     "override def ramBranches(",

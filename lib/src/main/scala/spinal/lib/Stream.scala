@@ -1926,7 +1926,7 @@ class StreamFifo[T <: Data](
     * Concrete helpers retain the inherited Scala finite enumeration, native
     * growing shift and active-witness branch selection. Symbolic helpers swap
     * only those mechanics for exact finite capture, typed mask geometry and
-    * owner-local execution. Predicate application, last-push arithmetic, RAM
+    * owner-local execution. Predicate application, last-push selection, RAM
     * mask decisions and folds remain in the shared bodies below.
     */
   private sealed trait FormalHelperAdapter {
@@ -1948,6 +1948,7 @@ class StreamFifo[T <: Data](
         index: UInt,
         stableName: String
     ): Bool
+    def previousStorageIndex(pointer: UInt, stableName: String): UInt
     def checkedRam(
         target: Vec[Bool],
         mask: Mask,
@@ -1958,7 +1959,7 @@ class StreamFifo[T <: Data](
     def assignMask(mask: Mask, value: Bits): Unit
     def maskIndex(pointer: UInt, stableName: String): UInt
     def maskOne(): UInt
-    def shiftMaskOne(one: UInt, index: UInt): UInt
+    def shiftMaskOne(one: UInt, index: UInt, stableName: String): UInt
     def lowMask(value: UInt, stableName: String): Bits
     def stabilizeMask(value: Bits, stableName: String): Bits
     def clearMask(mask: Mask): Unit
@@ -2009,6 +2010,18 @@ class StreamFifo[T <: Data](
         stableName: String
     ): Bool = condition(index.resized)
 
+    override def previousStorageIndex(
+        pointer: UInt,
+        stableName: String
+    ): UInt = {
+      val depthValue = ElabValue.uintLike(
+        elabDepth,
+        pointer,
+        "typed_formal_last_push_depth"
+      )
+      (pointer +^ depthValue -^ 1) % depthValue
+    }
+
     override def checkedRam(
         target: Vec[Bool],
         mask: Vec[Bool],
@@ -2029,7 +2042,11 @@ class StreamFifo[T <: Data](
 
     override def maskOne(): UInt = U(1)
 
-    override def shiftMaskOne(one: UInt, index: UInt): UInt = one << index
+    override def shiftMaskOne(
+        one: UInt,
+        index: UInt,
+        stableName: String
+    ): UInt = one << index
 
     override def lowMask(value: UInt, stableName: String): Bits = value.asBits
 
@@ -2077,6 +2094,8 @@ class StreamFifo[T <: Data](
     type Conditions = Vec[Bool]
     type Mask = Bits
 
+    private var maskOrdinal = 0
+
     override def conditions(
         role: String,
         stableName: String,
@@ -2105,6 +2124,35 @@ class StreamFifo[T <: Data](
         stableName: String
     ): Bool = condition.read(normalizedIndex(index, stableName))
 
+    override def previousStorageIndex(
+        pointer: UInt,
+        stableName: String
+    ): UInt = {
+      val normalized = normalizedIndex(pointer, s"${stableName}_pointer")
+      val lastIndex = ElabValue.uintLike(
+        elabDepth - 1,
+        normalized,
+        s"${stableName}_last_index"
+      )
+      val one = ElabValue.uintLike(
+        ElabInt.literal(1),
+        normalized,
+        s"${stableName}_one"
+      )
+      val decremented = ParameterizedWidth
+        .copyShape(normalized, normalized - one)
+        .setName(s"${stableName}_decremented", weak = true)
+        .dontSimplifyIt()
+      val result = UInt(elabDepth.addressWidth bits)
+        .setName(stableName)
+        .dontSimplifyIt()
+      result := decremented
+      when(normalized === 0) {
+        result := lastIndex
+      }
+      result
+    }
+
     override def checkedRam(
         target: Vec[Bool],
         mask: Bits,
@@ -2117,8 +2165,14 @@ class StreamFifo[T <: Data](
     }
 
     override def newMask(stableName: String): Bits = {
+      maskOrdinal += 1
+      val allOnesName = s"${stableName}_all_ones_$maskOrdinal"
       val result = Bits(elabDepth bits).setName(stableName, weak = true)
-      result.setAll()
+      val allOnes = ElabValue
+        .uintAllOnes(elabDepth, s"${allOnesName}_zero")
+        .setName(allOnesName, weak = true)
+        .dontSimplifyIt()
+      result := allOnes.asBits
       result
     }
 
@@ -2137,7 +2191,17 @@ class StreamFifo[T <: Data](
       result
     }
 
-    override def shiftMaskOne(one: UInt, index: UInt): UInt = one |<< index
+    override def shiftMaskOne(
+        one: UInt,
+        index: UInt,
+        stableName: String
+    ): UInt = {
+      val result = ParameterizedWidth
+        .copyShape(one, one |<< index)
+        .setName(stableName, weak = true)
+        .dontSimplifyIt()
+      result
+    }
 
     override def lowMask(value: UInt, stableName: String): Bits = {
       val resized = value
@@ -2274,7 +2338,10 @@ class StreamFifo[T <: Data](
       index: UInt,
       stableName: String
   ): Bits =
-    adapter.lowMask(adapter.shiftMaskOne(one, index) - one, stableName)
+    adapter.lowMask(
+      adapter.shiftMaskOne(one, index, s"${stableName}_shifted_one") - one,
+      stableName
+    )
 
   private def formalCheckLastPushAlgorithm[A <: FormalHelperAdapter](
       adapter: A,
@@ -2295,13 +2362,10 @@ class StreamFifo[T <: Data](
           outerCondition,
           cond
         )
-        val depthValue = ElabValue.uintLike(
-          elabDepth,
+        val lastPushIndex = adapter.previousStorageIndex(
           formalStoragePush,
-          "typed_formal_last_push_depth"
+          "typed_formal_last_push_previous_index"
         )
-        val lastPushIndex =
-          (formalStoragePush +^ depthValue -^ 1) % depthValue
         adapter.assignBool(
           target,
           adapter.selectCondition(

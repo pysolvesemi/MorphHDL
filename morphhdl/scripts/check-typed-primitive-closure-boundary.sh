@@ -338,7 +338,9 @@ for token in \
   'index(target) := combine(index(mask), index(condition))' \
   'valid & predicate' \
   'condition.read(normalizedIndex(index, stableName))' \
-  'adapter.shiftMaskOne(one, index) - one' \
+  'adapter.shiftMaskOne(one, index, s"${stableName}_shifted_one") - one' \
+  'copyShape(one, one |<< index)' \
+  '.uintAllOnes(elabDepth, s"${allOnesName}_zero")' \
   '.resize((elabDepth + 1).addressWidth + 1)'; do
   grep -Fq "$token" "$stream_fifo"
 done
@@ -352,7 +354,8 @@ done
 
 # StreamFifo formal helpers have one semantic source. Concrete and captured
 # adapters may select owners, enumerate exact storage and normalize geometry,
-# but they must not fork arithmetic, predicates, mask decisions or reductions.
+# but they must not fork predecessor selection, predicates, mask decisions or
+# reductions.
 python3 - "$stream_fifo" <<'PY'
 from pathlib import Path
 import sys
@@ -364,7 +367,7 @@ algorithms = source[algorithm_start:algorithm_end]
 
 unique_tokens = {
     "storage predicate application": "cond(adapter.storagePayload(index))",
-    "last-push arithmetic": "(formalStoragePush +^ depthValue -^ 1) % depthValue",
+    "last-push selection": "val lastPushIndex = adapter.previousStorageIndex(",
     "ordered RAM predicate": "when(popIndex < pushIndex)",
     "wrapped RAM predicate": "elsewhen(popIndex > pushIndex)",
     "empty RAM predicate": "elsewhen(formalStorageEmpty)",
@@ -425,6 +428,7 @@ adapter_start = source.index("  private sealed trait FormalHelperAdapter")
 adapter_end = source.index("  private def formalStorageConditions[", adapter_start)
 adapters = source[adapter_start:adapter_end]
 for token in (
+    "override def previousStorageIndex(",
     "override def checkedRam(",
     "override def newMask(",
     "override def growCountOperand(",
