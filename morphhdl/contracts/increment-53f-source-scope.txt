@@ -48,7 +48,10 @@ morphhdl/examples/contracts/README.md
 morphhdl/examples/contracts/symbolic_data_shapes.v
 morphhdl/examples/contracts/symbolic_data_shapes_tb.v
 morphhdl/scripts/check-contracts.sh
+morphhdl/scripts/check-external-formalization-boundary.sh
 morphhdl/scripts/check-external-memory-boundary.sh
+morphhdl/scripts/check-native-int-shadow-provenance-boundary.sh
+morphhdl/scripts/check-native-int-symbolic-conditional-boundary.sh
 morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
 morphhdl/scripts/check-typed-primitive-closure-boundary.sh
 morphhdl/scripts/check-typed-vec-boundary.sh

@@ -6,6 +6,7 @@ cd "$root"
 
 region_adapter=frontend/src/main/scala/morphhdl/frontend/formalRegion.scala
 component_adapter=frontend/src/main/scala/morphhdl/frontend/formalComponent.scala
+publisher=frontend/src/main/scala/spinal/core/ExternalAnalyzedNativeIntFormalizationPublisher.scala
 registry=morphruntime/src/main/scala/spinal/core/ExternalNativeIntFormalizationRegistry.scala
 formal_registry=morphruntime/src/main/scala/spinal/core/ExternalFormalParameterRegistry.scala
 hdl_int=frontend/src/main/scala/morphhdl/frontend/HdlInt.scala
@@ -16,6 +17,7 @@ document=docs/morphhdl/increment-47-external-formalization-boundary.md
 for path in \
   "$region_adapter" \
   "$component_adapter" \
+  "$publisher" \
   "$registry" \
   "$formal_registry" \
   "$hdl_int" \
@@ -27,13 +29,19 @@ done
 
 grep -Fq 'object formalRegion' "$region_adapter"
 grep -Fq 'constructor: Int => T' "$region_adapter"
-grep -Fq 'ExternalNativeIntFormalizationRegistry.attachRegion' "$region_adapter"
+grep -Fq 'ExternalAnalyzedNativeIntFormalizationPublisher.captureRegion' "$region_adapter"
+grep -Fq 'ExternalAnalyzedNativeIntFormalizationPublisher.publishRegion' "$region_adapter"
 grep -Fq 'object formalComponent' "$component_adapter"
 grep -Fq 'constructor: Int => C' "$component_adapter"
 grep -Fq 'geometry: C => Iterable[Data]' "$component_adapter"
-grep -Fq 'ExternalNativeIntFormalizationRegistry.attachComponent' "$component_adapter"
-grep -Fq 'ExternalFormalParameterRegistry.attach' "$registry"
-grep -Fq 'ExternalFormalParameterRegistry.retainComponent' "$registry"
+grep -Fq 'ExternalAnalyzedNativeIntFormalizationPublisher.captureComponent' "$component_adapter"
+grep -Fq 'ExternalAnalyzedNativeIntFormalizationPublisher.publishComponent' "$component_adapter"
+grep -Fq 'ExternalNativeIntFormalizationRegistry.attachRegionAtomically' "$publisher"
+grep -Fq 'ExternalNativeIntFormalizationRegistry.attachComponentAtomically' "$publisher"
+grep -Fq 'ExternalFormalParameterRegistry.preflightAttachAll' "$registry"
+grep -Fq 'ExternalFormalParameterRegistry.commitAttachAll' "$registry"
+grep -Fq 'ExternalFormalParameterRegistry.preflightRetainComponent' "$registry"
+grep -Fq 'ExternalFormalParameterRegistry.commitRetainComponent' "$registry"
 grep -Fq 'System.identityHashCode' "$registry"
 grep -Fq 'ReferenceQueue[Data]' "$registry"
 grep -Fq 'ReferenceQueue[Component]' "$registry"
@@ -60,7 +68,10 @@ component = Path(
 region = Path(
     "frontend/src/main/scala/morphhdl/frontend/formalRegion.scala"
 ).read_text()
-production = "\n".join((registry, component, region))
+publisher = Path(
+    "frontend/src/main/scala/spinal/core/ExternalAnalyzedNativeIntFormalizationPublisher.scala"
+).read_text()
+production = "\n".join((registry, component, region, publisher))
 
 for forbidden in (
     "HashMap.empty[Int",
@@ -99,7 +110,7 @@ required_phrases = (
     "Weak keys bound metadata lifetime",
     "constructor receives only the checked concrete witness",
 )
-combined = registry + "\n" + component + "\n" + region
+combined = registry + "\n" + component + "\n" + region + "\n" + publisher
 for phrase in required_phrases:
     if phrase not in combined:
         raise SystemExit(f"native-Int boundary rationale is missing: {phrase}")
