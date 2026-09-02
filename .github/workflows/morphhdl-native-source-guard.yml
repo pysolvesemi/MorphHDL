@@ -1,15 +1,13 @@
 name: MorphHDL native source guard
 
-# Stable required-check name. Increment 53g replaces positive preservation of
-# legacy native-Int machinery with a fail-closed production-retirement guard.
+# Stable required-check name. Increment 55 combines the exact approved native
+# delta with the fail-closed Increment 53g production-retirement boundary.
 on:
   push:
     branches:
       - main
       - parameterized-verilog
-      - 'agent/increment-53d-*'
-      - 'agent/increment-53e-*'
-      - 'agent/increment-53g-*'
+      - 'agent/increment-*'
   pull_request:
     branches: [main, parameterized-verilog]
   workflow_dispatch:
@@ -31,11 +29,12 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-      - name: Syntax-check and self-test the retirement boundary
+      - name: Syntax-check and self-test the exact native boundary
         run: |
           python3 -m py_compile \
             morphhdl/scripts/check-production-retirement.py \
-            morphhdl/scripts/check-native-source-preservation.py
-          python3 morphhdl/scripts/check-production-retirement.py --self-test
+            morphhdl/scripts/check-native-source-preservation.py \
+            morphhdl/scripts/check-typed-native-source-overlay.py
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test
       - name: Verify the reviewed production state
-        run: python3 morphhdl/scripts/check-production-retirement.py
+        run: python3 morphhdl/scripts/check-native-source-preservation.py

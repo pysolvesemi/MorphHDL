@@ -10,6 +10,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 
 import morphhdl.{MorphVerilog, MorphVerilogException}
+import morphhdl.runtime.ParameterizedVerilogMode
 
 private object ParameterizedDataShapeTestFixture {
   final case class Payload(shapeWidth: ParameterizedBitCount) extends Bundle {
@@ -335,7 +336,7 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
   test("inherited validation rejects missing and overlapping output drivers") {
     val missing = withTemporaryDirectory { directory =>
       intercept[SpinalExit] {
-        SpinalVerilog(concreteConfig(directory).copy(parameterizedVerilog = true)) {
+        SpinalVerilog(ParameterizedVerilogMode.enable(concreteConfig(directory))) {
           new Component {
             setDefinitionName("MissingShapeDriver")
             val din = in(ParameterizedWidth.Bits(bitCount))
@@ -350,7 +351,7 @@ class ParameterizedDataShapeTests extends AnyFunSuite {
 
     val multiple = withTemporaryDirectory { directory =>
       intercept[SpinalExit] {
-        SpinalVerilog(concreteConfig(directory).copy(parameterizedVerilog = true)) {
+        SpinalVerilog(ParameterizedVerilogMode.enable(concreteConfig(directory))) {
           new Component {
             setDefinitionName("MultipleShapeDrivers")
             val first = in(ParameterizedWidth.Bits(bitCount))

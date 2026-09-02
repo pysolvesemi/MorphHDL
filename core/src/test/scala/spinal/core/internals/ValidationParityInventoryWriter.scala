@@ -19,7 +19,12 @@ object ValidationParityInventoryWriter {
 
     val witnessDirectory = Files.createTempDirectory("morphhdl-phase-inventory-")
     try {
-      val report = SpinalVerilog(SpinalConfig(targetDirectory = witnessDirectory.toString)) {
+      var inheritedValidationPhaseIds: Vector[String] = null
+      val config = SpinalConfig(targetDirectory = witnessDirectory.toString)
+      config.phasesInserters += { phases =>
+        inheritedValidationPhaseIds = ValidationPhaseInventory.idsOf(phases)
+      }
+      SpinalVerilog(config) {
         new Component {
           setDefinitionName("ValidationParityInventoryProbe")
           val input = in(Bool())
@@ -27,19 +32,22 @@ object ValidationParityInventoryWriter {
           output := input
         }
       }
-      if (report.inheritedValidationPhaseIds != report.expectedInheritedValidationPhaseIds) {
+      if (inheritedValidationPhaseIds == null) {
+        throw new IllegalStateException("baseline phase inserter did not run")
+      }
+      if (inheritedValidationPhaseIds != ValidationPhaseInventory.expectedIds) {
         throw new IllegalStateException(
-          s"shared phase plan drift: expected ${report.expectedInheritedValidationPhaseIds.mkString(",")}, " +
-            s"observed ${report.inheritedValidationPhaseIds.mkString(",")}"
+          s"inherited phase inventory drift: expected ${ValidationPhaseInventory.expectedIds.mkString(",")}, " +
+            s"observed ${inheritedValidationPhaseIds.mkString(",")}"
         )
       }
-      if (report.inheritedValidationPhaseIds.distinct.size != report.inheritedValidationPhaseIds.size) {
-        throw new IllegalStateException("shared phase plan contains duplicate validation IDs")
+      if (inheritedValidationPhaseIds.distinct.size != inheritedValidationPhaseIds.size) {
+        throw new IllegalStateException("inherited phase inventory contains duplicate validation IDs")
       }
       Option(output.getParent).foreach { parent => Files.createDirectories(parent) }
       Files.write(
         output,
-        (report.inheritedValidationPhaseIds.mkString("\n") + "\n").getBytes(StandardCharsets.UTF_8),
+        (inheritedValidationPhaseIds.mkString("\n") + "\n").getBytes(StandardCharsets.UTF_8),
         StandardOpenOption.CREATE,
         StandardOpenOption.TRUNCATE_EXISTING,
         StandardOpenOption.WRITE

@@ -1,5 +1,6 @@
 package spinal.idslplugin.components
 
+import scala.collection.mutable.ArrayBuffer
 import scala.reflect.internal.Trees
 import scala.tools.nsc.Global
 import scala.tools.nsc.plugins.PluginComponent

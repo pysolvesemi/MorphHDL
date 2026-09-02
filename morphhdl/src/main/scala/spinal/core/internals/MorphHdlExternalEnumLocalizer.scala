@@ -1,5 +1,7 @@
 package spinal.core.internals
 
+import morphhdl.runtime.ParameterizedVerilogMode
+
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths, StandardCopyOption, StandardOpenOption}
 import java.util.IdentityHashMap
@@ -180,7 +182,7 @@ object MorphHdlExternalEnumLocalizer {
   )
 
   def rewrite(pc: PhaseContext): Unit = {
-    if (!pc.config.parameterizedVerilog) return
+    if (!ParameterizedVerilogMode.isEnabled(pc.config)) return
     if (pc.config.oneFilePerComponent) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-ENUM-MULTI-FILE-UNSUPPORTED",

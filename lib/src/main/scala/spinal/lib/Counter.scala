@@ -5,13 +5,10 @@ import spinal.core._
 /** Direction in which a counter is allowed to advance. */
 sealed trait CounterDirection
 object CounterDirection {
-
   /** Increment only; calling `decrement()` is rejected at elaboration. */
-  case object Up extends CounterDirection
-
+  case object Up   extends CounterDirection
   /** Decrement only; calling `increment()` is rejected at elaboration. */
   case object Down extends CounterDirection
-
   /** Both `increment()` and `decrement()` are allowed. */
   case object Both extends CounterDirection
 }
@@ -19,15 +16,12 @@ object CounterDirection {
 /** Behavior when a counter would step past its upper or lower boundary. */
 sealed trait BoundaryPolicy
 object BoundaryPolicy {
-
   /** Modular wrap-around: at the upper boundary jump to the lower bound, and vice versa. */
-  case object Wrap extends BoundaryPolicy
-
+  case object Wrap     extends BoundaryPolicy
   /** Pin at the boundary; further steps in that direction are absorbed. */
   case object Saturate extends BoundaryPolicy
-
   /** Latch at the boundary on the cycle it is reached; only `clear()` or `load()` releases the latch. */
-  case object Freeze extends BoundaryPolicy
+  case object Freeze   extends BoundaryPolicy
 }
 
 /** Common interface implemented by every counter primitive in this file.
@@ -39,22 +33,16 @@ object BoundaryPolicy {
   * @tparam T The bit-vector type carrying counter state (`UInt` for binary/Gray, `Bits` for one-hot/Johnson).
   */
 trait CounterLike[T <: BitVector] extends ImplicitArea[T] {
-
   /** Current registered counter value. */
   def value: T
-
   /** Combinational next value driven into the register this cycle. */
   def valueNext: T
-
   /** True on the cycle the counter is being reset to its initial value. */
   val willClear: Bool
-
   /** True on the cycle the counter is being loaded from an external value. */
   val willLoad: Bool
-
   /** True on the cycle the counter is moving (incrementing or decrementing). */
   val willAdvance: Bool
-
   /** True on the cycle the counter is completing a wrap (overflow or underflow). */
   val willComplete: Bool
 
@@ -88,13 +76,10 @@ trait CounterLike[T <: BitVector] extends ImplicitArea[T] {
   * know the underlying encoding (binary, one-hot, Gray, ...).
   */
 trait CounterAddressable[T <: BitVector] extends CounterLike[T] {
-
   /** Load the counter into its `index`-th ordinal state. `0` is the start, `stateCount - 1` is the end. */
   def loadOrdinal(index: UInt): Unit
-
   /** @see [[loadOrdinal(UInt)]] */
-  def loadOrdinal(index: Int): Unit = loadOrdinal(U(index, log2Up(stateCount) bits))
-
+  def loadOrdinal(index: Int   ): Unit = loadOrdinal(U(index, log2Up(stateCount) bits))
   /** @see [[loadOrdinal(UInt)]] */
   def loadOrdinal(index: BigInt): Unit = loadOrdinal(U(index, log2Up(stateCount) bits))
 }
@@ -112,50 +97,44 @@ trait CounterAddressable[T <: BitVector] extends CounterLike[T] {
   * @param lower Policy applied when a decrement would fall below the lower boundary.
   */
 abstract class BoundedCounter[T <: BitVector](
-    val direction: CounterDirection,
-    val upper: BoundaryPolicy,
-    val lower: BoundaryPolicy
+  val direction: CounterDirection,
+  val upper: BoundaryPolicy,
+  val lower: BoundaryPolicy
 ) extends ImplicitArea[T]
-    with CounterLike[T]
-    with CounterAddressable[T] {
+  with CounterLike[T]
+  with CounterAddressable[T] {
 
   protected val hasUp: Boolean = direction != CounterDirection.Down
   protected val hasDown: Boolean = direction != CounterDirection.Up
 
   /** True on the cycle an increment is requested. */
   val willIncrement = False.allowOverride
-
   /** True on the cycle a decrement is requested. */
   val willDecrement = False.allowOverride
-  val willClear = False.allowOverride
-  val willLoad = False.allowOverride
+  val willClear     = False.allowOverride
+  val willLoad      = False.allowOverride
 
   /** True when the registered value sits at the upper boundary (i.e. an increment would overflow). */
   def willOverflowIfInc: Bool
-
   /** True when the registered value sits at the lower boundary (i.e. a decrement would underflow). */
   def willUnderflowIfDec: Bool
 
   /** [[willOverflowIfInc]] qualified with `willIncrement` (and, in `Both` mode, gated by `!willDecrement`). */
-  lazy val willOverflow = Counter.guardedComplete(direction)(willOverflowIfInc, willIncrement, willDecrement)
-
+  lazy val willOverflow  = Counter.guardedComplete(direction)(willOverflowIfInc,  willIncrement, willDecrement)
   /** [[willUnderflowIfDec]] qualified with `willDecrement` (and, in `Both` mode, gated by `!willIncrement`). */
   lazy val willUnderflow = Counter.guardedComplete(direction)(willUnderflowIfDec, willDecrement, willIncrement)
-  lazy val willAdvance = Counter.byDirection(direction)(willIncrement, willDecrement)
-  lazy val willComplete = Counter.byDirection(direction)(willOverflow, willUnderflow)
+  lazy val willAdvance   = Counter.byDirection(direction)(willIncrement, willDecrement)
+  lazy val willComplete  = Counter.byDirection(direction)(willOverflow,  willUnderflow)
 
   private lazy val freezeReg: Bool = Counter.freezeLatch(
-    upperFreeze = hasUp && upper == BoundaryPolicy.Freeze,
+    upperFreeze = hasUp   && upper == BoundaryPolicy.Freeze,
     lowerFreeze = hasDown && lower == BoundaryPolicy.Freeze,
-    willOverflow,
-    willUnderflow,
-    willClear,
-    willLoad
+    willOverflow, willUnderflow, willClear, willLoad
   )
   override def frozen: Bool = freezeReg
 
   protected lazy val effectiveInc: Bool =
-    if (hasUp && upper == BoundaryPolicy.Freeze) willIncrement && !freezeReg else willIncrement
+    if (hasUp   && upper == BoundaryPolicy.Freeze) willIncrement && !freezeReg else willIncrement
   protected lazy val effectiveDec: Bool =
     if (hasDown && lower == BoundaryPolicy.Freeze) willDecrement && !freezeReg else willDecrement
 
@@ -391,14 +370,9 @@ object Counter {
       handleOverflow = true
     )
 
-  private[lib] def freezeLatch(
-      upperFreeze: Boolean,
-      lowerFreeze: Boolean,
-      willOverflow: Bool,
-      willUnderflow: Bool,
-      willClear: Bool,
-      willLoad: Bool
-  ): Bool = {
+  private[lib] def freezeLatch(upperFreeze: Boolean, lowerFreeze: Boolean,
+                               willOverflow: Bool, willUnderflow: Bool,
+                               willClear: Bool, willLoad: Bool): Bool = {
     if (!upperFreeze && !lowerFreeze) return False
     val setTrig =
       if (upperFreeze && lowerFreeze) willOverflow || willUnderflow
@@ -409,14 +383,15 @@ object Counter {
 
   private[lib] def byDirection(direction: CounterDirection)(up: => Bool, down: => Bool): Bool =
     direction match {
-      case CounterDirection.Up   => up
+      case CounterDirection.Up => up
       case CounterDirection.Down => down
       case CounterDirection.Both => up || down
     }
 
-  private[lib] def guardedComplete(direction: CounterDirection)(ifSig: Bool, trig: Bool, cancel: Bool): Bool =
+  private[lib] def guardedComplete(direction: CounterDirection)
+                                  (ifSig: Bool, trig: Bool, cancel: Bool): Bool =
     if (direction == CounterDirection.Both) ifSig && trig && !cancel
-    else ifSig && trig
+    else                                    ifSig && trig
 
   /** Create a counter on `[start, end]` */
   def apply(start: BigInt, end: BigInt): Counter = new Counter(start, end)
@@ -497,15 +472,13 @@ object Counter {
   /** Create a counter on `[0, Clocks for given Time]` */
   def apply(time: TimeNumber): Counter = apply(
     ((time.toBigDecimal * ClockDomain.current.frequency.getValue.toBigDecimal)
-      .setScale(0, BigDecimal.RoundingMode.UP))
-      .toBigInt
+      .setScale(0, BigDecimal.RoundingMode.UP)).toBigInt
   )
 
   /** Create a counter on `[0, Clocks for given Time]` with `inc` signal as increment enable */
   def apply(time: TimeNumber, inc: Bool): Counter = apply(
     ((time.toBigDecimal * ClockDomain.current.frequency.getValue.toBigDecimal)
-      .setScale(0, BigDecimal.RoundingMode.UP))
-      .toBigInt,
+      .setScale(0, BigDecimal.RoundingMode.UP)).toBigInt,
     inc
   )
 
@@ -564,15 +537,13 @@ class Counter private[lib] (
   def this(
       start: BigInt,
       end: BigInt,
-      direction: CounterDirection = CounterDirection.Up,
-      upper: BoundaryPolicy = BoundaryPolicy.Wrap,
-      lower: BoundaryPolicy = BoundaryPolicy.Wrap,
+  direction: CounterDirection = CounterDirection.Up,
+  upper: BoundaryPolicy = BoundaryPolicy.Wrap,
+  lower: BoundaryPolicy = BoundaryPolicy.Wrap,
       handleOverflow: Boolean = true
-  ) = this(
+) = this(
     Counter.ConcreteBounds(start, end),
-    direction,
-    upper,
-    lower,
+    direction, upper, lower,
     handleOverflow
   )
 
@@ -843,8 +814,7 @@ class Counter private[lib] (
   }
 
   private val w: Int = algorithm.valueWidthWitness
-  private val initialValue: AlgorithmValue =
-    if (direction == CounterDirection.Down) algorithm.upper
+  private val initialValue: AlgorithmValue = if (direction == CounterDirection.Down) algorithm.upper
     else algorithm.lower
 
   val valueNext: UInt = algorithm.valueType()
@@ -890,13 +860,8 @@ class Counter private[lib] (
   }
 
   /** Preserve the historical public/native five-argument update surface. */
-  def stepOne(
-      arith: UInt,
-      boundary: Bool,
-      policy: BoundaryPolicy,
-      wrapTo: BigInt,
-      pinTo: BigInt
-  ): Unit = {
+  def stepOne(arith: UInt, boundary: Bool, policy: BoundaryPolicy,
+              wrapTo: BigInt, pinTo: BigInt): Unit = {
     val prepared = preparedBoundary(
       policy,
       algorithm.literal(wrapTo),
@@ -954,66 +919,75 @@ class Counter private[lib] (
   direction match {
     case CounterDirection.Up =>
       algorithm.withUpdateTarget { target =>
-        emitDirectionalStep(
-          value + U(effectiveInc),
-          willOverflow,
-          upper,
-          wrapTo = algorithm.lower,
-          pinTo = algorithm.upper,
+        emitDirectionalStep(value + U(effectiveInc), willOverflow,  upper, wrapTo = algorithm.lower, pinTo = algorithm.upper,
           target = target
         )
       }
     case CounterDirection.Down =>
       algorithm.withUpdateTarget { target =>
-        emitDirectionalStep(
-          value - U(effectiveDec),
-          willUnderflow,
-          lower,
-          wrapTo = algorithm.upper,
-          pinTo = algorithm.lower,
+        emitDirectionalStep(value - U(effectiveDec), willUnderflow, lower, wrapTo = algorithm.upper,   pinTo = algorithm.lower,
           target = target
         )
       }
     case CounterDirection.Both =>
-      // Resolve lazy controls before a typed adapter captures either structural
-      // alternative, and retain one target across the shared algorithm.
-      val bothIncOnly = incOnly
-      val bothDecOnly = decOnly
-      val bothWillOverflow = willOverflow
-      val bothWillUnderflow = willUnderflow
       val bothWrap = upper == BoundaryPolicy.Wrap && lower == BoundaryPolicy.Wrap
-      algorithm.withUpdateTarget { target =>
-        val upperBoundary = preparedBoundary(
-          upper,
-          wrapTo = algorithm.lower,
-          pinTo = algorithm.upper,
-          target
-        )
-        val lowerBoundary = preparedBoundary(
-          lower,
-          wrapTo = algorithm.upper,
-          pinTo = algorithm.lower,
-          target
-        )
-        algorithm.select(stepTrickControl(bothWrap, handleOverflow)) {
-          emitStepTrick(bothIncOnly, bothDecOnly, target)
-        } {
-          emitComparedSteps(
-            bothIncOnly,
-            bothDecOnly,
-            bothWillOverflow,
-            bothWillUnderflow,
-            target,
-            upperBoundary,
-            lowerBoundary
+      if (typedBounds == null) {
+        val span = end - start + 1
+        // Preserve native lazy-control evaluation order for ordinary counters.
+        // In particular, each completion signal is elaborated inside its
+        // corresponding update branch instead of being hoisted ahead of the
+        // valueNext process.
+        val stepTrick = bothWrap && start == 0 && (isPow2(span) || !handleOverflow)
+        if (stepTrick) {
+          val step = UInt(log2Up(span) bit)
+          when(incOnly) { step := 1 }
+            .elsewhen(decOnly) { step := step.maxValue }
+            .otherwise { step := 0 }
+          valueNext := (value + step).resized
+        } else {
+          valueNext := value
+          when(incOnly) {
+            stepOne(value + 1, willOverflow, upper, wrapTo = start, pinTo = end)
+          }
+          when(decOnly) {
+            stepOne(value - 1, willUnderflow, lower, wrapTo = end, pinTo = start)
+          }
+        }
+      } else {
+        // Resolve lazy controls before a typed adapter captures either
+        // structural alternative, and retain one target across the shared
+        // symbolic algorithm.
+        val bothIncOnly = incOnly
+        val bothDecOnly = decOnly
+        val bothWillOverflow = willOverflow
+        val bothWillUnderflow = willUnderflow
+        algorithm.withUpdateTarget { target =>
+          val upperBoundary = preparedBoundary(
+            upper, wrapTo = algorithm.lower, pinTo = algorithm.upper,
+            target
           )
+          val lowerBoundary = preparedBoundary(
+            lower, wrapTo = algorithm.upper, pinTo = algorithm.lower,
+            target
+          )
+          algorithm.select(stepTrickControl(bothWrap, handleOverflow)) {
+            emitStepTrick(bothIncOnly, bothDecOnly, target)
+          } {
+            emitComparedSteps(
+              bothIncOnly,
+              bothDecOnly,
+              bothWillOverflow,
+              bothWillUnderflow,
+              target,
+              upperBoundary,
+              lowerBoundary
+            )
+          }
         }
       }
   }
 
-  when(willClear) {
-    valueNext := algorithm.clearValue(initialValue, valueNext)
-  }
+  when(willClear) { valueNext := algorithm.clearValue(initialValue, valueNext) }
 
   enableStandardPruning()
   willOverflow.setCompositeName(this, "willOverflow", true)
@@ -1125,6 +1099,7 @@ class Counter private[lib] (
   override def implicitValue: UInt = this.value
 }
 
+
 /** Binary up/down counter on `[0, stateCount - 1]`, kept for compatibility.
   *
   * Equivalent to `new Counter(0, stateCount - 1, CounterDirection.Both)`, plus four legacy aliases
@@ -1132,8 +1107,8 @@ class Counter private[lib] (
   * the previous `CounterUpDown` API.
   */
 class CounterUpDown(
-    stateCountArg: BigInt,
-    handleOverflow: Boolean = true
+  stateCountArg: BigInt,
+  handleOverflow: Boolean = true
 ) extends Counter(0, stateCountArg - 1, CounterDirection.Both, handleOverflow = handleOverflow) {
   val incrementIt = willIncrement
   val decrementIt = willDecrement
@@ -1142,7 +1117,6 @@ class CounterUpDown(
 }
 
 object CounterUpDown {
-
   /** Create a bidirectional counter with `stateCount` states. */
   def apply(stateCount: BigInt): CounterUpDown = new CounterUpDown(stateCount)
 
@@ -1163,7 +1137,6 @@ object CounterUpDown {
 
 /** Convenience factories for down-only counters. */
 object DownCounter {
-
   /** Create a down counter on `[0, stateCount - 1]`. */
   def apply(stateCount: BigInt): Counter = Counter.down(stateCount)
 
@@ -1189,6 +1162,7 @@ object DownCounter {
     new Counter(0, (BigInt(1) << bitCount.value) - 1, CounterDirection.Down)
 }
 
+
 /** One-hot encoded counter with `stateCount` states.
   *
   * The register is `stateCount` bits wide and carries exactly one set bit. Increment rotates the
@@ -1199,11 +1173,11 @@ object DownCounter {
   */
 // One-hot encoded counter with stateCount states
 class OneHotCounter(
-    val stateCount: BigInt,
-    val initialValue: BigInt = 0,
-    direction: CounterDirection = CounterDirection.Up,
-    upper: BoundaryPolicy = BoundaryPolicy.Wrap,
-    lower: BoundaryPolicy = BoundaryPolicy.Wrap
+  val stateCount: BigInt,
+  val initialValue: BigInt = 0,
+  direction: CounterDirection = CounterDirection.Up,
+  upper: BoundaryPolicy = BoundaryPolicy.Wrap,
+  lower: BoundaryPolicy = BoundaryPolicy.Wrap
 ) extends BoundedCounter[Bits](direction, upper, lower) {
 
   require(stateCount > 0)
@@ -1213,9 +1187,9 @@ class OneHotCounter(
   resetValue := B(BigInt(1) << initialValue.toInt, stateCount bits)
 
   val valueNext = Bits(stateCount bits)
-  val value = RegNext(valueNext) init (resetValue)
+  val value = RegNext(valueNext) init(resetValue)
 
-  val willOverflowIfInc = value.msb
+  val willOverflowIfInc  = value.msb
   val willUnderflowIfDec = value.lsb
 
   valueNext := value
@@ -1232,28 +1206,27 @@ class OneHotCounter(
 
   enableStandardPruning()
 
-  def ===(that: Bits): Bool = value === that
-  def ===(that: Int): Bool = value(that)
+  def ===(that: Bits  ): Bool = value === that
+  def ===(that: Int   ): Bool = value(that)
   def ===(that: BigInt): Bool = value(that.toInt)
-  def ===(that: UInt): Bool = value === UIntToOh(that, stateCount.toInt)
+  def ===(that: UInt  ): Bool = value === UIntToOh(that, stateCount.toInt)
 
-  def =/=(that: Bits): Bool = value =/= that
-  def =/=(that: Int): Bool = !value(that)
+  def =/=(that: Bits  ): Bool = value =/= that
+  def =/=(that: Int   ): Bool = !value(that)
   def =/=(that: BigInt): Bool = !value(that.toInt)
-  def =/=(that: UInt): Bool = value =/= UIntToOh(that, stateCount.toInt)
+  def =/=(that: UInt  ): Bool = value =/= UIntToOh(that, stateCount.toInt)
 
-  def !==(that: Bits): Bool = =/=(that)
-  def !==(that: Int): Bool = =/=(that)
+  def !==(that: Bits  ): Bool = =/=(that)
+  def !==(that: Int   ): Bool = =/=(that)
   def !==(that: BigInt): Bool = =/=(that)
-  def !==(that: UInt): Bool = =/=(that)
+  def !==(that: UInt  ): Bool = =/=(that)
 
   override def implicitValue: Bits = this.value
 
   /** Load with the bit at position `index` set. */
-  def load(index: Int): Unit = { valueNext := B(BigInt(1) << index, stateCount bits); willLoad := True }
-
+  def load(index: Int ): Unit = { valueNext := B(BigInt(1) << index, stateCount bits); willLoad := True }
   /** Load with the bit at position `index` set. */
-  def load(index: UInt): Unit = { valueNext := UIntToOh(index, stateCount.toInt); willLoad := True }
+  def load(index: UInt): Unit = { valueNext := UIntToOh(index, stateCount.toInt);     willLoad := True }
 
   def loadOrdinal(index: UInt): Unit = load(index)
 
@@ -1267,20 +1240,16 @@ class OneHotCounter(
 
   /** Override the reset state to have bit `initValue` set. */
   def init(initValue: Int): this.type = reinit(B(BigInt(1) << initValue, stateCount bits))
-
   /** Override the reset state to have bit `initValue` set. */
   def init(initValue: BigInt): this.type = init(initValue.toInt)
-
   /** Override the reset state to the given one-hot pattern (caller is responsible for one-hot validity). */
   def init(initValue: Bits): this.type = reinit(initValue)
-
   /** Override the reset state with the one-hot encoding of `initValue`. */
   def init(initValue: UInt): this.type = reinit(UIntToOh(initValue, stateCount.toInt))
 }
 
 /** Creates a one-hot encoded counter */
 object OneHotCounter {
-
   /** Create a one-hot counter with `stateCount` states */
   def apply(stateCount: BigInt): OneHotCounter = new OneHotCounter(stateCount)
 
@@ -1300,10 +1269,8 @@ object OneHotCounter {
 
   /** Up-only one-hot counter with `stateCount` states. */
   def up(stateCount: BigInt): OneHotCounter = new OneHotCounter(stateCount, direction = CounterDirection.Up)
-
   /** Down-only one-hot counter with `stateCount` states. */
   def down(stateCount: BigInt): OneHotCounter = new OneHotCounter(stateCount, direction = CounterDirection.Down)
-
   /** Bidirectional one-hot counter with `stateCount` states. */
   def both(stateCount: BigInt): OneHotCounter = new OneHotCounter(stateCount, direction = CounterDirection.Both)
 }
@@ -1313,7 +1280,6 @@ object OneHotCounter {
   * sequence with only one bit transition per cycle.
   */
 object JohnsonCounter {
-
   /** Create a Johnson counter of the given width */
   def apply(width: Int): JohnsonCounter = new JohnsonCounter(width)
 
@@ -1337,10 +1303,10 @@ object JohnsonCounter {
   */
 // Johnson (twisted-ring) counter with `2*width` legal states, self-recovering from illegal states
 class JohnsonCounter(
-    val width: Int,
-    val upper: BoundaryPolicy = BoundaryPolicy.Wrap
+  val width: Int,
+  val upper: BoundaryPolicy = BoundaryPolicy.Wrap
 ) extends ImplicitArea[Bits]
-    with CounterLike[Bits] {
+  with CounterLike[Bits] {
   require(width >= 2, "JohnsonCounter needs at least 2 bits for stuck-state recovery")
   require(upper != BoundaryPolicy.Saturate, "Johnson counter does not support Saturate")
 
@@ -1373,7 +1339,7 @@ class JohnsonCounter(
 
   when(effectiveInc) {
     valueNext := willOverflowIfInc ? B(0, width bits) |
-      (value(width - 2 downto 0) ## !value(width - 1))
+                   (value(width - 2 downto 0) ## !value(width - 1))
   }
   when(willClear) { valueNext := 0 }
 
@@ -1398,6 +1364,7 @@ class JohnsonCounter(
   override def implicitValue: Bits = value
 }
 
+
 /** Gray-coded counter with `2 ^ width` states.
   *
   * Adjacent states differ by exactly one bit, including across the wrap. The counter is
@@ -1410,21 +1377,21 @@ class JohnsonCounter(
 //   increment: word = Cat(1, gray[width-3:0],  even)
 //   decrement: word = Cat(1, gray[width-3:0], !even)
 class GrayCounter(
-    val width: Int,
-    direction: CounterDirection = CounterDirection.Up,
-    upper: BoundaryPolicy = BoundaryPolicy.Wrap,
-    lower: BoundaryPolicy = BoundaryPolicy.Wrap
+  val width: Int,
+  direction: CounterDirection = CounterDirection.Up,
+  upper: BoundaryPolicy = BoundaryPolicy.Wrap,
+  lower: BoundaryPolicy = BoundaryPolicy.Wrap
 ) extends BoundedCounter[UInt](direction, upper, lower) {
 
   require(width >= 2, "GrayCounter needs width >= 2")
 
-  val value = Reg(UInt(width bits)) init (0)
+  val value = Reg(UInt(width bits)) init(0)
   val valueNext = UInt(width bits)
   private[lib] val even = RegInit(True)
 
   // Top (ordinal = 2^N - 1) is the MSB-only pattern `1 << (N-1)`; bottom is all zeros.
   private[lib] val topState = U(BigInt(1) << (width - 1), width bits)
-  val willOverflowIfInc = value === topState
+  val willOverflowIfInc  = value === topState
   val willUnderflowIfDec = value === U(0, width bits)
 
   private val upperBlock: Bool = if (upper == BoundaryPolicy.Wrap) False else willOverflowIfInc
@@ -1434,7 +1401,7 @@ class GrayCounter(
   private val shouldDec = decOnly && !lowerBlock
 
   private val midSlice = value(width - 3 downto 0).asBits
-  private val incWord = Cat(True, midSlice, even)
+  private val incWord = Cat(True, midSlice,  even)
   private val decWord = Cat(True, midSlice, !even)
 
   valueNext := value
@@ -1455,7 +1422,7 @@ class GrayCounter(
     }
   }
 
-  if (hasUp) applyGrayStep(shouldInc, incWord)
+  if (hasUp)   applyGrayStep(shouldInc, incWord)
   if (hasDown) applyGrayStep(shouldDec, decWord)
   when(willClear) { valueNext := 0; even := True }
 
@@ -1481,7 +1448,6 @@ class GrayCounter(
 
 /** Factories for [[GrayCounter]]. */
 object GrayCounter {
-
   /** Up-only Gray counter of the given width. */
   def apply(width: Int): GrayCounter = new GrayCounter(width)
 
@@ -1494,13 +1460,12 @@ object GrayCounter {
 
   /** Up-only Gray counter. */
   def up(width: Int): GrayCounter = new GrayCounter(width, CounterDirection.Up)
-
   /** Down-only Gray counter. */
   def down(width: Int): GrayCounter = new GrayCounter(width, CounterDirection.Down)
-
   /** Bidirectional Gray counter. */
   def both(width: Int): GrayCounter = new GrayCounter(width, CounterDirection.Both)
 }
+
 
 /** Counter built from a sequence of conditional update functions.
   *
@@ -1513,12 +1478,12 @@ object GrayCounter {
   * @return The registered counter value (post-update each cycle).
   */
 object CounterMultiRequest {
-  def apply(width: Int, requests: (Bool, (UInt) => UInt)*): UInt = {
-    val counter = Reg(UInt(width bit)) init (0)
+  def apply(width: Int, requests : (Bool,(UInt) => UInt)*): UInt = {
+    val counter = Reg(UInt(width bit)) init(0)
     var counterNext = cloneOf(counter)
     counterNext := counter
-    for ((cond, func) <- requests) {
-      when(cond) {
+    for((cond,func) <- requests){
+      when(cond){
         counterNext \= func(counterNext)
       }
     }

@@ -11,6 +11,7 @@ import org.scalatest.funsuite.AnyFunSuite
 
 import spinal.core._
 import spinal.core.internals.{PhaseContext, PhaseMisc}
+import morphhdl.runtime.ParameterizedVerilogMode
 
 class ExternalBoundaryPassThrough extends Component {
   val io = new Bundle {
@@ -94,6 +95,14 @@ class ExternalSpinalVerilogBaselineTests extends AnyFunSuite {
       assert(report.inspection.top.ports.map(_.direction).toSet == Set("input", "output"))
       assert(report.inspection.top.ports.forall(_.width == 4))
       assert(report.generatedSourcesPaths.size == 1)
+      assert(
+        report.inheritedValidationPhaseIds ==
+          ExternalSpinalVerilog.expectedInheritedValidationPhaseIds
+      )
+      assert(
+        report.expectedInheritedValidationPhaseIds ==
+          ExternalSpinalVerilog.expectedInheritedValidationPhaseIds
+      )
 
       val verilog = read(report.generatedSourcesPaths.head)
       assert(verilog.contains(s"module ${report.nativeReport.toplevelName}"))
@@ -112,6 +121,23 @@ class ExternalSpinalVerilogBaselineTests extends AnyFunSuite {
       assert(inspection > publication)
       assert(inspection == phaseNames.size - 1)
     }
+  }
+
+  test("parameterized mode clones baseline flags without changing the caller config") {
+    val config = SpinalConfig()
+    config.flags += GenerationFlags.formal
+
+    val enabled = ParameterizedVerilogMode.enable(config)
+    assert(!(enabled.flags eq config.flags))
+    assert(enabled.flags.contains(GenerationFlags.formal))
+    assert(ParameterizedVerilogMode.isEnabled(enabled))
+    assert(!ParameterizedVerilogMode.isEnabled(config))
+
+    val disabled = ParameterizedVerilogMode.disable(enabled)
+    assert(!(disabled.flags eq enabled.flags))
+    assert(disabled.flags.contains(GenerationFlags.formal))
+    assert(!ParameterizedVerilogMode.isEnabled(disabled))
+    assert(ParameterizedVerilogMode.isEnabled(enabled))
   }
 
   test("external boundary preserves configured transformation phases and phase inserters") {
