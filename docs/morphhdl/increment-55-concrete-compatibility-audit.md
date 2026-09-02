@@ -387,9 +387,9 @@ finishes.
 | Approved native path entries | 21 |
 | Reviewed modified-file byte spans | 128 |
 | Unchanged baseline native paths | 685 |
-| Scala 2.12.18 compatibility and concrete parity | Passed locally at `ae5f4a9cf5ac3c7f6a4f336f0f4df2ffd711e5b5`: JVM ABI, unchanged source/Product fixture, source-generated RTL and baseline-binary/current-runtime RTL |
-| Scala 2.13.12 compatibility and concrete parity | Passed locally at `ae5f4a9cf5ac3c7f6a4f336f0f4df2ffd711e5b5`: JVM ABI, unchanged source/Product fixture, source-generated RTL and baseline-binary/current-runtime RTL |
-| Inherited SBT/Mill/tool/formal/mutation/determinism matrix | _Pending canonical workflow_ |
+| Scala 2.12.18 compatibility and concrete parity | Passed at `9293c6d27563be22f8ee0a0270ae4e2e64607d44` in canonical workflow run [33646692379](https://github.com/pysolvesemi/MorphHDL/actions/runs/33646692379): JVM ABI, unchanged source/Product fixture, source-generated RTL and baseline-binary/current-runtime RTL |
+| Scala 2.13.12 compatibility and concrete parity | Passed at `9293c6d27563be22f8ee0a0270ae4e2e64607d44` in canonical workflow run [33646692379](https://github.com/pysolvesemi/MorphHDL/actions/runs/33646692379): JVM ABI, unchanged source/Product fixture, source-generated RTL and baseline-binary/current-runtime RTL |
+| Inherited SBT/Mill/tool/formal/mutation/determinism matrix | Passed at `9293c6d27563be22f8ee0a0270ae4e2e64607d44` in canonical workflow run [33646692379](https://github.com/pysolvesemi/MorphHDL/actions/runs/33646692379); all 17 jobs reported `success`, including every required matrix cell and `Increment 55 canonical closure` job `100312340403`. |
 | Exact source-scope review | 42 implementation/audit paths; roadmap checkbox verified separately |
 
 Only after these observations are filled, the exact source scope is sealed and
