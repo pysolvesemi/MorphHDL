@@ -365,8 +365,8 @@ finishes.
 | Approved native path entries | 21 |
 | Reviewed modified-file byte spans | 128 |
 | Unchanged baseline native paths | 685 |
-| Scala 2.12.18 compatibility and concrete parity | _Pending final gate_ |
-| Scala 2.13.12 compatibility and concrete parity | _Pending final gate_ |
+| Scala 2.12.18 compatibility and concrete parity | Passed locally at `ae5f4a9cf5ac3c7f6a4f336f0f4df2ffd711e5b5`: JVM ABI, unchanged source/Product fixture, source-generated RTL and baseline-binary/current-runtime RTL |
+| Scala 2.13.12 compatibility and concrete parity | Passed locally at `ae5f4a9cf5ac3c7f6a4f336f0f4df2ffd711e5b5`: JVM ABI, unchanged source/Product fixture, source-generated RTL and baseline-binary/current-runtime RTL |
 | Inherited SBT/Mill/tool/formal/mutation/determinism matrix | _Pending canonical workflow_ |
 | Exact source-scope review | 41 implementation/audit paths; roadmap checkbox verified separately |
 
