@@ -937,7 +937,9 @@ class Counter private[lib] (
         // In particular, each completion signal is elaborated inside its
         // corresponding update branch instead of being hoisted ahead of the
         // valueNext process.
-        val stepTrick = bothWrap && start == 0 && (isPow2(span) || !handleOverflow)
+        // A singleton range has no representable step bit. Keep it on the
+        // compared path, matching the typed control's stateCount > 1 gate.
+        val stepTrick = span > 1 && bothWrap && start == 0 && (isPow2(span) || !handleOverflow)
         if (stepTrick) {
           val step = UInt(log2Up(span) bit)
           when(incOnly) { step := 1 }

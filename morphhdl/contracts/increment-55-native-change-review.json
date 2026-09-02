@@ -1085,7 +1085,7 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 55: audit concrete compatibility"
       ],
-      "reason": "Add typed Counter overloads and one exact geometry adapter around the authoritative native stepping algorithm.",
+      "reason": "Add typed Counter overloads and one exact geometry adapter around the authoritative native stepping algorithm, with a reviewed singleton guard that prevents a zero-bit concrete step.",
       "edits": [
         {
           "id": "counter-typed-bounds-01",
@@ -1273,11 +1273,16 @@
           "id": "counter-typed-bounds-15",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
-          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; preserve native concrete Both-mode ordering for non-singleton ranges and keep singleton ranges on the compared path because no step bit is representable.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "handleOverflow",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "span > 1",
               "count": 1
             }
           ]
