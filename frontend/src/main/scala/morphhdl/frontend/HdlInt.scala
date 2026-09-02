@@ -1,5 +1,7 @@
 package morphhdl.frontend
 
+import scala.language.implicitConversions
+
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
 import morphhdl.paramrtl.BoolExpr.{
   Equal => BoolEqual,
@@ -193,7 +195,8 @@ final class HdlInt private[frontend] (
   def asElabInt: spinal.core.ElabInt = {
     val analyzed =
       StructuralExpressionBridge.analyzedWidth(this, "typed elaboration integer")
-    HdlInt.exactSingleRootElabInt(analyzed)
+    HdlInt
+      .exactSingleRootElabInt(analyzed)
       .getOrElse(spinal.core.ElabInt.fromExpression(analyzed.expression))
   }
 
@@ -497,7 +500,31 @@ final class HdlInt private[frontend] (
   override def toString: String = "HdlInt(<dual-valued>)"
 }
 
-object HdlInt {
+private[frontend] trait LowPriorityHdlIntImplicits {
+
+  /** One-way bridge into the native typed elaboration domain. There is
+    * deliberately no inverse conversion to Scala `Int`: ordinary literal
+    * overloads therefore stay concrete while symbolic arguments select only
+    * APIs which explicitly accept [[spinal.core.ElabInt]]. The target equality
+    * prevents adaptation to any other result type. Keeping this conversion in
+    * an inherited low-priority trait lets the established `width bits`
+    * companion extension win during member lookup.
+    */
+  implicit def hdlIntToElabInt[A](value: HdlInt)(implicit
+      target: spinal.core.ElabInt =:= A
+  ): A = {
+    if (value eq null) {
+      FrontendException.fail(
+        "MORPH-FRONTEND-TYPED-INTEGER-NULL",
+        "native typed library calls require a non-null HdlInt"
+      )
+    }
+    target(value.asElabInt)
+  }
+}
+
+object HdlInt extends LowPriorityHdlIntImplicits {
+
   /** Consume one analyzer-sealed single-root table exactly once. Callers retain
     * their existing canonical-literal or fail-closed multi-root fallback.
     */

@@ -1,0 +1,12 @@
+.github/workflows/increment-56-native-typed-library-surface.yml
+docs/morphhdl/increment-56-native-typed-library-surface.md
+frontend/src/main/scala/morphhdl/frontend/HdlBool.scala
+frontend/src/main/scala/morphhdl/frontend/HdlInt.scala
+frontend/src/main/scala/morphhdl/frontend/StructuralExpressionBridge.scala
+frontend/src/test/scala/morphhdl/frontend/HdlBoolTests.scala
+frontend/src/test/scala/morphhdl/frontend/HdlIntTests.scala
+morphhdl/contracts/increment-56-source-scope.txt
+morphhdl/scripts/check-native-typed-library-surface-boundary.sh
+morphhdl/src/test/scala/morphhdl/NativeLibraryReuseTests.scala
+morphhdl/src/test/scala/morphhdl/NativeTypedLibraryCallSurfaceTests.scala
+morphhdl/src/test/scala/nativeapplication/NativeTypedLibraryCallSurfaceFixture.scala

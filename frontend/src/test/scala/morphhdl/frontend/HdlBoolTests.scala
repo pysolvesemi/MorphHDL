@@ -1,15 +1,7 @@
 package morphhdl.frontend
 
 import morphhdl.frontend.ParamRtlFrontend._
-import morphhdl.paramrtl.BoolExpr.{
-  And,
-  Equal,
-  GreaterThanOrEqual,
-  Literal,
-  Not,
-  Or,
-  ParameterRef
-}
+import morphhdl.paramrtl.BoolExpr.{And, Equal, GreaterThanOrEqual, Literal, Not, Or, ParameterRef}
 import morphhdl.paramrtl.IntExpr.{
   Add,
   Literal => IntLiteral,
@@ -19,8 +11,40 @@ import morphhdl.paramrtl.IntExpr.{
 }
 import morphhdl.paramrtl.{BooleanParameter, PortDirection}
 import org.scalatest.funsuite.AnyFunSuite
+import spinal.core.{ElabBool, ParameterizedVerilogException}
 
 class HdlBoolTests extends AnyFunSuite {
+  test("native typed ingress authenticates literal Boolean and integer-root predicates") {
+    val enabled = HdlBool.param("ENABLE", default = true)
+    val typedEnabled: ElabBool = enabled
+    assert(typedEnabled.parameters.map(_.name) == Vector("ENABLE"))
+    assert(typedEnabled.isSymbolic)
+
+    val literal: ElabBool = HdlBool.literal(false)
+    assert(literal.isAlwaysFalse)
+
+    val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 16)
+    val typedComparison: ElabBool = width > HdlInt.literal(4)
+    assert(typedComparison.parameters.map(_.name) == Vector("WIDTH"))
+    assert(typedComparison.isSymbolic)
+
+    val nullError = intercept[FrontendException] {
+      val value: ElabBool = null.asInstanceOf[HdlBool]
+      value
+    }
+    assert(nullError.code == "MORPH-FRONTEND-TYPED-BOOLEAN-NULL")
+  }
+
+  test("native typed Boolean ingress rejects independent roots") {
+    val enabled = HdlBool.param("ENABLE", default = true)
+    val bypass = HdlBool.param("BYPASS", default = false)
+    val error = intercept[ParameterizedVerilogException] {
+      val value: ElabBool = enabled && bypass
+      value
+    }
+    assert(error.code == "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING")
+  }
+
   test("retains literal and public-parameter witnesses and expressions") {
     val literal = HdlBool.literal(value = true)
     val enabled = HdlBool.param("ENABLED", default = false)
@@ -134,11 +158,10 @@ class HdlBoolTests extends AnyFunSuite {
     val falseBranchLine = sourcecode.Line() + 1
     val falseBranch = intercept[FrontendException](enabled.select(4, null))
 
-    Vector(trueBranch -> trueBranchLine, falseBranch -> falseBranchLine).foreach {
-      case (error, expectedLine) =>
-        assert(error.code == "MORPH-FRONTEND-INTEGER-SELECT-BRANCH-NULL")
-        assert(error.origin.file.endsWith("HdlBoolTests.scala"))
-        assert(error.origin.line == expectedLine)
+    Vector(trueBranch -> trueBranchLine, falseBranch -> falseBranchLine).foreach { case (error, expectedLine) =>
+      assert(error.code == "MORPH-FRONTEND-INTEGER-SELECT-BRANCH-NULL")
+      assert(error.origin.file.endsWith("HdlBoolTests.scala"))
+      assert(error.origin.line == expectedLine)
     }
   }
 

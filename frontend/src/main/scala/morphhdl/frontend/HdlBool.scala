@@ -1,5 +1,7 @@
 package morphhdl.frontend
 
+import scala.language.implicitConversions
+
 import morphhdl.paramrtl.BoolExpr
 import morphhdl.paramrtl.BoolExpr.{And, Literal, LocalParameterRef, Not, Or, ParameterRef}
 import morphhdl.paramrtl.{BooleanLocalParameter, BooleanParameter}
@@ -23,6 +25,34 @@ final class HdlBool private[frontend] (
     private[frontend] val naturalGenerateNames: Option[NaturalGenerateIfNames],
     private[frontend] val origin: SourceOrigin
 ) {
+
+  /** Cross the approved typed native-library boundary without collapsing this
+    * value to Scala `Boolean`.
+    *
+    * The integer select is analyzed from the frontend AST and authenticated by
+    * the same exact single-root evidence used for [[HdlInt.asElabInt]]. The
+    * final typed comparison is a native derivation; no rendered expression,
+    * concrete witness, or runtime call-site identity is used to recover
+    * provenance.
+    */
+  def asElabBool: spinal.core.ElabBool = {
+    val symbolic =
+      parameters.nonEmpty || integerParameters.nonEmpty ||
+        localDeclaration.nonEmpty || localParameters.nonEmpty ||
+        booleanLocalParameters.nonEmpty
+
+    if (!symbolic) spinal.core.ElabBool.literal(witness)
+    else {
+      val encoded = HdlInt.select(
+        this,
+        HdlInt.literalAt(BigInt(1), origin),
+        HdlInt.literalAt(BigInt(0), origin),
+        origin
+      )
+      encoded.asElabInt.elabEq(1)
+    }
+  }
+
   def unary_!(implicit file: sourcecode.File, line: sourcecode.Line): HdlBool =
     new HdlBool(
       !witness,
@@ -43,8 +73,7 @@ final class HdlBool private[frontend] (
   def ||(that: HdlBool)(implicit file: sourcecode.File, line: sourcecode.Line): HdlBool =
     binary(that, Or.apply)(_ || _)
 
-  /**
-    * Selects an integer expression without collapsing either symbolic branch.
+  /** Selects an integer expression without collapsing either symbolic branch.
     * The concrete witness follows this Boolean witness, while ParamRTL keeps
     * the condition and both alternatives.
     */
@@ -61,8 +90,7 @@ final class HdlBool private[frontend] (
   ): HdlBool =
     withGenerateNames(whenTrueLabel, None, SourceOrigin.capture)
 
-  /**
-    * Names both blocks of a simple natural `if / else`, or the true block and
+  /** Names both blocks of a simple natural `if / else`, or the true block and
     * terminal `else` block of the final predicate in an `else if` chain.
     */
   def named(whenTrueLabel: String, whenFalseLabel: String)(implicit
@@ -142,6 +170,24 @@ final class HdlBool private[frontend] (
 }
 
 object HdlBool {
+
+  /** One-way bridge into the native typed elaboration domain. Symbolic values
+    * can never satisfy an API which accepts only Scala `Boolean`. As with the
+    * integer bridge, exact target equality prevents adaptation to any result
+    * type other than [[spinal.core.ElabBool]].
+    */
+  implicit def hdlBoolToElabBool[A](value: HdlBool)(implicit
+      target: spinal.core.ElabBool =:= A
+  ): A = {
+    if (value eq null) {
+      FrontendException.fail(
+        "MORPH-FRONTEND-TYPED-BOOLEAN-NULL",
+        "native typed library calls require a non-null HdlBool"
+      )
+    }
+    target(value.asElabBool)
+  }
+
   def literal(value: Boolean)(implicit
       file: sourcecode.File,
       line: sourcecode.Line
