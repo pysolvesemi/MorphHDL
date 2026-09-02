@@ -35,7 +35,6 @@ jobs:
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
-          HEAD_REF: ${{ github.head_ref }}
           REF_NAME: ${{ github.ref_name }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           BEFORE: ${{ github.event.before }}
@@ -45,9 +44,11 @@ jobs:
           base=''
           workflow=.github/workflows/increment-55-concrete-compatibility-audit.yml
 
-          if [[ "$EVENT_NAME" == pull_request && "$HEAD_REF" == agent/increment-55-* ]]; then
-            base="$PR_BASE"
-            run=true
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            if ! git cat-file -e "$PR_BASE:$workflow" 2>/dev/null; then
+              base="$PR_BASE"
+              run=true
+            fi
           elif [[ "$EVENT_NAME" == push && "$REF_NAME" == agent/increment-55-* ]]; then
             git fetch --no-tags origin parameterized-verilog
             base="$(git merge-base HEAD origin/parameterized-verilog)"

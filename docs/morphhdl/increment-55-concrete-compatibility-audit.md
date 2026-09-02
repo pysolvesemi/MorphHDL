@@ -98,6 +98,13 @@ There is no `unrelated`, `temporary`, `review-required` or wildcard class.
 Classification is review metadata, not permission to change arbitrary bytes:
 the byte contract below remains authoritative.
 
+`morphhdl/contracts/increment-55-native-change-review.json` is the explicit
+generation policy retained beside the derived manifest. It names every native
+path, classification, introducing increment history, file reason and every
+deterministic changed-span ID/kind/owner/reason plus an exact text assertion.
+The generator refuses missing or extra paths, span-count drift, unknown
+metadata or a dirty native worktree; it cannot infer an approval from a diff.
+
 ### Modified-file byte spans
 
 A modified file contains one or more ordered pairs of half-open byte spans.
@@ -111,13 +118,15 @@ checker proves all of the following:
 3. every byte before, between and after the reviewed spans is identical on the
    two sides;
 4. both sides of every reviewed span match their own recorded SHA-256; and
-5. required exact signature text occurs the specified number of times on the
-   specified side of the span.
+5. required exact review text occurs the specified number of times on the
+   specified side of the span (a signature/API token where the minimized span
+   contains one).
 
 The exact-text assertions make disappearance and accidental duplication of a
-reviewed overload visible without using a Scala parser. The independent
-segment hashes prevent a changed body from retaining approval merely because
-it still contains the expected signature text.
+reviewed overload visible without using a Scala parser, and anchor mechanical
+micro-spans to their reviewed tokens. The independent segment hashes prevent a
+changed body from retaining approval merely because it still contains the
+expected review text.
 
 The manifest deliberately does not pin an approved commit. Such a field would
 make a same-commit manifest update self-referential and would become unstable
@@ -353,13 +362,13 @@ finishes.
 | --- | --- |
 | Baseline commit/tree | `bec73bb9d2ff54897bee66d641b130b66d0db869` / `4dc89a4550737d0c24ea18916617627c52c4fea2` |
 | Audited native roots | 7 |
-| Approved native path entries | _Record from final guard output_ |
-| Reviewed modified-file byte spans | _Record from final guard output_ |
-| Unchanged baseline native paths | _Record from final native inventory review_ |
+| Approved native path entries | 21 |
+| Reviewed modified-file byte spans | 128 |
+| Unchanged baseline native paths | 685 |
 | Scala 2.12.18 compatibility and concrete parity | _Pending final gate_ |
 | Scala 2.13.12 compatibility and concrete parity | _Pending final gate_ |
 | Inherited SBT/Mill/tool/formal/mutation/determinism matrix | _Pending canonical workflow_ |
-| Exact source-scope review | _Pending final sealed inventory_ |
+| Exact source-scope review | 41 implementation/audit paths; roadmap checkbox verified separately |
 
 Only after these observations are filled, the exact source scope is sealed and
 the canonical closure job succeeds may the roadmap checkbox be changed in a
