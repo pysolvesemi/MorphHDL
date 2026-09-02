@@ -6,6 +6,7 @@ import scala.collection.mutable
 import scala.tools.nsc.Global
 import scala.tools.nsc.Phase
 import scala.tools.nsc.plugins.PluginComponent
+import scala.util.control.NonFatal
 
 /**
   * Pre-typer syntax bridge for neutral `spinal.core.ElabInt` / `ElabBool`
@@ -37,30 +38,140 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       typedEqualities: IdentityHashMap[Tree, java.lang.Boolean]
   )
 
-  private def eligible(unit: CompilationUnit): Boolean = {
-    val path = Option(unit.source)
-      .flatMap(source => Option(source.file))
-      .map(_.path.replace('\\', '/'))
-      .getOrElse("")
-    val content = Option(unit.source).map(_.content.mkString).getOrElse("")
-    !path.contains("/morphplugin/src/main/scala/") &&
-      (content.contains("ElabInt") || content.contains("ElabBool"))
-  }
+  private final case class WildcardMembers(
+      typeNames: Set[String],
+      termNames: Set[String]
+  )
 
   private def decoded(name: Name): String = name.decodedName.toString
 
-  private def terminalName(tree: Tree): String = tree match {
-    case Ident(name)       => decoded(name)
-    case Select(_, name)   => decoded(name)
-    case TypeApply(fun, _) => terminalName(fun)
-    case _                 => ""
+  private def syntaxPath(tree: Tree): Option[Vector[String]] = tree match {
+    case Ident(name) => Some(Vector(decoded(name)))
+    case Select(qualifier, name) =>
+      syntaxPath(qualifier).map(_ :+ decoded(name))
+    case _ => None
   }
 
-  private def simpleTypeName(tree: Tree): String = tree match {
-    case Ident(name)           => decoded(name)
-    case Select(_, name)       => decoded(name)
-    case AppliedTypeTree(t, _) => simpleTypeName(t)
-    case _                     => tree.toString.split('.').lastOption.getOrElse("")
+  private def normalizedPath(tree: Tree): Option[Vector[String]] =
+    syntaxPath(tree).map(
+      _.filterNot(name =>
+        name == "_root_" || name == "<root>" || name == "<empty>"
+      )
+    )
+
+  private def rootedPath(tree: Tree): Boolean =
+    syntaxPath(tree).exists(_.headOption.exists(name => name == "_root_" || name == "<root>"))
+
+  private var wildcardProviderRun: AnyRef = null
+  private var wildcardProviders = Set.empty[Vector[String]]
+  private var wildcardStableTerms = Set.empty[Vector[String]]
+  private var opaqueWildcardPackageObjects = Set.empty[Vector[String]]
+
+  /**
+    * Do not trust a stale or partially entered classpath symbol for a wildcard
+    * provider which is also declared by this compiler run. The parser has
+    * completed for every unit before this phase runs, so source package and
+    * module ownership can be collected once per run without naming trees.
+    */
+  private def currentRunWildcardProviders: Set[Vector[String]] =
+    this.synchronized {
+      val run = currentRun.asInstanceOf[AnyRef]
+      if (wildcardProviderRun ne run) {
+        val providers = mutable.LinkedHashSet.empty[Vector[String]]
+        val stableTerms = mutable.LinkedHashSet.empty[Vector[String]]
+        val opaquePackageObjects =
+          mutable.LinkedHashSet.empty[Vector[String]]
+
+        object SourceProviders extends Traverser {
+          private var owner = Vector.empty[String]
+
+          override def traverse(current: Tree): Unit = current match {
+            case definition: PackageDef =>
+              val previous = owner
+              val declared = normalizedPath(definition.pid)
+                .getOrElse(Vector.empty)
+                .flatMap(_.split("\\.").filter(_.length != 0))
+              owner =
+                if (rootedPath(definition.pid)) declared else previous ++ declared
+              if (owner.nonEmpty) providers += owner
+              try definition.stats.foreach(traverse)
+              finally owner = previous
+
+            case definition: ModuleDef
+                if decoded(definition.name) == "package" =>
+              // Package-object members participate in unrooted qualifier
+              // lookup from the enclosing package. Record direct stable-name
+              // candidates syntactically; custom parents remain opaque until
+              // namer and therefore force conservative classification.
+              definition.impl.body.foreach {
+                case member: ValDef =>
+                  val path = owner :+ decoded(member.name)
+                  providers += path
+                  stableTerms += path
+                case member: DefDef =>
+                  providers += owner :+ decoded(member.name)
+                case member: ModuleDef =>
+                  val path = owner :+ decoded(member.name)
+                  providers += path
+                  stableTerms += path
+                case member: ClassDef =>
+                  // A source-level companion may be synthesized later.
+                  val path = owner :+ decoded(member.name)
+                  providers += path
+                  stableTerms += path
+                case _                 =>
+              }
+              val hasOpaqueParent = definition.impl.parents.exists { parent =>
+                normalizedPath(parent) match {
+                  case Some(Vector("scala", "AnyRef"))       => false
+                  case Some(Vector("java", "lang", "Object")) => false
+                  case _                                        => true
+                }
+              }
+              if (hasOpaqueParent)
+                opaquePackageObjects += owner
+              traverse(definition.impl)
+
+            case definition: ModuleDef =>
+              val previous = owner
+              owner = previous :+ decoded(definition.name)
+              providers += owner
+              stableTerms += owner
+              definition.impl.body.foreach {
+                case member: ValDef =>
+                  stableTerms += owner :+ decoded(member.name)
+                case _ =>
+              }
+              try traverse(definition.impl)
+              finally owner = previous
+
+            case definition: ClassDef =>
+              val previous = owner
+              owner = previous :+ decoded(definition.name)
+              try traverse(definition.impl)
+              finally owner = previous
+
+            case _ => super.traverse(current)
+          }
+        }
+
+        currentRun.units.foreach(unit => SourceProviders.traverse(unit.body))
+        wildcardProviders = providers.toSet
+        wildcardStableTerms = stableTerms.toSet
+        opaqueWildcardPackageObjects = opaquePackageObjects.toSet
+        wildcardProviderRun = run
+      }
+      wildcardProviders
+    }
+
+  private def currentRunOpaquePackageObjects: Set[Vector[String]] = {
+    currentRunWildcardProviders
+    this.synchronized(opaqueWildcardPackageObjects)
+  }
+
+  private def currentRunWildcardStableTerms: Set[Vector[String]] = {
+    currentRunWildcardProviders
+    this.synchronized(wildcardStableTerms)
   }
 
   /**
@@ -74,17 +185,329 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     val typedRequires = new IdentityHashMap[Tree, java.lang.Boolean]()
     val typedEqualities = new IdentityHashMap[Tree, java.lang.Boolean]()
 
-    var scopes = List(mutable.LinkedHashMap.empty[TermName, BindingKind])
+    final class LexicalScope {
+      val terms = mutable.LinkedHashMap.empty[TermName, BindingKind]
+      val localTypes = mutable.LinkedHashMap.empty[TypeName, BindingKind]
+      val explicitTypes =
+        mutable.LinkedHashMap.empty[TypeName, mutable.LinkedHashSet[BindingKind]]
+      val wildcardTypes =
+        mutable.LinkedHashMap.empty[TypeName, mutable.LinkedHashSet[BindingKind]]
+      val importedCalls =
+        mutable.LinkedHashMap.empty[TermName, mutable.LinkedHashSet[Boolean]]
+      val importedTerms = mutable.LinkedHashSet.empty[TermName]
+    }
+
+    var scopes = List(new LexicalScope)
+    var currentPackage = Vector.empty[String]
+    val sourceWildcardProviders = currentRunWildcardProviders
+    val sourceWildcardStableTerms = currentRunWildcardStableTerms
+    val sourceOpaquePackageObjects = currentRunOpaquePackageObjects
 
     def lookup(name: TermName): Option[BindingKind] =
       scopes.collectFirst {
-        case scope if scope.contains(name) => scope(name)
+        case scope if scope.terms.contains(name) => scope.terms(name)
       }
 
+    def hasVisibleTerm(name: TermName): Boolean =
+      scopes.exists(scope => scope.terms.contains(name) || scope.importedTerms(name))
+
     def withScope[A](body: => A): A = {
-      scopes = mutable.LinkedHashMap.empty[TermName, BindingKind] :: scopes
+      scopes = new LexicalScope :: scopes
       try body
       finally scopes = scopes.tail
+    }
+
+    def merged(candidates: mutable.LinkedHashSet[BindingKind]): BindingKind =
+      if (candidates.size == 1) candidates.head else OrdinaryBinding
+
+    def lookupType(name: TypeName): BindingKind = {
+      val iterator = scopes.iterator
+      while (iterator.hasNext) {
+        val scope = iterator.next()
+        scope.localTypes.get(name) match {
+          case Some(kind) => return kind
+          case None       =>
+        }
+        scope.explicitTypes.get(name) match {
+          case Some(candidates) if candidates.nonEmpty => return merged(candidates)
+          case _                                       =>
+        }
+        scope.wildcardTypes.get(name) match {
+          case Some(candidates) if candidates.nonEmpty => return merged(candidates)
+          case _                                       =>
+        }
+      }
+      decoded(name) match {
+        case "Int" | "Byte" | "Short" | "Char" => ScalaIntegerBinding
+        case "ElabInt" if currentPackage == Vector("spinal", "core") =>
+          TypedIntegerBinding
+        case "ElabBool" if currentPackage == Vector("spinal", "core") =>
+          TypedBooleanBinding
+        case _                                      => OrdinaryBinding
+      }
+    }
+
+    def providerInfos(provider: Symbol): Vector[Type] = {
+      val primary =
+        if (provider.isModule) provider.moduleClass.info else provider.info
+      val packageObject = primary.packageObject
+      if (packageObject != NoSymbol)
+        Vector(primary, packageObject.moduleClass.info)
+      else Vector(primary)
+    }
+
+    def sameRunOwnsTarget(candidate: Vector[String]): Boolean =
+      sourceWildcardProviders(candidate) ||
+        sourceWildcardStableTerms.exists(term => candidate.startsWith(term))
+
+    def sameRunOwnsRelativeRoot(
+        enclosing: Vector[String],
+        name: String
+    ): Boolean = {
+      val candidate = enclosing :+ name
+      sourceOpaquePackageObjects(enclosing) ||
+      sourceWildcardProviders.exists(_.startsWith(candidate))
+    }
+
+    def classpathOwnsRelativeRoot(
+        enclosing: Vector[String],
+        name: String
+    ): Boolean = {
+      val direct = rootMirror.getModuleIfDefined((enclosing :+ name).mkString("."))
+      if (direct != NoSymbol) true
+      else {
+        val owner = rootMirror.getModuleIfDefined(enclosing.mkString("."))
+        if (owner == NoSymbol || !owner.isModule) false
+        else {
+          val packageObject = owner.moduleClass.info.packageObject
+          packageObject != NoSymbol &&
+          packageObject.moduleClass.info.nonPrivateMember(TermName(name)) != NoSymbol
+        }
+      }
+    }
+
+    def enclosingPackageShadowsRoot(name: String): Boolean =
+      try {
+        currentPackage.inits
+          .filter(_.nonEmpty)
+          .exists { enclosing =>
+            sameRunOwnsRelativeRoot(enclosing, name) ||
+            classpathOwnsRelativeRoot(enclosing, name)
+          }
+      } catch {
+        // Completion failures cannot establish canonical root ownership.
+        case NonFatal(_) => true
+      }
+
+    def unshadowedRoot(name: String, tree: Tree): Boolean =
+      rootedPath(tree) ||
+        (!hasVisibleTerm(TermName(name)) &&
+          !enclosingPackageShadowsRoot(name))
+
+    def qualifiedTypeKind(tree: Tree): BindingKind =
+      normalizedPath(tree) match {
+        case Some(Vector("spinal", "core", "ElabInt"))
+            if unshadowedRoot("spinal", tree) =>
+          TypedIntegerBinding
+        case Some(Vector("spinal", "core", "ElabBool"))
+            if unshadowedRoot("spinal", tree) =>
+          TypedBooleanBinding
+        case Some(Vector("scala", "Int" | "Byte" | "Short" | "Char"))
+            if unshadowedRoot("scala", tree) =>
+          ScalaIntegerBinding
+        case _ => OrdinaryBinding
+      }
+
+    def typeKind(tpt: Tree): BindingKind = tpt match {
+      case tree if tree == null || tree.isEmpty => OrdinaryBinding
+      case Ident(name: TypeName)                => lookupType(name)
+      case AppliedTypeTree(constructor, _)      => typeKind(constructor)
+      case selected: Select                    => qualifiedTypeKind(selected)
+      case _ => OrdinaryBinding
+    }
+
+    def addCandidate(
+        values: mutable.LinkedHashMap[TypeName, mutable.LinkedHashSet[BindingKind]],
+        name: TypeName,
+        kind: BindingKind
+    ): Unit =
+      values.getOrElseUpdate(name, mutable.LinkedHashSet.empty) += kind
+
+    def addImportedCall(name: TermName, canonicalPredef: Boolean): Unit =
+      scopes.head.importedCalls
+        .getOrElseUpdate(name, mutable.LinkedHashSet.empty) += canonicalPredef
+
+    val predefControlNames = Set("require", "assert")
+    val trackedWildcardTypes = Set("ElabInt", "ElabBool")
+    val trackedWildcardTerms =
+      predefControlNames ++ Set("spinal", "scala", "Predef")
+
+    def selectorName(name: Name): String =
+      if (name == null) "" else decoded(name)
+
+    def externalWildcardProvider(
+        expr: Tree,
+        path: Vector[String]
+    ): Option[Symbol] =
+      try {
+        if (rootedPath(expr)) {
+          if (sameRunOwnsTarget(path)) None
+          else Option(rootMirror.getModuleIfDefined(path.mkString(".")))
+            .filter(_ != NoSymbol)
+        } else if (hasVisibleTerm(TermName(path.head))) None
+        else {
+          val enclosingIterator = currentPackage.inits.filter(_.nonEmpty)
+          while (enclosingIterator.hasNext) {
+            val enclosing = enclosingIterator.next()
+            val candidate = enclosing ++ path
+            if (
+              sameRunOwnsRelativeRoot(enclosing, path.head) ||
+              sameRunOwnsTarget(candidate)
+            ) return None
+
+            val relative =
+              rootMirror.getModuleIfDefined(candidate.mkString("."))
+            if (relative != NoSymbol) return Some(relative)
+            if (classpathOwnsRelativeRoot(enclosing, path.head)) return None
+          }
+
+          if (sameRunOwnsTarget(path)) None
+          else Option(rootMirror.getModuleIfDefined(path.mkString(".")))
+            .filter(_ != NoSymbol)
+        }
+      } catch {
+        case NonFatal(_) => None
+      }
+
+    /**
+      * Resolve only classpath-backed wildcard providers.  If the provider is
+      * absent, shadowed, declared by this run, or cannot be inspected safely,
+      * return None so the caller keeps the fail-closed ambiguity behavior.
+      */
+    def resolvedExternalWildcardMembers(expr: Tree): Option[WildcardMembers] =
+      normalizedPath(expr).filter(_.nonEmpty).flatMap { path =>
+        externalWildcardProvider(expr, path).flatMap { provider =>
+          try {
+            val infos = providerInfos(provider)
+            val types = trackedWildcardTypes.filter { name =>
+              infos.exists(_.nonPrivateMember(TypeName(name)) != NoSymbol)
+            }
+            val terms = trackedWildcardTerms.filter { name =>
+              infos.exists(_.nonPrivateMember(TermName(name)) != NoSymbol)
+            }
+            Some(WildcardMembers(types, terms))
+          } catch {
+            case NonFatal(_) => None
+          }
+        }
+      }
+
+    def recordImport(value: Import): Unit = {
+      val prefix = normalizedPath(value.expr).getOrElse(Vector.empty)
+      val canonicalCorePrefix =
+        prefix == Vector("spinal", "core") && unshadowedRoot("spinal", value.expr)
+      val canonicalPredefPrefix =
+        prefix == Vector("scala", "Predef") && unshadowedRoot("scala", value.expr)
+      val selectors = value.selectors.toVector
+      val excluded = selectors.collect {
+        case selector if selectorName(selector.rename) == "_" =>
+          selectorName(selector.name)
+      }.toSet
+
+      selectors.foreach { selector =>
+        val imported = selectorName(selector.name)
+        val renamed = selectorName(selector.rename)
+        val wildcard = imported == "_"
+        val hidden = renamed == "_"
+        val exposed =
+          if (renamed.length != 0 && renamed != imported) renamed else imported
+
+        if (wildcard) {
+          val resolvedMembers =
+            if (canonicalCorePrefix || canonicalPredefPrefix) None
+            else resolvedExternalWildcardMembers(value.expr)
+
+          if (canonicalCorePrefix) {
+            if (!excluded("ElabInt"))
+              addCandidate(
+                scopes.head.wildcardTypes,
+                TypeName("ElabInt"),
+                TypedIntegerBinding
+              )
+            if (!excluded("ElabBool"))
+              addCandidate(
+                scopes.head.wildcardTypes,
+                TypeName("ElabBool"),
+                TypedBooleanBinding
+              )
+          } else if (!canonicalPredefPrefix) {
+            // Known external providers contribute only members that they
+            // actually export. Unknown and current-run providers remain
+            // conservative so an outer spinal.core import is never borrowed
+            // through a possible source-local collision.
+            val possibleTypes = resolvedMembers
+              .map(_.typeNames)
+              .getOrElse(trackedWildcardTypes)
+            val possibleTerms = resolvedMembers
+              .map(_.termNames)
+              .getOrElse(trackedWildcardTerms)
+            if (possibleTypes("ElabInt") && !excluded("ElabInt"))
+              addCandidate(
+                scopes.head.wildcardTypes,
+                TypeName("ElabInt"),
+                OrdinaryBinding
+              )
+            if (possibleTypes("ElabBool") && !excluded("ElabBool"))
+              addCandidate(
+                scopes.head.wildcardTypes,
+                TypeName("ElabBool"),
+                OrdinaryBinding
+              )
+            Vector("spinal", "scala", "Predef").foreach { name =>
+              if (possibleTerms(name) && !excluded(name))
+                scopes.head.importedTerms += TermName(name)
+            }
+          }
+          predefControlNames.foreach { name =>
+            if (canonicalPredefPrefix) {
+              if (!excluded(name))
+                addImportedCall(TermName(name), canonicalPredef = true)
+            } else if (
+              !excluded(name) &&
+              (!canonicalCorePrefix || name == "assert") &&
+              (canonicalCorePrefix ||
+                resolvedMembers.forall(_.termNames(name)))
+            )
+              // At this pre-namer phase the members of an arbitrary wildcard
+              // import are unknown. It may provide its own control helper, so
+              // do not silently treat an unqualified call as a Predef call.
+              // spinal.core is known not to provide `require`, but its
+              // hardware/host overloads do own `assert`.
+              addImportedCall(TermName(name), canonicalPredef = false)
+          }
+        } else if (!hidden && exposed.length != 0) {
+          scopes.head.importedTerms += TermName(exposed)
+          val importedKind =
+            if (canonicalCorePrefix)
+              imported match {
+                case "ElabInt"  => TypedIntegerBinding
+                case "ElabBool" => TypedBooleanBinding
+                case _          => OrdinaryBinding
+              }
+            else OrdinaryBinding
+          addCandidate(
+            scopes.head.explicitTypes,
+            TypeName(exposed),
+            importedKind
+          )
+          if (predefControlNames(imported) || predefControlNames(exposed))
+            addImportedCall(
+              TermName(exposed),
+              canonicalPredef =
+                canonicalPredefPrefix && predefControlNames(imported)
+            )
+        }
+      }
     }
 
     /**
@@ -156,19 +579,125 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     }
 
     def bindingKind(value: ValDef): BindingKind =
-      simpleTypeName(value.tpt) match {
-        case "ElabInt"  => TypedIntegerBinding
-        case "ElabBool" => TypedBooleanBinding
-        case "Int" | "Byte" | "Short" | "Char" => ScalaIntegerBinding
-        case _ if value.tpt.isEmpty => expressionKind(value.rhs)
-        case _                      => OrdinaryBinding
-      }
+      if (value.tpt == null || value.tpt.isEmpty) expressionKind(value.rhs)
+      else typeKind(value.tpt)
 
     def bind(value: ValDef): Unit =
-      scopes.head.update(value.name, bindingKind(value))
+      scopes.head.terms.update(value.name, bindingKind(value))
 
     def bindOrdinary(name: TermName): Unit =
-      scopes.head.update(name, OrdinaryBinding)
+      scopes.head.terms.update(name, OrdinaryBinding)
+
+    def bindTypeOrdinary(name: TypeName): Unit =
+      scopes.head.localTypes.update(name, OrdinaryBinding)
+
+    def prebindTypes(values: List[Tree]): Unit = {
+      values.foreach {
+        case definition: TypeDef  => bindTypeOrdinary(definition.name)
+        case definition: ClassDef => bindTypeOrdinary(definition.name)
+        case _                    =>
+      }
+
+      var changed = true
+      var remaining = values.size + 1
+      while (changed && remaining > 0) {
+        changed = false
+        values.foreach {
+          case definition: TypeDef if definition.rhs != null && !definition.rhs.isEmpty =>
+            val resolved = typeKind(definition.rhs)
+            if (
+              resolved != OrdinaryBinding &&
+              scopes.head.localTypes.get(definition.name) != Some(resolved)
+            ) {
+              scopes.head.localTypes.update(definition.name, resolved)
+              changed = true
+            }
+          case _ =>
+        }
+        remaining -= 1
+      }
+    }
+
+    def prebindTerms(values: List[Tree]): Unit = {
+      values.foreach {
+        case definition: ValDef    => bindOrdinary(definition.name)
+        case definition: DefDef    => bindOrdinary(definition.name)
+        case definition: ModuleDef => bindOrdinary(definition.name)
+        case _                     =>
+      }
+
+      var changed = true
+      var remaining = values.size + 1
+      while (changed && remaining > 0) {
+        changed = false
+        values.foreach {
+          case definition: ValDef =>
+            val resolved = bindingKind(definition)
+            if (
+              resolved != OrdinaryBinding &&
+              scopes.head.terms.get(definition.name) != Some(resolved)
+            ) {
+              scopes.head.terms.update(definition.name, resolved)
+              changed = true
+            }
+          case _ =>
+        }
+        remaining -= 1
+      }
+    }
+
+    def prepareScope(values: List[Tree]): Unit = {
+      prebindTypes(values)
+      // Package/object qualifiers and Predef names can themselves be
+      // shadowed by members visible throughout this scope. Record those names
+      // before deciding whether an unrooted import is canonical.
+      prebindTerms(values)
+      values.foreach {
+        case imported: Import => recordImport(imported)
+        case _                =>
+      }
+      // Imports can make a type alias canonical, and aliases can in turn make
+      // explicitly typed term bindings canonical. Resolve in that order.
+      prebindTypes(values)
+      prebindTerms(values)
+    }
+
+    def lookupImportedCall(name: TermName): Option[Boolean] = {
+      val iterator = scopes.iterator
+      while (iterator.hasNext) {
+        val scope = iterator.next()
+        if (scope.terms.contains(name)) return Some(false)
+        scope.importedCalls.get(name) match {
+          case Some(candidates) if candidates.size == 1 => return Some(candidates.head)
+          case Some(candidates) if candidates.nonEmpty  => return Some(false)
+          case _                                        =>
+        }
+      }
+      None
+    }
+
+    def canonicalPredefQualifier(tree: Tree): Boolean =
+      normalizedPath(tree) match {
+        case Some(Vector("scala", "Predef")) =>
+          unshadowedRoot("scala", tree)
+        case Some(Vector("Predef")) =>
+          !hasVisibleTerm(TermName("Predef")) &&
+            !enclosingPackageShadowsRoot("Predef")
+        case _ => false
+      }
+
+    def isPredefControl(fun: Tree): Boolean = fun match {
+      case TypeApply(method, _) => isPredefControl(method)
+      case Ident(name: TermName) =>
+        lookupImportedCall(name).getOrElse {
+          predefControlNames(decoded(name)) &&
+          !enclosingPackageShadowsRoot(decoded(name)) &&
+          !(decoded(name) == "assert" && currentPackage == Vector("spinal", "core"))
+        }
+      case Select(qualifier, name) if predefControlNames(decoded(name)) =>
+        canonicalPredefQualifier(qualifier)
+      case _ => false
+    }
 
     def isTypedInteger(current: Tree): Boolean =
       expressionKind(current) == TypedIntegerBinding
@@ -197,15 +726,42 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
     object Classifier extends Traverser {
       override def traverse(current: Tree): Unit = current match {
+        case definition: PackageDef =>
+          val previousPackage = currentPackage
+          val declaredPackage = normalizedPath(definition.pid)
+            .getOrElse(Vector.empty)
+            .flatMap(_.split("\\.").filter(_.length != 0))
+          currentPackage =
+            if (rootedPath(definition.pid)) declaredPackage
+            else previousPackage ++ declaredPackage
+          try {
+            withScope {
+              prepareScope(definition.stats)
+              if (currentPackage == Vector("spinal", "core")) {
+                definition.stats.foreach {
+                  case declared: ClassDef if decoded(declared.name) == "ElabInt" =>
+                    scopes.head.localTypes.update(declared.name, TypedIntegerBinding)
+                  case declared: ClassDef if decoded(declared.name) == "ElabBool" =>
+                    scopes.head.localTypes.update(declared.name, TypedBooleanBinding)
+                  case _ =>
+                }
+              }
+              definition.stats.foreach(traverse)
+            }
+          } finally currentPackage = previousPackage
+
+        case definition: ClassDef =>
+          withScope {
+            definition.tparams.foreach(parameter => bindTypeOrdinary(parameter.name))
+            traverse(definition.impl)
+          }
+
         case template: Template =>
           withScope {
             // Class/object members are visible throughout their template.
             // Recording every member also lets ordinary members shadow typed
             // constructor parameters or enclosing values deterministically.
-            template.body.foreach {
-              case value: ValDef => bind(value)
-              case _             =>
-            }
+            prepareScope(template.body)
             template.parents.foreach(traverse)
             traverse(template.self)
             template.body.foreach(traverse)
@@ -213,6 +769,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
         case definition: DefDef =>
           withScope {
+            definition.tparams.foreach(parameter => bindTypeOrdinary(parameter.name))
             definition.vparamss.flatten.foreach(bind)
             definition.tparams.foreach(traverse)
             definition.vparamss.flatten.foreach { parameter =>
@@ -235,6 +792,17 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
         case block: Block =>
           withScope {
+            prebindTypes(block.stats)
+            block.stats.foreach {
+              case definition: ValDef => bindOrdinary(definition.name)
+              case definition: DefDef => bindOrdinary(definition.name)
+              case definition: ModuleDef => bindOrdinary(definition.name)
+              case _ =>
+            }
+            block.stats.foreach {
+              case imported: Import => recordImport(imported)
+              case _                =>
+            }
             block.stats.foreach { statement =>
               traverse(statement)
               statement match {
@@ -244,6 +812,9 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             }
             traverse(block.expr)
           }
+
+        case imported: Import =>
+          recordImport(imported)
 
         case value: ValDef =>
           traverse(value.tpt)
@@ -266,8 +837,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
           if (isTypedBoolean(predicate)) mark(typedGenerates, original)
           super.traverse(original)
 
-        case original @ Apply(fun, predicate :: _)
-            if terminalName(fun) == "require" || terminalName(fun) == "assert" =>
+        case original @ Apply(fun, predicate :: _) if isPredefControl(fun) =>
           if (isTypedBoolean(predicate)) mark(typedRequires, original)
           super.traverse(original)
 
@@ -532,7 +1102,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       rewritten.setPos(original.pos)
     }
 
-    private def rewriteAssert(
+    private def rewriteRequire(
         original: Tree,
         predicate: Tree,
         rest: List[Tree]
@@ -563,7 +1133,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
         rewriteGenerate(original, predicate, body)
       case original @ Apply(_, predicate :: rest)
           if classified.typedRequires.containsKey(original) =>
-        rewriteAssert(original, predicate, rest)
+        rewriteRequire(original, predicate, rest)
       case original @ Apply(Select(_, operator), List(_))
           if (decoded(operator) == "==" || decoded(operator) == "!=") &&
             classified.typedEqualities.containsKey(original) =>
@@ -573,17 +1143,16 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
   }
 
   override def newPhase(previous: Phase): Phase = new StdPhase(previous) {
-    override def apply(unit: CompilationUnit): Unit =
-      if (eligible(unit)) {
-        val classified = classify(unit.body)
-        if (
-          !classified.typedIfs.isEmpty ||
-          !classified.typedGenerates.isEmpty ||
-          !classified.typedRequires.isEmpty ||
-          !classified.typedEqualities.isEmpty
-        )
-          unit.body =
-            new TypedControlTransformer(unit, classified).transform(unit.body)
-      }
+    override def apply(unit: CompilationUnit): Unit = {
+      val classified = classify(unit.body)
+      if (
+        !classified.typedIfs.isEmpty ||
+        !classified.typedGenerates.isEmpty ||
+        !classified.typedRequires.isEmpty ||
+        !classified.typedEqualities.isEmpty
+      )
+        unit.body =
+          new TypedControlTransformer(unit, classified).transform(unit.body)
+    }
   }
 }

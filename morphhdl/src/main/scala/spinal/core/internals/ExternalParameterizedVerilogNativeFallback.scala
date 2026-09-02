@@ -44,7 +44,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       (
         ParameterizedWidth.parametersOf(component).nonEmpty ||
           ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
-          ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
+          ParameterizedMemory.parametersOf(component).nonEmpty ||
           ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
           ParameterizedVerilogVecs.hasVectors(component) ||
           ParameterizedProcess.parametersOf(component).nonEmpty ||
@@ -52,7 +52,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           component.children.exists { child =>
             ParameterizedWidth.parametersOf(child).nonEmpty ||
             ExternalParameterizedAutoResize.parametersOf(child).nonEmpty ||
-            ExternalParameterizedMemoryRegistry.parametersOf(child).nonEmpty ||
+            ParameterizedMemory.parametersOf(child).nonEmpty ||
             ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty ||
             ParameterizedVerilogVecs.hasVectors(child) ||
             ParameterizedProcess.parametersOf(child).nonEmpty ||
@@ -79,7 +79,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       component,
       pc,
       hierarchy.parameters ++
-        ExternalParameterizedMemoryRegistry.parametersOf(component) ++
+        ParameterizedMemory.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedVerilogVecs.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
@@ -1429,7 +1429,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     val assignments = ArrayBuffer.empty[DataAssignmentStatement]
     var unsupported =
       component.children.nonEmpty ||
-        ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
+        ParameterizedMemory.parametersOf(component).nonEmpty ||
         ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
         ParameterizedProcess.parametersOf(component).nonEmpty ||
         ParameterizedStructure.parametersOf(component).nonEmpty
@@ -2716,7 +2716,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case literal: BitVectorLiteral             => WidthLiteral(literal.getWidth)
         case _: BoolLiteral                        => WidthLiteral(1)
         case port: MemReadSync =>
-          ExternalParameterizedMemoryRegistry.metadataOf(port.mem) match {
+          ParameterizedMemory.metadataOf(port.mem) match {
             case Some(metadata) => retained(metadata.elementWidth)
             case None           => WidthLiteral(port.getWidth)
           }

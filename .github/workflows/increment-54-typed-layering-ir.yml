@@ -1,0 +1,365 @@
+name: Increment 54 typed layering and canonical IR
+
+on:
+  push:
+    branches:
+      - parameterized-verilog
+      - 'agent/increment-54-*'
+  pull_request:
+    branches:
+      - parameterized-verilog
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-54-typed-layering-ir-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-contract:
+    name: Closed layering and canonical-IR source contract
+    if: >-
+      github.event_name != 'pull_request' ||
+      startsWith(github.head_ref, 'agent/increment-54-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact head with complete history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Validate closed negative contracts and compatibility entry points
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            morphhdl/scripts/check-production-retirement.py \
+            morphhdl/scripts/check-typed-layering-ir.py
+          python3 morphhdl/scripts/check-production-retirement.py --self-test
+          python3 morphhdl/scripts/check-typed-layering-ir.py --self-test
+          python3 morphhdl/scripts/check-production-retirement.py
+          python3 morphhdl/scripts/check-typed-layering-ir.py
+          bash -n morphhdl/scripts/check-native-int-shadow-provenance-boundary.sh
+          bash -n morphhdl/scripts/check-external-formalization-boundary.sh
+          bash -n morphhdl/scripts/check-typed-primitive-closure-boundary.sh
+          bash -n morphhdl/scripts/check-external-memory-boundary.sh
+          bash -n morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
+          bash -n morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+          bash -n morphhdl/scripts/check-typed-vec-boundary.sh
+          bash -n morphhdl/scripts/check-external-structural-process-boundary.sh
+          bash -n morphhdl-passes/scripts/test-boundary-guard.sh
+          bash -n morphhdl-passes/scripts/check-boundary.sh
+          bash morphhdl/scripts/check-native-int-shadow-provenance-boundary.sh
+          bash morphhdl/scripts/check-external-formalization-boundary.sh
+          bash morphhdl/scripts/check-typed-primitive-closure-boundary.sh
+          bash morphhdl/scripts/check-external-memory-boundary.sh
+          bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
+          bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+          bash morphhdl/scripts/check-typed-vec-boundary.sh
+          bash morphhdl/scripts/check-external-structural-process-boundary.sh
+          bash morphhdl-passes/scripts/test-boundary-guard.sh
+
+      - name: Verify the sealed exact Increment 54 delta
+        run: |
+          set -euo pipefail
+          scope=morphhdl/contracts/increment-54-source-scope.txt
+          sentinel='# INCREMENT-54-SOURCE-SCOPE-UNSEALED'
+          todo=docs/morphhdl/parameterized-verilog-todo.md
+          test -s "$scope"
+          if grep -Fqx "$sentinel" "$scope"; then
+            printf '%s\n' 'Increment 54 source scope is not sealed' >&2
+            exit 1
+          fi
+          test "$(cat "$scope")" = "$(LC_ALL=C sort -u "$scope")"
+          if grep -Eq '^[[:space:]]*$|^#|^/' "$scope"; then
+            printf '%s\n' 'Increment 54 source scope must contain only repository-relative paths' >&2
+            exit 1
+          fi
+          while IFS= read -r path; do
+            test -e "$path" || git cat-file -e "HEAD:$path" 2>/dev/null || {
+              # Deleted files are valid exact-scope entries.
+              git log --all -1 --format='%H' -- "$path" | grep -q .
+            }
+          done < "$scope"
+          test "$(grep -Ec '^- \[( |x)\] \*\*Increment 54 — Typed elaboration layering and canonical IR cleanup\*\*$' "$todo")" = 1
+
+          compare_scope=0
+          if [[ "${{ github.event_name }}" == pull_request ]]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            compare_scope=1
+          elif [[ "${GITHUB_REF_NAME}" == agent/increment-54-* ]]; then
+            git fetch --no-tags origin parameterized-verilog
+            base="$(git merge-base HEAD origin/parameterized-verilog)"
+            compare_scope=1
+          fi
+          if [[ "$compare_scope" == 1 ]]; then
+            actual="$(git diff --no-renames --name-only --diff-filter=ACMRTD "$base"...HEAD \
+              | awk '$0 != "docs/morphhdl/parameterized-verilog-todo.md"' \
+              | LC_ALL=C sort -u)"
+            expected="$(cat "$scope")"
+            if [[ "$actual" != "$expected" ]]; then
+              printf '%s\n' 'Unexpected Increment 54 file inventory' >&2
+              printf '%s\n' '--- expected ---' "$expected" >&2
+              printf '%s\n' '--- actual ---' "$actual" >&2
+              exit 1
+            fi
+            git diff --check "$base"...HEAD
+          else
+            git diff --check HEAD^
+          fi
+
+  sbt-full:
+    name: SBT full suite and JAR closure Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+      - name: Compile every production and test source
+        run: sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+      - name: Run complete canonical IR, MorphHDL and compatibility suites
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" morphir/test
+          sbt -batch "++${{ matrix.scala_version }}" morph/test
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "tester/testOnly spinal.lib.CounterTester spinal.lib.SpinalSimStreamFifoTester spinal.lib.SpinalSimStreamWidthAdapterTester"
+      - name: Package production modules and prove obsolete classes absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch "++${{ matrix.scala_version }}" \
+            frontend/package idslplugin/package morphir/package morphruntime/package morphplugin/package morph/package
+          mapfile -t jars < <(find frontend idslplugin morphir morphruntime morphplugin morphhdl \
+            -regextype posix-extended -type f \
+            -regex '.*/target/scala-[^/]+/[^/]+\.jar' | LC_ALL=C sort -u)
+          test "${#jars[@]}" -ge 6
+          arguments=()
+          for jar in "${jars[@]}"; do
+            arguments+=(--jar "$jar")
+          done
+          python3 morphhdl/scripts/check-production-retirement.py \
+            --require-jar "${arguments[@]}"
+          python3 morphhdl/scripts/check-typed-layering-ir.py \
+            --require-jar "${arguments[@]}"
+
+  mill-full:
+    name: Mill full suite Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install pinned Mill
+        run: |
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+      - name: Run complete canonical IR, MorphHDL and compatibility suites
+        run: |
+          /tmp/mill morphir[${{ matrix.scala_version }}].test
+          /tmp/mill morph[${{ matrix.scala_version }}].test
+          /tmp/mill tester[${{ matrix.scala_version }}].testOnly \
+            spinal.lib.CounterTester \
+            spinal.lib.SpinalSimStreamFifoTester \
+            spinal.lib.SpinalSimStreamWidthAdapterTester
+
+  focused-layering:
+    name: Focused typed-layering and canonical-IR gates Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+      - name: Run canonical schema, validation and normalization tests
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morphir/testOnly morphhdl.ir.v1.CanonicalIrV1Spec"
+      - name: Run compiler ownership and symbolic-equality safety tests
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morphplugin/testOnly morphhdl.compiler.MorphHdlTypedElaborationControlComponentTests morphhdl.compiler.MorphHdlFrontendSymbolicEqualitySafetyComponentTests"
+      - name: Run typed carriers, exact domains and frontend bridges
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly spinal.core.TypedElaborationPrimitiveTests spinal.core.TypedExactDomainControlTests spinal.core.TypedExactDomainSafetyTests spinal.core.TypedProjectionOwnershipTests spinal.core.TypedPrimitiveClosureTests spinal.core.FiniteMemIdentityAdversarialTests spinal.core.internals.ParameterizedVerilogTests morphhdl.TypedElaborationValueTests morphhdl.TypedElaborationControlTests morphhdl.GenericExpressionAndStreamTests morphhdl.GenericProcessLoweringTests morphhdl.NativeSymbolicMemoryTests morphhdl.TypedParameterizedVecTests morphhdl.NativeLibraryReuseTests"
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "frontend/testOnly morphhdl.frontend.HdlIntTests morphhdl.frontend.CombinationalIfFrontendTests morphhdl.frontend.SynchronousRegisterFrontendTests"
+
+  v2001-simulation-synthesis:
+    name: V2001 lint simulation and synthesis Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+      - name: Verify the strict Verilog-2001 toolchain
+        run: |
+          command -v verilator
+          command -v iverilog
+          command -v vvp
+          command -v yosys
+          verilator --version
+          iverilog -V
+          yosys -V
+      - name: Exercise retained typed designs through all V2001 tools
+        run: |
+          mkdir -p target/morphhdl/phase-inventory
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "core/Test/runMain spinal.core.internals.ValidationParityInventoryWriter --output ${GITHUB_WORKSPACE}/target/morphhdl/phase-inventory/validation-phase-ids.txt"
+          bash morphhdl/scripts/check-contracts.sh \
+            --require-tools \
+            --live-phase-ids target/morphhdl/phase-inventory/validation-phase-ids.txt
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly spinal.core.TypedPrimitiveClosureTests morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.TypedParameterizedVecTests morphhdl.TypedCounterAllOnesTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.StreamFifoCompatibilityTests morphhdl.NativeSymbolicMemoryTests morphhdl.GenericProcessLoweringTests"
+
+  formal:
+    name: Retained typed formal equivalence Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      MORPHDL_RUN_TYPED_VEC_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_TYPED_PRIMITIVE_CLOSURE_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_STREAMFIFO_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_TYPED_VEC_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/vec
+      MORPHDL_TYPED_PRIMITIVE_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/closure
+      MORPHDL_STREAMFIFO_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/streamfifo
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+      - name: Verify pinned formal toolchain
+        shell: bash
+        run: |
+          command -v yosys
+          command -v sby
+          command -v yices-smt2
+          command -v iverilog
+          command -v verilator
+          yosys_version="$(yosys -V)"
+          grep -Eq '^Yosys 0\.41([ +]|$)' <<<"$yosys_version"
+          sby_help="$(sby -h 2>&1)"
+          grep -q 'usage: sby' <<<"$sby_help"
+          yosys -Q -p 'help abc' >/tmp/morphhdl-yosys-abc-help.txt 2>&1
+          grep -q ABC /tmp/morphhdl-yosys-abc-help.txt
+      - name: Prove retained typed specializations and mutation controls
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.TypedStreamWidthAdapterFormalEquivalenceTests morphhdl.TypedParameterizedVecFormalEquivalenceTests morphhdl.TypedPrimitiveClosureFormalEquivalenceTests morphhdl.NativeStreamFifoFormalEquivalenceTests"
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "tester/testOnly spinal.lib.CounterFormalTester"
+      - name: Retain proof statuses and mutation counterexamples
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-54-typed-formal-scala-${{ matrix.scala_version }}
+          path: formal-artifacts/scala-${{ matrix.scala_version }}
+          if-no-files-found: error
+          retention-days: 14
+
+  determinism:
+    name: Typed emission determinism Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+      - name: Prove byte-identical typed replay
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            'morph/testOnly morphhdl.MorphVerilogTests -- -z "repeated successful runs are byte-identical"'
+          sbt -batch "++${{ matrix.scala_version }}" \
+            'morph/testOnly morphhdl.ParameterizedStreamWidthAdapterTests -- -z "covering all three native modes"'
+          sbt -batch "++${{ matrix.scala_version }}" \
+            'morph/testOnly morphhdl.ParameterizedStreamFifoDepthTests -- -z "one native StreamFifo definition preserves depths"'
+          sbt -batch "++${{ matrix.scala_version }}" \
+            'morph/testOnly morphhdl.SpinalEnumLocalParameterTests -- -z "SCREAMING_SNAKE_CASE enum-qualified"'
+
+  closure:
+    name: Increment 54 canonical closure
+    if: always() && (github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/increment-54-'))
+    needs:
+      - source-contract
+      - sbt-full
+      - mill-full
+      - focused-layering
+      - v2001-simulation-synthesis
+      - formal
+      - determinism
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every canonical gate
+        env:
+          SOURCE: ${{ needs.source-contract.result }}
+          SBT: ${{ needs.sbt-full.result }}
+          MILL: ${{ needs.mill-full.result }}
+          LAYERING: ${{ needs.focused-layering.result }}
+          V2001: ${{ needs.v2001-simulation-synthesis.result }}
+          FORMAL: ${{ needs.formal.result }}
+          DETERMINISM: ${{ needs.determinism.result }}
+        run: |
+          test "$SOURCE" = success
+          test "$SBT" = success
+          test "$MILL" = success
+          test "$LAYERING" = success
+          test "$V2001" = success
+          test "$FORMAL" = success
+          test "$DETERMINISM" = success

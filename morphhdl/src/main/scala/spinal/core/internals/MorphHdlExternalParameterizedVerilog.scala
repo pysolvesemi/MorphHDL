@@ -97,7 +97,7 @@ object MorphHdlExternalParameterizedVerilog {
     val blockByName = blocks.map(block => block.name -> block).toMap
 
     val components = componentGraph(top)
-    components.foreach(ExternalParameterizedMemoryRegistry.discover)
+    components.foreach(ParameterizedMemory.discover)
     components.foreach(component =>
       validateComponentParameterRootInventory(
         component,
@@ -322,8 +322,8 @@ object MorphHdlExternalParameterizedVerilog {
       case _ =>
     }
 
-    ExternalParameterizedMemoryRegistry.memoriesOf(component).foreach { memory =>
-      ExternalParameterizedMemoryRegistry.metadataOf(memory).foreach { metadata =>
+    ParameterizedMemory.memoriesOf(component).foreach { memory =>
+      ParameterizedMemory.metadataOf(memory).foreach { metadata =>
         retainInteger(metadata.depth)
         retainInteger(metadata.elementWidth)
       }
@@ -737,7 +737,7 @@ object MorphHdlExternalParameterizedVerilog {
     val values =
       ParameterizedWidth.parametersOf(component) ++
         ExternalParameterizedAutoResize.parametersOf(component) ++
-        ExternalParameterizedMemoryRegistry.parametersOf(component) ++
+        ParameterizedMemory.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedVerilogVecs.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
@@ -759,7 +759,7 @@ object MorphHdlExternalParameterizedVerilog {
   private def hasParameterizedMetadata(component: Component): Boolean =
     ParameterizedWidth.parametersOf(component).nonEmpty ||
       ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
-      ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
+      ParameterizedMemory.parametersOf(component).nonEmpty ||
       ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
       ParameterizedVerilogVecs.hasVectors(component) ||
       ParameterizedVerilogFiniteFolds.hasFolds(component) ||
@@ -785,7 +785,7 @@ object MorphHdlExternalParameterizedVerilog {
   ): Boolean =
     ParameterizedWidth.parametersOf(component).nonEmpty ||
       ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
-      ExternalParameterizedMemoryRegistry.parametersOf(component).nonEmpty ||
+      ParameterizedMemory.parametersOf(component).nonEmpty ||
       ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
       ParameterizedVerilogVecs.hasVectors(component) ||
       ParameterizedVerilogFiniteFolds.hasFolds(component) ||
@@ -793,7 +793,7 @@ object MorphHdlExternalParameterizedVerilog {
       component.children.exists { child =>
         ParameterizedWidth.parametersOf(child).nonEmpty ||
         ExternalParameterizedAutoResize.parametersOf(child).nonEmpty ||
-        ExternalParameterizedMemoryRegistry.parametersOf(child).nonEmpty ||
+        ParameterizedMemory.parametersOf(child).nonEmpty ||
         ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty ||
         ParameterizedVerilogVecs.hasVectors(child) ||
         ParameterizedVerilogFiniteFolds.hasFolds(child) ||

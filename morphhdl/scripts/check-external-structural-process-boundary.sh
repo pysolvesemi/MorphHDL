@@ -15,13 +15,15 @@ done
 
 for path in \
   morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala \
-  frontend/src/main/scala/spinal/core/ParameterizedProcess.scala \
+  morphruntime/src/main/scala/spinal/core/ParameterizedProcess.scala \
   morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala \
   morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogProcesses.scala \
   morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
 do
   test -f "$path"
 done
+
+test ! -e frontend/src/main/scala/spinal/core/ParameterizedProcess.scala
 
 width=core/src/main/scala/spinal/core/ParameterizedWidth.scala
 structure=morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala

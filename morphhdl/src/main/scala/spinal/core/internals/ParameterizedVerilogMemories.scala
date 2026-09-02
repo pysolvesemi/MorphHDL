@@ -53,7 +53,7 @@ private[internals] object ParameterizedVerilogMemories {
 
   def rewrite(component: Component, verilog: String, pc: PhaseContext): String = {
     if (!pc.config.parameterizedVerilog) return verilog
-    val memories = ExternalParameterizedMemoryRegistry.memoriesOf(component)
+    val memories = ParameterizedMemory.memoriesOf(component)
     if (memories.isEmpty) return verilog
     if (pc.config.isSystemVerilog) {
       fail(
@@ -157,7 +157,7 @@ private[internals] object ParameterizedVerilogMemories {
     val matchingBlocks = blocks.filter(_.memoryIndices.exists(value => value.memory eq memory))
     if (matchingBlocks.isEmpty) return None
 
-    val metadata = ExternalParameterizedMemoryRegistry.metadataOf(memory).get
+    val metadata = ParameterizedMemory.metadataOf(memory).get
     val source = metadata.sourceLocation
     if (metadata.elementWidth.parameters.nonEmpty) {
       fail(
@@ -327,7 +327,7 @@ private[internals] object ParameterizedVerilogMemories {
       pc: PhaseContext,
       ignoredStructuralReads: Vector[MemReadAsync] = Vector.empty
   ): MemoryPlan = {
-    val metadata = ExternalParameterizedMemoryRegistry.metadataOf(memory).get
+    val metadata = ParameterizedMemory.metadataOf(memory).get
     val source = metadata.sourceLocation
     val reads = ArrayBuffer.empty[MemReadSync]
     val writes = ArrayBuffer.empty[MemWrite]

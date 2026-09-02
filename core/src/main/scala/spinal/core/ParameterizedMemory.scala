@@ -266,7 +266,7 @@ object ParameterizedMemory {
       memory.wordTypeLeaves,
       depth.sourceLocation.orElse(depth.expression.sourceLocation)
     )
-    attachMetadata(
+    retainMetadata(
       memory,
       ParameterizedMemoryMetadata(
         depth.expression,
@@ -276,6 +276,7 @@ object ParameterizedMemory {
           .orElse(elementWidth.sourceLocation)
       )
     )
+    memory
   }
 
   private def elementWidthOf[T <: Data](
@@ -309,10 +310,10 @@ object ParameterizedMemory {
     elementWidth
   }
 
-  private def attachMetadata[T <: Data](
-      memory: Mem[T],
+  private def retainMetadata(
+      memory: Mem[_],
       metadata: ParameterizedMemoryMetadata
-  ): Mem[T] = {
+  ): Unit = {
     if (memory.getTag(classOf[ParameterizedMemoryTag]).nonEmpty) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-METADATA-DUPLICATE",
@@ -321,7 +322,6 @@ object ParameterizedMemory {
       )
     }
     memory.addTag(ParameterizedMemoryTag(metadata))
-    memory
   }
 
   private[core] def metadataOf(
@@ -440,11 +440,44 @@ object ParameterizedMemory {
       case None => body
     }
 
+  /** Discover symbolic element geometry from the leaves already instantiated
+    * by one ordinary native Mem. ParameterizedWidth.HardType preserves the
+    * retained leaf expressions through the native HardType clone path, so no
+    * second identity registry or generator evaluation is required here.
+    */
+  private[core] def discover(component: Component): Unit = {
+    allMemoriesOf(component).foreach { memory =>
+      if (metadataOf(memory).isEmpty) {
+        val expressions = instantiatedElementExpressionsOf(memory)
+        if (expressions.exists(_.parameters.nonEmpty)) {
+          val elementWidth = discoveredElementWidthOf(
+            memory,
+            expressions,
+            sourceLocation = None
+          )
+          retainMetadata(
+            memory,
+            ParameterizedMemoryMetadata(
+              depth = literal(memory.wordCount),
+              elementWidth = elementWidth,
+              sourceLocation = elementWidth.sourceLocation
+            )
+          )
+        }
+      }
+    }
+  }
+
   private[core] def memoriesOf(component: Component): Vector[Mem[_]] = {
+    discover(component)
+    allMemoriesOf(component).filter(memory => metadataOf(memory).nonEmpty)
+  }
+
+  private def allMemoriesOf(component: Component): Vector[Mem[_]] = {
     val values = ArrayBuffer.empty[Mem[_]]
     component.dslBody.walkDeclarations {
-      case memory: Mem[_] if metadataOf(memory).nonEmpty => values += memory
-      case _                                             =>
+      case memory: Mem[_] => values += memory
+      case _              =>
     }
     values.distinct.toVector
   }
@@ -481,6 +514,125 @@ object ParameterizedMemory {
     grouped.toVector.map(_._2.head).sortBy(_.name)
   }
 
+  private def instantiatedElementExpressionsOf(
+      memory: Mem[_]
+  ): Vector[ElaborationIntegerExpression] =
+    memory.wordTypeLeaves.map { leaf =>
+      ParameterizedWidth.expressionOf(leaf).getOrElse(literal(leaf.getBitsWidth))
+    }
+
+  /** Revalidate discovered leaf geometry before it may influence published
+    * memory dimensions. Inexact bounds cannot be promoted into authoritative
+    * geometry merely because their concrete witnesses match the native Mem.
+    */
+  private def discoveredElementWidthOf(
+      memory: Mem[_],
+      expressions: Vector[ElaborationIntegerExpression],
+      sourceLocation: Option[String]
+  ): ElaborationIntegerExpression = {
+    val concreteWidths = memory._widths
+    if (concreteWidths.isEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-TYPE-UNSUPPORTED",
+        "native symbolic memory element type has no flattened data leaves",
+        sourceLocation
+      )
+    }
+    if (expressions.size != concreteWidths.size) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-TYPE-UNSUPPORTED",
+        s"native memory element shape changed from ${concreteWidths.size} concrete leaves to ${expressions.size} retained HardType leaves",
+        sourceLocation
+      )
+    }
+    val checkedExpressions = expressions.zipWithIndex.map {
+      case (expression, index) =>
+        if (expression.generateIndex.nonEmpty) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID",
+            s"native memory element leaf $index cannot depend on a generate index",
+            sourceLocation.orElse(expression.sourceLocation)
+          )
+        }
+        validateCompleteFiniteExpression(
+          expression,
+          role = s"external native-memory element leaf $index",
+          missingCode =
+            "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-EXACT-DOMAIN-MISSING",
+          invalidCode =
+            "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID"
+        )
+    }
+    checkedExpressions.zip(concreteWidths).zipWithIndex.foreach {
+      case ((expression, concreteWidth), index)
+          if expression.default != BigInt(concreteWidth) ||
+            expression.minimum < 1 ||
+            expression.maximum < expression.minimum =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID",
+          s"native memory element leaf $index has concrete width $concreteWidth but retained expression '${expression.verilog}' has witness ${expression.default} in [${expression.minimum}, ${expression.maximum}]",
+          sourceLocation.orElse(expression.sourceLocation)
+        )
+      case _ =>
+    }
+    val elementWidth = validateCompleteFiniteExpression(
+      checkedExpressions.reduce(addDiscovered),
+      role = "external native-memory aggregate element width",
+      missingCode =
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-EXACT-DOMAIN-MISSING",
+      invalidCode =
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID"
+    )
+    if (
+      elementWidth.default != BigInt(memory.getWidth) ||
+      elementWidth.minimum < 1 ||
+      elementWidth.maximum < elementWidth.minimum
+    ) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ELEMENT-WIDTH-INVALID",
+        s"native memory concrete element width ${memory.getWidth} does not match retained expression '${elementWidth.verilog}' in [${elementWidth.minimum}, ${elementWidth.maximum}]",
+        sourceLocation.orElse(elementWidth.sourceLocation)
+      )
+    }
+    elementWidth
+  }
+
+  private def validateCompleteFiniteExpression(
+      raw: ElaborationIntegerExpression,
+      role: String,
+      missingCode: String,
+      invalidCode: String
+  ): ElaborationIntegerExpression = {
+    if (raw == null)
+      throw new IllegalArgumentException(s"$role expression must not be null")
+    ElabInt.validateExpression(raw, role)
+    if (raw.parameters.nonEmpty && raw.exactDomain.isEmpty) {
+      fail(
+        missingCode,
+        s"$role '${raw.verilog}' must retain authoritative exact single-root evidence",
+        raw.sourceLocation
+      )
+    }
+
+    val domain = ElabInt.requireAuthoritativeIntegerDomain(
+      raw,
+      role,
+      invalidCode,
+      requireExactExtrema = true
+    )
+    val evaluated = domain
+      .map(_.evaluations.map(_._2))
+      .getOrElse(Vector(raw.default))
+    if (evaluated.exists(_ < 1)) {
+      fail(
+        invalidCode,
+        s"$role '${raw.verilog}' must retain a positive finite Int-sized evaluation table",
+        raw.sourceLocation.orElse(domain.flatMap(_.root.sourceLocation))
+      )
+    }
+    raw
+  }
+
   private def literal(value: Int): ElaborationIntegerExpression =
     ElaborationIntegerExpression(
       verilog = value.toString,
@@ -496,6 +648,13 @@ object ParameterizedMemory {
   ): ElaborationIntegerExpression =
     (ElabInt.fromExpression(left) + ElabInt.fromExpression(right))
       .projectedExpression("typed memory element width")
+
+  private def addDiscovered(
+      left: ElaborationIntegerExpression,
+      right: ElaborationIntegerExpression
+  ): ElaborationIntegerExpression =
+    (ElabInt.fromExpression(left) + ElabInt.fromExpression(right))
+      .projectedExpression("external memory element width")
 
   private def fail(
       code: String,

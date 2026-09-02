@@ -451,7 +451,7 @@ class ParameterizedVerilogTests extends AnyFunSuite {
     }
   }
 
-  test("native memory inventories reject independent same-name geometry roots") {
+  test("canonical memory inventory rejects independent same-name geometry roots") {
     withTemporaryDirectory { directory =>
       val depth = exactDirectExpression(
         ElaborationIntegerParameter("SIZE", 8, 1, 64)
@@ -479,13 +479,6 @@ class ParameterizedVerilogTests extends AnyFunSuite {
       }
       assert(
         coreError.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED"
-      )
-
-      val externalError = intercept[ParameterizedVerilogException] {
-        ExternalParameterizedMemoryRegistry.parametersOf(report.toplevel)
-      }
-      assert(
-        externalError.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED"
       )
     }
   }

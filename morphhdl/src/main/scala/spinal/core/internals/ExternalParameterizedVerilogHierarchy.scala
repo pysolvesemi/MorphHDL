@@ -739,7 +739,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
   ): Vector[ElaborationIntegerParameter] = {
     val values =
       ParameterizedWidth.parametersOf(component) ++
-        ExternalParameterizedMemoryRegistry.parametersOf(component) ++
+        ParameterizedMemory.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedVerilogVecs.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++

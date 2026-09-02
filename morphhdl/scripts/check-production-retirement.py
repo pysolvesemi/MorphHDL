@@ -26,6 +26,7 @@ EXPECTED_SOURCE_ROOTS = (
     "lib/src/main",
     "morphhdl-passes/src/main",
     "morphhdl/src/main",
+    "morphir/src/main",
     "morphplugin/src/main",
     "morphruntime/src/main",
     "paramrtl/src/main",
@@ -61,11 +62,12 @@ EXPECTED_RULE_IDS = (
     "emitted-name-recognition",
 )
 EXPECTED_RULES_SHA256 = (
-    "95fdf90c2473fbf4f3fe52e4aca4c264a82e51ba0d545a367192d32023896e6c"
+    "6f4456f583684b4fbac29a4e620233225d802cb7abe498171ec33649bd308966"
 )
 EXPECTED_PLUGIN_COMPONENTS = (
     "MorphHdlTypedElaborationControlComponent",
     "MorphHdlNaturalSymbolicConditionalComponent",
+    "MorphHdlFrontendSymbolicEqualitySafetyComponent",
 )
 EXPECTED_JAR_PREFIXES = (
     "morphhdl/compiler/MorphHdlNativeAxi4SlaveFactoryParameterizationComponent",
@@ -274,7 +276,7 @@ def compile_contract(manifest: Mapping[str, Any]) -> Dict[str, Any]:
 
     components = manifest.get("expected_plugin_components")
     if components != list(EXPECTED_PLUGIN_COMPONENTS):
-        raise RetirementError("expected_plugin_components must be the two typed phases")
+        raise RetirementError("expected_plugin_components must be the three ordered typed phases")
     descriptor = clean_path(manifest.get("plugin_descriptor"), "plugin_descriptor")
 
     jar_prefixes = string_list(
@@ -403,7 +405,8 @@ def validate_sources(root: Path, contract: Mapping[str, Any]) -> int:
     actual_components = plugin_components(descriptor_source)
     if actual_components != list(EXPECTED_PLUGIN_COMPONENTS):
         raise RetirementError(
-            "default plugin phases must be exactly typed-control then natural-symbolic; "
+            "default plugin phases must be exactly typed-control, natural-symbolic, "
+            "then frontend symbolic-equality safety; "
             f"found {actual_components}"
         )
     return len(files)

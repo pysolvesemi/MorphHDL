@@ -23,7 +23,7 @@ package object frontend {
 
   def cloneOf[T <: Data](data: T): T = ParameterizedWidth.cloneOf(data)
   def HardType[T <: Data](dataType: => T): spinal.core.HardType[T] =
-    ExternalParameterizedHardTypeRegistry.create(dataType)
+    ParameterizedWidth.HardType(dataType)
   def Reg[T <: Data](dataType: => T): T = ParameterizedWidth.Reg(dataType)
   def Vec[T <: Data](dataType: => T, size: Int): spinal.core.Vec[T] =
     ParameterizedWidth.Vec(dataType, size)
