@@ -27,7 +27,7 @@
     {
       "path": "lib/src/main",
       "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "3e8ea679e33b553c030f3c44efad321963f01ab1"
+      "approved_tree": "bfa0d60b81d2969e0ae52c87ca0b78d281338af0"
     },
     {
       "path": "scalaplugin/src/main",
@@ -1924,7 +1924,7 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 55: audit concrete compatibility"
       ],
-      "reason": "Add typed Counter overloads and one exact geometry adapter around the authoritative native stepping algorithm.",
+      "reason": "Add typed Counter overloads and one exact geometry adapter around the authoritative native stepping algorithm, with a reviewed singleton guard that prevents a zero-bit concrete step.",
       "baseline": {
         "path": "lib/src/main/scala/spinal/lib/Counter.scala",
         "mode": "100644",
@@ -1934,8 +1934,8 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/Counter.scala",
         "mode": "100644",
-        "blob": "03e861403a4285b38f68d7a9abf03342cb82f1b8",
-        "sha256": "1940508ed307b102bb64a4619ddb7e36993a4898b055febf4c864a4fd77a4c80"
+        "blob": "31c65472411a69c4ec451cefce99d60639187bd7",
+        "sha256": "0a43076776796e6901a9cba74aa035bd4a53c98f2d064b2e1460bfd1505c4b70"
       },
       "edits": [
         {
@@ -2264,7 +2264,7 @@
           "id": "counter-typed-bounds-15",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
-          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; preserve native concrete Both-mode ordering for non-singleton ranges and keep singleton ranges on the compared path because no step bit is representable.",
           "baseline_span": {
             "start": 14584,
             "end": 15101,
@@ -2272,13 +2272,18 @@
           },
           "approved_span": {
             "start": 35423,
-            "end": 36371,
-            "sha256": "c12e45cfa86a91c02d24942fa9d8419fe29fab4fd92a6165ebaf0b85bcb74267"
+            "end": 36534,
+            "sha256": "c297b5956c10de1254d8e07b0508574fa1311e0dbd056eb6d8d96f23c54c2456"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "handleOverflow",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "span > 1",
               "count": 1
             }
           ]
@@ -2294,8 +2299,8 @@
             "sha256": "3ce84631b48f1a6e4cb964c97c73117aea3e3dfe4d02e148131cf2c4c926807c"
           },
           "approved_span": {
-            "start": 36395,
-            "end": 37477,
+            "start": 36558,
+            "end": 37640,
             "sha256": "5652a19a20f579b2ad5f9179b97142a4c246e0867e8788ae49d325729063caa6"
           },
           "required_exact_text": [
@@ -2317,8 +2322,8 @@
             "sha256": "e4b73409dee50fa5139303062101f0305682db24ff99c09a5268f873038ca6cb"
           },
           "approved_span": {
-            "start": 37526,
-            "end": 37570,
+            "start": 37689,
+            "end": 37733,
             "sha256": "792081be40e35eb2287de9c61d618fa2e8b2a0ea4ffd41260d14c71251b31754"
           },
           "required_exact_text": [
@@ -2340,8 +2345,8 @@
             "sha256": "f72c3b9b3be2af8efd41fa9b75cad36c90f97b2fc564732ae28f8e22d3477d3d"
           },
           "approved_span": {
-            "start": 37751,
-            "end": 37782,
+            "start": 37914,
+            "end": 37945,
             "sha256": "163fe441466d92de120e7365285f811377e320ce7f917629c12f77f7f09db3cb"
           },
           "required_exact_text": [
@@ -2363,8 +2368,8 @@
             "sha256": "6113247bf823c32d398236398ee23f3d8b93362e4cde85b783eb4bcd4176bcf7"
           },
           "approved_span": {
-            "start": 37786,
-            "end": 41010,
+            "start": 37949,
+            "end": 41173,
             "sha256": "b9b8d2dc73650acd2332dd7455ff97a5b7e7047dd40a4dcbe707b33df1d97aaf"
           },
           "required_exact_text": [
@@ -2386,8 +2391,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 41119,
-            "end": 41184,
+            "start": 41282,
+            "end": 41347,
             "sha256": "e56ffa2484db4334f6b928bb47c95a680c385da095b59869e387906ded5d3bea"
           },
           "required_exact_text": [
@@ -2409,8 +2414,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 43066,
-            "end": 43197,
+            "start": 43229,
+            "end": 43360,
             "sha256": "63eb26461164f322d3fb80810b3d91e39010a45eddc6f39f4430ce7971827331"
           },
           "required_exact_text": [
@@ -2432,8 +2437,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 43341,
-            "end": 43545,
+            "start": 43504,
+            "end": 43708,
             "sha256": "c2941d87cb7f868ef9d84c632de13208e50c877b2edce525046f64f0fef91260"
           },
           "required_exact_text": [

@@ -246,6 +246,22 @@ inside its detached Increment 0 worktree. This keeps the baseline proof
 self-contained while compiling the current helper against the original native
 `SpinalConfig` API in both Scala lanes.
 
+### Concrete singleton Counter safety
+
+The selected upstream concrete `CounterDirection.Both` implementation treats a
+singleton range as eligible for its arithmetic step shortcut. That constructs
+`UInt(log2Up(1) bits)` and then assigns the one-bit literal `1`, so an ordinary
+`Counter.both(1)` cannot complete elaboration. Restoring the concrete upstream
+branch exposed that defect in the inherited depth-one Counter matrices.
+
+The reviewed concrete selector therefore requires `span > 1`, matching the
+existing symbolic selector and the pre-audit shared control. Singleton ranges
+use the native compared-step path; all non-singleton shortcut eligibility and
+lazy-control ordering remain unchanged. The repair is contained in the
+existing `counter-typed-bounds-15` byte span, so the approved native-path and
+reviewed-span counts remain 21 and 128. Both affected suites pass on Scala
+2.12.18 and 2.13.12 after a clean rebuild.
+
 ## Ordinary `SpinalVerilog` parity
 
 `morphhdl/scripts/check-concrete-spinalverilog-parity.sh` copies one byte-
