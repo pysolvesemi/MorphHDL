@@ -533,7 +533,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   Re-run all migrated library, formal, simulation, lint, synthesis and
   determinism gates before deleting obsolete runtime registries.
 
-- [ ] **Increment 54 — Typed elaboration layering and canonical IR cleanup**
+- [x] **Increment 54 — Typed elaboration layering and canonical IR cleanup**
 
   **Dependencies:** Increment 53g implemented and merged.
 
