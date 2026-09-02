@@ -170,6 +170,52 @@ class Flow[T <: Data](val payloadType: HardType[T]) extends Bundle with IMasterS
     }.setCompositeName(this, "m2sPipe", true)
   }
 
+  def m2sPipe(holdPayload: ElabBool): Flow[T] =
+    m2sPipe(holdPayload, null, false)
+
+  def m2sPipe(holdPayload: ElabBool, flush: Bool): Flow[T] =
+    m2sPipe(holdPayload, flush, false)
+
+  /** Typed structural selection for the native Flow register algorithm.
+    * Each alternative invokes the ordinary Boolean overload and connects it
+    * to one stable result carrier, avoiding a second Flow implementation.
+    */
+  def m2sPipe(
+      holdPayload: ElabBool,
+      flush: Bool,
+      crossClockData: Boolean
+  ): Flow[T] = {
+    if (holdPayload == null)
+      throw new IllegalArgumentException(
+        "typed Flow holdPayload predicate must not be null"
+      )
+    if (!holdPayload.isSymbolic)
+      m2sPipe(holdPayload.witness, flush, crossClockData)
+    else {
+      val result = Flow(payloadType)
+      ElabControl.selectSymbolic(
+        holdPayload,
+        sourcecode.File(),
+        sourcecode.Line()
+      )({
+        result << m2sPipe(
+          holdPayload = true,
+          flush = flush,
+          crossClockData = crossClockData
+        )
+        ()
+      })({
+        result << m2sPipe(
+          holdPayload = false,
+          flush = flush,
+          crossClockData = crossClockData
+        )
+        ()
+      })
+      result.setCompositeName(this, "m2sPipe", true)
+    }
+  }
+
   def stage() : Flow[T] = this.m2sPipe().setCompositeName(this, "stage", true)
 
   /**
@@ -194,18 +240,40 @@ class Flow[T <: Data](val payloadType: HardType[T]) extends Bundle with IMasterS
     payload := that
   }
 
+  private def queuedWithOccupancy(fifo: StreamFifo[T]): (Stream[T], UInt) =
+    (fifo.io.pop, fifo.io.occupancy)
+
   def queueWithOccupancy(size: Int): (Stream[T], UInt) = {
     val fifo = new StreamFifo(payloadType, size).setCompositeName(this,"queueWithOccupancy", true)
     fifo.io.push << this.toStream
     fifo.io.push.ready.allowPruning()
-    return (fifo.io.pop, fifo.io.occupancy)
+    return queuedWithOccupancy(fifo)
   }
+
+  def queueWithOccupancy(size: ElabInt): (Stream[T], UInt) = {
+    val fifo = StreamFifo(payloadType, size)
+      .setCompositeName(this, "queueWithOccupancy", true)
+    fifo.io.push << this.toStream
+    fifo.io.push.ready.allowPruning()
+    queuedWithOccupancy(fifo)
+  }
+
+  private def queuedWithAvailability(fifo: StreamFifo[T]): (Stream[T], UInt) =
+    (fifo.io.pop, fifo.io.availability)
 
   def queueWithAvailability(size: Int): (Stream[T], UInt) = {
     val fifo = new StreamFifo(payloadType, size).setCompositeName(this,"queueWithAvailability", true)
     fifo.io.push << this.toStream
     fifo.io.push.ready.allowPruning()
-    return (fifo.io.pop, fifo.io.availability)
+    return queuedWithAvailability(fifo)
+  }
+
+  def queueWithAvailability(size: ElabInt): (Stream[T], UInt) = {
+    val fifo = StreamFifo(payloadType, size)
+      .setCompositeName(this, "queueWithAvailability", true)
+    fifo.io.push << this.toStream
+    fifo.io.push.ready.allowPruning()
+    queuedWithAvailability(fifo)
   }
 }
 

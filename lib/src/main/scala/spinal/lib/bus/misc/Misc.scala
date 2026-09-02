@@ -128,6 +128,174 @@ case class SingleMapping(address : BigInt) extends AddressMapping{
   override def foreach(body: BigInt => Unit) = body(address)
 }
 
+/** A single-address mapping whose address remains an exact typed elaboration
+  * expression.
+  *
+  * Unlike [[SingleMapping]], this mapping deliberately takes the generic
+  * decoder path.  [[ElabValue.uintLike]] materializes the address with the
+  * native bus-address shape and retains the exact [[ElabInt]] carrier on that
+  * hardware value.  No concrete witness is used as symbolic authority.
+  */
+final case class ElabIntSingleMapping(address: ElabInt) extends AddressMapping {
+  require(
+    address != null,
+    "typed single-address mapping requires a non-null address"
+  )
+
+  private val projectedExpression = address.authoritativeProjectedExpression(
+    role = "typed bus-slave address",
+    failureCode =
+      "SPINAL-PARAMETERIZED-VERILOG-BUS-ADDRESS-EXACT-DOMAIN-REQUIRED",
+    requireProjectedExactExtrema = true
+  )
+  private val projectedAddress = ElabInt.fromExpression(projectedExpression)
+  private val exactValues = projectedExpression.exactDomain
+    .map(_.evaluations.map(_._2))
+    .getOrElse(Vector(projectedExpression.default))
+  private var validatedBusShape: Option[(Int, Int)] = None
+
+  exactValues.find(_ < 0).foreach { value =>
+    fail(
+      "SPINAL-PARAMETERIZED-VERILOG-BUS-ADDRESS-DOMAIN-NEGATIVE",
+      s"typed bus-slave address '$projectedAddress' reaches negative byte address $value"
+    )
+  }
+
+  /** Prove every admitted typed address against the concrete bus contract.
+    * Validation is deliberately pointwise over exact projected evidence: an
+    * aligned interval's extrema alone cannot prove that every interior value
+    * is aligned.
+    */
+  private[misc] def validateForBus(
+      addressWidth: Int,
+      alignmentBytes: Int
+  ): this.type = {
+    if (alignmentBytes <= 0) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-BUS-ADDRESS-ALIGNMENT-INVALID",
+        s"typed bus-slave addresses require a positive byte alignment, but found $alignmentBytes"
+      )
+    }
+    validateAddressWidth(addressWidth)
+    exactValues.find(_ % alignmentBytes != 0).foreach { value =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-BUS-ADDRESS-UNALIGNED",
+        s"typed bus-slave address '$projectedAddress' reaches byte address $value, which is not aligned to the factory's $alignmentBytes-byte address boundary"
+      )
+    }
+    validatedBusShape = Some(addressWidth -> alignmentBytes)
+    this
+  }
+
+  private def validateAddressWidth(addressWidth: Int): Unit = {
+    if (addressWidth <= 0) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-BUS-ADDRESS-WIDTH-INVALID",
+        s"typed bus-slave addresses require a positive bus address width, but found $addressWidth bits"
+      )
+    }
+    exactValues.find(_.bitLength > addressWidth).foreach { value =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-BUS-ADDRESS-WIDTH-INSUFFICIENT",
+        s"typed bus-slave address '$projectedAddress' reaches byte address $value, which does not fit the $addressWidth-bit bus address"
+      )
+    }
+  }
+
+  override def hit(busAddress: UInt): Bool = {
+    validateAddressWidth(widthOf(busAddress))
+    busAddress === ElabValue.uintLike(projectedAddress, busAddress, "")
+  }
+
+  override def hit(candidate: BigInt): Boolean = {
+    concreteAddress("tested against a concrete address") == candidate
+  }
+
+  override def removeOffset(busAddress: UInt): UInt = U(0)
+  override def lowerBound: BigInt = exactValues.min
+  override def highestBound: BigInt = exactValues.max
+
+  override def randomPick(): BigInt =
+    concreteAddress("used as a concrete random address")
+
+  override def withOffset(addressOffset: BigInt): AddressMapping = {
+    val shifted = ElabIntSingleMapping(
+      projectedAddress + ElabInt.fromBigInt(addressOffset)
+    )
+    validatedBusShape.foreach { case (addressWidth, alignmentBytes) =>
+      shifted.validateForBus(addressWidth, alignmentBytes)
+    }
+    shifted
+  }
+
+  override def toString: String = s"Typed address $projectedAddress"
+
+  override def foreach(body: BigInt => Unit): Unit = {
+    body(concreteAddress("enumerated as one concrete address"))
+  }
+
+  /** Address maps key by exact value function and declaration identity. This
+    * lets independently derived but equivalent expressions share one factory
+    * group without treating equal names, witnesses, or source text as proof.
+    */
+  override def canEqual(other: Any): Boolean =
+    other.isInstanceOf[ElabIntSingleMapping]
+
+  override def equals(other: Any): Boolean = other match {
+    case that: ElabIntSingleMapping =>
+      (this eq that) || sameAddressFunction(that)
+    case _ => false
+  }
+
+  override def hashCode(): Int = projectedExpression.exactDomain match {
+    case Some(domain) =>
+      var hash = 17
+      hash = 31 * hash + System.identityHashCode(domain.root)
+      hash = 31 * hash + System.identityHashCode(domain.parameter)
+      hash = 31 * hash + domain.evaluations.##
+      hash = 31 * hash + projectedExpression.default.##
+      hash = 31 * hash + projectedExpression.minimum.##
+      hash = 31 * hash + projectedExpression.maximum.##
+      hash = 31 * hash + projectedExpression.generateIndex.##
+      hash
+    case None => projectedExpression.default.##
+  }
+
+  private def sameAddressFunction(that: ElabIntSingleMapping): Boolean =
+    (projectedExpression.exactDomain, that.projectedExpression.exactDomain) match {
+      case (Some(left), Some(right)) =>
+        (left.root eq right.root) &&
+          (left.parameter eq right.parameter) &&
+          left.evaluations == right.evaluations &&
+          projectedExpression.default == that.projectedExpression.default &&
+          projectedExpression.minimum == that.projectedExpression.minimum &&
+          projectedExpression.maximum == that.projectedExpression.maximum &&
+          projectedExpression.generateIndex == that.projectedExpression.generateIndex
+      case (None, None) =>
+        projectedExpression.default == that.projectedExpression.default
+      case _ => false
+    }
+
+  private def concreteAddress(operation: String): BigInt = {
+    val distinct = exactValues.distinct
+    if (distinct.size != 1) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-BUS-ADDRESS-CONCRETE-OPERATION-SYMBOLIC",
+        s"typed bus-slave address '$projectedAddress' varies over exact values ${distinct.sorted.mkString(", ")} and cannot be $operation"
+      )
+    }
+    distinct.head
+  }
+
+  private def fail(code: String, detail: String): Nothing = {
+    throw new ParameterizedVerilogException(
+      code,
+      detail,
+      projectedExpression.sourceLocation
+    )
+  }
+}
+
 
 /**
  * Creates an address mapping using a bit mask.
@@ -461,3 +629,4 @@ case class InterleaverTransformer(blockSize : Int, ratio : Int, sel : Int) exten
 //trait LogicalOp[T]{
 //  def mincover(rhs : T) : T
 //}
+// ElabIntSingleMapping intentionally remains a generic AddressMapping.

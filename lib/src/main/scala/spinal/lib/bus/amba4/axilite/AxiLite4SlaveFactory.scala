@@ -92,4 +92,7 @@ class AxiLite4SlaveFactory(bus : AxiLite4, useWriteStrobes : Boolean = false) ex
   override def busDataWidth: Int = bus.config.dataWidth
 
   override def wordAddressInc: Int = busDataWidth / 8
+
+  override protected def typedAddressAlignmentBytes: Int =
+    bus.config.dataWidth / 8
 }

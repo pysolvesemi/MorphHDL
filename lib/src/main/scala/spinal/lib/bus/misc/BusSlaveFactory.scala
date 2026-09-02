@@ -61,6 +61,12 @@ trait BusSlaveFactory extends Area{
   /** Address incrementation used by the read and write multi words registers */
   def wordAddressInc: Int = busDataWidth / 8
 
+  /** Smallest byte-address alignment retained by this factory's decoder.
+    * Full-address decoders accept every byte address; factories which clear or
+    * reconstruct low address bits opt in to their native alignment.
+    */
+  protected def typedAddressAlignmentBytes: Int = 1
+
   /** Set the endianness during write/read multiword */
   def setWordEndianness(value : Endianness) = setConfig(getConfig.copy(wordEndianness = value))
 
@@ -113,6 +119,37 @@ trait BusSlaveFactory extends Area{
    */
   def writeByteEnable(): Bits = null //B(busDataWidth / 8 bits, default -> True)
 
+  private def requireTypedAddress(address: ElabInt): Unit = {
+    require(address != null, "typed bus-slave address requires a non-null ElabInt")
+  }
+
+  private def validatedTypedAddress(
+      address: ElabInt,
+      busAddress: UInt
+  ): ElabIntSingleMapping = {
+    requireTypedAddress(address)
+    val addressWidth = ParameterizedWidth.expressionOf(busAddress) match {
+      case Some(expression) if expression.parameters.nonEmpty =>
+        ElabInt
+          .fromExpression(expression)
+          .authoritativeProjectedExpression(
+            role = "typed bus-slave bus-address width",
+            failureCode =
+              "SPINAL-PARAMETERIZED-VERILOG-BUS-ADDRESS-WIDTH-EXACT-DOMAIN-REQUIRED",
+            requireProjectedExactExtrema = true
+          )
+          .minimum
+          .toInt
+      case _ => widthOf(busAddress)
+    }
+    ElabIntSingleMapping(address).validateForBus(
+      // The smallest admitted address width is sufficient even when its
+      // parameter root is independent of the typed address root.
+      addressWidth = addressWidth,
+      alignmentBytes = typedAddressAlignmentBytes
+    )
+  }
+
   /**
     * Permanently assign that by the bus write data from bitOffset
     */
@@ -137,6 +174,38 @@ trait BusSlaveFactory extends Area{
     that
   }
 
+  /** Typed counterpart of [[read]] with explicit arities so the concrete
+    * BigInt overload remains the sole owner of its historical defaults.
+    */
+  def read[T <: Data](that: T, address: ElabInt): T =
+    read(that, address, 0, null)
+
+  def read[T <: Data](that: T, address: ElabInt, bitOffset: Int): T =
+    read(that, address, bitOffset, null)
+
+  def read[T <: Data](that: T, address: ElabInt, documentation: String): T =
+    read(that, address, 0, documentation)
+
+  def read[T <: Data](
+      that: T,
+      address: ElabInt,
+      bitOffset: Int,
+      documentation: String
+  ): T = {
+    val mapping = validatedTypedAddress(address, readAddress())
+    if (address.isConcrete)
+      read(that, BigInt(address.witness), bitOffset, documentation)
+    else {
+      readPrimitive(
+        that          = that,
+        address       = mapping,
+        bitOffset     = bitOffset,
+        documentation = documentation
+      )
+      that
+    }
+  }
+
   /**
     * When the bus write the address, assign that with bus’s data from bitOffset
     */
@@ -153,6 +222,36 @@ trait BusSlaveFactory extends Area{
     that
   }
 
+  /** Typed counterpart of [[write]] with no overloaded default arguments. */
+  def write[T <: Data](that: T, address: ElabInt): T =
+    write(that, address, 0, null)
+
+  def write[T <: Data](that: T, address: ElabInt, bitOffset: Int): T =
+    write(that, address, bitOffset, null)
+
+  def write[T <: Data](that: T, address: ElabInt, documentation: String): T =
+    write(that, address, 0, documentation)
+
+  def write[T <: Data](
+      that: T,
+      address: ElabInt,
+      bitOffset: Int,
+      documentation: String
+  ): T = {
+    val mapping = validatedTypedAddress(address, writeAddress())
+    if (address.isConcrete)
+      write(that, BigInt(address.witness), bitOffset, documentation)
+    else {
+      writePrimitive(
+        that          = that,
+        address       = mapping,
+        bitOffset     = bitOffset,
+        documentation = documentation
+      )
+      that
+    }
+  }
+
 
   /**
     * Call doThat when a write transaction occurs on address
@@ -163,6 +262,21 @@ trait BusSlaveFactory extends Area{
       haltSensitive = true,
       documentation = documentation
     )(doThat)
+  }
+
+  def onWrite(address: ElabInt)(doThat: => Unit): Unit =
+    onWrite(address, null)(doThat)
+
+  def onWrite(address: ElabInt, documentation: String)(doThat: => Unit): Unit = {
+    val mapping = validatedTypedAddress(address, writeAddress())
+    if (address.isConcrete)
+      onWrite(BigInt(address.witness), documentation)(doThat)
+    else
+      onWritePrimitive(
+        address       = mapping,
+        haltSensitive = true,
+        documentation = documentation
+      )(doThat)
   }
 
 
@@ -177,14 +291,43 @@ trait BusSlaveFactory extends Area{
     )(doThat)
   }
 
+  def onRead(address: ElabInt)(doThat: => Unit): Unit =
+    onRead(address, null)(doThat)
+
+  def onRead(address: ElabInt, documentation: String)(doThat: => Unit): Unit = {
+    val mapping = validatedTypedAddress(address, readAddress())
+    if (address.isConcrete)
+      onRead(BigInt(address.witness), documentation)(doThat)
+    else
+      onReadPrimitive(
+        address       = mapping,
+        haltSensitive = true,
+        documentation = documentation
+      )(doThat)
+  }
+
   def write[T <: Data](address    : BigInt,
                        bitMapping : (Int, Data)*): Unit = {
     bitMapping.foreach{ case (bitId, that) => write(that, address, bitId) }
   }
 
+  def write[T <: Data](
+      address: ElabInt,
+      bitMapping: (Int, Data)*
+  ): Unit = {
+    bitMapping.foreach { case (bitId, that) => write(that, address, bitId) }
+  }
+
   def read[T <: Data](address    : BigInt,
                        bitMapping : (Int, Data)*): Unit = {
     bitMapping.foreach{ case (bitId, that) => read(that, address, bitId) }
+  }
+
+  def read[T <: Data](
+      address: ElabInt,
+      bitMapping: (Int, Data)*
+  ): Unit = {
+    bitMapping.foreach { case (bitId, that) => read(that, address, bitId) }
   }
 
 
@@ -195,6 +338,28 @@ trait BusSlaveFactory extends Area{
                    address       : BigInt,
                    bitOffset     : Int = 0,
                    documentation : String = null): Unit = {
+    write(that, address, bitOffset, documentation)
+    read(that, address, bitOffset, documentation)
+  }
+
+  def readAndWrite(that: Data, address: ElabInt): Unit =
+    readAndWrite(that, address, 0, null)
+
+  def readAndWrite(that: Data, address: ElabInt, bitOffset: Int): Unit =
+    readAndWrite(that, address, bitOffset, null)
+
+  def readAndWrite(
+      that: Data,
+      address: ElabInt,
+      documentation: String
+  ): Unit = readAndWrite(that, address, 0, documentation)
+
+  def readAndWrite(
+      that: Data,
+      address: ElabInt,
+      bitOffset: Int,
+      documentation: String
+  ): Unit = {
     write(that, address, bitOffset, documentation)
     read(that, address, bitOffset, documentation)
   }
@@ -901,7 +1066,12 @@ trait BusSlaveFactoryDelayed extends BusSlaveFactory {
         val read_job = job.asInstanceOf[BusSlaveFactoryRead]
         val current_bits = List.range(read_job.bitOffset, read_job.that.getBitsWidth + read_job.bitOffset, 1)
         for (bit <- current_bits) {
-          assert(!occupied_range.contains(bit), s"BusSlaveFactory DOUBLE-READ-ERROR : bit $bit of bus address ${address.asInstanceOf[SingleMapping].address} should be written by ${read_job.that.getName()} but it is already occupied by another signal at the same address!")
+          val displayedAddress = address match {
+            case single: SingleMapping        => single.address.toString
+            case single: ElabIntSingleMapping => single.address.toString
+            case _                            => address.toString
+          }
+          assert(!occupied_range.contains(bit), s"BusSlaveFactory DOUBLE-READ-ERROR : bit $bit of bus address $displayedAddress should be written by ${read_job.that.getName()} but it is already occupied by another signal at the same address!")
           occupied_range.append(bit)
         }
       }
@@ -1108,6 +1278,49 @@ class BusSlaveFactoryAddressWrapper(f: BusSlaveFactory, addressOffset: BigInt) e
   override def writePrimitive[T <: Data](that: T, address: AddressMapping, bitOffset: Int, documentation: String): Unit = f.writePrimitive(that, address.withOffset(addressOffset), bitOffset, documentation)
   override def onWritePrimitive(address: AddressMapping, haltSensitive: Boolean, documentation: String)(doThat: => Unit): Unit = f.onWritePrimitive(address.withOffset(addressOffset), haltSensitive, documentation)(doThat)
   override def onReadPrimitive(address: AddressMapping, haltSensitive: Boolean, documentation: String)(doThat: => Unit): Unit = f.onReadPrimitive(address.withOffset(addressOffset), haltSensitive, documentation)(doThat)
+
+  // Retain typed authority until after the wrapper offset is applied. This
+  // makes the final effective address pass the underlying factory's complete
+  // domain, alignment and address-width proof before a concrete typed literal
+  // can delegate to the authoritative BigInt overload.
+  override def read[T <: Data](
+      that: T,
+      address: ElabInt,
+      bitOffset: Int,
+      documentation: String
+  ): T =
+    f.read(
+      that,
+      address + ElabInt.fromBigInt(addressOffset),
+      bitOffset,
+      documentation
+    )
+
+  override def write[T <: Data](
+      that: T,
+      address: ElabInt,
+      bitOffset: Int,
+      documentation: String
+  ): T =
+    f.write(
+      that,
+      address + ElabInt.fromBigInt(addressOffset),
+      bitOffset,
+      documentation
+    )
+
+  override def onWrite(
+      address: ElabInt,
+      documentation: String
+  )(doThat: => Unit): Unit =
+    f.onWrite(address + ElabInt.fromBigInt(addressOffset), documentation)(doThat)
+
+  override def onRead(
+      address: ElabInt,
+      documentation: String
+  )(doThat: => Unit): Unit =
+    f.onRead(address + ElabInt.fromBigInt(addressOffset), documentation)(doThat)
+
   override def readHalt(): Unit = f.readHalt()
   override def writeHalt(): Unit = f.writeHalt()
   override def readAddress(): UInt = f.readAddress()  - addressOffset

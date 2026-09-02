@@ -567,7 +567,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   production constructors, implicit symbolic-to-concrete conversion or runtime
   provenance reconstruction.
 
-- [ ] **Increment 57 — Broad native library migration and proof**
+- [x] **Increment 57 — Broad native library migration and proof**
 
   **Dependencies:** Increment 56 implemented and merged.
 

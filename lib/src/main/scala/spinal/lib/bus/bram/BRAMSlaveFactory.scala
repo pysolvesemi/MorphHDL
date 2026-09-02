@@ -90,11 +90,25 @@ class BRAMSlaveFactory(bus: BRAM, incAddress: Int = 0) extends BusSlaveFactoryDe
       }
     }
 
+    for ((mapping, jobs) <- elementsPerAddress if mapping.isInstanceOf[ElabIntSingleMapping]) {
+      when(mapping.hit(address)) {
+        for (element <- jobs) element match {
+          case element: BusSlaveFactoryRead =>
+            bus.rddata(element.bitOffset, element.that.getBitsWidth bits) := element.that.asBits
+            elementsOk += element
+          case element: BusSlaveFactoryOnReadAtAddress if element.haltSensitive =>
+            when(doReadNext){ element.doThat()}
+            elementsOk += element
+          case _ =>
+        }
+      }
+    }
+
 
     /**
       * Write operation
       */
-    for ((address, jobs) <- elementsPerAddress if address.isInstanceOf[SingleMapping]) {
+    for ((address, jobs) <- elementsPerAddress if address.isInstanceOf[SingleMapping] || address.isInstanceOf[ElabIntSingleMapping]) {
       when(doWrite & address.hit(bus.addr)) {
         for (element <- jobs) element match {
           case element: BusSlaveFactoryWrite =>

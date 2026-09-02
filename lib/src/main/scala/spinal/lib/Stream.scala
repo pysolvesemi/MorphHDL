@@ -210,6 +210,111 @@ class Stream[T <: Data](val payloadType :  HardType[T]) extends Bundle with IMas
     }
   }
 
+  /** Typed counterpart of [[pipelined(Boolean, Boolean, Boolean)]].
+    *
+    * The three predicates must share one exact elaboration domain.  Each
+    * legal source alternative delegates to the ordinary Boolean overload, so
+    * the native pipeline implementations remain authoritative; only their
+    * structural selection is retained for parameterized lowering.
+    */
+  def pipelined(
+      m2s: ElabBool,
+      s2m: ElabBool,
+      halfRate: ElabBool
+  ): Stream[T] = {
+    if (m2s == null || s2m == null || halfRate == null)
+      throw new IllegalArgumentException(
+        "typed Stream pipeline predicates must not be null"
+      )
+
+    val legal = !(halfRate && (m2s || s2m))
+    ElabControl.requireCondition(
+      legal,
+      "halfRate can be enabled only when m2s and s2m are disabled",
+      sourcecode.File(),
+      sourcecode.Line()
+    )
+
+    if (!m2s.isSymbolic && !s2m.isSymbolic && !halfRate.isSymbolic)
+      pipelined(m2s.witness, s2m.witness, halfRate.witness)
+    else {
+      // Keep module-scope packed input carriers ahead of the mutually
+      // exclusive alternatives. A one-bit Bits value is used for valid so
+      // its declaration remains outside every generated branch; each branch
+      // then rebuilds only a local Stream connection to the native algorithm.
+      val validCarrier = Bits(1 bits)
+      validCarrier := 0
+      when(this.valid) {
+        validCarrier := 1
+      }
+      val payloadCarrier = payloadType()
+      payloadCarrier := this.payload
+      when(this.valid) {
+        payloadCarrier := this.payload
+      }
+      val readyCarrier = Bool()
+      this.ready := False
+      when(readyCarrier) {
+        this.ready := True
+      }
+      validCarrier.setAsVital().dontSimplifyIt().noBackendCombMerge()
+      readyCarrier.setAsVital().dontSimplifyIt().noBackendCombMerge()
+      payloadCarrier.flatten.foreach(
+        _.setAsVital().dontSimplifyIt().noBackendCombMerge()
+      )
+      validCarrier.setCompositeName(this, "pipelinedSourceValid", true)
+      readyCarrier.setCompositeName(this, "pipelinedSourceReady", true)
+      payloadCarrier.setCompositeName(this, "pipelinedSourcePayload", true)
+
+      def nativePipeline(
+          nativeM2s: Boolean,
+          nativeS2m: Boolean,
+          nativeHalfRate: Boolean
+      ): Stream[T] = {
+        val branchSource = Stream(payloadType)
+        branchSource.valid := validCarrier(0)
+        branchSource.payload := payloadCarrier
+        readyCarrier := branchSource.ready
+        branchSource.pipelined(
+          m2s = nativeM2s,
+          s2m = nativeS2m,
+          halfRate = nativeHalfRate
+        )
+      }
+      val result = Stream(payloadType)
+      def select(condition: ElabBool)(ifTrue: => Unit)(ifFalse: => Unit): Unit =
+        ElabControl.selectSymbolic(
+          condition,
+          sourcecode.File(),
+          sourcecode.Line()
+        )(ifTrue)(ifFalse)
+
+      select(halfRate) {
+        result << nativePipeline(false, false, true)
+        ()
+      } {
+        select(m2s) {
+          select(s2m) {
+            result << nativePipeline(true, true, false)
+            ()
+          } {
+            result << nativePipeline(true, false, false)
+            ()
+          }
+        } {
+          select(s2m) {
+            result << nativePipeline(false, true, false)
+            ()
+          } {
+            result << nativePipeline(false, false, false)
+            ()
+          }
+        }
+      }
+      result.setCompositeName(this, "pipelined", true)
+    }
+  }
+
   def &(cond: Bool): Stream[T] = continueWhen(cond)
   def ~[T2 <: Data](that: T2): Stream[T2] = translateWith(that)
   def ~~[T2 <: Data](translate: (T) => T2): Stream[T2] = map(translate)
@@ -237,6 +342,30 @@ class Stream[T <: Data](val payloadType :  HardType[T]) extends Bundle with IMas
     fifo.io.push << self
   }.fifo.io.pop
 
+  def queue(size: ElabInt): Stream[T] = queue(size, 2, false)
+
+  def queue(size: ElabInt, latency: Int): Stream[T] =
+    queue(size, latency, false)
+
+  def queue(
+      size: ElabInt,
+      latency: Int,
+      forFMax: Boolean
+  ): Stream[T] = new Composite(this) {
+    assert(latency >= 0 && latency <= 2)
+    val fifo = StreamFifo(
+      payloadType,
+      size,
+      withAsyncRead = latency < 2,
+      withBypass = latency == 0,
+      allowExtraMsb = true,
+      forFMax = forFMax,
+      useVec = false,
+      initPayload = None
+    ).setCompositeName(this, "queue", true)
+    fifo.io.push << self
+  }.fifo.io.pop
+
   /** Connect this to a register constructed fifo and return its pop stream
    */
   def queueOfReg(size: Int, latency : Int = 1, forFMax : Boolean = false, initPayload : => Option[T] = None): Stream[T] = new Composite(this){
@@ -254,16 +383,78 @@ class Stream[T <: Data](val payloadType :  HardType[T]) extends Bundle with IMas
 
 /** Connect this to a fifo and return its pop stream and its occupancy
   */
+  private def queuedWithOccupancy(fifo: StreamFifo[T]): (Stream[T], UInt) =
+    (fifo.io.pop, fifo.io.occupancy)
+
   def queueWithOccupancy(size: Int, latency : Int = 2, forFMax : Boolean = false): (Stream[T], UInt) = {
     val fifo = StreamFifo(payloadType, size, latency = latency, forFMax = forFMax).setCompositeName(this,"queueWithOccupancy", true)
     fifo.io.push << this
-    (fifo.io.pop, fifo.io.occupancy)
+    queuedWithOccupancy(fifo)
   }
+
+  def queueWithOccupancy(size: ElabInt): (Stream[T], UInt) =
+    queueWithOccupancy(size, 2, false)
+
+  def queueWithOccupancy(
+      size: ElabInt,
+      latency: Int
+  ): (Stream[T], UInt) = queueWithOccupancy(size, latency, false)
+
+  def queueWithOccupancy(
+      size: ElabInt,
+      latency: Int,
+      forFMax: Boolean
+  ): (Stream[T], UInt) = {
+    assert(latency >= 0 && latency <= 2)
+    val fifo = StreamFifo(
+      payloadType,
+      size,
+      withAsyncRead = latency < 2,
+      withBypass = latency == 0,
+      allowExtraMsb = true,
+      forFMax = forFMax,
+      useVec = false,
+      initPayload = None
+    ).setCompositeName(this, "queueWithOccupancy", true)
+    fifo.io.push << this
+    queuedWithOccupancy(fifo)
+  }
+
+  private def queuedWithAvailability(fifo: StreamFifo[T]): (Stream[T], UInt) =
+    (fifo.io.pop, fifo.io.availability)
 
   def queueWithAvailability(size: Int, latency : Int = 2, forFMax : Boolean = false): (Stream[T], UInt) = {
     val fifo = StreamFifo(payloadType, size, latency = latency, forFMax = forFMax).setCompositeName(this,"queueWithAvailability", true)
     fifo.io.push << this
-    (fifo.io.pop, fifo.io.availability)
+    queuedWithAvailability(fifo)
+  }
+
+  def queueWithAvailability(size: ElabInt): (Stream[T], UInt) =
+    queueWithAvailability(size, 2, false)
+
+  def queueWithAvailability(
+      size: ElabInt,
+      latency: Int
+  ): (Stream[T], UInt) = queueWithAvailability(size, latency, false)
+
+  def queueWithAvailability(
+      size: ElabInt,
+      latency: Int,
+      forFMax: Boolean
+  ): (Stream[T], UInt) = {
+    assert(latency >= 0 && latency <= 2)
+    val fifo = StreamFifo(
+      payloadType,
+      size,
+      withAsyncRead = latency < 2,
+      withBypass = latency == 0,
+      allowExtraMsb = true,
+      forFMax = forFMax,
+      useVec = false,
+      initPayload = None
+    ).setCompositeName(this, "queueWithAvailability", true)
+    fifo.io.push << this
+    queuedWithAvailability(fifo)
   }
 
 /** Connect this to a cross clock domain fifo and return its pop stream and its push side occupancy

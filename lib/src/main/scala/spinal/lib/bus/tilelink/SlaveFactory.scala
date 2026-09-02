@@ -138,4 +138,7 @@ class SlaveFactory(bus: Bus, allowBurst : Boolean) extends BusSlaveFactoryDelaye
   }
 
   override def busDataWidth: Int = bus.p.dataWidth
+
+  override protected def typedAddressAlignmentBytes: Int =
+    1 << bus.p.dataBytesLog2Up
 }
