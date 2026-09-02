@@ -61,6 +61,12 @@ trait BusSlaveFactory extends Area{
   /** Address incrementation used by the read and write multi words registers */
   def wordAddressInc: Int = busDataWidth / 8
 
+  /** Smallest byte-address alignment retained by this factory's decoder.
+    * Full-address decoders accept every byte address; factories which clear or
+    * reconstruct low address bits opt in to their native alignment.
+    */
+  protected def typedAddressAlignmentBytes: Int = 1
+
   /** Set the endianness during write/read multiword */
   def setWordEndianness(value : Endianness) = setConfig(getConfig.copy(wordEndianness = value))
 
@@ -140,7 +146,7 @@ trait BusSlaveFactory extends Area{
       // The smallest admitted address width is sufficient even when its
       // parameter root is independent of the typed address root.
       addressWidth = addressWidth,
-      busDataWidth = busDataWidth
+      alignmentBytes = typedAddressAlignmentBytes
     )
   }
 

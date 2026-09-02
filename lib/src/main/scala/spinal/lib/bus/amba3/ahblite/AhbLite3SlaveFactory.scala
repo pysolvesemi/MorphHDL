@@ -89,5 +89,11 @@ class AhbLite3SlaveFactory(bus: AhbLite3, incAddress: Int = 0) extends BusSlaveF
         }
       }
     }
+
+    for ((mapping, jobs) <- elementsPerAddress if mapping.isInstanceOf[spinal.lib.bus.misc.ElabIntSingleMapping]) {
+      when(mapping.hit(addressDelay)) {
+        doMappedElements(jobs)
+      }
+    }
   }
 }

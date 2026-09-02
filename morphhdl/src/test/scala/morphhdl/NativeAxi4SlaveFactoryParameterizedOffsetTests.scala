@@ -9,8 +9,12 @@ import scala.collection.JavaConverters._
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 import spinal.lib._
+import spinal.lib.bus.amba3.ahblite.{AhbLite3, AhbLite3Config, AhbLite3SlaveFactory}
+import spinal.lib.bus.amba3.apb.{Apb3, Apb3Config, Apb3SlaveFactory}
 import spinal.lib.bus.amba4.axi.{Axi4, Axi4Config, Axi4SlaveFactory}
+import spinal.lib.bus.bram.{BRAM, BRAMConfig, BRAMSlaveFactory}
 import spinal.lib.bus.misc.ElabIntSingleMapping
+import spinal.lib.bus.wishbone.{AddressGranularity, Wishbone, WishboneConfig, WishboneSlaveFactory}
 
 import morphhdl.frontend.HdlInt
 
@@ -82,6 +86,131 @@ final class NativeAxi4SlaveFactoryEquivalentDoubleReadTop(
   val factory = Axi4SlaveFactory(io.axi)
   factory.read(first, offsetWord * 4)
   factory.read(second, offsetWord * 4)
+}
+
+/** Exercises the native BusSlaveFactory address wrapper so its fixed offset is
+  * applied before the underlying factory validates the effective typed
+  * address.
+  */
+final class NativeAxi4SlaveFactoryAddressWrapperTop(
+    address: ElabInt,
+    addressOffset: BigInt
+) extends Component {
+  setDefinitionName("NativeAxi4SlaveFactoryAddressWrapperTop")
+
+  private val config = Axi4Config(
+    addressWidth = 12,
+    dataWidth = 32,
+    idWidth = 2
+  )
+
+  val io = new Bundle {
+    val axi = slave(Axi4(config))
+    val observed = out UInt (32 bits)
+  }
+
+  val register = Reg(UInt(32 bits)) init (0)
+  io.observed := register
+  Axi4SlaveFactory(io.axi)
+    .withOffset(addressOffset)
+    .readAndWrite(register, address)
+}
+
+/** Full-address APB decoding admits byte addresses independently of bus word
+  * width. The same top also provides a literal typed-versus-BigInt parity
+  * witness.
+  */
+final class NativeApb3SlaveFactoryTypedAddressTop(
+    address: ElabInt,
+    useTypedLiteral: Option[Boolean] = None
+) extends Component {
+  setDefinitionName("NativeApb3SlaveFactoryTypedAddressTop")
+
+  val io = new Bundle {
+    val apb = slave(Apb3(Apb3Config(addressWidth = 12, dataWidth = 32)))
+    val observed = out UInt (32 bits)
+  }
+
+  val register = Reg(UInt(32 bits)) init (0)
+  io.observed := register
+  val factory = Apb3SlaveFactory(io.apb)
+  useTypedLiteral match {
+    case Some(true)  => factory.readAndWrite(register, ElabInt.literal(1))
+    case Some(false) => factory.readAndWrite(register, BigInt(1))
+    case None        => factory.readAndWrite(register, address)
+  }
+}
+
+/** These delayed factories historically optimized only SingleMapping. The
+  * generic typed mapping must use their native delayed read/write timing too.
+  */
+final class NativeBramSlaveFactoryTypedAddressTop(address: ElabInt)
+    extends Component {
+  setDefinitionName("NativeBramSlaveFactoryTypedAddressTop")
+
+  val io = new Bundle {
+    val bus = slave(BRAM(BRAMConfig(dataWidth = 32, addressWidth = 12)))
+    val observed = out UInt (32 bits)
+    val observedReadEvent = out Bool ()
+    val observedWriteEvent = out Bool ()
+  }
+
+  val register = Reg(UInt(32 bits)) init (0)
+  val readEvent = Reg(Bool()) init (False)
+  val writeEvent = Reg(Bool()) init (False)
+  io.observed := register
+  io.observedReadEvent := readEvent
+  io.observedWriteEvent := writeEvent
+
+  val factory = BRAMSlaveFactory(io.bus)
+  factory.readAndWrite(register, address)
+  factory.onRead(address) { readEvent := True }
+  factory.onWrite(address) { writeEvent := True }
+}
+
+final class NativeAhbLite3SlaveFactoryTypedAddressTop(address: ElabInt)
+    extends Component {
+  setDefinitionName("NativeAhbLite3SlaveFactoryTypedAddressTop")
+
+  val io = new Bundle {
+    val bus = slave(AhbLite3(AhbLite3Config(addressWidth = 12, dataWidth = 32)))
+    val observed = out UInt (32 bits)
+    val observedReadEvent = out Bool ()
+    val observedWriteEvent = out Bool ()
+  }
+
+  val register = Reg(UInt(32 bits)) init (0)
+  val readEvent = Reg(Bool()) init (False)
+  val writeEvent = Reg(Bool()) init (False)
+  io.observed := register
+  io.observedReadEvent := readEvent
+  io.observedWriteEvent := writeEvent
+
+  val factory = AhbLite3SlaveFactory(io.bus)
+  factory.readAndWrite(register, address)
+  factory.onRead(address) { readEvent := True }
+  factory.onWrite(address) { writeEvent := True }
+}
+
+final class NativeWishboneSlaveFactoryTypedAddressTop(
+    address: ElabInt,
+    granularity: AddressGranularity.AddressGranularity
+) extends Component {
+  setDefinitionName("NativeWishboneSlaveFactoryTypedAddressTop")
+
+  private val busConfig = WishboneConfig(
+    addressWidth = 12,
+    dataWidth = 24,
+    addressGranularity = granularity
+  )
+  val io = new Bundle {
+    val bus = slave(Wishbone(busConfig))
+    val observed = out Bits (24 bits)
+  }
+
+  val register = Reg(Bits(24 bits)) init (0)
+  io.observed := register
+  WishboneSlaveFactory(io.bus).readAndWrite(register, address)
 }
 
 class NativeAxi4SlaveFactoryParameterizedOffsetTests extends AnyFunSuite {
@@ -221,6 +350,155 @@ class NativeAxi4SlaveFactoryParameterizedOffsetTests extends AnyFunSuite {
     }
   }
 
+  test("native address wrapper preserves and revalidates the effective typed address") {
+    withTemporaryDirectory { directory =>
+      val filename = "native_axi4_slave_factory_wrapped.v"
+      MorphVerilog(config(directory.resolve("aligned"), filename)) {
+        val word = HdlInt
+          .param("WRAPPED_WORD", default = 4, min = 4, max = 8)
+          .asElabInt
+        new NativeAxi4SlaveFactoryAddressWrapperTop(word * 4, 4)
+      }
+      val verilog = read(directory.resolve("aligned").resolve(filename))
+      assert(verilog.contains("parameter integer WRAPPED_WORD = 4"))
+      assert(verilog.sliding("WRAPPED_WORD".length).count(_ == "WRAPPED_WORD") >= 2)
+
+      val failure = intercept[MorphVerilogException] {
+        MorphVerilog(config(directory.resolve("unaligned"), "unaligned.v")) {
+          val word = HdlInt
+            .param("WRAPPED_UNALIGNED_WORD", default = 4, min = 4, max = 8)
+            .asElabInt
+          new NativeAxi4SlaveFactoryAddressWrapperTop(word * 4, 2)
+        }
+      }
+      val error = causeChain(failure).collectFirst {
+        case value: ParameterizedVerilogException => value
+      }.getOrElse(fail("missing wrapped typed-address failure"))
+      assert(
+        error.code == "SPINAL-PARAMETERIZED-VERILOG-BUS-ADDRESS-UNALIGNED"
+      )
+      assert(error.detail.contains("4-byte address boundary"))
+    }
+  }
+
+  test("typed APB addresses preserve full byte-address decoding and literal parity") {
+    withTemporaryDirectory { directory =>
+      val literalFilename = "native_apb3_slave_factory_literal.v"
+      val typedDirectory = directory.resolve("typed-literal")
+      val concreteDirectory = directory.resolve("concrete-literal")
+      SpinalVerilog(config(typedDirectory, literalFilename))(
+        new NativeApb3SlaveFactoryTypedAddressTop(
+          ElabInt.literal(1),
+          useTypedLiteral = Some(true)
+        )
+      )
+      SpinalVerilog(config(concreteDirectory, literalFilename))(
+        new NativeApb3SlaveFactoryTypedAddressTop(
+          ElabInt.literal(1),
+          useTypedLiteral = Some(false)
+        )
+      )
+      assert(
+        read(typedDirectory.resolve(literalFilename)) ==
+          read(concreteDirectory.resolve(literalFilename)),
+        "typed APB literal must delegate to the byte-identical BigInt mapping"
+      )
+
+      val symbolicFilename = "native_apb3_slave_factory_parameterized.v"
+      val firstDirectory = directory.resolve("symbolic-first")
+      val secondDirectory = directory.resolve("symbolic-second")
+      val first = emitTypedFactory(firstDirectory, symbolicFilename, "APB_OFFSET") {
+        address => new NativeApb3SlaveFactoryTypedAddressTop(address)
+      }
+      val second = emitTypedFactory(secondDirectory, symbolicFilename, "APB_OFFSET") {
+        address => new NativeApb3SlaveFactoryTypedAddressTop(address)
+      }
+      assert(first == second)
+      assert(first.contains("parameter integer APB_OFFSET = 1"))
+      assert(first.sliding("APB_OFFSET".length).count(_ == "APB_OFFSET") >= 2)
+      assert(first.contains("io_apb_PADDR"))
+    }
+  }
+
+  test("BRAM and AHB delayed factories consume exact typed mappings") {
+    withTemporaryDirectory { directory =>
+      val cases = Vector[(String, ElabInt => Component)](
+        "BRAM_OFFSET" -> ((address: ElabInt) =>
+          new NativeBramSlaveFactoryTypedAddressTop(address)),
+        "AHB_OFFSET" -> ((address: ElabInt) =>
+          new NativeAhbLite3SlaveFactoryTypedAddressTop(address))
+      )
+
+      cases.foreach { case (parameter, build) =>
+        val filename = s"native_${parameter.toLowerCase}_slave_factory.v"
+        val first = emitTypedFactory(
+          directory.resolve(s"$parameter-first"),
+          filename,
+          parameter
+        )(build)
+        val second = emitTypedFactory(
+          directory.resolve(s"$parameter-second"),
+          filename,
+          parameter
+        )(build)
+        assert(first == second)
+        assert(first.contains(s"parameter integer $parameter = 1"))
+        assert(first.sliding(parameter.length).count(_ == parameter) >= 2)
+        assert(first.contains("observedReadEvent"))
+        assert(first.contains("observedWriteEvent"))
+      }
+    }
+  }
+
+  test("Wishbone typed alignment follows the exact byte-address shift") {
+    withTemporaryDirectory { directory =>
+      val byteFilename = "native_wishbone_byte_granularity.v"
+      val byteVerilog = emitTypedFactory(
+        directory.resolve("byte"),
+        byteFilename,
+        "WISHBONE_BYTE_OFFSET"
+      ) { address =>
+        new NativeWishboneSlaveFactoryTypedAddressTop(
+          address,
+          AddressGranularity.BYTE
+        )
+      }
+      assert(byteVerilog.contains("parameter integer WISHBONE_BYTE_OFFSET = 1"))
+
+      val wordFilename = "native_wishbone_word_granularity.v"
+      MorphVerilog(config(directory.resolve("word"), wordFilename)) {
+        val word = HdlInt
+          .param("WISHBONE_WORD", default = 1, min = 1, max = 2)
+          .asElabInt
+        new NativeWishboneSlaveFactoryTypedAddressTop(
+          word * 4,
+          AddressGranularity.WORD
+        )
+      }
+      val wordVerilog = read(directory.resolve("word").resolve(wordFilename))
+      assert(wordVerilog.replaceAll("\\s+", "").contains("WISHBONE_WORD*4"))
+
+      val failure = intercept[MorphVerilogException] {
+        MorphVerilog(config(directory.resolve("word-unaligned"), "unaligned.v")) {
+          val address = HdlInt
+            .param("WISHBONE_UNALIGNED", default = 3, min = 3, max = 3)
+            .asElabInt
+          new NativeWishboneSlaveFactoryTypedAddressTop(
+            address,
+            AddressGranularity.WORD
+          )
+        }
+      }
+      val error = causeChain(failure).collectFirst {
+        case value: ParameterizedVerilogException => value
+      }.getOrElse(fail("missing Wishbone typed-alignment failure"))
+      assert(
+        error.code == "SPINAL-PARAMETERIZED-VERILOG-BUS-ADDRESS-UNALIGNED"
+      )
+      assert(error.detail.contains("4-byte address boundary"))
+    }
+  }
+
   test("typed factory rejects every unsafe admitted address domain") {
     withTemporaryDirectory { directory =>
       val negative = expectTypedAddressFailure(
@@ -243,7 +521,7 @@ class NativeAxi4SlaveFactoryParameterizedOffsetTests extends AnyFunSuite {
           .param("UNALIGNED_BYTE", default = 64, min = 64, max = 65)
           .asElabInt
       }
-      assert(unaligned.detail.contains("4-byte bus word"))
+      assert(unaligned.detail.contains("4-byte address boundary"))
 
       val tooWide = expectTypedAddressFailure(
         directory.resolve("too-wide"),
@@ -333,6 +611,20 @@ class NativeAxi4SlaveFactoryParameterizedOffsetTests extends AnyFunSuite {
     assert(error.code == expectedCode)
     assert(!Files.exists(directory.resolve(filename)))
     error
+  }
+
+  private def emitTypedFactory(
+      directory: Path,
+      filename: String,
+      parameter: String
+  )(build: ElabInt => Component): String = {
+    MorphVerilog(config(directory, filename)) {
+      val address = HdlInt
+        .param(parameter, default = 1, min = 1, max = 3)
+        .asElabInt
+      build(address)
+    }
+    read(directory.resolve(filename))
   }
 
   private def causeChain(error: Throwable): Vector[Throwable] = {

@@ -168,23 +168,22 @@ final case class ElabIntSingleMapping(address: ElabInt) extends AddressMapping {
     */
   private[misc] def validateForBus(
       addressWidth: Int,
-      busDataWidth: Int
+      alignmentBytes: Int
   ): this.type = {
-    if (busDataWidth <= 0 || busDataWidth % 8 != 0) {
+    if (alignmentBytes <= 0) {
       fail(
-        "SPINAL-PARAMETERIZED-VERILOG-BUS-DATA-WIDTH-INVALID",
-        s"typed bus-slave addresses require a positive whole-byte bus data width, but found $busDataWidth bits"
+        "SPINAL-PARAMETERIZED-VERILOG-BUS-ADDRESS-ALIGNMENT-INVALID",
+        s"typed bus-slave addresses require a positive byte alignment, but found $alignmentBytes"
       )
     }
     validateAddressWidth(addressWidth)
-    val wordBytes = busDataWidth / 8
-    exactValues.find(_ % wordBytes != 0).foreach { value =>
+    exactValues.find(_ % alignmentBytes != 0).foreach { value =>
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-BUS-ADDRESS-UNALIGNED",
-        s"typed bus-slave address '$projectedAddress' reaches byte address $value, which is not aligned to the $wordBytes-byte bus word"
+        s"typed bus-slave address '$projectedAddress' reaches byte address $value, which is not aligned to the factory's $alignmentBytes-byte address boundary"
       )
     }
-    validatedBusShape = Some(addressWidth -> busDataWidth)
+    validatedBusShape = Some(addressWidth -> alignmentBytes)
     this
   }
 
@@ -223,8 +222,8 @@ final case class ElabIntSingleMapping(address: ElabInt) extends AddressMapping {
     val shifted = ElabIntSingleMapping(
       projectedAddress + ElabInt.fromBigInt(addressOffset)
     )
-    validatedBusShape.foreach { case (addressWidth, busDataWidth) =>
-      shifted.validateForBus(addressWidth, busDataWidth)
+    validatedBusShape.foreach { case (addressWidth, alignmentBytes) =>
+      shifted.validateForBus(addressWidth, alignmentBytes)
     }
     shifted
   }

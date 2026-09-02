@@ -383,10 +383,13 @@ class Stream[T <: Data](val payloadType :  HardType[T]) extends Bundle with IMas
 
 /** Connect this to a fifo and return its pop stream and its occupancy
   */
+  private def queuedWithOccupancy(fifo: StreamFifo[T]): (Stream[T], UInt) =
+    (fifo.io.pop, fifo.io.occupancy)
+
   def queueWithOccupancy(size: Int, latency : Int = 2, forFMax : Boolean = false): (Stream[T], UInt) = {
     val fifo = StreamFifo(payloadType, size, latency = latency, forFMax = forFMax).setCompositeName(this,"queueWithOccupancy", true)
     fifo.io.push << this
-    (fifo.io.pop, fifo.io.occupancy)
+    queuedWithOccupancy(fifo)
   }
 
   def queueWithOccupancy(size: ElabInt): (Stream[T], UInt) =
@@ -414,13 +417,16 @@ class Stream[T <: Data](val payloadType :  HardType[T]) extends Bundle with IMas
       initPayload = None
     ).setCompositeName(this, "queueWithOccupancy", true)
     fifo.io.push << this
-    (fifo.io.pop, fifo.io.occupancy)
+    queuedWithOccupancy(fifo)
   }
+
+  private def queuedWithAvailability(fifo: StreamFifo[T]): (Stream[T], UInt) =
+    (fifo.io.pop, fifo.io.availability)
 
   def queueWithAvailability(size: Int, latency : Int = 2, forFMax : Boolean = false): (Stream[T], UInt) = {
     val fifo = StreamFifo(payloadType, size, latency = latency, forFMax = forFMax).setCompositeName(this,"queueWithAvailability", true)
     fifo.io.push << this
-    (fifo.io.pop, fifo.io.availability)
+    queuedWithAvailability(fifo)
   }
 
   def queueWithAvailability(size: ElabInt): (Stream[T], UInt) =
@@ -448,7 +454,7 @@ class Stream[T <: Data](val payloadType :  HardType[T]) extends Bundle with IMas
       initPayload = None
     ).setCompositeName(this, "queueWithAvailability", true)
     fifo.io.push << this
-    (fifo.io.pop, fifo.io.availability)
+    queuedWithAvailability(fifo)
   }
 
 /** Connect this to a cross clock domain fifo and return its pop stream and its push side occupancy

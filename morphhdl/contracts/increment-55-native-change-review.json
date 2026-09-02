@@ -1404,6 +1404,32 @@
           ]
         },
         {
+          "id": "flow-sync-queue-abi-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Flow queued occupancy result",
+          "reason": "Share the inherited structural occupancy accessor across concrete and typed overloads so Scala reflection-cache numbering remains binary compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private def queuedWithOccupancy",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "flow-sync-queue-abi-02",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Flow.queueWithOccupancy(Int)",
+          "reason": "Route the concrete helper through the shared result accessor without changing its native FIFO signals.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "queuedWithOccupancy(fifo",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "flow-sync-queue-01",
           "kind": "overload",
           "owner": "spinal.lib.Flow.queueWithOccupancy(ElabInt)",
@@ -1471,6 +1497,32 @@
             {
               "side": "approved",
               "text": "def queue(size: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-sync-queue-abi-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Stream queued occupancy result",
+          "reason": "Share the inherited structural occupancy accessor across concrete and typed overloads so Scala reflection-cache numbering remains binary compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private def queuedWithOccupancy",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-sync-queue-abi-02",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Stream.queueWithOccupancy(Int)",
+          "reason": "Route the concrete helper through the shared result accessor without changing its native FIFO signals.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "queuedWithOccupancy(fifo",
               "count": 1
             }
           ]
@@ -2076,6 +2128,119 @@
       ]
     },
     {
+      "path": "lib/src/main/scala/spinal/lib/bus/amba3/ahblite/AhbLite3SlaveFactory.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/amba3/ahblite/AhbLite3SlaveFactory.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Route exact typed single-address mappings through the existing delayed AHB-Lite transaction decoder.",
+      "edits": [
+        {
+          "id": "ahb-lite-generic-mapping-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba3.ahblite.AhbLite3SlaveFactory.build",
+          "reason": "Add an ElabIntSingleMapping-only fallback beside the inherited optimized SingleMapping switch.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "mapping.hit(addressDelay)",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4SlaveFactory.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4SlaveFactory.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Declare the native AXI4 masked-address alignment for generic typed mappings without changing its transaction decoder.",
+      "edits": [
+        {
+          "id": "axi4-typed-alignment-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axi.Axi4SlaveFactory typed address policy",
+          "reason": "Expose the word alignment already imposed by the inherited masked read and write addresses.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "typedAddressAlignmentBytes",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axilite/AxiLite4SlaveFactory.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/amba4/axilite/AxiLite4SlaveFactory.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Declare the native AXI4-Lite masked-address alignment for generic typed mappings without changing its transaction decoder.",
+      "edits": [
+        {
+          "id": "axi4-lite-typed-alignment-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axilite.AxiLite4SlaveFactory typed address policy",
+          "reason": "Expose the word alignment already imposed by the inherited masked read and write addresses.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "typedAddressAlignmentBytes",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/bram/BRAMSlaveFactory.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/bram/BRAMSlaveFactory.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Route exact typed single-address mappings through the existing one-cycle BRAM read and live write transaction paths.",
+      "edits": [
+        {
+          "id": "bram-generic-mapping-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.bram.BRAMSlaveFactory registered read decoder",
+          "reason": "Add an ElabIntSingleMapping-only fallback against the inherited registered read address.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "mapping.hit(address)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bram-generic-mapping-02",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.bram.BRAMSlaveFactory live write decoder",
+          "reason": "Extend the concrete-mapping filter only to ElabIntSingleMapping so unrelated mapping kinds retain their previous behavior.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " || address.isInstanceOf[ElabIntSingleMapping]",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala",
       "baseline_path": "lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala",
       "change": "modified",
@@ -2085,6 +2250,19 @@
       ],
       "reason": "Add explicit typed single-address overloads and mechanical mapping propagation while retaining every ordinary concrete and bus-family transaction algorithm.",
       "edits": [
+        {
+          "id": "bus-slave-typed-alignment-policy-01",
+          "kind": "signature",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory typed address alignment",
+          "reason": "Default exact typed addresses to full byte decoding while allowing address-normalizing native factories to declare their existing low-bit policy.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "protected def typedAddressAlignmentBytes: Int = 1",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "bus-slave-typed-address-01",
           "kind": "signature",
@@ -2249,6 +2427,56 @@
             {
               "side": "approved",
               "text": "ElabIntSingleMapping intentionally remains a generic AddressMapping.",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/SlaveFactory.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/tilelink/SlaveFactory.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Declare the native TileLink word-address normalization for generic typed mappings without changing its transaction decoder.",
+      "edits": [
+        {
+          "id": "tilelink-typed-alignment-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.tilelink.SlaveFactory typed address policy",
+          "reason": "Expose the data-word alignment already imposed by the inherited shifted address.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "typedAddressAlignmentBytes",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/wishbone/WishboneSlaveFactory.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/wishbone/WishboneSlaveFactory.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Declare the effective native Wishbone byte-address alignment for generic typed mappings without changing its transaction decoder.",
+      "edits": [
+        {
+          "id": "wishbone-typed-alignment-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.wishbone.WishboneSlaveFactory typed address policy",
+          "reason": "Derive the low-bit alignment already imposed by configured address granularity and byte-address reconstruction.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "typedAddressAlignmentBytes",
               "count": 1
             }
           ]

@@ -18,14 +18,16 @@ The frozen migration surface is:
 | Flow pipeline | `m2sPipe(ElabBool, ...)` | the existing `m2sPipe(Boolean, ...)` register algorithm |
 | Synchronous queues | Stream `queue`, `queueWithOccupancy`, `queueWithAvailability`, and Flow occupancy/availability helpers with `ElabInt` depth | the reviewed native `StreamFifo` implementation |
 | Counter and memory users | native `Counter(ElabInt, ...)` and `Mem(..., ElabInt)` calls in the same application-shaped queue component | the typed primitives completed before Increment 57 |
-| Bus/register map | `BusSlaveFactory` read, write, event and read/write helpers with an `ElabInt` single address | the generic `AddressMapping` decoder used by the real native bus factory |
+| Bus/register map | `BusSlaveFactory` read, write, event and read/write helpers with an `ElabInt` single address | the generic `AddressMapping` decoder used by native bus factories, with each address-normalizing factory declaring its low-bit alignment |
 
-Only `Stream.scala`, `Flow.scala`, `bus/misc/Misc.scala` and
-`bus/misc/BusSlaveFactory.scala` are eligible for new native review entries in
-this increment. The representative AXI4 factory remains unchanged: it consumes
-the generic typed address mapping through its existing native primitive path.
-Counter, Mem and StreamFifo production changes from earlier increments are
-proof dependencies, not a reason to reopen their algorithms.
+The reviewed native surface consists of `Stream.scala`, `Flow.scala`,
+`bus/misc/Misc.scala`, `bus/misc/BusSlaveFactory.scala`, the alignment-policy
+overrides in the AXI4, AXI4-Lite, TileLink and Wishbone factories, and typed
+mapping fallbacks in the BRAM and AHB-Lite factories. The bus-family changes do
+not introduce a typed decoder: all retain the one generic `AddressMapping`
+path and their established transaction timing. Counter, Mem and StreamFifo
+production changes from earlier increments are proof dependencies, not a
+reason to reopen their algorithms.
 
 ## Deliberate exclusions
 
@@ -91,8 +93,11 @@ unpacked-array geometry without a component-specific bridge.
 
 `ElabIntSingleMapping` is a narrow `AddressMapping` implementation for one
 typed address. It projects the complete exact domain once, rejects every
-negative value, and—when admitted by a factory—checks every value for native
-word alignment and fit in the smallest possible bus-address width. Its
+negative value, and—when admitted by a factory—checks every value for that
+factory's native address alignment and fit in the smallest possible bus-address
+width. Full-address decoders default to one-byte alignment. AXI4, AXI4-Lite,
+TileLink and Wishbone opt in only when their native address path clears or
+reconstructs low bits. Its
 hardware `hit` method materializes the projected expression at the native bus
 address width with `ElabValue.uintLike`; it never replaces the expression with
 a witness. Bounds expose the complete admitted range so the existing generic
@@ -114,8 +119,18 @@ the exact domain 4 through 28 and becomes the typed byte address
 mappings, and an unrelated fixed address all share the native factory. Concrete
 witnesses cover byte addresses `0x010`, `0x040` and `0x070`. Negative,
 unaligned and address-width-overflow domains are rejected before RTL emission.
-No AXI4 production source or alternate transaction algorithm is part of the
-migration.
+The AXI4 production change is limited to declaring the alignment already
+imposed by its masked native address. AXI4-Lite and TileLink declare the same
+native word-alignment policy; Wishbone derives it from configured address
+granularity.
+
+APB3 supplies the complementary proof: typed literal address `1` emits
+byte-identically to ordinary `BigInt(1)`, and a symbolic exact domain `1`
+through `3` remains legal because APB compares the full byte address. Real
+BRAM and AHB-Lite fixtures prove that their delayed factories consume exact
+typed mappings. BRAM compares its registered address for one-cycle reads and
+its live address for writes; AHB-Lite keeps its existing delayed transaction
+path. Neither factory reproduces register-map behavior or uses a witness.
 
 ## Source and negative boundary
 
@@ -125,17 +140,19 @@ surface and the exclusions. It requires:
 - explicit typed Stream/Flow method signatures, `ElabControl` validation and
   delegation to ordinary alternatives;
 - typed synchronous queue helpers backed by `StreamFifo`;
-- the narrow typed mapping and BusSlaveFactory overload set;
+- the narrow typed mapping, factory-selected alignment policy and
+  BusSlaveFactory overload set;
+- typed mapping fallbacks for the native delayed BRAM and AHB-Lite paths;
 - application-shaped source using ordinary `spinal.core._`, `spinal.lib._`
-  and the real AXI4 factory; and
+  and real AXI4, APB3, BRAM and AHB-Lite factories; and
 - fail-closed concrete-only mapping operations.
 
 It rejects typed CDC, register-FIFO and low-latency helper signatures, typed
 `keep`/`crossClockData`, Morph-prefixed production factories, witness access
 at application call sites, and AXI4-local typed/shadow machinery. Its isolated
 self-test first checks copied good sources, then removes the Stream legality
-proof and injects a typed CDC queue signature. Both mutations must be rejected
-with their stable diagnostics.
+proof, injects a typed CDC queue signature and removes BRAM's generic read
+decoder. All mutations must be rejected with stable diagnostics.
 
 ## Required proof matrix
 
@@ -145,10 +162,10 @@ Closure requires the following evidence on the exact committed revision:
 | --- | --- |
 | Dual-Scala source/JVM compatibility | Scala 2.12.18 and 2.13.12 compile the new overloads while inherited literal clients and public descriptors remain compatible |
 | Concrete parity | ordinary Boolean/Int calls emit deterministic, parameter-free RTL and the detached upstream/current concrete parity suite remains byte-identical |
-| Pipeline overrides | all three `PIPE_MODE` values (m2s, s2m and half-rate) elaborate/compile through the native Stream and Flow algorithms; independent roots and illegal domains fail closed |
+| Pipeline overrides | all five legal `PIPE_MODE` values (m2s, s2m, half-rate, full and pass-through) elaborate/compile through the native Stream and Flow algorithms; independent roots and illegal domains fail closed |
 | Queue/Counter/Mem overrides | representative `DEPTH` values, including non-powers of two, compile as strict Verilog-2001 with matching FIFO, counter and memory geometry |
-| Bus/register-map overrides | direct and derived AXI4 offsets elaborate for every admitted value, concrete witnesses match ordinary factory output, and fixed mappings stay fixed |
-| Formal equivalence and mutation | parameterized and independently generated concrete Stream/Flow pipelines are unbounded-equivalent for all three modes, and AXI4 register/event behavior is equivalent for all three offsets; each deliberate mutation must produce a real counterexample |
+| Bus/register-map overrides | direct and derived AXI4 offsets elaborate for every admitted value, concrete witnesses match ordinary factory output, APB accepts reachable unaligned byte offsets, BRAM/AHB consume exact typed mappings, and fixed mappings stay fixed |
+| Formal equivalence and mutation | parameterized and independently generated concrete Stream/Flow pipelines are unbounded-equivalent for all five modes, and AXI4 register/event behavior is equivalent for all three offsets; each deliberate mutation must produce a real counterexample |
 | Tool and determinism gates | Icarus, Verilator, Yosys/SymbiYosys and repeated emission checks retain the inherited strictness |
 | Native audit | every native byte is covered by an independently reviewed span in the Increment 55 schema; no other native path changes |
 | Boundary mutation | the Increment 57 boundary guard and its isolated mutation self-test pass |
@@ -156,7 +173,8 @@ Closure requires the following evidence on the exact committed revision:
 `NativeLibraryMigrationTests` supplies the pipeline, queue/Counter/Mem,
 literal, determinism and negative-domain cases.
 `NativeAxi4SlaveFactoryParameterizedOffsetTests` supplies real-factory
-parameter override and concrete comparison evidence.
+parameter override and concrete comparison evidence, APB full-address parity,
+and BRAM/AHB typed delayed-decoder coverage.
 `NativeAxi4SlaveFactoryFormalEquivalenceTests` supplies the unbounded bus
 equivalence and deliberate mutation control.
 `NativeLibraryMigrationFormalEquivalenceTests` supplies the unbounded

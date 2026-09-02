@@ -31,7 +31,7 @@ class NativeLibraryMigrationTests extends AnyFunSuite {
       assert(!first.contains("MorphFlow"))
       assert(!first.contains("NativeIntShadow"))
 
-      Vector(1, 2).foreach { mode =>
+      Vector(1, 2, 3, 4).foreach { mode =>
         compileOverride(
           directory,
           first,

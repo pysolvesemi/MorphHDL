@@ -52,6 +52,12 @@ class WishboneSlaveFactory(bus: Wishbone, reg_feedback: Boolean = true, errorOnU
 
   override def busDataWidth = bus.config.dataWidth
 
+  override protected def typedAddressAlignmentBytes: Int =
+    1 << log2Up(
+      (bus.config.dataWidth / 8) /
+        bus.config.wordAddressInc(AddressGranularity.WORD)
+    )
+
   override def writeByteEnable() = bus.SEL
 
   private val customErrors = ArrayBuffer[Bool]()

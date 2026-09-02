@@ -240,11 +240,14 @@ class Flow[T <: Data](val payloadType: HardType[T]) extends Bundle with IMasterS
     payload := that
   }
 
+  private def queuedWithOccupancy(fifo: StreamFifo[T]): (Stream[T], UInt) =
+    (fifo.io.pop, fifo.io.occupancy)
+
   def queueWithOccupancy(size: Int): (Stream[T], UInt) = {
     val fifo = new StreamFifo(payloadType, size).setCompositeName(this,"queueWithOccupancy", true)
     fifo.io.push << this.toStream
     fifo.io.push.ready.allowPruning()
-    return (fifo.io.pop, fifo.io.occupancy)
+    return queuedWithOccupancy(fifo)
   }
 
   def queueWithOccupancy(size: ElabInt): (Stream[T], UInt) = {
@@ -252,14 +255,17 @@ class Flow[T <: Data](val payloadType: HardType[T]) extends Bundle with IMasterS
       .setCompositeName(this, "queueWithOccupancy", true)
     fifo.io.push << this.toStream
     fifo.io.push.ready.allowPruning()
-    (fifo.io.pop, fifo.io.occupancy)
+    queuedWithOccupancy(fifo)
   }
+
+  private def queuedWithAvailability(fifo: StreamFifo[T]): (Stream[T], UInt) =
+    (fifo.io.pop, fifo.io.availability)
 
   def queueWithAvailability(size: Int): (Stream[T], UInt) = {
     val fifo = new StreamFifo(payloadType, size).setCompositeName(this,"queueWithAvailability", true)
     fifo.io.push << this.toStream
     fifo.io.push.ready.allowPruning()
-    return (fifo.io.pop, fifo.io.availability)
+    return queuedWithAvailability(fifo)
   }
 
   def queueWithAvailability(size: ElabInt): (Stream[T], UInt) = {
@@ -267,7 +273,7 @@ class Flow[T <: Data](val payloadType: HardType[T]) extends Bundle with IMasterS
       .setCompositeName(this, "queueWithAvailability", true)
     fifo.io.push << this.toStream
     fifo.io.push.ready.allowPruning()
-    (fifo.io.pop, fifo.io.availability)
+    queuedWithAvailability(fifo)
   }
 }
 

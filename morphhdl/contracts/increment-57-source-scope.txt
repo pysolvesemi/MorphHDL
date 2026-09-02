@@ -3,8 +3,14 @@ docs/morphhdl/increment-57-broad-native-library-migration.md
 docs/morphhdl/v1-support-matrix.md
 lib/src/main/scala/spinal/lib/Flow.scala
 lib/src/main/scala/spinal/lib/Stream.scala
+lib/src/main/scala/spinal/lib/bus/amba3/ahblite/AhbLite3SlaveFactory.scala
+lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4SlaveFactory.scala
+lib/src/main/scala/spinal/lib/bus/amba4/axilite/AxiLite4SlaveFactory.scala
+lib/src/main/scala/spinal/lib/bus/bram/BRAMSlaveFactory.scala
 lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala
 lib/src/main/scala/spinal/lib/bus/misc/Misc.scala
+lib/src/main/scala/spinal/lib/bus/tilelink/SlaveFactory.scala
+lib/src/main/scala/spinal/lib/bus/wishbone/WishboneSlaveFactory.scala
 morphhdl/contracts/increment-55-native-change-review.json
 morphhdl/contracts/increment-57-source-scope.txt
 morphhdl/contracts/native-source-preservation.json

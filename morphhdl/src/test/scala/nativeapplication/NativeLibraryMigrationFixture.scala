@@ -15,8 +15,8 @@ object NativeLibraryMigrationFixture {
     setDefinitionName("NativeLibraryMigrationPipelineTop")
 
     private val mode: ElabInt = pipeMode
-    private val useM2s: ElabBool = mode.elabEq(0)
-    private val useS2m: ElabBool = mode.elabEq(1)
+    private val useM2s: ElabBool = mode.elabEq(0) || mode.elabEq(3)
+    private val useS2m: ElabBool = mode.elabEq(1) || mode.elabEq(3)
     private val useHalfRate: ElabBool = mode.elabEq(2)
     private val holdFlowPayload: ElabBool = mode.elabEq(1)
 
@@ -175,7 +175,7 @@ object NativeLibraryMigrationFixture {
 
   def pipeline(default: Int = 0): PipelineTop =
     new PipelineTop(
-      HdlInt.param("PIPE_MODE", default = default, min = 0, max = 2)
+      HdlInt.param("PIPE_MODE", default = default, min = 0, max = 4)
     )
 
   def queueMemory(default: Int = 5): QueueMemoryTop =

@@ -113,4 +113,7 @@ class Axi4SlaveFactory(bus: Axi4) extends BusSlaveFactoryDelayed {
   override def wordAddressInc: Int = busDataWidth / 8
 
   override def busDataWidth: Int = bus.config.dataWidth
+
+  override protected def typedAddressAlignmentBytes: Int =
+    bus.config.dataWidth / 8
 }

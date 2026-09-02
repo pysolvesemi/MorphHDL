@@ -9,6 +9,11 @@ flow_source="${MORPHDL_BROAD_NATIVE_FLOW_SOURCE:-lib/src/main/scala/spinal/lib/F
 mapping_source="${MORPHDL_BROAD_NATIVE_MAPPING_SOURCE:-lib/src/main/scala/spinal/lib/bus/misc/Misc.scala}"
 factory_source="${MORPHDL_BROAD_NATIVE_FACTORY_SOURCE:-lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala}"
 axi_factory_source="${MORPHDL_BROAD_NATIVE_AXI_FACTORY_SOURCE:-lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4SlaveFactory.scala}"
+axi_lite_factory_source="${MORPHDL_BROAD_NATIVE_AXI_LITE_FACTORY_SOURCE:-lib/src/main/scala/spinal/lib/bus/amba4/axilite/AxiLite4SlaveFactory.scala}"
+tilelink_factory_source="${MORPHDL_BROAD_NATIVE_TILELINK_FACTORY_SOURCE:-lib/src/main/scala/spinal/lib/bus/tilelink/SlaveFactory.scala}"
+wishbone_factory_source="${MORPHDL_BROAD_NATIVE_WISHBONE_FACTORY_SOURCE:-lib/src/main/scala/spinal/lib/bus/wishbone/WishboneSlaveFactory.scala}"
+bram_factory_source="${MORPHDL_BROAD_NATIVE_BRAM_FACTORY_SOURCE:-lib/src/main/scala/spinal/lib/bus/bram/BRAMSlaveFactory.scala}"
+ahb_factory_source="${MORPHDL_BROAD_NATIVE_AHB_FACTORY_SOURCE:-lib/src/main/scala/spinal/lib/bus/amba3/ahblite/AhbLite3SlaveFactory.scala}"
 fixture="${MORPHDL_BROAD_NATIVE_FIXTURE:-morphhdl/src/test/scala/nativeapplication/NativeLibraryMigrationFixture.scala}"
 axi_fixture="${MORPHDL_BROAD_NATIVE_AXI_FIXTURE:-morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryParameterizedOffsetTests.scala}"
 
@@ -39,6 +44,11 @@ check_boundary() {
   require_file "$mapping_source" typed-address-mapping
   require_file "$factory_source" BusSlaveFactory
   require_file "$axi_factory_source" Axi4SlaveFactory
+  require_file "$axi_lite_factory_source" AxiLite4SlaveFactory
+  require_file "$tilelink_factory_source" TileLink-SlaveFactory
+  require_file "$wishbone_factory_source" WishboneSlaveFactory
+  require_file "$bram_factory_source" BRAMSlaveFactory
+  require_file "$ahb_factory_source" AhbLite3SlaveFactory
   require_file "$fixture" application-fixture
   require_file "$axi_fixture" AXI4-proof-fixture
 
@@ -48,6 +58,11 @@ check_boundary() {
     "$mapping_source" \
     "$factory_source" \
     "$axi_factory_source" \
+    "$axi_lite_factory_source" \
+    "$tilelink_factory_source" \
+    "$wishbone_factory_source" \
+    "$bram_factory_source" \
+    "$ahb_factory_source" \
     "$fixture" \
     "$axi_fixture" <<'PY'
 import re
@@ -60,6 +75,11 @@ from pathlib import Path
     mapping_path,
     factory_path,
     axi_factory_path,
+    axi_lite_factory_path,
+    tilelink_factory_path,
+    wishbone_factory_path,
+    bram_factory_path,
+    ahb_factory_path,
     fixture_path,
     axi_fixture_path,
 ) = map(Path, sys.argv[1:])
@@ -69,6 +89,11 @@ flow = flow_path.read_text(encoding="utf-8")
 mapping = mapping_path.read_text(encoding="utf-8")
 factory = factory_path.read_text(encoding="utf-8")
 axi_factory = axi_factory_path.read_text(encoding="utf-8")
+axi_lite_factory = axi_lite_factory_path.read_text(encoding="utf-8")
+tilelink_factory = tilelink_factory_path.read_text(encoding="utf-8")
+wishbone_factory = wishbone_factory_path.read_text(encoding="utf-8")
+bram_factory = bram_factory_path.read_text(encoding="utf-8")
+ahb_factory = ahb_factory_path.read_text(encoding="utf-8")
 fixture = fixture_path.read_text(encoding="utf-8")
 axi_fixture = axi_fixture_path.read_text(encoding="utf-8")
 
@@ -246,6 +271,7 @@ require(
 )
 for code in (
     "BUS-ADDRESS-DOMAIN-NEGATIVE",
+    "BUS-ADDRESS-ALIGNMENT-INVALID",
     "BUS-ADDRESS-UNALIGNED",
     "BUS-ADDRESS-WIDTH-INSUFFICIENT",
 ):
@@ -261,6 +287,18 @@ require(
     factory,
     "FACTORY-TYPED-ADDRESS-GUARD-MISSING",
     "BusSlaveFactory typed null-address guard is missing",
+)
+require(
+    r"protected\s+def\s+typedAddressAlignmentBytes:\s*Int\s*=\s*1",
+    factory,
+    "FACTORY-TYPED-ALIGNMENT-POLICY-MISSING",
+    "BusSlaveFactory must default typed mappings to full byte-address decoding",
+)
+require(
+    r"alignmentBytes\s*=\s*typedAddressAlignmentBytes",
+    factory,
+    "FACTORY-TYPED-ALIGNMENT-POLICY-MISSING",
+    "typed mapping validation must use the factory-selected alignment",
 )
 require(
     r"val\s+mapping\s*=\s*validatedTypedAddress\(address,\s*readAddress\(\)\)"
@@ -295,13 +333,74 @@ for name in ("read", "write", "onRead", "onWrite", "readAndWrite"):
         f"BusSlaveFactory.{name} typed overload is missing",
     )
 
-# The representative bus family must consume the generic factory surface; no
-# AXI4-local typed decoder or MorphHDL shadow is allowed.
+# Address-normalizing bus families declare only their native low-bit policy;
+# they must not grow a local typed decoder or MorphHDL shadow.
 reject(
     r"ElabInt|ElabBool|ElabIntSingleMapping|NativeIntShadow|Morph(?:Read|Write|Bus)",
     axi_factory,
     "AXI4-LOCAL-TYPED-SHADOW",
-    "Axi4SlaveFactory must remain unchanged and use generic AddressMapping",
+    "Axi4SlaveFactory must use the generic mapping and contain no local typed shadow",
+)
+for source, label in (
+    (axi_factory, "Axi4SlaveFactory"),
+    (axi_lite_factory, "AxiLite4SlaveFactory"),
+    (tilelink_factory, "TileLink SlaveFactory"),
+    (wishbone_factory, "WishboneSlaveFactory"),
+):
+    require(
+        r"override\s+protected\s+def\s+typedAddressAlignmentBytes:\s*Int",
+        source,
+        "NORMALIZED-ADDRESS-ALIGNMENT-MISSING",
+        f"{label} must declare the alignment imposed by its native address normalization",
+    )
+require(
+    r"typedAddressAlignmentBytes:\s*Int\s*=\s*bus\.config\.dataWidth\s*/\s*8",
+    axi_factory,
+    "NORMALIZED-ADDRESS-ALIGNMENT-MISSING",
+    "Axi4SlaveFactory alignment must match its native data-word mask",
+)
+require(
+    r"typedAddressAlignmentBytes:\s*Int\s*=\s*bus\.config\.dataWidth\s*/\s*8",
+    axi_lite_factory,
+    "NORMALIZED-ADDRESS-ALIGNMENT-MISSING",
+    "AxiLite4SlaveFactory alignment must match its native data-word mask",
+)
+require(
+    r"typedAddressAlignmentBytes:\s*Int\s*=\s*1\s*<<\s*bus\.p\.dataBytesLog2Up",
+    tilelink_factory,
+    "NORMALIZED-ADDRESS-ALIGNMENT-MISSING",
+    "TileLink alignment must match the exact low-bit shift in its native decoder",
+)
+require(
+    r"typedAddressAlignmentBytes:\s*Int\s*=\s*1\s*<<\s*log2Up\s*\(",
+    wishbone_factory,
+    "NORMALIZED-ADDRESS-ALIGNMENT-MISSING",
+    "Wishbone alignment must match the exact low-bit shift in byteAddress",
+)
+
+# Delayed factories must consume optimized concrete mappings plus only the
+# exact typed single-address mapping added through BusSlaveFactory calls.
+require(
+    r"if\s+mapping\.isInstanceOf\[ElabIntSingleMapping\].*?mapping\.hit\(address\)",
+    bram_factory,
+    "BRAM-GENERIC-MAPPING-MISSING",
+    "BRAM reads must decode typed mappings against the registered read address",
+)
+require(
+    r"for\s*\(\(address,\s*jobs\)\s*<-\s*elementsPerAddress\s+if\s+"
+    r"address\.isInstanceOf\[SingleMapping\]\s*\|\|\s*"
+    r"address\.isInstanceOf\[ElabIntSingleMapping\]\).*?"
+    r"address\.hit\(bus\.addr\)",
+    bram_factory,
+    "BRAM-GENERIC-MAPPING-MISSING",
+    "BRAM writes must decode concrete and typed mappings against the live write address",
+)
+require(
+    r"if\s+mapping\.isInstanceOf\[spinal\.lib\.bus\.misc\.ElabIntSingleMapping\].*?"
+    r"mapping\.hit\(addressDelay\)",
+    ahb_factory,
+    "AHB-GENERIC-MAPPING-MISSING",
+    "AHB delayed transactions must decode typed mappings",
 )
 
 # Application proof sources use ordinary native APIs, not a production wrapper
@@ -323,6 +422,9 @@ require(r"\.queueWithAvailability\s*\(", fixture, "FIXTURE-QUEUE", "application 
 require(r"Counter\s*\(", fixture, "FIXTURE-COUNTER", "application fixture must exercise native Counter")
 require(r"Mem\s*\(", fixture, "FIXTURE-MEMORY", "application fixture must exercise native Mem")
 require(r"Axi4SlaveFactory\s*\(", axi_fixture, "AXI4-REAL-FACTORY", "AXI4 proof must use the real native factory")
+require(r"Apb3SlaveFactory\s*\(", axi_fixture, "APB3-REAL-FACTORY", "address-policy proof must use the real APB3 factory")
+require(r"BRAMSlaveFactory\s*\(", axi_fixture, "BRAM-REAL-FACTORY", "generic-mapping proof must use the real BRAM factory")
+require(r"AhbLite3SlaveFactory\s*\(", axi_fixture, "AHB-REAL-FACTORY", "generic-mapping proof must use the real AHB factory")
 for call in (
     r"factory\.write\s*\([^,]+,\s*offset\s*\)",
     r"factory\.read\s*\([^,]+,\s*offset\s*\)",
@@ -368,6 +470,16 @@ case "${1:-}" in
     grep -Fq 'MORPH-BROAD-NATIVE-MIGRATION-EXCLUDED-TYPED-SURFACE' \
       "$temporary/cdc.stderr" ||
       fail SELF-TEST-DIAGNOSTIC 'typed CDC mutation did not report its stable diagnostic'
+
+    sed '0,/when(mapping.hit(address))/s//when(False)/' \
+      "$bram_factory_source" > "$temporary/missing-bram-generic.scala"
+    if MORPHDL_BROAD_NATIVE_BRAM_FACTORY_SOURCE="$temporary/missing-bram-generic.scala" \
+      "$0" --check >"$temporary/bram.stdout" 2>"$temporary/bram.stderr"; then
+      fail SELF-TEST-ACCEPTED 'missing BRAM generic read decoder mutation passed'
+    fi
+    grep -Fq 'MORPH-BROAD-NATIVE-MIGRATION-BRAM-GENERIC-MAPPING-MISSING' \
+      "$temporary/bram.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'BRAM decoder mutation did not report its stable diagnostic'
 
     printf 'Increment 57 broad native library migration self-test passed.\n'
     ;;

@@ -119,7 +119,7 @@ class NativeAxi4SlaveFactoryFormalEquivalenceTests extends AnyFunSuite {
         val miter = directory.resolve(
           s"native_axi4_equivalence_offset_$offset.v"
         )
-        write(miter, equivalenceMiter(offset, mutateObservedFixed = false))
+        write(miter, equivalenceMiter(offset, mutateObservedBase = false))
         val config = directory.resolve(
           s"native_axi4_equivalence_offset_$offset.sby"
         )
@@ -144,7 +144,7 @@ class NativeAxi4SlaveFactoryFormalEquivalenceTests extends AnyFunSuite {
         directory.resolve("native_axi4_equivalence_offset_64_mutation.v")
       write(
         mutationMiter,
-        equivalenceMiter(mutationOffset, mutateObservedFixed = true)
+        equivalenceMiter(mutationOffset, mutateObservedBase = true)
       )
       val mutationConfig =
         directory.resolve("native_axi4_equivalence_offset_64_mutation.sby")
@@ -300,11 +300,11 @@ class NativeAxi4SlaveFactoryFormalEquivalenceTests extends AnyFunSuite {
 
   private def equivalenceMiter(
       offset: Int,
-      mutateObservedFixed: Boolean
+      mutateObservedBase: Boolean
   ): String = {
-    val comparedObservedFixed =
-      if (mutateObservedFixed) "(morph_observed_fixed ^ 32'h00000001)"
-      else "morph_observed_fixed"
+    val comparedObservedBase =
+      if (mutateObservedBase) "(morph_observed_base ^ 32'h00000001)"
+      else "morph_observed_base"
 
     s"""module ${miterModule(offset)} (
        |  input wire clk,
@@ -371,9 +371,9 @@ class NativeAxi4SlaveFactoryFormalEquivalenceTests extends AnyFunSuite {
        |  wire [31:0] morph_observed_fixed;
        |  wire morph_observed_read_event;
        |  wire morph_observed_write_event;
-       |  wire [31:0] morph_observed_fixed_compared;
+       |  wire [31:0] morph_observed_base_compared;
        |
-       |  assign morph_observed_fixed_compared = $comparedObservedFixed;
+       |  assign morph_observed_base_compared = $comparedObservedBase;
        |
        |  ${concreteFormalTop(offset)} concrete_dut (
        |    .io_axi_aw_valid(axi_aw_valid),
@@ -482,9 +482,9 @@ class NativeAxi4SlaveFactoryFormalEquivalenceTests extends AnyFunSuite {
        |      assert(concrete_b_valid == morph_b_valid);
        |      assert(concrete_ar_ready == morph_ar_ready);
        |      assert(concrete_r_valid == morph_r_valid);
-       |      assert(concrete_observed_base == morph_observed_base);
+       |      assert(concrete_observed_base == morph_observed_base_compared);
        |      assert(concrete_observed_next == morph_observed_next);
-       |      assert(concrete_observed_fixed == morph_observed_fixed_compared);
+       |      assert(concrete_observed_fixed == morph_observed_fixed);
        |      assert(concrete_observed_read_event == morph_observed_read_event);
        |      assert(concrete_observed_write_event == morph_observed_write_event);
        |      if (concrete_b_valid && morph_b_valid) begin

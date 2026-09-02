@@ -21,8 +21,8 @@ final class NativeLibraryMigrationTypedPipelineFormalTop(pipeMode: HdlInt)
   setDefinitionName("NativeLibraryMigrationTypedPipelineFormalTop")
 
   private val mode = pipeMode.asElabInt
-  private val useM2s = mode.elabEq(0)
-  private val useS2m = mode.elabEq(1)
+  private val useM2s = mode.elabEq(0) || mode.elabEq(3)
+  private val useS2m = mode.elabEq(1) || mode.elabEq(3)
   private val useHalfRate = mode.elabEq(2)
   private val holdFlowPayload = mode.elabEq(1)
 
@@ -45,14 +45,14 @@ final class NativeLibraryMigrationTypedPipelineFormalTop(pipeMode: HdlInt)
   */
 final class NativeLibraryMigrationConcretePipelineFormalTop(mode: Int)
     extends Component {
-  require(mode >= 0 && mode <= 2)
+  require(mode >= 0 && mode <= 4)
   setDefinitionName(s"NativeLibraryMigrationConcretePipelineFormalTopMode$mode")
 
   val streamIn = slave(Stream(Bits(8 bits))).setName("stream_in")
   val streamOut = master(Stream(Bits(8 bits))).setName("stream_out")
   streamOut << streamIn.pipelined(
-    m2s = mode == 0,
-    s2m = mode == 1,
+    m2s = mode == 0 || mode == 3,
+    s2m = mode == 1 || mode == 3,
     halfRate = mode == 2
   )
 
@@ -62,10 +62,9 @@ final class NativeLibraryMigrationConcretePipelineFormalTop(mode: Int)
 }
 
 class NativeLibraryMigrationFormalEquivalenceTests extends AnyFunSuite {
-  // Mode 2 covers the native halfPipe algorithm in addition to the two
-  // independently registered handshake directions requested by the core
-  // Increment 57 acceptance case.
-  private val Modes = Vector(0, 1, 2)
+  // Cover every legal native Stream.pipelined profile: M2S, S2M, half-rate,
+  // full and pass-through respectively.
+  private val Modes = Vector(0, 1, 2, 3, 4)
   private val FormalGateEnvironment =
     "MORPHDL_RUN_NATIVE_LIBRARY_MIGRATION_FORMAL_EQUIVALENCE"
   private val FormalWorkspaceEnvironment =
@@ -167,7 +166,7 @@ class NativeLibraryMigrationFormalEquivalenceTests extends AnyFunSuite {
     parameterizedConfig.netlistFileName = ParameterizedFile
     MorphVerilog(parameterizedConfig) {
       new NativeLibraryMigrationTypedPipelineFormalTop(
-        HdlInt.param("PIPE_MODE", default = 0, min = 0, max = 2)
+        HdlInt.param("PIPE_MODE", default = 0, min = 0, max = 4)
       )
     }
     val parameterized = parameterizedDirectory.resolve(ParameterizedFile)
@@ -197,8 +196,10 @@ class NativeLibraryMigrationFormalEquivalenceTests extends AnyFunSuite {
     assert(moduleScope.contains("reg[0:0]stream_in_pipelinedSourceValid;"), parameterized)
     assert(moduleScope.contains("reg[7:0]stream_in_pipelinedSourcePayload;"), parameterized)
     assert(moduleScope.contains("regstream_in_pipelinedSourceReady;"), parameterized)
-    Modes.foreach { mode =>
-      assert(parameterized.contains(s"if (((PIPE_MODE) == ($mode)))"), parameterized)
+    // Modes zero through three occur in the explicit predicates. Mode four is
+    // the final all-false branch and is proved by its concrete specialization.
+    (0 to 3).foreach { mode =>
+      assert(parameterized.contains(s"((PIPE_MODE) == ($mode))"), parameterized)
     }
     assert(!parameterized.contains("NativeIntShadow"), parameterized)
     assert(
