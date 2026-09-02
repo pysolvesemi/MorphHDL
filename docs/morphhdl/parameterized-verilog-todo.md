@@ -556,7 +556,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   formal, mutation and determinism gates. Unrelated native source must remain
   byte-identical.
 
-- [ ] **Increment 56 — Native-looking typed library-call surface**
+- [x] **Increment 56 — Native-looking typed library-call surface**
 
   **Dependencies:** Increment 55 implemented and merged.
 
