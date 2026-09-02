@@ -26,6 +26,7 @@ morphhdl/contracts/increment-55-source-scope.txt
 morphhdl/contracts/native-source-preservation.json
 morphhdl/scripts/check-binary-compatibility.sh
 morphhdl/scripts/check-concrete-spinalverilog-parity.sh
+morphhdl/scripts/check-external-spinal-boundary.sh
 morphhdl/scripts/check-jvm-binary-compatibility.py
 morphhdl/scripts/check-native-source-preservation.py
 morphhdl/scripts/check-typed-native-source-overlay.py

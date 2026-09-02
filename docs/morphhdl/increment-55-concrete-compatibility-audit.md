@@ -240,6 +240,12 @@ executed against both builds to assert the exact 59-element `Product` arity,
 first element and iterator length; compilation alone cannot hide a changed
 case-class shape behind legacy constructor shims.
 
+The inherited external-boundary proof also copies the MorphHDL-owned
+`ParameterizedVerilogMode` helper beside the boundary implementation and test
+inside its detached Increment 0 worktree. This keeps the baseline proof
+self-contained while compiling the current helper against the original native
+`SpinalConfig` API in both Scala lanes.
+
 ## Ordinary `SpinalVerilog` parity
 
 `morphhdl/scripts/check-concrete-spinalverilog-parity.sh` copies one byte-
@@ -368,7 +374,7 @@ finishes.
 | Scala 2.12.18 compatibility and concrete parity | Passed locally at `ae5f4a9cf5ac3c7f6a4f336f0f4df2ffd711e5b5`: JVM ABI, unchanged source/Product fixture, source-generated RTL and baseline-binary/current-runtime RTL |
 | Scala 2.13.12 compatibility and concrete parity | Passed locally at `ae5f4a9cf5ac3c7f6a4f336f0f4df2ffd711e5b5`: JVM ABI, unchanged source/Product fixture, source-generated RTL and baseline-binary/current-runtime RTL |
 | Inherited SBT/Mill/tool/formal/mutation/determinism matrix | _Pending canonical workflow_ |
-| Exact source-scope review | 41 implementation/audit paths; roadmap checkbox verified separately |
+| Exact source-scope review | 42 implementation/audit paths; roadmap checkbox verified separately |
 
 Only after these observations are filled, the exact source scope is sealed and
 the canonical closure job succeeds may the roadmap checkbox be changed in a
