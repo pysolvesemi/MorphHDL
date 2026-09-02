@@ -9,18 +9,7 @@ import morphhdl.frontend.ParamRtlFrontend.{captureItems, integerParameter}
 import morphhdl.runtime.ParameterizedVerilogMode
 import morphhdl.paramrtl.BoolExpr.{Equal, GreaterThan, GreaterThanOrEqual, LessThan, LessThanOrEqual, NotEqual}
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
-import morphhdl.paramrtl.IntExpr.{
-  Add,
-  Divide,
-  Literal,
-  Max,
-  Min,
-  Modulo,
-  Multiply,
-  Negate,
-  ParameterRef,
-  Subtract
-}
+import morphhdl.paramrtl.IntExpr.{Add, Divide, Literal, Max, Min, Modulo, Multiply, Negate, ParameterRef, Subtract}
 import morphhdl.paramrtl.IntegerParameter
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core.{ElabInt, ExternalAnalyzedFrontendPermitIssuer, ParameterizedVerilogException}
@@ -28,6 +17,28 @@ import spinal.core.{ElabInt, ExternalAnalyzedFrontendPermitIssuer, Parameterized
 class HdlIntTests extends AnyFunSuite {
   private def sameIdentity(left: AnyRef, right: AnyRef): Boolean =
     left eq right
+
+  test("native typed ingress retains exact evidence and legacy receiver syntax") {
+    val depth = HdlInt.param("DEPTH", default = 5, min = 1, max = 8)
+    val typed: ElabInt = depth
+
+    assert(typed.parameters.map(_.name) == Vector("DEPTH"))
+    assert(typed.minimum == 1)
+    assert(typed.maximum == 8)
+    assert(depth.bits.expression.exists(_.verilog == "DEPTH"))
+
+    object Probe {
+      def lane(value: HdlInt): String = "hdl-int"
+      def lane(value: ElabInt): String = "elab-int"
+    }
+    assert(Probe.lane(depth) == "hdl-int")
+
+    val nullError = intercept[FrontendException] {
+      val value: ElabInt = null.asInstanceOf[HdlInt]
+      value
+    }
+    assert(nullError.code == "MORPH-FRONTEND-TYPED-INTEGER-NULL")
+  }
 
   test("analyzed integer wrapper issues one permit only") {
     val depth = HdlInt.param("DEPTH", default = 2, min = 1, max = 3)
@@ -177,14 +188,16 @@ class HdlIntTests extends AnyFunSuite {
     var trueReplay: ParameterizedVerilogException = null
     var consumedReplay: ParameterizedVerilogException = null
     try {
-      SpinalVerilog(ParameterizedVerilogMode.enable(
-        SpinalConfig(
-          targetDirectory = directory.toString,
-          headerWithRepoHash = false,
-          withTimescale = false,
-          printFilelist = false
+      SpinalVerilog(
+        ParameterizedVerilogMode.enable(
+          SpinalConfig(
+            targetDirectory = directory.toString,
+            headerWithRepoHash = false,
+            withTimescale = false,
+            printFilelist = false
+          )
         )
-      )) {
+      ) {
         new Component {
           setDefinitionName("PreparedBooleanPredicateLifecycle")
           val origin = SourceOrigin("PreparedBooleanPredicateLifecycle.scala", 1)

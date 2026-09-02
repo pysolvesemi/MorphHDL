@@ -9,32 +9,32 @@ import scala.util.matching.Regex
 
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
-import spinal.lib.StreamFifo
+import spinal.lib.{Flow, Stream, StreamFifo}
 
-import morphhdl.frontend.{Flow => MorphFlow, HdlInt, Stream => MorphStream}
+import morphhdl.frontend.HdlInt
 
 class NativeLibraryReuseTests extends AnyFunSuite {
   private final class NativePipes(width: HdlInt) extends Component {
     setDefinitionName("NativePipes")
 
-    val fixedLiteralInput = in(morphhdl.frontend.UInt(width bits))
+    val fixedLiteralInput = in(UInt(width bits))
     val fixedLiteralMatch = out(Bool())
 
     val streamInValid = in(Bool())
     val streamInReady = out(Bool())
-    val streamInPayload = in(morphhdl.frontend.Bits(width bits))
+    val streamInPayload = in(Bits(width bits))
     val streamOutValid = out(Bool())
     val streamOutReady = in(Bool())
-    val streamOutPayload = out(morphhdl.frontend.Bits(width bits))
+    val streamOutPayload = out(Bits(width bits))
 
     val flowInValid = in(Bool())
-    val flowInPayload = in(morphhdl.frontend.Bits(width bits))
+    val flowInPayload = in(Bits(width bits))
     val flowOutValid = out(Bool())
-    val flowOutPayload = out(morphhdl.frontend.Bits(width bits))
+    val flowOutPayload = out(Bits(width bits))
 
     fixedLiteralMatch := fixedLiteralInput === U(255, 8 bits)
 
-    val stream = MorphStream(morphhdl.frontend.Bits(width bits))
+    val stream = Stream(Bits(width bits))
     stream.valid := streamInValid
     stream.payload := streamInPayload
     streamInReady := stream.ready
@@ -43,7 +43,7 @@ class NativeLibraryReuseTests extends AnyFunSuite {
     streamPipe.ready := streamOutReady
     streamOutPayload := streamPipe.payload
 
-    val flow = MorphFlow(morphhdl.frontend.Bits(width bits))
+    val flow = Flow(Bits(width bits))
     flow.valid := flowInValid
     flow.payload := flowInPayload
     val flowPipe = flow.m2sPipe
@@ -56,14 +56,14 @@ class NativeLibraryReuseTests extends AnyFunSuite {
 
     val pushValid = in(Bool())
     val pushReady = out(Bool())
-    val pushPayload = in(morphhdl.frontend.Bits(width bits))
+    val pushPayload = in(Bits(width bits))
     val popValid = out(Bool())
     val popReady = in(Bool())
-    val popPayload = out(morphhdl.frontend.Bits(width bits))
+    val popPayload = out(Bits(width bits))
     val flush = in(Bool())
 
     val fifo = StreamFifo(
-      morphhdl.frontend.HardType(morphhdl.frontend.Bits(width bits)),
+      HardType(Bits(width bits)),
       depth = 4,
       latency = 2
     )
@@ -82,8 +82,10 @@ class NativeLibraryReuseTests extends AnyFunSuite {
       val parameterized = emitMorph(directory, "native_pipes.v", new NativePipes(width))
       val concrete = emitConcrete(directory, "native_pipes_concrete.v", new NativePipes(width))
 
-      assert(module(concretize(parameterized, "NativePipes", 8), "NativePipes") ==
-        module(concrete, "NativePipes"))
+      assert(
+        module(concretize(parameterized, "NativePipes", 8), "NativePipes") ==
+          module(concrete, "NativePipes")
+      )
       assert(parameterized.contains("parameter integer WIDTH = 8"))
       Vector("fixedLiteralInput", "streamInPayload", "streamOutPayload", "flowInPayload", "flowOutPayload")
         .foreach(name => assert(hasWidth(parameterized, name, "[WIDTH-1:0]")))
@@ -105,8 +107,11 @@ class NativeLibraryReuseTests extends AnyFunSuite {
       assert(!parameterized.contains("parameter integer DEPTH"))
       assert("(?m)^module StreamFifo #\\(".r.findAllMatchIn(parameterized).size == 1)
       assert(parameterized.contains(".WIDTH(WIDTH)"))
-      assert("(?m)^\\s*reg \\[WIDTH-1:0\\] [A-Za-z_][A-Za-z0-9_$]* \\[0:3\\];$".r
-        .findFirstIn(parameterized).nonEmpty)
+      assert(
+        "(?m)^\\s*reg \\[WIDTH-1:0\\] [A-Za-z_][A-Za-z0-9_$]* \\[0:3\\];$".r
+          .findFirstIn(parameterized)
+          .nonEmpty
+      )
       assert(hasWidth(parameterized, "pushPayload", "[WIDTH-1:0]"))
       assert(hasWidth(parameterized, "popPayload", "[WIDTH-1:0]"))
       assert(!concrete.contains("parameter integer WIDTH"))
@@ -146,13 +151,15 @@ class NativeLibraryReuseTests extends AnyFunSuite {
 
   private def concretize(verilog: String, name: String, width: Int): String = {
     val header: Regex = ("(?s)module " + java.util.regex.Pattern.quote(name) + " #\\(.*?\\n\\) \\(").r
-    header.replaceFirstIn(verilog, s"module $name (")
+    header
+      .replaceFirstIn(verilog, s"module $name (")
       .replace("[WIDTH-1:0]", s"[${width - 1}:0]")
   }
 
   private def hasWidth(verilog: String, name: String, range: String): Boolean =
     (java.util.regex.Pattern.quote(range) + "\\s+" + java.util.regex.Pattern.quote(name) + "(?=\\s*(?:[,;]|\\)))").r
-      .findFirstIn(verilog).nonEmpty
+      .findFirstIn(verilog)
+      .nonEmpty
 
   private def compileOverride(directory: Path, verilog: Path, top: String): Unit = {
     val wrapper = directory.resolve(top + "Override.v")
@@ -163,11 +170,21 @@ class NativeLibraryReuseTests extends AnyFunSuite {
       |""".stripMargin
     Files.write(wrapper, source.getBytes(StandardCharsets.UTF_8))
     val log = new StringBuilder
-    val status = scala.sys.process.Process(
-      Seq("iverilog", "-g2001", "-s", top + "Override", "-o", directory.resolve("override.out").toString,
-        verilog.toString, wrapper.toString),
-      directory.toFile
-    ).!(ProcessLogger(line => log.append(line).append('\n')))
+    val status = scala.sys.process
+      .Process(
+        Seq(
+          "iverilog",
+          "-g2001",
+          "-s",
+          top + "Override",
+          "-o",
+          directory.resolve("override.out").toString,
+          verilog.toString,
+          wrapper.toString
+        ),
+        directory.toFile
+      )
+      .!(ProcessLogger(line => log.append(line).append('\n')))
     assert(status == 0, log.toString)
   }
 

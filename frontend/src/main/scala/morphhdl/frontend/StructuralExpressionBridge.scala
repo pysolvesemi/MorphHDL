@@ -424,46 +424,78 @@ private[frontend] object StructuralExpressionBridge {
     }
 
   /** Exhaustive evaluation of one bounded frontend AST for the neutral typed
-    * elaboration carrier.  This is rooted in the exact ParameterToken object;
-    * rendered identifiers are not used to infer provenance.
+    * elaboration carrier. This is rooted in exactly one integer or Boolean
+    * declaration-token object; rendered identifiers are not used to infer
+    * provenance.
     */
   def singleRootEvaluations(
       value: HdlInt
   ): Option[Vector[(BigInt, BigInt)]] = {
     if (
-      (value eq null) || value.parameters.size != 1 ||
-      value.booleanParameters.nonEmpty || value.localDeclaration.nonEmpty ||
+      (value eq null) ||
+      value.parameters.size + value.booleanParameters.size != 1 ||
+      value.localDeclaration.nonEmpty ||
       value.localParameters.nonEmpty || value.booleanLocalParameters.nonEmpty ||
       value.scope.nonEmpty
     ) return None
 
-    val token = value.parameters.head
-    val parameterFacts =
-      IntExpressionAnalysis.parameterFacts(token.declaration).getOrElse(return None)
-    val minimum = parameterFacts.interval.lower.getOrElse(return None)
-    val maximum = parameterFacts.interval.upper.getOrElse(return None)
-    val size = maximum - minimum + 1
-    if (size < 1 || size > spinal.core.ElabInt.MaximumExactDomainSize)
-      return None
+    value.parameters.toVector match {
+      case Vector(token) if value.booleanParameters.isEmpty =>
+        val parameterFacts =
+          IntExpressionAnalysis.parameterFacts(token.declaration).getOrElse(return None)
+        val minimum = parameterFacts.interval.lower.getOrElse(return None)
+        val maximum = parameterFacts.interval.upper.getOrElse(return None)
+        val size = maximum - minimum + 1
+        if (size < 1 || size > spinal.core.ElabInt.MaximumExactDomainSize)
+          return None
 
-    val builder = Vector.newBuilder[(BigInt, BigInt)]
-    var rootValue = minimum
-    while (rootValue <= maximum) {
-      val point = IntExprFacts(rootValue, IntInterval.point(rootValue))
-      val facts = IntExpressionAnalysis
-        .analyze(
-          value.expression,
-          parameters = Map(token.declaration.name -> point),
-          localParameters = Map.empty,
-          booleanParameters = Map.empty,
-          generateIndices = Map.empty,
-          booleanLocalParameters = Map.empty
-        )
-        .fold(_ => return None, identity)
-      builder += rootValue -> facts.defaultValue
-      rootValue += 1
+        val builder = Vector.newBuilder[(BigInt, BigInt)]
+        var rootValue = minimum
+        while (rootValue <= maximum) {
+          val point = IntExprFacts(rootValue, IntInterval.point(rootValue))
+          val facts = IntExpressionAnalysis
+            .analyze(
+              value.expression,
+              parameters = Map(token.declaration.name -> point),
+              localParameters = Map.empty,
+              booleanParameters = Map.empty,
+              generateIndices = Map.empty,
+              booleanLocalParameters = Map.empty
+            )
+            .fold(_ => return None, identity)
+          builder += rootValue -> facts.defaultValue
+          rootValue += 1
+        }
+        Some(builder.result())
+
+      case Vector() =>
+        value.booleanParameters.toVector match {
+          case Vector(token) =>
+            val builder = Vector.newBuilder[(BigInt, BigInt)]
+            var rootValue = BigInt(0)
+            while (rootValue <= 1) {
+              val facts = IntExpressionAnalysis
+                .analyze(
+                  value.expression,
+                  parameters = Map.empty,
+                  localParameters = Map.empty,
+                  booleanParameters = Map(
+                    token.declaration.name ->
+                      token.declaration.copy(default = rootValue == 1)
+                  ),
+                  generateIndices = Map.empty,
+                  booleanLocalParameters = Map.empty
+                )
+                .fold(_ => return None, identity)
+              builder += rootValue -> facts.defaultValue
+              rootValue += 1
+            }
+            Some(builder.result())
+          case _ => None
+        }
+
+      case _ => None
     }
-    Some(builder.result())
   }
 
   /** Exhaustive evaluation of one bounded frontend Boolean AST over its exact
