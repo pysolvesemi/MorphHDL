@@ -27,7 +27,7 @@
     {
       "path": "lib/src/main",
       "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "bfa0d60b81d2969e0ae52c87ca0b78d281338af0"
+      "approved_tree": "f805be03321d984145a11353ebe15932fe8fe834"
     },
     {
       "path": "scalaplugin/src/main",
@@ -2452,6 +2452,98 @@
       ]
     },
     {
+      "path": "lib/src/main/scala/spinal/lib/Flow.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Add typed Flow pipeline selection and synchronous queue ingress while retaining the ordinary Boolean register and native StreamFifo algorithms.",
+      "baseline": {
+        "path": "lib/src/main/scala/spinal/lib/Flow.scala",
+        "mode": "100644",
+        "blob": "c493f40c571adce2ade3defc6191974e20537333",
+        "sha256": "960491bdbe77ffff3988ad39ff08afc64ff0a8731e5209d89dfadfb9a9875bf7"
+      },
+      "approved": {
+        "path": "lib/src/main/scala/spinal/lib/Flow.scala",
+        "mode": "100644",
+        "blob": "473dae0054410352dd261c86e64637b488344201",
+        "sha256": "82aae80efdeaae615cf52d311aa15eaa73208153c367e484d9c4e770121d2c60"
+      },
+      "edits": [
+        {
+          "id": "flow-pipeline-control-01",
+          "kind": "overload",
+          "owner": "spinal.lib.Flow.m2sPipe(ElabBool)",
+          "reason": "Select either ordinary Boolean Flow register profile from exact typed control without reproducing the register algorithm.",
+          "baseline_span": {
+            "start": 4865,
+            "end": 4865,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 4865,
+            "end": 6166,
+            "sha256": "a2ac9e88b5f939ba07d2566cbd2af56d87c5351e21c8cec6370bd429fce4b91d"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabControl.selectSymbolic",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "flow-sync-queue-01",
+          "kind": "overload",
+          "owner": "spinal.lib.Flow.queueWithOccupancy(ElabInt)",
+          "reason": "Add typed synchronous occupancy ingress that delegates to the reviewed native StreamFifo implementation.",
+          "baseline_span": {
+            "start": 5668,
+            "end": 5668,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 6969,
+            "end": 7249,
+            "sha256": "8b9204b11eb5f0774dd03bd27f6a134852429cdaa0510064068f03e6198a0993"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queueWithOccupancy(size: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "flow-sync-queue-02",
+          "kind": "overload",
+          "owner": "spinal.lib.Flow.queueWithAvailability(ElabInt)",
+          "reason": "Add typed synchronous availability ingress that delegates to the reviewed native StreamFifo implementation.",
+          "baseline_span": {
+            "start": 5951,
+            "end": 5951,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 7532,
+            "end": 7821,
+            "sha256": "110689556c4bd540765e2e97dc0168ce580746454c94e1b9149db7d2c31e7bb7"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queueWithAvailability(size: ElabInt)",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "lib/src/main/scala/spinal/lib/Stream.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
@@ -2463,9 +2555,10 @@
         "Increment 53d: typed StreamWidthAdapter architecture",
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 57: broad native library migration and proof"
       ],
-      "reason": "Add typed StreamFifo and StreamWidthAdapter geometry while mechanically retaining the authoritative native algorithms and concrete output.",
+      "reason": "Add typed Stream pipeline and synchronous-queue ingress plus StreamFifo and StreamWidthAdapter geometry while mechanically retaining the authoritative native algorithms and concrete output.",
       "baseline": {
         "path": "lib/src/main/scala/spinal/lib/Stream.scala",
         "mode": "100644",
@@ -2475,10 +2568,102 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/Stream.scala",
         "mode": "100644",
-        "blob": "00dd4828ed3366dc9645552236079fcc79ca9cf1",
-        "sha256": "214ae33bf15943c06d6eb1af10254dacc36f6a997756fd6656bf48dae89a7f57"
+        "blob": "25857577af1a814d1e9c365b0e3da5da2e3284dd",
+        "sha256": "18fb96c5069ab9a88e8414c78917770df7c172c0758db54cd260ebb5efe9238c"
       },
       "edits": [
+        {
+          "id": "stream-pipeline-control-01",
+          "kind": "overload",
+          "owner": "spinal.lib.Stream.pipelined(ElabBool, ElabBool, ElabBool)",
+          "reason": "Select only complete-domain-legal combinations of the five ordinary Boolean pipeline profiles without duplicating their handshake or storage algorithms.",
+          "baseline_span": {
+            "start": 7170,
+            "end": 7170,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 7170,
+            "end": 10664,
+            "sha256": "50190578438b651d8f2f49222c6e177859fd08a5e69105c31374306b59919e92"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "halfRate can be enabled only when m2s and s2m are disabled",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-sync-queue-01",
+          "kind": "overload",
+          "owner": "spinal.lib.Stream.queue(ElabInt)",
+          "reason": "Add typed synchronous queue arities that delegate to the reviewed native StreamFifo configuration.",
+          "baseline_span": {
+            "start": 8154,
+            "end": 8154,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 11648,
+            "end": 12267,
+            "sha256": "692981286d90dbfd1fea70c7faf998ca3a19719b1c144d233925c7790b6cc6b8"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queue(size: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-sync-queue-02",
+          "kind": "overload",
+          "owner": "spinal.lib.Stream.queueWithOccupancy(ElabInt)",
+          "reason": "Add typed synchronous occupancy-helper arities that delegate to the reviewed native StreamFifo configuration.",
+          "baseline_span": {
+            "start": 9312,
+            "end": 9312,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 13425,
+            "end": 14167,
+            "sha256": "1110e413c5fbc916cdb79c065c3e693290267f2dc7c85c557f7622e5bf160d2d"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queueWithOccupancy(size: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-sync-queue-03",
+          "kind": "overload",
+          "owner": "spinal.lib.Stream.queueWithAvailability(ElabInt)",
+          "reason": "Add typed synchronous availability-helper arities that delegate to the reviewed native StreamFifo configuration.",
+          "baseline_span": {
+            "start": 9556,
+            "end": 9556,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 14411,
+            "end": 15174,
+            "sha256": "0e4e0f042bdb35d5b82a797eda6d7817471ca8ad32868b18cb167952acdfcf10"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queueWithAvailability(size: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "stream-typed-geometry-01",
           "kind": "overload",
@@ -2490,8 +2675,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 52966,
-            "end": 55119,
+            "start": 58584,
+            "end": 60737,
             "sha256": "81aa8bca89c3adaf6807fc7f7fbaa42f72282aea53d2f8d0f18869b9f3869cd6"
           },
           "required_exact_text": [
@@ -2513,8 +2698,8 @@
             "sha256": "a2e66787f5c1cfe8b39fbbab76376391453302b503fef1ddff580b2ca635b18e"
           },
           "approved_span": {
-            "start": 56239,
-            "end": 57077,
+            "start": 61857,
+            "end": 62695,
             "sha256": "59e8e44ef0ed8d074ac17d99f72f9f73d5d98474ff2f96c6ff58dda71658e61d"
           },
           "required_exact_text": [
@@ -2536,8 +2721,8 @@
             "sha256": "a79d4b38ff2f8cba5b1bf107c4fcce53ed2433ec447b60ff58e94dbb960973e7"
           },
           "approved_span": {
-            "start": 57341,
-            "end": 57810,
+            "start": 62959,
+            "end": 63428,
             "sha256": "16dc19a106aa2a16a315e422d50529f085689dbce586bd61f761be0131017676"
           },
           "required_exact_text": [
@@ -2559,8 +2744,8 @@
             "sha256": "a19a2f2f4da47c70e8a99bea6806530c447c14cb27d02e6ae645043f9cdcd8c3"
           },
           "approved_span": {
-            "start": 57936,
-            "end": 58091,
+            "start": 63554,
+            "end": 63709,
             "sha256": "904ca6ce4c6113d9a5bb993d38456c91d5817a304869c67726ac33ccdb71578b"
           },
           "required_exact_text": [
@@ -2582,8 +2767,8 @@
             "sha256": "ecde61eed9dc91a6f42e2eff36cef37b21dc481a86fcad4071f6e5a750451b97"
           },
           "approved_span": {
-            "start": 58124,
-            "end": 58602,
+            "start": 63742,
+            "end": 64220,
             "sha256": "c6291073f9169025c185a1cd433c5c2cf4f4686d9c1bf7545b3a8203206245b8"
           },
           "required_exact_text": [
@@ -2605,8 +2790,8 @@
             "sha256": "efac880a35a43fe3881f36f42320c490621bd66ec32ce88171ff9ec33cf54a91"
           },
           "approved_span": {
-            "start": 58785,
-            "end": 58924,
+            "start": 64403,
+            "end": 64542,
             "sha256": "509ca1b85d38ad9b02d0e60262ad2093c57cf5b917c06a4620491a92f9973030"
           },
           "required_exact_text": [
@@ -2628,8 +2813,8 @@
             "sha256": "21878dc1e30195e630e4a751f576b69c3811ae549dc8c0e8f9417fb5b1719c90"
           },
           "approved_span": {
-            "start": 58934,
-            "end": 60404,
+            "start": 64552,
+            "end": 66022,
             "sha256": "82c8de5896f274084476e64518e4412f533d5a73e0b8eb7e9dbae6e492ecdb93"
           },
           "required_exact_text": [
@@ -2651,8 +2836,8 @@
             "sha256": "602e0fbad33944a1e471fac1d9adae8dcfc219aac5c46552303607119ea6c3da"
           },
           "approved_span": {
-            "start": 60495,
-            "end": 60733,
+            "start": 66113,
+            "end": 66351,
             "sha256": "1982884d04b00ec4dee6f553469338131460cbc267bb9083ba23db57a6c4d60c"
           },
           "required_exact_text": [
@@ -2674,8 +2859,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 61231,
-            "end": 61265,
+            "start": 66849,
+            "end": 66883,
             "sha256": "b619264973484b22cbb28a33e3cb3841385c6647ee86b4a25612324877344934"
           },
           "required_exact_text": [
@@ -2697,8 +2882,8 @@
             "sha256": "a6ca003712555b9e21d51879d18674d444e9ed261accb943f149bfd7d1451be9"
           },
           "approved_span": {
-            "start": 61283,
-            "end": 61523,
+            "start": 66901,
+            "end": 67141,
             "sha256": "a29f51fea32019f95499579c9087d071d17b92b99b1b6727507875624902ed7b"
           },
           "required_exact_text": [
@@ -2720,8 +2905,8 @@
             "sha256": "10638f12abb10b107e59574bd07cb0f369d8d72af67e07ae16f9f70adda8581f"
           },
           "approved_span": {
-            "start": 61650,
-            "end": 61706,
+            "start": 67268,
+            "end": 67324,
             "sha256": "a1d07e15048d163e27847781b988a9a575f7164f5854c949f8b1314a3f1a7108"
           },
           "required_exact_text": [
@@ -2743,8 +2928,8 @@
             "sha256": "18ac3e7343f016890c510e93f935261169d9e3f565436429830faf0934f4f8e4"
           },
           "approved_span": {
-            "start": 61771,
-            "end": 61776,
+            "start": 67389,
+            "end": 67394,
             "sha256": "86acc3e48bb16fba4c1bdf8ba02a65d3b38ff5d7ec9b815a0c87c5facb5b5b79"
           },
           "required_exact_text": [
@@ -2766,8 +2951,8 @@
             "sha256": "8d3b1c32847501288ae2e8c5f2bb81ffe84ef6bed5d2b54e5cbfb6ec87cd10b1"
           },
           "approved_span": {
-            "start": 61882,
-            "end": 62154,
+            "start": 67500,
+            "end": 67772,
             "sha256": "f164c41d546043ea80f8d40311cd401aaa5538f180c9ee2b4f91d4262f0b6db4"
           },
           "required_exact_text": [
@@ -2789,8 +2974,8 @@
             "sha256": "3278f7a69e11effa20e7602af2d253bff96cf9481b7ecfb7234a15dcfdd557ed"
           },
           "approved_span": {
-            "start": 62421,
-            "end": 62816,
+            "start": 68039,
+            "end": 68434,
             "sha256": "50a11984d1d0961aa3814658be9970f4f222e0de5eae7ce45d9c03213f7d6cd3"
           },
           "required_exact_text": [
@@ -2812,8 +2997,8 @@
             "sha256": "abc2ccfb632d7a1f85ab102f90b5d2f5df2c0c68f1cdfeb581fb8f1877496610"
           },
           "approved_span": {
-            "start": 62841,
-            "end": 63693,
+            "start": 68459,
+            "end": 69311,
             "sha256": "4903a8d35da47ed615a6ed879bf0a49e4b3980d2aab39465ff07dba45954b086"
           },
           "required_exact_text": [
@@ -2835,8 +3020,8 @@
             "sha256": "3fd603d67b440c47fcf0c179e38b61aeda1a5375c25497f0fa564ab7f71b44ea"
           },
           "approved_span": {
-            "start": 63803,
-            "end": 63930,
+            "start": 69421,
+            "end": 69548,
             "sha256": "b893888716f56adde098513ba8c6ed2bb2719e31822e3d72e11172271e2ad6ee"
           },
           "required_exact_text": [
@@ -2858,8 +3043,8 @@
             "sha256": "0f98ba723988360ebe8a7fed0d36aca91484dbb883ef17c398be3444a13cda56"
           },
           "approved_span": {
-            "start": 64081,
-            "end": 64131,
+            "start": 69699,
+            "end": 69749,
             "sha256": "df2cc48fe14f92350b4830573003c80e6f8a55d7e235d3d1b038d2dd435906a4"
           },
           "required_exact_text": [
@@ -2881,8 +3066,8 @@
             "sha256": "ad85558c438e209784bd472a484434907168d20c89d83fa81d40120fd5f31fc5"
           },
           "approved_span": {
-            "start": 64265,
-            "end": 65220,
+            "start": 69883,
+            "end": 70838,
             "sha256": "c70fd44d71aa37466df043589a4b58d5878a80fad96fb9352391fdfc1f282a26"
           },
           "required_exact_text": [
@@ -2904,8 +3089,8 @@
             "sha256": "fba4e4a32c38b739cb88aa6169f6d6cf28f0f9770a8ca4f4ae952a0d72e929c0"
           },
           "approved_span": {
-            "start": 65270,
-            "end": 65310,
+            "start": 70888,
+            "end": 70928,
             "sha256": "cb9dcd478ad6c60b3f5c3168b14b5ed2a30a497550a535ca099e5dde58fb41e9"
           },
           "required_exact_text": [
@@ -2927,8 +3112,8 @@
             "sha256": "50e721e49c013f00c62cf59f2163542a9d8df02464efeb615d31051b0fddc326"
           },
           "approved_span": {
-            "start": 65342,
-            "end": 65347,
+            "start": 70960,
+            "end": 70965,
             "sha256": "4d4fa659effc8e9f0e422439f844ffce1f6a299a20cd14722d4fcb3ddcc6dce8"
           },
           "required_exact_text": [
@@ -2950,8 +3135,8 @@
             "sha256": "f08707745636e8b47d13b19d2d931bd0eb5103cc04213fc8080a8b6e359ce299"
           },
           "approved_span": {
-            "start": 65515,
-            "end": 65607,
+            "start": 71133,
+            "end": 71225,
             "sha256": "6a447801492ab3fea2da09c574621dc6db7bef22ca904bc5dbe333ba745f05cc"
           },
           "required_exact_text": [
@@ -2973,8 +3158,8 @@
             "sha256": "d0acade5b49b3a1f4412fb1d10b47445478cb863900cff0ea75298f7c62abea7"
           },
           "approved_span": {
-            "start": 65828,
-            "end": 65861,
+            "start": 71446,
+            "end": 71479,
             "sha256": "c3f35eb244241de88ce4d2f95bb7bfb77316aee57aa40c43e31950b22ce20f40"
           },
           "required_exact_text": [
@@ -2996,8 +3181,8 @@
             "sha256": "18ac3e7343f016890c510e93f935261169d9e3f565436429830faf0934f4f8e4"
           },
           "approved_span": {
-            "start": 66213,
-            "end": 66232,
+            "start": 71831,
+            "end": 71850,
             "sha256": "34aea572e8343d92475eca8447aaefabe10cd09fb1dd5acb6fcdba202c52b065"
           },
           "required_exact_text": [
@@ -3019,8 +3204,8 @@
             "sha256": "499f81ea2503aae7c8dac1478ee4cd45acfd57a4b1a65fc77df4e6d13f68083e"
           },
           "approved_span": {
-            "start": 66332,
-            "end": 67329,
+            "start": 71950,
+            "end": 72947,
             "sha256": "65ed4a3f172cb926876bfd55885eec634a04d2b118103c5ec8224c0605affbbd"
           },
           "required_exact_text": [
@@ -3042,8 +3227,8 @@
             "sha256": "18ac3e7343f016890c510e93f935261169d9e3f565436429830faf0934f4f8e4"
           },
           "approved_span": {
-            "start": 67421,
-            "end": 67426,
+            "start": 73039,
+            "end": 73044,
             "sha256": "86acc3e48bb16fba4c1bdf8ba02a65d3b38ff5d7ec9b815a0c87c5facb5b5b79"
           },
           "required_exact_text": [
@@ -3065,8 +3250,8 @@
             "sha256": "df4fb0158780446df9dfefdc0d846d92061a8fbab70764ea684b9711c5dce324"
           },
           "approved_span": {
-            "start": 67482,
-            "end": 67831,
+            "start": 73100,
+            "end": 73449,
             "sha256": "6d6c0fc850929a12d16196ce7c8aa0b3bf179c06003ab8cfc2dc636db79af550"
           },
           "required_exact_text": [
@@ -3088,8 +3273,8 @@
             "sha256": "f6ab59ac914fb469ac671df0b90c39b6f0e75576891f3fbfcce534dbde4c5eb1"
           },
           "approved_span": {
-            "start": 68417,
-            "end": 68645,
+            "start": 74035,
+            "end": 74263,
             "sha256": "3ef14d2d15118036579f70cbb89cf844ba66e7422c64c8ba409d812008888090"
           },
           "required_exact_text": [
@@ -3111,8 +3296,8 @@
             "sha256": "a4f14ff3ab84665d89fd9ec05656d3b3d0557a3d3389b42a4d79c8dcc3cc38ab"
           },
           "approved_span": {
-            "start": 69053,
-            "end": 69324,
+            "start": 74671,
+            "end": 74942,
             "sha256": "ac5755b942f771a6ba24cdf4a0a5430d9896e8a74af17032fc5701743c69a382"
           },
           "required_exact_text": [
@@ -3134,8 +3319,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 69414,
-            "end": 82066,
+            "start": 75032,
+            "end": 87684,
             "sha256": "42f36081748c884f5aaf0eeb732a2412a1a8d05a1d0285d0930ee48135967a05"
           },
           "required_exact_text": [
@@ -3157,8 +3342,8 @@
             "sha256": "211e63d22c9ce8165bac7c9e9515420c7deb9c123e2487f6bcdce6f71535f2c2"
           },
           "approved_span": {
-            "start": 82080,
-            "end": 82405,
+            "start": 87698,
+            "end": 88023,
             "sha256": "04f8ab6ba6edb72cd3ef1d159fd7d4b85add5f6f7421b1241f4c356f1e7d576b"
           },
           "required_exact_text": [
@@ -3180,8 +3365,8 @@
             "sha256": "aec7ca25c84fff166cfb7e757ce5edb8685143802d90e3e3a68d751bf98b3d7a"
           },
           "approved_span": {
-            "start": 82413,
-            "end": 88414,
+            "start": 88031,
+            "end": 94032,
             "sha256": "a268d45668880bd4de1a5894bb96cf962ca0358a61570e769c4157091f7e1466"
           },
           "required_exact_text": [
@@ -3203,8 +3388,8 @@
             "sha256": "5455e012c22b75eee4f69e62f1a3128dc5745003da4c9a8bb321b81cda92d041"
           },
           "approved_span": {
-            "start": 88533,
-            "end": 88820,
+            "start": 94151,
+            "end": 94438,
             "sha256": "ea8528fe0ff9efa643e0122b2280bb19756064abcd46c5fab8dfef038af4501d"
           },
           "required_exact_text": [
@@ -3226,8 +3411,8 @@
             "sha256": "7832fe02dd98d3208165757d0f8df305543aaf5444e05653a7b7e3e9e2a52b50"
           },
           "approved_span": {
-            "start": 88835,
-            "end": 88869,
+            "start": 94453,
+            "end": 94487,
             "sha256": "506fb90b9456f6ee2f9f7714c64e9d29ecc2631bfe553ff3ea0eaf1bd0dad57c"
           },
           "required_exact_text": [
@@ -3249,8 +3434,8 @@
             "sha256": "41e85befa52ce75d62a2ee77f1e55a25df050887b4a92907cfa360a2f07a0360"
           },
           "approved_span": {
-            "start": 88880,
-            "end": 88880,
+            "start": 94498,
+            "end": 94498,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "required_exact_text": [
@@ -3272,8 +3457,8 @@
             "sha256": "1821b1a5f2c09dea80719ddc06b4c789530785fd04fc03e9a728d07e87ac1211"
           },
           "approved_span": {
-            "start": 89310,
-            "end": 89629,
+            "start": 94928,
+            "end": 95247,
             "sha256": "f23dc240ef4c340a43ab2e94d8ff20ae3e90fb321b0e1468c5c0da0f28d4a39e"
           },
           "required_exact_text": [
@@ -3295,8 +3480,8 @@
             "sha256": "8f0731ac980f4bae8c85c5494e7367ace693382055f44bd63427319f84144a8d"
           },
           "approved_span": {
-            "start": 89687,
-            "end": 89910,
+            "start": 95305,
+            "end": 95528,
             "sha256": "ba4b4a0d4f7164519a3260b5fb109f17735688205d9297d7ddff672886e44807"
           },
           "required_exact_text": [
@@ -3318,8 +3503,8 @@
             "sha256": "ce30153061884e93a226e2d3abafef6d57d339959ee7dc48c9694c3f5bbf93d2"
           },
           "approved_span": {
-            "start": 89950,
-            "end": 90386,
+            "start": 95568,
+            "end": 96004,
             "sha256": "0a740c3c81ccb4053dc9fb2feab12bb79b2b44dcf051abb419e2971114599ce1"
           },
           "required_exact_text": [
@@ -3341,8 +3526,8 @@
             "sha256": "5d88acb1e64861100071d4bca1e10f65b85d662aae94836c86c14e1c7c717d79"
           },
           "approved_span": {
-            "start": 90441,
-            "end": 90744,
+            "start": 96059,
+            "end": 96362,
             "sha256": "61d3efa7fc5ae6cdb33dc87f6e7d3e4342986a18c979f6709a6d5dbab9e8851d"
           },
           "required_exact_text": [
@@ -3364,8 +3549,8 @@
             "sha256": "262f5c34e32706ab4f937fcb0e1f42b4dadebf9c45dd74a2f217c87968259eff"
           },
           "approved_span": {
-            "start": 90778,
-            "end": 92391,
+            "start": 96396,
+            "end": 98009,
             "sha256": "57f25c033dee681bdfd206743f27db50ba17898ba7da38265ec9ec880f66dfa2"
           },
           "required_exact_text": [
@@ -3387,8 +3572,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 92396,
-            "end": 93069,
+            "start": 98014,
+            "end": 98687,
             "sha256": "2e83b038440b016b3811e30e5408f8ad4318b7335fdb853583d9f35fdc5221a5"
           },
           "required_exact_text": [
@@ -3410,8 +3595,8 @@
             "sha256": "04f21220e6481867f2f3720ae3f7256e5057965db8189ba23b94f1dd34e9bbbe"
           },
           "approved_span": {
-            "start": 106187,
-            "end": 106407,
+            "start": 111805,
+            "end": 112025,
             "sha256": "e09fbe467ec7ebe307c7a50efbd934b4def4a9d043615b92c13eee57501c6f84"
           },
           "required_exact_text": [
@@ -3433,8 +3618,8 @@
             "sha256": "18aca6348140bf7510f0989054d6aaa9d949ee0456bf3937ab0466026687172b"
           },
           "approved_span": {
-            "start": 106690,
-            "end": 106871,
+            "start": 112308,
+            "end": 112489,
             "sha256": "77a3b216b6dc5d7d00a7aef257193ec8dfc2213342e87c930e7a7bf4c9606acf"
           },
           "required_exact_text": [
@@ -3456,8 +3641,8 @@
             "sha256": "41a5050279ff0aa00c3a5492fa469c0e3cc3d9004c27e2c7d974d746125e6999"
           },
           "approved_span": {
-            "start": 107471,
-            "end": 107654,
+            "start": 113089,
+            "end": 113272,
             "sha256": "c67b645fda71352ddaf3fd5f6ee2d628cb014455f4746ca9ff7a1f1e0cf1ca40"
           },
           "required_exact_text": [
@@ -3479,14 +3664,336 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 107854,
-            "end": 107906,
+            "start": 113472,
+            "end": 113524,
             "sha256": "0283202c7523fbd1cb456a6217125d1f44393639a07ec9ebbfb16826a1fd1aad"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "StreamWidthAdapter",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Add explicit typed single-address overloads and mechanical mapping propagation while retaining every ordinary concrete and bus-family transaction algorithm.",
+      "baseline": {
+        "path": "lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala",
+        "mode": "100644",
+        "blob": "2f6a1f33c11b21f05bb701a1dd3b879c5c097cc4",
+        "sha256": "44ca17c60b0158a310531ac27dedef03045cc8e7255f406970ee090180807db1"
+      },
+      "approved": {
+        "path": "lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala",
+        "mode": "100644",
+        "blob": "8344f0b06dacc381b835b2a804cc0050ffb791b7",
+        "sha256": "3e79268e8eaeec8feb6fed1a4cbaa547870ced27738753c6f897e50b08cbd155"
+      },
+      "edits": [
+        {
+          "id": "bus-slave-typed-address-01",
+          "kind": "signature",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory typed address validation",
+          "reason": "Validate a complete exact typed address domain against the native bus shape before any concrete or symbolic mapping is admitted.",
+          "baseline_span": {
+            "start": 4735,
+            "end": 4735,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 4735,
+            "end": 5847,
+            "sha256": "afb5d80405265b56f2c82bd27bd7b82cec834b05ca701c35502e9d842d076bdf"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "requireProjectedExactExtrema = true",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-02",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory.read(ElabInt)",
+          "reason": "Add typed read arities that validate first, delegate constants to the BigInt overload, and retain symbolic mappings for the existing primitive path.",
+          "baseline_span": {
+            "start": 5452,
+            "end": 5452,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 6564,
+            "end": 7519,
+            "sha256": "56fe455992ad0f5fc20982d5cfb0800678c326479f160dbcaa1aeb89ec706a00"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val mapping = validatedTypedAddress(address, readAddress())",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-03",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory.write(ElabInt)",
+          "reason": "Add typed write arities that validate first, delegate constants to the BigInt overload, and retain symbolic mappings for the existing primitive path.",
+          "baseline_span": {
+            "start": 5929,
+            "end": 5929,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 7996,
+            "end": 8885,
+            "sha256": "a1ce0daf75914b5b97980075cf4db38b4ba3ff5e7a419362daf53daa5f6ef7c6"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val mapping = validatedTypedAddress(address, writeAddress())",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-04",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory.onWrite(ElabInt)",
+          "reason": "Add typed write-event arities over the ordinary halt-sensitive primitive path.",
+          "baseline_span": {
+            "start": 6238,
+            "end": 6238,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 9194,
+            "end": 9679,
+            "sha256": "b17dac23bd73f7e1748d86e482c4733d8e41a851cac685e2a777870eb0a78f74"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "onWritePrimitive",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-05",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory.onRead(ElabInt)",
+          "reason": "Add typed read-event arities over the ordinary halt-sensitive primitive path.",
+          "baseline_span": {
+            "start": 6554,
+            "end": 6554,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 9995,
+            "end": 10474,
+            "sha256": "c8186e2055ee265b1f6f45f5dd9adb3eaf3583dba67e31452962fc95b8145aae"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "onReadPrimitive",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-06",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory address-first write helper",
+          "reason": "Mechanically forward typed address-first bit mappings to the reviewed typed write overload.",
+          "baseline_span": {
+            "start": 6739,
+            "end": 6739,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 10659,
+            "end": 10834,
+            "sha256": "b48d15da3e37f5cab500d1f8c471e5b6b3abd4db71ce82cc325113a66c263fac"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "bitMapping.foreach { case (bitId, that) => write(that, address, bitId) }",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-07",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory address-first read helper",
+          "reason": "Mechanically forward typed address-first bit mappings to the reviewed typed read overload.",
+          "baseline_span": {
+            "start": 6917,
+            "end": 6917,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 11012,
+            "end": 11185,
+            "sha256": "a74401d99621b8a6a9f17599f4102533fb7cc1976ddb6d543f19cc228c3a9e27"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "bitMapping.foreach { case (bitId, that) => read(that, address, bitId) }",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-08",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory.readAndWrite(ElabInt)",
+          "reason": "Compose the typed read/write helper only from the two reviewed typed operations.",
+          "baseline_span": {
+            "start": 7209,
+            "end": 7209,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 11477,
+            "end": 12080,
+            "sha256": "ea49ff35f6e72bc4ca8fd4c10eac9bf8fb35f2adf115f65e9f444d41fa149f4d"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def readAndWrite(that: Data, address: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-09",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactoryDelayed read-overlap diagnostic",
+          "reason": "Render either concrete or typed single mappings without changing the inherited double-read overlap check.",
+          "baseline_span": {
+            "start": 33403,
+            "end": 33549,
+            "sha256": "4968569619b433e196d4cee0de310e5824cf11abe6aecdf2185652ef016232f7"
+          },
+          "approved_span": {
+            "start": 38274,
+            "end": 38664,
+            "sha256": "a3ce330ce5e738e987bb05ba7d4f6ff7f8b34dc372ba02b83e796832f2410ed2"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "case single: ElabIntSingleMapping",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-10",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactoryAddressWrapper typed offsets",
+          "reason": "Retain typed authority through wrapper offset arithmetic so the underlying factory validates every final effective address.",
+          "baseline_span": {
+            "start": 41758,
+            "end": 41758,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 46873,
+            "end": 48037,
+            "sha256": "7508d4ebed44ecc75fefd65a0136fc3651ba41cb32f3c51d9e21b983471ff396"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "Retain typed authority until after the wrapper offset is applied",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/misc/Misc.scala",
+      "change": "modified",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Provide one generic exact typed single-address mapping for existing native bus decoders, with fail-closed complete-domain validation and identity-safe grouping.",
+      "baseline": {
+        "path": "lib/src/main/scala/spinal/lib/bus/misc/Misc.scala",
+        "mode": "100644",
+        "blob": "d652b14f8db98e869a3660ff2b47241109b00a0a",
+        "sha256": "a321e35654bf0e858828a880483567dd36c658861e3b1f0366c3d7660c83f6db"
+      },
+      "approved": {
+        "path": "lib/src/main/scala/spinal/lib/bus/misc/Misc.scala",
+        "mode": "100644",
+        "blob": "be191f7539d45ad206651f3949b9d7507cf6ee99",
+        "sha256": "078c5d3a05f85ab57ed4a2cb9a354b8cf37db67c99ef61ce07bc59c6e5e66d89"
+      },
+      "edits": [
+        {
+          "id": "typed-single-address-mapping-01",
+          "kind": "signature",
+          "owner": "spinal.lib.bus.misc.ElabIntSingleMapping",
+          "reason": "Add the exact generic mapping, domain safety checks, symbolic hit expression, offset propagation, and concrete-only operation guards.",
+          "baseline_span": {
+            "start": 5666,
+            "end": 5666,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 5666,
+            "end": 12186,
+            "sha256": "7536ce96783e680cadb6409132361fb4c9fb2eda92e423f0b077110150f4904c"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "final case class ElabIntSingleMapping(address: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "typed-single-address-mapping-02",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.misc.ElabIntSingleMapping source boundary",
+          "reason": "Record beside the inherited file terminator that the new helper remains generic rather than bus-family-specific.",
+          "baseline_span": {
+            "start": 19550,
+            "end": 19550,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 26070,
+            "end": 26143,
+            "sha256": "72db7ed4e0135b0eb9e4fd65bdc01f7865b6e7dcf3bd61b25ec0b4e69037c480"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabIntSingleMapping intentionally remains a generic AddressMapping.",
               "count": 1
             }
           ]

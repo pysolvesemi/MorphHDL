@@ -1454,6 +1454,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       LiteralBinding(1)
     case _: BitVectorBitAccessFixed if allowConcreteInternal =>
       LiteralBinding(1)
+    case _: BoolLiteral => LiteralBinding(1)
     case value: Bool => LiteralBinding(1)
     case value: BitVector if value.component == parent =>
       ParameterizedWidth.expressionOf(value) match {

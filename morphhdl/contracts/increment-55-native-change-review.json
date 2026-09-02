@@ -1381,6 +1381,57 @@
       ]
     },
     {
+      "path": "lib/src/main/scala/spinal/lib/Flow.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/Flow.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Add typed Flow pipeline selection and synchronous queue ingress while retaining the ordinary Boolean register and native StreamFifo algorithms.",
+      "edits": [
+        {
+          "id": "flow-pipeline-control-01",
+          "kind": "overload",
+          "owner": "spinal.lib.Flow.m2sPipe(ElabBool)",
+          "reason": "Select either ordinary Boolean Flow register profile from exact typed control without reproducing the register algorithm.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabControl.selectSymbolic",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "flow-sync-queue-01",
+          "kind": "overload",
+          "owner": "spinal.lib.Flow.queueWithOccupancy(ElabInt)",
+          "reason": "Add typed synchronous occupancy ingress that delegates to the reviewed native StreamFifo implementation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queueWithOccupancy(size: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "flow-sync-queue-02",
+          "kind": "overload",
+          "owner": "spinal.lib.Flow.queueWithAvailability(ElabInt)",
+          "reason": "Add typed synchronous availability ingress that delegates to the reviewed native StreamFifo implementation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queueWithAvailability(size: ElabInt)",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "lib/src/main/scala/spinal/lib/Stream.scala",
       "baseline_path": "lib/src/main/scala/spinal/lib/Stream.scala",
       "change": "modified",
@@ -1393,10 +1444,63 @@
         "Increment 53d: typed StreamWidthAdapter architecture",
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 57: broad native library migration and proof"
       ],
-      "reason": "Add typed StreamFifo and StreamWidthAdapter geometry while mechanically retaining the authoritative native algorithms and concrete output.",
+      "reason": "Add typed Stream pipeline and synchronous-queue ingress plus StreamFifo and StreamWidthAdapter geometry while mechanically retaining the authoritative native algorithms and concrete output.",
       "edits": [
+        {
+          "id": "stream-pipeline-control-01",
+          "kind": "overload",
+          "owner": "spinal.lib.Stream.pipelined(ElabBool, ElabBool, ElabBool)",
+          "reason": "Select only complete-domain-legal combinations of the five ordinary Boolean pipeline profiles without duplicating their handshake or storage algorithms.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "halfRate can be enabled only when m2s and s2m are disabled",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-sync-queue-01",
+          "kind": "overload",
+          "owner": "spinal.lib.Stream.queue(ElabInt)",
+          "reason": "Add typed synchronous queue arities that delegate to the reviewed native StreamFifo configuration.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queue(size: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-sync-queue-02",
+          "kind": "overload",
+          "owner": "spinal.lib.Stream.queueWithOccupancy(ElabInt)",
+          "reason": "Add typed synchronous occupancy-helper arities that delegate to the reviewed native StreamFifo configuration.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queueWithOccupancy(size: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-sync-queue-03",
+          "kind": "overload",
+          "owner": "spinal.lib.Stream.queueWithAvailability(ElabInt)",
+          "reason": "Add typed synchronous availability-helper arities that delegate to the reviewed native StreamFifo configuration.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queueWithAvailability(size: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "stream-typed-geometry-01",
           "kind": "overload",
@@ -1965,6 +2069,186 @@
             {
               "side": "approved",
               "text": "StreamWidthAdapter",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Add explicit typed single-address overloads and mechanical mapping propagation while retaining every ordinary concrete and bus-family transaction algorithm.",
+      "edits": [
+        {
+          "id": "bus-slave-typed-address-01",
+          "kind": "signature",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory typed address validation",
+          "reason": "Validate a complete exact typed address domain against the native bus shape before any concrete or symbolic mapping is admitted.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "requireProjectedExactExtrema = true",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-02",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory.read(ElabInt)",
+          "reason": "Add typed read arities that validate first, delegate constants to the BigInt overload, and retain symbolic mappings for the existing primitive path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val mapping = validatedTypedAddress(address, readAddress())",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-03",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory.write(ElabInt)",
+          "reason": "Add typed write arities that validate first, delegate constants to the BigInt overload, and retain symbolic mappings for the existing primitive path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val mapping = validatedTypedAddress(address, writeAddress())",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-04",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory.onWrite(ElabInt)",
+          "reason": "Add typed write-event arities over the ordinary halt-sensitive primitive path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "onWritePrimitive",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-05",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory.onRead(ElabInt)",
+          "reason": "Add typed read-event arities over the ordinary halt-sensitive primitive path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "onReadPrimitive",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-06",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory address-first write helper",
+          "reason": "Mechanically forward typed address-first bit mappings to the reviewed typed write overload.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "bitMapping.foreach { case (bitId, that) => write(that, address, bitId) }",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-07",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory address-first read helper",
+          "reason": "Mechanically forward typed address-first bit mappings to the reviewed typed read overload.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "bitMapping.foreach { case (bitId, that) => read(that, address, bitId) }",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-08",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory.readAndWrite(ElabInt)",
+          "reason": "Compose the typed read/write helper only from the two reviewed typed operations.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def readAndWrite(that: Data, address: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-09",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactoryDelayed read-overlap diagnostic",
+          "reason": "Render either concrete or typed single mappings without changing the inherited double-read overlap check.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "case single: ElabIntSingleMapping",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-10",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactoryAddressWrapper typed offsets",
+          "reason": "Retain typed authority through wrapper offset arithmetic so the underlying factory validates every final effective address.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "Retain typed authority until after the wrapper offset is applied",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/misc/Misc.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/misc/Misc.scala",
+      "change": "modified",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Provide one generic exact typed single-address mapping for existing native bus decoders, with fail-closed complete-domain validation and identity-safe grouping.",
+      "edits": [
+        {
+          "id": "typed-single-address-mapping-01",
+          "kind": "signature",
+          "owner": "spinal.lib.bus.misc.ElabIntSingleMapping",
+          "reason": "Add the exact generic mapping, domain safety checks, symbolic hit expression, offset propagation, and concrete-only operation guards.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "final case class ElabIntSingleMapping(address: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "typed-single-address-mapping-02",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.misc.ElabIntSingleMapping source boundary",
+          "reason": "Record beside the inherited file terminator that the new helper remains generic rather than bus-family-specific.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabIntSingleMapping intentionally remains a generic AddressMapping.",
               "count": 1
             }
           ]
