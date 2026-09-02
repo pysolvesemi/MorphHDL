@@ -1,5 +1,7 @@
 package spinal.core
 
+import morphhdl.runtime.ParameterizedVerilogMode
+
 import java.util.IdentityHashMap
 
 import scala.collection.Seq
@@ -338,8 +340,7 @@ object ParameterizedStructure {
   /** True only while constructing a component for parameterized Verilog. */
   def captureEnabled: Boolean =
     (Component.current ne null) &&
-      (try GlobalData.get.config.parameterizedVerilog
-      catch { case _: Throwable => false })
+      ParameterizedVerilogMode.isEnabledInCurrentElaboration
 
   /** Capture one representative ordinary SpinalHDL body.
     *

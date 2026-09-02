@@ -222,8 +222,7 @@ case class SpinalConfig(mode                           : SpinalMode = null,
                         var emitFullComponentBindings  : Boolean = true,
                         var reportIncludeSourceLocation: Boolean = false,
                         var reportSourceLocationFormat : String = SpinalConfig.defaultReportSourceLocationFormat,
-                        var svInterface                : Boolean = false,
-                        parameterizedVerilog           : Boolean = false
+                        var svInterface                : Boolean = false
 ){
   def generate       [T <: Component](gen: => T): SpinalReport[T] = Spinal(this)(gen)
   def generateVhdl   [T <: Component](gen: => T): SpinalReport[T] = Spinal(this.copy(mode = VHDL))(gen)
@@ -344,12 +343,6 @@ class SpinalReport[T <: Component]() {
   var counterRegister = 0
   var toplevelName: String = null
   var globalData : GlobalData = null
-
-  private[core] var _inheritedValidationPhaseIds = Vector.empty[String]
-  def inheritedValidationPhaseIds: Vector[String] = _inheritedValidationPhaseIds
-  private[core] var _expectedInheritedValidationPhaseIds = Vector.empty[String]
-  def expectedInheritedValidationPhaseIds: Vector[String] =
-    _expectedInheritedValidationPhaseIds
 
 
   val generatedSourcesPaths  = mutable.LinkedHashSet[String]()

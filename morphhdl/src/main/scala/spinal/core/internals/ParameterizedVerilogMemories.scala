@@ -1,5 +1,7 @@
 package spinal.core.internals
 
+import morphhdl.runtime.ParameterizedVerilogMode
+
 import java.util.IdentityHashMap
 import java.util.regex.{Matcher, Pattern}
 
@@ -52,7 +54,7 @@ private[internals] object ParameterizedVerilogMemories {
   private final case class LineRange(start: Int, endInclusive: Int)
 
   def rewrite(component: Component, verilog: String, pc: PhaseContext): String = {
-    if (!pc.config.parameterizedVerilog) return verilog
+    if (!ParameterizedVerilogMode.isEnabled(pc.config)) return verilog
     val memories = ParameterizedMemory.memoriesOf(component)
     if (memories.isEmpty) return verilog
     if (pc.config.isSystemVerilog) {

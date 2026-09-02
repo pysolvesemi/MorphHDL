@@ -6,6 +6,7 @@ import java.nio.file.Files
 import scala.collection.JavaConverters._
 
 import morphhdl.frontend.ParamRtlFrontend.{captureItems, integerParameter}
+import morphhdl.runtime.ParameterizedVerilogMode
 import morphhdl.paramrtl.BoolExpr.{Equal, GreaterThan, GreaterThanOrEqual, LessThan, LessThanOrEqual, NotEqual}
 import morphhdl.paramrtl.IntConstraint.{MaxInclusive, MinInclusive}
 import morphhdl.paramrtl.IntExpr.{
@@ -176,14 +177,14 @@ class HdlIntTests extends AnyFunSuite {
     var trueReplay: ParameterizedVerilogException = null
     var consumedReplay: ParameterizedVerilogException = null
     try {
-      SpinalVerilog(
+      SpinalVerilog(ParameterizedVerilogMode.enable(
         SpinalConfig(
           targetDirectory = directory.toString,
           headerWithRepoHash = false,
           withTimescale = false,
           printFilelist = false
-        ).copy(parameterizedVerilog = true)
-      ) {
+        )
+      )) {
         new Component {
           setDefinitionName("PreparedBooleanPredicateLifecycle")
           val origin = SourceOrigin("PreparedBooleanPredicateLifecycle.scala", 1)

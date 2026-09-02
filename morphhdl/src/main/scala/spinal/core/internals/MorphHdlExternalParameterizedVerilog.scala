@@ -1,5 +1,7 @@
 package spinal.core.internals
 
+import morphhdl.runtime.ParameterizedVerilogMode
+
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths, StandardCopyOption, StandardOpenOption}
 import java.util.IdentityHashMap
@@ -55,7 +57,7 @@ object MorphHdlExternalParameterizedVerilog {
       pc: PhaseContext,
       emittedCanonicalOf: Component => Component
   ): Unit = {
-    if (!pc.config.parameterizedVerilog) return
+    if (!ParameterizedVerilogMode.isEnabled(pc.config)) return
     if (emittedCanonicalOf == null) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-CANONICAL-MAP-MISSING",

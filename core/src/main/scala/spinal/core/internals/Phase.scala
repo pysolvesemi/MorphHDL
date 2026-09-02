@@ -199,7 +199,6 @@ class PhaseContext(val config: SpinalConfig) {
 trait Phase {
   def impl(pc: PhaseContext): Unit
   def hasNetlistImpact: Boolean
-  private[internals] def inheritedValidationPhaseId: Option[String] = None
 }
 
 
@@ -215,8 +214,6 @@ trait PhaseMisc extends Phase {
 
 trait PhaseCheck extends Phase {
   override def hasNetlistImpact: Boolean = false
-  override private[internals] def inheritedValidationPhaseId: Option[String] =
-    Some(getClass.getSimpleName)
 }
 
 
@@ -1709,8 +1706,7 @@ class PhaseDevice(pc : PhaseContext) extends PhaseMisc{
   }
 }
 
-class PhaseInferWidth(pc: PhaseContext) extends PhaseMisc {
-  override private[internals] val inheritedValidationPhaseId = Some("PhaseInferWidth")
+class PhaseInferWidth(pc: PhaseContext) extends PhaseMisc{
 
   override def impl(pc: PhaseContext): Unit = {
     import pc._
@@ -1853,7 +1849,7 @@ class PhaseNormalizeNodeInputs(pc: PhaseContext) extends PhaseNetlist{
 }
 
 
-class PhaseCheckCombinationalLoops() extends PhaseCheck {
+class PhaseCheckCombinationalLoops() extends PhaseCheck{
 
   override def impl(pc: PhaseContext): Unit = {
     import pc._
@@ -1920,7 +1916,7 @@ class PhaseCheckCombinationalLoops() extends PhaseCheck {
 }
 
 
-class PhaseCheckCrossClock() extends PhaseCheck {
+class PhaseCheckCrossClock() extends PhaseCheck{
 
   override def impl(pc : PhaseContext): Unit = {
     import pc._
@@ -2435,7 +2431,7 @@ class PhaseCompletSwitchCases extends PhaseNetlist{
 }
 
 
-class PhaseCheckIoBundle extends PhaseCheck {
+class PhaseCheckIoBundle extends PhaseCheck{
 
   override def impl(pc: PhaseContext): Unit = {
     import pc._
@@ -2626,7 +2622,7 @@ class PhaseCheckHierarchy extends PhaseCheck {
 
 
 
-class PhaseCheck_noRegisterAsLatch() extends PhaseCheck {
+class PhaseCheck_noRegisterAsLatch() extends PhaseCheck{
 
   override def impl(pc: PhaseContext): Unit = {
     import pc._
@@ -2930,10 +2926,6 @@ class PhaseCheck_noLatchNoOverride(pc: PhaseContext) extends PhaseCheck {
 }
 
 class PhaseGetInfoRTL(prunedSignals: mutable.Set[BaseType], unusedSignals: mutable.Set[BaseType], counterRegisters: Ref[Int], blackboxesSourcesPaths: mutable.LinkedHashSet[String])(pc: PhaseContext) extends PhaseCheck {
-  // This phase gathers report information; it is deliberately excluded from
-  // the semantic validation manifest while retaining its historic PhaseCheck
-  // type for downstream phase inserters.
-  override private[internals] val inheritedValidationPhaseId = None
 
   override def impl(pc: PhaseContext): Unit = {
     import pc._
@@ -3554,29 +3546,88 @@ object SpinalVerilogBoot{
     pc.globalData.phaseContext = pc
     pc.globalData.anonymSignalPrefix = if(config.anonymSignalPrefix == null) "_zz" else config.anonymSignalPrefix
 
+    val prunedSignals    = mutable.Set[BaseType]()
+    val unusedSignals    = mutable.Set[BaseType]()
+    val counterRegister  = Ref[Int](0)
+    val blackboxesSourcesPaths  = new mutable.LinkedHashSet[String]()
+
     SpinalProgress("Elaborate components")
 
-    val plan = SpinalVerilogPhasePlan.build(config, pc)(gen)
+    val phases = ArrayBuffer[Phase]()
 
-    for(phase <- plan.phases){
+    phases += new PhaseCreateComponent(gen)(pc)
+    phases += new PhaseDummy(SpinalProgress("Checks and transforms"))
+    phases ++= config.transformationPhases
+    phases ++= config.memBlackBoxers
+    phases += new PhaseDeviceSpecifics(pc)
+    phases += new PhaseApplyIoDefault(pc)
+
+    phases += new PhaseNameNodesByReflection(pc)
+    phases += new PhaseCollectAndNameEnum(pc)
+
+    phases += new PhaseCheckIoBundle()
+    phases += new PhaseCheckHierarchy()
+    phases += new PhaseAnalog()
+    phases += new PhaseNextifyReg()
+    phases += new PhaseRemoveUselessStuff(false, false)
+    phases += new PhaseRemoveIntermediateUnnameds(true)
+
+    phases += new PhasePullClockDomains(pc)
+
+    phases += new PhaseInferEnumEncodings(pc,e => if(e == `native`) binarySequential else e)
+    phases += new PhaseInferWidth(pc)
+    phases += new PhaseNormalizeNodeInputs(pc)
+    phases += new PhaseRemoveIntermediateUnnameds(false)
+    phases += new PhaseSimplifyNodes(pc)
+
+    phases += new PhaseCompletSwitchCases()
+    phases += new PhaseRemoveUselessStuff(true, true)
+    phases += new PhaseRemoveIntermediateUnnameds(false)
+
+    phases += new PhaseCheck_noLatchNoOverride(pc)
+    phases += new PhaseCheck_noRegisterAsLatch()
+    phases += new PhaseCheckCombinationalLoops()
+    phases += new PhaseCheckCrossClock()
+
+    phases += new PhasePropagateNames(pc)
+    phases += new PhaseObfuscate()
+    phases += new PhaseAllocateNames(pc)
+    phases += new PhaseDevice(pc)
+
+    if(config.mode == SystemVerilog && config.svInterface) {
+      phases += new PhaseInterface(pc)
+    }
+
+    phases += new PhaseGetInfoRTL(prunedSignals, unusedSignals, counterRegister, blackboxesSourcesPaths)(pc)
+
+    phases += new PhaseDummy(SpinalProgress(s"Generate Verilog to ${config.targetDirectory}"))
+
+    val report = new SpinalReport[T]()
+    report.globalData = pc.globalData
+    phases += new PhaseVerilog(pc, report)
+
+    for(inserter <-config.phasesInserters){
+      inserter(phases)
+    }
+
+    for(phase <- phases){
       if(config.verbose) SpinalProgress(s"${phase.getClass.getSimpleName}")
       pc.doPhase(phase)
     }
 
-    if(plan.prunedSignals.nonEmpty){
-      SpinalWarning(s"${plan.prunedSignals.size} signals were pruned. You can call printPruned on the backend report to get more informations.")
+    if(prunedSignals.nonEmpty){
+      SpinalWarning(s"${prunedSignals.size} signals were pruned. You can call printPruned on the backend report to get more informations.")
     }
 
 //    SpinalInfo(s"Number of registers : ${counterRegister.value}")
 
-    plan.finalizeValidation(pc)
+    pc.checkGlobalData()
+    report.toplevel = pc.topLevel.asInstanceOf[T]
+    report.prunedSignals ++= prunedSignals
+    report.unusedSignals ++= unusedSignals
+    report.counterRegister = counterRegister.value
+    report.blackboxesSourcesPaths ++= blackboxesSourcesPaths
 
-    plan.report.toplevel = pc.topLevel.asInstanceOf[T]
-    plan.report.prunedSignals ++= plan.prunedSignals
-    plan.report.unusedSignals ++= plan.unusedSignals
-    plan.report.counterRegister = plan.counterRegister.value
-    plan.report.blackboxesSourcesPaths ++= plan.blackboxesSourcesPaths
-
-    plan.report
+    report
   }
 }

@@ -7,30 +7,26 @@ import scala.collection.JavaConverters._
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 
+/** Compatibility name retained for existing focused-test commands. Inventory
+  * capture itself now uses only the baseline SpinalConfig phase-inserter API.
+  */
 class SpinalVerilogPhasePlanTests extends AnyFunSuite {
-  private val expectedIds = Vector(
-    "PhaseCheckIoBundle",
-    "PhaseCheckHierarchy",
-    "PhaseInferWidth",
-    "PhaseCheck_noLatchNoOverride",
-    "PhaseCheck_noRegisterAsLatch",
-    "PhaseCheckCombinationalLoops",
-    "PhaseCheckCrossClock",
-    "PhaseContext.checkGlobalData"
-  )
+  private val expectedIds = ValidationPhaseInventory.expectedIds
 
-  test("SpinalVerilog exposes the shared inherited validation inventory") {
+  test("the baseline phase inserter exposes the inherited validation inventory") {
     withTemporaryDirectory { directory =>
-      val report = generate(SpinalConfig(targetDirectory = directory.toString))
+      val (report, observed) = generateAndObserve(
+        SpinalConfig(targetDirectory = directory.toString)
+      )
 
-      assert(report.expectedInheritedValidationPhaseIds == expectedIds)
-      assert(report.inheritedValidationPhaseIds == expectedIds)
-      assert(report.inheritedValidationPhaseIds.distinct == report.inheritedValidationPhaseIds)
+      assert(observed == expectedIds)
+      assert(observed.distinct == observed)
+      assert(report.toplevelName == "PhasePlanProbe")
       assert(Files.isRegularFile(directory.resolve("PhasePlanProbe.v")))
     }
   }
 
-  test("the shared plan preserves transformation and inserter hooks") {
+  test("the baseline flow preserves transformation and inserter hooks") {
     withTemporaryDirectory { directory =>
       var transformationRuns = 0
       var insertedRuns = 0
@@ -44,16 +40,16 @@ class SpinalVerilogPhasePlanTests extends AnyFunSuite {
         }
       }
 
-      val report = generate(config)
+      val (_, observed) = generateAndObserve(config)
 
       assert(transformationRuns == 1)
       assert(insertedRuns == 1)
-      assert(report.inheritedValidationPhaseIds == expectedIds)
-      assert(report.inheritedValidationPhaseIds.last == "PhaseContext.checkGlobalData")
+      assert(observed == expectedIds)
+      assert(observed.last == "PhaseContext.checkGlobalData")
     }
   }
 
-  test("the historic global-data finalizer rejects state leaked by an inserted phase") {
+  test("the baseline global-data finalizer rejects state leaked by an inserted phase") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
       config.debugComponents += classOf[Component]
@@ -66,48 +62,52 @@ class SpinalVerilogPhasePlanTests extends AnyFunSuite {
       }
 
       val failure = intercept[SpinalExit] {
-        generate(config)
+        generateAndObserve(config)
       }
 
       assert(failure.getMessage.contains("dslScope stack is not empty"))
     }
   }
 
-  test("the report makes an inherited phase removed by an inserter visible") {
+  test("the external inventory makes an inherited phase removed by an inserter visible") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
       config.phasesInserters += { phases =>
-        val index = phases.indexWhere(_.getClass.getSimpleName == "PhaseCheckHierarchy")
+        val index = phases.indexWhere(_.getClass == classOf[PhaseCheckHierarchy])
         assert(index >= 0)
         phases.remove(index)
       }
 
-      val report = generate(config)
+      val (_, observed) = generateAndObserve(config)
 
-      assert(report.expectedInheritedValidationPhaseIds == expectedIds)
-      assert(report.inheritedValidationPhaseIds == expectedIds.filterNot(_ == "PhaseCheckHierarchy"))
+      assert(observed == expectedIds.filterNot(_ == "PhaseCheckHierarchy"))
     }
   }
 
-  test("the report makes a fresh duplicate inherited phase visible") {
+  test("the external inventory makes a fresh duplicate inherited phase visible") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
       config.phasesInserters += { phases =>
         phases += new PhaseCheckHierarchy()
       }
 
-      val report = generate(config)
+      val (_, observed) = generateAndObserve(config)
 
-      assert(report.expectedInheritedValidationPhaseIds == expectedIds)
       assert(
-        report.inheritedValidationPhaseIds ==
-          expectedIds.dropRight(1) ++ Vector("PhaseCheckHierarchy", expectedIds.last)
+        observed == expectedIds.dropRight(1) ++
+          Vector("PhaseCheckHierarchy", expectedIds.last)
       )
     }
   }
 
-  private def generate(config: SpinalConfig): SpinalReport[Component] =
-    SpinalVerilog(config) {
+  private def generateAndObserve(
+      config: SpinalConfig
+  ): (SpinalReport[_ <: Component], Vector[String]) = {
+    var observed: Vector[String] = null
+    config.phasesInserters += { phases =>
+      observed = ValidationPhaseInventory.idsOf(phases)
+    }
+    val report = SpinalVerilog(config) {
       new Component {
         setDefinitionName("PhasePlanProbe")
         val input = in(Bool())
@@ -115,6 +115,11 @@ class SpinalVerilogPhasePlanTests extends AnyFunSuite {
         output := input
       }
     }
+    if (observed == null) {
+      throw new IllegalStateException("baseline phase inserter did not run")
+    }
+    report -> observed
+  }
 
   private def withTemporaryDirectory[A](body: Path => A): A = {
     val directory = Files.createTempDirectory("morphhdl-phase-plan-test-")

@@ -199,7 +199,17 @@ abstract class BitVector extends BaseType with Widthable {
     */
   def resize(width: Int): BitVector
   def resize(width: BitCount): BitVector
-  def resize(width: ElabInt): BitVector
+  def resize(width: ElabInt): BitVector = {
+    if(width == null) throw new IllegalArgumentException("typed resize width must not be null")
+    if(!width.isConcrete){
+      ElabInt.fail(
+        "SPINAL-ELAB-INT-BITVECTOR-RESIZE-SUBTYPE-UNSUPPORTED",
+        s"${getClass.getName} does not implement parameter-sensitive resize; override resize(ElabInt) instead of erasing '${width.expression.verilog}' to its witness",
+        width.sourceLocation
+      )
+    }
+    resize(width.witness)
+  }
 
   private[core] override def calcWidth: Int = {
     if (isFixedWidth) return fixedWidth

@@ -78,6 +78,8 @@ final case class ExternalSpinalVerilogReport[T <: Component, A](
     nativeReport: SpinalReport[T],
     inspection: A,
     phaseClassNames: Vector[String],
+    expectedInheritedValidationPhaseIds: Vector[String],
+    inheritedValidationPhaseIds: Vector[String],
     generatedSourcesPaths: Vector[String]
 )
 
@@ -98,8 +100,32 @@ object ExternalSpinalVerilog {
 
   private final case class CapturedPhasePlan(
       attempt: Int,
-      classNames: Vector[String]
+      classNames: Vector[String],
+      inheritedValidationPhaseIds: Vector[String]
   )
+
+  private val InheritedValidationPhases = Vector(
+    "spinal.core.internals.PhaseCheckIoBundle" -> "PhaseCheckIoBundle",
+    "spinal.core.internals.PhaseCheckHierarchy" -> "PhaseCheckHierarchy",
+    "spinal.core.internals.PhaseInferWidth" -> "PhaseInferWidth",
+    "spinal.core.internals.PhaseCheck_noLatchNoOverride" -> "PhaseCheck_noLatchNoOverride",
+    "spinal.core.internals.PhaseCheck_noRegisterAsLatch" -> "PhaseCheck_noRegisterAsLatch",
+    "spinal.core.internals.PhaseCheckCombinationalLoops" -> "PhaseCheckCombinationalLoops",
+    "spinal.core.internals.PhaseCheckCrossClock" -> "PhaseCheckCrossClock"
+  )
+  private val GlobalDataValidationId = "PhaseContext.checkGlobalData"
+
+  /** Stable, MorphHDL-owned inherited-validation contract observed through the baseline phase
+    * inserter API. The final global-data check has no Phase object; successful
+    * native generation proves that its baseline finalizer also completed.
+    */
+  val expectedInheritedValidationPhaseIds: Vector[String] =
+    InheritedValidationPhases.map(_._2) :+ GlobalDataValidationId
+
+  private def inheritedValidationIds(classNames: Vector[String]): Vector[String] = {
+    val byClassName = InheritedValidationPhases.toMap
+    classNames.flatMap(byClassName.get) :+ GlobalDataValidationId
+  }
 
   private final class CapturePhase[T <: Component, A](
       attempt: Int,
@@ -214,8 +240,9 @@ object ExternalSpinalVerilog {
         captured
       )
       phases += capturePhase
+      val classNames = phases.toVector.map(_.getClass.getName)
       capturedPlan.set(
-        CapturedPhasePlan(attempt, phases.toVector.map(_.getClass.getName))
+        CapturedPhasePlan(attempt, classNames, inheritedValidationIds(classNames))
       )
     }
 
@@ -276,6 +303,8 @@ object ExternalSpinalVerilog {
       nativeReport = nativeReport,
       inspection = inspection.value,
       phaseClassNames = phasePlan.classNames,
+      expectedInheritedValidationPhaseIds = expectedInheritedValidationPhaseIds,
+      inheritedValidationPhaseIds = phasePlan.inheritedValidationPhaseIds,
       generatedSourcesPaths = generated
     )
   }

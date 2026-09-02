@@ -1,61 +1,11 @@
 {
-  "schema_version": 2,
+  "schema_version": 1,
   "repository": "pysolvesemi/MorphHDL",
-  "git_object_format": "sha1",
-  "content_hash_format": "sha256",
-  "upstream_config": "morphhdl/upstream-base.conf",
-  "baseline": {
-    "commit": "bec73bb9d2ff54897bee66d641b130b66d0db869",
-    "tree": "4dc89a4550737d0c24ea18916617627c52c4fea2"
-  },
-  "source_roots": [
-    {
-      "path": "core/src/main",
-      "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "99432abbacd4a28c8079cf0e24094f4691286968"
-    },
-    {
-      "path": "idslpayload/src/main",
-      "baseline_tree": "e0bc98b5a8e794fc2a3aad64394e92944f5f118d",
-      "approved_tree": "e0bc98b5a8e794fc2a3aad64394e92944f5f118d"
-    },
-    {
-      "path": "idslplugin/src/main",
-      "baseline_tree": "1e863053179f6fcc246f86d3e3af1a3ae260f20b",
-      "approved_tree": "1e863053179f6fcc246f86d3e3af1a3ae260f20b"
-    },
-    {
-      "path": "lib/src/main",
-      "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "bfa0d60b81d2969e0ae52c87ca0b78d281338af0"
-    },
-    {
-      "path": "scalaplugin/src/main",
-      "baseline_tree": "fe0f74fdeb9ffd6c66b29f6a9664a3b4120f1d42",
-      "approved_tree": "fe0f74fdeb9ffd6c66b29f6a9664a3b4120f1d42"
-    },
-    {
-      "path": "sim/src/main",
-      "baseline_tree": "d1cd5f2f30f0c8a7d2f0542b5d4968b05344e029",
-      "approved_tree": "d1cd5f2f30f0c8a7d2f0542b5d4968b05344e029"
-    },
-    {
-      "path": "tester/src/main",
-      "baseline_tree": "ed8efea1d5bd84ad1ec97f778ede254414cb36da",
-      "approved_tree": "ed8efea1d5bd84ad1ec97f778ede254414cb36da"
-    }
-  ],
-  "classifications": [
-    "backend-isolation-hook",
-    "mechanical-propagation",
-    "platform-integration-hook",
-    "typed-overload",
-    "typed-signature",
-    "typed-support-file"
-  ],
-  "entries": [
+  "baseline_commit": "bec73bb9d2ff54897bee66d641b130b66d0db869",
+  "files": [
     {
       "path": "core/src/main/scala/spinal/core/BitVector.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/BitVector.scala",
       "change": "modified",
       "classification": "typed-overload",
       "introduced_by": [
@@ -63,34 +13,12 @@
         "Increment 55: audit concrete compatibility"
       ],
       "reason": "Keep the additive ElabInt resize overload concrete by default so existing subclasses remain binary compatible.",
-      "baseline": {
-        "path": "core/src/main/scala/spinal/core/BitVector.scala",
-        "mode": "100644",
-        "blob": "f2579b0c9a409c4225d2702087cc8f3388792188",
-        "sha256": "81815e62835fbc447e85913320042628449cb714a44a91bd5667e232541729e6"
-      },
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/BitVector.scala",
-        "mode": "100644",
-        "blob": "2598cc70dbce164c571ff3ff6bca349077108c52",
-        "sha256": "5e7cdf32036800a899159ffa71eb0eeafffb634e94979afc2c70c3ee52c7de3a"
-      },
       "edits": [
         {
           "id": "bitvector-resize-01",
           "kind": "overload",
           "owner": "spinal.core.BitVector.resize(ElabInt)",
           "reason": "Add a concrete typed resize seam that delegates literal widths and fails closed for unsupported symbolic subclasses.",
-          "baseline_span": {
-            "start": 6978,
-            "end": 6978,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 6978,
-            "end": 7470,
-            "sha256": "b13f7b439e1658847e68fa3ae4947070393df67a7aaa845e3c42aa4ae13bf57a"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -103,6 +31,7 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/Bits.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/Bits.scala",
       "change": "modified",
       "classification": "typed-overload",
       "introduced_by": [
@@ -113,34 +42,12 @@
         "Increment 55: audit concrete compatibility"
       ],
       "reason": "Expose typed width construction and resize overloads without changing ordinary concrete Bits behavior.",
-      "baseline": {
-        "path": "core/src/main/scala/spinal/core/Bits.scala",
-        "mode": "100644",
-        "blob": "0ad4c1de4d322c8f2880758934cb095065d7f8f3",
-        "sha256": "f3867f4e21c5f48f7276f51d93cec46a90a304c55dbf6c5584fdb0c2fbe7993d"
-      },
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/Bits.scala",
-        "mode": "100644",
-        "blob": "ee46af0079f4c7867e0d61b4a61b6e819a9c00f9",
-        "sha256": "3d876326a870514f8feabb8127bddff018baa090ed9820de2a4a59d9a3b9c541"
-      },
       "edits": [
         {
           "id": "bits-typed-width-01",
           "kind": "overload",
           "owner": "spinal.core.BitsFactory.Bits(ParameterizedBitCount)",
           "reason": "Add the typed Bits factory overload and retain its exact width metadata.",
-          "baseline_span": {
-            "start": 1974,
-            "end": 1974,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 1974,
-            "end": 2199,
-            "sha256": "6a5f23102b82059231848597a243adf17807d2fd2720d9c1fca2e256075dda8e"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -154,16 +61,6 @@
           "kind": "overload",
           "owner": "spinal.core.Bits.resize(ElabInt)",
           "reason": "Add the typed Bits resize overload while routing literal widths through the inherited Int implementation.",
-          "baseline_span": {
-            "start": 8470,
-            "end": 8470,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 8695,
-            "end": 8984,
-            "sha256": "9a68e4e29b7ccc035275c123498ec34d34be9fc8d94ed011c033eea8831d8d25"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -176,6 +73,7 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/Data.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/Data.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
@@ -183,34 +81,12 @@
         "Increment 55: audit concrete compatibility"
       ],
       "reason": "Propagate retained typed leaf geometry through the inherited hierarchy pull cloning path.",
-      "baseline": {
-        "path": "core/src/main/scala/spinal/core/Data.scala",
-        "mode": "100644",
-        "blob": "5b3db71baa12aec5292a8531023441dba6a966e6",
-        "sha256": "8c7a807cf260f226e81f32486aa9c77dd2de4223ca62a3c26b94396b729e9e06"
-      },
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/Data.scala",
-        "mode": "100644",
-        "blob": "d2ada4f580caf153fe1e7a89c85898ddde332c25",
-        "sha256": "c177b2b6f05ae4e54d7d6e1f85b6206500aa0c6db4625cfc9e27bd265c21e040"
-      },
       "edits": [
         {
           "id": "data-pull-shape-01",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Data.pull",
           "reason": "Use the typed metadata-preserving clone at both sides of the unchanged hierarchy pull algorithm.",
-          "baseline_span": {
-            "start": 8430,
-            "end": 8441,
-            "sha256": "795e0a2d04e9383fcb21bcdc914cfb0b58aa8fd19f107ec0959f4ce28b829e14"
-          },
-          "approved_span": {
-            "start": 8430,
-            "end": 8678,
-            "sha256": "617b604a577207272545611bebdf0cd88c2f5909d7b98379274affa586fe24a7"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -224,16 +100,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Data.pull",
           "reason": "Use the typed metadata-preserving clone at both sides of the unchanged hierarchy pull algorithm.",
-          "baseline_span": {
-            "start": 9231,
-            "end": 9231,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 9468,
-            "end": 9487,
-            "sha256": "cc2b81c41a3f9b47bc9756744c8264d48163f4dcd845e51f71056110e905a83d"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -246,6 +112,7 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/ElabInt.scala",
+      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
@@ -255,17 +122,11 @@
         "Increment 53g: retire native-Int shadow reconstruction (#130)"
       ],
       "reason": "Provide the neutral exact elaboration integer and boolean expression carriers used by reviewed native overloads.",
-      "baseline": null,
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/ElabInt.scala",
-        "mode": "100644",
-        "blob": "5adffccd8825c699c38ae8ab1595949b8ba03f8a",
-        "sha256": "ed4b50140835f3717e9ecdbb1f1f0af21e88d212b5d019c0b871409a86fe8ca9"
-      },
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ElaborationExactDomain.scala",
+      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
@@ -273,34 +134,22 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)"
       ],
       "reason": "Provide exact finite-domain reasoning for parameter-sensitive native operations.",
-      "baseline": null,
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/ElaborationExactDomain.scala",
-        "mode": "100644",
-        "blob": "b4ce850d2a1f6af160ee06eca95b23c9c0d564b4",
-        "sha256": "aa188e63b789f056a2f5f04c4dacca20c762cafe6b23857b218acede7c1da1cf"
-      },
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ElaborationProjectionRegistry.scala",
+      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 53e: typed StreamFifo depth architecture (#128)"
       ],
       "reason": "Retain reviewed projection ownership for exact typed elaboration expressions.",
-      "baseline": null,
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/ElaborationProjectionRegistry.scala",
-        "mode": "100644",
-        "blob": "a8279f4b0667616c4f666c3f7e0b45ca6dec1ffe",
-        "sha256": "9366006897a806beddaa03643dd4a24dc5a302e9ae5293eb6a70c2af863bc071"
-      },
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ExternalCompilerPermit.scala",
+      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
@@ -308,34 +157,22 @@
         "Increment 53g: retire native-Int shadow reconstruction (#130)"
       ],
       "reason": "Define the narrow compiler-owned permit boundary for external typed elaboration.",
-      "baseline": null,
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/ExternalCompilerPermit.scala",
-        "mode": "100644",
-        "blob": "b1bdb94c976411b386d4c5fd7fc30f12c06f1fa2",
-        "sha256": "a4fa0c043b75f2d2faf6f15f1980bb4607aabe45984c06bc3a2cb3dacc8fe1f5"
-      },
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ExternalStructuralPredicatePermit.scala",
+      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 53f: typed parameter-sensitive primitive closure (#129)"
       ],
       "reason": "Define the narrow structural-predicate permit used by parameter-sensitive native branches.",
-      "baseline": null,
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/ExternalStructuralPredicatePermit.scala",
-        "mode": "100644",
-        "blob": "17a509a3e1c3e2bcbd61fef3b6cf90e46a7148eb",
-        "sha256": "77971adc2eccc122759e654c53d39837efe46d664ff04515bd5b53be5d57f0bd"
-      },
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/Mem.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/Mem.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
@@ -347,34 +184,12 @@
         "Increment 55: audit concrete compatibility"
       ],
       "reason": "Add the typed Mem depth overload and mechanically retain exact address geometry through native port normalization.",
-      "baseline": {
-        "path": "core/src/main/scala/spinal/core/Mem.scala",
-        "mode": "100644",
-        "blob": "865b38d27e4f067e97e37ae1509e976d669c2fc9",
-        "sha256": "b564607b6641e9cc8c38d8ef0595065d2ff4f91dc0338db19fdb50e19cb4c8c3"
-      },
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/Mem.scala",
-        "mode": "100644",
-        "blob": "58bfb9b0950afa63839843ea8e96bd95cbfdf09d",
-        "sha256": "982e3afaf13686a0ea2eeefb1529cd69cd17b8b38c763910e3b732c71e1362df"
-      },
       "edits": [
         {
           "id": "mem-typed-depth-01",
           "kind": "overload",
           "owner": "spinal.core.Mem.apply(ElabInt)",
           "reason": "Add the typed memory-depth factory while literal depths re-enter the inherited Int factory.",
-          "baseline_span": {
-            "start": 3839,
-            "end": 3870,
-            "sha256": "1957f7acfe964762070c5b322abaae40df31861781129bfc7fc9a834e4aeccca"
-          },
-          "approved_span": {
-            "start": 3839,
-            "end": 4425,
-            "sha256": "d5fd065eb374a7627c181d8a8639465857bbb3fe9565e0194a82360b146f0b55"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -388,16 +203,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Mem.wordTypeLeaves",
           "reason": "Evaluate HardType once and reuse the inherited flattened leaves for typed metadata.",
-          "baseline_span": {
-            "start": 6727,
-            "end": 6793,
-            "sha256": "ed450b434244743965e09fb71b261ba77c3b4f78f90e7f31062807f84205ffea"
-          },
-          "approved_span": {
-            "start": 7282,
-            "end": 7600,
-            "sha256": "b12ff4cbc515a3282a1747ad560435948be093abf37d3f9b7e41c8819f15b9ec"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -411,16 +216,6 @@
           "kind": "signature",
           "owner": "spinal.core.Mem address geometry",
           "reason": "Expose and retain exact typed address geometry while preserving the ordinary Int addressWidth surface.",
-          "baseline_span": {
-            "start": 7612,
-            "end": 7612,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 8419,
-            "end": 8471,
-            "sha256": "30445572b35677114b64a9fab4be39de5fa15793ec23dc4bc7def19f9b5ac279"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -434,16 +229,6 @@
           "kind": "signature",
           "owner": "spinal.core.Mem address geometry",
           "reason": "Expose and retain exact typed address geometry while preserving the ordinary Int addressWidth surface.",
-          "baseline_span": {
-            "start": 7651,
-            "end": 7651,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 8510,
-            "end": 9314,
-            "sha256": "bae8268a0ab195a179a8ea491ef8cc69af03dd9f2d43390b20efcd9244c95dec"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -457,16 +242,6 @@
           "kind": "signature",
           "owner": "spinal.core.Mem address geometry",
           "reason": "Expose and retain exact typed address geometry while preserving the ordinary Int addressWidth surface.",
-          "baseline_span": {
-            "start": 12358,
-            "end": 12359,
-            "sha256": "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
-          },
-          "approved_span": {
-            "start": 14021,
-            "end": 14032,
-            "sha256": "ab47d8517f830febdaa7cfebfe8541e9910d15dd38a84899574d30d78c8618d1"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -480,16 +255,6 @@
           "kind": "signature",
           "owner": "spinal.core.Mem address geometry",
           "reason": "Expose and retain exact typed address geometry while preserving the ordinary Int addressWidth surface.",
-          "baseline_span": {
-            "start": 12636,
-            "end": 12658,
-            "sha256": "8b377891d4c787d74d580fbc113f630e9528873ca565512b005823a76324c432"
-          },
-          "approved_span": {
-            "start": 14309,
-            "end": 14433,
-            "sha256": "9ba2a7556770cfdf9db3f0abf01796936925ef71d88aa835f8e4d7c2e641e901"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -503,16 +268,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "baseline_span": {
-            "start": 27610,
-            "end": 27630,
-            "sha256": "1a1d685f614c665560e6ea784a4f151e2d4755a4bbb10b1f813eecac1dc607e8"
-          },
-          "approved_span": {
-            "start": 29385,
-            "end": 29470,
-            "sha256": "98c83088007f98cff85d8504bb58c92521bea3f2d158abaf27662f44285351eb"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -526,16 +281,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "baseline_span": {
-            "start": 28201,
-            "end": 28234,
-            "sha256": "6ed2b60b38eecaedbb555c5f135395d8ec3f6c127c96bfcc486f07d241dc107f"
-          },
-          "approved_span": {
-            "start": 30041,
-            "end": 30139,
-            "sha256": "6882bdb8da6f5dd58353de482ca2ade8456012186ca97b294d364ec3557459a7"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -549,16 +294,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "baseline_span": {
-            "start": 29057,
-            "end": 29258,
-            "sha256": "afb50d91efd6fd436dedcc8769b00567c0a9a5f0d564dfe3feddc7692b42bbcc"
-          },
-          "approved_span": {
-            "start": 30962,
-            "end": 31105,
-            "sha256": "0c3d98629853a635c31a6368957d8ea8fb38a80ad063701f52b10b4cb0a920ad"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -572,16 +307,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "baseline_span": {
-            "start": 30251,
-            "end": 30271,
-            "sha256": "1a1d685f614c665560e6ea784a4f151e2d4755a4bbb10b1f813eecac1dc607e8"
-          },
-          "approved_span": {
-            "start": 32098,
-            "end": 32183,
-            "sha256": "98c83088007f98cff85d8504bb58c92521bea3f2d158abaf27662f44285351eb"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -595,16 +320,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "baseline_span": {
-            "start": 31292,
-            "end": 31325,
-            "sha256": "6ed2b60b38eecaedbb555c5f135395d8ec3f6c127c96bfcc486f07d241dc107f"
-          },
-          "approved_span": {
-            "start": 33204,
-            "end": 33302,
-            "sha256": "6882bdb8da6f5dd58353de482ca2ade8456012186ca97b294d364ec3557459a7"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -618,16 +333,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "baseline_span": {
-            "start": 32006,
-            "end": 32207,
-            "sha256": "afb50d91efd6fd436dedcc8769b00567c0a9a5f0d564dfe3feddc7692b42bbcc"
-          },
-          "approved_span": {
-            "start": 33983,
-            "end": 34126,
-            "sha256": "0c3d98629853a635c31a6368957d8ea8fb38a80ad063701f52b10b4cb0a920ad"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -641,16 +346,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "baseline_span": {
-            "start": 33470,
-            "end": 33490,
-            "sha256": "1a1d685f614c665560e6ea784a4f151e2d4755a4bbb10b1f813eecac1dc607e8"
-          },
-          "approved_span": {
-            "start": 35389,
-            "end": 35474,
-            "sha256": "98c83088007f98cff85d8504bb58c92521bea3f2d158abaf27662f44285351eb"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -664,16 +359,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "baseline_span": {
-            "start": 34429,
-            "end": 34462,
-            "sha256": "6ed2b60b38eecaedbb555c5f135395d8ec3f6c127c96bfcc486f07d241dc107f"
-          },
-          "approved_span": {
-            "start": 36413,
-            "end": 36511,
-            "sha256": "6882bdb8da6f5dd58353de482ca2ade8456012186ca97b294d364ec3557459a7"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -687,16 +372,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "baseline_span": {
-            "start": 35692,
-            "end": 35732,
-            "sha256": "0f2bfcc03aa632751804b7fc59b6572ae4e229f6f9c4da1ef239125b6d38d4cf"
-          },
-          "approved_span": {
-            "start": 37741,
-            "end": 37751,
-            "sha256": "acacfc126ed781fe733195282709b67a42fee9cc7596520b5706212dd14dcb86"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -710,16 +385,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "baseline_span": {
-            "start": 37451,
-            "end": 37471,
-            "sha256": "1a1d685f614c665560e6ea784a4f151e2d4755a4bbb10b1f813eecac1dc607e8"
-          },
-          "approved_span": {
-            "start": 39470,
-            "end": 39555,
-            "sha256": "98c83088007f98cff85d8504bb58c92521bea3f2d158abaf27662f44285351eb"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -733,16 +398,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "baseline_span": {
-            "start": 38602,
-            "end": 38635,
-            "sha256": "6ed2b60b38eecaedbb555c5f135395d8ec3f6c127c96bfcc486f07d241dc107f"
-          },
-          "approved_span": {
-            "start": 40686,
-            "end": 40784,
-            "sha256": "6882bdb8da6f5dd58353de482ca2ade8456012186ca97b294d364ec3557459a7"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -756,16 +411,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "baseline_span": {
-            "start": 39645,
-            "end": 39685,
-            "sha256": "0f2bfcc03aa632751804b7fc59b6572ae4e229f6f9c4da1ef239125b6d38d4cf"
-          },
-          "approved_span": {
-            "start": 41794,
-            "end": 41804,
-            "sha256": "acacfc126ed781fe733195282709b67a42fee9cc7596520b5706212dd14dcb86"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -779,16 +424,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "baseline_span": {
-            "start": 41277,
-            "end": 41297,
-            "sha256": "1a1d685f614c665560e6ea784a4f151e2d4755a4bbb10b1f813eecac1dc607e8"
-          },
-          "approved_span": {
-            "start": 43396,
-            "end": 43481,
-            "sha256": "98c83088007f98cff85d8504bb58c92521bea3f2d158abaf27662f44285351eb"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -802,16 +437,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "baseline_span": {
-            "start": 42346,
-            "end": 42379,
-            "sha256": "6ed2b60b38eecaedbb555c5f135395d8ec3f6c127c96bfcc486f07d241dc107f"
-          },
-          "approved_span": {
-            "start": 44530,
-            "end": 44628,
-            "sha256": "6882bdb8da6f5dd58353de482ca2ade8456012186ca97b294d364ec3557459a7"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -825,16 +450,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "baseline_span": {
-            "start": 43496,
-            "end": 43536,
-            "sha256": "0f2bfcc03aa632751804b7fc59b6572ae4e229f6f9c4da1ef239125b6d38d4cf"
-          },
-          "approved_span": {
-            "start": 45745,
-            "end": 45755,
-            "sha256": "acacfc126ed781fe733195282709b67a42fee9cc7596520b5706212dd14dcb86"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -847,6 +462,7 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/Misc.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/Misc.scala",
       "change": "modified",
       "classification": "typed-overload",
       "introduced_by": [
@@ -854,34 +470,12 @@
         "Increment 55: audit concrete compatibility"
       ],
       "reason": "Add exact typed counterparts of log2Up and isPow2 without changing their concrete overloads.",
-      "baseline": {
-        "path": "core/src/main/scala/spinal/core/Misc.scala",
-        "mode": "100644",
-        "blob": "0c4bbba6a0fd682cce6da7c461efaaf6e6dead3c",
-        "sha256": "5a685a6751f63a3627b5797a985114d4258c7232161f3c968060a490c5ef722e"
-      },
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/Misc.scala",
-        "mode": "100644",
-        "blob": "ddf530c129d457b03169267f5d945618a5134071",
-        "sha256": "a8ab4d86cfe49ea970d07fa96a79aedf84f11be7df6649d586e1917f45b9ac22"
-      },
       "edits": [
         {
           "id": "misc-typed-math-01",
           "kind": "overload",
           "owner": "spinal.core.log2Up.apply(ElabInt)",
           "reason": "Add the typed log2Up overload.",
-          "baseline_span": {
-            "start": 2269,
-            "end": 2269,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 2269,
-            "end": 2434,
-            "sha256": "5eea58b5427e8544f0e2b406707c9de117c88fe7d47b8626091352d2bd2254f8"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -895,16 +489,6 @@
           "kind": "overload",
           "owner": "spinal.core.isPow2.apply(ElabInt)",
           "reason": "Add the typed isPow2 overload.",
-          "baseline_span": {
-            "start": 2938,
-            "end": 2938,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 3103,
-            "end": 3266,
-            "sha256": "fc1bf82998aec10f50a375587e79552162e97c9beb427e1472393e66fc180b31"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -917,6 +501,7 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedMemory.scala",
+      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
@@ -929,17 +514,11 @@
         "Increment 54: clean typed layering and canonical IR"
       ],
       "reason": "Own typed memory depth and address metadata outside the inherited Mem algorithm.",
-      "baseline": null,
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/ParameterizedMemory.scala",
-        "mode": "100644",
-        "blob": "556889b8e581c54ac80192273a371b5d531a446d",
-        "sha256": "5dd8a32d8697e306263cc37dbd20e9c7b665b5eb168ffe61759ed305ec858a1b"
-      },
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
+      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
@@ -947,17 +526,11 @@
         "Increment 53g: retire native-Int shadow reconstruction (#130)"
       ],
       "reason": "Own exact logical Vec geometry and captured indexed-access evidence.",
-      "baseline": null,
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
-        "mode": "100644",
-        "blob": "86b5ab64ea006b832ad7d9fe356d9c91adf784bf",
-        "sha256": "8212a2ddbee1d2c4a1dbdebe7dff31090f1caa0d4515c7f60eb491c2af040f33"
-      },
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
+      "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
@@ -973,17 +546,11 @@
         "Increment 53g: retire native-Int shadow reconstruction (#130)"
       ],
       "reason": "Own exact packed-width metadata and reviewed typed primitive adapters.",
-      "baseline": null,
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
-        "mode": "100644",
-        "blob": "fa0927b6ccd320ae643bbbe01cc91cc4c5bac402",
-        "sha256": "5297005078930a074cb2441e3ffe717583c6da1068f71a92be0e74d9e4c6b080"
-      },
       "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/SInt.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/SInt.scala",
       "change": "modified",
       "classification": "typed-overload",
       "introduced_by": [
@@ -994,34 +561,12 @@
         "Increment 55: audit concrete compatibility"
       ],
       "reason": "Expose typed SInt construction and resize while preserving concrete native paths.",
-      "baseline": {
-        "path": "core/src/main/scala/spinal/core/SInt.scala",
-        "mode": "100644",
-        "blob": "2bd08cb2d67bc06b65b331b2f86d3b676cc6ff6f",
-        "sha256": "d6c890927a96f2d3ead9e217c6ae688cc1fde98a0ef7070ea37877ddcc141974"
-      },
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/SInt.scala",
-        "mode": "100644",
-        "blob": "1ff8f2bf66175bf70f329bea67155011596b43be",
-        "sha256": "1079391d0cf3320389c19b96e7aaa0dd0d75bc537a126ce5bdcfe27947ec38a6"
-      },
       "edits": [
         {
           "id": "sint-typed-width-01",
           "kind": "overload",
           "owner": "spinal.core.SIntFactory.SInt(ParameterizedBitCount)",
           "reason": "Add the typed SInt factory overload.",
-          "baseline_span": {
-            "start": 1974,
-            "end": 1974,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 1974,
-            "end": 2199,
-            "sha256": "2adee2298a7f0271dc40d778c45d7041ab5c1b0a5f950e6f0ad4214995130964"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1035,16 +580,6 @@
           "kind": "overload",
           "owner": "spinal.core.SInt.resize(ElabInt)",
           "reason": "Add the typed SInt resize overload and retain exact symbolic width metadata.",
-          "baseline_span": {
-            "start": 21406,
-            "end": 21406,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 21631,
-            "end": 21973,
-            "sha256": "cffa94dfaaa7b119a517a8f15819a5b3f3981c1a6ce2a792309103cb98d6b000"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1057,40 +592,19 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/Trait.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/Trait.scala",
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
         "Increment 53: permanent native StreamFifo structure repair"
       ],
       "reason": "Provide a narrow tag that prevents only reviewed parameter-sensitive registers from backend sync-process merging.",
-      "baseline": {
-        "path": "core/src/main/scala/spinal/core/Trait.scala",
-        "mode": "100644",
-        "blob": "d4d40dd246d0218de9d37d5e8e9c57767f42532d",
-        "sha256": "9b8cd248b842864e2b9f3563d22d87cb15b212209122198beea3d3b00249ff9b"
-      },
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/Trait.scala",
-        "mode": "100644",
-        "blob": "deaf106fcef8e8a54ee55e30149a531e45ed712a",
-        "sha256": "367f7fa7408c2e553d47cd9e42e9be2f0dbbd8dc8306e84ffbcd8fcda577ca4f"
-      },
       "edits": [
         {
           "id": "sync-merge-isolation-01",
           "kind": "backend-isolation",
           "owner": "spinal.core.noBackendSyncMerge",
           "reason": "Declare the exact backend isolation tag consumed by the native emitter hook.",
-          "baseline_span": {
-            "start": 27269,
-            "end": 27269,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 27269,
-            "end": 27324,
-            "sha256": "bdf2eca23eb6a2d2ea42a5218f8b55bb03bc501e74f50139c052a1ff6abc71a9"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1103,6 +617,7 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/UInt.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/UInt.scala",
       "change": "modified",
       "classification": "typed-overload",
       "introduced_by": [
@@ -1114,34 +629,12 @@
         "Increment 55: audit concrete compatibility"
       ],
       "reason": "Expose typed UInt construction and resize while preserving concrete native paths.",
-      "baseline": {
-        "path": "core/src/main/scala/spinal/core/UInt.scala",
-        "mode": "100644",
-        "blob": "975eb3b9f7aea7a7fcd943bded183e658b45ac76",
-        "sha256": "3b4984f0be3a75ca6cd31ebcc51d2ca32aeafb1c325bfc8b886095f4ec57b1e9"
-      },
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/UInt.scala",
-        "mode": "100644",
-        "blob": "b93a3c1220604ae4aa1ecdc091a66272dd362810",
-        "sha256": "421461775aefe3d004dcf8b1fa62ee90a9a54835c2946395fb521ed5b0d92e03"
-      },
       "edits": [
         {
           "id": "uint-typed-width-01",
           "kind": "overload",
           "owner": "spinal.core.UIntFactory.UInt(ParameterizedBitCount)",
           "reason": "Add the typed UInt factory overload.",
-          "baseline_span": {
-            "start": 2018,
-            "end": 2018,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 2018,
-            "end": 2243,
-            "sha256": "257c31f14c5af72898ec8731d565a695c502a3c0eb529017c06ebe0e04b3776a"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1155,16 +648,6 @@
           "kind": "overload",
           "owner": "spinal.core.UInt.resize(ElabInt)",
           "reason": "Add the typed UInt resize overload and retain exact symbolic width metadata.",
-          "baseline_span": {
-            "start": 17244,
-            "end": 17244,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 17469,
-            "end": 17811,
-            "sha256": "cffa94dfaaa7b119a517a8f15819a5b3f3981c1a6ce2a792309103cb98d6b000"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1177,6 +660,7 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/Vec.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/Vec.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
@@ -1185,34 +669,12 @@
         "Increment 55: audit concrete compatibility"
       ],
       "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms.",
-      "baseline": {
-        "path": "core/src/main/scala/spinal/core/Vec.scala",
-        "mode": "100644",
-        "blob": "d25953fc3ec1c326150181678218e0642f08fb3a",
-        "sha256": "2a469b7c141c53b8c1d9eed1d5056eaa972e50fd7d6e56fcac149f834114aa7a"
-      },
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/Vec.scala",
-        "mode": "100644",
-        "blob": "4d87665c7ecf70eb41fc6bedffd63198147e02b4",
-        "sha256": "88ff512e05f0b56f2cf0f1f1602b866cf41160f5b57f42011a5d2cec8cb3f938"
-      },
       "edits": [
         {
           "id": "vec-typed-geometry-01",
           "kind": "overload",
           "owner": "spinal.core Vec typed factories",
           "reason": "Add typed-size Vec factories and share one native carrier construction path.",
-          "baseline_span": {
-            "start": 2371,
-            "end": 2371,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 2371,
-            "end": 2534,
-            "sha256": "32c8bb47d1d594772565a739242b255790ccfa2f2ffd85f50af6f0ca65bdd267"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1226,16 +688,6 @@
           "kind": "overload",
           "owner": "spinal.core Vec typed factories",
           "reason": "Add typed-size Vec factories and share one native carrier construction path.",
-          "baseline_span": {
-            "start": 2508,
-            "end": 2508,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 2671,
-            "end": 3136,
-            "sha256": "e37cdcfa737fb89d1bf03d7cbcd87b19e9a324caf8363e2f866b7595275595d7"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1249,16 +701,6 @@
           "kind": "overload",
           "owner": "spinal.core Vec typed factories",
           "reason": "Add typed-size Vec factories and share one native carrier construction path.",
-          "baseline_span": {
-            "start": 3383,
-            "end": 3461,
-            "sha256": "ece0743c89bce37432d38747d38862ab984537cb047faffb7669ae534e73552d"
-          },
-          "approved_span": {
-            "start": 4011,
-            "end": 4398,
-            "sha256": "26c459523ed96a9a027cdd5f4ffd4a202715a25df25dd44a847e1c7a2e0f6b57"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1272,16 +714,6 @@
           "kind": "overload",
           "owner": "spinal.core.VecAccessAssign constructors",
           "reason": "Retain the legacy VecAccessAssign constructor while accepting typed decoder evidence.",
-          "baseline_span": {
-            "start": 4138,
-            "end": 4160,
-            "sha256": "fe10aef05329c0d6e7af4c11dae74cc1a49434a768965f4fa910694b5f745259"
-          },
-          "approved_span": {
-            "start": 5075,
-            "end": 5637,
-            "sha256": "abb814801b1cd2bbd48e54723da4bd0256227528238c668e7cdff28193452c37"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1295,16 +727,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.VecAccessAssign assignment",
           "reason": "Capture typed dynamic-write evidence around the inherited element assignment loop.",
-          "baseline_span": {
-            "start": 4270,
-            "end": 4270,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 5747,
-            "end": 5780,
-            "sha256": "07636d1cbdea979934b25025faee25dc0e9ccf927d0c413da9c98554487fe3c5"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1318,16 +740,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.VecAccessAssign assignment",
           "reason": "Capture typed dynamic-write evidence around the inherited element assignment loop.",
-          "baseline_span": {
-            "start": 4721,
-            "end": 4721,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 6231,
-            "end": 6854,
-            "sha256": "8d080c4a45485fcdad5bd66de8ad246917370b9a4412578c5126a9ab696ac632"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1341,16 +753,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
           "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
-          "baseline_span": {
-            "start": 5795,
-            "end": 5818,
-            "sha256": "021059a6d0119b1b0c082a45dd571ff20c2db8fab0ca7ab87d665bc8a97dc1e6"
-          },
-          "approved_span": {
-            "start": 7928,
-            "end": 8242,
-            "sha256": "df157b6b2d4a8c1d20476545def9e70b6b283cb1df7503894f5e7aa72328a5dc"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1364,16 +766,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
           "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
-          "baseline_span": {
-            "start": 5822,
-            "end": 5857,
-            "sha256": "731e09325c9fd614c16641a47e98687719f95e3fb7974485b07d2ea70b3ddb79"
-          },
-          "approved_span": {
-            "start": 8246,
-            "end": 8643,
-            "sha256": "0a845af7e521779099591a34c5d81790f1b73c62d361debb1d7793ab6d69825a"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1387,16 +779,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
           "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
-          "baseline_span": {
-            "start": 6869,
-            "end": 6869,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 9655,
-            "end": 9707,
-            "sha256": "c8574823978973b4218a0c837c9900d02f3bc7199d9660561e39854718ec402e"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1410,16 +792,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
           "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
-          "baseline_span": {
-            "start": 7053,
-            "end": 7053,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 9891,
-            "end": 9959,
-            "sha256": "f5c6f5a7672828e8de7badf73afe931c06281d23e57aec00c6469e0b8f0a2fdf"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1433,16 +805,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
           "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
-          "baseline_span": {
-            "start": 7568,
-            "end": 7568,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 10474,
-            "end": 10979,
-            "sha256": "2358ea0c3d9fc36f4c67637cb356191d686fd9f55da963aee7cf9c09e3f532c4"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1456,16 +818,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
           "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
-          "baseline_span": {
-            "start": 7901,
-            "end": 7901,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 11312,
-            "end": 11326,
-            "sha256": "21ae17512215b0defc78a4a521717861d0d05736fc66414e117f1924c7c64c98"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1479,16 +831,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
           "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
-          "baseline_span": {
-            "start": 8767,
-            "end": 8767,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 12192,
-            "end": 12331,
-            "sha256": "2ba7d0b8ba92065f33fe20598af0256b52d1375acfdf24b92903fc59d1165f93"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1502,16 +844,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
           "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
-          "baseline_span": {
-            "start": 9051,
-            "end": 9051,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 12615,
-            "end": 12621,
-            "sha256": "4893f40e3781eb896c82d046a08067a11e35cdf2f1dfaf26fea90b8db6676413"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1525,16 +857,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
           "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
-          "baseline_span": {
-            "start": 9260,
-            "end": 9260,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 12830,
-            "end": 12913,
-            "sha256": "8ebe7ef227b0b3338ec745400d40b24dddd2c8f2f767b6923c823d9d7acd7b0f"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1548,16 +870,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
           "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
-          "baseline_span": {
-            "start": 9525,
-            "end": 9564,
-            "sha256": "46d25627884c64a8cc43f82941586929bb03d85b15090df268cfccc1af43ba84"
-          },
-          "approved_span": {
-            "start": 13178,
-            "end": 13827,
-            "sha256": "2305044c31b0ffcd999d5474d3a5d16b260109b2a6cd76806957a8af5f693920"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1571,16 +883,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
           "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
-          "baseline_span": {
-            "start": 9575,
-            "end": 9703,
-            "sha256": "bc4873241c58715304245f013482dc5bd6ab2bb4cc1cf0ad6f249db6f7d7236f"
-          },
-          "approved_span": {
-            "start": 13838,
-            "end": 14115,
-            "sha256": "8814fece3090adf450ba97bfd95e07d8b2f55f7202e537704670d52aeef96ff1"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1594,16 +896,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
           "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
-          "baseline_span": {
-            "start": 9711,
-            "end": 9711,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 14123,
-            "end": 14206,
-            "sha256": "58b63cc71b5462bb4fefd3a412676211a042123892a20ccb6961db644d9676f4"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1617,16 +909,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
           "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
-          "baseline_span": {
-            "start": 9755,
-            "end": 9755,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 14250,
-            "end": 14409,
-            "sha256": "8bf740e649e967a9ad1f41e31a551909511832bca19abafb8ce9006168b7b193"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1640,16 +922,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
           "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
-          "baseline_span": {
-            "start": 9932,
-            "end": 9932,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 14586,
-            "end": 14654,
-            "sha256": "afc0517bccf2cd0434746447e3fb077cd3417b280d4989ed8cf999beff7ff96b"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1663,16 +935,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec assignment and cloning",
           "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
-          "baseline_span": {
-            "start": 10854,
-            "end": 10854,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 15576,
-            "end": 15651,
-            "sha256": "cec2541514ccd4475458f40f08b4705066e4cc02d9e1d5c0b9a31f3d4650a79c"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1686,16 +948,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec assignment and cloning",
           "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
-          "baseline_span": {
-            "start": 10968,
-            "end": 10968,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 15765,
-            "end": 15804,
-            "sha256": "6d707af76727ddb4f4182cd4a67d87b0ac5b7dd1875e80f897060fec2b74740a"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1709,16 +961,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec assignment and cloning",
           "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
-          "baseline_span": {
-            "start": 11066,
-            "end": 11066,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 15902,
-            "end": 16238,
-            "sha256": "98d4dfa6ac6a2bde86b96216d91e99946f2dab7799fea733dc92282a5f3ff101"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1732,16 +974,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec assignment and cloning",
           "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
-          "baseline_span": {
-            "start": 11495,
-            "end": 11560,
-            "sha256": "68cb46f564ca3eaabbff243723b9faa9e7e6f85836bb646c824ca643375537de"
-          },
-          "approved_span": {
-            "start": 16667,
-            "end": 17001,
-            "sha256": "a35d65f983b126b4df6066b4f76235bb213e1b397175b7d0f610aee3d9b8ebe1"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1755,16 +987,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec assignment and cloning",
           "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
-          "baseline_span": {
-            "start": 11577,
-            "end": 11638,
-            "sha256": "a86a14d83ec0d98f5e0d49e34725e09e92fb8b2395b44973e41a65ede5afc454"
-          },
-          "approved_span": {
-            "start": 17018,
-            "end": 19113,
-            "sha256": "40b43cdae3dcd8a7997bed3336e0211855905dbbbe331ff9b8d826216228b9d7"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1778,16 +1000,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec assignment and cloning",
           "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
-          "baseline_span": {
-            "start": 11968,
-            "end": 11988,
-            "sha256": "b9adcd4480b5932f33ea586ba0c095798ae2ffc8e81e0003a7502ba16bbc4883"
-          },
-          "approved_span": {
-            "start": 19443,
-            "end": 19545,
-            "sha256": "bd11cdb8d1494d4bb60070d160a1d78d0c0bca39eff6dbeba41c503ec925087e"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1801,16 +1013,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec assignment and cloning",
           "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
-          "baseline_span": {
-            "start": 12056,
-            "end": 12056,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 19613,
-            "end": 19756,
-            "sha256": "1ea1892f1cc19acbe4d66278ced35290af6f69a9c5f9f09ec65d288634f54219"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1823,40 +1025,19 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/core.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/core.scala",
       "change": "modified",
       "classification": "typed-overload",
       "introduced_by": [
         "Increment 53d: typed StreamWidthAdapter architecture"
       ],
       "reason": "Expose a parameter-preserving counterpart of widthOf for typed native algorithms.",
-      "baseline": {
-        "path": "core/src/main/scala/spinal/core/core.scala",
-        "mode": "100644",
-        "blob": "51974d3100d297a5c1a9add047af701c249c11c1",
-        "sha256": "fa5ca81ae6ca0e97920e63163c32bf484b13ff186dfbd0397151ddce2422057c"
-      },
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/core.scala",
-        "mode": "100644",
-        "blob": "fdab645e6e20ff53571330e126135d8629226821",
-        "sha256": "d541c6a4eb5667b03febbb8225f07844871c0cc07b4c8b4a9923a87ef33de373"
-      },
       "edits": [
         {
           "id": "widthofexpr-01",
           "kind": "overload",
           "owner": "spinal.core.widthOfExpr",
           "reason": "Add the exact packed-width helper without changing widthOf.",
-          "baseline_span": {
-            "start": 2139,
-            "end": 2139,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 2139,
-            "end": 2297,
-            "sha256": "2989ea6743b60386da87c9c3ff2453a67cd1646c85b67cb40a43d94b8725c05d"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1869,40 +1050,19 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala",
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
         "Increment 53: permanent native StreamFifo structure repair"
       ],
       "reason": "Honor the reviewed per-register sync-process isolation tag inside the inherited emitter grouping algorithm.",
-      "baseline": {
-        "path": "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala",
-        "mode": "100644",
-        "blob": "1f29eeea863d7df2f99eb70be7bc94d8bf468985",
-        "sha256": "d8c706cb7e27fd5a9d18cd8f240d429ec706f56172f14e87881aef2b4d5ff280"
-      },
-      "approved": {
-        "path": "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala",
-        "mode": "100644",
-        "blob": "1afbf2dcecbdd4c930e9b35933f30c491f352657",
-        "sha256": "cc45263053cd7ff6a32faaea92f47ab257e079c7e31961221f8e78348fc8305f"
-      },
       "edits": [
         {
           "id": "component-emitter-sync-isolation-01",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitter sync grouping",
           "reason": "Exclude only tagged registers from sync-process merging while retaining the native group key.",
-          "baseline_span": {
-            "start": 9154,
-            "end": 9293,
-            "sha256": "52ab5a137c42e0490b15acf3f75169222f12b47cb0b8105dfcbf0213ab846f89"
-          },
-          "approved_span": {
-            "start": 9154,
-            "end": 9401,
-            "sha256": "f3db149697aaeedc0a048629b59506958e6413c1961410d7af1606feffe89e77"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1915,6 +1075,7 @@
     },
     {
       "path": "lib/src/main/scala/spinal/lib/Counter.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/Counter.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
@@ -1925,34 +1086,12 @@
         "Increment 55: audit concrete compatibility"
       ],
       "reason": "Add typed Counter overloads and one exact geometry adapter around the authoritative native stepping algorithm, with a reviewed singleton guard that prevents a zero-bit concrete step.",
-      "baseline": {
-        "path": "lib/src/main/scala/spinal/lib/Counter.scala",
-        "mode": "100644",
-        "blob": "a0cd4fbff52b3f7a51b5c3e6b8eb983660b2e81a",
-        "sha256": "a03d0fa7234a2474ff0bbc509ecc58c984064f5d9673a4dee4caf3d136f480ae"
-      },
-      "approved": {
-        "path": "lib/src/main/scala/spinal/lib/Counter.scala",
-        "mode": "100644",
-        "blob": "31c65472411a69c4ec451cefce99d60639187bd7",
-        "sha256": "0a43076776796e6901a9cba74aa035bd4a53c98f2d064b2e1460bfd1505c4b70"
-      },
       "edits": [
         {
           "id": "counter-typed-bounds-01",
           "kind": "overload",
           "owner": "spinal.lib.CounterFreeRun.apply(ElabInt)",
           "reason": "Add the typed free-running Counter overload.",
-          "baseline_span": {
-            "start": 8950,
-            "end": 8950,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 8950,
-            "end": 9024,
-            "sha256": "7b2fcd17e8503bb216febc6eb5145ab85d87bc9be8439034fe8ba164cadfd346"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1966,16 +1105,6 @@
           "kind": "signature",
           "owner": "spinal.lib.Counter typed bounds model",
           "reason": "Define the exact concrete/typed bounds seam used by all reviewed Counter overloads.",
-          "baseline_span": {
-            "start": 9119,
-            "end": 9119,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 9193,
-            "end": 14553,
-            "sha256": "29c853c2eea5a4eb609c2e1c87491578cfe0e6cbf9ee75d7b758081ac77e702b"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -1989,16 +1118,6 @@
           "kind": "overload",
           "owner": "spinal.lib.Counter typed factories",
           "reason": "Add typed state-count and inclusive-bound Counter factories while literals re-enter concrete factories.",
-          "baseline_span": {
-            "start": 10547,
-            "end": 10547,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 15981,
-            "end": 17066,
-            "sha256": "b17a8f0e9b93005ebfca1b484f52d9348c2c92685f92f41efa3d79c141587229"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2012,16 +1131,6 @@
           "kind": "overload",
           "owner": "spinal.lib.Counter typed factories",
           "reason": "Add typed state-count and inclusive-bound Counter factories while literals re-enter concrete factories.",
-          "baseline_span": {
-            "start": 11296,
-            "end": 11296,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 17815,
-            "end": 18230,
-            "sha256": "57739bbc0a0b15068cc92b308b96bb8a990c38810d84aababf9b94976135e4c8"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2035,16 +1144,6 @@
           "kind": "overload",
           "owner": "spinal.lib.Counter typed factories",
           "reason": "Add typed state-count and inclusive-bound Counter factories while literals re-enter concrete factories.",
-          "baseline_span": {
-            "start": 12231,
-            "end": 12231,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 19165,
-            "end": 19908,
-            "sha256": "3cd48a5e0b6a7db2cbcc860831985ac59a882c0749548dd14c8e685ab07cd70f"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2058,16 +1157,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
           "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
-          "baseline_span": {
-            "start": 13204,
-            "end": 13232,
-            "sha256": "6cdbfa63c7bb539c6260eae82014aea8a4ef937e232e62fd8bef76f84e9f341c"
-          },
-          "approved_span": {
-            "start": 20881,
-            "end": 21333,
-            "sha256": "1c39b316e981c0a71aae1cd6c3362a72ff5e29ef402d7c58b84845fd10e108da"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2081,16 +1170,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
           "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
-          "baseline_span": {
-            "start": 13395,
-            "end": 13487,
-            "sha256": "061524ba401cde49a197c6814732c58d18aaeee90db89107593838ba368625cb"
-          },
-          "approved_span": {
-            "start": 21496,
-            "end": 21891,
-            "sha256": "00568bcb3a97103376318adfd29029f3050207b8b932db1869364e786ef79432"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2104,16 +1183,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
           "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
-          "baseline_span": {
-            "start": 13524,
-            "end": 13633,
-            "sha256": "a71d13fcaae302c549c2a9b762fe9bac2567c452ec6310eb97719f15a93620f2"
-          },
-          "approved_span": {
-            "start": 21928,
-            "end": 22055,
-            "sha256": "d582a76cfe435a9cad6d62b2b23dff3d1f1926686cda7e85ef0a13a7cabd0712"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2127,16 +1196,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
           "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
-          "baseline_span": {
-            "start": 13638,
-            "end": 13712,
-            "sha256": "a0f34ac960362ccce8b84b19476f12c451f53c2374fc2d079540886a0ea07ff0"
-          },
-          "approved_span": {
-            "start": 22060,
-            "end": 22769,
-            "sha256": "6ad64291c6c7053883a2f42cf2dea0994bffda5ced939ec38002f546b407b809"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2150,16 +1209,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
           "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
-          "baseline_span": {
-            "start": 13716,
-            "end": 13797,
-            "sha256": "913697c1c39a02eb7b01d07fc4917f9fcfe7e747d12f53f400622aef6ba9ed93"
-          },
-          "approved_span": {
-            "start": 22773,
-            "end": 24169,
-            "sha256": "da86827fb4daf900fb91c8b630de694c6f725c8586d6bf36e055559c445d91ea"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2173,16 +1222,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
           "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
-          "baseline_span": {
-            "start": 13799,
-            "end": 13799,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 24171,
-            "end": 33215,
-            "sha256": "5e97d775bb427efadb28b495eb9962ad71949d0d73c9f98fa420b8345a3f31ce"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2196,16 +1235,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
           "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
-          "baseline_span": {
-            "start": 13928,
-            "end": 14182,
-            "sha256": "9f436a99c4769679e35c1563991d148e2cf7c5f426cc754901c87f8c866e3997"
-          },
-          "approved_span": {
-            "start": 33344,
-            "end": 34771,
-            "sha256": "27f6f9e2515d5b2028553958ca75402265455e546d6b1d101a5d7148d516e941"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2219,16 +1248,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
           "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
-          "baseline_span": {
-            "start": 14252,
-            "end": 14335,
-            "sha256": "37e2aae6895aaa5767400e949ccccb5ebfc13376951929268f8c864a7ddc662c"
-          },
-          "approved_span": {
-            "start": 34841,
-            "end": 35049,
-            "sha256": "14efa270976a83966209532115683ba2274855535d1fde0c6d1bc29cb0da4b8d"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2242,16 +1261,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
           "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
-          "baseline_span": {
-            "start": 14376,
-            "end": 14461,
-            "sha256": "4ff1d2e6d940432ad36874d83876eaf52de13875fa783e07b1f9bff721a0a7a4"
-          },
-          "approved_span": {
-            "start": 35090,
-            "end": 35300,
-            "sha256": "86c7f61104570d4758241fb518be2d287f09d53e4dda0a768e8f5967d4874fa0"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2265,16 +1274,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
           "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; preserve native concrete Both-mode ordering for non-singleton ranges and keep singleton ranges on the compared path because no step bit is representable.",
-          "baseline_span": {
-            "start": 14584,
-            "end": 15101,
-            "sha256": "653cfca92b4adddd54a7a819d09352ce9dd9e8378a3fb7efdd63c8528bce9790"
-          },
-          "approved_span": {
-            "start": 35423,
-            "end": 36534,
-            "sha256": "c297b5956c10de1254d8e07b0508574fa1311e0dbd056eb6d8d96f23c54c2456"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2293,16 +1292,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
           "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
-          "baseline_span": {
-            "start": 15125,
-            "end": 15332,
-            "sha256": "3ce84631b48f1a6e4cb964c97c73117aea3e3dfe4d02e148131cf2c4c926807c"
-          },
-          "approved_span": {
-            "start": 36558,
-            "end": 37640,
-            "sha256": "5652a19a20f579b2ad5f9179b97142a4c246e0867e8788ae49d325729063caa6"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2316,16 +1305,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
           "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
-          "baseline_span": {
-            "start": 15381,
-            "end": 15398,
-            "sha256": "e4b73409dee50fa5139303062101f0305682db24ff99c09a5268f873038ca6cb"
-          },
-          "approved_span": {
-            "start": 37689,
-            "end": 37733,
-            "sha256": "792081be40e35eb2287de9c61d618fa2e8b2a0ea4ffd41260d14c71251b31754"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2339,16 +1318,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
           "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
-          "baseline_span": {
-            "start": 15579,
-            "end": 15594,
-            "sha256": "f72c3b9b3be2af8efd41fa9b75cad36c90f97b2fc564732ae28f8e22d3477d3d"
-          },
-          "approved_span": {
-            "start": 37914,
-            "end": 37945,
-            "sha256": "163fe441466d92de120e7365285f811377e320ce7f917629c12f77f7f09db3cb"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2362,16 +1331,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
           "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
-          "baseline_span": {
-            "start": 15598,
-            "end": 15685,
-            "sha256": "6113247bf823c32d398236398ee23f3d8b93362e4cde85b783eb4bcd4176bcf7"
-          },
-          "approved_span": {
-            "start": 37949,
-            "end": 41173,
-            "sha256": "b9b8d2dc73650acd2332dd7455ff97a5b7e7047dd40a4dcbe707b33df1d97aaf"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2385,16 +1344,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.Counter stepping algorithm",
           "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
-          "baseline_span": {
-            "start": 15794,
-            "end": 15794,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 41282,
-            "end": 41347,
-            "sha256": "e56ffa2484db4334f6b928bb47c95a680c385da095b59869e387906ded5d3bea"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2408,16 +1357,6 @@
           "kind": "overload",
           "owner": "spinal.lib.DownCounter typed factories",
           "reason": "Add typed DownCounter factory overloads.",
-          "baseline_span": {
-            "start": 17676,
-            "end": 17676,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 43229,
-            "end": 43360,
-            "sha256": "63eb26461164f322d3fb80810b3d91e39010a45eddc6f39f4430ce7971827331"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2431,16 +1370,6 @@
           "kind": "overload",
           "owner": "spinal.lib.DownCounter typed factories",
           "reason": "Add typed DownCounter factory overloads.",
-          "baseline_span": {
-            "start": 17820,
-            "end": 17820,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 43504,
-            "end": 43708,
-            "sha256": "c2941d87cb7f868ef9d84c632de13208e50c877b2edce525046f64f0fef91260"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2453,6 +1382,7 @@
     },
     {
       "path": "lib/src/main/scala/spinal/lib/Stream.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/Stream.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
@@ -2466,34 +1396,12 @@
         "Increment 55: audit concrete compatibility"
       ],
       "reason": "Add typed StreamFifo and StreamWidthAdapter geometry while mechanically retaining the authoritative native algorithms and concrete output.",
-      "baseline": {
-        "path": "lib/src/main/scala/spinal/lib/Stream.scala",
-        "mode": "100644",
-        "blob": "29a5c4d051a3b8505265f28d3ed42dbe61032b68",
-        "sha256": "10ef90c1f1a1278b70043ebf8eb14e9b64905cfbc47cbdd1cf8e3c0befb7dba8"
-      },
-      "approved": {
-        "path": "lib/src/main/scala/spinal/lib/Stream.scala",
-        "mode": "100644",
-        "blob": "00dd4828ed3366dc9645552236079fcc79ca9cf1",
-        "sha256": "214ae33bf15943c06d6eb1af10254dacc36f6a997756fd6656bf48dae89a7f57"
-      },
       "edits": [
         {
           "id": "stream-typed-geometry-01",
           "kind": "overload",
           "owner": "spinal.lib.StreamFifo typed factories",
           "reason": "Add typed StreamFifo depth factories while literal depths re-enter the inherited Int constructor.",
-          "baseline_span": {
-            "start": 52966,
-            "end": 52966,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 52966,
-            "end": 55119,
-            "sha256": "81aa8bca89c3adaf6807fc7f7fbaa42f72282aea53d2f8d0f18869b9f3869cd6"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2507,16 +1415,6 @@
           "kind": "signature",
           "owner": "spinal.lib.StreamFifo typed constructor and IO geometry",
           "reason": "Retain the source-compatible Int constructor/accessor and exact typed FIFO IO geometry.",
-          "baseline_span": {
-            "start": 54086,
-            "end": 54528,
-            "sha256": "a2e66787f5c1cfe8b39fbbab76376391453302b503fef1ddff580b2ca635b18e"
-          },
-          "approved_span": {
-            "start": 56239,
-            "end": 57077,
-            "sha256": "59e8e44ef0ed8d074ac17d99f72f9f73d5d98474ff2f96c6ff58dda71658e61d"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2530,16 +1428,6 @@
           "kind": "signature",
           "owner": "spinal.lib.StreamFifo typed constructor and IO geometry",
           "reason": "Retain the source-compatible Int constructor/accessor and exact typed FIFO IO geometry.",
-          "baseline_span": {
-            "start": 54792,
-            "end": 54901,
-            "sha256": "a79d4b38ff2f8cba5b1bf107c4fcce53ed2433ec447b60ff58e94dbb960973e7"
-          },
-          "approved_span": {
-            "start": 57341,
-            "end": 57810,
-            "sha256": "16dc19a106aa2a16a315e422d50529f085689dbce586bd61f761be0131017676"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2553,16 +1441,6 @@
           "kind": "overload",
           "owner": "spinal.lib.StreamFifo.CounterUpDownFmax legacy constructor",
           "reason": "Restore the legacy BigInt inner-class constructor descriptor over the typed implementation.",
-          "baseline_span": {
-            "start": 55027,
-            "end": 55063,
-            "sha256": "a19a2f2f4da47c70e8a99bea6806530c447c14cb27d02e6ae645043f9cdcd8c3"
-          },
-          "approved_span": {
-            "start": 57936,
-            "end": 58091,
-            "sha256": "904ca6ce4c6113d9a5bb993d38456c91d5817a304869c67726ac33ccdb71578b"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2576,16 +1454,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo.CounterUpDownFmax state",
           "reason": "Carry typed FMax state and initialization while concrete values use inherited literals.",
-          "baseline_span": {
-            "start": 55096,
-            "end": 55148,
-            "sha256": "ecde61eed9dc91a6f42e2eff36cef37b21dc481a86fcad4071f6e5a750451b97"
-          },
-          "approved_span": {
-            "start": 58124,
-            "end": 58602,
-            "sha256": "c6291073f9169025c185a1cd433c5c2cf4f4686d9c1bf7545b3a8203206245b8"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2599,16 +1467,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo.CounterUpDownFmax state",
           "reason": "Carry typed FMax state and initialization while concrete values use inherited literals.",
-          "baseline_span": {
-            "start": 55331,
-            "end": 55345,
-            "sha256": "efac880a35a43fe3881f36f42320c490621bd66ec32ce88171ff9ec33cf54a91"
-          },
-          "approved_span": {
-            "start": 58785,
-            "end": 58924,
-            "sha256": "509ca1b85d38ad9b02d0e60262ad2093c57cf5b917c06a4620491a92f9973030"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2622,16 +1480,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 55355,
-            "end": 55452,
-            "sha256": "21878dc1e30195e630e4a751f576b69c3811ae549dc8c0e8f9417fb5b1719c90"
-          },
-          "approved_span": {
-            "start": 58934,
-            "end": 60404,
-            "sha256": "82c8de5896f274084476e64518e4412f533d5a73e0b8eb7e9dbae6e492ecdb93"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2645,16 +1493,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 55543,
-            "end": 55575,
-            "sha256": "602e0fbad33944a1e471fac1d9adae8dcfc219aac5c46552303607119ea6c3da"
-          },
-          "approved_span": {
-            "start": 60495,
-            "end": 60733,
-            "sha256": "1982884d04b00ec4dee6f553469338131460cbc267bb9083ba23db57a6c4d60c"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2668,16 +1506,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 56073,
-            "end": 56073,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 61231,
-            "end": 61265,
-            "sha256": "b619264973484b22cbb28a33e3cb3841385c6647ee86b4a25612324877344934"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2691,16 +1519,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 56091,
-            "end": 56122,
-            "sha256": "a6ca003712555b9e21d51879d18674d444e9ed261accb943f149bfd7d1451be9"
-          },
-          "approved_span": {
-            "start": 61283,
-            "end": 61523,
-            "sha256": "a29f51fea32019f95499579c9087d071d17b92b99b1b6727507875624902ed7b"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2714,16 +1532,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 56249,
-            "end": 56297,
-            "sha256": "10638f12abb10b107e59574bd07cb0f369d8d72af67e07ae16f9f70adda8581f"
-          },
-          "approved_span": {
-            "start": 61650,
-            "end": 61706,
-            "sha256": "a1d07e15048d163e27847781b988a9a575f7164f5854c949f8b1314a3f1a7108"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2737,16 +1545,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 56362,
-            "end": 56363,
-            "sha256": "18ac3e7343f016890c510e93f935261169d9e3f565436429830faf0934f4f8e4"
-          },
-          "approved_span": {
-            "start": 61771,
-            "end": 61776,
-            "sha256": "86acc3e48bb16fba4c1bdf8ba02a65d3b38ff5d7ec9b815a0c87c5facb5b5b79"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2760,16 +1558,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 56469,
-            "end": 56674,
-            "sha256": "8d3b1c32847501288ae2e8c5f2bb81ffe84ef6bed5d2b54e5cbfb6ec87cd10b1"
-          },
-          "approved_span": {
-            "start": 61882,
-            "end": 62154,
-            "sha256": "f164c41d546043ea80f8d40311cd401aaa5538f180c9ee2b4f91d4262f0b6db4"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2783,16 +1571,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 56941,
-            "end": 57128,
-            "sha256": "3278f7a69e11effa20e7602af2d253bff96cf9481b7ecfb7234a15dcfdd557ed"
-          },
-          "approved_span": {
-            "start": 62421,
-            "end": 62816,
-            "sha256": "50a11984d1d0961aa3814658be9970f4f222e0de5eae7ce45d9c03213f7d6cd3"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2806,16 +1584,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 57153,
-            "end": 57267,
-            "sha256": "abc2ccfb632d7a1f85ab102f90b5d2f5df2c0c68f1cdfeb581fb8f1877496610"
-          },
-          "approved_span": {
-            "start": 62841,
-            "end": 63693,
-            "sha256": "4903a8d35da47ed615a6ed879bf0a49e4b3980d2aab39465ff07dba45954b086"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2829,16 +1597,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 57377,
-            "end": 57491,
-            "sha256": "3fd603d67b440c47fcf0c179e38b61aeda1a5375c25497f0fa564ab7f71b44ea"
-          },
-          "approved_span": {
-            "start": 63803,
-            "end": 63930,
-            "sha256": "b893888716f56adde098513ba8c6ed2bb2719e31822e3d72e11172271e2ad6ee"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2852,16 +1610,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 57642,
-            "end": 57690,
-            "sha256": "0f98ba723988360ebe8a7fed0d36aca91484dbb883ef17c398be3444a13cda56"
-          },
-          "approved_span": {
-            "start": 64081,
-            "end": 64131,
-            "sha256": "df2cc48fe14f92350b4830573003c80e6f8a55d7e235d3d1b038d2dd435906a4"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2875,16 +1623,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 57824,
-            "end": 58045,
-            "sha256": "ad85558c438e209784bd472a484434907168d20c89d83fa81d40120fd5f31fc5"
-          },
-          "approved_span": {
-            "start": 64265,
-            "end": 65220,
-            "sha256": "c70fd44d71aa37466df043589a4b58d5878a80fad96fb9352391fdfc1f282a26"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2898,16 +1636,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 58095,
-            "end": 58113,
-            "sha256": "fba4e4a32c38b739cb88aa6169f6d6cf28f0f9770a8ca4f4ae952a0d72e929c0"
-          },
-          "approved_span": {
-            "start": 65270,
-            "end": 65310,
-            "sha256": "cb9dcd478ad6c60b3f5c3168b14b5ed2a30a497550a535ca099e5dde58fb41e9"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2921,16 +1649,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 58145,
-            "end": 58146,
-            "sha256": "50e721e49c013f00c62cf59f2163542a9d8df02464efeb615d31051b0fddc326"
-          },
-          "approved_span": {
-            "start": 65342,
-            "end": 65347,
-            "sha256": "4d4fa659effc8e9f0e422439f844ffce1f6a299a20cd14722d4fcb3ddcc6dce8"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2944,16 +1662,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 58314,
-            "end": 58398,
-            "sha256": "f08707745636e8b47d13b19d2d931bd0eb5103cc04213fc8080a8b6e359ce299"
-          },
-          "approved_span": {
-            "start": 65515,
-            "end": 65607,
-            "sha256": "6a447801492ab3fea2da09c574621dc6db7bef22ca904bc5dbe333ba745f05cc"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2967,16 +1675,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 58619,
-            "end": 58631,
-            "sha256": "d0acade5b49b3a1f4412fb1d10b47445478cb863900cff0ea75298f7c62abea7"
-          },
-          "approved_span": {
-            "start": 65828,
-            "end": 65861,
-            "sha256": "c3f35eb244241de88ce4d2f95bb7bfb77316aee57aa40c43e31950b22ce20f40"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2990,16 +1688,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 58983,
-            "end": 58984,
-            "sha256": "18ac3e7343f016890c510e93f935261169d9e3f565436429830faf0934f4f8e4"
-          },
-          "approved_span": {
-            "start": 66213,
-            "end": 66232,
-            "sha256": "34aea572e8343d92475eca8447aaefabe10cd09fb1dd5acb6fcdba202c52b065"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3013,16 +1701,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 59084,
-            "end": 59158,
-            "sha256": "499f81ea2503aae7c8dac1478ee4cd45acfd57a4b1a65fc77df4e6d13f68083e"
-          },
-          "approved_span": {
-            "start": 66332,
-            "end": 67329,
-            "sha256": "65ed4a3f172cb926876bfd55885eec634a04d2b118103c5ec8224c0605affbbd"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3036,16 +1714,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 59250,
-            "end": 59251,
-            "sha256": "18ac3e7343f016890c510e93f935261169d9e3f565436429830faf0934f4f8e4"
-          },
-          "approved_span": {
-            "start": 67421,
-            "end": 67426,
-            "sha256": "86acc3e48bb16fba4c1bdf8ba02a65d3b38ff5d7ec9b815a0c87c5facb5b5b79"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3059,16 +1727,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 59307,
-            "end": 59344,
-            "sha256": "df4fb0158780446df9dfefdc0d846d92061a8fbab70764ea684b9711c5dce324"
-          },
-          "approved_span": {
-            "start": 67482,
-            "end": 67831,
-            "sha256": "6d6c0fc850929a12d16196ce7c8aa0b3bf179c06003ab8cfc2dc636db79af550"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3082,16 +1740,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 59930,
-            "end": 59959,
-            "sha256": "f6ab59ac914fb469ac671df0b90c39b6f0e75576891f3fbfcce534dbde4c5eb1"
-          },
-          "approved_span": {
-            "start": 68417,
-            "end": 68645,
-            "sha256": "3ef14d2d15118036579f70cbb89cf844ba66e7422c64c8ba409d812008888090"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3105,16 +1753,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 60367,
-            "end": 60497,
-            "sha256": "a4f14ff3ab84665d89fd9ec05656d3b3d0557a3d3389b42a4d79c8dcc3cc38ab"
-          },
-          "approved_span": {
-            "start": 69053,
-            "end": 69324,
-            "sha256": "ac5755b942f771a6ba24cdf4a0a5430d9896e8a74af17032fc5701743c69a382"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3128,16 +1766,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
-          "baseline_span": {
-            "start": 60587,
-            "end": 60587,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 69414,
-            "end": 82066,
-            "sha256": "42f36081748c884f5aaf0eeb732a2412a1a8d05a1d0285d0930ee48135967a05"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3151,16 +1779,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo formal helpers",
           "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
-          "baseline_span": {
-            "start": 60601,
-            "end": 61019,
-            "sha256": "211e63d22c9ce8165bac7c9e9515420c7deb9c123e2487f6bcdce6f71535f2c2"
-          },
-          "approved_span": {
-            "start": 82080,
-            "end": 82405,
-            "sha256": "04f8ab6ba6edb72cd3ef1d159fd7d4b85add5f6f7421b1241f4c356f1e7d576b"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3174,16 +1792,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo formal helpers",
           "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
-          "baseline_span": {
-            "start": 61027,
-            "end": 61039,
-            "sha256": "aec7ca25c84fff166cfb7e757ce5edb8685143802d90e3e3a68d751bf98b3d7a"
-          },
-          "approved_span": {
-            "start": 82413,
-            "end": 88414,
-            "sha256": "a268d45668880bd4de1a5894bb96cf962ca0358a61570e769c4157091f7e1466"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3197,16 +1805,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo formal helpers",
           "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
-          "baseline_span": {
-            "start": 61158,
-            "end": 62774,
-            "sha256": "5455e012c22b75eee4f69e62f1a3128dc5745003da4c9a8bb321b81cda92d041"
-          },
-          "approved_span": {
-            "start": 88533,
-            "end": 88820,
-            "sha256": "ea8528fe0ff9efa643e0122b2280bb19756064abcd46c5fab8dfef038af4501d"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3220,16 +1818,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo formal helpers",
           "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
-          "baseline_span": {
-            "start": 62789,
-            "end": 63012,
-            "sha256": "7832fe02dd98d3208165757d0f8df305543aaf5444e05653a7b7e3e9e2a52b50"
-          },
-          "approved_span": {
-            "start": 88835,
-            "end": 88869,
-            "sha256": "506fb90b9456f6ee2f9f7714c64e9d29ecc2631bfe553ff3ea0eaf1bd0dad57c"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3243,16 +1831,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo formal helpers",
           "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
-          "baseline_span": {
-            "start": 63023,
-            "end": 63027,
-            "sha256": "41e85befa52ce75d62a2ee77f1e55a25df050887b4a92907cfa360a2f07a0360"
-          },
-          "approved_span": {
-            "start": 88880,
-            "end": 88880,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
           "required_exact_text": [
             {
               "side": "baseline",
@@ -3266,16 +1844,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo formal helpers",
           "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
-          "baseline_span": {
-            "start": 63457,
-            "end": 63556,
-            "sha256": "1821b1a5f2c09dea80719ddc06b4c789530785fd04fc03e9a728d07e87ac1211"
-          },
-          "approved_span": {
-            "start": 89310,
-            "end": 89629,
-            "sha256": "f23dc240ef4c340a43ab2e94d8ff20ae3e90fb321b0e1468c5c0da0f28d4a39e"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3289,16 +1857,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo formal helpers",
           "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
-          "baseline_span": {
-            "start": 63614,
-            "end": 63681,
-            "sha256": "8f0731ac980f4bae8c85c5494e7367ace693382055f44bd63427319f84144a8d"
-          },
-          "approved_span": {
-            "start": 89687,
-            "end": 89910,
-            "sha256": "ba4b4a0d4f7164519a3260b5fb109f17735688205d9297d7ddff672886e44807"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3312,16 +1870,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo formal helpers",
           "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
-          "baseline_span": {
-            "start": 63721,
-            "end": 63865,
-            "sha256": "ce30153061884e93a226e2d3abafef6d57d339959ee7dc48c9694c3f5bbf93d2"
-          },
-          "approved_span": {
-            "start": 89950,
-            "end": 90386,
-            "sha256": "0a740c3c81ccb4053dc9fb2feab12bb79b2b44dcf051abb419e2971114599ce1"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3335,16 +1883,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo formal helpers",
           "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
-          "baseline_span": {
-            "start": 63920,
-            "end": 64032,
-            "sha256": "5d88acb1e64861100071d4bca1e10f65b85d662aae94836c86c14e1c7c717d79"
-          },
-          "approved_span": {
-            "start": 90441,
-            "end": 90744,
-            "sha256": "61d3efa7fc5ae6cdb33dc87f6e7d3e4342986a18c979f6709a6d5dbab9e8851d"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3358,16 +1896,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo formal helpers",
           "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
-          "baseline_span": {
-            "start": 64066,
-            "end": 64173,
-            "sha256": "262f5c34e32706ab4f937fcb0e1f42b4dadebf9c45dd74a2f217c87968259eff"
-          },
-          "approved_span": {
-            "start": 90778,
-            "end": 92391,
-            "sha256": "57f25c033dee681bdfd206743f27db50ba17898ba7da38265ec9ec880f66dfa2"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3381,16 +1909,6 @@
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo formal helpers",
           "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
-          "baseline_span": {
-            "start": 64178,
-            "end": 64178,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 92396,
-            "end": 93069,
-            "sha256": "2e83b038440b016b3811e30e5408f8ad4318b7335fdb853583d9f35fdc5221a5"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3404,16 +1922,6 @@
           "kind": "signature",
           "owner": "spinal.lib.StreamWidthAdapter width geometry",
           "reason": "Retain exact payload-width expressions through the native StreamWidthAdapter factor calculation.",
-          "baseline_span": {
-            "start": 77296,
-            "end": 77366,
-            "sha256": "04f21220e6481867f2f3720ae3f7256e5057965db8189ba23b94f1dd34e9bbbe"
-          },
-          "approved_span": {
-            "start": 106187,
-            "end": 106407,
-            "sha256": "e09fbe467ec7ebe307c7a50efbd934b4def4a9d043615b92c13eee57501c6f84"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3427,16 +1935,6 @@
           "kind": "signature",
           "owner": "spinal.lib.StreamWidthAdapter width geometry",
           "reason": "Retain exact payload-width expressions through the native StreamWidthAdapter factor calculation.",
-          "baseline_span": {
-            "start": 77649,
-            "end": 77746,
-            "sha256": "18aca6348140bf7510f0989054d6aaa9d949ee0456bf3937ab0466026687172b"
-          },
-          "approved_span": {
-            "start": 106690,
-            "end": 106871,
-            "sha256": "77a3b216b6dc5d7d00a7aef257193ec8dfc2213342e87c930e7a7bf4c9606acf"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3450,16 +1948,6 @@
           "kind": "signature",
           "owner": "spinal.lib.StreamWidthAdapter width geometry",
           "reason": "Retain exact payload-width expressions through the native StreamWidthAdapter factor calculation.",
-          "baseline_span": {
-            "start": 78346,
-            "end": 78444,
-            "sha256": "41a5050279ff0aa00c3a5492fa469c0e3cc3d9004c27e2c7d974d746125e6999"
-          },
-          "approved_span": {
-            "start": 107471,
-            "end": 107654,
-            "sha256": "c67b645fda71352ddaf3fd5f6ee2d628cb014455f4746ca9ff7a1f1e0cf1ca40"
-          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -3473,16 +1961,6 @@
           "kind": "signature",
           "owner": "spinal.lib.StreamWidthAdapter width geometry",
           "reason": "Retain exact payload-width expressions through the native StreamWidthAdapter factor calculation.",
-          "baseline_span": {
-            "start": 78644,
-            "end": 78644,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 107854,
-            "end": 107906,
-            "sha256": "0283202c7523fbd1cb456a6217125d1f44393639a07ec9ebbfb16826a1fd1aad"
-          },
           "required_exact_text": [
             {
               "side": "approved",

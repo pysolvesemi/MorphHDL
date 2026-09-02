@@ -6,7 +6,7 @@ import java.nio.file.{Files, Path, Paths, StandardCopyOption, StandardOpenOption
 import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
 
-import spinal.core.{Component, SpinalConfig, SpinalReport, SpinalVerilog, SystemVerilog, VHDL, Verilog}
+import spinal.core.{Component, SpinalConfig, SpinalReport, SystemVerilog, VHDL, Verilog}
 import spinal.core.internals.{
   ExternalParameterizedAutoResize,
   MorphHdlExternalEnumLocalizer,
@@ -14,7 +14,8 @@ import spinal.core.internals.{
 }
 
 import morphhdl.backend.verilog2001.{Verilog2001Capability => V2001Capability, Verilog2001Emitter}
-import morphhdl.integration.ExternalSpinalVerilog
+import morphhdl.integration.{ExternalSpinalVerilog, ExternalSpinalVerilogReport, NativeGraphSnapshot}
+import morphhdl.runtime.ParameterizedVerilogMode
 import morphhdl.frontend.ParamRtlFrontend
 import morphhdl.paramrtl.ModuleItem.{GenerateCase, GenerateFor, GenerateIf, ModuleInstance}
 import morphhdl.paramrtl.{
@@ -27,6 +28,7 @@ import morphhdl.paramrtl.{
 }
 import morphhdl.MorphVerilogStage._
 
+/** MorphHDL orchestration over the baseline-compatible external phase boundary. */
 object MorphVerilog {
   private final case class PreparedGeneration(
       design: Design,
@@ -205,17 +207,22 @@ object MorphVerilog {
       workspace: Path
   ): Either[MorphVerilogFailure, PreparedSingleSourceGeneration] =
     for {
-      report <- runSingleSourceNative(config, component, workspace)
-      phaseIds <- checkPhasePlan(report)
-      parameters <- readSingleSourceParameters(report)
-      verilog <- readSingleSourceModule(report)
-    } yield PreparedSingleSourceGeneration(report.toplevelName, parameters, phaseIds, verilog)
+      external <- runSingleSourceNative(config, component, workspace)
+      phaseIds <- checkPhasePlan(external)
+      parameters <- readSingleSourceParameters(external.nativeReport)
+      verilog <- readSingleSourceModule(external.nativeReport)
+    } yield PreparedSingleSourceGeneration(
+      external.nativeReport.toplevelName,
+      parameters,
+      phaseIds,
+      verilog
+    )
 
   private def runSingleSourceNative[T <: Component](
       config: SpinalConfig,
       component: => T,
       workspace: Path
-  ): Either[MorphVerilogFailure, SpinalReport[T]] =
+  ): Either[MorphVerilogFailure, ExternalSpinalVerilogReport[T, NativeGraphSnapshot]] =
     try {
       val nativeConfig = copyForSingleSource(config, workspace)
       val external = ExternalSpinalVerilog.transformWithCanonicalIdentity(nativeConfig) {
@@ -230,7 +237,7 @@ object MorphVerilog {
           MorphHdlExternalEnumLocalizer.rewrite(pc)
         } finally ExternalParameterizedAutoResize.clearGraph(pc.topLevel)
       }
-      Right(external.nativeReport)
+      Right(external)
     } catch {
       case NonFatal(error) =>
         Left(
@@ -282,12 +289,12 @@ object MorphVerilog {
       witnessDirectory: Path
   ): Either[MorphVerilogFailure, PreparedGeneration] =
     for {
-      concreteReport <- runConcrete(config, program, witnessDirectory)
-      phaseIds <- checkPhasePlan(concreteReport)
+      external <- runConcrete(config, program, witnessDirectory)
+      phaseIds <- checkPhasePlan(external)
       design <- captureSymbolic(program)
       validated <- validateSymbolic(design)
       capable <- verifyCapability(validated)
-      _ <- checkDefaultShape(concreteReport, capable)
+      _ <- checkDefaultShape(external.nativeReport, capable)
       verilog <- renderVerilog(capable)
     } yield PreparedGeneration(design, phaseIds, verilog)
 
@@ -308,10 +315,10 @@ object MorphVerilog {
       config: SpinalConfig,
       program: MorphProgram[T],
       witnessDirectory: Path
-  ): Either[MorphVerilogFailure, SpinalReport[T]] =
+  ): Either[MorphVerilogFailure, ExternalSpinalVerilogReport[T, NativeGraphSnapshot]] =
     try {
       val witnessConfig = copyForWitness(config, witnessDirectory)
-      val report = SpinalVerilog(witnessConfig) {
+      val external = ExternalSpinalVerilog(witnessConfig) {
         // Spinal constructs the Component on its elaboration worker. Enter the
         // concrete frontend session on that worker so ThreadLocal capture stays
         // fail-closed across every other thread boundary.
@@ -319,14 +326,14 @@ object MorphVerilog {
           program.concreteWitnessFactory()
         }
       }
-      Right(report)
+      Right(external)
     } catch {
       case NonFatal(error) =>
         Left(MorphVerilogFailure(ConcreteWitness, errorMessage(error), cause = Some(error)))
     }
 
   private def checkPhasePlan[T <: Component](
-      report: SpinalReport[T]
+      report: ExternalSpinalVerilogReport[T, _]
   ): Either[MorphVerilogFailure, Vector[String]] = {
     val expected = report.expectedInheritedValidationPhaseIds
     val actual = report.inheritedValidationPhaseIds
@@ -634,7 +641,7 @@ object MorphVerilog {
   }
 
   private def copyForWitness(config: SpinalConfig, witnessDirectory: Path): SpinalConfig =
-    config.copy(
+    ParameterizedVerilogMode.disable(config.copy(
       mode = Verilog,
       flags = config.flags.clone(),
       debugComponents = config.debugComponents.clone(),
@@ -643,14 +650,13 @@ object MorphVerilog {
       phasesInserters = config.phasesInserters.clone(),
       transformationPhases = config.transformationPhases.clone(),
       memBlackBoxers = config.memBlackBoxers.clone(),
-      scopeProperties = config.scopeProperties.clone(),
-      parameterizedVerilog = false
-    )
+      scopeProperties = config.scopeProperties.clone()
+    ))
 
   private def copyForSingleSource(config: SpinalConfig, workspace: Path): SpinalConfig = {
     val phaseInserters = config.phasesInserters.clone()
     phaseInserters += ExternalParameterizedAutoResize.install _
-    config.copy(
+    ParameterizedVerilogMode.enable(config.copy(
       mode = Verilog,
       flags = config.flags.clone(),
       debugComponents = config.debugComponents.clone(),
@@ -658,9 +664,8 @@ object MorphVerilog {
       phasesInserters = phaseInserters,
       transformationPhases = config.transformationPhases.clone(),
       memBlackBoxers = config.memBlackBoxers.clone(),
-      scopeProperties = config.scopeProperties.clone(),
-      parameterizedVerilog = true
-    )
+      scopeProperties = config.scopeProperties.clone()
+    ))
   }
 
   private def readSingleSourceParameters[T <: Component](

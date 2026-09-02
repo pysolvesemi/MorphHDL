@@ -22,6 +22,7 @@ import spinal.core.internals.{
 import spinal.lib._
 
 import morphhdl.frontend.HdlInt
+import morphhdl.runtime.ParameterizedVerilogMode
 
 class GenericExpressionAndStreamTests extends AnyFunSuite {
   private final class GenericExpressions(width: HdlInt) extends Component {
@@ -495,7 +496,7 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
             normalized + 1,
             new PhaseMisc {
               override def impl(pc: PhaseContext): Unit = {
-                if (pc.config.parameterizedVerilog) {
+                if (ParameterizedVerilogMode.isEnabled(pc.config)) {
                   require(fixture != null, "stale native auto-resize fixture was not elaborated")
                   val retained =
                     role match {
