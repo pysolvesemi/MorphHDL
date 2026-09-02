@@ -382,10 +382,11 @@ jobs:
       matrix:
         scala_version: ['2.12.18', '2.13.12']
     steps:
-      - name: Check out exact head
+      - name: Check out exact head with complete history
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
           submodules: recursive
 
       - name: Run canonical schema validation and normalization tests
