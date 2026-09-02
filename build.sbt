@@ -81,7 +81,7 @@ lazy val all = (project in file("."))
     publishLocal := {},
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(lib, core)
   )
-  .aggregate(sim, idslpayload, idslplugin, morphplugin, core, lib, tester, paramrtl, morphruntime, frontend, verilogBackend, morph)
+  .aggregate(sim, idslpayload, idslplugin, morphplugin, morphir, core, lib, tester, paramrtl, morphruntime, frontend, verilogBackend, morph)
 
 
 import sys.process._
@@ -113,13 +113,24 @@ lazy val idslplugin = (project in file("idslplugin"))
   )
 
 lazy val morphplugin = (project in file("morphplugin"))
-  .dependsOn(morphruntime)
   .settings(
     defaultSettings,
     name := "MorphHDL-compiler-plugin",
     exportJars := true,
     libraryDependencies += "org.scala-lang" % "scala-compiler" % scalaVersion.value,
     publish / skip := true
+  )
+
+lazy val morphir = (project in file("morphir"))
+  .settings(
+    defaultSettings,
+    name := "morphhdl-ir",
+    moduleName := "morphhdl-ir",
+    version := SpinalVersion.core,
+    libraryDependencies := Seq(
+      "org.scala-lang" % "scala-library" % scalaVersion.value,
+      "org.scalatest" %% "scalatest" % scalatestVersion % Test
+    )
   )
 
 lazy val sim = (project in file("sim"))
@@ -146,8 +157,7 @@ lazy val morphruntime = (project in file("morphruntime"))
   .settings(
     defaultSettings,
     name := "MorphHDL-runtime",
-    version := SpinalVersion.core,
-    publish / skip := true
+    version := SpinalVersion.core
   )
 
 lazy val frontend = (project in file("frontend"))
@@ -206,7 +216,7 @@ lazy val core = (project in file("core"))
   .dependsOn(sim)
 
 lazy val morph = (project in file("morphhdl"))
-  .dependsOn(core, frontend, verilogBackend, lib % "test->compile")
+  .dependsOn(core, morphruntime, morphir, paramrtl, frontend, verilogBackend, lib % "test->compile")
   .settings(
     defaultSettingsWithPlugin,
     Test / scalacOptions += {

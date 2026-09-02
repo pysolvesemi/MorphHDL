@@ -99,11 +99,21 @@ object paramrtl extends Cross[ParamRtl](SpinalVersion.compilers) {
 }
 trait ParamRtl extends SpinalModule
 
+object morphir extends Cross[MorphIr](SpinalVersion.compilers) {
+  def defaultCrossSegments = Seq(SpinalVersion.compilers.head)
+}
+trait MorphIr extends SpinalModule with SpinalPublishModule {
+  override def artifactName = "morphhdl-ir"
+  override def publishVersion = SpinalVersion.core
+  override def mvnDeps = Seq(
+    mvn"org.scala-lang:scala-library:${scalaVersion}"
+  )
+}
+
 object morphplugin extends Cross[MorphPlugin](SpinalVersion.compilers) {
   def defaultCrossSegments = Seq(SpinalVersion.compilers.head)
 }
 trait MorphPlugin extends SpinalModule {
-  def moduleDeps = Seq(morphruntime(crossScalaVersion))
   override def mvnDeps = super.mvnDeps() ++ Seq(
     mvn"org.scala-lang:scala-compiler:${scalaVersion}"
   )
@@ -144,6 +154,9 @@ trait Morph extends SpinalModule {
   override def moduleDir = mill.api.BuildCtx.workspaceRoot / "morphhdl"
   def moduleDeps = Seq(
     core(crossScalaVersion),
+    morphruntime(crossScalaVersion),
+    morphir(crossScalaVersion),
+    paramrtl(crossScalaVersion),
     frontend(crossScalaVersion),
     verilogBackend(crossScalaVersion)
   )

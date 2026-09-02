@@ -4903,7 +4903,7 @@ private[internals] object ParameterizedVerilogVecs {
     val retainedParameters =
       ParameterizedWidth.parametersOf(component) ++
         ExternalParameterizedAutoResize.parametersOf(component) ++
-        ExternalParameterizedMemoryRegistry.parametersOf(component) ++
+        ParameterizedMemory.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedVec.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++

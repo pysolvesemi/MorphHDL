@@ -1,6 +1,5 @@
 package spinal.idslplugin.components
 
-import scala.collection.mutable.ArrayBuffer
 import scala.reflect.internal.Trees
 import scala.tools.nsc.Global
 import scala.tools.nsc.plugins.PluginComponent
@@ -19,44 +18,6 @@ class MainTransformer(val global: Global) extends PluginComponent with Transform
 
 
   object ToStringMaskerTransformer extends Transformer {
-
-    private val morphFrontendSymbolicTypes = Set(
-      "morphhdl.frontend.HdlInt",
-      "morphhdl.frontend.HdlBool",
-      "morphhdl.frontend.GenIndex"
-    )
-
-    private val scalaEqualityMethods = Set("==", "!=", "equals", "eq", "ne")
-
-    private def isMorphFrontendSymbolic(tree: Tree): Boolean = {
-      val treeType = tree.tpe
-      treeType != null && treeType != NoType && {
-        treeType.dealias.widen.baseClasses.exists(symbol =>
-          symbol != null && symbol != NoSymbol && morphFrontendSymbolicTypes(symbol.fullName)
-        )
-      }
-    }
-
-    private def rejectReverseMorphFrontendEquality(tree: Apply): Unit = {
-      val call = tree.fun match {
-        case Select(receiver, method) => Some((receiver, method))
-        case TypeApply(Select(receiver, method), _) => Some((receiver, method))
-        case _ => None
-      }
-      call match {
-        case Some((receiver, method))
-          if scalaEqualityMethods(method.decodedName.toString) &&
-            tree.args.size == 1 && !isMorphFrontendSymbolic(receiver) &&
-            isMorphFrontendSymbolic(tree.args.head) =>
-        global.globalError(
-          tree.pos,
-          "[MORPH-FRONTEND-SYMBOLIC-COMPARISON-UNSUPPORTED] " +
-            "a statically typed HdlInt, HdlBool or GenIndex cannot be the right operand of Scala equality; " +
-            "use a static condition or a supported parameter-aware operation"
-        )
-        case _ =>
-      }
-    }
 
     def symbolHasAnnotation(s: Symbol, name: String): Boolean = {
       if (s.annotations.exists(_.symbol.name.toString() == name)) return true
@@ -123,8 +84,6 @@ class MainTransformer(val global: Global) extends PluginComponent with Transform
         }
         case a: Apply => {
           var ret: Tree = a
-
-          rejectReverseMorphFrontendEquality(a)
 
           if (a.fun.symbol.isConstructor) {
             val sym = a.fun.symbol.enclClass

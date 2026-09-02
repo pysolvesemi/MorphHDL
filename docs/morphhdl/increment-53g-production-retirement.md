@@ -12,8 +12,8 @@ It establishes the opposite boundary: production code must not rediscover a
 parameter by observing a concrete witness, a source location, a component
 filename, or an emitted hardware name.
 
-The roadmap checkbox stays open until the canonical dual-Scala workflow has
-passed and the exact source scope has been reviewed.
+At Increment 53g closure, the roadmap checkbox remained open until the
+canonical dual-Scala workflow passed and the exact source scope was reviewed.
 
 ## Deleted production boundary
 
@@ -40,7 +40,8 @@ longer publish a component-only formal after a native constructor returns.
 
 ## One compiler path
 
-The default compiler plugin has exactly two phases, in this order:
+At Increment 53g closure, the default compiler plugin had exactly two phases,
+in this order:
 
 1. `MorphHdlTypedElaborationControlComponent`
 2. `MorphHdlNaturalSymbolicConditionalComponent`
@@ -50,6 +51,26 @@ The first phase lowers control flow only when lexical types prove an explicit
 `HdlInt` / `HdlBool` frontend. Neither phase is allowed to recognize
 `StreamFifo`, `StreamWidthAdapter`, `Counter`, `Mem`, `Axi4SlaveFactory`, a
 particular Scala filename, or an emitted RTL name.
+
+### Increment 54 historical amendment
+
+Increment 54 deliberately extends that sealed sequence to exactly three phases
+while preserving the original order:
+
+1. `MorphHdlTypedElaborationControlComponent`
+2. `MorphHdlNaturalSymbolicConditionalComponent`
+3. `MorphHdlFrontendSymbolicEqualitySafetyComponent`
+
+The third phase rejects reverse Scala equality whose right operand is
+statically proven to be a MorphHDL symbolic frontend type. Moving this
+Morph-specific check out of `idslplugin` keeps the generic SpinalHDL plugin
+Morph-free. The retirement guard now seals this exact three-phase order;
+removing, inserting, renaming or reordering a phase fails. This amendment does
+not rewrite the historical fact that 53g originally closed with two phases.
+Its exact phase name is `morphhdl-frontend-symbolic-equality-safety`; it runs
+after `idsl-plugin` and `uncurry`, before `explicitouter`, and preserves
+`MORPH-FRONTEND-SYMBOLIC-COMPARISON-UNSUPPORTED` at the original `Apply`
+position.
 
 ## Negative production contract
 
@@ -86,7 +107,8 @@ repository tree. It proves all of the following without modifying the checkout:
 - a typed-only production tree and a historical test-only reference pass;
 - restoration of any retired production file fails;
 - an independent fixture for each of the six deny rules fails;
-- adding a third default compiler phase fails;
+- the amended exact three-phase descriptor passes and appending a fourth
+  default compiler phase fails;
 - narrowing any canonical rule definition or source prefix fails;
 - a clean JAR passes and a JAR containing a retired Scala companion fails.
 

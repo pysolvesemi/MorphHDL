@@ -122,7 +122,7 @@ private[internals] object ParameterizedVerilogStructural {
     )
     val parameters = mergeParameters(
       ParameterizedWidth.parametersOf(component) ++
-        ExternalParameterizedMemoryRegistry.parametersOf(component) ++
+        ParameterizedMemory.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedVerilogVecs.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
@@ -3491,7 +3491,7 @@ private[internals] object ParameterizedVerilogStructural {
     val unpackedArray =
       ("\\b" + Pattern.quote(name) + "\\b\\s*\\[[^\\]]+\\]\\s*;").r
     val hasSymbolicDepth =
-      ExternalParameterizedMemoryRegistry
+      ParameterizedMemory
         .metadataOf(memory)
         .exists(_.depth.parameters.nonEmpty)
     val candidates = lines.zipWithIndex.collect {

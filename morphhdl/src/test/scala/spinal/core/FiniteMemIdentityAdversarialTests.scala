@@ -172,198 +172,50 @@ private object FiniteMemIdentityAdversarialFixture {
 final class FiniteMemIdentityAdversarialTests extends AnyFunSuite {
   import FiniteMemIdentityAdversarialFixture._
 
-  test("external memory registry rejects forged inexact public depth metadata") {
-    var attachFailure: ParameterizedVerilogException = null
-    var createFailure: ParameterizedVerilogException = null
+  test("canonical memory discovery tags instantiated native HardType geometry once") {
     withSpinalElaboration {
-      val parameter = ElaborationIntegerParameter(
-        "FORGED_DEPTH",
-        default = 3,
-        minimum = 1,
-        maximum = 8
+      val width = parameter("WIDTH", default = 8, minimum = 1, maximum = 16)
+      val memory = Mem(
+        ParameterizedWidth.HardType(UInt(width bits)),
+        wordCount = 4
       )
-      val expression = ElaborationIntegerExpression(
-        verilog = "FORGED_DEPTH",
-        default = 3,
-        minimum = 1,
-        maximum = 8,
-        parameters = Vector(parameter),
-        parameterRoots = Vector(
-          ElaborationIntegerParameterRoot.fresh("FORGED_DEPTH")
-        )
-      )
-      val forged = ParameterizedMemoryDepth(3, expression)
+      assert(ParameterizedMemory.metadataOf(memory).isEmpty)
 
-      attachFailure = intercept[ParameterizedVerilogException] {
-        ExternalParameterizedMemoryRegistry.attach(
-          Mem(Bits(8 bits), 3),
-          forged
-        )
-      }
-      createFailure = intercept[ParameterizedVerilogException] {
-        ExternalParameterizedMemoryRegistry.create(
-          HardType(Bits(8 bits)),
-          forged
-        )
-      }
-    }
+      ParameterizedMemory.discover(Component.current)
+      val first = ParameterizedMemory.metadataOf(memory).get
+      ParameterizedMemory.discover(Component.current)
+      val second = ParameterizedMemory.metadataOf(memory).get
 
-    Vector(attachFailure, createFailure).foreach { failure =>
-      assert(failure != null)
-      assert(
-        failure.code ==
-          "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-EXACT-DOMAIN-MISSING"
-      )
+      assert(first == second)
+      assert(memory.getTag(classOf[ParameterizedMemoryTag]).nonEmpty)
+      assert(first.depth.parameters.isEmpty)
+      assert(first.depth.default == 4)
+      assert(first.elementWidth.parameters.map(_.name) == Vector("WIDTH"))
+      assert(first.elementWidth.exactDomain.exists(_.hasCompleteCoverage))
     }
   }
 
-  test("external memory registry accepts only canonical public literal depth metadata") {
-    var attachedMemory: Mem[Bits] = null
-    var attachFailure: ParameterizedVerilogException = null
-    var createFailure: ParameterizedVerilogException = null
-    var generateFailure: ParameterizedVerilogException = null
+  test("public typed Mem retains canonical exact depth and element geometry") {
     withSpinalElaboration {
-      val noncanonical = ParameterizedMemoryDepth(
-        4,
-        ElaborationIntegerExpression(
-          verilog = "UNDECLARED_MEMORY_DEPTH",
-          default = 4,
-          minimum = 4,
-          maximum = 4,
-          parameters = Vector.empty
-        )
-      )
-      attachedMemory = Mem(Bits(8 bits), 4)
-      attachFailure = intercept[ParameterizedVerilogException] {
-        ExternalParameterizedMemoryRegistry.attach(
-          attachedMemory,
-          noncanonical
-        )
-      }
-      createFailure = intercept[ParameterizedVerilogException] {
-        ExternalParameterizedMemoryRegistry.create(
-          HardType(Bits(8 bits)),
-          noncanonical
-        )
-      }
-
-      generateFailure = intercept[ParameterizedVerilogException] {
-        ExternalParameterizedMemoryRegistry.create(
-          HardType(Bits(8 bits)),
-          ParameterizedMemoryDepth(
-            4,
-            ElaborationIntegerExpression(
-              verilog = "4",
-              default = 4,
-              minimum = 4,
-              maximum = 4,
-              parameters = Vector.empty,
-              generateIndex = Some("forged_generate_index")
-            )
-          )
-        )
-      }
-    }
-
-    Vector(attachFailure, createFailure, generateFailure).foreach { failure =>
-      assert(failure != null)
-      assert(
-        failure.code ==
-          "SPINAL-PARAMETERIZED-VERILOG-MEMORY-DEPTH-DOMAIN-INVALID"
-      )
-    }
-    assert(
-      ExternalParameterizedMemoryRegistry.metadataOf(attachedMemory).isEmpty
-    )
-  }
-
-  test("external memory registry rejects foreign depth roots and inexact element geometry") {
-    var depthFailure: ParameterizedVerilogException = null
-    var elementFailure: ParameterizedVerilogException = null
-    withSpinalElaboration {
-      val exactDepth = parameter("DEPTH", default = 3, minimum = 1, maximum = 8)
-      val foreignDepth = ElabInt.authenticateExactExpressionForTest(
-        exactDepth.expression.copy(
-          parameterRoots = Vector(
-            ElaborationIntegerParameterRoot.fresh("DEPTH")
-          )
-        )
-      )
-      depthFailure = intercept[ParameterizedVerilogException] {
-        ExternalParameterizedMemoryRegistry.attach(
-          Mem(Bits(8 bits), 3),
-          ParameterizedMemoryDepth(3, foreignDepth)
-        )
-      }
-
-      val widthParameter = ElaborationIntegerParameter(
-        "FORGED_WIDTH",
-        default = 8,
-        minimum = 1,
-        maximum = 16
-      )
-      val inexactWidth = ElaborationIntegerExpression(
-        verilog = "FORGED_WIDTH",
-        default = 8,
-        minimum = 1,
-        maximum = 16,
-        parameters = Vector(widthParameter),
-        parameterRoots = Vector(
-          ElaborationIntegerParameterRoot.fresh("FORGED_WIDTH")
-        )
-      )
-      val wordType = HardType {
-        ParameterizedWidth.attach(
-          Bits(8 bits),
-          ParameterizedBitCount(
-            value = 8,
-            parameter = None,
-            expression = Some(inexactWidth)
-          )
-        )
-      }
-      elementFailure = intercept[ParameterizedVerilogException] {
-        ExternalParameterizedMemoryRegistry.attach(
-          Mem(wordType, 4),
-          literalDepth(4)
-        )
-      }
-    }
-
-    assert(depthFailure != null)
-    assert(
-      depthFailure.code == "SPINAL-ELAB-DOMAIN-ROOT-IDENTITY-MISMATCH"
-    )
-    assert(elementFailure != null)
-    assert(
-      elementFailure.code ==
-        "SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED"
-    )
-  }
-
-  test("external memory registry preserves literal and valid exact symbolic construction") {
-    withSpinalElaboration {
-      val literal = ExternalParameterizedMemoryRegistry.create(
-        HardType(Bits(8 bits)),
-        literalDepth(4)
-      )
+      val literal = Mem(Bits(8 bits), ElabInt.literal(4))
       assert(literal.wordCount == 4)
-      assert(
-        ExternalParameterizedMemoryRegistry
-          .metadataOf(literal)
-          .exists(_.depth.parameters.isEmpty)
-      )
+      assert(ParameterizedMemory.metadataOf(literal).isEmpty)
 
       val width = parameter("WIDTH", default = 8, minimum = 1, maximum = 16)
       val depth = parameter("DEPTH", default = 3, minimum = 1, maximum = 8)
-      val symbolic = ExternalParameterizedMemoryRegistry.create(
-        HardType(UInt(width bits)),
-        ParameterizedMemoryDepth.checked(depth)
+      val symbolic = Mem(
+        ParameterizedWidth.HardType(UInt(width bits)),
+        depth
       )
-      val metadata = ExternalParameterizedMemoryRegistry.metadataOf(symbolic).get
+      val metadata = ParameterizedMemory.metadataOf(symbolic).get
+
       assert(symbolic.wordCount == 3)
+      assert(symbolic.getTag(classOf[ParameterizedMemoryTag]).nonEmpty)
       assert(metadata.depth.exactDomain.exists(_.hasCompleteCoverage))
       assert(metadata.elementWidth.exactDomain.exists(_.hasCompleteCoverage))
+      assert(
+        ParameterizedMemory.memoriesOf(Component.current) == Vector(symbolic)
+      )
     }
   }
 
@@ -564,18 +416,6 @@ final class FiniteMemIdentityAdversarialTests extends AnyFunSuite {
         max = BigInt(maximum)
       )
       .asElabInt
-
-  private def literalDepth(value: Int): ParameterizedMemoryDepth =
-    ParameterizedMemoryDepth(
-      value,
-      ElaborationIntegerExpression(
-        verilog = value.toString,
-        default = BigInt(value),
-        minimum = BigInt(value),
-        maximum = BigInt(value),
-        parameters = Vector.empty
-      )
-    )
 
   private def morphConfig(directory: Path, filename: String): SpinalConfig = {
     Files.createDirectories(directory)

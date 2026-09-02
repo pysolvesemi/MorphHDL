@@ -1,0 +1,477 @@
+{
+  "schema_version": 1,
+  "repository": "pysolvesemi/MorphHDL",
+  "production_source_roots": [
+    "backends/verilog/src/main",
+    "core/src/main",
+    "frontend/src/main",
+    "idslpayload/src/main",
+    "idslplugin/src/main",
+    "lib/src/main",
+    "morphhdl-passes/src/main",
+    "morphhdl/src/main",
+    "morphir/src/main",
+    "morphplugin/src/main",
+    "morphruntime/src/main",
+    "paramrtl/src/main",
+    "scalaplugin/src/main",
+    "sim/src/main",
+    "tester/src/main"
+  ],
+  "source_extensions": [
+    ".java",
+    ".scala"
+  ],
+  "low_level_source_roots": [
+    "core/src/main",
+    "idslplugin/src/main",
+    "lib/src/main",
+    "morphir/src/main",
+    "morphruntime/src/main"
+  ],
+  "build_graph": {
+    "canonical_ir_artifact": {
+      "id": "morphir",
+      "artifact_name": "morphhdl-ir",
+      "compile_external_dependencies": [
+        "org.scala-lang:scala-library"
+      ],
+      "test_external_dependencies": [
+        "org.scalatest::scalatest"
+      ]
+    },
+    "sbt_file": "build.sbt",
+    "mill_file": "build.mill",
+    "modules": [
+      {
+        "id": "core",
+        "compile_dependencies": [
+          "idslplugin",
+          "sim"
+        ],
+        "test_dependencies": [],
+        "published": true
+      },
+      {
+        "id": "frontend",
+        "compile_dependencies": [
+          "core",
+          "lib",
+          "morphruntime",
+          "paramrtl"
+        ],
+        "test_dependencies": [],
+        "published": false
+      },
+      {
+        "id": "idslpayload",
+        "compile_dependencies": [],
+        "test_dependencies": [],
+        "published": true
+      },
+      {
+        "id": "idslplugin",
+        "compile_dependencies": [
+          "idslpayload"
+        ],
+        "test_dependencies": [],
+        "published": true
+      },
+      {
+        "id": "lib",
+        "compile_dependencies": [
+          "core",
+          "morphruntime",
+          "sim"
+        ],
+        "test_dependencies": [],
+        "published": true
+      },
+      {
+        "id": "morph",
+        "compile_dependencies": [
+          "core",
+          "frontend",
+          "morphir",
+          "morphruntime",
+          "paramrtl",
+          "verilogBackend"
+        ],
+        "test_dependencies": [
+          "lib"
+        ],
+        "published": false
+      },
+      {
+        "id": "morphir",
+        "compile_dependencies": [],
+        "test_dependencies": [],
+        "published": true
+      },
+      {
+        "id": "morphplugin",
+        "compile_dependencies": [],
+        "test_dependencies": [],
+        "published": false
+      },
+      {
+        "id": "morphruntime",
+        "compile_dependencies": [
+          "core"
+        ],
+        "test_dependencies": [],
+        "published": true
+      },
+      {
+        "id": "paramrtl",
+        "compile_dependencies": [],
+        "test_dependencies": [],
+        "published": false
+      },
+      {
+        "id": "sim",
+        "compile_dependencies": [],
+        "test_dependencies": [],
+        "published": true
+      },
+      {
+        "id": "tester",
+        "compile_dependencies": [
+          "core",
+          "lib",
+          "sim"
+        ],
+        "test_dependencies": [],
+        "published": true
+      },
+      {
+        "id": "verilogBackend",
+        "compile_dependencies": [
+          "paramrtl"
+        ],
+        "test_dependencies": [
+          "frontend"
+        ],
+        "published": false
+      }
+    ],
+    "publication_contracts": [
+      {
+        "id": "morphir",
+        "sbt_name": "morphhdl-ir",
+        "mill_artifact_name": "morphhdl-ir",
+        "version_marker": "SpinalVersion.core"
+      },
+      {
+        "id": "morphruntime",
+        "sbt_name": "MorphHDL-runtime",
+        "mill_artifact_name": "morphhdl-runtime",
+        "version_marker": "SpinalVersion.core"
+      }
+    ]
+  },
+  "required_files": [
+    {
+      "path": "core/src/main/scala/spinal/core/ElabInt.scala",
+      "required_markers": [
+        "def sourceLocation: Option[String]",
+        "final class ElabBool private[core]",
+        "final class ElabInt private[core]",
+        "object ElabBool",
+        "object ElabInt",
+        "package spinal.core"
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
+      "required_markers": [
+        "final case class ElaborationBooleanExpression",
+        "final case class ElaborationIntegerExpression",
+        "final case class ElaborationIntegerParameter",
+        "final class ElaborationIntegerParameterRoot private",
+        "object ParameterizedWidth",
+        "parameterRoots",
+        "private[spinal] val exactDomain",
+        "sourceLocation"
+      ]
+    },
+    {
+      "path": "morphir/src/main/scala/morphhdl/ir/v1/Identifiers.scala",
+      "required_markers": [
+        "final case class DriverId private",
+        "final case class GenerateIndexId private",
+        "final case class ModuleId private",
+        "final case class ParameterId private",
+        "final case class ReferenceId private",
+        "final case class ScopeId private",
+        "final case class SymbolId private",
+        "package morphhdl.ir.v1"
+      ]
+    },
+    {
+      "path": "morphir/src/main/scala/morphhdl/ir/v1/Model.scala",
+      "required_markers": [
+        "PostParameterizationPreEmission",
+        "attributes: Vector[IrAttribute] = Vector.empty",
+        "comments: Vector[IrComment] = Vector.empty",
+        "final case class BooleanParameter",
+        "final case class BooleanParameterDomain",
+        "final case class Declaration",
+        "final case class Design",
+        "final case class Driver",
+        "final case class GenerateIndex",
+        "final case class IntegerParameter",
+        "final case class IntegerParameterDomain",
+        "final case class IrAttribute",
+        "final case class IrComment",
+        "final case class IrVersion",
+        "final case class Module",
+        "final case class Observability",
+        "final case class PackedType",
+        "final case class Ref(",
+        "final case class Scope",
+        "final case class SourceLocation",
+        "package morphhdl.ir.v1",
+        "sealed trait BoolExpr",
+        "sealed trait IntExpr",
+        "sealed trait IrStage",
+        "sealed trait NameOrigin",
+        "sealed trait PackedValueSemantics",
+        "sealed trait Parameter",
+        "sealed trait RtlExpr",
+        "val V1: IrVersion",
+        "valueSemantics: PackedValueSemantics"
+      ]
+    },
+    {
+      "path": "morphir/src/main/scala/morphhdl/ir/v1/Normalization.scala",
+      "required_markers": [
+        "object CanonicalIrNormalizer",
+        "package morphhdl.ir.v1"
+      ]
+    },
+    {
+      "path": "morphir/src/main/scala/morphhdl/ir/v1/Validation.scala",
+      "required_markers": [
+        "final case class IrDiagnostic",
+        "final case class IrDiagnosticSet",
+        "final class ValidatedDesign",
+        "object CanonicalIrValidator",
+        "package morphhdl.ir.v1",
+        "val DefaultMaximumDiagnostics: Int = 256",
+        "val DiagnosticLimitReached = \"MORPH-IR-V1-DIAGNOSTIC-LIMIT-REACHED\"",
+        "val DriverIdInvalid = \"MORPH-IR-V1-DRIVER-ID-INVALID\"",
+        "val DriverIdMissing = \"MORPH-IR-V1-DRIVER-ID-MISSING\"",
+        "val DriverScopeUnresolved = \"MORPH-IR-V1-DRIVER-SCOPE-UNRESOLVED\"",
+        "val DriverTargetNotVisible = \"MORPH-IR-V1-DRIVER-TARGET-NOT-VISIBLE\"",
+        "val ExactEvaluationLimitReached = \"MORPH-IR-V1-EXACT-EVALUATION-LIMIT-REACHED\"",
+        "val MaximumExactEvaluationCases: Int = 65536",
+        "val MaximumParameterDomainSize: Int = 65536",
+        "val ParameterDomainTooLarge = \"MORPH-IR-V1-PARAMETER-DOMAIN-TOO-LARGE\"",
+        "val ReferenceIdInvalid = \"MORPH-IR-V1-REFERENCE-ID-INVALID\"",
+        "val ReferenceIdMissing = \"MORPH-IR-V1-REFERENCE-ID-MISSING\"",
+        "val RtlReferenceNotVisible = \"MORPH-IR-V1-RTL-REFERENCE-NOT-VISIBLE\""
+      ]
+    },
+    {
+      "path": "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlFrontendSymbolicEqualitySafetyComponent.scala",
+      "required_markers": [
+        "MORPH-FRONTEND-SYMBOLIC-COMPARISON-UNSUPPORTED",
+        "final class MorphHdlFrontendSymbolicEqualitySafetyComponent",
+        "override val runsAfter: List[String] = List(\"idsl-plugin\", \"uncurry\")",
+        "override val runsBefore: List[String] = List(\"explicitouter\")"
+      ]
+    },
+    {
+      "path": "morphruntime/src/main/scala/spinal/core/ElabControl.scala",
+      "required_markers": [
+        "object ElabControl",
+        "package spinal.core"
+      ]
+    },
+    {
+      "path": "morphruntime/src/main/scala/spinal/core/ParameterizedProcess.scala",
+      "required_markers": [
+        "object ParameterizedProcess",
+        "package spinal.core"
+      ]
+    }
+  ],
+  "single_owner_declarations": [
+    {
+      "id": "canonical-ir-normalizer-owner",
+      "pattern": "(?m)^\\s*object\\s+CanonicalIrNormalizer\\b",
+      "owner_path": "morphir/src/main/scala/morphhdl/ir/v1/Normalization.scala",
+      "path_prefixes": [
+        "morphir/src/main/"
+      ]
+    },
+    {
+      "id": "canonical-ir-validator-owner",
+      "pattern": "(?m)^\\s*object\\s+CanonicalIrValidator\\b",
+      "owner_path": "morphir/src/main/scala/morphhdl/ir/v1/Validation.scala",
+      "path_prefixes": [
+        "morphir/src/main/"
+      ]
+    },
+    {
+      "id": "elab-bool-owner",
+      "pattern": "(?m)^\\s*final\\s+class\\s+ElabBool\\b",
+      "owner_path": "core/src/main/scala/spinal/core/ElabInt.scala",
+      "path_prefixes": []
+    },
+    {
+      "id": "elab-control-owner",
+      "pattern": "(?m)^\\s*object\\s+ElabControl\\b",
+      "owner_path": "morphruntime/src/main/scala/spinal/core/ElabControl.scala",
+      "path_prefixes": []
+    },
+    {
+      "id": "elab-int-owner",
+      "pattern": "(?m)^\\s*final\\s+class\\s+ElabInt\\b",
+      "owner_path": "core/src/main/scala/spinal/core/ElabInt.scala",
+      "path_prefixes": []
+    },
+    {
+      "id": "frontend-symbolic-equality-safety-owner",
+      "pattern": "(?m)^\\s*final\\s+class\\s+MorphHdlFrontendSymbolicEqualitySafetyComponent\\b",
+      "owner_path": "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlFrontendSymbolicEqualitySafetyComponent.scala",
+      "path_prefixes": []
+    },
+    {
+      "id": "parameterized-process-owner",
+      "pattern": "(?m)^\\s*object\\s+ParameterizedProcess\\b",
+      "owner_path": "morphruntime/src/main/scala/spinal/core/ParameterizedProcess.scala",
+      "path_prefixes": []
+    }
+  ],
+  "removed_paths": [
+    "frontend/src/main/scala/spinal/core/ExternalParameterizedHardTypeShape.scala",
+    "frontend/src/main/scala/spinal/core/ParameterizedProcess.scala",
+    "morphruntime/src/main/scala/spinal/core/ExternalParameterizedMemoryRegistry.scala"
+  ],
+  "forbidden_source_rules": [
+    {
+      "id": "low-level-frontend-edge",
+      "description": "Low-level modules must not import, qualify or name the higher-level morphhdl.frontend package.",
+      "pattern": "\\bmorphhdl\\.frontend(?:\\b|\\.)",
+      "self_test_source": "import morphhdl.frontend.HdlInt",
+      "path_prefixes": [
+        "core/src/main/",
+        "idslplugin/src/main/",
+        "lib/src/main/",
+        "morphir/src/main/",
+        "morphruntime/src/main/"
+      ]
+    },
+    {
+      "id": "idslplugin-morph-compiler-isolation",
+      "description": "The native IDSL compiler plugin must not reference MorphHDL packages, Morph-specific diagnostics or symbolic carrier types.",
+      "pattern": "(?:\\bmorphhdl(?:\\.|\\b)|\\bMORPH-[A-Z0-9-]+\\b|\\b(?:ElabBool|ElabInt|GenIndex|HdlBool|HdlInt)\\b)",
+      "self_test_source": "object Forbidden { val code = \"MORPH-FRONTEND-LEAK\" }",
+      "path_prefixes": [
+        "idslplugin/src/main/"
+      ]
+    },
+    {
+      "id": "obsolete-parameterized-sidecar-symbol",
+      "description": "The memory and hard-type sidecar registries and shapes are retired in favor of canonical typed carriers.",
+      "pattern": "\\b(?:ExternalParameterizedHardTypeRegistry|ExternalParameterizedHardTypeShape|ExternalParameterizedMemoryRegistry)\\b",
+      "self_test_source": "object Forbidden { val registry = ExternalParameterizedMemoryRegistry }",
+      "path_prefixes": [
+        "backends/verilog/src/main/",
+        "core/src/main/",
+        "frontend/src/main/",
+        "idslpayload/src/main/",
+        "idslplugin/src/main/",
+        "lib/src/main/",
+        "morphhdl-passes/src/main/",
+        "morphhdl/src/main/",
+        "morphir/src/main/",
+        "morphplugin/src/main/",
+        "morphruntime/src/main/",
+        "paramrtl/src/main/",
+        "scalaplugin/src/main/",
+        "sim/src/main/",
+        "tester/src/main/"
+      ]
+    },
+    {
+      "id": "canonical-ir-generated-verilog-parser",
+      "description": "Canonical IR is captured before emission and must never be reconstructed by parsing generated Verilog.",
+      "pattern": "\\b(?:GeneratedVerilogParser|VerilogParser|parseGeneratedVerilog|parseVerilog|readGeneratedVerilog)\\b",
+      "self_test_source": "object GeneratedVerilogParser { def parseGeneratedVerilog(text: String) = text }",
+      "path_prefixes": [
+        "morphir/src/main/"
+      ]
+    },
+    {
+      "id": "canonical-ir-emitted-name-recognition",
+      "description": "Canonical IR identity must use controlled IDs and provenance, never emitted component or signal names.",
+      "pattern": "(?:\\b(?:componentNameRecognizer|definitionName|emittedIdentifier|emittedName|emittedNameLookup|instanceName|recognizeByEmittedName|signalName|signalNameRecognizer)\\b|(?:groupBy|find|collectFirst)\\s*\\([^\\n)]*getName\\s*\\()",
+      "self_test_source": "object Forbidden { val owner = records.find(_.getName() == emittedName) }",
+      "path_prefixes": [
+        "morphir/src/main/"
+      ]
+    },
+    {
+      "id": "canonical-ir-upward-dependency",
+      "description": "The MorphHDL-owned canonical IR may not depend on SpinalHDL, frontend or pass implementation packages.",
+      "pattern": "\\b(?:spinal(?:\\.|\\b)|morphhdl\\.(?:frontend|passes)(?:\\.|\\b))",
+      "self_test_source": "import spinal.core.Component",
+      "path_prefixes": [
+        "morphir/src/main/"
+      ]
+    }
+  ],
+  "expected_plugin_components": [
+    "MorphHdlTypedElaborationControlComponent",
+    "MorphHdlNaturalSymbolicConditionalComponent",
+    "MorphHdlFrontendSymbolicEqualitySafetyComponent"
+  ],
+  "plugin_descriptor": "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala",
+  "forbidden_jar_class_prefixes": [
+    "spinal/core/ExternalHardTypeIdentityRef",
+    "spinal/core/ExternalMemoryIdentityRef",
+    "spinal/core/ExternalParameterizedHardTypeRegistry",
+    "spinal/core/ExternalParameterizedHardTypeShape",
+    "spinal/core/ExternalParameterizedMemoryRegistry"
+  ],
+  "idslplugin_compiler_isolation": {
+    "identity_class_entry": "spinal/idslplugin/IdslPlugin.class",
+    "forbidden_class_byte_fragments": [
+      {
+        "id": "elab-bool-carrier",
+        "utf8": "ElabBool"
+      },
+      {
+        "id": "elab-int-carrier",
+        "utf8": "ElabInt"
+      },
+      {
+        "id": "frontend-gen-index-carrier",
+        "utf8": "GenIndex"
+      },
+      {
+        "id": "frontend-hdl-bool-carrier",
+        "utf8": "HdlBool"
+      },
+      {
+        "id": "frontend-hdl-int-carrier",
+        "utf8": "HdlInt"
+      },
+      {
+        "id": "morph-diagnostic",
+        "utf8": "MORPH-"
+      },
+      {
+        "id": "morphhdl-dotted-package",
+        "utf8": "morphhdl."
+      },
+      {
+        "id": "morphhdl-internal-package",
+        "utf8": "morphhdl/"
+      }
+    ]
+  }
+}

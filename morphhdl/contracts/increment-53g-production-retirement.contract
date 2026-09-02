@@ -10,6 +10,7 @@
     "lib/src/main",
     "morphhdl-passes/src/main",
     "morphhdl/src/main",
+    "morphir/src/main",
     "morphplugin/src/main",
     "morphruntime/src/main",
     "paramrtl/src/main",
@@ -55,6 +56,7 @@
         "lib/src/main/",
         "morphhdl-passes/src/main/",
         "morphhdl/src/main/",
+        "morphir/src/main/",
         "morphplugin/src/main/",
         "morphruntime/src/main/",
         "paramrtl/src/main/",
@@ -131,7 +133,8 @@
   ],
   "expected_plugin_components": [
     "MorphHdlTypedElaborationControlComponent",
-    "MorphHdlNaturalSymbolicConditionalComponent"
+    "MorphHdlNaturalSymbolicConditionalComponent",
+    "MorphHdlFrontendSymbolicEqualitySafetyComponent"
   ],
   "plugin_descriptor": "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala",
   "forbidden_jar_class_prefixes": [

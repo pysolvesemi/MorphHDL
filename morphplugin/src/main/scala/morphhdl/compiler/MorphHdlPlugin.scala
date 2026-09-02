@@ -11,6 +11,7 @@ final class MorphHdlPlugin(val global: Global) extends Plugin {
   override val components: List[PluginComponent] =
     List(
       new MorphHdlTypedElaborationControlComponent(global),
-      new MorphHdlNaturalSymbolicConditionalComponent(global)
+      new MorphHdlNaturalSymbolicConditionalComponent(global),
+      new MorphHdlFrontendSymbolicEqualitySafetyComponent(global)
     )
 }
