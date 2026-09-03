@@ -34,6 +34,11 @@ jobs:
 
           root = Path.cwd()
 
+          def replace_function(text: str, name: str, next_name: str, replacement: str) -> str:
+              start = text.index(f"def {name}(")
+              end = text.index(f"def {next_name}(", start)
+              return text[:start] + replacement.rstrip() + "\n\n" + text[end:]
+
           def replace_once(text: str, old: str, new: str, label: str) -> str:
               count = text.count(old)
               if count != 1:
@@ -42,47 +47,68 @@ jobs:
 
           formal_path = root / "morphhdl-passes/scripts/validate_wire_assignment_equivalence.py"
           formal = formal_path.read_text(encoding="utf-8")
-          formal = replace_once(
-              formal,
-              """    miter_top: str,
-              reset: str | None,
-              mutate_first_output: bool,
-          """,
-              """    miter_top: str,
+
+          generated_miter = r'''def generated_miter(
+              inputs: Sequence[Mapping[str, Any]],
+              outputs: Sequence[Mapping[str, Any]],
+              binding: Mapping[str, int],
+              reference_top: str,
+              candidate_top: str,
+              miter_top: str,
               clock: str | None,
               reset: str | None,
               mutate_first_output: bool,
-          """,
-              "generated_miter signature",
-          )
-          formal = replace_once(
-              formal,
-              """    body: list[str] = []
-              if reset is None:
-          """,
-              """    if (clock is None) != (reset is None):
+          ) -> str:
+              if (clock is None) != (reset is None):
                   raise ValidationError("formal miter requires clock and reset together")
+
+              input_declarations = [
+                  verilog_declaration(
+                      "input",
+                      str(port["name"]),
+                      resolve_width(port["width"], binding, f"input {port['name']}"),
+                  )
+                  for port in inputs
+              ]
+              wire_declarations: list[str] = []
+              for port in outputs:
+                  width = resolve_width(port["width"], binding, f"output {port['name']}")
+                  wire_declarations.append(
+                      verilog_declaration("wire", f"reference_{port['name']}", width)
+                  )
+                  wire_declarations.append(
+                      verilog_declaration("wire", f"candidate_{port['name']}", width)
+                  )
+
+              def instance(top: str, name: str, prefix: str) -> str:
+                  connections = []
+                  for port in inputs:
+                      connections.append(f"    .{port['name']}({port['name']})")
+                  for port in outputs:
+                      connections.append(f"    .{port['name']}({prefix}_{port['name']})")
+                  return f"  {top} {name} (\n" + ",\n".join(connections) + "\n  );"
+
+              assertions: list[str] = []
+              for index, port in enumerate(outputs):
+                  candidate_expression = f"candidate_{port['name']}"
+                  if mutate_first_output and index == 0:
+                      candidate_expression = f"({candidate_expression} ^ 1'b1)"
+                  assertion = f"assert(reference_{port['name']} == {candidate_expression});"
+                  conditions = tuple(port.get("compare_when", ()))
+                  if conditions:
+                      guard_terms = [
+                          f"reference_{condition} && candidate_{condition}"
+                          for condition in conditions
+                      ]
+                      assertion = f"if ({' && '.join(guard_terms)}) {assertion}"
+                  assertions.append("      " + assertion)
 
               body: list[str] = []
               if reset is None:
-          """,
-              "clock/reset pairing",
-          )
-          formal = replace_once(
-              formal,
-              """    else:
-                  body.extend(
-                      (
-                          "  always @* begin",
-                          "    if ($initstate)",
-                          f"      assume({reset});",
-                          "    if (!$initstate) begin",
-                      )
-                  )
-                  body.extend(assertions)
-                  body.extend(("    end", "  end"))
-          """,
-              """    else:
+                  body.append("  always @* begin")
+                  body.extend(line.replace("      ", "    ", 1) for line in assertions)
+                  body.append("  end")
+              else:
                   body.extend(
                       (
                           "  reg [1:0] wa03_reset_phase;",
@@ -107,109 +133,224 @@ jobs:
                   )
                   body.extend(assertions)
                   body.extend(("    end", "  end"))
-          """,
-              "reset-active clock edge miter",
-          )
-          formal = replace_once(
-              formal,
-              """    binding: Mapping[str, int],
-              reset: str | None,
-              engine: str,
-          """,
-              """    binding: Mapping[str, int],
+
+              ports = [str(port["name"]) for port in inputs]
+              return (
+                  f"module {miter_top} (\n"
+                  + ",\n".join(f"  {name}" for name in ports)
+                  + "\n);\n"
+                  + "\n".join(input_declarations)
+                  + "\n"
+                  + "\n".join(wire_declarations)
+                  + "\n\n"
+                  + instance(reference_top, "reference_dut", "reference")
+                  + "\n\n"
+                  + instance(candidate_top, "candidate_dut", "candidate")
+                  + "\n\n"
+                  + "\n".join(body)
+                  + "\nendmodule\n"
+              )'''
+          formal = replace_function(formal, "generated_miter", "sby_configuration", generated_miter)
+
+          run_formal_binding = r'''def run_formal_binding(
+              reference: Path,
+              candidate: Path,
+              reference_top: str,
+              candidate_top: str,
+              inputs: Sequence[Mapping[str, Any]],
+              outputs: Sequence[Mapping[str, Any]],
+              binding: Mapping[str, int],
               clock: str | None,
               reset: str | None,
               engine: str,
-          """,
-              "run_formal_binding signature",
-          )
-          formal = replace_once(
-              formal,
-              """        miter_top,
-                  reset,
-                  mutate_first_output=False,
-          """,
-              """        miter_top,
+              timeout_seconds: int,
+              directory: Path,
+          ) -> dict[str, Any]:
+              directory.mkdir(parents=True, exist_ok=True)
+              prepared_reference = "Wa03ReferencePrepared"
+              prepared_candidate = "Wa03CandidatePrepared"
+              miter_top = "Wa03EquivalenceMiter"
+              prepare_leg(reference, reference_top, prepared_reference, binding, directory, "reference")
+              prepare_leg(candidate, candidate_top, prepared_candidate, binding, directory, "candidate")
+              miter = generated_miter(
+                  inputs,
+                  outputs,
+                  binding,
+                  prepared_reference,
+                  prepared_candidate,
+                  miter_top,
                   clock,
                   reset,
                   mutate_first_output=False,
-          """,
-              "positive miter clock argument",
-          )
-          formal = replace_once(
+              )
+              (directory / "miter.v").write_text(miter, encoding="utf-8")
+              (directory / "proof.sby").write_text(
+                  sby_configuration(
+                      miter_top,
+                      expected="PASS",
+                      mode="prove",
+                      engine=engine,
+                      timeout_seconds=timeout_seconds,
+                  ),
+                  encoding="utf-8",
+              )
+              run_command(
+                  ("sby", "-f", "proof.sby"),
+                  directory,
+                  directory / "proof-command.log",
+                  timeout_seconds + 120,
+              )
+              read_sby_status(directory, "proof", "PASS")
+              return {"binding": dict(sorted(binding.items())), "status": "PASS"}'''
+          formal = replace_function(
               formal,
-              """            miter_top,
-                      case["reset"],
-                      mutate_first_output=True,
-          """,
-              """            miter_top,
+              "run_formal_binding",
+              "run_mutation_control",
+              run_formal_binding,
+          )
+
+          run_mutation_control = r'''def run_mutation_control(
+              case: Mapping[str, Any], output_directory: Path
+          ) -> dict[str, Any]:
+              binding = parameter_bindings(case["domains"])[0]
+              directory = output_directory / "mutation-control"
+              directory.mkdir(parents=True, exist_ok=True)
+              prepared_reference = "Wa03MutationReferencePrepared"
+              prepared_candidate = "Wa03MutationCandidatePrepared"
+              miter_top = "Wa03MutationMiter"
+              prepare_leg(
+                  case["reference"],
+                  case["reference_top"],
+                  prepared_reference,
+                  binding,
+                  directory,
+                  "reference",
+              )
+              prepare_leg(
+                  case["candidate"],
+                  case["candidate_top"],
+                  prepared_candidate,
+                  binding,
+                  directory,
+                  "candidate",
+              )
+              (directory / "miter.v").write_text(
+                  generated_miter(
+                      case["inputs"],
+                      case["outputs"],
+                      binding,
+                      prepared_reference,
+                      prepared_candidate,
+                      miter_top,
                       case["clock"],
                       case["reset"],
                       mutate_first_output=True,
-          """,
-              "mutation miter clock argument",
+                  ),
+                  encoding="utf-8",
+              )
+              (directory / "proof.sby").write_text(
+                  sby_configuration(
+                      miter_top,
+                      expected="FAIL",
+                      mode="bmc",
+                      engine="smtbmc yices",
+                      timeout_seconds=120,
+                      depth=3,
+                  ),
+                  encoding="utf-8",
+              )
+              run_command(
+                  ("sby", "-f", "proof.sby"),
+                  directory,
+                  directory / "proof-command.log",
+                  240,
+              )
+              status = read_sby_status(directory, "proof", "FAIL")
+              traces = [
+                  path
+                  for path in status.work_directory.rglob("*.vcd")
+                  if path.is_file() and path.stat().st_size > 0
+              ]
+              if not traces:
+                  raise ValidationError(
+                      "intentional mutation failed without a retained counterexample VCD"
+                  )
+              return {
+                  "binding": dict(sorted(binding.items())),
+                  "status": "EXPECTED_FAIL",
+                  "counterexample_count": len(traces),
+              }'''
+          formal = replace_function(
+              formal,
+              "run_mutation_control",
+              "run_generic_case",
+              run_mutation_control,
           )
+
           formal = replace_once(
               formal,
-              """            binding,
+              '''            binding,
                       case["reset"],
-                      case["engine"],
-          """,
-              """            binding,
+                      case["engine"],''',
+              '''            binding,
                       case["clock"],
                       case["reset"],
-                      case["engine"],
-          """,
-              "generic proof clock argument",
+                      case["engine"],''',
+              "generic proof clock forwarding",
           )
           formal = replace_once(
               formal,
-              """                binding,
+              '''                binding,
                           shared["reset"],
-                          "abc pdr",
-          """,
-              """                binding,
+                          "abc pdr",''',
+              '''                binding,
                           shared["clock"],
                           shared["reset"],
-                          "abc pdr",
-          """,
-              "shared proof clock argument",
+                          "abc pdr",''',
+              "shared proof clock forwarding",
           )
-          formal = replace_once(
-              formal,
-              """        "PositiveMiter",
-                  None,
-                  mutate_first_output=False,
-          """,
-              """        "PositiveMiter",
-                  None,
-                  None,
-                  mutate_first_output=False,
-          """,
-              "combinational positive self-test",
-          )
-          formal = replace_once(
-              formal,
-              """        "MutationMiter",
-                  None,
-                  mutate_first_output=True,
-          """,
-              """        "MutationMiter",
-                  None,
-                  None,
-                  mutate_first_output=True,
-          """,
-              "combinational mutation self-test",
-          )
-          formal = replace_once(
-              formal,
-              """    if "candidate_sink);" not in positive or "candidate_sink ^ 1'b1" not in mutation:
-                  raise AssertionError("formal mutation control no longer changes the compared behavior")
 
-              with tempfile.TemporaryDirectory(prefix="wa03-signature-self-test-") as directory:
-          """,
-              """    if "candidate_sink);" not in positive or "candidate_sink ^ 1'b1" not in mutation:
-                  raise AssertionError("formal mutation control no longer changes the compared behavior")
+          self_test = r'''def self_test(repo_root: Path, manifest_path: Path, registry_path: Path) -> None:
+              raw = load_json(manifest_path)
+              manifest = validate_manifest(repo_root, manifest_path, raw)
+              if len(parameter_bindings(manifest["cases"][0]["domains"])) != 4:
+                  raise AssertionError("combinational complete-domain expansion changed")
+              if len(parameter_bindings(manifest["cases"][1]["domains"])) != 3:
+                  raise AssertionError("sequential complete-domain expansion changed")
+              shared_audit = audit_shared_domain(manifest["shared"])
+              if shared_audit["binding_count"] != 512:
+                  raise AssertionError(
+                      "shared witness complete admitted domain must contain 512 bindings"
+                  )
+
+              first_case = manifest["cases"][0]
+              binding = parameter_bindings(first_case["domains"])[0]
+              positive = generated_miter(
+                  first_case["inputs"],
+                  first_case["outputs"],
+                  binding,
+                  "ReferencePrepared",
+                  "CandidatePrepared",
+                  "PositiveMiter",
+                  None,
+                  None,
+                  mutate_first_output=False,
+              )
+              mutation = generated_miter(
+                  first_case["inputs"],
+                  first_case["outputs"],
+                  binding,
+                  "ReferencePrepared",
+                  "CandidatePrepared",
+                  "MutationMiter",
+                  None,
+                  None,
+                  mutate_first_output=True,
+              )
+              if "candidate_sink);" not in positive or "candidate_sink ^ 1'b1" not in mutation:
+                  raise AssertionError(
+                      "formal mutation control no longer changes the compared behavior"
+                  )
 
               sequential_case = manifest["cases"][1]
               sequential_binding = parameter_bindings(sequential_case["domains"])[0]
@@ -235,43 +376,115 @@ jobs:
                   "if (wa03_reset_phase == 2'd2) begin",
               )
               if any(marker not in sequential for marker in reset_markers):
-                  raise AssertionError("sequential miter no longer forces a reset-active clock edge")
+                  raise AssertionError(
+                      "sequential miter no longer forces a reset-active clock edge"
+                  )
 
               with tempfile.TemporaryDirectory(prefix="wa03-signature-self-test-") as directory:
-          """,
-              "sequential reset self-test",
-          )
+                  temporary_root = Path(directory)
+                  tracked = temporary_root / "tracked.txt"
+                  tracked.write_text("stable\n", encoding="utf-8")
+                  registry = temporary_root / "registry.json"
+                  write_json(
+                      registry,
+                      {
+                          "schema_version": 1,
+                          "files": {"tracked.txt": sha256_file(tracked)},
+                      },
+                  )
+                  verify_signature_registry(temporary_root, registry)
+                  tracked.write_text("mutated\n", encoding="utf-8")
+                  try:
+                      verify_signature_registry(temporary_root, registry)
+                  except ValidationError:
+                      pass
+                  else:
+                      raise AssertionError(
+                          "formal-model signature mutation was not detected"
+                      )
+
+              verified = verify_signature_registry(repo_root, registry_path)
+              if not verified:
+                  raise AssertionError("formal-model signature registry unexpectedly empty")
+              print("WA-03 equivalence validator self-tests passed.")'''
+          formal = replace_function(formal, "self_test", "parse_args", self_test)
           compile(formal, str(formal_path), "exec")
           formal_path.write_text(formal, encoding="utf-8")
 
           safety_path = root / "morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala"
           safety = safety_path.read_text(encoding="utf-8")
-          safety = replace_once(
-              safety,
-              """  val CombinationalCycle = "WA03-COMBINATIONAL-CYCLE"
-              val BidirectionalUse = "WA03-BIDIRECTIONAL-USE"
-              val MemoryPortUse = "WA03-MEMORY-PORT-USE"
-              val InstanceBoundaryUse = "WA03-INSTANCE-BOUNDARY-USE"
-          """,
-              """  val CombinationalCycle = "WA03-COMBINATIONAL-CYCLE"
-              val ClockUse = "WA03-CLOCK-USE"
-              val ResetUse = "WA03-RESET-USE"
-              val TriStateControlUse = "WA03-TRI-STATE-CONTROL-USE"
-              val ControlUseUnproven = "WA03-CONTROL-USE-UNPROVEN"
-              val BidirectionalUse = "WA03-BIDIRECTIONAL-USE"
-              val MemoryPortUse = "WA03-MEMORY-PORT-USE"
-              val InstanceBoundaryUse = "WA03-INSTANCE-BOUNDARY-USE"
-          """,
-              "control-use reason declarations",
-          )
-          safety = replace_once(
-              safety,
-              """    CombinationalCycle,
-              BidirectionalUse,
-              MemoryPortUse,
-              InstanceBoundaryUse
-          """,
-              """    CombinationalCycle,
+          reason_start = safety.index("object AliasSafetyReason {")
+          reason_end = safety.index("/** One deterministic reason", reason_start)
+          reasons = '''object AliasSafetyReason {
+            val AliasNotInternalCombinational = "WA03-ALIAS-NOT-INTERNAL-COMBINATIONAL"
+            val NameOriginUnproven = "WA03-NAME-ORIGIN-UNPROVEN"
+            val ObservabilityIncomplete = "WA03-OBSERVABILITY-INCOMPLETE"
+            val ExternallyVisible = "WA03-EXTERNALLY-VISIBLE"
+            val Keep = "WA03-KEEP"
+            val DontTouch = "WA03-DONT-TOUCH"
+            val Probe = "WA03-PROBE"
+            val Preserve = "WA03-PRESERVE"
+            val PublicExport = "WA03-PUBLIC-EXPORT"
+            val BlackBoxBoundary = "WA03-BLACK-BOX-BOUNDARY"
+            val HierarchyBoundary = "WA03-HIERARCHY-BOUNDARY"
+            val DeclarationAttributes = "WA03-DECLARATION-ATTRIBUTES"
+            val DeclarationComments = "WA03-DECLARATION-COMMENTS"
+            val DriverCardinality = "WA03-DRIVER-CARDINALITY"
+            val DriverNotContinuous = "WA03-DRIVER-NOT-CONTINUOUS"
+            val DriverNotFullObject = "WA03-DRIVER-NOT-FULL-OBJECT"
+            val DriverNotDirectReference = "WA03-DRIVER-NOT-DIRECT-REFERENCE"
+            val DriverAttributes = "WA03-DRIVER-ATTRIBUTES"
+            val DriverComments = "WA03-DRIVER-COMMENTS"
+            val SourceSelfReference = "WA03-SOURCE-SELF-REFERENCE"
+            val SourceUnresolved = "WA03-SOURCE-UNRESOLVED"
+            val SourceKindExcluded = "WA03-SOURCE-KIND-EXCLUDED"
+            val PackedTypeMissing = "WA03-PACKED-TYPE-MISSING"
+            val PackedSignednessMismatch = "WA03-PACKED-SIGNEDNESS-MISMATCH"
+            val PackedValueSemanticsMismatch = "WA03-PACKED-VALUE-SEMANTICS-MISMATCH"
+            val PackedWidthDomainMismatch = "WA03-PACKED-WIDTH-DOMAIN-MISMATCH"
+            val PackedWidthDomainUnproven = "WA03-PACKED-WIDTH-DOMAIN-UNPROVEN"
+            val DomainExpansionLimit = "WA03-DOMAIN-EXPANSION-LIMIT"
+            val IllegalScopeReplacement = "WA03-ILLEGAL-SCOPE-REPLACEMENT"
+            val CombinationalCycle = "WA03-COMBINATIONAL-CYCLE"
+            val ClockUse = "WA03-CLOCK-USE"
+            val ResetUse = "WA03-RESET-USE"
+            val TriStateControlUse = "WA03-TRI-STATE-CONTROL-USE"
+            val ControlUseUnproven = "WA03-CONTROL-USE-UNPROVEN"
+            val BidirectionalUse = "WA03-BIDIRECTIONAL-USE"
+            val MemoryPortUse = "WA03-MEMORY-PORT-USE"
+            val InstanceBoundaryUse = "WA03-INSTANCE-BOUNDARY-USE"
+
+            private val Ordered: Vector[String] = Vector(
+              AliasNotInternalCombinational,
+              NameOriginUnproven,
+              ObservabilityIncomplete,
+              ExternallyVisible,
+              Keep,
+              DontTouch,
+              Probe,
+              Preserve,
+              PublicExport,
+              BlackBoxBoundary,
+              HierarchyBoundary,
+              DeclarationAttributes,
+              DeclarationComments,
+              DriverCardinality,
+              DriverNotContinuous,
+              DriverNotFullObject,
+              DriverNotDirectReference,
+              DriverAttributes,
+              DriverComments,
+              SourceSelfReference,
+              SourceUnresolved,
+              SourceKindExcluded,
+              PackedTypeMissing,
+              PackedSignednessMismatch,
+              PackedValueSemanticsMismatch,
+              PackedWidthDomainMismatch,
+              PackedWidthDomainUnproven,
+              DomainExpansionLimit,
+              IllegalScopeReplacement,
+              CombinationalCycle,
               ClockUse,
               ResetUse,
               TriStateControlUse,
@@ -279,40 +492,19 @@ jobs:
               BidirectionalUse,
               MemoryPortUse,
               InstanceBoundaryUse
-          """,
-              "control-use reason ordering",
-          )
-          old_usage = """  private def validateUsageContexts(
-              module: CanonicalModuleView,
-              aliasSymbol: SymbolId,
-              violations: ArrayBuffer[AliasSafetyViolation]
-          ): Unit = {
-              module.drivers
-                .filter(_.value.referenceOccurrences.exists(_.target == aliasSymbol))
-                .sortBy(_.id.value)
-                .foreach { driver =>
-                  driver.kind match {
-                    case DriverKind.Bidirectional =>
-                      violations += violation(
-                        AliasSafetyReason.BidirectionalUse,
-                        s"alias is consumed by bidirectional driver '${driver.id.value}'"
-                      )
-                    case DriverKind.MemoryPort =>
-                      violations += violation(
-                        AliasSafetyReason.MemoryPortUse,
-                        s"alias is consumed by memory-port driver '${driver.id.value}'"
-                      )
-                    case DriverKind.InstancePort =>
-                      violations += violation(
-                        AliasSafetyReason.InstanceBoundaryUse,
-                        s"alias is consumed by instance-port driver '${driver.id.value}'"
-                      )
-                    case _ =>
-                  }
-                }
-            }
-          """
-          new_usage = """  private def validateUsageContexts(
+            )
+
+            private val Rank: Map[String, Int] = Ordered.zipWithIndex.toMap
+
+            private[safety] def rank(code: String): Int = Rank.getOrElse(code, Int.MaxValue)
+          }
+
+          '''
+          safety = safety[:reason_start] + reasons + safety[reason_end:]
+
+          usage_start = safety.index("  private def validateUsageContexts(")
+          usage_end = safety.index("  private def validateReplacementScopes(", usage_start)
+          usage = '''  private def validateUsageContexts(
               module: CanonicalModuleView,
               aliasSymbol: SymbolId,
               violations: ArrayBuffer[AliasSafetyViolation]
@@ -387,15 +579,15 @@ jobs:
                 }
               }
             }
-          """
-          safety = replace_once(safety, old_usage, new_usage, "control-use analysis")
+
+          '''
+          safety = safety[:usage_start] + usage + safety[usage_end:]
           safety_path.write_text(safety, encoding="utf-8")
 
           spec_path = root / "morphhdl-passes/src/test/scala/morphhdl/passes/safety/WireAliasSafetyGateSpec.scala"
           spec = spec_path.read_text(encoding="utf-8")
-          marker = """  test("replacement is rejected when the direct source is not visible at an alias use") {
-          """
-          added_tests = """  test("clock reset and tri-state control uses fail closed without name inference") {
+          marker = '  test("replacement is rejected when the direct source is not visible at an alias use") {\n'
+          added_tests = '''  test("clock reset and tri-state control uses fail closed without name inference") {
               val explicitControlKinds = Vector(
                 DeclarationKind.Clock -> AliasSafetyReason.ClockUse,
                 DeclarationKind.Reset -> AliasSafetyReason.ResetUse,
@@ -434,20 +626,17 @@ jobs:
               )
             }
 
-          """
+          '''
           spec = replace_once(spec, marker, added_tests + marker, "control-use regression tests")
           spec = replace_once(
               spec,
-              """  test("continuous dependency cycles are rejected while registered feedback is not") {
-          """,
-              """  test("continuous cycles are rejected and registered feedback fails closed on control roles") {
-          """,
+              '  test("continuous dependency cycles are rejected while registered feedback is not") {\n',
+              '  test("continuous cycles are rejected and registered feedback fails closed on control roles") {\n',
               "registered feedback test title",
           )
           spec = replace_once(
               spec,
-              """    assessment(registeredFeedback).isEligible shouldBe true
-          """,
+              "    assessment(registeredFeedback).isEligible shouldBe true\n",
               """    val registeredAssessment = assessment(registeredFeedback)
               rejectionCodes(registeredAssessment) should not contain (
                 AliasSafetyReason.CombinationalCycle
