@@ -495,7 +495,7 @@ final class WireAliasSafetyGateSpec extends AnyFunSuite with Matchers {
     )
   }
 
-  test("continuous cycles are rejected and registered feedback fails closed on control roles") {
+  test("continuous dependency cycles are rejected and registered feedback fails closed on control roles") {
     val continuousCycle = updateModule(baseDesign()) { module =>
       val declarations = module.declarations.map {
         case declaration if declaration.id == sourceId =>
