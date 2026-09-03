@@ -1,4 +1,3 @@
-# INCREMENT-57A-SOURCE-SCOPE-UNSEALED
 .github/workflows/increment-57a-typed-streamfifocc.yml
 docs/morphhdl/increment-57-broad-native-library-migration.md
 docs/morphhdl/increment-57a-typed-streamfifocc.md
