@@ -60,6 +60,40 @@ GENERIC_RULES: tuple[TextRule, ...] = (
     ),
 )
 
+BRIDGE_RULES: tuple[TextRule, ...] = (
+    TextRule(
+        "WA04-BRIDGE-COMPONENT-RECOGNITION",
+        "native witness bridge must not inspect a component definition or instance name",
+        re.compile(r"\.(?:definitionName|getName|getPartialName)\b"),
+    ),
+    TextRule(
+        "WA04-BRIDGE-EMITTED-NAME-RECOGNITION",
+        "native witness bridge must not recognize an emitted temporary identifier",
+        re.compile(r"_zz_"),
+    ),
+    TextRule(
+        "WA04-BRIDGE-GENERATED-HDL-PARSER",
+        "native witness bridge must mutate exact graph identities rather than parse generated HDL",
+        re.compile(r"\b(?:parseVerilog|generatedVerilog|emittedVerilog|verilogText)\b", re.IGNORECASE),
+    ),
+)
+
+REQUIRED_BRIDGE_MARKERS: tuple[str, ...] = (
+    "final class UnnamedWireAliasNativePhase extends Phase",
+    "PhaseRemoveIntermediateUnnameds",
+    "alias.isUnnamed",
+    "UnnamedWireAliasEliminationPass.run",
+    "WireAliasPassConfiguration(eliminateUnnamedAliases = true)",
+    "statement.walkRemapDrivingExpressions",
+    "reference eq alias",
+    "aliasAssignment.removeStatement()",
+    "alias.removeStatement()",
+    "executed_before_name_allocation",
+    "native_full_alias_removal_suppressed",
+    "ParameterizedStreamFifoUnnamedPassWitness",
+    "eliminated no unnamed alias",
+)
+
 REQUIRED_SOURCE_MARKERS: tuple[str, ...] = (
     "PassId.UnnamedWireAliasElimination",
     "configuration.eliminateUnnamedAliases",
@@ -105,6 +139,9 @@ REQUIRED_WORKFLOW_MARKERS: tuple[str, ...] = (
     "shared parameterized witness proof contract",
     "wire-alias-unnamed.v",
     "validate_wire_assignment_equivalence.py",
+    "ParameterizedStreamFifoUnnamedPassWitness",
+    "cmp -s",
+    "executed_before_name_allocation",
 )
 
 REQUIRED_README_MARKERS: tuple[str, ...] = (
@@ -240,6 +277,7 @@ def check_repository(root: Path) -> list[str]:
         / "src/main/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPass.scala",
         "tests": pass_root
         / "src/test/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPassSpec.scala",
+        "bridge": pass_root / "examples/UnnamedWireAliasNativeBridge.scala",
         "roadmap": pass_root / "morphhdl-ir-wire-assignment-passes-todo.md",
         "readme": pass_root / "README.md",
         "workflow": root / ".github/workflows/morphhdl-passes.yml",
@@ -253,6 +291,7 @@ def check_repository(root: Path) -> list[str]:
         return sorted(failures)
 
     source_text = paths["source"].read_text(encoding="utf-8")
+    bridge_text = paths["bridge"].read_text(encoding="utf-8")
     test_text = paths["tests"].read_text(encoding="utf-8")
     roadmap_text = paths["roadmap"].read_text(encoding="utf-8")
     readme_text = paths["readme"].read_text(encoding="utf-8")
@@ -267,6 +306,26 @@ def check_repository(root: Path) -> list[str]:
             source_text,
             REQUIRED_SOURCE_MARKERS,
             "WA04-SOURCE-CONTRACT-MISSING",
+        )
+    )
+    phase_start = bridge_text.find("final class UnnamedWireAliasNativePhase extends Phase")
+    phase_end = bridge_text.find("final case class UnnamedWireAliasNativeReport")
+    if phase_start < 0 or phase_end <= phase_start:
+        failures.append(
+            f"{paths['bridge'].relative_to(root)}: WA04-BRIDGE-BOUNDARY: unable to isolate native bridge phase"
+        )
+        bridge_phase_text = bridge_text
+    else:
+        bridge_phase_text = bridge_text[phase_start:phase_end]
+    failures.extend(
+        scan_text(paths["bridge"].relative_to(root), bridge_phase_text, BRIDGE_RULES)
+    )
+    failures.extend(
+        require_markers(
+            paths["bridge"].relative_to(root),
+            bridge_text,
+            REQUIRED_BRIDGE_MARKERS,
+            "WA04-BRIDGE-CONTRACT-MISSING",
         )
     )
     failures.extend(
@@ -329,6 +388,34 @@ object Pass { def eligible(origin: NameOrigin, left: SymbolId, right: SymbolId) 
     )
     for text, code in mutations:
         expect_rejected(text, code)
+
+    bridge_allowed = """final class UnnamedWireAliasNativePhase extends Phase {
+  def applyIdentity(alias: BaseType, source: BaseType) = alias eq source
+}
+"""
+    if scan_text(Path("Bridge.scala"), bridge_allowed, BRIDGE_RULES):
+        raise AssertionError("identity-based native bridge source was rejected")
+    bridge_mutations = (
+        ("candidate.component.definitionName", "WA04-BRIDGE-COMPONENT-RECOGNITION"),
+        ("val emitted = \"_zz_3\"", "WA04-BRIDGE-EMITTED-NAME-RECOGNITION"),
+        ("parseVerilog(generatedVerilog)", "WA04-BRIDGE-GENERATED-HDL-PARSER"),
+    )
+    for text, code in bridge_mutations:
+        failures = scan_text(Path("BridgeMutant.scala"), text, BRIDGE_RULES)
+        if not any(code in failure for failure in failures):
+            raise AssertionError(f"native bridge mutation was not rejected by {code}")
+
+    bridge_contract = "\n".join(REQUIRED_BRIDGE_MARKERS)
+    for marker in REQUIRED_BRIDGE_MARKERS:
+        mutant = bridge_contract.replace(marker, "<removed>")
+        missing = require_markers(
+            Path("Bridge.scala"),
+            mutant,
+            REQUIRED_BRIDGE_MARKERS,
+            "WA04-BRIDGE-CONTRACT-MISSING",
+        )
+        if not any(marker in failure for failure in missing):
+            raise AssertionError(f"missing bridge marker mutation was not rejected: {marker}")
 
     source_contract = "\n".join(REQUIRED_SOURCE_MARKERS)
     for marker in REQUIRED_SOURCE_MARKERS:
