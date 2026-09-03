@@ -46,8 +46,8 @@ transform canonical IR:
 
 - `WireAliasSafetyGate`, a read-only, component-generic eligibility analysis
   that proves one continuous full-object direct reference, exact packed
-  signedness and value semantics, width equality over the complete admitted
-  parameter domain and every retained generate-index domain, legal lexical
+  signedness and value semantics, width equality over the complete admitted parameter domain and every
+  retained generate-index domain, legal lexical
   replacement and continuous-cycle freedom;
 - explicit fail-closed reasons for every observability, hierarchy, clock,
   reset, bidirectional, tri-state, memory-port, instance-port, comment and
