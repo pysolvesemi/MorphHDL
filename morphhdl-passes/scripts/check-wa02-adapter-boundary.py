@@ -38,14 +38,19 @@ IMPLEMENTATION_RULES: tuple[Rule, ...] = (
     Rule(
         "WA02-SPINAL-IMPLEMENTATION-DEPENDENCY",
         "pass implementation must depend on canonical MorphHDL IR, not spinal implementation classes",
-        re.compile(r"^\s*import\s+spinal\.", re.MULTILINE),
+        # Reject imports and fully qualified references such as
+        # `value: spinal.core.Component` alike.
+        re.compile(r"\bspinal\."),
     ),
     Rule(
         "WA02-FILE-TEXT-INGRESS",
-        "pass implementation must not read files or text streams",
+        "pass implementation must not read files, resources, channels, or text streams",
+        # Reject the owning packages instead of enumerating selected classes.
+        # This closes grouped imports (`java.nio.file.{Files, Path}`), wildcard
+        # imports, fully qualified calls, and concrete stream subclasses.
         re.compile(
-            r"\b(?:scala\.io\.Source|java\.io\.(?:File|Reader|InputStream|BufferedReader)|"
-            r"java\.nio\.file\.(?:Path|Paths|Files))\b"
+            r"\b(?:scala\.io|java\.io|java\.nio\.(?:file|channels))\b|"
+            r"\b(?:getResourceAsStream|fromFile|fromInputStream|readAllBytes|readString|newInputStream)\s*\("
         ),
     ),
     Rule(
@@ -322,7 +327,23 @@ object Adapter { def bind(design: Design) = design.modules.map(_.id) }
             "WA02-MODULE-NAME-RECOGNITION",
         ),
         ("import spinal.core.Component", "WA02-SPINAL-IMPLEMENTATION-DEPENDENCY"),
+        (
+            "def inspect(value: spinal.core.Component) = value",
+            "WA02-SPINAL-IMPLEMENTATION-DEPENDENCY",
+        ),
         ("scala.io.Source.fromFile(\"out.v\")", "WA02-FILE-TEXT-INGRESS"),
+        (
+            "import java.nio.file.{Files, Path}\nFiles.readString(path)",
+            "WA02-FILE-TEXT-INGRESS",
+        ),
+        (
+            "new java.io.FileInputStream(\"out.v\")",
+            "WA02-FILE-TEXT-INGRESS",
+        ),
+        (
+            "import java.io.{BufferedReader, FileInputStream}",
+            "WA02-FILE-TEXT-INGRESS",
+        ),
         ("val matcher = \"assign.*\".r", "WA02-REGEX-MATCHING"),
         ("parseVerilog(verilogText)", "WA02-GENERATED-HDL-PARSER"),
         ("val emitted = \"_zz_1\"", "WA02-EMITTED-NAME-RECOGNITION"),
