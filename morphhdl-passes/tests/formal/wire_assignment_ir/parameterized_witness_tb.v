@@ -13,8 +13,8 @@ module Wa03ParameterizedWitnessTb;
   reg                  io_pop_ready;
   wire [WIDTH-1:0]     io_pop_payload;
   reg                  io_flush;
-  wire [DEPTH-1:0]     io_occupancy;
-  wire [DEPTH-1:0]     io_availability;
+  wire [3:0]           io_occupancy;
+  wire [3:0]           io_availability;
 
   ParameterizedStreamFifo #(
     .WIDTH(WIDTH),
