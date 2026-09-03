@@ -189,7 +189,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          output="morphhdl-passes/build/formal/wire_assignment_ir/generated"
+          output="${GITHUB_WORKSPACE}/morphhdl-passes/build/formal/wire_assignment_ir/generated"
           mkdir -p "$output"
           sbt -batch \
             '++2.12.18' \
