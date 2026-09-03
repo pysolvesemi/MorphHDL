@@ -560,14 +560,11 @@ private[examples] object UnnamedWireAliasWitnessPhasePlan {
         postWidthTypeCleanupIndex,
         new PhaseRemoveIntermediateUnnameds(true)
       )
-      nativeAliasPasses.drop(2).reverse.foreach(index => phases.remove(index))
-      phase.foreach { value =>
-        val insertionIndex = phases.indexWhere(_.isInstanceOf[PhaseSimplifyNodes])
-        if (insertionIndex < 0)
-          throw new IllegalStateException(
-            "WA-04 witness could not locate the pre-simplification native phase boundary"
-          )
-        phases.insert(insertionIndex, value)
+      nativeAliasPasses.drop(3).reverse.foreach(index => phases.remove(index))
+      val finalAliasCleanupIndex = nativeAliasPasses(2)
+      phase match {
+        case Some(value) => phases.update(finalAliasCleanupIndex, value)
+        case None        => phases.remove(finalAliasCleanupIndex)
       }
     }
   }
