@@ -46,15 +46,19 @@ transform canonical IR:
 
 - `WireAliasSafetyGate`, a read-only, component-generic eligibility analysis
   that proves one continuous full-object direct reference, exact packed
-  signedness and value semantics, width equality over the complete admitted parameter domain and
-  generate-index domain, legal lexical replacement and
+  signedness and value semantics, width equality over the complete admitted
+  parameter and generate-index domain, legal lexical replacement and
   continuous-cycle freedom;
-- explicit fail-closed reasons for every observability, hierarchy,
-  bidirectional, memory-port, instance-port, comment and attribute exclusion;
+- explicit fail-closed reasons for every observability, hierarchy, clock,
+  reset, bidirectional, tri-state, memory-port, instance-port, comment and
+  attribute exclusion;
+- conservative rejection of a visible procedural or bidirectional context when
+  canonical IR v1 does not prove that the alias is absent from clock, reset or
+  tri-state control roles;
 - adversarial Scala fixtures for mismatching parameter bindings, multiple and
   partial drivers, non-reference expressions, sibling scopes, combinational
-  cycles, registered feedback, domain-expansion limits and deterministic
-  repeated analysis;
+  cycles, registered feedback, control-role uncertainty, domain-expansion
+  limits and deterministic repeated analysis;
 - strict Verilog-2001 compilation, lint and synthesis plus representative
   simulation for generic combinational and sequential alias fixtures;
 - unbounded formal equivalence over every admitted binding of those generic
@@ -62,6 +66,10 @@ transform canonical IR:
   counterexample; and
 - two independent proof runs whose deterministic inputs, configurations and
   evidence must have the same SHA-256 artifact-set signature.
+
+Every sequential miter forces a low-to-high clock transition while reset is
+active, then enables equivalence assertions only after both independently
+prepared DUT legs have consumed that shared synchronous-reset edge.
 
 WA-03 does not eliminate an alias. WA-04 and WA-05 remain the only increments
 allowed to transform unnamed and named aliases, respectively.
