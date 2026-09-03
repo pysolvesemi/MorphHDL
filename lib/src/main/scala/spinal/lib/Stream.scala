@@ -3546,13 +3546,34 @@ class StreamFifoCC[T <: Data] private[lib] (
           elabDepth,
           "StreamFifoCC invalid-depth owner"
         )
-      io.push.ready := False
+      // Verilog-2001 `always @(*)` blocks whose right-hand sides are only
+      // literals have an empty sensitivity set and therefore never awaken in
+      // simulators such as Icarus.  Retain one masked input carrier so every
+      // invalid-branch output still resolves to zero, including for an X
+      // input, while each emitted combinational process has a real event
+      // source at time zero.
+      val inert = (io.push.valid & False)
+        .setName("stream_fifocc_invalid_inert")
+        .dontSimplifyIt()
+      io.push.ready := inert
       io.pushOccupancy := 0
-      io.pop.valid := False
+      io.pop.valid := inert
       io.pop.payload.assignFromBits(
         B(0).resize(widthOfExpr(io.pop.payload))
       )
       io.popOccupancy := 0
+      // Keep the width-sensitive zero assignments themselves in the existing
+      // invariant-zero proof lane. Repeating them below a condition on the
+      // continuously-driven carrier gives their procedural blocks a genuine
+      // sensitivity without introducing a concrete-width resize or relying on
+      // an emitter-generated bridge name for an aggregate payload.
+      when(inert) {
+        io.pushOccupancy := 0
+        io.pop.payload.assignFromBits(
+          B(0).resize(widthOfExpr(io.pop.payload))
+        )
+        io.popOccupancy := 0
+      }
     }
 
     algorithm.popToPushGray.setName("popToPushGray")

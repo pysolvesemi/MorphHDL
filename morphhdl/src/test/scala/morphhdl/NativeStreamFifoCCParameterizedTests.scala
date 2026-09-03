@@ -1288,13 +1288,10 @@ class NativeStreamFifoCCParameterizedTests extends AnyFunSuite {
           s"$definitionName reset synchronizer escaped its legal owner:\n$fifoRtl"
         )
         val invalidBody = fifoRtl.substring(guardPositions(1))
-        assert(invalidBody.contains("io_push_ready=1'b0;"), fifoRtl)
-        assert(invalidBody.contains("io_pop_valid=1'b0;"), fifoRtl)
-        assert(
-          invalidBody.contains("=8'h0;") &&
-            invalidBody.contains("io_pop_payload_0=") &&
-            invalidBody.contains("io_pop_payload_1="),
-          s"aggregate payload was not tied inert in $definitionName:\n$fifoRtl"
+        assertSensitizedInvalidInterface(
+          invalidBody,
+          Vector("io_pop_payload_0", "io_pop_payload_1"),
+          fifoRtl
         )
       }
     }
@@ -1553,10 +1550,11 @@ class NativeStreamFifoCCParameterizedTests extends AnyFunSuite {
       assert(guardPositions.size >= 2, fifoRtl)
       val legalBody = compact.substring(guardPositions.head, guardPositions(1))
       val invalidBody = compact.substring(guardPositions(1))
-      assert(invalidBody.contains("io_push_ready=1'b0;"), fifoRtl)
-      assert(invalidBody.contains("io_pop_valid=1'b0;"), fifoRtl)
-      assert(invalidBody.contains("io_pushOccupancy="), fifoRtl)
-      assert(invalidBody.contains("io_popOccupancy="), fifoRtl)
+      assertSensitizedInvalidInterface(
+        invalidBody,
+        Vector("io_pop_payload"),
+        fifoRtl
+      )
       assert(legalBody.contains("popToPushGray="), fifoRtl)
       assert(legalBody.contains("pushToPopGray="), fifoRtl)
       assert(!invalidBody.contains("popToPushGray"), fifoRtl)
@@ -1828,6 +1826,68 @@ class NativeStreamFifoCCParameterizedTests extends AnyFunSuite {
 
   private def compactWhitespace(value: String): String =
     value.replaceAll("\\s+", "")
+
+  private def assertSensitizedInvalidInterface(
+      invalidBody: String,
+      payloadSignals: Vector[String],
+      context: String
+  ): Unit = {
+    val inert = "stream_fifocc_invalid_inert"
+    val inertAssignment =
+      s"assign$inert=\\(io_push_valid&&([^;]+)\\);".r
+        .findFirstMatchIn(invalidBody)
+        .getOrElse(fail(s"invalid branch lacks its masked input carrier:\n$context"))
+    assert(
+      isZeroDrivenExpression(invalidBody, inertAssignment.group(1)),
+      s"invalid branch carrier is not masked by zero:\n$context"
+    )
+    assert(invalidBody.contains(s"io_push_ready=$inert;"), context)
+    assert(invalidBody.contains(s"io_pop_valid=$inert;"), context)
+    (Vector("io_pushOccupancy", "io_popOccupancy") ++ payloadSignals)
+      .foreach(signal =>
+        assertSensitizedZeroOutput(invalidBody, inert, signal, context)
+      )
+  }
+
+  private def assertSensitizedZeroOutput(
+      invalidBody: String,
+      inert: String,
+      signal: String,
+      context: String
+  ): Unit = {
+    val quotedSignal = java.util.regex.Pattern.quote(signal)
+    val pattern = (
+      s"always@\\(\\*\\)begin$quotedSignal=([^;]+);" +
+        s"if\\($inert\\)begin$quotedSignal=([^;]+);endend"
+    ).r
+    val assignment = pattern.findFirstMatchIn(invalidBody).getOrElse {
+      fail(s"invalid output '$signal' lacks retained zero sensitivity:\n$context")
+    }
+    val defaultValue = assignment.group(1)
+    val sensitizedValue = assignment.group(2)
+    Vector(defaultValue, sensitizedValue).foreach { value =>
+      assert(
+        isZeroDrivenExpression(invalidBody, value),
+        s"invalid output '$signal' is driven by nonzero expression '$value':\n$context"
+      )
+    }
+  }
+
+  private def isZeroDrivenExpression(
+      invalidBody: String,
+      expression: String
+  ): Boolean = {
+    if (expression.matches("[0-9]+'[bhd]0+")) return true
+    val WireOrSlice = "([A-Za-z_][A-Za-z0-9_$]*)(?:\\[[^\\]]+\\])?".r
+    expression match {
+      case WireOrSlice(wire) =>
+        val quotedWire = java.util.regex.Pattern.quote(wire)
+        s"assign$quotedWire=[0-9]+'[bhd]0+;".r
+          .findFirstIn(invalidBody)
+          .nonEmpty
+      case _ => false
+    }
+  }
 
   private def allIndicesOf(value: String, needle: String): Vector[Int] = {
     require(needle.nonEmpty)

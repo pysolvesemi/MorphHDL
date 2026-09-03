@@ -433,10 +433,16 @@ require(
     "typed FIFO traces must retain their exact projected legal-depth ceiling without changing synthesis behavior",
 )
 require(
-    r"io\.push\.ready\s*:=\s*False.*?io\.pushOccupancy\s*:=\s*0.*?io\.pop\.valid\s*:=\s*False.*?io\.pop\.payload\.assignFromBits\s*\(\s*B\s*\(\s*0\s*\)\.resize\s*\(\s*widthOfExpr\s*\(\s*io\.pop\.payload\s*\)\s*\)\s*\).*?io\.popOccupancy\s*:=\s*0",
+    r"val\s+inert\s*=\s*\(\s*io\.push\.valid\s*&\s*False\s*\).*?\.setName\s*\(\s*\"stream_fifocc_invalid_inert\"\s*\).*?\.dontSimplifyIt\s*\(\s*\)",
+    invalid_region,
+    "INVALID-ALTERNATIVE-SENSITIVITY-MISSING",
+    "the inert alternative must retain a masked input carrier for Verilog-2001 combinational sensitivity",
+)
+require(
+    r"io\.push\.ready\s*:=\s*inert.*?io\.pushOccupancy\s*:=\s*0.*?io\.pop\.valid\s*:=\s*inert.*?io\.pop\.payload\.assignFromBits\s*\(\s*B\s*\(\s*0\s*\)\.resize\s*\(\s*widthOfExpr\s*\(\s*io\.pop\.payload\s*\)\s*\)\s*\).*?io\.popOccupancy\s*:=\s*0.*?when\s*\(\s*inert\s*\)\s*\{\s*io\.pushOccupancy\s*:=\s*0\s*io\.pop\.payload\.assignFromBits\s*\(\s*B\s*\(\s*0\s*\)\.resize\s*\(\s*widthOfExpr\s*\(\s*io\.pop\.payload\s*\)\s*\)\s*\)\s*io\.popOccupancy\s*:=\s*0",
     invalid_region,
     "INVALID-ALTERNATIVE-MISSING",
-    "illegal depth specializations must drive the complete public FIFO interface inert for every Data payload shape",
+    "illegal depth specializations must drive and sensitize the complete public FIFO interface inert for every Data payload shape",
 )
 reject(
     r"io\.pop\.payload\.getZero",
@@ -876,9 +882,10 @@ require(
     "an ordinary non-opt-in test must pin the deterministic shared-clock harness shape across the full matrix",
 )
 
-# PDR consumes a binary AIG. Preserve ordinary and undriven unknowns as
-# nondeterministic inputs first, then normalize only residual FF/RAM init state.
-# Reversing these commands would over-constrain the equivalence proof.
+# PDR consumes a fully flattened binary AIG. Release the synthesis-only
+# BufferCC hierarchy boundary before prep so the engine cannot prune its CDC
+# outputs, then preserve ordinary and undriven unknowns as nondeterministic
+# inputs before normalizing only residual FF/RAM init state.
 for builder, next_builder in (
     ("positiveSby", "mutationSby"),
     ("mutationSby", "runSby"),
@@ -894,20 +901,20 @@ for builder, next_builder in (
             f"formal builder {builder} must remain separately inspectable",
         )
     normalization = re.findall(
-        r"\|memory_map\s*\n\s*\|setundef -undriven -anyseq\s*\n\s*\|setundef -init -zero\s*\n\s*\|opt_clean\s*\n\s*\|check -assert",
+        r"\|hierarchy -check -top \$top\s*\n\s*\|setattr -unset keep_hierarchy\s*\n\s*\|prep -top \$top\s*\n\s*\|memory_map\s*\n\s*\|setundef -undriven -anyseq\s*\n\s*\|setundef -init -zero\s*\n\s*\|opt_clean\s*\n\s*\|check -assert",
         builder_match.group("body"),
         re.MULTILINE,
     )
     if len(normalization) != 1:
         fail(
             "FORMAL-UNDEFINED-NORMALIZATION-MISSING",
-            f"formal builder {builder} must preserve exactly one ordered nondeterministic-then-init normalization sequence",
+            f"formal builder {builder} must preserve exactly one ordered hierarchy-release and undefined-state normalization sequence",
         )
 require(
-    r"val\s+undefinedStateNormalization\s*=.*?memory_map.*?setundef -undriven -anyseq.*?setundef -init -zero.*?Vector\s*\(\s*config\s*,\s*mutationConfig\s*\)\.foreach.*?indexOf\s*\(\s*undefinedStateNormalization\s*\).*?indexOf\s*\(\s*undefinedStateNormalization\s*,\s*first\s*\+\s*1\s*\)\s*<\s*0",
+    r"val\s+proofPreparation\s*=.*?hierarchy -check -top miter.*?setattr -unset keep_hierarchy.*?prep -top miter.*?memory_map.*?setundef -undriven -anyseq.*?setundef -init -zero.*?Vector\s*\(\s*config\s*,\s*mutationConfig\s*\)\.foreach.*?indexOf\s*\(\s*proofPreparation\s*\).*?indexOf\s*\(\s*proofPreparation\s*,\s*first\s*\+\s*1\s*\)\s*<\s*0",
     formal_tests,
     "FORMAL-UNDEFINED-NORMALIZATION-TEST-MISSING",
-    "an ordinary unit test must pin ordering and uniqueness in both positive and mutation formal configs",
+    "an ordinary unit test must pin hierarchy release, normalization ordering and uniqueness in both formal configs",
 )
 
 # The shared Gray helper is wider than StreamFifoCC's current pointer matrix.
@@ -1052,7 +1059,7 @@ case "${1:-}" in
       "$temporary/retry-bypass.stderr" ||
       fail SELF-TEST-DIAGNOSTIC 'parameterized diagnostic retry mutation did not report its stable diagnostic'
 
-    sed '0,/io\.push\.ready := False/s//io.push.ready := True/' \
+    sed '0,/io\.push\.ready := inert/s//io.push.ready := True/' \
       "$stream_source" > "$temporary/unsafe-invalid-depth.scala"
     if MORPHDL_STREAMFIFOCC_STREAM_SOURCE="$temporary/unsafe-invalid-depth.scala" \
       "$0" --check >"$temporary/inert.stdout" 2>"$temporary/inert.stderr"; then
@@ -1111,6 +1118,16 @@ case "${1:-}" in
     grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-FORMAL-UNDEFINED-NORMALIZATION-MISSING' \
       "$temporary/formal.stderr" ||
       fail SELF-TEST-DIAGNOSTIC 'formal normalization mutation did not report its stable diagnostic'
+
+    sed 's/|setattr -unset keep_hierarchy/|setattr -set keep_hierarchy 1/g' \
+      "$formal_test_source" > "$temporary/retained-formal-hierarchy.scala"
+    if MORPHDL_STREAMFIFOCC_FORMAL_TEST_SOURCE="$temporary/retained-formal-hierarchy.scala" \
+      "$0" --check >"$temporary/hierarchy.stdout" 2>"$temporary/hierarchy.stderr"; then
+      fail SELF-TEST-ACCEPTED 'retained formal BufferCC hierarchy mutation passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-FORMAL-UNDEFINED-NORMALIZATION-MISSING' \
+      "$temporary/hierarchy.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'formal hierarchy mutation did not report its stable diagnostic'
 
     printf 'Increment 57a typed native StreamFifoCC boundary self-test passed.\n'
     ;;

@@ -241,17 +241,20 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
     assert("(?m)^abc pdr$".r.findFirstIn(config).nonEmpty, config)
     assert("(?m)^depth\\s+".r.findFirstIn(config).isEmpty, config)
     assert(!config.contains("smtbmc"), config)
-    val undefinedStateNormalization =
-      """memory_map
+    val proofPreparation =
+      """hierarchy -check -top miter
+        |setattr -unset keep_hierarchy
+        |prep -top miter
+        |memory_map
         |setundef -undriven -anyseq
         |setundef -init -zero
         |opt_clean
         |check -assert""".stripMargin
     Vector(config, mutationConfig).foreach { script =>
-      val first = script.indexOf(undefinedStateNormalization)
+      val first = script.indexOf(proofPreparation)
       assert(first >= 0, script)
       assert(
-        script.indexOf(undefinedStateNormalization, first + 1) < 0,
+        script.indexOf(proofPreparation, first + 1) < 0,
         script
       )
     }
@@ -590,6 +593,8 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
     // it can therefore start from an unreachable state whose visible FIFO
     // state agrees but whose next readable word differs. PDR proves the safety
     // properties over states reachable from the initialized reset schedule.
+    // BufferCC retains hierarchy for synthesis CDC metadata; release that
+    // boundary before prep so the proof AIG keeps and flattens its output cones.
     s"""[options]
        |mode prove
        |expect pass
@@ -604,6 +609,7 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
        |read_rtlil ${prepared.reference.getFileName}
        |read_verilog -formal ${miter.getFileName}
        |hierarchy -check -top $top
+       |setattr -unset keep_hierarchy
        |prep -top $top
        |memory_map
        |setundef -undriven -anyseq
@@ -638,6 +644,7 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
        |read_rtlil ${prepared.reference.getFileName}
        |read_verilog -formal ${miter.getFileName}
        |hierarchy -check -top $top
+       |setattr -unset keep_hierarchy
        |prep -top $top
        |memory_map
        |setundef -undriven -anyseq

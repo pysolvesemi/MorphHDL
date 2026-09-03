@@ -2461,7 +2461,7 @@
           "id": "stream-cc-invalid-depth-01",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifoCC invalid-depth structural branch",
-          "reason": "Keep every illegal depth specialization outside the CDC algorithm and drive a safe inert aggregate-capable interface under its own captured owner.",
+          "reason": "Keep every illegal depth specialization outside the CDC algorithm and drive an event-safe inert aggregate-capable interface under its own captured owner.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -2476,6 +2476,11 @@
             {
               "side": "approved",
               "text": "B(0).resize(widthOfExpr(io.pop.payload))",
+              "count": 2
+            },
+            {
+              "side": "approved",
+              "text": "stream_fifocc_invalid_inert",
               "count": 1
             }
           ]
