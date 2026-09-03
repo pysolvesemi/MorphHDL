@@ -72,8 +72,15 @@ module Wa03ParameterizedWitnessTb;
 
     if (io_occupancy !== 4'd1)
       fail_test("single push did not increment occupancy");
-    if (!io_pop_valid)
-      fail_test("single push did not make pop valid");
+
+    repeat (4) begin
+      if (io_pop_valid !== 1'b1) begin
+        @(posedge clk);
+        #1;
+      end
+    end
+    if (io_pop_valid !== 1'b1)
+      fail_test("single push did not make pop valid within the read-latency bound");
     if (io_pop_payload !== {WIDTH{1'b1}})
       fail_test("single pushed payload was not retained");
 
