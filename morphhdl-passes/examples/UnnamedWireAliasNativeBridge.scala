@@ -555,7 +555,12 @@ private[examples] object UnnamedWireAliasWitnessPhasePlan {
           s"WA-04 witness expected three native unnamed-removal phases, found ${nativeAliasPasses.size}"
         )
 
-      nativeAliasPasses.drop(1).reverse.foreach(index => phases.remove(index))
+      val postWidthTypeCleanupIndex = nativeAliasPasses(1)
+      phases.update(
+        postWidthTypeCleanupIndex,
+        new PhaseRemoveIntermediateUnnameds(true)
+      )
+      nativeAliasPasses.drop(2).reverse.foreach(index => phases.remove(index))
       phase.foreach { value =>
         val insertionIndex = phases.indexWhere(_.isInstanceOf[PhaseSimplifyNodes])
         if (insertionIndex < 0)
