@@ -71,6 +71,10 @@ Every sequential miter forces a low-to-high clock transition while reset is
 active, then enables equivalence assertions only after both independently
 prepared DUT legs have consumed that shared synchronous-reset edge.
 
+The static WA-03 guard pins the clock, reset, tri-state and unproven-control
+reason codes and their regression markers so later edits cannot silently weaken
+this fail-closed boundary.
+
 WA-03 does not eliminate an alias. WA-04 and WA-05 remain the only increments
 allowed to transform unnamed and named aliases, respectively.
 
