@@ -27,21 +27,38 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import hashlib
+          import json
           from pathlib import Path
 
-          path = Path("morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala")
-          text = path.read_text(encoding="utf-8")
+          source = Path("morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala")
+          text = source.read_text(encoding="utf-8")
           replacements = {
               '      s"  \\"visited_candidates\\": $visitedCandidates,",': '      s"""  "visited_candidates": $visitedCandidates,""",',
               '      s"  \\"eliminated_count\\": $eliminatedCount,",': '      s"""  "eliminated_count": $eliminatedCount,""",',
               '      s"  \\"rewritten_reference_count\\": $rewrittenReferences,",': '      s"""  "rewritten_reference_count": $rewrittenReferences,""",',
               '      s"  \\"eliminated_ordinals\\": [${eliminatedOrdinals.mkString(", ")}],",': '      s"""  "eliminated_ordinals": [${eliminatedOrdinals.mkString(", ")}],""",',
           }
+          changed = False
           for old, new in replacements.items():
-              if old not in text:
-                  raise SystemExit(f"expected interpolation not found: {old}")
-              text = text.replace(old, new, 1)
-          path.write_text(text, encoding="utf-8")
+              if old in text:
+                  text = text.replace(old, new, 1)
+                  changed = True
+              elif new not in text:
+                  raise SystemExit(f"neither old nor repaired interpolation was found: {old}")
+          if changed:
+              source.write_text(text, encoding="utf-8")
+
+          registry_path = Path(
+              "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
+          )
+          registry = json.loads(registry_path.read_text(encoding="utf-8"))
+          relative = source.as_posix()
+          registry["files"][relative] = hashlib.sha256(source.read_bytes()).hexdigest()
+          registry_path.write_text(
+              json.dumps(registry, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
           PY
 
           git diff --check
@@ -52,6 +69,8 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala
+          git add \
+            morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala \
+            morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json
           git commit -m "WA-04: fix Scala 2.12 report interpolation"
           git push origin "HEAD:${GITHUB_REF_NAME}"
