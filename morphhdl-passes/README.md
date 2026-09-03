@@ -143,5 +143,7 @@ python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py \
   --check-determinism
 ```
 
+The final branch head, rather than an earlier staging commit, is the authoritative source for every closure gate.
+
 The contracts keep both passes disabled by default. Transforming alias
 elimination starts only in WA-04.
