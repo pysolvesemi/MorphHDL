@@ -43,6 +43,8 @@ The passes must:
 - operate on declaration, driver and reference identities rather than emitted
   identifiers;
 - preserve symbolic parameter expressions and constraints;
+- be component-generic and make every decision only from canonical IR identity,
+  structure and metadata;
 - run before final Verilog text emission; and
 - use the existing MorphHDL Verilog backend after transformation.
 
@@ -52,8 +54,25 @@ The passes must not:
 - introduce a generic Verilog parser or file-to-file postprocessor;
 - use regex or emitted-name patterns to identify candidates;
 - reconstruct parameter intent from concrete constants;
-- duplicate or fork the canonical MorphHDL semantic IR; or
+- duplicate or fork the canonical MorphHDL semantic IR;
+- special-case `StreamFifo`, `StreamFifoCC`, another component class,
+  module/class name, source filename, generated identifier or library
+  algorithm; or
 - modify upstream-owned SpinalHDL source.
+
+## Component-generic implementation rule
+
+Every adapter, validator, pass and ordered pipeline in this roadmap must be
+component-generic. Eligibility and transformation decisions may depend only on
+validated canonical IR identities, kinds, scopes, drivers, references, packed
+types, parameter domains, naming provenance, observability, comments and
+attributes defined by this roadmap. No implementation may recognize
+`StreamFifo`, `StreamFifoCC`, any other component or library class, a module or
+component name, a source filename, or a generated HDL identifier to select a
+code path. `SourceLocation` may be retained and reported, but its path must not
+change eligibility. Renaming an otherwise identical fixture from a library
+component name to an unrelated name must not change adapter facts, diagnostics,
+classification or transformation.
 
 ## Bounded simple-wire alias contract
 
@@ -186,6 +205,9 @@ MorphHDL-owned orchestration code; pass logic remains under `morphhdl-passes/`.
 - Mark an increment `[x]` only in its reviewed pull request after all applicable
   gates pass, and update the next increment's `Status` in the same pull request.
 - Every pass and pass combination must be deterministic and idempotent.
+- The component-generic rule applies to every `WA-*` increment and must be
+  covered by fixtures whose component and source names differ while canonical
+  alias structure remains identical.
 
 ## Incremental plan
 
@@ -208,14 +230,16 @@ MorphHDL-owned orchestration code; pass logic remains under `morphhdl-passes/`.
 
   **Dependencies:** WA-01 and PV-54 implemented and merged.
 
-  **Status:** `BLOCKED` by PV-54.
+  **Status:** `IN PROGRESS`.
 
   Bind the standalone workspace to the stable canonical MorphHDL-owned IR after
   external parameterization/capture and before Verilog lowering. Expose
   resolved declaration, driver, reference, packed-type, parameter-domain,
   name-origin, source-location and observability metadata required by the
   bounded alias contract. Add a hard guard proving that the adapter does not
-  consume, parse or pattern-match generated Verilog. Do not eliminate aliases.
+  consume, parse or pattern-match generated Verilog. Prove that component and
+  source names, including `StreamFifo`, do not select a special path. Do not
+  eliminate aliases.
 
 - [ ] **WA-03 — Alias-elimination equivalence, safety and determinism gates**
 

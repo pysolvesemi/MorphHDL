@@ -103,12 +103,18 @@ jobs:
         shell: bash
         run: bash morphhdl-passes/scripts/test-boundary-guard.sh
 
+      - name: Enforce canonical adapter and component-generic pass source
+        shell: bash
+        run: |
+          python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py --self-test
+          python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py
+
   contracts:
-    name: Pass contracts Scala ${{ matrix.scala_version }}
+    name: Pass contracts and canonical adapter Scala ${{ matrix.scala_version }}
     needs: boundary
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     strategy:
@@ -121,7 +127,7 @@ jobs:
       - name: Check out sources
         uses: actions/checkout@v4
 
-      - name: Test standalone pass contracts
+      - name: Test standalone pass contracts and canonical-v1 adapter
         working-directory: morphhdl-passes
         shell: bash
         run: sbt -batch ++${{ matrix.scala_version }} test

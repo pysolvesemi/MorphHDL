@@ -9,6 +9,8 @@ ThisBuild / scalacOptions ++= Seq(
   "-Xfatal-warnings"
 )
 
+lazy val canonicalIr = ProjectRef(file("..").toURI, "morphir")
+
 lazy val root = (project in file("."))
   .settings(
     name := "morphhdl-ir-passes",
@@ -17,3 +19,4 @@ lazy val root = (project in file("."))
     libraryDependencies +=
       "org.scalatest" %% "scalatest" % "3.2.18" % Test
   )
+  .dependsOn(canonicalIr)
