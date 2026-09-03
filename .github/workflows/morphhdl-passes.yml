@@ -35,6 +35,7 @@ jobs:
       - name: Check out sources
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Resolve boundary source branch
@@ -138,6 +139,8 @@ jobs:
     steps:
       - name: Check out sources
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Test standalone pass contracts, canonical adapter, safety gate and unnamed transform
         working-directory: morphhdl-passes
@@ -159,6 +162,7 @@ jobs:
       - name: Check out sources
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Verify pinned formal toolchain
