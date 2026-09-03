@@ -1,0 +1,58 @@
+name: WA-03 Scala 2.12 source repair
+
+on:
+  push:
+    branches:
+      - agent/wa-03-alias-equivalence-gates
+    paths:
+      - ".github/workflows/wa03-repair-scala212.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wa03-scala212-source-repair-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: Apply reviewed Scala 2.12 type annotation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Repair the unique generate-index fixture and remove this workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphhdl-passes/src/test/scala/morphhdl/passes/safety/WireAliasSafetyGateSpec.scala")
+          text = path.read_text(encoding="utf-8")
+          marker = '  test("generate-index domains are enumerated completely") {'
+          start = text.index(marker)
+          end = text.index('  test("complex integer and Boolean width algebra', start)
+          section = text[start:end]
+          old = "    val design = updateModule(\n"
+          new = "    val design: Design = updateModule(\n"
+          if section.count(old) != 1:
+              raise SystemExit("expected one untyped generate-index design fixture")
+          section = section.replace(old, new, 1)
+          updated = text[:start] + section + text[end:]
+          if updated.count(new) < 1:
+              raise SystemExit("Scala 2.12 annotation was not applied")
+          path.write_text(updated, encoding="utf-8")
+          PY
+
+          rm -f .github/workflows/wa03-repair-scala212.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Fix WA-03 Scala 2.12 fixture inference"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
