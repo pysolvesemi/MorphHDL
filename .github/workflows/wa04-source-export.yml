@@ -1,0 +1,32 @@
+name: WA-04 source export
+
+on:
+  push:
+    branches:
+      - agent/wa-04-unnamed-simple-wire-elimination
+    paths:
+      - ".github/workflows/wa04-source-export.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+      - name: Archive source
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar --exclude=.git -czf "${RUNNER_TEMP}/MorphHDL-wa04.tar.gz" .
+      - name: Upload source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: wa04-source-export
+          path: ${{ runner.temp }}/MorphHDL-wa04.tar.gz
+          if-no-files-found: error
+          retention-days: 1
