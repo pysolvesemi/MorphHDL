@@ -26,6 +26,11 @@ IMPLEMENTATION_RULES: tuple[Rule, ...] = (
         re.compile(r"\b(?:StreamFifo(?:CC)?|ParameterizedStreamFifo)\b"),
     ),
     Rule(
+        "WA02-WITNESS-COUPLING",
+        "pass implementation must not depend on the component-specific witness package",
+        re.compile(r"\bmorphhdl\.examples\b"),
+    ),
+    Rule(
         "WA02-MODULE-NAME-RECOGNITION",
         "pass implementation must not inspect canonical module logical names",
         re.compile(r"\blogicalName\b"),
@@ -85,33 +90,39 @@ REQUIRED_ADAPTER_MARKERS: tuple[str, ...] = (
     "design: Design",
 )
 
-# These expressions validate the meaning of the roadmap rule rather than one
-# punctuation-sensitive spelling. Line wrapping and equivalent wording must not
-# make the guard itself component-specific or brittle.
+# Validate the meaning of the roadmap rule instead of one punctuation-sensitive
+# spelling. Equivalent prose and Markdown line wrapping must remain acceptable.
+PROHIBITION_LEAD = (
+    r"(?:must\s+not|may\s+not|no\s+implementation\s+may|without\s+recognizing)"
+)
+
 REQUIRED_ROADMAP_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "a component-generic canonical-IR rule",
-        re.compile(r"(?:component-generic|generic(?:ally)?\s+over\s+(?:the\s+)?canonical\s+IR)", re.IGNORECASE),
+        re.compile(
+            r"(?:component-generic|generic(?:ally)?\s+over\s+(?:the\s+)?canonical\s+IR)",
+            re.IGNORECASE,
+        ),
     ),
     (
         "an explicit StreamFifo non-special-case rule",
         re.compile(
-            r"(?:must\s+not|may\s+not|without\s+recognizing)[\s\S]{0,320}\bStreamFifo(?:CC)?\b",
+            PROHIBITION_LEAD + r"[\s\S]{0,320}\bStreamFifo(?:CC)?\b",
             re.IGNORECASE,
         ),
     ),
     (
         "a module/component-name non-recognition rule",
         re.compile(
-            r"(?:must\s+not|may\s+not|without\s+recognizing)[\s\S]{0,320}"
-            r"\b(?:module(?:/class|\s+or\s+component)?\s+name|component\s+name)\b",
+            PROHIBITION_LEAD
+            + r"[\s\S]{0,320}\b(?:module(?:/class|\s+or\s+component)?|component)[-\s]+name\b",
             re.IGNORECASE,
         ),
     ),
     (
         "a source-filename non-recognition rule",
         re.compile(
-            r"(?:must\s+not|may\s+not|without\s+recognizing)[\s\S]{0,320}\bsource\s+filename\b",
+            PROHIBITION_LEAD + r"[\s\S]{0,320}\bsource[-\s]+filename\b",
             re.IGNORECASE,
         ),
     ),
@@ -139,8 +150,18 @@ def scan_text(path: Path, text: str, rules: Sequence[Rule]) -> list[str]:
 
 
 def scala_sources(root: Path) -> list[Path]:
-    source_root = root / "morphhdl-passes" / "src" / "main" / "scala" / "morphhdl" / "passes"
-    return sorted(path for path in source_root.rglob("*.scala") if "/api/" not in path.as_posix())
+    source_root = (
+        root
+        / "morphhdl-passes"
+        / "src"
+        / "main"
+        / "scala"
+        / "morphhdl"
+        / "passes"
+    )
+    return sorted(
+        path for path in source_root.rglob("*.scala") if "/api/" not in path.as_posix()
+    )
 
 
 def adapter_sources(root: Path) -> list[Path]:
@@ -186,7 +207,13 @@ def check_witness(root: Path) -> list[str]:
             )
 
     implementation_root = (
-        root / "morphhdl-passes" / "src" / "main" / "scala" / "morphhdl" / "passes"
+        root
+        / "morphhdl-passes"
+        / "src"
+        / "main"
+        / "scala"
+        / "morphhdl"
+        / "passes"
     )
     try:
         witness.relative_to(implementation_root)
@@ -196,6 +223,17 @@ def check_witness(root: Path) -> list[str]:
         failures.append(
             "WA02-WITNESS-IN-IMPLEMENTATION: component fixture must remain outside pass implementation sources"
         )
+
+    build_file = root / "morphhdl-passes" / "build.sbt"
+    if build_file.is_file():
+        build_text = build_file.read_text(encoding="utf-8")
+        if re.search(
+            r"(?:unmanagedSourceDirectories|unmanagedSources)[\s\S]{0,240}\bexamples\b",
+            build_text,
+        ):
+            failures.append(
+                "WA02-WITNESS-IN-PRODUCTION-BUILD: the component fixture must not be compiled as pass implementation"
+            )
     return failures
 
 
@@ -212,7 +250,9 @@ def check_repository(root: Path) -> list[str]:
         text = path.read_text(encoding="utf-8")
         failures.extend(scan_text(path.relative_to(root), text, IMPLEMENTATION_RULES))
 
-    combined_adapter = "\n".join(path.read_text(encoding="utf-8") for path in adapter_paths)
+    combined_adapter = "\n".join(
+        path.read_text(encoding="utf-8") for path in adapter_paths
+    )
     for path in adapter_paths:
         text = path.read_text(encoding="utf-8")
         failures.extend(scan_text(path.relative_to(root), text, ADAPTER_ONLY_RULES))
@@ -241,21 +281,29 @@ def check_repository(root: Path) -> list[str]:
 
 
 def expect_clean(text: str) -> None:
-    failures = scan_text(Path("Allowed.scala"), text, IMPLEMENTATION_RULES + ADAPTER_ONLY_RULES)
+    failures = scan_text(
+        Path("Allowed.scala"), text, IMPLEMENTATION_RULES + ADAPTER_ONLY_RULES
+    )
     if failures:
         raise AssertionError("allowed adapter source was rejected:\n" + "\n".join(failures))
 
 
 def expect_rejected(text: str, code: str) -> None:
-    failures = scan_text(Path("Mutant.scala"), text, IMPLEMENTATION_RULES + ADAPTER_ONLY_RULES)
+    failures = scan_text(
+        Path("Mutant.scala"), text, IMPLEMENTATION_RULES + ADAPTER_ONLY_RULES
+    )
     if not any(code in failure for failure in failures):
         raise AssertionError(f"mutation was not rejected by {code}: {text!r}")
 
 
 def expect_roadmap_rule(text: str, description: str) -> None:
-    rule = next(pattern for label, pattern in REQUIRED_ROADMAP_RULES if label == description)
-    if rule.search(text) is None:
-        raise AssertionError(f"valid roadmap wording was rejected for {description}: {text!r}")
+    pattern = next(
+        rule for label, rule in REQUIRED_ROADMAP_RULES if label == description
+    )
+    if pattern.search(text) is None:
+        raise AssertionError(
+            f"valid roadmap wording was rejected for {description}: {text!r}"
+        )
 
 
 def run_self_test() -> None:
@@ -268,7 +316,11 @@ object Adapter { def bind(design: Design) = design.modules.map(_.id) }
     mutations = (
         ("val selected = StreamFifo", "WA02-COMPONENT-SPECIAL-CASE"),
         ("val selected = ParameterizedStreamFifo", "WA02-COMPONENT-SPECIAL-CASE"),
-        ("design.modules.filter(_.logicalName == \"special\")", "WA02-MODULE-NAME-RECOGNITION"),
+        ("import morphhdl.examples.ParameterizedStreamFifo", "WA02-WITNESS-COUPLING"),
+        (
+            "design.modules.filter(_.logicalName == \"special\")",
+            "WA02-MODULE-NAME-RECOGNITION",
+        ),
         ("import spinal.core.Component", "WA02-SPINAL-IMPLEMENTATION-DEPENDENCY"),
         ("scala.io.Source.fromFile(\"out.v\")", "WA02-FILE-TEXT-INGRESS"),
         ("val matcher = \"assign.*\".r", "WA02-REGEX-MATCHING"),
@@ -284,15 +336,15 @@ object Adapter { def bind(design: Design) = design.modules.map(_.id) }
         "a component-generic canonical-IR rule",
     )
     expect_roadmap_rule(
-        "The implementation must not special-case StreamFifo.",
+        "No implementation may recognize StreamFifo.",
         "an explicit StreamFifo non-special-case rule",
     )
     expect_roadmap_rule(
-        "The implementation must not inspect a module or component name.",
+        "No implementation may inspect a module-name or component name.",
         "a module/component-name non-recognition rule",
     )
     expect_roadmap_rule(
-        "The implementation must not inspect a source filename.",
+        "No implementation may inspect a source filename.",
         "a source-filename non-recognition rule",
     )
 
