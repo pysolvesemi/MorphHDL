@@ -68,6 +68,8 @@ private[examples] final class UnnamedWireAliasNativePhase extends Phase {
     )
   }
 
+  override def hasNetlistImpact: Boolean = true
+
   override def impl(pc: PhaseContext): Unit = {
     val eliminatedBuilder = Vector.newBuilder[Int]
     var nextOrdinal = 0
