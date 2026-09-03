@@ -11,6 +11,7 @@ import morphhdl.ir.v1.RtlExpr
 import morphhdl.ir.v1.SymbolId
 import morphhdl.passes.adapter.CanonicalIrAdapterFailure
 import morphhdl.passes.adapter.CanonicalIrPassAdapter
+import morphhdl.passes.adapter.CanonicalIrPassView
 import morphhdl.passes.api.AliasNameOrigin
 import morphhdl.passes.api.DiagnosticSeverity
 import morphhdl.passes.api.EliminatedWireAlias
@@ -80,32 +81,33 @@ object UnnamedWireAliasEliminationPass {
                 diagnostics = diagnostics
               ).normalized
             case Right(transformation) =>
-              val finalView = CanonicalIrPassAdapter.bind(transformation.output) match {
-                case Right(value) => value
-                case Left(failure) =>
-                  return PassResult.failed(
-                    output = initialView.design,
-                    report = EliminationReport(passId),
-                    diagnostics = canonicalDiagnostics(
-                      failure,
-                      "final canonical IR validation failed"
-                    )
-                  ).normalized
-              }
-              val finalAssessments = WireAliasSafetyGate
+              val finalView: CanonicalIrPassView =
+                CanonicalIrPassAdapter.bind(transformation.output) match {
+                  case Right(value) => value
+                  case Left(failure) =>
+                    return PassResult.failed(
+                      output = initialView.design,
+                      report = EliminationReport(passId),
+                      diagnostics = canonicalDiagnostics(
+                        failure,
+                        "final canonical IR validation failed"
+                      )
+                    ).normalized
+                }
+              val finalAssessments: Vector[AliasSafetyAssessment] = WireAliasSafetyGate
                 .analyze(finalView, safetyConfiguration)
                 .normalized
                 .assessments
                 .filter(_.nameOrigin == NameOrigin.Unnamed)
-              val rejected = finalAssessments
+              val rejected: Vector[RejectedWireAlias] = finalAssessments
                 .filterNot(_.isEligible)
                 .flatMap(rejectedAlias)
-              val report = EliminationReport(
+              val report: EliminationReport = EliminationReport(
                 passId = passId,
                 eliminated = transformation.eliminated,
                 rejected = rejected
               ).normalized
-              val diagnostics = (
+              val diagnostics: Vector[PassDiagnostic] = (
                 eliminationDiagnostics(report.eliminated) ++
                   rejectionDiagnostics(finalAssessments)
               ).sortBy(diagnosticKey)
@@ -137,7 +139,7 @@ object UnnamedWireAliasEliminationPass {
     var complete = false
 
     while (!complete) {
-      val view = CanonicalIrPassAdapter.bind(current) match {
+      val view: CanonicalIrPassView = CanonicalIrPassAdapter.bind(current) match {
         case Right(value) => value
         case Left(failure) =>
           return Left(
@@ -147,7 +149,7 @@ object UnnamedWireAliasEliminationPass {
             )
           )
       }
-      val eligible = WireAliasSafetyGate
+      val eligible: Vector[AliasSafetyAssessment] = WireAliasSafetyGate
         .analyze(view, safetyConfiguration)
         .eligible
         .filter(_.nameOrigin == NameOrigin.Unnamed)
