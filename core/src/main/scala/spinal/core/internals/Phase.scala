@@ -3525,6 +3525,8 @@ object SpinalVerilogBoot{
           """.stripMargin)
         System.out.flush()
         throw e
+      case e: ParameterizedVerilogException =>
+        throw e
       case e: Throwable => {
         println(e.getStackTrace.mkString("\n"))
         println("\n**********************************************************************************************")

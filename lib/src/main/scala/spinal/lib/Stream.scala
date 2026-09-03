@@ -381,6 +381,13 @@ class Stream[T <: Data](val payloadType :  HardType[T]) extends Bundle with IMas
     fifo.io.pop
   }
 
+  def queue(size: ElabInt, pushClock: ClockDomain, popClock: ClockDomain): Stream[T] = {
+    val fifo = StreamFifoCC(payloadType, size, pushClock, popClock)
+      .setCompositeName(this, "queue", true)
+    fifo.io.push << this
+    fifo.io.pop
+  }
+
 /** Connect this to a fifo and return its pop stream and its occupancy
   */
   private def queuedWithOccupancy(fifo: StreamFifo[T]): (Stream[T], UInt) =
@@ -461,6 +468,13 @@ class Stream[T <: Data](val payloadType :  HardType[T]) extends Bundle with IMas
   */
   def queueWithPushOccupancy(size: Int, pushClock: ClockDomain, popClock: ClockDomain): (Stream[T], UInt) = {
     val fifo = new StreamFifoCC(payloadType, size, pushClock, popClock).setCompositeName(this,"queueWithPushOccupancy", true)
+    fifo.io.push << this
+    (fifo.io.pop, fifo.io.pushOccupancy)
+  }
+
+  def queueWithPushOccupancy(size: ElabInt, pushClock: ClockDomain, popClock: ClockDomain): (Stream[T], UInt) = {
+    val fifo = StreamFifoCC(payloadType, size, pushClock, popClock)
+      .setCompositeName(this, "queueWithPushOccupancy", true)
     fifo.io.push << this
     (fifo.io.pop, fifo.io.pushOccupancy)
   }
@@ -2892,9 +2906,118 @@ class StreamFifoLowLatency[T <: Data](val dataType: HardType[T],val depth: Int,v
 }
 
 object StreamFifoCC{
-  def apply[T <: Data](dataType: HardType[T], depth: Int, pushClock: ClockDomain, popClock: ClockDomain) = new StreamFifoCC(dataType, depth, pushClock, popClock)
-  def apply[T <: Data](push : Stream[T], pop : Stream[T], depth: Int, pushClock: ClockDomain, popClock: ClockDomain) = {
+  // Every mergeable pointer BufferCC definition must expose the same formal
+  // schema. Call-site domains remain on the actual WIDTH binding; deriving the
+  // child formal's bounds from one FIFO makes otherwise identical native
+  // synchronizers incompatible when their defaults match but ranges differ.
+  private val TypedPointerWidthMinimum = BigInt(2)
+  // The largest legal power-of-two Int depth is 2^30, whose wrapped FIFO
+  // pointer needs 31 bits.  log2Up(Int.MaxValue) expresses that exact ceiling.
+  private val TypedPointerWidthMaximum = BigInt(log2Up(Int.MaxValue))
+
+  /** Canonicalize only the invalid tail above the caller's highest legal
+    * power-of-two depth.  All callers in one bucket therefore expose the same
+    * formal schema without admitting another legal FIFO geometry.  The final
+    * cap is the largest [2, max] formal that exact-domain publication can
+    * represent; larger actuals retain the existing fail-closed rejection.
+    */
+  private def typedDepthFormalMaximum(depth: ElabInt): BigInt = {
+    val maximum = depth.maximum
+    if (maximum == 2) maximum
+    else
+      ((BigInt(1) << maximum.bitLength) - 1)
+        .min(ElaborationExactDomain.MaximumDomainSize + 1)
+  }
+
+  private def validateTypedDepth(depth: ElabInt, role: String): ElabBool = {
+    if (depth == null)
+      throw new IllegalArgumentException(s"$role requires a non-null ElabInt depth")
+    if (depth.isConcrete) {
+      assert(
+        isPow2(depth.witness) && depth.witness >= 2,
+        "The depth of the StreamFifoCC must be a power of 2 and equal or bigger than 2"
+      )
+      return ElabBool.literal(true)
+    }
+    depth.requireAuthoritativeIntegerDomain(
+      role,
+      "SPINAL-STREAM-FIFO-CC-DEPTH-EXACT-DOMAIN-REQUIRED",
+      requireExactExtrema = false
+    )
+    if (depth.minimum < 2 || depth.maximum > BigInt(Int.MaxValue))
+      throw new ParameterizedVerilogException(
+        "SPINAL-STREAM-FIFO-CC-DEPTH-DOMAIN-INVALID",
+        s"$role must stay in the Int-sized domain at or above two, but reaches [${depth.minimum}, ${depth.maximum}]",
+        depth.sourceLocation
+      )
+    val legal = (depth >= 2) && depth.isPow2
+    if (!legal.witness)
+      throw new ParameterizedVerilogException(
+        "SPINAL-STREAM-FIFO-CC-DEPTH-DEFAULT-INVALID",
+        s"$role default ${depth.witness} must be a power of two and at least two",
+        depth.sourceLocation
+      )
+    if (legal.isAlwaysFalse)
+      throw new ParameterizedVerilogException(
+        "SPINAL-STREAM-FIFO-CC-DEPTH-NO-LEGAL-VALUE",
+        s"$role admits no power-of-two value at or above two",
+        depth.sourceLocation
+      )
+    legal
+  }
+
+  def apply[T <: Data](dataType: HardType[T], depth: Int, pushClock: ClockDomain, popClock: ClockDomain): StreamFifoCC[T] =
+    new StreamFifoCC(dataType, depth, pushClock, popClock)
+
+  def apply[T <: Data](dataType: HardType[T], depth: Int, pushClock: ClockDomain, popClock: ClockDomain, withPopBufferedReset: Boolean): StreamFifoCC[T] =
+    new StreamFifoCC(dataType, depth, pushClock, popClock, withPopBufferedReset)
+
+  def apply[T <: Data](dataType: HardType[T], depth: ElabInt, pushClock: ClockDomain, popClock: ClockDomain): StreamFifoCC[T] =
+    apply(
+      dataType,
+      depth,
+      pushClock,
+      popClock,
+      ClockDomain.crossClockBufferPushToPopResetGen.get
+    )
+
+  def apply[T <: Data](dataType: HardType[T], depth: ElabInt, pushClock: ClockDomain, popClock: ClockDomain, withPopBufferedReset: Boolean): StreamFifoCC[T] = {
+    validateTypedDepth(depth, "StreamFifoCC typed depth")
+    if (depth.isConcrete || !ParameterizedStructure.captureEnabled)
+      new StreamFifoCC(
+        dataType,
+        depth.witness,
+        pushClock,
+        popClock,
+        withPopBufferedReset
+      )
+    else {
+      ElabFormalComponent.parameter(
+        actual = depth,
+        name = "DEPTH",
+        minimum = BigInt(2),
+        maximum = typedDepthFormalMaximum(depth)
+      )(formal =>
+        new StreamFifoCC(
+          dataType,
+          formal,
+          pushClock,
+          popClock,
+          withPopBufferedReset
+        )
+      )
+    }
+  }
+
+  def apply[T <: Data](push : Stream[T], pop : Stream[T], depth: Int, pushClock: ClockDomain, popClock: ClockDomain): StreamFifoCC[T] = {
     val fifo = new StreamFifoCC(push.payloadType, depth, pushClock, popClock)
+    fifo.io.push << push
+    fifo.io.pop >> pop
+    fifo
+  }
+
+  def apply[T <: Data](push : Stream[T], pop : Stream[T], depth: ElabInt, pushClock: ClockDomain, popClock: ClockDomain): StreamFifoCC[T] = {
+    val fifo = apply(push.payloadType, depth, pushClock, popClock)
     fifo.io.push << push
     fifo.io.pop >> pop
     fifo
@@ -2959,98 +3082,734 @@ object StreamFifoCC{
 
 
 
-class StreamFifoCC[T <: Data](val dataType: HardType[T],
-                              val depth: Int,
-                              val pushClock: ClockDomain,
-                              val popClock: ClockDomain,
-                              val withPopBufferedReset : Boolean = ClockDomain.crossClockBufferPushToPopResetGen.get) extends Component {
+class StreamFifoCC[T <: Data] private[lib] (
+    val dataType: HardType[T],
+    private[lib] val elabDepth: ElabInt,
+    val pushClock: ClockDomain,
+    val popClock: ClockDomain,
+    val withPopBufferedReset: Boolean
+) extends Component {
 
-  assert(isPow2(depth) & depth >= 2, "The depth of the StreamFifoCC must be a power of 2 and equal or bigger than 2")
+  def this(dataType: HardType[T],
+           depth: Int,
+           pushClock: ClockDomain,
+           popClock: ClockDomain,
+           withPopBufferedReset: Boolean = ClockDomain.crossClockBufferPushToPopResetGen.get) =
+    this(
+      dataType,
+      ElabInt.literal(depth),
+      pushClock,
+      popClock,
+      withPopBufferedReset
+    )
+
+  private val depthIsLegal: ElabBool = StreamFifoCC.validateTypedDepth(
+    elabDepth,
+    "StreamFifoCC depth"
+  )
+
+  /** Source- and binary-compatible concrete witness accessor. */
+  val depth: Int = elabDepth.witness
 
   val io = new Bundle with StreamFifoInterface[T]{
     val push          = slave  Stream(dataType)
     val pop           = master Stream(dataType)
-    val pushOccupancy = out UInt(log2Up(depth + 1) bits)
-    val popOccupancy  = out UInt(log2Up(depth + 1) bits)
+    val pushOccupancy = if (elabDepth.isConcrete) {
+      out UInt(log2Up(depth + 1) bits)
+    } else {
+      out UInt(log2Up(elabDepth + 1) bits)
+    }
+    val popOccupancy = if (elabDepth.isConcrete) {
+      out UInt(log2Up(depth + 1) bits)
+    } else {
+      out UInt(log2Up(elabDepth + 1) bits)
+    }
   }
 
-  val ptrWidth = log2Up(depth) + 1
-  def isFull(a: Bits, b: Bits) = a(ptrWidth - 1 downto ptrWidth - 2) === ~b(ptrWidth - 1 downto ptrWidth - 2) && a(ptrWidth - 3 downto 0) === b(ptrWidth - 3 downto 0)
+  private val elabPtrWidth = log2Up(elabDepth) + 1
+  val ptrWidth: Int = elabPtrWidth.witness
+
+  def isFull(a: Bits, b: Bits) = {
+    if (elabDepth.isConcrete) {
+      a(ptrWidth - 1 downto ptrWidth - 2) === ~b(ptrWidth - 1 downto ptrWidth - 2) &&
+        a(ptrWidth - 3 downto 0) === b(ptrWidth - 3 downto 0)
+    } else {
+      // For a legal power-of-two depth, toggling the two most-significant Gray
+      // bits is exactly XOR by depth + depth/2. This whole-vector form avoids
+      // freezing either slice boundary to the construction witness.
+      val prototype = a.asUInt
+      ParameterizedWidth.copy(a, prototype)
+      val fullMask = ElabValue
+        .uintLike(
+          elabDepth + (elabDepth / 2),
+          prototype,
+          "stream_fifocc_full_mask"
+        )
+        .asBits
+      (a ^ b) === fullMask
+    }
+  }
   def isEmpty(a: Bits, b: Bits) = a === b
 
-  val ram = Mem(dataType, depth)
-
-  val popToPushGray = Bits(ptrWidth bits)
-  val pushToPopGray = Bits(ptrWidth bits)
-
-  val pushCC = new ClockingArea(pushClock) {
-    val pushPtr     = Reg(UInt(log2Up(2*depth) bits)) init(0)
-    val pushPtrPlus = pushPtr + 1
-    val pushPtrGray = RegNextWhen(toGray(pushPtrPlus), io.push.fire) init(0)
-    val popPtrGray  = BufferCC(popToPushGray, B(0, ptrWidth bits), inputAttributes = List(crossClockMaxDelay(1, useTargetClock = false)))
-    val full        = isFull(pushPtrGray, popPtrGray)
-
-    io.push.ready := !full
-
-    when(io.push.fire) {
-      ram(pushPtr.resized) := io.push.payload
-      pushPtr := pushPtrPlus
+  private def retainedRegNextWhen[T <: Data](next: T, condition: Bool, init: T): T = {
+    if (elabDepth.isConcrete) RegNextWhen(next, condition) init(init)
+    else {
+      val result = ParameterizedWidth.Reg(next)
+      if (init != null) result.init(init)
+      result.setCompositeName(next, "regNextWhen", true)
+      when(condition) {
+        result := next
+      }
+      result
     }
-
-    io.pushOccupancy := (pushPtr - fromGray(popPtrGray)).resized
   }
 
-  val finalPopCd = popClock.withOptionalBufferedResetFrom(withPopBufferedReset)(pushClock)
-  val popCC = new ClockingArea(finalPopCd) {
-    val popPtr      = Reg(UInt(log2Up(2*depth) bits)) init(0)
-    val popPtrPlus  = KeepAttribute(popPtr + 1)
-    val popPtrGray  = toGray(popPtr)
-    val pushPtrGray = BufferCC(pushToPopGray, B(0, ptrWidth bit), inputAttributes = List(crossClockMaxDelay(1, useTargetClock = false)))
-    val addressGen = Stream(UInt(log2Up(depth) bits))
-    val empty = isEmpty(popPtrGray, pushPtrGray)
-    addressGen.valid := !empty
-    addressGen.payload := popPtr.resized
-
-    when(addressGen.fire){
-      popPtr := popPtrPlus
+  private def retainPointerWidth(prototype: UInt, value: UInt): UInt = {
+    if (elabDepth.isConcrete) value
+    else {
+      // Retaining metadata only on a nested arithmetic expression is not
+      // enough: the native Verilog emitter may introduce a witness-width
+      // temporary before the eventual typed consumer. Materialize the native
+      // result through an explicit pointer-width carrier at that boundary.
+      val result = UInt(elabPtrWidth bits).dontSimplifyIt()
+      result := value
+      result
     }
-
-    val readArbitration = addressGen.m2sPipe()
-    val readPort = ram.readSyncPort(clockCrossing = true)
-    readPort.cmd := addressGen.toFlowFire
-    io.pop << readArbitration.translateWith(readPort.rsp)
-
-    val ptrToPush = RegNextWhen(popPtrGray, readArbitration.fire) init(0)
-    val ptrToOccupancy = RegNextWhen(popPtr, readArbitration.fire) init(0)
-    io.popOccupancy := (fromGray(pushPtrGray) - ptrToOccupancy).resized
   }
 
-  pushToPopGray := pushCC.pushPtrGray
-  popToPushGray := popCC.ptrToPush
+  /** Preserve a stable native-algorithm result boundary without duplicating
+    * the shared Gray-code implementation from Utils.scala.
+    */
+  private def retainedToGray(value: UInt, stableName: String): Bits = {
+    if (elabDepth.isConcrete) toGray(value)
+    else {
+      val result = Bits(elabPtrWidth bits)
+        .setName(stableName, weak = true)
+        .dontSimplifyIt()
+      result := toGray(value)
+      result
+    }
+  }
 
-  def formalAsserts(gclk: ClockDomain) = new Composite(this, "asserts") {
-    import spinal.core.formal._
-    val pushArea = new ClockingArea(pushClock) {
-      when(pastValid & changed(pushCC.popPtrGray)) {
-        assert(fromGray(pushCC.popPtrGray) - past(fromGray(pushCC.popPtrGray)) <= depth)
-      }
-      assert(pushCC.pushPtrGray === toGray(pushCC.pushPtr))
-      assert(pushCC.pushPtr - fromGray(pushCC.popPtrGray) <= depth)
+  private def retainedFromGray(value: Bits, stableName: String): UInt = {
+    if (elabDepth.isConcrete) fromGray(value)
+    else {
+      val result = UInt(elabPtrWidth bits)
+        .setName(stableName, weak = true)
+        .dontSimplifyIt()
+      result := fromGray(value)
+      result
+    }
+  }
+
+  private def pointerZeroBits: Bits =
+    if (elabDepth.isConcrete) B(0, ptrWidth bits) else B(0)
+
+  private def pointerZeroUInt: UInt =
+    if (elabDepth.isConcrete) U(0, ptrWidth bits) else U(0)
+
+  private def retainedBufferCC(input: Bits, definitionName: String): Bits = {
+    val attributes = List(crossClockMaxDelay(1, useTargetClock = false))
+    if (elabDepth.isConcrete) {
+      BufferCC(input, pointerZeroBits, inputAttributes = attributes)
+    } else {
+      // BufferCC is a kept child definition. Give that child its own exact
+      // WIDTH formal, then bind the parent pointer-width expression at the
+      // instance boundary instead of leaking a branch-projected root into it.
+      val child = ElabFormalComponent.parameter(
+        actual = elabPtrWidth,
+        name = "WIDTH",
+        minimum = StreamFifoCC.TypedPointerWidthMinimum,
+        maximum = StreamFifoCC.TypedPointerWidthMaximum
+      )(formal =>
+        new BufferCC(
+          Bits(formal bits),
+          B(0),
+          bufferDepth = None,
+          randBoot = false,
+          inputAttributes = attributes,
+          allBufAttributes = List()
+        ).setDefinitionName(definitionName, noMerge = false)
+      )
+      child.setCompositeName(input, "buffercc", true)
+      // Both child ports must be constrained by carriers owned by this exact
+      // legal-depth branch. A module-scope input would mix the unprojected
+      // contiguous DEPTH domain with the branch-projected power-of-two domain.
+      val branchInput = Bits(elabPtrWidth bits)
+      branchInput := input
+      child.io.dataIn := branchInput
+      val result = Bits(elabPtrWidth bits)
+      result := child.io.dataOut
+      result
+    }
+  }
+
+  trait PushCCMembers {
+    val pushPtr: UInt
+    val pushPtrPlus: UInt
+    val pushPtrGray: Bits
+    val popPtrGray: Bits
+    val full: Bool
+  }
+
+  trait PopCCMembers {
+    val popPtr: UInt
+    val popPtrPlus: UInt
+    val popPtrGray: Bits
+    val pushPtrGray: Bits
+    val addressGen: Stream[UInt]
+    val empty: Bool
+    val readArbitration: Stream[UInt]
+    val readPort: MemReadPort[T]
+    val ptrToPush: Bits
+    val ptrToOccupancy: UInt
+  }
+
+  type PushCCArea = ClockingArea with PushCCMembers
+  type PopCCArea = ClockingArea with PopCCMembers
+
+  private var ramBacking: Mem[T] = null
+  private var popToPushGrayBacking: Bits = null
+  private var pushToPopGrayBacking: Bits = null
+  private var finalPopCdBacking: ClockDomain = null
+  private var pushCCBacking: PushCCArea = null
+  private var popCCBacking: PopCCArea = null
+  private var formalAlgorithmOwner: ParameterizedStructuralOwner = null
+  private var formalInvalidDepthOwner: ParameterizedStructuralOwner = null
+
+  /** Plain Scala references to the one native FIFO body. This carrier is not
+    * an Area and therefore introduces no hardware hierarchy of its own.
+    */
+  private final class BuiltAlgorithm(
+      val ram: Mem[T],
+      val popToPushGray: Bits,
+      val pushToPopGray: Bits,
+      val finalPopCd: ClockDomain,
+      val pushCC: PushCCArea,
+      val popCC: PopCCArea
+  )
+
+  /** Elaborate the authoritative native StreamFifoCC algorithm exactly once.
+    * Only individual geometry-producing expressions select a concrete or
+    * retained-width spelling; RAM, Gray crossings, arbitration and reset
+    * topology are shared by both entry lanes.
+    */
+  private def buildNativeAlgorithm(): BuiltAlgorithm = {
+    val payloadWidth = widthOfExpr(io.push.payload)
+    // A native Mem becomes parameterized when either its word count or any
+    // packed payload leaf is symbolic.  In both cases the external memory
+    // publisher requires stable native AST identities for the write roles.
+    // Keep the historical shorthand only when both dimensions are concrete.
+    val parameterizedMemoryRoles =
+      !elabDepth.isConcrete || !payloadWidth.isConcrete
+    val ram =
+      if (elabDepth.isConcrete) Mem(dataType, depth)
+      else Mem(dataType, elabDepth)
+
+    val popToPushGray =
+      if (elabDepth.isConcrete) Bits(ptrWidth bits)
+      else Bits(elabPtrWidth bits)
+    val pushToPopGray =
+      if (elabDepth.isConcrete) Bits(ptrWidth bits)
+      else Bits(elabPtrWidth bits)
+
+    if (!elabDepth.isConcrete) {
+      // The native emitter trace omits retained formal metadata. This
+      // nonfunctional declaration attribute keeps different legal buckets from
+      // merging when their default-width RTL happens to be textually equal.
+      // Inside depthIsLegal, maximum is the exact projected legal ceiling.
+      popToPushGray.addAttribute(
+        "spinal_stream_fifocc_legal_depth_ceiling",
+        elabDepth.maximum.toInt
+      )
     }
 
-    val popCheckClock = if (withPopBufferedReset) popClock.copy(reset = pushClock.isResetActive) else popClock
-    val popArea = new ClockingArea(popCheckClock) {
-      when(pastValid & changed(popCC.pushPtrGray)) {
-        assert(fromGray(popCC.pushPtrGray) - past(fromGray(popCC.pushPtrGray)) <= depth)
+    val pushCC = new ClockingArea(pushClock) with PushCCMembers {
+      val pushPtr =
+        if (elabDepth.isConcrete) Reg(UInt(log2Up(2 * depth) bits)) init (0)
+        else Reg(UInt(elabPtrWidth bits)) init (0)
+      val pushPtrPlus = if (elabDepth.isConcrete) {
+        pushPtr + 1
+      } else {
+        val one = ElabValue.uintLike(
+          ElabInt.literal(1),
+          pushPtr,
+          "stream_fifocc_push_pointer_one"
+        )
+        retainPointerWidth(pushPtr, pushPtr + one)
       }
-      assert(popCC.popPtrGray === toGray(popCC.popPtr))
-      assert(fromGray(popCC.pushPtrGray) - popCC.popPtr <= depth)
-      assert(popCC.popPtr === fromGray(popCC.ptrToPush) + io.pop.valid.asUInt)
+      val pushPtrGrayNext =
+        if (elabDepth.isConcrete) null
+        else retainedToGray(pushPtrPlus, "stream_fifocc_push_gray")
+      val pushPtrGray = if (elabDepth.isConcrete) {
+        RegNextWhen(toGray(pushPtrPlus), io.push.fire) init (0)
+      } else {
+        retainedRegNextWhen(
+          pushPtrGrayNext,
+          io.push.fire,
+          pointerZeroBits
+        )
+      }
+      val popPtrGray = if (elabDepth.isConcrete) {
+        BufferCC(
+          popToPushGray,
+          B(0, ptrWidth bits),
+          inputAttributes = List(
+            crossClockMaxDelay(1, useTargetClock = false)
+          )
+        )
+      } else {
+        retainedBufferCC(popToPushGray, "StreamFifoCCPopToPushBufferCC")
+      }
+      val full = isFull(pushPtrGray, popPtrGray)
+      val writeData =
+        if (!parameterizedMemoryRoles) null
+        else
+          Bits(payloadWidth bits)
+            .setName("stream_fifocc_write_data", weak = true)
+            .dontSimplifyIt()
+
+      if (parameterizedMemoryRoles) writeData := io.push.payload.asBits
+
+      io.push.ready := !full
+
+      when(io.push.fire) {
+        if (!parameterizedMemoryRoles) {
+          ram(pushPtr.resized) := io.push.payload
+        } else {
+          val writeAddress = UInt(elabDepth.addressWidth bits)
+            .setName("stream_fifocc_write_address", weak = true)
+          writeAddress := pushPtr.resized
+          // Native Mem flattens aggregate writes through an unnamed Cat AST.
+          // The area-scoped packed carrier gives that same value one stable
+          // identity without changing the native conditional write enable.
+          ram.writeImpl(
+            writeAddress,
+            writeData,
+            enable = null,
+            mask = null,
+            allowMixedWidth = false
+          )
+        }
+        pushPtr := pushPtrPlus
+      }
+
+      if (elabDepth.isConcrete) {
+        io.pushOccupancy := (pushPtr - fromGray(popPtrGray)).resized
+      } else {
+        io.pushOccupancy := retainPointerWidth(
+          pushPtr,
+          pushPtr - retainedFromGray(
+            popPtrGray,
+            "stream_fifocc_push_occupancy_gray"
+          )
+        ).resized
+      }
     }
 
-    val globalArea = new ClockingArea(gclk) {
-      when(io.push.ready) { assert(pushCC.pushPtr - popCC.popPtr <= depth - 1) }
-        .otherwise { assert(pushCC.pushPtr - popCC.popPtr <= depth) }
+    // Construct the optional reset synchronizer alongside its sole consumers.
+    // The concrete lane retains the historical cache path byte-for-byte. A
+    // generated lane must use an owner-local instance because a cached child
+    // cannot legally be shared by sibling generate scopes.
+    val finalPopCd = if (elabDepth.isConcrete) {
+      popClock.withOptionalBufferedResetFrom(withPopBufferedReset)(pushClock)
+    } else {
+      popClock.withOptionalBufferedResetFromUncached(withPopBufferedReset)(
+        pushClock
+      )
+    }
+    val popCC = new ClockingArea(finalPopCd) with PopCCMembers {
+      val popPtr =
+        if (elabDepth.isConcrete) Reg(UInt(log2Up(2 * depth) bits)) init (0)
+        else Reg(UInt(elabPtrWidth bits)) init (0)
+      val popPtrPlus = if (elabDepth.isConcrete) {
+        KeepAttribute(popPtr + 1)
+      } else {
+        val one = ElabValue.uintLike(
+          ElabInt.literal(1),
+          popPtr,
+          "stream_fifocc_pop_pointer_one"
+        )
+        val next = retainPointerWidth(popPtr, popPtr + one)
+        KeepAttribute(next)
+        next
+      }
+      val popPtrGray =
+        if (elabDepth.isConcrete) toGray(popPtr)
+        else retainedToGray(popPtr, "stream_fifocc_pop_gray")
+      val pushPtrGray = if (elabDepth.isConcrete) {
+        BufferCC(
+          pushToPopGray,
+          B(0, ptrWidth bit),
+          inputAttributes = List(
+            crossClockMaxDelay(1, useTargetClock = false)
+          )
+        )
+      } else {
+        retainedBufferCC(pushToPopGray, "StreamFifoCCPushToPopBufferCC")
+      }
+      val addressGen =
+        if (elabDepth.isConcrete) Stream(UInt(log2Up(depth) bits))
+        else Stream(UInt(elabDepth.addressWidth bits))
+      val empty = isEmpty(popPtrGray, pushPtrGray)
+      addressGen.valid := !empty
+      addressGen.payload := popPtr.resized
+
+      when(addressGen.fire) {
+        popPtr := popPtrPlus
+      }
+
+      val readArbitration = addressGen.m2sPipe()
+      val readPort = ram.readSyncPort(clockCrossing = true)
+      readPort.cmd := addressGen.toFlowFire
+      io.pop << readArbitration.translateWith(readPort.rsp)
+
+      val ptrToPush = if (elabDepth.isConcrete) {
+        RegNextWhen(popPtrGray, readArbitration.fire) init (0)
+      } else {
+        retainedRegNextWhen(
+          popPtrGray,
+          readArbitration.fire,
+          pointerZeroBits
+        )
+      }
+      val ptrToOccupancy = if (elabDepth.isConcrete) {
+        RegNextWhen(popPtr, readArbitration.fire) init (0)
+      } else {
+        retainedRegNextWhen(
+          popPtr,
+          readArbitration.fire,
+          pointerZeroUInt
+        )
+      }
+      val decodedPushPtr =
+        if (elabDepth.isConcrete) null
+        else
+          retainedFromGray(
+            pushPtrGray,
+            "stream_fifocc_pop_occupancy_gray"
+          )
+      if (elabDepth.isConcrete) {
+        io.popOccupancy := (fromGray(pushPtrGray) - ptrToOccupancy).resized
+      } else {
+        io.popOccupancy := retainPointerWidth(
+          ptrToOccupancy,
+          decodedPushPtr - ptrToOccupancy
+        ).resized
+      }
+    }
+
+    pushToPopGray := pushCC.pushPtrGray
+    popToPushGray := popCC.ptrToPush
+
+    new BuiltAlgorithm(
+      ram,
+      popToPushGray,
+      pushToPopGray,
+      finalPopCd,
+      pushCC,
+      popCC
+    )
+  }
+
+  if (elabDepth.isConcrete) {
+    // Invoke the one body directly so the Int lane keeps its historical root
+    // hierarchy. Method locals need explicit roots because they do not receive
+    // member-name inference from the enclosing Component.
+    val built = buildNativeAlgorithm()
+    built.ram.setName("ram")
+    built.popToPushGray.setName("popToPushGray")
+    built.pushToPopGray.setName("pushToPopGray")
+    built.pushCC.setName("pushCC")
+    built.popCC.setName("popCC")
+
+    ramBacking = built.ram
+    popToPushGrayBacking = built.popToPushGray
+    pushToPopGrayBacking = built.pushToPopGray
+    finalPopCdBacking = built.finalPopCd
+    pushCCBacking = built.pushCC
+    popCCBacking = built.popCC
+  } else {
+    val algorithm = depthIsLegal generate new Area {
+      if (ParameterizedStructure.captureEnabled)
+        formalAlgorithmOwner = ParameterizedStructure.currentOwner(
+          elabDepth,
+          "StreamFifoCC legal-depth algorithm owner"
+        )
+      val built = buildNativeAlgorithm()
+      val ram = built.ram
+      val popToPushGray = built.popToPushGray
+      val pushToPopGray = built.pushToPopGray
+      val finalPopCd = built.finalPopCd
+      val pushCC = built.pushCC
+      val popCC = built.popCC
+    }
+
+    // Keep illegal parameter values outside the CDC algorithm. Synthesis and
+    // simulation both see a safe, inert interface for an invalid specialization.
+    val invalidDepth = (!depthIsLegal) generate new Area {
+      if (ParameterizedStructure.captureEnabled)
+        formalInvalidDepthOwner = ParameterizedStructure.currentOwner(
+          elabDepth,
+          "StreamFifoCC invalid-depth owner"
+        )
+      // Verilog-2001 `always @(*)` blocks whose right-hand sides are only
+      // literals have an empty sensitivity set and therefore never awaken in
+      // simulators such as Icarus.  Retain one masked input carrier so every
+      // invalid-branch output still resolves to zero, including for an X
+      // input, while each emitted combinational process has a real event
+      // source at time zero.
+      val inert = (io.push.valid & False)
+        .setName("stream_fifocc_invalid_inert")
+        .dontSimplifyIt()
+      val popPayloadWidth = widthOfExpr(io.pop.payload)
+      val retainedPayloadZero =
+        if (popPayloadWidth.isConcrete) null
+        else
+          Bits(popPayloadWidth bits)
+            .setName("stream_fifocc_invalid_payload_zero", weak = true)
+            .dontSimplifyIt()
+      if (retainedPayloadZero != null) retainedPayloadZero := 0
+      io.push.ready := inert
+      io.pushOccupancy := 0
+      io.pop.valid := inert
+      if (retainedPayloadZero == null)
+        io.pop.payload.assignFromBits(B(0).resize(popPayloadWidth))
+      else io.pop.payload.assignFromBits(retainedPayloadZero)
+      io.popOccupancy := 0
+      // Keep the width-sensitive zero assignments themselves in the existing
+      // invariant-zero proof lane. Repeating them below a condition on the
+      // continuously-driven carrier gives their procedural blocks a genuine
+      // sensitivity without introducing a concrete-width resize or relying on
+      // an emitter-generated bridge name for an aggregate payload.
+      when(inert) {
+        io.pushOccupancy := 0
+        if (retainedPayloadZero == null)
+          io.pop.payload.assignFromBits(B(0).resize(popPayloadWidth))
+        else io.pop.payload.assignFromBits(retainedPayloadZero)
+        io.popOccupancy := 0
+      }
+    }
+
+    algorithm.popToPushGray.setName("popToPushGray")
+    algorithm.pushToPopGray.setName("pushToPopGray")
+    algorithm.setName("algorithm")
+    if (invalidDepth != null) invalidDepth.setName("invalidDepth")
+
+    ramBacking = algorithm.ram
+    popToPushGrayBacking = algorithm.popToPushGray
+    pushToPopGrayBacking = algorithm.pushToPopGray
+    finalPopCdBacking = algorithm.finalPopCd
+    pushCCBacking = algorithm.pushCC
+    popCCBacking = algorithm.popCC
+  }
+
+  // Preserve the native public member surface for inspection and formal
+  // clients. These are Scala identity aliases and add no hardware.
+  val ram: Mem[T] = ramBacking
+  val popToPushGray: Bits = popToPushGrayBacking
+  val pushToPopGray: Bits = pushToPopGrayBacking
+  val finalPopCd: ClockDomain = finalPopCdBacking
+  val pushCC: PushCCArea = pushCCBacking
+  val popCC: PopCCArea = popCCBacking
+
+  private def depthBoundLike(value: UInt, offset: Int, stableName: String): UInt =
+    if (elabDepth.isConcrete) U(depth + offset, value.getWidth bits)
+    else ElabValue.uintLike(elabDepth + offset, value, stableName)
+
+  def formalAsserts(gclk: ClockDomain): Composite[StreamFifoCC[T]] = {
+    if (elabDepth.isConcrete) {
+      new Composite(this, "asserts") {
+        import spinal.core.formal._
+        val pushArea = new ClockingArea(pushClock) {
+          when(pastValid & changed(pushCC.popPtrGray)) {
+            assert(fromGray(pushCC.popPtrGray) - past(fromGray(pushCC.popPtrGray)) <= depth)
+          }
+          assert(pushCC.pushPtrGray === toGray(pushCC.pushPtr))
+          assert(pushCC.pushPtr - fromGray(pushCC.popPtrGray) <= depth)
+        }
+
+        val popCheckClock = if (withPopBufferedReset) popClock.copy(reset = pushClock.isResetActive) else popClock
+        val popArea = new ClockingArea(popCheckClock) {
+          when(pastValid & changed(popCC.pushPtrGray)) {
+            assert(fromGray(popCC.pushPtrGray) - past(fromGray(popCC.pushPtrGray)) <= depth)
+          }
+          assert(popCC.popPtrGray === toGray(popCC.popPtr))
+          assert(fromGray(popCC.pushPtrGray) - popCC.popPtr <= depth)
+          assert(popCC.popPtr === fromGray(popCC.ptrToPush) + io.pop.valid.asUInt)
+        }
+
+        val globalArea = new ClockingArea(gclk) {
+          when(io.push.ready) { assert(pushCC.pushPtr - popCC.popPtr <= depth - 1) }
+            .otherwise { assert(pushCC.pushPtr - popCC.popPtr <= depth) }
+        }
+      }
+    } else {
+      val invalidDepthOwnerRequired = !depthIsLegal.isAlwaysTrue
+      if (
+        formalAlgorithmOwner == null ||
+        (invalidDepthOwnerRequired && formalInvalidDepthOwner == null)
+      )
+        throw new ParameterizedVerilogException(
+          "SPINAL-STREAM-FIFO-CC-FORMAL-OWNER-MISSING",
+          "typed StreamFifoCC formalAsserts requires complete retained legality-branch ownership",
+          elabDepth.sourceLocation
+        )
+      val formalOwners =
+        Vector(formalAlgorithmOwner, formalInvalidDepthOwner).filter(_ != null)
+      ParameterizedStructure.requireOwnerCoverage(
+        this,
+        elabDepth,
+        formalOwners,
+        "StreamFifoCC formal observation owners"
+      )
+
+      this.rework {
+        new Composite(StreamFifoCC.this, "asserts") {
+          import spinal.core.formal._
+
+        // Assertions themselves remain ordinary module-scope statements.
+        // Each mutually-exclusive structural owner only drives these retained
+        // observations, keeping branch-local pointers and past registers under
+        // their original legality generate.
+        val pushChecks = Bool().setName("formal_stream_fifocc_push_checks")
+        val popChecks = Bool().setName("formal_stream_fifocc_pop_checks")
+        val globalChecks = Bool().setName("formal_stream_fifocc_global_checks")
+        pushChecks.dontSimplifyIt()
+        popChecks.dontSimplifyIt()
+        globalChecks.dontSimplifyIt()
+
+        if (formalInvalidDepthOwner != null) {
+          ParameterizedStructure.captureInto(
+            formalInvalidDepthOwner,
+            elabDepth,
+            "StreamFifoCC formal invalid-depth observations"
+          ) {
+            pushChecks := True
+            popChecks := True
+            globalChecks := True
+          }
+        }
+
+        val pushArea = new ClockingArea(pushClock) {
+          ParameterizedStructure.captureInto(
+            formalAlgorithmOwner,
+            elabDepth,
+            "StreamFifoCC formal push observations"
+          ) {
+            val decodedPop = retainedFromGray(
+              pushCC.popPtrGray,
+              "stream_fifocc_formal_push_decode"
+            )
+            val previousDecodedPop = past(decodedPop)
+            val delta = retainPointerWidth(
+              pushCC.pushPtr,
+              decodedPop - previousDecodedPop
+            )
+            val grayStepOk = !(pastValid & changed(pushCC.popPtrGray)) ||
+              delta <= depthBoundLike(
+                delta,
+                0,
+                "stream_fifocc_push_gray_depth"
+              )
+            val encodingOk = pushCC.pushPtrGray === retainedToGray(
+              pushCC.pushPtr,
+              "stream_fifocc_formal_push_encode"
+            )
+            val occupancy = retainPointerWidth(
+              pushCC.pushPtr,
+              pushCC.pushPtr - decodedPop
+            )
+            val occupancyOk = occupancy <= depthBoundLike(
+              occupancy,
+              0,
+              "stream_fifocc_push_depth"
+            )
+            pushChecks := grayStepOk && encodingOk && occupancyOk
+          }
+          assert(pushChecks)
+        }
+
+        val popCheckClock = if (withPopBufferedReset) popClock.copy(reset = pushClock.isResetActive) else popClock
+        val popArea = new ClockingArea(popCheckClock) {
+          ParameterizedStructure.captureInto(
+            formalAlgorithmOwner,
+            elabDepth,
+            "StreamFifoCC formal pop observations"
+          ) {
+            val decodedPush = retainedFromGray(
+              popCC.pushPtrGray,
+              "stream_fifocc_formal_pop_decode"
+            )
+            val previousDecodedPush = past(decodedPush)
+            val delta = retainPointerWidth(
+              popCC.popPtr,
+              decodedPush - previousDecodedPush
+            )
+            val grayStepOk = !(pastValid & changed(popCC.pushPtrGray)) ||
+              delta <= depthBoundLike(
+                delta,
+                0,
+                "stream_fifocc_pop_gray_depth"
+              )
+            val encodingOk = popCC.popPtrGray === retainedToGray(
+              popCC.popPtr,
+              "stream_fifocc_formal_pop_encode"
+            )
+            val occupancy = retainPointerWidth(
+              popCC.popPtr,
+              decodedPush - popCC.popPtr
+            )
+            val occupancyOk = occupancy <= depthBoundLike(
+              occupancy,
+              0,
+              "stream_fifocc_pop_depth"
+            )
+            val forwarded = retainedFromGray(
+              popCC.ptrToPush,
+              "stream_fifocc_formal_forwarded_decode"
+            )
+            val popValid = io.pop.valid.asUInt
+              .resize(elabPtrWidth)
+              .setName("stream_fifocc_formal_pop_valid", weak = true)
+              .dontSimplifyIt()
+            val forwardedNext = retainPointerWidth(
+              popCC.popPtr,
+              forwarded + popValid
+            )
+            val forwardedOk = popCC.popPtr === forwardedNext
+            popChecks := grayStepOk && encodingOk && occupancyOk && forwardedOk
+          }
+          assert(popChecks)
+        }
+
+        val globalArea = new ClockingArea(gclk) {
+          ParameterizedStructure.captureInto(
+            formalAlgorithmOwner,
+            elabDepth,
+            "StreamFifoCC formal global observations"
+          ) {
+            val occupancy = retainPointerWidth(
+              pushCC.pushPtr,
+              pushCC.pushPtr - popCC.popPtr
+            )
+            val readyOk = occupancy <= depthBoundLike(
+              occupancy,
+              -1,
+              "stream_fifocc_ready_depth"
+            )
+            val fullOk = occupancy <= depthBoundLike(
+              occupancy,
+              0,
+              "stream_fifocc_full_depth"
+            )
+            globalChecks := io.push.ready.mux(readyOk, fullOk)
+          }
+          assert(globalChecks)
+        }
+
+        }
+      }
     }
   }
 }

@@ -138,6 +138,13 @@
       "reason": "add the parameter-preserving widthOfExpr helper"
     },
     {
+      "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
+      "change": "modified",
+      "classification": "typed-mechanical-propagation",
+      "blob": "887984fc2aeff5438a1dbbfe163f0a877036dbf7",
+      "reason": "preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary"
+    },
+    {
       "path": "lib/src/main/scala/spinal/lib/Counter.scala",
       "change": "modified",
       "classification": "typed-mechanical-propagation",
@@ -145,11 +152,25 @@
       "reason": "carry exact typed state-count and limit geometry through the authoritative native Counter algorithm"
     },
     {
+      "path": "lib/src/main/scala/spinal/lib/CrossClock.scala",
+      "change": "modified",
+      "classification": "typed-mechanical-propagation",
+      "blob": "ea7f0d5d9650ad9c37d831f82d67be55771cea22",
+      "reason": "retain exact symbolic pointer width through the native BufferCC ports and registers while rejecting the Int-only blackbox replacement before mutation"
+    },
+    {
       "path": "lib/src/main/scala/spinal/lib/Stream.scala",
       "change": "modified",
       "classification": "typed-mechanical-propagation",
-      "blob": "039e050533fd089cd1b7d099ef86f97ee28b900f",
-      "reason": "carry typed depth and branch-local geometry through the existing native StreamFifo algorithm"
+      "blob": "f1a21e7a4a7f54a813b230cb60dd693a0486db6d",
+      "reason": "carry typed depth and payload width, stable native Mem roles, legal branch ownership, a width- and event-safe invalid specialization and canonical child formals through the authoritative native StreamFifo and StreamFifoCC algorithms"
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/Utils.scala",
+      "change": "modified",
+      "classification": "typed-mechanical-propagation",
+      "blob": "8bca54bbf29f9fed58c10ed2e32e4401c08862c7",
+      "reason": "retain exact symbolic width through native Gray-code helpers and provide owner-local uncached reset-domain construction for generated CDC bodies"
     }
   ]
 }
