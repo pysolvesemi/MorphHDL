@@ -6,6 +6,10 @@ import spinal.core.{Data, HardType, Mem => SpinalMem}
   * MorphHDL typed adapter for an ordinary SpinalHDL Mem with retained depth.
   * The returned object is the native Mem and all port algorithms remain native.
   */
+@deprecated(
+  "Compatibility-only alias; use spinal.core.Mem typed/native overloads directly",
+  "Increment 58"
+)
 object Mem {
   def apply[T <: Data](
       wordType: HardType[T],

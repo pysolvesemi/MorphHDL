@@ -65,7 +65,7 @@ collect_changed_files() {
 wa07_dependencies_satisfied() {
   [[ -f "${pv_roadmap}" ]] || return 1
   grep -Eq '^- \[x\] \*\*WA-06[[:space:]]+—' "${roadmap}" && \
-    grep -Eq '^- \[x\] \*\*Increment 56[[:space:]]+—' "${pv_roadmap}"
+    grep -Eq '^- \[x\] \*\*Increment 58[[:space:]]+—' "${pv_roadmap}"
 }
 
 allowed_path() {
@@ -104,7 +104,7 @@ if [[ ${#violations[@]} -ne 0 ]]; then
   printf 'MorphHDL pass boundary rejected the following path(s):\n' >&2
   printf '  - %s\n' "${violations[@]}" >&2
   if [[ "${is_wa07}" == true ]]; then
-    printf 'WA-07 MorphHDL-owned handoff paths are allowed only after WA-06 and PV-56 are checked on the target branch.\n' >&2
+    printf 'WA-07 MorphHDL-owned handoff paths are allowed only after WA-06 and PV-58 are checked on the target branch.\n' >&2
   else
     printf 'Allowed paths are morphhdl-passes/** and %s. MorphHDL-owned handoff paths are reserved for an eligible agent/wa-07-* branch.\n' "${workflow}" >&2
   fi

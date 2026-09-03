@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "b76c9c009b95ad4a83a17c96a5b98d0bab7410f9"
+      "approved_tree": "decb27e71876ec5251a45e9fd65c47da95d514a2"
     },
     {
       "path": "idslpayload/src/main",
@@ -970,15 +970,16 @@
         "Increment 53d: typed StreamWidthAdapter architecture",
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 53g: retire native-Int shadow reconstruction (#130)"
+        "Increment 53g: retire native-Int shadow reconstruction (#130)",
+        "Increment 58: legacy adapter and shadow-path retirement"
       ],
-      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters.",
+      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the six historical Bits, UInt and SInt shadow factory aliases only as deprecated compatibility entry points.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
         "mode": "100644",
-        "blob": "fa0927b6ccd320ae643bbbe01cc91cc4c5bac402",
-        "sha256": "5297005078930a074cb2441e3ffe717583c6da1068f71a92be0e74d9e4c6b080"
+        "blob": "653ae28618abfdcd08de39883814f7faa1199b75",
+        "sha256": "6bad96c6c59198dd0ea87e8d51b332ed58aae6c5da50b07f073b6d21f152fcf3"
       },
       "edits": []
     },

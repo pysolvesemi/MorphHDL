@@ -3,7 +3,11 @@ package morphhdl.frontend
 import morphhdl.paramrtl.RtlExpr.{IndexedPartSelect, Ref}
 import morphhdl.paramrtl._
 
-/** Guarded parameter-aware lowering used by the MorphVerilog orchestration path. */
+/** Guarded atomic lowering retained for dual-factory compatibility and mutation oracles. */
+@deprecated(
+  "ParamRTL frontend lowering is compatibility/mutation-only; use typed native APIs",
+  "Increment 58"
+)
 private[morphhdl] object ParamRtlFrontend {
   private val PortableIdentifier = "[A-Za-z_][A-Za-z0-9_]*".r
 

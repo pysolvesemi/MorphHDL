@@ -1,0 +1,474 @@
+{
+  "schema_version": 1,
+  "repository": "pysolvesemi/MorphHDL",
+  "source_discovery": {
+    "suffix": "src/main",
+    "extensions": [
+      ".java",
+      ".scala"
+    ],
+    "ignored_directory_names": [
+      ".bloop",
+      ".git",
+      ".metals",
+      ".mill-ammonite",
+      ".scala-build",
+      "out",
+      "target"
+    ]
+  },
+  "frozen_53g": {
+    "checker": "morphhdl/scripts/check-production-retirement.py",
+    "manifest": "morphhdl/contracts/increment-53g-production-retirement.contract",
+    "removed_paths": [
+      "frontend/src/main/scala/morphhdl/frontend/NativeIntShadow.scala",
+      "frontend/src/main/scala/morphhdl/frontend/NativeIntSymbolicConditional.scala",
+      "frontend/src/main/scala/morphhdl/frontend/NativeMemAutoProvenance.scala",
+      "frontend/src/main/scala/morphhdl/frontend/formalComponent.scala",
+      "frontend/src/main/scala/morphhdl/frontend/formalRegion.scala",
+      "frontend/src/main/scala/spinal/core/ExternalAnalyzedNativeIntFormalizationPublisher.scala",
+      "frontend/src/main/scala/spinal/lib/ExternalParameterizedCounterRegistry.scala",
+      "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeAxi4SlaveFactoryParameterizationComponent.scala",
+      "morphplugin/src/main/scala/morphhdl/compiler/MorphHdlNativeIntShadowExpressionComponent.scala",
+      "morphruntime/src/main/scala/spinal/core/ExternalNativeAxi4SlaveFactoryParameterization.scala",
+      "morphruntime/src/main/scala/spinal/core/ExternalNativeIntCompilerRuntime.scala",
+      "morphruntime/src/main/scala/spinal/core/ExternalNativeIntFormalComponent.scala",
+      "morphruntime/src/main/scala/spinal/core/ExternalNativeIntFormalizationRegistry.scala",
+      "morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowExpression.scala",
+      "morphruntime/src/main/scala/spinal/core/ExternalNativeIntShadowRegistry.scala",
+      "morphruntime/src/main/scala/spinal/core/ExternalNativeIntStructuralPublisher.scala",
+      "morphruntime/src/main/scala/spinal/core/ExternalParameterizedResizeRegistry.scala"
+    ]
+  },
+  "required_deprecations": [
+    {
+      "id": "core-bits-shadow-factories",
+      "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
+      "declaration_pattern": "(?m)^\\s*def\\s+Bits\\s*\\(\\s*width\\s*:\\s*(?:ParameterizedBitCount|BitCount)\\s*\\)",
+      "expected_count": 2,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "core-sint-shadow-factories",
+      "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
+      "declaration_pattern": "(?m)^\\s*def\\s+SInt\\s*\\(\\s*width\\s*:\\s*(?:ParameterizedBitCount|BitCount)\\s*\\)",
+      "expected_count": 2,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "core-uint-shadow-factories",
+      "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
+      "declaration_pattern": "(?m)^\\s*def\\s+UInt\\s*\\(\\s*width\\s*:\\s*(?:ParameterizedBitCount|BitCount)\\s*\\)",
+      "expected_count": 2,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "dual-morph-program-class",
+      "path": "morphhdl/src/main/scala/morphhdl/MorphProgram.scala",
+      "declaration_pattern": "(?m)^\\s*final\\s+class\\s+MorphProgram\\b",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "dual-morph-program-companion",
+      "path": "morphhdl/src/main/scala/morphhdl/MorphProgram.scala",
+      "declaration_pattern": "(?m)^\\s*object\\s+MorphProgram\\b",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "dual-morph-verilog-either-entry",
+      "path": "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
+      "declaration_pattern": "(?ms)^\\s*def\\s+apply\\[T\\s*<:\\s*Component\\]\\s*\\(\\s*program\\s*:\\s*=>\\s*MorphProgram\\[T\\]\\s*\\)\\s*:\\s*Either\\[MorphVerilogFailure,\\s*MorphVerilogReport\\]",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "dual-morph-verilog-report-entries",
+      "path": "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
+      "declaration_pattern": "(?ms)^\\s*def\\s+apply\\[T\\s*<:\\s*Component\\]\\s*\\(\\s*program\\s*:\\s*=>\\s*MorphProgram\\[T\\]\\s*\\)\\s*:\\s*MorphVerilogReport",
+      "expected_count": 2,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "dual-morph-verilog-report-type",
+      "path": "morphhdl/src/main/scala/morphhdl/MorphVerilogReport.scala",
+      "declaration_pattern": "(?m)^\\s*final\\s+case\\s+class\\s+MorphVerilogReport\\b",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "frontend-bits-aliases",
+      "path": "frontend/src/main/scala/morphhdl/frontend/package.scala",
+      "declaration_pattern": "(?m)^\\s*def\\s+Bits\\s*\\(",
+      "expected_count": 2,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "frontend-cloneof-alias",
+      "path": "frontend/src/main/scala/morphhdl/frontend/package.scala",
+      "declaration_pattern": "(?m)^\\s*def\\s+cloneOf\\s*\\[",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "frontend-flow-alias",
+      "path": "frontend/src/main/scala/morphhdl/frontend/Library.scala",
+      "declaration_pattern": "(?m)^\\s*object\\s+Flow\\b",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "frontend-hardtype-alias",
+      "path": "frontend/src/main/scala/morphhdl/frontend/package.scala",
+      "declaration_pattern": "(?m)^\\s*def\\s+HardType\\s*\\[",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "frontend-mem-alias",
+      "path": "frontend/src/main/scala/morphhdl/frontend/Memory.scala",
+      "declaration_pattern": "(?m)^\\s*object\\s+Mem\\b",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "frontend-paramrtl-lowering",
+      "path": "frontend/src/main/scala/morphhdl/frontend/ParamRtlFrontend.scala",
+      "declaration_pattern": "(?m)^\\s*private\\[morphhdl\\]\\s+object\\s+ParamRtlFrontend\\b",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "frontend-reg-alias",
+      "path": "frontend/src/main/scala/morphhdl/frontend/package.scala",
+      "declaration_pattern": "(?m)^\\s*def\\s+Reg\\s*\\[",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "frontend-sint-aliases",
+      "path": "frontend/src/main/scala/morphhdl/frontend/package.scala",
+      "declaration_pattern": "(?m)^\\s*def\\s+SInt\\s*\\(",
+      "expected_count": 2,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "frontend-stream-alias",
+      "path": "frontend/src/main/scala/morphhdl/frontend/Library.scala",
+      "declaration_pattern": "(?m)^\\s*object\\s+Stream\\b",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "frontend-streamfifo-alias",
+      "path": "frontend/src/main/scala/morphhdl/frontend/Library.scala",
+      "declaration_pattern": "(?m)^\\s*object\\s+StreamFifo\\b",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "frontend-uint-aliases",
+      "path": "frontend/src/main/scala/morphhdl/frontend/package.scala",
+      "declaration_pattern": "(?m)^\\s*def\\s+UInt\\s*\\(",
+      "expected_count": 2,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "frontend-vec-aliases",
+      "path": "frontend/src/main/scala/morphhdl/frontend/package.scala",
+      "declaration_pattern": "(?m)^\\s*def\\s+Vec\\s*\\[",
+      "expected_count": 6,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "paramrtl-report-apply-view",
+      "path": "morphhdl/src/main/scala/morphhdl/MorphSingleSourceVerilogReport.scala",
+      "declaration_pattern": "(?m)^\\s*override\\s+def\\s+apply\\s*\\(",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "paramrtl-report-constructor-view",
+      "path": "morphhdl/src/main/scala/morphhdl/MorphSingleSourceVerilogReport.scala",
+      "declaration_pattern": "(?ms)^\\s*def\\s+this\\s*\\(\\s*toplevelName\\s*:\\s*String,.*?parameters\\s*:\\s*Vector\\[IntegerParameter\\]",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "paramrtl-report-copy-view",
+      "path": "morphhdl/src/main/scala/morphhdl/MorphSingleSourceVerilogReport.scala",
+      "declaration_pattern": "(?ms)^\\s*def\\s+copy\\s*\\(.*?parameters\\s*:\\s*Vector\\[IntegerParameter\\]",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "paramrtl-report-parameters-view",
+      "path": "morphhdl/src/main/scala/morphhdl/MorphSingleSourceVerilogReport.scala",
+      "declaration_pattern": "(?m)^\\s*val\\s+parameters\\s*:",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "paramrtl-report-unapply-view",
+      "path": "morphhdl/src/main/scala/morphhdl/MorphSingleSourceVerilogReport.scala",
+      "declaration_pattern": "(?m)^\\s*def\\s+unapply\\s*\\(",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "pass-raw-design-binding",
+      "path": "morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala",
+      "declaration_pattern": "(?ms)^\\s*def\\s+bind\\s*\\(\\s*design\\s*:\\s*Design\\b",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "pass-validated-design-binding",
+      "path": "morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala",
+      "declaration_pattern": "(?ms)^\\s*def\\s+bindValidated\\s*\\(\\s*validated\\s*:\\s*ValidatedDesign\\b",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "post-publication-canonical-transform",
+      "path": "morphhdl/src/main/scala/morphhdl/integration/ExternalSpinalVerilog.scala",
+      "declaration_pattern": "(?m)^\\s*def\\s+transformWithCanonicalIdentity\\s*\\[",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "post-publication-enum-rewrite",
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala",
+      "declaration_pattern": "(?m)^\\s*def\\s+rewrite\\s*\\(",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "post-publication-parameterized-rewrite",
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala",
+      "declaration_pattern": "(?m)^\\s*def\\s+rewrite\\s*\\(",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    },
+    {
+      "id": "post-publication-transform",
+      "path": "morphhdl/src/main/scala/morphhdl/integration/ExternalSpinalVerilog.scala",
+      "declaration_pattern": "(?m)^\\s*def\\s+transform\\s*\\[",
+      "expected_count": 1,
+      "required_message_terms": [
+        "compatibility"
+      ]
+    }
+  ],
+  "required_files": [
+    {
+      "path": "morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala",
+      "required_markers": [
+        "bindValidatedInternal(handoff.validated)",
+        "def bind(handoff: CanonicalIrHandoff): CanonicalIrPassView",
+        "def bindFixture(",
+        "handoff.profile.requiredFacets.subsetOf(handoff.completeFacets)"
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/morphhdl/MorphCanonicalIrReport.scala",
+      "required_markers": [
+        "final case class MorphCanonicalIrReport(",
+        "handoff: CanonicalIrHandoff",
+        "phaseClassNames: Vector[String]"
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/morphhdl/MorphSingleSourceVerilogReport.scala",
+      "required_markers": [
+        "def elaborationParameters: Vector[ElaborationIntegerParameter]",
+        "@transient private val serializedElaborationParameters: Vector[ElaborationIntegerParameter]"
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
+      "required_markers": [
+        "MorphHdlCanonicalIrProducer.install(capture)",
+        "capture.handoff",
+        "def generateWithCanonicalIr[T <: Component](",
+        "def publishCanonicalIr[T <: Component](",
+        "publisher.publish(report.handoff)",
+        "val generated = generateSingleSource(isolated)(component)"
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlCanonicalIrProducer.scala",
+      "required_markers": [
+        "CanonicalIrHandoff.create(design)",
+        "capture.complete(snapshot.handoff)",
+        "capture.retainPlan(retainedPlan)",
+        "classOf[PhaseCheckCrossClock]",
+        "classOf[PhaseInferWidth]",
+        "classOf[PhaseNameNodesByReflection]",
+        "expression.completedParameterRoots",
+        "expression.exactDomain.exists",
+        "new GraphSnapshotPhase(snapshot)",
+        "phasePlan: () => Vector[String]",
+        "retained.set(produce(top))",
+        "root.isAuthoritativeSchema(direct)",
+        "stage = CanonicalIrSchema.stage",
+        "val boundary = crossClock.head + 1",
+        "val later = phases.drop(boundary)",
+        "_.isInstanceOf[PhaseAllocateNames]",
+        "_.isInstanceOf[PhasePropagateNames]",
+        "_.isInstanceOf[PhaseVerilog]"
+      ]
+    },
+    {
+      "path": "morphir/src/main/scala/morphhdl/ir/v1/Handoff.scala",
+      "required_markers": [
+        "CanonicalIrValidator.validate(design, maxErrors)",
+        "def design: Design = validated.value",
+        "def publish(handoff: CanonicalIrHandoff): Unit",
+        "final class CanonicalIrHandoff private[v1] (",
+        "fromValidated(validated, profile, completeFacets)",
+        "trait CanonicalIrPublisher",
+        "val completeFacets: Set[CanonicalIrFacet]",
+        "val productionFacets: Set[CanonicalIrFacet]",
+        "val productionProfile: CanonicalIrProfile",
+        "val validated: ValidatedDesign"
+      ]
+    },
+    {
+      "path": "morphir/src/main/scala/morphhdl/ir/v1/Model.scala",
+      "required_markers": [
+        "val stage: IrStage = IrStage.PostParameterizationPreEmission"
+      ]
+    },
+    {
+      "path": "morphir/src/main/scala/morphhdl/ir/v1/Validation.scala",
+      "required_markers": [
+        "if (design.stage != CanonicalIrSchema.stage)",
+        "Vector(\"design\", \"stage\")"
+      ]
+    }
+  ],
+  "forbidden_source_rules": [
+    {
+      "id": "frontend-parameterized-width-shadow-factory",
+      "description": "Production frontend Bits, UInt and SInt compatibility aliases must delegate to native factories rather than ParameterizedWidth shadow factories.",
+      "pattern": "\\bParameterizedWidth\\s*\\.\\s*(?:Bits|UInt|SInt)\\s*\\(",
+      "self_test_source": "object Forbidden { val value = ParameterizedWidth.Bits(width) }",
+      "path_prefixes": [
+        "frontend/src/main/"
+      ]
+    },
+    {
+      "id": "producer-filesystem-access",
+      "description": "The canonical producer must not read files or filesystem paths.",
+      "pattern": "(?:\\b(?:Files|Paths)\\s*\\.|\\bjava\\.nio\\.file\\b|\\bjava\\.io\\b|\\bscala\\.io\\b)",
+      "self_test_source": "val emitted = Files.readString(Paths.get(\"Top.v\"))",
+      "path_prefixes": [
+        "morphhdl/src/main/scala/spinal/core/internals/MorphHdlCanonicalIrProducer.scala"
+      ]
+    },
+    {
+      "id": "producer-generated-verilog-access",
+      "description": "The canonical producer must not inspect generated Verilog or generated-source report paths.",
+      "pattern": "(?:\\b(?:generatedSourcesPaths|rtlSourcesPaths|getRtlString|readGeneratedVerilog|parseGeneratedVerilog|scanGeneratedVerilog)\\b|\\b(?:emitted|generated|serialized)(?:Verilog|SystemVerilog|Hdl|Rtl)(?:Text|Source|Path|File)?\\b|\"[^\"\\n]*\\.(?:v|sv)\")",
+      "self_test_source": "val emitted = report.generatedSourcesPaths.head",
+      "path_prefixes": [
+        "morphhdl/src/main/scala/spinal/core/internals/MorphHdlCanonicalIrProducer.scala"
+      ]
+    },
+    {
+      "id": "producer-name-semantic-inference",
+      "description": "Names may be published as provenance, but may not select or identify semantic graph ownership.",
+      "pattern": "(?:(?:getName\\s*\\([^)]*\\)|\\b(?:definitionName|instanceName|signalName|componentName|sourceFile)\\b)\\s*(?:==|!=|\\.contains\\s*\\(|\\.startsWith\\s*\\(|\\.endsWith\\s*\\(|\\.matches\\s*\\()|\\b(?:find|collectFirst|groupBy)\\s*\\([^\\n)]*(?:getName|definitionName|instanceName|signalName|componentName|sourceFile))",
+      "self_test_source": "val owner = nodes.find(_.getName(\"\") == emittedName)",
+      "path_prefixes": [
+        "morphhdl/src/main/scala/spinal/core/internals/MorphHdlCanonicalIrProducer.scala"
+      ]
+    },
+    {
+      "id": "producer-regex-parsing",
+      "description": "The canonical producer must not parse graph or HDL text with regular expressions.",
+      "pattern": "(?:\\bscala\\.util\\.matching\\b|\\bjava\\.util\\.regex\\b|\\.r\\b|\\.regex\\b)",
+      "self_test_source": "val declaration = \"wire (.*)\".r",
+      "path_prefixes": [
+        "morphhdl/src/main/scala/spinal/core/internals/MorphHdlCanonicalIrProducer.scala"
+      ]
+    },
+    {
+      "id": "producer-rendered-expression-inference",
+      "description": "Typed parameter identity must come from roots and exact domains, never rendered expression text.",
+      "pattern": "\\b(?:expression|condition)\\s*\\.\\s*(?:verilog|rendered)\\b",
+      "self_test_source": "val key = expression.verilog",
+      "path_prefixes": [
+        "morphhdl/src/main/scala/spinal/core/internals/MorphHdlCanonicalIrProducer.scala"
+      ]
+    }
+  ],
+  "required_jar_class_entries": [
+    "morphhdl/MorphCanonicalIrReport.class",
+    "morphhdl/ir/v1/CanonicalIrHandoff.class",
+    "morphhdl/ir/v1/CanonicalIrPublisher.class",
+    "spinal/core/internals/MorphHdlCanonicalIrProducer$.class"
+  ]
+}

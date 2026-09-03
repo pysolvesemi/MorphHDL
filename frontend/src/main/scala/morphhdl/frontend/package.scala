@@ -5,46 +5,61 @@ package object frontend {
 
   import spinal.core._
 
-  /** MorphHDL-owned symbolic data factories. These shadow only explicit
-    * `morphhdl.frontend` calls and delegate concrete construction to untouched
-    * SpinalHDL factories.
+  /** Deprecated compatibility aliases. Typed production code uses the native
+    * `spinal.core` factories, whose parameterized overloads retain the same
+    * exact metadata without a MorphHDL factory shadow.
     */
+  @deprecated("Compatibility-only alias; use spinal.core.Bits directly", "Increment 58")
   def Bits(width: ParameterizedBitCount): spinal.core.Bits =
-    ExternalFormalParameterRegistry.attach(ParameterizedWidth.Bits(width), width)
+    ExternalFormalParameterRegistry.attach(spinal.core.Bits(width), width)
+  @deprecated("Compatibility-only alias; use spinal.core.Bits directly", "Increment 58")
   def Bits(width: BitCount): spinal.core.Bits = spinal.core.Bits(width)
 
+  @deprecated("Compatibility-only alias; use spinal.core.UInt directly", "Increment 58")
   def UInt(width: ParameterizedBitCount): spinal.core.UInt =
-    ExternalFormalParameterRegistry.attach(ParameterizedWidth.UInt(width), width)
+    ExternalFormalParameterRegistry.attach(spinal.core.UInt(width), width)
+  @deprecated("Compatibility-only alias; use spinal.core.UInt directly", "Increment 58")
   def UInt(width: BitCount): spinal.core.UInt = spinal.core.UInt(width)
 
+  @deprecated("Compatibility-only alias; use spinal.core.SInt directly", "Increment 58")
   def SInt(width: ParameterizedBitCount): spinal.core.SInt =
-    ExternalFormalParameterRegistry.attach(ParameterizedWidth.SInt(width), width)
+    ExternalFormalParameterRegistry.attach(spinal.core.SInt(width), width)
+  @deprecated("Compatibility-only alias; use spinal.core.SInt directly", "Increment 58")
   def SInt(width: BitCount): spinal.core.SInt = spinal.core.SInt(width)
 
+  @deprecated("Compatibility-only alias; use spinal.core.cloneOf directly", "Increment 58")
   def cloneOf[T <: Data](data: T): T = ParameterizedWidth.cloneOf(data)
+  @deprecated("Compatibility-only alias; use spinal.core.HardType directly", "Increment 58")
   def HardType[T <: Data](dataType: => T): spinal.core.HardType[T] =
     ParameterizedWidth.HardType(dataType)
+  @deprecated("Compatibility-only alias; use spinal.core.Reg directly", "Increment 58")
   def Reg[T <: Data](dataType: => T): T = ParameterizedWidth.Reg(dataType)
+  @deprecated("Compatibility-only alias; use spinal.core.Vec directly", "Increment 58")
   def Vec[T <: Data](dataType: => T, size: Int): spinal.core.Vec[T] =
     ParameterizedWidth.Vec(dataType, size)
+  @deprecated("Compatibility-only alias; use spinal.core.Vec directly", "Increment 58")
   def Vec[T <: Data](dataType: => T, size: ElabInt): spinal.core.Vec[T] =
     ParameterizedWidth.Vec(dataType, size)
+  @deprecated("Compatibility-only alias; use spinal.core.Vec with size.asElabInt", "Increment 58")
   def Vec[T <: Data](dataType: => T, size: HdlInt)(implicit
       file: sourcecode.File,
       line: sourcecode.Line
   ): spinal.core.Vec[T] =
     ParameterizedWidth.Vec(dataType, size.asElabInt)
 
+  @deprecated("Compatibility-only alias; use spinal.core.Vec directly", "Increment 58")
   def Vec[T <: Data](
       dataType: spinal.core.HardType[T],
       size: Int
   ): spinal.core.Vec[T] =
     ParameterizedWidth.Vec(dataType, size)
+  @deprecated("Compatibility-only alias; use spinal.core.Vec directly", "Increment 58")
   def Vec[T <: Data](
       dataType: spinal.core.HardType[T],
       size: ElabInt
   ): spinal.core.Vec[T] =
     ParameterizedWidth.Vec(dataType, size)
+  @deprecated("Compatibility-only alias; use spinal.core.Vec with size.asElabInt", "Increment 58")
   def Vec[T <: Data](
       dataType: spinal.core.HardType[T],
       size: HdlInt

@@ -172,6 +172,10 @@ object ExternalSpinalVerilog {
     * after native validation and Verilog emission. The callback may rewrite only
     * published artifacts; native graph mutation remains outside this boundary.
     */
+  @deprecated(
+    "Post-publication transforms are serialization compatibility only; use the canonical pre-emission handoff for semantic analysis",
+    "Increment 58"
+  )
   def transform[T <: Component](
       config: SpinalConfig
   )(component: => T)(
@@ -187,6 +191,10 @@ object ExternalSpinalVerilog {
     * from the exact PhaseVerilog object already present in this phase plan;
     * module/class/name text is never used to reconstruct it.
     */
+  @deprecated(
+    "Post-publication transforms are serialization compatibility only; use the canonical pre-emission handoff for semantic analysis",
+    "Increment 58"
+  )
   def transformWithCanonicalIdentity[T <: Component](
       config: SpinalConfig
   )(component: => T)(

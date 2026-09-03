@@ -374,9 +374,9 @@ multiple clocks remain separate policies.
 - Driver ownership, clock/reset semantics and aggregate layout are preserved.
 - Source order does not affect deterministic names or output.
 
-## Pipeline boundary
+## Compatibility pipeline boundary
 
-The canonical pipeline is:
+The explicitly authored ParamRTL compatibility pipeline is:
 
 ```text
 Morph frontend
@@ -387,10 +387,11 @@ Morph frontend
   -> deterministic Verilog emitter
 ```
 
-A future CIRCT adapter lowers validated ParamRTL into appropriate CIRCT
-dialects. CIRCT is not the canonical source of truth and is not required for
-the Verilog v1 release.
+A future compatibility CIRCT adapter may lower validated ParamRTL into
+appropriate CIRCT dialects. Neither CIRCT nor ParamRTL is the production
+single-source canonical handoff.
 
-A future SystemVerilog backend consumes the same ParamRTL. SystemVerilog-only
-features may add semantic nodes later, guarded by target capabilities; they do
-not justify a second core IR.
+A future production SystemVerilog backend consumes the validated
+`morphhdl.ir.v1` handoff. A compatibility backend may continue to consume
+explicitly authored ParamRTL designs and their target capabilities, without
+turning ParamRTL into a second production IR.

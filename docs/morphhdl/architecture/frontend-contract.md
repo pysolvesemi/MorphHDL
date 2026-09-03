@@ -1,8 +1,10 @@
 # Frontend and elaboration contract
 
-MorphHDL has two explicit elaboration modes. The existing concrete mode is the
-compatibility reference; parameterized mode captures parameter intent before
-ordinary Scala evaluation can erase it.
+MorphHDL has a concrete mode and a typed single-source parameterized mode. The
+concrete mode remains the compatibility reference. The production
+parameterized mode captures parameter intent in `HdlInt` / `HdlBool`, adapts it
+to the neutral `ElabInt` / `ElabBool` carriers and retains it on the ordinary
+native graph before Scala evaluation or target serialization can erase it.
 
 ## Entry points
 
@@ -13,7 +15,7 @@ SpinalVerilog(new DisplayController(DisplayConfig(laneCount = 4)))
 ```
 
 Parameterized Verilog uses a separate entry point and explicit typed public
-parameters. Increment 29 adds the first bounded single-source form:
+parameters. The typed single-source form is the production entry point:
 
 ```scala
 final case class WireConfig(width: HdlInt)
@@ -32,16 +34,17 @@ MorphVerilog(SpinalConfig(targetDirectory = "rtl")) {
 ```
 
 The `HdlInt` is not a Scala `Int` and is not erased. Its `bits` front door
-retains both the concrete witness required by normal elaboration and the
-direct public parameter metadata required by explicit Morph generation. A
-literal `HdlInt`, including an implicitly converted `Int`, retains only the
-concrete witness so `Config(8)` remains valid with ordinary `SpinalVerilog`.
-This first Morph path is limited to parameter-tagged top-level `UInt` ports and
-a direct same-parameter wire assignment; literal-only, mixed tagged/untagged
-and other unsupported uses fail closed.
+retains both the concrete witness required by normal elaboration and the exact
+public parameter schema, domain and root identity required by explicit Morph
+generation. A literal `HdlInt`, including an implicitly converted `Int`,
+retains only the concrete value so `Config(8)` remains valid with ordinary
+`SpinalVerilog`. Parameterized library source uses ordinary `spinal.core` and
+`spinal.lib` construction; the approved typed overloads carry `ElabInt` and
+`ElabBool` through the authoritative native algorithms. Unsupported or
+incompletely proven operations fail closed instead of using a witness.
 
-Increment 7's two-factory form remains the compatibility entry point for the
-other reviewed fixtures:
+Increment 7's two-factory form remains only as a deprecated compatibility and
+mutation-oracle entry point for historical fixtures:
 
 ```scala
 MorphVerilog(SpinalConfig(targetDirectory = "rtl")) {
@@ -54,7 +57,7 @@ MorphVerilog(SpinalConfig(targetDirectory = "rtl")) {
 }
 ```
 
-Both compatibility arguments are by-name factories. The concrete factory may
+Both legacy arguments are by-name factories. The concrete factory may
 be replayed by Spinal's source-location diagnostic pass, and the symbolic
 factory is invoked exactly once after concrete validation succeeds. Before
 emission,
@@ -62,8 +65,45 @@ emission,
 instance's binding-aware flat port directions, signedness and widths and
 recursive child-module multiplicities to agree. This guards the bounded
 dual-factory association but is not a complete behavioral equivalence proof.
-Increment 29 does not claim that this broader compatibility surface has
-already migrated.
+New production code must not add a second factory or ParamRTL design; it uses
+the typed component overload above. `MorphProgram`, the consuming
+`MorphVerilog` overloads and `MorphVerilogReport` remain deprecated so old
+clients stay linkable while migration is explicit.
+
+### Typed report and canonical publication
+
+`MorphSingleSourceVerilogReport.elaborationParameters` exposes the native
+`ElaborationIntegerParameter` schemas retained from successful generation.
+The report's old ParamRTL-shaped `parameters` accessor, constructor and pattern
+extractor are deprecated compatibility views. They preserve names, defaults
+and inclusive bounds for old callers but are lossy: they do not establish
+native identity or expression authority.
+
+An optional caller may use `MorphVerilog.generateWithCanonicalIr` to capture a
+validated MorphHDL-owned IR snapshot from the same native elaboration. The
+capture phase runs immediately after the unique inherited
+`PhaseCheckCrossClock` and before name propagation, name allocation and
+Verilog emission. It publishes `CanonicalIrHandoff` with schema v1, stage
+`PostParameterizationPreEmission`, profile `SimpleWireAssignmentsV1` and
+explicit completeness facets. `MorphVerilog.publishCanonicalIr` supplies that
+same immutable handoff to a read-only publisher only after normal generation
+succeeds.
+
+The initial producer profile is intentionally narrower than the complete
+native typed surface. It accepts one flat combinational module containing
+packed `Bool` / `Bits` / `UInt` / `SInt` declarations and root-scope,
+full-object assignments from direct references or exact literals. Widths are
+literal or one exact direct typed parameter. Hierarchy, registers, memories,
+generated/nested structure, partial or repeated/override assignments, compound
+widths and broader expressions fail closed with stable producer diagnostics.
+The producer reads retained object identities and exact domains only; it never
+parses rendered expressions or generated HDL.
+
+The canonical pass adapter may inspect this profile-bearing handoff, but
+Increment 58 does not run a pass or write a transformed graph back to the
+backend. Optional wire-alias passes remain disabled until WA-07. Without an
+explicit canonical capture request, ordinary typed generation remains
+byte-identical and publishes no IR handoff.
 
 ## Native symbolic data shapes
 
@@ -85,13 +125,21 @@ unpacked memory array. Derived widths, partial aggregates, expressions,
 conditional or resettable processes and Stream algorithms outside their later
 typed increments cannot specialize to the default silently.
 
+The matching `morphhdl.frontend` hardware-construction aliases are deprecated
+compatibility shims as of Increment 58. They may keep an old source tree
+building, but they do not own shape or library semantics. New source imports
+ordinary native factories; literal calls remain parameter-free and symbolic
+calls select only the approved typed native overloads.
+
 The names are part of the v1 source contract:
 
 - `MorphVerilog`: parameter-aware Verilog-2001 generation entry point.
-- `MorphSingleSourceVerilogReport`: the honest result of native single-source
-  generation; it contains no ParamRTL design.
-- `MorphProgram`: explicit concrete-witness and symbolic-design factories used
-  by the Increment 7 compatibility entry point.
+- `MorphSingleSourceVerilogReport`: the result of native single-source
+  generation; its authoritative parameter view is `elaborationParameters`.
+- `MorphCanonicalIrReport`: the native generation result paired with one
+  validated, bounded pre-emission `CanonicalIrHandoff`.
+- `MorphProgram`: deprecated concrete-witness and symbolic-design factories
+  retained only by the Increment 7 compatibility/mutation entry point.
 - `HdlInt`: dual-valued integer carrying a concrete witness and a symbolic
   parameter expression.
 - `HdlBool`: dual-valued Boolean parameter expression.
@@ -355,7 +403,8 @@ Every public parameter carries:
 
 - a default concrete witness used for ordinary object construction and
   differential validation;
-- a typed symbolic expression used to build ParamRTL;
+- a typed symbolic expression and exact root/domain evidence used by native
+  elaboration carriers; legacy ParamRTL construction is compatibility-only;
 - declared constraints such as minimum, maximum, divisibility or relations to
   other parameters;
 - source and logical-name metadata.

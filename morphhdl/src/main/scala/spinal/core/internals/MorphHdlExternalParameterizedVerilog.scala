@@ -53,6 +53,10 @@ object MorphHdlExternalParameterizedVerilog {
       sourceLocation: Option[String]
   )
 
+  @deprecated(
+    "Emitted-text rewriting is a serialization compatibility path, never canonical semantic authority",
+    "Increment 58"
+  )
   def rewrite(
       pc: PhaseContext,
       emittedCanonicalOf: Component => Component

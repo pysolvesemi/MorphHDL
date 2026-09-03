@@ -5,7 +5,7 @@ first parameterized-Verilog release, not implemented in Increment 1.
 
 | Area | Construct | v1 status | Rule |
 |---|---|---|---|
-| Parameters | Integer public parameters | v1 | Literal defaults and explicit constraints; Increment 29 carries one direct positive `HdlInt.param` through an ordinary component width without a second ParamRTL design |
+| Parameters | Integer public parameters | v1 | Literal defaults and explicit constraints; Increment 29 carries one direct positive `HdlInt.param` through an ordinary component width without a second ParamRTL design, and Increment 58 publishes the retained native schema rather than reconstructing a ParamRTL parameter view |
 | Parameters | Boolean parameters | v1 | Increment 9 preserves typed public Boolean intent and legalizes it to integer `1`/`0` in Verilog |
 | Parameters | Derived local parameters | v1 | Increments 8 and 13 capture identity-bearing integer and Boolean locals in one deterministic cross-kind dependency graph |
 | Parameters | Integer comparisons | v1 | Increment 10 implements `<`, `<=`, `>`, `>=`, `hdlEq` and `hdlNe` as typed Boolean expressions |
@@ -38,10 +38,13 @@ first parameterized-Verilog release, not implemented in Increment 1.
 | CDC | Broad CDC library | Post-v1 | `StreamCCByToggle`, `FlowCCByToggle`, parameterized synchronizer policy and CDC protocols other than the reviewed native `StreamFifoCC` remain outside v1. |
 | Verification | Assertions in emitted RTL | Post-v1 | Arbitrary assertion lowering remains deferred and is never silently discarded. Increment 53f permits only its identity-retained StreamFifo formal profile: branch-local history drives one ordinary module-scope `cover` when formal statements are explicitly included. |
 | Escape | Raw/verbatim HDL | Rejected | Not allowed in strict mode |
-| Backends | Direct deterministic Verilog emitter | v1 | Existing ParamRTL designs use the direct Verilog-2001 emitter; Increments 29 and 30 add a bounded native Spinal Verilog path that reads retained symbolic shape metadata from the same elaborated component |
+| IR | Validated typed production handoff | v1 | Increment 58 publishes one immutable `CanonicalIrHandoff` at `PostParameterizationPreEmission`, containing the canonical validator's normalized design, an explicit producer profile and complete facets. The producer reads typed native identities and domains, never emitted text or erased Scala witnesses. |
+| IR | `SimpleWireAssignmentsV1` producer profile | Bounded v1 | One flat nonblackbox module with `Bool`/`Bits`/`UInt`/`SInt` declarations, literal or exact direct-parameter widths, and one root-scope full-object continuous assignment per target from a direct reference or exact literal. Registers, memories, hierarchy, generated/nested structure, repeated/override assignments, compound widths and other expressions fail closed; the bounded profile does not claim coverage of the broader native emitter. |
+| Backends | Native deterministic Verilog emitter | v1 | The typed single-source path uses native Spinal Verilog serialization over the retained typed graph. Its bounded internal post-publication serializer materializes retained typed facts and uses emitted module names only to address publication spans; target text and names may not establish semantic facts. Existing ParamRTL designs and their direct Verilog-2001 emitter remain supported, compatibility-classified oracles rather than the canonical typed pipeline. |
 | Compatibility | Ordinary `SpinalVerilog` | v1 | Increment 29 leaves parameterized mode off by default, ignores symbolic-width metadata and emits the concrete witness width with no public parameter; an `HdlInt` configuration literal such as `Config(8)` follows the same concrete path |
+| Compatibility | Dual factories and MorphHDL factory shadows | Deprecated | Increment 58 deprecates `MorphProgram`, its report/overloads, frontend hardware-construction aliases and post-publication rewrite entry points. They remain linkable only for compatibility and mutation evidence; new production source uses ordinary native factories and typed schemas. |
 | Backends | CIRCT adapter | Experimental | Architecture spike; not a v1 dependency |
-| Backends | SystemVerilog-flat | Post-v1 | Must consume the same ParamRTL |
+| Backends | SystemVerilog-flat | Post-v1 | Must consume the same validated MorphHDL-owned canonical handoff and may not revive ParamRTL or generated-text reconstruction as production authority |
 
 ## v1 completion criterion
 
@@ -49,3 +52,6 @@ One emitted Verilog-2001 hierarchy must be externally instantiated with
 multiple legal parameter values without rerunning MorphHDL. The DisplayController
 pilot and its selected library path must pass parse, synthesis, structural and
 semantic comparison gates with one module definition per logical component.
+The optional IR-pass handoff is independently bounded by its declared producer
+profile: Increment 58 publishes and validates `SimpleWireAssignmentsV1`, while
+pass execution and transformed writeback remain disabled until WA-07.
