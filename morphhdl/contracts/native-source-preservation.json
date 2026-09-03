@@ -27,7 +27,7 @@
     {
       "path": "lib/src/main",
       "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "88be574629c50cda08de5293efdda701d229f64d"
+      "approved_tree": "73d90dacb0d3e276a6bed8670b4b38915fc488bb"
     },
     {
       "path": "scalaplugin/src/main",
@@ -2825,9 +2825,10 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 55: audit concrete compatibility",
         "Increment 57: broad native library migration and proof",
-        "Increment 57a: typed StreamFifoCC architecture"
+        "Increment 57a: typed StreamFifoCC architecture",
+        "Increment 57b: typed StreamFifoCC payload-width formal proof"
       ],
-      "reason": "Add typed Stream pipeline, synchronous- and cross-clock queue ingress plus StreamFifo, StreamFifoCC and StreamWidthAdapter geometry while mechanically retaining the authoritative native algorithms and concrete output.",
+      "reason": "Add typed Stream pipeline, synchronous- and cross-clock queue ingress plus StreamFifo, StreamFifoCC and StreamWidthAdapter geometry, including joint StreamFifoCC depth/payload-width memory roles and a width-safe invalid specialization, while mechanically retaining the authoritative native algorithms and concrete output.",
       "baseline": {
         "path": "lib/src/main/scala/spinal/lib/Stream.scala",
         "mode": "100644",
@@ -2837,8 +2838,8 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/Stream.scala",
         "mode": "100644",
-        "blob": "9ba04f6c2f9d7c0a2d0fb489d634440f84d83a26",
-        "sha256": "d6eff35388e9fb37a506ef626ec1c444ea06f3bd50ae9da19fd09733fecf918c"
+        "blob": "f1a21e7a4a7f54a813b230cb60dd693a0486db6d",
+        "sha256": "671b1c6fbe1e5c12a22f15c91416f8ce99d124bce27e2ef27dc53bdc3eb2f5a3"
       },
       "edits": [
         {
@@ -4188,8 +4189,8 @@
         {
           "id": "stream-cc-typed-12",
           "kind": "mechanical-propagation",
-          "owner": "spinal.lib.StreamFifoCC BufferCC child schema and shared algorithm carriers",
-          "reason": "Bind one canonical child WIDTH formal for each kept synchronizer, retain stable shared-algorithm references, and mark the projected legal-depth ceiling used for native definition identity.",
+          "owner": "spinal.lib.StreamFifoCC BufferCC child schema, shared algorithm carriers and memory geometry",
+          "reason": "Bind one canonical child WIDTH formal for each kept synchronizer, retain stable shared-algorithm references, mark the projected legal-depth ceiling used for native definition identity, and derive parameterized native Mem role ownership from exact depth or payload width.",
           "baseline_span": {
             "start": 69308,
             "end": 69405,
@@ -4197,8 +4198,8 @@
           },
           "approved_span": {
             "start": 111084,
-            "end": 115265,
-            "sha256": "32aa1c6611439b0587c53c3926e83bae40a091704fc80e502aec75f7f25e35fd"
+            "end": 115712,
+            "sha256": "360b372dec83678328e8f995142a6af26de2cd31438ddb64becf65595ca3a391"
           },
           "required_exact_text": [
             {
@@ -4215,6 +4216,21 @@
               "side": "approved",
               "text": "spinal_stream_fifocc_legal_depth_ceiling",
               "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val payloadWidth = widthOfExpr(io.push.payload)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val parameterizedMemoryRoles =",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "!elabDepth.isConcrete || !payloadWidth.isConcrete",
+              "count": 1
             }
           ]
         },
@@ -4222,16 +4238,16 @@
           "id": "stream-cc-native-algorithm-01",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifoCC shared native CDC algorithm",
-          "reason": "Build the RAM, push/pop clocking areas, Gray crossings, reset topology and aggregate write carrier once while selecting only geometry-producing leaves between concrete and typed paths.",
+          "reason": "Build the RAM, push/pop clocking areas, Gray crossings, reset topology and aggregate write carrier once, using stable native Mem write roles whenever depth or payload width is symbolic while preserving the historical shorthand only when both are concrete.",
           "baseline_span": {
             "start": 69417,
             "end": 69477,
             "sha256": "185f2e9341ad87ce0238505bea02af4980d7edbab5ca303617aec1c6b0cfbdb3"
           },
           "approved_span": {
-            "start": 115277,
-            "end": 121258,
-            "sha256": "fe2e74fb53eff01e12dc76f49e26882efcc5713247f096775fc022a673814cf8"
+            "start": 115724,
+            "end": 121702,
+            "sha256": "a989f888e778be8198150ca1ac501aa4a6d7c9dceb834facf09ac33fb98cff23"
           },
           "required_exact_text": [
             {
@@ -4253,6 +4269,26 @@
               "side": "approved",
               "text": "new BuiltAlgorithm(",
               "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (!parameterizedMemoryRoles) null",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "Bits(payloadWidth bits)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (parameterizedMemoryRoles) writeData := io.push.payload.asBits",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (!parameterizedMemoryRoles) {",
+              "count": 1
             }
           ]
         },
@@ -4267,8 +4303,8 @@
             "sha256": "34dc051709420e96339883ff17cc6a965fd4ef322ed122a97f48d2f31735ae3c"
           },
           "approved_span": {
-            "start": 121266,
-            "end": 121744,
+            "start": 121710,
+            "end": 122188,
             "sha256": "87b24de42e69cb8877d663b60264e4d95c1468be2d4e5f4df4cb6f5d65d8b39c"
           },
           "required_exact_text": [
@@ -4295,8 +4331,8 @@
             "sha256": "e035cb8eaaa6a220632e8a194128ca4d6b862b417bed28a0e6b88cc1bfed5911"
           },
           "approved_span": {
-            "start": 121750,
-            "end": 122497,
+            "start": 122194,
+            "end": 122941,
             "sha256": "1bfad062ce77be69340ee1f87a0819ca83cfe5e899f7787b32585597e112d30c"
           },
           "required_exact_text": [
@@ -4316,16 +4352,16 @@
           "id": "stream-cc-invalid-depth-01",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifoCC invalid-depth structural branch",
-          "reason": "Keep every illegal depth specialization outside the CDC algorithm and drive an event-safe inert aggregate-capable interface under its own captured owner.",
+          "reason": "Keep every illegal depth specialization outside the CDC algorithm and drive an event-safe inert aggregate-capable interface under its own captured owner, using a retained exact-width zero carrier when the payload width is symbolic.",
           "baseline_span": {
             "start": 70144,
             "end": 70344,
             "sha256": "ef3b08871a31cfa47979ebab4c264a191efd71fb355f8297956820b1f4e53313"
           },
           "approved_span": {
-            "start": 122509,
-            "end": 124221,
-            "sha256": "c7a07730e0346791911399b954c6c2c376c4d08f47b9591c071975fe92b1b388"
+            "start": 122953,
+            "end": 125164,
+            "sha256": "55fb254ff1e020630cf9bd87161d8432a474ffa6c4f56e2c9be2bf0e4d0d9f14"
           },
           "required_exact_text": [
             {
@@ -4340,13 +4376,28 @@
             },
             {
               "side": "approved",
-              "text": "B(0).resize(widthOfExpr(io.pop.payload))",
-              "count": 2
+              "text": "val popPayloadWidth = widthOfExpr(io.pop.payload)",
+              "count": 1
             },
             {
               "side": "approved",
               "text": "stream_fifocc_invalid_inert",
               "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "stream_fifocc_invalid_payload_zero",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (retainedPayloadZero == null)",
+              "count": 2
+            },
+            {
+              "side": "approved",
+              "text": "else io.pop.payload.assignFromBits(retainedPayloadZero)",
+              "count": 2
             }
           ]
         },
@@ -4361,8 +4412,8 @@
             "sha256": "578b2b652604060bff3dd413109c1fbe6095936bd33270b5a66590590a378af5"
           },
           "approved_span": {
-            "start": 124227,
-            "end": 124681,
+            "start": 125170,
+            "end": 125624,
             "sha256": "7c85762be57725324d2dfefc517a1be43ed32f6d1514785abf56c0a9ee1f3ca7"
           },
           "required_exact_text": [
@@ -4389,8 +4440,8 @@
             "sha256": "97166571867cd49a3de6425e078ab80656ba73a8075ca4d7fa036665f8dc18b6"
           },
           "approved_span": {
-            "start": 124689,
-            "end": 125085,
+            "start": 125632,
+            "end": 126028,
             "sha256": "29edda97a3a854856d881104f7a4c4a657ad9104065e056938e5baf7c37ca21c"
           },
           "required_exact_text": [
@@ -4412,8 +4463,8 @@
             "sha256": "870a0cc5dcd848b061706699ad456ebeedef9c65d61efe1e9c1eabede3988e8d"
           },
           "approved_span": {
-            "start": 125089,
-            "end": 126622,
+            "start": 126032,
+            "end": 127565,
             "sha256": "26152440c277cc2c7c859652d5487643fbf5cca2e28eb686f307ac9f257a7fa7"
           },
           "required_exact_text": [
@@ -4450,8 +4501,8 @@
             "sha256": "d1d895111526866c43e2e18d7dc7e0cf615b98014d0f932a4505798533fd902a"
           },
           "approved_span": {
-            "start": 126635,
-            "end": 127355,
+            "start": 127578,
+            "end": 128298,
             "sha256": "7eece3226868c2871887da143169376071ecc43817ee2da8b1cd27f583c1950c"
           },
           "required_exact_text": [
@@ -4478,8 +4529,8 @@
             "sha256": "b700fe3fa2bd29774c33665bb954df7bf585a6660dfec55739d29973196c1b22"
           },
           "approved_span": {
-            "start": 127361,
-            "end": 132545,
+            "start": 128304,
+            "end": 133488,
             "sha256": "5f6a377db12a1e42bc2ee76dd79175f416551a827d06e89cccee3c929adbd296"
           },
           "required_exact_text": [
@@ -4506,8 +4557,8 @@
             "sha256": "91c8e28d5539fc69385acfbc602aa28b36ae848810f276a294eccde266882d05"
           },
           "approved_span": {
-            "start": 132554,
-            "end": 132554,
+            "start": 133497,
+            "end": 133497,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "required_exact_text": [
@@ -4534,8 +4585,8 @@
             "sha256": "04f21220e6481867f2f3720ae3f7256e5057965db8189ba23b94f1dd34e9bbbe"
           },
           "approved_span": {
-            "start": 138046,
-            "end": 138266,
+            "start": 138989,
+            "end": 139209,
             "sha256": "e09fbe467ec7ebe307c7a50efbd934b4def4a9d043615b92c13eee57501c6f84"
           },
           "required_exact_text": [
@@ -4557,8 +4608,8 @@
             "sha256": "18aca6348140bf7510f0989054d6aaa9d949ee0456bf3937ab0466026687172b"
           },
           "approved_span": {
-            "start": 138549,
-            "end": 138730,
+            "start": 139492,
+            "end": 139673,
             "sha256": "77a3b216b6dc5d7d00a7aef257193ec8dfc2213342e87c930e7a7bf4c9606acf"
           },
           "required_exact_text": [
@@ -4580,8 +4631,8 @@
             "sha256": "41a5050279ff0aa00c3a5492fa469c0e3cc3d9004c27e2c7d974d746125e6999"
           },
           "approved_span": {
-            "start": 139330,
-            "end": 139513,
+            "start": 140273,
+            "end": 140456,
             "sha256": "c67b645fda71352ddaf3fd5f6ee2d628cb014455f4746ca9ff7a1f1e0cf1ca40"
           },
           "required_exact_text": [
@@ -4603,8 +4654,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 139713,
-            "end": 139765,
+            "start": 140656,
+            "end": 140708,
             "sha256": "0283202c7523fbd1cb456a6217125d1f44393639a07ec9ebbfb16826a1fd1aad"
           },
           "required_exact_text": [

@@ -234,8 +234,10 @@ retained for traceability:
   reconstruction and component-specific recognizers from the production path.
 - Increments 54 through 57 form the strict consolidation, compatibility and
   broad-migration chain. Increment 57a follows merged Increment 57 to close the
-  reviewed native `StreamFifoCC` CDC surface; Increment 58 remains blocked until
-  merged Increment 57a establishes typed parity.
+  reviewed native `StreamFifoCC` CDC surface. Increment 57b follows merged
+  Increment 57a to qualify joint typed payload-width and depth behavior over
+  its finite formal witness matrix; Increment 58 remains blocked until merged
+  Increment 57b establishes that proof.
 
 Dependencies are transitive. No future increment may add a new dependency on
 the superseded native-`Int` shadow path. Temporary MorphHDL constructor aliases
@@ -606,9 +608,39 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   shadow reconstruction, component/source/emitted-name recognition, or a
   copied CDC algorithm.
 
-- [ ] **Increment 58 — Legacy adapter and shadow-path retirement**
+- [ ] **Increment 57b — Typed native StreamFifoCC payload-width formal proof**
 
   **Dependencies:** Increment 57a implemented and merged.
+
+  Extend the native `StreamFifoCC` relational proof so payload `WIDTH` and FIFO
+  `DEPTH` are independent typed parameters on the candidate definition. Prove
+  the exact Cartesian witness matrix `WIDTH` in `{1, 5, 8, 32}`, `DEPTH` in
+  `{2, 4, 8, 16}`, both direct and buffered pop-reset topologies, and both
+  faster-push and faster-pop clock ratios. This is 64 positive configurations
+  per enabled Scala lane. Width one is the scalar boundary, width five is an
+  odd non-byte shape, width eight preserves the Increment 57a baseline, and
+  width 32 is the declared proof-matrix upper boundary.
+
+  Generate each concrete reference independently through ordinary
+  `SpinalVerilog` and the native `Int` `StreamFifoCC` construction for its exact
+  width, depth and reset topology. Specialize the typed candidate by setting
+  both `WIDTH` and `DEPTH`, compare handshake, occupancy and valid payload
+  observations under the existing CDC assumptions, and retain a deliberate
+  payload mutation that must produce a genuine counterexample. Parse failure,
+  missing modules, timeout, `UNKNOWN` or a tool error is not a proof or a valid
+  mutation result. Do not copy or re-author the FIFO, Gray-pointer,
+  synchronizer, RAM or reset-buffering algorithm as a second implementation;
+  a proof harness may only instantiate the authoritative native FIFO.
+
+  The finite matrix qualifies only the listed widths and depths; it does not
+  claim universal formal quantification over every positive `WIDTH`, a new
+  payload type, arbitrary clock schedules, or reset behavior beyond the
+  Increment 57a contract. See
+  [Increment 57b](increment-57b-typed-streamfifocc-payload-width.md).
+
+- [ ] **Increment 58 — Legacy adapter and shadow-path retirement**
+
+  **Dependencies:** Increment 57b implemented and merged.
 
   Remove or deprecate dual-factory, component-specific, emitted-name and native-
   `Int` shadow production paths after every supported feature has typed parity.

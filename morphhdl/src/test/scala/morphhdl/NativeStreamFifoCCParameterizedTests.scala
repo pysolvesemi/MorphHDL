@@ -58,6 +58,80 @@ final class NativeStreamFifoCCParameterizedHarness(
   io.popOccupancy := fifo.io.popOccupancy.resized
 }
 
+/** Native CDC FIFO with independently retained payload-width and depth roots. */
+final class NativeStreamFifoCCWidthDepthHarness(
+    width: HdlInt,
+    depth: HdlInt
+) extends Component {
+  setDefinitionName("NativeStreamFifoCCWidthDepth")
+
+  private val elabWidth = width.asElabInt
+  val io = new Bundle {
+    val pushClock = in Bool ()
+    val pushReset = in Bool ()
+    val popClock = in Bool ()
+    val popReset = in Bool ()
+    val push = slave Stream (Bits(elabWidth bits))
+    val pop = master Stream (Bits(elabWidth bits))
+  }
+
+  private val config = ClockDomainConfig(
+    clockEdge = RISING,
+    resetKind = ASYNC,
+    resetActiveLevel = HIGH
+  )
+  private val pushCd = ClockDomain(io.pushClock, io.pushReset, config = config)
+  private val popCd = ClockDomain(io.popClock, io.popReset, config = config)
+
+  val fifo = StreamFifoCC(
+    HardType(Bits(elabWidth bits)),
+    depth.asElabInt,
+    pushCd,
+    popCd,
+    withPopBufferedReset = false
+  )
+  fifo.io.push << io.push
+  io.pop << fifo.io.pop
+}
+
+/** A symbolic payload width with an ordinary Int depth exercises the native
+  * memory-role path independently from retained depth geometry.
+  */
+final class NativeStreamFifoCCWidthStaticDepthHarness(
+    width: HdlInt,
+    depth: Int
+) extends Component {
+  setDefinitionName("NativeStreamFifoCCWidthStaticDepth")
+
+  private val elabWidth = width.asElabInt
+  val io = new Bundle {
+    val pushClock = in Bool ()
+    val pushReset = in Bool ()
+    val popClock = in Bool ()
+    val popReset = in Bool ()
+    val push = slave Stream (Bits(elabWidth bits))
+    val pop = master Stream (Bits(elabWidth bits))
+  }
+
+  private val config = ClockDomainConfig(
+    clockEdge = RISING,
+    resetKind = ASYNC,
+    resetActiveLevel = HIGH
+  )
+  private val pushCd = ClockDomain(io.pushClock, io.pushReset, config = config)
+  private val popCd = ClockDomain(io.popClock, io.popReset, config = config)
+
+  val fifo = StreamFifoCC(
+    HardType(Bits(elabWidth bits)),
+    depth,
+    pushCd,
+    popCd,
+    withPopBufferedReset = false
+  )
+  fifo.io.push << io.push
+  io.pop << fifo.io.pop
+}
+
 /** Two independently parameterized aggregate-payload FIFOs deliberately share
   * the same ClockDomain objects. Each FIFO must retain its own generated reset
   * synchronizer; a design-global cache entry would illegally couple the two
@@ -623,6 +697,113 @@ class NativeStreamFifoCCParameterizedTests extends AnyFunSuite {
         assert(!rtl.contains("stream_fifocc_full_mask"), rtl)
         assert(!rtl.contains("stream_fifocc_write_address"), rtl)
       }
+    }
+  }
+
+  test("symbolic payload width and depth share one native StreamFifoCC definition") {
+    withTemporaryDirectory { directory =>
+      def emit(
+          target: Path
+      ): (Path, MorphSingleSourceVerilogReport, NativeStreamFifoCCWidthDepthHarness) = {
+        Files.createDirectories(target)
+        val config = generationConfig(
+          target,
+          "native_streamfifocc_width_depth.v"
+        )
+        val width =
+          HdlInt.param("WIDTH", default = 5, min = 1, max = 32)
+        val depth =
+          HdlInt.param("DEPTH", default = 8, min = 2, max = 16)
+        var top: NativeStreamFifoCCWidthDepthHarness = null
+        val report = MorphVerilog(config) {
+          top = new NativeStreamFifoCCWidthDepthHarness(width, depth)
+          top
+        }
+        (target.resolve(config.netlistFileName), report, top)
+      }
+
+      val first = emit(directory.resolve("first"))
+      val replay = emit(directory.resolve("replay"))
+      assertSameBytes(first._1, replay._1, "joint WIDTH/DEPTH replay")
+
+      val rtl = read(first._1)
+      val compact = compactWhitespace(rtl)
+      val fifoRtl = moduleDefinition(rtl, "StreamFifoCC")
+      val fifoCompact = compactWhitespace(fifoRtl)
+      assert(first._2.parameters.map(_.name).toSet == Set("WIDTH", "DEPTH"))
+      assert(rtl.contains("parameter integer WIDTH = 5"), rtl)
+      assert(rtl.contains("parameter integer DEPTH = 8"), rtl)
+      assert(compact.contains(".WIDTH(WIDTH)"), rtl)
+      assert(compact.contains(".DEPTH(DEPTH)"), rtl)
+      assert(fifoCompact.contains("[WIDTH-1:0]io_push_payload"), fifoRtl)
+      assert(fifoCompact.contains("[WIDTH-1:0]io_pop_payload"), fifoRtl)
+      assertNamedDeclarationUsesWidth(
+        fifoRtl,
+        "algorithm_pushCC_writeData",
+        "WIDTH-1:0"
+      )
+      assert(
+        fifoCompact.contains("reg[WIDTH-1:0]algorithm_ram[0:DEPTH-1]") ||
+          fifoCompact.contains("reg[WIDTH-1:0]algorithm_ram[0:(DEPTH-1)]"),
+        fifoRtl
+      )
+
+      val guardPositions = allIndicesOf(fifoCompact, "DEPTH&(DEPTH-1)")
+      assert(guardPositions.size >= 2, fifoRtl)
+      assertSensitizedInvalidInterface(
+        fifoCompact.substring(guardPositions(1)),
+        Vector("io_pop_payload"),
+        fifoRtl
+      )
+      Vector(first._3.fifo.io.push.payload, first._3.fifo.io.pop.payload)
+        .foreach { payload =>
+          val retainedWidth = widthOfExpr(payload)
+          assert(payload.getBitsWidth == 5, payload.toString)
+          assert(retainedWidth.parameters.map(_.name) == Vector("WIDTH"))
+        }
+      assert(!rtl.contains("ParameterizedStreamFifoCC"), rtl)
+      assert(!rtl.contains("NativeIntShadow"), rtl)
+    }
+  }
+
+  test("symbolic payload width retains named native memory roles at static depth") {
+    withTemporaryDirectory { directory =>
+      val config = generationConfig(
+        directory,
+        "native_streamfifocc_width_static_depth.v"
+      )
+      val width = HdlInt.param("WIDTH", default = 5, min = 1, max = 32)
+      var top: NativeStreamFifoCCWidthStaticDepthHarness = null
+      val report = MorphVerilog(config) {
+        top = new NativeStreamFifoCCWidthStaticDepthHarness(width, depth = 8)
+        top
+      }
+      val rtl = read(directory.resolve(config.netlistFileName))
+      val compact = compactWhitespace(rtl)
+      val fifoRtl = moduleDefinition(rtl, "StreamFifoCC")
+      val fifoCompact = compactWhitespace(fifoRtl)
+
+      assert(report.parameters.map(_.name) == Vector("WIDTH"))
+      assert(rtl.contains("parameter integer WIDTH = 5"), rtl)
+      assert(!rtl.contains("parameter integer DEPTH"), rtl)
+      assert(compact.contains(".WIDTH(WIDTH)"), rtl)
+      assert(!compact.contains(".DEPTH("), rtl)
+      assert(fifoCompact.contains("[WIDTH-1:0]io_push_payload"), fifoRtl)
+      assert(fifoCompact.contains("[WIDTH-1:0]io_pop_payload"), fifoRtl)
+      assertNamedDeclarationUsesWidth(
+        fifoRtl,
+        "pushCC_writeData",
+        "WIDTH-1:0"
+      )
+      assert(fifoRtl.contains("stream_fifocc_write_address"), fifoRtl)
+      assert(fifoCompact.contains("reg[WIDTH-1:0]ram[0:7]"), fifoRtl)
+      assert(top.fifo.depth == 8)
+      assert(top.fifo.ram.wordCount == 8)
+      val retainedWidth = widthOfExpr(top.fifo.io.push.payload)
+      assert(top.fifo.io.push.payload.getBitsWidth == 5)
+      assert(retainedWidth.parameters.map(_.name) == Vector("WIDTH"))
+      assert(!rtl.contains("ParameterizedStreamFifoCC"), rtl)
+      assert(!rtl.contains("NativeIntShadow"), rtl)
     }
   }
 

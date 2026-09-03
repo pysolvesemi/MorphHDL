@@ -19,24 +19,28 @@ private object NativeStreamFifoCCFormalEquivalenceFixture {
     resetActiveLevel = HIGH
   )
 
-  /** Typed proof leg. The depth reaches the ordinary native factory as an
-    * ElabInt; no frontend FIFO adapter or concrete witness is shared with the
-    * reference leg.
+  /** Typed proof leg. Both payload width and depth reach the ordinary native
+    * factory as ElabInts; no frontend FIFO adapter or concrete witness is
+    * shared with the reference leg.
     */
-  final class TypedTop(depth: ElabInt, bufferedPopReset: Boolean)
+  final class TypedTop(
+      width: ElabInt,
+      depth: ElabInt,
+      bufferedPopReset: Boolean
+  )
       extends Component {
     setDefinitionName(
-      if (bufferedPopReset) "NativeStreamFifoCC57aTypedBuffered"
-      else "NativeStreamFifoCC57aTypedDirect"
+      if (bufferedPopReset) "NativeStreamFifoCC57bTypedBuffered"
+      else "NativeStreamFifoCC57bTypedDirect"
     )
 
     val io = new Bundle {
       val pushValid = in Bool ()
       val pushReady = out Bool ()
-      val pushPayload = in Bits (8 bits)
+      val pushPayload = in Bits (width bits)
       val popValid = out Bool ()
       val popReady = in Bool ()
-      val popPayload = out Bits (8 bits)
+      val popPayload = out Bits (width bits)
       val pushOccupancy = out UInt (5 bits)
       val popOccupancy = out UInt (5 bits)
     }
@@ -45,7 +49,7 @@ private object NativeStreamFifoCCFormalEquivalenceFixture {
     private val popClock = ClockDomain.external("pop", config = ClockConfig)
 
     val fifo = spinal.lib.StreamFifoCC(
-      HardType(Bits(8 bits)),
+      HardType(Bits(width bits)),
       depth,
       pushClock,
       popClock,
@@ -66,23 +70,29 @@ private object NativeStreamFifoCCFormalEquivalenceFixture {
   }
 
   /** Independent ordinary-SpinalHDL reference. This leg accepts only Int and
-    * is elaborated independently for each concrete depth and reset topology.
+    * is elaborated independently for each concrete width, depth and reset
+    * topology.
     */
-  final class ConcreteTop(depth: Int, bufferedPopReset: Boolean)
+  final class ConcreteTop(
+      width: Int,
+      depth: Int,
+      bufferedPopReset: Boolean
+  )
       extends Component {
+    require(width >= 1)
     require(depth >= 2 && (depth & (depth - 1)) == 0)
     setDefinitionName(
-      s"NativeStreamFifoCC57aConcreteD${depth}" +
+      s"NativeStreamFifoCC57bConcreteW${width}D${depth}" +
         (if (bufferedPopReset) "Buffered" else "Direct")
     )
 
     val io = new Bundle {
       val pushValid = in Bool ()
       val pushReady = out Bool ()
-      val pushPayload = in Bits (8 bits)
+      val pushPayload = in Bits (width bits)
       val popValid = out Bool ()
       val popReady = in Bool ()
-      val popPayload = out Bits (8 bits)
+      val popPayload = out Bits (width bits)
       val pushOccupancy = out UInt (5 bits)
       val popOccupancy = out UInt (5 bits)
     }
@@ -91,14 +101,14 @@ private object NativeStreamFifoCCFormalEquivalenceFixture {
     private val popClock = ClockDomain.external("pop", config = ClockConfig)
 
     val fifo = new spinal.lib.StreamFifoCC(
-      HardType(Bits(8 bits)),
+      HardType(Bits(width bits)),
       depth,
       pushClock,
       popClock,
       bufferedPopReset
     )
     fifo.setDefinitionName(
-      s"NativeStreamFifoCC57aConcreteCoreD${depth}" +
+      s"NativeStreamFifoCC57bConcreteCoreW${width}D${depth}" +
         (if (bufferedPopReset) "Buffered" else "Direct")
     )
 
@@ -113,13 +123,14 @@ private object NativeStreamFifoCCFormalEquivalenceFixture {
   }
 }
 
-/** Relational proof for Increment 57.a.
+/** Relational proof for Increment 57b.
   *
-  * Each typed specialization is compared with an independently elaborated
-  * native-Int StreamFifoCC. Two deterministic asynchronous clock schedules
-  * exercise both 2:1 directions, and both native pop-reset-buffer modes are
-  * covered. The expensive solver matrix is deliberately opt-in; the ordinary
-  * test lane still verifies that all independent witnesses can be generated.
+  * Each typed width/depth specialization is compared with an independently
+  * elaborated native-Int StreamFifoCC. Two deterministic asynchronous clock
+  * schedules exercise both 2:1 directions, and both native pop-reset-buffer
+  * modes are covered. The expensive solver matrix is deliberately opt-in; the
+  * ordinary test lane still verifies that all independent witnesses can be
+  * generated.
   */
 class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
   import NativeStreamFifoCCFormalEquivalenceFixture._
@@ -130,16 +141,18 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
       popPhaseBit: Int
   )
   private final case class Configuration(
+      width: Int,
       depth: Int,
       buffered: Boolean,
       ratio: ClockRatio
   )
   private final case class GeneratedDuts(
       typedByResetMode: Map[Boolean, Path],
-      concreteByConfiguration: Map[(Int, Boolean), Path]
+      concreteByConfiguration: Map[(Int, Int, Boolean), Path]
   )
   private final case class PreparedDuts(candidate: Path, reference: Path)
 
+  private val Widths = Vector(1, 5, 8, 32)
   private val Depths = Vector(2, 4, 8, 16)
   private val ResetModes = Vector(false, true)
   private val ClockRatios = Vector(
@@ -147,25 +160,43 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
     ClockRatio("pop_2x_push", pushPhaseBit = 1, popPhaseBit = 0)
   )
   private val Configurations = for {
+    width <- Widths
     depth <- Depths
     buffered <- ResetModes
     ratio <- ClockRatios
-  } yield Configuration(depth, buffered, ratio)
+  } yield Configuration(width, depth, buffered, ratio)
 
   private val FormalGateEnvironment =
     "MORPHDL_RUN_STREAMFIFOCC_FORMAL_EQUIVALENCE"
   private val FormalWorkspaceEnvironment =
     "MORPHDL_STREAMFIFOCC_FORMAL_WORKSPACE"
-  private val ParameterizedFile = "native_streamfifocc_57a_parameterized.v"
+  private val ParameterizedFile = "native_streamfifocc_57b_parameterized.v"
   private val ModuleDeclaration =
     """(?m)^\s*module\s+([A-Za-z_][A-Za-z0-9_$]*)\b""".r
 
   test(
-    "formal references independently cover depths 2 4 8 16 and both reset modes"
+    "formal references independently cover width and depth corners in both reset modes"
   ) {
     withTemporaryDirectory { directory =>
       validateGeneratedDuts(generateDuts(directory))
     }
+  }
+
+  test("formal matrix preserves width 8 CDC coverage and crosses every geometry corner") {
+    assert(Widths == Vector(1, 5, 8, 32))
+    assert(Depths == Vector(2, 4, 8, 16))
+    assert(Configurations.size == 64)
+    assert(Configurations.distinct.size == Configurations.size)
+    assert(
+      Configurations.count(_.width == 8) ==
+        Depths.size * ResetModes.size * ClockRatios.size
+    )
+    for {
+      width <- Widths
+      depth <- Depths
+      buffered <- ResetModes
+      ratio <- ClockRatios
+    } assert(Configurations.contains(Configuration(width, depth, buffered, ratio)))
   }
 
   test("formal miter connects each reference and typed DUT port exactly once") {
@@ -208,6 +239,8 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
 
     Configurations.foreach { configuration =>
       val miter = equivalenceMiter(configuration, mutatePopPayload = false)
+      val normalizedMiter = compact(miter)
+      val payloadRange = s"[${configuration.width - 1}:0]"
       val clockResetConnections =
         Vector(
           "push_clk" -> "push_clk",
@@ -223,7 +256,24 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
         connectionsOf(miter, "typed_dut") ==
           typedDataConnections ++ clockResetConnections
       )
+      Vector(
+        s"inputwire${payloadRange}push_payload",
+        s"wire${payloadRange}reference_pop_payload",
+        s"wire${payloadRange}typed_pop_payload",
+        s"wire${payloadRange}typed_pop_payload_compared"
+      ).foreach(token => assert(normalizedMiter.contains(token), miter))
     }
+
+    val mutation = equivalenceMiter(
+      Configuration(
+        width = 5,
+        depth = 2,
+        buffered = false,
+        ratio = ClockRatios.head
+      ),
+      mutatePopPayload = true
+    )
+    assert(compact(mutation).contains("typed_pop_payload^5'h10"), mutation)
   }
 
   test("formal DUT preparation releases BufferCC hierarchy before flattening") {
@@ -247,20 +297,28 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
       val candidate = candidatePreparationScript(
         Paths.get("typed.v"),
         Paths.get("candidate.il"),
+        width = 5,
         depth = 2,
         buffered = buffered
       )
       assertSingleOrderedRelease(candidate, typedSourceTop(buffered))
+      assert(
+        candidate.contains(
+          s"chparam -set WIDTH 5 -set DEPTH 2 ${typedSourceTop(buffered)}"
+        ),
+        candidate
+      )
 
       val reference = referencePreparationScript(
         Paths.get("reference.v"),
         Paths.get("reference.il"),
+        width = 5,
         depth = 2,
         buffered = buffered
       )
       assertSingleOrderedRelease(
         reference,
-        concreteSourceTop(depth = 2, buffered = buffered)
+        concreteSourceTop(width = 5, depth = 2, buffered = buffered)
       )
     }
   }
@@ -335,28 +393,35 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
       val generated = generateDuts(directory)
       validateGeneratedDuts(generated)
       val prepared = (for {
+        width <- Widths
         depth <- Depths
         buffered <- ResetModes
       } yield {
-        val key = depth -> buffered
-        key -> prepareDuts(directory, generated, depth, buffered)
+        val key = (width, depth, buffered)
+        key -> prepareDuts(directory, generated, width, depth, buffered)
       }).toMap
 
       Configurations.foreach { configuration =>
         val miter = directory.resolve(
-          s"streamfifocc_57a_${configurationStem(configuration)}.v"
+          s"streamfifocc_57b_${configurationStem(configuration)}.v"
         )
         write(
           miter,
           equivalenceMiter(configuration, mutatePopPayload = false)
         )
         val config = directory.resolve(
-          s"streamfifocc_57a_${configurationStem(configuration)}.sby"
+          s"streamfifocc_57b_${configurationStem(configuration)}.sby"
         )
         write(
           config,
           positiveSby(
-            prepared(configuration.depth -> configuration.buffered),
+            prepared(
+              (
+                configuration.width,
+                configuration.depth,
+                configuration.buffered
+              )
+            ),
             miter,
             miterTop(configuration)
           )
@@ -374,23 +439,28 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
       // required VCD and assertion diagnostic prove it is a counterexample
       // rather than a tool/setup failure.
       val mutationConfiguration = Configuration(
+        width = 5,
         depth = 2,
         buffered = false,
         ratio = ClockRatios.head
       )
       val mutationMiter =
-        directory.resolve("streamfifocc_57a_payload_mutation.v")
+        directory.resolve("streamfifocc_57b_payload_mutation.v")
       write(
         mutationMiter,
         equivalenceMiter(mutationConfiguration, mutatePopPayload = true)
       )
       val mutationConfig =
-        directory.resolve("streamfifocc_57a_payload_mutation.sby")
+        directory.resolve("streamfifocc_57b_payload_mutation.sby")
       write(
         mutationConfig,
         mutationSby(
           prepared(
-            mutationConfiguration.depth -> mutationConfiguration.buffered
+            (
+              mutationConfiguration.width,
+              mutationConfiguration.depth,
+              mutationConfiguration.buffered
+            )
           ),
           mutationMiter,
           miterTop(mutationConfiguration)
@@ -410,19 +480,23 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
     // capture boundary. Besides keeping the witnesses independent, this makes
     // it impossible for the concrete sources to consume retained typed state.
     val concreteByConfiguration = (for {
+      width <- Widths
       depth <- Depths
       buffered <- ResetModes
     } yield {
       val target =
-        directory.resolve(s"concrete-d${depth}-${resetMode(buffered)}")
+        directory.resolve(
+          s"concrete-w${width}-d${depth}-${resetMode(buffered)}"
+        )
       Files.createDirectories(target)
-      val file = s"native_streamfifocc_57a_concrete_d${depth}_${resetMode(buffered)}.v"
+      val file =
+        s"native_streamfifocc_57b_concrete_w${width}_d${depth}_${resetMode(buffered)}.v"
       val config = generationConfig(target)
       config.netlistFileName = file
       SpinalVerilog(config) {
-        new ConcreteTop(depth, buffered)
+        new ConcreteTop(width, depth, buffered)
       }
-      (depth -> buffered) -> target.resolve(file)
+      (width, depth, buffered) -> target.resolve(file)
     }).toMap
 
     val typedByResetMode = ResetModes.map { buffered =>
@@ -430,6 +504,14 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
       Files.createDirectories(target)
       val config = generationConfig(target)
       config.netlistFileName = ParameterizedFile
+      val width = HdlInt
+        .param(
+          "WIDTH",
+          default = BigInt(8),
+          min = BigInt(1),
+          max = BigInt(32)
+        )
+        .asElabInt
       val depth = HdlInt
         .param(
           "DEPTH",
@@ -439,7 +521,7 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
         )
         .asElabInt
       MorphVerilog(config) {
-        new TypedTop(depth, buffered)
+        new TypedTop(width, depth, buffered)
       }
       buffered -> target.resolve(ParameterizedFile)
     }.toMap
@@ -456,9 +538,25 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
           source.contains(s"module ${typedSourceTop(buffered)} #("),
           source
         )
+        val typedHeader = compact(moduleHeader(source, typedSourceTop(buffered)))
+        val fifoHeader = compact(moduleHeader(source, "StreamFifoCC"))
+        assert(typedHeader.contains("parameterintegerWIDTH=8"), source)
         assert(source.contains("parameter integer DEPTH = 8"), source)
         assert(source.contains("module StreamFifoCC #("), source)
+        assert(fifoHeader.contains("parameterintegerWIDTH=8"), source)
+        assert(fifoHeader.contains("parameterintegerDEPTH=8"), source)
+        assert(typedHeader.contains("[WIDTH-1:0]io_pushPayload"), source)
+        assert(typedHeader.contains("[WIDTH-1:0]io_popPayload"), source)
+        assert(fifoHeader.contains("[WIDTH-1:0]io_push_payload"), source)
+        assert(fifoHeader.contains("[WIDTH-1:0]io_pop_payload"), source)
+        assert(compact(source).contains(".WIDTH(WIDTH)"), source)
         assert(source.contains(".DEPTH(DEPTH)"), source)
+        assert(
+          compact(source).contains(
+            "reg[WIDTH-1:0]algorithm_ram[0:DEPTH-1];"
+          ),
+          source
+        )
         assert(!source.contains("NativeIntShadow"), source)
         assert(
           moduleHeader(source, typedSourceTop(buffered)).contains("pop_reset") ==
@@ -473,28 +571,51 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
     )
 
     val concreteSources = generated.concreteByConfiguration.toVector.map {
-      case ((depth, buffered), path) =>
+      case ((width, depth, buffered), path) =>
         assert(
           Files.isRegularFile(path),
           s"concrete proof source is missing: $path"
         )
         val source = read(path)
-        assert(source.contains(s"module ${concreteSourceTop(depth, buffered)}"))
+        val top = concreteSourceTop(width, depth, buffered)
+        val core = concreteCoreSourceTop(width, depth, buffered)
+        assert(
+          source.contains(s"module $top")
+        )
+        assert(source.contains(s"module $core"), source)
+        val topHeader = compact(moduleHeader(source, top))
+        val coreHeader = compact(moduleHeader(source, core))
+        val payloadRange = s"[${width - 1}:0]"
+        Vector(
+          s"inputwire${payloadRange}io_pushPayload",
+          s"outputwire${payloadRange}io_popPayload"
+        ).foreach(token => assert(topHeader.contains(token), source))
+        Vector(
+          s"inputwire${payloadRange}io_push_payload",
+          s"outputwire${payloadRange}io_pop_payload"
+        ).foreach(token => assert(coreHeader.contains(token), source))
+        assert(
+          compact(source).contains(
+            s"reg${payloadRange}ram[0:${depth - 1}];"
+          ),
+          source
+        )
+        assert(!source.contains("parameter integer WIDTH"), source)
         assert(!source.contains("parameter integer DEPTH"), source)
+        assert(!source.contains(".WIDTH("), source)
         assert(!source.contains(".DEPTH("), source)
         assert(
           !moduleNames(source).contains(typedSourceTop(buffered)),
           "typed and concrete proof legs share their top definition"
         )
         assert(
-          moduleHeader(source, concreteSourceTop(depth, buffered))
-            .contains("pop_reset") == !buffered,
-          s"concrete reset topology does not match buffered=$buffered at depth $depth:\n$source"
+          moduleHeader(source, top).contains("pop_reset") == !buffered,
+          s"concrete reset topology does not match buffered=$buffered at width $width depth $depth:\n$source"
         )
         source
     }
     assert(
-      concreteSources.toSet.size == Depths.size * ResetModes.size,
+      concreteSources.toSet.size == Widths.size * Depths.size * ResetModes.size,
       "concrete references were not independently specialized"
     )
   }
@@ -502,32 +623,35 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
   private def prepareDuts(
       directory: Path,
       generated: GeneratedDuts,
+      width: Int,
       depth: Int,
       buffered: Boolean
   ): PreparedDuts = {
-    val stem = s"d${depth}_${resetMode(buffered)}"
-    val candidate = directory.resolve(s"streamfifocc_57a_candidate_$stem.il")
+    val stem = s"w${width}_d${depth}_${resetMode(buffered)}"
+    val candidate = directory.resolve(s"streamfifocc_57b_candidate_$stem.il")
     val candidateScript =
-      directory.resolve(s"streamfifocc_57a_prepare_candidate_$stem.ys")
+      directory.resolve(s"streamfifocc_57b_prepare_candidate_$stem.ys")
     write(
       candidateScript,
       candidatePreparationScript(
         generated.typedByResetMode(buffered),
         candidate,
+        width,
         depth,
         buffered
       )
     )
     runYosys(directory, candidateScript, candidate)
 
-    val reference = directory.resolve(s"streamfifocc_57a_reference_$stem.il")
+    val reference = directory.resolve(s"streamfifocc_57b_reference_$stem.il")
     val referenceScript =
-      directory.resolve(s"streamfifocc_57a_prepare_reference_$stem.ys")
+      directory.resolve(s"streamfifocc_57b_prepare_reference_$stem.ys")
     write(
       referenceScript,
       referencePreparationScript(
-        generated.concreteByConfiguration(depth -> buffered),
+        generated.concreteByConfiguration((width, depth, buffered)),
         reference,
+        width,
         depth,
         buffered
       )
@@ -540,11 +664,12 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
   private def candidatePreparationScript(
       source: Path,
       target: Path,
+      width: Int,
       depth: Int,
       buffered: Boolean
   ): String =
     s"""read_verilog -defer ${yosysPath(source)}
-       |chparam -set DEPTH $depth ${typedSourceTop(buffered)}
+       |chparam -set WIDTH $width -set DEPTH $depth ${typedSourceTop(buffered)}
        |hierarchy -check -top ${typedSourceTop(buffered)}
        |setattr -unset keep_hierarchy
        |flatten
@@ -554,18 +679,19 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
        |memory_collect
        |opt_clean
        |check -assert
-       |rename -top ${candidatePreparedTop(depth, buffered)}
+       |rename -top ${candidatePreparedTop(width, depth, buffered)}
        |write_rtlil ${yosysPath(target)}
        |""".stripMargin
 
   private def referencePreparationScript(
       source: Path,
       target: Path,
+      width: Int,
       depth: Int,
       buffered: Boolean
   ): String =
     s"""read_verilog -defer ${yosysPath(source)}
-       |hierarchy -check -top ${concreteSourceTop(depth, buffered)}
+       |hierarchy -check -top ${concreteSourceTop(width, depth, buffered)}
        |setattr -unset keep_hierarchy
        |flatten
        |proc
@@ -574,7 +700,7 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
        |memory_collect
        |opt_clean
        |check -assert
-       |rename -top ${referencePreparedTop(depth, buffered)}
+       |rename -top ${referencePreparedTop(width, depth, buffered)}
        |write_rtlil ${yosysPath(target)}
        |""".stripMargin
 
@@ -582,8 +708,11 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
       configuration: Configuration,
       mutatePopPayload: Boolean
   ): String = {
+    val payloadRange = s"[${configuration.width - 1}:0]"
+    val mutationMask = BigInt(1) << (configuration.width - 1)
     val comparedPayload =
-      if (mutatePopPayload) "(typed_pop_payload ^ 8'h01)"
+      if (mutatePopPayload)
+        s"(typed_pop_payload ^ ${configuration.width}'h${mutationMask.toString(16)})"
       else "typed_pop_payload"
     // A buffered StreamFifoCC intentionally derives its pop-domain reset from
     // push_reset, so SpinalHDL omits the otherwise unused external pop_reset
@@ -600,7 +729,7 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
 
     s"""module ${miterTop(configuration)} (
        |  input wire push_valid,
-       |  input wire [7:0] push_payload,
+       |  input wire $payloadRange push_payload,
        |  input wire pop_ready
        |);
        |  reg [3:0] clock_phase;
@@ -611,13 +740,13 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
        |  wire pop_reset;
        |  wire reference_push_ready;
        |  wire reference_pop_valid;
-       |  wire [7:0] reference_pop_payload;
+       |  wire $payloadRange reference_pop_payload;
        |  wire [4:0] reference_push_occupancy;
        |  wire [4:0] reference_pop_occupancy;
        |  wire typed_push_ready;
        |  wire typed_pop_valid;
-       |  wire [7:0] typed_pop_payload;
-       |  wire [7:0] typed_pop_payload_compared;
+       |  wire $payloadRange typed_pop_payload;
+       |  wire $payloadRange typed_pop_payload_compared;
        |  wire [4:0] typed_push_occupancy;
        |  wire [4:0] typed_pop_occupancy;
        |
@@ -638,7 +767,7 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
        |  assign pop_reset = (reset_age < 3'd4);
        |  assign typed_pop_payload_compared = $comparedPayload;
        |
-       |  ${referencePreparedTop(configuration.depth, configuration.buffered)} reference_dut (
+       |  ${referencePreparedTop(configuration.width, configuration.depth, configuration.buffered)} reference_dut (
        |    .io_pushValid(push_valid),
        |    .io_pushReady(reference_push_ready),
        |    .io_pushPayload(push_payload),
@@ -652,7 +781,7 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
        |    .pop_clk(pop_clk)$popResetConnection
        |  );
        |
-       |  ${candidatePreparedTop(configuration.depth, configuration.buffered)} typed_dut (
+       |  ${candidatePreparedTop(configuration.width, configuration.depth, configuration.buffered)} typed_dut (
        |    .io_pushValid(push_valid),
        |    .io_pushReady(typed_push_ready),
        |    .io_pushPayload(push_payload),
@@ -857,27 +986,50 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
     if (buffered) "buffered" else "direct"
 
   private def typedSourceTop(buffered: Boolean): String =
-    if (buffered) "NativeStreamFifoCC57aTypedBuffered"
-    else "NativeStreamFifoCC57aTypedDirect"
+    if (buffered) "NativeStreamFifoCC57bTypedBuffered"
+    else "NativeStreamFifoCC57bTypedDirect"
 
-  private def concreteSourceTop(depth: Int, buffered: Boolean): String =
-    s"NativeStreamFifoCC57aConcreteD${depth}" +
+  private def concreteSourceTop(
+      width: Int,
+      depth: Int,
+      buffered: Boolean
+  ): String =
+    s"NativeStreamFifoCC57bConcreteW${width}D${depth}" +
       (if (buffered) "Buffered" else "Direct")
 
-  private def candidatePreparedTop(depth: Int, buffered: Boolean): String =
-    s"streamfifocc_57a_candidate_d${depth}_${resetMode(buffered)}"
+  private def concreteCoreSourceTop(
+      width: Int,
+      depth: Int,
+      buffered: Boolean
+  ): String =
+    s"NativeStreamFifoCC57bConcreteCoreW${width}D${depth}" +
+      (if (buffered) "Buffered" else "Direct")
 
-  private def referencePreparedTop(depth: Int, buffered: Boolean): String =
-    s"streamfifocc_57a_reference_d${depth}_${resetMode(buffered)}"
+  private def candidatePreparedTop(
+      width: Int,
+      depth: Int,
+      buffered: Boolean
+  ): String =
+    s"streamfifocc_57b_candidate_w${width}_d${depth}_${resetMode(buffered)}"
+
+  private def referencePreparedTop(
+      width: Int,
+      depth: Int,
+      buffered: Boolean
+  ): String =
+    s"streamfifocc_57b_reference_w${width}_d${depth}_${resetMode(buffered)}"
 
   private def configurationStem(configuration: Configuration): String =
-    s"d${configuration.depth}_${resetMode(configuration.buffered)}_${configuration.ratio.name}"
+    s"w${configuration.width}_d${configuration.depth}_${resetMode(configuration.buffered)}_${configuration.ratio.name}"
 
   private def miterTop(configuration: Configuration): String =
-    s"streamfifocc_57a_miter_${configurationStem(configuration)}"
+    s"streamfifocc_57b_miter_${configurationStem(configuration)}"
 
   private def moduleNames(source: String): Vector[String] =
     ModuleDeclaration.findAllMatchIn(source).map(_.group(1)).toVector
+
+  private def compact(source: String): String =
+    source.replaceAll("\\s+", "")
 
   private def moduleHeader(source: String, top: String): String = {
     val declaration = s"module $top"
@@ -925,7 +1077,7 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
   }
 
   private def withTemporaryDirectory(body: Path => Unit): Unit = {
-    val directory = Files.createTempDirectory("morphhdl-streamfifocc-57a-formal-")
+    val directory = Files.createTempDirectory("morphhdl-streamfifocc-57b-formal-")
     try body(directory)
     finally deleteRecursively(directory)
   }

@@ -192,7 +192,7 @@ invalid_owner_start = legal_owner_match.end() + invalid_owner_match.start()
 legal_region = stream[legal_owner_match.end():invalid_owner_start]
 invalid_owner = invalid_owner_match.group(1)
 invalid_block_match = re.search(
-    rf"val\s+{re.escape(invalid_owner)}\s*=\s*\(!depthIsLegal\)\s+generate\s+new\s+Area\s*\{{(?P<body>.*?)^[ \t]*\}}",
+    rf"val\s+{re.escape(invalid_owner)}\s*=\s*\(!depthIsLegal\)\s+generate\s+new\s+Area\s*\{{(?P<body>.*?)^    \}}\s*\n\s*algorithm\.popToPushGray\.setName",
     stream[invalid_owner_start:],
     re.MULTILINE | re.DOTALL,
 )
@@ -279,10 +279,10 @@ require(
     "typed pointer synchronizers with unequal depth domains must receive distinct mergeable definitions",
 )
 require(
-    r"val\s+writeData\s*=\s*if\s*\(\s*elabDepth\.isConcrete\s*\)\s*null\s*else.*?Bits\s*\(\s*widthOfExpr\s*\(\s*io\.push\.payload\s*\)\s+bits\s*\).*?dontSimplifyIt\s*\(\s*\).*?writeData\s*:=\s*io\.push\.payload\.asBits.*?ram\.writeImpl\s*\(.*?writeData,.*?allowMixedWidth\s*=\s*false",
+    r"val\s+payloadWidth\s*=\s*widthOfExpr\s*\(\s*io\.push\.payload\s*\).*?val\s+parameterizedMemoryRoles\s*=\s*!elabDepth\.isConcrete\s*\|\|\s*!payloadWidth\.isConcrete.*?val\s+writeData\s*=\s*if\s*\(\s*!parameterizedMemoryRoles\s*\)\s*null\s*else\s*Bits\s*\(\s*payloadWidth\s+bits\s*\)\s*\.setName\s*\(\s*\"stream_fifocc_write_data\"\s*,\s*weak\s*=\s*true\s*\)\s*\.dontSimplifyIt\s*\(\s*\).*?if\s*\(\s*parameterizedMemoryRoles\s*\)\s*writeData\s*:=\s*io\.push\.payload\.asBits.*?when\s*\(\s*io\.push\.fire\s*\)\s*\{\s*if\s*\(\s*!parameterizedMemoryRoles\s*\)\s*\{\s*ram\s*\(\s*pushPtr\.resized\s*\)\s*:=\s*io\.push\.payload\s*\}\s*else\s*\{.*?ram\.writeImpl\s*\(.*?writeData,.*?allowMixedWidth\s*=\s*false",
     builder_region,
     "AGGREGATE-WRITE-CARRIER-MISSING",
-    "the symbolic lane must give an aggregate native Mem write one named packed carrier without changing its port policy",
+    "any symbolic RAM dimension must use one named packed write carrier while the fully concrete lane retains its native shorthand",
 )
 
 require(
@@ -439,10 +439,10 @@ require(
     "the inert alternative must retain a masked input carrier for Verilog-2001 combinational sensitivity",
 )
 require(
-    r"io\.push\.ready\s*:=\s*inert.*?io\.pushOccupancy\s*:=\s*0.*?io\.pop\.valid\s*:=\s*inert.*?io\.pop\.payload\.assignFromBits\s*\(\s*B\s*\(\s*0\s*\)\.resize\s*\(\s*widthOfExpr\s*\(\s*io\.pop\.payload\s*\)\s*\)\s*\).*?io\.popOccupancy\s*:=\s*0.*?when\s*\(\s*inert\s*\)\s*\{\s*io\.pushOccupancy\s*:=\s*0\s*io\.pop\.payload\.assignFromBits\s*\(\s*B\s*\(\s*0\s*\)\.resize\s*\(\s*widthOfExpr\s*\(\s*io\.pop\.payload\s*\)\s*\)\s*\)\s*io\.popOccupancy\s*:=\s*0",
+    r"val\s+popPayloadWidth\s*=\s*widthOfExpr\s*\(\s*io\.pop\.payload\s*\).*?val\s+retainedPayloadZero\s*=\s*if\s*\(\s*popPayloadWidth\.isConcrete\s*\)\s*null\s*else\s*Bits\s*\(\s*popPayloadWidth\s+bits\s*\)\s*\.setName\s*\(\s*\"stream_fifocc_invalid_payload_zero\"\s*,\s*weak\s*=\s*true\s*\)\s*\.dontSimplifyIt\s*\(\s*\).*?if\s*\(\s*retainedPayloadZero\s*!=\s*null\s*\)\s*retainedPayloadZero\s*:=\s*0.*?io\.push\.ready\s*:=\s*inert.*?io\.pushOccupancy\s*:=\s*0.*?io\.pop\.valid\s*:=\s*inert.*?if\s*\(\s*retainedPayloadZero\s*==\s*null\s*\)\s*io\.pop\.payload\.assignFromBits\s*\(\s*B\s*\(\s*0\s*\)\.resize\s*\(\s*popPayloadWidth\s*\)\s*\)\s*else\s*io\.pop\.payload\.assignFromBits\s*\(\s*retainedPayloadZero\s*\).*?io\.popOccupancy\s*:=\s*0.*?when\s*\(\s*inert\s*\)\s*\{\s*io\.pushOccupancy\s*:=\s*0\s*if\s*\(\s*retainedPayloadZero\s*==\s*null\s*\)\s*io\.pop\.payload\.assignFromBits\s*\(\s*B\s*\(\s*0\s*\)\.resize\s*\(\s*popPayloadWidth\s*\)\s*\)\s*else\s*io\.pop\.payload\.assignFromBits\s*\(\s*retainedPayloadZero\s*\)\s*io\.popOccupancy\s*:=\s*0",
     invalid_region,
     "INVALID-ALTERNATIVE-MISSING",
-    "illegal depth specializations must drive and sensitize the complete public FIFO interface inert for every Data payload shape",
+    "illegal depth specializations must retain a width-generic zero carrier and drive the complete public FIFO interface inert",
 )
 reject(
     r"io\.pop\.payload\.getZero",
@@ -968,7 +968,7 @@ require(
     "typed generated tops must independently pin their reset-port topology",
 )
 require(
-    r"moduleHeader\s*\(\s*source\s*,\s*concreteSourceTop\s*\(\s*depth\s*,\s*buffered\s*\)\s*\)\s*\.contains\s*\(\s*\"pop_reset\"\s*\)\s*==\s*!buffered",
+    r"val\s+top\s*=\s*concreteSourceTop\s*\(\s*width\s*,\s*depth\s*,\s*buffered\s*\).*?moduleHeader\s*\(\s*source\s*,\s*top\s*\)\.contains\s*\(\s*\"pop_reset\"\s*\)\s*==\s*!buffered",
     generated_validation,
     "FORMAL-MITER-RESET-TOPOLOGY-MISSING",
     "concrete generated tops must independently pin their reset-port topology",
@@ -1031,7 +1031,7 @@ require(
     "the ordinary unit test must pin the candidate preparation leg",
 )
 require(
-    r"ResetModes\.foreach\s*\{\s*buffered\s*=>.*?val\s+reference\s*=\s*referencePreparationScript\s*\(.*?depth\s*=\s*2\s*,\s*buffered\s*=\s*buffered\s*\).*?assertSingleOrderedRelease\s*\(\s*reference\s*,\s*concreteSourceTop\s*\(\s*depth\s*=\s*2\s*,\s*buffered\s*=\s*buffered\s*\)\s*\)",
+    r"ResetModes\.foreach\s*\{\s*buffered\s*=>.*?val\s+reference\s*=\s*referencePreparationScript\s*\(.*?width\s*=\s*5\s*,\s*depth\s*=\s*2\s*,\s*buffered\s*=\s*buffered\s*\).*?assertSingleOrderedRelease\s*\(\s*reference\s*,\s*concreteSourceTop\s*\(\s*width\s*=\s*5\s*,\s*depth\s*=\s*2\s*,\s*buffered\s*=\s*buffered\s*\)\s*\)",
     preparation_test,
     "FORMAL-PREPARATION-HIERARCHY-RELEASE-TEST-MISSING",
     "the ordinary unit test must pin the reference preparation leg",
@@ -1240,6 +1240,16 @@ case "${1:-}" in
       "$temporary/domain.stderr" ||
       fail SELF-TEST-DIAGNOSTIC 'typed BufferCC formal-domain mutation did not report its stable diagnostic'
 
+    sed '0,/!elabDepth\.isConcrete || !payloadWidth\.isConcrete/s//!elabDepth.isConcrete/' \
+      "$stream_source" > "$temporary/depth-only-memory-roles.scala"
+    if MORPHDL_STREAMFIFOCC_STREAM_SOURCE="$temporary/depth-only-memory-roles.scala" \
+      "$0" --check >"$temporary/memory-roles.stdout" 2>"$temporary/memory-roles.stderr"; then
+      fail SELF-TEST-ACCEPTED 'depth-only parameterized memory-role predicate passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-AGGREGATE-WRITE-CARRIER-MISSING' \
+      "$temporary/memory-roles.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'memory-role predicate mutation did not report its stable diagnostic'
+
     sed '0,/allowMixedWidth = false/s//allowMixedWidth = true/' \
       "$stream_source" > "$temporary/mixed-width-aggregate-write.scala"
     if MORPHDL_STREAMFIFOCC_STREAM_SOURCE="$temporary/mixed-width-aggregate-write.scala" \
@@ -1279,6 +1289,16 @@ case "${1:-}" in
     grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-INVALID-ALTERNATIVE-MISSING' \
       "$temporary/inert.stderr" ||
       fail SELF-TEST-DIAGNOSTIC 'invalid-depth mutation did not report its stable diagnostic'
+
+    sed '0,/stream_fifocc_invalid_payload_zero/s//stream_fifocc_invalid_payload_frozen/' \
+      "$stream_source" > "$temporary/unnamed-invalid-payload-zero.scala"
+    if MORPHDL_STREAMFIFOCC_STREAM_SOURCE="$temporary/unnamed-invalid-payload-zero.scala" \
+      "$0" --check >"$temporary/payload-zero.stdout" 2>"$temporary/payload-zero.stderr"; then
+      fail SELF-TEST-ACCEPTED 'invalid payload-zero carrier identity mutation passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-INVALID-ALTERNATIVE-MISSING' \
+      "$temporary/payload-zero.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'invalid payload-zero mutation did not report its stable diagnostic'
 
     sed '0,/io\.popOccupancy := 0/s//pushToPopGray := 0\n      io.popOccupancy := 0/' \
       "$stream_source" > "$temporary/cross-sibling-gray.scala"

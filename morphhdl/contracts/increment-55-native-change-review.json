@@ -1602,9 +1602,10 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 55: audit concrete compatibility",
         "Increment 57: broad native library migration and proof",
-        "Increment 57a: typed StreamFifoCC architecture"
+        "Increment 57a: typed StreamFifoCC architecture",
+        "Increment 57b: typed StreamFifoCC payload-width formal proof"
       ],
-      "reason": "Add typed Stream pipeline, synchronous- and cross-clock queue ingress plus StreamFifo, StreamFifoCC and StreamWidthAdapter geometry while mechanically retaining the authoritative native algorithms and concrete output.",
+      "reason": "Add typed Stream pipeline, synchronous- and cross-clock queue ingress plus StreamFifo, StreamFifoCC and StreamWidthAdapter geometry, including joint StreamFifoCC depth/payload-width memory roles and a width-safe invalid specialization, while mechanically retaining the authoritative native algorithms and concrete output.",
       "edits": [
         {
           "id": "stream-pipeline-control-01",
@@ -2373,8 +2374,8 @@
         {
           "id": "stream-cc-typed-12",
           "kind": "mechanical-propagation",
-          "owner": "spinal.lib.StreamFifoCC BufferCC child schema and shared algorithm carriers",
-          "reason": "Bind one canonical child WIDTH formal for each kept synchronizer, retain stable shared-algorithm references, and mark the projected legal-depth ceiling used for native definition identity.",
+          "owner": "spinal.lib.StreamFifoCC BufferCC child schema, shared algorithm carriers and memory geometry",
+          "reason": "Bind one canonical child WIDTH formal for each kept synchronizer, retain stable shared-algorithm references, mark the projected legal-depth ceiling used for native definition identity, and derive parameterized native Mem role ownership from exact depth or payload width.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -2390,6 +2391,21 @@
               "side": "approved",
               "text": "spinal_stream_fifocc_legal_depth_ceiling",
               "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val payloadWidth = widthOfExpr(io.push.payload)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val parameterizedMemoryRoles =",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "!elabDepth.isConcrete || !payloadWidth.isConcrete",
+              "count": 1
             }
           ]
         },
@@ -2397,7 +2413,7 @@
           "id": "stream-cc-native-algorithm-01",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifoCC shared native CDC algorithm",
-          "reason": "Build the RAM, push/pop clocking areas, Gray crossings, reset topology and aggregate write carrier once while selecting only geometry-producing leaves between concrete and typed paths.",
+          "reason": "Build the RAM, push/pop clocking areas, Gray crossings, reset topology and aggregate write carrier once, using stable native Mem write roles whenever depth or payload width is symbolic while preserving the historical shorthand only when both are concrete.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -2417,6 +2433,26 @@
             {
               "side": "approved",
               "text": "new BuiltAlgorithm(",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (!parameterizedMemoryRoles) null",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "Bits(payloadWidth bits)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (parameterizedMemoryRoles) writeData := io.push.payload.asBits",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (!parameterizedMemoryRoles) {",
               "count": 1
             }
           ]
@@ -2461,7 +2497,7 @@
           "id": "stream-cc-invalid-depth-01",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifoCC invalid-depth structural branch",
-          "reason": "Keep every illegal depth specialization outside the CDC algorithm and drive an event-safe inert aggregate-capable interface under its own captured owner.",
+          "reason": "Keep every illegal depth specialization outside the CDC algorithm and drive an event-safe inert aggregate-capable interface under its own captured owner, using a retained exact-width zero carrier when the payload width is symbolic.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -2475,13 +2511,28 @@
             },
             {
               "side": "approved",
-              "text": "B(0).resize(widthOfExpr(io.pop.payload))",
-              "count": 2
+              "text": "val popPayloadWidth = widthOfExpr(io.pop.payload)",
+              "count": 1
             },
             {
               "side": "approved",
               "text": "stream_fifocc_invalid_inert",
               "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "stream_fifocc_invalid_payload_zero",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (retainedPayloadZero == null)",
+              "count": 2
+            },
+            {
+              "side": "approved",
+              "text": "else io.pop.payload.assignFromBits(retainedPayloadZero)",
+              "count": 2
             }
           ]
         },
