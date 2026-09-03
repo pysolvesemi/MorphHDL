@@ -69,6 +69,10 @@ object AliasSafetyReason {
   val DomainExpansionLimit = "WA03-DOMAIN-EXPANSION-LIMIT"
   val IllegalScopeReplacement = "WA03-ILLEGAL-SCOPE-REPLACEMENT"
   val CombinationalCycle = "WA03-COMBINATIONAL-CYCLE"
+  val ClockUse = "WA03-CLOCK-USE"
+  val ResetUse = "WA03-RESET-USE"
+  val TriStateControlUse = "WA03-TRI-STATE-CONTROL-USE"
+  val ControlUseUnproven = "WA03-CONTROL-USE-UNPROVEN"
   val BidirectionalUse = "WA03-BIDIRECTIONAL-USE"
   val MemoryPortUse = "WA03-MEMORY-PORT-USE"
   val InstanceBoundaryUse = "WA03-INSTANCE-BOUNDARY-USE"
@@ -104,6 +108,10 @@ object AliasSafetyReason {
     DomainExpansionLimit,
     IllegalScopeReplacement,
     CombinationalCycle,
+    ClockUse,
+    ResetUse,
+    TriStateControlUse,
+    ControlUseUnproven,
     BidirectionalUse,
     MemoryPortUse,
     InstanceBoundaryUse
@@ -427,14 +435,19 @@ object WireAliasSafetyGate {
   }
 
   private def validateUsageContexts(
-      module: CanonicalModuleView,
-      aliasSymbol: SymbolId,
-      violations: ArrayBuffer[AliasSafetyViolation]
-  ): Unit = {
-    module.drivers
-      .filter(_.value.referenceOccurrences.exists(_.target == aliasSymbol))
-      .sortBy(_.id.value)
-      .foreach { driver =>
+    module: CanonicalModuleView,
+    aliasSymbol: SymbolId,
+    violations: ArrayBuffer[AliasSafetyViolation]
+): Unit = {
+    val aliasOwner = module.declaration(aliasSymbol).map(_.owner)
+
+    module.drivers.sortBy(_.id.value).foreach { driver =>
+      val directlyConsumesAlias =
+        driver.value.referenceOccurrences.exists(_.target == aliasSymbol)
+      val aliasVisibleFromDriver =
+        aliasOwner.exists(owner => scopeIsAncestor(module, owner, driver.owner))
+
+      if (directlyConsumesAlias) {
         driver.kind match {
           case DriverKind.Bidirectional =>
             violations += violation(
@@ -453,7 +466,48 @@ object WireAliasSafetyGate {
             )
           case _ =>
         }
+
+        module.declaration(driver.target).foreach { target =>
+          target.kind match {
+            case DeclarationKind.Clock =>
+              violations += violation(
+                AliasSafetyReason.ClockUse,
+                s"alias directly drives clock declaration '${target.id.value}'",
+                Some(target.id)
+              )
+            case DeclarationKind.Reset =>
+              violations += violation(
+                AliasSafetyReason.ResetUse,
+                s"alias directly drives reset declaration '${target.id.value}'",
+                Some(target.id)
+              )
+            case DeclarationKind.Port(PortDirection.InOut) =>
+              violations += violation(
+                AliasSafetyReason.TriStateControlUse,
+                s"alias directly participates in inout declaration '${target.id.value}'",
+                Some(target.id)
+              )
+            case _ =>
+          }
+        }
       }
+
+      if (aliasVisibleFromDriver) {
+        driver.kind match {
+          case DriverKind.Procedural =>
+            violations += violation(
+              AliasSafetyReason.ControlUseUnproven,
+              s"canonical v1 does not prove that procedural driver '${driver.id.value}' cannot use the alias as a clock or reset control"
+            )
+          case DriverKind.Bidirectional =>
+            violations += violation(
+              AliasSafetyReason.TriStateControlUse,
+              s"canonical v1 does not prove that bidirectional driver '${driver.id.value}' cannot use the alias as a tri-state control"
+            )
+          case _ =>
+        }
+      }
+    }
   }
 
   private def validateReplacementScopes(

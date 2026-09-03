@@ -3,9 +3,9 @@
   "files": {
     "morphhdl-passes/examples/ParameterizedStreamFifo.scala": "aa28799ce916f5369d53b02f05028e7d262f1defbdb1b66dcd37d75a0e772a19",
     "morphhdl-passes/scripts/check-wa03-gates.py": "a21818c6c36c7ea5a8acc80ccddaebb58173bb6e0c2b4ee8fc06fc3678a752fe",
-    "morphhdl-passes/scripts/validate_wire_assignment_equivalence.py": "4b8d45fdef37aba61eda13769ac786baed1d9274752ec7e33a1a8ee6a9052860",
-    "morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala": "a15c10f007e62cac7c4ed9962d2d70128cb6c7b6a2003eba8b8987a930b235f7",
-    "morphhdl-passes/src/test/scala/morphhdl/passes/safety/WireAliasSafetyGateSpec.scala": "499bb66f5a99bb8f7fdcb0a79de7971379ec34b806f0159f7a358059459d56b7",
+    "morphhdl-passes/scripts/validate_wire_assignment_equivalence.py": "b010fdb6e7a11a1bcc92a3647210d46cada7ce8ca715e92a95ffd25dc1cd8003",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala": "fa6006e938c2cebbaba7fc8fb918fdf86550d045ed3c6f247d80adcd8982ac35",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/safety/WireAliasSafetyGateSpec.scala": "75b72555251a612bad759ad3543f735034e1b571e14771252c71afb34de979be",
     "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_candidate.v": "1b01477a69a25209d893dd99e8328260e11f898299d6d642e68e55cb1b3aee7d",
     "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_reference.v": "073538be4cc45ccf97096f76f96eae226e5ac01316c0f611d70f687afaaffcdb",
     "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_tb.v": "ad0dadc6ab905aeb6343ffc4467f7282a7bf8a5614285aeb84756dc46a824499",

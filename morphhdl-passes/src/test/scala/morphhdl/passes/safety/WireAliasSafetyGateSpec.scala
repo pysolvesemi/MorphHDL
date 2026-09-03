@@ -419,6 +419,45 @@ final class WireAliasSafetyGateSpec extends AnyFunSuite with Matchers {
     }
   }
 
+  test("clock reset and tri-state control uses fail closed without name inference") {
+    val explicitControlKinds = Vector(
+      DeclarationKind.Clock -> AliasSafetyReason.ClockUse,
+      DeclarationKind.Reset -> AliasSafetyReason.ResetUse,
+      DeclarationKind.Port(PortDirection.InOut) -> AliasSafetyReason.TriStateControlUse
+    )
+
+    explicitControlKinds.foreach { case (kind, code) =>
+      val design = updateDeclaration(baseDesign(), sinkId)(_.copy(kind = kind))
+      withClue(kind.label) {
+        rejectionCodes(assessment(design)) should contain(code)
+      }
+    }
+
+    val hiddenTriStateControl = updateDriver(baseDesign(), sinkDriverId) { driver =>
+      driver.copy(
+        kind = DriverKind.Bidirectional,
+        value = RtlExpr.Ref(
+          ReferenceId.unsafe("reference.sink.source.bidirectional"),
+          sourceId,
+          rootScopeId
+        )
+      )
+    }
+    rejectionCodes(assessment(hiddenTriStateControl)) should contain(
+      AliasSafetyReason.TriStateControlUse
+    )
+  }
+
+  test("procedural contexts are rejected until clock and reset roles are explicit") {
+    val proceduralConsumer = updateDriver(baseDesign(), sinkDriverId)(
+      _.copy(kind = DriverKind.Procedural)
+    )
+
+    rejectionCodes(assessment(proceduralConsumer)) should contain(
+      AliasSafetyReason.ControlUseUnproven
+    )
+  }
+
   test("replacement is rejected when the direct source is not visible at an alias use") {
     val design = updateModule(baseDesign()) { module =>
       val inner = Scope(
@@ -456,7 +495,7 @@ final class WireAliasSafetyGateSpec extends AnyFunSuite with Matchers {
     )
   }
 
-  test("continuous dependency cycles are rejected while registered feedback is not") {
+  test("continuous cycles are rejected and registered feedback fails closed on control roles") {
     val continuousCycle = updateModule(baseDesign()) { module =>
       val declarations = module.declarations.map {
         case declaration if declaration.id == sourceId =>
@@ -507,7 +546,13 @@ final class WireAliasSafetyGateSpec extends AnyFunSuite with Matchers {
       )
       module.copy(declarations = declarations, drivers = module.drivers :+ sourceDriver)
     }
-    assessment(registeredFeedback).isEligible shouldBe true
+    val registeredAssessment = assessment(registeredFeedback)
+    rejectionCodes(registeredAssessment) should not contain (
+      AliasSafetyReason.CombinationalCycle
+    )
+    rejectionCodes(registeredAssessment) should contain(
+      AliasSafetyReason.ControlUseUnproven
+    )
   }
 
   test("exact domain expansion is bounded and fails closed before partial sampling") {

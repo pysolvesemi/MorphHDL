@@ -680,9 +680,13 @@ def generated_miter(
     reference_top: str,
     candidate_top: str,
     miter_top: str,
+    clock: str | None,
     reset: str | None,
     mutate_first_output: bool,
 ) -> str:
+    if (clock is None) != (reset is None):
+        raise ValidationError("formal miter requires clock and reset together")
+
     input_declarations = [
         verilog_declaration(
             "input",
@@ -694,8 +698,12 @@ def generated_miter(
     wire_declarations: list[str] = []
     for port in outputs:
         width = resolve_width(port["width"], binding, f"output {port['name']}")
-        wire_declarations.append(verilog_declaration("wire", f"reference_{port['name']}", width))
-        wire_declarations.append(verilog_declaration("wire", f"candidate_{port['name']}", width))
+        wire_declarations.append(
+            verilog_declaration("wire", f"reference_{port['name']}", width)
+        )
+        wire_declarations.append(
+            verilog_declaration("wire", f"candidate_{port['name']}", width)
+        )
 
     def instance(top: str, name: str, prefix: str) -> str:
         connections = []
@@ -714,7 +722,8 @@ def generated_miter(
         conditions = tuple(port.get("compare_when", ()))
         if conditions:
             guard_terms = [
-                f"reference_{condition} && candidate_{condition}" for condition in conditions
+                f"reference_{condition} && candidate_{condition}"
+                for condition in conditions
             ]
             assertion = f"if ({' && '.join(guard_terms)}) {assertion}"
         assertions.append("      " + assertion)
@@ -727,10 +736,24 @@ def generated_miter(
     else:
         body.extend(
             (
+                "  reg [1:0] wa03_reset_phase;",
+                "  initial wa03_reset_phase = 2'd0;",
+                "",
+                "  always @($global_clock) begin",
+                "    if (wa03_reset_phase != 2'd2)",
+                "      wa03_reset_phase <= wa03_reset_phase + 1'b1;",
+                "  end",
+                "",
                 "  always @* begin",
-                "    if ($initstate)",
+                "    if (wa03_reset_phase == 2'd0) begin",
+                f"      assume(!{clock});",
                 f"      assume({reset});",
-                "    if (!$initstate) begin",
+                "    end",
+                "    if (wa03_reset_phase == 2'd1) begin",
+                f"      assume({clock});",
+                f"      assume({reset});",
+                "    end",
+                "    if (wa03_reset_phase == 2'd2) begin",
             )
         )
         body.extend(assertions)
@@ -752,7 +775,6 @@ def generated_miter(
         + "\n".join(body)
         + "\nendmodule\n"
     )
-
 
 def sby_configuration(
     miter_top: str,
@@ -817,6 +839,7 @@ def run_formal_binding(
     inputs: Sequence[Mapping[str, Any]],
     outputs: Sequence[Mapping[str, Any]],
     binding: Mapping[str, int],
+    clock: str | None,
     reset: str | None,
     engine: str,
     timeout_seconds: int,
@@ -835,6 +858,7 @@ def run_formal_binding(
         prepared_reference,
         prepared_candidate,
         miter_top,
+        clock,
         reset,
         mutate_first_output=False,
     )
@@ -858,8 +882,9 @@ def run_formal_binding(
     read_sby_status(directory, "proof", "PASS")
     return {"binding": dict(sorted(binding.items())), "status": "PASS"}
 
-
-def run_mutation_control(case: Mapping[str, Any], output_directory: Path) -> dict[str, Any]:
+def run_mutation_control(
+    case: Mapping[str, Any], output_directory: Path
+) -> dict[str, Any]:
     binding = parameter_bindings(case["domains"])[0]
     directory = output_directory / "mutation-control"
     directory.mkdir(parents=True, exist_ok=True)
@@ -890,6 +915,7 @@ def run_mutation_control(case: Mapping[str, Any], output_directory: Path) -> dic
             prepared_reference,
             prepared_candidate,
             miter_top,
+            case["clock"],
             case["reset"],
             mutate_first_output=True,
         ),
@@ -919,13 +945,14 @@ def run_mutation_control(case: Mapping[str, Any], output_directory: Path) -> dic
         if path.is_file() and path.stat().st_size > 0
     ]
     if not traces:
-        raise ValidationError("intentional mutation failed without a retained counterexample VCD")
+        raise ValidationError(
+            "intentional mutation failed without a retained counterexample VCD"
+        )
     return {
         "binding": dict(sorted(binding.items())),
         "status": "EXPECTED_FAIL",
         "counterexample_count": len(traces),
     }
-
 
 def run_generic_case(case: Mapping[str, Any], output_root: Path) -> dict[str, Any]:
     case_root = output_root / "generic" / case["id"]
@@ -968,6 +995,7 @@ def run_generic_case(case: Mapping[str, Any], output_root: Path) -> dict[str, An
             case["inputs"],
             case["outputs"],
             binding,
+            case["clock"],
             case["reset"],
             case["engine"],
             case["timeout_seconds"],
@@ -1099,6 +1127,7 @@ def run_shared_witness(
                 shared["inputs"],
                 shared["outputs"],
                 binding,
+                shared["clock"],
                 shared["reset"],
                 "abc pdr",
                 600,
@@ -1217,7 +1246,9 @@ def self_test(repo_root: Path, manifest_path: Path, registry_path: Path) -> None
         raise AssertionError("sequential complete-domain expansion changed")
     shared_audit = audit_shared_domain(manifest["shared"])
     if shared_audit["binding_count"] != 512:
-        raise AssertionError("shared witness complete admitted domain must contain 512 bindings")
+        raise AssertionError(
+            "shared witness complete admitted domain must contain 512 bindings"
+        )
 
     first_case = manifest["cases"][0]
     binding = parameter_bindings(first_case["domains"])[0]
@@ -1229,6 +1260,7 @@ def self_test(repo_root: Path, manifest_path: Path, registry_path: Path) -> None
         "CandidatePrepared",
         "PositiveMiter",
         None,
+        None,
         mutate_first_output=False,
     )
     mutation = generated_miter(
@@ -1239,10 +1271,41 @@ def self_test(repo_root: Path, manifest_path: Path, registry_path: Path) -> None
         "CandidatePrepared",
         "MutationMiter",
         None,
+        None,
         mutate_first_output=True,
     )
     if "candidate_sink);" not in positive or "candidate_sink ^ 1'b1" not in mutation:
-        raise AssertionError("formal mutation control no longer changes the compared behavior")
+        raise AssertionError(
+            "formal mutation control no longer changes the compared behavior"
+        )
+
+    sequential_case = manifest["cases"][1]
+    sequential_binding = parameter_bindings(sequential_case["domains"])[0]
+    sequential = generated_miter(
+        sequential_case["inputs"],
+        sequential_case["outputs"],
+        sequential_binding,
+        "SequentialReferencePrepared",
+        "SequentialCandidatePrepared",
+        "SequentialMiter",
+        sequential_case["clock"],
+        sequential_case["reset"],
+        mutate_first_output=False,
+    )
+    reset_markers = (
+        "always @($global_clock)",
+        "initial wa03_reset_phase = 2'd0;",
+        "if (wa03_reset_phase == 2'd0) begin",
+        "assume(!clk);",
+        "if (wa03_reset_phase == 2'd1) begin",
+        "assume(clk);",
+        "assume(reset);",
+        "if (wa03_reset_phase == 2'd2) begin",
+    )
+    if any(marker not in sequential for marker in reset_markers):
+        raise AssertionError(
+            "sequential miter no longer forces a reset-active clock edge"
+        )
 
     with tempfile.TemporaryDirectory(prefix="wa03-signature-self-test-") as directory:
         temporary_root = Path(directory)
@@ -1263,13 +1326,14 @@ def self_test(repo_root: Path, manifest_path: Path, registry_path: Path) -> None
         except ValidationError:
             pass
         else:
-            raise AssertionError("formal-model signature mutation was not detected")
+            raise AssertionError(
+                "formal-model signature mutation was not detected"
+            )
 
     verified = verify_signature_registry(repo_root, registry_path)
     if not verified:
         raise AssertionError("formal-model signature registry unexpectedly empty")
     print("WA-03 equivalence validator self-tests passed.")
-
 
 def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
