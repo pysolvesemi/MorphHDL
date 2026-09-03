@@ -23,8 +23,8 @@ final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Compon
   fifo.io.push << io.push
   io.pop << fifo.io.pop
   fifo.io.flush := io.flush
-  io.occupancy := fifo.io.occupancy.resized
-  io.availability := fifo.io.availability.resized
+  io.occupancy := fifo.io.occupancy.resize(4)
+  io.availability := fifo.io.availability.resize(4)
 }
 
 object ParameterizedStreamFifoExample {
