@@ -608,7 +608,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   shadow reconstruction, component/source/emitted-name recognition, or a
   copied CDC algorithm.
 
-- [ ] **Increment 57b — Typed native StreamFifoCC payload-width formal proof**
+- [x] **Increment 57b — Typed native StreamFifoCC payload-width formal proof**
 
   **Dependencies:** Increment 57a implemented and merged.
 
