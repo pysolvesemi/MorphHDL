@@ -43,8 +43,9 @@ The passes must:
 - operate on declaration, driver and reference identities rather than emitted
   identifiers;
 - preserve symbolic parameter expressions and constraints;
-- be component-generic and make every decision only from canonical IR identity,
-  structure and metadata;
+- be implemented generically over canonical IR semantics and identities,
+  without recognizing a component, library primitive, module name or signal
+  name;
 - run before final Verilog text emission; and
 - use the existing MorphHDL Verilog backend after transformation.
 
@@ -55,9 +56,8 @@ The passes must not:
 - use regex or emitted-name patterns to identify candidates;
 - reconstruct parameter intent from concrete constants;
 - duplicate or fork the canonical MorphHDL semantic IR;
-- special-case `StreamFifo`, `StreamFifoCC`, another component class,
-  module/class name, source filename, generated identifier or library
-  algorithm; or
+- special-case `StreamFifo`, `ParameterizedStreamFifo` or any other component
+  or library implementation; or
 - modify upstream-owned SpinalHDL source.
 
 ## Component-generic implementation rule
@@ -67,12 +67,12 @@ component-generic. Eligibility and transformation decisions may depend only on
 validated canonical IR identities, kinds, scopes, drivers, references, packed
 types, parameter domains, naming provenance, observability, comments and
 attributes defined by this roadmap. No implementation may recognize
-`StreamFifo`, `StreamFifoCC`, any other component or library class, a module or
-component name, a source filename, or a generated HDL identifier to select a
-code path. `SourceLocation` may be retained and reported, but its path must not
-change eligibility. Renaming an otherwise identical fixture from a library
-component name to an unrelated name must not change adapter facts, diagnostics,
-classification or transformation.
+`StreamFifo`, `StreamFifoCC`, `ParameterizedStreamFifo`, any other component or
+library class, a module or component name, a source filename, or a generated
+HDL identifier to select a code path. `SourceLocation` may be retained and
+reported, but its path must not change eligibility. Renaming an otherwise
+identical fixture from a library component name to an unrelated name must not
+change adapter facts, diagnostics, classification or transformation.
 
 ## Bounded simple-wire alias contract
 
@@ -205,9 +205,40 @@ MorphHDL-owned orchestration code; pass logic remains under `morphhdl-passes/`.
 - Mark an increment `[x]` only in its reviewed pull request after all applicable
   gates pass, and update the next increment's `Status` in the same pull request.
 - Every pass and pass combination must be deterministic and idempotent.
-- The component-generic rule applies to every `WA-*` increment and must be
-  covered by fixtures whose component and source names differ while canonical
-  alias structure remains identical.
+
+## Mandatory genericity, common witness and formal baseline
+
+The following rules apply to every transforming pass and every enabled pass
+combination in this roadmap:
+
+- The pass implementation must remain generic over the canonical IR. It must
+  not contain a `StreamFifo` recognizer, component-specific RTL logic,
+  module-name check, library-structure check, source-position inference or
+  emitted-signal-name pattern. Component-specific tests may exercise a generic
+  pass but may not drive its implementation.
+- Every pass must be applied to the shared parameterized StreamFifo source at
+  `morphhdl-passes/examples/ParameterizedStreamFifo.scala`, retaining symbolic
+  `WIDTH` and `DEPTH`. Additional small generic positive and negative fixtures
+  remain mandatory so the shared witness cannot become a hidden special case.
+- For each proof run, emit and retain the reference Verilog from the canonical
+  design snapshot immediately before the entire passes phase, before any pass
+  has executed.
+- After each individual pass, and after every supported pass combination, emit
+  the transformed Verilog through the same structured backend and formally
+  compare it with that one common pre-pass reference Verilog. Comparing only
+  with the output of the preceding pass is not sufficient.
+- The formal comparison must use identical legal parameter assumptions and
+  bindings on both sides. When the selected formal flow requires concrete
+  parameter values, it must cover the complete admitted bounded parameter
+  domain rather than only defaults or hand-picked values.
+- A transforming pass cannot be checked complete without retained formal
+  success evidence for the shared StreamFifo witness and a mutation test that
+  demonstrates the equivalence harness fails for an intentional functional
+  change.
+
+WA-02 is a read-only adapter and produces no transformed Verilog. WA-03 must
+establish the common pre-pass capture and formal-equivalence harness before
+WA-04 or WA-05 can remove an alias.
 
 ## Incremental plan
 
@@ -226,34 +257,35 @@ MorphHDL-owned orchestration code; pass logic remains under `morphhdl-passes/`.
   paths for an eligible WA-07 branch after WA-06 and PV-56 are checked. No RTL
   transformation is implemented by WA-01.
 
-- [x] **WA-02 — Canonical MorphHDL IR pass adapter and alias contract**
+- [ ] **WA-02 — Canonical MorphHDL IR pass adapter and alias contract**
 
   **Dependencies:** WA-01 and PV-54 implemented and merged.
 
-  **Status:** `COMPLETED`.
+  **Status:** `IN PROGRESS`.
 
-  Bound the standalone workspace to the versioned `morphhdl.ir.v1` project
-  without adding it to the repository root aggregate. Added a read-only adapter
-  that accepts only canonically validated post-parameterization/pre-emission
-  designs and exposes exact declaration, driver, reference, packed-type,
-  parameter-domain, name-origin, source-location and observability facts by
-  canonical identity. Added a mutation-tested guard against generated-Verilog
-  parsing, regex and emitted-name recognition, duplicate pass IR, direct Spinal
-  implementation coupling and component-specific logic. Proved that otherwise
-  identical graphs named `StreamFifo` and an unrelated component produce the
-  same adapter identity facts. No alias was eliminated or rewritten.
+  Bind the standalone workspace to the stable canonical MorphHDL-owned IR after
+  external parameterization/capture and before Verilog lowering. Expose
+  resolved declaration, driver, reference, packed-type, parameter-domain,
+  name-origin, source-location and observability metadata required by the
+  bounded alias contract. Add a hard guard proving that the adapter does not
+  consume, parse or pattern-match generated Verilog and that pass
+  implementations remain generic rather than StreamFifo-specific. Add the
+  common parameterized StreamFifo proof witness. Do not eliminate aliases.
 
 - [ ] **WA-03 — Alias-elimination equivalence, safety and determinism gates**
 
   **Dependencies:** WA-02 implemented and merged.
 
-  **Status:** `READY` after WA-02 merges.
+  **Status:** `BLOCKED` by WA-02.
 
   Add validation shared by both passes. Prove type and parameter-domain
   equivalence, cycle freedom, legal scope replacement and preservation of every
-  exclusion. Validate strict Verilog-2001 compilation, lint and synthesis,
-  representative default and parameter-override simulations, negative safety
-  fixtures, repeated-run determinism and idempotence.
+  exclusion. Establish the common pre-pass Verilog capture and formally compare
+  the output after each pass with that unchanged reference on the shared
+  parameterized StreamFifo witness. Validate strict Verilog-2001 compilation,
+  lint and synthesis, complete admitted parameter-domain proof where
+  concretization is required, representative simulations, negative safety
+  fixtures, a formal mutation test, repeated-run determinism and idempotence.
 
 - [ ] **WA-04 — Unnamed simple-wire assignment elimination pass**
 
@@ -264,7 +296,9 @@ MorphHDL-owned orchestration code; pass logic remains under `morphhdl-passes/`.
   Eliminate only aliases classified as unnamed from retained source/elaboration
   metadata. Replace reads by exact symbol identity, remove the exact declaration
   and sole direct assignment, and leave all surviving names unchanged. Never
-  recognize candidates from `_zz_*` or another emitted-name convention.
+  recognize candidates from `_zz_*` or another emitted-name convention. Apply
+  the generic pass to the shared parameterized StreamFifo and formally compare
+  its post-pass Verilog with the common pre-pass reference.
 
 - [ ] **WA-05 — Named simple-wire assignment elimination pass**
 
@@ -276,6 +310,8 @@ MorphHDL-owned orchestration code; pass logic remains under `morphhdl-passes/`.
   stricter rejection for public, hierarchical, preservation, probe, attribute,
   comment or source-contract dependencies. Do not rename or transfer the
   removed name. Report each removed name and source location deterministically.
+  Apply the generic pass to the shared parameterized StreamFifo and formally
+  compare its post-pass Verilog with the common pre-pass reference.
 
 - [ ] **WA-06 — Ordered two-pass pipeline and regression closure**
 
@@ -287,7 +323,9 @@ MorphHDL-owned orchestration code; pass logic remains under `morphhdl-passes/`.
   pass independently or run unnamed then named. Keep both disabled by default.
   Validate alias chains and fanout without parsing emitted Verilog, including
   deterministic reports, idempotent IR, byte-identical repeated emission,
-  strict Verilog-2001 legality, synthesis and behavioral equivalence.
+  strict Verilog-2001 legality, synthesis and formal equivalence of each
+  individual pass and the ordered combination against the one common pre-pass
+  StreamFifo reference.
 
 - [ ] **WA-07 — Final MorphHDL IR-stage production handoff**
 
