@@ -1,8 +1,9 @@
 package morphhdl
 
-import java.io.File
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File, ObjectInputStream, ObjectOutputStream, ObjectStreamClass}
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
+import java.util.Base64
 
 import scala.collection.JavaConverters._
 
@@ -24,6 +25,203 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
     "PhaseCheckCrossClock",
     "PhaseContext.checkGlobalData"
   )
+
+  private val legacySerializedReportBase64 =
+    if (scala.util.Properties.versionNumberString.startsWith("2.12"))
+      """rO0ABXNyACdtb3JwaGhkbC5Nb3JwaFNpbmdsZVNvdXJjZVZlcmlsb2dSZXBvcnS/zQ4ThAvdXQIABEwAFWdlbmVyYXRlZFNv
+        |dXJjZXNQYXRoc3QAI0xzY2FsYS9jb2xsZWN0aW9uL2ltbXV0YWJsZS9WZWN0b3I7TAAbaW5oZXJpdGVkVmFsaWRhdGlvblBo
+        |YXNlSWRzcQB+AAFMAApwYXJhbWV0ZXJzcQB+AAFMAAx0b3BsZXZlbE5hbWV0ABJMamF2YS9sYW5nL1N0cmluZzt4cHNyACFz
+        |Y2FsYS5jb2xsZWN0aW9uLmltbXV0YWJsZS5WZWN0b3Lte0zvWO5+QQIAC0kABWRlcHRoWgAFZGlydHlJAAhlbmRJbmRleEkA
+        |BWZvY3VzSQAKc3RhcnRJbmRleFsACGRpc3BsYXkwdAATW0xqYXZhL2xhbmcvT2JqZWN0O1sACGRpc3BsYXkxcQB+AAVbAAhk
+        |aXNwbGF5MnEAfgAFWwAIZGlzcGxheTNxAH4ABVsACGRpc3BsYXk0cQB+AAVbAAhkaXNwbGF5NXEAfgAFeHAAAAABAAAAAAEA
+        |AAAAAAAAAHVyABNbTGphdmEubGFuZy5PYmplY3Q7kM5YnxBzKWwCAAB4cAAAACB0AAhsZWdhY3kudnBwcHBwcHBwcHBwcHBw
+        |cHBwcHBwcHBwcHBwcHBwcHBwcHBwcHNxAH4ABAAAAAEAAAAAAQAAAAAAAAAAdXEAfgAHAAAAIHQAC1BoYXNlTGVnYWN5cHBw
+        |cHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc3EAfgAEAAAAAQAAAAABAAAAAAAAAAB1cQB+AAcAAAAgc3IAIm1v
+        |cnBoaGRsLnBhcmFtcnRsLkludGVnZXJQYXJhbWV0ZXIzuiFx3rkIrwIAA0wAC2NvbnN0cmFpbnRzcQB+AAFMAAdkZWZhdWx0
+        |dAATTHNjYWxhL21hdGgvQmlnSW50O0wABG5hbWVxAH4AAnhwc3EAfgAEAAAAAQAAAAACAAAAAAAAAAB1cQB+AAcAAAAgc3IA
+        |LG1vcnBoaGRsLnBhcmFtcnRsLkludENvbnN0cmFpbnQkTWluSW5jbHVzaXZl91B6GAyA764CAAFMAAV2YWx1ZXEAfgAQeHBz
+        |cgARc2NhbGEubWF0aC5CaWdJbnSbSQEOc9kahgIAAUwACmJpZ0ludGVnZXJ0ABZMamF2YS9tYXRoL0JpZ0ludGVnZXI7eHIA
+        |FnNjYWxhLm1hdGguU2NhbGFOdW1iZXISZddcfi6AgQIAAHhyABBqYXZhLmxhbmcuTnVtYmVyhqyVHQuU4IsCAAB4cHNyABRq
+        |YXZhLm1hdGguQmlnSW50ZWdlcoz8nx+pO/sdAwAGSQAIYml0Q291bnRJAAliaXRMZW5ndGhJABNmaXJzdE5vbnplcm9CeXRl
+        |TnVtSQAMbG93ZXN0U2V0Qml0SQAGc2lnbnVtWwAJbWFnbml0dWRldAACW0J4cQB+ABn///////////////7////+AAAAAXVy
+        |AAJbQqzzF/gGCFTgAgAAeHAAAAABAXhzcgAsbW9ycGhoZGwucGFyYW1ydGwuSW50Q29uc3RyYWludCRNYXhJbmNsdXNpdmXq
+        |NZxdEnVhzgIAAUwABXZhbHVlcQB+ABB4cHNxAH4AFnNxAH4AG////////////////v////4AAAABdXEAfgAeAAAAAUB4cHBw
+        |cHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBzcQB+ABZzcQB+ABv///////////////7////+AAAAAXVxAH4AHgAA
+        |AAEIeHQABVdJRFRIcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwdAAJTGVnYWN5VG9w""".stripMargin
+    else
+      """rO0ABXNyACdtb3JwaGhkbC5Nb3JwaFNpbmdsZVNvdXJjZVZlcmlsb2dSZXBvcnR5aHG5IMpChgIABEwAFWdlbmVyYXRlZFNv
+        |dXJjZXNQYXRoc3QAI0xzY2FsYS9jb2xsZWN0aW9uL2ltbXV0YWJsZS9WZWN0b3I7TAAbaW5oZXJpdGVkVmFsaWRhdGlvblBo
+        |YXNlSWRzcQB+AAFMAApwYXJhbWV0ZXJzcQB+AAFMAAx0b3BsZXZlbE5hbWV0ABJMamF2YS9sYW5nL1N0cmluZzt4cHNyADJz
+        |Y2FsYS5jb2xsZWN0aW9uLmdlbmVyaWMuRGVmYXVsdFNlcmlhbGl6YXRpb25Qcm94eQAAAAAAAAADAwABTAAHZmFjdG9yeXQA
+        |GkxzY2FsYS9jb2xsZWN0aW9uL0ZhY3Rvcnk7eHBzcgAqc2NhbGEuY29sbGVjdGlvbi5JdGVyYWJsZUZhY3RvcnkkVG9GYWN0
+        |b3J5AAAAAAAAAAMCAAFMAAdmYWN0b3J5dAAiTHNjYWxhL2NvbGxlY3Rpb24vSXRlcmFibGVGYWN0b3J5O3hwc3IAJnNjYWxh
+        |LnJ1bnRpbWUuTW9kdWxlU2VyaWFsaXphdGlvblByb3h5AAAAAAAAAAECAAFMAAttb2R1bGVDbGFzc3QAEUxqYXZhL2xhbmcv
+        |Q2xhc3M7eHB2cgAic2NhbGEuY29sbGVjdGlvbi5pbW11dGFibGUuVmVjdG9yJAAAAAAAAAADAgAAeHB3BAAAAAF0AAhsZWdh
+        |Y3kudnhzcQB+AARzcQB+AAdxAH4ADHcEAAAAAXQAC1BoYXNlTGVnYWN5eHNxAH4ABHNxAH4AB3EAfgAMdwQAAAABc3IAIm1v
+        |cnBoaGRsLnBhcmFtcnRsLkludGVnZXJQYXJhbWV0ZXK1dbjOMIuKHAIAA0wAC2NvbnN0cmFpbnRzcQB+AAFMAAdkZWZhdWx0
+        |dAATTHNjYWxhL21hdGgvQmlnSW50O0wABG5hbWVxAH4AAnhwc3EAfgAEc3EAfgAHcQB+AAx3BAAAAAJzcgAsbW9ycGhoZGwu
+        |cGFyYW1ydGwuSW50Q29uc3RyYWludCRNaW5JbmNsdXNpdmWVDugG2R1gigIAAUwABXZhbHVlcQB+ABZ4cHNyABFzY2FsYS5t
+        |YXRoLkJpZ0ludKb/Tg5sShJbAgACSgAFX2xvbmdMAAtfYmlnSW50ZWdlcnQAFkxqYXZhL21hdGgvQmlnSW50ZWdlcjt4cgAW
+        |c2NhbGEubWF0aC5TY2FsYU51bWJlchJl11x+LoCBAgAAeHIAEGphdmEubGFuZy5OdW1iZXKGrJUdC5TgiwIAAHhwAAAAAAAA
+        |AAFwc3IALG1vcnBoaGRsLnBhcmFtcnRsLkludENvbnN0cmFpbnQkTWF4SW5jbHVzaXZlhIsgiDQrztgCAAFMAAV2YWx1ZXEA
+        |fgAWeHBzcQB+ABwAAAAAAAAAQHB4c3EAfgAcAAAAAAAAAAhwdAAFV0lEVEh4dAAJTGVnYWN5VG9w""".stripMargin
+
+  private def serializeReport(report: MorphSingleSourceVerilogReport): Array[Byte] = {
+    val bytes = new ByteArrayOutputStream
+    val stream = new ObjectOutputStream(bytes)
+    try stream.writeObject(report)
+    finally stream.close()
+    bytes.toByteArray
+  }
+
+  private def deserializeReport(bytes: Array[Byte]): MorphSingleSourceVerilogReport = {
+    val stream = new ObjectInputStream(new ByteArrayInputStream(bytes))
+    try stream.readObject().asInstanceOf[MorphSingleSourceVerilogReport]
+    finally stream.close()
+  }
+
+  test("deprecated ParamRTL report construction retains the reviewed legacy Product surface") {
+    val legacyParameters = Vector(
+      IntegerParameter(
+        "WIDTH",
+        8,
+        Vector(MinInclusive(1), MaxInclusive(64))
+      )
+    )
+    val constructed = new MorphSingleSourceVerilogReport(
+      "LegacyTop",
+      Vector("legacy.v"),
+      legacyParameters,
+      expectedPhaseIds
+    )
+    val applied = MorphSingleSourceVerilogReport(
+      "LegacyTop",
+      Vector("legacy.v"),
+      legacyParameters,
+      expectedPhaseIds
+    )
+
+    assert(constructed == applied)
+    assert(applied.productArity == 4)
+    assert(applied.productElement(2) == legacyParameters)
+    assert(applied.productIterator.toVector == Vector(
+      "LegacyTop",
+      Vector("legacy.v"),
+      legacyParameters,
+      expectedPhaseIds
+    ))
+    val elementName = applied.getClass.getMethods.find { method =>
+      method.getName == "productElementName" && method.getParameterTypes.toVector == Vector(
+        java.lang.Integer.TYPE
+      )
+    }
+    if (scala.util.Properties.versionNumberString.startsWith("2.13"))
+      assert(elementName.nonEmpty)
+    elementName.foreach { method =>
+      assert((0 until 4).map(index => method.invoke(applied, Int.box(index))).toVector == Vector(
+        "toplevelName",
+        "generatedSourcesPaths",
+        "parameters",
+        "inheritedValidationPhaseIds"
+      ))
+    }
+    assert(applied.copy(toplevelName = "CopiedTop").toplevelName == "CopiedTop")
+    assert(
+      MorphSingleSourceVerilogReport.tupled((
+        "LegacyTop",
+        Vector("legacy.v"),
+        legacyParameters,
+        expectedPhaseIds
+      )) == applied
+    )
+    assert(applied.elaborationParameters.isEmpty)
+    val MorphSingleSourceVerilogReport(top, paths, parameters, phases) = applied
+    assert((top, paths, parameters, phases) == (
+      "LegacyTop",
+      Vector("legacy.v"),
+      legacyParameters,
+      expectedPhaseIds
+    ))
+  }
+
+  test("historical serialized reports remain readable and typed reports serialize through legacy fields") {
+    val expectedUid =
+      if (scala.util.Properties.versionNumberString.startsWith("2.12"))
+        -4626025765257093795L
+      else 8748367316100203142L
+    val serialForm = ObjectStreamClass.lookup(classOf[MorphSingleSourceVerilogReport])
+    assert(serialForm.getSerialVersionUID == expectedUid)
+    val expectedCompanionUid =
+      if (scala.util.Properties.versionNumberString.startsWith("2.12"))
+        -6620878606554409185L
+      else -2414537719037776747L
+    assert(
+      ObjectStreamClass
+        .lookup(MorphSingleSourceVerilogReport.getClass)
+        .getSerialVersionUID == expectedCompanionUid
+    )
+    assert(serialForm.getFields.map(_.getName).toVector == Vector(
+      "generatedSourcesPaths",
+      "inheritedValidationPhaseIds",
+      "parameters",
+      "toplevelName"
+    ))
+    val directInterfaces = classOf[MorphSingleSourceVerilogReport].getInterfaces.map(_.getName).toVector
+    assert(directInterfaces.contains("scala.Product"))
+    assert(
+      directInterfaces.contains(
+        if (scala.util.Properties.versionNumberString.startsWith("2.12"))
+          "scala.Serializable"
+        else "java.io.Serializable"
+      )
+    )
+
+    val legacyParameters = Vector(
+      IntegerParameter(
+        "WIDTH",
+        8,
+        Vector(MinInclusive(1), MaxInclusive(64))
+      )
+    )
+    val historical = deserializeReport(
+      Base64.getMimeDecoder.decode(legacySerializedReportBase64)
+    )
+    assert(historical.toplevelName == "LegacyTop")
+    assert(historical.generatedSourcesPaths == Vector("legacy.v"))
+    assert(historical.parameters == legacyParameters)
+    assert(historical.inheritedValidationPhaseIds == Vector("PhaseLegacy"))
+    assert(historical.elaborationParameters.isEmpty)
+    assert(historical.productElement(2) == legacyParameters)
+
+    val schema = ElaborationIntegerParameter("WIDTH", 8, 1, 64)
+    val typed = MorphSingleSourceVerilogReport.fromTyped(
+      "TypedTop",
+      Vector("typed.v"),
+      Vector(schema),
+      Vector("PhaseTyped")
+    )
+    assert(typed.elaborationParameters.head eq schema)
+    assert(typed.copy(toplevelName = "TypedCopy").elaborationParameters.head eq schema)
+    val reconstructedLegacyParameters = Vector(
+      IntegerParameter(
+        "WIDTH",
+        8,
+        Vector(MinInclusive(1), MaxInclusive(64))
+      )
+    )
+    assert(reconstructedLegacyParameters == typed.parameters)
+    assert(!(reconstructedLegacyParameters.asInstanceOf[AnyRef] eq
+      typed.parameters.asInstanceOf[AnyRef]))
+    assert(
+      typed.copy(parameters = reconstructedLegacyParameters).elaborationParameters.isEmpty
+    )
+    val roundTripped = deserializeReport(serializeReport(typed))
+    assert(roundTripped.toplevelName == "TypedTop")
+    assert(roundTripped.generatedSourcesPaths == Vector("typed.v"))
+    assert(roundTripped.parameters == legacyParameters)
+    assert(roundTripped.inheritedValidationPhaseIds == Vector("PhaseTyped"))
+    assert(roundTripped.elaborationParameters.isEmpty)
+  }
 
   test("one ordinary component factory emits the parameterized wire contract") {
     withTemporaryDirectory { directory =>

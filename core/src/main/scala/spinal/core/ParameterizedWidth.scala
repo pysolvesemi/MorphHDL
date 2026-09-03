@@ -842,22 +842,30 @@ object ParameterizedWidth {
   ): Option[ElaborationIntegerExpression] =
     validateWidth(width)
 
-  /** MorphHDL shadow factories; each delegates to the untouched native factory. */
+  /** Compatibility aliases retained for historical tests. Production callers
+    * use the native factories, which now own these parameterized overloads.
+    */
   private[spinal] def validatedWidthWitness(width: ParameterizedBitCount): Int = {
     validatedWidthExpression(width)
     width.value
   }
 
+  @deprecated("Compatibility-only alias; use spinal.core.Bits directly", "Increment 58")
   def Bits(width: ParameterizedBitCount): spinal.core.Bits =
     attach(spinal.core.Bits(BitCount(validatedWidthWitness(width))), width)
+  @deprecated("Compatibility-only alias; use spinal.core.Bits directly", "Increment 58")
   def Bits(width: BitCount): spinal.core.Bits = spinal.core.Bits(width)
 
+  @deprecated("Compatibility-only alias; use spinal.core.UInt directly", "Increment 58")
   def UInt(width: ParameterizedBitCount): spinal.core.UInt =
     attach(spinal.core.UInt(BitCount(validatedWidthWitness(width))), width)
+  @deprecated("Compatibility-only alias; use spinal.core.UInt directly", "Increment 58")
   def UInt(width: BitCount): spinal.core.UInt = spinal.core.UInt(width)
 
+  @deprecated("Compatibility-only alias; use spinal.core.SInt directly", "Increment 58")
   def SInt(width: ParameterizedBitCount): spinal.core.SInt =
     attach(spinal.core.SInt(BitCount(validatedWidthWitness(width))), width)
+  @deprecated("Compatibility-only alias; use spinal.core.SInt directly", "Increment 58")
   def SInt(width: BitCount): spinal.core.SInt = spinal.core.SInt(width)
 
   /** Copy registry ownership between already-created native leaves. */

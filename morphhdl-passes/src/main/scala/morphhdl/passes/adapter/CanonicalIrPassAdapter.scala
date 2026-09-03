@@ -1,6 +1,8 @@
 package morphhdl.passes.adapter
 
 import morphhdl.ir.v1.BooleanParameter
+import morphhdl.ir.v1.CanonicalIrHandoff
+import morphhdl.ir.v1.CanonicalIrProfile
 import morphhdl.ir.v1.CanonicalIrSchema
 import morphhdl.ir.v1.CanonicalIrValidator
 import morphhdl.ir.v1.Declaration
@@ -185,16 +187,53 @@ object CanonicalIrPassAdapter {
   val supportedVersion: IrVersion = CanonicalIrSchema.schemaVersion
   val supportedStage: IrStage = CanonicalIrSchema.stage
 
-  def bind(
+  /** Bind the validated production envelope published by MorphHDL. */
+  def bind(handoff: CanonicalIrHandoff): CanonicalIrPassView = {
+    require(handoff != null, "canonical IR handoff must not be null")
+    require(
+      handoff.profile == CanonicalIrProfile.SimpleWireAssignmentsV1,
+      s"unsupported canonical IR producer profile '${handoff.profile.id}'"
+    )
+    require(
+      handoff.profile.requiredFacets.subsetOf(handoff.completeFacets),
+      s"canonical IR handoff '${handoff.profile.id}' is missing required completeness facets"
+    )
+    bindValidatedInternal(handoff.validated)
+  }
+
+  /**
+    * Validate a hand-authored fixture or mutation oracle.
+    *
+    * Production integrations must consume [[CanonicalIrHandoff]] so their
+    * bounded producer profile and completeness claims cannot be discarded.
+    */
+  def bindFixture(
       design: Design,
       maxErrors: Int = CanonicalIrValidator.DefaultMaximumDiagnostics
   ): Either[CanonicalIrAdapterFailure, CanonicalIrPassView] =
     CanonicalIrValidator.validate(design, maxErrors) match {
-      case Right(validated) => Right(bindValidated(validated))
+      case Right(validated) => Right(bindValidatedInternal(validated))
       case Left(diagnostics) => Left(CanonicalIrAdapterFailure(diagnostics))
     }
 
-  def bindValidated(validated: ValidatedDesign): CanonicalIrPassView = {
+  @deprecated(
+    "Use bind(CanonicalIrHandoff) for production; raw Design binding is fixture/mutation compatibility only",
+    "Increment 58"
+  )
+  def bind(
+      design: Design,
+      maxErrors: Int = CanonicalIrValidator.DefaultMaximumDiagnostics
+  ): Either[CanonicalIrAdapterFailure, CanonicalIrPassView] =
+    bindFixture(design, maxErrors)
+
+  @deprecated(
+    "Use bind(CanonicalIrHandoff) for production; bare ValidatedDesign binding is compatibility-only",
+    "Increment 58"
+  )
+  def bindValidated(validated: ValidatedDesign): CanonicalIrPassView =
+    bindValidatedInternal(validated)
+
+  private def bindValidatedInternal(validated: ValidatedDesign): CanonicalIrPassView = {
     require(validated != null, "validated canonical IR must not be null")
     new CanonicalIrPassView(validated)
   }

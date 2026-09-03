@@ -9,11 +9,13 @@ import scala.util.control.NonFatal
 import spinal.core.{Component, SpinalConfig, SpinalReport, SystemVerilog, VHDL, Verilog}
 import spinal.core.internals.{
   ExternalParameterizedAutoResize,
+  MorphHdlCanonicalIrProducer,
   MorphHdlExternalEnumLocalizer,
   MorphHdlExternalParameterizedVerilog
 }
 
 import morphhdl.backend.verilog2001.{Verilog2001Capability => V2001Capability, Verilog2001Emitter}
+import morphhdl.ir.v1.CanonicalIrPublisher
 import morphhdl.integration.{ExternalSpinalVerilog, ExternalSpinalVerilogReport, NativeGraphSnapshot}
 import morphhdl.runtime.ParameterizedVerilogMode
 import morphhdl.frontend.ParamRtlFrontend
@@ -38,7 +40,7 @@ object MorphVerilog {
 
   private final case class PreparedSingleSourceGeneration(
       top: String,
-      parameters: Vector[morphhdl.paramrtl.IntegerParameter],
+      parameters: Vector[spinal.core.ElaborationIntegerParameter],
       inheritedValidationPhaseIds: Vector[String],
       verilog: String
   )
@@ -73,6 +75,10 @@ object MorphVerilog {
       booleanLocalParameters: Map[String, Boolean]
   )
 
+  @deprecated(
+    "Dual-factory generation is a compatibility/mutation oracle; use the typed single-source overload",
+    "Increment 58"
+  )
   def apply[T <: Component](program: => MorphProgram[T]): MorphVerilogReport =
     apply(SpinalConfig())(program)
 
@@ -91,6 +97,10 @@ object MorphVerilog {
 
   /** Configured entry point shared by the dual-factory compatibility path and the single-source path. */
   final class Configured private[morphhdl] (config: SpinalConfig) {
+    @deprecated(
+      "Dual-factory generation is a compatibility/mutation oracle; use the typed single-source overload",
+      "Increment 58"
+    )
     def apply[T <: Component](program: => MorphProgram[T]): MorphVerilogReport =
       generateDual(config)(program)
 
@@ -102,6 +112,10 @@ object MorphVerilog {
 
   /** Failure-returning counterpart of [[Configured]]. */
   final class TryConfigured private[morphhdl] (config: SpinalConfig) {
+    @deprecated(
+      "Dual-factory generation is a compatibility/mutation oracle; use the typed single-source overload",
+      "Increment 58"
+    )
     def apply[T <: Component](
         program: => MorphProgram[T]
     ): Either[MorphVerilogFailure, MorphVerilogReport] =
@@ -118,6 +132,53 @@ object MorphVerilog {
   def apply(config: SpinalConfig): Configured = new Configured(config)
 
   def tryGenerate(config: SpinalConfig): TryConfigured = new TryConfigured(config)
+
+  /**
+    * Generate through the ordinary typed single-source path and publish the
+    * canonical snapshot captured after width normalization and before native
+    * alias simplification. The snapshot is released only after inherited
+    * validation succeeds and before name propagation or target emission.
+    */
+  def generateWithCanonicalIr[T <: Component](
+      component: => T
+  ): MorphCanonicalIrReport =
+    generateWithCanonicalIr(SpinalConfig())(component)
+
+  def generateWithCanonicalIr[T <: Component](
+      config: SpinalConfig
+  )(component: => T): MorphCanonicalIrReport = {
+    if (config == null)
+      throw new IllegalArgumentException("SpinalConfig must not be null")
+    val capture = MorphHdlCanonicalIrProducer.newCapture()
+    val inserters = config.phasesInserters.clone()
+    inserters += MorphHdlCanonicalIrProducer.install(capture) _
+    val isolated = config.copy(
+      flags = config.flags.clone(),
+      debugComponents = config.debugComponents.clone(),
+      phasesInserters = inserters,
+      transformationPhases = config.transformationPhases.clone(),
+      memBlackBoxers = config.memBlackBoxers.clone(),
+      scopeProperties = config.scopeProperties.clone()
+    )
+    val generated = generateSingleSource(isolated)(component)
+    MorphCanonicalIrReport(
+      generated,
+      capture.handoff,
+      capture.phaseClassNames
+    )
+  }
+
+  /** Invoke a read-only optional consumer only after generation succeeds. */
+  def publishCanonicalIr[T <: Component](
+      config: SpinalConfig,
+      publisher: CanonicalIrPublisher
+  )(component: => T): MorphCanonicalIrReport = {
+    if (publisher == null)
+      throw new IllegalArgumentException("canonical IR publisher must not be null")
+    val report = generateWithCanonicalIr(config)(component)
+    publisher.publish(report.handoff)
+    report
+  }
 
   private def generateDual[T <: Component](
       config: SpinalConfig
@@ -189,10 +250,10 @@ object MorphVerilog {
                   case Left(failure) => Left(failure)
                   case Right(output) =>
                     Right(
-                      MorphSingleSourceVerilogReport(
+                      MorphSingleSourceVerilogReport.fromTyped(
                         toplevelName = value.top,
                         generatedSourcesPaths = Vector(output.toString),
-                        parameters = value.parameters,
+                        elaborationParameters = value.parameters,
                         inheritedValidationPhaseIds = value.inheritedValidationPhaseIds
                       )
                     )
@@ -670,7 +731,7 @@ object MorphVerilog {
 
   private def readSingleSourceParameters[T <: Component](
       report: SpinalReport[T]
-  ): Either[MorphVerilogFailure, Vector[morphhdl.paramrtl.IntegerParameter]] =
+  ): Either[MorphVerilogFailure, Vector[spinal.core.ElaborationIntegerParameter]] =
     try {
       // A scalar child formal is not carried by any top-level packed width.
       // Publish only parameters referenced by direct-child actuals: those are
@@ -700,18 +761,7 @@ object MorphVerilog {
             s"retained parameter '$name' has conflicting declarations"
           )
         }
-      Right(
-        grouped.toVector.map(_._2.head).sortBy(_.name).map { parameter =>
-          morphhdl.paramrtl.IntegerParameter(
-            parameter.name,
-            parameter.default,
-            Vector[morphhdl.paramrtl.IntConstraint](
-              morphhdl.paramrtl.IntConstraint.MinInclusive(parameter.minimum),
-              morphhdl.paramrtl.IntConstraint.MaxInclusive(parameter.maximum)
-            )
-          )
-        }
-      )
+      Right(grouped.toVector.map(_._2.head).sortBy(_.name))
     } catch {
       case NonFatal(error) =>
         Left(

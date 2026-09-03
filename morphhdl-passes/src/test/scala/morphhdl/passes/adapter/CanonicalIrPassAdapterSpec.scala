@@ -1,7 +1,10 @@
 package morphhdl.passes.adapter
 
 import morphhdl.ir.v1.BooleanParameterDomain
+import morphhdl.ir.v1.CanonicalIrHandoff
+import morphhdl.ir.v1.CanonicalIrProfile
 import morphhdl.ir.v1.CanonicalIrSchema
+import morphhdl.ir.v1.CanonicalIrValidator
 import morphhdl.ir.v1.Declaration
 import morphhdl.ir.v1.DeclarationKind
 import morphhdl.ir.v1.Design
@@ -29,6 +32,7 @@ import morphhdl.ir.v1.ScopeKind
 import morphhdl.ir.v1.Signedness
 import morphhdl.ir.v1.SourceLocation
 import morphhdl.ir.v1.SymbolId
+import morphhdl.ir.v1.ValidatedDesign
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
@@ -157,7 +161,7 @@ final class CanonicalIrPassAdapterSpec extends AnyFunSuite with Matchers {
   }
 
   private def bound(design: Design): CanonicalIrPassView =
-    CanonicalIrPassAdapter.bind(design) match {
+    CanonicalIrPassAdapter.bindFixture(design) match {
       case Right(value) => value
       case Left(failure) => fail(failure.diagnostics.values.mkString("\n"))
     }
@@ -170,6 +174,53 @@ final class CanonicalIrPassAdapterSpec extends AnyFunSuite with Matchers {
     view.top shouldBe moduleId
     CanonicalIrPassAdapter.supportedVersion shouldBe CanonicalIrSchema.schemaVersion
     CanonicalIrPassAdapter.supportedStage shouldBe CanonicalIrSchema.stage
+  }
+
+  test("production adapter binds the validated profile-bearing handoff") {
+    val fixture = validDesign()
+    val productionDesign = fixture.copy(
+      modules = fixture.modules.map(module =>
+        module.copy(parameters = module.parameters.collect {
+          case parameter: IntegerParameter => parameter
+        })
+      )
+    )
+    val handoff = CanonicalIrHandoff.create(productionDesign) match {
+      case Right(value) => value
+      case Left(failure) => fail(failure.toString)
+    }
+    val view = CanonicalIrPassAdapter.bind(handoff)
+
+    handoff.profile shouldBe CanonicalIrProfile.SimpleWireAssignmentsV1
+    view.validated shouldBe handoff.validated
+    view.design shouldBe handoff.design
+  }
+
+  test("validated-design compatibility binding remains source and JVM linkable") {
+    val validated = CanonicalIrValidator.validate(validDesign()) match {
+      case Right(value) => value
+      case Left(diagnostics) => fail(diagnostics.values.mkString("\n"))
+    }
+    val method = CanonicalIrPassAdapter.getClass.getMethod(
+      "bindValidated",
+      classOf[ValidatedDesign]
+    )
+    val view = method
+      .invoke(CanonicalIrPassAdapter, validated)
+      .asInstanceOf[CanonicalIrPassView]
+
+    view.validated shouldBe validated
+    view.design shouldBe validated.value
+  }
+
+  test("raw canonical designs bind only through the fixture and mutation compatibility API") {
+    val malformed = validDesign().copy(stage = null)
+
+    val failure = CanonicalIrPassAdapter.bindFixture(malformed) match {
+      case Left(value) => value
+      case Right(_)    => fail("expected malformed fixture to fail")
+    }
+    failure.diagnostics.codes should contain(IrDiagnosticCode.StageMismatch)
   }
 
   test("adapter exposes exact declaration driver reference type name and observability facts") {
@@ -229,7 +280,7 @@ final class CanonicalIrPassAdapterSpec extends AnyFunSuite with Matchers {
       modules = Vector(module.copy(declarations = declarations))
     )
 
-    val failure = CanonicalIrPassAdapter.bind(malformed) match {
+    val failure = CanonicalIrPassAdapter.bindFixture(malformed) match {
       case Left(value) => value
       case Right(_) => fail("expected malformed canonical IR to be rejected")
     }

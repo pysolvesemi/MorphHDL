@@ -638,7 +638,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   Increment 57a contract. See
   [Increment 57b](increment-57b-typed-streamfifocc-payload-width.md).
 
-- [ ] **Increment 58 — Legacy adapter and shadow-path retirement**
+- [x] **Increment 58 — Legacy adapter and shadow-path retirement**
 
   **Dependencies:** Increment 57b implemented and merged.
 
