@@ -41,6 +41,43 @@ WA-02 adds:
 WA-02 does not eliminate, rewrite or rename any declaration, driver, reference
 or expression.
 
+WA-03 adds the shared alias-elimination gates required before either pass may
+transform canonical IR:
+
+- `WireAliasSafetyGate`, a read-only, component-generic eligibility analysis
+  that proves one continuous full-object direct reference, exact packed
+  signedness and value semantics, width equality over the complete admitted parameter domain and every
+  retained generate-index domain, legal lexical
+  replacement and continuous-cycle freedom;
+- explicit fail-closed reasons for every observability, hierarchy, clock,
+  reset, bidirectional, tri-state, memory-port, instance-port, comment and
+  attribute exclusion;
+- conservative rejection of a visible procedural or bidirectional context when
+  canonical IR v1 does not prove that the alias is absent from clock, reset or
+  tri-state control roles;
+- adversarial Scala fixtures for mismatching parameter bindings, multiple and
+  partial drivers, non-reference expressions, sibling scopes, combinational
+  cycles, registered feedback, control-role uncertainty, domain-expansion
+  limits and deterministic repeated analysis;
+- strict Verilog-2001 compilation, lint and synthesis plus representative
+  simulation for generic combinational and sequential alias fixtures;
+- unbounded formal equivalence over every admitted binding of those generic
+  fixtures, together with a live mutation that must fail and retain a
+  counterexample; and
+- two independent proof runs whose deterministic inputs, configurations and
+  evidence must have the same SHA-256 artifact-set signature.
+
+Every sequential miter forces a low-to-high clock transition while reset is
+active, then enables equivalence assertions only after both independently
+prepared DUT legs have consumed that shared synchronous-reset edge.
+
+The static WA-03 guard pins the clock, reset, tri-state and unproven-control
+reason codes and their regression markers so later edits cannot silently weaken
+this fail-closed boundary.
+
+WA-03 does not eliminate an alias. WA-04 and WA-05 remain the only increments
+allowed to transform unnamed and named aliases, respectively.
+
 ## Common witness and formal-equivalence baseline
 
 The parameterized StreamFifo source is a common regression and formal witness,
@@ -58,25 +95,55 @@ of the preceding pass is insufficient.
 
 The formal comparison must use identical legal parameter assumptions and
 bindings on both sides. A flow that concretizes parameters must cover the
-complete admitted bounded parameter domain. WA-03 owns this shared capture and
-formal-equivalence harness, including a mutation test that proves the harness
-fails on an intentional functional change; WA-02 itself has no transformed
-output to compare.
+complete admitted bounded parameter domain.
+
+WA-03 generates the shared witness afresh, copies it once to
+`common-pre-pass/reference.v`, records its SHA-256, audits the complete admitted
+`WIDTH=1..64` by `DEPTH=1..8` Cartesian domain, and runs strict
+Verilog-2001 compile/lint/synthesis plus representative simulations. Its
+manifest already contains fail-closed slots for WA-04, WA-05 and the WA-06
+combined pipeline. A slot remains inactive while its roadmap item is open; as
+soon as that item is checked, a missing candidate is an error and every one of
+the 512 admitted witness bindings must be proved against the unchanged common
+reference. The harness therefore cannot silently accept a partial parameter
+sample or a comparison against the preceding pass.
 
 ## Local validation
 
-From the repository root:
+From the repository root, the source and Scala gates are:
 
 ```bash
 bash morphhdl-passes/scripts/test-boundary-guard.sh
 python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py --self-test
 python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py
+python3 morphhdl-passes/scripts/check-wa03-gates.py --self-test
+python3 morphhdl-passes/scripts/check-wa03-gates.py
+python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
 (
   cd morphhdl-passes
   sbt -batch +test
 )
 ```
 
-The contracts keep both passes disabled by default. Alias safety,
-formal-equivalence execution and transformation remain later roadmap
-increments.
+The Scala test sources retain explicit result types where Scala 2.12 requires
+them for stable named-argument parsing; the same fixtures are compiled and run
+unchanged on Scala 2.13.
+
+The full formal gate requires the pinned CI toolchain and a freshly generated
+shared witness. The workflow runs the equivalent of:
+
+```bash
+sbt -batch \
+  'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/ParameterizedStreamFifo.scala")' \
+  'morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoExample morphhdl-passes/build/formal/wire_assignment_ir/generated'
+
+python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py \
+  --shared-witness morphhdl-passes/build/formal/wire_assignment_ir/generated/parameterized_stream_fifo.v \
+  --output morphhdl-passes/build/formal/wire_assignment_ir/evidence \
+  --check-determinism
+```
+
+The final branch head, rather than an earlier staging commit, is the authoritative source for every closure gate.
+
+The contracts keep both passes disabled by default. Transforming alias
+elimination starts only in WA-04.

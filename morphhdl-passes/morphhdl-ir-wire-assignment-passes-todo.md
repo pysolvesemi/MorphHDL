@@ -276,11 +276,11 @@ WA-04 or WA-05 can remove an alias.
   for every later transforming pass and supported pass combination. No alias was
   eliminated.
 
-- [ ] **WA-03 — Alias-elimination equivalence, safety and determinism gates**
+- [x] **WA-03 — Alias-elimination equivalence, safety and determinism gates**
 
   **Dependencies:** WA-02 implemented and merged.
 
-  **Status:** `READY` after WA-02 merges.
+  **Status:** `COMPLETED`.
 
   Add validation shared by both passes. Prove type and parameter-domain
   equivalence, cycle freedom, legal scope replacement and preservation of every
@@ -295,7 +295,7 @@ WA-04 or WA-05 can remove an alias.
 
   **Dependencies:** WA-03 implemented and merged.
 
-  **Status:** `BLOCKED` by WA-03.
+  **Status:** `READY`.
 
   Eliminate only aliases classified as unnamed from retained source/elaboration
   metadata. Replace reads by exact symbol identity, remove the exact declaration
