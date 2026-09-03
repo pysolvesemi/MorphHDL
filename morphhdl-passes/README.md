@@ -113,6 +113,10 @@ python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-t
 )
 ```
 
+The Scala test sources retain explicit result types where Scala 2.12 requires
+them for stable named-argument parsing; the same fixtures are compiled and run
+unchanged on Scala 2.13.
+
 The full formal gate requires the pinned CI toolchain and a freshly generated
 shared witness. The workflow runs the equivalent of:
 
