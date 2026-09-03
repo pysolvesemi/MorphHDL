@@ -50,6 +50,15 @@ The following remain outside Increment 57:
 This is intentionally a reviewed cross-section rather than a claim that every
 parameter-like value in `spinal.lib` is now symbolic.
 
+### Successor note
+
+The exclusions above record the exact Increment 57 closure boundary and remain
+historically accurate. Increment 57a is a separate dependent increment that
+may successor-refine only the native `StreamFifoCC` depth surface, its existing
+cross-clock Stream helpers, typed-width `BufferCC` propagation and the
+authenticated dual-clock memory path. It does not retroactively enlarge
+Increment 57 or relax any of the other exclusions above.
+
 ## Typed pipeline control
 
 `Stream.pipelined` accepts three explicit `ElabBool` arguments. It first proves
@@ -188,5 +197,6 @@ strict-Verilog and approved-native-source gate.
 
 The roadmap checkbox is an evidence-only transition. It remains unchecked on
 the implementation revision until the Increment 57 workflow passes for the
-exact sealed source scope. Legacy adapter retirement remains locked to
-Increment 58 after that merge.
+exact sealed source scope. At Increment 57 closure, legacy adapter retirement
+remained locked to Increment 58 after that merge. The successor roadmap now
+additionally requires merged Increment 57a before Increment 58 may start.

@@ -431,18 +431,59 @@ object PropagateOnes{
 
 object toGray {
   def apply(uint: UInt): Bits = {
-    B((uint >> U(1)) ^ uint)
+    val width = widthOfExpr(uint)
+    if (width.isConcrete) {
+      B((uint >> U(1)) ^ uint)
+    } else {
+      // Materialize both native operators through retained packed carriers so
+      // neither the shift nor the cast/XOR result freezes to the construction
+      // witness before a typed consumer sees it.
+      val shifted = UInt(width bits).dontSimplifyIt()
+      shifted := uint |>> 1
+      val result = Bits(width bits).dontSimplifyIt()
+      result := shifted.asBits ^ uint.asBits
+      result
+    }
   }
 }
 
 object fromGray {
   def apply(gray: Bits): UInt = {
-    val ret = List.fill(widthOf(gray)) (Bool())
-    for (i <- 0 until widthOf(gray) - 1) {
-      ret(i) := gray(i) ^ ret(i + 1)
+    val width = widthOfExpr(gray)
+    if (width.isConcrete) {
+      val ret = List.fill(widthOf(gray)) (Bool())
+      for (i <- 0 until widthOf(gray) - 1) {
+        ret(i) := gray(i) ^ ret(i + 1)
+      }
+      ret.last := gray.msb
+      ret.asBits().asUInt
+    } else {
+      width.requireAuthoritativeIntegerDomain(
+        "typed Gray decode width",
+        "SPINAL-FROM-GRAY-WIDTH-EXACT-DOMAIN-REQUIRED",
+        requireExactExtrema = false
+      )
+      // Parallel-prefix Gray decoding needs one XOR stage for every power of
+      // two below the widest admitted specialization. Shifts beyond a narrower
+      // specialization contribute zero, so deriving this fixed topology from
+      // the authoritative maximum is valid for the complete parameter domain.
+      // Explicit carriers keep every native operator result on the retained
+      // packed geometry instead of freezing a witness-width intermediate.
+      val maximumWidth = width.maximum
+      var decoded = UInt(width bits).dontSimplifyIt()
+      decoded := gray.asUInt
+      var shift = BigInt(1)
+      while (shift < maximumWidth) {
+        val shiftAmount = shift.toInt
+        val shifted = UInt(width bits).dontSimplifyIt()
+        shifted := decoded |>> shiftAmount
+        val next = UInt(width bits).dontSimplifyIt()
+        next := decoded ^ shifted
+        decoded = next
+        shift = shift << 1
+      }
+      decoded
     }
-    ret.last := gray.msb
-    ret.asBits().asUInt
   }
 }
 

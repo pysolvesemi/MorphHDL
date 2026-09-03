@@ -120,9 +120,13 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       .split("\\n", -1)
       .map(line => rewriteDeclarationLine(line, widthsByName))
       .mkString("\n")
-    val rewrittenValues = rewriteRetainedValueAssignments(
+    val rewrittenInitializers = rewriteRetainedZeroInitializers(
       component,
       rewrittenDeclarations
+    )
+    val rewrittenValues = rewriteRetainedValueAssignments(
+      component,
+      rewrittenInitializers
     )
     val rewrittenResizes = rewriteRetainedResizeAssignments(
       component,
@@ -587,15 +591,20 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       widthsByName: Vector[(String, String)]
   ): String = {
     val trimmed = line.trim
+    // Native Verilog may prefix a declaration with one or more synthesis
+    // attributes. Those attributes are syntax attached to the declaration,
+    // not a reason to hide its retained packed-width identity from this pass.
     val declarationLine =
-      trimmed.startsWith("input ") || trimmed.startsWith("output ") ||
-        trimmed.startsWith("inout ") || trimmed.startsWith("wire ") ||
-        trimmed.startsWith("reg ") || trimmed.startsWith("logic ")
+      "^(?:\\(\\*.*?\\*\\)\\s*)*(?:input|output|inout|wire|reg|logic)\\b".r
+        .findPrefixOf(trimmed)
+        .nonEmpty
     if (!declarationLine) return line
 
     widthsByName.foldLeft(line) { case (current, (name, range)) =>
       val quotedName = Pattern.quote(name)
-      val packedPattern = ("(\\[[^\\]]+\\])(\\s+)(" + quotedName + ")(?=\\s*(?:[,;]|$))").r
+      val declarationEnd = "(?=\\s*(?:/\\*.*?\\*/\\s*)*(?:[,;]|$))"
+      val packedPattern =
+        ("(\\[[^\\]]+\\])(\\s+)(" + quotedName + ")" + declarationEnd).r
       var replaced = false
       val withRange = packedPattern.replaceAllIn(
         current,
@@ -609,7 +618,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       )
       if (replaced) withRange
       else {
-        val scalarPattern = ("(\\s+)(" + quotedName + ")(?=\\s*(?:[,;]|$))").r
+        val scalarPattern =
+          ("(\\s+)(" + quotedName + ")" + declarationEnd).r
         var inserted = false
         scalarPattern.replaceAllIn(
           withRange,
@@ -623,6 +633,92 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         )
       }
     }
+  }
+
+  /** Rewrite only graph-proven zero initializers of retained-width registers.
+    *
+    * The native emitter correctly sizes an initializer to the construction
+    * witness, but that literal must grow with a later parameter specialization.
+    * Authorization comes from the exact InitAssignmentStatement target and its
+    * poison-free zero BitVectorLiteral source; the emitted signal name and
+    * witness literal are then used only to locate that same edge in Verilog.
+    */
+  private def rewriteRetainedZeroInitializers(
+      component: Component,
+      verilog: String
+  ): String = {
+    final case class RetainedZeroInitializer(
+        name: String,
+        width: ElaborationIntegerExpression,
+        witness: String
+    )
+
+    val initializers = ArrayBuffer.empty[RetainedZeroInitializer]
+    component.dslBody.walkLeafStatements {
+      case statement: InitAssignmentStatement =>
+        statement.finalTarget match {
+          case target: BitVector if target.component eq component =>
+            ParameterizedWidth
+              .expressionOf(target)
+              .filter(_.parameters.nonEmpty)
+              .foreach { width =>
+                statement.source match {
+                  case literal: BitVectorLiteral
+                      if !literal.hasPoison() && literal.getValue() == 0 &&
+                        literal.getWidth == target.getBitsWidth =>
+                    val name = Option(target.getName()).filter(_.nonEmpty).getOrElse {
+                      fail(
+                        "SPINAL-PARAMETERIZED-VERILOG-ZERO-INIT-NAME-MISSING",
+                        "one retained-width zero-initialized register has no final emitted name",
+                        ParameterizedWidth.sourceLocationOf(target)
+                      )
+                    }
+                    initializers += RetainedZeroInitializer(
+                      name,
+                      width,
+                      emittedRetainedWitness(literal)
+                    )
+                  case _ =>
+                }
+              }
+          case _ =>
+        }
+      case _ =>
+    }
+    if (initializers.isEmpty) return verilog
+
+    initializers
+      .groupBy(_.name)
+      .collectFirst { case (name, values) if values.size != 1 => name }
+      .foreach { name =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-ZERO-INIT-NAME-CONFLICT",
+          s"multiple retained-width zero initializers resolved to emitted name '$name'"
+        )
+      }
+
+    var lines = verilog.split("\\n", -1).toVector
+    initializers.sortBy(value => -value.name.length).foreach { initializer =>
+      val pattern = (
+        "^(\\s*" + Pattern.quote(initializer.name) +
+          "\\s*(?:<=|=)\\s*)" + Pattern.quote(initializer.witness) + "(;.*)$"
+      ).r
+      var exactEdges = 0
+      lines = lines.map {
+        case pattern(prefix, suffix) =>
+          exactEdges += 1
+          prefix + "{" + initializer.width.verilog + "{1'b0}}" + suffix
+        case line => line
+      }
+      if (exactEdges != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-ZERO-INIT-EMITTED-LINEAGE-MISMATCH",
+          s"retained-width zero initializer '${initializer.name}' maps to $exactEdges exact emitted witness edges; exactly one is required",
+          initializer.width.sourceLocation
+        )
+      }
+    }
+    lines.mkString("\n")
   }
 
   /** Replace only the concrete witness assignment of compiler-created UInt

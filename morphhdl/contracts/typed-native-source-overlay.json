@@ -145,11 +145,25 @@
       "reason": "carry exact typed state-count and limit geometry through the authoritative native Counter algorithm"
     },
     {
+      "path": "lib/src/main/scala/spinal/lib/CrossClock.scala",
+      "change": "modified",
+      "classification": "typed-mechanical-propagation",
+      "blob": "1cc631019d252a8a7a136818cb48d0690c489370",
+      "reason": "retain exact symbolic pointer width through the native BufferCC ports, synchronizer registers and return clone"
+    },
+    {
       "path": "lib/src/main/scala/spinal/lib/Stream.scala",
       "change": "modified",
       "classification": "typed-mechanical-propagation",
-      "blob": "039e050533fd089cd1b7d099ef86f97ee28b900f",
-      "reason": "carry typed depth and branch-local geometry through the existing native StreamFifo algorithm"
+      "blob": "b2368653e0a4ca7e6c3cb6c6a51803d926169985",
+      "reason": "carry typed depth and branch-local geometry through the existing native StreamFifo and StreamFifoCC algorithms"
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/Utils.scala",
+      "change": "modified",
+      "classification": "typed-mechanical-propagation",
+      "blob": "a8355a3fe272c5fc35791d9112c2129a1eae05fa",
+      "reason": "retain exact symbolic width through the native Gray-code encode and decode helpers"
     }
   ]
 }

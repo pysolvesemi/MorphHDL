@@ -1,0 +1,815 @@
+package morphhdl
+
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Path, Paths}
+
+import scala.collection.JavaConverters._
+import scala.sys.process.{Process, ProcessLogger}
+
+import org.scalatest.funsuite.AnyFunSuite
+
+import morphhdl.frontend.HdlInt
+import spinal.core._
+import spinal.lib._
+
+private object NativeStreamFifoCCFormalEquivalenceFixture {
+  private val ClockConfig = ClockDomainConfig(
+    clockEdge = RISING,
+    resetKind = ASYNC,
+    resetActiveLevel = HIGH
+  )
+
+  /** Typed proof leg. The depth reaches the ordinary native factory as an
+    * ElabInt; no frontend FIFO adapter or concrete witness is shared with the
+    * reference leg.
+    */
+  final class TypedTop(depth: ElabInt, bufferedPopReset: Boolean)
+      extends Component {
+    setDefinitionName(
+      if (bufferedPopReset) "NativeStreamFifoCC57aTypedBuffered"
+      else "NativeStreamFifoCC57aTypedDirect"
+    )
+
+    val io = new Bundle {
+      val pushValid = in Bool ()
+      val pushReady = out Bool ()
+      val pushPayload = in Bits (8 bits)
+      val popValid = out Bool ()
+      val popReady = in Bool ()
+      val popPayload = out Bits (8 bits)
+      val pushOccupancy = out UInt (5 bits)
+      val popOccupancy = out UInt (5 bits)
+    }
+
+    private val pushClock = ClockDomain.external("push", config = ClockConfig)
+    private val popClock = ClockDomain.external("pop", config = ClockConfig)
+
+    val fifo = spinal.lib.StreamFifoCC(
+      HardType(Bits(8 bits)),
+      depth,
+      pushClock,
+      popClock,
+      bufferedPopReset
+    )
+    require(fifo.getClass == classOf[spinal.lib.StreamFifoCC[_]])
+
+    fifo.io.push.valid := io.pushValid
+    fifo.io.push.payload := io.pushPayload
+    io.pushReady := fifo.io.push.ready
+    io.popValid := fifo.io.pop.valid
+    fifo.io.pop.ready := io.popReady
+    // Keep every child output on a direct full-port connection. The miter
+    // masks the native payload don't-care by comparing it only while valid.
+    io.popPayload := fifo.io.pop.payload
+    io.pushOccupancy := fifo.io.pushOccupancy.resized
+    io.popOccupancy := fifo.io.popOccupancy.resized
+  }
+
+  /** Independent ordinary-SpinalHDL reference. This leg accepts only Int and
+    * is elaborated independently for each concrete depth and reset topology.
+    */
+  final class ConcreteTop(depth: Int, bufferedPopReset: Boolean)
+      extends Component {
+    require(depth >= 2 && (depth & (depth - 1)) == 0)
+    setDefinitionName(
+      s"NativeStreamFifoCC57aConcreteD${depth}" +
+        (if (bufferedPopReset) "Buffered" else "Direct")
+    )
+
+    val io = new Bundle {
+      val pushValid = in Bool ()
+      val pushReady = out Bool ()
+      val pushPayload = in Bits (8 bits)
+      val popValid = out Bool ()
+      val popReady = in Bool ()
+      val popPayload = out Bits (8 bits)
+      val pushOccupancy = out UInt (5 bits)
+      val popOccupancy = out UInt (5 bits)
+    }
+
+    private val pushClock = ClockDomain.external("push", config = ClockConfig)
+    private val popClock = ClockDomain.external("pop", config = ClockConfig)
+
+    val fifo = new spinal.lib.StreamFifoCC(
+      HardType(Bits(8 bits)),
+      depth,
+      pushClock,
+      popClock,
+      bufferedPopReset
+    )
+    fifo.setDefinitionName(
+      s"NativeStreamFifoCC57aConcreteCoreD${depth}" +
+        (if (bufferedPopReset) "Buffered" else "Direct")
+    )
+
+    fifo.io.push.valid := io.pushValid
+    fifo.io.push.payload := io.pushPayload
+    io.pushReady := fifo.io.push.ready
+    io.popValid := fifo.io.pop.valid
+    fifo.io.pop.ready := io.popReady
+    io.popPayload := fifo.io.pop.payload
+    io.pushOccupancy := fifo.io.pushOccupancy.resized
+    io.popOccupancy := fifo.io.popOccupancy.resized
+  }
+}
+
+/** Relational proof for Increment 57.a.
+  *
+  * Each typed specialization is compared with an independently elaborated
+  * native-Int StreamFifoCC. Two deterministic asynchronous clock schedules
+  * exercise both 2:1 directions, and both native pop-reset-buffer modes are
+  * covered. The expensive solver matrix is deliberately opt-in; the ordinary
+  * test lane still verifies that all independent witnesses can be generated.
+  */
+class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
+  import NativeStreamFifoCCFormalEquivalenceFixture._
+
+  private final case class ClockRatio(
+      name: String,
+      pushPhaseBit: Int,
+      popPhaseBit: Int
+  )
+  private final case class Configuration(
+      depth: Int,
+      buffered: Boolean,
+      ratio: ClockRatio
+  )
+  private final case class GeneratedDuts(
+      typedByResetMode: Map[Boolean, Path],
+      concreteByConfiguration: Map[(Int, Boolean), Path]
+  )
+  private final case class PreparedDuts(candidate: Path, reference: Path)
+
+  private val Depths = Vector(2, 4, 8, 16)
+  private val ResetModes = Vector(false, true)
+  private val ClockRatios = Vector(
+    ClockRatio("push_2x_pop", pushPhaseBit = 0, popPhaseBit = 1),
+    ClockRatio("pop_2x_push", pushPhaseBit = 1, popPhaseBit = 0)
+  )
+  private val Configurations = for {
+    depth <- Depths
+    buffered <- ResetModes
+    ratio <- ClockRatios
+  } yield Configuration(depth, buffered, ratio)
+
+  private val FormalGateEnvironment =
+    "MORPHDL_RUN_STREAMFIFOCC_FORMAL_EQUIVALENCE"
+  private val FormalWorkspaceEnvironment =
+    "MORPHDL_STREAMFIFOCC_FORMAL_WORKSPACE"
+  private val ParameterizedFile = "native_streamfifocc_57a_parameterized.v"
+  private val ModuleDeclaration =
+    """(?m)^\s*module\s+([A-Za-z_][A-Za-z0-9_$]*)\b""".r
+
+  test(
+    "formal references independently cover depths 2 4 8 16 and both reset modes"
+  ) {
+    withTemporaryDirectory { directory =>
+      validateGeneratedDuts(generateDuts(directory))
+    }
+  }
+
+  test("formal miter connects each reference and typed DUT port exactly once") {
+    val connectionPattern =
+      """\.([A-Za-z_][A-Za-z0-9_$]*)\s*\(\s*([A-Za-z_][A-Za-z0-9_$]*)\s*\)""".r
+    val referenceConnections = Vector(
+      "io_pushValid" -> "push_valid",
+      "io_pushReady" -> "reference_push_ready",
+      "io_pushPayload" -> "push_payload",
+      "io_popValid" -> "reference_pop_valid",
+      "io_popReady" -> "pop_ready",
+      "io_popPayload" -> "reference_pop_payload",
+      "io_pushOccupancy" -> "reference_push_occupancy",
+      "io_popOccupancy" -> "reference_pop_occupancy",
+      "push_clk" -> "push_clk",
+      "push_reset" -> "push_reset",
+      "pop_clk" -> "pop_clk",
+      "pop_reset" -> "pop_reset"
+    )
+    val typedConnections = Vector(
+      "io_pushValid" -> "push_valid",
+      "io_pushReady" -> "typed_push_ready",
+      "io_pushPayload" -> "push_payload",
+      "io_popValid" -> "typed_pop_valid",
+      "io_popReady" -> "pop_ready",
+      "io_popPayload" -> "typed_pop_payload",
+      "io_pushOccupancy" -> "typed_push_occupancy",
+      "io_popOccupancy" -> "typed_pop_occupancy",
+      "push_clk" -> "push_clk",
+      "push_reset" -> "push_reset",
+      "pop_clk" -> "pop_clk",
+      "pop_reset" -> "pop_reset"
+    )
+
+    def connectionsOf(miter: String, instance: String): Vector[(String, String)] = {
+      val instancePattern =
+        ("(?s)\\b" + java.util.regex.Pattern.quote(instance) +
+          "\\s*\\((.*?)\\);").r
+      val body = instancePattern
+        .findFirstMatchIn(miter)
+        .map(_.group(1))
+        .getOrElse(fail(s"missing $instance in formal miter:\n$miter"))
+      connectionPattern
+        .findAllMatchIn(body)
+        .map(value => value.group(1) -> value.group(2))
+        .toVector
+    }
+
+    Configurations.foreach { configuration =>
+      val miter = equivalenceMiter(configuration, mutatePopPayload = false)
+      assert(connectionsOf(miter, "reference_dut") == referenceConnections)
+      assert(connectionsOf(miter, "typed_dut") == typedConnections)
+    }
+  }
+
+  test("formal positive proof uses reachability PDR for the multiclock model") {
+    val config = positiveSby(
+      PreparedDuts(Paths.get("candidate.il"), Paths.get("reference.il")),
+      Paths.get("miter.v"),
+      "miter"
+    )
+
+    assert("(?m)^mode prove$".r.findFirstIn(config).nonEmpty, config)
+    assert("(?m)^multiclock on$".r.findFirstIn(config).nonEmpty, config)
+    assert("(?m)^abc pdr$".r.findFirstIn(config).nonEmpty, config)
+    assert("(?m)^depth\\s+".r.findFirstIn(config).isEmpty, config)
+    assert(!config.contains("smtbmc"), config)
+  }
+
+  test(
+    "typed StreamFifoCC is formally equivalent for both asynchronous clock ratios with a live mutation control"
+  ) {
+    if (!sys.env.get(FormalGateEnvironment).contains("1")) {
+      cancel(
+        s"Set $FormalGateEnvironment=1 only in the pinned formal container"
+      )
+    }
+
+    withFormalWorkspace { directory =>
+      requireFormalTool(directory, Seq("yosys", "-V"), "Yosys")
+      requireFormalTool(directory, Seq("sby", "-h"), "SymbiYosys")
+      requireFormalTool(
+        directory,
+        Seq("yices-smt2", "--version"),
+        "Yices SMT2"
+      )
+
+      val generated = generateDuts(directory)
+      validateGeneratedDuts(generated)
+      val prepared = (for {
+        depth <- Depths
+        buffered <- ResetModes
+      } yield {
+        val key = depth -> buffered
+        key -> prepareDuts(directory, generated, depth, buffered)
+      }).toMap
+
+      Configurations.foreach { configuration =>
+        val miter = directory.resolve(
+          s"streamfifocc_57a_${configurationStem(configuration)}.v"
+        )
+        write(
+          miter,
+          equivalenceMiter(configuration, mutatePopPayload = false)
+        )
+        val config = directory.resolve(
+          s"streamfifocc_57a_${configurationStem(configuration)}.sby"
+        )
+        write(
+          config,
+          positiveSby(
+            prepared(configuration.depth -> configuration.buffered),
+            miter,
+            miterTop(configuration)
+          )
+        )
+        runSby(
+          directory,
+          config,
+          expectedStatus = "PASS",
+          requireCounterexample = false
+        )
+      }
+
+      // Flip one observable payload bit after a real CDC transfer. Forced
+      // valid/ready traffic makes the negative proof non-vacuous, while the
+      // required VCD and assertion diagnostic prove it is a counterexample
+      // rather than a tool/setup failure.
+      val mutationConfiguration = Configuration(
+        depth = 2,
+        buffered = false,
+        ratio = ClockRatios.head
+      )
+      val mutationMiter =
+        directory.resolve("streamfifocc_57a_payload_mutation.v")
+      write(
+        mutationMiter,
+        equivalenceMiter(mutationConfiguration, mutatePopPayload = true)
+      )
+      val mutationConfig =
+        directory.resolve("streamfifocc_57a_payload_mutation.sby")
+      write(
+        mutationConfig,
+        mutationSby(
+          prepared(
+            mutationConfiguration.depth -> mutationConfiguration.buffered
+          ),
+          mutationMiter,
+          miterTop(mutationConfiguration)
+        )
+      )
+      runSby(
+        directory,
+        mutationConfig,
+        expectedStatus = "FAIL",
+        requireCounterexample = true
+      )
+    }
+  }
+
+  private def generateDuts(directory: Path): GeneratedDuts = {
+    // Elaborate every ordinary reference before entering MorphVerilog's typed
+    // capture boundary. Besides keeping the witnesses independent, this makes
+    // it impossible for the concrete sources to consume retained typed state.
+    val concreteByConfiguration = (for {
+      depth <- Depths
+      buffered <- ResetModes
+    } yield {
+      val target =
+        directory.resolve(s"concrete-d${depth}-${resetMode(buffered)}")
+      Files.createDirectories(target)
+      val file = s"native_streamfifocc_57a_concrete_d${depth}_${resetMode(buffered)}.v"
+      val config = generationConfig(target)
+      config.netlistFileName = file
+      SpinalVerilog(config) {
+        new ConcreteTop(depth, buffered)
+      }
+      (depth -> buffered) -> target.resolve(file)
+    }).toMap
+
+    val typedByResetMode = ResetModes.map { buffered =>
+      val target = directory.resolve(s"typed-${resetMode(buffered)}")
+      Files.createDirectories(target)
+      val config = generationConfig(target)
+      config.netlistFileName = ParameterizedFile
+      val depth = HdlInt
+        .param(
+          "DEPTH",
+          default = BigInt(8),
+          min = BigInt(2),
+          max = BigInt(16)
+        )
+        .asElabInt
+      MorphVerilog(config) {
+        new TypedTop(depth, buffered)
+      }
+      buffered -> target.resolve(ParameterizedFile)
+    }.toMap
+
+    GeneratedDuts(typedByResetMode, concreteByConfiguration)
+  }
+
+  private def validateGeneratedDuts(generated: GeneratedDuts): Unit = {
+    val typedSources = generated.typedByResetMode.toVector.map {
+      case (buffered, path) =>
+        assert(Files.isRegularFile(path), s"typed proof source is missing: $path")
+        val source = read(path)
+        assert(
+          source.contains(s"module ${typedSourceTop(buffered)} #("),
+          source
+        )
+        assert(source.contains("parameter integer DEPTH = 8"), source)
+        assert(source.contains("module StreamFifoCC #("), source)
+        assert(source.contains(".DEPTH(DEPTH)"), source)
+        assert(!source.contains("NativeIntShadow"), source)
+        source
+    }
+    assert(
+      typedSources.toSet.size == ResetModes.size,
+      "typed reset modes did not produce independent definitions"
+    )
+
+    val concreteSources = generated.concreteByConfiguration.toVector.map {
+      case ((depth, buffered), path) =>
+        assert(
+          Files.isRegularFile(path),
+          s"concrete proof source is missing: $path"
+        )
+        val source = read(path)
+        assert(source.contains(s"module ${concreteSourceTop(depth, buffered)}"))
+        assert(!source.contains("parameter integer DEPTH"), source)
+        assert(!source.contains(".DEPTH("), source)
+        assert(
+          !moduleNames(source).contains(typedSourceTop(buffered)),
+          "typed and concrete proof legs share their top definition"
+        )
+        source
+    }
+    assert(
+      concreteSources.toSet.size == Depths.size * ResetModes.size,
+      "concrete references were not independently specialized"
+    )
+  }
+
+  private def prepareDuts(
+      directory: Path,
+      generated: GeneratedDuts,
+      depth: Int,
+      buffered: Boolean
+  ): PreparedDuts = {
+    val stem = s"d${depth}_${resetMode(buffered)}"
+    val candidate = directory.resolve(s"streamfifocc_57a_candidate_$stem.il")
+    val candidateScript =
+      directory.resolve(s"streamfifocc_57a_prepare_candidate_$stem.ys")
+    write(
+      candidateScript,
+      s"""read_verilog -defer ${yosysPath(generated.typedByResetMode(buffered))}
+         |chparam -set DEPTH $depth ${typedSourceTop(buffered)}
+         |hierarchy -check -top ${typedSourceTop(buffered)}
+         |flatten
+         |proc
+         |opt
+         |memory_dff
+         |memory_collect
+         |opt_clean
+         |check -assert
+         |rename -top ${candidatePreparedTop(depth, buffered)}
+         |write_rtlil ${yosysPath(candidate)}
+         |""".stripMargin
+    )
+    runYosys(directory, candidateScript, candidate)
+
+    val reference = directory.resolve(s"streamfifocc_57a_reference_$stem.il")
+    val referenceScript =
+      directory.resolve(s"streamfifocc_57a_prepare_reference_$stem.ys")
+    write(
+      referenceScript,
+      s"""read_verilog -defer ${yosysPath(generated.concreteByConfiguration(depth -> buffered))}
+         |hierarchy -check -top ${concreteSourceTop(depth, buffered)}
+         |flatten
+         |proc
+         |opt
+         |memory_dff
+         |memory_collect
+         |opt_clean
+         |check -assert
+         |rename -top ${referencePreparedTop(depth, buffered)}
+         |write_rtlil ${yosysPath(reference)}
+         |""".stripMargin
+    )
+    runYosys(directory, referenceScript, reference)
+
+    PreparedDuts(candidate, reference)
+  }
+
+  private def equivalenceMiter(
+      configuration: Configuration,
+      mutatePopPayload: Boolean
+  ): String = {
+    val comparedPayload =
+      if (mutatePopPayload) "(typed_pop_payload ^ 8'h01)"
+      else "typed_pop_payload"
+    val trafficAssumptions =
+      if (mutatePopPayload)
+        """      assume(push_valid);
+          |      assume(pop_ready);
+          |""".stripMargin
+      else ""
+
+    s"""module ${miterTop(configuration)} (
+       |  input wire push_valid,
+       |  input wire [7:0] push_payload,
+       |  input wire pop_ready
+       |);
+       |  reg [3:0] clock_phase;
+       |  reg [2:0] reset_age;
+       |  wire push_clk;
+       |  wire pop_clk;
+       |  wire push_reset;
+       |  wire pop_reset;
+       |  wire reference_push_ready;
+       |  wire reference_pop_valid;
+       |  wire [7:0] reference_pop_payload;
+       |  wire [4:0] reference_push_occupancy;
+       |  wire [4:0] reference_pop_occupancy;
+       |  wire typed_push_ready;
+       |  wire typed_pop_valid;
+       |  wire [7:0] typed_pop_payload;
+       |  wire [7:0] typed_pop_payload_compared;
+       |  wire [4:0] typed_push_occupancy;
+       |  wire [4:0] typed_pop_occupancy;
+       |
+       |  initial begin
+       |    clock_phase = 4'd0;
+       |    reset_age = 3'd0;
+       |  end
+       |
+       |  always @($$global_clock) begin
+       |    clock_phase <= clock_phase + 4'd1;
+       |    if (reset_age != 3'd7)
+       |      reset_age <= reset_age + 3'd1;
+       |  end
+       |
+       |  assign push_clk = clock_phase[${configuration.ratio.pushPhaseBit}];
+       |  assign pop_clk = clock_phase[${configuration.ratio.popPhaseBit}];
+       |  assign push_reset = (reset_age < 3'd3);
+       |  assign pop_reset = (reset_age < 3'd4);
+       |  assign typed_pop_payload_compared = $comparedPayload;
+       |
+       |  ${referencePreparedTop(configuration.depth, configuration.buffered)} reference_dut (
+       |    .io_pushValid(push_valid),
+       |    .io_pushReady(reference_push_ready),
+       |    .io_pushPayload(push_payload),
+       |    .io_popValid(reference_pop_valid),
+       |    .io_popReady(pop_ready),
+       |    .io_popPayload(reference_pop_payload),
+       |    .io_pushOccupancy(reference_push_occupancy),
+       |    .io_popOccupancy(reference_pop_occupancy),
+       |    .push_clk(push_clk),
+       |    .push_reset(push_reset),
+       |    .pop_clk(pop_clk),
+       |    .pop_reset(pop_reset)
+       |  );
+       |
+       |  ${candidatePreparedTop(configuration.depth, configuration.buffered)} typed_dut (
+       |    .io_pushValid(push_valid),
+       |    .io_pushReady(typed_push_ready),
+       |    .io_pushPayload(push_payload),
+       |    .io_popValid(typed_pop_valid),
+       |    .io_popReady(pop_ready),
+       |    .io_popPayload(typed_pop_payload),
+       |    .io_pushOccupancy(typed_push_occupancy),
+       |    .io_popOccupancy(typed_pop_occupancy),
+       |    .push_clk(push_clk),
+       |    .push_reset(push_reset),
+       |    .pop_clk(pop_clk),
+       |    .pop_reset(pop_reset)
+       |  );
+       |
+       |  always @($$global_clock) begin
+       |    if (!push_reset && !pop_reset) begin
+       |$trafficAssumptions      assert(reference_push_ready == typed_push_ready);
+       |      assert(reference_pop_valid == typed_pop_valid);
+       |      assert(reference_push_occupancy == typed_push_occupancy);
+       |      assert(reference_pop_occupancy == typed_pop_occupancy);
+       |      if (reference_pop_valid && typed_pop_valid)
+       |        assert(reference_pop_payload == typed_pop_payload_compared);
+       |    end
+       |  end
+       |endmodule
+       |""".stripMargin
+  }
+
+  private def positiveSby(
+      prepared: PreparedDuts,
+      miter: Path,
+      top: String
+  ): String = {
+    // An output-only k-induction hypothesis does not relate hidden RAM words:
+    // it can therefore start from an unreachable state whose visible FIFO
+    // state agrees but whose next readable word differs. PDR proves the safety
+    // properties over states reachable from the initialized reset schedule.
+    s"""[options]
+       |mode prove
+       |expect pass
+       |multiclock on
+       |timeout 600
+       |
+       |[engines]
+       |abc pdr
+       |
+       |[script]
+       |read_rtlil ${prepared.candidate.getFileName}
+       |read_rtlil ${prepared.reference.getFileName}
+       |read_verilog -formal ${miter.getFileName}
+       |hierarchy -check -top $top
+       |prep -top $top
+       |memory_map
+       |setundef -undriven -anyseq
+       |opt_clean
+       |check -assert
+       |
+       |[files]
+       |${prepared.candidate.toAbsolutePath}
+       |${prepared.reference.toAbsolutePath}
+       |${miter.toAbsolutePath}
+       |""".stripMargin
+  }
+
+  private def mutationSby(
+      prepared: PreparedDuts,
+      miter: Path,
+      top: String
+  ): String =
+    s"""[options]
+       |mode bmc
+       |expect fail
+       |multiclock on
+       |depth 64
+       |timeout 180
+       |
+       |[engines]
+       |smtbmc yices
+       |
+       |[script]
+       |read_rtlil ${prepared.candidate.getFileName}
+       |read_rtlil ${prepared.reference.getFileName}
+       |read_verilog -formal ${miter.getFileName}
+       |hierarchy -check -top $top
+       |prep -top $top
+       |memory_map
+       |setundef -undriven -anyseq
+       |opt_clean
+       |check -assert
+       |
+       |[files]
+       |${prepared.candidate.toAbsolutePath}
+       |${prepared.reference.toAbsolutePath}
+       |${miter.toAbsolutePath}
+       |""".stripMargin
+
+  private def runSby(
+      directory: Path,
+      config: Path,
+      expectedStatus: String,
+      requireCounterexample: Boolean
+  ): Unit = {
+    val (exitCode, output) = run(
+      directory,
+      Seq("sby", "-f", config.getFileName.toString)
+    )
+    assert(
+      exitCode == 0,
+      s"SymbiYosys did not complete with expected status $expectedStatus for ${config.getFileName}:\n$output"
+    )
+
+    val workDirectory =
+      directory.resolve(config.getFileName.toString.stripSuffix(".sby"))
+    val statusFile = workDirectory.resolve("status")
+    assert(
+      Files.isRegularFile(statusFile),
+      s"SymbiYosys published no status for ${config.getFileName}:\n$output"
+    )
+    val statusLines = read(statusFile)
+      .split("\\r?\\n", -1)
+      .iterator
+      .map(_.trim)
+      .filter(_.nonEmpty)
+      .toVector
+    assert(
+      statusLines.size == 1,
+      s"ambiguous formal status for ${config.getFileName}: ${statusLines.mkString(" | ")}\n$output"
+    )
+    val statusTokens = statusLines.head.split("\\s+").toVector
+    assert(
+      statusTokens.nonEmpty && statusTokens.tail.forall(_.matches("[0-9]+")),
+      s"malformed formal status for ${config.getFileName}: ${statusLines.head}\n$output"
+    )
+    assert(
+      statusTokens.head == expectedStatus,
+      s"expected $expectedStatus for ${config.getFileName}, received ${statusTokens.head}:\n$output"
+    )
+
+    if (requireCounterexample) {
+      val files = regularFiles(workDirectory)
+      val traces = files.filter { path =>
+        path.getFileName.toString.endsWith(".vcd") && Files.size(path) > 0L
+      }
+      assert(
+        traces.nonEmpty,
+        s"expected mutation counterexample has no non-empty VCD trace:\n$output"
+      )
+      val engineLogs = files
+        .filter { path =>
+          val name = path.getFileName.toString
+          name.endsWith(".txt") || name.endsWith(".log")
+        }
+        .map(read)
+        .mkString("\n")
+      assert(
+        engineLogs.contains("Assert failed in"),
+        s"expected FAIL was not an assertion counterexample:\n$output\n$engineLogs"
+      )
+    }
+  }
+
+  private def runYosys(
+      directory: Path,
+      script: Path,
+      expectedOutput: Path
+  ): Unit = {
+    val (exitCode, output) =
+      run(directory, Seq("yosys", "-q", "-s", script.getFileName.toString))
+    assert(
+      exitCode == 0,
+      s"Yosys preprocessing failed for ${script.getFileName}:\n$output"
+    )
+    assert(
+      Files.isRegularFile(expectedOutput) && Files.size(expectedOutput) > 0L,
+      s"Yosys produced no RTLIL for ${script.getFileName}:\n$output"
+    )
+  }
+
+  private def requireFormalTool(
+      directory: Path,
+      command: Seq[String],
+      label: String
+  ): Unit = {
+    val (exitCode, output) = run(directory, command)
+    assert(
+      exitCode == 0,
+      s"required formal tool $label is unavailable (${command.mkString(" ")}):\n$output"
+    )
+  }
+
+  private def generationConfig(directory: Path): SpinalConfig =
+    SpinalConfig(targetDirectory = directory.toString)
+
+  private def resetMode(buffered: Boolean): String =
+    if (buffered) "buffered" else "direct"
+
+  private def typedSourceTop(buffered: Boolean): String =
+    if (buffered) "NativeStreamFifoCC57aTypedBuffered"
+    else "NativeStreamFifoCC57aTypedDirect"
+
+  private def concreteSourceTop(depth: Int, buffered: Boolean): String =
+    s"NativeStreamFifoCC57aConcreteD${depth}" +
+      (if (buffered) "Buffered" else "Direct")
+
+  private def candidatePreparedTop(depth: Int, buffered: Boolean): String =
+    s"streamfifocc_57a_candidate_d${depth}_${resetMode(buffered)}"
+
+  private def referencePreparedTop(depth: Int, buffered: Boolean): String =
+    s"streamfifocc_57a_reference_d${depth}_${resetMode(buffered)}"
+
+  private def configurationStem(configuration: Configuration): String =
+    s"d${configuration.depth}_${resetMode(configuration.buffered)}_${configuration.ratio.name}"
+
+  private def miterTop(configuration: Configuration): String =
+    s"streamfifocc_57a_miter_${configurationStem(configuration)}"
+
+  private def moduleNames(source: String): Vector[String] =
+    ModuleDeclaration.findAllMatchIn(source).map(_.group(1)).toVector
+
+  private def yosysPath(path: Path): String = {
+    val absolute = path.toAbsolutePath.toString.replace("\\", "/")
+    require(
+      !absolute.exists(character => character == '\n' || character == '\r'),
+      s"formal path contains a line break: $absolute"
+    )
+    absolute
+  }
+
+  private def write(path: Path, value: String): Unit =
+    Files.write(path, value.getBytes(StandardCharsets.UTF_8))
+
+  private def read(path: Path): String =
+    new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
+
+  private def run(
+      directory: Path,
+      command: Seq[String]
+  ): (Int, String) = {
+    val output = new StringBuilder
+    val logger = ProcessLogger(
+      line => output.append(line).append('\n'),
+      line => output.append(line).append('\n')
+    )
+    Process(command, directory.toFile).!(logger) -> output.toString
+  }
+
+  private def regularFiles(directory: Path): Vector[Path] = {
+    if (!Files.exists(directory)) Vector.empty
+    else {
+      val stream = Files.walk(directory)
+      try stream.iterator().asScala.filter(Files.isRegularFile(_)).toVector
+      finally stream.close()
+    }
+  }
+
+  private def withTemporaryDirectory(body: Path => Unit): Unit = {
+    val directory = Files.createTempDirectory("morphhdl-streamfifocc-57a-formal-")
+    try body(directory)
+    finally deleteRecursively(directory)
+  }
+
+  private def withFormalWorkspace(body: Path => Unit): Unit =
+    sys.env.get(FormalWorkspaceEnvironment).filter(_.nonEmpty) match {
+      case Some(value) =>
+        val directory = Paths.get(value).toAbsolutePath
+        Files.createDirectories(directory)
+        body(directory)
+      case None => withTemporaryDirectory(body)
+    }
+
+  private def deleteRecursively(path: Path): Unit = {
+    if (Files.exists(path)) {
+      val stream = Files.walk(path)
+      try {
+        stream.iterator().asScala.toVector
+          .sortBy(_.getNameCount)
+          .reverse
+          .foreach(entry => Files.deleteIfExists(entry))
+      } finally stream.close()
+    }
+  }
+}

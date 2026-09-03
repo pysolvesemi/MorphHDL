@@ -19,7 +19,10 @@ Usage: check-concrete-spinalverilog-parity.sh --scala VERSION [options]
 
 Compile the same concrete SpinalHDL client against the selected upstream
 baseline and the current MorphHDL revision, generate ordinary SpinalVerilog,
-and byte-compare the complete output inventories.
+and byte-compare the complete output inventories. Public StreamFifoCC
+typed-literal companion and Stream-helper entry points on the current runtime
+are compared with legacy Int construction of the identical topology on the
+upstream runtime. Both modes retain the public legacy Int constructor oracle.
 
 Options:
   --scala VERSION       Scala lane to test (for example 2.12.18 or 2.13.12)
@@ -181,6 +184,7 @@ run_fixture() {
   local tree=$1
   local output=$2
   local label=$3
+  local streamfifocc_mode=$4
   mkdir -p -- "$output"
   printf 'concrete-spinalverilog-parity: compiling and running %s on Scala %s\n' "$label" "$scala_lane"
   (
@@ -193,12 +197,12 @@ run_fixture() {
       "${sbt_runner[@]}" "${sbt_options[@]}" \
       "++$scala_lane" \
       "tester / Test / compile" \
-      "tester / Test / runMain $fixture_main $output"
+      "tester / Test / runMain $fixture_main $output $streamfifocc_mode"
   )
 }
 
-run_fixture "$baseline_tree" "$baseline_output" "upstream $upstream_commit"
-run_fixture "$current_tree" "$current_output" "current $current_commit"
+run_fixture "$baseline_tree" "$baseline_output" "upstream $upstream_commit" legacy
+run_fixture "$current_tree" "$current_output" "current $current_commit" typed
 
 assert_expected_inventory() {
   local output=$1
@@ -222,6 +226,21 @@ assert_expected_inventory() {
     [[ -d "$output/$expected" ]] || fail "missing generated fixture family: $expected"
     find "$output/$expected" -type f -name '*.v' -print -quit | grep -q . ||
       fail "fixture family generated no Verilog: $expected"
+  done
+  local depth
+  local reset_mode
+  local entry_mode
+  # The entry mode names the switchable public companion/helper surface. Both
+  # inventories also contain the same public legacy Int constructor oracle.
+  for depth in 2 4 8 32; do
+    for reset_mode in separate buffered; do
+      for entry_mode in legacy typed; do
+        expected="stream-fifocc-${entry_mode}-depth-${depth}-reset-${reset_mode}"
+        [[ -d "$output/$expected" ]] || fail "missing generated fixture family: $expected"
+        find "$output/$expected" -type f -name '*.v' -print -quit | grep -q . ||
+          fail "fixture family generated no Verilog: $expected"
+      done
+    done
   done
 }
 
@@ -280,7 +299,7 @@ if ((binary_linkage)); then
 
   mkdir -p -- "$binary_output"
   printf 'concrete-spinalverilog-parity: running baseline-compiled client against current artifacts\n'
-  java -cp "$binary_classes:$current_classpath" "$fixture_main" "$binary_output"
+  java -cp "$binary_classes:$current_classpath" "$fixture_main" "$binary_output" typed
   assert_expected_inventory "$binary_output"
   compare_outputs "$baseline_output" "$binary_output" "baseline binary versus current runtime" || exit 1
 fi

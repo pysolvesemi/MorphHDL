@@ -10,12 +10,13 @@ import scala.collection.mutable.ArrayBuffer
 
 object BufferCC {
   def apply[T <: Data](input: T, init: => T = null, bufferDepth: Option[Int] = None, randBoot : Boolean = false, inputAttributes: Seq[SpinalTag] = List(), allBufAttributes: Seq[SpinalTag] = List()): T = {
+    val typedInput = !widthOfExpr(input).isConcrete
     val c = new BufferCC(input, init, bufferDepth, randBoot, inputAttributes, allBufAttributes)
     c.setCompositeName(input, "buffercc", true)
     // keep hierarchy for timing constraint generation
     c.io.dataIn := input
 
-    val ret = cloneOf(c.io.dataOut)
+    val ret = if (typedInput) ParameterizedWidth.cloneOf(c.io.dataOut) else cloneOf(c.io.dataOut)
     ret := c.io.dataOut
     return ret
   }
@@ -67,13 +68,30 @@ class BufferCC[T <: Data](val dataType: T,
   def getInit() : T = init
   val finalBufferDepth = BufferCC.defaultDepthOptioned(ClockDomain.current, bufferDepth)
   assert(finalBufferDepth >= 1)
+  private val typedData = !widthOfExpr(dataType).isConcrete
 
   val io = new Bundle {
-    val dataIn = in(cloneOf(dataType))
-    val dataOut = out(cloneOf(dataType))
+    val dataIn = in(if (typedData) ParameterizedWidth.cloneOf(dataType) else cloneOf(dataType))
+    val dataOut = out(if (typedData) ParameterizedWidth.cloneOf(dataType) else cloneOf(dataType))
   }
 
-  val buffers = Vec(Reg(dataType, init),finalBufferDepth)
+  val buffers = if (typedData) {
+    val retainedRegisters = Vector.fill(finalBufferDepth) {
+      // Build the register through the retained HardType path.  A plain
+      // clone followed by setAsReg keeps the Scala witness width on the
+      // emitted register declaration even though the ports remain typed.
+      val register = ParameterizedWidth.Reg(dataType)
+      val registerInit = init
+      if (registerInit != null) register.init(registerInit)
+      register
+    }
+    new Vec[T](
+      ParameterizedWidth.HardType(dataType),
+      retainedRegisters
+    ).setElementsParents()
+  } else {
+    Vec(Reg(dataType, init), finalBufferDepth)
+  }
   if(randBoot) buffers.foreach(_.randBoot())
 
   buffers(0) := io.dataIn
