@@ -34,7 +34,8 @@ private[internals] object ParameterizedVerilogMemories {
       readEnable: String,
       writeEnable: String,
       writeData: String,
-      clock: String,
+      readClock: String,
+      writeClock: String,
       sharedAddress: Boolean,
       independentDontCare: Boolean,
       readAddressWidth: ElaborationIntegerExpression,
@@ -380,15 +381,18 @@ private[internals] object ParameterizedVerilogMemories {
         source
       )
     }
+    val clocksDiffer =
+      read.clockDomain != null && write.clockDomain != null &&
+        (read.clockDomain.clock ne write.clockDomain.clock)
     if (
       read.clockDomain == null || write.clockDomain == null ||
-      (read.clockDomain.clock ne write.clockDomain.clock) ||
       read.clockDomain.config.clockEdge != RISING ||
-      write.clockDomain.config.clockEdge != RISING
+      write.clockDomain.config.clockEdge != RISING ||
+      (clocksDiffer && !read.hasTag(crossClockDomain))
     ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-CLOCK-POLICY-UNSUPPORTED",
-        s"memory '${memory.getName()}' must use one shared positive-edge clock",
+        s"memory '${memory.getName()}' must use positive-edge clocks; distinct read/write clocks require the native clockCrossing contract",
         source
       )
     }
@@ -526,6 +530,13 @@ private[internals] object ParameterizedVerilogMemories {
     val writeAddress = stableName(write.address, "write address", source)
     val independentDontCare =
       (read.readUnderWrite eq dontCare) && readAddress != writeAddress
+    if (clocksDiffer && !independentDontCare) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-MEMORY-CROSS-CLOCK-COLLISION-POLICY-UNSUPPORTED",
+        s"cross-clock memory '${memory.getName()}' requires independent addresses and the native dontCare collision policy",
+        source
+      )
+    }
     if ((read.readUnderWrite ne readFirst) && !independentDontCare) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-COLLISION-POLICY-UNSUPPORTED",
@@ -536,17 +547,24 @@ private[internals] object ParameterizedVerilogMemories {
     val readEnable = stableName(read.readEnable, "read enable", source)
     val writeEnable = stableName(write.writeEnable, "write enable", source)
     val writeData = stablePackedName(write.data, "write data", source)
-    val clock = stableName(read.clockDomain.clock, "memory clock", source)
+    val readClock = stableName(read.clockDomain.clock, "memory read clock", source)
+    val writeClock = stableName(write.clockDomain.clock, "memory write clock", source)
 
     val nonAddressRoles = Vector(
-      clock,
+      readClock,
+      writeClock,
       readEnable,
       writeEnable,
       writeData,
       readTarget,
       memoryName
     )
-    if (nonAddressRoles.distinct.size != nonAddressRoles.size) {
+    val distinctClockRoles = Vector(readClock, writeClock).distinct
+    val otherRoles = Vector(readEnable, writeEnable, writeData, readTarget, memoryName)
+    if (
+      otherRoles.distinct.size != otherRoles.size ||
+      otherRoles.exists(distinctClockRoles.contains)
+    ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-MEMORY-ROLE-ALIAS",
         s"memory '$memoryName' clock, enables, data, read result and storage roles must be distinct",
@@ -573,7 +591,8 @@ private[internals] object ParameterizedVerilogMemories {
       readEnable,
       writeEnable,
       writeData,
-      clock,
+      readClock,
+      writeClock,
       sharedAddress = readAddress == writeAddress,
       independentDontCare = independentDontCare,
       readAddressWidth,
@@ -839,7 +858,8 @@ private[internals] object ParameterizedVerilogMemories {
       left: ElaborationIntegerExpression,
       right: ElaborationIntegerExpression
   ): Boolean =
-    compact(left.verilog) == compact(right.verilog) &&
+    ElabInt.equivalentExactFunction(left, right) || (
+      compact(left.verilog) == compact(right.verilog) &&
       left.default == right.default && left.minimum == right.minimum &&
       left.maximum == right.maximum &&
       left.parameters.sortBy(_.name) == right.parameters.sortBy(_.name) &&
@@ -856,6 +876,7 @@ private[internals] object ParameterizedVerilogMemories {
         case (Some(l), Some(r))                => l.sameAs(r)
         case (Some(_), None) | (None, Some(_)) => false
       })
+    )
 
   private def sameParameterRoots(
       left: ElaborationIntegerExpression,
@@ -1115,7 +1136,28 @@ private[internals] object ParameterizedVerilogMemories {
     val depth = render(plan.metadata.depth, helperName)
     val zeroWidth = render(plan.metadata.elementWidth, helperName)
     val lines = Vector.newBuilder[String]
-    lines += s"  always @(posedge ${plan.clock}) begin : $label"
+    if (plan.readClock != plan.writeClock) {
+      lines += s"  always @(posedge ${plan.readClock}) begin : ${label}_read"
+      lines += s"    if (${plan.readAddress} < $depth) begin"
+      lines += s"      if (${plan.readEnable} == 1'b1) begin"
+      lines += s"        ${plan.readTarget} <= ${plan.memoryName}[${plan.readAddress}];"
+      lines += "      end"
+      lines += s"    end else if (${plan.readEnable} == 1'b1) begin"
+      lines += s"      ${plan.readTarget} <= {$zeroWidth{1'b0}};"
+      lines += "    end"
+      lines += "  end"
+      lines += ""
+      lines += s"  always @(posedge ${plan.writeClock}) begin : ${label}_write"
+      lines += s"    if (${plan.writeAddress} < $depth) begin"
+      lines += s"      if (${plan.writeEnable} == 1'b1) begin"
+      lines += s"        ${plan.memoryName}[${plan.writeAddress}] <= ${plan.writeData};"
+      lines += "      end"
+      lines += "    end"
+      lines += "  end"
+      return lines.result()
+    }
+
+    lines += s"  always @(posedge ${plan.readClock}) begin : $label"
     if (plan.sharedAddress) {
       lines += s"    if (${plan.readAddress} < $depth) begin"
       lines += s"      if (${plan.readEnable} == 1'b1) begin"
@@ -1151,21 +1193,21 @@ private[internals] object ParameterizedVerilogMemories {
       plan: MemoryPlan
   ): Boolean = {
     if (!plan.independentDontCare || blocks.size != 2) return false
-    val expectedHeader = s"always @(posedge ${plan.clock})"
     val texts = blocks.map { block =>
       val header = lines(block.start).replaceAll("\\s+", " ").trim
-      if (!header.startsWith(expectedHeader)) return false
-      lines.slice(block.start, block.endInclusive + 1).mkString("\n")
+      header -> lines.slice(block.start, block.endInclusive + 1).mkString("\n")
     }
     val readBlocks = texts.zipWithIndex.collect {
-      case (text, index)
-          if containsIdentifier(text, plan.readTarget) &&
+      case ((header, text), index)
+          if header.startsWith(s"always @(posedge ${plan.readClock})") &&
+            containsIdentifier(text, plan.readTarget) &&
             containsIndexedAccess(text, plan.memoryName, plan.readAddress) =>
         index
     }
     val writeBlocks = texts.zipWithIndex.collect {
-      case (text, index)
-          if containsIdentifier(text, plan.writeData) &&
+      case ((header, text), index)
+          if header.startsWith(s"always @(posedge ${plan.writeClock})") &&
+            containsIdentifier(text, plan.writeData) &&
             containsIndexedAccess(text, plan.memoryName, plan.writeAddress) =>
         index
     }

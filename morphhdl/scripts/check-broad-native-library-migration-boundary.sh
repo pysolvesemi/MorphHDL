@@ -208,17 +208,18 @@ for name in ("queueWithOccupancy", "queueWithAvailability"):
         f"Flow.{name}(ElabInt) is missing",
     )
 
-# Freeze the explicit exclusions. These patterns are method-signature scoped,
-# not broad word bans, so the existing ordinary implementations remain valid.
+# Freeze the explicit exclusions. Increment 57a successor-refines only the
+# StreamFifoCC factory/class and its existing queue/queueWithPushOccupancy
+# helpers; that exact surface is owned by check-native-streamfifocc-boundary.sh.
+# The historical Increment 57 contract continues to reject every other typed
+# CDC protocol and all of its remaining exclusions.
 excluded_signatures = (
     (r"def\s+queueOfReg\s*\([^)]*ElabInt", "typed queueOfReg is outside Increment 57"),
     (r"def\s+queueLowLatency\s*\([^)]*ElabInt", "typed low-latency queue is outside Increment 57"),
     (
-        r"def\s+(?:queue|queueWithPushOccupancy)\s*\([^)]*ElabInt[^)]*ClockDomain",
-        "typed CDC queue helpers are outside Increment 57",
+        r"def\s+(?:ccToggle|ccToggleWithoutBuffer|ccToggleInputWait)\s*\([^)]*(?:ElabInt|ElabBool)",
+        "typed toggle CDC policy remains outside Increment 57a",
     ),
-    (r"def\s+apply\s*\([^)]*depth:\s*ElabInt[^)]*ClockDomain", "typed StreamFifoCC factory is outside Increment 57"),
-    (r"class\s+StreamFifoCC[^\{]*depth\s*:\s*ElabInt", "typed StreamFifoCC is outside Increment 57"),
     (r"(?:keep|crossClockData)\s*:\s*ElabBool", "metadata-only flags must remain static Boolean values"),
 )
 for pattern, message in excluded_signatures:
@@ -461,15 +462,15 @@ case "${1:-}" in
       fail SELF-TEST-DIAGNOSTIC 'legality mutation did not report its stable diagnostic'
 
     cp "$stream_source" "$temporary/typed-cdc.scala"
-    printf '\ntrait ForbiddenTypedCdc { def queue(size: ElabInt, pushClock: ClockDomain, popClock: ClockDomain): Unit }\n' \
+    printf '\ntrait ForbiddenTypedCdc { def ccToggle(pushClock: ClockDomain, popClock: ClockDomain, stages: ElabInt): Unit }\n' \
       >> "$temporary/typed-cdc.scala"
     if MORPHDL_BROAD_NATIVE_STREAM_SOURCE="$temporary/typed-cdc.scala" \
       "$0" --check >"$temporary/cdc.stdout" 2>"$temporary/cdc.stderr"; then
-      fail SELF-TEST-ACCEPTED 'excluded typed CDC queue mutation passed'
+      fail SELF-TEST-ACCEPTED 'excluded typed toggle CDC mutation passed'
     fi
     grep -Fq 'MORPH-BROAD-NATIVE-MIGRATION-EXCLUDED-TYPED-SURFACE' \
       "$temporary/cdc.stderr" ||
-      fail SELF-TEST-DIAGNOSTIC 'typed CDC mutation did not report its stable diagnostic'
+      fail SELF-TEST-DIAGNOSTIC 'typed toggle CDC mutation did not report its stable diagnostic'
 
     sed '0,/when(mapping.hit(address))/s//when(False)/' \
       "$bram_factory_source" > "$temporary/missing-bram-generic.scala"

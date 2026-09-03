@@ -431,18 +431,59 @@ object PropagateOnes{
 
 object toGray {
   def apply(uint: UInt): Bits = {
-    B((uint >> U(1)) ^ uint)
+    val width = widthOfExpr(uint)
+    if (width.isConcrete) {
+      B((uint >> U(1)) ^ uint)
+    } else {
+      // Materialize both native operators through retained packed carriers so
+      // neither the shift nor the cast/XOR result freezes to the construction
+      // witness before a typed consumer sees it.
+      val shifted = UInt(width bits).dontSimplifyIt()
+      shifted := uint |>> 1
+      val result = Bits(width bits).dontSimplifyIt()
+      result := shifted.asBits ^ uint.asBits
+      result
+    }
   }
 }
 
 object fromGray {
   def apply(gray: Bits): UInt = {
-    val ret = List.fill(widthOf(gray)) (Bool())
-    for (i <- 0 until widthOf(gray) - 1) {
-      ret(i) := gray(i) ^ ret(i + 1)
+    val width = widthOfExpr(gray)
+    if (width.isConcrete) {
+      val ret = List.fill(widthOf(gray)) (Bool())
+      for (i <- 0 until widthOf(gray) - 1) {
+        ret(i) := gray(i) ^ ret(i + 1)
+      }
+      ret.last := gray.msb
+      ret.asBits().asUInt
+    } else {
+      width.requireAuthoritativeIntegerDomain(
+        "typed Gray decode width",
+        "SPINAL-FROM-GRAY-WIDTH-EXACT-DOMAIN-REQUIRED",
+        requireExactExtrema = false
+      )
+      // Parallel-prefix Gray decoding needs one XOR stage for every power of
+      // two below the widest admitted specialization. Shifts beyond a narrower
+      // specialization contribute zero, so deriving this fixed topology from
+      // the authoritative maximum is valid for the complete parameter domain.
+      // Explicit carriers keep every native operator result on the retained
+      // packed geometry instead of freezing a witness-width intermediate.
+      val maximumWidth = width.maximum
+      var decoded = UInt(width bits).dontSimplifyIt()
+      decoded := gray.asUInt
+      var shift = BigInt(1)
+      while (shift < maximumWidth) {
+        val shiftAmount = shift.toInt
+        val shifted = UInt(width bits).dontSimplifyIt()
+        shifted := decoded |>> shiftAmount
+        val next = UInt(width bits).dontSimplifyIt()
+        next := decoded ^ shifted
+        decoded = next
+        shift = shift << 1
+      }
+      decoded
     }
-    ret.last := gray.msb
-    ret.asBits().asUInt
   }
 }
 
@@ -1374,6 +1415,18 @@ case class WhenBuilder() {
 }
 
 class ClockDomainPimped(cd : ClockDomain) {
+  /** Build the same reset topology as [[withBufferedResetFrom]] without using
+    * the global cache. Generated structural owners use this path so a
+    * reset synchronizer can never be reused across sibling generate scopes.
+    */
+  private[lib] def withBufferedResetFromUncached(resetCd : ClockDomain, bufferDepth : Option[Int] = None) : ClockDomain = {
+    if(resetCd.config.resetKind == BOOT){
+      if(cd.config.resetKind == BOOT) { return cd }
+      return cd.copy(reset = null, softReset = null, config = cd.config.copy(resetKind = BOOT))
+    }
+    return ResetCtrl.asyncAssertSyncDeassertCreateCd(resetCd, cd, bufferDepth)
+  }
+
   def withBufferedResetFrom(resetCd : ClockDomain, bufferDepth : Option[Int] = None) : ClockDomain = {
     val key = Tuple3(cd, resetCd,  bufferDepth)
     if(resetCd.config.resetKind == BOOT){
@@ -1385,6 +1438,10 @@ class ClockDomainPimped(cd : ClockDomain) {
 
   def withOptionalBufferedResetFrom(cond : Boolean)(resetCd : ClockDomain, bufferDepth : Option[Int] = None) : ClockDomain = {
     if(cond) this.withBufferedResetFrom(resetCd, bufferDepth) else cd
+  }
+
+  private[lib] def withOptionalBufferedResetFromUncached(cond : Boolean)(resetCd : ClockDomain, bufferDepth : Option[Int] = None) : ClockDomain = {
+    if(cond) this.withBufferedResetFromUncached(resetCd, bufferDepth) else cd
   }
 }
 

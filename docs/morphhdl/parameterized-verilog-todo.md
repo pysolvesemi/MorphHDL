@@ -232,8 +232,10 @@ retained for traceability:
   Vec, helper and finite-range primitives needed by broad library reuse.
 - Increment 53g depends on merged Increment 53f and removes native-`Int` shadow
   reconstruction and component-specific recognizers from the production path.
-- Increments 54 through 58 then form a strict sequential consolidation,
-  compatibility, migration and retirement chain.
+- Increments 54 through 57 form the strict consolidation, compatibility and
+  broad-migration chain. Increment 57a follows merged Increment 57 to close the
+  reviewed native `StreamFifoCC` CDC surface; Increment 58 remains blocked until
+  merged Increment 57a establishes typed parity.
 
 Dependencies are transitive. No future increment may add a new dependency on
 the superseded native-`Int` shadow path. Temporary MorphHDL constructor aliases
@@ -578,9 +580,35 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   memory users and representative bus/register-map components. Expand the
   approved native-change manifest only with independently reviewed entries.
 
-- [ ] **Increment 58 — Legacy adapter and shadow-path retirement**
+- [x] **Increment 57a — Typed native StreamFifoCC depth and CDC proof**
 
   **Dependencies:** Increment 57 implemented and merged.
+
+  Migrate the real native `StreamFifoCC` depth path, both companion entry
+  points, and the ordinary `Stream.queue(..., pushClock, popClock)` and
+  `queueWithPushOccupancy` helpers to `ElabInt`. Retain every existing `Int`
+  API and descriptor and keep the native dual-clock Gray-pointer, memory,
+  synchronizer and reset-buffering algorithm as the sole implementation.
+  Preserve the exact legal power-of-two depth subset through the child formal,
+  RAM depth, pointer/address and occupancy widths, Gray-code comparisons and
+  formal helpers. A parameter range may contain non-power-of-two values only
+  when generated structural guards exclude them from the FIFO algorithm and
+  fail closed for those overrides; witness-only legality is not sufficient.
+
+  Prove one deterministic parameterized definition per static reset topology
+  at depths 2, 4, 8 and 16 against independently elaborated ordinary
+  `SpinalVerilog` witnesses under faster-push and faster-pop clock schedules.
+  Require concrete parity, dual-Scala compilation, asynchronous-clock
+  simulation, strict Verilog-2001 lint and synthesis, sequential formal
+  equivalence, a live mutation counterexample and the approved-native-change
+  audit. Clock domains, `withPopBufferedReset`, synchronizer metadata and CDC
+  topology remain static. Do not add a separately authored FIFO, native-`Int`
+  shadow reconstruction, component/source/emitted-name recognition, or a
+  copied CDC algorithm.
+
+- [ ] **Increment 58 — Legacy adapter and shadow-path retirement**
+
+  **Dependencies:** Increment 57a implemented and merged.
 
   Remove or deprecate dual-factory, component-specific, emitted-name and native-
   `Int` shadow production paths after every supported feature has typed parity.

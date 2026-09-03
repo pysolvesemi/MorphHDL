@@ -200,6 +200,11 @@ class GenericProcessLoweringTests extends AnyFunSuite {
       assert(parameterized.contains("if(clear) begin"))
       assert(parameterized.contains("if(load) begin"))
       assert(parameterized.contains("state <= din;"))
+      assert(
+        parameterized
+          .sliding("{WIDTH{1'b0}}".length)
+          .count(_ == "{WIDTH{1'b0}}") == 2
+      )
     }
   }
 
@@ -430,6 +435,7 @@ class GenericProcessLoweringTests extends AnyFunSuite {
     header
       .replaceFirstIn(verilog, s"module $moduleName (")
       .replace("[WIDTH-1:0]", s"[${width - 1}:0]")
+      .replace("{WIDTH{1'b0}}", s"${width}'h0")
   }
 
   private def simulateProceduralLoop(

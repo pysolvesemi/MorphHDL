@@ -13,6 +13,7 @@ import morphhdl.frontend.{formalParam, HdlInt}
 object HierarchyParameterBindingSmoke {
   final class Leaf(width: HdlInt) extends Component {
     setDefinitionName("NativeHierarchyLeaf")
+    addAttribute("keep_hierarchy", "TRUE")
     val din = in(morphhdl.frontend.Bits(width bits))
     val dout = out(morphhdl.frontend.Bits(width bits))
     dout := din
@@ -198,7 +199,10 @@ class HierarchyParameterBindingTests extends AnyFunSuite {
         "(?m)^module NativeHierarchyLeaf\\b".r.findAllMatchIn(verilog).size == 1
       )
       assert(
-        "(?m)^  NativeHierarchyLeaf #\\(".r.findAllMatchIn(verilog).size == 2
+        """(?m)^  \(\* keep_hierarchy = "TRUE" \*\) NativeHierarchyLeaf #\("""
+          .r
+          .findAllMatchIn(verilog)
+          .size == 2
       )
       assert(verilog.contains(".LEAF_WIDTH(LEFT_WIDTH)"))
       assert(verilog.contains(".LEAF_WIDTH(RIGHT_WIDTH)"))

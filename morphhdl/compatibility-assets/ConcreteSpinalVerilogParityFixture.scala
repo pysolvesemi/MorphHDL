@@ -282,6 +282,311 @@ object ConcreteSpinalVerilogParityClient {
     io.occupancy := fifo.io.occupancy
     io.availability := fifo.io.availability
   }
+
+  /**
+    * Runtime-only access to the MorphHDL typed StreamFifoCC surface.
+    *
+    * This compatibility source must remain byte-identical when compiled against
+    * the selected upstream tree, where ElabInt does not exist. Reflection lets
+    * the current-runtime run exercise every public typed-literal companion and
+    * Stream-helper entry point without introducing a source dependency which
+    * the upstream compiler cannot resolve. Every reflected lookup checks the
+    * exact erased signature, so a missing or accidentally changed typed overload
+    * fails the parity gate instead of silently falling back to the legacy path.
+    */
+  private[compatibility] object TypedStreamFifoCCEntryPoints {
+    private val elabIntClassName = "spinal.core.ElabInt"
+    private val hardTypeClassName = "spinal.core.HardType"
+    private val streamClassName = "spinal.lib.Stream"
+    private val clockDomainClassName = "spinal.core.ClockDomain"
+
+    private lazy val elabIntClass = Class.forName(elabIntClassName)
+    private lazy val elabIntModule =
+      Class.forName(elabIntClassName + "$").getField("MODULE$").get(null)
+    private lazy val literalMethod =
+      elabIntModule.getClass.getMethod("literal", java.lang.Integer.TYPE)
+    private lazy val fifoCompanion =
+      Class.forName("spinal.lib.StreamFifoCC$").getField("MODULE$").get(null)
+
+    private def parameterNames(member: java.lang.reflect.Executable): Seq[String] =
+      member.getParameterTypes.toSeq.map(_.getName)
+
+    private def method(
+        receiver: AnyRef,
+        name: String,
+        parameters: Seq[String]
+    ): java.lang.reflect.Method = {
+      val matches = receiver.getClass.getMethods.filter { candidate =>
+        candidate.getName == name && parameterNames(candidate) == parameters
+      }
+      require(
+        matches.length == 1,
+        s"expected one reflected $name(${parameters.mkString(", ")}) entry point, found ${matches.length}"
+      )
+      matches.head
+    }
+
+    private lazy val typedFactory = method(
+      fifoCompanion,
+      "apply",
+      Seq(
+        hardTypeClassName,
+        elabIntClassName,
+        clockDomainClassName,
+        clockDomainClassName
+      )
+    )
+
+    private lazy val typedFactoryWithReset = method(
+      fifoCompanion,
+      "apply",
+      Seq(
+        hardTypeClassName,
+        elabIntClassName,
+        clockDomainClassName,
+        clockDomainClassName,
+        java.lang.Boolean.TYPE.getName
+      )
+    )
+
+    private lazy val typedConnectedFactory = method(
+      fifoCompanion,
+      "apply",
+      Seq(
+        streamClassName,
+        streamClassName,
+        elabIntClassName,
+        clockDomainClassName,
+        clockDomainClassName
+      )
+    )
+
+    def requireAvailable(): Unit = {
+      elabIntClass
+      literalMethod
+      typedFactory
+      typedFactoryWithReset
+      typedConnectedFactory
+      ()
+    }
+
+    private def literal(depth: Int): AnyRef =
+      literalMethod.invoke(elabIntModule, Int.box(depth)).asInstanceOf[AnyRef]
+
+    def factory(
+        dataType: HardType[Bits],
+        depth: Int,
+        pushClock: ClockDomain,
+        popClock: ClockDomain
+    ): StreamFifoCC[Bits] =
+      typedFactory
+        .invoke(fifoCompanion, dataType, literal(depth), pushClock, popClock)
+        .asInstanceOf[StreamFifoCC[Bits]]
+
+    def factory(
+        dataType: HardType[Bits],
+        depth: Int,
+        pushClock: ClockDomain,
+        popClock: ClockDomain,
+        withPopBufferedReset: Boolean
+    ): StreamFifoCC[Bits] =
+      typedFactoryWithReset
+        .invoke(
+          fifoCompanion,
+          dataType,
+          literal(depth),
+          pushClock,
+          popClock,
+          Boolean.box(withPopBufferedReset)
+        )
+        .asInstanceOf[StreamFifoCC[Bits]]
+
+    def connected(
+        push: Stream[Bits],
+        pop: Stream[Bits],
+        depth: Int,
+        pushClock: ClockDomain,
+        popClock: ClockDomain
+    ): StreamFifoCC[Bits] =
+      typedConnectedFactory
+        .invoke(fifoCompanion, push, pop, literal(depth), pushClock, popClock)
+        .asInstanceOf[StreamFifoCC[Bits]]
+
+    def queue(
+        push: Stream[Bits],
+        depth: Int,
+        pushClock: ClockDomain,
+        popClock: ClockDomain
+    ): Stream[Bits] =
+      method(
+        push,
+        "queue",
+        Seq(elabIntClassName, clockDomainClassName, clockDomainClassName)
+      ).invoke(push, literal(depth), pushClock, popClock)
+        .asInstanceOf[Stream[Bits]]
+
+    def queueWithPushOccupancy(
+        push: Stream[Bits],
+        depth: Int,
+        pushClock: ClockDomain,
+        popClock: ClockDomain
+    ): (Stream[Bits], UInt) =
+      method(
+        push,
+        "queueWithPushOccupancy",
+        Seq(elabIntClassName, clockDomainClassName, clockDomainClassName)
+      ).invoke(push, literal(depth), pushClock, popClock)
+        .asInstanceOf[(Stream[Bits], UInt)]
+  }
+
+  /**
+    * One fixed-topology concrete CDC matrix. The constructor instance always
+    * uses the public legacy Int constructor as an ABI and RTL oracle. The
+    * upstream run and the legacy current inventory use Int for every remaining
+    * instance; the typed current inventory uses ElabInt.literal through each
+    * exact public reflected entry point above.
+    */
+  final class StreamFifoCCParityFixture(
+      depth: Int,
+      withPopBufferedReset: Boolean,
+      typed: Boolean
+  ) extends Component {
+    private val payloadType = HardType(Bits(12 bits))
+    private val pushClock = ClockDomain.external("pushClock")
+    private val popClock = ClockDomain.external("popClock")
+
+    private def underResetPolicy[A](body: => A): A =
+      ClockDomain.crossClockBufferPushToPopResetGen(withPopBufferedReset)(body)
+
+    private def idlePush(name: String): Stream[Bits] = {
+      val push = Stream(payloadType).setName(name)
+      push.valid := False
+      push.payload := 0
+      push
+    }
+
+    private def idlePop(name: String): Stream[Bits] = {
+      val pop = Stream(payloadType).setName(name)
+      pop.ready := False
+      pop.valid.setAsVital()
+      pop.payload.setAsVital()
+      pop
+    }
+
+    private def retain(fifo: StreamFifoCC[Bits]): Unit = {
+      fifo.io.push.valid := False
+      fifo.io.push.payload := 0
+      fifo.io.pop.ready := False
+      fifo.io.push.ready.setAsVital()
+      fifo.io.pop.valid.setAsVital()
+      fifo.io.pop.payload.setAsVital()
+      fifo.io.pushOccupancy.setAsVital()
+      fifo.io.popOccupancy.setAsVital()
+    }
+
+    // The ElabInt primary constructor is definition-side only. Keep the public
+    // legacy constructor as the constructor parity oracle in both inventories;
+    // the remaining instances exercise every public typed ingress.
+    val constructorFifo = new StreamFifoCC(
+      payloadType,
+      depth,
+      pushClock,
+      popClock,
+      withPopBufferedReset
+    )
+    retain(constructorFifo)
+
+    val factoryFifo = underResetPolicy {
+      if (typed)
+        TypedStreamFifoCCEntryPoints.factory(
+          payloadType,
+          depth,
+          pushClock,
+          popClock
+        )
+      else
+        StreamFifoCC(payloadType, depth, pushClock, popClock)
+    }
+    retain(factoryFifo)
+
+    // Upstream has no explicit-reset companion overload. Its constructor is
+    // the byte-parity oracle for the current typed explicit-reset factory.
+    val explicitResetFactoryFifo =
+      if (typed)
+        TypedStreamFifoCCEntryPoints.factory(
+          payloadType,
+          depth,
+          pushClock,
+          popClock,
+          withPopBufferedReset
+        )
+      else
+        new StreamFifoCC(
+          payloadType,
+          depth,
+          pushClock,
+          popClock,
+          withPopBufferedReset
+        )
+    retain(explicitResetFactoryFifo)
+
+    val connectedPush = idlePush("connectedPush")
+    val connectedPop = idlePop("connectedPop")
+    val connectedFifo = underResetPolicy {
+      if (typed)
+        TypedStreamFifoCCEntryPoints.connected(
+          connectedPush,
+          connectedPop,
+          depth,
+          pushClock,
+          popClock
+        )
+      else
+        StreamFifoCC(
+          connectedPush,
+          connectedPop,
+          depth,
+          pushClock,
+          popClock
+        )
+    }
+    connectedFifo.io.push.ready.setAsVital()
+    connectedFifo.io.pushOccupancy.setAsVital()
+    connectedFifo.io.popOccupancy.setAsVital()
+
+    val queuePush = idlePush("queuePush")
+    val queuePop = underResetPolicy {
+      if (typed)
+        TypedStreamFifoCCEntryPoints.queue(
+          queuePush,
+          depth,
+          pushClock,
+          popClock
+        )
+      else
+        queuePush.queue(depth, pushClock, popClock)
+    }
+    queuePop.ready := False
+    queuePop.valid.setAsVital()
+    queuePop.payload.setAsVital()
+
+    val occupancyPush = idlePush("occupancyPush")
+    val occupancyResult = underResetPolicy {
+      if (typed)
+        TypedStreamFifoCCEntryPoints.queueWithPushOccupancy(
+          occupancyPush,
+          depth,
+          pushClock,
+          popClock
+        )
+      else
+        occupancyPush.queueWithPushOccupancy(depth, pushClock, popClock)
+    }
+    occupancyResult._1.ready := False
+    occupancyResult._1.valid.setAsVital()
+    occupancyResult._1.payload.setAsVital()
+    occupancyResult._2.setAsVital()
+  }
 }
 
 object ConcreteSpinalVerilogParityFixture {
@@ -323,8 +628,17 @@ object ConcreteSpinalVerilogParityFixture {
   }
 
   def main(arguments: Array[String]): Unit = {
-    require(arguments.length == 1, "expected exactly one generated-output directory")
+    require(
+      arguments.length == 1 || arguments.length == 2,
+      "expected a generated-output directory and optional legacy|typed mode"
+    )
     val root = Paths.get(arguments(0)).toAbsolutePath.normalize()
+    val typedStreamFifoCC = arguments.lift(1) match {
+      case None | Some("legacy") => false
+      case Some("typed")         => true
+      case Some(other)            => throw new IllegalArgumentException("unknown parity mode: " + other)
+    }
+    if (typedStreamFifoCC) TypedStreamFifoCCEntryPoints.requireAvailable()
     Files.createDirectories(root)
 
     generate(root, "primitive-process")(new PrimitiveAndProcessFixture)
@@ -363,5 +677,32 @@ object ConcreteSpinalVerilogParityFixture {
         useVec = true
       )
     )
+    // "legacy" and "typed" identify the switchable public companion/helper
+    // ingress. Both inventories retain the same legacy Int constructor oracle.
+    Seq(2, 4, 8, 32).foreach { depth =>
+      Seq(false, true).foreach { withPopBufferedReset =>
+        val resetName = if (withPopBufferedReset) "buffered" else "separate"
+        generate(
+          root,
+          "stream-fifocc-legacy-depth-" + depth + "-reset-" + resetName
+        )(
+          new StreamFifoCCParityFixture(
+            depth,
+            withPopBufferedReset,
+            typed = false
+          )
+        )
+        generate(
+          root,
+          "stream-fifocc-typed-depth-" + depth + "-reset-" + resetName
+        )(
+          new StreamFifoCCParityFixture(
+            depth,
+            withPopBufferedReset,
+            typed = typedStreamFifoCC
+          )
+        )
+      }
+    }
   }
 }

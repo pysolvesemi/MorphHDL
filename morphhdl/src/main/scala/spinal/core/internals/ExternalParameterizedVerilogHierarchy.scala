@@ -110,11 +110,12 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
 
       instances.filter(_.bindings.nonEmpty).foreach { instance =>
         val lines = current.split("\\n", -1).toVector
+        val attributePrefix = "((?:\\(\\*[^\\r\\n]*?\\*\\)\\s*)*)"
         val plainStartPattern =
-          ("^(\\s*)" + Pattern.quote(instance.definitionName) + "\\s+" +
+          ("^(\\s*)" + attributePrefix + Pattern.quote(instance.definitionName) + "\\s+" +
             Pattern.quote(instance.instanceName) + "\\s*\\(\\s*$").r
         val parameterizedStartPattern =
-          ("^(\\s*)" + Pattern.quote(instance.definitionName) +
+          ("^(\\s*)" + attributePrefix + Pattern.quote(instance.definitionName) +
             "\\s*#\\s*\\(\\s*$").r
         val parameterizedTerminatorPattern =
           ("^\\s*\\)\\s+" + Pattern.quote(instance.instanceName) +
@@ -124,8 +125,10 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
 
         val plainStarts = lines.zipWithIndex.collect {
           case (line, index) if plainStartPattern.findFirstIn(line).nonEmpty =>
-            val indent = plainStartPattern.findFirstMatchIn(line).get.group(1)
-            (index, index, indent)
+            val matched = plainStartPattern.findFirstMatchIn(line).get
+            val indent = matched.group(1)
+            val attributes = matched.group(2)
+            (index, index, indent, attributes)
         }
         val parameterizedStarts = lines.zipWithIndex.flatMap {
           case (line, index) if parameterizedStartPattern.findFirstIn(line).nonEmpty =>
@@ -140,20 +143,25 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
                   if parameterizedTerminatorPattern
                     .findFirstIn(lines(bodyStart))
                     .nonEmpty =>
-                val indent =
-                  parameterizedStartPattern.findFirstMatchIn(line).get.group(1)
-                (index, bodyStart, indent)
+                val matched = parameterizedStartPattern.findFirstMatchIn(line).get
+                val indent = matched.group(1)
+                val attributes = matched.group(2)
+                (index, bodyStart, indent, attributes)
             }
           case _ => None
         }
         val starts = plainStarts ++ parameterizedStarts
         if (starts.size != 1) {
+          val sameDefinition = lines.filter(line =>
+            line.trim.startsWith(instance.definitionName + " ") ||
+              line.trim.startsWith(instance.definitionName + " #")
+          )
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-INSTANCE-NOT-FOUND",
-            s"normal Verilog emission contains ${starts.size} instances matching '${instance.definitionName} ${instance.instanceName}'"
+            s"normal Verilog emission contains ${starts.size} instances matching '${instance.definitionName} ${instance.instanceName}'; definition candidates: ${sameDefinition.mkString(" | ")}"
           )
         }
-        val (start, bodyStart, indent) = starts.head
+        val (start, bodyStart, indent, attributes) = starts.head
         val end =
           (bodyStart + 1 until lines.size)
             .find(index => lines(index).trim == ");")
@@ -207,7 +215,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           s"${indent}  .$name(${expression.render})$comma"
         }
         val header =
-          Vector(s"${indent}${instance.definitionName} #(") ++
+          Vector(s"$indent$attributes${instance.definitionName} #(") ++
             bindingLines ++
             Vector(s"${indent}) ${instance.instanceName} (")
         val rewrittenBlock = header ++ block.drop(1)
