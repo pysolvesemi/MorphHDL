@@ -1,0 +1,73 @@
+name: WA-04 exact status probe
+
+on:
+  push:
+    branches:
+      - agent/wa-04-unnamed-simple-wire-elimination
+    paths:
+      - ".github/workflows/wa04-status-probe.yml"
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Capture status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api /repos/${GITHUB_REPOSITORY}/pulls/138 > /tmp/pr.json
+          gh api /repos/${GITHUB_REPOSITORY}/actions/runs/33789075039 > /tmp/impl.json
+          gh api '/repos/${GITHUB_REPOSITORY}/actions/workflows/wa04-complete-and-merge-v4.yml/runs?per_page=1' > /tmp/gates.json || printf '{"workflow_runs":[]}' > /tmp/gates.json
+          gh api '/repos/${GITHUB_REPOSITORY}/contents/morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md?ref=parameterized-verilog' > /tmp/roadmap.json
+          python3 - <<'PY'
+          import base64, json
+          from pathlib import Path
+          pr=json.loads(Path('/tmp/pr.json').read_text())
+          impl=json.loads(Path('/tmp/impl.json').read_text())
+          gates=json.loads(Path('/tmp/gates.json').read_text()).get('workflow_runs',[])
+          roadmap_api=json.loads(Path('/tmp/roadmap.json').read_text())
+          roadmap=base64.b64decode(roadmap_api['content']).decode()
+          gate=gates[0] if gates else {}
+          def section(marker):
+              return roadmap.split(marker,1)[1].split('\n- [',1)[0] if marker in roadmap else ''
+          state={
+            'pr_state':pr.get('state'),
+            'merged':pr.get('merged'),
+            'merged_at':pr.get('merged_at'),
+            'pr_head':pr.get('head',{}).get('sha'),
+            'merge_commit_sha':pr.get('merge_commit_sha'),
+            'impl_run_id':impl.get('id'),
+            'impl_status':impl.get('status'),
+            'impl_conclusion':impl.get('conclusion'),
+            'gate_run_id':gate.get('id'),
+            'gate_status':gate.get('status'),
+            'gate_conclusion':gate.get('conclusion'),
+            'base_wa04_checked':'- [x] **WA-04 —' in roadmap,
+            'base_wa04_completed':'**Status:** `COMPLETED`.' in section('- [x] **WA-04 —'),
+            'base_wa05_ready':'**Status:** `READY`.' in section('- [ ] **WA-05 —'),
+          }
+          Path('wa04-status.json').write_text(json.dumps(state,indent=2,sort_keys=True)+'\n')
+          # SVG is both human-readable and directly renderable.
+          rows=['WA-04 EXACT STATUS']+[f'{k}: {v}' for k,v in state.items()]
+          import html
+          height=40+26*len(rows)
+          body=''.join(f'<text x="20" y="{30+26*i}" font-family="monospace" font-size="16">{html.escape(row)}</text>' for i,row in enumerate(rows))
+          Path('wa04-status.svg').write_text(f'<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="{height}" viewBox="0 0 1200 {height}"><rect width="100%" height="100%" fill="white"/>{body}</svg>')
+          print(json.dumps(state,sort_keys=True))
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add wa04-status.json wa04-status.svg
+          git commit -m 'WA-04: record temporary exact status'
+          git push origin HEAD:${GITHUB_REF_NAME}
