@@ -1,0 +1,28 @@
+name: WA-04 debug source export
+
+on:
+  push:
+    branches:
+      - agent/wa-04-unnamed-simple-wire-elimination
+    paths:
+      - ".github/workflows/wa04-debug-export.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive exact source
+        shell: bash
+        run: tar --exclude=.git -czf "${RUNNER_TEMP}/MorphHDL-wa04-debug.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wa04-debug-source
+          path: ${{ runner.temp }}/MorphHDL-wa04-debug.tar.gz
+          if-no-files-found: error
+          retention-days: 1
