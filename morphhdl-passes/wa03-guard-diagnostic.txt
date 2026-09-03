@@ -1,0 +1,6 @@
+self_test_exit=0
+WA-03 static gate self-tests passed.
+
+repository_exit=1
+WA-03 gate contract failed:
+  - morphhdl-passes/README.md: WA03-README-CONTRACT-MISSING: missing required marker 'complete admitted parameter domain'
