@@ -1,0 +1,57 @@
+name: WA-04 repair Scala report interpolation
+
+on:
+  push:
+    branches:
+      - agent/wa-04-unnamed-simple-wire-elimination
+    paths:
+      - ".github/workflows/wa04-repair-json.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Repair, compile, commit and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala")
+          text = path.read_text(encoding="utf-8")
+          replacements = {
+              '      s"  \\"visited_candidates\\": $visitedCandidates,",': '      s"""  "visited_candidates": $visitedCandidates,""",',
+              '      s"  \\"eliminated_count\\": $eliminatedCount,",': '      s"""  "eliminated_count": $eliminatedCount,""",',
+              '      s"  \\"rewritten_reference_count\\": $rewrittenReferences,",': '      s"""  "rewritten_reference_count": $rewrittenReferences,""",',
+              '      s"  \\"eliminated_ordinals\\": [${eliminatedOrdinals.mkString(", ")}],",': '      s"""  "eliminated_ordinals": [${eliminatedOrdinals.mkString(", ")}],""",',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f"expected interpolation not found: {old}")
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+
+          git diff --check
+          sbt -batch \
+            '++2.12.18' \
+            'set morph / Test / unmanagedSources ++= Seq(file("morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala"), file("morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala"), file("morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala"), file("morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPass.scala"), file("morphhdl-passes/examples/ParameterizedStreamFifo.scala"), file("morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala"))' \
+            'morph / Test / compile'
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala
+          git commit -m "WA-04: fix Scala 2.12 report interpolation"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
