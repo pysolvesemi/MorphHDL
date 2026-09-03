@@ -204,6 +204,8 @@ class NativeStreamFifoCCCdcProofTests extends AnyFunSuite {
          |memory
          |opt
          |check -assert
+         |synth -top ${top(buffered)}
+         |check -assert
          |stat
          |""".stripMargin
     )
@@ -322,6 +324,9 @@ class NativeStreamFifoCCCdcProofTests extends AnyFunSuite {
        |  integer sawFull = 0;
        |  integer sawPushPause = 0;
        |  integer sawPopPause = 0;
+       |  integer sawSimultaneous = 0;
+       |  time lastPushTransferTime = 0;
+       |  time lastPopTransferTime = 0;
        |
        |  always #${schedule.pushHalfPeriod} if (pushRun) io_pushClock = ~io_pushClock;
        |  always #${schedule.popHalfPeriod} if (popRun) io_popClock = ~io_popClock;
@@ -353,8 +358,12 @@ class NativeStreamFifoCCCdcProofTests extends AnyFunSuite {
        |    if (io_pushReset) begin
        |      sent = 0;
        |    end else begin
-       |      if (io_pushValid && io_pushReady)
+       |      if (io_pushValid && io_pushReady) begin
+       |        if ($$time == lastPopTransferTime)
+       |          sawSimultaneous = 1;
+       |        lastPushTransferTime = $$time;
        |        sent = sent + 1;
+       |      end
        |      if (io_pushValid && !io_pushReady)
        |        sawFull = 1;
        |    end
@@ -397,14 +406,17 @@ class NativeStreamFifoCCCdcProofTests extends AnyFunSuite {
        |
        |  always @(posedge io_popClock) begin
        |    if (!io_popReset && io_popValid && io_popReady) begin
+       |      if ($$time == lastPushTransferTime)
+       |        sawSimultaneous = 1;
+       |      lastPopTransferTime = $$time;
        |      if (io_popPayload !== received[7:0]) begin
        |        $$display("data mismatch expected=%0d actual=%0d", received, io_popPayload);
        |        $$fatal(1);
        |      end
        |      received = received + 1;
        |      if (received == TOTAL) begin
-       |        if (sent != TOTAL || !sawFull || !sawPushPause || !sawPopPause) begin
-       |          $$display("coverage missing sent=%0d full=%0d pushPause=%0d popPause=%0d", sent, sawFull, sawPushPause, sawPopPause);
+       |        if (sent != TOTAL || !sawFull || !sawPushPause || !sawPopPause || !sawSimultaneous) begin
+       |          $$display("coverage missing sent=%0d full=%0d pushPause=%0d popPause=%0d simultaneous=%0d", sent, sawFull, sawPushPause, sawPopPause, sawSimultaneous);
        |          $$fatal(1);
        |        end
        |        #200;

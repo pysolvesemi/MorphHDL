@@ -1,4 +1,7 @@
 .github/workflows/increment-57a-typed-streamfifocc.yml
+.github/workflows/morphhdl-native-source-guard.yml
+.github/workflows/morphhdl-streamfifocc-proof.yml
+core/src/main/scala/spinal/core/internals/Phase.scala
 docs/morphhdl/increment-57-broad-native-library-migration.md
 docs/morphhdl/increment-57a-typed-streamfifocc.md
 docs/morphhdl/v1-support-matrix.md

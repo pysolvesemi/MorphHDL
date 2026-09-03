@@ -58,6 +58,101 @@ final class NativeStreamFifoCCParameterizedHarness(
   io.popOccupancy := fifo.io.popOccupancy.resized
 }
 
+/** Two independently parameterized aggregate-payload FIFOs deliberately share
+  * the same ClockDomain objects. Each FIFO must retain its own generated reset
+  * synchronizer; a design-global cache entry would illegally couple the two
+  * child definitions and their independent legal-depth alternatives.
+  */
+final class NativeStreamFifoCCAggregateSharedClockHarness(
+    depthA: HdlInt,
+    depthB: HdlInt
+) extends Component {
+  setDefinitionName("NativeStreamFifoCCAggregateSharedClock")
+
+  private def payloadType = Vec(Bits(4 bits), 2)
+
+  val io = new Bundle {
+    val pushClock = in Bool ()
+    val pushReset = in Bool ()
+    val popClock = in Bool ()
+    val popReset = in Bool ()
+    val pushA = slave Stream (payloadType)
+    val popA = master Stream (payloadType)
+    val pushB = slave Stream (payloadType)
+    val popB = master Stream (payloadType)
+  }
+
+  private val config = ClockDomainConfig(
+    clockEdge = RISING,
+    resetKind = ASYNC,
+    resetActiveLevel = HIGH
+  )
+  private val pushCd = ClockDomain(io.pushClock, io.pushReset, config = config)
+  private val popCd = ClockDomain(io.popClock, io.popReset, config = config)
+
+  val fifoA = StreamFifoCC(
+    HardType(payloadType),
+    depthA.asElabInt,
+    pushCd,
+    popCd,
+    withPopBufferedReset = true
+  )
+  val fifoB = StreamFifoCC(
+    HardType(payloadType),
+    depthB.asElabInt,
+    pushCd,
+    popCd,
+    withPopBufferedReset = true
+  )
+
+  fifoA.io.push << io.pushA
+  io.popA << fifoA.io.pop
+  fifoB.io.push << io.pushB
+  io.popB << fifoB.io.pop
+}
+
+/** Preserve the native BOOT reset policy on the owner-local typed reset path. */
+final class NativeStreamFifoCCBootResetHarness(depth: HdlInt)
+    extends Component {
+  setDefinitionName("NativeStreamFifoCCBootReset")
+
+  val io = new Bundle {
+    val pushClock = in Bool ()
+    val popClock = in Bool ()
+    val popReset = in Bool ()
+    val push = slave Stream (Bits(8 bits))
+    val pop = master Stream (Bits(8 bits))
+  }
+
+  private val pushCd = ClockDomain(
+    clock = io.pushClock,
+    config = ClockDomainConfig(
+      clockEdge = RISING,
+      resetKind = BOOT,
+      resetActiveLevel = HIGH
+    )
+  )
+  private val popCd = ClockDomain(
+    clock = io.popClock,
+    reset = io.popReset,
+    config = ClockDomainConfig(
+      clockEdge = RISING,
+      resetKind = ASYNC,
+      resetActiveLevel = HIGH
+    )
+  )
+
+  val fifo = StreamFifoCC(
+    HardType(Bits(8 bits)),
+    depth.asElabInt,
+    pushCd,
+    popCd,
+    withPopBufferedReset = true
+  )
+  fifo.io.push << io.push
+  io.pop << fifo.io.pop
+}
+
 /** Exercise one typed CDC call surface selected by an ordinary static value. */
 final class NativeStreamFifoCCTypedCallSurfaceHarness(
     depth: HdlInt,
@@ -832,6 +927,104 @@ class NativeStreamFifoCCParameterizedTests extends AnyFunSuite {
     }
   }
 
+  test("BufferCC blackbox phase rejects retained width before witness freezing") {
+    withTemporaryDirectory { directory =>
+      val typedCode =
+        "SPINAL-BUFFER-CC-BLACKBOX-TYPED-WIDTH-UNSUPPORTED"
+      val typedDirectory = directory.resolve("typed")
+      Files.createDirectories(typedDirectory)
+      val typedConfig = generationConfig(
+        typedDirectory,
+        "typed_buffercc_blackbox.v"
+      ).addTransformationPhase(new PhaseBufferCCBB)
+      val morphFailure = MorphVerilog.tryGenerate(typedConfig) {
+        new NativeTypedBufferCCInitHarness(
+          HdlInt.param("WIDTH", default = 4, min = 2, max = 8),
+          2,
+          () => ()
+        )
+      } match {
+        case Left(failure) => failure
+        case Right(report) =>
+          fail(s"typed BufferCC blackbox phase unexpectedly succeeded: $report")
+      }
+      assert(morphFailure.detail.contains(typedCode), morphFailure.detail)
+      val morphCause = morphFailure.cause.collect {
+        case error: ParameterizedVerilogException => error
+      }
+      assert(
+        morphCause.exists(_.code == typedCode),
+        s"MorphVerilog did not preserve $typedCode as its cause: ${morphFailure.cause}"
+      )
+      assert(!Files.exists(typedDirectory.resolve(typedConfig.netlistFileName)))
+
+      val rawDirectory = directory.resolve("raw")
+      Files.createDirectories(rawDirectory)
+      val rawConfig = generationConfig(
+        rawDirectory,
+        "raw_typed_buffercc_blackbox.v"
+      ).addTransformationPhase(new PhaseBufferCCBB)
+      val rawFailure = intercept[ParameterizedVerilogException] {
+        SpinalVerilog(rawConfig) {
+          new NativeTypedBufferCCInitHarness(
+            HdlInt.param("WIDTH", default = 4, min = 2, max = 8),
+            2,
+            () => ()
+          )
+        }
+      }
+      assert(rawFailure.code == typedCode, rawFailure.getMessage)
+      assert(!Files.exists(rawDirectory.resolve(rawConfig.netlistFileName)))
+
+      val retryDirectory = directory.resolve("ordinary-retry")
+      Files.createDirectories(retryDirectory)
+      var retryPhaseRuns = 0
+      val retryConfig = generationConfig(
+        retryDirectory,
+        "ordinary_retry_control.v"
+      ).addTransformationPhase(new spinal.core.internals.PhaseNetlist {
+        override def impl(
+            pc: spinal.core.internals.PhaseContext
+        ): Unit = {
+          retryPhaseRuns += 1
+          if (retryPhaseRuns == 1) {
+            throw new IllegalStateException("ordinary retry control")
+          }
+        }
+      })
+      SpinalVerilog(retryConfig) {
+        new NativeTypedBufferCCInitHarness(
+          HdlInt.literal(BigInt(4)),
+          2,
+          () => ()
+        )
+      }
+      assert(
+        retryPhaseRuns == 2,
+        s"ordinary Spinal failure ran the control phase $retryPhaseRuns times"
+      )
+      assert(Files.exists(retryDirectory.resolve(retryConfig.netlistFileName)))
+
+      val concreteDirectory = directory.resolve("concrete")
+      Files.createDirectories(concreteDirectory)
+      val concreteConfig = generationConfig(
+        concreteDirectory,
+        "concrete_buffercc_blackbox.v"
+      ).addTransformationPhase(new PhaseBufferCCBB)
+      SpinalVerilog(concreteConfig) {
+        new NativeTypedBufferCCInitHarness(
+          HdlInt.literal(BigInt(4)),
+          2,
+          () => ()
+        )
+      }
+      val concreteRtl =
+        compactWhitespace(read(concreteDirectory.resolve(concreteConfig.netlistFileName)))
+      assert(concreteRtl.contains("BufferCCBlackBox#("), concreteRtl)
+      assert(concreteRtl.contains(".WIDTH(4)"), concreteRtl)
+    }
+  }
+
   test("attributed BufferCC children retain exact binding CDC tags and reset topology") {
     withTemporaryDirectory { directory =>
       val directFirst =
@@ -879,6 +1072,19 @@ class NativeStreamFifoCCParameterizedTests extends AnyFunSuite {
 
         val guardPositions = allIndicesOf(fifoCompact, "DEPTH&(DEPTH-1)")
         assert(guardPositions.size >= 2, fifoRtl)
+        if (emission._3.fifo.withPopBufferedReset) {
+          val resetBufferToken = "(*keep_hierarchy=\"TRUE\"*)BufferCC"
+          assert(
+            countOccurrences(fifoCompact, resetBufferToken) == 1,
+            fifoRtl
+          )
+          val resetBufferIndex = fifoCompact.indexOf(resetBufferToken)
+          assert(
+            guardPositions.head < resetBufferIndex &&
+              resetBufferIndex < guardPositions(1),
+            s"the optional pop-reset BufferCC escaped the legal-depth generate branch:\n$fifoRtl"
+          )
+        }
         Vector(
           "StreamFifoCCPopToPushBufferCC",
           "StreamFifoCCPushToPopBufferCC"
@@ -908,6 +1114,284 @@ class NativeStreamFifoCCParameterizedTests extends AnyFunSuite {
         }
         assertGrayShiftGeometry(fifoRtl)
       }
+    }
+  }
+
+  test("aggregate FIFOs sharing clocks retain independent legal owners and reset buffers") {
+    withTemporaryDirectory { directory =>
+      def emit(
+          target: Path
+      ): (Path, NativeStreamFifoCCAggregateSharedClockHarness) = {
+        Files.createDirectories(target)
+        val config = generationConfig(
+          target,
+          "aggregate_shared_clock_streamfifocc.v"
+        )
+        val depthA = HdlInt.param(
+          "DEPTH_A",
+          default = BigInt(4),
+          min = BigInt(2),
+          max = BigInt(5)
+        )
+        val depthB = HdlInt.param(
+          "DEPTH_B",
+          default = BigInt(4),
+          min = BigInt(2),
+          max = BigInt(16)
+        )
+        var top: NativeStreamFifoCCAggregateSharedClockHarness = null
+        MorphVerilog(config) {
+          top = new NativeStreamFifoCCAggregateSharedClockHarness(
+            depthA,
+            depthB
+          )
+          top
+        }
+        (target.resolve(config.netlistFileName), top)
+      }
+
+      val first = emit(directory.resolve("first"))
+      val replay = emit(directory.resolve("replay"))
+      assertSameBytes(first._1, replay._1, "aggregate shared-clock replay")
+
+      val top = first._2
+      def resetBufferOf(fifo: StreamFifoCC[_]): BufferCC[_] = {
+        val candidates = fifo.children.collect {
+          case buffer: BufferCC[_]
+              if buffer.allBufAttributes.exists {
+                case tag: crossClockFalsePath =>
+                  tag.destType == TimingEndpointType.RESET
+                case _ => false
+              } =>
+            buffer
+        }.toVector
+        assert(
+          candidates.size == 1,
+          s"${fifo.definitionName} reset buffers: ${candidates.map(_.definitionName)}"
+        )
+        candidates.head
+      }
+
+      val resetA = resetBufferOf(top.fifoA)
+      val resetB = resetBufferOf(top.fifoB)
+      assert(!(top.fifoA.finalPopCd eq top.fifoA.popClock))
+      assert(!(top.fifoB.finalPopCd eq top.fifoB.popClock))
+      assert(!(top.fifoA.finalPopCd eq top.fifoB.finalPopCd))
+      assert(!(top.fifoA.finalPopCd.reset eq top.fifoB.finalPopCd.reset))
+      assert(top.fifoA.finalPopCd.reset.getComponent() eq top.fifoA)
+      assert(top.fifoB.finalPopCd.reset.getComponent() eq top.fifoB)
+      assert(resetA.parent eq top.fifoA)
+      assert(resetB.parent eq top.fifoB)
+      assert(!(resetA eq resetB))
+      Vector(top.fifoA, top.fifoB).foreach { fifo =>
+        val buffers = fifo.children.collect {
+          case buffer: BufferCC[_] => buffer
+        }.toVector
+        assert(
+          buffers.size == 3,
+          s"${fifo.definitionName} did not own both pointer synchronizers and its reset synchronizer: ${buffers.map(_.definitionName)}"
+        )
+      }
+
+      val rtl = read(first._1)
+      val compact = compactWhitespace(rtl)
+      val fifoDefinitionNames = moduleNames(rtl).filter(name =>
+        name == "StreamFifoCC" || name.matches("StreamFifoCC_[0-9]+")
+      )
+      assert(
+        fifoDefinitionNames.toSet == Set("StreamFifoCC", "StreamFifoCC_1"),
+        rtl
+      )
+      Vector(
+        "StreamFifoCCPopToPushBufferCC",
+        "StreamFifoCCPushToPopBufferCC"
+      ).foreach(name => assert(moduleNames(rtl).count(_ == name) == 1, rtl))
+      assert(countOccurrences(compact, ".DEPTH(DEPTH_A)") == 1, rtl)
+      assert(countOccurrences(compact, ".DEPTH(DEPTH_B)") == 1, rtl)
+
+      fifoDefinitionNames.foreach { definitionName =>
+        val fifoRtl = compactWhitespace(moduleDefinition(rtl, definitionName))
+        val guardPositions = allIndicesOf(fifoRtl, "DEPTH&(DEPTH-1)")
+        assert(guardPositions.size >= 2, fifoRtl)
+        val resetBufferToken = "(*keep_hierarchy=\"TRUE\"*)BufferCC"
+        assert(
+          countOccurrences(fifoRtl, resetBufferToken) == 1,
+          fifoRtl
+        )
+        val resetBufferIndex = fifoRtl.indexOf(resetBufferToken)
+        assert(
+          guardPositions.head < resetBufferIndex &&
+            resetBufferIndex < guardPositions(1),
+          s"$definitionName reset synchronizer escaped its legal owner:\n$fifoRtl"
+        )
+        val invalidBody = fifoRtl.substring(guardPositions(1))
+        assert(invalidBody.contains("io_push_ready=1'b0;"), fifoRtl)
+        assert(invalidBody.contains("io_pop_valid=1'b0;"), fifoRtl)
+        assert(
+          invalidBody.contains("=8'h0;") &&
+            invalidBody.contains("io_pop_payload_0=") &&
+            invalidBody.contains("io_pop_payload_1="),
+          s"aggregate payload was not tied inert in $definitionName:\n$fifoRtl"
+        )
+      }
+    }
+  }
+
+  test("same-topology unnamed FIFO parents canonicalize by legal-depth bucket") {
+    withTemporaryDirectory { directory =>
+      def emit(
+          target: Path,
+          defaultDepth: BigInt,
+          maximumA: BigInt,
+          maximumB: BigInt
+      ): Path = {
+        Files.createDirectories(target)
+        val config = generationConfig(
+          target,
+          "same_topology_parent_streamfifocc.v"
+        )
+        val depthA = HdlInt.param(
+          "DEPTH_A",
+          default = defaultDepth,
+          min = BigInt(2),
+          max = maximumA
+        )
+        val depthB = HdlInt.param(
+          "DEPTH_B",
+          default = defaultDepth,
+          min = BigInt(2),
+          max = maximumB
+        )
+        MorphVerilog(config) {
+          new NativeStreamFifoCCAggregateSharedClockHarness(depthA, depthB)
+        }
+        target.resolve(config.netlistFileName)
+      }
+
+      def fifoDefinitionNames(rtl: String): Vector[String] =
+        moduleNames(rtl).filter(name =>
+          name == "StreamFifoCC" || name.matches("StreamFifoCC_[0-9]+")
+        )
+
+      def assertBindingsAndCanonicalBuffers(rtl: String): Unit = {
+        val compact = compactWhitespace(rtl)
+        assert(countOccurrences(compact, ".DEPTH(DEPTH_A)") == 1, rtl)
+        assert(countOccurrences(compact, ".DEPTH(DEPTH_B)") == 1, rtl)
+        Vector(
+          "StreamFifoCCPopToPushBufferCC",
+          "StreamFifoCCPushToPopBufferCC"
+        ).foreach(name => assert(moduleNames(rtl).count(_ == name) == 1, rtl))
+      }
+
+      val mergedFirst = emit(
+        directory.resolve("merged-first"),
+        defaultDepth = BigInt(8),
+        maximumA = BigInt(8),
+        maximumB = BigInt(15)
+      )
+      val mergedReplay = emit(
+        directory.resolve("merged-replay"),
+        defaultDepth = BigInt(8),
+        maximumA = BigInt(8),
+        maximumB = BigInt(15)
+      )
+      assertSameBytes(
+        mergedFirst,
+        mergedReplay,
+        "same-bucket parent schema replay"
+      )
+      val mergedRtl = read(mergedFirst)
+      assert(fifoDefinitionNames(mergedRtl) == Vector("StreamFifoCC"), mergedRtl)
+      assertBindingsAndCanonicalBuffers(mergedRtl)
+      val mergedFifo = compactWhitespace(
+        moduleDefinition(mergedRtl, "StreamFifoCC")
+      )
+      assert(
+        countOccurrences(
+          mergedFifo,
+          "spinal_stream_fifocc_legal_depth_ceiling=8"
+        ) == 1,
+        mergedFifo
+      )
+
+      val splitFirst = emit(
+        directory.resolve("split-first"),
+        defaultDepth = BigInt(16),
+        maximumA = BigInt(16),
+        maximumB = BigInt(32)
+      )
+      val splitReplay = emit(
+        directory.resolve("split-replay"),
+        defaultDepth = BigInt(16),
+        maximumA = BigInt(16),
+        maximumB = BigInt(32)
+      )
+      assertSameBytes(
+        splitFirst,
+        splitReplay,
+        "different-bucket parent schema replay"
+      )
+      val splitRtl = read(splitFirst)
+      assert(
+        fifoDefinitionNames(splitRtl).toSet ==
+          Set("StreamFifoCC", "StreamFifoCC_1"),
+        splitRtl
+      )
+      assertBindingsAndCanonicalBuffers(splitRtl)
+      val firstFifo = compactWhitespace(
+        moduleDefinition(splitRtl, "StreamFifoCC")
+      )
+      val secondFifo = compactWhitespace(
+        moduleDefinition(splitRtl, "StreamFifoCC_1")
+      )
+      assert(
+        countOccurrences(
+          firstFifo,
+          "spinal_stream_fifocc_legal_depth_ceiling=16"
+        ) == 1,
+        firstFifo
+      )
+      assert(
+        countOccurrences(
+          secondFifo,
+          "spinal_stream_fifocc_legal_depth_ceiling=32"
+        ) == 1,
+        secondFifo
+      )
+    }
+  }
+
+  test("typed owner-local reset path preserves native BOOT semantics") {
+    withTemporaryDirectory { directory =>
+      val config = generationConfig(directory, "boot_reset_streamfifocc.v")
+      val depth = HdlInt.param("DEPTH", default = 8, min = 2, max = 16)
+      var top: NativeStreamFifoCCBootResetHarness = null
+      MorphVerilog(config) {
+        top = new NativeStreamFifoCCBootResetHarness(depth)
+        top
+      }
+
+      val fifo = top.fifo
+      assert(!(fifo.finalPopCd eq fifo.popClock))
+      assert(fifo.finalPopCd.clock eq fifo.popClock.clock)
+      assert(
+        fifo.finalPopCd.config == fifo.popClock.config.copy(resetKind = BOOT)
+      )
+      assert(fifo.finalPopCd.reset == null)
+      assert(fifo.finalPopCd.softReset == null)
+      assert(fifo.popCC.clockDomain eq fifo.finalPopCd)
+      val buffers = fifo.children.collect {
+        case buffer: BufferCC[_] => buffer
+      }.toVector
+      assert(
+        buffers.size == 2,
+        s"BOOT reset unexpectedly created a reset synchronizer: ${buffers.map(_.definitionName)}"
+      )
+      buffers.foreach(buffer => assert(buffer.parent eq fifo))
+
+      val rtl = read(directory.resolve(config.netlistFileName))
+      val fifoRtl = compactWhitespace(moduleDefinition(rtl, "StreamFifoCC"))
+      assert(countOccurrences(fifoRtl, "(*keep_hierarchy=\"TRUE\"*)BufferCC") == 0, fifoRtl)
     }
   }
 

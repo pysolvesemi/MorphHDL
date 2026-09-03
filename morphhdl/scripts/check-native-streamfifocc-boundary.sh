@@ -7,6 +7,7 @@ cd "$root"
 stream_source="${MORPHDL_STREAMFIFOCC_STREAM_SOURCE:-lib/src/main/scala/spinal/lib/Stream.scala}"
 utils_source="${MORPHDL_STREAMFIFOCC_UTILS_SOURCE:-lib/src/main/scala/spinal/lib/Utils.scala}"
 crossclock_source="${MORPHDL_STREAMFIFOCC_CROSSCLOCK_SOURCE:-lib/src/main/scala/spinal/lib/CrossClock.scala}"
+phase_source="${MORPHDL_STREAMFIFOCC_PHASE_SOURCE:-core/src/main/scala/spinal/core/internals/Phase.scala}"
 memory_source="${MORPHDL_STREAMFIFOCC_MEMORY_SOURCE:-morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala}"
 hierarchy_source="${MORPHDL_STREAMFIFOCC_HIERARCHY_SOURCE:-morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala}"
 test_source="${MORPHDL_STREAMFIFOCC_TEST_SOURCE:-morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCParameterizedTests.scala}"
@@ -29,6 +30,7 @@ check_boundary() {
   require_file "$stream_source" Stream
   require_file "$utils_source" Gray-code-helper
   require_file "$crossclock_source" BufferCC
+  require_file "$phase_source" SpinalVerilog-boot
   require_file "$memory_source" parameterized-memory
   require_file "$hierarchy_source" parameterized-hierarchy
   require_file "$test_source" focused-test
@@ -38,6 +40,7 @@ check_boundary() {
     "$stream_source" \
     "$utils_source" \
     "$crossclock_source" \
+    "$phase_source" \
     "$memory_source" \
     "$hierarchy_source" \
     "$test_source" \
@@ -50,6 +53,7 @@ from pathlib import Path
     stream_path,
     utils_path,
     crossclock_path,
+    phase_path,
     memory_path,
     hierarchy_path,
     test_path,
@@ -59,6 +63,7 @@ from pathlib import Path
 stream = stream_path.read_text(encoding="utf-8")
 utils = utils_path.read_text(encoding="utf-8")
 crossclock = crossclock_path.read_text(encoding="utf-8")
+phase = phase_path.read_text(encoding="utf-8")
 memory = memory_path.read_text(encoding="utf-8")
 hierarchy = hierarchy_path.read_text(encoding="utf-8")
 tests = test_path.read_text(encoding="utf-8")
@@ -182,14 +187,108 @@ if invalid_block_match is None:
         "the inert depth alternative must have one inspectable generated body",
     )
 invalid_region = invalid_block_match.group("body")
+
+active_classes = re.findall(r"(?m)^[ \t]*class\s+StreamFifoCC\[", stream)
+if len(active_classes) != 1:
+    fail(
+        "NATIVE-ALGORITHM-COUNT",
+        f"expected one active native StreamFifoCC class, found {len(active_classes)}",
+    )
+streamfifocc_class_match = re.search(
+    r"(?m)^[ \t]*class\s+StreamFifoCC\[",
+    stream,
+)
+next_class_match = re.search(
+    r"(?m)^[ \t]*class\s+StreamCCByToggle\b",
+    stream[streamfifocc_class_match.end():],
+)
+streamfifocc_class_end = (
+    streamfifocc_class_match.end() + next_class_match.start()
+    if next_class_match is not None
+    else len(stream)
+)
+streamfifocc_class = stream[
+    streamfifocc_class_match.start():streamfifocc_class_end
+]
+
+builder_start = stream.find("private def buildNativeAlgorithm(): BuiltAlgorithm")
+owner_selection_start = stream.find(
+    "if (elabDepth.isConcrete) {\n    // Invoke the one body directly",
+    builder_start,
+)
+if builder_start < 0 or owner_selection_start < 0:
+    fail(
+        "SHARED-ALGORITHM-BUILDER-MISSING",
+        "the concrete and typed lanes must select one shared native algorithm builder",
+    )
+builder_region = stream[builder_start:owner_selection_start]
+
+require(
+    r"private\s+final\s+class\s+BuiltAlgorithm\s*\(",
+    stream,
+    "SHARED-ALGORITHM-CARRIER-MISSING",
+    "the shared FIFO body must publish references through a plain Scala carrier",
+)
+reject(
+    r"class\s+BuiltAlgorithm\b[^\n]*(?:extends|with)\s+Area\b",
+    stream,
+    "SHARED-ALGORITHM-CARRIER-IS-AREA",
+    "the shared FIFO reference carrier must not introduce hardware hierarchy",
+)
+if len(re.findall(r"buildNativeAlgorithm\s*\(\s*\)", streamfifocc_class)) != 3:
+    fail(
+        "SHARED-ALGORITHM-BUILDER-COUNT",
+        "expected one shared builder definition and exactly two owner-selection calls",
+    )
+
 for pattern, code, message in (
-    (r"Mem\s*\(\s*dataType,\s*elabDepth\s*\)", "TYPED-RAM-DEPTH-MISSING", "the legal FIFO owner must contain the typed native RAM"),
-    (r"new\s+ClockingArea\s*\(\s*pushClock\s*\)\s+with\s+PushCCMembers", "PUSH-AREA-MISSING", "the legal FIFO owner must contain the native push ClockingArea"),
-    (r"new\s+ClockingArea\s*\(\s*finalPopCd\s*\)\s+with\s+PopCCMembers", "POP-AREA-MISSING", "the legal FIFO owner must contain the native pop ClockingArea"),
-    (r'"StreamFifoCCPopToPushBufferCC"', "BUFFERCC-DEFINITION-MISSING", "the legal FIFO owner must retain the pop-to-push BufferCC definition"),
-    (r'"StreamFifoCCPushToPopBufferCC"', "BUFFERCC-DEFINITION-MISSING", "the legal FIFO owner must retain the push-to-pop BufferCC definition"),
+    (r"Mem\s*\(\s*dataType,\s*elabDepth\s*\)", "TYPED-RAM-DEPTH-MISSING", "the shared FIFO body must contain the typed native RAM geometry"),
+    (r"val\s+finalPopCd\s*=\s*if\s*\(\s*elabDepth\.isConcrete\s*\).*?popClock\.withOptionalBufferedResetFrom\s*\(\s*withPopBufferedReset\s*\)\s*\(\s*pushClock\s*\).*?else.*?popClock\.withOptionalBufferedResetFromUncached\s*\(\s*withPopBufferedReset\s*\)\s*\(\s*pushClock\s*\)", "BUFFERED-RESET-OWNER-MISSING", "the concrete lane must retain the cached reset path while the generated lane creates its reset synchronizer under the legal owner"),
+    (r"new\s+ClockingArea\s*\(\s*pushClock\s*\)\s+with\s+PushCCMembers", "PUSH-AREA-MISSING", "the shared FIFO body must contain the native push ClockingArea"),
+    (r"new\s+ClockingArea\s*\(\s*finalPopCd\s*\)\s+with\s+PopCCMembers", "POP-AREA-MISSING", "the shared FIFO body must contain the native pop ClockingArea"),
+    (r'"StreamFifoCCPopToPushBufferCC"', "BUFFERCC-DEFINITION-MISSING", "the shared FIFO body must retain the pop-to-push BufferCC definition"),
+    (r'"StreamFifoCCPushToPopBufferCC"', "BUFFERCC-DEFINITION-MISSING", "the shared FIFO body must retain the push-to-pop BufferCC definition"),
 ):
-    require(pattern, legal_region, code, message)
+    require(pattern, builder_region, code, message)
+
+require(
+    r"private\[lib\]\s+def\s+withBufferedResetFromUncached.*?resetCd\.config\.resetKind\s*==\s*BOOT.*?cd\.config\.resetKind\s*==\s*BOOT.*?ResetCtrl\.asyncAssertSyncDeassertCreateCd\s*\(\s*resetCd,\s*cd,\s*bufferDepth\s*\)",
+    utils,
+    "BUFFERED-RESET-UNCACHED-HELPER-MISSING",
+    "the owner-local reset path must preserve the native BOOT and synchronized-reset semantics without the global cache",
+)
+require(
+    r"setDefinitionName\s*\(\s*definitionName,\s*noMerge\s*=\s*false\s*\)",
+    streamfifocc_class,
+    "BUFFERCC-MULTI-INSTANCE-DEFINITION-POLICY-MISSING",
+    "typed pointer synchronizers with unequal depth domains must receive distinct mergeable definitions",
+)
+require(
+    r"val\s+writeData\s*=\s*if\s*\(\s*elabDepth\.isConcrete\s*\)\s*null\s*else.*?Bits\s*\(\s*widthOfExpr\s*\(\s*io\.push\.payload\s*\)\s+bits\s*\).*?dontSimplifyIt\s*\(\s*\).*?writeData\s*:=\s*io\.push\.payload\.asBits.*?ram\.writeImpl\s*\(.*?writeData,.*?allowMixedWidth\s*=\s*false",
+    builder_region,
+    "AGGREGATE-WRITE-CARRIER-MISSING",
+    "the symbolic lane must give an aggregate native Mem write one named packed carrier without changing its port policy",
+)
+
+require(
+    r"val\s+built\s*=\s*buildNativeAlgorithm\s*\(\s*\).*?val\s+ram\s*=\s*built\.ram.*?val\s+pushCC\s*=\s*built\.pushCC.*?val\s+popCC\s*=\s*built\.popCC",
+    legal_region,
+    "LEGAL-ALGORITHM-SELECTION-MISSING",
+    "the legal generated alternative must select and expose the shared native body",
+)
+for unique_pattern, role in (
+    (r"ram\.readSyncPort\s*\(\s*clockCrossing\s*=\s*true\s*\)", "dual-clock RAM read"),
+    (r"io\.pop\s*<<\s*readArbitration\.translateWith\s*\(\s*readPort\.rsp\s*\)", "native read-response pipeline"),
+    (r"pushToPopGray\s*:=\s*pushCC\.pushPtrGray", "push-to-pop Gray crossing"),
+    (r"popToPushGray\s*:=\s*popCC\.ptrToPush", "pop-to-push Gray crossing"),
+):
+    whole_count = len(re.findall(unique_pattern, streamfifocc_class, re.MULTILINE | re.DOTALL))
+    body_count = len(re.findall(unique_pattern, builder_region, re.MULTILINE | re.DOTALL))
+    if whole_count != 1 or body_count != 1:
+        fail(
+            "NATIVE-ALGORITHM-DUPLICATED",
+            f"{role} must occur exactly once inside the shared builder; found body={body_count}, class={whole_count}",
+        )
 
 # Follow the identity-alias chain instead of freezing implementation-local
 # variable names. Each public inspection member must resolve to the matching
@@ -217,34 +316,11 @@ for member, member_type in (
         f"native inspection member {member} must resolve to the one legal FIFO owner",
     )
     require(
-        rf"^[ \t]*{re.escape(alias_source)}\s*=\s*[A-Za-z_]\w*\s*$",
+        rf"^[ \t]*{re.escape(alias_source)}\s*=\s*[A-Za-z_]\w*\.{member}\s*$",
         stream[:legal_owner_match.start()],
         "LEGACY-INSPECTION-MEMBER-MISSING",
         f"native inspection member {member} must also resolve to the concrete FIFO leg",
     )
-active_classes = re.findall(r"(?m)^[ \t]*class\s+StreamFifoCC\[", stream)
-if len(active_classes) != 1:
-    fail(
-        "NATIVE-ALGORITHM-COUNT",
-        f"expected one active native StreamFifoCC class, found {len(active_classes)}",
-    )
-streamfifocc_class_match = re.search(
-    r"(?m)^[ \t]*class\s+StreamFifoCC\[",
-    stream,
-)
-next_class_match = re.search(
-    r"(?m)^[ \t]*class\s+StreamCCByToggle\b",
-    stream[streamfifocc_class_match.end():],
-)
-streamfifocc_class_end = (
-    streamfifocc_class_match.end() + next_class_match.start()
-    if next_class_match is not None
-    else len(stream)
-)
-streamfifocc_class = stream[
-    streamfifocc_class_match.start():streamfifocc_class_end
-]
-
 # StreamFifoCC may retain named typed-width result carriers, but the shared
 # Utils helpers are the sole Gray-code algorithms. No local shift topology or
 # copied prefix loop is permitted.
@@ -324,10 +400,34 @@ require(
     "symbolic construction must create the exact native DEPTH child formal",
 )
 require(
-    r"io\.push\.ready\s*:=\s*False.*?io\.pushOccupancy\s*:=\s*0.*?io\.pop\.valid\s*:=\s*False.*?io\.pop\.payload\s*:=\s*io\.pop\.payload\.getZero.*?io\.popOccupancy\s*:=\s*0",
+    r"private\s+def\s+typedDepthFormalMaximum\s*\(\s*depth:\s*ElabInt\s*\)\s*:\s*BigInt\s*=\s*\{.*?maximum\s*==\s*2.*?BigInt\s*\(\s*1\s*\)\s*<<\s*maximum\.bitLength.*?ElaborationExactDomain\.MaximumDomainSize\s*\+\s*1",
+    stream,
+    "DEPTH-FORMAL-CANONICAL-DOMAIN-MISSING",
+    "typed parent definitions must canonicalize only the invalid tail below the next legal power of two and retain the exact-domain cap",
+)
+require(
+    r"ElabFormalComponent\.parameter\s*\(\s*actual\s*=\s*depth,\s*name\s*=\s*\"DEPTH\",\s*minimum\s*=\s*BigInt\s*\(\s*2\s*\),\s*maximum\s*=\s*typedDepthFormalMaximum\s*\(\s*depth\s*\)",
+    stream,
+    "DEPTH-FORMAL-CANONICAL-DOMAIN-MISSING",
+    "typed StreamFifoCC construction must use the canonical legal-depth bucket schema",
+)
+require(
+    r"popToPushGray\.addAttribute\s*\(\s*\"spinal_stream_fifocc_legal_depth_ceiling\"\s*,\s*elabDepth\.maximum\.toInt\s*\)",
+    builder_region,
+    "DEPTH-FORMAL-GEOMETRY-IDENTITY-MISSING",
+    "typed FIFO traces must retain their exact projected legal-depth ceiling without changing synthesis behavior",
+)
+require(
+    r"io\.push\.ready\s*:=\s*False.*?io\.pushOccupancy\s*:=\s*0.*?io\.pop\.valid\s*:=\s*False.*?io\.pop\.payload\.assignFromBits\s*\(\s*B\s*\(\s*0\s*\)\.resize\s*\(\s*widthOfExpr\s*\(\s*io\.pop\.payload\s*\)\s*\)\s*\).*?io\.popOccupancy\s*:=\s*0",
     invalid_region,
     "INVALID-ALTERNATIVE-MISSING",
-    "illegal depth specializations must drive the complete public FIFO interface inert",
+    "illegal depth specializations must drive the complete public FIFO interface inert for every Data payload shape",
+)
+reject(
+    r"io\.pop\.payload\.getZero",
+    invalid_region,
+    "INVALID-ALTERNATIVE-PAYLOAD-NONGENERIC",
+    "the inert payload assignment must support aggregate Data values",
 )
 reject(
     r"\b(?:pushToPopGray|popToPushGray)\b",
@@ -355,10 +455,16 @@ for pattern, code, message in (
     require(pattern, stream, code, message)
 
 require(
-    r"ElabFormalComponent\.parameter\s*\(\s*actual\s*=\s*elabPtrWidth,\s*name\s*=\s*\"WIDTH\"",
+    r"private\s+val\s+TypedPointerWidthMinimum\s*=\s*BigInt\s*\(\s*2\s*\).*?private\s+val\s+TypedPointerWidthMaximum\s*=\s*BigInt\s*\(\s*log2Up\s*\(\s*Int\.MaxValue\s*\)\s*\)",
+    stream,
+    "BUFFERCC-CANONICAL-WIDTH-DOMAIN-MISSING",
+    "mergeable typed BufferCC children must share the complete Int-depth pointer-width capability",
+)
+require(
+    r"ElabFormalComponent\.parameter\s*\(\s*actual\s*=\s*elabPtrWidth,\s*name\s*=\s*\"WIDTH\",\s*minimum\s*=\s*StreamFifoCC\.TypedPointerWidthMinimum,\s*maximum\s*=\s*StreamFifoCC\.TypedPointerWidthMaximum",
     stream,
     "BUFFERCC-WIDTH-FORMAL-MISSING",
-    "each kept BufferCC child must bind the symbolic pointer width",
+    "each kept BufferCC child must bind the symbolic pointer width through the canonical mergeable schema",
 )
 if stream.count("crossClockMaxDelay(1, useTargetClock = false)") < 1:
     fail(
@@ -419,6 +525,18 @@ require(
     "BUFFERCC-INIT-EVALUATION-MISSING",
     "each retained BufferCC stage must evaluate its by-name initializer exactly once",
 )
+require(
+    r"class\s+PhaseBufferCCBB\s+extends\s+PhaseNetlist.*?val\s+width\s*=\s*widthOfExpr\s*\(\s*c\.io\.dataIn\s*\).*?if\s*\(\s*!width\.isConcrete\s*\).*?SPINAL-BUFFER-CC-BLACKBOX-TYPED-WIDTH-UNSUPPORTED.*?c\.io\.dataIn\.getBitsWidth",
+    crossclock,
+    "BUFFERCC-BLACKBOX-TYPED-WIDTH-GUARD-MISSING",
+    "the Int-only BufferCC blackbox phase must fail closed before freezing a retained width",
+)
+require(
+    r"object\s+SpinalVerilogBoot\s*\{.*?catch\s*\{.*?case\s+e:\s*ParameterizedVerilogException\s*=>\s*throw\s+e.*?case\s+e:\s*Throwable",
+    phase,
+    "PARAMETERIZED-DIAGNOSTIC-RETRY-BYPASS-MISSING",
+    "SpinalVerilog must preserve deterministic typed diagnostics instead of masking them through its Scala-trace retry",
+)
 
 # The memory extension is limited to an authenticated native crossing with its
 # established independent-address/dontCare collision policy.
@@ -474,6 +592,94 @@ require(
     tests,
     "BUFFERCC-INIT-COVERAGE-MISSING",
     "focused proof must retain the typed BufferCC by-name initializer contract",
+)
+phase_buffer_test_match = re.search(
+    r"test\s*\(\s*\"BufferCC blackbox phase rejects retained width before witness freezing\"\s*\)(?P<body>.*?)(?=\n\s*test\s*\()",
+    tests,
+    re.MULTILINE | re.DOTALL,
+)
+if phase_buffer_test_match is None:
+    fail(
+        "BUFFERCC-BLACKBOX-TYPED-WIDTH-COVERAGE-MISSING",
+        "the retained-width BufferCC blackbox regression must remain inspectable",
+    )
+phase_buffer_test = phase_buffer_test_match.group("body")
+require(
+    r"typedCode\s*=.*?SPINAL-BUFFER-CC-BLACKBOX-TYPED-WIDTH-UNSUPPORTED.*?MorphVerilog\.tryGenerate.*?morphFailure\.cause\.collect.*?ParameterizedVerilogException.*?morphCause\.exists\s*\(\s*_\.code\s*==\s*typedCode\s*\)",
+    phase_buffer_test,
+    "BUFFERCC-BLACKBOX-MORPH-DIAGNOSTIC-COVERAGE-MISSING",
+    "focused proof must preserve the retained-width diagnostic and typed cause through MorphVerilog",
+)
+require(
+    r"intercept\s*\[\s*ParameterizedVerilogException\s*\].*?rawFailure\.code\s*==\s*typedCode",
+    phase_buffer_test,
+    "BUFFERCC-BLACKBOX-RAW-DIAGNOSTIC-COVERAGE-MISSING",
+    "focused proof must expose the same retained-width code through default raw SpinalVerilog generation",
+)
+require(
+    r"retryPhaseRuns\s*=\s*0.*?IllegalStateException\s*\(\s*\"ordinary retry control\"\s*\).*?retryPhaseRuns\s*==\s*2",
+    phase_buffer_test,
+    "SPINAL-ORDINARY-RETRY-CONTROL-MISSING",
+    "focused proof must show that non-parameterized failures retain the ordinary Scala-trace retry",
+)
+require(
+    r"BufferCCBlackBox.*?\.WIDTH\(4\)",
+    phase_buffer_test,
+    "BUFFERCC-BLACKBOX-CONCRETE-COVERAGE-MISSING",
+    "focused proof must preserve concrete-width BufferCC blackbox replacement",
+)
+reject(
+    r"debugComponents",
+    phase_buffer_test,
+    "BUFFERCC-BLACKBOX-DEBUG-WORKAROUND",
+    "the retained-width regression must exercise default retry-enabled generation",
+)
+require(
+    r"test\s*\(\s*\"aggregate FIFOs sharing clocks retain independent legal owners and reset buffers\"\s*\).*?DEPTH_A.*?DEPTH_B.*?finalPopCd\.reset\.getComponent\(\)\s+eq\s+top\.fifoA.*?finalPopCd\.reset\.getComponent\(\)\s+eq\s+top\.fifoB.*?resetA\.parent\s+eq\s+top\.fifoA.*?resetB\.parent\s+eq\s+top\.fifoB",
+    tests,
+    "MULTI-FIFO-OWNER-COVERAGE-MISSING",
+    "focused proof must retain two unequal typed FIFO domains with independently owned buffered resets",
+)
+aggregate_test_match = re.search(
+    r"test\s*\(\s*\"aggregate FIFOs sharing clocks retain independent legal owners and reset buffers\"\s*\)(?P<body>.*?)(?=\n\s*test\s*\()",
+    tests,
+    re.MULTILINE | re.DOTALL,
+)
+if aggregate_test_match is None:
+    fail(
+        "BUFFERCC-CANONICAL-WIDTH-COVERAGE-MISSING",
+        "the aggregate multi-FIFO regression must remain inspectable",
+    )
+aggregate_test = aggregate_test_match.group("body")
+if len(re.findall(r"default\s*=\s*BigInt\s*\(\s*4\s*\)", aggregate_test)) != 2:
+    fail(
+        "BUFFERCC-CANONICAL-WIDTH-COVERAGE-MISSING",
+        "both unequal-domain FIFOs must share the same default pointer-width witness",
+    )
+for maximum in (5, 16):
+    require(
+        rf"max\s*=\s*BigInt\s*\(\s*{maximum}\s*\)",
+        aggregate_test,
+        "BUFFERCC-CANONICAL-WIDTH-COVERAGE-MISSING",
+        f"the aggregate regression must retain DEPTH maximum {maximum}",
+    )
+require(
+    r"StreamFifoCCPopToPushBufferCC.*?StreamFifoCCPushToPopBufferCC",
+    aggregate_test,
+    "BUFFERCC-CANONICAL-WIDTH-COVERAGE-MISSING",
+    "the equal-witness regression must observe both canonical merged pointer synchronizers",
+)
+require(
+    r"test\s*\(\s*\"same-topology unnamed FIFO parents canonicalize by legal-depth bucket\"\s*\).*?defaultDepth\s*=\s*BigInt\s*\(\s*8\s*\).*?maximumA\s*=\s*BigInt\s*\(\s*8\s*\).*?maximumB\s*=\s*BigInt\s*\(\s*15\s*\).*?Vector\s*\(\s*\"StreamFifoCC\"\s*\).*?spinal_stream_fifocc_legal_depth_ceiling=8.*?defaultDepth\s*=\s*BigInt\s*\(\s*16\s*\).*?maximumA\s*=\s*BigInt\s*\(\s*16\s*\).*?maximumB\s*=\s*BigInt\s*\(\s*32\s*\).*?Set\s*\(\s*\"StreamFifoCC\"\s*,\s*\"StreamFifoCC_1\"\s*\).*?spinal_stream_fifocc_legal_depth_ceiling=16.*?spinal_stream_fifocc_legal_depth_ceiling=32",
+    tests,
+    "PARENT-FORMAL-CANONICALIZATION-COVERAGE-MISSING",
+    "focused proof must merge equal legal-depth buckets and separate different legal geometries even when their witness traces match",
+)
+require(
+    r"test\s*\(\s*\"typed owner-local reset path preserves native BOOT semantics\"\s*\).*?resetKind\s*=\s*BOOT.*?finalPopCd\.reset\s*==\s*null.*?buffers\.size\s*==\s*2",
+    tests,
+    "BUFFERED-RESET-BOOT-COVERAGE-MISSING",
+    "focused proof must retain the native BOOT reset policy on the uncached generated path",
 )
 reject(
     r"(?:MorphStreamFifoCC|ParameterizedStreamFifoCC)\s*\(|NativeIntShadow\s*[.(]|\.witness\b",
@@ -559,6 +765,26 @@ case "${1:-}" in
       "$temporary/legality.stderr" ||
       fail SELF-TEST-DIAGNOSTIC 'legality mutation did not report its stable diagnostic'
 
+    sed '0,/maximum = typedDepthFormalMaximum(depth)/s//maximum = depth.maximum/' \
+      "$stream_source" > "$temporary/owner-specific-parent-domain.scala"
+    if MORPHDL_STREAMFIFOCC_STREAM_SOURCE="$temporary/owner-specific-parent-domain.scala" \
+      "$0" --check >"$temporary/parent-domain.stdout" 2>"$temporary/parent-domain.stderr"; then
+      fail SELF-TEST-ACCEPTED 'owner-specific typed FIFO parent formal domain passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-DEPTH-FORMAL-CANONICAL-DOMAIN-MISSING' \
+      "$temporary/parent-domain.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'typed FIFO parent-domain mutation did not report its stable diagnostic'
+
+    sed '0,/spinal_stream_fifocc_legal_depth_ceiling/s//spinal_stream_fifocc_legal_depth_marker_disabled/' \
+      "$stream_source" > "$temporary/missing-legal-geometry-identity.scala"
+    if MORPHDL_STREAMFIFOCC_STREAM_SOURCE="$temporary/missing-legal-geometry-identity.scala" \
+      "$0" --check >"$temporary/geometry.stdout" 2>"$temporary/geometry.stderr"; then
+      fail SELF-TEST-ACCEPTED 'missing typed FIFO legal-geometry identity passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-DEPTH-FORMAL-GEOMETRY-IDENTITY-MISSING' \
+      "$temporary/geometry.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'typed FIFO geometry-identity mutation did not report its stable diagnostic'
+
     sed '0,/result := fromGray(value)/s//result := value.asUInt |>> 1/' \
       "$stream_source" > "$temporary/local-gray-codec.scala"
     if MORPHDL_STREAMFIFOCC_STREAM_SOURCE="$temporary/local-gray-codec.scala" \
@@ -568,6 +794,76 @@ case "${1:-}" in
     grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-LOCAL-GRAY-CODEC' \
       "$temporary/codec.stderr" ||
       fail SELF-TEST-DIAGNOSTIC 'local Gray codec mutation did not report its stable diagnostic'
+
+    sed '0,/^    pushToPopGray := pushCC\.pushPtrGray/s//    pushToPopGray := pushCC.pushPtrGray\n    pushToPopGray := pushCC.pushPtrGray/' \
+      "$stream_source" > "$temporary/copied-fifo-algorithm.scala"
+    if MORPHDL_STREAMFIFOCC_STREAM_SOURCE="$temporary/copied-fifo-algorithm.scala" \
+      "$0" --check >"$temporary/copied.stdout" 2>"$temporary/copied.stderr"; then
+      fail SELF-TEST-ACCEPTED 'copied FIFO algorithm mutation passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-NATIVE-ALGORITHM-DUPLICATED' \
+      "$temporary/copied.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'copied FIFO algorithm mutation did not report its stable diagnostic'
+
+    sed '0,/withOptionalBufferedResetFromUncached/s//withOptionalBufferedResetFrom/' \
+      "$stream_source" > "$temporary/cached-generated-reset.scala"
+    if MORPHDL_STREAMFIFOCC_STREAM_SOURCE="$temporary/cached-generated-reset.scala" \
+      "$0" --check >"$temporary/reset.stdout" 2>"$temporary/reset.stderr"; then
+      fail SELF-TEST-ACCEPTED 'generated reset-cache mutation passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-BUFFERED-RESET-OWNER-MISSING' \
+      "$temporary/reset.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'generated reset-cache mutation did not report its stable diagnostic'
+
+    sed '0,/noMerge = false/s//noMerge = true/' \
+      "$stream_source" > "$temporary/nonmergeable-buffercc.scala"
+    if MORPHDL_STREAMFIFOCC_STREAM_SOURCE="$temporary/nonmergeable-buffercc.scala" \
+      "$0" --check >"$temporary/merge.stdout" 2>"$temporary/merge.stderr"; then
+      fail SELF-TEST-ACCEPTED 'nonmergeable typed BufferCC definition mutation passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-BUFFERCC-MULTI-INSTANCE-DEFINITION-POLICY-MISSING' \
+      "$temporary/merge.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'typed BufferCC definition mutation did not report its stable diagnostic'
+
+    sed '0,/maximum = StreamFifoCC\.TypedPointerWidthMaximum/s//maximum = elabPtrWidth.maximum/' \
+      "$stream_source" > "$temporary/owner-derived-buffercc-domain.scala"
+    if MORPHDL_STREAMFIFOCC_STREAM_SOURCE="$temporary/owner-derived-buffercc-domain.scala" \
+      "$0" --check >"$temporary/domain.stdout" 2>"$temporary/domain.stderr"; then
+      fail SELF-TEST-ACCEPTED 'owner-derived typed BufferCC formal domain passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-BUFFERCC-WIDTH-FORMAL-MISSING' \
+      "$temporary/domain.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'typed BufferCC formal-domain mutation did not report its stable diagnostic'
+
+    sed '0,/allowMixedWidth = false/s//allowMixedWidth = true/' \
+      "$stream_source" > "$temporary/mixed-width-aggregate-write.scala"
+    if MORPHDL_STREAMFIFOCC_STREAM_SOURCE="$temporary/mixed-width-aggregate-write.scala" \
+      "$0" --check >"$temporary/write.stdout" 2>"$temporary/write.stderr"; then
+      fail SELF-TEST-ACCEPTED 'mixed-width aggregate memory mutation passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-AGGREGATE-WRITE-CARRIER-MISSING' \
+      "$temporary/write.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'aggregate memory mutation did not report its stable diagnostic'
+
+    sed '0,/if (!width\.isConcrete)/s//if (false)/' \
+      "$crossclock_source" > "$temporary/witness-width-blackbox.scala"
+    if MORPHDL_STREAMFIFOCC_CROSSCLOCK_SOURCE="$temporary/witness-width-blackbox.scala" \
+      "$0" --check >"$temporary/blackbox.stdout" 2>"$temporary/blackbox.stderr"; then
+      fail SELF-TEST-ACCEPTED 'witness-width BufferCC blackbox mutation passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-BUFFERCC-BLACKBOX-TYPED-WIDTH-GUARD-MISSING' \
+      "$temporary/blackbox.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'BufferCC blackbox mutation did not report its stable diagnostic'
+
+    sed '0,/case e: ParameterizedVerilogException/s//case e: RuntimeException/' \
+      "$phase_source" > "$temporary/retried-parameterized-diagnostic.scala"
+    if MORPHDL_STREAMFIFOCC_PHASE_SOURCE="$temporary/retried-parameterized-diagnostic.scala" \
+      "$0" --check >"$temporary/retry-bypass.stdout" 2>"$temporary/retry-bypass.stderr"; then
+      fail SELF-TEST-ACCEPTED 'parameterized diagnostic retry mutation passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-PARAMETERIZED-DIAGNOSTIC-RETRY-BYPASS-MISSING' \
+      "$temporary/retry-bypass.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'parameterized diagnostic retry mutation did not report its stable diagnostic'
 
     sed '0,/io\.push\.ready := False/s//io.push.ready := True/' \
       "$stream_source" > "$temporary/unsafe-invalid-depth.scala"

@@ -51,7 +51,8 @@ jobs:
             fi
           elif [[ "$EVENT_NAME" == push && "$REF_NAME" == agent/increment-57a-* ]]; then
             git fetch --no-tags origin parameterized-verilog
-            base="$(git merge-base HEAD origin/parameterized-verilog)"
+            base="$(git rev-parse origin/parameterized-verilog)"
+            git merge-base --is-ancestor "$base" HEAD
             run=true
           elif [[ "$EVENT_NAME" == push && "$REF_NAME" == parameterized-verilog ]]; then
             if [[ ! "$BEFORE" =~ ^[0-9a-f]{40}$ || "$BEFORE" == 0000000000000000000000000000000000000000 ]]; then
@@ -157,7 +158,7 @@ jobs:
             test -e "$path"
           done < "$scope"
           test "$(grep -Ec '^- \[( |x)\] \*\*Increment 57a — Typed native StreamFifoCC depth and CDC proof\*\*$' "$todo")" = 1
-          grep -Fqx '**Dependencies:** Increment 57a implemented and merged.' "$todo"
+          grep -Fqx '  **Dependencies:** Increment 57a implemented and merged.' "$todo"
 
           base="$BASE_COMMIT"
           test -n "$base"
@@ -570,7 +571,7 @@ jobs:
 
   closure:
     name: Increment 57a canonical closure
-    if: always() && needs.route.outputs.run == 'true'
+    if: always() && (needs.route.result != 'success' || needs.route.outputs.run == 'true')
     needs:
       - route
       - source-contract
@@ -584,6 +585,7 @@ jobs:
     steps:
       - name: Require every canonical gate
         env:
+          ROUTE: ${{ needs.route.result }}
           SOURCE: ${{ needs.source-contract.result }}
           FOCUSED: ${{ needs.focused-streamfifocc.result }}
           COMPATIBILITY: ${{ needs.compatibility.result }}
@@ -592,6 +594,7 @@ jobs:
           V2001_FORMAL: ${{ needs.v2001-and-formal.result }}
           DETERMINISM: ${{ needs.determinism.result }}
         run: |
+          test "$ROUTE" = success
           test "$SOURCE" = success
           test "$FOCUSED" = success
           test "$COMPATIBILITY" = success

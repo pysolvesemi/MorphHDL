@@ -1415,6 +1415,18 @@ case class WhenBuilder() {
 }
 
 class ClockDomainPimped(cd : ClockDomain) {
+  /** Build the same reset topology as [[withBufferedResetFrom]] without using
+    * the global cache. Generated structural owners use this path so a
+    * reset synchronizer can never be reused across sibling generate scopes.
+    */
+  private[lib] def withBufferedResetFromUncached(resetCd : ClockDomain, bufferDepth : Option[Int] = None) : ClockDomain = {
+    if(resetCd.config.resetKind == BOOT){
+      if(cd.config.resetKind == BOOT) { return cd }
+      return cd.copy(reset = null, softReset = null, config = cd.config.copy(resetKind = BOOT))
+    }
+    return ResetCtrl.asyncAssertSyncDeassertCreateCd(resetCd, cd, bufferDepth)
+  }
+
   def withBufferedResetFrom(resetCd : ClockDomain, bufferDepth : Option[Int] = None) : ClockDomain = {
     val key = Tuple3(cd, resetCd,  bufferDepth)
     if(resetCd.config.resetKind == BOOT){
@@ -1426,6 +1438,10 @@ class ClockDomainPimped(cd : ClockDomain) {
 
   def withOptionalBufferedResetFrom(cond : Boolean)(resetCd : ClockDomain, bufferDepth : Option[Int] = None) : ClockDomain = {
     if(cond) this.withBufferedResetFrom(resetCd, bufferDepth) else cd
+  }
+
+  private[lib] def withOptionalBufferedResetFromUncached(cond : Boolean)(resetCd : ClockDomain, bufferDepth : Option[Int] = None) : ClockDomain = {
+    if(cond) this.withBufferedResetFromUncached(resetCd, bufferDepth) else cd
   }
 }
 

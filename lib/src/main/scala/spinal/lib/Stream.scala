@@ -2906,6 +2906,29 @@ class StreamFifoLowLatency[T <: Data](val dataType: HardType[T],val depth: Int,v
 }
 
 object StreamFifoCC{
+  // Every mergeable pointer BufferCC definition must expose the same formal
+  // schema. Call-site domains remain on the actual WIDTH binding; deriving the
+  // child formal's bounds from one FIFO makes otherwise identical native
+  // synchronizers incompatible when their defaults match but ranges differ.
+  private val TypedPointerWidthMinimum = BigInt(2)
+  // The largest legal power-of-two Int depth is 2^30, whose wrapped FIFO
+  // pointer needs 31 bits.  log2Up(Int.MaxValue) expresses that exact ceiling.
+  private val TypedPointerWidthMaximum = BigInt(log2Up(Int.MaxValue))
+
+  /** Canonicalize only the invalid tail above the caller's highest legal
+    * power-of-two depth.  All callers in one bucket therefore expose the same
+    * formal schema without admitting another legal FIFO geometry.  The final
+    * cap is the largest [2, max] formal that exact-domain publication can
+    * represent; larger actuals retain the existing fail-closed rejection.
+    */
+  private def typedDepthFormalMaximum(depth: ElabInt): BigInt = {
+    val maximum = depth.maximum
+    if (maximum == 2) maximum
+    else
+      ((BigInt(1) << maximum.bitLength) - 1)
+        .min(ElaborationExactDomain.MaximumDomainSize + 1)
+  }
+
   private def validateTypedDepth(depth: ElabInt, role: String): ElabBool = {
     if (depth == null)
       throw new IllegalArgumentException(s"$role requires a non-null ElabInt depth")
@@ -2968,12 +2991,12 @@ object StreamFifoCC{
         popClock,
         withPopBufferedReset
       )
-    else
+    else {
       ElabFormalComponent.parameter(
         actual = depth,
         name = "DEPTH",
         minimum = BigInt(2),
-        maximum = depth.maximum
+        maximum = typedDepthFormalMaximum(depth)
       )(formal =>
         new StreamFifoCC(
           dataType,
@@ -2983,6 +3006,7 @@ object StreamFifoCC{
           withPopBufferedReset
         )
       )
+    }
   }
 
   def apply[T <: Data](push : Stream[T], pop : Stream[T], depth: Int, pushClock: ClockDomain, popClock: ClockDomain): StreamFifoCC[T] = {
@@ -3195,8 +3219,8 @@ class StreamFifoCC[T <: Data] private[lib] (
       val child = ElabFormalComponent.parameter(
         actual = elabPtrWidth,
         name = "WIDTH",
-        minimum = elabPtrWidth.minimum,
-        maximum = elabPtrWidth.maximum
+        minimum = StreamFifoCC.TypedPointerWidthMinimum,
+        maximum = StreamFifoCC.TypedPointerWidthMaximum
       )(formal =>
         new BufferCC(
           Bits(formal bits),
@@ -3205,7 +3229,7 @@ class StreamFifoCC[T <: Data] private[lib] (
           randBoot = false,
           inputAttributes = attributes,
           allBufAttributes = List()
-        ).setDefinitionName(definitionName)
+        ).setDefinitionName(definitionName, noMerge = false)
       )
       child.setCompositeName(input, "buffercc", true)
       // Both child ports must be constrained by carriers owned by this exact
@@ -3253,122 +3277,119 @@ class StreamFifoCC[T <: Data] private[lib] (
   private var formalAlgorithmOwner: ParameterizedStructuralOwner = null
   private var formalInvalidDepthOwner: ParameterizedStructuralOwner = null
 
-  if (elabDepth.isConcrete) {
-    // Keep the native Int specialization on its historical elaboration path.
-    // This is deliberately a plain Scala branch rather than an Area/generate:
-    // its construction order and inline expressions are part of the emitted
-    // SpinalVerilog compatibility contract.
-    val ram = Mem(dataType, depth)
+  /** Plain Scala references to the one native FIFO body. This carrier is not
+    * an Area and therefore introduces no hardware hierarchy of its own.
+    */
+  private final class BuiltAlgorithm(
+      val ram: Mem[T],
+      val popToPushGray: Bits,
+      val pushToPopGray: Bits,
+      val finalPopCd: ClockDomain,
+      val pushCC: PushCCArea,
+      val popCC: PopCCArea
+  )
 
-    val popToPushGray = Bits(ptrWidth bits)
-    val pushToPopGray = Bits(ptrWidth bits)
+  /** Elaborate the authoritative native StreamFifoCC algorithm exactly once.
+    * Only individual geometry-producing expressions select a concrete or
+    * retained-width spelling; RAM, Gray crossings, arbitration and reset
+    * topology are shared by both entry lanes.
+    */
+  private def buildNativeAlgorithm(): BuiltAlgorithm = {
+    val ram =
+      if (elabDepth.isConcrete) Mem(dataType, depth)
+      else Mem(dataType, elabDepth)
+
+    val popToPushGray =
+      if (elabDepth.isConcrete) Bits(ptrWidth bits)
+      else Bits(elabPtrWidth bits)
+    val pushToPopGray =
+      if (elabDepth.isConcrete) Bits(ptrWidth bits)
+      else Bits(elabPtrWidth bits)
+
+    if (!elabDepth.isConcrete) {
+      // The native emitter trace omits retained formal metadata. This
+      // nonfunctional declaration attribute keeps different legal buckets from
+      // merging when their default-width RTL happens to be textually equal.
+      // Inside depthIsLegal, maximum is the exact projected legal ceiling.
+      popToPushGray.addAttribute(
+        "spinal_stream_fifocc_legal_depth_ceiling",
+        elabDepth.maximum.toInt
+      )
+    }
 
     val pushCC = new ClockingArea(pushClock) with PushCCMembers {
-      val pushPtr     = Reg(UInt(log2Up(2*depth) bits)) init(0)
-      val pushPtrPlus = pushPtr + 1
-      val pushPtrGray = RegNextWhen(toGray(pushPtrPlus), io.push.fire) init(0)
-      val popPtrGray  = BufferCC(popToPushGray, B(0, ptrWidth bits), inputAttributes = List(crossClockMaxDelay(1, useTargetClock = false)))
-      val full        = isFull(pushPtrGray, popPtrGray)
-
-      io.push.ready := !full
-
-      when(io.push.fire) {
-        ram(pushPtr.resized) := io.push.payload
-        pushPtr := pushPtrPlus
-      }
-
-      io.pushOccupancy := (pushPtr - fromGray(popPtrGray)).resized
-    }
-
-    val finalPopCd = popClock.withOptionalBufferedResetFrom(withPopBufferedReset)(pushClock)
-    val popCC = new ClockingArea(finalPopCd) with PopCCMembers {
-      val popPtr      = Reg(UInt(log2Up(2*depth) bits)) init(0)
-      val popPtrPlus  = KeepAttribute(popPtr + 1)
-      val popPtrGray  = toGray(popPtr)
-      val pushPtrGray = BufferCC(pushToPopGray, B(0, ptrWidth bit), inputAttributes = List(crossClockMaxDelay(1, useTargetClock = false)))
-      val addressGen = Stream(UInt(log2Up(depth) bits))
-      val empty = isEmpty(popPtrGray, pushPtrGray)
-      addressGen.valid := !empty
-      addressGen.payload := popPtr.resized
-
-      when(addressGen.fire){
-        popPtr := popPtrPlus
-      }
-
-      val readArbitration = addressGen.m2sPipe()
-      val readPort = ram.readSyncPort(clockCrossing = true)
-      readPort.cmd := addressGen.toFlowFire
-      io.pop << readArbitration.translateWith(readPort.rsp)
-
-      val ptrToPush = RegNextWhen(popPtrGray, readArbitration.fire) init(0)
-      val ptrToOccupancy = RegNextWhen(popPtr, readArbitration.fire) init(0)
-      io.popOccupancy := (fromGray(pushPtrGray) - ptrToOccupancy).resized
-    }
-
-    // Local values inside a Scala branch do not receive the IDSL plugin's
-    // member-name inference. Strong root names recover the exact historical
-    // hierarchy; all nested names remain native and derive from these roots.
-    ram.setName("ram")
-    popToPushGray.setName("popToPushGray")
-    pushToPopGray.setName("pushToPopGray")
-    pushCC.setName("pushCC")
-    popCC.setName("popCC")
-
-    pushToPopGray := pushCC.pushPtrGray
-    popToPushGray := popCC.ptrToPush
-
-    ramBacking = ram
-    popToPushGrayBacking = popToPushGray
-    pushToPopGrayBacking = pushToPopGray
-    finalPopCdBacking = finalPopCd
-    pushCCBacking = pushCC
-    popCCBacking = popCC
-  } else {
-    val popToPushGray = Bits(elabPtrWidth bits)
-    val pushToPopGray = Bits(elabPtrWidth bits)
-    val finalPopCd = popClock.withOptionalBufferedResetFrom(withPopBufferedReset)(pushClock)
-
-    val algorithm = depthIsLegal generate new Area {
-      if (ParameterizedStructure.captureEnabled)
-        formalAlgorithmOwner = ParameterizedStructure.currentOwner(
-          elabDepth,
-          "StreamFifoCC legal-depth algorithm owner"
-        )
-      val ram = Mem(dataType, elabDepth)
-
-      val pushCC = new ClockingArea(pushClock) with PushCCMembers {
-        val pushPtr = Reg(UInt(elabPtrWidth bits)) init(0)
+      val pushPtr =
+        if (elabDepth.isConcrete) Reg(UInt(log2Up(2 * depth) bits)) init (0)
+        else Reg(UInt(elabPtrWidth bits)) init (0)
+      val pushPtrPlus = if (elabDepth.isConcrete) {
+        pushPtr + 1
+      } else {
         val one = ElabValue.uintLike(
           ElabInt.literal(1),
           pushPtr,
           "stream_fifocc_push_pointer_one"
         )
-        val pushPtrPlus = retainPointerWidth(pushPtr, pushPtr + one)
-        val pushPtrGrayNext = retainedToGray(
-          pushPtrPlus,
-          "stream_fifocc_push_gray"
-        )
-        val pushPtrGray = retainedRegNextWhen(
+        retainPointerWidth(pushPtr, pushPtr + one)
+      }
+      val pushPtrGrayNext =
+        if (elabDepth.isConcrete) null
+        else retainedToGray(pushPtrPlus, "stream_fifocc_push_gray")
+      val pushPtrGray = if (elabDepth.isConcrete) {
+        RegNextWhen(toGray(pushPtrPlus), io.push.fire) init (0)
+      } else {
+        retainedRegNextWhen(
           pushPtrGrayNext,
           io.push.fire,
           pointerZeroBits
         )
-        val popPtrGray = retainedBufferCC(
+      }
+      val popPtrGray = if (elabDepth.isConcrete) {
+        BufferCC(
           popToPushGray,
-          "StreamFifoCCPopToPushBufferCC"
+          B(0, ptrWidth bits),
+          inputAttributes = List(
+            crossClockMaxDelay(1, useTargetClock = false)
+          )
         )
-        val full = isFull(pushPtrGray, popPtrGray)
+      } else {
+        retainedBufferCC(popToPushGray, "StreamFifoCCPopToPushBufferCC")
+      }
+      val full = isFull(pushPtrGray, popPtrGray)
+      val writeData =
+        if (elabDepth.isConcrete) null
+        else
+          Bits(widthOfExpr(io.push.payload) bits)
+            .setName("stream_fifocc_write_data", weak = true)
+            .dontSimplifyIt()
 
-        io.push.ready := !full
+      if (!elabDepth.isConcrete) writeData := io.push.payload.asBits
 
-        when(io.push.fire) {
+      io.push.ready := !full
+
+      when(io.push.fire) {
+        if (elabDepth.isConcrete) {
+          ram(pushPtr.resized) := io.push.payload
+        } else {
           val writeAddress = UInt(elabDepth.addressWidth bits)
             .setName("stream_fifocc_write_address", weak = true)
           writeAddress := pushPtr.resized
-          ram(writeAddress) := io.push.payload
-          pushPtr := pushPtrPlus
+          // Native Mem flattens aggregate writes through an unnamed Cat AST.
+          // The area-scoped packed carrier gives that same value one stable
+          // identity without changing the native conditional write enable.
+          ram.writeImpl(
+            writeAddress,
+            writeData,
+            enable = null,
+            mask = null,
+            allowMixedWidth = false
+          )
         }
+        pushPtr := pushPtrPlus
+      }
 
+      if (elabDepth.isConcrete) {
+        io.pushOccupancy := (pushPtr - fromGray(popPtrGray)).resized
+      } else {
         io.pushOccupancy := retainPointerWidth(
           pushPtr,
           pushPtr - retainedFromGray(
@@ -3377,60 +3398,144 @@ class StreamFifoCC[T <: Data] private[lib] (
           )
         ).resized
       }
+    }
 
-      val popCC = new ClockingArea(finalPopCd) with PopCCMembers {
-        val popPtr = Reg(UInt(elabPtrWidth bits)) init(0)
+    // Construct the optional reset synchronizer alongside its sole consumers.
+    // The concrete lane retains the historical cache path byte-for-byte. A
+    // generated lane must use an owner-local instance because a cached child
+    // cannot legally be shared by sibling generate scopes.
+    val finalPopCd = if (elabDepth.isConcrete) {
+      popClock.withOptionalBufferedResetFrom(withPopBufferedReset)(pushClock)
+    } else {
+      popClock.withOptionalBufferedResetFromUncached(withPopBufferedReset)(
+        pushClock
+      )
+    }
+    val popCC = new ClockingArea(finalPopCd) with PopCCMembers {
+      val popPtr =
+        if (elabDepth.isConcrete) Reg(UInt(log2Up(2 * depth) bits)) init (0)
+        else Reg(UInt(elabPtrWidth bits)) init (0)
+      val popPtrPlus = if (elabDepth.isConcrete) {
+        KeepAttribute(popPtr + 1)
+      } else {
         val one = ElabValue.uintLike(
           ElabInt.literal(1),
           popPtr,
           "stream_fifocc_pop_pointer_one"
         )
-        val popPtrPlus = retainPointerWidth(popPtr, popPtr + one)
-        KeepAttribute(popPtrPlus)
-        val popPtrGray = retainedToGray(
-          popPtr,
-          "stream_fifocc_pop_gray"
-        )
-        val pushPtrGray = retainedBufferCC(
+        val next = retainPointerWidth(popPtr, popPtr + one)
+        KeepAttribute(next)
+        next
+      }
+      val popPtrGray =
+        if (elabDepth.isConcrete) toGray(popPtr)
+        else retainedToGray(popPtr, "stream_fifocc_pop_gray")
+      val pushPtrGray = if (elabDepth.isConcrete) {
+        BufferCC(
           pushToPopGray,
-          "StreamFifoCCPushToPopBufferCC"
+          B(0, ptrWidth bit),
+          inputAttributes = List(
+            crossClockMaxDelay(1, useTargetClock = false)
+          )
         )
-        val addressGen = Stream(UInt(elabDepth.addressWidth bits))
-        val empty = isEmpty(popPtrGray, pushPtrGray)
-        addressGen.valid := !empty
-        addressGen.payload := popPtr.resized
+      } else {
+        retainedBufferCC(pushToPopGray, "StreamFifoCCPushToPopBufferCC")
+      }
+      val addressGen =
+        if (elabDepth.isConcrete) Stream(UInt(log2Up(depth) bits))
+        else Stream(UInt(elabDepth.addressWidth bits))
+      val empty = isEmpty(popPtrGray, pushPtrGray)
+      addressGen.valid := !empty
+      addressGen.payload := popPtr.resized
 
-        when(addressGen.fire){
-          popPtr := popPtrPlus
-        }
+      when(addressGen.fire) {
+        popPtr := popPtrPlus
+      }
 
-        val readArbitration = addressGen.m2sPipe()
-        val readPort = ram.readSyncPort(clockCrossing = true)
-        readPort.cmd := addressGen.toFlowFire
-        io.pop << readArbitration.translateWith(readPort.rsp)
+      val readArbitration = addressGen.m2sPipe()
+      val readPort = ram.readSyncPort(clockCrossing = true)
+      readPort.cmd := addressGen.toFlowFire
+      io.pop << readArbitration.translateWith(readPort.rsp)
 
-        val ptrToPush = retainedRegNextWhen(
+      val ptrToPush = if (elabDepth.isConcrete) {
+        RegNextWhen(popPtrGray, readArbitration.fire) init (0)
+      } else {
+        retainedRegNextWhen(
           popPtrGray,
           readArbitration.fire,
           pointerZeroBits
         )
-        val ptrToOccupancy = retainedRegNextWhen(
+      }
+      val ptrToOccupancy = if (elabDepth.isConcrete) {
+        RegNextWhen(popPtr, readArbitration.fire) init (0)
+      } else {
+        retainedRegNextWhen(
           popPtr,
           readArbitration.fire,
           pointerZeroUInt
         )
-        val decodedPushPtr = retainedFromGray(
-          pushPtrGray,
-          "stream_fifocc_pop_occupancy_gray"
-        )
+      }
+      val decodedPushPtr =
+        if (elabDepth.isConcrete) null
+        else
+          retainedFromGray(
+            pushPtrGray,
+            "stream_fifocc_pop_occupancy_gray"
+          )
+      if (elabDepth.isConcrete) {
+        io.popOccupancy := (fromGray(pushPtrGray) - ptrToOccupancy).resized
+      } else {
         io.popOccupancy := retainPointerWidth(
           ptrToOccupancy,
           decodedPushPtr - ptrToOccupancy
         ).resized
       }
+    }
 
-      pushToPopGray := pushCC.pushPtrGray
-      popToPushGray := popCC.ptrToPush
+    pushToPopGray := pushCC.pushPtrGray
+    popToPushGray := popCC.ptrToPush
+
+    new BuiltAlgorithm(
+      ram,
+      popToPushGray,
+      pushToPopGray,
+      finalPopCd,
+      pushCC,
+      popCC
+    )
+  }
+
+  if (elabDepth.isConcrete) {
+    // Invoke the one body directly so the Int lane keeps its historical root
+    // hierarchy. Method locals need explicit roots because they do not receive
+    // member-name inference from the enclosing Component.
+    val built = buildNativeAlgorithm()
+    built.ram.setName("ram")
+    built.popToPushGray.setName("popToPushGray")
+    built.pushToPopGray.setName("pushToPopGray")
+    built.pushCC.setName("pushCC")
+    built.popCC.setName("popCC")
+
+    ramBacking = built.ram
+    popToPushGrayBacking = built.popToPushGray
+    pushToPopGrayBacking = built.pushToPopGray
+    finalPopCdBacking = built.finalPopCd
+    pushCCBacking = built.pushCC
+    popCCBacking = built.popCC
+  } else {
+    val algorithm = depthIsLegal generate new Area {
+      if (ParameterizedStructure.captureEnabled)
+        formalAlgorithmOwner = ParameterizedStructure.currentOwner(
+          elabDepth,
+          "StreamFifoCC legal-depth algorithm owner"
+        )
+      val built = buildNativeAlgorithm()
+      val ram = built.ram
+      val popToPushGray = built.popToPushGray
+      val pushToPopGray = built.pushToPopGray
+      val finalPopCd = built.finalPopCd
+      val pushCC = built.pushCC
+      val popCC = built.popCC
     }
 
     // Keep illegal parameter values outside the CDC algorithm. Synthesis and
@@ -3444,19 +3549,21 @@ class StreamFifoCC[T <: Data] private[lib] (
       io.push.ready := False
       io.pushOccupancy := 0
       io.pop.valid := False
-      io.pop.payload := io.pop.payload.getZero
+      io.pop.payload.assignFromBits(
+        B(0).resize(widthOfExpr(io.pop.payload))
+      )
       io.popOccupancy := 0
     }
 
-    popToPushGray.setName("popToPushGray")
-    pushToPopGray.setName("pushToPopGray")
+    algorithm.popToPushGray.setName("popToPushGray")
+    algorithm.pushToPopGray.setName("pushToPopGray")
     algorithm.setName("algorithm")
     if (invalidDepth != null) invalidDepth.setName("invalidDepth")
 
     ramBacking = algorithm.ram
-    popToPushGrayBacking = popToPushGray
-    pushToPopGrayBacking = pushToPopGray
-    finalPopCdBacking = finalPopCd
+    popToPushGrayBacking = algorithm.popToPushGray
+    pushToPopGrayBacking = algorithm.pushToPopGray
+    finalPopCdBacking = algorithm.finalPopCd
     pushCCBacking = algorithm.pushCC
     popCCBacking = algorithm.popCC
   }

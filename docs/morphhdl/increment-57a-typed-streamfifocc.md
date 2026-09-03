@@ -70,6 +70,16 @@ constrain or select legal power-of-two specializations, while negative tests
 prove that invalid defaults and unauthenticated domains are rejected before
 emission.
 
+Definition-side `DEPTH` bounds may canonicalize only the invalid tail below
+the next power of two; the caller's actual binding retains its exact authored
+domain, and the canonical tail introduces no additional legal FIFO depth. A
+nonfunctional declaration attribute records the generated legal branch's
+projected maximum solely as native structural identity. This lets equal legal
+domains share one definition while preventing different legal geometries with
+coincidentally equal witness RTL from being merged under incompatible formal
+schemas. No backend recognizes the attribute name or reconstructs the FIFO
+from it.
+
 ## Symbolic geometry through the native algorithm
 
 For every legal specialization, one exact `DEPTH` expression must control all
@@ -117,6 +127,13 @@ clocks only for that authenticated native crossing and its independent-address,
 `dontCare` collision policy. It must continue to reject an untagged crossing,
 unsupported collision behavior or aliased clock/data/control roles.
 
+Fixed-shape aggregate payloads retain the native packed ordering through one
+named write carrier; this is mechanical identity required by the memory
+publisher, not a second data path. Two typed FIFOs may share the same supplied
+clock-domain objects and use unequal depth domains. Their pointer and reset
+synchronizers must remain owned by their respective generated definitions,
+while structurally identical child definitions remain mergeable.
+
 Reset behavior is not generalized. The default topology continues to derive a
 buffered pop reset from the push clock domain. The alternate topology continues
 to use the supplied pop reset. Verification of separate resets observes the
@@ -130,6 +147,10 @@ Increment 57a does not parameterize or broaden:
 - `StreamFifoLowLatency`, `queueLowLatency` or `queueOfReg`;
 - `StreamCCByToggle`, `FlowCCByToggle` or other CDC protocols;
 - synchronizer depth, CDC metadata, clock domains or reset selection;
+- retained-width lowering through the optional Int-width-only
+  `PhaseBufferCCBB` transform, which fails closed before witness freezing; its
+  deterministic typed diagnostic bypasses SpinalVerilog's Scala-trace retry so
+  a later reconstruction failure cannot mask the original rejection;
 - arbitrary multi-clock memories without the native clock-crossing contract;
 - payload initialization or a different FIFO storage/collision policy; or
 - the analog metastability model of a physical synchronizer.
@@ -152,15 +173,18 @@ Closure requires all of the following on the exact committed revision:
 | Formal equivalence | independently generated concrete native witnesses and specializations of each static reset topology's parameterized definition are sequentially equivalent under shared push/pop clock schedules and reset assumptions; payload is compared only while pop-valid is asserted |
 | Mutation control | a deliberate compared-output mutation produces a genuine solver counterexample; parse failure, missing modules, timeout, `UNKNOWN` or tool error cannot satisfy the control |
 | CDC structure | both native synchronizers, their widths/tags, Gray-only crossings, dual-clock RAM contract and static reset/clock policy remain intact |
+| Multi-instance and payload structure | unequal typed depth domains sharing static clocks own independent reset synchronizers; a fixed-shape aggregate payload preserves native packed memory ordering |
+| Optional blackbox phase | default retry-enabled MorphVerilog and raw SpinalVerilog generation expose the same retained-width diagnostic and typed cause; concrete-width replacement remains available, and ordinary non-typed failures retain Spinal's retry |
 | Tools and determinism | strict Verilog-2001 Icarus/Verilator checks, Yosys synthesis, repeated generation and the inherited full gates pass |
-| Native audit and boundary | every native change is an independently reviewed manifest span, and the Increment 57a boundary self-test rejects its legality, inert-fallback, shared-Gray-authority and CDC-contract mutations |
+| Native audit and boundary | every native change is an independently reviewed manifest span, and the Increment 57a boundary self-test rejects its legality, inert-fallback, shared-Gray-authority, typed-diagnostic retry and CDC-contract mutations |
 
 `NativeStreamFifoCCParameterizedTests` supplies typed ingress, compatibility,
 geometry, invalid-domain and deterministic emission evidence.
 `NativeStreamFifoCCCdcProofTests` supplies directed dual-clock simulation and
 strict synthesis evidence. `NativeStreamFifoCCFormalEquivalenceTests` supplies
 the candidate-versus-independent-concrete proof and live mutation control.
-The permanent workflow enables those suites' tool-backed proof tests with
+The permanent `morphhdl-streamfifocc-proof.yml` workflow enables those suites'
+tool-backed proof tests with
 `MORPHDL_RUN_STREAMFIFOCC_CDC_PROOF=1` and
 `MORPHDL_RUN_STREAMFIFOCC_FORMAL_EQUIVALENCE=1`; it retains their evidence in
 the directories selected by `MORPHDL_STREAMFIFOCC_CDC_WORKSPACE` and

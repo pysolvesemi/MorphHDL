@@ -160,6 +160,13 @@ class PhaseBufferCCBB extends PhaseNetlist{
   override def impl(pc: PhaseContext): Unit = {
     pc.walkComponents {
       case c: BufferCC[Data] => {
+        val width = widthOfExpr(c.io.dataIn)
+        if (!width.isConcrete)
+          throw new ParameterizedVerilogException(
+            "SPINAL-BUFFER-CC-BLACKBOX-TYPED-WIDTH-UNSUPPORTED",
+            "PhaseBufferCCBB cannot replace a retained-width BufferCC with the Int-width BufferCCBlackBox",
+            width.sourceLocation
+          )
         c.buffers.foreach(_.flattenForeach { s =>
           s.removeAssignments()
           s.removeStatement()
