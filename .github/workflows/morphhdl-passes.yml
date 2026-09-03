@@ -109,8 +109,14 @@ jobs:
           python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py --self-test
           python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py
 
+      - name: Enforce WA-03 safety, proof and no-transform contracts
+        shell: bash
+        run: |
+          python3 morphhdl-passes/scripts/check-wa03-gates.py --self-test
+          python3 morphhdl-passes/scripts/check-wa03-gates.py
+
   contracts:
-    name: Pass contracts and canonical adapter Scala ${{ matrix.scala_version }}
+    name: Pass contracts, adapter and safety Scala ${{ matrix.scala_version }}
     needs: boundary
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
@@ -127,7 +133,85 @@ jobs:
       - name: Check out sources
         uses: actions/checkout@v4
 
-      - name: Test standalone pass contracts and canonical-v1 adapter
+      - name: Test standalone pass contracts, canonical adapter and safety gate
         working-directory: morphhdl-passes
         shell: bash
         run: sbt -batch ++${{ matrix.scala_version }} test
+
+  equivalence:
+    name: WA-03 equivalence, mutation and determinism proof
+    needs: contracts
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      SBT_OPTS: -Xms512M -Xmx4G -Xss4M
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify pinned formal toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v iverilog
+          command -v vvp
+          command -v verilator
+          command -v yosys
+          command -v sby
+          command -v yices-smt2
+          yosys_version="$(yosys -V)"
+          sby_help="$(sby -h 2>&1)"
+          yices_version="$(yices-smt2 --version)"
+          iverilog_version="$(iverilog -V 2>&1)"
+          verilator_version="$(verilator --version)"
+          printf '%s\n' \
+            "$yosys_version" \
+            "$yices_version" \
+            "$iverilog_version" \
+            "$verilator_version"
+          grep -Eq '^Yosys 0\.41([ +]|$)' <<<"$yosys_version"
+          grep -q 'usage: sby' <<<"$sby_help"
+          test -n "$yices_version"
+          yosys -Q -p 'help abc' >/tmp/morphhdl-wa03-yosys-abc-help.txt 2>&1
+          grep -q 'ABC' /tmp/morphhdl-wa03-yosys-abc-help.txt
+
+      - name: Exercise proof-harness mutation guards
+        shell: bash
+        run: python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+
+      - name: Generate the common pre-pass parameterized witness
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="${GITHUB_WORKSPACE}/morphhdl-passes/build/formal/wire_assignment_ir/generated"
+          mkdir -p "$output"
+          sbt -batch \
+            '++2.12.18' \
+            'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/ParameterizedStreamFifo.scala")' \
+            "morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoExample ${output}"
+          test -s "${output}/parameterized_stream_fifo.v"
+
+      - name: Prove strict legality, equivalence, mutation sensitivity and determinism
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py \
+            --shared-witness morphhdl-passes/build/formal/wire_assignment_ir/generated/parameterized_stream_fifo.v \
+            --output morphhdl-passes/build/formal/wire_assignment_ir/evidence \
+            --check-determinism
+          git diff --exit-code -- .
+
+      - name: Retain common reference, proof statuses and mutation counterexample
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-wa03-equivalence-evidence
+          path: morphhdl-passes/build/formal/wire_assignment_ir
+          if-no-files-found: error
+          retention-days: 14
