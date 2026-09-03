@@ -27,7 +27,7 @@
     {
       "path": "lib/src/main",
       "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "a94238781c52c6b6b789cbf059e680c762759b6b"
+      "approved_tree": "88be574629c50cda08de5293efdda701d229f64d"
     },
     {
       "path": "scalaplugin/src/main",
@@ -2837,8 +2837,8 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/Stream.scala",
         "mode": "100644",
-        "blob": "1bd0e214da50f4bf61424d35012e616056a1ea36",
-        "sha256": "df4de19ed3d3219f4203ea456f56196e3d2981a4173e7a5f49b238ff9b6dbf38"
+        "blob": "9ba04f6c2f9d7c0a2d0fb489d634440f84d83a26",
+        "sha256": "d6eff35388e9fb37a506ef626ec1c444ea06f3bd50ae9da19fd09733fecf918c"
       },
       "edits": [
         {
@@ -4316,7 +4316,7 @@
           "id": "stream-cc-invalid-depth-01",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifoCC invalid-depth structural branch",
-          "reason": "Keep every illegal depth specialization outside the CDC algorithm and drive a safe inert aggregate-capable interface under its own captured owner.",
+          "reason": "Keep every illegal depth specialization outside the CDC algorithm and drive an event-safe inert aggregate-capable interface under its own captured owner.",
           "baseline_span": {
             "start": 70144,
             "end": 70344,
@@ -4324,8 +4324,8 @@
           },
           "approved_span": {
             "start": 122509,
-            "end": 123131,
-            "sha256": "63367998df3840e252891091bcfe02ed60a1437c9b9c1235543e71c3c1530228"
+            "end": 124221,
+            "sha256": "c7a07730e0346791911399b954c6c2c376c4d08f47b9591c071975fe92b1b388"
           },
           "required_exact_text": [
             {
@@ -4341,6 +4341,11 @@
             {
               "side": "approved",
               "text": "B(0).resize(widthOfExpr(io.pop.payload))",
+              "count": 2
+            },
+            {
+              "side": "approved",
+              "text": "stream_fifocc_invalid_inert",
               "count": 1
             }
           ]
@@ -4356,8 +4361,8 @@
             "sha256": "578b2b652604060bff3dd413109c1fbe6095936bd33270b5a66590590a378af5"
           },
           "approved_span": {
-            "start": 123137,
-            "end": 123591,
+            "start": 124227,
+            "end": 124681,
             "sha256": "7c85762be57725324d2dfefc517a1be43ed32f6d1514785abf56c0a9ee1f3ca7"
           },
           "required_exact_text": [
@@ -4384,8 +4389,8 @@
             "sha256": "97166571867cd49a3de6425e078ab80656ba73a8075ca4d7fa036665f8dc18b6"
           },
           "approved_span": {
-            "start": 123599,
-            "end": 123995,
+            "start": 124689,
+            "end": 125085,
             "sha256": "29edda97a3a854856d881104f7a4c4a657ad9104065e056938e5baf7c37ca21c"
           },
           "required_exact_text": [
@@ -4407,8 +4412,8 @@
             "sha256": "870a0cc5dcd848b061706699ad456ebeedef9c65d61efe1e9c1eabede3988e8d"
           },
           "approved_span": {
-            "start": 123999,
-            "end": 125532,
+            "start": 125089,
+            "end": 126622,
             "sha256": "26152440c277cc2c7c859652d5487643fbf5cca2e28eb686f307ac9f257a7fa7"
           },
           "required_exact_text": [
@@ -4445,8 +4450,8 @@
             "sha256": "d1d895111526866c43e2e18d7dc7e0cf615b98014d0f932a4505798533fd902a"
           },
           "approved_span": {
-            "start": 125545,
-            "end": 126265,
+            "start": 126635,
+            "end": 127355,
             "sha256": "7eece3226868c2871887da143169376071ecc43817ee2da8b1cd27f583c1950c"
           },
           "required_exact_text": [
@@ -4473,8 +4478,8 @@
             "sha256": "b700fe3fa2bd29774c33665bb954df7bf585a6660dfec55739d29973196c1b22"
           },
           "approved_span": {
-            "start": 126271,
-            "end": 131455,
+            "start": 127361,
+            "end": 132545,
             "sha256": "5f6a377db12a1e42bc2ee76dd79175f416551a827d06e89cccee3c929adbd296"
           },
           "required_exact_text": [
@@ -4501,8 +4506,8 @@
             "sha256": "91c8e28d5539fc69385acfbc602aa28b36ae848810f276a294eccde266882d05"
           },
           "approved_span": {
-            "start": 131464,
-            "end": 131464,
+            "start": 132554,
+            "end": 132554,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "required_exact_text": [
@@ -4529,8 +4534,8 @@
             "sha256": "04f21220e6481867f2f3720ae3f7256e5057965db8189ba23b94f1dd34e9bbbe"
           },
           "approved_span": {
-            "start": 136956,
-            "end": 137176,
+            "start": 138046,
+            "end": 138266,
             "sha256": "e09fbe467ec7ebe307c7a50efbd934b4def4a9d043615b92c13eee57501c6f84"
           },
           "required_exact_text": [
@@ -4552,8 +4557,8 @@
             "sha256": "18aca6348140bf7510f0989054d6aaa9d949ee0456bf3937ab0466026687172b"
           },
           "approved_span": {
-            "start": 137459,
-            "end": 137640,
+            "start": 138549,
+            "end": 138730,
             "sha256": "77a3b216b6dc5d7d00a7aef257193ec8dfc2213342e87c930e7a7bf4c9606acf"
           },
           "required_exact_text": [
@@ -4575,8 +4580,8 @@
             "sha256": "41a5050279ff0aa00c3a5492fa469c0e3cc3d9004c27e2c7d974d746125e6999"
           },
           "approved_span": {
-            "start": 138240,
-            "end": 138423,
+            "start": 139330,
+            "end": 139513,
             "sha256": "c67b645fda71352ddaf3fd5f6ee2d628cb014455f4746ca9ff7a1f1e0cf1ca40"
           },
           "required_exact_text": [
@@ -4598,8 +4603,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 138623,
-            "end": 138675,
+            "start": 139713,
+            "end": 139765,
             "sha256": "0283202c7523fbd1cb456a6217125d1f44393639a07ec9ebbfb16826a1fd1aad"
           },
           "required_exact_text": [
