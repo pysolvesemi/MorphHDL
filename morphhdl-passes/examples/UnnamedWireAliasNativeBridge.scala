@@ -194,8 +194,7 @@ private[examples] final class UnnamedWireAliasNativePhase extends Phase {
   ): Boolean =
     !alias.isFrozen() &&
       alias.isEmptyOfTag &&
-      !readPrivateBoolean(alias, "dontSimplify").getOrElse(true) &&
-      assignment.locationString == null
+      !readPrivateBoolean(alias, "dontSimplify").getOrElse(true)
 
   private def allowedUse(
       component: Component,
@@ -526,10 +525,10 @@ private[examples] final case class UnnamedWireAliasNativeReport(
       "  \"schema_version\": 1,",
       "  \"pass_id\": \"wire-alias-unnamed\",",
       "  \"executed_before_name_allocation\": true,",
-      s"  \"visited_candidates\": $visitedCandidates,",
-      s"  \"eliminated_count\": $eliminatedCount,",
-      s"  \"rewritten_reference_count\": $rewrittenReferences,",
-      s"  \"eliminated_ordinals\": [${eliminatedOrdinals.mkString(", ")}],",
+      s"""  "visited_candidates": $visitedCandidates,""",
+      s"""  "eliminated_count": $eliminatedCount,""",
+      s"""  "rewritten_reference_count": $rewrittenReferences,""",
+      s"""  "eliminated_ordinals": [${eliminatedOrdinals.mkString(", ")}],""",
       "  \"rejected_by_reason\": {",
       rejected.mkString(",\n"),
       "  }",
