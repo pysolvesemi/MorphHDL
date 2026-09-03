@@ -216,7 +216,7 @@ final class WireAliasSafetyGateSpec extends AnyFunSuite with Matchers {
     }
 
   private def bound(design: Design): CanonicalIrPassView =
-    CanonicalIrPassAdapter.bind(design) match {
+    CanonicalIrPassAdapter.bindFixture(design) match {
       case Right(value) => value
       case Left(failure) => fail(failure.diagnostics.values.mkString("\n"))
     }

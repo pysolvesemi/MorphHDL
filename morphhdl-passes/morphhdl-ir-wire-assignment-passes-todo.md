@@ -37,6 +37,12 @@ structured Verilog-2001 lowering and emission
 final Verilog text
 ```
 
+PV-58 realizes the read-only publication into this boundary for the bounded
+`SimpleWireAssignmentsV1` profile. Its `CanonicalIrHandoff` carries the
+validator-normalized graph, producer profile and complete facets directly from
+the typed native graph. The pass and writeback arrows in the diagram remain
+the roadmap target: neither pass executes in production until WA-07.
+
 The passes must:
 
 - reuse the canonical MorphHDL-owned IR produced after parameterization;
@@ -195,9 +201,9 @@ MorphHDL-owned orchestration code; pass logic remains under `morphhdl-passes/`.
 - `PV-N` means Increment N in
   `docs/morphhdl/parameterized-verilog-todo.md`. The numbering includes the
   inserted native-memory provenance Increment 45.
-- The canonical-IR adapter gate is PV-54 and the final production-handoff gate
-  is PV-56; these pass-roadmap dependencies are unaffected by parallel work on
-  independent earlier PV increments.
+- The canonical-IR adapter gate is PV-54 and the stable production-publication
+  gate is PV-58; these pass-roadmap dependencies are unaffected by parallel
+  work on independent earlier PV increments.
 - A dependency is satisfied only when its checkbox is `[x]` on
   `parameterized-verilog`; a branch or open pull request does not satisfy it.
 - A request for a `BLOCKED` increment must stop with the exact unsatisfied
@@ -255,7 +261,7 @@ WA-04 or WA-05 can remove an alias.
   the two authorized passes. Added a boundary guard and self-tests that permit
   `morphhdl-passes/**` and `.github/workflows/morphhdl-passes.yml`, reject root
   and upstream-owned changes, and reserve MorphHDL-owned production handoff
-  paths for an eligible WA-07 branch after WA-06 and PV-56 are checked. No RTL
+  paths for an eligible WA-07 branch after WA-06 and PV-58 are checked. No RTL
   transformation is implemented by WA-01.
 
 - [x] **WA-02 — Canonical MorphHDL IR pass adapter and alias contract**
@@ -333,12 +339,14 @@ WA-04 or WA-05 can remove an alias.
 
 - [ ] **WA-07 — Final MorphHDL IR-stage production handoff**
 
-  **Dependencies:** WA-06 and PV-56 implemented and merged.
+  **Dependencies:** WA-06 and PV-58 implemented and merged.
 
-  **Status:** `BLOCKED` by WA-06 and PV-56.
+  **Status:** `BLOCKED` by WA-06 and PV-58.
 
-  Connect the optional pipeline to the final MorphHDL single-source production
-  path after parameterization/capture and before Verilog lowering. Keep pass
+  Consume PV-58's validated `SimpleWireAssignmentsV1` publication and connect
+  the optional pipeline to the MorphHDL single-source production path after
+  parameterization/capture and before Verilog lowering. PV-58 publishes a
+  read-only snapshot; it does not execute or write back either pass. Keep pass
   implementation under `morphhdl-passes/` and add only minimum MorphHDL-owned
   integration/configuration glue. Existing generation remains unchanged unless
   one or both passes are explicitly enabled. Do not add a generated-Verilog

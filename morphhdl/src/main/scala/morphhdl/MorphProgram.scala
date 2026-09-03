@@ -14,11 +14,19 @@ import morphhdl.paramrtl.Design
   * in their binding-aware default flat interface and hierarchy to agree before
   * publishing the symbolic artifact.
   */
+@deprecated(
+  "Dual-factory MorphProgram is a compatibility/mutation oracle; use typed single-source MorphVerilog",
+  "Increment 58"
+)
 final class MorphProgram[T <: Component] private[morphhdl] (
     private[morphhdl] val concreteWitnessFactory: () => T,
     private[morphhdl] val parameterizedDesignFactory: () => Design
 )
 
+@deprecated(
+  "Dual-factory MorphProgram is a compatibility/mutation oracle; use typed single-source MorphVerilog",
+  "Increment 58"
+)
 object MorphProgram {
   def apply[T <: Component](
       concreteWitness: => T,

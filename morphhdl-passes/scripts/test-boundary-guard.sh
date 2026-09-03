@@ -89,7 +89,7 @@ expect_failure \
 wa07_manifest="${tmp_dir}/wa07.txt"
 printf '%s\n' 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala' >"${wa07_manifest}"
 expect_failure \
-  'WA-07 handoff is rejected while WA-06 and PV-56 are unchecked' \
+  'WA-07 handoff is rejected while WA-06 and PV-58 are unchecked' \
   run_checker agent/wa-07-final-handoff "${wa07_manifest}"
 
 tmp_repo="${tmp_dir}/dependency-repo"
@@ -102,25 +102,25 @@ cp "${workflow}" "${tmp_repo}/.github/workflows/morphhdl-passes.yml"
 cat > "${tmp_repo}/morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md" <<'ROADMAP'
 - [x] **WA-06 — Ordered two-pass pipeline and regression closure**
 ROADMAP
-cat > "${tmp_repo}/docs/morphhdl/parameterized-verilog-todo.md" <<'PV55'
-- [x] **Increment 55 — Legacy facade retirement**
-- [ ] **Increment 56 — Native-looking library construction**
-PV55
+cat > "${tmp_repo}/docs/morphhdl/parameterized-verilog-todo.md" <<'PV57A'
+- [x] **Increment 57a — Typed native StreamFifoCC depth and CDC proof**
+- [ ] **Increment 58 — Legacy adapter and shadow-path retirement**
+PV57A
 printf '%s\n' 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala' > "${tmp_repo}/changed.txt"
 expect_failure \
-  'WA-07 handoff is not enabled by PV-55 alone' \
+  'WA-07 handoff is not enabled by PV-57a alone' \
   env \
     MORPHDL_PASSES_REPO_ROOT="${tmp_repo}" \
     MORPHDL_PASSES_HEAD_REF=agent/wa-07-final-handoff \
     MORPHDL_PASSES_CHANGED_FILES_FILE="${tmp_repo}/changed.txt" \
     "${tmp_repo}/morphhdl-passes/scripts/check-boundary.sh"
 
-cat > "${tmp_repo}/docs/morphhdl/parameterized-verilog-todo.md" <<'PV56'
-- [x] **Increment 55 — Legacy facade retirement**
-- [x] **Increment 56 — Native-looking library construction**
-PV56
+cat > "${tmp_repo}/docs/morphhdl/parameterized-verilog-todo.md" <<'PV58'
+- [x] **Increment 57a — Typed native StreamFifoCC depth and CDC proof**
+- [x] **Increment 58 — Legacy adapter and shadow-path retirement**
+PV58
 expect_success \
-  'WA-07 handoff requires and accepts completed PV-56' \
+  'WA-07 handoff requires and accepts completed PV-58' \
   env \
     MORPHDL_PASSES_REPO_ROOT="${tmp_repo}" \
     MORPHDL_PASSES_HEAD_REF=agent/wa-07-final-handoff \

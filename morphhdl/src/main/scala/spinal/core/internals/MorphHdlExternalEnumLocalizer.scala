@@ -181,6 +181,10 @@ object MorphHdlExternalEnumLocalizer {
     "xor"
   )
 
+  @deprecated(
+    "Emitted-text rewriting is a serialization compatibility path, never canonical semantic authority",
+    "Increment 58"
+  )
   def rewrite(pc: PhaseContext): Unit = {
     if (!ParameterizedVerilogMode.isEnabled(pc.config)) return
     if (pc.config.oneFilePerComponent) {
