@@ -44,8 +44,8 @@ The passes must:
   identifiers;
 - preserve symbolic parameter expressions and constraints;
 - be implemented generically over canonical IR semantics and identities,
-  without recognizing a component, library primitive, module name or signal
-  name;
+  without recognizing a component, library primitive, module/class name or
+  signal name;
 - run before final Verilog text emission; and
 - use the existing MorphHDL Verilog backend after transformation.
 
@@ -68,9 +68,9 @@ validated canonical IR identities, kinds, scopes, drivers, references, packed
 types, parameter domains, naming provenance, observability, comments and
 attributes defined by this roadmap. No implementation may recognize
 `StreamFifo`, `StreamFifoCC`, `ParameterizedStreamFifo`, any other component or
-library class, a module or component name, a source filename, or a generated
-HDL identifier to select a code path. `SourceLocation` may be retained and
-reported, but its path must not change eligibility. Renaming an otherwise
+library class, a module/class name or component name, a source filename, or a
+generated HDL identifier to select a code path. `SourceLocation` may be retained
+and reported, but its path must not change eligibility. Renaming an otherwise
 identical fixture from a library component name to an unrelated name must not
 change adapter facts, diagnostics, classification or transformation.
 
