@@ -222,9 +222,17 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
   }
 
   test("formal positive proof uses reachability PDR for the multiclock model") {
+    val prepared =
+      PreparedDuts(Paths.get("candidate.il"), Paths.get("reference.il"))
+    val miter = Paths.get("miter.v")
     val config = positiveSby(
-      PreparedDuts(Paths.get("candidate.il"), Paths.get("reference.il")),
-      Paths.get("miter.v"),
+      prepared,
+      miter,
+      "miter"
+    )
+    val mutationConfig = mutationSby(
+      prepared,
+      miter,
       "miter"
     )
 
@@ -233,6 +241,20 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
     assert("(?m)^abc pdr$".r.findFirstIn(config).nonEmpty, config)
     assert("(?m)^depth\\s+".r.findFirstIn(config).isEmpty, config)
     assert(!config.contains("smtbmc"), config)
+    val undefinedStateNormalization =
+      """memory_map
+        |setundef -undriven -anyseq
+        |setundef -init -zero
+        |opt_clean
+        |check -assert""".stripMargin
+    Vector(config, mutationConfig).foreach { script =>
+      val first = script.indexOf(undefinedStateNormalization)
+      assert(first >= 0, script)
+      assert(
+        script.indexOf(undefinedStateNormalization, first + 1) < 0,
+        script
+      )
+    }
   }
 
   test(
@@ -585,6 +607,7 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
        |prep -top $top
        |memory_map
        |setundef -undriven -anyseq
+       |setundef -init -zero
        |opt_clean
        |check -assert
        |
@@ -618,6 +641,7 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
        |prep -top $top
        |memory_map
        |setundef -undriven -anyseq
+       |setundef -init -zero
        |opt_clean
        |check -assert
        |

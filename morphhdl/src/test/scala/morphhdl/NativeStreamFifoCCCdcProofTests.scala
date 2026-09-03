@@ -70,9 +70,10 @@ private object NativeStreamFifoCCCdcProofFixture {
   * The same two parameterized Verilog artifacts (one per static reset policy)
   * are specialized at every supported depth. Strict Verilog-2001 parsing,
   * Verilator lint, Yosys synthesis, two opposite asynchronous clock ratios,
-  * stopped clocks, FIFO full/drain and repeated wraparound are all checked by
-  * external tools. The lane is opt-in because those tools belong to the pinned
-  * workflow container rather than the ordinary developer JVM.
+  * stopped clocks, FIFO full/drain, repeated wraparound and a deterministic
+  * shared-edge push/pop transfer are all checked by external tools. The lane is
+  * opt-in because those tools belong to the pinned workflow container rather
+  * than the ordinary developer JVM.
   */
 class NativeStreamFifoCCCdcProofTests extends AnyFunSuite {
   import NativeStreamFifoCCCdcProofFixture._
@@ -107,8 +108,35 @@ class NativeStreamFifoCCCdcProofTests extends AnyFunSuite {
     }
   }
 
+  test("dedicated shared-clock harness forces one simultaneous transfer") {
+    ResetModes.foreach { buffered =>
+      Depths.foreach { depth =>
+        val source = simultaneousTransferTestbench(depth, buffered)
+        assert(source.contains("reg io_clock = 1'b0;"), source)
+        assert(source.contains("always #5 io_clock = ~io_clock;"), source)
+        assert(source.contains(".io_pushClock(io_clock)"), source)
+        assert(source.contains(".io_popClock(io_clock)"), source)
+        assert(!source.contains("reg io_pushClock"), source)
+        assert(!source.contains("reg io_popClock"), source)
+        assert(
+          source.contains(
+            "if (io_pushValid && io_pushReady && io_popValid && io_popReady)"
+          ),
+          source
+        )
+        assert(source.contains("simultaneousTransfers != 1"), source)
+        assert(
+          source.contains(
+            s"STREAMFIFOCC_57A_SIMULTANEOUS_PASS ${resetMode(buffered)}_d${depth}_coincident"
+          ),
+          source
+        )
+      }
+    }
+  }
+
   test(
-    "typed CDC specializations pass strict lint synthesis and asynchronous simulation"
+    "typed CDC specializations pass lint synthesis asynchronous stress and a simultaneous witness"
   ) {
     if (!sys.env.get(GateEnvironment).contains("1")) {
       cancel(s"Set $GateEnvironment=1 only in the pinned CDC proof container")
@@ -128,6 +156,7 @@ class NativeStreamFifoCCCdcProofTests extends AnyFunSuite {
           Schedules.foreach { schedule =>
             simulate(directory, rtl, depth, buffered, schedule)
           }
+          simulateSimultaneousTransfer(directory, rtl, depth, buffered)
         }
         Vector(3, 5, 15).foreach { invalidDepth =>
           simulateInvalidDepth(directory, rtl, invalidDepth, buffered)
@@ -287,6 +316,43 @@ class NativeStreamFifoCCCdcProofTests extends AnyFunSuite {
     assert(output.contains(s"STREAMFIFOCC_57A_INVALID_PASS $stem"), output)
   }
 
+  private def simulateSimultaneousTransfer(
+      directory: Path,
+      rtl: Path,
+      depth: Int,
+      buffered: Boolean
+  ): Unit = {
+    val stem = s"${resetMode(buffered)}_d${depth}_coincident"
+    val testbench = directory.resolve(s"streamfifocc_57a_tb_$stem.v")
+    write(testbench, simultaneousTransferTestbench(depth, buffered))
+    val executable = directory.resolve(s"streamfifocc_57a_sim_$stem.out")
+    runChecked(
+      directory,
+      Seq(
+        "iverilog",
+        "-g2001",
+        "-Wall",
+        "-Wimplicit",
+        "-s",
+        "tb",
+        "-o",
+        executable.toAbsolutePath.toString,
+        rtl.toAbsolutePath.toString,
+        testbench.toAbsolutePath.toString
+      ),
+      s"simultaneous-transfer Icarus compile failed for $stem"
+    )
+    val output = runChecked(
+      directory,
+      Seq("vvp", executable.toAbsolutePath.toString),
+      s"simultaneous-transfer CDC simulation failed for $stem"
+    )
+    assert(
+      output.contains(s"STREAMFIFOCC_57A_SIMULTANEOUS_PASS $stem"),
+      output
+    )
+  }
+
   private def simulationTestbench(
       depth: Int,
       buffered: Boolean,
@@ -415,7 +481,7 @@ class NativeStreamFifoCCCdcProofTests extends AnyFunSuite {
        |      end
        |      received = received + 1;
        |      if (received == TOTAL) begin
-       |        if (sent != TOTAL || !sawFull || !sawPushPause || !sawPopPause || !sawSimultaneous) begin
+       |        if (sent != TOTAL || !sawFull || !sawPushPause || !sawPopPause) begin
        |          $$display("coverage missing sent=%0d full=%0d pushPause=%0d popPause=%0d simultaneous=%0d", sent, sawFull, sawPushPause, sawPopPause, sawSimultaneous);
        |          $$fatal(1);
        |        end
@@ -434,6 +500,137 @@ class NativeStreamFifoCCCdcProofTests extends AnyFunSuite {
        |  initial begin
        |    #50000;
        |    $$display("timeout sent=%0d received=%0d", sent, received);
+       |    $$fatal(1);
+       |  end
+       |endmodule
+       |""".stripMargin
+  }
+
+  private def simultaneousTransferTestbench(
+      depth: Int,
+      buffered: Boolean
+  ): String = {
+    val stem = s"${resetMode(buffered)}_d${depth}_coincident"
+
+    s"""`timescale 1ns/1ps
+       |module tb;
+       |  localparam integer DEPTH = $depth;
+       |  reg io_clock = 1'b0;
+       |  reg io_pushReset = 1'b1;
+       |  reg io_popReset = 1'b1;
+       |  reg io_pushValid = 1'b0;
+       |  wire io_pushReady;
+       |  reg [7:0] io_pushPayload = 8'h00;
+       |  wire io_popValid;
+       |  reg io_popReady = 1'b0;
+       |  wire [7:0] io_popPayload;
+       |  wire [4:0] io_pushOccupancy;
+       |  wire [4:0] io_popOccupancy;
+       |  integer sent = 0;
+       |  integer received = 0;
+       |  integer simultaneousTransfers = 0;
+       |  integer preconditionCycles = 0;
+       |  integer drainCycles = 0;
+       |
+       |  always #5 io_clock = ~io_clock;
+       |
+       |  ${top(buffered)} #(.DEPTH(DEPTH)) dut (
+       |    .io_pushClock(io_clock), .io_pushReset(io_pushReset),
+       |    .io_popClock(io_clock), .io_popReset(io_popReset),
+       |    .io_pushValid(io_pushValid), .io_pushReady(io_pushReady),
+       |    .io_pushPayload(io_pushPayload), .io_popValid(io_popValid),
+       |    .io_popReady(io_popReady), .io_popPayload(io_popPayload),
+       |    .io_pushOccupancy(io_pushOccupancy),
+       |    .io_popOccupancy(io_popOccupancy)
+       |  );
+       |
+       |  // One shared edge observes both handshakes. Stimulus and verdicts use
+       |  // falling edges so they cannot race this active-edge monitor.
+       |  always @(posedge io_clock) begin
+       |    if (!io_pushReset && !io_popReset) begin
+       |      if (io_pushValid && io_pushReady)
+       |        sent = sent + 1;
+       |      if (io_popValid && io_popReady) begin
+       |        if (io_popPayload !== received[7:0]) begin
+       |          $$display("simultaneous witness data mismatch expected=%0d actual=%0d", received, io_popPayload);
+       |          $$fatal(1);
+       |        end
+       |        received = received + 1;
+       |      end
+       |      if (io_pushValid && io_pushReady && io_popValid && io_popReady)
+       |        simultaneousTransfers = simultaneousTransfers + 1;
+       |      if (io_pushOccupancy > DEPTH || io_popOccupancy > DEPTH) begin
+       |        $$display("simultaneous witness occupancy out of range push=%0d pop=%0d depth=%0d", io_pushOccupancy, io_popOccupancy, DEPTH);
+       |        $$fatal(1);
+       |      end
+       |    end
+       |  end
+       |
+       |  initial begin
+       |    // Four reset and four released cycles cover the buffered-reset
+       |    // topology before the first accepted push creates a one-item backlog.
+       |    repeat (4) @(negedge io_clock);
+       |    io_pushReset = 1'b0;
+       |    io_popReset = 1'b0;
+       |    repeat (4) @(negedge io_clock);
+       |
+       |    io_pushPayload = 8'h00;
+       |    io_pushValid = 1'b1;
+       |    io_popReady = 1'b0;
+       |    @(posedge io_clock);
+       |    @(negedge io_clock);
+       |    io_pushValid = 1'b0;
+       |    if (sent != 1) begin
+       |      $$display("first backlog push was not accepted sent=%0d", sent);
+       |      $$fatal(1);
+       |    end
+       |
+       |    // Wait for the first item to reach the pop interface while there is
+       |    // still room for a second push, then arm both transfers together.
+       |    while ((io_popValid !== 1'b1 || io_pushReady !== 1'b1) &&
+       |           preconditionCycles < 64) begin
+       |      @(negedge io_clock);
+       |      preconditionCycles = preconditionCycles + 1;
+       |    end
+       |    if (io_popValid !== 1'b1 || io_pushReady !== 1'b1) begin
+       |      $$display("simultaneous precondition timed out valid=%b ready=%b", io_popValid, io_pushReady);
+       |      $$fatal(1);
+       |    end
+       |
+       |    io_pushPayload = 8'h01;
+       |    io_pushValid = 1'b1;
+       |    io_popReady = 1'b1;
+       |    @(posedge io_clock);
+       |    @(negedge io_clock);
+       |    io_pushValid = 1'b0;
+       |    if (sent != 2 || received != 1 || simultaneousTransfers != 1) begin
+       |      $$display("combined edge missing sent=%0d received=%0d simultaneous=%0d", sent, received, simultaneousTransfers);
+       |      $$fatal(1);
+       |    end
+       |
+       |    while (received < 2 && drainCycles < 64) begin
+       |      @(negedge io_clock);
+       |      drainCycles = drainCycles + 1;
+       |    end
+       |    if (received != 2) begin
+       |      $$display("second payload did not drain received=%0d", received);
+       |      $$fatal(1);
+       |    end
+       |
+       |    repeat (6) @(negedge io_clock);
+       |    if (sent != 2 || received != 2 || simultaneousTransfers != 1 ||
+       |        io_popValid !== 1'b0 || io_pushOccupancy !== 5'b0 ||
+       |        io_popOccupancy !== 5'b0) begin
+       |      $$display("simultaneous witness did not settle sent=%0d received=%0d simultaneous=%0d valid=%b pushOcc=%0d popOcc=%0d", sent, received, simultaneousTransfers, io_popValid, io_pushOccupancy, io_popOccupancy);
+       |      $$fatal(1);
+       |    end
+       |    $$display("STREAMFIFOCC_57A_SIMULTANEOUS_PASS $stem");
+       |    #20 $$finish;
+       |  end
+       |
+       |  initial begin
+       |    #5000;
+       |    $$display("simultaneous witness timeout sent=%0d received=%0d simultaneous=%0d", sent, received, simultaneousTransfers);
        |    $$fatal(1);
        |  end
        |endmodule

@@ -639,15 +639,42 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     *
     * The native emitter correctly sizes an initializer to the construction
     * witness, but that literal must grow with a later parameter specialization.
-    * Authorization comes from the exact InitAssignmentStatement target and its
-    * poison-free zero BitVectorLiteral source; the emitted signal name and
-    * witness literal are then used only to locate that same edge in Verilog.
+    * Authorization starts from the exact InitAssignmentStatement target and
+    * its poison-free zero BitVectorLiteral source. Every direct, full-target
+    * invariant-zero write to that same retained register is then counted in
+    * the graph, and the emitted signal name and witness literal may rewrite
+    * exactly that many Verilog edges. This preserves lineage when an ordinary
+    * register also has a clear, wrap or flush-to-zero assignment.
     */
+  private def isInvariantZero(expression: Expression): Boolean =
+    expression match {
+      case literal: BitVectorLiteral =>
+        !literal.hasPoison() && literal.getValue() == 0
+      case resize: Resize => isInvariantZero(resize.input)
+      case cast: CastBitVectorToBitVector =>
+        isInvariantZero(cast.input)
+      case _ => false
+    }
+
+  private def isAuthorizedZeroAssignment(
+      statement: AssignmentStatement,
+      target: BitVector
+  ): Boolean =
+    (statement.target eq target) &&
+      (statement.finalTarget eq target) &&
+      (statement.source match {
+        case sourceWidth: WidthProvider =>
+          sourceWidth.getWidth == target.getBitsWidth &&
+            isInvariantZero(statement.source)
+        case _ => false
+      })
+
   private def rewriteRetainedZeroInitializers(
       component: Component,
       verilog: String
   ): String = {
     final case class RetainedZeroInitializer(
+        target: BitVector,
         name: String,
         width: ElaborationIntegerExpression,
         witness: String
@@ -674,6 +701,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                       )
                     }
                     initializers += RetainedZeroInitializer(
+                      target,
                       name,
                       width,
                       emittedRetainedWitness(literal)
@@ -699,6 +727,13 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
 
     var lines = verilog.split("\\n", -1).toVector
     initializers.sortBy(value => -value.name.length).foreach { initializer =>
+      var authorizedEdges = 0
+      component.dslBody.walkLeafStatements {
+        case statement: AssignmentStatement
+            if isAuthorizedZeroAssignment(statement, initializer.target) =>
+          authorizedEdges += 1
+        case _ =>
+      }
       val pattern = (
         "^(\\s*" + Pattern.quote(initializer.name) +
           "\\s*(?:<=|=)\\s*)" + Pattern.quote(initializer.witness) + "(;.*)$"
@@ -710,10 +745,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           prefix + "{" + initializer.width.verilog + "{1'b0}}" + suffix
         case line => line
       }
-      if (exactEdges != 1) {
+      if (authorizedEdges == 0 || exactEdges != authorizedEdges) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-ZERO-INIT-EMITTED-LINEAGE-MISMATCH",
-          s"retained-width zero initializer '${initializer.name}' maps to $exactEdges exact emitted witness edges; exactly one is required",
+          s"retained-width zero initializer '${initializer.name}' maps to $exactEdges exact emitted witness edges, but the graph authorizes $authorizedEdges direct invariant-zero assignments",
           initializer.width.sourceLocation
         )
       }
@@ -2359,20 +2394,6 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case resize: Resize            => isUnfixedLiteral(resize.input)
         case cast: CastBitVectorToBitVector =>
           isUnfixedLiteral(cast.input)
-        case _ => false
-      }
-
-    /** Zero is invariant under every unsigned resize/cast width. This proof is
-      * local to the exact source tree and does not authorize any nonzero
-      * concrete witness assignment to a symbolic target.
-      */
-    private def isInvariantZero(expression: Expression): Boolean =
-      expression match {
-        case literal: BitVectorLiteral =>
-          !literal.hasPoison() && literal.getValue() == 0
-        case resize: Resize => isInvariantZero(resize.input)
-        case cast: CastBitVectorToBitVector =>
-          isInvariantZero(cast.input)
         case _ => false
       }
 

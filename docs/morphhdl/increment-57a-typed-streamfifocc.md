@@ -140,6 +140,13 @@ to use the supplied pop reset. Verification of separate resets observes the
 native startup contract and does not claim recovery from an arbitrary unilateral
 mid-traffic reset.
 
+Retained symbolic zero lowering is cardinality-preserving. An authenticated
+initializer identifies the register; every exact, full-target invariant-zero
+assignment to that same register is counted in the elaborated graph, and the
+fallback rewrites exactly the same number of emitted witness edges. This covers
+ordinary clear, flush and wrap-to-zero writes without authorizing partial or
+nonzero assignments.
+
 ## Deliberate exclusions
 
 Increment 57a does not parameterize or broaden:
@@ -169,19 +176,20 @@ Closure requires all of the following on the exact committed revision:
 | Concrete parity | the ordinary `Int` constructor and the `Int`/typed-literal companion and helper forms at depths 2, 4, 8 and 32 remain parameter-free and byte-identical |
 | Parameter override geometry | one deterministic definition per static reset topology supports legal depths 2, 4, 8 and 16 with exact RAM, address, pointer, synchronizer and occupancy widths |
 | Negative domain | null, missing exact authority, depth below two and invalid defaults fail with stable diagnostics; oversized domains fail at the public ingress (an upstream shared exact-publication diagnostic is acceptable); illegal non-default specializations select only the inert generated alternative |
-| CDC simulation | push-faster and pop-faster schedules cover empty, full, wraparound, simultaneous traffic, backpressure and temporary interruption of either clock for both reset topologies |
-| Formal equivalence | independently generated concrete native witnesses and specializations of each static reset topology's parameterized definition are sequentially equivalent under shared push/pop clock schedules and reset assumptions; payload is compared only while pop-valid is asserted |
+| CDC simulation | push-faster and pop-faster schedules cover empty, full, wraparound, backpressure and temporary interruption of either clock; a separate shared-clock directed witness guarantees one accepted simultaneous push/pop for every depth and reset topology |
+| Formal equivalence | independently generated concrete native witnesses and specializations of each static reset topology's parameterized definition are sequentially equivalent under shared push/pop clock schedules and reset assumptions; payload is compared only while pop-valid is asserted; PDR preparation preserves ordinary unknowns as nondeterministic inputs before normalizing residual initialization state symmetrically |
 | Mutation control | a deliberate compared-output mutation produces a genuine solver counterexample; parse failure, missing modules, timeout, `UNKNOWN` or tool error cannot satisfy the control |
 | CDC structure | both native synchronizers, their widths/tags, Gray-only crossings, dual-clock RAM contract and static reset/clock policy remain intact |
 | Multi-instance and payload structure | unequal typed depth domains sharing static clocks own independent reset synchronizers; a fixed-shape aggregate payload preserves native packed memory ordering |
 | Optional blackbox phase | default retry-enabled MorphVerilog and raw SpinalVerilog generation expose the same retained-width diagnostic and typed cause; concrete-width replacement remains available, and ordinary non-typed failures retain Spinal's retry |
 | Tools and determinism | strict Verilog-2001 Icarus/Verilator checks, Yosys synthesis, repeated generation and the inherited full gates pass |
-| Native audit and boundary | every native change is an independently reviewed manifest span, and the Increment 57a boundary self-test rejects its legality, inert-fallback, shared-Gray-authority, typed-diagnostic retry and CDC-contract mutations |
+| Native audit and boundary | every native change is an independently reviewed manifest span, and the Increment 57a boundary self-test rejects its legality, inert-fallback, shared-Gray-authority, retained-zero-cardinality, formal-normalization, typed-diagnostic retry and CDC-contract mutations |
 
 `NativeStreamFifoCCParameterizedTests` supplies typed ingress, compatibility,
 geometry, invalid-domain and deterministic emission evidence.
-`NativeStreamFifoCCCdcProofTests` supplies directed dual-clock simulation and
-strict synthesis evidence. `NativeStreamFifoCCFormalEquivalenceTests` supplies
+`NativeStreamFifoCCCdcProofTests` supplies asynchronous ratio/pause stress, a
+deterministic shared-edge simultaneous-transfer witness and strict synthesis
+evidence. `NativeStreamFifoCCFormalEquivalenceTests` supplies
 the candidate-versus-independent-concrete proof and live mutation control.
 The permanent `morphhdl-streamfifocc-proof.yml` workflow enables those suites'
 tool-backed proof tests with

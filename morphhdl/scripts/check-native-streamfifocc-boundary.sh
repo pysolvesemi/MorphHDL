@@ -10,8 +10,11 @@ crossclock_source="${MORPHDL_STREAMFIFOCC_CROSSCLOCK_SOURCE:-lib/src/main/scala/
 phase_source="${MORPHDL_STREAMFIFOCC_PHASE_SOURCE:-core/src/main/scala/spinal/core/internals/Phase.scala}"
 memory_source="${MORPHDL_STREAMFIFOCC_MEMORY_SOURCE:-morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala}"
 hierarchy_source="${MORPHDL_STREAMFIFOCC_HIERARCHY_SOURCE:-morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala}"
+fallback_source="${MORPHDL_STREAMFIFOCC_FALLBACK_SOURCE:-morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala}"
 test_source="${MORPHDL_STREAMFIFOCC_TEST_SOURCE:-morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCParameterizedTests.scala}"
 reuse_test_source="${MORPHDL_STREAMFIFOCC_REUSE_TEST_SOURCE:-morphhdl/src/test/scala/morphhdl/NativeLibraryReuseTests.scala}"
+cdc_test_source="${MORPHDL_STREAMFIFOCC_CDC_TEST_SOURCE:-morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCCdcProofTests.scala}"
+formal_test_source="${MORPHDL_STREAMFIFOCC_FORMAL_TEST_SOURCE:-morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCFormalEquivalenceTests.scala}"
 
 fail() {
   local code="$1"
@@ -33,8 +36,11 @@ check_boundary() {
   require_file "$phase_source" SpinalVerilog-boot
   require_file "$memory_source" parameterized-memory
   require_file "$hierarchy_source" parameterized-hierarchy
+  require_file "$fallback_source" parameterized-native-fallback
   require_file "$test_source" focused-test
   require_file "$reuse_test_source" shared-helper-test
+  require_file "$cdc_test_source" CDC-proof-test
+  require_file "$formal_test_source" formal-proof-test
 
   python3 - \
     "$stream_source" \
@@ -43,8 +49,11 @@ check_boundary() {
     "$phase_source" \
     "$memory_source" \
     "$hierarchy_source" \
+    "$fallback_source" \
     "$test_source" \
-    "$reuse_test_source" <<'PY'
+    "$reuse_test_source" \
+    "$cdc_test_source" \
+    "$formal_test_source" <<'PY'
 import re
 import sys
 from pathlib import Path
@@ -56,8 +65,11 @@ from pathlib import Path
     phase_path,
     memory_path,
     hierarchy_path,
+    fallback_path,
     test_path,
     reuse_test_path,
+    cdc_test_path,
+    formal_test_path,
 ) = map(Path, sys.argv[1:])
 
 stream = stream_path.read_text(encoding="utf-8")
@@ -66,8 +78,11 @@ crossclock = crossclock_path.read_text(encoding="utf-8")
 phase = phase_path.read_text(encoding="utf-8")
 memory = memory_path.read_text(encoding="utf-8")
 hierarchy = hierarchy_path.read_text(encoding="utf-8")
+fallback = fallback_path.read_text(encoding="utf-8")
 tests = test_path.read_text(encoding="utf-8")
 reuse_tests = reuse_test_path.read_text(encoding="utf-8")
+cdc_tests = cdc_test_path.read_text(encoding="utf-8")
+formal_tests = formal_test_path.read_text(encoding="utf-8")
 
 
 def fail(code: str, message: str) -> None:
@@ -723,6 +738,178 @@ require(
     "focused proof must retain stable public-ingress rejection of an oversized domain",
 )
 
+# Retained-width zero lowering may use an emitted name and witness only after
+# the graph proves every matching edge is a direct, full-target invariant zero.
+require(
+    r"private\s+def\s+isInvariantZero\s*\(\s*expression:\s*Expression\s*\).*?case\s+literal:\s*BitVectorLiteral\s*=>\s*!literal\.hasPoison\(\)\s*&&\s*literal\.getValue\(\)\s*==\s*0.*?case\s+resize:\s*Resize\s*=>\s*isInvariantZero\s*\(\s*resize\.input\s*\).*?case\s+cast:\s*CastBitVectorToBitVector\s*=>\s*isInvariantZero\s*\(\s*cast\.input\s*\)",
+    fallback,
+    "RETAINED-ZERO-CARDINALITY-AUTHORITY-MISSING",
+    "retained-zero authorization must remain limited to poison-free literal zero through invariant resize/cast nodes",
+)
+require(
+    r"private\s+def\s+isAuthorizedZeroAssignment\s*\(\s*statement:\s*AssignmentStatement\s*,\s*target:\s*BitVector\s*\).*?\(\s*statement\.target\s+eq\s+target\s*\)\s*&&\s*\(\s*statement\.finalTarget\s+eq\s+target\s*\)\s*&&.*?case\s+sourceWidth:\s*WidthProvider\s*=>\s*sourceWidth\.getWidth\s*==\s*target\.getBitsWidth\s*&&\s*isInvariantZero\s*\(\s*statement\.source\s*\)",
+    fallback,
+    "RETAINED-ZERO-CARDINALITY-AUTHORITY-MISSING",
+    "retained-zero authorization must require exact target identity and an exact-width invariant-zero source",
+)
+require(
+    r"final\s+case\s+class\s+RetainedZeroInitializer\s*\(\s*target:\s*BitVector\s*,.*?var\s+authorizedEdges\s*=\s*0.*?component\.dslBody\.walkLeafStatements\s*\{.*?isAuthorizedZeroAssignment\s*\(\s*statement\s*,\s*initializer\.target\s*\)\s*=>\s*authorizedEdges\s*\+=\s*1.*?if\s*\(\s*authorizedEdges\s*==\s*0\s*\|\|\s*exactEdges\s*!=\s*authorizedEdges\s*\)",
+    fallback,
+    "RETAINED-ZERO-CARDINALITY-AUTHORITY-MISSING",
+    "retained-zero rewriting must carry exact target identity and require emitted/authorized edge cardinality equality",
+)
+require(
+    r"class\s+NativeRetainedZeroCardinalityHarness\s*\(\s*width:\s*HdlInt\s*\).*?Reg\s*\(\s*UInt\s*\(\s*elabWidth\s+bits\s*\)\s*\)\s*init\s*\(\s*0\s*\).*?when\s*\(\s*io\.clear\s*\)\s*\{\s*state\s*:=\s*0",
+    tests,
+    "RETAINED-ZERO-CARDINALITY-FIXTURE-MISSING",
+    "focused proof must retain a symbolic register with both init and ordinary clear-to-zero assignments",
+)
+require(
+    r"test\s*\(\s*\"retained zero rewriting preserves exact graph-to-emission cardinality\"\s*\).*?countOccurrences\s*\(\s*module\s*,\s*s\"\$stateName<=\{WIDTH\{1'b0\}\};\"\s*\)\s*==\s*2.*?!module\.contains\s*\(\s*s\"\$stateName<=8'h00;\"\s*\)",
+    tests,
+    "RETAINED-ZERO-CARDINALITY-COVERAGE-MISSING",
+    "focused proof must require one emitted symbolic zero for every authorized graph edge and reject witness literals",
+)
+
+# Asynchronous ratios and clock interruptions remain stress coverage. Accepted
+# simultaneous traffic has a separate deterministic shared-edge witness for
+# every legal depth and both static reset topologies.
+require(
+    r"class\s+NativeStreamFifoCCCdcProofTests\s+extends\s+AnyFunSuite",
+    cdc_tests,
+    "CDC-PROOF-SUITE-MISSING",
+    "the dedicated StreamFifoCC CDC proof suite is missing",
+)
+require(
+    r"private\s+val\s+Depths\s*=\s*Vector\s*\(\s*2\s*,\s*4\s*,\s*8\s*,\s*16\s*\).*?private\s+val\s+ResetModes\s*=\s*Vector\s*\(\s*false\s*,\s*true\s*\).*?ClockSchedule\s*\(\s*\"push_faster\"\s*,\s*pushHalfPeriod\s*=\s*3\s*,\s*popHalfPeriod\s*=\s*7\s*\).*?ClockSchedule\s*\(\s*\"pop_faster\"\s*,\s*pushHalfPeriod\s*=\s*7\s*,\s*popHalfPeriod\s*=\s*3\s*\)",
+    cdc_tests,
+    "CDC-STRESS-MATRIX-MISSING",
+    "CDC proof must retain both asynchronous ratios across depths 2, 4, 8 and 16 and both reset modes",
+)
+proof_test_match = re.search(
+    r"test\s*\(\s*\"typed CDC specializations pass lint synthesis asynchronous stress and a simultaneous witness\"\s*\)(?P<body>.*?)(?=\n\s*private\s+def\s+generate)",
+    cdc_tests,
+    re.MULTILINE | re.DOTALL,
+)
+if proof_test_match is None:
+    fail(
+        "CDC-PROOF-COVERAGE-MISSING",
+        "the tool-backed CDC proof test must remain inspectable",
+    )
+proof_test = proof_test_match.group("body")
+require(
+    r"ResetModes\.foreach\s*\{\s*buffered\s*=>.*?Depths\.foreach\s*\{\s*depth\s*=>.*?Schedules\.foreach\s*\{\s*schedule\s*=>\s*simulate\s*\(\s*directory\s*,\s*rtl\s*,\s*depth\s*,\s*buffered\s*,\s*schedule\s*\)\s*\}.*?simulateSimultaneousTransfer\s*\(\s*directory\s*,\s*rtl\s*,\s*depth\s*,\s*buffered\s*\)",
+    proof_test,
+    "CDC-SIMULTANEOUS-MATRIX-MISSING",
+    "each depth/reset specialization must run both asynchronous stress ratios and one deterministic simultaneous-transfer witness",
+)
+
+async_start = cdc_tests.find("private def simulationTestbench(")
+simultaneous_start = cdc_tests.find("private def simultaneousTransferTestbench(")
+invalid_start = cdc_tests.find("private def invalidDepthTestbench(")
+if not (0 <= async_start < simultaneous_start < invalid_start):
+    fail(
+        "CDC-TESTBENCH-SURFACE-MISSING",
+        "the asynchronous, simultaneous-transfer and invalid-depth testbench builders must remain separate and inspectable",
+    )
+async_testbench = cdc_tests[async_start:simultaneous_start]
+simultaneous_testbench = cdc_tests[simultaneous_start:invalid_start]
+
+require(
+    r"#270\s+popRun\s*=\s*1'b0.*?#91\s+popRun\s*=\s*1'b1.*?#233\s+pushRun\s*=\s*1'b0.*?#79\s+pushRun\s*=\s*1'b1",
+    async_testbench,
+    "CDC-CLOCK-INTERRUPTION-COVERAGE-MISSING",
+    "asynchronous stress must retain independent push/pop clock interruptions",
+)
+require(
+    r"io_pushValid\s*&&\s*!io_pushReady.*?sawFull\s*=\s*1.*?io_popPayload\s*!==\s*received\[7:0\].*?sent\s*!=\s*TOTAL\s*\|\|\s*!sawFull\s*\|\|\s*!sawPushPause\s*\|\|\s*!sawPopPause.*?io_popValid\s*!==\s*1'b0.*?io_pushOccupancy\s*!==\s*5'b0.*?io_popOccupancy\s*!==\s*5'b0",
+    async_testbench,
+    "CDC-ASYNC-STRESS-COVERAGE-MISSING",
+    "asynchronous stress must retain full, ordered payload, clock-pause and settled-drain checks",
+)
+reject(
+    r"\|\|\s*!sawSimultaneous\s*\)\s*begin",
+    async_testbench,
+    "CDC-ASYNC-ACCIDENTAL-COINCIDENCE-REQUIRED",
+    "asynchronous ratio stress must not depend on accidental same-timestamp clock edges",
+)
+
+if len(re.findall(r"\breg\s+io_clock\b", simultaneous_testbench)) != 1:
+    fail(
+        "CDC-COINCIDENT-SHARED-CLOCK-COVERAGE-MISSING",
+        "the deterministic simultaneous-transfer testbench must declare exactly one shared clock",
+    )
+reject(
+    r"\breg\s+io_(?:push|pop)Clock\b",
+    simultaneous_testbench,
+    "CDC-COINCIDENT-SHARED-CLOCK-COVERAGE-MISSING",
+    "the deterministic witness must not recreate independently scheduled FIFO clocks",
+)
+require(
+    r"always\s+#5\s+io_clock\s*=\s*~io_clock.*?\.io_pushClock\s*\(\s*io_clock\s*\).*?\.io_popClock\s*\(\s*io_clock\s*\)",
+    simultaneous_testbench,
+    "CDC-COINCIDENT-SHARED-CLOCK-COVERAGE-MISSING",
+    "both FIFO domains must use the same clock object for the deterministic simultaneous-transfer edge",
+)
+require(
+    r"repeat\s*\(\s*4\s*\)\s*@\(negedge\s+io_clock\).*?io_pushReset\s*=\s*1'b0.*?io_popReset\s*=\s*1'b0.*?repeat\s*\(\s*4\s*\)\s*@\(negedge\s+io_clock\).*?io_pushPayload\s*=\s*8'h00.*?io_pushValid\s*=\s*1'b1.*?io_popReady\s*=\s*1'b0.*?sent\s*!=\s*1",
+    simultaneous_testbench,
+    "CDC-SIMULTANEOUS-BACKLOG-MISSING",
+    "the shared-clock witness must settle reset and create exactly one queued item before arming both interfaces",
+)
+require(
+    r"while\s*\(\s*\(\s*io_popValid\s*!==\s*1'b1\s*\|\|\s*io_pushReady\s*!==\s*1'b1\s*\).*?preconditionCycles\s*<\s*64.*?io_pushPayload\s*=\s*8'h01.*?io_pushValid\s*=\s*1'b1.*?io_popReady\s*=\s*1'b1.*?@\(posedge\s+io_clock\).*?@\(negedge\s+io_clock\).*?simultaneousTransfers\s*!=\s*1",
+    simultaneous_testbench,
+    "CDC-SIMULTANEOUS-STIMULUS-MISSING",
+    "the witness must await live pop-valid/push-ready and arm push and pop for one shared rising edge",
+)
+require(
+    r"always\s*@\(posedge\s+io_clock\).*?io_popPayload\s*!==\s*received\[7:0\].*?if\s*\(\s*io_pushValid\s*&&\s*io_pushReady\s*&&\s*io_popValid\s*&&\s*io_popReady\s*\).*?simultaneousTransfers\s*=\s*simultaneousTransfers\s*\+\s*1.*?sent\s*!=\s*2\s*\|\|\s*received\s*!=\s*2\s*\|\|\s*simultaneousTransfers\s*!=\s*1.*?io_popValid\s*!==\s*1'b0.*?io_pushOccupancy\s*!==\s*5'b0.*?io_popOccupancy\s*!==\s*5'b0.*?STREAMFIFOCC_57A_SIMULTANEOUS_PASS",
+    simultaneous_testbench,
+    "CDC-SIMULTANEOUS-WITNESS-MISSING",
+    "the shared edge must count exactly one accepted push/pop, preserve payload order and settle completely empty",
+)
+require(
+    r"test\s*\(\s*\"dedicated shared-clock harness forces one simultaneous transfer\"\s*\).*?ResetModes\.foreach.*?Depths\.foreach.*?simultaneousTransferTestbench.*?\.io_pushClock\(io_clock\).*?\.io_popClock\(io_clock\).*?simultaneousTransfers != 1.*?STREAMFIFOCC_57A_SIMULTANEOUS_PASS",
+    cdc_tests,
+    "CDC-SIMULTANEOUS-SHAPE-TEST-MISSING",
+    "an ordinary non-opt-in test must pin the deterministic shared-clock harness shape across the full matrix",
+)
+
+# PDR consumes a binary AIG. Preserve ordinary and undriven unknowns as
+# nondeterministic inputs first, then normalize only residual FF/RAM init state.
+# Reversing these commands would over-constrain the equivalence proof.
+for builder, next_builder in (
+    ("positiveSby", "mutationSby"),
+    ("mutationSby", "runSby"),
+):
+    builder_match = re.search(
+        rf"private\s+def\s+{builder}\s*\((?P<body>.*?)\n\s*private\s+def\s+{next_builder}\s*\(",
+        formal_tests,
+        re.MULTILINE | re.DOTALL,
+    )
+    if builder_match is None:
+        fail(
+            "FORMAL-UNDEFINED-NORMALIZATION-MISSING",
+            f"formal builder {builder} must remain separately inspectable",
+        )
+    normalization = re.findall(
+        r"\|memory_map\s*\n\s*\|setundef -undriven -anyseq\s*\n\s*\|setundef -init -zero\s*\n\s*\|opt_clean\s*\n\s*\|check -assert",
+        builder_match.group("body"),
+        re.MULTILINE,
+    )
+    if len(normalization) != 1:
+        fail(
+            "FORMAL-UNDEFINED-NORMALIZATION-MISSING",
+            f"formal builder {builder} must preserve exactly one ordered nondeterministic-then-init normalization sequence",
+        )
+require(
+    r"val\s+undefinedStateNormalization\s*=.*?memory_map.*?setundef -undriven -anyseq.*?setundef -init -zero.*?Vector\s*\(\s*config\s*,\s*mutationConfig\s*\)\.foreach.*?indexOf\s*\(\s*undefinedStateNormalization\s*\).*?indexOf\s*\(\s*undefinedStateNormalization\s*,\s*first\s*\+\s*1\s*\)\s*<\s*0",
+    formal_tests,
+    "FORMAL-UNDEFINED-NORMALIZATION-TEST-MISSING",
+    "an ordinary unit test must pin ordering and uniqueness in both positive and mutation formal configs",
+)
+
 # The shared Gray helper is wider than StreamFifoCC's current pointer matrix.
 # Retain an explicit above-32-bit regression so its maximum-derived prefix
 # topology cannot silently fall back to the construction witness.
@@ -894,6 +1081,36 @@ case "${1:-}" in
     grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-CROSS-CLOCK-MEMORY-AUTHORITY-MISSING' \
       "$temporary/memory.stderr" ||
       fail SELF-TEST-DIAGNOSTIC 'memory mutation did not report its stable diagnostic'
+
+    sed '0,/exactEdges != authorizedEdges/s//exactEdges != 1/' \
+      "$fallback_source" > "$temporary/noncardinal-retained-zero.scala"
+    if MORPHDL_STREAMFIFOCC_FALLBACK_SOURCE="$temporary/noncardinal-retained-zero.scala" \
+      "$0" --check >"$temporary/cardinality.stdout" 2>"$temporary/cardinality.stderr"; then
+      fail SELF-TEST-ACCEPTED 'non-cardinal retained-zero rewrite mutation passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-RETAINED-ZERO-CARDINALITY-AUTHORITY-MISSING' \
+      "$temporary/cardinality.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'retained-zero cardinality mutation did not report its stable diagnostic'
+
+    sed '0,/|    \.io_popClock(io_clock), \.io_popReset/s//|    .io_popClock(io_popClock), .io_popReset/' \
+      "$cdc_test_source" > "$temporary/split-simultaneous-clock.scala"
+    if MORPHDL_STREAMFIFOCC_CDC_TEST_SOURCE="$temporary/split-simultaneous-clock.scala" \
+      "$0" --check >"$temporary/coincident.stdout" 2>"$temporary/coincident.stderr"; then
+      fail SELF-TEST-ACCEPTED 'split deterministic simultaneous-transfer clock mutation passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-CDC-COINCIDENT-SHARED-CLOCK-COVERAGE-MISSING' \
+      "$temporary/coincident.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'shared-clock CDC mutation did not report its stable diagnostic'
+
+    sed 's/|setundef -undriven -anyseq/|setundef -zero/g' \
+      "$formal_test_source" > "$temporary/unsound-formal-normalization.scala"
+    if MORPHDL_STREAMFIFOCC_FORMAL_TEST_SOURCE="$temporary/unsound-formal-normalization.scala" \
+      "$0" --check >"$temporary/formal.stdout" 2>"$temporary/formal.stderr"; then
+      fail SELF-TEST-ACCEPTED 'unsound formal undefined-state normalization passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-FORMAL-UNDEFINED-NORMALIZATION-MISSING' \
+      "$temporary/formal.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'formal normalization mutation did not report its stable diagnostic'
 
     printf 'Increment 57a typed native StreamFifoCC boundary self-test passed.\n'
     ;;

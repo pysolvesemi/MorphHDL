@@ -272,6 +272,40 @@ final class NativeTypedBufferCCInitHarness(
   io.dataOut := buffer.io.dataOut
 }
 
+/** A retained register whose initializer and ordinary clear assignment emit
+  * the same native witness literal. The fallback must authorize both graph
+  * edges before rewriting either one to the public WIDTH expression.
+  */
+final class NativeRetainedZeroCardinalityHarness(width: HdlInt)
+    extends Component {
+  setDefinitionName("NativeRetainedZeroCardinality")
+
+  private val elabWidth = width.asElabInt
+  val io = new Bundle {
+    val clock = in Bool ()
+    val reset = in Bool ()
+    val clear = in Bool ()
+    val value = out UInt (elabWidth bits)
+  }
+
+  private val testClockDomain = ClockDomain(
+    io.clock,
+    io.reset,
+    config = ClockDomainConfig(
+      clockEdge = RISING,
+      resetKind = ASYNC,
+      resetActiveLevel = HIGH
+    )
+  )
+  val clocked = new ClockingArea(testClockDomain) {
+    val state = Reg(UInt(elabWidth bits)) init (0)
+    when(io.clear) {
+      state := 0
+    }
+    io.value := state
+  }
+}
+
 /** Persistent, tool-agnostic emitter used by later specialization smoke jobs.
   * It intentionally keeps both reset-policy artifacts in the requested
   * directory rather than using the temporary-directory test harness.
@@ -924,6 +958,35 @@ class NativeStreamFifoCCParameterizedTests extends AnyFunSuite {
         bufferRtl
       )
       assert(!bufferRtl.contains("4'b0000"), bufferRtl)
+    }
+  }
+
+  test("retained zero rewriting preserves exact graph-to-emission cardinality") {
+    withTemporaryDirectory { directory =>
+      val config = generationConfig(
+        directory,
+        "retained_zero_cardinality.v"
+      )
+      var top: NativeRetainedZeroCardinalityHarness = null
+      MorphVerilog(config) {
+        top = new NativeRetainedZeroCardinalityHarness(
+          HdlInt.param("WIDTH", default = 8, min = 2, max = 16)
+        )
+        top
+      }
+
+      assert(top != null)
+      val rtl = read(directory.resolve(config.netlistFileName))
+      val module = compactWhitespace(
+        moduleDefinition(rtl, "NativeRetainedZeroCardinality")
+      )
+      val stateName = top.clocked.state.getName()
+      assert(rtl.contains("parameter integer WIDTH = 8"), rtl)
+      assert(
+        countOccurrences(module, s"$stateName<={WIDTH{1'b0}};") == 2,
+        module
+      )
+      assert(!module.contains(s"$stateName<=8'h00;"), module)
     }
   }
 
