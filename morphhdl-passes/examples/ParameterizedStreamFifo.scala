@@ -11,22 +11,20 @@ import spinal.lib._
 final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Component {
   setDefinitionName("ParameterizedStreamFifo")
 
-  private val observationWidth = depth.asElabInt
-
   val io = new Bundle {
     val push = slave Stream (Bits(width bits))
     val pop = master Stream (Bits(width bits))
     val flush = in Bool ()
-    val occupancy = out UInt (observationWidth bits)
-    val availability = out UInt (observationWidth bits)
+    val occupancy = out UInt (4 bits)
+    val availability = out UInt (4 bits)
   }
 
   val fifo = StreamFifo(HardType(Bits(width bits)), depth.asElabInt)
   fifo.io.push << io.push
   io.pop << fifo.io.pop
   fifo.io.flush := io.flush
-  io.occupancy := fifo.io.occupancy.resize(observationWidth)
-  io.availability := fifo.io.availability.resize(observationWidth)
+  io.occupancy := fifo.io.occupancy.resized
+  io.availability := fifo.io.availability.resized
 }
 
 object ParameterizedStreamFifoExample {
