@@ -1,0 +1,45 @@
+name: WA-03 guard diagnostic capture
+
+on:
+  push:
+    branches:
+      - agent/wa-03-alias-equivalence-gates
+    paths:
+      - ".github/workflows/wa03-guard-diagnostic.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Capture exact static guard output
+        shell: bash
+        run: |
+          set +e
+          python3 morphhdl-passes/scripts/check-wa03-gates.py --self-test > /tmp/self-test.log 2>&1
+          self_rc=$?
+          python3 morphhdl-passes/scripts/check-wa03-gates.py > /tmp/repository.log 2>&1
+          repository_rc=$?
+          set -e
+          {
+            printf 'self_test_exit=%s\n' "$self_rc"
+            cat /tmp/self-test.log
+            printf '\nrepository_exit=%s\n' "$repository_rc"
+            cat /tmp/repository.log
+          } > morphhdl-passes/wa03-guard-diagnostic.txt
+      - name: Publish diagnostic and remove helper workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/wa03-guard-diagnostic.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Record WA-03 static guard diagnostic"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
