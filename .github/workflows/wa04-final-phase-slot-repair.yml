@@ -31,27 +31,28 @@ jobs:
           from pathlib import Path
 
           bridge = Path("morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala")
-          text = bridge.read_text(encoding="utf-8")
-          old = '''      nativeAliasPasses.drop(2).reverse.foreach(index => phases.remove(index))
-                phase.foreach { value =>
-                  val insertionIndex = phases.indexWhere(_.isInstanceOf[PhaseSimplifyNodes])
-                  if (insertionIndex < 0)
-                    throw new IllegalStateException(
-                      "WA-04 witness could not locate the pre-simplification native phase boundary"
-                    )
-                  phases.insert(insertionIndex, value)
-                }
-          '''
-          new = '''      nativeAliasPasses.drop(3).reverse.foreach(index => phases.remove(index))
-                val finalAliasCleanupIndex = nativeAliasPasses(2)
-                phase match {
-                  case Some(value) => phases.update(finalAliasCleanupIndex, value)
-                  case None        => phases.remove(finalAliasCleanupIndex)
-                }
-          '''
-          if text.count(old) != 1:
-              raise SystemExit("WA-04 final phase-slot replacement target is not unique")
-          bridge.write_text(text.replace(old, new), encoding="utf-8")
+          lines = bridge.read_text(encoding="utf-8").splitlines()
+          start_line = "      nativeAliasPasses.drop(2).reverse.foreach(index => phases.remove(index))"
+          insert_line = "        phases.insert(insertionIndex, value)"
+          if lines.count(start_line) != 1:
+              raise SystemExit("WA-04 final phase-slot start line is not unique")
+          start = lines.index(start_line)
+          try:
+              insert = lines.index(insert_line, start)
+          except ValueError as error:
+              raise SystemExit("WA-04 pre-simplification insertion line is missing") from error
+          if insert + 1 >= len(lines) or lines[insert + 1] != "      }":
+              raise SystemExit("WA-04 phase block terminator is not in the expected location")
+          replacement = [
+              "      nativeAliasPasses.drop(3).reverse.foreach(index => phases.remove(index))",
+              "      val finalAliasCleanupIndex = nativeAliasPasses(2)",
+              "      phase match {",
+              "        case Some(value) => phases.update(finalAliasCleanupIndex, value)",
+              "        case None        => phases.remove(finalAliasCleanupIndex)",
+              "      }",
+          ]
+          updated = lines[:start] + replacement + lines[insert + 2 :]
+          bridge.write_text("\n".join(updated) + "\n", encoding="utf-8")
 
           signatures_path = Path(
               "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
