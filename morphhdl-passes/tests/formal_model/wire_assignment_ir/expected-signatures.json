@@ -13,7 +13,7 @@
     "morphhdl-passes/tests/formal/wire_assignment_ir/generic_sequential_reference.v": "858367c18bf12245838969f60e564f09337b04a296e49dcc3527b5f97c825ad4",
     "morphhdl-passes/tests/formal/wire_assignment_ir/generic_sequential_tb.v": "839a72c998c67055c882c89bc7e52b2252de1d1008c512399aef4c29d1addba4",
     "morphhdl-passes/tests/formal/wire_assignment_ir/manifest.json": "f045af0d5f84b0907d32ff052289a85a22e15dd970aebd96a5b3b5483a00bd1b",
-    "morphhdl-passes/tests/formal/wire_assignment_ir/parameterized_witness_tb.v": "945ddd8a898a7961a87dbd54d894e04fe117e441091fc23e8456ba7ccc9d90a2"
+    "morphhdl-passes/tests/formal/wire_assignment_ir/parameterized_witness_tb.v": "5f69f96e62e4b001867e0362591130acf9d9ecc04437e72768f6e6c9dc3f09c9"
   },
   "schema_version": 1
 }
