@@ -221,6 +221,45 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
     }
   }
 
+  test("formal DUT preparation releases BufferCC hierarchy before flattening") {
+    def assertSingleOrderedRelease(script: String, top: String): Unit = {
+      val hierarchyRelease =
+        s"""hierarchy -check -top $top
+           |setattr -unset keep_hierarchy
+           |flatten""".stripMargin
+      val first = script.indexOf(hierarchyRelease)
+      assert(first >= 0, script)
+      assert(script.indexOf(hierarchyRelease, first + 1) < 0, script)
+      assert(
+        script
+          .split("\\r?\\n", -1)
+          .count(_ == "setattr -unset keep_hierarchy") == 1,
+        script
+      )
+    }
+
+    ResetModes.foreach { buffered =>
+      val candidate = candidatePreparationScript(
+        Paths.get("typed.v"),
+        Paths.get("candidate.il"),
+        depth = 2,
+        buffered = buffered
+      )
+      assertSingleOrderedRelease(candidate, typedSourceTop(buffered))
+
+      val reference = referencePreparationScript(
+        Paths.get("reference.v"),
+        Paths.get("reference.il"),
+        depth = 2,
+        buffered = buffered
+      )
+      assertSingleOrderedRelease(
+        reference,
+        concreteSourceTop(depth = 2, buffered = buffered)
+      )
+    }
+  }
+
   test("formal positive proof uses reachability PDR for the multiclock model") {
     val prepared =
       PreparedDuts(Paths.get("candidate.il"), Paths.get("reference.il"))
@@ -447,19 +486,12 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
       directory.resolve(s"streamfifocc_57a_prepare_candidate_$stem.ys")
     write(
       candidateScript,
-      s"""read_verilog -defer ${yosysPath(generated.typedByResetMode(buffered))}
-         |chparam -set DEPTH $depth ${typedSourceTop(buffered)}
-         |hierarchy -check -top ${typedSourceTop(buffered)}
-         |flatten
-         |proc
-         |opt
-         |memory_dff
-         |memory_collect
-         |opt_clean
-         |check -assert
-         |rename -top ${candidatePreparedTop(depth, buffered)}
-         |write_rtlil ${yosysPath(candidate)}
-         |""".stripMargin
+      candidatePreparationScript(
+        generated.typedByResetMode(buffered),
+        candidate,
+        depth,
+        buffered
+      )
     )
     runYosys(directory, candidateScript, candidate)
 
@@ -468,23 +500,58 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
       directory.resolve(s"streamfifocc_57a_prepare_reference_$stem.ys")
     write(
       referenceScript,
-      s"""read_verilog -defer ${yosysPath(generated.concreteByConfiguration(depth -> buffered))}
-         |hierarchy -check -top ${concreteSourceTop(depth, buffered)}
-         |flatten
-         |proc
-         |opt
-         |memory_dff
-         |memory_collect
-         |opt_clean
-         |check -assert
-         |rename -top ${referencePreparedTop(depth, buffered)}
-         |write_rtlil ${yosysPath(reference)}
-         |""".stripMargin
+      referencePreparationScript(
+        generated.concreteByConfiguration(depth -> buffered),
+        reference,
+        depth,
+        buffered
+      )
     )
     runYosys(directory, referenceScript, reference)
 
     PreparedDuts(candidate, reference)
   }
+
+  private def candidatePreparationScript(
+      source: Path,
+      target: Path,
+      depth: Int,
+      buffered: Boolean
+  ): String =
+    s"""read_verilog -defer ${yosysPath(source)}
+       |chparam -set DEPTH $depth ${typedSourceTop(buffered)}
+       |hierarchy -check -top ${typedSourceTop(buffered)}
+       |setattr -unset keep_hierarchy
+       |flatten
+       |proc
+       |opt
+       |memory_dff
+       |memory_collect
+       |opt_clean
+       |check -assert
+       |rename -top ${candidatePreparedTop(depth, buffered)}
+       |write_rtlil ${yosysPath(target)}
+       |""".stripMargin
+
+  private def referencePreparationScript(
+      source: Path,
+      target: Path,
+      depth: Int,
+      buffered: Boolean
+  ): String =
+    s"""read_verilog -defer ${yosysPath(source)}
+       |hierarchy -check -top ${concreteSourceTop(depth, buffered)}
+       |setattr -unset keep_hierarchy
+       |flatten
+       |proc
+       |opt
+       |memory_dff
+       |memory_collect
+       |opt_clean
+       |check -assert
+       |rename -top ${referencePreparedTop(depth, buffered)}
+       |write_rtlil ${yosysPath(target)}
+       |""".stripMargin
 
   private def equivalenceMiter(
       configuration: Configuration,

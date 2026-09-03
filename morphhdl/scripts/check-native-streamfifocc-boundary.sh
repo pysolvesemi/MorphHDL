@@ -882,6 +882,69 @@ require(
     "an ordinary non-opt-in test must pin the deterministic shared-clock harness shape across the full matrix",
 )
 
+# Candidate and reference RTLIL are loaded into one proof design. Flatten each
+# leg after releasing BufferCC's synthesis-only hierarchy attribute so their
+# independently emitted helper module names cannot collide.
+for builder, next_builder in (
+    ("candidatePreparationScript", "referencePreparationScript"),
+    ("referencePreparationScript", "equivalenceMiter"),
+):
+    builder_match = re.search(
+        rf"private\s+def\s+{builder}\s*\((?P<body>.*?)\n\s*private\s+def\s+{next_builder}\s*\(",
+        formal_tests,
+        re.MULTILINE | re.DOTALL,
+    )
+    if builder_match is None:
+        fail(
+            "FORMAL-PREPARATION-HIERARCHY-RELEASE-MISSING",
+            f"formal preparation builder {builder} must remain separately inspectable",
+        )
+    builder_body = builder_match.group("body")
+    hierarchy_release = re.findall(
+        r"\|hierarchy -check -top [^\n]+\s*\n\s*\|setattr -unset keep_hierarchy\s*\n\s*\|flatten",
+        builder_body,
+        re.MULTILINE,
+    )
+    release_commands = re.findall(
+        r"^\s*\|setattr -unset keep_hierarchy\s*$",
+        builder_body,
+        re.MULTILINE,
+    )
+    if len(hierarchy_release) != 1 or len(release_commands) != 1:
+        fail(
+            "FORMAL-PREPARATION-HIERARCHY-RELEASE-MISSING",
+            f"formal preparation builder {builder} must release hierarchy exactly once immediately before flatten",
+        )
+preparation_test_match = re.search(
+    r"test\s*\(\s*\"formal DUT preparation releases BufferCC hierarchy before flattening\"\s*\)(?P<body>.*?)\n\s*test\s*\(\s*\"formal positive proof uses reachability PDR for the multiclock model\"",
+    formal_tests,
+    re.MULTILINE | re.DOTALL,
+)
+if preparation_test_match is None:
+    fail(
+        "FORMAL-PREPARATION-HIERARCHY-RELEASE-TEST-MISSING",
+        "the ordinary formal-preparation test must remain separately inspectable",
+    )
+preparation_test = preparation_test_match.group("body")
+require(
+    r"def\s+assertSingleOrderedRelease.*?hierarchy -check -top \$top.*?setattr -unset keep_hierarchy.*?flatten.*?count\(_ == \"setattr -unset keep_hierarchy\"\) == 1",
+    preparation_test,
+    "FORMAL-PREPARATION-HIERARCHY-RELEASE-TEST-MISSING",
+    "the ordinary unit test must pin exact hierarchy-release ordering and uniqueness",
+)
+require(
+    r"ResetModes\.foreach\s*\{\s*buffered\s*=>.*?val\s+candidate\s*=\s*candidatePreparationScript\s*\(.*?depth\s*=\s*2\s*,\s*buffered\s*=\s*buffered\s*\).*?assertSingleOrderedRelease\s*\(\s*candidate\s*,\s*typedSourceTop\s*\(\s*buffered\s*\)\s*\)",
+    preparation_test,
+    "FORMAL-PREPARATION-HIERARCHY-RELEASE-TEST-MISSING",
+    "the ordinary unit test must pin the candidate preparation leg",
+)
+require(
+    r"ResetModes\.foreach\s*\{\s*buffered\s*=>.*?val\s+reference\s*=\s*referencePreparationScript\s*\(.*?depth\s*=\s*2\s*,\s*buffered\s*=\s*buffered\s*\).*?assertSingleOrderedRelease\s*\(\s*reference\s*,\s*concreteSourceTop\s*\(\s*depth\s*=\s*2\s*,\s*buffered\s*=\s*buffered\s*\)\s*\)",
+    preparation_test,
+    "FORMAL-PREPARATION-HIERARCHY-RELEASE-TEST-MISSING",
+    "the ordinary unit test must pin the reference preparation leg",
+)
+
 # PDR consumes a fully flattened binary AIG. Release the synthesis-only
 # BufferCC hierarchy boundary before prep so the engine cannot prune its CDC
 # outputs, then preserve ordinary and undriven unknowns as nondeterministic
@@ -1119,7 +1182,7 @@ case "${1:-}" in
       "$temporary/formal.stderr" ||
       fail SELF-TEST-DIAGNOSTIC 'formal normalization mutation did not report its stable diagnostic'
 
-    sed 's/|setattr -unset keep_hierarchy/|setattr -set keep_hierarchy 1/g' \
+    sed '/private def positiveSby/,/private def runSby/ s/|setattr -unset keep_hierarchy/|setattr -set keep_hierarchy 1/g' \
       "$formal_test_source" > "$temporary/retained-formal-hierarchy.scala"
     if MORPHDL_STREAMFIFOCC_FORMAL_TEST_SOURCE="$temporary/retained-formal-hierarchy.scala" \
       "$0" --check >"$temporary/hierarchy.stdout" 2>"$temporary/hierarchy.stderr"; then
@@ -1128,6 +1191,36 @@ case "${1:-}" in
     grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-FORMAL-UNDEFINED-NORMALIZATION-MISSING' \
       "$temporary/hierarchy.stderr" ||
       fail SELF-TEST-DIAGNOSTIC 'formal hierarchy mutation did not report its stable diagnostic'
+
+    sed '/private def candidatePreparationScript/,/private def equivalenceMiter/ s/|setattr -unset keep_hierarchy/|setattr -set keep_hierarchy 1/g' \
+      "$formal_test_source" > "$temporary/retained-preparation-hierarchy.scala"
+    if MORPHDL_STREAMFIFOCC_FORMAL_TEST_SOURCE="$temporary/retained-preparation-hierarchy.scala" \
+      "$0" --check >"$temporary/preparation.stdout" 2>"$temporary/preparation.stderr"; then
+      fail SELF-TEST-ACCEPTED 'retained prepared-DUT BufferCC hierarchy mutation passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-FORMAL-PREPARATION-HIERARCHY-RELEASE-MISSING' \
+      "$temporary/preparation.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'prepared-DUT hierarchy mutation did not report its stable diagnostic'
+
+    sed '/test("formal DUT preparation releases BufferCC hierarchy before flattening")/,/test("formal positive proof uses reachability PDR for the multiclock model")/ s/assertSingleOrderedRelease(candidate, typedSourceTop(buffered))/assert(candidate.nonEmpty)/' \
+      "$formal_test_source" > "$temporary/bypassed-candidate-preparation-test.scala"
+    if MORPHDL_STREAMFIFOCC_FORMAL_TEST_SOURCE="$temporary/bypassed-candidate-preparation-test.scala" \
+      "$0" --check >"$temporary/candidate-test.stdout" 2>"$temporary/candidate-test.stderr"; then
+      fail SELF-TEST-ACCEPTED 'bypassed candidate preparation unit assertion passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-FORMAL-PREPARATION-HIERARCHY-RELEASE-TEST-MISSING' \
+      "$temporary/candidate-test.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'candidate preparation unit-test mutation did not report its stable diagnostic'
+
+    sed '/test("formal DUT preparation releases BufferCC hierarchy before flattening")/,/test("formal positive proof uses reachability PDR for the multiclock model")/ s/^        reference,$/        candidate,/' \
+      "$formal_test_source" > "$temporary/bypassed-reference-preparation-test.scala"
+    if MORPHDL_STREAMFIFOCC_FORMAL_TEST_SOURCE="$temporary/bypassed-reference-preparation-test.scala" \
+      "$0" --check >"$temporary/reference-test.stdout" 2>"$temporary/reference-test.stderr"; then
+      fail SELF-TEST-ACCEPTED 'bypassed reference preparation unit assertion passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-FORMAL-PREPARATION-HIERARCHY-RELEASE-TEST-MISSING' \
+      "$temporary/reference-test.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'reference preparation unit-test mutation did not report its stable diagnostic'
 
     printf 'Increment 57a typed native StreamFifoCC boundary self-test passed.\n'
     ;;
