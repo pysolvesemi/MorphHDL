@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "99432abbacd4a28c8079cf0e24094f4691286968"
+      "approved_tree": "b76c9c009b95ad4a83a17c96a5b98d0bab7410f9"
     },
     {
       "path": "idslpayload/src/main",
@@ -27,7 +27,7 @@
     {
       "path": "lib/src/main",
       "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "849c40f2cea0c135f69caf225d2cde876b784289"
+      "approved_tree": "a94238781c52c6b6b789cbf059e680c762759b6b"
     },
     {
       "path": "scalaplugin/src/main",
@@ -1914,6 +1914,57 @@
       ]
     },
     {
+      "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
+      "change": "modified",
+      "classification": "platform-integration-hook",
+      "introduced_by": [
+        "Increment 57a: typed StreamFifoCC architecture"
+      ],
+      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary.",
+      "baseline": {
+        "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
+        "mode": "100644",
+        "blob": "b1db1a75e42014d28ad60e614bb37db33c1ef176",
+        "sha256": "b2a224ef88a09af4ab5613aee0acfe888f3fa29b517255a7250c72b273ca6a8f"
+      },
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
+        "mode": "100644",
+        "blob": "887984fc2aeff5438a1dbbfe163f0a877036dbf7",
+        "sha256": "a71c08a9ad865a07b0e6f21cb2d6252e84886d51d4bd31cc70525f6641213239"
+      },
+      "edits": [
+        {
+          "id": "spinal-verilog-parameterized-exception-01",
+          "kind": "platform-integration",
+          "owner": "spinal.core.internals.SpinalVerilogBoot.apply retry boundary",
+          "reason": "Propagate ParameterizedVerilogException before the generic diagnostic retry can replace the first stable typed failure with an unrelated reconstruction error.",
+          "baseline_span": {
+            "start": 136911,
+            "end": 136911,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 136911,
+            "end": 136974,
+            "sha256": "3ffd3c3e02b062888955ce16b876cff12d26e738bbd612c9988d71285271c8a1"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "case e: ParameterizedVerilogException =>",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "throw e",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "lib/src/main/scala/spinal/lib/Counter.scala",
       "change": "modified",
       "classification": "mechanical-propagation",
@@ -2458,7 +2509,7 @@
       "introduced_by": [
         "Increment 57a: typed StreamFifoCC architecture"
       ],
-      "reason": "Mechanically retain exact symbolic pointer width through the native BufferCC boundary while keeping concrete behavior and one evaluation of the by-name initializer per register stage.",
+      "reason": "Mechanically retain exact symbolic pointer width through the native BufferCC boundary while keeping concrete behavior and reject the Int-only blackbox replacement before it mutates a retained-width synchronizer.",
       "baseline": {
         "path": "lib/src/main/scala/spinal/lib/CrossClock.scala",
         "mode": "100644",
@@ -2468,8 +2519,8 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/CrossClock.scala",
         "mode": "100644",
-        "blob": "1cc631019d252a8a7a136818cb48d0690c489370",
-        "sha256": "54ea6bf3a759828a179a6405505600cfb83a68f6c32f2955bf219049359721ae"
+        "blob": "ea7f0d5d9650ad9c37d831f82d67be55771cea22",
+        "sha256": "1dc85e99b0d9590717cdd91255af755fc10bfa366dbd1d96ef5d4ba201999d2e"
       },
       "edits": [
         {
@@ -2588,6 +2639,34 @@
             {
               "side": "approved",
               "text": "val registerInit = init",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "buffercc-blackbox-typed-width-01",
+          "kind": "backend-isolation",
+          "owner": "spinal.lib.PhaseBufferCCBB retained-width replacement guard",
+          "reason": "Reject a retained-width BufferCC before the phase removes native assignments because BufferCCBlackBox still exposes only Int width geometry.",
+          "baseline_span": {
+            "start": 4834,
+            "end": 4834,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 5716,
+            "end": 6061,
+            "sha256": "b553e2477e3cff97c0c077d2335d8ccbeb9c8e8cbbf0e89cc324dc8906cd59d4"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val width = widthOfExpr(c.io.dataIn)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "SPINAL-BUFFER-CC-BLACKBOX-TYPED-WIDTH-UNSUPPORTED",
               "count": 1
             }
           ]
@@ -2758,8 +2837,8 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/Stream.scala",
         "mode": "100644",
-        "blob": "b2368653e0a4ca7e6c3cb6c6a51803d926169985",
-        "sha256": "642c02216fd2e032906520f7675c752424aee9f6924cdaa2f9586490c377c1de"
+        "blob": "1bd0e214da50f4bf61424d35012e616056a1ea36",
+        "sha256": "df4de19ed3d3219f4203ea456f56196e3d2981a4173e7a5f49b238ff9b6dbf38"
       },
       "edits": [
         {
@@ -3870,7 +3949,7 @@
           "id": "stream-cc-typed-01",
           "kind": "overload",
           "owner": "spinal.lib.StreamFifoCC typed factories",
-          "reason": "Add typed StreamFifoCC factories with exact-domain validation and preserve the ordinary Int construction path.",
+          "reason": "Add typed StreamFifoCC factories with exact-domain validation, canonicalize only the invalid depth tail by legal-power-of-two bucket, and preserve the ordinary Int construction path.",
           "baseline_span": {
             "start": 65269,
             "end": 65545,
@@ -3878,13 +3957,23 @@
           },
           "approved_span": {
             "start": 100547,
-            "end": 103554,
-            "sha256": "c736a0c0905fe0e992146bb8356447607f740c4e37fca777078d56c5bce6b2aa"
+            "end": 104797,
+            "sha256": "aff3ae6b4c493ab4143d6665fa5f7bc02e3372c8c49f7b8a7a75bf4d2da740a1"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "SPINAL-STREAM-FIFO-CC-DEPTH-EXACT-DOMAIN-REQUIRED",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "private val TypedPointerWidthMinimum",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "private def typedDepthFormalMaximum",
               "count": 1
             }
           ]
@@ -3900,8 +3989,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 103637,
-            "end": 103908,
+            "start": 104880,
+            "end": 105151,
             "sha256": "b67149f5bdd79f49573a119b3f23cbe23b50124f3ae849afa326c0782efbdc24"
           },
           "required_exact_text": [
@@ -3923,8 +4012,8 @@
             "sha256": "1f8a0f234b4efd542c95d026c84241d67cb765f01c0d2635327e195218fd1522"
           },
           "approved_span": {
-            "start": 106070,
-            "end": 106259,
+            "start": 107313,
+            "end": 107502,
             "sha256": "73225f1a0008a00a316c98a5d1aafed4acb1b0a418e823a6563fbf75934be1cf"
           },
           "required_exact_text": [
@@ -3946,8 +4035,8 @@
             "sha256": "6a234dee63a00145e5256193c4d04c36ccb6cc11b46a5e5d72e4b844b2484f35"
           },
           "approved_span": {
-            "start": 106284,
-            "end": 106846,
+            "start": 107527,
+            "end": 108089,
             "sha256": "3df32a76bded29c18fe35e9eac22858c02f74bc4270702a6be025b85c9a1a0af"
           },
           "required_exact_text": [
@@ -3969,8 +4058,8 @@
             "sha256": "d32bf44e5caaa644510f61931191a7195ba11cef928289fb162a223a590183a7"
           },
           "approved_span": {
-            "start": 107019,
-            "end": 107299,
+            "start": 108262,
+            "end": 108542,
             "sha256": "657fa9e76eb4169ff6b00cd634c8160086b6a6bb920fdefbcbff162eed2c8f76"
           },
           "required_exact_text": [
@@ -3992,8 +4081,8 @@
             "sha256": "fce2f4c7301ead307d3bfba0695b9d9b1e4ac0ba4b312e05ae243fe8d14df22a"
           },
           "approved_span": {
-            "start": 107307,
-            "end": 108139,
+            "start": 108550,
+            "end": 109382,
             "sha256": "2002dc299e6dff73b80861c90ba40c076d9a431cff02f187d1051f117556dbc4"
           },
           "required_exact_text": [
@@ -4015,8 +4104,8 @@
             "sha256": "9ee749590029090a3161695c472125ee80a319259d7c4d5caaabc41fc62388f0"
           },
           "approved_span": {
-            "start": 108185,
-            "end": 108575,
+            "start": 109428,
+            "end": 109818,
             "sha256": "98d4cf9bbc8dcb13c2aa886b6bdf492c20cd3168d6692a95b5569b572bf98b4c"
           },
           "required_exact_text": [
@@ -4038,8 +4127,8 @@
             "sha256": "235381f2bf96ee0fe0d1f55e1d08bbe98d5507efb929045c0e0ed5c8dde1f4bb"
           },
           "approved_span": {
-            "start": 108579,
-            "end": 109103,
+            "start": 109822,
+            "end": 110346,
             "sha256": "ed609b2878f94fbe1a8d10c42c32404dc78a36a1d21f7abdd5b2f549c6c57a58"
           },
           "required_exact_text": [
@@ -4061,8 +4150,8 @@
             "sha256": "2ac6c430face2851076a5d49e0814f23efc41c3e2851d1f05ffc5441eff6f7f1"
           },
           "approved_span": {
-            "start": 109107,
-            "end": 109539,
+            "start": 110350,
+            "end": 110782,
             "sha256": "9a12a2732b93620832e732b6b430d7b2730c28f3c3035276388049e24e50883f"
           },
           "required_exact_text": [
@@ -4084,8 +4173,8 @@
             "sha256": "777310645dc716eda71254cb8e97332e30877e4cd9df3d08f4240199bd2af1a2"
           },
           "approved_span": {
-            "start": 109543,
-            "end": 109837,
+            "start": 110786,
+            "end": 111080,
             "sha256": "2455abc04c5c9655c78742e2a93ba53abb6a6100a83b423e32433406e7645155"
           },
           "required_exact_text": [
@@ -4099,22 +4188,98 @@
         {
           "id": "stream-cc-typed-12",
           "kind": "mechanical-propagation",
-          "owner": "spinal.lib.StreamFifoCC BufferCC and public member boundary",
-          "reason": "Bind a child WIDTH formal for each kept synchronizer and retain the native public CDC member surface.",
+          "owner": "spinal.lib.StreamFifoCC BufferCC child schema and shared algorithm carriers",
+          "reason": "Bind one canonical child WIDTH formal for each kept synchronizer, retain stable shared-algorithm references, and mark the projected legal-depth ceiling used for native definition identity.",
           "baseline_span": {
             "start": 69308,
             "end": 69405,
             "sha256": "5a68cfee8256b639c39b85eb01153c0e44ed7621a3d17d99bb8ab2ba45fe9225"
           },
           "approved_span": {
-            "start": 109841,
-            "end": 113554,
-            "sha256": "2655821f505b715a495b02a85ee6c4a46acc598df74f69b7483d4b6253745131"
+            "start": 111084,
+            "end": 115265,
+            "sha256": "32aa1c6611439b0587c53c3926e83bae40a091704fc80e502aec75f7f25e35fd"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "private def retainedBufferCC",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "private final class BuiltAlgorithm",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "spinal_stream_fifocc_legal_depth_ceiling",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-native-algorithm-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC shared native CDC algorithm",
+          "reason": "Build the RAM, push/pop clocking areas, Gray crossings, reset topology and aggregate write carrier once while selecting only geometry-producing leaves between concrete and typed paths.",
+          "baseline_span": {
+            "start": 69417,
+            "end": 69477,
+            "sha256": "185f2e9341ad87ce0238505bea02af4980d7edbab5ca303617aec1c6b0cfbdb3"
+          },
+          "approved_span": {
+            "start": 115277,
+            "end": 121258,
+            "sha256": "fe2e74fb53eff01e12dc76f49e26882efcc5713247f096775fc022a673814cf8"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val pushCC = new ClockingArea(pushClock) with PushCCMembers",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "withOptionalBufferedResetFromUncached",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "allowMixedWidth = false",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "new BuiltAlgorithm(",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-concrete-algorithm-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC concrete algorithm placement",
+          "reason": "Invoke the shared native body directly and restore its inherited root names so the ordinary Int lane remains byte-output compatible.",
+          "baseline_span": {
+            "start": 69485,
+            "end": 70077,
+            "sha256": "34dc051709420e96339883ff17cc6a965fd4ef322ed122a97f48d2f31735ae3c"
+          },
+          "approved_span": {
+            "start": 121266,
+            "end": 121744,
+            "sha256": "87b24de42e69cb8877d663b60264e4d95c1468be2d4e5f4df4cb6f5d65d8b39c"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val built = buildNativeAlgorithm()",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "built.ram.setName(\"ram\")",
               "count": 1
             }
           ]
@@ -4122,22 +4287,88 @@
         {
           "id": "stream-cc-typed-13",
           "kind": "mechanical-propagation",
-          "owner": "spinal.lib.StreamFifoCC legal and invalid structural branches",
-          "reason": "Place the authoritative native CDC algorithm only under legal power-of-two specializations and fail closed otherwise.",
+          "owner": "spinal.lib.StreamFifoCC legal structural branch",
+          "reason": "Place the shared authoritative CDC algorithm only under legal power-of-two specializations and capture its exact structural owner.",
           "baseline_span": {
-            "start": 69417,
-            "end": 69477,
-            "sha256": "185f2e9341ad87ce0238505bea02af4980d7edbab5ca303617aec1c6b0cfbdb3"
+            "start": 70083,
+            "end": 70132,
+            "sha256": "e035cb8eaaa6a220632e8a194128ca4d6b862b417bed28a0e6b88cc1bfed5911"
           },
           "approved_span": {
-            "start": 113566,
-            "end": 119866,
-            "sha256": "e02afea210da3efe4f38789ae6328ca0a9c2975faba6a706c9d07a70ffaf3cfe"
+            "start": 121750,
+            "end": 122497,
+            "sha256": "1bfad062ce77be69340ee1f87a0819ca83cfe5e899f7787b32585597e112d30c"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "val algorithm = depthIsLegal generate new Area",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "formalAlgorithmOwner = ParameterizedStructure.currentOwner",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-invalid-depth-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC invalid-depth structural branch",
+          "reason": "Keep every illegal depth specialization outside the CDC algorithm and drive a safe inert aggregate-capable interface under its own captured owner.",
+          "baseline_span": {
+            "start": 70144,
+            "end": 70344,
+            "sha256": "ef3b08871a31cfa47979ebab4c264a191efd71fb355f8297956820b1f4e53313"
+          },
+          "approved_span": {
+            "start": 122509,
+            "end": 123131,
+            "sha256": "63367998df3840e252891091bcfe02ed60a1437c9b9c1235543e71c3c1530228"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val invalidDepth = (!depthIsLegal) generate new Area",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "formalInvalidDepthOwner = ParameterizedStructure.currentOwner",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "B(0).resize(widthOfExpr(io.pop.payload))",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-binding-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC typed algorithm names and backing references",
+          "reason": "Give the legal and invalid generated owners stable names and bind the public backing references to the one legal algorithm body.",
+          "baseline_span": {
+            "start": 70350,
+            "end": 70566,
+            "sha256": "578b2b652604060bff3dd413109c1fbe6095936bd33270b5a66590590a378af5"
+          },
+          "approved_span": {
+            "start": 123137,
+            "end": 123591,
+            "sha256": "7c85762be57725324d2dfefc517a1be43ed32f6d1514785abf56c0a9ee1f3ca7"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "algorithm.setName(\"algorithm\")",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ramBacking = algorithm.ram",
               "count": 1
             }
           ]
@@ -4148,13 +4379,13 @@
           "owner": "spinal.lib.StreamFifoCC public member aliases",
           "reason": "Expose Scala identity aliases to the retained native members without adding hardware.",
           "baseline_span": {
-            "start": 69485,
-            "end": 70077,
-            "sha256": "34dc051709420e96339883ff17cc6a965fd4ef322ed122a97f48d2f31735ae3c"
+            "start": 70574,
+            "end": 70644,
+            "sha256": "97166571867cd49a3de6425e078ab80656ba73a8075ca4d7fa036665f8dc18b6"
           },
           "approved_span": {
-            "start": 119874,
-            "end": 120270,
+            "start": 123599,
+            "end": 123995,
             "sha256": "29edda97a3a854856d881104f7a4c4a657ad9104065e056938e5baf7c37ca21c"
           },
           "required_exact_text": [
@@ -4168,68 +4399,37 @@
         {
           "id": "stream-cc-typed-15",
           "kind": "mechanical-propagation",
-          "owner": "spinal.lib.StreamFifoCC formal depth bounds",
-          "reason": "Construct exact depth-derived bounds on the observed pointer geometry.",
+          "owner": "spinal.lib.StreamFifoCC formal depth bounds and concrete assertions",
+          "reason": "Construct exact depth-derived bounds for typed observations while retaining the inherited concrete push-, pop- and global-domain assertions on the Int path.",
           "baseline_span": {
-            "start": 70081,
-            "end": 70138,
-            "sha256": "1efef2b6df67d4ca51a3deb824224a0976a3fc9d3d01c954d1d41a5ee3f522d7"
+            "start": 70648,
+            "end": 70942,
+            "sha256": "870a0cc5dcd848b061706699ad456ebeedef9c65d61efe1e9c1eabede3988e8d"
           },
           "approved_span": {
-            "start": 120274,
-            "end": 120490,
-            "sha256": "31c318e95d2a10e62fd713e6e7b5ad2f0410f2a26077172c7a99c317c1855752"
+            "start": 123999,
+            "end": 125532,
+            "sha256": "26152440c277cc2c7c859652d5487643fbf5cca2e28eb686f307ac9f257a7fa7"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "private def depthBoundLike",
               "count": 1
-            }
-          ]
-        },
-        {
-          "id": "stream-cc-typed-16",
-          "kind": "mechanical-propagation",
-          "owner": "spinal.lib.StreamFifoCC concrete formal push checks",
-          "reason": "Retain the inherited concrete push-domain formal assertions byte-for-byte on the Int path.",
-          "baseline_span": {
-            "start": 70142,
-            "end": 70344,
-            "sha256": "c58c88a0f3c941b44a2730659afcecd0ef6fa4c10bcbf970b62c3b9bdb022e84"
-          },
-          "approved_span": {
-            "start": 120494,
-            "end": 121030,
-            "sha256": "2d58fd970281bea5bbb2f6637e622462b793b2dbcad934caf5b765e292605209"
-          },
-          "required_exact_text": [
+            },
             {
               "side": "approved",
               "text": "def formalAsserts(gclk: ClockDomain)",
               "count": 1
-            }
-          ]
-        },
-        {
-          "id": "stream-cc-typed-17",
-          "kind": "mechanical-propagation",
-          "owner": "spinal.lib.StreamFifoCC concrete formal pop checks",
-          "reason": "Retain the inherited concrete pop-domain formal assertions on the Int path.",
-          "baseline_span": {
-            "start": 70350,
-            "end": 70567,
-            "sha256": "1d8ee870993caf71125af1064316fda42f8e242351e82ee201a6b80ff2403968"
-          },
-          "approved_span": {
-            "start": 121036,
-            "end": 121584,
-            "sha256": "56994cebac28f9302c88c19d808835f0647f10ca687d1b47d7446377dd508280"
-          },
-          "required_exact_text": [
+            },
             {
               "side": "approved",
               "text": "val popCheckClock",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "assert(pushCC.pushPtrGray === toGray(pushCC.pushPtr))",
               "count": 1
             }
           ]
@@ -4238,21 +4438,26 @@
           "id": "stream-cc-typed-18",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifoCC typed formal owner boundary",
-          "reason": "Require the legal owner and, only for mixed legal domains, the invalid owner before proving complete typed formal observation coverage.",
+          "reason": "Replace the baseline module-owned push assertion by requiring the legal owner and, only for mixed legal domains, the invalid owner before proving complete typed formal observation coverage.",
           "baseline_span": {
-            "start": 70574,
-            "end": 70644,
-            "sha256": "97166571867cd49a3de6425e078ab80656ba73a8075ca4d7fa036665f8dc18b6"
+            "start": 70955,
+            "end": 71084,
+            "sha256": "d1d895111526866c43e2e18d7dc7e0cf615b98014d0f932a4505798533fd902a"
           },
           "approved_span": {
-            "start": 121591,
-            "end": 122540,
-            "sha256": "ce52ee4b1b4301e0c2c4678c2015d46769ec996e1192c1d3833c567d83c248ec"
+            "start": 125545,
+            "end": 126265,
+            "sha256": "7eece3226868c2871887da143169376071ecc43817ee2da8b1cd27f583c1950c"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "SPINAL-STREAM-FIFO-CC-FORMAL-OWNER-MISSING",
+              "count": 1
+            },
+            {
+              "side": "baseline",
+              "text": "assert(pushCC.pushPtrGray === toGray(pushCC.pushPtr))",
               "count": 1
             }
           ]
@@ -4263,19 +4468,24 @@
           "owner": "spinal.lib.StreamFifoCC typed formal observations",
           "reason": "Capture branch-local pointer invariants into stable module-scope observation signals for ordinary assertions.",
           "baseline_span": {
-            "start": 70648,
-            "end": 70942,
-            "sha256": "870a0cc5dcd848b061706699ad456ebeedef9c65d61efe1e9c1eabede3988e8d"
+            "start": 71090,
+            "end": 71390,
+            "sha256": "b700fe3fa2bd29774c33665bb954df7bf585a6660dfec55739d29973196c1b22"
           },
           "approved_span": {
-            "start": 122544,
-            "end": 127730,
-            "sha256": "87bcd0383f102c074cc0142da77add90026ed4654a132f57761722f09fde0b91"
+            "start": 126271,
+            "end": 131455,
+            "sha256": "5f6a377db12a1e42bc2ee76dd79175f416551a827d06e89cccee3c929adbd296"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "formal_stream_fifocc_push_checks",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val popCheckClock",
               "count": 1
             }
           ]
@@ -4283,22 +4493,27 @@
         {
           "id": "stream-cc-typed-20",
           "kind": "mechanical-propagation",
-          "owner": "spinal.lib.StreamFifoCC formal assertion replacement",
-          "reason": "Replace the baseline module-owned Gray assertion with legality-owner-captured typed observations.",
+          "owner": "spinal.lib.StreamFifoCC remaining formal assertion replacement",
+          "reason": "Remove the remaining baseline pop- and global-domain module-owned assertion tail after those invariants move into legality-owner-captured typed observations.",
           "baseline_span": {
-            "start": 70951,
+            "start": 71399,
             "end": 71804,
-            "sha256": "2be9d778a080a603af3b12e2f9d4ad75c81486192b9e6a36d23d60b6da050437"
+            "sha256": "91c8e28d5539fc69385acfbc602aa28b36ae848810f276a294eccde266882d05"
           },
           "approved_span": {
-            "start": 127739,
-            "end": 127739,
+            "start": 131464,
+            "end": 131464,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "required_exact_text": [
             {
               "side": "baseline",
-              "text": "assert(pushCC.pushPtrGray === toGray(pushCC.pushPtr))",
+              "text": "assert(popCC.popPtrGray === toGray(popCC.popPtr))",
+              "count": 1
+            },
+            {
+              "side": "baseline",
+              "text": "val globalArea = new ClockingArea(gclk)",
               "count": 1
             }
           ]
@@ -4314,8 +4529,8 @@
             "sha256": "04f21220e6481867f2f3720ae3f7256e5057965db8189ba23b94f1dd34e9bbbe"
           },
           "approved_span": {
-            "start": 133231,
-            "end": 133451,
+            "start": 136956,
+            "end": 137176,
             "sha256": "e09fbe467ec7ebe307c7a50efbd934b4def4a9d043615b92c13eee57501c6f84"
           },
           "required_exact_text": [
@@ -4337,8 +4552,8 @@
             "sha256": "18aca6348140bf7510f0989054d6aaa9d949ee0456bf3937ab0466026687172b"
           },
           "approved_span": {
-            "start": 133734,
-            "end": 133915,
+            "start": 137459,
+            "end": 137640,
             "sha256": "77a3b216b6dc5d7d00a7aef257193ec8dfc2213342e87c930e7a7bf4c9606acf"
           },
           "required_exact_text": [
@@ -4360,8 +4575,8 @@
             "sha256": "41a5050279ff0aa00c3a5492fa469c0e3cc3d9004c27e2c7d974d746125e6999"
           },
           "approved_span": {
-            "start": 134515,
-            "end": 134698,
+            "start": 138240,
+            "end": 138423,
             "sha256": "c67b645fda71352ddaf3fd5f6ee2d628cb014455f4746ca9ff7a1f1e0cf1ca40"
           },
           "required_exact_text": [
@@ -4383,8 +4598,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 134898,
-            "end": 134950,
+            "start": 138623,
+            "end": 138675,
             "sha256": "0283202c7523fbd1cb456a6217125d1f44393639a07ec9ebbfb16826a1fd1aad"
           },
           "required_exact_text": [
@@ -4404,7 +4619,7 @@
       "introduced_by": [
         "Increment 57a: typed StreamFifoCC architecture"
       ],
-      "reason": "Mechanically retain exact symbolic width through native Gray-code helpers while preserving their concrete implementations.",
+      "reason": "Mechanically retain exact symbolic width through native Gray-code helpers and provide owner-local uncached reset-domain construction for generated CDC bodies while preserving concrete implementations.",
       "baseline": {
         "path": "lib/src/main/scala/spinal/lib/Utils.scala",
         "mode": "100644",
@@ -4414,8 +4629,8 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/Utils.scala",
         "mode": "100644",
-        "blob": "a8355a3fe272c5fc35791d9112c2129a1eae05fa",
-        "sha256": "065e3044c048d3f0b3738c916d7774fcfcc344d056e3536882ce30c2b40b7f72"
+        "blob": "8bca54bbf29f9fed58c10ed2e32e4401c08862c7",
+        "sha256": "e3cd9d17da89197e37db7e53d27d8a9197f89ed5939c9b19f2c33aa70844ef79"
       },
       "edits": [
         {
@@ -4488,6 +4703,57 @@
             {
               "side": "baseline",
               "text": "ret.last := gray.msb",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "clockdomain-buffered-reset-uncached-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.ClockDomainPimped owner-local buffered reset",
+          "reason": "Build the inherited buffered-reset topology without the global cache so sibling generated owners cannot share one structural child.",
+          "baseline_span": {
+            "start": 43840,
+            "end": 43840,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 45549,
+            "end": 46187,
+            "sha256": "db8c059ba13becf9a69b765671ab93ca691b57ed43400bd91e280e83572d75a9"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private[lib] def withBufferedResetFromUncached",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ResetCtrl.asyncAssertSyncDeassertCreateCd",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "clockdomain-optional-buffered-reset-uncached-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.ClockDomainPimped optional owner-local buffered reset",
+          "reason": "Select the owner-local buffered-reset path only when the existing optional reset control is enabled.",
+          "baseline_span": {
+            "start": 44486,
+            "end": 44486,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 46833,
+            "end": 47064,
+            "sha256": "6a833d45da718dfe77b9c35cb6688f085e3f6eeec59d1f40dd769c77eef44256"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private[lib] def withOptionalBufferedResetFromUncached",
               "count": 1
             }
           ]
