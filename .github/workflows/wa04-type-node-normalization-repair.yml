@@ -32,19 +32,8 @@ jobs:
 
           bridge = Path("morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala")
           text = bridge.read_text(encoding="utf-8")
-          old = """      nativeAliasPasses.drop(2).reverse.foreach(index => phases.remove(index))
-      phase.foreach { value =>
-        val insertionIndex = phases.indexWhere(_.isInstanceOf[PhaseSimplifyNodes])
-"""
-          new = """      val postWidthTypeCleanupIndex = nativeAliasPasses(1)
-      phases.update(
-        postWidthTypeCleanupIndex,
-        new PhaseRemoveIntermediateUnnameds(true)
-      )
-      nativeAliasPasses.drop(2).reverse.foreach(index => phases.remove(index))
-      phase.foreach { value =>
-        val insertionIndex = phases.indexWhere(_.isInstanceOf[PhaseSimplifyNodes])
-"""
+          old = "      nativeAliasPasses.drop(2).reverse.foreach(index => phases.remove(index))\n      phase.foreach { value =>\n        val insertionIndex = phases.indexWhere(_.isInstanceOf[PhaseSimplifyNodes])\n"
+          new = "      val postWidthTypeCleanupIndex = nativeAliasPasses(1)\n      phases.update(\n        postWidthTypeCleanupIndex,\n        new PhaseRemoveIntermediateUnnameds(true)\n      )\n      nativeAliasPasses.drop(2).reverse.foreach(index => phases.remove(index))\n      phase.foreach { value =>\n        val insertionIndex = phases.indexWhere(_.isInstanceOf[PhaseSimplifyNodes])\n"
           if text.count(old) != 1:
               raise SystemExit("WA-04 type-normalization replacement target is not unique")
           bridge.write_text(text.replace(old, new), encoding="utf-8")
