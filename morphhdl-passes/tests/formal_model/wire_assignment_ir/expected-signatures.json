@@ -5,7 +5,7 @@
     "morphhdl-passes/scripts/check-wa03-gates.py": "a21818c6c36c7ea5a8acc80ccddaebb58173bb6e0c2b4ee8fc06fc3678a752fe",
     "morphhdl-passes/scripts/validate_wire_assignment_equivalence.py": "4b8d45fdef37aba61eda13769ac786baed1d9274752ec7e33a1a8ee6a9052860",
     "morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala": "a15c10f007e62cac7c4ed9962d2d70128cb6c7b6a2003eba8b8987a930b235f7",
-    "morphhdl-passes/src/test/scala/morphhdl/passes/safety/WireAliasSafetyGateSpec.scala": "44df6c9af651d96be83da3683bb6ec1ab5acd55228a2675c5e5c1a4217673954",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/safety/WireAliasSafetyGateSpec.scala": "499bb66f5a99bb8f7fdcb0a79de7971379ec34b806f0159f7a358059459d56b7",
     "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_candidate.v": "1b01477a69a25209d893dd99e8328260e11f898299d6d642e68e55cb1b3aee7d",
     "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_reference.v": "073538be4cc45ccf97096f76f96eae226e5ac01316c0f611d70f687afaaffcdb",
     "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_tb.v": "ad0dadc6ab905aeb6343ffc4467f7282a7bf8a5614285aeb84756dc46a824499",
