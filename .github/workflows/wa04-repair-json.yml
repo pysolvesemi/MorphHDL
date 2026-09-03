@@ -39,15 +39,25 @@ jobs:
               '      s"  \\"rewritten_reference_count\\": $rewrittenReferences,",': '      s"""  "rewritten_reference_count": $rewrittenReferences,""",',
               '      s"  \\"eliminated_ordinals\\": [${eliminatedOrdinals.mkString(", ")}],",': '      s"""  "eliminated_ordinals": [${eliminatedOrdinals.mkString(", ")}],""",',
           }
-          changed = False
           for old, new in replacements.items():
               if old in text:
                   text = text.replace(old, new, 1)
-                  changed = True
               elif new not in text:
                   raise SystemExit(f"neither old nor repaired interpolation was found: {old}")
-          if changed:
-              source.write_text(text, encoding="utf-8")
+
+          old_preservation = '''    !alias.isFrozen() &&
+      alias.isEmptyOfTag &&
+      !readPrivateBoolean(alias, "dontSimplify").getOrElse(true) &&
+      assignment.locationString == null'''
+          new_preservation = '''    !alias.isFrozen() &&
+      alias.isEmptyOfTag &&
+      !readPrivateBoolean(alias, "dontSimplify").getOrElse(true)'''
+          if old_preservation in text:
+              text = text.replace(old_preservation, new_preservation, 1)
+          elif new_preservation not in text:
+              raise SystemExit("preservation guard shape changed unexpectedly")
+
+          source.write_text(text, encoding="utf-8")
 
           registry_path = Path(
               "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
@@ -72,5 +82,5 @@ jobs:
           git add \
             morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala \
             morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json
-          git commit -m "WA-04: fix Scala 2.12 report interpolation"
+          git commit -m "WA-04: repair witness bridge compilation and metadata gate"
           git push origin "HEAD:${GITHUB_REF_NAME}"
