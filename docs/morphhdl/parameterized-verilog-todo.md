@@ -580,7 +580,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   memory users and representative bus/register-map components. Expand the
   approved native-change manifest only with independently reviewed entries.
 
-- [ ] **Increment 57a — Typed native StreamFifoCC depth and CDC proof**
+- [x] **Increment 57a — Typed native StreamFifoCC depth and CDC proof**
 
   **Dependencies:** Increment 57 implemented and merged.
 
