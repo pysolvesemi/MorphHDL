@@ -1,0 +1,316 @@
+name: Increment 57b StreamFifoCC payload-width formal proof
+
+on:
+  push:
+    branches:
+      - parameterized-verilog
+      - 'agent/increment-57b-*'
+  pull_request:
+    branches:
+      - parameterized-verilog
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-57b-streamfifocc-width-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  route:
+    name: Route exact Increment 57b revision
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.route.outputs.run }}
+      base: ${{ steps.route.outputs.base }}
+    steps:
+      - name: Check out exact head with complete history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Select the immutable comparison base
+        id: route
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          run=false
+          base=''
+          workflow=.github/workflows/increment-57b-streamfifocc-payload-width-formal.yml
+
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            if ! git cat-file -e "$PR_BASE:$workflow" 2>/dev/null; then
+              base="$PR_BASE"
+              run=true
+            fi
+          elif [[ "$EVENT_NAME" == push && "$REF_NAME" == agent/increment-57b-* ]]; then
+            git fetch --no-tags origin parameterized-verilog
+            base="$(git rev-parse origin/parameterized-verilog)"
+            git merge-base --is-ancestor "$base" HEAD
+            run=true
+          elif [[ "$EVENT_NAME" == push && "$REF_NAME" == parameterized-verilog ]]; then
+            if [[ ! "$BEFORE" =~ ^[0-9a-f]{40}$ || "$BEFORE" == 0000000000000000000000000000000000000000 ]]; then
+              printf '%s\n' 'parameterized-verilog push has no immutable prior revision' >&2
+              exit 1
+            fi
+            if ! git cat-file -e "$BEFORE:$workflow" 2>/dev/null; then
+              base="$BEFORE"
+              run=true
+            fi
+          fi
+
+          if [[ "$run" == true ]]; then
+            test -n "$base"
+            test "$(git rev-parse --verify "$base^{commit}")" = "$base"
+            git merge-base --is-ancestor "$base" HEAD
+          fi
+          printf 'run=%s\n' "$run" >> "$GITHUB_OUTPUT"
+          printf 'base=%s\n' "$base" >> "$GITHUB_OUTPUT"
+
+  source-contract:
+    name: Width-formal boundary and exact source contract
+    needs: route
+    if: needs.route.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact head with complete history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Validate width-formal and inherited native boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x morphhdl/scripts/check-native-streamfifocc-width-formal-boundary.sh
+          bash -n morphhdl/scripts/check-native-streamfifocc-width-formal-boundary.sh
+          bash morphhdl/scripts/check-native-streamfifocc-width-formal-boundary.sh --self-test
+          bash morphhdl/scripts/check-native-streamfifocc-width-formal-boundary.sh --check
+
+          test -x morphhdl/scripts/check-native-streamfifocc-boundary.sh
+          bash -n morphhdl/scripts/check-native-streamfifocc-boundary.sh
+          bash morphhdl/scripts/check-native-streamfifocc-boundary.sh --self-test
+          bash morphhdl/scripts/check-native-streamfifocc-boundary.sh --check
+
+          python3 -m py_compile \
+            morphhdl/scripts/check-native-source-preservation.py \
+            morphhdl/scripts/check-typed-native-source-overlay.py \
+            morphhdl/scripts/check-production-retirement.py
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py --self-test
+          python3 morphhdl/scripts/check-production-retirement.py --self-test
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          python3 morphhdl/scripts/check-production-retirement.py
+
+      - name: Verify sealed Increment 57b delta
+        shell: bash
+        env:
+          BASE_COMMIT: ${{ needs.route.outputs.base }}
+        run: |
+          set -euo pipefail
+          scope=morphhdl/contracts/increment-57b-source-scope.txt
+          todo=docs/morphhdl/parameterized-verilog-todo.md
+          test -s "$scope"
+          test "$(cat "$scope")" = "$(LC_ALL=C sort -u "$scope")"
+          if grep -Eq '^[[:space:]]*$|^#|^/' "$scope"; then
+            printf '%s\n' 'Increment 57b source scope must contain only repository-relative paths' >&2
+            exit 1
+          fi
+          while IFS= read -r path; do
+            test -e "$path"
+          done < "$scope"
+
+          test "$(grep -Ec '^- \[( |x)\] \*\*Increment 57b — Typed native StreamFifoCC payload-width formal proof\*\*$' "$todo")" = 1
+          grep -Fqx '  **Dependencies:** Increment 57a implemented and merged.' "$todo"
+          grep -Fqx '  **Dependencies:** Increment 57b implemented and merged.' "$todo"
+          grep -Fq '`WIDTH` in `{1, 5, 8, 32}`' "$todo"
+          grep -Fq '`DEPTH` in' "$todo"
+          grep -Fq '`{2, 4, 8, 16}`' "$todo"
+
+          base="$BASE_COMMIT"
+          test -n "$base"
+          test "$(git rev-parse --verify "$base^{commit}")" = "$base"
+          git merge-base --is-ancestor "$base" HEAD
+
+          TODO_PATH="$todo" python3 - <<'PY'
+          import os
+          import subprocess
+
+          base = os.environ["BASE_COMMIT"]
+          path = os.environ["TODO_PATH"]
+          unchecked = "- [ ] **Increment 57b — Typed native StreamFifoCC payload-width formal proof**"
+          checked = unchecked.replace("[ ]", "[x]", 1)
+
+          def blob(revision):
+              return subprocess.run(
+                  ["git", "show", f"{revision}:{path}"],
+                  check=True,
+                  stdout=subprocess.PIPE,
+                  text=True,
+              ).stdout
+
+          before = blob(base)
+          after = blob("HEAD")
+          if unchecked in before or checked in before:
+              valid = before == after or (
+                  before.count(unchecked) == 1
+                  and after.count(checked) == 1
+                  and before.replace(unchecked, checked, 1) == after
+              )
+              if not valid:
+                  raise SystemExit(
+                      "roadmap delta must be empty or exactly the Increment 57b checkbox transition"
+                  )
+          else:
+              old_graph = """- Increments 54 through 57 form the strict consolidation, compatibility and
+            broad-migration chain. Increment 57a follows merged Increment 57 to close the
+            reviewed native `StreamFifoCC` CDC surface; Increment 58 remains blocked until
+            merged Increment 57a establishes typed parity.
+          """
+              new_graph = """- Increments 54 through 57 form the strict consolidation, compatibility and
+            broad-migration chain. Increment 57a follows merged Increment 57 to close the
+            reviewed native `StreamFifoCC` CDC surface. Increment 57b follows merged
+            Increment 57a to qualify joint typed payload-width and depth behavior over
+            its finite formal witness matrix; Increment 58 remains blocked until merged
+            Increment 57b establishes that proof.
+          """
+              old_tail = """- [ ] **Increment 58 — Legacy adapter and shadow-path retirement**
+
+            **Dependencies:** Increment 57a implemented and merged.
+          """
+              new_tail = """- [ ] **Increment 57b — Typed native StreamFifoCC payload-width formal proof**
+
+            **Dependencies:** Increment 57a implemented and merged.
+
+            Extend the native `StreamFifoCC` relational proof so payload `WIDTH` and FIFO
+            `DEPTH` are independent typed parameters on the candidate definition. Prove
+            the exact Cartesian witness matrix `WIDTH` in `{1, 5, 8, 32}`, `DEPTH` in
+            `{2, 4, 8, 16}`, both direct and buffered pop-reset topologies, and both
+            faster-push and faster-pop clock ratios. This is 64 positive configurations
+            per enabled Scala lane. Width one is the scalar boundary, width five is an
+            odd non-byte shape, width eight preserves the Increment 57a baseline, and
+            width 32 is the declared proof-matrix upper boundary.
+
+            Generate each concrete reference independently through ordinary
+            `SpinalVerilog` and the native `Int` `StreamFifoCC` construction for its exact
+            width, depth and reset topology. Specialize the typed candidate by setting
+            both `WIDTH` and `DEPTH`, compare handshake, occupancy and valid payload
+            observations under the existing CDC assumptions, and retain a deliberate
+            payload mutation that must produce a genuine counterexample. Parse failure,
+            missing modules, timeout, `UNKNOWN` or a tool error is not a proof or a valid
+            mutation result. Do not copy or re-author the FIFO, Gray-pointer,
+            synchronizer, RAM or reset-buffering algorithm as a second implementation;
+            a proof harness may only instantiate the authoritative native FIFO.
+
+            The finite matrix qualifies only the listed widths and depths; it does not
+            claim universal formal quantification over every positive `WIDTH`, a new
+            payload type, arbitrary clock schedules, or reset behavior beyond the
+            Increment 57a contract. See
+            [Increment 57b](increment-57b-typed-streamfifocc-payload-width.md).
+
+          - [ ] **Increment 58 — Legacy adapter and shadow-path retirement**
+
+            **Dependencies:** Increment 57b implemented and merged.
+          """
+              expected = before
+              for old, new, label in (
+                  (old_graph, new_graph, "typed dependency graph"),
+                  (old_tail, new_tail, "Increment 57b roadmap entry"),
+              ):
+                  if expected.count(old) != 1:
+                      raise SystemExit(f"base roadmap has no unique {label} insertion point")
+                  expected = expected.replace(old, new, 1)
+              valid = after == expected or after == expected.replace(unchecked, checked, 1)
+              if not valid:
+                  raise SystemExit(
+                      "roadmap delta must be exactly the reviewed Increment 57b insertion, optionally followed by its checkbox transition"
+                  )
+          PY
+
+          actual="$(git diff --no-renames --name-only --diff-filter=ACMRTD \
+            "$base"...HEAD \
+            | awk '$0 != "docs/morphhdl/parameterized-verilog-todo.md"' \
+            | LC_ALL=C sort -u)"
+          expected="$(cat "$scope")"
+          if [[ "$actual" != "$expected" ]]; then
+            printf '%s\n' 'Unexpected Increment 57b file inventory' >&2
+            printf '%s\n' '--- expected ---' "$expected" >&2
+            printf '%s\n' '--- actual ---' "$actual" >&2
+            exit 1
+          fi
+          git diff --check "$base"...HEAD
+
+  proof:
+    name: Joint WIDTH DEPTH formal Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      MORPHDL_RUN_STREAMFIFOCC_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_STREAMFIFOCC_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/streamfifocc-width
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: Verify pinned formal tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v yosys
+          command -v sby
+          command -v yices-smt2
+          yosys -Q -p 'help abc' >/tmp/morphhdl-yosys-abc-help.txt 2>&1
+          grep -q ABC /tmp/morphhdl-yosys-abc-help.txt
+
+      - name: Prove joint payload width and depth specializations
+        run: >-
+          sbt -batch "++${{ matrix.scala_version }}"
+          "morph/testOnly morphhdl.NativeStreamFifoCCFormalEquivalenceTests"
+
+      - name: Retain proof statuses and mutation counterexample
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-57b-width-formal-scala-${{ matrix.scala_version }}
+          path: formal-artifacts/scala-${{ matrix.scala_version }}
+          if-no-files-found: error
+          retention-days: 14
+
+  closure:
+    name: Increment 57b canonical closure
+    if: always() && (needs.route.result != 'success' || needs.route.outputs.run == 'true')
+    needs:
+      - route
+      - source-contract
+      - proof
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every canonical gate
+        env:
+          ROUTE: ${{ needs.route.result }}
+          SOURCE: ${{ needs.source-contract.result }}
+          PROOF: ${{ needs.proof.result }}
+        run: |
+          set -euo pipefail
+          test "$ROUTE" = success
+          test "$SOURCE" = success
+          test "$PROOF" = success

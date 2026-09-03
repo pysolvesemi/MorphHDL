@@ -3295,6 +3295,13 @@ class StreamFifoCC[T <: Data] private[lib] (
     * topology are shared by both entry lanes.
     */
   private def buildNativeAlgorithm(): BuiltAlgorithm = {
+    val payloadWidth = widthOfExpr(io.push.payload)
+    // A native Mem becomes parameterized when either its word count or any
+    // packed payload leaf is symbolic.  In both cases the external memory
+    // publisher requires stable native AST identities for the write roles.
+    // Keep the historical shorthand only when both dimensions are concrete.
+    val parameterizedMemoryRoles =
+      !elabDepth.isConcrete || !payloadWidth.isConcrete
     val ram =
       if (elabDepth.isConcrete) Mem(dataType, depth)
       else Mem(dataType, elabDepth)
@@ -3356,18 +3363,18 @@ class StreamFifoCC[T <: Data] private[lib] (
       }
       val full = isFull(pushPtrGray, popPtrGray)
       val writeData =
-        if (elabDepth.isConcrete) null
+        if (!parameterizedMemoryRoles) null
         else
-          Bits(widthOfExpr(io.push.payload) bits)
+          Bits(payloadWidth bits)
             .setName("stream_fifocc_write_data", weak = true)
             .dontSimplifyIt()
 
-      if (!elabDepth.isConcrete) writeData := io.push.payload.asBits
+      if (parameterizedMemoryRoles) writeData := io.push.payload.asBits
 
       io.push.ready := !full
 
       when(io.push.fire) {
-        if (elabDepth.isConcrete) {
+        if (!parameterizedMemoryRoles) {
           ram(pushPtr.resized) := io.push.payload
         } else {
           val writeAddress = UInt(elabDepth.addressWidth bits)
@@ -3555,12 +3562,20 @@ class StreamFifoCC[T <: Data] private[lib] (
       val inert = (io.push.valid & False)
         .setName("stream_fifocc_invalid_inert")
         .dontSimplifyIt()
+      val popPayloadWidth = widthOfExpr(io.pop.payload)
+      val retainedPayloadZero =
+        if (popPayloadWidth.isConcrete) null
+        else
+          Bits(popPayloadWidth bits)
+            .setName("stream_fifocc_invalid_payload_zero", weak = true)
+            .dontSimplifyIt()
+      if (retainedPayloadZero != null) retainedPayloadZero := 0
       io.push.ready := inert
       io.pushOccupancy := 0
       io.pop.valid := inert
-      io.pop.payload.assignFromBits(
-        B(0).resize(widthOfExpr(io.pop.payload))
-      )
+      if (retainedPayloadZero == null)
+        io.pop.payload.assignFromBits(B(0).resize(popPayloadWidth))
+      else io.pop.payload.assignFromBits(retainedPayloadZero)
       io.popOccupancy := 0
       // Keep the width-sensitive zero assignments themselves in the existing
       // invariant-zero proof lane. Repeating them below a condition on the
@@ -3569,9 +3584,9 @@ class StreamFifoCC[T <: Data] private[lib] (
       // an emitter-generated bridge name for an aggregate payload.
       when(inert) {
         io.pushOccupancy := 0
-        io.pop.payload.assignFromBits(
-          B(0).resize(widthOfExpr(io.pop.payload))
-        )
+        if (retainedPayloadZero == null)
+          io.pop.payload.assignFromBits(B(0).resize(popPayloadWidth))
+        else io.pop.payload.assignFromBits(retainedPayloadZero)
         io.popOccupancy := 0
       }
     }

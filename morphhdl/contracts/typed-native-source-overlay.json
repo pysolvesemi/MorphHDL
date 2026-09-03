@@ -162,8 +162,8 @@
       "path": "lib/src/main/scala/spinal/lib/Stream.scala",
       "change": "modified",
       "classification": "typed-mechanical-propagation",
-      "blob": "9ba04f6c2f9d7c0a2d0fb489d634440f84d83a26",
-      "reason": "carry typed depth, legal branch ownership, event-safe invalid specialization and canonical child formals through the authoritative native StreamFifo and StreamFifoCC algorithms"
+      "blob": "f1a21e7a4a7f54a813b230cb60dd693a0486db6d",
+      "reason": "carry typed depth and payload width, stable native Mem roles, legal branch ownership, a width- and event-safe invalid specialization and canonical child formals through the authoritative native StreamFifo and StreamFifoCC algorithms"
     },
     {
       "path": "lib/src/main/scala/spinal/lib/Utils.scala",
