@@ -1,0 +1,484 @@
+name: WA-03 review fix materialization
+
+on:
+  push:
+    branches:
+      - agent/wa-03-alias-equivalence-gates
+    paths:
+      - ".github/workflows/wa03-review-fixes.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    name: Apply reviewed WA-03 safety repairs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch formal reset proof and control-use safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          from pathlib import Path
+
+          root = Path.cwd()
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly one match, observed {count}")
+              return text.replace(old, new, 1)
+
+          formal_path = root / "morphhdl-passes/scripts/validate_wire_assignment_equivalence.py"
+          formal = formal_path.read_text(encoding="utf-8")
+          formal = replace_once(
+              formal,
+              """    miter_top: str,
+              reset: str | None,
+              mutate_first_output: bool,
+          """,
+              """    miter_top: str,
+              clock: str | None,
+              reset: str | None,
+              mutate_first_output: bool,
+          """,
+              "generated_miter signature",
+          )
+          formal = replace_once(
+              formal,
+              """    body: list[str] = []
+              if reset is None:
+          """,
+              """    if (clock is None) != (reset is None):
+                  raise ValidationError("formal miter requires clock and reset together")
+
+              body: list[str] = []
+              if reset is None:
+          """,
+              "clock/reset pairing",
+          )
+          formal = replace_once(
+              formal,
+              """    else:
+                  body.extend(
+                      (
+                          "  always @* begin",
+                          "    if ($initstate)",
+                          f"      assume({reset});",
+                          "    if (!$initstate) begin",
+                      )
+                  )
+                  body.extend(assertions)
+                  body.extend(("    end", "  end"))
+          """,
+              """    else:
+                  body.extend(
+                      (
+                          "  reg [1:0] wa03_reset_phase;",
+                          "  initial wa03_reset_phase = 2'd0;",
+                          "",
+                          "  always @($global_clock) begin",
+                          "    if (wa03_reset_phase != 2'd2)",
+                          "      wa03_reset_phase <= wa03_reset_phase + 1'b1;",
+                          "  end",
+                          "",
+                          "  always @* begin",
+                          "    if (wa03_reset_phase == 2'd0) begin",
+                          f"      assume(!{clock});",
+                          f"      assume({reset});",
+                          "    end",
+                          "    if (wa03_reset_phase == 2'd1) begin",
+                          f"      assume({clock});",
+                          f"      assume({reset});",
+                          "    end",
+                          "    if (wa03_reset_phase == 2'd2) begin",
+                      )
+                  )
+                  body.extend(assertions)
+                  body.extend(("    end", "  end"))
+          """,
+              "reset-active clock edge miter",
+          )
+          formal = replace_once(
+              formal,
+              """    binding: Mapping[str, int],
+              reset: str | None,
+              engine: str,
+          """,
+              """    binding: Mapping[str, int],
+              clock: str | None,
+              reset: str | None,
+              engine: str,
+          """,
+              "run_formal_binding signature",
+          )
+          formal = replace_once(
+              formal,
+              """        miter_top,
+                  reset,
+                  mutate_first_output=False,
+          """,
+              """        miter_top,
+                  clock,
+                  reset,
+                  mutate_first_output=False,
+          """,
+              "positive miter clock argument",
+          )
+          formal = replace_once(
+              formal,
+              """            miter_top,
+                      case["reset"],
+                      mutate_first_output=True,
+          """,
+              """            miter_top,
+                      case["clock"],
+                      case["reset"],
+                      mutate_first_output=True,
+          """,
+              "mutation miter clock argument",
+          )
+          formal = replace_once(
+              formal,
+              """            binding,
+                      case["reset"],
+                      case["engine"],
+          """,
+              """            binding,
+                      case["clock"],
+                      case["reset"],
+                      case["engine"],
+          """,
+              "generic proof clock argument",
+          )
+          formal = replace_once(
+              formal,
+              """                binding,
+                          shared["reset"],
+                          "abc pdr",
+          """,
+              """                binding,
+                          shared["clock"],
+                          shared["reset"],
+                          "abc pdr",
+          """,
+              "shared proof clock argument",
+          )
+          formal = replace_once(
+              formal,
+              """        "PositiveMiter",
+                  None,
+                  mutate_first_output=False,
+          """,
+              """        "PositiveMiter",
+                  None,
+                  None,
+                  mutate_first_output=False,
+          """,
+              "combinational positive self-test",
+          )
+          formal = replace_once(
+              formal,
+              """        "MutationMiter",
+                  None,
+                  mutate_first_output=True,
+          """,
+              """        "MutationMiter",
+                  None,
+                  None,
+                  mutate_first_output=True,
+          """,
+              "combinational mutation self-test",
+          )
+          formal = replace_once(
+              formal,
+              """    if "candidate_sink);" not in positive or "candidate_sink ^ 1'b1" not in mutation:
+                  raise AssertionError("formal mutation control no longer changes the compared behavior")
+
+              with tempfile.TemporaryDirectory(prefix="wa03-signature-self-test-") as directory:
+          """,
+              """    if "candidate_sink);" not in positive or "candidate_sink ^ 1'b1" not in mutation:
+                  raise AssertionError("formal mutation control no longer changes the compared behavior")
+
+              sequential_case = manifest["cases"][1]
+              sequential_binding = parameter_bindings(sequential_case["domains"])[0]
+              sequential = generated_miter(
+                  sequential_case["inputs"],
+                  sequential_case["outputs"],
+                  sequential_binding,
+                  "SequentialReferencePrepared",
+                  "SequentialCandidatePrepared",
+                  "SequentialMiter",
+                  sequential_case["clock"],
+                  sequential_case["reset"],
+                  mutate_first_output=False,
+              )
+              reset_markers = (
+                  "always @($global_clock)",
+                  "initial wa03_reset_phase = 2'd0;",
+                  "if (wa03_reset_phase == 2'd0) begin",
+                  "assume(!clk);",
+                  "if (wa03_reset_phase == 2'd1) begin",
+                  "assume(clk);",
+                  "assume(reset);",
+                  "if (wa03_reset_phase == 2'd2) begin",
+              )
+              if any(marker not in sequential for marker in reset_markers):
+                  raise AssertionError("sequential miter no longer forces a reset-active clock edge")
+
+              with tempfile.TemporaryDirectory(prefix="wa03-signature-self-test-") as directory:
+          """,
+              "sequential reset self-test",
+          )
+          compile(formal, str(formal_path), "exec")
+          formal_path.write_text(formal, encoding="utf-8")
+
+          safety_path = root / "morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala"
+          safety = safety_path.read_text(encoding="utf-8")
+          safety = replace_once(
+              safety,
+              """  val CombinationalCycle = "WA03-COMBINATIONAL-CYCLE"
+              val BidirectionalUse = "WA03-BIDIRECTIONAL-USE"
+              val MemoryPortUse = "WA03-MEMORY-PORT-USE"
+              val InstanceBoundaryUse = "WA03-INSTANCE-BOUNDARY-USE"
+          """,
+              """  val CombinationalCycle = "WA03-COMBINATIONAL-CYCLE"
+              val ClockUse = "WA03-CLOCK-USE"
+              val ResetUse = "WA03-RESET-USE"
+              val TriStateControlUse = "WA03-TRI-STATE-CONTROL-USE"
+              val ControlUseUnproven = "WA03-CONTROL-USE-UNPROVEN"
+              val BidirectionalUse = "WA03-BIDIRECTIONAL-USE"
+              val MemoryPortUse = "WA03-MEMORY-PORT-USE"
+              val InstanceBoundaryUse = "WA03-INSTANCE-BOUNDARY-USE"
+          """,
+              "control-use reason declarations",
+          )
+          safety = replace_once(
+              safety,
+              """    CombinationalCycle,
+              BidirectionalUse,
+              MemoryPortUse,
+              InstanceBoundaryUse
+          """,
+              """    CombinationalCycle,
+              ClockUse,
+              ResetUse,
+              TriStateControlUse,
+              ControlUseUnproven,
+              BidirectionalUse,
+              MemoryPortUse,
+              InstanceBoundaryUse
+          """,
+              "control-use reason ordering",
+          )
+          old_usage = """  private def validateUsageContexts(
+              module: CanonicalModuleView,
+              aliasSymbol: SymbolId,
+              violations: ArrayBuffer[AliasSafetyViolation]
+          ): Unit = {
+              module.drivers
+                .filter(_.value.referenceOccurrences.exists(_.target == aliasSymbol))
+                .sortBy(_.id.value)
+                .foreach { driver =>
+                  driver.kind match {
+                    case DriverKind.Bidirectional =>
+                      violations += violation(
+                        AliasSafetyReason.BidirectionalUse,
+                        s"alias is consumed by bidirectional driver '${driver.id.value}'"
+                      )
+                    case DriverKind.MemoryPort =>
+                      violations += violation(
+                        AliasSafetyReason.MemoryPortUse,
+                        s"alias is consumed by memory-port driver '${driver.id.value}'"
+                      )
+                    case DriverKind.InstancePort =>
+                      violations += violation(
+                        AliasSafetyReason.InstanceBoundaryUse,
+                        s"alias is consumed by instance-port driver '${driver.id.value}'"
+                      )
+                    case _ =>
+                  }
+                }
+            }
+          """
+          new_usage = """  private def validateUsageContexts(
+              module: CanonicalModuleView,
+              aliasSymbol: SymbolId,
+              violations: ArrayBuffer[AliasSafetyViolation]
+          ): Unit = {
+              val aliasOwner = module.declaration(aliasSymbol).map(_.owner)
+
+              module.drivers.sortBy(_.id.value).foreach { driver =>
+                val directlyConsumesAlias =
+                  driver.value.referenceOccurrences.exists(_.target == aliasSymbol)
+                val aliasVisibleFromDriver =
+                  aliasOwner.exists(owner => scopeIsAncestor(module, owner, driver.owner))
+
+                if (directlyConsumesAlias) {
+                  driver.kind match {
+                    case DriverKind.Bidirectional =>
+                      violations += violation(
+                        AliasSafetyReason.BidirectionalUse,
+                        s"alias is consumed by bidirectional driver '${driver.id.value}'"
+                      )
+                    case DriverKind.MemoryPort =>
+                      violations += violation(
+                        AliasSafetyReason.MemoryPortUse,
+                        s"alias is consumed by memory-port driver '${driver.id.value}'"
+                      )
+                    case DriverKind.InstancePort =>
+                      violations += violation(
+                        AliasSafetyReason.InstanceBoundaryUse,
+                        s"alias is consumed by instance-port driver '${driver.id.value}'"
+                      )
+                    case _ =>
+                  }
+
+                  module.declaration(driver.target).foreach { target =>
+                    target.kind match {
+                      case DeclarationKind.Clock =>
+                        violations += violation(
+                          AliasSafetyReason.ClockUse,
+                          s"alias directly drives clock declaration '${target.id.value}'",
+                          Some(target.id)
+                        )
+                      case DeclarationKind.Reset =>
+                        violations += violation(
+                          AliasSafetyReason.ResetUse,
+                          s"alias directly drives reset declaration '${target.id.value}'",
+                          Some(target.id)
+                        )
+                      case DeclarationKind.Port(PortDirection.InOut) =>
+                        violations += violation(
+                          AliasSafetyReason.TriStateControlUse,
+                          s"alias directly participates in inout declaration '${target.id.value}'",
+                          Some(target.id)
+                        )
+                      case _ =>
+                    }
+                  }
+                }
+
+                if (aliasVisibleFromDriver) {
+                  driver.kind match {
+                    case DriverKind.Procedural =>
+                      violations += violation(
+                        AliasSafetyReason.ControlUseUnproven,
+                        s"canonical v1 does not prove that procedural driver '${driver.id.value}' cannot use the alias as a clock or reset control"
+                      )
+                    case DriverKind.Bidirectional =>
+                      violations += violation(
+                        AliasSafetyReason.TriStateControlUse,
+                        s"canonical v1 does not prove that bidirectional driver '${driver.id.value}' cannot use the alias as a tri-state control"
+                      )
+                    case _ =>
+                  }
+                }
+              }
+            }
+          """
+          safety = replace_once(safety, old_usage, new_usage, "control-use analysis")
+          safety_path.write_text(safety, encoding="utf-8")
+
+          spec_path = root / "morphhdl-passes/src/test/scala/morphhdl/passes/safety/WireAliasSafetyGateSpec.scala"
+          spec = spec_path.read_text(encoding="utf-8")
+          marker = """  test("replacement is rejected when the direct source is not visible at an alias use") {
+          """
+          added_tests = """  test("clock reset and tri-state control uses fail closed without name inference") {
+              val explicitControlKinds = Vector(
+                DeclarationKind.Clock -> AliasSafetyReason.ClockUse,
+                DeclarationKind.Reset -> AliasSafetyReason.ResetUse,
+                DeclarationKind.Port(PortDirection.InOut) -> AliasSafetyReason.TriStateControlUse
+              )
+
+              explicitControlKinds.foreach { case (kind, code) =>
+                val design = updateDeclaration(baseDesign(), sinkId)(_.copy(kind = kind))
+                withClue(kind.label) {
+                  rejectionCodes(assessment(design)) should contain(code)
+                }
+              }
+
+              val hiddenTriStateControl = updateDriver(baseDesign(), sinkDriverId) { driver =>
+                driver.copy(
+                  kind = DriverKind.Bidirectional,
+                  value = RtlExpr.Ref(
+                    ReferenceId.unsafe("reference.sink.source.bidirectional"),
+                    sourceId,
+                    rootScopeId
+                  )
+                )
+              }
+              rejectionCodes(assessment(hiddenTriStateControl)) should contain(
+                AliasSafetyReason.TriStateControlUse
+              )
+            }
+
+            test("procedural contexts are rejected until clock and reset roles are explicit") {
+              val proceduralConsumer = updateDriver(baseDesign(), sinkDriverId)(
+                _.copy(kind = DriverKind.Procedural)
+              )
+
+              rejectionCodes(assessment(proceduralConsumer)) should contain(
+                AliasSafetyReason.ControlUseUnproven
+              )
+            }
+
+          """
+          spec = replace_once(spec, marker, added_tests + marker, "control-use regression tests")
+          spec = replace_once(
+              spec,
+              """  test("continuous dependency cycles are rejected while registered feedback is not") {
+          """,
+              """  test("continuous cycles are rejected and registered feedback fails closed on control roles") {
+          """,
+              "registered feedback test title",
+          )
+          spec = replace_once(
+              spec,
+              """    assessment(registeredFeedback).isEligible shouldBe true
+          """,
+              """    val registeredAssessment = assessment(registeredFeedback)
+              rejectionCodes(registeredAssessment) should not contain (
+                AliasSafetyReason.CombinationalCycle
+              )
+              rejectionCodes(registeredAssessment) should contain(
+                AliasSafetyReason.ControlUseUnproven
+              )
+          """,
+              "registered feedback fail-closed expectation",
+          )
+          spec_path.write_text(spec, encoding="utf-8")
+
+          registry_path = root / "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
+          registry = json.loads(registry_path.read_text(encoding="utf-8"))
+          for relative in sorted(registry["files"]):
+              file_path = root / relative
+              registry["files"][relative] = hashlib.sha256(file_path.read_bytes()).hexdigest()
+          registry_path.write_text(
+              json.dumps(registry, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Commit reviewed repairs and remove helper workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/wa03-review-fixes.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Address WA-03 formal reset and control-use review"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
