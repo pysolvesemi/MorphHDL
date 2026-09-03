@@ -22,8 +22,8 @@ class Rule:
 IMPLEMENTATION_RULES: tuple[Rule, ...] = (
     Rule(
         "WA02-COMPONENT-SPECIAL-CASE",
-        "pass implementation must not mention StreamFifo or StreamFifoCC",
-        re.compile(r"\bStreamFifo(?:CC)?\b"),
+        "pass implementation must not mention StreamFifo, StreamFifoCC, or the shared witness class",
+        re.compile(r"\b(?:StreamFifo(?:CC)?|ParameterizedStreamFifo)\b"),
     ),
     Rule(
         "WA02-MODULE-NAME-RECOGNITION",
@@ -85,11 +85,46 @@ REQUIRED_ADAPTER_MARKERS: tuple[str, ...] = (
     "design: Design",
 )
 
-REQUIRED_ROADMAP_MARKERS: tuple[str, ...] = (
-    "component-generic",
-    "StreamFifo",
-    "module/class name",
-    "source filename",
+# These expressions validate the meaning of the roadmap rule rather than one
+# punctuation-sensitive spelling. Line wrapping and equivalent wording must not
+# make the guard itself component-specific or brittle.
+REQUIRED_ROADMAP_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "a component-generic canonical-IR rule",
+        re.compile(r"(?:component-generic|generic(?:ally)?\s+over\s+(?:the\s+)?canonical\s+IR)", re.IGNORECASE),
+    ),
+    (
+        "an explicit StreamFifo non-special-case rule",
+        re.compile(
+            r"(?:must\s+not|may\s+not|without\s+recognizing)[\s\S]{0,320}\bStreamFifo(?:CC)?\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "a module/component-name non-recognition rule",
+        re.compile(
+            r"(?:must\s+not|may\s+not|without\s+recognizing)[\s\S]{0,320}"
+            r"\b(?:module(?:/class|\s+or\s+component)?\s+name|component\s+name)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "a source-filename non-recognition rule",
+        re.compile(
+            r"(?:must\s+not|may\s+not|without\s+recognizing)[\s\S]{0,320}\bsource\s+filename\b",
+            re.IGNORECASE,
+        ),
+    ),
+)
+
+REQUIRED_WITNESS_MARKERS: tuple[str, ...] = (
+    "final class ParameterizedStreamFifo",
+    "StreamFifo(",
+    "depth.asElabInt",
+    "HdlInt.param(",
+    '"WIDTH"',
+    '"DEPTH"',
+    "MorphVerilog",
 )
 
 
@@ -122,6 +157,48 @@ def adapter_sources(root: Path) -> list[Path]:
     return sorted(adapter_root.rglob("*.scala"))
 
 
+def check_roadmap(root: Path) -> list[str]:
+    roadmap = root / "morphhdl-passes" / "morphhdl-ir-wire-assignment-passes-todo.md"
+    if not roadmap.is_file():
+        return [f"WA02-ROADMAP-MISSING: {roadmap.relative_to(root)}"]
+
+    roadmap_text = roadmap.read_text(encoding="utf-8")
+    failures: list[str] = []
+    for description, pattern in REQUIRED_ROADMAP_RULES:
+        if pattern.search(roadmap_text) is None:
+            failures.append(
+                f"WA02-GENERICITY-RULE-MISSING: roadmap is missing {description}"
+            )
+    return failures
+
+
+def check_witness(root: Path) -> list[str]:
+    witness = root / "morphhdl-passes" / "examples" / "ParameterizedStreamFifo.scala"
+    if not witness.is_file():
+        return [f"WA02-WITNESS-MISSING: {witness.relative_to(root)}"]
+
+    witness_text = witness.read_text(encoding="utf-8")
+    failures: list[str] = []
+    for marker in REQUIRED_WITNESS_MARKERS:
+        if marker not in witness_text:
+            failures.append(
+                f"WA02-WITNESS-CONTRACT-MISSING: shared witness is missing required marker {marker!r}"
+            )
+
+    implementation_root = (
+        root / "morphhdl-passes" / "src" / "main" / "scala" / "morphhdl" / "passes"
+    )
+    try:
+        witness.relative_to(implementation_root)
+    except ValueError:
+        pass
+    else:
+        failures.append(
+            "WA02-WITNESS-IN-IMPLEMENTATION: component fixture must remain outside pass implementation sources"
+        )
+    return failures
+
+
 def check_repository(root: Path) -> list[str]:
     failures: list[str] = []
     implementation_paths = scala_sources(root)
@@ -146,16 +223,8 @@ def check_repository(root: Path) -> list[str]:
                 f"WA02-CANONICAL-BINDING-MISSING: adapter source is missing required marker {marker!r}"
             )
 
-    roadmap = root / "morphhdl-passes" / "morphhdl-ir-wire-assignment-passes-todo.md"
-    if not roadmap.is_file():
-        failures.append(f"WA02-ROADMAP-MISSING: {roadmap.relative_to(root)}")
-    else:
-        roadmap_text = roadmap.read_text(encoding="utf-8")
-        for marker in REQUIRED_ROADMAP_MARKERS:
-            if marker not in roadmap_text:
-                failures.append(
-                    f"WA02-GENERICITY-RULE-MISSING: roadmap is missing required marker {marker!r}"
-                )
+    failures.extend(check_roadmap(root))
+    failures.extend(check_witness(root))
 
     workflow = root / ".github" / "workflows" / "morphhdl-passes.yml"
     if not workflow.is_file():
@@ -183,6 +252,12 @@ def expect_rejected(text: str, code: str) -> None:
         raise AssertionError(f"mutation was not rejected by {code}: {text!r}")
 
 
+def expect_roadmap_rule(text: str, description: str) -> None:
+    rule = next(pattern for label, pattern in REQUIRED_ROADMAP_RULES if label == description)
+    if rule.search(text) is None:
+        raise AssertionError(f"valid roadmap wording was rejected for {description}: {text!r}")
+
+
 def run_self_test() -> None:
     expect_clean(
         """package morphhdl.passes.adapter
@@ -192,6 +267,7 @@ object Adapter { def bind(design: Design) = design.modules.map(_.id) }
     )
     mutations = (
         ("val selected = StreamFifo", "WA02-COMPONENT-SPECIAL-CASE"),
+        ("val selected = ParameterizedStreamFifo", "WA02-COMPONENT-SPECIAL-CASE"),
         ("design.modules.filter(_.logicalName == \"special\")", "WA02-MODULE-NAME-RECOGNITION"),
         ("import spinal.core.Component", "WA02-SPINAL-IMPLEMENTATION-DEPENDENCY"),
         ("scala.io.Source.fromFile(\"out.v\")", "WA02-FILE-TEXT-INGRESS"),
@@ -202,6 +278,23 @@ object Adapter { def bind(design: Design) = design.modules.map(_.id) }
     )
     for text, code in mutations:
         expect_rejected(text, code)
+
+    expect_roadmap_rule(
+        "Passes are component-generic over canonical IR.",
+        "a component-generic canonical-IR rule",
+    )
+    expect_roadmap_rule(
+        "The implementation must not special-case StreamFifo.",
+        "an explicit StreamFifo non-special-case rule",
+    )
+    expect_roadmap_rule(
+        "The implementation must not inspect a module or component name.",
+        "a module/component-name non-recognition rule",
+    )
+    expect_roadmap_rule(
+        "The implementation must not inspect a source filename.",
+        "a source-filename non-recognition rule",
+    )
 
     with tempfile.TemporaryDirectory(prefix="morphhdl-wa02-") as directory:
         root = Path(directory)
