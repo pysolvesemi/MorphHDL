@@ -226,26 +226,28 @@ MorphHDL-owned orchestration code; pass logic remains under `morphhdl-passes/`.
   paths for an eligible WA-07 branch after WA-06 and PV-56 are checked. No RTL
   transformation is implemented by WA-01.
 
-- [ ] **WA-02 — Canonical MorphHDL IR pass adapter and alias contract**
+- [x] **WA-02 — Canonical MorphHDL IR pass adapter and alias contract**
 
   **Dependencies:** WA-01 and PV-54 implemented and merged.
 
-  **Status:** `IN PROGRESS`.
+  **Status:** `COMPLETED`.
 
-  Bind the standalone workspace to the stable canonical MorphHDL-owned IR after
-  external parameterization/capture and before Verilog lowering. Expose
-  resolved declaration, driver, reference, packed-type, parameter-domain,
-  name-origin, source-location and observability metadata required by the
-  bounded alias contract. Add a hard guard proving that the adapter does not
-  consume, parse or pattern-match generated Verilog. Prove that component and
-  source names, including `StreamFifo`, do not select a special path. Do not
-  eliminate aliases.
+  Bound the standalone workspace to the versioned `morphhdl.ir.v1` project
+  without adding it to the repository root aggregate. Added a read-only adapter
+  that accepts only canonically validated post-parameterization/pre-emission
+  designs and exposes exact declaration, driver, reference, packed-type,
+  parameter-domain, name-origin, source-location and observability facts by
+  canonical identity. Added a mutation-tested guard against generated-Verilog
+  parsing, regex and emitted-name recognition, duplicate pass IR, direct Spinal
+  implementation coupling and component-specific logic. Proved that otherwise
+  identical graphs named `StreamFifo` and an unrelated component produce the
+  same adapter identity facts. No alias was eliminated or rewritten.
 
 - [ ] **WA-03 — Alias-elimination equivalence, safety and determinism gates**
 
   **Dependencies:** WA-02 implemented and merged.
 
-  **Status:** `BLOCKED` by WA-02.
+  **Status:** `READY` after WA-02 merges.
 
   Add validation shared by both passes. Prove type and parameter-domain
   equivalence, cycle freedom, legal scope replacement and preservation of every
