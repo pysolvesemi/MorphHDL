@@ -625,7 +625,7 @@ object ParameterizedStreamFifoUnnamedPassWitness {
       .toAbsolutePath
       .normalize
     val text = new String(Files.readAllBytes(generatedPath), StandardCharsets.UTF_8)
-    if (!text.contains("parameter WIDTH") || !text.contains("parameter DEPTH"))
+    if (!text.contains("parameter integer WIDTH") || !text.contains("parameter integer DEPTH"))
       throw new IllegalStateException(
         "WA-04 witness lost symbolic WIDTH or DEPTH during structured emission"
       )
