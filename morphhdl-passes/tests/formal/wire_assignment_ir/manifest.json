@@ -184,11 +184,15 @@
       },
       {
         "name": "io_occupancy",
-        "width": 4
+        "width": {
+          "parameter": "DEPTH"
+        }
       },
       {
         "name": "io_availability",
-        "width": 4
+        "width": {
+          "parameter": "DEPTH"
+        }
       }
     ],
     "parameter_domains": {
