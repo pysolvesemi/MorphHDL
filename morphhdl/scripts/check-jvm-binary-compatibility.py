@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import struct
 import sys
 import tempfile
@@ -41,6 +42,11 @@ ACC_ENUM = 0x4000
 ACC_MODULE = 0x8000
 
 VISIBILITY_MASK = ACC_PUBLIC | ACC_PRIVATE | ACC_PROTECTED
+
+SCALA_REFLECTIVE_CALL_CACHE_NAME = re.compile(r"reflMethod\$Method[0-9]+\Z")
+SCALA_REFLECTIVE_CALL_CACHE_DESCRIPTOR = (
+    "(Ljava/lang/Class;)Ljava/lang/reflect/Method;"
+)
 
 
 class ClassFormatError(ValueError):
@@ -368,14 +374,27 @@ def _visibility_name(flags: int) -> str:
     return "package-private"
 
 
+def _is_scala_reflective_call_cache(member: MemberInfo) -> bool:
+    """Recognize Scala's owner-local structural-call reflection lookup thunk."""
+
+    return (
+        member.access_flags == (ACC_PUBLIC | ACC_STATIC)
+        and member.descriptor == SCALA_REFLECTIVE_CALL_CACHE_DESCRIPTOR
+        and SCALA_REFLECTIVE_CALL_CACHE_NAME.fullmatch(member.name) is not None
+    )
+
+
 def _is_api_member(member: MemberInfo) -> bool:
     if not member.access_flags & (ACC_PUBLIC | ACC_PROTECTED):
         return False
-    # Scala emits public synthetic lambda bodies which routinely renumber after
-    # unrelated body edits.  Exclude only those implementation bodies.  Other
-    # synthetic members remain contractual: Scala trait static helpers and
-    # named-inner-class $outer accessors are referenced by compiled bytecode,
-    # while erased callers can link to synthetic bridge methods.
+    # Scala emits public implementation bodies which routinely renumber after
+    # unrelated body edits.  Structural-call reflection lookup thunks are not
+    # marked ACC_SYNTHETIC in Scala 2.12 classfiles, so recognize only their
+    # exact compiler shape.  Other synthetic members remain contractual: Scala
+    # trait static helpers and named-inner-class $outer accessors are referenced
+    # by compiled bytecode, while erased callers can link to bridge methods.
+    if _is_scala_reflective_call_cache(member):
+        return False
     if (
         member.access_flags & ACC_SYNTHETIC
         and not member.access_flags & ACC_BRIDGE
@@ -1469,6 +1488,64 @@ def run_self_tests() -> int:
         synthetic_baseline,
         synthetic_current,
         ("JVMABI_MISSING_METHOD",),
+    )
+
+    reflective_cache_descriptor = SCALA_REFLECTIVE_CALL_CACHE_DESCRIPTOR
+    reflective_cache_baseline = {
+        "api/StructuralCalls": _fixture_class(
+            "api/StructuralCalls",
+            methods=((
+                "reflMethod$Method4",
+                reflective_cache_descriptor,
+                ACC_PUBLIC | ACC_STATIC,
+            ),),
+        )
+    }
+    reflective_cache_current = {
+        "api/StructuralCalls": _fixture_class(
+            "api/StructuralCalls",
+            methods=((
+                "reflMethod$Method5",
+                reflective_cache_descriptor,
+                ACC_PUBLIC | ACC_STATIC,
+            ),),
+        )
+    }
+    check(
+        "scala-reflective-call-cache-renumbering",
+        reflective_cache_baseline,
+        reflective_cache_current,
+        (),
+    )
+
+    reflective_cache_near_misses = {
+        "api/StructuralNearMisses": _fixture_class(
+            "api/StructuralNearMisses",
+            methods=(
+                (
+                    "reflMethod$MethodX",
+                    reflective_cache_descriptor,
+                    ACC_PUBLIC | ACC_STATIC,
+                ),
+                ("reflMethod$Method6", "()V", ACC_PUBLIC | ACC_STATIC),
+                (
+                    "reflMethod$Method7",
+                    reflective_cache_descriptor,
+                    ACC_PUBLIC,
+                ),
+                (
+                    "reflMethod$Method8",
+                    reflective_cache_descriptor,
+                    ACC_PUBLIC | ACC_STATIC | ACC_SYNTHETIC,
+                ),
+            ),
+        )
+    }
+    check(
+        "scala-reflective-call-cache-near-misses-remain-contractual",
+        reflective_cache_near_misses,
+        {"api/StructuralNearMisses": _fixture_class("api/StructuralNearMisses")},
+        ("JVMABI_MISSING_METHOD",) * 4,
     )
 
     synthetic_linkage_baseline = {

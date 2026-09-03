@@ -2,6 +2,7 @@
 .github/workflows/morphhdl-native-source-guard.yml
 .github/workflows/morphhdl-streamfifocc-proof.yml
 core/src/main/scala/spinal/core/internals/Phase.scala
+docs/morphhdl/increment-55-concrete-compatibility-audit.md
 docs/morphhdl/increment-57-broad-native-library-migration.md
 docs/morphhdl/increment-57a-typed-streamfifocc.md
 docs/morphhdl/v1-support-matrix.md
@@ -15,10 +16,12 @@ morphhdl/contracts/native-source-preservation.json
 morphhdl/contracts/typed-native-source-overlay.json
 morphhdl/scripts/check-broad-native-library-migration-boundary.sh
 morphhdl/scripts/check-concrete-spinalverilog-parity.sh
+morphhdl/scripts/check-jvm-binary-compatibility.py
 morphhdl/scripts/check-native-streamfifocc-boundary.sh
 morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
 morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
 morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogMemories.scala
+morphhdl/src/test/scala/morphhdl/GenericProcessLoweringTests.scala
 morphhdl/src/test/scala/morphhdl/HierarchyParameterBindingTests.scala
 morphhdl/src/test/scala/morphhdl/NativeLibraryReuseTests.scala
 morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCCdcProofTests.scala

@@ -224,9 +224,12 @@ protected API class and linkable member. It rejects missing or narrowed
 classes, fields, methods and constructors; changed descriptors, class kinds,
 staticness, superclass or implemented interfaces; newly final or abstract
 surface; and a newly added directly declared or inherited public/protected
-abstract requirement on a pre-existing type. Only compiler-generated lambda
-implementation bodies are excluded; synthetic trait helpers, outer accessors
-and bridge methods remain contractual. Additive concrete API is allowed.
+abstract requirement on a pre-existing type. Compiler-generated lambda bodies
+and the exact public-static Scala 2.12 structural-call reflection lookup thunk
+`reflMethod$MethodN(Class): Method` are excluded because their numeric names
+renumber with unrelated implementation edits and their generated call sites
+are owner-local. Synthetic trait helpers, outer accessors, bridges and
+near-match methods remain contractual. Additive concrete API is allowed.
 Diagnostics use stable `JVMABI_*` codes, and isolated generated-class fixtures
 exercise each policy without requiring SBT or a Java compiler.
 
