@@ -548,7 +548,7 @@ final class WireAliasSafetyGateSpec extends AnyFunSuite with Matchers {
       IntExpr.GenerateIndexRef(generateIndexId),
       IntExpr.Literal(BigInt(1))
     )
-    val design = updateModule(
+    val design: Design = updateModule(
       baseDesign(
         aliasType = defaultAliasType.copy(width = generatedWidth),
         sourceType = defaultSourceType.copy(
