@@ -138,6 +138,13 @@
       "reason": "add the parameter-preserving widthOfExpr helper"
     },
     {
+      "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
+      "change": "modified",
+      "classification": "typed-mechanical-propagation",
+      "blob": "887984fc2aeff5438a1dbbfe163f0a877036dbf7",
+      "reason": "preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary"
+    },
+    {
       "path": "lib/src/main/scala/spinal/lib/Counter.scala",
       "change": "modified",
       "classification": "typed-mechanical-propagation",
@@ -148,22 +155,22 @@
       "path": "lib/src/main/scala/spinal/lib/CrossClock.scala",
       "change": "modified",
       "classification": "typed-mechanical-propagation",
-      "blob": "1cc631019d252a8a7a136818cb48d0690c489370",
-      "reason": "retain exact symbolic pointer width through the native BufferCC ports, synchronizer registers and return clone"
+      "blob": "ea7f0d5d9650ad9c37d831f82d67be55771cea22",
+      "reason": "retain exact symbolic pointer width through the native BufferCC ports and registers while rejecting the Int-only blackbox replacement before mutation"
     },
     {
       "path": "lib/src/main/scala/spinal/lib/Stream.scala",
       "change": "modified",
       "classification": "typed-mechanical-propagation",
-      "blob": "b2368653e0a4ca7e6c3cb6c6a51803d926169985",
-      "reason": "carry typed depth and branch-local geometry through the existing native StreamFifo and StreamFifoCC algorithms"
+      "blob": "1bd0e214da50f4bf61424d35012e616056a1ea36",
+      "reason": "carry typed depth, legal branch ownership and canonical child formals through the authoritative native StreamFifo and StreamFifoCC algorithms"
     },
     {
       "path": "lib/src/main/scala/spinal/lib/Utils.scala",
       "change": "modified",
       "classification": "typed-mechanical-propagation",
-      "blob": "a8355a3fe272c5fc35791d9112c2129a1eae05fa",
-      "reason": "retain exact symbolic width through the native Gray-code encode and decode helpers"
+      "blob": "8bca54bbf29f9fed58c10ed2e32e4401c08862c7",
+      "reason": "retain exact symbolic width through native Gray-code helpers and provide owner-local uncached reset-domain construction for generated CDC bodies"
     }
   ]
 }

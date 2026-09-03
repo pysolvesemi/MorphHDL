@@ -1074,6 +1074,36 @@
       ]
     },
     {
+      "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/Phase.scala",
+      "change": "modified",
+      "classification": "platform-integration-hook",
+      "introduced_by": [
+        "Increment 57a: typed StreamFifoCC architecture"
+      ],
+      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary.",
+      "edits": [
+        {
+          "id": "spinal-verilog-parameterized-exception-01",
+          "kind": "platform-integration",
+          "owner": "spinal.core.internals.SpinalVerilogBoot.apply retry boundary",
+          "reason": "Propagate ParameterizedVerilogException before the generic diagnostic retry can replace the first stable typed failure with an unrelated reconstruction error.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "case e: ParameterizedVerilogException =>",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "throw e",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "lib/src/main/scala/spinal/lib/Counter.scala",
       "baseline_path": "lib/src/main/scala/spinal/lib/Counter.scala",
       "change": "modified",
@@ -1388,7 +1418,7 @@
       "introduced_by": [
         "Increment 57a: typed StreamFifoCC architecture"
       ],
-      "reason": "Mechanically retain exact symbolic pointer width through the native BufferCC boundary while keeping concrete behavior and one evaluation of the by-name initializer per register stage.",
+      "reason": "Mechanically retain exact symbolic pointer width through the native BufferCC boundary while keeping concrete behavior and reject the Int-only blackbox replacement before it mutates a retained-width synchronizer.",
       "edits": [
         {
           "id": "buffercc-typed-width-01",
@@ -1456,6 +1486,24 @@
             {
               "side": "approved",
               "text": "val registerInit = init",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "buffercc-blackbox-typed-width-01",
+          "kind": "backend-isolation",
+          "owner": "spinal.lib.PhaseBufferCCBB retained-width replacement guard",
+          "reason": "Reject a retained-width BufferCC before the phase removes native assignments because BufferCCBlackBox still exposes only Int width geometry.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val width = widthOfExpr(c.io.dataIn)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "SPINAL-BUFFER-CC-BLACKBOX-TYPED-WIDTH-UNSUPPORTED",
               "count": 1
             }
           ]
@@ -2186,11 +2234,21 @@
           "id": "stream-cc-typed-01",
           "kind": "overload",
           "owner": "spinal.lib.StreamFifoCC typed factories",
-          "reason": "Add typed StreamFifoCC factories with exact-domain validation and preserve the ordinary Int construction path.",
+          "reason": "Add typed StreamFifoCC factories with exact-domain validation, canonicalize only the invalid depth tail by legal-power-of-two bucket, and preserve the ordinary Int construction path.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "SPINAL-STREAM-FIFO-CC-DEPTH-EXACT-DOMAIN-REQUIRED",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "private val TypedPointerWidthMinimum",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "private def typedDepthFormalMaximum",
               "count": 1
             }
           ]
@@ -2315,12 +2373,68 @@
         {
           "id": "stream-cc-typed-12",
           "kind": "mechanical-propagation",
-          "owner": "spinal.lib.StreamFifoCC BufferCC and public member boundary",
-          "reason": "Bind a child WIDTH formal for each kept synchronizer and retain the native public CDC member surface.",
+          "owner": "spinal.lib.StreamFifoCC BufferCC child schema and shared algorithm carriers",
+          "reason": "Bind one canonical child WIDTH formal for each kept synchronizer, retain stable shared-algorithm references, and mark the projected legal-depth ceiling used for native definition identity.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "private def retainedBufferCC",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "private final class BuiltAlgorithm",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "spinal_stream_fifocc_legal_depth_ceiling",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-native-algorithm-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC shared native CDC algorithm",
+          "reason": "Build the RAM, push/pop clocking areas, Gray crossings, reset topology and aggregate write carrier once while selecting only geometry-producing leaves between concrete and typed paths.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val pushCC = new ClockingArea(pushClock) with PushCCMembers",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "withOptionalBufferedResetFromUncached",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "allowMixedWidth = false",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "new BuiltAlgorithm(",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-concrete-algorithm-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC concrete algorithm placement",
+          "reason": "Invoke the shared native body directly and restore its inherited root names so the ordinary Int lane remains byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val built = buildNativeAlgorithm()",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "built.ram.setName(\"ram\")",
               "count": 1
             }
           ]
@@ -2328,12 +2442,58 @@
         {
           "id": "stream-cc-typed-13",
           "kind": "mechanical-propagation",
-          "owner": "spinal.lib.StreamFifoCC legal and invalid structural branches",
-          "reason": "Place the authoritative native CDC algorithm only under legal power-of-two specializations and fail closed otherwise.",
+          "owner": "spinal.lib.StreamFifoCC legal structural branch",
+          "reason": "Place the shared authoritative CDC algorithm only under legal power-of-two specializations and capture its exact structural owner.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "val algorithm = depthIsLegal generate new Area",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "formalAlgorithmOwner = ParameterizedStructure.currentOwner",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-invalid-depth-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC invalid-depth structural branch",
+          "reason": "Keep every illegal depth specialization outside the CDC algorithm and drive a safe inert aggregate-capable interface under its own captured owner.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val invalidDepth = (!depthIsLegal) generate new Area",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "formalInvalidDepthOwner = ParameterizedStructure.currentOwner",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "B(0).resize(widthOfExpr(io.pop.payload))",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-binding-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC typed algorithm names and backing references",
+          "reason": "Give the legal and invalid generated owners stable names and bind the public backing references to the one legal algorithm body.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "algorithm.setName(\"algorithm\")",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ramBacking = algorithm.ram",
               "count": 1
             }
           ]
@@ -2354,38 +2514,27 @@
         {
           "id": "stream-cc-typed-15",
           "kind": "mechanical-propagation",
-          "owner": "spinal.lib.StreamFifoCC formal depth bounds",
-          "reason": "Construct exact depth-derived bounds on the observed pointer geometry.",
+          "owner": "spinal.lib.StreamFifoCC formal depth bounds and concrete assertions",
+          "reason": "Construct exact depth-derived bounds for typed observations while retaining the inherited concrete push-, pop- and global-domain assertions on the Int path.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "private def depthBoundLike",
               "count": 1
-            }
-          ]
-        },
-        {
-          "id": "stream-cc-typed-16",
-          "kind": "mechanical-propagation",
-          "owner": "spinal.lib.StreamFifoCC concrete formal push checks",
-          "reason": "Retain the inherited concrete push-domain formal assertions byte-for-byte on the Int path.",
-          "required_exact_text": [
+            },
             {
               "side": "approved",
               "text": "def formalAsserts(gclk: ClockDomain)",
               "count": 1
-            }
-          ]
-        },
-        {
-          "id": "stream-cc-typed-17",
-          "kind": "mechanical-propagation",
-          "owner": "spinal.lib.StreamFifoCC concrete formal pop checks",
-          "reason": "Retain the inherited concrete pop-domain formal assertions on the Int path.",
-          "required_exact_text": [
+            },
             {
               "side": "approved",
               "text": "val popCheckClock",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "assert(pushCC.pushPtrGray === toGray(pushCC.pushPtr))",
               "count": 1
             }
           ]
@@ -2394,11 +2543,16 @@
           "id": "stream-cc-typed-18",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifoCC typed formal owner boundary",
-          "reason": "Require the legal owner and, only for mixed legal domains, the invalid owner before proving complete typed formal observation coverage.",
+          "reason": "Replace the baseline module-owned push assertion by requiring the legal owner and, only for mixed legal domains, the invalid owner before proving complete typed formal observation coverage.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "SPINAL-STREAM-FIFO-CC-FORMAL-OWNER-MISSING",
+              "count": 1
+            },
+            {
+              "side": "baseline",
+              "text": "assert(pushCC.pushPtrGray === toGray(pushCC.pushPtr))",
               "count": 1
             }
           ]
@@ -2413,18 +2567,28 @@
               "side": "approved",
               "text": "formal_stream_fifocc_push_checks",
               "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val popCheckClock",
+              "count": 1
             }
           ]
         },
         {
           "id": "stream-cc-typed-20",
           "kind": "mechanical-propagation",
-          "owner": "spinal.lib.StreamFifoCC formal assertion replacement",
-          "reason": "Replace the baseline module-owned Gray assertion with legality-owner-captured typed observations.",
+          "owner": "spinal.lib.StreamFifoCC remaining formal assertion replacement",
+          "reason": "Remove the remaining baseline pop- and global-domain module-owned assertion tail after those invariants move into legality-owner-captured typed observations.",
           "required_exact_text": [
             {
               "side": "baseline",
-              "text": "assert(pushCC.pushPtrGray === toGray(pushCC.pushPtr))",
+              "text": "assert(popCC.popPtrGray === toGray(popCC.popPtr))",
+              "count": 1
+            },
+            {
+              "side": "baseline",
+              "text": "val globalArea = new ClockingArea(gclk)",
               "count": 1
             }
           ]
@@ -2491,7 +2655,7 @@
       "introduced_by": [
         "Increment 57a: typed StreamFifoCC architecture"
       ],
-      "reason": "Mechanically retain exact symbolic width through native Gray-code helpers while preserving their concrete implementations.",
+      "reason": "Mechanically retain exact symbolic width through native Gray-code helpers and provide owner-local uncached reset-domain construction for generated CDC bodies while preserving concrete implementations.",
       "edits": [
         {
           "id": "gray-typed-width-01",
@@ -2533,6 +2697,37 @@
             {
               "side": "baseline",
               "text": "ret.last := gray.msb",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "clockdomain-buffered-reset-uncached-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.ClockDomainPimped owner-local buffered reset",
+          "reason": "Build the inherited buffered-reset topology without the global cache so sibling generated owners cannot share one structural child.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private[lib] def withBufferedResetFromUncached",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ResetCtrl.asyncAssertSyncDeassertCreateCd",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "clockdomain-optional-buffered-reset-uncached-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.ClockDomainPimped optional owner-local buffered reset",
+          "reason": "Select the owner-local buffered-reset path only when the existing optional reset control is enabled.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private[lib] def withOptionalBufferedResetFromUncached",
               "count": 1
             }
           ]
