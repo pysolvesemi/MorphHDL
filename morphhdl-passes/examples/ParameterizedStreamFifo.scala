@@ -20,7 +20,7 @@ final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Compon
   }
 
   private def directUnnamedAlias[T <: Data](source: T): T = {
-    val alias = cloneOf(source)
+    val alias = ParameterizedWidth.cloneOf(source)
     alias := source
     alias
   }
