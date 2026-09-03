@@ -1,0 +1,293 @@
+{
+  "cases": [
+    {
+      "candidate": "generic_combinational_candidate.v",
+      "candidate_top": "Wa03CombinationalCandidate",
+      "clock": null,
+      "formal": {
+        "engine": "abc pdr",
+        "mode": "prove",
+        "timeout_seconds": 120
+      },
+      "id": "generic-combinational-alias",
+      "inputs": [
+        {
+          "name": "source",
+          "width": {
+            "parameter": "WIDTH"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "sink",
+          "width": {
+            "parameter": "WIDTH"
+          }
+        }
+      ],
+      "parameter_domains": {
+        "WIDTH": [
+          1,
+          2,
+          4,
+          8
+        ]
+      },
+      "reference": "generic_combinational_reference.v",
+      "reference_top": "Wa03CombinationalReference",
+      "representative_simulations": [
+        {
+          "WIDTH": 1
+        },
+        {
+          "WIDTH": 4
+        },
+        {
+          "WIDTH": 8
+        }
+      ],
+      "reset": null,
+      "testbench": "generic_combinational_tb.v",
+      "testbench_top": "Wa03CombinationalTb"
+    },
+    {
+      "candidate": "generic_sequential_candidate.v",
+      "candidate_top": "Wa03SequentialCandidate",
+      "clock": "clk",
+      "formal": {
+        "engine": "abc pdr",
+        "mode": "prove",
+        "timeout_seconds": 180
+      },
+      "id": "generic-sequential-alias",
+      "inputs": [
+        {
+          "name": "clk",
+          "width": 1
+        },
+        {
+          "name": "reset",
+          "width": 1
+        },
+        {
+          "name": "enable",
+          "width": 1
+        },
+        {
+          "name": "source",
+          "width": {
+            "parameter": "WIDTH"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "sink",
+          "width": {
+            "parameter": "WIDTH"
+          }
+        }
+      ],
+      "parameter_domains": {
+        "WIDTH": [
+          1,
+          3,
+          8
+        ]
+      },
+      "reference": "generic_sequential_reference.v",
+      "reference_top": "Wa03SequentialReference",
+      "representative_simulations": [
+        {
+          "WIDTH": 1
+        },
+        {
+          "WIDTH": 3
+        },
+        {
+          "WIDTH": 8
+        }
+      ],
+      "reset": "reset",
+      "testbench": "generic_sequential_tb.v",
+      "testbench_top": "Wa03SequentialTb"
+    }
+  ],
+  "schema_version": 1,
+  "shared_witness": {
+    "clock": "clk",
+    "common_reference_capture": "common-pre-pass/reference.v",
+    "future_pass_outputs": [
+      {
+        "activation_item": "WA-04",
+        "candidate": "morphhdl-passes/build/pass-outputs/wire-alias-unnamed.v",
+        "pass_id": "wire-alias-unnamed"
+      },
+      {
+        "activation_item": "WA-05",
+        "candidate": "morphhdl-passes/build/pass-outputs/wire-alias-named.v",
+        "pass_id": "wire-alias-named"
+      },
+      {
+        "activation_item": "WA-06",
+        "candidate": "morphhdl-passes/build/pass-outputs/wire-alias-combined.v",
+        "pass_id": "wire-alias-unnamed+wire-alias-named"
+      }
+    ],
+    "generated_file_name": "parameterized_stream_fifo.v",
+    "inputs": [
+      {
+        "name": "clk",
+        "width": 1
+      },
+      {
+        "name": "reset",
+        "width": 1
+      },
+      {
+        "name": "io_push_valid",
+        "width": 1
+      },
+      {
+        "name": "io_push_payload",
+        "width": {
+          "parameter": "WIDTH"
+        }
+      },
+      {
+        "name": "io_pop_ready",
+        "width": 1
+      },
+      {
+        "name": "io_flush",
+        "width": 1
+      }
+    ],
+    "outputs": [
+      {
+        "name": "io_push_ready",
+        "width": 1
+      },
+      {
+        "name": "io_pop_valid",
+        "width": 1
+      },
+      {
+        "compare_when": [
+          "io_pop_valid"
+        ],
+        "name": "io_pop_payload",
+        "width": {
+          "parameter": "WIDTH"
+        }
+      },
+      {
+        "name": "io_occupancy",
+        "width": 4
+      },
+      {
+        "name": "io_availability",
+        "width": 4
+      }
+    ],
+    "parameter_domains": {
+      "DEPTH": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "WIDTH": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64
+      ]
+    },
+    "reference_top": "ParameterizedStreamFifo",
+    "representative_simulations": [
+      {
+        "DEPTH": 3,
+        "WIDTH": 8
+      },
+      {
+        "DEPTH": 5,
+        "WIDTH": 16
+      },
+      {
+        "DEPTH": 8,
+        "WIDTH": 64
+      }
+    ],
+    "reset": "reset",
+    "source_fixture": "examples/ParameterizedStreamFifo.scala",
+    "testbench": "tests/formal/wire_assignment_ir/parameterized_witness_tb.v",
+    "testbench_top": "Wa03ParameterizedWitnessTb"
+  },
+  "suite_id": "wire-assignment-ir"
+}

@@ -1,0 +1,19 @@
+{
+  "algorithm": "SHA-256",
+  "files": {
+    "morphhdl-passes/examples/ParameterizedStreamFifo.scala": "aa28799ce916f5369d53b02f05028e7d262f1defbdb1b66dcd37d75a0e772a19",
+    "morphhdl-passes/scripts/check-wa03-gates.py": "a21818c6c36c7ea5a8acc80ccddaebb58173bb6e0c2b4ee8fc06fc3678a752fe",
+    "morphhdl-passes/scripts/validate_wire_assignment_equivalence.py": "4b8d45fdef37aba61eda13769ac786baed1d9274752ec7e33a1a8ee6a9052860",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala": "a15c10f007e62cac7c4ed9962d2d70128cb6c7b6a2003eba8b8987a930b235f7",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/safety/WireAliasSafetyGateSpec.scala": "44df6c9af651d96be83da3683bb6ec1ab5acd55228a2675c5e5c1a4217673954",
+    "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_candidate.v": "1b01477a69a25209d893dd99e8328260e11f898299d6d642e68e55cb1b3aee7d",
+    "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_reference.v": "073538be4cc45ccf97096f76f96eae226e5ac01316c0f611d70f687afaaffcdb",
+    "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_tb.v": "ad0dadc6ab905aeb6343ffc4467f7282a7bf8a5614285aeb84756dc46a824499",
+    "morphhdl-passes/tests/formal/wire_assignment_ir/generic_sequential_candidate.v": "8b3db09cd030c009c73381c9dfb584816dc2b5674cea1af2d97262d90e9d0ca7",
+    "morphhdl-passes/tests/formal/wire_assignment_ir/generic_sequential_reference.v": "858367c18bf12245838969f60e564f09337b04a296e49dcc3527b5f97c825ad4",
+    "morphhdl-passes/tests/formal/wire_assignment_ir/generic_sequential_tb.v": "839a72c998c67055c882c89bc7e52b2252de1d1008c512399aef4c29d1addba4",
+    "morphhdl-passes/tests/formal/wire_assignment_ir/manifest.json": "f045af0d5f84b0907d32ff052289a85a22e15dd970aebd96a5b3b5483a00bd1b",
+    "morphhdl-passes/tests/formal/wire_assignment_ir/parameterized_witness_tb.v": "945ddd8a898a7961a87dbd54d894e04fe117e441091fc23e8456ba7ccc9d90a2"
+  },
+  "schema_version": 1
+}
