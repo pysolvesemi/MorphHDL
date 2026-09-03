@@ -882,6 +882,98 @@ require(
     "an ordinary non-opt-in test must pin the deterministic shared-clock harness shape across the full matrix",
 )
 
+# Buffered StreamFifoCC deliberately derives its pop reset from push_reset, so
+# both independently emitted buffered tops omit the unused external pop_reset
+# port. Keep the miter's instance tails topology-aware without weakening either
+# leg's independently checked interface.
+miter_match = re.search(
+    r"private\s+def\s+equivalenceMiter\s*\((?P<body>.*?)\n\s*private\s+def\s+positiveSby\s*\(",
+    formal_tests,
+    re.MULTILINE | re.DOTALL,
+)
+if miter_match is None:
+    fail(
+        "FORMAL-MITER-RESET-TOPOLOGY-MISSING",
+        "the formal equivalence miter must remain separately inspectable",
+    )
+miter_body = miter_match.group("body")
+optional_pop_reset = re.findall(
+    r'val\s+popResetConnection\s*=\s*if\s*\(\s*configuration\.buffered\s*\)\s*""\s*else\s*",\\n\s+\.pop_reset\(pop_reset\)"',
+    miter_body,
+    re.MULTILINE | re.DOTALL,
+)
+topology_sites = re.findall(
+    r"\|\s*\.pop_clk\(pop_clk\)\$popResetConnection",
+    miter_body,
+    re.MULTILINE,
+)
+literal_pop_reset_ports = re.findall(
+    r"\.pop_reset\(pop_reset\)",
+    miter_body,
+    re.MULTILINE,
+)
+if (
+    len(optional_pop_reset) != 1
+    or len(topology_sites) != 2
+    or len(literal_pop_reset_ports) != 1
+):
+    fail(
+        "FORMAL-MITER-RESET-TOPOLOGY-MISSING",
+        "the miter must omit buffered pop_reset and append the direct-only port to both DUTs exactly once",
+    )
+
+miter_test_match = re.search(
+    r"test\s*\(\s*\"formal miter connects each reference and typed DUT port exactly once\"\s*\)(?P<body>.*?)\n\s*test\s*\(\s*\"formal DUT preparation releases BufferCC hierarchy before flattening\"",
+    formal_tests,
+    re.MULTILINE | re.DOTALL,
+)
+if miter_test_match is None:
+    fail(
+        "FORMAL-MITER-RESET-TOPOLOGY-MISSING",
+        "the ordinary miter port-topology test must remain separately inspectable",
+    )
+miter_test = miter_test_match.group("body")
+require(
+    r"val\s+clockResetConnections\s*=\s*Vector\s*\(.*?\"push_clk\"\s*->\s*\"push_clk\".*?\"push_reset\"\s*->\s*\"push_reset\".*?\"pop_clk\"\s*->\s*\"pop_clk\".*?\)\s*\+\+\s*\(\s*if\s*\(\s*configuration\.buffered\s*\)\s*Vector\.empty\s*else\s*Vector\s*\(\s*\"pop_reset\"\s*->\s*\"pop_reset\"\s*\)\s*\)",
+    miter_test,
+    "FORMAL-MITER-RESET-TOPOLOGY-MISSING",
+    "the ordinary test must expect pop_reset only for direct reset topology",
+)
+for instance, prefix in (
+    ("reference_dut", "referenceDataConnections"),
+    ("typed_dut", "typedDataConnections"),
+):
+    require(
+        rf"connectionsOf\s*\(\s*miter\s*,\s*\"{instance}\"\s*\)\s*==\s*{prefix}\s*\+\+\s*clockResetConnections",
+        miter_test,
+        "FORMAL-MITER-RESET-TOPOLOGY-MISSING",
+        f"the ordinary topology test must validate {instance} independently",
+    )
+
+generated_validation_match = re.search(
+    r"private\s+def\s+validateGeneratedDuts\s*\((?P<body>.*?)\n\s*private\s+def\s+prepareDuts\s*\(",
+    formal_tests,
+    re.MULTILINE | re.DOTALL,
+)
+if generated_validation_match is None:
+    fail(
+        "FORMAL-MITER-RESET-TOPOLOGY-MISSING",
+        "generated DUT validation must remain separately inspectable",
+    )
+generated_validation = generated_validation_match.group("body")
+require(
+    r"moduleHeader\s*\(\s*source\s*,\s*typedSourceTop\s*\(\s*buffered\s*\)\s*\)\s*\.contains\s*\(\s*\"pop_reset\"\s*\)\s*==\s*!buffered",
+    generated_validation,
+    "FORMAL-MITER-RESET-TOPOLOGY-MISSING",
+    "typed generated tops must independently pin their reset-port topology",
+)
+require(
+    r"moduleHeader\s*\(\s*source\s*,\s*concreteSourceTop\s*\(\s*depth\s*,\s*buffered\s*\)\s*\)\s*\.contains\s*\(\s*\"pop_reset\"\s*\)\s*==\s*!buffered",
+    generated_validation,
+    "FORMAL-MITER-RESET-TOPOLOGY-MISSING",
+    "concrete generated tops must independently pin their reset-port topology",
+)
+
 # Candidate and reference RTLIL are loaded into one proof design. Flatten each
 # leg after releasing BufferCC's synthesis-only hierarchy attribute so their
 # independently emitted helper module names cannot collide.
@@ -1221,6 +1313,16 @@ case "${1:-}" in
     grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-FORMAL-PREPARATION-HIERARCHY-RELEASE-TEST-MISSING' \
       "$temporary/reference-test.stderr" ||
       fail SELF-TEST-DIAGNOSTIC 'reference preparation unit-test mutation did not report its stable diagnostic'
+
+    sed '/private def equivalenceMiter/,/private def positiveSby/ s/if (configuration.buffered) ""/if (!configuration.buffered) ""/' \
+      "$formal_test_source" > "$temporary/inverted-miter-reset-topology.scala"
+    if MORPHDL_STREAMFIFOCC_FORMAL_TEST_SOURCE="$temporary/inverted-miter-reset-topology.scala" \
+      "$0" --check >"$temporary/miter-topology.stdout" 2>"$temporary/miter-topology.stderr"; then
+      fail SELF-TEST-ACCEPTED 'inverted formal miter reset topology passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-FORMAL-MITER-RESET-TOPOLOGY-MISSING' \
+      "$temporary/miter-topology.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'miter reset-topology mutation did not report its stable diagnostic'
 
     printf 'Increment 57a typed native StreamFifoCC boundary self-test passed.\n'
     ;;

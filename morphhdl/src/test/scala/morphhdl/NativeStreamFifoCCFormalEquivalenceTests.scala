@@ -171,7 +171,7 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
   test("formal miter connects each reference and typed DUT port exactly once") {
     val connectionPattern =
       """\.([A-Za-z_][A-Za-z0-9_$]*)\s*\(\s*([A-Za-z_][A-Za-z0-9_$]*)\s*\)""".r
-    val referenceConnections = Vector(
+    val referenceDataConnections = Vector(
       "io_pushValid" -> "push_valid",
       "io_pushReady" -> "reference_push_ready",
       "io_pushPayload" -> "push_payload",
@@ -179,13 +179,9 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
       "io_popReady" -> "pop_ready",
       "io_popPayload" -> "reference_pop_payload",
       "io_pushOccupancy" -> "reference_push_occupancy",
-      "io_popOccupancy" -> "reference_pop_occupancy",
-      "push_clk" -> "push_clk",
-      "push_reset" -> "push_reset",
-      "pop_clk" -> "pop_clk",
-      "pop_reset" -> "pop_reset"
+      "io_popOccupancy" -> "reference_pop_occupancy"
     )
-    val typedConnections = Vector(
+    val typedDataConnections = Vector(
       "io_pushValid" -> "push_valid",
       "io_pushReady" -> "typed_push_ready",
       "io_pushPayload" -> "push_payload",
@@ -193,11 +189,7 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
       "io_popReady" -> "pop_ready",
       "io_popPayload" -> "typed_pop_payload",
       "io_pushOccupancy" -> "typed_push_occupancy",
-      "io_popOccupancy" -> "typed_pop_occupancy",
-      "push_clk" -> "push_clk",
-      "push_reset" -> "push_reset",
-      "pop_clk" -> "pop_clk",
-      "pop_reset" -> "pop_reset"
+      "io_popOccupancy" -> "typed_pop_occupancy"
     )
 
     def connectionsOf(miter: String, instance: String): Vector[(String, String)] = {
@@ -216,8 +208,21 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
 
     Configurations.foreach { configuration =>
       val miter = equivalenceMiter(configuration, mutatePopPayload = false)
-      assert(connectionsOf(miter, "reference_dut") == referenceConnections)
-      assert(connectionsOf(miter, "typed_dut") == typedConnections)
+      val clockResetConnections =
+        Vector(
+          "push_clk" -> "push_clk",
+          "push_reset" -> "push_reset",
+          "pop_clk" -> "pop_clk"
+        ) ++ (if (configuration.buffered) Vector.empty
+              else Vector("pop_reset" -> "pop_reset"))
+      assert(
+        connectionsOf(miter, "reference_dut") ==
+          referenceDataConnections ++ clockResetConnections
+      )
+      assert(
+        connectionsOf(miter, "typed_dut") ==
+          typedDataConnections ++ clockResetConnections
+      )
     }
   }
 
@@ -445,6 +450,11 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
         assert(source.contains("module StreamFifoCC #("), source)
         assert(source.contains(".DEPTH(DEPTH)"), source)
         assert(!source.contains("NativeIntShadow"), source)
+        assert(
+          moduleHeader(source, typedSourceTop(buffered)).contains("pop_reset") ==
+            !buffered,
+          s"typed reset topology does not match buffered=$buffered:\n$source"
+        )
         source
     }
     assert(
@@ -465,6 +475,11 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
         assert(
           !moduleNames(source).contains(typedSourceTop(buffered)),
           "typed and concrete proof legs share their top definition"
+        )
+        assert(
+          moduleHeader(source, concreteSourceTop(depth, buffered))
+            .contains("pop_reset") == !buffered,
+          s"concrete reset topology does not match buffered=$buffered at depth $depth:\n$source"
         )
         source
     }
@@ -560,6 +575,12 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
     val comparedPayload =
       if (mutatePopPayload) "(typed_pop_payload ^ 8'h01)"
       else "typed_pop_payload"
+    // A buffered StreamFifoCC intentionally derives its pop-domain reset from
+    // push_reset, so SpinalHDL omits the otherwise unused external pop_reset
+    // port from both independently emitted tops.
+    val popResetConnection =
+      if (configuration.buffered) ""
+      else ",\n    .pop_reset(pop_reset)"
     val trafficAssumptions =
       if (mutatePopPayload)
         """      assume(push_valid);
@@ -618,8 +639,7 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
        |    .io_popOccupancy(reference_pop_occupancy),
        |    .push_clk(push_clk),
        |    .push_reset(push_reset),
-       |    .pop_clk(pop_clk),
-       |    .pop_reset(pop_reset)
+       |    .pop_clk(pop_clk)$popResetConnection
        |  );
        |
        |  ${candidatePreparedTop(configuration.depth, configuration.buffered)} typed_dut (
@@ -633,8 +653,7 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
        |    .io_popOccupancy(typed_pop_occupancy),
        |    .push_clk(push_clk),
        |    .push_reset(push_reset),
-       |    .pop_clk(pop_clk),
-       |    .pop_reset(pop_reset)
+       |    .pop_clk(pop_clk)$popResetConnection
        |  );
        |
        |  always @($$global_clock) begin
@@ -847,6 +866,15 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
 
   private def moduleNames(source: String): Vector[String] =
     ModuleDeclaration.findAllMatchIn(source).map(_.group(1)).toVector
+
+  private def moduleHeader(source: String, top: String): String = {
+    val declaration = s"module $top"
+    val start = source.indexOf(declaration)
+    require(start >= 0, s"missing module declaration $top")
+    val end = source.indexOf(");", start)
+    require(end >= 0, s"unterminated module declaration $top")
+    source.substring(start, end + 2)
+  }
 
   private def yosysPath(path: Path): String = {
     val absolute = path.toAbsolutePath.toString.replace("\\", "/")
