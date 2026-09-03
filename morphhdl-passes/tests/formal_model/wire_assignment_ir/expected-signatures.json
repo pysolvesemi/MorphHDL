@@ -1,11 +1,14 @@
 {
   "algorithm": "SHA-256",
   "files": {
-    "morphhdl-passes/examples/ParameterizedStreamFifo.scala": "aa28799ce916f5369d53b02f05028e7d262f1defbdb1b66dcd37d75a0e772a19",
-    "morphhdl-passes/scripts/check-wa03-gates.py": "7d9774ca838c4af2b1b308c05a27a870bbd0258a9be4f87b306dabc0d84ff12e",
+    "morphhdl-passes/examples/ParameterizedStreamFifo.scala": "22c159a7aeefdc301b7e22eba64a4f0a2f16719a262d7d9faa37ee05e2983514",
+    "morphhdl-passes/scripts/check-wa03-gates.py": "e14020747b779176b436a24cae20274c816cc025542fb170234057871dd4ebcf",
+    "morphhdl-passes/scripts/check-wa04-pass.py": "93a715b77a80553e3c9e3b8286d532cad1dbd29f83e691e768bfa7a1c5cffa9d",
     "morphhdl-passes/scripts/validate_wire_assignment_equivalence.py": "b010fdb6e7a11a1bcc92a3647210d46cada7ce8ca715e92a95ffd25dc1cd8003",
     "morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala": "fa6006e938c2cebbaba7fc8fb918fdf86550d045ed3c6f247d80adcd8982ac35",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPass.scala": "03013d6d9e2740f1f65a175a379159f96acfef82e0f9fc4feb4912e942935af8",
     "morphhdl-passes/src/test/scala/morphhdl/passes/safety/WireAliasSafetyGateSpec.scala": "53973e4dbeb54f1cf3ae4434847a517395e7947a3df83639b97b479fe27384d9",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPassSpec.scala": "d7f59d0eaf3b4b486d1bb5d343bce7114ac8dd0f13431535144b816ef18c57e9",
     "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_candidate.v": "1b01477a69a25209d893dd99e8328260e11f898299d6d642e68e55cb1b3aee7d",
     "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_reference.v": "073538be4cc45ccf97096f76f96eae226e5ac01316c0f611d70f687afaaffcdb",
     "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_tb.v": "ad0dadc6ab905aeb6343ffc4467f7282a7bf8a5614285aeb84756dc46a824499",

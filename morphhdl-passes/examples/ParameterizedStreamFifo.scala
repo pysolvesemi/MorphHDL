@@ -28,12 +28,13 @@ final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Compon
 }
 
 object ParameterizedStreamFifoExample {
-  private val OutputFile = "parameterized_stream_fifo.v"
+  private val DefaultOutputFile = "parameterized_stream_fifo.v"
 
   def main(args: Array[String]): Unit = {
     val outputDirectory: Path = args.headOption
       .map(Paths.get(_))
       .getOrElse(Paths.get("generated", "parameterized-streamfifo-example"))
+    val outputFile = args.lift(1).getOrElse(DefaultOutputFile)
 
     val config = SpinalConfig(
       targetDirectory = outputDirectory.toString,
@@ -43,7 +44,7 @@ object ParameterizedStreamFifoExample {
         resetActiveLevel = HIGH
       )
     )
-    config.netlistFileName = OutputFile
+    config.netlistFileName = outputFile
 
     val width = HdlInt.param(
       "WIDTH",

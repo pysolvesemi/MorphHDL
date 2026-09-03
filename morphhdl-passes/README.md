@@ -78,6 +78,39 @@ this fail-closed boundary.
 WA-03 does not eliminate an alias. WA-04 and WA-05 remain the only increments
 allowed to transform unnamed and named aliases, respectively.
 
+WA-04 adds `UnnamedWireAliasEliminationPass`, the first transforming pass:
+
+- it is disabled by default and runs only when
+  `eliminateUnnamedAliases = true`;
+- it selects candidates only from retained canonical `NameOrigin.Unnamed`
+  metadata and never from emitted-name text;
+- it consumes the complete WA-03 safety result before changing the IR;
+- it removes exactly the eligible declaration and its sole direct driver, then
+  replaces every read by exact symbol identity while preserving each surviving
+  reference ID, owner, source location and expression structure;
+- it rewrites one deterministic candidate at a time to a fixed point so alias
+  chains collapse safely and a second run is idempotent;
+- it rebinds and validates canonical IR after every rewrite and returns the
+  original validated input with error diagnostics if any intermediate result
+  fails closed; and
+- it preserves all surviving names and metadata. Explicit, reflected,
+  generated, observable, attributed, commented or otherwise unsafe aliases are
+  retained.
+
+The cross-Scala regression covers direct aliases, fanout inside nested
+expressions, exact identity isolation, unsafe rejection evidence, deterministic
+ordering, invalid-input rollback and the complete symbolic `WIDTH=1..64` by
+`DEPTH=1..8` domain. The focused complete-domain pass proof is coupled to
+publication of the WA-04 shared-witness candidate; a failure prevents that
+candidate from reaching the formal stage.
+
+WA-04 does not introduce the final production handoff. WA-07 remains the only
+increment authorized to connect the optional pass pipeline to MorphHDL-owned
+single-source orchestration. Until that handoff, the standalone workflow emits
+the shared StreamFifo candidate afresh through the same structured backend only
+after the canonical WA-04 proof succeeds; no generated-Verilog parser or text
+postprocessor is used.
+
 ## Common witness and formal-equivalence baseline
 
 The parameterized StreamFifo source is a common regression and formal witness,
@@ -108,6 +141,13 @@ the 512 admitted witness bindings must be proved against the unchanged common
 reference. The harness therefore cannot silently accept a partial parameter
 sample or a comparison against the preceding pass.
 
+For WA-04, candidate publication is additionally gated by the focused
+`UnnamedWireAliasEliminationPassSpec` complete-domain test. The StreamFifo
+candidate is independently emitted from the same source and structured backend
+with symbolic `WIDTH` and `DEPTH`, then compared against the one common pre-pass
+capture for all 512 admitted bindings. The existing live formal mutation remains
+mandatory and demonstrates that a functional difference is rejected.
+
 ## Local validation
 
 From the repository root, the source and Scala gates are:
@@ -118,6 +158,8 @@ python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py --self-test
 python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py
 python3 morphhdl-passes/scripts/check-wa03-gates.py --self-test
 python3 morphhdl-passes/scripts/check-wa03-gates.py
+python3 morphhdl-passes/scripts/check-wa04-pass.py --self-test
+python3 morphhdl-passes/scripts/check-wa04-pass.py
 python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
 (
   cd morphhdl-passes
@@ -134,8 +176,20 @@ shared witness. The workflow runs the equivalent of:
 
 ```bash
 sbt -batch \
+  '++2.12.18' \
   'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/ParameterizedStreamFifo.scala")' \
   'morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoExample morphhdl-passes/build/formal/wire_assignment_ir/generated'
+
+(
+  cd morphhdl-passes
+  sbt -batch ++2.12.18 \
+    'testOnly morphhdl.passes.transform.UnnamedWireAliasEliminationPassSpec -- -z "shared parameterized witness proof contract"'
+)
+
+sbt -batch \
+  '++2.12.18' \
+  'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/ParameterizedStreamFifo.scala")' \
+  'morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoExample morphhdl-passes/build/pass-outputs wire-alias-unnamed.v'
 
 python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py \
   --shared-witness morphhdl-passes/build/formal/wire_assignment_ir/generated/parameterized_stream_fifo.v \
@@ -145,5 +199,6 @@ python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py \
 
 The final branch head, rather than an earlier staging commit, is the authoritative source for every closure gate.
 
-The contracts keep both passes disabled by default. Transforming alias
-elimination starts only in WA-04.
+Both pass selections remain disabled by default. WA-04 provides the standalone
+canonical unnamed-alias transformation; WA-07 will provide the separately
+reviewed production orchestration handoff.
