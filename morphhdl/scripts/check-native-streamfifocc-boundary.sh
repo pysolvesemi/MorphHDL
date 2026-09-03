@@ -1072,6 +1072,62 @@ require(
     "an ordinary unit test must pin hierarchy release, normalization ordering and uniqueness in both formal configs",
 )
 
+# The candidate and reference RAMs are intentionally independent until the
+# proof model is built. ABC latch correlation may merge only state proven
+# equivalent by SAT/induction, preserving every property output and arbitrary
+# input before PDR explores reachability. Keep that prepass exact and confined
+# to the positive engine; the live mutation retains its independent SMT BMC.
+positive_sby_match = re.search(
+    r"private\s+def\s+positiveSby\s*\((?P<body>.*?)\n\s*private\s+def\s+mutationSby\s*\(",
+    formal_tests,
+    re.MULTILINE | re.DOTALL,
+)
+if positive_sby_match is None:
+    fail(
+        "FORMAL-PDR-LATCH-CORRELATION-MISSING",
+        "the positive formal builder must remain separately inspectable",
+    )
+positive_sby = positive_sby_match.group("body")
+positive_engine_sections = re.findall(
+    r"\|\[engines\]\s*\n\s*\|abc lcorr; pdr\s*\n\s*\|\s*\n\s*\|\[script\]",
+    positive_sby,
+    re.MULTILINE,
+)
+positive_engine_lines = re.findall(
+    r"^\s*\|abc lcorr; pdr\s*$",
+    positive_sby,
+    re.MULTILINE,
+)
+if len(positive_engine_sections) != 1 or len(positive_engine_lines) != 1:
+    fail(
+        "FORMAL-PDR-LATCH-CORRELATION-MISSING",
+        "the positive proof must apply exactly one ABC lcorr prepass immediately before PDR",
+    )
+
+positive_config_test_match = re.search(
+    r"test\s*\(\s*\"formal positive proof uses reachability PDR for the multiclock model\"\s*\)(?P<body>.*?)\n\s*test\s*\(\s*\n\s*\"typed StreamFifoCC is formally equivalent",
+    formal_tests,
+    re.MULTILINE | re.DOTALL,
+)
+if positive_config_test_match is None:
+    fail(
+        "FORMAL-PDR-LATCH-CORRELATION-MISSING",
+        "the ordinary positive-proof configuration test must remain separately inspectable",
+    )
+positive_config_test = positive_config_test_match.group("body")
+require(
+    r'"\(\?m\)\^abc lcorr; pdr\$"\.r\.findAllMatchIn\s*\(\s*config\s*\)\.length\s*==\s*1',
+    positive_config_test,
+    "FORMAL-PDR-LATCH-CORRELATION-MISSING",
+    "the ordinary test must require the exact positive correlation-plus-PDR engine once",
+)
+require(
+    r'"\(\?m\)\^smtbmc yices\$"\.r.*?findAllMatchIn\s*\(\s*mutationConfig\s*\).*?length\s*==\s*1.*?!mutationConfig\.contains\s*\(\s*"lcorr;"\s*\)',
+    positive_config_test,
+    "FORMAL-PDR-LATCH-CORRELATION-MISSING",
+    "the ordinary test must keep the mutation on exactly one unchanged SMT BMC engine",
+)
+
 # The shared Gray helper is wider than StreamFifoCC's current pointer matrix.
 # Retain an explicit above-32-bit regression so its maximum-derived prefix
 # topology cannot silently fall back to the construction witness.
@@ -1283,6 +1339,16 @@ case "${1:-}" in
     grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-FORMAL-UNDEFINED-NORMALIZATION-MISSING' \
       "$temporary/hierarchy.stderr" ||
       fail SELF-TEST-DIAGNOSTIC 'formal hierarchy mutation did not report its stable diagnostic'
+
+    sed '/private def positiveSby/,/private def mutationSby/ s/|abc lcorr; pdr/|abc pdr/' \
+      "$formal_test_source" > "$temporary/missing-pdr-latch-correlation.scala"
+    if MORPHDL_STREAMFIFOCC_FORMAL_TEST_SOURCE="$temporary/missing-pdr-latch-correlation.scala" \
+      "$0" --check >"$temporary/lcorr.stdout" 2>"$temporary/lcorr.stderr"; then
+      fail SELF-TEST-ACCEPTED 'positive PDR without latch correlation passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-FORMAL-PDR-LATCH-CORRELATION-MISSING' \
+      "$temporary/lcorr.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'PDR latch-correlation mutation did not report its stable diagnostic'
 
     sed '/private def candidatePreparationScript/,/private def equivalenceMiter/ s/|setattr -unset keep_hierarchy/|setattr -set keep_hierarchy 1/g' \
       "$formal_test_source" > "$temporary/retained-preparation-hierarchy.scala"

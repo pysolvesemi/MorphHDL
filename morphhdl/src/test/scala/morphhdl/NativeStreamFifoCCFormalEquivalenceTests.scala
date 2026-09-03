@@ -282,7 +282,17 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
 
     assert("(?m)^mode prove$".r.findFirstIn(config).nonEmpty, config)
     assert("(?m)^multiclock on$".r.findFirstIn(config).nonEmpty, config)
-    assert("(?m)^abc pdr$".r.findFirstIn(config).nonEmpty, config)
+    assert(
+      "(?m)^abc lcorr; pdr$".r.findAllMatchIn(config).length == 1,
+      config
+    )
+    assert(
+      "(?m)^smtbmc yices$".r
+        .findAllMatchIn(mutationConfig)
+        .length == 1,
+      mutationConfig
+    )
+    assert(!mutationConfig.contains("lcorr;"), mutationConfig)
     assert("(?m)^depth\\s+".r.findFirstIn(config).isEmpty, config)
     assert(!config.contains("smtbmc"), config)
     val proofPreparation =
@@ -681,6 +691,8 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
     // properties over states reachable from the initialized reset schedule.
     // BufferCC retains hierarchy for synthesis CDC metadata; release that
     // boundary before prep so the proof AIG keeps and flattens its output cones.
+    // Latch correlation then merges only SAT/induction-proven equivalent state
+    // across the independently generated DUTs before PDR checks every output.
     s"""[options]
        |mode prove
        |expect pass
@@ -688,7 +700,7 @@ class NativeStreamFifoCCFormalEquivalenceTests extends AnyFunSuite {
        |timeout 600
        |
        |[engines]
-       |abc pdr
+       |abc lcorr; pdr
        |
        |[script]
        |read_rtlil ${prepared.candidate.getFileName}

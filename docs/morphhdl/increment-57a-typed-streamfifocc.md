@@ -177,7 +177,7 @@ Closure requires all of the following on the exact committed revision:
 | Parameter override geometry | one deterministic definition per static reset topology supports legal depths 2, 4, 8 and 16 with exact RAM, address, pointer, synchronizer and occupancy widths |
 | Negative domain | null, missing exact authority, depth below two and invalid defaults fail with stable diagnostics; oversized domains fail at the public ingress (an upstream shared exact-publication diagnostic is acceptable); illegal non-default specializations select only the inert generated alternative |
 | CDC simulation | push-faster and pop-faster schedules cover empty, full, wraparound, backpressure and temporary interruption of either clock; a separate shared-clock directed witness guarantees one accepted simultaneous push/pop for every depth and reset topology |
-| Formal equivalence | independently generated concrete native witnesses and specializations of each static reset topology's parameterized definition are sequentially equivalent under shared push/pop clock schedules and reset assumptions; payload is compared only while pop-valid is asserted; PDR preparation preserves ordinary unknowns as nondeterministic inputs before normalizing residual initialization state symmetrically |
+| Formal equivalence | independently generated concrete native witnesses and specializations of each static reset topology's parameterized definition are sequentially equivalent under shared push/pop clock schedules and reset assumptions; payload is compared only while pop-valid is asserted; PDR preparation preserves ordinary unknowns as nondeterministic inputs before normalizing residual initialization state symmetrically; sound sequential latch correlation precedes PDR on the full property set |
 | Mutation control | a deliberate compared-output mutation produces a genuine solver counterexample; parse failure, missing modules, timeout, `UNKNOWN` or tool error cannot satisfy the control |
 | CDC structure | both native synchronizers, their widths/tags, Gray-only crossings, dual-clock RAM contract and static reset/clock policy remain intact |
 | Multi-instance and payload structure | unequal typed depth domains sharing static clocks own independent reset synchronizers; a fixed-shape aggregate payload preserves native packed memory ordering |
@@ -191,6 +191,10 @@ geometry, invalid-domain and deterministic emission evidence.
 deterministic shared-edge simultaneous-transfer witness and strict synthesis
 evidence. `NativeStreamFifoCCFormalEquivalenceTests` supplies
 the candidate-versus-independent-concrete proof and live mutation control.
+Its positive ABC engine runs `lcorr` before `pdr`: correlation merges only
+SAT/induction-proven equivalent latch state, retains all five assertion outputs
+and arbitrary inputs, and adds no proof assumptions. The separate mutation
+control remains an unchanged Yices SMT BMC.
 The permanent `morphhdl-streamfifocc-proof.yml` workflow enables those suites'
 tool-backed proof tests with
 `MORPHDL_RUN_STREAMFIFOCC_CDC_PROOF=1` and
