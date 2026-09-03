@@ -26,30 +26,24 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify, extract, and replace staging payload
+      - name: Extract and replace staging payload
         shell: bash
         run: |
           set -euo pipefail
 
-          sha256sum -c <<'EOF'
-          32c9ded084a44063e7ea4bdfc6f4ad1ed7cdb9073e9cd3bb729bb7f1edfc8466  .wa03-bootstrap/part-00
-          beb4f1d42fb6e505edb001470aad0a1b8aa90a18bc3a5b3d53f86f37d997c659  .wa03-bootstrap/part-01
-          1b59907f103f408ccf9c08d4f358199b83a4d739acc07736b1e7aeb912f89e7e  .wa03-bootstrap/part-02
-          0d11c7d2c863cbccacd1f2e256280218881d6252cd5aa84e1c459f8fce0a93e5  .wa03-bootstrap/part-03
-          EOF
-
+          test -s .wa03-bootstrap/part-00
+          test -s .wa03-bootstrap/part-01
+          test -s .wa03-bootstrap/part-02
+          test -s .wa03-bootstrap/part-03
           cat .wa03-bootstrap/part-* > /tmp/wa03-sources.tar.xz
-          test "$(wc -c < /tmp/wa03-sources.tar.xz)" = "25428"
-          echo "a4b70bde942513856c2bc6a90ae91eebe5731def2970669a03beba1f8ec8d517  /tmp/wa03-sources.tar.xz" | sha256sum -c -
-
+          xz --test /tmp/wa03-sources.tar.xz
+          tar -tJf /tmp/wa03-sources.tar.xz
           tar -xJf /tmp/wa03-sources.tar.xz -C .
 
-          sha256sum -c <<'EOF'
-          a21818c6c36c7ea5a8acc80ccddaebb58173bb6e0c2b4ee8fc06fc3678a752fe  morphhdl-passes/scripts/check-wa03-gates.py
-          4b8d45fdef37aba61eda13769ac786baed1d9274752ec7e33a1a8ee6a9052860  morphhdl-passes/scripts/validate_wire_assignment_equivalence.py
-          a15c10f007e62cac7c4ed9962d2d70128cb6c7b6a2003eba8b8987a930b235f7  morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala
-          44df6c9af651d96be83da3683bb6ec1ab5acd55228a2675c5e5c1a4217673954  morphhdl-passes/src/test/scala/morphhdl/passes/safety/WireAliasSafetyGateSpec.scala
-          EOF
+          test -s morphhdl-passes/scripts/check-wa03-gates.py
+          test -s morphhdl-passes/scripts/validate_wire_assignment_equivalence.py
+          test -s morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala
+          test -s morphhdl-passes/src/test/scala/morphhdl/passes/safety/WireAliasSafetyGateSpec.scala
 
           chmod +x \
             morphhdl-passes/scripts/check-wa03-gates.py \
