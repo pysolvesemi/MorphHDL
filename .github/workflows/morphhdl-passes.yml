@@ -193,7 +193,7 @@ jobs:
           mkdir -p "$output"
           sbt -batch \
             '++2.12.18' \
-            'set morph / Test / unmanagedSources += file("morphdl-passes/examples/ParameterizedStreamFifo.scala")' \
+            'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/ParameterizedStreamFifo.scala")' \
             "morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoExample ${output}"
           test -s "${output}/parameterized_stream_fifo.v"
 
@@ -211,7 +211,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: morphdl-wa03-equivalence-evidence
+          name: morphhdl-wa03-equivalence-evidence
           path: morphhdl-passes/build/formal/wire_assignment_ir
           if-no-files-found: error
           retention-days: 14
