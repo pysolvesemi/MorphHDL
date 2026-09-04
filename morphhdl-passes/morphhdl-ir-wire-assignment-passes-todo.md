@@ -1,14 +1,20 @@
 # MorphHDL IR simple-wire assignment passes roadmap
 
-This is the controlling checklist for exactly two optional,
+This is the controlling checklist for exactly three optional,
 behavior-preserving passes over the canonical MorphHDL-owned IR after
 parameterization/capture and before Verilog-2001 emission:
 
-1. remove eligible simple wire aliases represented by unnamed internal
-   signals; and
-2. remove eligible simple wire aliases represented by explicitly named
-   internal signals.
+1. remove eligible direct wire aliases represented by unnamed internal
+   signals;
+2. remove eligible direct wire aliases represented by explicitly named
+   internal signals; and
+3. inline the pure right-hand-side expression of an eligible unnamed
+   continuous wire assignment into every continuous receiver, then remove the
+   temporary declaration and its assignment.
 
+Product code has one all-or-none `enabled` flag. `false` executes no pass;
+`true` executes all three in the fixed order above. Internal proof fixtures may
+select historical stages directly, but those selections are not product flags.
 No signal-renaming, formatting, generated-Verilog parsing or broader
 optimization pass is authorized by this roadmap.
 
@@ -26,9 +32,11 @@ MorphHDL external parameterization, capture and lowering
         v
 canonical MorphHDL-owned IR
         |
-        +--> unnamed simple-wire alias elimination
+        +--> unnamed direct-wire alias elimination
         |
-        +--> named simple-wire alias elimination
+        +--> named direct-wire alias elimination
+        |
+        +--> unnamed continuous wire-expression inlining
         |
         v
 structured Verilog-2001 lowering and emission
@@ -41,7 +49,8 @@ PV-58 realizes the read-only publication into this boundary for the bounded
 `SimpleWireAssignmentsV1` profile. Its `CanonicalIrHandoff` carries the
 validator-normalized graph, producer profile and complete facets directly from
 the typed native graph. The pass and writeback arrows in the diagram remain
-the roadmap target: neither pass executes in production until WA-07.
+the roadmap target: WA-07 implements and proves the third standalone pass and
+the one-flag pipeline; none executes in production until WA-08.
 
 The passes must:
 
@@ -101,10 +110,55 @@ canonical IR proves all of the following:
 - deleting the declaration and sole assignment cannot discard a required
   comment, attribute or source contract.
 
-The first implementation boundary does not inline operators, literals, slices,
-indexes, concatenations, casts, resizes, muxes, function calls or arbitrary
-expressions. Expanding beyond direct wire-to-wire aliases requires a separate
-reviewed roadmap update.
+WA-04 and WA-05 remain bounded to direct wire-to-wire aliases. They do not
+inline operators, literals, slices, indexes, concatenations, casts, resizes,
+muxes or other expression trees.
+
+## Bounded unnamed continuous wire-expression contract
+
+WA-07 adds a distinct pass for an unnamed internal combinational temporary
+whose sole full-object driver is a continuous assignment from any pure
+combinational `RtlExpr` currently represented by the canonical IR: literal,
+unary or binary operator, mux, concatenation, bit or part select, resize, cast,
+or a nesting of those forms. A direct signal reference remains WA-04 scope.
+
+The expression pass must prove all of the following before changing the IR:
+
+- the temporary is classified as unnamed by retained source/elaboration
+  provenance, never by matching `_zz_*` or another emitted identifier;
+- exactly one full-object continuous assignment drives the temporary;
+- the right-hand side is complete canonical expression IR and does not
+  reference the temporary itself;
+- every reference used by the expression is resolved, legally visible from
+  every receiver, and cannot introduce a combinational cycle;
+- at least one receiver exists and every receiver is also a continuous
+  assignment;
+- neither the temporary assignment nor any receiver is procedural; therefore
+  no assignment emitted in an `always` block is changed;
+- the temporary has complete packed type and observability metadata and no
+  preservation, comment, attribute, public, probe or hierarchy contract; and
+- cloning the expression at each receiver preserves the removed assignment's
+  packed width and signedness through an explicit type fence.
+
+For example:
+
+```verilog
+wire [WIDTH-1:0] temporary;
+assign temporary = (left ^ ~right);
+assign sink_a = temporary;
+assign sink_b = temporary;
+```
+
+may become:
+
+```verilog
+assign sink_a = (left ^ ~right);
+assign sink_b = (left ^ ~right);
+```
+
+The exact temporary declaration and sole assignment are removed. The pass does
+not simplify, reassociate, fold or otherwise change the cloned expression. If
+any receiver is procedural, the temporary and every use remain unchanged.
 
 Conceptually:
 
@@ -138,19 +192,21 @@ MorphHDL IR before backend Verilog identifiers are allocated.
 
 The named pass removes an eligible named alias and its assignment. It must not
 transfer the removed name to another signal or invent a replacement name.
-Because this removes an internal waveform/debug point, the named pass is
-separately selectable and reports every removed name and available source
-location deterministically.
+Because this removes an internal waveform/debug point, the named pass reports
+every removed name and available source location deterministically. Product
+execution is controlled only by the common all-or-none flag; there is no public
+per-pass Boolean.
 
 ## Fixed non-goals
 
-Apart from the exact alias substitution and deletion described above, the two
-passes must not change:
+Apart from the exact direct-alias substitution or expression-temporary
+inlining described above, the three passes must not change:
 
 - module, instance, port, parameter, local-parameter or generate-label names;
 - any surviving internal signal name;
-- parameters, expressions, constraints, widths or signedness;
-- literals, operators, slices, indexes, concatenations, casts or resizes;
+- parameters, constraints, widths or signedness;
+- expression structure or semantics except for cloning the approved RHS at an
+  eligible continuous receiver and adding its assignment type fence;
 - clock, reset, sensitivity, scheduling or procedural statement order;
 - generate structure, hierarchy, module boundaries or parameter bindings;
 - memory behavior, library algorithms, register state or latency;
@@ -161,12 +217,12 @@ The following remain outside this roadmap:
 
 - signal renaming or name beautification;
 - formatting or pretty-printing;
-- dead-code elimination beyond the exact removed alias;
+- dead-code elimination beyond the exact approved alias or expression temporary;
 - constant folding or propagation;
 - algebraic or logic simplification;
 - common-subexpression elimination;
 - process merging, retiming, register removal or hierarchy flattening; and
-- any third pass.
+- any fourth pass.
 
 A signal-renaming pass may be planned later only through a separate explicit
 roadmap update.
@@ -190,7 +246,7 @@ The workspace must:
   `idslpayload/`, `sim/` or `tester/`.
 
 One uniquely named MorphHDL-owned workflow may validate this workspace. The
-final WA-07 increment may add only the minimum optional handoff in
+final WA-08 increment may add only the minimum optional handoff in
 MorphHDL-owned orchestration code; pass logic remains under `morphhdl-passes/`.
 
 ## Dependency and execution discipline
@@ -257,11 +313,11 @@ WA-04 or WA-05 can remove an alias.
 
   Added a standalone nested SBT workspace supporting Scala 2.12.18 and 2.13.12
   without changing repository root build files. Added immutable pass
-  configuration, result, diagnostic and elimination-report contracts for only
-  the two authorized passes. Added a boundary guard and self-tests that permit
+  configuration, result, diagnostic and elimination-report contracts for the
+  authorized wire-assignment passes. Added a boundary guard and self-tests that permit
   `morphhdl-passes/**` and `.github/workflows/morphhdl-passes.yml`, reject root
   and upstream-owned changes, and reserve MorphHDL-owned production handoff
-  paths for an eligible WA-07 branch after WA-06 and PV-58 are checked. No RTL
+  paths for an eligible WA-08 branch after WA-07 and PV-58 are checked. No RTL
   transformation is implemented by WA-01.
 
 - [x] **WA-02 — Canonical MorphHDL IR pass adapter and alias contract**
@@ -288,7 +344,7 @@ WA-04 or WA-05 can remove an alias.
 
   **Status:** `COMPLETED`.
 
-  Add validation shared by both passes. Prove type and parameter-domain
+  Add validation shared by both direct-alias passes. Prove type and parameter-domain
   equivalence, cycle freedom, legal scope replacement and preservation of every
   exclusion. Establish the common pre-pass Verilog capture and formally compare
   the output after each pass with that unchanged reference on the shared
@@ -332,33 +388,66 @@ WA-04 or WA-05 can remove an alias.
 
   **Status:** `COMPLETED`.
 
-  Added one optional MorphHDL-IR pipeline entrypoint that can enable either pass independently or run unnamed then named. Both remain disabled by default.
-  Validated alias chains and fanout without parsing emitted Verilog, including
+  Added one optional MorphHDL-IR pipeline entrypoint and proved the historical
+  unnamed-only, named-only and unnamed-then-named stages. WA-07 replaces the
+  product-facing independent switches with one all-or-none flag while retaining
+  those selections only inside regression code. Validated alias chains and
+  fanout without parsing emitted Verilog, including
   deterministic reports, idempotent IR, byte-identical repeated emission,
   strict Verilog-2001 legality, synthesis and formal equivalence of each
   individual pass and the ordered combination against the one common pre-pass StreamFifo reference. The pipeline publishes the original input if any stage
   fails, retains ordered per-stage evidence, and remains component-generic.
 
-- [ ] **WA-07 — Final MorphHDL IR-stage production handoff**
+- [ ] **WA-07 — Unnamed continuous wire-expression elimination and common pass flag**
 
-  **Dependencies:** WA-06 and PV-58 implemented and merged.
+  **Dependencies:** WA-06 implemented and merged.
 
-  **Status:** `READY`.
+  **Status:** `IN PROGRESS`.
 
-  Consume PV-58's validated `SimpleWireAssignmentsV1` publication and connect
-  the optional pipeline to the MorphHDL single-source production path after
-  parameterization/capture and before Verilog lowering. PV-58 publishes a
-  read-only snapshot; it does not execute or write back either pass. Keep pass
-  implementation under `morphhdl-passes/` and add only minimum MorphHDL-owned
-  integration/configuration glue. Existing generation remains unchanged unless
-  one or both passes are explicitly enabled. Do not add a generated-Verilog
-  parser, file postprocessor, signal-renaming pass, formatting pass or broader
-  optimization pass.
+  Replace the product-facing per-pass Booleans with one `enabled` flag. When
+  disabled, execute no wire-assignment pass. When enabled, execute unnamed
+  direct aliases, named direct aliases, then unnamed continuous expression
+  temporaries in that fixed order. Retain direct stage selection only as a
+  package-private regression facility.
+
+  Add a component-generic canonical-IR pass for unnamed internal combinational
+  temporaries driven by any pure canonical RHS expression. Clone the exact
+  expression into every continuous receiver, preserve the removed assignment's
+  width and signedness through an explicit type fence, then remove only the
+  temporary declaration and sole assignment. Do not infer unnamed status from
+  `_zz_*`. Reject candidate or receiver assignments represented by procedural
+  drivers, so assignments emitted in `always` blocks remain unchanged.
+
+  Add direct, nested, literal, fanout, cycle, scope, observability, procedural
+  source, procedural receiver, deterministic, fixed-point, idempotence and
+  fail-closed tests on Scala 2.12.18 and 2.13.12. Apply the expression-only pass
+  and the common-flag all-pass pipeline to the shared parameterized StreamFifo.
+  Emit both candidates through the existing structured backend and formally
+  compare each directly with the one unchanged pre-pass reference over all 512
+  `WIDTH=1..64` by `DEPTH=1..8` bindings. Retain strict Verilog-2001, lint,
+  synthesis, representative simulation, mutation and repeated-emission gates.
+
+- [ ] **WA-08 — Final MorphHDL IR-stage production handoff**
+
+  **Dependencies:** WA-07 and PV-58 implemented and merged.
+
+  **Status:** `BLOCKED` by WA-07.
+
+  Expand PV-58's validated publication profile to carry the approved pure
+  expression algebra and connect the one-flag pipeline to the MorphHDL
+  single-source production path after parameterization/capture and before
+  Verilog lowering. PV-58 currently publishes a read-only bounded snapshot; it
+  does not execute or write back any pass. Keep pass implementation under
+  `morphhdl-passes/` and add only minimum MorphHDL-owned integration,
+  configuration and validated writeback glue. Existing generation remains
+  unchanged unless the one common flag is enabled. Do not add a generated-
+  Verilog parser, file postprocessor, signal-renaming pass, formatting pass or
+  broader optimization pass.
 
 ## Completion target
 
-This roadmap completes at WA-07 when MorphHDL can optionally remove eligible
-direct wire-to-wire aliases from its canonical post-parameterization IR, first
-for unnamed internal signals and then for explicitly named internal signals,
-while preserving parameterized RTL behavior and every surviving identifier.
-Signal renaming remains future work.
+This roadmap completes at WA-08 when MorphHDL can optionally run all three
+wire-assignment transformations from one flag on its canonical post-
+parameterization IR and write the validated result back into the structured
+Verilog-2001 production path while preserving parameterized RTL behavior and
+every surviving identifier. Signal renaming remains future work.
