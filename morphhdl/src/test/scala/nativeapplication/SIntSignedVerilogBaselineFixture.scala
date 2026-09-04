@@ -75,11 +75,11 @@ object SIntSignedVerilogBaselineFixture {
     val quotient = (left / divisor).resize(width).setName("signed_quotient")
     val remainder = (left % divisor).resize(width).setName("signed_remainder")
 
-    // Explicit carriers keep the parameterized reconstruction boundary reviewed while
-    // the outer operation still captures the old nested `$signed($signed(...))` form.
-    val nestedLeft = (left + right).resize(width).setName("nested_left")
-    val nestedRight = (third - left).resize(width).setName("nested_right")
-    val nested = (nestedLeft + nestedRight).resize(width).setName("nested_signed")
+    // Keep this as one direct tree so the current unsigned-declaration printer
+    // exposes its redundant nested `$signed($signed(...))` behavior verbatim.
+    val nested = ((left + right) + (third - left))
+      .resize(width)
+      .setName("nested_signed")
 
     val negative = (-left).resize(width).setName("signed_negative")
     val shifted = (left |>> 2).setName("signed_shifted")
@@ -167,17 +167,22 @@ object SIntSignedVerilogBaselineArtifactWriter {
     emitParameterized(directory.resolve("sint_cast_heavy_parameterized.v"))
   }
 
-  private def emitFixed(output: Path): Unit = {
-    val config = SpinalConfig(targetDirectory = output.getParent.toString)
+  private def generationConfig(output: Path): SpinalConfig = {
+    val config = SpinalConfig(
+      targetDirectory = output.getParent.toString,
+      headerWithRepoHash = false
+    )
     config.netlistFileName = output.getFileName.toString
-    SpinalVerilog(config)(SIntSignedVerilogBaselineFixture.fixed())
+    config
+  }
+
+  private def emitFixed(output: Path): Unit = {
+    SpinalVerilog(generationConfig(output))(SIntSignedVerilogBaselineFixture.fixed())
     require(Files.isRegularFile(output), s"missing fixed baseline artifact $output")
   }
 
   private def emitParameterized(output: Path): Unit = {
-    val config = SpinalConfig(targetDirectory = output.getParent.toString)
-    config.netlistFileName = output.getFileName.toString
-    MorphVerilog(config)(SIntSignedVerilogBaselineFixture.parameterized())
+    MorphVerilog(generationConfig(output))(SIntSignedVerilogBaselineFixture.parameterized())
     require(Files.isRegularFile(output), s"missing parameterized baseline artifact $output")
   }
 }
