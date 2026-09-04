@@ -88,9 +88,18 @@ expect_failure \
 
 wa08_manifest="${tmp_dir}/wa08.txt"
 printf '%s\n' 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala' >"${wa08_manifest}"
-expect_success \
-  'WA-08 handoff is accepted after WA-07 and PV-58 are checked' \
-  run_checker agent/wa-08-final-handoff "${wa08_manifest}"
+if grep -Eq '^- \[[xX]\] \*\*WA-07[[:space:]]+—' \
+    "${repo_root}/morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md" && \
+   grep -Eq '^- \[[xX]\] \*\*Increment 58[[:space:]]+—' \
+    "${repo_root}/docs/morphhdl/parameterized-verilog-todo.md"; then
+  expect_success \
+    'WA-08 handoff is accepted after WA-07 and PV-58 are checked' \
+    run_checker agent/wa-08-final-handoff "${wa08_manifest}"
+else
+  expect_failure \
+    'WA-08 handoff remains blocked until WA-07 and PV-58 are checked' \
+    run_checker agent/wa-08-final-handoff "${wa08_manifest}"
+fi
 
 tmp_repo="${tmp_dir}/dependency-repo"
 mkdir -p \
