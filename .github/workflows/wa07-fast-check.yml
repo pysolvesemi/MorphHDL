@@ -1,4 +1,4 @@
-name: WA-07 fast compile check
+name: WA-07 fast contract and compile check
 
 on:
   push:
@@ -14,12 +14,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run mutation-tested pass-workspace guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl-passes/scripts/test-boundary-guard.sh
+          for script in \
+            check-wa02-adapter-boundary.py \
+            check-wa03-gates.py \
+            check-wa04-pass.py \
+            check-wa05-pass.py \
+            check-wa06-pipeline.py \
+            check-wa07-expression-pass.py; do
+            python3 "morphhdl-passes/scripts/${script}" --self-test
+            python3 "morphhdl-passes/scripts/${script}"
+          done
+          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+
   test:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
     steps:
       - uses: actions/checkout@v4
       - name: Compile and test standalone pass workspace
         working-directory: morphhdl-passes
-        run: sbt -batch ++2.12.18 test
+        run: sbt -batch ++${{ matrix.scala_version }} test
