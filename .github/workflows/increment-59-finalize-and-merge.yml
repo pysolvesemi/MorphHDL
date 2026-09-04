@@ -1,0 +1,279 @@
+name: Increment 59 exact-head finalization and merge
+
+on:
+  push:
+    branches:
+      - agent/increment-59-typed-blackbox-generics
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: increment-59-exact-head-finalization
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TARGET_BRANCH: agent/increment-59-typed-blackbox-generics
+      BASE_BRANCH: parameterized-verilog
+      PR_NUMBER: '143'
+      CANONICAL_WORKFLOW_ID: '350005569'
+    steps:
+      - name: Check out complete Increment 59 history
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-59-typed-blackbox-generics
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Produce the immutable final Increment 59 source head
+        id: final
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email 'actions@users.noreply.github.com'
+
+          # Let an already-running narrow deduplication job finish, then always
+          # restart from the actual remote branch head before finalization.
+          sleep 45
+          git fetch --no-tags origin "$TARGET_BRANCH" "$BASE_BRANCH"
+          git reset --hard "origin/$TARGET_BRANCH"
+
+          if ! git merge-base --is-ancestor "origin/$BASE_BRANCH" HEAD; then
+            git merge --no-edit "origin/$BASE_BRANCH"
+          fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala')
+          text = path.read_text(encoding='utf-8')
+
+          def positions(source, marker):
+              found = []
+              cursor = 0
+              while True:
+                  cursor = source.find(marker, cursor)
+                  if cursor < 0:
+                      return found
+                  found.append(cursor)
+                  cursor += len(marker)
+
+          def matching(source, start, opener, closer):
+              depth = 0
+              index = start
+              state = 'code'
+              while index < len(source):
+                  char = source[index]
+                  following = source[index + 1] if index + 1 < len(source) else ''
+                  if state == 'code':
+                      if char == '"':
+                          state = 'string'
+                      elif char == "'":
+                          state = 'char'
+                      elif char == '/' and following == '/':
+                          state = 'line-comment'
+                          index += 1
+                      elif char == '/' and following == '*':
+                          state = 'block-comment'
+                          index += 1
+                      elif char == opener:
+                          depth += 1
+                      elif char == closer:
+                          depth -= 1
+                          if depth == 0:
+                              return index + 1
+                  elif state == 'string':
+                      if char == '\\':
+                          index += 1
+                      elif char == '"':
+                          state = 'code'
+                  elif state == 'char':
+                      if char == '\\':
+                          index += 1
+                      elif char == "'":
+                          state = 'code'
+                  elif state == 'line-comment':
+                      if char == '\n':
+                          state = 'code'
+                  elif state == 'block-comment':
+                      if char == '*' and following == '/':
+                          state = 'code'
+                          index += 1
+                  index += 1
+              raise SystemExit(f'unmatched {opener!r} at offset {start}')
+
+          class_marker = '\n  private final case class BooleanExpressionBinding('
+          class_positions = positions(text, class_marker)
+          if len(class_positions) == 2:
+              blocks = []
+              for start in class_positions:
+                  opening = text.find('(', start)
+                  end = matching(text, opening, '(', ')')
+                  blocks.append((start, end, text[start:end]))
+              if blocks[0][2].strip() != blocks[1][2].strip():
+                  raise SystemExit('BooleanExpressionBinding declarations differ; refusing automatic deletion')
+              start, end, _ = blocks[1]
+              text = text[:start] + text[end:]
+          elif len(class_positions) != 1:
+              raise SystemExit(
+                  f'expected one or two BooleanExpressionBinding declarations, found {len(class_positions)}'
+              )
+
+          method_marker = '\n  private def analyzeBlackBoxInstance('
+          method_positions = positions(text, method_marker)
+          if len(method_positions) == 2:
+              blocks = []
+              for start in method_positions:
+                  opening = text.find('{', start)
+                  if opening < 0:
+                      raise SystemExit('analyzeBlackBoxInstance body opening was not found')
+                  end = matching(text, opening, '{', '}')
+                  blocks.append((start, end, text[start:end]))
+              if blocks[0][2].strip() != blocks[1][2].strip():
+                  raise SystemExit('analyzeBlackBoxInstance definitions differ; refusing automatic deletion')
+              start, end, _ = blocks[1]
+              text = text[:start] + text[end:]
+          elif len(method_positions) != 1:
+              raise SystemExit(
+                  f'expected one or two analyzeBlackBoxInstance definitions, found {len(method_positions)}'
+              )
+
+          inventory = '        ParameterizedBlackBoxGenericRegistry.parametersOf(component) ++\n'
+          duplicated_inventory = inventory + inventory
+          if text.count(duplicated_inventory) == 1:
+              text = text.replace(duplicated_inventory, inventory, 1)
+          elif text.count('ParameterizedBlackBoxGenericRegistry.parametersOf(component)') != 1:
+              raise SystemExit('BlackBox parameter inventory duplication is not one exact adjacent pair')
+
+          exact_counts = {
+              'private final case class BooleanExpressionBinding': 1,
+              'private def analyzeBlackBoxInstance': 1,
+              'ParameterizedBlackBoxGenericRegistry.parametersOf(component)': 1,
+          }
+          for token, expected in exact_counts.items():
+              actual = text.count(token)
+              if actual != expected:
+                  raise SystemExit(f'{token!r} count is {actual}, expected {expected}')
+          path.write_text(text, encoding='utf-8')
+
+          todo = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          roadmap = todo.read_text(encoding='utf-8')
+          unchecked = '- [ ] **Increment 59 — Typed BlackBox parameter and generic binding**'
+          checked = '- [x] **Increment 59 — Typed BlackBox parameter and generic binding**'
+          count = roadmap.count(unchecked) + roadmap.count(checked)
+          if count != 1:
+              raise SystemExit(f'Increment 59 roadmap entry count is {count}, expected one')
+          roadmap = roadmap.replace(unchecked, checked, 1)
+          todo.write_text(roadmap, encoding='utf-8')
+
+          for workflow in (
+              Path('.github/workflows/increment-59-deduplicate.yml'),
+              Path('.github/workflows/increment-59-deduplicate-v2.yml'),
+              Path('.github/workflows/increment-59-export.yml'),
+              Path('.github/workflows/increment-59-repair-v2.yml'),
+              Path('.github/workflows/increment-59-finalize-and-merge.yml'),
+          ):
+              if workflow.exists():
+                  workflow.unlink()
+          PY
+
+          python3 -m py_compile morphhdl/scripts/check-increment-59-blackbox-generics.py
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --self-test
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --repo-root .
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          git diff --check
+
+          git add -A
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m 'Finalize Increment 59 typed BlackBox binding'
+          fi
+
+          final_sha="$(git rev-parse HEAD)"
+          git push origin HEAD:"$TARGET_BRANCH"
+          printf 'sha=%s\n' "$final_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for canonical final-head validation
+        shell: bash
+        env:
+          FINAL_SHA: ${{ steps.final.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$FINAL_SHA"
+
+          for attempt in $(seq 1 180); do
+            response="$(gh api \
+              -H 'Accept: application/vnd.github+json' \
+              "/repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$FINAL_SHA&per_page=100")"
+
+            state="$(printf '%s' "$response" | jq -r \
+              --argjson workflow "$CANONICAL_WORKFLOW_ID" '
+                [.workflow_runs[] | select(.workflow_id == $workflow)] as $runs |
+                if any($runs[]; .status == "completed" and .conclusion == "success") then
+                  "success"
+                elif any($runs[]; .status == "queued" or .status == "in_progress" or .status == "pending" or .status == "waiting" or .status == "requested") then
+                  "running"
+                elif ($runs | length) == 0 then
+                  "missing"
+                else
+                  "failed"
+                end')"
+
+            case "$state" in
+              success)
+                successful_run="$(printf '%s' "$response" | jq -r \
+                  --argjson workflow "$CANONICAL_WORKFLOW_ID" '
+                    [.workflow_runs[] |
+                      select(.workflow_id == $workflow and .status == "completed" and .conclusion == "success")] |
+                    sort_by(.created_at) | last | .id')"
+                test "$successful_run" != null
+                printf 'Canonical Increment 59 run %s passed for %s\n' "$successful_run" "$FINAL_SHA"
+                exit 0
+                ;;
+              failed)
+                printf '%s\n' "$response" | jq -r \
+                  --argjson workflow "$CANONICAL_WORKFLOW_ID" '
+                    .workflow_runs[] | select(.workflow_id == $workflow) |
+                    [.id, .event, .status, (.conclusion // "null"), .html_url] | @tsv' >&2
+                exit 1
+                ;;
+              running|missing)
+                ;;
+              *)
+                printf 'unexpected workflow state: %s\n' "$state" >&2
+                exit 1
+                ;;
+            esac
+            sleep 60
+          done
+
+          printf 'canonical Increment 59 validation did not complete within six hours\n' >&2
+          exit 1
+
+      - name: Merge only the validated Increment 59 head
+        shell: bash
+        env:
+          FINAL_SHA: ${{ steps.final.outputs.sha }}
+        run: |
+          set -euo pipefail
+          pr="$(gh api -H 'Accept: application/vnd.github+json' "/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          test "$(printf '%s' "$pr" | jq -r .state)" = open
+          test "$(printf '%s' "$pr" | jq -r .head.sha)" = "$FINAL_SHA"
+          test "$(printf '%s' "$pr" | jq -r .base.ref)" = "$BASE_BRANCH"
+
+          result="$(gh api --method PUT \
+            -H 'Accept: application/vnd.github+json' \
+            "/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/merge" \
+            -f sha="$FINAL_SHA" \
+            -f merge_method=merge \
+            -f commit_title='Merge Increment 59 typed BlackBox parameter and generic binding')"
+          test "$(printf '%s' "$result" | jq -r .merged)" = true
