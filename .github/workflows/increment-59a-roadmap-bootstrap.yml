@@ -1,0 +1,93 @@
+name: Increment 59a roadmap bootstrap
+
+on:
+  push:
+    branches:
+      - agent/increment-59a-recursive-verilog-module
+
+permissions:
+  contents: write
+
+jobs:
+  define-roadmap:
+    if: github.event.head_commit.message == 'Bootstrap Increment 59a roadmap'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-59a-recursive-verilog-module
+          fetch-depth: 0
+
+      - name: Define approved successor increments
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = path.read_text(encoding='utf-8')
+          anchor = '## Completion target\n'
+          if text.count(anchor) != 1:
+              raise SystemExit('roadmap completion target is not unique')
+          if 'Increment 59a — Bounded recursive Verilog module generation and proof' in text:
+              raise SystemExit('Increment 59a already exists')
+          if 'Increment 59b — Typed parameterized Vec reduceBalancedTree' in text:
+              raise SystemExit('Increment 59b already exists')
+
+          section = '''- [ ] **Increment 59a — Bounded recursive Verilog module generation and proof**
+
+  **Dependencies:** Increment 59 implemented and merged.
+
+  Validate and support one strict Verilog-2001 module whose parameter-controlled
+  recursive step instantiates the same emitted module with an exact decreasing
+  actual such as `.N(N - 1)`, and whose explicit base branch terminates the
+  elaborated hierarchy. Use an ordinary typed MorphHDL/SpinalHDL component and
+  exact object-owned metadata; a generated self-reference may use a same-name
+  BlackBox declaration only as the Verilog identity of that emitted component,
+  not as a separately authored implementation. Prove a representative unsigned
+  modular power function `x^N`, including `N = 0`, odd and even exponents, one
+  canonical module definition, deterministic named binding, legal generated
+  branch structure and rejection of non-decreasing, negative-domain or
+  otherwise unprovable recursion. Require strict Verilog-2001 parsing,
+  simulation and synthesis with the supported open-source tools, concrete-
+  specialization formal equivalence, a live mutation counterexample, dual-Scala
+  compilation and every inherited audit/compatibility gate. Do not claim or
+  admit arbitrary runtime recursion, cyclic hardware, unbounded elaboration or
+  tool-portable recursion beyond the explicitly qualified tool matrix.
+
+- [ ] **Increment 59b — Typed parameterized Vec reduceBalancedTree**
+
+  **Dependencies:** Increment 59a implemented and merged.
+
+  Migrate the authoritative SpinalHDL `reduceBalancedTree` helper so a native
+  `Vec[T]` with typed symbolic element width and typed symbolic element count can
+  retain a balanced reduction topology in one parameterized Verilog-2001
+  definition. Preserve the existing concrete `Seq`/`Vec` behavior and generic
+  associative/commutative operator callback; do not replace the helper with an
+  operation-specific adder, OR tree or component recognizer. Define exact
+  non-empty-domain, odd-tail, level-bridge and result-width semantics, and lower
+  only operator bodies whose typed graph can be replayed safely in generated
+  stages. Prove sizes including 1, odd, non-power-of-two and power-of-two cases,
+  parameterized element widths, deterministic topology, logarithmic depth,
+  strict lint/synthesis, simulation, formal specialization equivalence,
+  mutation, dual-Scala and inherited compatibility gates. Fail closed for an
+  empty domain, non-associative/unsupported side effects, ambiguous shapes or a
+  topology whose finite bound cannot be proven.
+
+'''
+          path.write_text(text.replace(anchor, section + anchor, 1), encoding='utf-8')
+          PY
+          rm .github/workflows/increment-59a-roadmap-bootstrap.yml
+          git diff --check
+
+      - name: Commit roadmap definition
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email 'actions@users.noreply.github.com'
+          git add docs/morphhdl/parameterized-verilog-todo.md .github/workflows/increment-59a-roadmap-bootstrap.yml
+          git commit -m 'Define Increments 59a and 59b roadmap'
+          git push origin HEAD:agent/increment-59a-recursive-verilog-module
