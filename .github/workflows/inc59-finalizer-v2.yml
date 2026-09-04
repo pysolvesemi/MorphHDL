@@ -1,0 +1,297 @@
+name: Increment 59 parallel finalizer
+
+on:
+  push:
+    branches:
+      - agent/inc59-finalizer-v2
+
+permissions:
+  actions: write
+  checks: read
+  contents: write
+  pull-requests: write
+  statuses: write
+
+concurrency:
+  group: increment-59-parallel-finalizer
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Repair, seal, and pin target
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      target_sha: ${{ steps.pin.outputs.target_sha }}
+      base_sha: ${{ steps.pin.outputs.base_sha }}
+    steps:
+      - name: Check out finalizer tools
+        uses: actions/checkout@v4
+        with:
+          ref: agent/inc59-finalizer-v2
+          fetch-depth: 1
+
+      - name: Preserve tools and stop obsolete bootstrap
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cp .github/scripts/inc59-finalizer-repair-v2.py /tmp/inc59-finalizer-repair.py
+          cp .github/scripts/inc59-finalizer-api.py /tmp/inc59-finalizer-api.py
+          python3 /tmp/inc59-finalizer-api.py cancel-bootstrap
+
+      - name: Check out latest target and integration base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MorphHDL Increment 59 finalizer"
+          git config user.email "actions@users.noreply.github.com"
+          git fetch --no-tags origin agent/inc59-final parameterized-verilog
+          git checkout -B agent/inc59-final origin/agent/inc59-final
+          git submodule update --init --recursive
+          base="$(git rev-parse origin/parameterized-verilog)"
+          if ! git merge-base --is-ancestor "$base" HEAD; then
+            git merge --no-edit origin/parameterized-verilog
+          fi
+
+      - name: Repair implementation and native audit metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 /tmp/inc59-finalizer-repair.py
+          python3 -m py_compile \
+            morphhdl/scripts/check-increment-59-blackbox-generics.py \
+            morphhdl/scripts/generate-increment-59-blackbox-stubs.py \
+            morphhdl/scripts/check-native-source-preservation.py \
+            morphhdl/scripts/check-production-retirement.py \
+            morphhdl/scripts/check-typed-layering-ir.py
+          bash -n morphhdl/scripts/check-increment-59-final-gates.sh
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --self-test
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --repo-root .
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-production-retirement.py
+          python3 morphhdl/scripts/check-typed-layering-ir.py
+          git diff --check
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Repair and seal Increment 59 implementation"
+          fi
+
+      - name: Make the roadmap transition the final source commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          text = path.read_text(encoding="utf-8")
+          unchecked = "- [ ] **Increment 59 — Typed BlackBox parameter and generic binding**"
+          checked = "- [x] **Increment 59 — Typed BlackBox parameter and generic binding**"
+          if text.count(checked) == 1 and text.count(unchecked) == 0:
+              raise SystemExit(0)
+          if text.count(unchecked) != 1 or text.count(checked) != 0:
+              raise SystemExit("ambiguous Increment 59 roadmap state")
+          path.write_text(text.replace(unchecked, checked, 1), encoding="utf-8")
+          PY
+          if ! git diff --quiet -- docs/morphhdl/parameterized-verilog-todo.md; then
+            git add docs/morphhdl/parameterized-verilog-todo.md
+            git commit -m "Mark Increment 59 complete"
+            test "$(git diff-tree --no-commit-id --name-only -r HEAD)" = \
+              "docs/morphhdl/parameterized-verilog-todo.md"
+          fi
+
+      - name: Validate sealed final source and push exact target
+        id: pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$(git rev-parse origin/parameterized-verilog)"
+          INC59_BASE_SHA="$base" \
+            bash morphhdl/scripts/check-increment-59-final-gates.sh source
+          git push origin HEAD:agent/inc59-final
+          target="$(git rev-parse HEAD)"
+          printf 'target_sha=%s\n' "$target" >> "$GITHUB_OUTPUT"
+          printf 'base_sha=%s\n' "$base" >> "$GITHUB_OUTPUT"
+          printf 'Pinned Increment 59 target %s on base %s\n' "$target" "$base"
+
+  source-contract:
+    name: Independent final source contract
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact target with complete history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.target_sha }}
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Re-run source, native audit, and sealed scope gate
+        env:
+          INC59_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+        run: bash morphhdl/scripts/check-increment-59-final-gates.sh source
+
+  dual-scala:
+    name: Dual-Scala complete suites ${{ matrix.scala_version }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - 2.12.18
+          - 2.13.12
+    steps:
+      - name: Check out exact target
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.target_sha }}
+          submodules: recursive
+
+      - name: Run compile, focused, simulation, and affected suites
+        run: bash morphhdl/scripts/check-increment-59-final-gates.sh scala ${{ matrix.scala_version }}
+
+  strict-formal:
+    name: Strict Verilog-2001 and formal closure ${{ matrix.scala_version }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - 2.12.18
+          - 2.13.12
+    steps:
+      - name: Check out exact target
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.target_sha }}
+          submodules: recursive
+
+      - name: Run strict Verilog-2001 gate
+        run: bash morphhdl/scripts/check-increment-59-final-gates.sh strict ${{ matrix.scala_version }}
+
+      - name: Run focused and inherited formal proofs
+        run: bash morphhdl/scripts/check-increment-59-final-gates.sh formal ${{ matrix.scala_version }}
+
+      - name: Retain strict and formal artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59-finalizer-formal-scala-${{ matrix.scala_version }}
+          path: |
+            formal-artifacts/scala-${{ matrix.scala_version }}
+            target/morphhdl/typed-blackbox-${{ matrix.scala_version }}
+          if-no-files-found: error
+          retention-days: 14
+
+  determinism:
+    name: Typed and concrete determinism ${{ matrix.scala_version }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - 2.12.18
+          - 2.13.12
+    steps:
+      - name: Check out exact target
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.target_sha }}
+          submodules: recursive
+
+      - name: Prove deterministic publication and concrete preservation
+        run: bash morphhdl/scripts/check-increment-59-final-gates.sh determinism ${{ matrix.scala_version }}
+
+  merge:
+    name: Exact-SHA merge after full matrix closure
+    needs:
+      - prepare
+      - source-contract
+      - dual-scala
+      - strict-formal
+      - determinism
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact verified target
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.target_sha }}
+          fetch-depth: 0
+
+      - name: Check out merge helper
+        uses: actions/checkout@v4
+        with:
+          ref: agent/inc59-finalizer-v2
+          path: finalizer-tools
+          fetch-depth: 1
+
+      - name: Create and merge the exact verified pull request
+        id: prmerge
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INC59_TARGET_SHA: ${{ needs.prepare.outputs.target_sha }}
+          INC59_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+          INC59_MERGE_RECORD: ${{ github.workspace }}/increment-59-merge-record.json
+        run: python3 finalizer-tools/.github/scripts/inc59-finalizer-merge.py
+
+      - name: Fallback to one exact verified merge commit
+        if: steps.prmerge.outcome == 'failure'
+        shell: bash
+        env:
+          TARGET_SHA: ${{ needs.prepare.outputs.target_sha }}
+          BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "MorphHDL Increment 59 finalizer"
+          git config user.email "actions@users.noreply.github.com"
+          git fetch --no-tags origin agent/inc59-final parameterized-verilog
+          test "$(git rev-parse origin/agent/inc59-final)" = "$TARGET_SHA"
+          test "$(git rev-parse origin/parameterized-verilog)" = "$BASE_SHA"
+          git checkout -B parameterized-verilog origin/parameterized-verilog
+          git merge --no-ff "$TARGET_SHA" \
+            -m "Merge Increment 59 typed BlackBox generic binding"
+          git push origin HEAD:parameterized-verilog
+          merge_sha="$(git rev-parse HEAD)"
+          printf '{\n  "state": "merged-direct",\n  "head_sha": "%s",\n  "base_sha": "%s",\n  "merge_sha": "%s"\n}\n' \
+            "$TARGET_SHA" "$BASE_SHA" "$merge_sha" \
+            > increment-59-merge-record.json
+
+      - name: Verify merged base contains the exact target
+        shell: bash
+        env:
+          TARGET_SHA: ${{ needs.prepare.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin parameterized-verilog
+          merged="$(git rev-parse origin/parameterized-verilog)"
+          git merge-base --is-ancestor "$TARGET_SHA" "$merged"
+          git show "origin/parameterized-verilog:docs/morphhdl/parameterized-verilog-todo.md" \
+            | grep -Fqx -- '- [x] **Increment 59 — Typed BlackBox parameter and generic binding**'
+          printf 'Merged base SHA: %s\n' "$merged"
+
+      - name: Retain merge record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59-merge-record
+          path: increment-59-merge-record.json
+          if-no-files-found: error
+          retention-days: 30
