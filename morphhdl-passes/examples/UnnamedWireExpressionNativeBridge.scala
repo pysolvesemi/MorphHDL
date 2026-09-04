@@ -1,7 +1,7 @@
 package morphhdl.examples
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path, Paths}
+import java.nio.file.{Files, Paths}
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -27,69 +27,76 @@ import morphhdl.ir.v1.PackedValueSemantics
 import morphhdl.ir.v1.ParameterId
 import morphhdl.ir.v1.PortDirection
 import morphhdl.ir.v1.ReferenceId
+import morphhdl.ir.v1.RtlBinaryOperator
 import morphhdl.ir.v1.RtlExpr
+import morphhdl.ir.v1.RtlUnaryOperator
 import morphhdl.ir.v1.Scope
 import morphhdl.ir.v1.ScopeId
 import morphhdl.ir.v1.ScopeKind
 import morphhdl.ir.v1.Signedness
 import morphhdl.ir.v1.SymbolId
-import morphhdl.passes.api.AliasNameOrigin
 import morphhdl.passes.api.IrSymbolId
 import morphhdl.passes.api.PassExecutionStatus
+import morphhdl.passes.api.PassId
 import morphhdl.passes.api.WireAliasPassConfiguration
-import morphhdl.passes.transform.NamedWireAliasEliminationPass
+import morphhdl.passes.transform.UnnamedWireExpressionEliminationPass
 import spinal.core._
 import spinal.core.internals._
 
 /**
-  * Test-only bridge proving that the WA-05 canonical pass can control an exact
-  * native SpinalHDL graph rewrite before name allocation and Verilog emission.
+  * Test-only bridge proving the WA-07 expression pass on the native graph.
   *
-  * The bridge is deliberately conservative. It offers the canonical pass only
-  * root-scope, full-object, direct BaseType aliases whose preservation, type,
-  * use-context and cycle safety can be established from native object identity.
-  * It never parses generated HDL and never recognizes a component or signal
-  * name. Production handoff remains reserved for WA-07.
+  * Only an unnamed, directionless, root-scope combinational declaration with
+  * one root-scope full assignment from a non-reference expression is offered to
+  * the canonical pass. Every receiver must also be a root-scope continuous data
+  * assignment. Consequently, an assignment represented inside a When/Switch
+  * tree, register process, or another Verilog `always` block is never rewritten.
+  *
+  * Selection is based on native object identity and source/elaboration naming
+  * provenance. No component name, source filename, backend-generated temporary identifier text, or emitted HDL
+  * is inspected. Production publication and writeback remain WA-08 scope.
   */
-private[examples] final class NamedWireAliasNativePhase extends Phase {
+private[examples] final class UnnamedWireExpressionNativePhase extends Phase {
   private var completed = false
   private var visited = 0
   private var eliminated = Vector.empty[Int]
-  private var eliminatedNames = Vector.empty[String]
   private var rejected = Map.empty[String, Int]
   private var rewrittenReferences = 0
+  private var expressionOperators = Vector.empty[String]
 
-  def report: NamedWireAliasNativeReport = {
+  def report: UnnamedWireExpressionNativeReport = {
     if (!completed)
-      throw new IllegalStateException("WA-05 native witness phase did not execute")
-    NamedWireAliasNativeReport(
+      throw new IllegalStateException("WA-07 expression witness phase did not execute")
+    UnnamedWireExpressionNativeReport(
       visitedCandidates = visited,
       eliminatedOrdinals = eliminated,
-      eliminatedNames = eliminatedNames,
       rejectedByReason = rejected,
-      rewrittenReferences = rewrittenReferences
+      rewrittenReferences = rewrittenReferences,
+      expressionOperators = expressionOperators
     )
   }
 
   override def hasNetlistImpact: Boolean = true
 
   override def impl(pc: PhaseContext): Unit = {
+    if (completed)
+      throw new IllegalStateException("WA-07 expression witness phase executed more than once")
+
     val eliminatedBuilder = Vector.newBuilder[Int]
-    val eliminatedNameBuilder = Vector.newBuilder[String]
+    val operatorBuilder = Vector.newBuilder[String]
     var nextOrdinal = 0
     var progress = true
 
     while (progress) {
       progress = false
-      val candidates = candidateSnapshot(pc)
-      val iterator = candidates.iterator
+      val iterator = candidateSnapshot(pc).iterator
       while (iterator.hasNext && !progress) {
         val candidate = iterator.next()
         val ordinal = nextOrdinal
         nextOrdinal += 1
         visited += 1
 
-        proveCandidate(pc, candidate) match {
+        proveCandidate(candidate) match {
           case Left(reason) =>
             rejected = rejected.updated(reason, rejected.getOrElse(reason, 0) + 1)
           case Right(proof) =>
@@ -97,15 +104,14 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
               case Left(reason) =>
                 rejected = rejected.updated(reason, rejected.getOrElse(reason, 0) + 1)
               case Right(_) =>
-                val replacements = rewriteNativeIdentity(
-                  candidate.component,
-                  candidate.alias,
-                  candidate.source,
-                  candidate.assignment
-                )
+                val replacements = rewriteNativeIdentity(candidate)
+                if (replacements < 1)
+                  throw new IllegalStateException(
+                    "WA-07 native expression rewrite removed a temporary without replacing a receiver"
+                  )
                 rewrittenReferences += replacements
+                operatorBuilder += candidate.sourceExpression.opName
                 eliminatedBuilder += ordinal
-                eliminatedNameBuilder += candidate.explicitName
                 progress = true
             }
         }
@@ -113,18 +119,21 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
     }
 
     eliminated = eliminatedBuilder.result()
-    eliminatedNames = eliminatedNameBuilder.result()
+    expressionOperators = operatorBuilder.result()
     completed = true
   }
 
   private final case class NativeCandidate(
       component: Component,
       alias: BaseType,
-      source: BaseType,
-      explicitName: String,
+      sourceExpression: Expression,
+      sourceReferences: Vector[BaseType],
       assignment: DataAssignmentStatement,
       useStatements: Vector[Statement]
-  )
+  ) {
+    def receiverOccurrenceCount: Int =
+      useStatements.map(references(_, alias)).sum
+  }
 
   private final case class NativeProof(
       packedType: PackedType,
@@ -137,33 +146,34 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       val statements = statementsOf(component)
       component.dslBody.walkDeclarations {
         case alias: BaseType
-            if alias.isNamed && alias.isComb && alias.isDirectionLess &&
+            if alias.isUnnamed && alias.isComb && alias.isDirectionLess &&
               !alias.isAnalog && !alias.isTypeNode && alias.parentScope != null &&
               (alias.parentScope eq alias.rootScopeStatement) &&
               alias.hasOnlyOneStatement =>
-          explicitSourceName(alias).foreach { explicitName =>
-            alias.head match {
-              case assignment: DataAssignmentStatement
-                  if (assignment.parentScope eq alias.rootScopeStatement) &&
-                    (assignment.target eq alias) &&
-                    (assignment.finalTarget eq alias) =>
-                assignment.source match {
-                  case source: BaseType if (source ne alias) =>
-                    val uses = statements.filter(statement =>
-                      (statement ne assignment) && references(statement, alias) > 0
-                    )
-                    values += NativeCandidate(
-                      component,
-                      alias,
-                      source,
-                      explicitName,
-                      assignment,
-                      uses
-                    )
-                  case _ =>
-                }
-              case _ =>
-            }
+          alias.head match {
+            case assignment: DataAssignmentStatement
+                if assignment.parentScope != null &&
+                  (assignment.parentScope eq alias.rootScopeStatement) &&
+                  (assignment.target eq alias) &&
+                  (assignment.finalTarget eq alias) &&
+                  assignment.source != null =>
+              assignment.source match {
+                case _: BaseType =>
+                  // Direct aliases are deliberately left to WA-04.
+                case expression =>
+                  val uses = statements.filter { statement =>
+                    (statement ne assignment) && references(statement, alias) > 0
+                  }
+                  values += NativeCandidate(
+                    component = component,
+                    alias = alias,
+                    sourceExpression = expression,
+                    sourceReferences = referencedBaseTypes(expression).distinct,
+                    assignment = assignment,
+                    useStatements = uses
+                  )
+              }
+            case _ =>
           }
         case _ =>
       }
@@ -171,43 +181,43 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
     values.result()
   }
 
-  private def explicitSourceName(alias: BaseType): Option[String] = {
-    val tags = alias.getTags().toVector
-    tags.collectFirst { case value: ExplicitNamedWireAliasSourceTag => value }
-      .filter(value => tags.size == 1 && value.name.trim.nonEmpty)
-      .map(_.name)
-  }
-
   private def proveCandidate(
-      pc: PhaseContext,
       candidate: NativeCandidate
   ): Either[String, NativeProof] = {
     val alias = candidate.alias
-    val source = candidate.source
-    val assignment = candidate.assignment
+    val expression = candidate.sourceExpression
 
-    if ((source.component ne candidate.component) || source.parentScope == null)
-      Left("WA05-NATIVE-SOURCE-BOUNDARY")
-    else if (!(source.parentScope eq source.rootScopeStatement))
-      Left("WA05-NATIVE-SOURCE-SCOPE")
-    else if (source.isAnalog || source.isInOut)
-      Left("WA05-NATIVE-SOURCE-KIND")
-    else if (!preservationMetadataAllows(alias))
-      Left("WA05-NATIVE-PRESERVATION")
+    if (!preservationMetadataAllows(alias))
+      Left("WA07-NATIVE-PRESERVATION")
+    else if (candidate.useStatements.isEmpty)
+      Left("WA07-NATIVE-NO-RECEIVER")
     else if (!candidate.useStatements.forall(allowedUse(candidate.component, alias, _)))
-      Left("WA05-NATIVE-USE-CONTEXT")
-    else if (createsCycle(candidate.component, alias, source))
-      Left("WA05-NATIVE-CYCLE")
+      Left("WA07-NATIVE-PROCEDURAL-OR-EXCLUDED-RECEIVER")
+    else if (candidate.receiverOccurrenceCount < 1)
+      Left("WA07-NATIVE-NO-RECEIVER")
+    else if (
+      candidate.sourceReferences.exists { source =>
+        (source eq alias) || (source.component ne candidate.component) ||
+        source.parentScope == null || !(source.parentScope eq source.rootScopeStatement)
+      }
+    )
+      Left("WA07-NATIVE-SOURCE-BOUNDARY")
+    else if (
+      candidate.sourceReferences.exists(source => source.isAnalog || source.isInOut)
+    )
+      Left("WA07-NATIVE-SOURCE-KIND")
+    else if (createsCycle(candidate))
+      Left("WA07-NATIVE-CYCLE")
     else
-      packedTypeProof(alias, source) match {
+      packedTypeProof(alias, expression) match {
         case Some(value) => Right(value)
-        case None        => Left("WA05-NATIVE-PACKED-TYPE")
+        case None        => Left("WA07-NATIVE-PACKED-TYPE")
       }
   }
 
   private def preservationMetadataAllows(alias: BaseType): Boolean =
     !alias.isFrozen() &&
-      explicitSourceName(alias).nonEmpty &&
+      alias.isEmptyOfTag &&
       !readPrivateBoolean(alias, "dontSimplify").getOrElse(true)
 
   private def allowedUse(
@@ -224,23 +234,27 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
           !assignment.finalTarget.isAnalog &&
           !assignment.finalTarget.isInputOrInOut =>
       true
-    case _ => false
+    case _ =>
+      // Tree-scoped assignments become procedural Verilog and are retained.
+      false
   }
 
   private def packedTypeProof(
       alias: BaseType,
-      source: BaseType
+      expression: Expression
   ): Option[NativeProof] = {
-    if (alias.getBitsWidth != source.getBitsWidth || alias.getBitsWidth < 1)
-      return None
-
-    val semantics = (packedSemantics(alias), packedSemantics(source)) match {
-      case (Some(left), Some(right)) if left == right => left
-      case _                                          => return None
+    val expressionWidth = expression match {
+      case value: WidthProvider => value.getWidth
+      case _                    => return None
     }
+    if (
+      expressionWidth != alias.getBitsWidth || alias.getBitsWidth < 1 ||
+      expression.getTypeObject != alias.getTypeObject
+    ) return None
 
-    (ParameterizedWidth.expressionOf(alias), ParameterizedWidth.expressionOf(source)) match {
-      case (None, None) =>
+    val semantics = packedSemantics(alias).getOrElse(return None)
+    ParameterizedWidth.expressionOf(alias) match {
+      case None =>
         Some(
           NativeProof(
             PackedType(
@@ -251,17 +265,16 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
             Vector.empty
           )
         )
-      case (Some(left), Some(right)) if left eq right =>
-        val minimum = left.minimum
-        val maximum = left.maximum
+      case Some(width) =>
+        val minimum = width.minimum
+        val maximum = width.maximum
         val size = maximum - minimum + 1
         if (
           minimum < 1 || maximum < minimum ||
           size > BigInt(morphhdl.ir.v1.CanonicalIrValidator.MaximumParameterDomainSize)
         ) None
         else {
-          val parameterId = ParameterId.unsafe("parameter.native-width")
-          val domain = (minimum to maximum).toVector
+          val parameterId = ParameterId.unsafe("parameter.native-expression-width")
           Some(
             NativeProof(
               PackedType(
@@ -272,15 +285,18 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
               Vector(
                 IntegerParameter(
                   id = parameterId,
-                  name = "NATIVE_WIDTH",
-                  default = left.default,
-                  domain = IntegerParameterDomain(minimum, maximum, domain)
+                  name = "NATIVE_EXPRESSION_WIDTH",
+                  default = width.default,
+                  domain = IntegerParameterDomain(
+                    minimum,
+                    maximum,
+                    (minimum to maximum).toVector
+                  )
                 )
               )
             )
           )
         }
-      case _ => None
     }
   }
 
@@ -298,67 +314,101 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       candidate: NativeCandidate,
       proof: NativeProof
   ): Either[String, Unit] = {
-    val moduleId = ModuleId.unsafe("module.native-witness")
-    val scopeId = ScopeId.unsafe("scope.native-root")
-    val sourceId = SymbolId.unsafe("symbol.native-source")
-    val aliasId = SymbolId.unsafe("symbol.native-alias")
+    val moduleId = ModuleId.unsafe("module.native-expression-witness")
+    val scopeId = ScopeId.unsafe("scope.native-expression-root")
+    val aliasId = SymbolId.unsafe("symbol.native-expression-alias")
     val declarations = Vector.newBuilder[Declaration]
     val drivers = Vector.newBuilder[Driver]
 
-    declarations += Declaration(
-      id = sourceId,
-      owner = scopeId,
-      kind = sourceKind(candidate.source),
-      packedType = Some(proof.packedType),
-      nameOrigin = NameOrigin.Explicit("nativeSource"),
-      sourceLocation = None,
-      observability = sourceObservability(candidate.source)
-    )
+    val sourcePairs = candidate.sourceReferences.zipWithIndex.map {
+      case (source, index) =>
+        val sourceId = SymbolId.unsafe(s"symbol.native-expression-source-$index")
+        declarations += Declaration(
+          id = sourceId,
+          owner = scopeId,
+          kind = sourceKind(source),
+          packedType = Some(proof.packedType),
+          nameOrigin = NameOrigin.Explicit(s"nativeExpressionSource$index"),
+          sourceLocation = None,
+          observability = sourceObservability(source)
+        )
+        source -> sourceId
+    }
+
     declarations += Declaration(
       id = aliasId,
       owner = scopeId,
       kind = DeclarationKind.InternalCombinational,
       packedType = Some(proof.packedType),
-      nameOrigin = NameOrigin.Explicit(candidate.explicitName),
+      nameOrigin = NameOrigin.Unnamed,
       sourceLocation = None,
       observability = Observability.Unobserved
     )
+
+    val sourceRefs = sourcePairs.zipWithIndex.map {
+      case ((_, sourceId), index) =>
+        RtlExpr.Ref(
+          id = ReferenceId.unsafe(s"reference.native-expression-source-$index"),
+          target = sourceId,
+          owner = scopeId
+        ): RtlExpr
+    }
+    val canonicalExpression: RtlExpr = sourceRefs.headOption match {
+      case None =>
+        RtlExpr.Literal(BigInt(0), candidate.alias.getBitsWidth)
+      case Some(head) =>
+        val combined = sourceRefs.tail.foldLeft(head) { (left, right) =>
+          RtlExpr.Binary(RtlBinaryOperator.BitwiseXor, left, right)
+        }
+        RtlExpr.Unary(
+          RtlUnaryOperator.BitwiseNot,
+          RtlExpr.Unary(RtlUnaryOperator.BitwiseNot, combined)
+        )
+    }
+
     drivers += Driver(
-      id = DriverId.unsafe("driver.native-alias"),
+      id = DriverId.unsafe("driver.native-expression-alias"),
       owner = scopeId,
       target = aliasId,
       kind = DriverKind.Continuous,
       coverage = DriverCoverage.FullObject,
-      value = RtlExpr.Ref(
-        id = ReferenceId.unsafe("reference.native-alias-source"),
-        target = sourceId,
-        owner = scopeId
-      )
+      value = canonicalExpression
     )
 
-    candidate.useStatements.indices.foreach { index =>
-      val sinkId = SymbolId.unsafe(s"symbol.native-sink-$index")
+    var receiverOrdinal = 0
+    candidate.useStatements.foreach { statement =>
+      val sinkId = SymbolId.unsafe(s"symbol.native-expression-sink-$receiverOrdinal")
+      val occurrenceCount = references(statement, candidate.alias)
       declarations += Declaration(
         id = sinkId,
         owner = scopeId,
         kind = DeclarationKind.Port(PortDirection.Output),
         packedType = Some(proof.packedType),
-        nameOrigin = NameOrigin.Explicit(s"nativeSink$index"),
+        nameOrigin = NameOrigin.Explicit(s"nativeExpressionSink$receiverOrdinal"),
         sourceLocation = None,
         observability = Observability(complete = true, externallyVisible = true)
       )
+      val aliases = Vector.tabulate(occurrenceCount) { occurrence =>
+        RtlExpr.Ref(
+          id = ReferenceId.unsafe(
+            s"reference.native-expression-sink-$receiverOrdinal-alias-$occurrence"
+          ),
+          target = aliasId,
+          owner = scopeId
+        ): RtlExpr
+      }
+      val receiverValue = aliases.tail.foldLeft(aliases.head) { (left, right) =>
+        RtlExpr.Binary(RtlBinaryOperator.BitwiseXor, left, right)
+      }
       drivers += Driver(
-        id = DriverId.unsafe(s"driver.native-sink-$index"),
+        id = DriverId.unsafe(s"driver.native-expression-sink-$receiverOrdinal"),
         owner = scopeId,
         target = sinkId,
         kind = DriverKind.Continuous,
         coverage = DriverCoverage.FullObject,
-        value = RtlExpr.Ref(
-          id = ReferenceId.unsafe(s"reference.native-sink-$index-alias"),
-          target = aliasId,
-          owner = scopeId
-        )
+        value = receiverValue
       )
+      receiverOrdinal += 1
     }
 
     val canonical = Design(
@@ -368,15 +418,13 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       modules = Vector(
         Module(
           id = moduleId,
-          logicalName = "NativeWitnessModule",
+          logicalName = "NativeExpressionWitnessModule",
           parameters = proof.parameters,
           scopes = Vector(
             Scope(
               id = scopeId,
               parent = None,
-              kind = ScopeKind.Module,
-              label = None,
-              sourceLocation = None
+              kind = ScopeKind.Module
             )
           ),
           generateIndices = Vector.empty,
@@ -387,22 +435,19 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       )
     )
 
-    val result = NamedWireAliasEliminationPass.run(
+    val result = UnnamedWireExpressionEliminationPass.run(
       canonical,
       WireAliasPassConfiguration.selectedForTesting(
-      morphhdl.passes.api.PassId.NamedWireAliasElimination
+        PassId.UnnamedWireExpressionElimination
+      )
     )
-    )
+    val eliminated = result.eliminationReport.eliminatedExpressions
     if (
       result.status == PassExecutionStatus.Changed &&
-      result.eliminationReport.eliminated.map(_.aliasSymbol) ==
-        Vector(IrSymbolId.unsafe(aliasId.value)) &&
-      result.eliminationReport.eliminated.head.sourceSymbol ==
-        IrSymbolId.unsafe(sourceId.value) &&
-      result.eliminationReport.eliminated.head.nameOrigin ==
-        AliasNameOrigin.Explicit(candidate.explicitName)
+      eliminated.map(_.aliasSymbol) == Vector(IrSymbolId.unsafe(aliasId.value)) &&
+      eliminated.head.receiverCount == candidate.receiverOccurrenceCount
     ) Right(())
-    else Left("WA05-NATIVE-CANONICAL-DECISION")
+    else Left("WA07-NATIVE-CANONICAL-DECISION")
   }
 
   private def sourceKind(value: BaseType): DeclarationKind =
@@ -417,66 +462,60 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       externallyVisible = value.isInput || value.isOutput
     )
 
-  private def rewriteNativeIdentity(
-      component: Component,
-      alias: BaseType,
-      source: BaseType,
-      aliasAssignment: DataAssignmentStatement
-  ): Int = {
-    val statements = statementsOf(component)
+  private def rewriteNativeIdentity(candidate: NativeCandidate): Int = {
+    val statements = statementsOf(candidate.component)
     var replacements = 0
-    statements.foreach { statement =>
-      if (statement ne aliasAssignment) {
-        statement.walkRemapDrivingExpressions {
-          case reference: BaseType if reference eq alias =>
-            replacements += 1
-            source
-          case other => other
-        }
+    candidate.useStatements.foreach { statement =>
+      statement.walkRemapDrivingExpressions {
+        case reference: BaseType if reference eq candidate.alias =>
+          replacements += 1
+          candidate.sourceExpression
+        case other => other
       }
     }
 
-    aliasAssignment.removeStatement()
-    alias.removeStatement()
+    candidate.assignment.removeStatement()
+    candidate.alias.removeStatement()
 
-    val remaining = statementsOf(component).map(references(_, alias)).sum
+    val remaining = statementsOf(candidate.component).map(references(_, candidate.alias)).sum
     if (remaining != 0)
       throw new IllegalStateException(
-        s"WA-05 native witness rewrite left $remaining reference(s) to a removed identity"
+        s"WA-07 native expression rewrite left $remaining reference(s) to a removed identity"
       )
     replacements
   }
 
-  private def createsCycle(
-      component: Component,
-      alias: BaseType,
-      source: BaseType
-  ): Boolean = {
+  private def createsCycle(candidate: NativeCandidate): Boolean = {
+    if (candidate.sourceReferences.exists(_ eq candidate.alias)) return true
+
     val edges = scala.collection.mutable.LinkedHashMap.empty[BaseType, Vector[BaseType]]
-    statementsOf(component).foreach {
+    statementsOf(candidate.component).foreach {
       case assignment: DataAssignmentStatement
           if assignment.parentScope != null &&
             (assignment.parentScope eq assignment.rootScopeStatement) &&
             (assignment.target eq assignment.finalTarget) &&
             assignment.finalTarget.isComb =>
         val dependencies = referencedBaseTypes(assignment.source)
-          .filter(_.component eq component)
+          .filter(_.component eq candidate.component)
           .distinct
         edges.update(assignment.finalTarget, dependencies)
       case _ =>
     }
 
-    val pending = scala.collection.mutable.Stack[BaseType](source)
-    val visited = scala.collection.mutable.HashSet.empty[BaseType]
-    while (pending.nonEmpty) {
-      val current = pending.pop()
-      if (current eq alias) return true
-      if (!visited.contains(current)) {
-        visited += current
-        edges.getOrElse(current, Vector.empty).reverse.foreach(pending.push)
+    candidate.sourceReferences.exists { source =>
+      val pending = scala.collection.mutable.Stack[BaseType](source)
+      val visited = scala.collection.mutable.HashSet.empty[BaseType]
+      var found = false
+      while (pending.nonEmpty && !found) {
+        val current = pending.pop()
+        if (current eq candidate.alias) found = true
+        else if (!visited.contains(current)) {
+          visited += current
+          edges.getOrElse(current, Vector.empty).reverse.foreach(pending.push)
+        }
       }
+      found
     }
-    false
   }
 
   private def statementsOf(component: Component): Vector[Statement] = {
@@ -526,12 +565,12 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
   }
 }
 
-private[examples] final case class NamedWireAliasNativeReport(
+private[examples] final case class UnnamedWireExpressionNativeReport(
     visitedCandidates: Int,
     eliminatedOrdinals: Vector[Int],
-    eliminatedNames: Vector[String],
     rejectedByReason: Map[String, Int],
-    rewrittenReferences: Int
+    rewrittenReferences: Int,
+    expressionOperators: Vector[String]
 ) {
   def eliminatedCount: Int = eliminatedOrdinals.size
 
@@ -539,16 +578,19 @@ private[examples] final case class NamedWireAliasNativeReport(
     val rejected = rejectedByReason.toVector.sortBy(_._1).map { case (key, value) =>
       s"    ${quote(key)}: $value"
     }
+    val operators = expressionOperators.map(quote).mkString(", ")
     Vector(
       "{",
       "  \"schema_version\": 1,",
-      "  \"pass_id\": \"wire-alias-named\",",
+      "  \"pass_id\": \"wire-expression-unnamed\",",
+      "  \"pipeline_status\": \"changed\",",
       "  \"executed_before_name_allocation\": true,",
+      "  \"procedural_receiver_rewrites\": 0,",
       s"""  "visited_candidates": $visitedCandidates,""",
       s"""  "eliminated_count": $eliminatedCount,""",
       s"""  "rewritten_reference_count": $rewrittenReferences,""",
       s"""  "eliminated_ordinals": [${eliminatedOrdinals.mkString(", ")}],""",
-      s"""  "eliminated_names": [${eliminatedNames.map(quote).mkString(", ")}],""",
+      s"""  "expression_operators": [$operators],""",
       "  \"rejected_by_reason\": {",
       rejected.mkString(",\n"),
       "  }",
@@ -561,18 +603,18 @@ private[examples] final case class NamedWireAliasNativeReport(
     "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 }
 
-private[examples] object NamedWireAliasWitnessPhasePlan {
+private[examples] object UnnamedWireExpressionWitnessPhasePlan {
   def install(
       config: SpinalConfig,
-      phase: Option[NamedWireAliasNativePhase]
+      phase: Option[UnnamedWireExpressionNativePhase]
   ): Unit = {
     config.phasesInserters += { phases: ArrayBuffer[Phase] =>
       val nativeAliasPasses = phases.zipWithIndex.collect {
-        case (value: PhaseRemoveIntermediateUnnameds, index) => index
+        case (_: PhaseRemoveIntermediateUnnameds, index) => index
       }
       if (nativeAliasPasses.size < 3)
         throw new IllegalStateException(
-          s"WA-05 witness expected three native alias-removal phases, found ${nativeAliasPasses.size}"
+          s"WA-07 expression witness expected three native intermediate-removal phases, found ${nativeAliasPasses.size}"
         )
 
       val postWidthTypeCleanupIndex = nativeAliasPasses(1)
@@ -590,12 +632,8 @@ private[examples] object NamedWireAliasWitnessPhasePlan {
   }
 }
 
-/**
-  * Emits either the common pre-pass StreamFifo reference or the candidate
-  * produced after the actual WA-05 canonical decision and native identity
-  * rewrite. Both legs use the same MorphHDL structured parameterized backend.
-  */
-object ParameterizedStreamFifoNamedPassWitness {
+/** Emits the unchanged reference or the WA-07 expression-inlined candidate. */
+object ParameterizedStreamFifoExpressionPassWitness {
   def main(args: Array[String]): Unit = {
     if (args.length != 4)
       throw new IllegalArgumentException(
@@ -608,7 +646,7 @@ object ParameterizedStreamFifoNamedPassWitness {
     val reportFile = Paths.get(args(3)).toAbsolutePath.normalize
     val phase = mode match {
       case "reference" => None
-      case "candidate" => Some(new NamedWireAliasNativePhase)
+      case "candidate" => Some(new UnnamedWireExpressionNativePhase)
       case other        => throw new IllegalArgumentException(s"unsupported witness mode '$other'")
     }
 
@@ -624,7 +662,7 @@ object ParameterizedStreamFifoNamedPassWitness {
       )
     )
     config.netlistFileName = outputFile
-    NamedWireAliasWitnessPhasePlan.install(config, phase)
+    UnnamedWireExpressionWitnessPhasePlan.install(config, phase)
 
     val width = HdlInt.param(
       "WIDTH",
@@ -649,15 +687,18 @@ object ParameterizedStreamFifoNamedPassWitness {
     val text = new String(Files.readAllBytes(generatedPath), StandardCharsets.UTF_8)
     if (!text.contains("parameter integer WIDTH") || !text.contains("parameter integer DEPTH"))
       throw new IllegalStateException(
-        "WA-05 witness lost symbolic WIDTH or DEPTH during structured emission"
+        "WA-07 expression witness lost symbolic WIDTH or DEPTH"
       )
 
     val json = phase match {
       case Some(value) =>
         val result = value.report
-        if (result.eliminatedCount < 1)
+        if (
+          result.eliminatedCount < 1 || result.rewrittenReferences < 1 ||
+          result.expressionOperators.isEmpty
+        )
           throw new IllegalStateException(
-            "WA-05 witness phase executed but eliminated no named alias"
+            "WA-07 witness executed but inlined no unnamed expression temporary"
           )
         result.toJson
       case None =>

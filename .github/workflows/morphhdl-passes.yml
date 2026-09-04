@@ -116,26 +116,32 @@ jobs:
           python3 morphhdl-passes/scripts/check-wa03-gates.py --self-test
           python3 morphhdl-passes/scripts/check-wa03-gates.py
 
-      - name: Enforce WA-04 unnamed alias transformation contracts
+      - name: Enforce WA-04 unnamed direct-alias contracts
         shell: bash
         run: |
           python3 morphhdl-passes/scripts/check-wa04-pass.py --self-test
           python3 morphhdl-passes/scripts/check-wa04-pass.py
 
-      - name: Enforce WA-05 named alias transformation contracts
+      - name: Enforce WA-05 named direct-alias contracts
         shell: bash
         run: |
           python3 morphhdl-passes/scripts/check-wa05-pass.py --self-test
           python3 morphhdl-passes/scripts/check-wa05-pass.py
 
-      - name: Enforce WA-06 ordered pipeline and closure contracts
+      - name: Enforce WA-06 historical ordered-pipeline contracts
         shell: bash
         run: |
           python3 morphhdl-passes/scripts/check-wa06-pipeline.py --self-test
           python3 morphhdl-passes/scripts/check-wa06-pipeline.py
 
+      - name: Enforce WA-07 expression pass and one-flag pipeline contracts
+        shell: bash
+        run: |
+          python3 morphhdl-passes/scripts/check-wa07-expression-pass.py --self-test
+          python3 morphhdl-passes/scripts/check-wa07-expression-pass.py
+
   contracts:
-    name: Pass contracts, adapter, safety, transforms and pipeline Scala ${{ matrix.scala_version }}
+    name: Pass contracts, direct aliases, expressions and pipeline Scala ${{ matrix.scala_version }}
     needs: boundary
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
@@ -154,13 +160,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Test standalone pass contracts and ordered pipeline
+      - name: Test standalone pass contracts and all-pass pipeline
         working-directory: morphhdl-passes
         shell: bash
         run: sbt -batch ++${{ matrix.scala_version }} test
 
   equivalence:
-    name: WA-04, WA-05 and WA-06 legality, equivalence, mutation and determinism proof
+    name: WA-04 through WA-07 legality, equivalence, mutation and determinism proof
     needs: contracts
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
@@ -207,21 +213,29 @@ jobs:
         shell: bash
         run: python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
 
-      - name: Generate all pass candidates and close legality and repeated-emission gates
+      - name: Generate every direct, expression and all-pass candidate
         shell: bash
         run: |
-          # run-wa06-regression.sh executes the actual shared ParameterizedStreamFifoExample
-          # proof path through ParameterizedStreamFifoUnnamedPassWitness,
-          # ParameterizedStreamFifoNamedPassWitness and
-          # ParameterizedStreamFifoCombinedPassWitness. It runs focused
-          # UnnamedWireAliasEliminationPassSpec, NamedWireAliasEliminationPassSpec
-          # and WireAliasPassPipelineSpec shared parameterized witness proof contract
-          # tests; publishes wire-alias-unnamed.v, wire-alias-named.v,
-          # wire-alias-named-report.json (including eliminated_names), and
-          # wire-alias-combined.v; requires executed_before_name_allocation;
-          # compares repeated output with cmp -s; and runs iverilog, verilator and
-          # yosys strict Verilog-2001 legality, synthesis and simulation checks.
-          bash morphhdl-passes/scripts/run-wa06-regression.sh
+          # Compatibility evidence retained for the inherited guards:
+          # ParameterizedStreamFifoExample; UnnamedWireAliasEliminationPassSpec;
+          # NamedWireAliasEliminationPassSpec; WireAliasPassPipelineSpec;
+          # shared parameterized witness proof contract;
+          # ParameterizedStreamFifoUnnamedPassWitness;
+          # ParameterizedStreamFifoNamedPassWitness;
+          # ParameterizedStreamFifoCombinedPassWitness; cmp -s;
+          # executed_before_name_allocation; wire-alias-named-report.json;
+          # eliminated_names.
+          #
+          # run-wa07-regression.sh emits one unchanged pre-pass StreamFifo
+          # reference plus wire-alias-unnamed.v, wire-alias-named.v,
+          # wire-alias-combined.v, wire-expression-unnamed.v and
+          # wire-assignment-all.v. The expression-only and all-pass witnesses
+          # require a real non-reference RHS, exact identity replacement,
+          # execution before native name allocation, zero procedural/always
+          # receiver rewrites, byte-identical repeated Verilog and reports,
+          # strict Verilog-2001 compilation, Verilator lint, Yosys synthesis,
+          # and representative parameterized simulations.
+          bash morphhdl-passes/scripts/run-wa07-regression.sh
 
       - name: Prove complete-domain equivalence, mutation sensitivity and determinism
         shell: bash
@@ -237,7 +251,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: morphhdl-wa06-equivalence-evidence
+          name: morphhdl-wa07-equivalence-evidence
           path: morphhdl-passes/build
           if-no-files-found: error
           retention-days: 14
