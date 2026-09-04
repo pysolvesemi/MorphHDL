@@ -674,7 +674,7 @@ private def composedPartSelect(
           receiverWidth
         ),
         receiverWidth,
-        packedType.signedness
+        morphhdl.ir.v1.Signedness.Unsigned
       )
     )
   case _ => None
@@ -730,7 +730,7 @@ private def inlineReferences(
         receiver,
         aliasSymbol,
         packedType.width,
-        packedType.signedness
+        morphhdl.ir.v1.Signedness.Unsigned
       )
     } else {
       composedPartSelect(
@@ -752,7 +752,7 @@ private def inlineReferences(
         receiver,
         aliasSymbol,
         packedType.width,
-        packedType.signedness
+        morphhdl.ir.v1.Signedness.Unsigned
       )
     } else expression
   case receiver @ RtlExpr.Ref(_, target, _, _) if target == aliasSymbol =>

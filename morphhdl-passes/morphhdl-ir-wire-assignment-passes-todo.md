@@ -428,7 +428,9 @@ WA-04 or WA-05 can remove an alias.
   part-select of the complete temporary width. Arithmetic, mux, cast,
   resize, nested, dynamic and otherwise non-composable selected uses retain
   the temporary, preventing invalid forms such as `(a + b)[3:0]` or
-  `source[7:0][3:0]` in strict Verilog-2001.
+  `source[7:0][3:0]` in strict Verilog-2001. Every accepted bit or
+  part-select replacement retains unsigned selection semantics; only a
+  whole-object receiver inherits the removed assignment's signedness.
 
   Add direct, nested, literal, fanout, cycle, scope, observability, procedural
   source, procedural receiver, deterministic, fixed-point, idempotence and

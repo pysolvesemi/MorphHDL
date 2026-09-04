@@ -146,6 +146,9 @@ REQUIRED_SELECTION_TEST_MARKERS: tuple[str, ...] = (
     "bit select of a multi-bit arithmetic temporary is retained",
     "bit zero of a one-bit temporary is simplified as a whole-object use",
     "selection through a non-direct alias expression fails closed",
+    "signed alias full-width part-select keeps unsigned selection semantics",
+    "signed alias composed part-select keeps unsigned selection semantics",
+    "signed alias whole-object receiver retains signed assignment semantics",
     "ReceiverPartialSelect",
 )
 

@@ -42,10 +42,13 @@ final class UnnamedWireExpressionSelectionSafetySpec
   private val sinkDriver = DriverId.unsafe("driver.expression-selection-sink")
   private val enabled = WireAliasPassConfiguration(enabled = true)
 
-  private def bits(width: Int): PackedType =
+  private def bits(
+      width: Int,
+      signedness: Signedness = Signedness.Unsigned
+  ): PackedType =
     PackedType(
       width = IntExpr.Literal(BigInt(width)),
-      signedness = Signedness.Unsigned,
+      signedness = signedness,
       valueSemantics = PackedValueSemantics.BitVector
     )
 
@@ -54,13 +57,14 @@ final class UnnamedWireExpressionSelectionSafetySpec
       kind: DeclarationKind,
       width: Int,
       origin: NameOrigin,
-      visible: Boolean = false
+      visible: Boolean = false,
+      signedness: Signedness = Signedness.Unsigned
   ): Declaration =
     Declaration(
       id = id,
       owner = scopeId,
       kind = kind,
-      packedType = Some(bits(width)),
+      packedType = Some(bits(width, signedness)),
       nameOrigin = origin,
       sourceLocation = None,
       observability = Observability(
@@ -81,7 +85,8 @@ final class UnnamedWireExpressionSelectionSafetySpec
       aliasWidth: Int,
       sinkWidth: Int,
       rhs: RtlExpr,
-      receiver: RtlExpr
+      receiver: RtlExpr,
+      aliasSignedness: Signedness = Signedness.Unsigned
   ): Design =
     Design(
       version = CanonicalIrSchema.schemaVersion,
@@ -119,7 +124,8 @@ final class UnnamedWireExpressionSelectionSafetySpec
               alias,
               DeclarationKind.InternalCombinational,
               aliasWidth,
-              NameOrigin.Unnamed
+              NameOrigin.Unnamed,
+              signedness = aliasSignedness
             ),
             declaration(
               sink,
@@ -327,4 +333,97 @@ final class UnnamedWireExpressionSelectionSafetySpec
       UnnamedWireExpressionSafetyReason.ReceiverPartialSelect
     )
   }
+
+
+  test("signed alias full-width part-select keeps unsigned selection semantics") {
+    val input = design(
+      sourceWidth = 4,
+      aliasWidth = 4,
+      sinkWidth = 4,
+      rhs = add(4),
+      receiver = RtlExpr.PartSelect(
+        reference("receiver-signed-full-part", alias),
+        IntExpr.Literal(BigInt(0)),
+        IntExpr.Literal(BigInt(4))
+      ),
+      aliasSignedness = Signedness.Signed
+    )
+
+    val result = UnnamedWireExpressionEliminationPass.run(input, enabled)
+
+    result.status shouldBe PassExecutionStatus.Changed
+    outputDriver(result.output).value match {
+      case RtlExpr.Resize(
+            _: RtlExpr.Binary,
+            IntExpr.Literal(width),
+            Signedness.Unsigned
+          ) => width shouldBe BigInt(4)
+      case other =>
+        fail(s"expected an unsigned full-width selected-use fence, observed $other")
+    }
+  }
+
+  test("signed alias composed part-select keeps unsigned selection semantics") {
+    val input = design(
+      sourceWidth = 16,
+      aliasWidth = 8,
+      sinkWidth = 4,
+      rhs = RtlExpr.PartSelect(
+        reference("rhs-signed-source-part", sourceA),
+        IntExpr.Literal(BigInt(2)),
+        IntExpr.Literal(BigInt(8))
+      ),
+      receiver = RtlExpr.PartSelect(
+        reference("receiver-signed-composed-part", alias),
+        IntExpr.Literal(BigInt(1)),
+        IntExpr.Literal(BigInt(4))
+      ),
+      aliasSignedness = Signedness.Signed
+    )
+
+    val result = UnnamedWireExpressionEliminationPass.run(input, enabled)
+
+    result.status shouldBe PassExecutionStatus.Changed
+    outputDriver(result.output).value match {
+      case RtlExpr.Resize(
+            RtlExpr.PartSelect(
+              _: RtlExpr.Ref,
+              IntExpr.Literal(offset),
+              IntExpr.Literal(width)
+            ),
+            IntExpr.Literal(fenceWidth),
+            Signedness.Unsigned
+          ) =>
+        offset shouldBe BigInt(3)
+        width shouldBe BigInt(4)
+        fenceWidth shouldBe BigInt(4)
+      case other =>
+        fail(s"expected an unsigned composed selected-use fence, observed $other")
+    }
+  }
+
+  test("signed alias whole-object receiver retains signed assignment semantics") {
+    val input = design(
+      sourceWidth = 4,
+      aliasWidth = 4,
+      sinkWidth = 4,
+      rhs = add(4),
+      receiver = reference("receiver-signed-whole", alias),
+      aliasSignedness = Signedness.Signed
+    )
+
+    val result = UnnamedWireExpressionEliminationPass.run(input, enabled)
+
+    result.status shouldBe PassExecutionStatus.Changed
+    outputDriver(result.output).value match {
+      case RtlExpr.Resize(
+            _: RtlExpr.Binary,
+            IntExpr.Literal(width),
+            Signedness.Signed
+          ) => width shouldBe BigInt(4)
+      case other =>
+        fail(s"expected a signed whole-object assignment fence, observed $other")
+    }
+  }
+
 }

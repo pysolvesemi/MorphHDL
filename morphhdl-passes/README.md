@@ -170,7 +170,10 @@ Selected uses are not replaced blindly. A zero-offset full-width select is
 collapsed to a whole-object receiver. A partial receiver select is composed only
 when the RHS is a direct source part-select of the complete alias width and the
 receiver offset and width are literal, in range, and therefore provably safe.
-The composed result carries an explicit receiver-width and signedness fence.
+The composed result carries an explicit receiver-width fence and unsigned
+selection semantics, including when the eliminated whole object is signed.
+A whole-object receiver continues to use the eliminated assignment's original
+signedness.
 Arithmetic, mux, cast, resize, nested, dynamic and other selected uses retain the
 temporary, avoiding invalid nested or general-expression selections in strict
 Verilog-2001. The one-bit `temporary[0]` case is treated as a whole-object use.
