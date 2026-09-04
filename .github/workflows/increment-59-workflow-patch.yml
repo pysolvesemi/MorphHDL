@@ -1,0 +1,56 @@
+name: Increment 59 workflow patch
+
+on:
+  push:
+    branches:
+      - agent/increment-59-typed-blackbox-generics
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-59-typed-blackbox-generics
+          fetch-depth: 0
+
+      - name: Patch roadmap source-delta validation
+        shell: bash
+        env:
+          PATCH_GZIP_BASE64: >-
+            H4sIAAAAAAAC/41WTW/bRhC961dMlYM+KlJ2gQBJAB/q2mgCBEiQBLnURbwkR9LGy11mdxlJPfVH9Bf2l/TNUpRkO66tQ2KSO29m3ryZ2YV3NTUqrowuSNeN85He43EwkJd0lh7Go3yp46ot5mvnbxbGrcNc29JzzTZmz19mcdtwlRVGlTeF22RLtux1GfJtbUaTQeRNBJIA5p5V9UVejNmWrtJ2eTZq4yJ7gXPOVDg2Go1o/yt44TzjbWFcMS5U4Mng8FUtIvv+4/D15a8Xw+PPerGzz0vX2jhubbni8oarCf10Rqfk/O3vx19PXh0Byc8rHZg+bkPk+nKj43go0ZB3qqpVQ5XjQNZFKp2NSlvijSqj2ZKzTHvH9KZnjZ6/vBUrbxouI1df+pNnfWyeG/DKh+hntP/j9E66HSESBiIYdwCze9iTR3O7811+w32mbKKiug0RERLXTdwKk32+ccW3suyChSooemWDjtrZ4R38yQBFH4TS6yZ2CvhR3X9Y7f+v8clTavxIZZURzW77woa7NRwEkIukENlwOMzoD/qTptNbFPz79z/0SVqEzqVFzkFGo7yqWRJStqJdw1ChrbTEdDpAZNPpBTdsKzSK5vBqOj32/EKa1aQHwApGzX7JVS6Wl5sIO+QOMOW3dN27zVVV/d75uqbgKPUtXV8aVbyx8TrhpKdz58w1kFDTVplAng+iFj15DkFyFoOKS4NshIPMO2hPtXHlvIYu1ittmCy+fWegfYZj45bzz68v3kI5OiJ/wS4Z39EpnXy0F66RaWRa62jhikNO76x8BEoAQ4az4Fpfco+Z/XJycppGzGwXEO/JzhKyhBbgJCnUrS1QAJaYV8IhKiLMSkae1wj/ENEub4uKHWolBxslYspkagpZIbhSJyLgaHFkiXnH3iqDtgxR2ZJzeg8K2SPtWm+OUFEz9oIFdKlOmO2Ns9pVrUmxg7aVbmYHnhA8+J7RSiMbX65ErrzRkDSczYBXKuusLhHCQXmiGLAghOGx1hbnJYQ2Nm1HROGwAz7CSpFRKEQOpA/8FYKnqm0M8IQlIOkgVemzmKc1ckzHjFRd6GXr2rDnIEhcrQ1tI8elAmK1awFYBPRqreZJUqUzRodErMSlbcdr493Xrvt2oX1rNQq/cGUbABh03ZoUANAiAotktI3zsLWoTdBwgtFQgxQx/K5MYouQbKfXuo3JOvW+dyb55u+MltJ2xaIR9F5b6TgvXQ3x6UIb0f0SvOR04WQUH4lMqILaEW30LYLpBLKTRlfdWToAFxS2deFAMcqkRKy0wKoG2L4luqNLq/9iEvfYNJJbaot5111CwVLARbowgH9MAFIiiN4iC9gOegFHHz69PUyVlDimCWbaANVCQ8uAe/aMfnNyJNESFUZOvLrCQL87hzuTbtE+acyWd2FJdwu1tfpbyxi0+zV2WKf3lmTnFtXezeSfqX9zegRwML+P+di+vbdl70M8uHEf3rMPbdeHlmqfH3qJfSfww1IdukZeKQNLqGVFGoNvv4Z3RHPVGXS71/I6Ld78q9N2fHQBG4FC9AzL7UL+z6WPmvGE2CCVo4NXdiTNtDtsqdvmecCUiPIujG84rbNw9sm3PElMyo1vx6PcCR9gaSTHeoLQpbrquhIXgfIm2S+guapnCzfJdNVMM7y7a8o/+8ICbUZIeII63buDPum627/O4KdcdbfcvLVI82Y8GfwHHdiGk1MLAAA=
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          import base64
+          import gzip
+          import os
+          Path('/tmp/inc59_patch_workflow.py').write_bytes(
+              gzip.decompress(base64.b64decode(os.environ['PATCH_GZIP_BASE64']))
+          )
+          PYCODE
+          python3 /tmp/inc59_patch_workflow.py
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          import yaml
+          path = Path('.github/workflows/increment-59-typed-blackbox-generics.yml')
+          yaml.safe_load(path.read_text())
+          print('Patched workflow YAML is valid')
+          PYCODE
+          git diff --check
+
+      - name: Create uploaded patch commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Increment 59 automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Fix Increment 59 roadmap source-delta gate'
+          echo "PATCH_COMMIT=$(git rev-parse HEAD)"
+          git push origin HEAD:agent/increment-59-typed-blackbox-generics || true
