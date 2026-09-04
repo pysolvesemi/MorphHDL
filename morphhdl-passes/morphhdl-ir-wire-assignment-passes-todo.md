@@ -297,11 +297,11 @@ WA-04 or WA-05 can remove an alias.
   concretization is required, representative simulations, negative safety
   fixtures, a formal mutation test, repeated-run determinism and idempotence.
 
-- [ ] **WA-04 — Unnamed simple-wire assignment elimination pass**
+- [x] **WA-04 — Unnamed simple-wire assignment elimination pass**
 
   **Dependencies:** WA-03 implemented and merged.
 
-  **Status:** `READY`.
+  **Status:** `COMPLETED`.
 
   Eliminate only aliases classified as unnamed from retained source/elaboration
   metadata. Replace reads by exact symbol identity, remove the exact declaration
@@ -314,7 +314,7 @@ WA-04 or WA-05 can remove an alias.
 
   **Dependencies:** WA-04 implemented and merged.
 
-  **Status:** `BLOCKED` by WA-04.
+  **Status:** `READY`.
 
   Apply the same safety contract to explicitly named internal aliases with
   stricter rejection for public, hierarchical, preservation, probe, attribute,
