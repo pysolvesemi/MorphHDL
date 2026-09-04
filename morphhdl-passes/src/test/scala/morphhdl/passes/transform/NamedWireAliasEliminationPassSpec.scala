@@ -428,19 +428,31 @@ final class NamedWireAliasEliminationPassSpec
       _.copy(attributes = Vector(attribute), comments = Vector(comment))
     )
     val declarationResult = run(declarationContracts)
-    declarationResult.eliminationReport.rejected.map(_.reasonCode) should contain allOf (
-      AliasSafetyReason.DeclarationAttributes,
-      AliasSafetyReason.DeclarationComments
+    declarationResult.eliminationReport.rejected.map(_.reasonCode) shouldBe Vector(
+      AliasSafetyReason.DeclarationAttributes
     )
+    val declarationDiagnostics = declarationResult.diagnostics.map(_.message)
+    declarationDiagnostics.exists(
+      _.contains(AliasSafetyReason.DeclarationAttributes)
+    ) shouldBe true
+    declarationDiagnostics.exists(
+      _.contains(AliasSafetyReason.DeclarationComments)
+    ) shouldBe true
 
     val driverContracts = updateDriver(baseDesign(), aliasDriverId)(
       _.copy(attributes = Vector(attribute), comments = Vector(comment))
     )
     val driverResult = run(driverContracts)
-    driverResult.eliminationReport.rejected.map(_.reasonCode) should contain allOf (
-      AliasSafetyReason.DriverAttributes,
-      AliasSafetyReason.DriverComments
+    driverResult.eliminationReport.rejected.map(_.reasonCode) shouldBe Vector(
+      AliasSafetyReason.DriverAttributes
     )
+    val driverDiagnostics = driverResult.diagnostics.map(_.message)
+    driverDiagnostics.exists(
+      _.contains(AliasSafetyReason.DriverAttributes)
+    ) shouldBe true
+    driverDiagnostics.exists(
+      _.contains(AliasSafetyReason.DriverComments)
+    ) shouldBe true
   }
 
   test("shared parameterized witness proof contract covers the complete WIDTH and DEPTH domain") {

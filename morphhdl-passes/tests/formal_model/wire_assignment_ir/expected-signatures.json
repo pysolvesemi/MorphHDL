@@ -12,7 +12,7 @@
     "morphhdl-passes/src/main/scala/morphhdl/passes/transform/NamedWireAliasEliminationPass.scala": "94827058cfeac2c61b4faf5cce2f008b2cafc9288c662fcd1eb14739d2c1e782",
     "morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPass.scala": "f3c7d5af927f77c0c3283e21633163d430f96bd90d9b3d35c718ef5f9bf9c15f",
     "morphhdl-passes/src/test/scala/morphhdl/passes/safety/WireAliasSafetyGateSpec.scala": "08918b89d21191cc02d5809063c14dccba5d47a746736c6ff83a87715618da62",
-    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/NamedWireAliasEliminationPassSpec.scala": "f4a8c826f436afa9beb82110cad9cbe4d43e69b8946ec4c4657c144bb92ca881",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/NamedWireAliasEliminationPassSpec.scala": "275a88d5bfc6b8427666238a6b5e62d23410f9bb3bd99b2446ad41fa15cc934e",
     "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPassSpec.scala": "d7f59d0eaf3b4b486d1bb5d343bce7114ac8dd0f13431535144b816ef18c57e9",
     "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_candidate.v": "1b01477a69a25209d893dd99e8328260e11f898299d6d642e68e55cb1b3aee7d",
     "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_reference.v": "073538be4cc45ccf97096f76f96eae226e5ac01316c0f611d70f687afaaffcdb",
