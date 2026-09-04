@@ -123,8 +123,9 @@ REQUIRED_TEST_MARKERS: tuple[str, ...] = (
 REQUIRED_BRIDGE_MARKERS: tuple[str, ...] = (
     "final class OrderedWireAliasNativePhase extends Phase",
     "WireAliasPassPipeline.run",
-    "eliminateUnnamedAliases = true",
-    "eliminateNamedAliases = true",
+    "WireAliasPassConfiguration.selectedForTesting",
+    "PassId.UnnamedWireAliasElimination",
+    "PassId.NamedWireAliasElimination",
     "pipeline.executedPasses != expected",
     "unnamedPhase.impl(pc)",
     "namedPhase.impl(pc)",
@@ -155,7 +156,7 @@ REQUIRED_REGRESSION_MARKERS: tuple[str, ...] = (
 REQUIRED_WORKFLOW_MARKERS: tuple[str, ...] = (
     "check-wa06-pipeline.py --self-test",
     "check-wa06-pipeline.py",
-    "run-wa06-regression.sh",
+    "run-wa07-regression.sh",
     "WireAliasPassPipelineSpec",
     "ParameterizedStreamFifoCombinedPassWitness",
     "wire-alias-combined.v",
@@ -169,7 +170,7 @@ REQUIRED_README_MARKERS: tuple[str, ...] = (
     "WA-06",
     "WireAliasPassPipeline",
     "disabled by default",
-    "either pass independently",
+    "historical direct-alias stages",
     "unnamed then named",
     "alias chains and fanout",
     "byte-identical repeated emission",
@@ -226,7 +227,7 @@ def roadmap_failures(path: Path, text: str, pv_text: str) -> list[str]:
         return [f"{path}: WA06-ROADMAP: {error}"]
 
     failures: list[str] = []
-    for item in ("WA-05", "WA-06", "WA-07"):
+    for item in ("WA-05", "WA-06", "WA-07", "WA-08"):
         if item not in entries:
             failures.append(f"{path}: WA06-ROADMAP: missing {item}")
     if failures:
@@ -235,27 +236,24 @@ def roadmap_failures(path: Path, text: str, pv_text: str) -> list[str]:
     wa05_checked, wa05_body = entries["WA-05"]
     wa06_checked, wa06_body = entries["WA-06"]
     wa07_checked, wa07_body = entries["WA-07"]
+    wa08_checked, wa08_body = entries["WA-08"]
     if not wa05_checked or "**Status:** `COMPLETED`" not in wa05_body:
         failures.append(f"{path}: WA06-DEPENDENCY: WA-05 must remain completed")
     if PV58.search(pv_text) is None:
         failures.append(f"{path}: WA06-PV58: Increment 58 must remain completed")
-    if not wa06_checked:
-        failures.append(f"{path}: WA06-INCOMPLETE: implemented WA-06 must be checked")
-    elif "**Status:** `COMPLETED`" not in wa06_body:
-        failures.append(f"{path}: WA06-STATUS: checked WA-06 must be COMPLETED")
-    if wa07_checked:
-        failures.append(f"{path}: WA06-SCOPE: WA-06 must not complete WA-07")
-    if "**Status:** `READY`" not in wa07_body:
-        failures.append(
-            f"{path}: WA06-NEXT-STATUS: WA-07 must be READY after WA-06 and Increment 58"
-        )
+    if not wa06_checked or "**Status:** `COMPLETED`" not in wa06_body:
+        failures.append(f"{path}: WA06-STATUS: WA-06 must remain completed")
+    if not wa07_checked or "**Status:** `COMPLETED`" not in wa07_body:
+        failures.append(f"{path}: WA06-SUCCESSOR: completed WA-07 must retain WA-06")
+    if wa08_checked or "**Status:** `READY`" not in wa08_body:
+        failures.append(f"{path}: WA06-NEXT-STATUS: WA-08 must remain open and READY")
 
     required_scope = (
         "optional MorphHDL-IR pipeline entrypoint",
-        "either pass independently",
-        "unnamed then named",
-        "disabled by default",
-        "alias chains and fanout",
+        "historical",
+        "unnamed-then-named",
+        "alias chains",
+        "fanout",
         "without parsing emitted Verilog",
         "deterministic reports",
         "idempotent IR",
@@ -429,17 +427,22 @@ object Pipeline { def run(value: Design) = value.modules.map(_.id) }
 - [x] **WA-06 — Ordered**
 
   **Status:** `COMPLETED`.
-  optional MorphHDL-IR pipeline entrypoint; either pass independently;
-  unnamed then named; disabled by default; alias chains and fanout;
-  without parsing emitted Verilog; deterministic reports; idempotent IR;
-  byte-identical repeated emission; strict Verilog-2001 legality; synthesis;
-  formal equivalence; common pre-pass StreamFifo reference.
+  optional MorphHDL-IR pipeline entrypoint; historical direct stages use the
+  unnamed-then-named order; alias chains and fanout; without parsing emitted
+  Verilog; deterministic reports; idempotent IR; byte-identical repeated
+  emission; strict Verilog-2001 legality; synthesis; formal equivalence;
+  common pre-pass StreamFifo reference.
 
-- [ ] **WA-07 — Handoff**
+- [x] **WA-07 — Expressions**
+
+  **Status:** `COMPLETED`.
+
+- [ ] **WA-08 — Handoff**
 
   **Status:** `READY`.
 """
-    pv_roadmap = "- [x] **Increment 58 — Retirement**\n"
+    pv_roadmap = "- [x] **Increment 58 — Retirement**
+"
     if roadmap_failures(Path("roadmap.md"), roadmap, pv_roadmap):
         raise AssertionError("valid WA-06 completion state was rejected")
     if not roadmap_failures(
@@ -450,10 +453,10 @@ object Pipeline { def run(value: Design) = value.modules.map(_.id) }
         raise AssertionError("unchecked implemented WA-06 was not rejected")
     if not roadmap_failures(
         Path("roadmap.md"),
-        roadmap.replace("**Status:** `READY`.", "**Status:** `BLOCKED` by WA-06."),
+        roadmap.replace("**Status:** `READY`.", "**Status:** `BLOCKED` by WA-07."),
         pv_roadmap,
     ):
-        raise AssertionError("blocked WA-07 after completed dependencies was not rejected")
+        raise AssertionError("blocked WA-08 after completed WA-07 was not rejected")
 
     manifest = {
         "shared_witness": {

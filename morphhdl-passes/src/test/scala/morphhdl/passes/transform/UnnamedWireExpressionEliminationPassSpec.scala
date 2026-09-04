@@ -375,7 +375,7 @@ final class UnnamedWireExpressionEliminationPassSpec
 
     result.status shouldBe PassExecutionStatus.Unchanged
     result.eliminationReport.rejected.map(_.reasonCode) should contain(
-      UnnamedWireExpressionSafetyReason.SourceSelfReference
+      UnnamedWireExpressionSafetyReason.CombinationalCycle
     )
   }
 

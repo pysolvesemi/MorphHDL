@@ -89,7 +89,7 @@ expect_failure \
 wa08_manifest="${tmp_dir}/wa08.txt"
 printf '%s\n' 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala' >"${wa08_manifest}"
 expect_success \
-  'WA-08 handoff is accepted after WA-06 and PV-58 are checked' \
+  'WA-08 handoff is accepted after WA-07 and PV-58 are checked' \
   run_checker agent/wa-08-final-handoff "${wa08_manifest}"
 
 tmp_repo="${tmp_dir}/dependency-repo"

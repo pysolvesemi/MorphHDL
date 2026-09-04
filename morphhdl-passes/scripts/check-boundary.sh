@@ -64,7 +64,7 @@ collect_changed_files() {
 
 wa08_dependencies_satisfied() {
   [[ -f "${pv_roadmap}" ]] || return 1
-  grep -Eq '^- \[x\] \*\*WA-06[[:space:]]+—' "${roadmap}" && \
+  grep -Eq '^- \[x\] \*\*WA-07[[:space:]]+—' "${roadmap}" && \
     grep -Eq '^- \[x\] \*\*Increment 58[[:space:]]+—' "${pv_roadmap}"
 }
 
