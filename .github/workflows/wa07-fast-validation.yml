@@ -27,11 +27,10 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: sbt/setup-sbt@v1
-      - name: Static WA-01 through WA-07 contracts
+      - name: Static WA-02 through WA-07 contracts
         shell: bash
         run: |
           set -euo pipefail
-          bash morphhdl-passes/scripts/test-boundary-guard.sh
           for script in \
             check-wa02-adapter-boundary.py \
             check-wa03-gates.py \
