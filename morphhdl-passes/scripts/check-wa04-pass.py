@@ -213,14 +213,15 @@ def roadmap_failures(path: Path, text: str) -> list[str]:
     wa05_checked, wa05_body = entries["WA-05"]
     if not wa03_checked or "**Status:** `COMPLETED`" not in wa03_body:
         failures.append(f"{path}: WA04-DEPENDENCY: WA-03 must remain completed")
-    if wa05_checked:
-        failures.append(f"{path}: WA04-SCOPE: WA-05 must not be completed by WA-04")
 
     if wa04_checked:
         if "**Status:** `COMPLETED`" not in wa04_body:
             failures.append(f"{path}: WA04-STATUS: checked WA-04 must be COMPLETED")
-        if "**Status:** `READY`" not in wa05_body:
-            failures.append(f"{path}: WA04-NEXT-STATUS: WA-05 must be READY after WA-04")
+        if wa05_checked:
+            if "**Status:** `COMPLETED`" not in wa05_body:
+                failures.append(f"{path}: WA04-NEXT-STATUS: checked WA-05 must be COMPLETED")
+        elif "**Status:** `READY`" not in wa05_body:
+            failures.append(f"{path}: WA04-NEXT-STATUS: open WA-05 must be READY after WA-04")
     else:
         if "**Status:** `READY`" not in wa04_body:
             failures.append(f"{path}: WA04-STATUS: open WA-04 must be READY")
@@ -449,7 +450,10 @@ object Pass { def eligible(origin: NameOrigin, left: SymbolId, right: SymbolId) 
         "**Status:** `READY`\n  exact symbol identity",
         "**Status:** `COMPLETED`\n  exact symbol identity",
     ).replace("**Status:** `BLOCKED` by WA-04.", "**Status:** `READY`.")
-    for value in (open_roadmap, completed_roadmap):
+    wa05_completed_roadmap = completed_roadmap.replace(
+        "- [ ] **WA-05", "- [x] **WA-05"
+    ).replace("**Status:** `READY`.", "**Status:** `COMPLETED`.")
+    for value in (open_roadmap, completed_roadmap, wa05_completed_roadmap):
         if roadmap_failures(Path("roadmap.md"), value):
             raise AssertionError("valid WA-04 roadmap transition state was rejected")
     invalid_roadmap = completed_roadmap.replace(

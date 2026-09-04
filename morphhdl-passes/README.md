@@ -126,6 +126,37 @@ increment authorized to connect the optional pass pipeline to MorphHDL-owned
 single-source orchestration. Component names, source paths and emitted signal
 names never participate in the bridge's eligibility or rewrite decisions.
 
+WA-05 adds `NamedWireAliasEliminationPass`, the second transforming pass:
+
+- it is disabled by default and runs only when
+  `eliminateNamedAliases = true`;
+- it selects only canonical `NameOrigin.Explicit` candidates carrying an
+  explicit source name; unnamed, reflected, generated and unknown origins are
+  retained even when their emitted text looks user-friendly;
+- it consumes the unchanged complete WA-03 safety result, so public,
+  hierarchical, preservation, probe, attribute, comment and source-contract
+  dependencies reject elimination;
+- it replaces reads by exact symbol identity, removes only the exact declaration
+  and sole direct assignment, and does so without transferring the removed name
+  to the source or another surviving signal;
+- its deterministic elimination report retains the removed explicit name and
+  source location when available; and
+- it runs to a validated fixed point, fails closed atomically, is idempotent,
+  and leaves all surviving names and metadata unchanged.
+
+The component-generic tests cover exact identity, nested expressions, adjacent
+symbols, alias chains, deterministic reports, invalid-input rollback, explicit
+names that resemble backend conventions, every protected named-debug contract,
+and the complete `WIDTH=1..64` by `DEPTH=1..8` domain.
+
+The test-only `NamedWireAliasNativePhase` uses a semantic source/elaboration
+provenance tag on the shared witness rather than a component or identifier
+recognizer. Before name allocation it constructs the conservative canonical
+candidate, invokes `NamedWireAliasEliminationPass`, and writes an approved
+result back by exact native object identity. Its report proves the removed name,
+at least one exact rewritten reference, and non-empty transformation. It does
+not parse generated Verilog and does not create the WA-07 production handoff.
+
 ## Common witness and formal-equivalence baseline
 
 The parameterized StreamFifo source is a common regression and formal witness,
@@ -156,12 +187,13 @@ the 512 admitted witness bindings must be proved against the unchanged common
 reference. The harness therefore cannot silently accept a partial parameter
 sample or a comparison against the preceding pass.
 
-For WA-04, candidate publication is additionally gated by the focused
-`UnnamedWireAliasEliminationPassSpec` complete-domain test. The StreamFifo
-candidate is independently emitted from the same source and structured backend
-with symbolic `WIDTH` and `DEPTH`, then compared against the one common pre-pass
-capture for all 512 admitted bindings. The existing live formal mutation remains
-mandatory and demonstrates that a functional difference is rejected.
+For WA-04 and WA-05, candidate publication is additionally gated by the focused
+`UnnamedWireAliasEliminationPassSpec` and `NamedWireAliasEliminationPassSpec`
+complete-domain tests. Each StreamFifo candidate is independently emitted from
+the same source and structured backend with symbolic `WIDTH` and `DEPTH`, then
+compared against the one common pre-pass capture for all 512 admitted bindings.
+The existing live formal mutation remains mandatory and demonstrates that a
+functional difference is rejected.
 
 ## Local validation
 
@@ -175,6 +207,8 @@ python3 morphhdl-passes/scripts/check-wa03-gates.py --self-test
 python3 morphhdl-passes/scripts/check-wa03-gates.py
 python3 morphhdl-passes/scripts/check-wa04-pass.py --self-test
 python3 morphhdl-passes/scripts/check-wa04-pass.py
+python3 morphhdl-passes/scripts/check-wa05-pass.py --self-test
+python3 morphhdl-passes/scripts/check-wa05-pass.py
 python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
 (
   cd morphhdl-passes
@@ -198,10 +232,13 @@ sbt -batch \
   'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala")' \
   'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala")' \
   'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPass.scala")' \
+  'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/transform/NamedWireAliasEliminationPass.scala")' \
   'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/ParameterizedStreamFifo.scala")' \
   'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala")' \
+  'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/NamedWireAliasNativeBridge.scala")' \
   'morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoUnnamedPassWitness reference ...' \
-  'morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoUnnamedPassWitness candidate ...'
+  'morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoUnnamedPassWitness candidate ...' \
+  'morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoNamedPassWitness candidate ...'
 
 python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py \
   --shared-witness morphhdl-passes/build/formal/wire_assignment_ir/generated/parameterized_stream_fifo.v \
@@ -209,15 +246,16 @@ python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py \
   --check-determinism
 ```
 
-When WA-04 is checked, the candidate is published at
-`morphhdl-passes/build/pass-outputs/wire-alias-unnamed.v` and formally compared
+When WA-04 or WA-05 is checked, its candidate is published at
+`morphhdl-passes/build/pass-outputs/wire-alias-unnamed.v` or
+`morphhdl-passes/build/pass-outputs/wire-alias-named.v` and formally compared
 with the one common pre-pass reference for all 512 admitted `WIDTH`/`DEPTH`
-bindings. While WA-04 remains open, the same real post-pass candidate is emitted
-to an isolated smoke directory so compilation, lint, synthesis, simulation and
+bindings. While a pass remains open, its real post-pass candidate is emitted to
+an isolated smoke directory so compilation, lint, synthesis, simulation and
 non-empty transformation evidence can be checked without activating the formal
-roadmap slot.
-The final branch head, rather than an earlier staging commit, is the authoritative source for every closure gate.
+roadmap slot. The final branch head, rather than an earlier staging commit, is
+the authoritative source for every closure gate.
 
-Both pass selections remain disabled by default. WA-04 provides the standalone
-canonical unnamed-alias transformation; WA-07 will provide the separately
-reviewed production orchestration handoff.
+Both pass selections remain disabled by default. WA-04 and WA-05 provide the
+standalone canonical unnamed- and named-alias transformations; WA-07 will
+provide the separately reviewed production orchestration handoff.
