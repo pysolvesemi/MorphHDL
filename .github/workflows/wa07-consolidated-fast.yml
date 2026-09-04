@@ -20,22 +20,23 @@ jobs:
         with:
           ref: agent/wa-07-unified-expression-inlining
           fetch-depth: 0
-      - name: Repair implementation-versus-closure roadmap guard
+      - name: Make the inherited WA-06 roadmap guard closure-state aware
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
-          changed = []
-          guard = Path("morphhdl-passes/scripts/check-wa06-pipeline.py")
-          text = guard.read_text(encoding="utf-8")
-          old = '''    if not wa07_checked or "**Status:** `COMPLETED`" not in wa07_body:
-              failures.append(f"{path}: WA06-SUCCESSOR: completed WA-07 must retain WA-06")
-          if wa08_checked or "**Status:** `READY`" not in wa08_body:
-              failures.append(f"{path}: WA06-NEXT-STATUS: WA-08 must remain open and READY")
-          '''
-          new = '''    if wa07_checked:
+          path = Path("morphhdl-passes/scripts/check-wa06-pipeline.py")
+          text = path.read_text(encoding="utf-8")
+          pattern = re.compile(
+              r'    if not wa07_checked or "\*\*Status:\*\* `COMPLETED`" not in wa07_body:\n'
+              r'        failures\.append\(f"\{path\}: WA06-SUCCESSOR: completed WA-07 must retain WA-06"\)\n'
+              r'    if wa08_checked or "\*\*Status:\*\* `READY`" not in wa08_body:\n'
+              r'        failures\.append\(f"\{path\}: WA06-NEXT-STATUS: WA-08 must remain open and READY"\)\n'
+          )
+          replacement = '''    if wa07_checked:
               if "**Status:** `COMPLETED`" not in wa07_body:
                   failures.append(f"{path}: WA06-SUCCESSOR: checked WA-07 must be COMPLETED")
               if wa08_checked or "**Status:** `READY`" not in wa08_body:
@@ -46,46 +47,17 @@ jobs:
               if wa08_checked or "**Status:** `BLOCKED`" not in wa08_body:
                   failures.append(f"{path}: WA06-NEXT-STATUS: in-progress WA-07 requires open BLOCKED WA-08")
           '''
-          if old in text:
-              guard.write_text(text.replace(old, new, 1), encoding="utf-8")
-              changed.append(str(guard))
-          elif new not in text:
-              raise SystemExit("WA-06 successor guard replacement point is missing")
-
-          roadmap = Path("morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md")
-          text = roadmap.read_text(encoding="utf-8")
-          first = "One configuration flag enables all passes in the fixed order above; false disables the entire pass pipeline."
-          second = "RHS expressions are copied once per receiver"
-          if first not in text:
-              marker = "Product code has one all-or-none `enabled` flag. `false` executes no pass;\n`true` executes all three in the fixed order above."
-              if marker not in text:
-                  raise SystemExit("global-control roadmap insertion point is missing")
-              text = text.replace(marker, marker + "\n\n" + first, 1)
-          if second not in text:
-              marker = "The exact temporary declaration and sole assignment are removed."
-              if marker not in text:
-                  raise SystemExit("expression-copy roadmap insertion point is missing")
-              text = text.replace(
-                  marker,
-                  second + "; each copy preserves the removed assignment's packed type fence.\n\n" + marker,
-                  1,
-              )
-          roadmap.write_text(text, encoding="utf-8")
-          if str(roadmap) not in changed:
-              changed.append(str(roadmap))
-
-          Path("/tmp/wa07-fast-changed.txt").write_text("\n".join(changed), encoding="utf-8")
+          updated, count = pattern.subn(replacement, text, count=1)
+          if count == 0 and "in-progress WA-07 requires open BLOCKED WA-08" not in text:
+              raise SystemExit("unable to locate the WA-06 successor-state block")
+          if count:
+              path.write_text(updated, encoding="utf-8")
           PY
-          mapfile -t changed < /tmp/wa07-fast-changed.txt
-          actual=()
-          for path in "${changed[@]}"; do
-            if ! git diff --quiet -- "${path}"; then actual+=("${path}"); fi
-          done
-          if (( ${#actual[@]} )); then
+          if ! git diff --quiet -- morphhdl-passes/scripts/check-wa06-pipeline.py; then
             git config user.name github-actions[bot]
             git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-            git add -- "${actual[@]}"
-            git commit -m "WA-07: make inherited roadmap guard closure-state aware"
+            git add morphhdl-passes/scripts/check-wa06-pipeline.py
+            git commit -m "WA-07: distinguish implementation and closure roadmap states"
             git pull --rebase origin agent/wa-07-unified-expression-inlining
             git push origin HEAD:agent/wa-07-unified-expression-inlining
           fi
@@ -107,7 +79,6 @@ jobs:
             check-wa07-global-pass-control.py \
             check-wa07-pass.py \
             check-wa07-expression-pass.py; do
-            test -f "morphhdl-passes/scripts/${script}"
             python3 "morphhdl-passes/scripts/${script}" --self-test
             python3 "morphhdl-passes/scripts/${script}"
           done
