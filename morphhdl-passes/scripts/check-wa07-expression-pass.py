@@ -295,8 +295,10 @@ def roadmap_failures(path: Path, text: str, pv_text: str) -> list[str]:
         "one unchanged pre-pass reference",
         "512",
     )
+    normalized_body = " ".join(wa07_body.lower().split())
     for marker in required_scope:
-        if marker.lower() not in wa07_body.lower():
+        normalized_marker = " ".join(marker.lower().split())
+        if normalized_marker not in normalized_body:
             failures.append(
                 f"{path}: WA07-ROADMAP-SCOPE: WA-07 entry is missing {marker!r}"
             )
