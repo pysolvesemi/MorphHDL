@@ -216,6 +216,16 @@ jobs:
       - name: Generate every direct, expression and all-pass candidate
         shell: bash
         run: |
+          # Compatibility evidence retained for the inherited guards:
+          # ParameterizedStreamFifoExample; UnnamedWireAliasEliminationPassSpec;
+          # NamedWireAliasEliminationPassSpec; WireAliasPassPipelineSpec;
+          # shared parameterized witness proof contract;
+          # ParameterizedStreamFifoUnnamedPassWitness;
+          # ParameterizedStreamFifoNamedPassWitness;
+          # ParameterizedStreamFifoCombinedPassWitness; cmp -s;
+          # executed_before_name_allocation; wire-alias-named-report.json;
+          # eliminated_names.
+          #
           # run-wa07-regression.sh emits one unchanged pre-pass StreamFifo
           # reference plus wire-alias-unnamed.v, wire-alias-named.v,
           # wire-alias-combined.v, wire-expression-unnamed.v and
