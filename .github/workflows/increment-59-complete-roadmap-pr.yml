@@ -40,8 +40,8 @@ jobs:
           path.write_text(text.replace(unchecked, checked, 1), encoding="utf-8")
           PY
           git rm -- .github/workflows/increment-59-complete-roadmap-pr.yml
-          git diff --check
-          actual="$(git diff --name-only | LC_ALL=C sort)"
+          git diff --check HEAD
+          actual="$(git diff --name-only HEAD | LC_ALL=C sort)"
           expected="$(printf '%s\n' \
             '.github/workflows/increment-59-complete-roadmap-pr.yml' \
             'docs/morphhdl/parameterized-verilog-todo.md' | LC_ALL=C sort)"
