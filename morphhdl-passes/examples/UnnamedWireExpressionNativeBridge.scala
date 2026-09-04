@@ -53,7 +53,7 @@ import spinal.core.internals._
   * tree, register process, or another Verilog `always` block is never rewritten.
   *
   * Selection is based on native object identity and source/elaboration naming
-  * provenance. No component name, source filename, `_zz_*` text, or emitted HDL
+  * provenance. No component name, source filename, backend-generated temporary identifier text, or emitted HDL
   * is inspected. Production publication and writeback remain WA-08 scope.
   */
 private[examples] final class UnnamedWireExpressionNativePhase extends Phase {

@@ -77,8 +77,7 @@ object UnnamedWireExpressionSafetyReason {
   * reference. It clones the complete pure [[RtlExpr]] tree at every continuous
   * receiver, recreates the removed assignment's packed width and signedness as
   * an explicit resize fence, then removes the exact temporary declaration and
-  * its sole assignment. It never recognizes `_zz_*` text or any other emitted
-  * identifier convention.
+  * its sole assignment. It never recognizes backend-generated temporary identifier text.
   *
   * A candidate is retained when either its own assignment or any receiver is
   * procedural. Canonical `DriverKind.Procedural` represents assignments inside
@@ -810,10 +809,12 @@ object UnnamedWireExpressionEliminationPass {
   private def passLocation(
       value: morphhdl.ir.v1.SourceLocation
   ): Option[PassSourceLocation] =
-    for {
-      line <- value.line if line >= 1
-      column <- value.column if column >= 1
-    } yield PassSourceLocation(value.path, line, column)
+    Option(value).flatMap { item =>
+      val path = Option(item.path).map(_.trim).getOrElse("")
+      if (path.nonEmpty && item.line >= 1 && item.column >= 1) {
+        Some(PassSourceLocation(path, item.line, item.column))
+      } else None
+    }
 
   private def diagnosticKey(
       value: PassDiagnostic
