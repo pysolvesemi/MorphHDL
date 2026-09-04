@@ -1,0 +1,36 @@
+name: Increment 59 workspace export
+
+on:
+  push:
+    branches:
+      - agent/increment-59-typed-blackbox-generics
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Package Git workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          git branch --force parameterized-verilog refs/remotes/origin/parameterized-verilog
+          git bundle create /tmp/morphhdl-increment-59.bundle \
+            agent/increment-59-typed-blackbox-generics \
+            parameterized-verilog
+          git bundle verify /tmp/morphhdl-increment-59.bundle
+
+      - name: Upload Git workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59-git-bundle
+          path: /tmp/morphhdl-increment-59.bundle
+          if-no-files-found: error
+          retention-days: 1
