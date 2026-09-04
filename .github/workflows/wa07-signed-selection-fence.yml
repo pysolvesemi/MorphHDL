@@ -33,216 +33,165 @@ jobs:
           import json
 
           root = Path.cwd()
-          source_path = root / "morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireExpressionEliminationPass.scala"
-          source = source_path.read_text(encoding="utf-8")
 
-          composed_old = '''        receiverWidth,
-        packedType.signedness
-      )
-    )
-  case _ => None
-}'''
-          composed_new = '''        receiverWidth,
-        morphhdl.ir.v1.Signedness.Unsigned
-      )
-    )
-  case _ => None
-}'''
-          if source.count(composed_old) != 1:
-              raise SystemExit("composed selected-use fence point is missing")
-          source = source.replace(composed_old, composed_new, 1)
+          def read(relative):
+              return (root / relative).read_text(encoding="utf-8")
 
-          part_old = '''        aliasSymbol,
-        packedType.width,
-        packedType.signedness
-      )
-    } else {
-      composedPartSelect('''
-          part_new = '''        aliasSymbol,
-        packedType.width,
-        morphhdl.ir.v1.Signedness.Unsigned
-      )
-    } else {
-      composedPartSelect('''
-          if source.count(part_old) != 1:
-              raise SystemExit("full-width part-select fence point is missing")
-          source = source.replace(part_old, part_new, 1)
+          def write(relative, text):
+              (root / relative).write_text(text, encoding="utf-8")
 
-          bit_old = '''        aliasSymbol,
-        packedType.width,
-        packedType.signedness
-      )
-    } else expression
-  case receiver @ RtlExpr.Ref'''
-          bit_new = '''        aliasSymbol,
-        packedType.width,
-        morphhdl.ir.v1.Signedness.Unsigned
-      )
-    } else expression
-  case receiver @ RtlExpr.Ref'''
-          if source.count(bit_old) != 1:
-              raise SystemExit("one-bit selected-use fence point is missing")
-          source = source.replace(bit_old, bit_new, 1)
-          source_path.write_text(source, encoding="utf-8")
+          source_rel = "morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireExpressionEliminationPass.scala"
+          source = read(source_rel)
+          replacements = [
+              (
+                  "        receiverWidth,\n        packedType.signedness\n      )\n    )\n  case _ => None\n}",
+                  "        receiverWidth,\n        morphhdl.ir.v1.Signedness.Unsigned\n      )\n    )\n  case _ => None\n}",
+              ),
+              (
+                  "        aliasSymbol,\n        packedType.width,\n        packedType.signedness\n      )\n    } else {\n      composedPartSelect(",
+                  "        aliasSymbol,\n        packedType.width,\n        morphhdl.ir.v1.Signedness.Unsigned\n      )\n    } else {\n      composedPartSelect(",
+              ),
+              (
+                  "        aliasSymbol,\n        packedType.width,\n        packedType.signedness\n      )\n    } else expression\n  case receiver @ RtlExpr.Ref",
+                  "        aliasSymbol,\n        packedType.width,\n        morphhdl.ir.v1.Signedness.Unsigned\n      )\n    } else expression\n  case receiver @ RtlExpr.Ref",
+              ),
+          ]
+          for old, new in replacements:
+              if source.count(old) != 1:
+                  raise SystemExit("signed selected-use source replacement point is missing or repeated")
+              source = source.replace(old, new, 1)
+          write(source_rel, source)
 
-          test_path = root / "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireExpressionSelectionSafetySpec.scala"
-          test = test_path.read_text(encoding="utf-8")
+          test_rel = "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireExpressionSelectionSafetySpec.scala"
+          test = read(test_rel)
+          old = "  private def bits(width: Int): PackedType =\n    PackedType(\n      width = IntExpr.Literal(BigInt(width)),\n      signedness = Signedness.Unsigned,\n      valueSemantics = PackedValueSemantics.BitVector\n    )"
+          new = "  private def bits(\n      width: Int,\n      signedness: Signedness = Signedness.Unsigned\n  ): PackedType =\n    PackedType(\n      width = IntExpr.Literal(BigInt(width)),\n      signedness = signedness,\n      valueSemantics = PackedValueSemantics.BitVector\n    )"
+          if test.count(old) != 1:
+              raise SystemExit("selection test bits fixture point is missing")
+          test = test.replace(old, new, 1)
+          old = "      origin: NameOrigin,\n      visible: Boolean = false\n  ): Declaration ="
+          new = "      origin: NameOrigin,\n      visible: Boolean = false,\n      signedness: Signedness = Signedness.Unsigned\n  ): Declaration ="
+          if test.count(old) != 1:
+              raise SystemExit("selection test declaration fixture point is missing")
+          test = test.replace(old, new, 1)
+          if test.count("      packedType = Some(bits(width)),") != 1:
+              raise SystemExit("selection test packed-type fixture point is missing")
           test = test.replace(
-              '''  private def bits(width: Int): PackedType =
-    PackedType(
-      width = IntExpr.Literal(BigInt(width)),
-      signedness = Signedness.Unsigned,
-      valueSemantics = PackedValueSemantics.BitVector
-    )''',
-              '''  private def bits(
-      width: Int,
-      signedness: Signedness = Signedness.Unsigned
-  ): PackedType =
-    PackedType(
-      width = IntExpr.Literal(BigInt(width)),
-      signedness = signedness,
-      valueSemantics = PackedValueSemantics.BitVector
-    )''',
+              "      packedType = Some(bits(width)),",
+              "      packedType = Some(bits(width, signedness)),",
               1,
           )
-          test = test.replace(
-              '''      origin: NameOrigin,
-      visible: Boolean = false
-  ): Declaration =''',
-              '''      origin: NameOrigin,
-      visible: Boolean = false,
-      signedness: Signedness = Signedness.Unsigned
-  ): Declaration =''',
-              1,
-          )
-          test = test.replace(
-              '      packedType = Some(bits(width)),',
-              '      packedType = Some(bits(width, signedness)),',
-              1,
-          )
-          test = test.replace(
-              '''      sinkWidth: Int,
-      rhs: RtlExpr,
-      receiver: RtlExpr
-  ): Design =''',
-              '''      sinkWidth: Int,
-      rhs: RtlExpr,
-      receiver: RtlExpr,
-      aliasSignedness: Signedness = Signedness.Unsigned
-  ): Design =''',
-              1,
-          )
-          alias_declaration = '''              aliasWidth,
-              NameOrigin.Unnamed
-            ),'''
-          alias_declaration_new = '''              aliasWidth,
-              NameOrigin.Unnamed,
-              signedness = aliasSignedness
-            ),'''
-          if test.count(alias_declaration) != 1:
-              raise SystemExit("alias declaration test fixture point is missing")
-          test = test.replace(alias_declaration, alias_declaration_new, 1)
+          old = "      sinkWidth: Int,\n      rhs: RtlExpr,\n      receiver: RtlExpr\n  ): Design ="
+          new = "      sinkWidth: Int,\n      rhs: RtlExpr,\n      receiver: RtlExpr,\n      aliasSignedness: Signedness = Signedness.Unsigned\n  ): Design ="
+          if test.count(old) != 1:
+              raise SystemExit("selection test design fixture point is missing")
+          test = test.replace(old, new, 1)
+          old = "              aliasWidth,\n              NameOrigin.Unnamed\n            ),"
+          new = "              aliasWidth,\n              NameOrigin.Unnamed,\n              signedness = aliasSignedness\n            ),"
+          if test.count(old) != 1:
+              raise SystemExit("selection test alias declaration point is missing")
+          test = test.replace(old, new, 1)
 
-          added = r'''
+          added = '''
 
-  test("signed alias full-width part-select keeps unsigned selection semantics") {
-    val input = design(
-      sourceWidth = 4,
-      aliasWidth = 4,
-      sinkWidth = 4,
-      rhs = add(4),
-      receiver = RtlExpr.PartSelect(
-        reference("receiver-signed-full-part", alias),
-        IntExpr.Literal(BigInt(0)),
-        IntExpr.Literal(BigInt(4))
-      ),
-      aliasSignedness = Signedness.Signed
-    )
+            test("signed alias full-width part-select keeps unsigned selection semantics") {
+              val input = design(
+                sourceWidth = 4,
+                aliasWidth = 4,
+                sinkWidth = 4,
+                rhs = add(4),
+                receiver = RtlExpr.PartSelect(
+                  reference("receiver-signed-full-part", alias),
+                  IntExpr.Literal(BigInt(0)),
+                  IntExpr.Literal(BigInt(4))
+                ),
+                aliasSignedness = Signedness.Signed
+              )
 
-    val result = UnnamedWireExpressionEliminationPass.run(input, enabled)
+              val result = UnnamedWireExpressionEliminationPass.run(input, enabled)
 
-    result.status shouldBe PassExecutionStatus.Changed
-    outputDriver(result.output).value match {
-      case RtlExpr.Resize(
-            _: RtlExpr.Binary,
-            IntExpr.Literal(width),
-            Signedness.Unsigned
-          ) => width shouldBe BigInt(4)
-      case other =>
-        fail(s"expected an unsigned full-width selected-use fence, observed $other")
-    }
-  }
+              result.status shouldBe PassExecutionStatus.Changed
+              outputDriver(result.output).value match {
+                case RtlExpr.Resize(
+                      _: RtlExpr.Binary,
+                      IntExpr.Literal(width),
+                      Signedness.Unsigned
+                    ) => width shouldBe BigInt(4)
+                case other =>
+                  fail(s"expected an unsigned full-width selected-use fence, observed $other")
+              }
+            }
 
-  test("signed alias composed part-select keeps unsigned selection semantics") {
-    val input = design(
-      sourceWidth = 16,
-      aliasWidth = 8,
-      sinkWidth = 4,
-      rhs = RtlExpr.PartSelect(
-        reference("rhs-signed-source-part", sourceA),
-        IntExpr.Literal(BigInt(2)),
-        IntExpr.Literal(BigInt(8))
-      ),
-      receiver = RtlExpr.PartSelect(
-        reference("receiver-signed-composed-part", alias),
-        IntExpr.Literal(BigInt(1)),
-        IntExpr.Literal(BigInt(4))
-      ),
-      aliasSignedness = Signedness.Signed
-    )
+            test("signed alias composed part-select keeps unsigned selection semantics") {
+              val input = design(
+                sourceWidth = 16,
+                aliasWidth = 8,
+                sinkWidth = 4,
+                rhs = RtlExpr.PartSelect(
+                  reference("rhs-signed-source-part", sourceA),
+                  IntExpr.Literal(BigInt(2)),
+                  IntExpr.Literal(BigInt(8))
+                ),
+                receiver = RtlExpr.PartSelect(
+                  reference("receiver-signed-composed-part", alias),
+                  IntExpr.Literal(BigInt(1)),
+                  IntExpr.Literal(BigInt(4))
+                ),
+                aliasSignedness = Signedness.Signed
+              )
 
-    val result = UnnamedWireExpressionEliminationPass.run(input, enabled)
+              val result = UnnamedWireExpressionEliminationPass.run(input, enabled)
 
-    result.status shouldBe PassExecutionStatus.Changed
-    outputDriver(result.output).value match {
-      case RtlExpr.Resize(
-            RtlExpr.PartSelect(
-              _: RtlExpr.Ref,
-              IntExpr.Literal(offset),
-              IntExpr.Literal(width)
-            ),
-            IntExpr.Literal(fenceWidth),
-            Signedness.Unsigned
-          ) =>
-        offset shouldBe BigInt(3)
-        width shouldBe BigInt(4)
-        fenceWidth shouldBe BigInt(4)
-      case other =>
-        fail(s"expected an unsigned composed selected-use fence, observed $other")
-    }
-  }
+              result.status shouldBe PassExecutionStatus.Changed
+              outputDriver(result.output).value match {
+                case RtlExpr.Resize(
+                      RtlExpr.PartSelect(
+                        _: RtlExpr.Ref,
+                        IntExpr.Literal(offset),
+                        IntExpr.Literal(width)
+                      ),
+                      IntExpr.Literal(fenceWidth),
+                      Signedness.Unsigned
+                    ) =>
+                  offset shouldBe BigInt(3)
+                  width shouldBe BigInt(4)
+                  fenceWidth shouldBe BigInt(4)
+                case other =>
+                  fail(s"expected an unsigned composed selected-use fence, observed $other")
+              }
+            }
 
-  test("signed alias whole-object receiver retains signed assignment semantics") {
-    val input = design(
-      sourceWidth = 4,
-      aliasWidth = 4,
-      sinkWidth = 4,
-      rhs = add(4),
-      receiver = reference("receiver-signed-whole", alias),
-      aliasSignedness = Signedness.Signed
-    )
+            test("signed alias whole-object receiver retains signed assignment semantics") {
+              val input = design(
+                sourceWidth = 4,
+                aliasWidth = 4,
+                sinkWidth = 4,
+                rhs = add(4),
+                receiver = reference("receiver-signed-whole", alias),
+                aliasSignedness = Signedness.Signed
+              )
 
-    val result = UnnamedWireExpressionEliminationPass.run(input, enabled)
+              val result = UnnamedWireExpressionEliminationPass.run(input, enabled)
 
-    result.status shouldBe PassExecutionStatus.Changed
-    outputDriver(result.output).value match {
-      case RtlExpr.Resize(
-            _: RtlExpr.Binary,
-            IntExpr.Literal(width),
-            Signedness.Signed
-          ) => width shouldBe BigInt(4)
-      case other =>
-        fail(s"expected a signed whole-object assignment fence, observed $other")
-    }
-  }
-'''
+              result.status shouldBe PassExecutionStatus.Changed
+              outputDriver(result.output).value match {
+                case RtlExpr.Resize(
+                      _: RtlExpr.Binary,
+                      IntExpr.Literal(width),
+                      Signedness.Signed
+                    ) => width shouldBe BigInt(4)
+                case other =>
+                  fail(s"expected a signed whole-object assignment fence, observed $other")
+              }
+            }
+          '''
           if not test.endswith("\n}"):
-              raise SystemExit("selection safety test file ending is unexpected")
+              raise SystemExit("selection test file ending is unexpected")
           test = test[:-2] + added + "\n}\n"
-          test_path.write_text(test, encoding="utf-8")
+          write(test_rel, test)
 
-          guard_path = root / "morphhdl-passes/scripts/check-wa07-expression-pass.py"
-          guard = guard_path.read_text(encoding="utf-8")
+          guard_rel = "morphhdl-passes/scripts/check-wa07-expression-pass.py"
+          guard = read(guard_rel)
           marker = '    "selection through a non-direct alias expression fails closed",\n'
           extra = (
               marker
@@ -251,55 +200,44 @@ jobs:
               + '    "signed alias whole-object receiver retains signed assignment semantics",\n'
           )
           if guard.count(marker) != 1:
-              raise SystemExit("selection-test guard marker is missing")
-          guard_path.write_text(guard.replace(marker, extra, 1), encoding="utf-8")
+              raise SystemExit("selection test guard marker is missing")
+          write(guard_rel, guard.replace(marker, extra, 1))
 
-          readme_path = root / "morphhdl-passes/README.md"
-          readme = readme_path.read_text(encoding="utf-8")
-          readme_marker = (
-              "The composed result carries an explicit receiver-width and signedness fence.\n"
-          )
-          readme_replacement = (
+          readme_rel = "morphhdl-passes/README.md"
+          readme = read(readme_rel)
+          old = "The composed result carries an explicit receiver-width and signedness fence.\n"
+          new = (
               "The composed result carries an explicit receiver-width fence and unsigned\n"
               "selection semantics, including when the eliminated whole object is signed.\n"
               "A whole-object receiver continues to use the eliminated assignment's original\n"
               "signedness.\n"
           )
-          if readme.count(readme_marker) != 1:
-              raise SystemExit("README signed-selection marker is missing")
-          readme_path.write_text(
-              readme.replace(readme_marker, readme_replacement, 1),
-              encoding="utf-8",
-          )
+          if readme.count(old) != 1:
+              raise SystemExit("README selected-use signedness marker is missing")
+          write(readme_rel, readme.replace(old, new, 1))
 
-          roadmap_path = root / "morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md"
-          roadmap = roadmap_path.read_text(encoding="utf-8")
-          roadmap_marker = (
-              "  `source[7:0][3:0]` in strict Verilog-2001.\n\n"
-          )
-          roadmap_replacement = (
+          roadmap_rel = "morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md"
+          roadmap = read(roadmap_rel)
+          old = "  `source[7:0][3:0]` in strict Verilog-2001.\n\n"
+          new = (
               "  `source[7:0][3:0]` in strict Verilog-2001. Every accepted bit or\n"
               "  part-select replacement retains unsigned selection semantics; only a\n"
               "  whole-object receiver inherits the removed assignment's signedness.\n\n"
           )
-          if roadmap.count(roadmap_marker) != 1:
-              raise SystemExit("roadmap signed-selection marker is missing")
-          roadmap_path.write_text(
-              roadmap.replace(roadmap_marker, roadmap_replacement, 1),
-              encoding="utf-8",
-          )
+          if roadmap.count(old) != 1:
+              raise SystemExit("roadmap selected-use signedness marker is missing")
+          write(roadmap_rel, roadmap.replace(old, new, 1))
 
-          helper = root / ".github/workflows/wa07-signed-selection-fence.yml"
-          helper.unlink()
+          (root / ".github/workflows/wa07-signed-selection-fence.yml").unlink()
 
-          registry_path = root / "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
+          registry_rel = "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
+          registry_path = root / registry_rel
           registry = json.loads(registry_path.read_text(encoding="utf-8"))
-          files = registry["files"]
-          for relative in sorted(files):
+          for relative in sorted(registry["files"]):
               path = root / relative
               if not path.is_file():
                   raise SystemExit(f"signature target is missing: {relative}")
-              files[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+              registry["files"][relative] = hashlib.sha256(path.read_bytes()).hexdigest()
           registry_path.write_text(
               json.dumps(registry, indent=2, sort_keys=True) + "\n",
               encoding="utf-8",
