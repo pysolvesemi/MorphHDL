@@ -51,6 +51,11 @@ final class WireAliasPassPipelineSpec extends AnyFunSuite with Matchers {
   private val nestedSinkDriverId = DriverId.unsafe("driver.pipeline-nested-sink")
 
   private val enabled = WireAliasPassConfiguration(enabled = true)
+  private val widthDomain = IntegerParameterDomain(
+  minimum = BigInt(1),
+  maximum = BigInt(64),
+  admittedValues = (1 to 64).map(value => BigInt(value)).toVector
+)
   private val depthDomain = IntegerParameterDomain(
     minimum = BigInt(1),
     maximum = BigInt(8),
