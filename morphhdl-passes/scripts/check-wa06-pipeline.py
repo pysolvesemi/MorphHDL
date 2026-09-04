@@ -171,7 +171,7 @@ REQUIRED_README_MARKERS: tuple[str, ...] = (
     "WireAliasPassPipeline",
     "disabled by default",
     "historical direct-alias stages",
-    "unnamed then named",
+    "unnamed-then-named",
     "alias chains and fanout",
     "byte-identical repeated emission",
     "strict Verilog-2001",
@@ -263,8 +263,10 @@ def roadmap_failures(path: Path, text: str, pv_text: str) -> list[str]:
         "formal equivalence",
         "common pre-pass StreamFifo reference",
     )
+    normalized_body = " ".join(wa06_body.lower().split())
     for marker in required_scope:
-        if marker.lower() not in wa06_body.lower():
+        normalized_marker = " ".join(marker.lower().split())
+        if normalized_marker not in normalized_body:
             failures.append(
                 f"{path}: WA06-ROADMAP-SCOPE: WA-06 entry is missing {marker!r}"
             )
