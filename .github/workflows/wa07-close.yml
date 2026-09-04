@@ -1,0 +1,61 @@
+name: WA-07 roadmap closure
+
+on:
+  push:
+    branches:
+      - agent/wa-07-unified-expression-inlining
+    paths:
+      - ".github/workflows/wa07-close.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  close:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/wa-07-unified-expression-inlining
+          fetch-depth: 0
+      - name: Mark WA-07 complete and WA-08 ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md")
+          text = path.read_text(encoding="utf-8")
+          pattern = re.compile(
+              r"- \[ \] \*\*WA-07 — Unified pass control and unnamed expression-assignment elimination\*\*"
+              r"(?P<body>[\s\S]*?)"
+              r"(?=- \[ \] \*\*WA-08 — Final MorphHDL IR-stage production handoff\*\*)"
+          )
+          match = pattern.search(text)
+          if match is None:
+              if "- [x] **WA-07 — Unified pass control and unnamed expression-assignment elimination**" in text:
+                  raise SystemExit(0)
+              raise SystemExit("WA-07 roadmap section not found")
+          body = match.group("body")
+          if "**Status:** `IN PROGRESS`." not in body:
+              raise SystemExit("WA-07 is not in implementation state")
+          completed = match.group(0).replace("- [ ] **WA-07", "- [x] **WA-07", 1)
+          completed = completed.replace("**Status:** `IN PROGRESS`.", "**Status:** `COMPLETED`.", 1)
+          text = text[:match.start()] + completed + text[match.end():]
+          wa08 = re.compile(
+              r"(- \[ \] \*\*WA-08 — Final MorphHDL IR-stage production handoff\*\*[\s\S]*?\*\*Status:\*\* )`BLOCKED`\."
+          )
+          text, count = wa08.subn(r"\1`READY`.", text, count=1)
+          if count != 1:
+              raise SystemExit("WA-08 blocked status not found")
+          path.write_text(text, encoding="utf-8")
+          PY
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md
+          git commit -m "WA-07: mark unified expression pass complete"
+          git pull --rebase origin agent/wa-07-unified-expression-inlining
+          git push origin HEAD:agent/wa-07-unified-expression-inlining
