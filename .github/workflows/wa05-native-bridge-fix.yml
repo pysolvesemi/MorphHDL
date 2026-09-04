@@ -1,0 +1,126 @@
+name: WA-05 native bridge API correction
+
+on:
+  push:
+    branches:
+      - agent/wa-05-named-simple-wire-elimination
+    paths:
+      - ".github/workflows/wa05-native-bridge-fix.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wa05-native-bridge-fix
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      SBT_OPTS: -Xms512M -Xmx4G -Xss4M
+    steps:
+      - name: Check out exact WA-05 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/wa-05-named-simple-wire-elimination
+          fetch-depth: 0
+
+      - name: Correct native preservation check and exercise the witness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+
+          bridge = Path("morphhdl-passes/examples/NamedWireAliasNativeBridge.scala")
+          text = bridge.read_text(encoding="utf-8")
+          old_call = "    else if (!preservationMetadataAllows(alias, assignment))\n"
+          new_call = "    else if (!preservationMetadataAllows(alias))\n"
+          old_body = '''  private def preservationMetadataAllows(
+              alias: BaseType,
+              assignment: DataAssignmentStatement
+          ): Boolean =
+            !alias.isFrozen() &&
+              explicitSourceName(alias).nonEmpty &&
+              assignment.isEmptyOfTag &&
+              !readPrivateBoolean(alias, "dontSimplify").getOrElse(true)
+          '''
+          new_body = '''  private def preservationMetadataAllows(alias: BaseType): Boolean =
+            !alias.isFrozen() &&
+              explicitSourceName(alias).nonEmpty &&
+              !readPrivateBoolean(alias, "dontSimplify").getOrElse(true)
+          '''
+          if text.count(old_call) != 1 or text.count(old_body) != 1:
+              raise SystemExit("WA-05 native bridge correction markers are missing or ambiguous")
+          text = text.replace(old_call, new_call, 1).replace(old_body, new_body, 1)
+          bridge.write_text(text, encoding="utf-8")
+
+          registry = Path("morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json")
+          values = json.loads(registry.read_text(encoding="utf-8"))
+          key = bridge.as_posix()
+          if key not in values["files"]:
+              raise SystemExit(f"signature registry is missing {key}")
+          values["files"][key] = hashlib.sha256(bridge.read_bytes()).hexdigest()
+          registry.write_text(
+              json.dumps(values, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py
+          python3 morphhdl-passes/scripts/check-wa03-gates.py
+          python3 morphhdl-passes/scripts/check-wa04-pass.py
+          python3 morphhdl-passes/scripts/check-wa05-pass.py
+          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+
+          output_directory="${GITHUB_WORKSPACE}/morphhdl-passes/build/wa05-bridge-fix"
+          report="${output_directory}/wire-alias-named-report.json"
+          rm -rf "${output_directory}"
+          mkdir -p "${output_directory}"
+          sbt -batch \
+            '++2.12.18' \
+            'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala")' \
+            'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala")' \
+            'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala")' \
+            'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPass.scala")' \
+            'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/transform/NamedWireAliasEliminationPass.scala")' \
+            'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/ParameterizedStreamFifo.scala")' \
+            'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala")' \
+            'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/NamedWireAliasNativeBridge.scala")' \
+            "morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoNamedPassWitness candidate ${output_directory} wire-alias-named.v ${report}"
+
+          test -s "${output_directory}/wire-alias-named.v"
+          test -s "${report}"
+          python3 - "${report}" <<'PY'
+          import json
+          import sys
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          if report.get("pass_id") != "wire-alias-named":
+              raise SystemExit("WA-05 witness report has the wrong pass id")
+          if report.get("executed_before_name_allocation") is not True:
+              raise SystemExit("WA-05 witness did not execute before name allocation")
+          if report.get("eliminated_count", 0) < 1:
+              raise SystemExit("WA-05 witness eliminated no named alias")
+          if report.get("rewritten_reference_count", 0) < 1:
+              raise SystemExit("WA-05 witness rewrote no exact native reference")
+          names = report.get("eliminated_names")
+          if not isinstance(names, list) or not names or names != sorted(names):
+              raise SystemExit("WA-05 removed-name evidence is absent or nondeterministic")
+          PY
+          git diff --check
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            morphhdl-passes/examples/NamedWireAliasNativeBridge.scala \
+            morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json
+          git commit -m "WA-05: use supported native preservation metadata"
+          git push origin HEAD:agent/wa-05-named-simple-wire-elimination
