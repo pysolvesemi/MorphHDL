@@ -1,0 +1,367 @@
+name: Increment 59 completion supervisor
+
+on:
+  push:
+    branches:
+      - agent/inc59-supervisor
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+  statuses: write
+
+concurrency:
+  group: increment-59-completion-supervisor
+  cancel-in-progress: false
+
+jobs:
+  complete:
+    name: Repair, verify exact target, and merge
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      TARGET_BRANCH: agent/inc59-final
+      BASE_BRANCH: parameterized-verilog
+    steps:
+      - name: Check out supervisor helper
+        uses: actions/checkout@v4
+        with:
+          ref: agent/inc59-supervisor
+          fetch-depth: 1
+
+      - name: Preserve repair helper
+        run: cp .github/scripts/inc59-repair.py /tmp/inc59-repair.py
+
+      - name: Wait for any primary bootstrap run to stop mutating the target
+        shell: bash
+        env:
+          API_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.parse
+          import urllib.request
+
+          token = os.environ['API_TOKEN']
+          branch = os.environ['TARGET_BRANCH']
+          url = (
+              'https://api.github.com/repos/pysolvesemi/MorphHDL/actions/runs?'
+              + urllib.parse.urlencode({'branch': branch, 'event': 'push', 'per_page': 100})
+          )
+          headers = {
+              'Authorization': f'Bearer {token}',
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+          }
+          missing = 0
+          for _ in range(300):
+              with urllib.request.urlopen(
+                  urllib.request.Request(url, headers=headers), timeout=60
+              ) as response:
+                  payload = json.load(response)
+              runs = [
+                  run for run in payload.get('workflow_runs', [])
+                  if run.get('name') == 'Increment 59 completion bootstrap'
+                  and run.get('head_branch') == branch
+              ]
+              if not runs:
+                  missing += 1
+                  if missing >= 10:
+                      print('No bootstrap run became visible; supervisor will repair directly')
+                      break
+              else:
+                  run = max(runs, key=lambda value: value['id'])
+                  print(
+                      f"bootstrap run {run['id']}: {run.get('status')} / {run.get('conclusion')}",
+                      flush=True,
+                  )
+                  if run.get('status') == 'completed':
+                      break
+              time.sleep(30)
+          else:
+              raise SystemExit('bootstrap remained active beyond the supervisor coordination window')
+          PY
+
+      - name: Check out and pin the current target branch
+        id: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git fetch --no-tags origin "$TARGET_BRANCH" "$BASE_BRANCH"
+          git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+          git submodule update --init --recursive
+          git config user.name "MorphHDL Increment 59 supervisor"
+          git config user.email "actions@users.noreply.github.com"
+          base="$(git rev-parse "origin/$BASE_BRANCH")"
+          if ! git merge-base --is-ancestor "$base" HEAD; then
+            git merge --no-edit "origin/$BASE_BRANCH"
+          fi
+          if git merge-base --is-ancestor HEAD "origin/$BASE_BRANCH" && \
+             grep -Fqx -- '- [x] **Increment 59 — Typed BlackBox parameter and generic binding**' \
+               docs/morphhdl/parameterized-verilog-todo.md; then
+            printf 'already_merged=true\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'already_merged=false\n' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Idempotently repair and seal target source
+        if: steps.target.outputs.already_merged != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 /tmp/inc59-repair.py
+          python3 -m py_compile \
+            morphhdl/scripts/check-increment-59-blackbox-generics.py \
+            morphhdl/scripts/check-native-source-preservation.py \
+            morphhdl/scripts/check-production-retirement.py \
+            morphhdl/scripts/check-typed-layering-ir.py
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --self-test
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --repo-root .
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-production-retirement.py
+          python3 morphhdl/scripts/check-typed-layering-ir.py
+          git diff --check
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Repair and seal Increment 59 implementation"
+          fi
+
+      - name: Run complete dual-Scala source and simulation suites
+        if: steps.target.outputs.already_merged != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala in 2.12.18 2.13.12; do
+            sbt -batch "++$scala" compile Test/compile
+            sbt -batch "++$scala" \
+              "morph/testOnly morphhdl.TypedBlackBoxGenericBindingTests morphhdl.NativeTypedLibraryCallSurfaceTests morphhdl.MorphSingleSourceVerilogTests"
+            sbt -batch "++$scala" frontend/test
+            sbt -batch "++$scala" morphir/test
+            sbt -batch "++$scala" morph/test
+            sbt -batch "++$scala" \
+              "tester/testOnly spinal.lib.CounterTester spinal.lib.SpinalSimStreamFifoTester spinal.lib.SpinalSimStreamFifoCCTester spinal.lib.SpinalSimStreamWidthAdapterTester"
+          done
+
+      - name: Run strict Verilog-2001 lint and synthesis
+        if: steps.target.outputs.already_merged != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v iverilog
+          command -v verilator
+          command -v yosys
+          for scala in 2.12.18 2.13.12; do
+            work="target/morphhdl/supervisor-blackbox-$scala"
+            mkdir -p "$work"
+            sbt -batch "++$scala" \
+              "morph/Test/runMain morphhdl.TypedBlackBoxGenericArtifactGenerator parameterized ${GITHUB_WORKSPACE}/$work/typed_blackbox.v"
+            python3 morphhdl/scripts/check-increment-59-blackbox-generics.py \
+              --artifact "$work/typed_blackbox.v"
+            WORK="$work" python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+          work = Path(os.environ['WORK'])
+          verilog = (work / 'typed_blackbox.v').read_text(encoding='utf-8')
+          stubs = []
+          for module in ('TypedExternalLeaf', 'TypedParameterOnlyExternal'):
+              pattern = re.compile(
+                  rf'(?ms)^\s*{re.escape(module)}\s*#\s*\(.*?\)\s+'
+                  rf'[A-Za-z_][A-Za-z0-9_$]*\s*\((.*?)^\s*\);'
+              )
+              ports = []
+              for match in pattern.finditer(verilog):
+                  for name in re.findall(r'\.([A-Za-z_][A-Za-z0-9_$]*)\s*\(', match.group(1)):
+                      if name not in ports:
+                          ports.append(name)
+              if not ports:
+                  raise SystemExit(f'no emitted port associations found for {module}')
+              declarations = ',\n'.join(
+                  f'  inout wire [WIDTH-1:0] {name}' for name in ports
+              )
+              stubs.append(f'''(* blackbox *)
+          module {module} #(
+            parameter LABEL = "",
+            parameter integer WIDTH = 8,
+            parameter integer DEPTH = 4,
+            parameter integer DOUBLE_WIDTH = 16,
+            parameter integer LATENCY = 2,
+            parameter CONCRETE_ENABLE = 1'b1,
+            parameter ENABLED = 1'b1
+          ) (
+          {declarations}
+          );
+          endmodule
+          ''')
+          (work / 'external_stubs.v').write_text('\n'.join(stubs), encoding='utf-8')
+          PY
+            iverilog -g2001 -Wall -Wimplicit \
+              -s TypedBlackBoxGenericTop \
+              -o "$work/default.vvp" "$work/external_stubs.v" "$work/typed_blackbox.v"
+            verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
+              --top-module TypedBlackBoxGenericTop \
+              "$work/external_stubs.v" "$work/typed_blackbox.v"
+            yosys -q -p "read_verilog -noautowire $work/external_stubs.v $work/typed_blackbox.v; hierarchy -check -top TypedBlackBoxGenericTop; proc; opt; check -assert; synth -top TypedBlackBoxGenericTop; check -assert"
+          done
+
+      - name: Run focused and inherited formal proof closure
+        if: steps.target.outputs.already_merged != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v yosys
+          command -v sby
+          command -v yices-smt2
+          export MORPHDL_RUN_TYPED_BLACKBOX_FORMAL_EQUIVALENCE=1
+          export MORPHDL_RUN_STREAMFIFOCC_CDC_PROOF=1
+          export MORPHDL_RUN_TYPED_VEC_FORMAL_EQUIVALENCE=1
+          export MORPHDL_RUN_TYPED_PRIMITIVE_CLOSURE_FORMAL_EQUIVALENCE=1
+          export MORPHDL_RUN_STREAMFIFO_FORMAL_EQUIVALENCE=1
+          export MORPHDL_RUN_NATIVE_LIBRARY_MIGRATION_FORMAL_EQUIVALENCE=1
+          export MORPHDL_RUN_NATIVE_AXI4_FORMAL_EQUIVALENCE=1
+          export MORPHDL_RUN_STREAMFIFOCC_FORMAL_EQUIVALENCE=1
+          for scala in 2.12.18 2.13.12; do
+            export MORPHDL_TYPED_BLACKBOX_FORMAL_WORKSPACE="${GITHUB_WORKSPACE}/formal-artifacts/supervisor/scala-$scala/typed-blackbox"
+            export MORPHDL_STREAMFIFOCC_CDC_WORKSPACE="${GITHUB_WORKSPACE}/formal-artifacts/supervisor/scala-$scala/streamfifocc-cdc"
+            export MORPHDL_TYPED_VEC_FORMAL_WORKSPACE="${GITHUB_WORKSPACE}/formal-artifacts/supervisor/scala-$scala/vec"
+            export MORPHDL_TYPED_PRIMITIVE_FORMAL_WORKSPACE="${GITHUB_WORKSPACE}/formal-artifacts/supervisor/scala-$scala/closure"
+            export MORPHDL_STREAMFIFO_FORMAL_WORKSPACE="${GITHUB_WORKSPACE}/formal-artifacts/supervisor/scala-$scala/streamfifo"
+            export MORPHDL_NATIVE_LIBRARY_MIGRATION_FORMAL_WORKSPACE="${GITHUB_WORKSPACE}/formal-artifacts/supervisor/scala-$scala/library-migration"
+            export MORPHDL_NATIVE_AXI4_FORMAL_WORKSPACE="${GITHUB_WORKSPACE}/formal-artifacts/supervisor/scala-$scala/axi4"
+            export MORPHDL_STREAMFIFOCC_FORMAL_WORKSPACE="${GITHUB_WORKSPACE}/formal-artifacts/supervisor/scala-$scala/streamfifocc-depth-width"
+            mkdir -p "$MORPHDL_TYPED_BLACKBOX_FORMAL_WORKSPACE"
+            sbt -batch "++$scala" \
+              "morph/testOnly morphhdl.TypedBlackBoxGenericBindingTests"
+            sbt -batch "++$scala" \
+              "morph/testOnly morphhdl.NativeLibraryMigrationFormalEquivalenceTests morphhdl.NativeAxi4SlaveFactoryFormalEquivalenceTests morphhdl.TypedStreamWidthAdapterFormalEquivalenceTests morphhdl.TypedParameterizedVecFormalEquivalenceTests morphhdl.TypedPrimitiveClosureFormalEquivalenceTests morphhdl.NativeStreamFifoFormalEquivalenceTests morphhdl.NativeStreamFifoCCFormalEquivalenceTests"
+            sbt -batch "++$scala" \
+              "tester/testOnly spinal.lib.CounterFormalTester spinal.tester.scalatest.FormalFifoCCTester"
+          done
+
+      - name: Make the roadmap checkbox the final source commit and push exact target
+        if: steps.target.outputs.already_merged != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = path.read_text(encoding='utf-8')
+          unchecked = '- [ ] **Increment 59 — Typed BlackBox parameter and generic binding**'
+          checked = '- [x] **Increment 59 — Typed BlackBox parameter and generic binding**'
+          if text.count(checked) == 1 and text.count(unchecked) == 0:
+              raise SystemExit(0)
+          if text.count(unchecked) != 1 or text.count(checked) != 0:
+              raise SystemExit('ambiguous Increment 59 roadmap state')
+          path.write_text(text.replace(unchecked, checked, 1), encoding='utf-8')
+          PY
+          if ! git diff --quiet -- docs/morphhdl/parameterized-verilog-todo.md; then
+            git add docs/morphhdl/parameterized-verilog-todo.md
+            git commit -m "Mark Increment 59 complete"
+            test "$(git diff-tree --no-commit-id --name-only -r HEAD)" = \
+              "docs/morphhdl/parameterized-verilog-todo.md"
+          fi
+          base="$(git rev-parse "origin/$BASE_BRANCH")"
+          scope=morphhdl/contracts/increment-59-source-scope.txt
+          actual="$(git diff --no-renames --name-only --diff-filter=ACMRTD \
+            "$base"...HEAD \
+            | awk '$0 != "docs/morphhdl/parameterized-verilog-todo.md"' \
+            | LC_ALL=C sort -u)"
+          expected="$(cat "$scope")"
+          test "$actual" = "$expected"
+          git diff --check "$base"...HEAD
+          git push origin HEAD:"$TARGET_BRANCH"
+          printf 'INC59_TARGET_SHA=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          printf 'INC59_BASE_SHA=%s\n' "$base" >> "$GITHUB_ENV"
+
+      - name: Revalidate final checked source and merge unchanged head
+        if: steps.target.outputs.already_merged != 'true'
+        shell: bash
+        env:
+          API_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --repo-root .
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          git fetch --no-tags origin "$TARGET_BRANCH" "$BASE_BRANCH"
+          test "$(git rev-parse "origin/$TARGET_BRANCH")" = "$INC59_TARGET_SHA"
+          if git merge-base --is-ancestor "$INC59_TARGET_SHA" "origin/$BASE_BRANCH"; then
+            printf '%s\n' 'Exact Increment 59 head is already merged'
+            exit 0
+          fi
+          test "$(git rev-parse "origin/$BASE_BRANCH")" = "$INC59_BASE_SHA"
+          API_TOKEN="$API_TOKEN" python3 - <<'PY'
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+
+          token = os.environ['API_TOKEN']
+          sha = os.environ['INC59_TARGET_SHA']
+          api = 'https://api.github.com/repos/pysolvesemi/MorphHDL'
+          headers = {
+              'Authorization': f'Bearer {token}',
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'Content-Type': 'application/json',
+          }
+
+          def call(method, path, body=None):
+              data = None if body is None else json.dumps(body).encode('utf-8')
+              request = urllib.request.Request(api + path, data=data, headers=headers, method=method)
+              with urllib.request.urlopen(request, timeout=120) as response:
+                  raw = response.read()
+                  return json.loads(raw) if raw else {}
+
+          call('POST', f'/statuses/{sha}', {
+              'state': 'success',
+              'context': 'Increment 59 completion supervisor',
+              'description': 'Final source, dual-Scala, strict V2001, and formal gates passed',
+          })
+          query = urllib.parse.urlencode({
+              'state': 'open',
+              'head': 'pysolvesemi:agent/inc59-final',
+              'base': 'parameterized-verilog',
+              'per_page': 100,
+          })
+          pulls = call('GET', f'/pulls?{query}')
+          pull = pulls[0] if pulls else call('POST', '/pulls', {
+              'title': 'Increment 59 — Typed BlackBox parameter and generic binding',
+              'head': 'agent/inc59-final',
+              'base': 'parameterized-verilog',
+              'body': (
+                  'Typed ElabInt/ElabBool BlackBox generic binding with exact authority, '
+                  'symbolic parent propagation, concrete Verilog/VHDL parity, strict '
+                  'Verilog-2001 checks, formal closure, mutation controls, and dual-Scala gates.'
+              ),
+              'maintainer_can_modify': True,
+          })
+          result = call('PUT', f"/pulls/{pull['number']}/merge", {
+              'sha': sha,
+              'merge_method': 'merge',
+              'commit_title': 'Merge Increment 59 typed BlackBox generic binding',
+          })
+          if not result.get('merged'):
+              raise SystemExit(f"merge failed for PR #{pull['number']}: {result}")
+          print(f"Merged PR #{pull['number']} at {result.get('sha')}")
+          PY
+
+      - name: Upload supervisor proof artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59-supervisor-proof
+          path: |
+            formal-artifacts/supervisor
+            target/morphhdl/supervisor-blackbox-*
+          if-no-files-found: warn
+          retention-days: 14
