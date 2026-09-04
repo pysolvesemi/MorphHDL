@@ -119,24 +119,26 @@ class TypedBlackBoxGenericBindingTests extends AnyFunSuite {
       val diagnostic = causeChain(error).collectFirst {
         case value: ParameterizedVerilogException => value
       }.getOrElse {
-        fail(s"missing ParameterizedVerilogException in cause chain: ${causeChain(error)}")
+        fail(s"missing ParameterizedVerilogException in ${causeChain(error).mkString(" -> ")}")
       }
       assert(
         diagnostic.code ==
-          "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-GENERIC-NAME-DUPLICATE"
+          "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-GENERIC-DUPLICATE"
       )
     }
   }
 
   private def emitParameterized(directory: Path, filename: String): String = {
-    val config = generationConfig(directory, filename)
-    MorphVerilog(config)(TypedBlackBoxGenericBindingFixture.parameterized())
+    MorphVerilog(generationConfig(directory, filename))(
+      TypedBlackBoxGenericBindingFixture.parameterized()
+    )
     read(directory.resolve(filename))
   }
 
   private def emitLiteral(directory: Path, filename: String): String = {
-    val config = generationConfig(directory, filename)
-    SpinalVerilog(config)(TypedBlackBoxGenericBindingFixture.literal())
+    SpinalVerilog(generationConfig(directory, filename))(
+      new TypedBlackBoxGenericBindingFixture.LiteralTop
+    )
     read(directory.resolve(filename))
   }
 
@@ -146,9 +148,6 @@ class TypedBlackBoxGenericBindingTests extends AnyFunSuite {
     config
   }
 
-  private def read(path: Path): String =
-    new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
-
   private def moduleIsDefined(verilog: String, name: String): Boolean =
     ("(?m)^\\s*module\\s+" + Pattern.quote(name) + "\\b").r
       .findFirstIn(verilog)
@@ -156,44 +155,62 @@ class TypedBlackBoxGenericBindingTests extends AnyFunSuite {
 
   private def instanceBlock(
       verilog: String,
-      definitionName: String,
-      instanceName: String
+      definition: String,
+      instance: String
   ): String = {
     val lines = verilog.split("\\n", -1).toVector
-    val start = lines.indexWhere(line =>
-      line.trim.startsWith(definitionName + " #(") ||
-        line.trim == definitionName + " # ("
+    val parameterizedBody =
+      ("^\\s*\\)\\s+" + Pattern.quote(instance) + "\\s*\\(\\s*$").r
+    val plainBody =
+      ("^\\s*" + Pattern.quote(definition) + "\\s+" +
+        Pattern.quote(instance) + "\\s*\\(\\s*$").r
+    val bodies = lines.zipWithIndex.collect {
+      case (line, index)
+          if parameterizedBody.findFirstIn(line).nonEmpty ||
+            plainBody.findFirstIn(line).nonEmpty => index
+    }
+    assert(
+      bodies.size == 1,
+      s"expected one '$definition $instance' body, found ${bodies.size}"
     )
-    assert(start >= 0, s"missing instance definition $definitionName")
-    val end = (start until lines.size).find(index =>
-      lines(index).contains(") " + instanceName + " (")
-    ).getOrElse(fail(s"missing instance terminator for $instanceName"))
-    val close = (end until lines.size).find(index => lines(index).trim == ");")
-      .getOrElse(fail(s"missing instance close for $instanceName"))
-    lines.slice(start, close + 1).mkString("\n")
+    val body = bodies.head
+    val start =
+      if (plainBody.findFirstIn(lines(body)).nonEmpty) body
+      else {
+        val parameterizedStart =
+          ("^\\s*" + Pattern.quote(definition) + "\\s*#\\s*\\(\\s*$").r
+        (body - 1 to 0 by -1)
+          .find(index => parameterizedStart.findFirstIn(lines(index)).nonEmpty)
+          .getOrElse(fail(s"missing parameterized start for '$definition $instance'"))
+      }
+    val end = (body + 1 until lines.size)
+      .find(index => lines(index).trim == ");")
+      .getOrElse(fail(s"missing terminator for '$definition $instance'"))
+    lines.slice(start, end + 1).mkString("\n")
   }
 
-  private def associationLine(block: String, name: String): String =
-    block
-      .split("\\n", -1)
-      .find(_.trim.startsWith("." + name))
-      .getOrElse(fail(s"missing generic association .$name in:\n$block"))
+  private def associationLine(block: String, name: String): String = {
+    val marker = ("(?m)^.*\\." + Pattern.quote(name) + "\\s*\\(.*$").r
+    val matches = marker.findAllIn(block).toVector
+    assert(matches.size == 1, s"expected one generic '$name' in:\n$block")
+    matches.head
+  }
 
   private def portAssociation(block: String, name: String): String = {
-    val lines = block.split("\\n", -1).toVector
-    val instanceLine = lines.indexWhere(_.contains(") "))
-    assert(instanceLine >= 0, s"missing instance line in:\n$block")
-    lines
-      .drop(instanceLine + 1)
-      .find(_.trim.startsWith("." + name))
-      .getOrElse(fail(s"missing port association .$name in:\n$block"))
+    val marker = ("(?m)^.*\\." + Pattern.quote(name) + "\\s*\\(.*//.*$").r
+    val matches = marker.findAllIn(block).toVector
+    assert(matches.size == 1, s"expected one port '$name' in:\n$block")
+    matches.head
   }
 
-  private def declarationLine(verilog: String, name: String): String =
-    verilog
-      .split("\\n", -1)
-      .find(line => line.contains(name) && line.trim.endsWith(";"))
-      .getOrElse(fail(s"missing declaration for $name"))
+  private def declarationLine(verilog: String, name: String): String = {
+    val marker =
+      ("(?m)^\\s*(?:input|output|inout|wire|reg|logic)\\b.*\\b" +
+        Pattern.quote(name) + "\\b.*$").r
+    val matches = marker.findAllIn(verilog).toVector
+    assert(matches.nonEmpty, s"missing declaration for '$name'")
+    matches.head
+  }
 
   private def causeChain(error: Throwable): Vector[Throwable] = {
     val values = Vector.newBuilder[Throwable]
@@ -204,6 +221,9 @@ class TypedBlackBoxGenericBindingTests extends AnyFunSuite {
     }
     values.result()
   }
+
+  private def read(path: Path): String =
+    new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
 
   private def withTemporaryDirectory(body: Path => Unit): Unit = {
     val directory = Files.createTempDirectory("morphhdl-typed-blackbox-")
@@ -220,5 +240,30 @@ class TypedBlackBoxGenericBindingTests extends AnyFunSuite {
           .foreach(Files.deleteIfExists)
       finally stream.close()
     }
+  }
+}
+
+object TypedBlackBoxGenericBindingArtifactWriter {
+  def main(arguments: Array[String]): Unit = {
+    require(arguments.length == 1, "expected one output directory")
+    val directory = Paths.get(arguments(0)).toAbsolutePath.normalize()
+    Files.createDirectories(directory)
+    val config = SpinalConfig(targetDirectory = directory.toString)
+    config.netlistFileName = "typed_blackbox.v"
+    MorphVerilog(config)(TypedBlackBoxGenericBindingFixture.parameterized())
+    val output = directory.resolve(config.netlistFileName)
+    require(Files.isRegularFile(output), s"missing generated artifact $output")
+
+    val witnessConfig = SpinalConfig(targetDirectory = directory.toString)
+    witnessConfig.netlistFileName = "typed_blackbox_witness.v"
+    SpinalVerilog(witnessConfig)(
+      new TypedBlackBoxGenericBindingFixture.ConcreteMatrixTop(
+        width = 5,
+        enabled = false,
+        latency = 3
+      )
+    )
+    val witness = directory.resolve(witnessConfig.netlistFileName)
+    require(Files.isRegularFile(witness), s"missing generated witness $witness")
   }
 }
