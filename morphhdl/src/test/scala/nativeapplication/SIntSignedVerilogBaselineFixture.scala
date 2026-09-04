@@ -74,10 +74,11 @@ object SIntSignedVerilogBaselineFixture {
     val quotient = (left / divisor).resize(width).setName("signed_quotient")
     val remainder = (left % divisor).resize(width).setName("signed_remainder")
 
-    // This shape deliberately exercises the old printer's nested cast behaviour.
-    val nestedLeft = (left + right).resize(width).setName("nested_left")
-    val nestedRight = (third - left).resize(width).setName("nested_right")
-    val nested = (nestedLeft + nestedRight).resize(width).setName("nested_signed")
+    // Keep the inner operations in one tree to capture the old nested `$signed(...)` form.
+    val nested = (
+      (left + right).resize(width) +
+        (third - left).resize(width)
+    ).resize(width).setName("nested_signed")
 
     val negative = (-left).resize(width).setName("signed_negative")
     val shifted = (left >> 2).resize(width).setName("signed_shifted")
