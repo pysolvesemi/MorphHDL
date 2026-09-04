@@ -1,0 +1,52 @@
+name: Increment 59 final roadmap transition
+
+on:
+  push:
+    branches:
+      - agent/increment-59-typed-blackbox-generics
+
+permissions:
+  contents: write
+
+jobs:
+  complete:
+    name: Mark Increment 59 complete and remove this helper
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply the sole final source transition
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          text = path.read_text(encoding="utf-8")
+          unchecked = "- [ ] **Increment 59 — Typed BlackBox parameter and generic binding**"
+          checked = "- [x] **Increment 59 — Typed BlackBox parameter and generic binding**"
+          if text.count(unchecked) != 1 or text.count(checked) != 0:
+              raise SystemExit("Increment 59 roadmap transition is not uniquely applicable")
+          path.write_text(text.replace(unchecked, checked, 1), encoding="utf-8")
+          PY
+          git rm -- .github/workflows/increment-59-complete-roadmap.yml
+          git diff --check
+          actual="$(git diff --name-only | LC_ALL=C sort)"
+          expected="$(printf '%s\n' \
+            '.github/workflows/increment-59-complete-roadmap.yml' \
+            'docs/morphhdl/parameterized-verilog-todo.md' | LC_ALL=C sort)"
+          test "$actual" = "$expected"
+
+      - name: Publish the final source change
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -- docs/morphhdl/parameterized-verilog-todo.md
+          git commit -m 'Mark Increment 59 complete'
+          git push origin HEAD:agent/increment-59-typed-blackbox-generics
