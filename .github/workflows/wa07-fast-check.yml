@@ -13,6 +13,7 @@ concurrency:
   group: wa07-fast-${{ github.ref }}
   cancel-in-progress: true
 
+# Temporary branch-only validation; removed before the final PR.
 jobs:
   static:
     runs-on: ubuntu-latest
