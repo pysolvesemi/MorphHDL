@@ -1,0 +1,3 @@
+core/src/main/scala/spinal/core/BlackBox.scala: expected one replacement anchor, found 0
+
+exit_status=1
