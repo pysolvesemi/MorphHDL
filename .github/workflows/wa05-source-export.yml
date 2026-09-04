@@ -25,7 +25,7 @@ jobs:
           ref: agent/wa-05-named-simple-wire-elimination
           fetch-depth: 0
 
-      - name: Reconstruct, verify and apply WA-05
+      - name: Reconstruct, verify and publish WA-05 implementation
         shell: bash
         run: |
           set -euo pipefail
@@ -47,9 +47,8 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -r .wa05-bundle .github/workflows/wa05-source-export.yml
+          git rm -r .wa05-bundle
           git add \
-            .github/workflows/morphhdl-passes.yml \
             morphhdl-passes/README.md \
             morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md \
             morphhdl-passes/examples/ParameterizedStreamFifo.scala \
