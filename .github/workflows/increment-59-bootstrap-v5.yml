@@ -1,0 +1,155 @@
+name: Increment 59 bootstrap patch v5
+
+on:
+  push:
+    branches:
+      - agent/increment-59-typed-blackbox-generics
+    paths:
+      - .github/workflows/increment-59-bootstrap-v5.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-59-typed-blackbox-generics
+          fetch-depth: 0
+
+      - name: Complete the partially applied exact patch idempotently
+        shell: bash
+        run: |
+          set +e
+          python3 - <<'PY' >/tmp/increment59-bootstrap-v5.log 2>&1
+          import ast
+          import base64
+          import gzip
+          import json
+          import re
+          import runpy
+          import subprocess
+          from pathlib import Path
+
+          historical = subprocess.check_output(
+              [
+                  "git",
+                  "show",
+                  "323a100f9c73396484d1a66052337cc6bc222f60:.github/workflows/increment-59-bootstrap-v2.yml",
+              ],
+              text=True,
+          )
+          match = re.search(
+              r"chunks = (\[.*?\])\n\s*encoded =",
+              historical,
+              re.DOTALL,
+          )
+          if match is None:
+              raise RuntimeError("validated v2 payload block was not found")
+          chunks = ast.literal_eval(match.group(1))
+          payload = gzip.decompress(
+              base64.b64decode("".join(chunks), validate=True)
+          )
+          patch_path = Path("/tmp/apply-increment59-existing-only-v5.py")
+          patch_path.write_bytes(payload)
+          namespace = runpy.run_path(str(patch_path))
+          replacements = list(namespace["REPLACEMENTS"])
+          replacements[12], replacements[13] = (
+              replacements[13],
+              replacements[12],
+          )
+
+          for relative, old, new in replacements:
+              path = Path(relative)
+              text = path.read_text(encoding="utf-8")
+              old_count = text.count(old)
+              new_count = text.count(new)
+              if old_count == 1:
+                  path.write_text(text.replace(old, new, 1), encoding="utf-8")
+                  print(f"applied: {relative}")
+              elif old_count == 0 and new_count == 1:
+                  print(f"already applied: {relative}")
+              else:
+                  raise RuntimeError(
+                      f"{relative}: old_count={old_count}, new_count={new_count}"
+                  )
+
+          todo = Path("docs/morphhdl/parameterized-verilog-todo.md")
+          todo_text = todo.read_text(encoding="utf-8")
+          if "**Increment 59 — Typed BlackBox parameter and generic binding**" not in todo_text:
+              namespace["patch_roadmap"]()
+              print("applied: Increment 59 roadmap entry")
+          else:
+              print("already applied: Increment 59 roadmap entry")
+
+          policy_path = Path("morphhdl/contracts/increment-55-native-change-review.json")
+          policy = json.loads(policy_path.read_text(encoding="utf-8"))
+          reviewed_paths = {entry["path"] for entry in policy["reviewed_changes"]}
+          required = {
+              "core/src/main/scala/spinal/core/BlackBox.scala",
+              "core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala",
+          }
+          if not required.issubset(reviewed_paths):
+              namespace["patch_review_policy"]()
+              print("applied: native change review entries")
+          else:
+              print("already applied: native change review entries")
+          PY
+          status=$?
+          set -e
+          if [[ $status -ne 0 ]]; then
+            cp /tmp/increment59-bootstrap-v5.log \
+              .github/increment59-bootstrap-v5-diagnostic.txt
+            printf '\nexit_status=%s\n' "$status" \
+              >>.github/increment59-bootstrap-v5-diagnostic.txt
+            rm -f .github/workflows/increment-59-bootstrap-v5.yml
+            git config user.name "MorphHDL Increment Agent"
+            git config user.email "actions@users.noreply.github.com"
+            git add -A
+            git commit -m "Record Increment 59 bootstrap v5 diagnostic"
+            git push origin HEAD:agent/increment-59-typed-blackbox-generics
+            exit 1
+          fi
+          cat /tmp/increment59-bootstrap-v5.log
+
+      - name: Regenerate and validate source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            --generate-template morphhdl/contracts/increment-55-native-change-review.json \
+            --output morphhdl/contracts/native-source-preservation.json \
+            --force
+          python3 -m py_compile \
+            morphhdl/scripts/check-increment-59-blackbox-generics.py
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py \
+            --self-test
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py \
+            --repo-root .
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            --review-policy morphhdl/contracts/increment-55-native-change-review.json \
+            --manifest morphhdl/contracts/native-source-preservation.json
+          git diff --check
+
+      - name: Commit implementation integration and remove bootstrap artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f \
+            .github/workflows/increment-59-bootstrap.yml \
+            .github/workflows/increment-59-bootstrap-v3.yml \
+            .github/workflows/increment-59-bootstrap-v5.yml \
+            .github/increment59-bootstrap-diagnostic.txt \
+            .github/increment59-bootstrap-v2-diagnostic.txt \
+            .github/increment59-bootstrap-v3-diagnostic.txt \
+            .github/increment59-bootstrap-v4-diagnostic.txt \
+            .github/increment59-bootstrap-v5-diagnostic.txt
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git diff --cached --stat
+          git commit -m "Implement Increment 59 typed BlackBox generic binding"
+          git push origin HEAD:agent/increment-59-typed-blackbox-generics
