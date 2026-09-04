@@ -29,7 +29,8 @@ object SIntSignedVerilogBaselineFixture {
     val addend = in(SInt(width bits)).setName("addend")
     val dout = out(SInt(width bits)).setName("dout")
 
-    dout := (din + addend).resize(width)
+    val childSum = (din + addend).resize(width).setName("child_sum")
+    dout := childSum
   }
 
   final class Top(width: HdlInt, extendedWidth: HdlInt) extends Component {
@@ -83,6 +84,7 @@ object SIntSignedVerilogBaselineFixture {
     val negative = (-left).resize(width).setName("signed_negative")
     val shifted = (left >> 2).resize(width).setName("signed_shifted")
     val selected = Mux(chooseLeft, left, right).resize(width).setName("signed_mux")
+    val resized = left.resize(extendedWidth).setName("signed_resized")
 
     val combinational = SInt(width bits).setName("signed_combinational")
     combinational := difference
@@ -100,7 +102,7 @@ object SIntSignedVerilogBaselineFixture {
     shiftedOut := shifted
     muxOut := selected
     combinationalOut := combinational
-    resizedOut := left.resize(extendedWidth)
+    resizedOut := resized
     sliceOut := left(3 downto 0)
     concatOut := left(3 downto 0) @@ right(3 downto 0)
     lessOut := left < right
@@ -152,7 +154,8 @@ object SIntSignedVerilogBaselineFixture {
 
   def parameterized(): Top = {
     val width = HdlInt.param("WIDTH", default = 8, min = 8, max = 32)
-    new Top(width, width + 3)
+    val extendedWidth = width + 3
+    new Top(width, extendedWidth)
   }
 }
 
