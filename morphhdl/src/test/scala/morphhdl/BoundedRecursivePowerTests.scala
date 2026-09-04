@@ -31,7 +31,7 @@ class BoundedRecursivePowerTests extends AnyFunSuite {
           .replaceAll("\\s+", "")
           .replace("(", "")
           .replace(")", "")
-        assert(nextExponent.contains(".N(N-1)"))
+        assert(nextExponent.contains(".NN-1"))
         assert(portAssociation(recursive, "x").contains("x"))
         assert(portAssociation(recursive, "y").contains("y"))
 
