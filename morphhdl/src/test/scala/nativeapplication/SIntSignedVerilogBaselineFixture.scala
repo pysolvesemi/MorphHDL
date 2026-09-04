@@ -82,7 +82,7 @@ object SIntSignedVerilogBaselineFixture {
     val nested = (nestedLeft + nestedRight).resize(width).setName("nested_signed")
 
     val negative = (-left).resize(width).setName("signed_negative")
-    val shifted = (left >> 2).resize(width).setName("signed_shifted")
+    val shifted = (left |>> 2).setName("signed_shifted")
     val selected = Mux(chooseLeft, left, right).resize(width).setName("signed_mux")
     val resized = left.resize(extendedWidth).setName("signed_resized")
 
