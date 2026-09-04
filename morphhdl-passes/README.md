@@ -18,8 +18,7 @@ name, a source filename, or an emitted identifier.
 WA-01 established the cross-Scala nested SBT workspace, immutable pass
 configuration/result/diagnostic/elimination-report contracts, the path boundary
 guard, mutation-tested boundary checks, and CI coverage for Scala 2.12.18 and
-2.13.12. One public `enabled` flag controls the complete pipeline and is disabled
-by default.
+2.13.12. One public `enabled` flag controls the complete pipeline and is disabled by default.
 
 ## WA-02 — canonical IR adapter
 
