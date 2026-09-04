@@ -39,6 +39,10 @@ for path in sorted(pass_root.rglob("*.scala")):
         "if (!configuration.eliminateNamedAliases)",
         "if (!configuration.isEnabled(passId))",
     )
+    text = text.replace(
+        'references.foreach(_.id.value should include("wa07-inline"))',
+        'references.foreach(value => value.id.value should include("wa07-inline"))',
+    )
     if text != original:
         path.write_text(text, encoding="utf-8")
 
