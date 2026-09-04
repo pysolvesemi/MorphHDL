@@ -127,7 +127,8 @@ object SIntSignedVerilogBaselineFixture {
       )
       val signedMemoryRead = signedMemory.readSync(
         address = address,
-        enable = enable
+        enable = enable,
+        readUnderWrite = readFirst
       ).setName("signed_memory_read")
     }
 
