@@ -243,10 +243,16 @@ def roadmap_failures(path: Path, text: str, pv_text: str) -> list[str]:
         failures.append(f"{path}: WA06-PV58: Increment 58 must remain completed")
     if not wa06_checked or "**Status:** `COMPLETED`" not in wa06_body:
         failures.append(f"{path}: WA06-STATUS: WA-06 must remain completed")
-    if not wa07_checked or "**Status:** `COMPLETED`" not in wa07_body:
-        failures.append(f"{path}: WA06-SUCCESSOR: completed WA-07 must retain WA-06")
+    if wa07_checked:
+    if "**Status:** `COMPLETED`" not in wa07_body:
+        failures.append(f"{path}: WA06-SUCCESSOR: checked WA-07 must be COMPLETED")
     if wa08_checked or "**Status:** `READY`" not in wa08_body:
-        failures.append(f"{path}: WA06-NEXT-STATUS: WA-08 must remain open and READY")
+        failures.append(f"{path}: WA06-NEXT-STATUS: completed WA-07 requires open READY WA-08")
+else:
+    if "**Status:** `IN PROGRESS`" not in wa07_body:
+        failures.append(f"{path}: WA06-SUCCESSOR: open WA-07 must be IN PROGRESS")
+    if wa08_checked or "**Status:** `BLOCKED`" not in wa08_body:
+        failures.append(f"{path}: WA06-NEXT-STATUS: in-progress WA-07 requires open BLOCKED WA-08")
 
     required_scope = (
         "optional MorphHDL-IR pipeline entrypoint",
