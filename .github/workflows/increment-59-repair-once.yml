@@ -1,0 +1,129 @@
+name: Increment 59 one-shot repair
+
+on:
+  push:
+    branches:
+      - agent/increment-59-typed-blackbox-generics
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.head_commit.message == 'Run Increment 59 one-shot repair'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: agent/increment-59-typed-blackbox-generics
+
+      - name: Repair duplicated source and audit metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          hierarchy_path = Path('morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala')
+          text = hierarchy_path.read_text(encoding='utf-8')
+
+          marker = '\n  private final case class BooleanExpressionBinding('
+          starts = []
+          cursor = 0
+          while True:
+              found = text.find(marker, cursor)
+              if found < 0:
+                  break
+              starts.append(found)
+              cursor = found + len(marker)
+          if len(starts) != 2:
+              raise SystemExit(f'expected two BooleanExpressionBinding definitions, found {len(starts)}')
+          second = starts[1]
+          next_marker = '\n  private final case class BindingSignature('
+          end = text.find(next_marker, second)
+          if end < 0:
+              raise SystemExit('could not locate BindingSignature after duplicate BooleanExpressionBinding')
+          text = text[:second] + text[end:]
+
+          method_marker = '\n  private def analyzeBlackBoxInstance('
+          starts = []
+          cursor = 0
+          while True:
+              found = text.find(method_marker, cursor)
+              if found < 0:
+                  break
+              starts.append(found)
+              cursor = found + len(method_marker)
+          if len(starts) != 2:
+              raise SystemExit(f'expected two analyzeBlackBoxInstance methods, found {len(starts)}')
+          second = starts[1]
+          next_method = text.find('\n  private def analyzeInstance(', second)
+          if next_method < 0:
+              raise SystemExit('could not locate analyzeInstance after duplicate BlackBox method')
+          text = text[:second] + '\n' + text[next_method:]
+          hierarchy_path.write_text(text, encoding='utf-8')
+
+          policy_path = Path('morphhdl/contracts/increment-55-native-change-review.json')
+          policy = json.loads(policy_path.read_text(encoding='utf-8'))
+          matches = [entry for entry in policy['files'] if entry['path'] == 'core/src/main/scala/spinal/core/BlackBox.scala']
+          if len(matches) != 1:
+              raise SystemExit(f'expected one BlackBox.scala review entry, found {len(matches)}')
+          entry = matches[0]
+          assertions = []
+          for edit in entry.get('edits', []):
+              for assertion in edit.get('required_exact_text', []):
+                  if assertion not in assertions:
+                      assertions.append(assertion)
+          required = [
+              {'side': 'approved', 'text': 'case value: ElabInt =>', 'count': 1},
+              {'side': 'approved', 'text': 'case value: ElabBool =>', 'count': 1},
+              {'side': 'approved', 'text': 'ParameterizedBlackBoxGenericRegistry.retain', 'count': 2},
+          ]
+          for assertion in required:
+              if assertion not in assertions:
+                  assertions.append(assertion)
+          entry['classification'] = 'typed-overload'
+          introduced = entry.setdefault('introduced_by', [])
+          label = 'Increment 59: typed BlackBox parameter and generic binding'
+          if label not in introduced:
+              introduced.append(label)
+          entry['reason'] = 'Add typed ElabInt and ElabBool BlackBox generic overload handling while preserving native concrete witness emission.'
+          entry['edits'] = [{
+              'id': 'blackbox-typed-generic-01',
+              'kind': 'overload',
+              'owner': 'spinal.core.BlackBox.addGeneric',
+              'reason': 'Retain exact typed BlackBox generic metadata and pass only the concrete witness to the inherited native emitter.',
+              'required_exact_text': assertions,
+          }]
+          policy_path.write_text(json.dumps(policy, indent=2) + '\n', encoding='utf-8')
+
+          for path in (
+              Path('.github/increment59-source-validation.txt'),
+              Path('.github/workflows/increment-59-export.yml'),
+              Path('.github/workflows/increment-59-repair-once.yml'),
+          ):
+              if path.exists():
+                  path.unlink()
+          PY
+
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --self-test
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --repo-root .
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            --generate-template morphhdl/contracts/increment-55-native-change-review.json \
+            --output morphhdl/contracts/native-source-preservation.json \
+            --force
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          git diff --check
+
+      - name: Commit and push repaired branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Repair Increment 59 implementation and native audit'
+          git push origin HEAD:agent/increment-59-typed-blackbox-generics
