@@ -13,7 +13,9 @@ parameterization/capture and before Verilog-2001 emission:
    temporary declaration and its assignment.
 
 Product code has one all-or-none `enabled` flag. `false` executes no pass;
-`true` executes all three in the fixed order above. Internal proof fixtures may
+`true` executes all three in the fixed order above.
+
+One configuration flag enables all passes in the fixed order above; false disables the entire pass pipeline. Internal proof fixtures may
 select historical stages directly, but those selections are not product flags.
 No signal-renaming, formatting, generated-Verilog parsing or broader
 optimization pass is authorized by this roadmap.
@@ -155,6 +157,8 @@ may become:
 assign sink_a = (left ^ ~right);
 assign sink_b = (left ^ ~right);
 ```
+
+RHS expressions are copied once per receiver; each copy preserves the removed assignment's packed type fence.
 
 The exact temporary declaration and sole assignment are removed. The pass does
 not simplify, reassociate, fold or otherwise change the cloned expression. If
