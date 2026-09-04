@@ -1,0 +1,31 @@
+name: WA-07 workspace export
+
+on:
+  push:
+    branches:
+      - agent/wa-07-unified-expression-alias-pass
+    paths:
+      - ".github/workflows/wa07-workspace-export.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wa07-workspace-source
+          path: |
+            .github/workflows/morphhdl-passes.yml
+            docs/morphhdl/parameterized-verilog-todo.md
+            morphhdl-passes
+            morphir/src/main/scala/morphhdl/ir/v1
+            morphhdl/src/main/scala/morphhdl
+          if-no-files-found: error
+          retention-days: 2
