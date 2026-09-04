@@ -1,0 +1,27 @@
+
+===== python3 morphhdl/scripts/check-native-source-preservation.py --generate-template morphhdl/contracts/increment-55-native-change-review.json --output morphhdl/contracts/native-source-preservation.json --force =====
+Native approved-change audit failed: MORPH-NATIVE-AUDIT-GENERATION-REVIEW-MISMATCH: core/src/main/scala/spinal/core/BlackBox.scala has 1 deterministic changed spans but policy provides 2 reviewed edits; clean unrelated changes or review each span explicitly
+exit_status=1
+
+===== python3 -m py_compile morphhdl/scripts/check-increment-59-blackbox-generics.py =====
+exit_status=0
+
+===== python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --self-test =====
+Increment 59 typed BlackBox contract passed
+exit_status=0
+
+===== python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --repo-root . =====
+Increment 59 contract failed: main publication boundary is missing 'ParameterizedBlackBoxGenericRegistry.integerExpressionsOf(component)'
+exit_status=1
+
+===== python3 morphhdl/scripts/check-native-source-preservation.py --review-policy morphhdl/contracts/increment-55-native-change-review.json --manifest morphhdl/contracts/native-source-preservation.json =====
+usage: check-native-source-preservation.py [-h] [--manifest MANIFEST]
+                                           [--repo-root REPO_ROOT]
+                                           [--self-test]
+                                           [--generate-template REVIEW_POLICY]
+                                           [--output OUTPUT] [--force]
+check-native-source-preservation.py: error: unrecognized arguments: --review-policy morphhdl/contracts/increment-55-native-change-review.json
+exit_status=2
+
+===== git diff --check =====
+exit_status=0
