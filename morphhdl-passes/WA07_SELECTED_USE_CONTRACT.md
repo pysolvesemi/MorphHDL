@@ -39,7 +39,8 @@ assign result = temporary[3:0];
 
 WA-07 retains the temporary and both assignments. It must not emit
 `(a + b)[3:0]`, and it must not rewrite only some receivers. One unsafe selected
-use rejects elimination of that temporary atomically.
+use rejects elimination of that temporary atomically. No declaration, driver,
+or receiver of that candidate is changed when this rejection occurs.
 
 This conservative rule also covers partial or dynamic selections from muxes,
 casts, resizes, concatenations, nested expressions, or another selected
