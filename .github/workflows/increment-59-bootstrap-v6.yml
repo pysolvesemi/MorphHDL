@@ -1,0 +1,151 @@
+name: Increment 59 bootstrap patch v6
+
+on:
+  push:
+    branches:
+      - agent/increment-59-typed-blackbox-generics
+    paths:
+      - .github/workflows/increment-59-bootstrap-v6.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-59-typed-blackbox-generics
+          fetch-depth: 0
+
+      - name: Add Increment 59 native-change review entries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("morphhdl/contracts/increment-55-native-change-review.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+          additions = [
+              {
+                  "path": "core/src/main/scala/spinal/core/BlackBox.scala",
+                  "baseline_path": "core/src/main/scala/spinal/core/BlackBox.scala",
+                  "change": "modified",
+                  "classification": "typed-overload",
+                  "introduced_by": [
+                      "Increment 59: typed BlackBox parameter and generic binding"
+                  ],
+                  "reason": (
+                      "Accept neutral typed integer and Boolean generic actuals "
+                      "while preserving every inherited concrete BlackBox generic lane."
+                  ),
+                  "edits": [
+                      {
+                          "id": "blackbox-typed-generic-01",
+                          "kind": "overload",
+                          "owner": "spinal.core.BlackBox.addGeneric(ElabInt)",
+                          "reason": (
+                              "Validate and retain the exact typed integer expression, "
+                              "then delegate only its concrete Int witness to the inherited native emitter."
+                          ),
+                          "required_exact_text": [
+                              {
+                                  "side": "approved",
+                                  "text": "case value: ElabInt =>",
+                                  "count": 1,
+                              },
+                              {
+                                  "side": "approved",
+                                  "text": "ParameterizedBlackBoxGenericRegistry.retain(this, name, value)",
+                                  "count": 2,
+                              },
+                          ],
+                      },
+                      {
+                          "id": "blackbox-typed-generic-02",
+                          "kind": "overload",
+                          "owner": "spinal.core.BlackBox.addGeneric(ElabBool)",
+                          "reason": (
+                              "Validate and retain the exact typed Boolean expression, "
+                              "then delegate only its concrete Boolean witness to the inherited native emitter."
+                          ),
+                          "required_exact_text": [
+                              {
+                                  "side": "approved",
+                                  "text": "case value: ElabBool =>",
+                                  "count": 1,
+                              }
+                          ],
+                      },
+                  ],
+              },
+              {
+                  "path": "core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala",
+                  "baseline_path": None,
+                  "change": "added",
+                  "classification": "typed-support-file",
+                  "introduced_by": [
+                      "Increment 59: typed BlackBox parameter and generic binding"
+                  ],
+                  "reason": (
+                      "Retain exact typed BlackBox generic and packed-port expressions by "
+                      "BlackBox object identity while native emitters consume concrete witnesses."
+                  ),
+                  "edits": [],
+              },
+          ]
+          additions_by_path = {entry["path"]: entry for entry in additions}
+          retained = [
+              entry
+              for entry in data["files"]
+              if entry["path"] not in additions_by_path
+          ]
+          data["files"] = sorted(
+              retained + additions,
+              key=lambda entry: entry["path"],
+          )
+          path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: Regenerate and validate all source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            --generate-template morphhdl/contracts/increment-55-native-change-review.json \
+            --output morphhdl/contracts/native-source-preservation.json \
+            --force
+          python3 -m py_compile \
+            morphhdl/scripts/check-increment-59-blackbox-generics.py
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py \
+            --self-test
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py \
+            --repo-root .
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            --review-policy morphhdl/contracts/increment-55-native-change-review.json \
+            --manifest morphhdl/contracts/native-source-preservation.json
+          git diff --check
+
+      - name: Commit completed implementation integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f \
+            .github/workflows/increment-59-bootstrap.yml \
+            .github/workflows/increment-59-bootstrap-v3.yml \
+            .github/workflows/increment-59-bootstrap-v6.yml \
+            .github/increment59-bootstrap-diagnostic.txt \
+            .github/increment59-bootstrap-v2-diagnostic.txt \
+            .github/increment59-bootstrap-v3-diagnostic.txt \
+            .github/increment59-bootstrap-v4-diagnostic.txt \
+            .github/increment59-bootstrap-v5-diagnostic.txt
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git diff --cached --stat
+          git commit -m "Complete Increment 59 typed BlackBox integration"
+          git push origin HEAD:agent/increment-59-typed-blackbox-generics
