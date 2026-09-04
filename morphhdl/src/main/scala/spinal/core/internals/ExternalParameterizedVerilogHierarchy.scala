@@ -60,6 +60,22 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       expression.completedParameterRoots.toSet
   }
 
+
+  private final case class BooleanExpressionBinding(
+      expression: ElaborationBooleanExpression
+  ) extends BindingExpr {
+    override def render: String = expression.verilog
+    override def default: BigInt =
+      if (expression.default) BigInt(1) else BigInt(0)
+    override def minimum: BigInt = BigInt(0)
+    override def maximum: BigInt = BigInt(1)
+    override def parameters: Vector[ElaborationIntegerParameter] =
+      expression.parameters.distinct.sortBy(_.name)
+    override def parameterRoots: Set[ElaborationIntegerParameterRoot] =
+      expression.completedParameterRoots.toSet
+  }
+
+
   private final case class BindingSignature(
       render: String,
       default: BigInt,
@@ -96,7 +112,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       definitionName: String,
       instanceName: String,
       bindings: Vector[(String, BindingExpr)],
-      ports: Vector[PortRewrite]
+      ports: Vector[PortRewrite],
+      preserveExistingGenericAssociations: Boolean = false
   )
 
   private[internals] final class Plan private[ExternalParameterizedVerilogHierarchy] (
@@ -108,7 +125,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       var current = verilog
       val declarationRanges = ArrayBuffer.empty[(String, String)]
 
-      instances.filter(_.bindings.nonEmpty).foreach { instance =>
+      instances.filter(instance => instance.bindings.nonEmpty || instance.ports.nonEmpty).foreach { instance =>
         val lines = current.split("\\n", -1).toVector
         val attributePrefix = "((?:\\(\\*[^\\r\\n]*?\\*\\)\\s*)*)"
         val plainStartPattern =
@@ -210,15 +227,48 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           declarationRanges += signalName -> port.width.range
         }
 
-        val bindingLines = instance.bindings.zipWithIndex.map { case ((name, expression), index) =>
-          val comma = if (index == instance.bindings.size - 1) "" else ","
-          s"${indent}  .$name(${expression.render})$comma"
-        }
-        val header =
-          Vector(s"$indent$attributes${instance.definitionName} #(") ++
-            bindingLines ++
-            Vector(s"${indent}) ${instance.instanceName} (")
-        val rewrittenBlock = header ++ block.drop(1)
+        val rewrittenBlock =
+          if (instance.preserveExistingGenericAssociations) {
+            if (instance.bindings.nonEmpty && bodyStart == start) {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-GENERIC-HEADER-MISSING",
+                s"native BlackBox instance '${instance.instanceName}' has typed generic bindings but no emitted generic block"
+              )
+            }
+            var prefix = lines.slice(start, bodyStart)
+            instance.bindings.foreach { case (name, expression) =>
+              val pattern =
+                ("^(\\s*\\." + Pattern.quote(name) + "\\s*\\(\\s*)(.*?)(\\s*\\)\\s*,?\\s*)$").r
+              val matching = prefix.zipWithIndex.collect {
+                case (line, index) if pattern.findFirstIn(line).nonEmpty => index
+              }
+              if (matching.size != 1) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-GENERIC-ASSOCIATION-NOT-FOUND",
+                  s"native BlackBox instance '${instance.instanceName}' contains ${matching.size} associations for typed generic '$name'"
+                )
+              }
+              val lineIndex = matching.head
+              val matched = pattern.findFirstMatchIn(prefix(lineIndex)).get
+              prefix = prefix.updated(
+                lineIndex,
+                matched.group(1) + expression.render + matched.group(3)
+              )
+            }
+            prefix ++ block
+          } else if (instance.bindings.nonEmpty) {
+            val bindingLines = instance.bindings.zipWithIndex.map { case ((name, expression), index) =>
+              val comma = if (index == instance.bindings.size - 1) "" else ","
+              s"${indent}  .$name(${expression.render})$comma"
+            }
+            val header =
+              Vector(s"$indent$attributes${instance.definitionName} #(") ++
+                bindingLines ++
+                Vector(s"${indent}) ${instance.instanceName} (")
+            header ++ block.drop(1)
+          } else {
+            lines.slice(start, bodyStart) ++ block
+          }
         current = (lines.take(start) ++ rewrittenBlock ++ lines.drop(end + 1)).mkString("\n")
       }
 
@@ -251,20 +301,18 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       case _                                   =>
     }
 
-    val instances = component.children.toVector.map { child =>
-      if (child.isInstanceOf[BlackBox]) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BLACKBOX-UNSUPPORTED",
-          s"component '${component.definitionName}' contains BlackBox child '${child.getName()}'; Increment 32 covers ordinary Component hierarchy only"
-        )
-      }
-      val canonical = canonicalOf(child)
-      analyzeInstance(component, child, canonical, assignments.toVector, pc)
+    val instances = component.children.toVector.map {
+      case blackBox: BlackBox if blackBox.isBlackBox =>
+        analyzeBlackBoxInstance(component, blackBox, pc)
+      case child =>
+        val canonical = canonicalOf(child)
+        analyzeInstance(component, child, canonical, assignments.toVector, pc)
     }
 
-    val referenced = instances.flatMap(
-      _.bindings.flatMap(_._2.parameters)
-    )
+    val referenced = instances.flatMap { instance =>
+      instance.bindings.flatMap(_._2.parameters) ++
+        instance.ports.flatMap(_.width.parameters)
+    }
     val grouped = referenced.groupBy(_.name)
     grouped
       .collectFirst {
@@ -278,10 +326,189 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       }
     new Plan(
       parameters = grouped.toVector.map(_._2.head).sortBy(_.name),
-      hasParameterizedInstances = instances.exists(_.bindings.nonEmpty),
+      hasParameterizedInstances = instances.exists(instance => instance.bindings.nonEmpty || instance.ports.nonEmpty),
       instances = instances
     )
   }
+
+
+
+  private def analyzeBlackBoxInstance(
+      parent: Component,
+      blackBox: BlackBox,
+      pc: PhaseContext
+  ): InstancePlan = {
+    val instanceName = Option(blackBox.getName()).filter(_.nonEmpty).getOrElse {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-INSTANCE-NAME-MISSING",
+        s"BlackBox child of '${parent.definitionName}' has no stable instance name after native emission"
+      )
+    }
+    val definitionName = Option(blackBox.definitionName).filter(_.nonEmpty).getOrElse {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-DEFINITION-NAME-MISSING",
+        s"BlackBox child '$instanceName' has no external definition name"
+      )
+    }
+
+    val nativeGenerics = blackBox.genericElements.toVector
+    nativeGenerics
+      .groupBy(_._1)
+      .collectFirst {
+        case (name, values) if values.size != 1 => name -> values.size
+      }
+      .foreach { case (name, count) =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-GENERIC-DUPLICATE",
+          s"BlackBox instance '$instanceName' declares generic '$name' $count times"
+        )
+      }
+
+    val portableIdentifier = "[A-Za-z_][A-Za-z0-9_]*".r
+    val reserved = Set(
+      "always", "and", "assign", "automatic", "begin", "buf", "bufif0",
+      "bufif1", "case", "casex", "casez", "cell", "cmos", "config",
+      "deassign", "default", "defparam", "design", "disable", "edge",
+      "else", "end", "endcase", "endconfig", "endfunction", "endgenerate",
+      "endmodule", "endprimitive", "endspecify", "endtable", "endtask",
+      "event", "for", "force", "forever", "fork", "function", "generate",
+      "genvar", "highz0", "highz1", "if", "ifnone", "incdir", "include",
+      "initial", "inout", "input", "instance", "integer", "join",
+      "large", "liblist", "library", "localparam", "macromodule", "medium",
+      "module", "nand", "negedge", "nmos", "nor", "noshowcancelled", "not",
+      "notif0", "notif1", "or", "output", "parameter", "pmos", "posedge",
+      "primitive", "pull0", "pull1", "pulldown", "pullup", "pulsestyle_ondetect",
+      "pulsestyle_onevent", "rcmos", "real", "realtime", "reg", "release",
+      "repeat", "rnmos", "rpmos", "rtran", "rtranif0", "rtranif1", "scalared",
+      "showcancelled", "signed", "small", "specify", "specparam", "strong0",
+      "strong1", "supply0", "supply1", "table", "task", "time", "tran",
+      "tranif0", "tranif1", "tri", "tri0", "tri1", "triand", "trior",
+      "trireg", "unsigned", "use", "vectored", "wait", "wand", "weak0",
+      "weak1", "while", "wire", "wor", "xnor", "xor"
+    )
+    nativeGenerics.foreach { case (name, _) =>
+      if (
+        name == null ||
+        !portableIdentifier.pattern.matcher(name).matches()
+      ) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-GENERIC-NAME-INVALID",
+          s"BlackBox instance '$instanceName' generic '${String.valueOf(name)}' is not a portable Verilog/VHDL identifier"
+        )
+      }
+      if (reserved.contains(name.toLowerCase(java.util.Locale.ROOT))) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-GENERIC-NAME-RESERVED",
+          s"BlackBox instance '$instanceName' generic '$name' is a reserved Verilog-2001 word"
+        )
+      }
+    }
+
+    val retained = ParameterizedBlackBoxGenericRegistry.recordsOf(blackBox)
+    retained
+      .groupBy(_.name)
+      .collectFirst {
+        case (name, values) if values.size != 1 => name -> values.size
+      }
+      .foreach { case (name, count) =>
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-GENERIC-DUPLICATE",
+          s"BlackBox instance '$instanceName' retains typed generic '$name' $count times"
+        )
+      }
+
+    retained.foreach { record =>
+      val native = nativeGenerics.filter(_._1 == record.name)
+      if (native.size != 1) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-GENERIC-NATIVE-ASSOCIATION-MISSING",
+          s"BlackBox instance '$instanceName' has ${native.size} native associations for retained typed generic '${record.name}'",
+          record.sourceLocation
+        )
+      }
+      val witnessMatches = (record, native.head._2) match {
+        case (value: ParameterizedBlackBoxIntegerGeneric, witness: Int) =>
+          value.witness == witness
+        case (value: ParameterizedBlackBoxBooleanGeneric, witness: Boolean) =>
+          value.witness == witness
+        case _ => false
+      }
+      if (!witnessMatches) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-GENERIC-REGISTRY-MISMATCH",
+          s"BlackBox instance '$instanceName' generic '${record.name}' native witness no longer matches its exact typed record",
+          record.sourceLocation
+        )
+      }
+    }
+
+    val bindings = retained.collect {
+      case value: ParameterizedBlackBoxIntegerGeneric
+          if value.expression.parameters.nonEmpty =>
+        ElabInt.requireAuthoritativeIntegerDomain(
+          value.expression,
+          s"BlackBox integer generic '${value.name}' of instance '$instanceName'",
+          "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-INTEGER-GENERIC-DOMAIN-INVALID",
+          requireExactExtrema = false
+        )
+        value.name -> ExpressionBinding(value.expression)
+      case value: ParameterizedBlackBoxBooleanGeneric
+          if value.expression.parameters.nonEmpty =>
+        ElabInt.requireAuthoritativeBooleanDomain(
+          value.expression,
+          s"BlackBox Boolean generic '${value.name}' of instance '$instanceName'",
+          "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-BOOLEAN-GENERIC-DOMAIN-INVALID"
+        )
+        value.name -> BooleanExpressionBinding(value.expression)
+    }
+
+    val ports = blackBox.getOrdredNodeIo.toVector
+      .filterNot(_.isSuffix)
+      .flatMap { port =>
+        ParameterizedWidth.expressionOf(port).filter(_.parameters.nonEmpty).map { expression =>
+          val name = Option(port.getName()).filter(_.nonEmpty).getOrElse {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-PORT-NAME-MISSING",
+              s"BlackBox instance '$instanceName' has one unnamed symbolic packed port",
+              expression.sourceLocation
+            )
+          }
+          ElabInt.requireAuthoritativeIntegerDomain(
+            expression,
+            s"BlackBox port '$name' width of instance '$instanceName'",
+            "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-PORT-WIDTH-DOMAIN-INVALID",
+            requireExactExtrema = false
+          )
+          if (expression.default != BigInt(port.getBitsWidth)) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-PORT-WITNESS-MISMATCH",
+              s"BlackBox port '$name' of instance '$instanceName' has native width ${port.getBitsWidth}, but its retained typed width has witness ${expression.default}",
+              expression.sourceLocation
+            )
+          }
+          if (
+            expression.minimum < 1 ||
+            expression.maximum > BigInt(pc.config.bitVectorWidthMax)
+          ) {
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-PORT-WIDTH-DOMAIN-INVALID",
+              s"BlackBox port '$name' of instance '$instanceName' reaches width [${expression.minimum}, ${expression.maximum}], outside [1, ${pc.config.bitVectorWidthMax}]",
+              expression.sourceLocation
+            )
+          }
+          PortRewrite(name, ExpressionBinding(expression))
+        }
+      }
+
+    InstancePlan(
+      definitionName,
+      instanceName,
+      bindings,
+      ports,
+      preserveExistingGenericAssociations = true
+    )
+  }
+
 
   private def analyzeInstance(
       parent: Component,
@@ -749,6 +976,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       ParameterizedWidth.parametersOf(component) ++
         ParameterizedMemory.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
+        ParameterizedBlackBoxGenericRegistry.parametersOf(component) ++
         ParameterizedVerilogVecs.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component)

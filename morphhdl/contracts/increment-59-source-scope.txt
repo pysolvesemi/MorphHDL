@@ -1,0 +1,13 @@
+.github/workflows/increment-59-typed-blackbox-generics.yml
+core/src/main/scala/spinal/core/BlackBox.scala
+core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala
+docs/morphhdl/increment-59-typed-blackbox-generics.md
+morphhdl/contracts/increment-55-native-change-review.json
+morphhdl/contracts/increment-59-source-scope.txt
+morphhdl/contracts/native-source-preservation.json
+morphhdl/scripts/check-increment-59-blackbox-generics.py
+morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
+morphhdl/src/test/scala/morphhdl/TypedBlackBoxGenericBindingTests.scala
+morphhdl/src/test/scala/nativeapplication/TypedBlackBoxGenericBindingFixture.scala

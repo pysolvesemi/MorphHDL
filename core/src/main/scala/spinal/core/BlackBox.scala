@@ -111,6 +111,14 @@ abstract class BlackBox extends Component{
   }
 
   def addGeneric(name : String, that : Any) : Unit = that match {
+    case value: ElabInt =>
+      val witness =
+        ParameterizedBlackBoxGenericRegistry.retain(this, name, value)
+      genericElements += Tuple2(name, witness)
+    case value: ElabBool =>
+      val witness =
+        ParameterizedBlackBoxGenericRegistry.retain(this, name, value)
+      genericElements += Tuple2(name, witness)
     case bt: BaseType => genericElements += Tuple2(name, bt.addTag(GenericValue(bt.head.source)))
     case vv: VerilogValues => genericElements += Tuple2(name, vv)
     case s: String    => genericElements += Tuple2(name, s)

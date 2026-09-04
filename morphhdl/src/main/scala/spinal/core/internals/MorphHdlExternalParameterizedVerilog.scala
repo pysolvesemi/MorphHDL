@@ -116,7 +116,10 @@ object MorphHdlExternalParameterizedVerilog {
     components.foreach(component => componentIdentities.put(component, java.lang.Boolean.TRUE))
     val canonicalByIdentity = new IdentityHashMap[Component, Component]()
     val exactGroups = ArrayBuffer.empty[(Component, ArrayBuffer[Component])]
-    components.foreach { component =>
+    val emittedComponents = components.filterNot { component =>
+      component.isInBlackBoxTree || component.isInstanceOf[BlackBox]
+    }
+    emittedComponents.foreach { component =>
       val canonical = Option(emittedCanonicalOf(component)).getOrElse {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-CANONICAL-IDENTITY-MISSING",
@@ -345,6 +348,13 @@ object MorphHdlExternalParameterizedVerilog {
     ExternalParameterizedValueRegistry.valuesOf(component).foreach { case (_, record) =>
       retainInteger(record.expression)
     }
+
+    ParameterizedBlackBoxGenericRegistry
+      .integerExpressionsOf(component)
+      .foreach(retainInteger)
+    ParameterizedBlackBoxGenericRegistry
+      .booleanExpressionsOf(component)
+      .foreach(retainBoolean)
 
     ExternalParameterizedAutoResize
       .normalizedTypedUIntResizeBoundariesOf(component)
@@ -745,6 +755,7 @@ object MorphHdlExternalParameterizedVerilog {
         ExternalParameterizedAutoResize.parametersOf(component) ++
         ParameterizedMemory.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
+        ParameterizedBlackBoxGenericRegistry.parametersOf(component) ++
         ParameterizedVerilogVecs.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component)
@@ -767,6 +778,7 @@ object MorphHdlExternalParameterizedVerilog {
       ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
       ParameterizedMemory.parametersOf(component).nonEmpty ||
       ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
+      ParameterizedBlackBoxGenericRegistry.hasSymbolicBindings(component) ||
       ParameterizedVerilogVecs.hasVectors(component) ||
       ParameterizedVerilogFiniteFolds.hasFolds(component) ||
       ParameterizedVerilogStructural.hasRegions(component) ||
@@ -793,6 +805,7 @@ object MorphHdlExternalParameterizedVerilog {
       ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
       ParameterizedMemory.parametersOf(component).nonEmpty ||
       ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
+      ParameterizedBlackBoxGenericRegistry.hasSymbolicBindings(component) ||
       ParameterizedVerilogVecs.hasVectors(component) ||
       ParameterizedVerilogFiniteFolds.hasFolds(component) ||
       ParameterizedProcess.parametersOf(component).nonEmpty ||
@@ -801,6 +814,7 @@ object MorphHdlExternalParameterizedVerilog {
         ExternalParameterizedAutoResize.parametersOf(child).nonEmpty ||
         ParameterizedMemory.parametersOf(child).nonEmpty ||
         ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty ||
+        ParameterizedBlackBoxGenericRegistry.hasSymbolicBindings(child) ||
         ParameterizedVerilogVecs.hasVectors(child) ||
         ParameterizedVerilogFiniteFolds.hasFolds(child) ||
         ParameterizedStructure.parametersOf(child).nonEmpty ||

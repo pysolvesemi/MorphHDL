@@ -648,6 +648,26 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   Finalize the stable typed post-parameterization, pre-emission handoff used by
   optional MorphHDL-owned IR passes.
 
+- [x] **Increment 59 — Typed BlackBox parameter and generic binding**
+
+  **Dependencies:** Increment 58 implemented and merged.
+
+  Extend ordinary `BlackBox.addGeneric` so typed `ElabInt` and `ElabBool`
+  actuals retain exact expression and declaration-root authority while native
+  Verilog/VHDL emitters receive only their concrete witnesses. On the
+  single-source Verilog-2001 path, declare BlackBox-only roots on the owning
+  generated parent and rewrite only the exact named generic and packed-port
+  associations of the exact external instance. Preserve mixed generic order
+  and types, external-module ownership, concrete parity, hierarchy coexistence,
+  canonical parameter merging, deterministic output and both Scala lanes.
+  Reject duplicate or missing generic/port associations, ambiguous instances,
+  unsupported port bindings, schema/root collisions and inexact projections.
+  Require focused simulation, strict lint/synthesis, formal equivalence, a live
+  mutation control and every inherited audit/compatibility gate. Do not
+  generate or reconstruct the external module, recover symbolic meaning from
+  witnesses, recognize component/source/emitted signal names, or add a
+  component-specific RTL implementation.
+
 ## Completion target
 
 The roadmap is complete when parameter-sensitive SpinalHDL algorithms retain
