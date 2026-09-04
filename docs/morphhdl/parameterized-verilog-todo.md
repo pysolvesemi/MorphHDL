@@ -648,7 +648,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   Finalize the stable typed post-parameterization, pre-emission handoff used by
   optional MorphHDL-owned IR passes.
 
-- [ ] **Increment 59 — Typed BlackBox parameter and generic binding**
+- [x] **Increment 59 — Typed BlackBox parameter and generic binding**
 
   **Dependencies:** Increment 58 implemented and merged.
 
