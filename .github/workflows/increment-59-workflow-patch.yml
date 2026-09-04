@@ -35,6 +35,7 @@ jobs:
           )
           PYCODE
           python3 /tmp/inc59_patch_workflow.py
+          sed -i 's/[[:space:]]*$//' .github/workflows/increment-59-typed-blackbox-generics.yml
           python3 - <<'PYCODE'
           from pathlib import Path
           import yaml
