@@ -27,10 +27,10 @@ concurrency:
 
 jobs:
   boundary:
-    name: Pass workspace boundary
+    name: Pass workspace boundary and static contracts
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Check out sources
         uses: actions/checkout@v4
@@ -128,8 +128,14 @@ jobs:
           python3 morphhdl-passes/scripts/check-wa05-pass.py --self-test
           python3 morphhdl-passes/scripts/check-wa05-pass.py
 
+      - name: Enforce WA-06 ordered pipeline and closure contracts
+        shell: bash
+        run: |
+          python3 morphhdl-passes/scripts/check-wa06-pipeline.py --self-test
+          python3 morphhdl-passes/scripts/check-wa06-pipeline.py
+
   contracts:
-    name: Pass contracts, adapter, safety and transform Scala ${{ matrix.scala_version }}
+    name: Pass contracts, adapter, safety, transforms and pipeline Scala ${{ matrix.scala_version }}
     needs: boundary
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
@@ -148,17 +154,17 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Test standalone pass contracts, canonical adapter, safety gate and both transforms
+      - name: Test standalone pass contracts and ordered pipeline
         working-directory: morphhdl-passes
         shell: bash
         run: sbt -batch ++${{ matrix.scala_version }} test
 
   equivalence:
-    name: WA-04 and WA-05 legality, equivalence, mutation and determinism proof
+    name: WA-04, WA-05 and WA-06 legality, equivalence, mutation and determinism proof
     needs: contracts
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 300
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     env:
@@ -201,158 +207,23 @@ jobs:
         shell: bash
         run: python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
 
-      # ParameterizedStreamFifoExample remains the shared source fixture. Each
-      # pass emits an independent candidate against one unchanged pre-pass leg.
-      - name: Generate common pre-pass and exercise the WA-04 and WA-05 witness bridges
+      - name: Generate all pass candidates and close legality and repeated-emission gates
         shell: bash
         run: |
-          set -euo pipefail
-          reference_directory="${GITHUB_WORKSPACE}/morphhdl-passes/build/formal/wire_assignment_ir/generated"
-          reference_report="${reference_directory}/common-pre-pass-report.json"
-          named_reference_directory="${GITHUB_WORKSPACE}/morphhdl-passes/build/formal/wire_assignment_ir/named-reference-check"
-          named_reference_report="${named_reference_directory}/common-pre-pass-report.json"
-          pass_output_directory="${GITHUB_WORKSPACE}/morphhdl-passes/build/pass-outputs"
-          wa04_directory="${GITHUB_WORKSPACE}/morphhdl-passes/build/wa04-smoke"
-          wa05_directory="${GITHUB_WORKSPACE}/morphhdl-passes/build/wa05-smoke"
-          wa04_activated=false
-          wa05_activated=false
-          if grep -Eq '^- \[[xX]\] \*\*WA-04 —' \
-            morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md; then
-            wa04_directory="${pass_output_directory}"
-            wa04_activated=true
-          fi
-          if grep -Eq '^- \[[xX]\] \*\*WA-05 —' \
-            morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md; then
-            wa05_directory="${pass_output_directory}"
-            wa05_activated=true
-          fi
+          # run-wa06-regression.sh executes the actual shared ParameterizedStreamFifoExample
+          # proof path through ParameterizedStreamFifoUnnamedPassWitness,
+          # ParameterizedStreamFifoNamedPassWitness and
+          # ParameterizedStreamFifoCombinedPassWitness. It runs focused
+          # UnnamedWireAliasEliminationPassSpec, NamedWireAliasEliminationPassSpec
+          # and WireAliasPassPipelineSpec shared parameterized witness proof contract
+          # tests; publishes wire-alias-unnamed.v, wire-alias-named.v,
+          # wire-alias-named-report.json (including eliminated_names), and
+          # wire-alias-combined.v; requires executed_before_name_allocation;
+          # compares repeated output with cmp -s; and runs iverilog, verilator and
+          # yosys strict Verilog-2001 legality, synthesis and simulation checks.
+          bash morphhdl-passes/scripts/run-wa06-regression.sh
 
-          wa04_candidate="${wa04_directory}/wire-alias-unnamed.v"
-          wa04_report="${wa04_directory}/wire-alias-unnamed-report.json"
-          wa05_candidate="${wa05_directory}/wire-alias-named.v"
-          wa05_report="${wa05_directory}/wire-alias-named-report.json"
-          rm -rf \
-            "${reference_directory}" \
-            "${named_reference_directory}" \
-            "${pass_output_directory}" \
-            "${GITHUB_WORKSPACE}/morphhdl-passes/build/wa04-smoke" \
-            "${GITHUB_WORKSPACE}/morphhdl-passes/build/wa05-smoke"
-          mkdir -p \
-            "${reference_directory}" \
-            "${named_reference_directory}" \
-            "${wa04_directory}" \
-            "${wa05_directory}"
-
-          sbt -batch \
-            '++2.12.18' \
-            'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala")' \
-            'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala")' \
-            'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala")' \
-            'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPass.scala")' \
-            'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/transform/NamedWireAliasEliminationPass.scala")' \
-            'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/ParameterizedStreamFifo.scala")' \
-            'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala")' \
-            'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/NamedWireAliasNativeBridge.scala")' \
-            "morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoUnnamedPassWitness reference ${reference_directory} parameterized_stream_fifo.v ${reference_report}" \
-            "morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoUnnamedPassWitness candidate ${wa04_directory} wire-alias-unnamed.v ${wa04_report}" \
-            "morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoNamedPassWitness reference ${named_reference_directory} parameterized_stream_fifo.v ${named_reference_report}" \
-            "morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoNamedPassWitness candidate ${wa05_directory} wire-alias-named.v ${wa05_report}"
-
-          reference="${reference_directory}/parameterized_stream_fifo.v"
-          named_reference="${named_reference_directory}/parameterized_stream_fifo.v"
-          for path in \
-            "${reference}" \
-            "${named_reference}" \
-            "${reference_report}" \
-            "${named_reference_report}" \
-            "${wa04_candidate}" \
-            "${wa04_report}" \
-            "${wa05_candidate}" \
-            "${wa05_report}"; do
-            test -s "${path}"
-          done
-          cmp -s "${reference}" "${named_reference}" || {
-            echo 'WA-05 reference leg is not the unchanged common pre-pass reference.' >&2
-            exit 1
-          }
-          if cmp -s "${reference}" "${wa04_candidate}"; then
-            echo 'WA-04 candidate is byte-identical to the common pre-pass reference.' >&2
-            exit 1
-          fi
-          if cmp -s "${reference}" "${wa05_candidate}"; then
-            echo 'WA-05 candidate is byte-identical to the common pre-pass reference.' >&2
-            exit 1
-          fi
-
-          python3 - "${wa04_report}" "${wa05_report}" <<'PY'
-          import json
-          import sys
-
-          with open(sys.argv[1], encoding="utf-8") as handle:
-              unnamed = json.load(handle)
-          with open(sys.argv[2], encoding="utf-8") as handle:
-              named = json.load(handle)
-          for report, pass_id, label in (
-              (unnamed, "wire-alias-unnamed", "WA-04"),
-              (named, "wire-alias-named", "WA-05"),
-          ):
-              if report.get("pass_id") != pass_id:
-                  raise SystemExit(f"{label} witness report has the wrong pass id")
-              if report.get("executed_before_name_allocation") is not True:
-                  raise SystemExit(f"{label} witness did not execute before native name allocation")
-              if report.get("eliminated_count", 0) < 1:
-                  raise SystemExit(f"{label} witness eliminated no alias")
-              if report.get("rewritten_reference_count", 0) < 1:
-                  raise SystemExit(f"{label} witness rewrote no exact native reference")
-          names = named.get("eliminated_names")
-          if not isinstance(names, list) or not names or any(not value for value in names):
-              raise SystemExit("WA-05 witness did not report every removed explicit name")
-          if names != sorted(names):
-              raise SystemExit("WA-05 removed-name report is not deterministic")
-          PY
-
-          (
-            cd morphhdl-passes
-            sbt -batch ++2.12.18 \
-              'testOnly morphhdl.passes.transform.UnnamedWireAliasEliminationPassSpec -- -z "shared parameterized witness proof contract"' \
-              'testOnly morphhdl.passes.transform.NamedWireAliasEliminationPassSpec -- -z "shared parameterized witness proof contract"'
-          )
-
-          for candidate in "${wa04_candidate}" "${wa05_candidate}"; do
-            label="$(basename "${candidate}" .v)"
-            check_directory="${GITHUB_WORKSPACE}/morphhdl-passes/build/${label}-checks"
-            mkdir -p "${check_directory}"
-            iverilog -g2001 -s ParameterizedStreamFifo \
-              -o "${check_directory}/strict-candidate.vvp" "${candidate}"
-            verilator --lint-only --language 1364-2001 -Wno-fatal \
-              -Wno-DECLFILENAME --top-module ParameterizedStreamFifo "${candidate}"
-            yosys -Q -p "read_verilog -defer ${candidate}; hierarchy -check -top ParameterizedStreamFifo; proc; opt_clean; memory_dff; memory_collect; opt_clean; check -assert; synth -top ParameterizedStreamFifo; check -assert; stat"
-
-            for binding in WIDTH-1__DEPTH-1 WIDTH-8__DEPTH-3 WIDTH-64__DEPTH-8; do
-              width="${binding#WIDTH-}"
-              width="${width%%__*}"
-              depth="${binding##*DEPTH-}"
-              simulation_directory="${check_directory}/simulation/${binding}"
-              mkdir -p "${simulation_directory}"
-              iverilog -g2001 -s Wa03ParameterizedWitnessTb \
-                -PWa03ParameterizedWitnessTb.WIDTH="${width}" \
-                -PWa03ParameterizedWitnessTb.DEPTH="${depth}" \
-                -o "${simulation_directory}/simulation.vvp" \
-                "${candidate}" \
-                morphhdl-passes/tests/formal/wire_assignment_ir/parameterized_witness_tb.v
-              vvp "${simulation_directory}/simulation.vvp" | tee "${simulation_directory}/run.log"
-              grep -q 'WA03_SIM_PASS' "${simulation_directory}/run.log"
-            done
-          done
-
-          if [[ "${wa04_activated}" != true ]]; then
-            test ! -e "${pass_output_directory}/wire-alias-unnamed.v"
-          fi
-          if [[ "${wa05_activated}" != true ]]; then
-            test ! -e "${pass_output_directory}/wire-alias-named.v"
-          fi
-
-      - name: Prove strict legality, equivalence, mutation sensitivity and determinism
+      - name: Prove complete-domain equivalence, mutation sensitivity and determinism
         shell: bash
         run: |
           set -euo pipefail
@@ -366,7 +237,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: morphhdl-wa05-equivalence-evidence
+          name: morphhdl-wa06-equivalence-evidence
           path: morphhdl-passes/build
           if-no-files-found: error
           retention-days: 14
