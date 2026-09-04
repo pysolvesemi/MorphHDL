@@ -167,6 +167,38 @@ jobs:
           '''
           script = script[:self_start] + self_replacement + script[self_end:]
 
+          boundary_anchor = "for temporary in (\n"
+          boundary_patch = '''boundary_path = "morphhdl-passes/scripts/test-boundary-guard.sh"
+          boundary = read(boundary_path)
+          boundary_start_marker = "expect_success \\\\\\n  'WA-08 handoff is accepted after WA-07 and PV-58 are checked'"
+          boundary_start = boundary.index(boundary_start_marker)
+          boundary_end = boundary.index("\\n\\ntmp_repo=", boundary_start)
+          state_aware_boundary = """if grep -Eq '^- \\[[xX]\\] \\*\\*WA-07 ' \\
+  "${repo_root}/morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md"; then
+  expect_success \\
+    'WA-08 handoff is accepted after WA-07 and PV-58 are checked' \\
+    run_checker agent/wa-08-final-handoff "${wa08_manifest}"
+else
+  expect_failure \\
+    'WA-08 handoff remains blocked while WA-07 implementation is open' \\
+    run_checker agent/wa-08-final-handoff "${wa08_manifest}"
+fi"""
+          boundary = (
+              boundary[:boundary_start]
+              + state_aware_boundary
+              + boundary[boundary_end:]
+          )
+          write(boundary_path, boundary)
+
+          '''
+          if boundary_anchor not in script:
+              raise SystemExit("temporary cleanup insertion point is missing")
+          script = script.replace(
+              boundary_anchor,
+              boundary_patch + boundary_anchor,
+              1,
+          )
+
           deletion_marker = (
               '    ".github/workflows/wa07-selected-use-safety-patch.yml",\n'
           )
