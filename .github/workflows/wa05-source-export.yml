@@ -30,7 +30,6 @@ jobs:
         run: |
           set -euo pipefail
           cat .wa05-bundle/part-* > /tmp/wa05-implementation.tar.gz.b64
-          echo '3166f621db4640fafb2c8a4ac3da7c2bea0b8d3d0d6a1b7b2ef521470fe39b58  /tmp/wa05-implementation.tar.gz.b64' | sha256sum -c -
           base64 -d /tmp/wa05-implementation.tar.gz.b64 > /tmp/wa05-implementation.tar.gz
           echo 'c247367144120a2e757d433426135476d9a4f6e706fc8a46c47526cd98390112  /tmp/wa05-implementation.tar.gz' | sha256sum -c -
           tar -xzf /tmp/wa05-implementation.tar.gz -C .
