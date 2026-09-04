@@ -1,0 +1,25 @@
+name: WA-07 fast compile check
+
+on:
+  push:
+    branches:
+      - agent/wa-07-unified-expression-alias-pass
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wa07-fast-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and test standalone pass workspace
+        working-directory: morphhdl-passes
+        run: sbt -batch ++2.12.18 test
