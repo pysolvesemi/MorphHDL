@@ -160,10 +160,20 @@ casts. The pass never recognizes `_zz_*` text.
 Every source reference must resolve and be legally visible from every receiver.
 Every receiver must be a continuous driver. A procedural source assignment or
 any procedural receiver causes a fail-closed rejection, so no assignment in a
-Verilog `always` block is rewritten. At each accepted receiver the complete RHS
-is cloned with fresh reference identities and wrapped in the removed alias's
-packed width and signedness before the exact temporary declaration and its sole
-assignment are deleted.
+Verilog `always` block is rewritten. Canonical `DriverKind.Procedural` receivers
+and sources are retained unchanged. At each accepted whole-object receiver the
+complete RHS is cloned with fresh reference identities and wrapped in the
+removed alias's packed width and signedness before the exact temporary
+declaration and its sole assignment are deleted.
+
+Selected uses are not replaced blindly. A zero-offset full-width select is
+collapsed to a whole-object receiver. A partial receiver select is composed only
+when the RHS is a direct source part-select of the complete alias width and the
+receiver offset and width are literal, in range, and therefore provably safe.
+The composed result carries an explicit receiver-width and signedness fence.
+Arithmetic, mux, cast, resize, nested, dynamic and other selected uses retain the
+temporary, avoiding invalid nested or general-expression selections in strict
+Verilog-2001. The one-bit `temporary[0]` case is treated as a whole-object use.
 
 The public `WireAliasPassConfiguration(enabled = true)` executes all three
 passes in the fixed order. `enabled = false` executes none. Tests cover literal,

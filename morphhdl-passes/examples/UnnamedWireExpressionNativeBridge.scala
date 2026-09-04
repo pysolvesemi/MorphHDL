@@ -51,6 +51,8 @@ import spinal.core.internals._
   * the canonical pass. Every receiver must also be a root-scope continuous data
   * assignment. Consequently, an assignment represented inside a When/Switch
   * tree, register process, or another Verilog `always` block is never rewritten.
+  * Native selected uses also fail closed; selected-use composition is proved by
+  * the canonical IR tests rather than hidden by recursive native remapping.
   *
   * Selection is based on native object identity and source/elaboration naming
   * provenance. No component name, source filename, backend-generated temporary identifier text, or emitted HDL
@@ -191,6 +193,8 @@ private[examples] final class UnnamedWireExpressionNativePhase extends Phase {
       Left("WA07-NATIVE-PRESERVATION")
     else if (candidate.useStatements.isEmpty)
       Left("WA07-NATIVE-NO-RECEIVER")
+    else if (candidate.useStatements.exists(selectedAliasUse(_, alias)))
+      Left("WA07-NATIVE-SELECTED-RECEIVER")
     else if (!candidate.useStatements.forall(allowedUse(candidate.component, alias, _)))
       Left("WA07-NATIVE-PROCEDURAL-OR-EXCLUDED-RECEIVER")
     else if (candidate.receiverOccurrenceCount < 1)
@@ -219,6 +223,37 @@ private[examples] final class UnnamedWireExpressionNativePhase extends Phase {
     !alias.isFrozen() &&
       alias.isEmptyOfTag &&
       !readPrivateBoolean(alias, "dontSimplify").getOrElse(true)
+
+
+private def selectedAliasUse(
+    statement: Statement,
+    alias: BaseType
+): Boolean = {
+  var selected = false
+  statement.walkDrivingExpressions {
+    case access: SubAccess
+        if expressionReferences(access.getBitVector, alias) =>
+      selected = true
+    case _ =>
+  }
+  selected
+}
+
+private def expressionReferences(
+    expression: Expression,
+    target: BaseType
+): Boolean = {
+  if (expression == null) false
+  else if (expression eq target) true
+  else {
+    var found = false
+    expression.walkDrivingExpressions {
+      case value: BaseType if value eq target => found = true
+      case _                                  =>
+    }
+    found
+  }
+}
 
   private def allowedUse(
       component: Component,

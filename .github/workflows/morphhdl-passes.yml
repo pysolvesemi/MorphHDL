@@ -223,6 +223,10 @@ jobs:
           # ParameterizedStreamFifoUnnamedPassWitness;
           # ParameterizedStreamFifoNamedPassWitness;
           # ParameterizedStreamFifoCombinedPassWitness; cmp -s;
+          # ParameterizedStreamFifoExpressionPassWitness;
+          # ParameterizedStreamFifoAllPassWitness;
+          # UnnamedWireExpressionEliminationPassSpec;
+          # WireAssignmentAllPassPipelineSpec;
           # executed_before_name_allocation; wire-alias-named-report.json;
           # eliminated_names.
           #

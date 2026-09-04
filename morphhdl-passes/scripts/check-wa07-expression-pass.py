@@ -108,6 +108,11 @@ REQUIRED_SOURCE_MARKERS: tuple[str, ...] = (
     "DriverKind.Procedural",
     "ReceiverProcedural",
     "DirectReferenceHandledElsewhere",
+    "ReceiverPartialSelect",
+    "receiverSelectionViolations",
+    "isWholeObjectPartSelect",
+    "composedPartSelect",
+    "literalRangeWithin",
     "sourceReferences.foreach",
     "scopeIsAncestor",
     "createsCombinationalCycle",
@@ -131,6 +136,17 @@ REQUIRED_TEST_MARKERS: tuple[str, ...] = (
     "module names and source paths do not affect expression decisions",
     "shared parameterized witness proof contract covers the complete WIDTH domain",
     "invalid canonical input fails closed",
+)
+
+
+REQUIRED_SELECTION_TEST_MARKERS: tuple[str, ...] = (
+    "partial select of an arithmetic RHS retains the unnamed temporary",
+    "partial select through a direct source part-select is composed without nested selects",
+    "full-width receiver select is simplified before arithmetic inlining",
+    "bit select of a multi-bit arithmetic temporary is retained",
+    "bit zero of a one-bit temporary is simplified as a whole-object use",
+    "selection through a non-direct alias expression fails closed",
+    "ReceiverPartialSelect",
 )
 
 REQUIRED_PIPELINE_MARKERS: tuple[str, ...] = (
@@ -206,6 +222,7 @@ REQUIRED_README_MARKERS: tuple[str, ...] = (
     "DriverKind.Procedural",
     "always",
     "type fence",
+    "partial receiver select",
     "wire-expression-unnamed.v",
     "wire-assignment-all.v",
     "512",
@@ -273,14 +290,26 @@ def roadmap_failures(path: Path, text: str, pv_text: str) -> list[str]:
         failures.append(f"{path}: WA07-DEPENDENCY: WA-06 must remain completed")
     if PV58.search(pv_text) is None:
         failures.append(f"{path}: WA07-PV58: Increment 58 must remain completed")
-    if not wa07_checked:
-        failures.append(f"{path}: WA07-INCOMPLETE: implemented WA-07 must be checked")
-    elif "**Status:** `COMPLETED`" not in wa07_body:
-        failures.append(f"{path}: WA07-STATUS: checked WA-07 must be COMPLETED")
     if wa08_checked:
         failures.append(f"{path}: WA07-SCOPE: WA-07 must not complete WA-08")
-    if "**Status:** `READY`" not in wa08_body:
-        failures.append(f"{path}: WA07-NEXT-STATUS: WA-08 must be READY")
+    if wa07_checked:
+        if "**Status:** `COMPLETED`" not in wa07_body:
+            failures.append(
+                f"{path}: WA07-STATUS: checked WA-07 must be COMPLETED"
+            )
+        if "**Status:** `READY`" not in wa08_body:
+            failures.append(
+                f"{path}: WA07-NEXT-STATUS: completed WA-07 requires READY WA-08"
+            )
+    else:
+        if "**Status:** `IN PROGRESS`" not in wa07_body:
+            failures.append(
+                f"{path}: WA07-STATUS: open WA-07 must be IN PROGRESS"
+            )
+        if "**Status:** `BLOCKED`" not in wa08_body:
+            failures.append(
+                f"{path}: WA07-NEXT-STATUS: in-progress WA-07 requires BLOCKED WA-08"
+            )
 
     required_scope = (
         "one `enabled` flag",
@@ -289,6 +318,7 @@ def roadmap_failures(path: Path, text: str, pv_text: str) -> list[str]:
         "any pure canonical RHS expression",
         "every continuous receiver",
         "explicit type fence",
+        "partial receiver select",
         "procedural drivers",
         "always",
         "shared parameterized StreamFifo",
@@ -345,6 +375,7 @@ def check_repository(root: Path) -> list[str]:
         "source": pass_root / "src/main/scala/morphhdl/passes/transform/UnnamedWireExpressionEliminationPass.scala",
         "pipeline": pass_root / "src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala",
         "tests": pass_root / "src/test/scala/morphhdl/passes/transform/UnnamedWireExpressionEliminationPassSpec.scala",
+        "selection_tests": pass_root / "src/test/scala/morphhdl/passes/transform/UnnamedWireExpressionSelectionSafetySpec.scala",
         "pipeline_tests": pass_root / "src/test/scala/morphhdl/passes/pipeline/WireAssignmentAllPassPipelineSpec.scala",
         "flag_tests": pass_root / "src/test/scala/morphhdl/passes/api/AllPassConfigurationSpec.scala",
         "expression_bridge": pass_root / "examples/UnnamedWireExpressionNativeBridge.scala",
@@ -390,6 +421,10 @@ def check_repository(root: Path) -> list[str]:
     failures.extend(require_markers(
         paths["tests"].relative_to(root), texts["tests"], REQUIRED_TEST_MARKERS,
         "WA07-TEST-COVERAGE-MISSING",
+    ))
+    failures.extend(require_markers(
+        paths["selection_tests"].relative_to(root), texts["selection_tests"],
+        REQUIRED_SELECTION_TEST_MARKERS, "WA07-SELECTION-TEST-MISSING",
     ))
     failures.extend(require_markers(
         paths["pipeline_tests"].relative_to(root), texts["pipeline_tests"],
@@ -464,6 +499,7 @@ def check_repository(root: Path) -> list[str]:
             paths["source"],
             paths["pipeline"],
             paths["tests"],
+            paths["selection_tests"],
             paths["pipeline_tests"],
             paths["flag_tests"],
             paths["expression_bridge"],
@@ -519,7 +555,7 @@ object ExpressionPass { def run(value: RtlExpr) = value }
   aliases, named direct aliases, then unnamed continuous expression; any pure
   canonical RHS expression; every continuous receiver; explicit type fence;
   procedural drivers; always; shared parameterized StreamFifo; one unchanged
-  pre-pass reference; 512.
+  pre-pass reference; partial receiver select; 512.
 
 - [ ] **WA-08 — Handoff**
 
@@ -528,18 +564,30 @@ object ExpressionPass { def run(value: RtlExpr) = value }
     pv = "- [x] **Increment 58 — Retirement**\n"
     if roadmap_failures(Path("roadmap.md"), roadmap, pv):
         raise AssertionError("valid WA-07 completion state was rejected")
-    if not roadmap_failures(
-        Path("roadmap.md"),
-        roadmap.replace("- [x] **WA-07", "- [ ] **WA-07"),
-        pv,
-    ):
-        raise AssertionError("unchecked implemented WA-07 was not rejected")
+    implementation = roadmap.replace(
+        "- [x] **WA-07 — Expressions**\n\n  **Status:** `COMPLETED`.",
+        "- [ ] **WA-07 — Expressions**\n\n  **Status:** `IN PROGRESS`.",
+    ).replace(
+        "**Status:** `READY`.",
+        "**Status:** `BLOCKED` by WA-07.",
+    )
+    if roadmap_failures(Path("roadmap.md"), implementation, pv):
+        raise AssertionError("valid WA-07 implementation state was rejected")
     if not roadmap_failures(
         Path("roadmap.md"),
         roadmap.replace("**Status:** `READY`.", "**Status:** `BLOCKED` by WA-07."),
         pv,
     ):
         raise AssertionError("blocked WA-08 after completed WA-07 was not rejected")
+    if not roadmap_failures(
+        Path("roadmap.md"),
+        implementation.replace(
+            "**Status:** `IN PROGRESS`.",
+            "**Status:** `COMPLETED`.",
+        ),
+        pv,
+    ):
+        raise AssertionError("unchecked completed WA-07 state was not rejected")
 
     manifest = {
         "shared_witness": {

@@ -12,6 +12,7 @@ import morphhdl.ir.v1.DriverCoverage
 import morphhdl.ir.v1.DriverId
 import morphhdl.ir.v1.DriverKind
 import morphhdl.ir.v1.IrDiagnostic
+import morphhdl.ir.v1.IntExpr
 import morphhdl.ir.v1.ModuleId
 import morphhdl.ir.v1.NameOrigin
 import morphhdl.ir.v1.PackedType
@@ -61,6 +62,7 @@ object UnnamedWireExpressionSafetyReason {
   val ReceiverProcedural = "WA07-RECEIVER-PROCEDURAL"
   val ReceiverContext = "WA07-RECEIVER-CONTEXT"
   val ReceiverTarget = "WA07-RECEIVER-TARGET"
+  val ReceiverPartialSelect = "WA07-RECEIVER-PARTIAL-SELECT"
   val SourceSelfReference = "WA07-SOURCE-SELF-REFERENCE"
   val SourceUnresolved = "WA07-SOURCE-UNRESOLVED"
   val SourceKind = "WA07-SOURCE-KIND"
@@ -81,7 +83,10 @@ object UnnamedWireExpressionSafetyReason {
   *
   * A candidate is retained when either its own assignment or any receiver is
   * procedural. Canonical `DriverKind.Procedural` represents assignments inside
-  * `always` blocks, so this pass never rewrites an `always` assignment.
+  * `always` blocks, so this pass never rewrites an `always` assignment. A
+  * receiver selection is accepted only when it is the complete temporary or a
+  * literal in-range subrange that can be composed with a direct source
+  * part-select. General-expression, nested and dynamic selected uses fail closed.
   */
 object UnnamedWireExpressionEliminationPass {
   val passId: PassId = PassId.UnnamedWireExpressionElimination
@@ -438,6 +443,21 @@ object UnnamedWireExpressionEliminationPass {
       }
     }
 
+
+driver.foreach { sourceDriver =>
+  alias.packedType.foreach { packedType =>
+    receiverDrivers.foreach { receiver =>
+      violations ++= receiverSelectionViolations(
+        receiver.value,
+        alias.id,
+        sourceDriver.value,
+        packedType,
+        receiver.id
+      )
+    }
+  }
+}
+
     driver.foreach { value =>
       val sourceReferences = value.value.referenceOccurrences
       sourceReferences.foreach { reference =>
@@ -486,6 +506,180 @@ object UnnamedWireExpressionEliminationPass {
     )
   }
 
+
+private def receiverSelectionViolations(
+    expression: RtlExpr,
+    aliasSymbol: SymbolId,
+    replacement: RtlExpr,
+    packedType: PackedType,
+    receiverId: DriverId
+): Vector[Violation] = {
+  val failures = ArrayBuffer.empty[Violation]
+
+  def reject(detail: String): Unit =
+    failures += violation(
+      UnnamedWireExpressionSafetyReason.ReceiverPartialSelect,
+      s"receiver '${receiverId.value}' $detail; retaining temporary '${aliasSymbol.value}' avoids an illegal nested or general-expression select in Verilog-2001"
+    )
+
+  def inspect(value: RtlExpr): Unit = value match {
+    case RtlExpr.Ref(_, target, _, _) if target == aliasSymbol =>
+    case _: RtlExpr.Ref =>
+    case _: RtlExpr.Literal =>
+    case RtlExpr.Unary(_, operand) => inspect(operand)
+    case RtlExpr.Binary(_, left, right) =>
+      inspect(left)
+      inspect(right)
+    case RtlExpr.Mux(condition, whenTrue, whenFalse) =>
+      inspect(condition)
+      inspect(whenTrue)
+      inspect(whenFalse)
+    case RtlExpr.Concat(values) => values.foreach(inspect)
+    case RtlExpr.BitSelect(base, index) =>
+      base match {
+        case reference: RtlExpr.Ref if reference.target == aliasSymbol =>
+          if (!isWholeObjectBitSelect(index, packedType)) {
+            reject(
+              "selects one bit from a multi-bit or non-zero-index temporary"
+            )
+          }
+        case other if referencesAlias(other, aliasSymbol) =>
+          reject(
+            "selects through a non-direct expression containing the temporary"
+          )
+        case other => inspect(other)
+      }
+      inspect(index)
+    case RtlExpr.PartSelect(base, offset, width) =>
+      base match {
+        case reference: RtlExpr.Ref if reference.target == aliasSymbol =>
+          if (
+            !isWholeObjectPartSelect(offset, width, packedType) &&
+            !canComposePartSelect(replacement, offset, width, packedType)
+          ) {
+            reject(
+              "uses a partial or dynamic range of the temporary with a non-composable right-hand side"
+            )
+          }
+        case other if referencesAlias(other, aliasSymbol) =>
+          reject(
+            "selects through a non-direct expression containing the temporary"
+          )
+        case other => inspect(other)
+      }
+    case RtlExpr.Resize(value, _, _) => inspect(value)
+    case RtlExpr.Cast(value, _) => inspect(value)
+  }
+
+  inspect(expression)
+  failures.toVector.distinct.sortBy(value => (value.code, value.message))
+}
+
+private def referencesAlias(
+    expression: RtlExpr,
+    aliasSymbol: SymbolId
+): Boolean =
+  expression.referenceOccurrences.exists(_.target == aliasSymbol)
+
+private def isWholeObjectPartSelect(
+    offset: IntExpr,
+    width: IntExpr,
+    packedType: PackedType
+): Boolean =
+  offset == IntExpr.Literal(BigInt(0)) && width == packedType.width
+
+private def isWholeObjectBitSelect(
+    index: RtlExpr,
+    packedType: PackedType
+): Boolean =
+  packedType.width == IntExpr.Literal(BigInt(1)) && (index match {
+    case RtlExpr.Literal(value, _, _) => value == 0
+    case _                           => false
+  })
+
+private def canComposePartSelect(
+    replacement: RtlExpr,
+    receiverOffset: IntExpr,
+    receiverWidth: IntExpr,
+    packedType: PackedType
+): Boolean = replacement match {
+  case RtlExpr.PartSelect(_: RtlExpr.Ref, _, sourceWidth) =>
+    sourceWidth == packedType.width &&
+    literalRangeWithin(
+      receiverOffset,
+      receiverWidth,
+      packedType.width
+    )
+  case _ => false
+}
+
+private def literalRangeWithin(
+    offset: IntExpr,
+    width: IntExpr,
+    totalWidth: IntExpr
+): Boolean =
+  (literalInt(offset), literalInt(width), literalInt(totalWidth)) match {
+    case (Some(lower), Some(size), Some(total)) =>
+      lower >= 0 && size >= 1 && lower + size <= total
+    case _ => false
+  }
+
+private def literalInt(value: IntExpr): Option[BigInt] = value match {
+  case IntExpr.Literal(resolved) => Some(resolved)
+  case _                         => None
+}
+
+private def addOffsets(left: IntExpr, right: IntExpr): IntExpr =
+  (left, right) match {
+    case (IntExpr.Literal(a), IntExpr.Literal(b)) =>
+      IntExpr.Literal(a + b)
+    case (IntExpr.Literal(value), other) if value == 0 => other
+    case (other, IntExpr.Literal(value)) if value == 0 => other
+    case _ => IntExpr.Add(left, right)
+  }
+
+private def fencedReplacement(
+    replacement: RtlExpr,
+    receiver: RtlExpr.Ref,
+    aliasSymbol: SymbolId,
+    width: IntExpr,
+    signedness: morphhdl.ir.v1.Signedness
+): RtlExpr =
+  RtlExpr.Resize(
+    cloneForReceiver(replacement, receiver, aliasSymbol),
+    width,
+    signedness
+  )
+
+private def composedPartSelect(
+    replacement: RtlExpr,
+    receiver: RtlExpr.Ref,
+    aliasSymbol: SymbolId,
+    receiverOffset: IntExpr,
+    receiverWidth: IntExpr,
+    packedType: PackedType
+): Option[RtlExpr] = replacement match {
+  case RtlExpr.PartSelect(source: RtlExpr.Ref, sourceOffset, sourceWidth)
+      if sourceWidth == packedType.width &&
+        literalRangeWithin(
+          receiverOffset,
+          receiverWidth,
+          packedType.width
+        ) =>
+    Some(
+      RtlExpr.Resize(
+        RtlExpr.PartSelect(
+          cloneForReceiver(source, receiver, aliasSymbol),
+          addOffsets(sourceOffset, receiverOffset),
+          receiverWidth
+        ),
+        receiverWidth,
+        packedType.signedness
+      )
+    )
+  case _ => None
+}
+
   private def rewriteOneExpression(
       design: Design,
       moduleId: ModuleId,
@@ -518,64 +712,107 @@ object UnnamedWireExpressionEliminationPass {
       )
       .normalized
 
-  private def inlineReferences(
-      expression: RtlExpr,
-      aliasSymbol: SymbolId,
-      replacement: RtlExpr,
-      packedType: PackedType
-  ): RtlExpr = expression match {
-    case receiver @ RtlExpr.Ref(_, target, _, _) if target == aliasSymbol =>
-      RtlExpr.Resize(
-        cloneForReceiver(replacement, receiver, aliasSymbol),
+
+private def inlineReferences(
+    expression: RtlExpr,
+    aliasSymbol: SymbolId,
+    replacement: RtlExpr,
+    packedType: PackedType
+): RtlExpr = expression match {
+  case RtlExpr.PartSelect(
+        receiver @ RtlExpr.Ref(_, target, _, _),
+        offset,
+        width
+      ) if target == aliasSymbol =>
+    if (isWholeObjectPartSelect(offset, width, packedType)) {
+      fencedReplacement(
+        replacement,
+        receiver,
+        aliasSymbol,
         packedType.width,
         packedType.signedness
       )
-    case value: RtlExpr.Ref => value
-    case value: RtlExpr.Literal => value
-    case RtlExpr.Unary(operator, value) =>
-      RtlExpr.Unary(
-        operator,
+    } else {
+      composedPartSelect(
+        replacement,
+        receiver,
+        aliasSymbol,
+        offset,
+        width,
+        packedType
+      ).getOrElse(expression)
+    }
+  case RtlExpr.BitSelect(
+        receiver @ RtlExpr.Ref(_, target, _, _),
+        index
+      ) if target == aliasSymbol =>
+    if (isWholeObjectBitSelect(index, packedType)) {
+      fencedReplacement(
+        replacement,
+        receiver,
+        aliasSymbol,
+        packedType.width,
+        packedType.signedness
+      )
+    } else expression
+  case receiver @ RtlExpr.Ref(_, target, _, _) if target == aliasSymbol =>
+    fencedReplacement(
+      replacement,
+      receiver,
+      aliasSymbol,
+      packedType.width,
+      packedType.signedness
+    )
+  case value: RtlExpr.Ref => value
+  case value: RtlExpr.Literal => value
+  case RtlExpr.Unary(operator, value) =>
+    RtlExpr.Unary(
+      operator,
+      inlineReferences(value, aliasSymbol, replacement, packedType)
+    )
+  case RtlExpr.Binary(operator, left, right) =>
+    RtlExpr.Binary(
+      operator,
+      inlineReferences(left, aliasSymbol, replacement, packedType),
+      inlineReferences(right, aliasSymbol, replacement, packedType)
+    )
+  case RtlExpr.Mux(condition, whenTrue, whenFalse) =>
+    RtlExpr.Mux(
+      inlineReferences(condition, aliasSymbol, replacement, packedType),
+      inlineReferences(whenTrue, aliasSymbol, replacement, packedType),
+      inlineReferences(whenFalse, aliasSymbol, replacement, packedType)
+    )
+  case RtlExpr.Concat(values) =>
+    RtlExpr.Concat(
+      values.map(value =>
         inlineReferences(value, aliasSymbol, replacement, packedType)
       )
-    case RtlExpr.Binary(operator, left, right) =>
-      RtlExpr.Binary(
-        operator,
-        inlineReferences(left, aliasSymbol, replacement, packedType),
-        inlineReferences(right, aliasSymbol, replacement, packedType)
-      )
-    case RtlExpr.Mux(condition, whenTrue, whenFalse) =>
-      RtlExpr.Mux(
-        inlineReferences(condition, aliasSymbol, replacement, packedType),
-        inlineReferences(whenTrue, aliasSymbol, replacement, packedType),
-        inlineReferences(whenFalse, aliasSymbol, replacement, packedType)
-      )
-    case RtlExpr.Concat(values) =>
-      RtlExpr.Concat(
-        values.map(value => inlineReferences(value, aliasSymbol, replacement, packedType))
-      )
-    case RtlExpr.BitSelect(value, index) =>
-      RtlExpr.BitSelect(
-        inlineReferences(value, aliasSymbol, replacement, packedType),
-        inlineReferences(index, aliasSymbol, replacement, packedType)
-      )
-    case RtlExpr.PartSelect(value, offset, width) =>
-      RtlExpr.PartSelect(
-        inlineReferences(value, aliasSymbol, replacement, packedType),
-        offset,
-        width
-      )
-    case RtlExpr.Resize(value, width, signedness) =>
-      RtlExpr.Resize(
-        inlineReferences(value, aliasSymbol, replacement, packedType),
-        width,
-        signedness
-      )
-    case RtlExpr.Cast(value, signedness) =>
-      RtlExpr.Cast(
-        inlineReferences(value, aliasSymbol, replacement, packedType),
-        signedness
-      )
-  }
+    )
+  case RtlExpr.BitSelect(value, index) =>
+    val rewrittenValue =
+      if (referencesAlias(value, aliasSymbol)) value
+      else inlineReferences(value, aliasSymbol, replacement, packedType)
+    RtlExpr.BitSelect(
+      rewrittenValue,
+      inlineReferences(index, aliasSymbol, replacement, packedType)
+    )
+  case RtlExpr.PartSelect(value, offset, width) =>
+    val rewrittenValue =
+      if (referencesAlias(value, aliasSymbol)) value
+      else inlineReferences(value, aliasSymbol, replacement, packedType)
+    RtlExpr.PartSelect(rewrittenValue, offset, width)
+  case RtlExpr.Resize(value, width, signedness) =>
+    RtlExpr.Resize(
+      inlineReferences(value, aliasSymbol, replacement, packedType),
+      width,
+      signedness
+    )
+  case RtlExpr.Cast(value, signedness) =>
+    RtlExpr.Cast(
+      inlineReferences(value, aliasSymbol, replacement, packedType),
+      signedness
+    )
+}
 
   private def cloneForReceiver(
       expression: RtlExpr,

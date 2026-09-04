@@ -422,6 +422,14 @@ WA-04 or WA-05 can remove an alias.
   `_zz_*`. Reject candidate or receiver assignments represented by procedural
   drivers, so assignments emitted in `always` blocks remain unchanged.
 
+  A full-width receiver select with zero offset is first collapsed to a
+  whole-object use. A partial receiver select is rewritten only when its
+  literal in-range offset and width can be composed with a direct source
+  part-select of the complete temporary width. Arithmetic, mux, cast,
+  resize, nested, dynamic and otherwise non-composable selected uses retain
+  the temporary, preventing invalid forms such as `(a + b)[3:0]` or
+  `source[7:0][3:0]` in strict Verilog-2001.
+
   Add direct, nested, literal, fanout, cycle, scope, observability, procedural
   source, procedural receiver, deterministic, fixed-point, idempotence and
   fail-closed tests on Scala 2.12.18 and 2.13.12. Apply the expression-only pass
