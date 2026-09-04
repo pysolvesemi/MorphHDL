@@ -310,24 +310,27 @@ WA-04 or WA-05 can remove an alias.
   the generic pass to the shared parameterized StreamFifo and formally compare
   its post-pass Verilog with the common pre-pass reference.
 
-- [ ] **WA-05 — Named simple-wire assignment elimination pass**
+- [x] **WA-05 — Named simple-wire assignment elimination pass**
 
   **Dependencies:** WA-04 implemented and merged.
 
-  **Status:** `READY`.
+  **Status:** `COMPLETED`.
 
-  Apply the same safety contract to explicitly named internal aliases with
+  Applied the same safety contract to explicitly named internal aliases with
   stricter rejection for public, hierarchical, preservation, probe, attribute,
   comment or source-contract dependencies. Do not rename or transfer the
   removed name. Report each removed name and source location deterministically.
-  Apply the generic pass to the shared parameterized StreamFifo and formally
-  compare its post-pass Verilog with the common pre-pass reference.
+  Applied the component-generic pass to the shared parameterized StreamFifo and
+  formally compared its post-pass Verilog with the common pre-pass reference
+  over the complete `WIDTH=1..64` by `DEPTH=1..8` admitted domain. Added
+  cross-Scala transformation, rejection, fixed-point, idempotence, exact-name
+  preservation, deterministic-report and mutation-sensitive proof gates.
 
 - [ ] **WA-06 — Ordered two-pass pipeline and regression closure**
 
   **Dependencies:** WA-05 implemented and merged.
 
-  **Status:** `BLOCKED` by WA-05.
+  **Status:** `READY`.
 
   Provide one optional MorphHDL-IR pipeline entrypoint that can enable either
   pass independently or run unnamed then named. Keep both disabled by default.

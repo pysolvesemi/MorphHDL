@@ -7,6 +7,9 @@ import morphhdl.frontend.HdlInt
 import spinal.core._
 import spinal.lib._
 
+/** Test-only source/elaboration provenance for an explicitly user-named alias. */
+private[examples] final case class ExplicitNamedWireAliasSourceTag(name: String) extends SpinalTag
+
 /** Runnable example that emits one StreamFifo whose depth remains a Verilog parameter. */
 final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Component {
   setDefinitionName("ParameterizedStreamFifo")
@@ -25,16 +28,24 @@ final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Compon
     alias
   }
 
+  private def directNamedAlias[T <: Data](source: T): T = {
+    val alias = ParameterizedWidth.cloneOf(source)
+    alias.setName("popPayloadNamedAlias")
+    alias.addTag(ExplicitNamedWireAliasSourceTag("popPayloadNamedAlias"))
+    alias := source
+    alias
+  }
+
   val fifo = StreamFifo(HardType(Bits(width bits)), depth.asElabInt)
   fifo.io.push << io.push
   io.pop.valid := fifo.io.pop.valid
   fifo.io.pop.ready := io.pop.ready
 
   // Keep the source on the parent side of the hierarchy boundary so the
-  // test-only WA-04 bridge can prove exact same-component identity.
+  // test-only WA-04 and WA-05 bridges can prove exact same-component identity.
   val popPayloadSource = Bits(width bits)
   popPayloadSource := fifo.io.pop.payload
-  io.pop.payload := directUnnamedAlias(popPayloadSource)
+  io.pop.payload := directNamedAlias(directUnnamedAlias(popPayloadSource))
 
   fifo.io.flush := io.flush
   io.occupancy := fifo.io.occupancy.resized
