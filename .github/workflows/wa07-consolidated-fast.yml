@@ -1,0 +1,84 @@
+name: WA-07 consolidated fast validation
+
+on:
+  push:
+    branches:
+      - agent/wa-07-unified-expression-inlining
+    paths:
+      - ".github/workflows/wa07-consolidated-fast.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: macos-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/wa-07-unified-expression-inlining
+          fetch-depth: 0
+      - name: Add exact WA-07 roadmap contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md")
+          text = path.read_text(encoding="utf-8")
+          first = "One configuration flag enables all passes in the fixed order above; false disables the entire pass pipeline."
+          second = "RHS expressions are copied once per receiver"
+          if first not in text:
+              marker = "Product code has one all-or-none `enabled` flag. `false` executes no pass;\n`true` executes all three in the fixed order above."
+              replacement = marker + "\n\n" + first
+              if marker not in text:
+                  raise SystemExit("global-control roadmap insertion point is missing")
+              text = text.replace(marker, replacement, 1)
+          if second not in text:
+              marker = "The exact temporary declaration and sole assignment are removed."
+              replacement = second + "; each copy preserves the removed assignment's packed type fence.\n\n" + marker
+              if marker not in text:
+                  raise SystemExit("expression-copy roadmap insertion point is missing")
+              text = text.replace(marker, replacement, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+          if ! git diff --quiet -- morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md; then
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md
+            git commit -m "WA-07: seal global-control and per-receiver expression contracts"
+            git pull --rebase origin agent/wa-07-unified-expression-inlining
+            git push origin HEAD:agent/wa-07-unified-expression-inlining
+          fi
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: sbt/setup-sbt@v1
+      - name: Run every static pass-workspace guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in \
+            check-wa02-adapter-boundary.py \
+            check-wa03-gates.py \
+            check-wa04-pass.py \
+            check-wa05-pass.py \
+            check-wa06-pipeline.py \
+            check-wa07-global-pass-control.py \
+            check-wa07-pass.py \
+            check-wa07-expression-pass.py; do
+            test -f "morphhdl-passes/scripts/${script}"
+            python3 "morphhdl-passes/scripts/${script}" --self-test
+            python3 "morphhdl-passes/scripts/${script}"
+          done
+          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+      - name: Scala 2.12 contracts and transforms
+        working-directory: morphhdl-passes
+        run: sbt -batch ++2.12.18 test
+      - name: Scala 2.13 contracts and transforms
+        working-directory: morphhdl-passes
+        run: sbt -batch ++2.13.12 test
