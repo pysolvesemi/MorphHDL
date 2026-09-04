@@ -1,0 +1,58 @@
+name: Increment 59 v3 finalizer monitor
+
+on:
+  push:
+    branches:
+      - agent/inc59-finalizer-v3-monitor
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: increment-59-v3-finalizer-monitor
+  cancel-in-progress: true
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Check out monitor tool
+        uses: actions/checkout@v4
+        with:
+          ref: agent/inc59-finalizer-v3-monitor
+          path: monitor-tools
+          fetch-depth: 1
+
+      - name: Check out result branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/inc59-monitor-results
+          path: results
+          fetch-depth: 0
+
+      - name: Observe terminal v3 result
+        id: observe
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INC59_MONITOR_OUTPUT: ${{ github.workspace }}/results/inc59-finalizer-v3-status.json
+        run: python3 monitor-tools/.github/scripts/inc59-monitor-v3.py
+
+      - name: Publish exact job and failed-step record
+        working-directory: results
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "MorphHDL Increment 59 monitor"
+          git config user.email "actions@users.noreply.github.com"
+          git add inc59-finalizer-v3-status.json INC59_FINALIZER_V3_*
+          if ! git diff --cached --quiet; then
+            git commit -m "Record Increment 59 v3 finalizer result"
+            git push origin HEAD:agent/inc59-monitor-results
+          fi
+
+      - name: Propagate monitored failure
+        if: steps.observe.outcome == 'failure'
+        run: exit 1
