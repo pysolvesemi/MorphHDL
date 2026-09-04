@@ -125,7 +125,10 @@ object SIntSignedVerilogBaselineFixture {
         data = memoryWriteData,
         enable = writeEnable
       )
-      val signedMemoryRead = signedMemory.readSync(address).setName("signed_memory_read")
+      val signedMemoryRead = signedMemory.readSync(
+        address = address,
+        enable = enable
+      ).setName("signed_memory_read")
     }
 
     registerOut := sequential.signedRegister
