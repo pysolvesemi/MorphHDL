@@ -37,7 +37,7 @@ object SIntSignedVerilogBaselineFixture {
 
     val clk = in(Bool()).setName("clk")
     val enable = in(Bool()).setName("enable")
-    val select = in(Bool()).setName("select")
+    val chooseLeft = in(Bool()).setName("choose_left")
     val writeEnable = in(Bool()).setName("write_enable")
     val address = in(UInt(2 bits)).setName("address")
 
@@ -81,11 +81,11 @@ object SIntSignedVerilogBaselineFixture {
 
     val negative = (-left).resize(width).setName("signed_negative")
     val shifted = (left >> 2).resize(width).setName("signed_shifted")
-    val selected = Mux(select, left, right).resize(width).setName("signed_mux")
+    val selected = Mux(chooseLeft, left, right).resize(width).setName("signed_mux")
 
     val combinational = SInt(width bits).setName("signed_combinational")
     combinational := difference
-    when(select) {
+    when(chooseLeft) {
       combinational := sum
     }
 
