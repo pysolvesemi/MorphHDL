@@ -389,7 +389,9 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
 
     val result = NamedWireAliasEliminationPass.run(
       canonical,
-      WireAliasPassConfiguration(eliminateNamedAliases = true)
+      WireAliasPassConfiguration.selectedForTesting(
+      morphhdl.passes.api.PassId.NamedWireAliasElimination
+    )
     )
     if (
       result.status == PassExecutionStatus.Changed &&

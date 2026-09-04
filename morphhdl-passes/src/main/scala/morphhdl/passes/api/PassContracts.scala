@@ -95,15 +95,6 @@ final case class PassDiagnostic(
   * [[PassId.allWireAssignmentPasses]]. There is deliberately no public flag for
   * selecting one production pass independently.
   */
-private[morphhdl] sealed trait UnnamedSelectionCompatibility
-private[morphhdl] object UnnamedSelectionCompatibility {
-  implicit object Enabled extends UnnamedSelectionCompatibility
-}
-
-private[morphhdl] sealed trait NamedSelectionCompatibility
-private[morphhdl] object NamedSelectionCompatibility {
-  implicit object Enabled extends NamedSelectionCompatibility
-}
 
 final class WireAliasPassConfiguration private (
     val enabled: Boolean,
@@ -116,11 +107,6 @@ final class WireAliasPassConfiguration private (
   def isEnabled(passId: PassId): Boolean = enabledPasses.contains(passId)
   def isDisabled: Boolean = enabledPasses.isEmpty
 
-  // Internal read-only compatibility for the already reviewed direct passes.
-  private[morphhdl] def eliminateUnnamedAliases: Boolean =
-    isEnabled(PassId.UnnamedWireAliasElimination)
-  private[morphhdl] def eliminateNamedAliases: Boolean =
-    isEnabled(PassId.NamedWireAliasElimination)
 
   override def equals(other: Any): Boolean = other match {
     case value: WireAliasPassConfiguration =>
@@ -139,31 +125,6 @@ object WireAliasPassConfiguration {
   def apply(enabled: Boolean = false): WireAliasPassConfiguration =
     new WireAliasPassConfiguration(enabled, None)
 
-  private[morphhdl] def apply(
-      eliminateUnnamedAliases: Boolean
-  )(implicit compatibility: UnnamedSelectionCompatibility): WireAliasPassConfiguration =
-    selectedForTesting(
-      if (eliminateUnnamedAliases) PassId.UnnamedWireAliasElimination else null
-    )
-
-  private[morphhdl] def apply(
-      eliminateNamedAliases: Boolean
-  )(implicit compatibility: NamedSelectionCompatibility): WireAliasPassConfiguration =
-    selectedForTesting(
-      if (eliminateNamedAliases) PassId.NamedWireAliasElimination else null
-    )
-
-  private[morphhdl] def apply(
-      eliminateUnnamedAliases: Boolean,
-      eliminateNamedAliases: Boolean
-  ): WireAliasPassConfiguration =
-    selectedForTesting(
-      Vector(
-        if (eliminateUnnamedAliases) Some(PassId.UnnamedWireAliasElimination) else None,
-        if (eliminateNamedAliases) Some(PassId.NamedWireAliasElimination) else None
-      ).flatten: _*
-    )
-
   /**
     * Internal-only selection used to keep the historical WA-04, WA-05 and
     * WA-06 individual proof legs executable. Product callers cannot access it.
@@ -171,7 +132,7 @@ object WireAliasPassConfiguration {
   private[morphhdl] def selectedForTesting(
       passes: PassId*
   ): WireAliasPassConfiguration = {
-    val requested = passes.toVector.filter(_ != null)
+    val requested = passes.toVector
     require(requested.distinct.size == requested.size, "test pass selection repeats a pass")
     require(
       requested.forall(PassId.allWireAssignmentPasses.contains),

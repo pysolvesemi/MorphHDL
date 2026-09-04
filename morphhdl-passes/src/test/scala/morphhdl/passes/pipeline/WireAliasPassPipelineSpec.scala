@@ -50,16 +50,16 @@ final class WireAliasPassPipelineSpec extends AnyFunSuite with Matchers {
   private val directSinkDriverId = DriverId.unsafe("driver.pipeline-direct-sink")
   private val nestedSinkDriverId = DriverId.unsafe("driver.pipeline-nested-sink")
 
-  private val unnamedOnly = WireAliasPassConfiguration(
-    eliminateUnnamedAliases = true
-  )
-  private val namedOnly = WireAliasPassConfiguration(
-    eliminateNamedAliases = true
-  )
-  private val both = WireAliasPassConfiguration(
-    eliminateUnnamedAliases = true,
-    eliminateNamedAliases = true
-  )
+  private val unnamedOnly = WireAliasPassConfiguration.selectedForTesting(
+      morphhdl.passes.api.PassId.UnnamedWireAliasElimination
+    )
+  private val namedOnly = WireAliasPassConfiguration.selectedForTesting(
+      morphhdl.passes.api.PassId.NamedWireAliasElimination
+    )
+  private val both = WireAliasPassConfiguration.selectedForTesting(
+        morphhdl.passes.api.PassId.UnnamedWireAliasElimination,
+        morphhdl.passes.api.PassId.NamedWireAliasElimination
+      )
 
   private val widthDomain = IntegerParameterDomain(
     minimum = BigInt(1),

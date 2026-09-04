@@ -12,10 +12,10 @@ final class PassContractsSpec extends AnyFunSuite with Matchers {
   }
 
   test("combined configuration has a fixed unnamed-then-named order") {
-    val config = WireAliasPassConfiguration(
-      eliminateUnnamedAliases = true,
-      eliminateNamedAliases = true
-    )
+    val config = WireAliasPassConfiguration.selectedForTesting(
+        morphhdl.passes.api.PassId.UnnamedWireAliasElimination,
+        morphhdl.passes.api.PassId.NamedWireAliasElimination
+      )
 
     config.enabledPasses shouldBe Vector(
       PassId.UnnamedWireAliasElimination,
