@@ -1,0 +1,44 @@
+name: WA-05 source export
+
+on:
+  push:
+    branches:
+      - agent/wa-05-named-simple-wire-elimination
+    paths:
+      - ".github/workflows/wa05-source-export.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out WA-05 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/wa-05-named-simple-wire-elimination
+          fetch-depth: 0
+
+      - name: Capture pass workspace and naming API evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/wa05-export/naming
+          cp -a morphhdl-passes /tmp/wa05-export/
+          mkdir -p /tmp/wa05-export/.github/workflows
+          cp .github/workflows/morphhdl-passes.yml /tmp/wa05-export/.github/workflows/
+          grep -RIl --include='*.scala' 'isUnnamed\|namePriority\|NamePriority\|getNamePriority' core/src/main/scala | while IFS= read -r path; do
+            mkdir -p "/tmp/wa05-export/naming/$(dirname "$path")"
+            cp "$path" "/tmp/wa05-export/naming/$path"
+          done
+          tar -C /tmp -czf /tmp/wa05-source.tar.gz wa05-export
+
+      - name: Upload exact source bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: wa05-source
+          path: /tmp/wa05-source.tar.gz
+          if-no-files-found: error
+          retention-days: 1
