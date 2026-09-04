@@ -88,8 +88,8 @@ expect_failure \
 
 wa07_manifest="${tmp_dir}/wa07.txt"
 printf '%s\n' 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala' >"${wa07_manifest}"
-expect_failure \
-  'WA-07 handoff is rejected while WA-06 and PV-58 are unchecked' \
+expect_success \
+  'WA-07 handoff is accepted after WA-06 and PV-58 are checked' \
   run_checker agent/wa-07-final-handoff "${wa07_manifest}"
 
 tmp_repo="${tmp_dir}/dependency-repo"
@@ -99,14 +99,29 @@ mkdir -p \
   "${tmp_repo}/morphhdl-passes/scripts"
 cp "${checker}" "${tmp_repo}/morphhdl-passes/scripts/check-boundary.sh"
 cp "${workflow}" "${tmp_repo}/.github/workflows/morphhdl-passes.yml"
-cat > "${tmp_repo}/morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md" <<'ROADMAP'
+printf '%s\n' 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala' > "${tmp_repo}/changed.txt"
+
+cat > "${tmp_repo}/morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md" <<'ROADMAP_OPEN'
+- [ ] **WA-06 — Ordered two-pass pipeline and regression closure**
+ROADMAP_OPEN
+cat > "${tmp_repo}/docs/morphhdl/parameterized-verilog-todo.md" <<'PV58_ONLY'
+- [x] **Increment 58 — Legacy adapter and shadow-path retirement**
+PV58_ONLY
+expect_failure \
+  'WA-07 handoff requires completed WA-06 even when PV-58 is complete' \
+  env \
+    MORPHDL_PASSES_REPO_ROOT="${tmp_repo}" \
+    MORPHDL_PASSES_HEAD_REF=agent/wa-07-final-handoff \
+    MORPHDL_PASSES_CHANGED_FILES_FILE="${tmp_repo}/changed.txt" \
+    "${tmp_repo}/morphhdl-passes/scripts/check-boundary.sh"
+
+cat > "${tmp_repo}/morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md" <<'ROADMAP_COMPLETE'
 - [x] **WA-06 — Ordered two-pass pipeline and regression closure**
-ROADMAP
+ROADMAP_COMPLETE
 cat > "${tmp_repo}/docs/morphhdl/parameterized-verilog-todo.md" <<'PV57A'
 - [x] **Increment 57a — Typed native StreamFifoCC depth and CDC proof**
 - [ ] **Increment 58 — Legacy adapter and shadow-path retirement**
 PV57A
-printf '%s\n' 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala' > "${tmp_repo}/changed.txt"
 expect_failure \
   'WA-07 handoff is not enabled by PV-57a alone' \
   env \
@@ -120,7 +135,7 @@ cat > "${tmp_repo}/docs/morphhdl/parameterized-verilog-todo.md" <<'PV58'
 - [x] **Increment 58 — Legacy adapter and shadow-path retirement**
 PV58
 expect_success \
-  'WA-07 handoff requires and accepts completed PV-58' \
+  'WA-07 handoff requires and accepts completed WA-06 and PV-58' \
   env \
     MORPHDL_PASSES_REPO_ROOT="${tmp_repo}" \
     MORPHDL_PASSES_HEAD_REF=agent/wa-07-final-handoff \

@@ -2,6 +2,7 @@
 core/src/main/scala/spinal/core/BlackBox.scala
 core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala
 docs/morphhdl/increment-59-typed-blackbox-generics.md
+docs/morphhdl/parameterized-verilog-todo.md
 morphhdl/contracts/increment-55-native-change-review.json
 morphhdl/contracts/increment-59-source-scope.txt
 morphhdl/contracts/native-source-preservation.json
