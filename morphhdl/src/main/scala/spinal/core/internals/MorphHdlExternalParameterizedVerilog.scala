@@ -104,6 +104,7 @@ object MorphHdlExternalParameterizedVerilog {
 
     val components = componentGraph(top)
     components.foreach(ParameterizedMemory.discover)
+    BoundedRecursiveModuleValidation.validate(components)
     components.foreach(component =>
       validateComponentParameterRootInventory(
         component,
