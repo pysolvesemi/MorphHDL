@@ -216,6 +216,7 @@ object UnnamedWireAliasEliminationPass {
             sourceSymbol,
             aliasDrivers.head.id
           )
+          // Increment 58 replacement for CanonicalIrPassAdapter.bind(rewritten).
           CanonicalIrPassAdapter.bindFixture(rewritten) match {
             case Left(failure) =>
               return Left(
