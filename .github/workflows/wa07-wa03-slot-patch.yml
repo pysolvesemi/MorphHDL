@@ -1,0 +1,21 @@
+name: WA-07 extend WA-03 formal slot guard
+
+on:
+  push:
+    branches:
+      - agent/wa-07-unified-expression-alias-pass
+    paths:
+      - ".github/workflows/wa07-wa03-slot-patch.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/wa-07-unified-expression-alias-pass
+          fetch-depth: 0
+      - run: python3 morphhdl-passes/scripts/wa07-wa03-slot-patch.py
