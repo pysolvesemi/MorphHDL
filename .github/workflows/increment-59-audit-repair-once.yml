@@ -1,0 +1,177 @@
+name: Increment 59 canonical audit repair
+
+on:
+  push:
+    branches:
+      - agent/increment-59-typed-blackbox-generics
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.head_commit.message == 'Run canonical Increment 59 audit repair'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-59-typed-blackbox-generics
+          fetch-depth: 0
+
+      - name: Repair source, permanent normalizer and canonical audit span
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin parameterized-verilog
+          python3 - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+
+          hierarchy_path = Path('morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala')
+          text = hierarchy_path.read_text(encoding='utf-8')
+
+          def remove_duplicate_region(value, marker, next_marker):
+              starts = []
+              cursor = 0
+              while True:
+                  found = value.find(marker, cursor)
+                  if found < 0:
+                      break
+                  starts.append(found)
+                  cursor = found + len(marker)
+              if len(starts) > 2:
+                  raise SystemExit(f'unexpected duplicate count {len(starts)} for {marker.strip()}')
+              if len(starts) == 2:
+                  second = starts[1]
+                  end = value.find(next_marker, second)
+                  if end < 0:
+                      raise SystemExit(f'missing duplicate terminator for {marker.strip()}')
+                  value = value[:second] + value[end:]
+              return value
+
+          text = remove_duplicate_region(
+              text,
+              '\n  private final case class BooleanExpressionBinding(',
+              '\n  private final case class BindingSignature('
+          )
+          text = remove_duplicate_region(
+              text,
+              '\n  private def analyzeBlackBoxInstance(',
+              '\n  private def analyzeInstance('
+          )
+          hierarchy_path.write_text(text, encoding='utf-8')
+
+          canonical_assertions = [
+              {'side': 'approved', 'text': 'case value: ElabInt =>', 'count': 1},
+              {'side': 'approved', 'text': 'case value: ElabBool =>', 'count': 1},
+              {'side': 'approved', 'text': 'ParameterizedBlackBoxGenericRegistry.retain', 'count': 2},
+          ]
+
+          policy_path = Path('morphhdl/contracts/increment-55-native-change-review.json')
+          policy = json.loads(policy_path.read_text(encoding='utf-8'))
+          files = policy['files']
+          blackbox_path = 'core/src/main/scala/spinal/core/BlackBox.scala'
+          matches = [entry for entry in files if entry['path'] == blackbox_path]
+          if len(matches) != 1:
+              raise SystemExit(f'expected one BlackBox review entry, found {len(matches)}')
+          entry = matches[0]
+          label = 'Increment 59: typed BlackBox parameter and generic binding'
+          entry.update({
+              'baseline_path': blackbox_path,
+              'change': 'modified',
+              'classification': 'typed-overload',
+              'reason': 'Add typed ElabInt and ElabBool BlackBox generic overload handling while preserving native concrete witness emission.',
+              'edits': [{
+                  'id': 'blackbox-typed-generic-01',
+                  'kind': 'overload',
+                  'owner': 'spinal.core.BlackBox.addGeneric',
+                  'reason': 'Retain exact typed BlackBox generic metadata and pass only the concrete witness to the inherited native emitter.',
+                  'required_exact_text': canonical_assertions,
+              }],
+          })
+          introduced = entry.setdefault('introduced_by', [])
+          if label not in introduced:
+              introduced.append(label)
+
+          registry_path = 'core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala'
+          registry = [item for item in files if item['path'] == registry_path]
+          if not registry:
+              files.append({
+                  'path': registry_path,
+                  'baseline_path': None,
+                  'change': 'added',
+                  'classification': 'typed-support-file',
+                  'introduced_by': [label],
+                  'reason': 'Retain exact typed BlackBox generic and symbolic port-width metadata by BlackBox object identity.',
+                  'edits': [],
+              })
+          elif len(registry) != 1:
+              raise SystemExit(f'expected at most one registry review entry, found {len(registry)}')
+          policy['files'] = sorted(files, key=lambda item: item['path'])
+          policy_path.write_text(json.dumps(policy, indent=2) + '\n', encoding='utf-8')
+
+          workflow_path = Path('.github/workflows/increment-59-typed-blackbox-generics.yml')
+          workflow = workflow_path.read_text(encoding='utf-8')
+          start_token = '          assertions = []\n'
+          end_token = '          blackbox_entry.update({\n'
+          start = workflow.find(start_token)
+          end = workflow.find(end_token, start)
+          if start < 0 or end < 0:
+              raise SystemExit('permanent Increment 59 workflow assertion block was not found')
+          replacement = '''          assertions = [
+              {'side': 'approved', 'text': 'case value: ElabInt =>', 'count': 1},
+              {'side': 'approved', 'text': 'case value: ElabBool =>', 'count': 1},
+              {'side': 'approved', 'text': 'ParameterizedBlackBoxGenericRegistry.retain', 'count': 2},
+          ]
+'''
+          workflow = workflow[:start] + replacement + workflow[end:]
+          workflow_path.write_text(workflow, encoding='utf-8')
+
+          for stale in (
+              Path('.github/increment59-source-validation.txt'),
+              Path('.github/workflows/increment-59-export.yml'),
+              Path('.github/workflows/increment-59-repair-once.yml'),
+              Path('.github/workflows/increment-59-audit-repair-once.yml'),
+          ):
+              if stale.exists():
+                  stale.unlink()
+          PY
+
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --self-test
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --repo-root .
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            --generate-template morphhdl/contracts/increment-55-native-change-review.json \
+            --output morphhdl/contracts/native-source-preservation.json \
+            --force
+          python3 morphhdl/scripts/check-native-source-preservation.py
+
+          git add -A
+          python3 - <<'PY'
+          import subprocess
+          from pathlib import Path
+
+          excluded = {'docs/morphhdl/parameterized-verilog-todo.md'}
+          names = subprocess.run(
+              ['git', 'diff', '--cached', '--name-only', '--diff-filter=ACMRTD', 'origin/parameterized-verilog'],
+              check=True,
+              text=True,
+              stdout=subprocess.PIPE,
+          ).stdout.splitlines()
+          scope_path = Path('morphhdl/contracts/increment-59-source-scope.txt')
+          names.append(scope_path.as_posix())
+          scope = sorted({name for name in names if name and name not in excluded})
+          scope_path.write_text('\n'.join(scope) + '\n', encoding='utf-8')
+          PY
+          git add morphhdl/contracts/increment-59-source-scope.txt
+          git diff --check
+
+      - name: Commit repaired branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email 'actions@users.noreply.github.com'
+          git commit -m 'Repair Increment 59 canonical source and audit evidence'
+          git push origin HEAD:agent/increment-59-typed-blackbox-generics
