@@ -33,7 +33,7 @@ object SIntSignedVerilogBaselineFixture {
     dout := childSum
   }
 
-  final class Top(width: HdlInt, extendedWidth: HdlInt) extends Component {
+  final class Top(width: HdlInt) extends Component {
     setDefinitionName("SIntCastHeavyBaseline")
 
     val clk = in(Bool()).setName("clk")
@@ -58,7 +58,7 @@ object SIntSignedVerilogBaselineFixture {
     val shiftedOut = out(SInt(width bits)).setName("shifted_out")
     val muxOut = out(SInt(width bits)).setName("mux_out")
     val combinationalOut = out(SInt(width bits)).setName("combinational_out")
-    val resizedOut = out(SInt(extendedWidth bits)).setName("resized_out")
+    val resizedOut = out(SInt(4 bits)).setName("resized_out")
     val sliceOut = out(SInt(4 bits)).setName("slice_out")
     val concatOut = out(SInt(8 bits)).setName("concat_out")
     val lessOut = out(Bool()).setName("less_out")
@@ -84,7 +84,7 @@ object SIntSignedVerilogBaselineFixture {
     val negative = (-left).resize(width).setName("signed_negative")
     val shifted = (left |>> 2).setName("signed_shifted")
     val selected = Mux(chooseLeft, left, right).resize(width).setName("signed_mux")
-    val resized = left.resize(extendedWidth).setName("signed_resized")
+    val resized = left.resize(4).setName("signed_resized")
 
     val combinational = SInt(width bits).setName("signed_combinational")
     combinational := difference
@@ -150,17 +150,11 @@ object SIntSignedVerilogBaselineFixture {
 
   def fixed(width: Int = 8): Top = {
     require(width >= 8, "the baseline fixture requires at least eight bits")
-    new Top(
-      HdlInt.literal(BigInt(width)),
-      HdlInt.literal(BigInt(width + 3))
-    )
+    new Top(HdlInt.literal(BigInt(width)))
   }
 
-  def parameterized(): Top = {
-    val width = HdlInt.param("WIDTH", default = 8, min = 8, max = 32)
-    val extendedWidth = width + 3
-    new Top(width, extendedWidth)
-  }
+  def parameterized(): Top =
+    new Top(HdlInt.param("WIDTH", default = 8, min = 8, max = 32))
 }
 
 object SIntSignedVerilogBaselineArtifactWriter {
