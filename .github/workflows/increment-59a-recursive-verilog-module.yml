@@ -1,0 +1,519 @@
+name: Increment 59a bounded recursive Verilog module
+
+on:
+  push:
+    branches:
+      - parameterized-verilog
+      - 'agent/increment-59a-*'
+  pull_request:
+    branches:
+      - parameterized-verilog
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59a-recursive-verilog-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  route:
+    name: Route exact Increment 59a revision
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.route.outputs.run }}
+      base: ${{ steps.route.outputs.base }}
+    steps:
+      - name: Check out exact head with complete history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Select the immutable comparison base
+        id: route
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          run=false
+          base=''
+          workflow=.github/workflows/increment-59a-recursive-verilog-module.yml
+
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            if ! git cat-file -e "$PR_BASE:$workflow" 2>/dev/null; then
+              base="$PR_BASE"
+              run=true
+            fi
+          elif [[ "$EVENT_NAME" == push && "$REF_NAME" == agent/increment-59a-* ]]; then
+            git fetch --no-tags origin parameterized-verilog
+            base="$(git rev-parse origin/parameterized-verilog)"
+            git merge-base --is-ancestor "$base" HEAD
+            run=true
+          elif [[ "$EVENT_NAME" == push && "$REF_NAME" == parameterized-verilog ]]; then
+            if [[ ! "$BEFORE" =~ ^[0-9a-f]{40}$ || "$BEFORE" == 0000000000000000000000000000000000000000 ]]; then
+              printf '%s\n' 'parameterized-verilog push has no immutable prior revision' >&2
+              exit 1
+            fi
+            if ! git cat-file -e "$BEFORE:$workflow" 2>/dev/null; then
+              base="$BEFORE"
+              run=true
+            fi
+          fi
+
+          if [[ "$run" == true ]]; then
+            test -n "$base"
+            test "$(git rev-parse --verify "$base^{commit}")" = "$base"
+            git merge-base --is-ancestor "$base" HEAD
+          fi
+          printf 'run=%s\n' "$run" >> "$GITHUB_OUTPUT"
+          printf 'base=%s\n' "$base" >> "$GITHUB_OUTPUT"
+
+  source-contract:
+    name: Bounded recursion and exact source contract
+    needs: route
+    if: needs.route.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact head with complete history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Validate Increment 59a static contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f morphhdl/scripts/check-increment-59a-recursive-module.py
+          python3 -m py_compile morphhdl/scripts/check-increment-59a-recursive-module.py
+          python3 morphhdl/scripts/check-increment-59a-recursive-module.py --self-test
+          python3 morphhdl/scripts/check-increment-59a-recursive-module.py --repo-root .
+          bash -n morphhdl/scripts/prove-increment-59a-recursive-module.sh
+
+      - name: Validate inherited typed architecture and retirement boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python_checks=(
+            morphhdl/scripts/check-increment-58-retirement.py
+            morphhdl/scripts/check-production-retirement.py
+            morphhdl/scripts/check-typed-layering-ir.py
+            morphhdl/scripts/check-native-source-preservation.py
+            morphhdl/scripts/check-typed-native-source-overlay.py
+          )
+          for check in "${python_checks[@]}"; do
+            test -f "$check"
+            python3 -m py_compile "$check"
+            python3 "$check" --self-test
+            python3 "$check"
+          done
+
+          shell_checks=(
+            morphhdl/scripts/check-native-typed-library-surface-boundary.sh
+            morphhdl/scripts/check-broad-native-library-migration-boundary.sh
+            morphhdl/scripts/check-native-streamfifocc-boundary.sh
+            morphhdl/scripts/check-native-streamfifocc-width-formal-boundary.sh
+            morphhdl/scripts/check-typed-primitive-closure-boundary.sh
+            morphhdl/scripts/check-typed-vec-boundary.sh
+            morphhdl/scripts/check-external-structural-process-boundary.sh
+          )
+          for check in "${shell_checks[@]}"; do
+            test -f "$check"
+            bash -n "$check"
+          done
+          bash morphhdl/scripts/check-native-typed-library-surface-boundary.sh --self-test
+          bash morphhdl/scripts/check-native-typed-library-surface-boundary.sh
+          bash morphhdl/scripts/check-broad-native-library-migration-boundary.sh --self-test
+          bash morphhdl/scripts/check-broad-native-library-migration-boundary.sh --check
+          bash morphhdl/scripts/check-native-streamfifocc-boundary.sh --self-test
+          bash morphhdl/scripts/check-native-streamfifocc-boundary.sh --check
+          bash morphhdl/scripts/check-native-streamfifocc-width-formal-boundary.sh --self-test
+          bash morphhdl/scripts/check-native-streamfifocc-width-formal-boundary.sh --check
+          bash morphhdl/scripts/check-typed-primitive-closure-boundary.sh
+          bash morphhdl/scripts/check-typed-vec-boundary.sh
+          bash morphhdl/scripts/check-external-structural-process-boundary.sh
+
+      - name: Verify the sealed exact Increment 59a delta
+        shell: bash
+        env:
+          BASE_COMMIT: ${{ needs.route.outputs.base }}
+        run: |
+          set -euo pipefail
+          base="$BASE_COMMIT"
+          scope=morphhdl/contracts/increment-59a-source-scope.txt
+          todo=docs/morphhdl/parameterized-verilog-todo.md
+          test -n "$base"
+          test "$(git rev-parse --verify "$base^{commit}")" = "$base"
+          git merge-base --is-ancestor "$base" HEAD
+          test -s "$scope"
+          test "$(cat "$scope")" = "$(LC_ALL=C sort -u "$scope")"
+          while IFS= read -r path; do
+            test -n "$path"
+            test -e "$path"
+          done < "$scope"
+
+          BASE_COMMIT="$base" TODO_PATH="$todo" python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+
+          base = os.environ["BASE_COMMIT"]
+          path = os.environ["TODO_PATH"]
+          title_59a = "- [ ] **Increment 59a — Bounded recursive Verilog module generation and proof**"
+          checked_59a = title_59a.replace("[ ]", "[x]", 1)
+          title_59b = "- [ ] **Increment 59b — Typed parameterized Vec reduceBalancedTree**"
+          anchor = "## Completion target\n"
+
+          def blob(revision):
+              return subprocess.run(
+                  ["git", "show", f"{revision}:{path}"],
+                  check=True,
+                  stdout=subprocess.PIPE,
+                  text=True,
+              ).stdout
+
+          before = blob(base)
+          after = blob("HEAD")
+          if title_59a in before or checked_59a in before or title_59b in before:
+              raise SystemExit("comparison base already contains Increment 59a or 59b")
+          if after.count(title_59a) + after.count(checked_59a) != 1:
+              raise SystemExit("final roadmap must contain exactly one Increment 59a")
+          if after.count(title_59b) != 1:
+              raise SystemExit("Increment 59b must remain present and unchecked")
+          starts = [value for value in (after.find(title_59a), after.find(checked_59a)) if value >= 0]
+          if len(starts) != 1 or after.count(anchor) != 1:
+              raise SystemExit("roadmap successor section is ambiguous")
+          start = starts[0]
+          end = after.index(anchor)
+          if start >= end:
+              raise SystemExit("roadmap successor section is misplaced")
+          section = after[start:end]
+          entries = re.findall(r"(?m)^- \[(?: |x)\] \*\*Increment ", section)
+          if len(entries) != 2:
+              raise SystemExit("roadmap successor section must contain only 59a and 59b")
+          if after[:start] + after[end:] != before:
+              raise SystemExit("roadmap changed outside the approved 59a/59b insertion")
+          PY
+
+          actual="$(git diff --no-renames --name-only --diff-filter=ACMRTD \
+            "$base"...HEAD \
+            | awk '$0 != "docs/morphhdl/parameterized-verilog-todo.md"' \
+            | LC_ALL=C sort -u)"
+          expected="$(cat "$scope")"
+          if [[ "$actual" != "$expected" ]]; then
+            printf '%s\n' 'Unexpected Increment 59a file inventory' >&2
+            printf '%s\n' '--- expected ---' "$expected" >&2
+            printf '%s\n' '--- actual ---' "$actual" >&2
+            exit 1
+          fi
+          git diff --check "$base"...HEAD
+
+  focused-recursion:
+    name: Focused bounded recursion Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: Compile and test bounded recursive generation
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.BoundedRecursivePowerTests"
+
+      - name: Retain inherited structural and typed BlackBox behavior
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.TypedBlackBoxGenericBindingTests morphhdl.NaturalSymbolicConditionalTests morphhdl.ExternalHierarchyBoolLiteralBindingTests morphhdl.NativeTypedLibraryCallSurfaceTests"
+
+  strict-tools:
+    name: Recursive strict tools and formal Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: Verify qualified recursive tool matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v iverilog
+          command -v vvp
+          command -v verilator
+          command -v yosys
+          iverilog -V
+          verilator --version
+          yosys -V
+
+      - name: Generate recursive candidate and independent concrete oracles
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifacts="${GITHUB_WORKSPACE}/recursive-artifacts/scala-${{ matrix.scala_version }}"
+          mkdir -p "$artifacts"
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/Test/runMain morphhdl.BoundedRecursivePowerArtifactWriter --output-dir $artifacts"
+
+      - name: Prove strict parsing simulation synthesis equivalence and mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/prove-increment-59a-recursive-module.sh \
+            --artifact-dir "${GITHUB_WORKSPACE}/recursive-artifacts/scala-${{ matrix.scala_version }}"
+
+      - name: Retain recursive proof artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59a-recursive-scala-${{ matrix.scala_version }}
+          path: recursive-artifacts/scala-${{ matrix.scala_version }}
+          if-no-files-found: error
+
+  inherited-formal:
+    name: Inherited typed formal gates Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      MORPHDL_RUN_STREAMFIFOCC_CDC_PROOF: '1'
+      MORPHDL_RUN_TYPED_VEC_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_TYPED_PRIMITIVE_CLOSURE_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_STREAMFIFO_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_NATIVE_LIBRARY_MIGRATION_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_NATIVE_AXI4_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_STREAMFIFOCC_CDC_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/streamfifocc-cdc
+      MORPHDL_TYPED_VEC_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/vec
+      MORPHDL_TYPED_PRIMITIVE_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/closure
+      MORPHDL_STREAMFIFO_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/streamfifo
+      MORPHDL_NATIVE_LIBRARY_MIGRATION_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/library-migration
+      MORPHDL_NATIVE_AXI4_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/axi4
+      MORPHDL_NATIVE_AXI4_ARTIFACT_DIR: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/axi4-rtl
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: Verify inherited formal toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v sby
+          command -v yices-smt2
+          command -v yosys
+          command -v iverilog
+          mkdir -p "${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}"
+          mkdir -p "${MORPHDL_STREAMFIFOCC_CDC_WORKSPACE}"
+
+      - name: Run inherited typed equivalence and mutation controls
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.NativeStreamFifoCCParameterizedTests morphhdl.NativeStreamFifoCCCdcProofTests morphhdl.NativeLibraryMigrationTests morphhdl.NativeAxi4SlaveFactoryParameterizedOffsetTests morphhdl.ExternalHierarchyBoolLiteralBindingTests morphhdl.NativeTypedLibraryCallSurfaceTests morphhdl.TypedBlackBoxGenericBindingTests spinal.core.TypedPrimitiveClosureTests morphhdl.TypedParameterizedVecTests morphhdl.NativeLibraryReuseTests"
+
+      - name: Retain inherited formal artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59a-inherited-formal-scala-${{ matrix.scala_version }}
+          path: formal-artifacts/scala-${{ matrix.scala_version }}
+          if-no-files-found: warn
+
+  compatibility:
+    name: Binary source and concrete parity Scala ${{ matrix.scala_version }}
+    needs:
+      - route
+      - source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - name: Check out exact head with complete history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Prove JVM compatibility with the selected upstream baseline
+        run: >-
+          bash morphhdl/scripts/check-binary-compatibility.sh
+          --scala-version "${{ matrix.scala_version }}"
+
+      - name: Prove source linkage and ordinary SpinalVerilog parity
+        run: >-
+          bash morphhdl/scripts/check-concrete-spinalverilog-parity.sh
+          --scala "${{ matrix.scala_version }}"
+
+      - name: Prove the external inspection boundary against Increment 0
+        run: >-
+          bash morphhdl/scripts/check-external-spinal-boundary.sh
+          "${{ matrix.scala_version }}"
+
+  sbt-full:
+    name: SBT full suite Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: Compile every production and test source
+        run: sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+
+      - name: Run frontend canonical IR MorphHDL and native simulation suites
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" frontend/test
+          sbt -batch "++${{ matrix.scala_version }}" morphir/test
+          sbt -batch "++${{ matrix.scala_version }}" morph/test
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "tester/testOnly spinal.lib.CounterTester spinal.lib.SpinalSimStreamFifoTester spinal.lib.SpinalSimStreamFifoCCTester spinal.lib.SpinalSimStreamWidthAdapterTester"
+
+      - name: Package fresh production modules and enforce retirement
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch "++${{ matrix.scala_version }}" clean \
+            frontend/package idslplugin/package morphir/package paramrtl/package \
+            morphruntime/package morphplugin/package morph/package verilogBackend/package
+          mapfile -t jars < <(find \
+            frontend idslplugin morphir paramrtl morphruntime morphplugin morphhdl \
+            backends/verilog \
+            -regextype posix-extended -type f \
+            -regex '.*/target/scala-[^/]+/[^/]+\.jar' | LC_ALL=C sort -u)
+          test "${#jars[@]}" -ge 8
+          arguments=()
+          for jar in "${jars[@]}"; do
+            arguments+=(--jar "$jar")
+          done
+          python3 morphhdl/scripts/check-increment-58-retirement.py \
+            --require-jar "${arguments[@]}"
+          python3 morphhdl/scripts/check-production-retirement.py \
+            --require-jar "${arguments[@]}"
+          python3 morphhdl/scripts/check-typed-layering-ir.py \
+            --require-jar "${arguments[@]}"
+
+  mill-full:
+    name: Mill affected full suite Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install pinned Mill
+        run: |
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+
+      - name: Compile and test all affected modules
+        run: |
+          /tmp/mill \
+            core[${{ matrix.scala_version }}].compile \
+            frontend[${{ matrix.scala_version }}].compile \
+            morphir[${{ matrix.scala_version }}].compile \
+            paramrtl[${{ matrix.scala_version }}].compile \
+            morphruntime[${{ matrix.scala_version }}].compile \
+            morph[${{ matrix.scala_version }}].compile \
+            verilogBackend[${{ matrix.scala_version }}].compile
+          /tmp/mill frontend[${{ matrix.scala_version }}].test
+          /tmp/mill morphir[${{ matrix.scala_version }}].test
+          /tmp/mill morph[${{ matrix.scala_version }}].test
+
+  closure:
+    name: Increment 59a canonical closure
+    needs:
+      - route
+      - source-contract
+      - focused-recursion
+      - strict-tools
+      - inherited-formal
+      - compatibility
+      - sbt-full
+      - mill-full
+    if: always() && needs.route.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every canonical gate
+        shell: bash
+        env:
+          SOURCE_CONTRACT: ${{ needs.source-contract.result }}
+          FOCUSED_RECURSION: ${{ needs.focused-recursion.result }}
+          STRICT_TOOLS: ${{ needs.strict-tools.result }}
+          INHERITED_FORMAL: ${{ needs.inherited-formal.result }}
+          COMPATIBILITY: ${{ needs.compatibility.result }}
+          SBT_FULL: ${{ needs.sbt-full.result }}
+          MILL_FULL: ${{ needs.mill-full.result }}
+        run: |
+          set -euo pipefail
+          for result in \
+            "$SOURCE_CONTRACT" \
+            "$FOCUSED_RECURSION" \
+            "$STRICT_TOOLS" \
+            "$INHERITED_FORMAL" \
+            "$COMPATIBILITY" \
+            "$SBT_FULL" \
+            "$MILL_FULL"; do
+            test "$result" = success
+          done
