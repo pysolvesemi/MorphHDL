@@ -1,0 +1,37 @@
+name: WA-07 native regression check
+
+on:
+  push:
+    branches:
+      - agent/wa-07-unified-expression-alias-pass
+    paths:
+      - ".github/workflows/wa07-native-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      SBT_OPTS: -Xms512M -Xmx4G -Xss4M
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run WA-07 generation, legality, synthesis and simulation regression
+        shell: bash
+        run: bash morphhdl-passes/scripts/run-wa07-regression.sh
+      - name: Retain native-check output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wa07-native-check-output
+          path: morphhdl-passes/build
+          if-no-files-found: warn
+          retention-days: 2
