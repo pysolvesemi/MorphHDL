@@ -1,0 +1,345 @@
+name: WA-07 signed selection fence
+
+on:
+  push:
+    branches:
+      - agent/wa-07-unified-expression-inlining
+    paths:
+      - ".github/workflows/wa07-signed-selection-fence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/wa-07-unified-expression-inlining
+          fetch-depth: 0
+
+      - name: Apply signed selected-use semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+
+          root = Path.cwd()
+          source_path = root / "morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireExpressionEliminationPass.scala"
+          source = source_path.read_text(encoding="utf-8")
+
+          composed_old = '''        receiverWidth,
+        packedType.signedness
+      )
+    )
+  case _ => None
+}'''
+          composed_new = '''        receiverWidth,
+        morphhdl.ir.v1.Signedness.Unsigned
+      )
+    )
+  case _ => None
+}'''
+          if source.count(composed_old) != 1:
+              raise SystemExit("composed selected-use fence point is missing")
+          source = source.replace(composed_old, composed_new, 1)
+
+          part_old = '''        aliasSymbol,
+        packedType.width,
+        packedType.signedness
+      )
+    } else {
+      composedPartSelect('''
+          part_new = '''        aliasSymbol,
+        packedType.width,
+        morphhdl.ir.v1.Signedness.Unsigned
+      )
+    } else {
+      composedPartSelect('''
+          if source.count(part_old) != 1:
+              raise SystemExit("full-width part-select fence point is missing")
+          source = source.replace(part_old, part_new, 1)
+
+          bit_old = '''        aliasSymbol,
+        packedType.width,
+        packedType.signedness
+      )
+    } else expression
+  case receiver @ RtlExpr.Ref'''
+          bit_new = '''        aliasSymbol,
+        packedType.width,
+        morphhdl.ir.v1.Signedness.Unsigned
+      )
+    } else expression
+  case receiver @ RtlExpr.Ref'''
+          if source.count(bit_old) != 1:
+              raise SystemExit("one-bit selected-use fence point is missing")
+          source = source.replace(bit_old, bit_new, 1)
+          source_path.write_text(source, encoding="utf-8")
+
+          test_path = root / "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireExpressionSelectionSafetySpec.scala"
+          test = test_path.read_text(encoding="utf-8")
+          test = test.replace(
+              '''  private def bits(width: Int): PackedType =
+    PackedType(
+      width = IntExpr.Literal(BigInt(width)),
+      signedness = Signedness.Unsigned,
+      valueSemantics = PackedValueSemantics.BitVector
+    )''',
+              '''  private def bits(
+      width: Int,
+      signedness: Signedness = Signedness.Unsigned
+  ): PackedType =
+    PackedType(
+      width = IntExpr.Literal(BigInt(width)),
+      signedness = signedness,
+      valueSemantics = PackedValueSemantics.BitVector
+    )''',
+              1,
+          )
+          test = test.replace(
+              '''      origin: NameOrigin,
+      visible: Boolean = false
+  ): Declaration =''',
+              '''      origin: NameOrigin,
+      visible: Boolean = false,
+      signedness: Signedness = Signedness.Unsigned
+  ): Declaration =''',
+              1,
+          )
+          test = test.replace(
+              '      packedType = Some(bits(width)),',
+              '      packedType = Some(bits(width, signedness)),',
+              1,
+          )
+          test = test.replace(
+              '''      sinkWidth: Int,
+      rhs: RtlExpr,
+      receiver: RtlExpr
+  ): Design =''',
+              '''      sinkWidth: Int,
+      rhs: RtlExpr,
+      receiver: RtlExpr,
+      aliasSignedness: Signedness = Signedness.Unsigned
+  ): Design =''',
+              1,
+          )
+          alias_declaration = '''              aliasWidth,
+              NameOrigin.Unnamed
+            ),'''
+          alias_declaration_new = '''              aliasWidth,
+              NameOrigin.Unnamed,
+              signedness = aliasSignedness
+            ),'''
+          if test.count(alias_declaration) != 1:
+              raise SystemExit("alias declaration test fixture point is missing")
+          test = test.replace(alias_declaration, alias_declaration_new, 1)
+
+          added = r'''
+
+  test("signed alias full-width part-select keeps unsigned selection semantics") {
+    val input = design(
+      sourceWidth = 4,
+      aliasWidth = 4,
+      sinkWidth = 4,
+      rhs = add(4),
+      receiver = RtlExpr.PartSelect(
+        reference("receiver-signed-full-part", alias),
+        IntExpr.Literal(BigInt(0)),
+        IntExpr.Literal(BigInt(4))
+      ),
+      aliasSignedness = Signedness.Signed
+    )
+
+    val result = UnnamedWireExpressionEliminationPass.run(input, enabled)
+
+    result.status shouldBe PassExecutionStatus.Changed
+    outputDriver(result.output).value match {
+      case RtlExpr.Resize(
+            _: RtlExpr.Binary,
+            IntExpr.Literal(width),
+            Signedness.Unsigned
+          ) => width shouldBe BigInt(4)
+      case other =>
+        fail(s"expected an unsigned full-width selected-use fence, observed $other")
+    }
+  }
+
+  test("signed alias composed part-select keeps unsigned selection semantics") {
+    val input = design(
+      sourceWidth = 16,
+      aliasWidth = 8,
+      sinkWidth = 4,
+      rhs = RtlExpr.PartSelect(
+        reference("rhs-signed-source-part", sourceA),
+        IntExpr.Literal(BigInt(2)),
+        IntExpr.Literal(BigInt(8))
+      ),
+      receiver = RtlExpr.PartSelect(
+        reference("receiver-signed-composed-part", alias),
+        IntExpr.Literal(BigInt(1)),
+        IntExpr.Literal(BigInt(4))
+      ),
+      aliasSignedness = Signedness.Signed
+    )
+
+    val result = UnnamedWireExpressionEliminationPass.run(input, enabled)
+
+    result.status shouldBe PassExecutionStatus.Changed
+    outputDriver(result.output).value match {
+      case RtlExpr.Resize(
+            RtlExpr.PartSelect(
+              _: RtlExpr.Ref,
+              IntExpr.Literal(offset),
+              IntExpr.Literal(width)
+            ),
+            IntExpr.Literal(fenceWidth),
+            Signedness.Unsigned
+          ) =>
+        offset shouldBe BigInt(3)
+        width shouldBe BigInt(4)
+        fenceWidth shouldBe BigInt(4)
+      case other =>
+        fail(s"expected an unsigned composed selected-use fence, observed $other")
+    }
+  }
+
+  test("signed alias whole-object receiver retains signed assignment semantics") {
+    val input = design(
+      sourceWidth = 4,
+      aliasWidth = 4,
+      sinkWidth = 4,
+      rhs = add(4),
+      receiver = reference("receiver-signed-whole", alias),
+      aliasSignedness = Signedness.Signed
+    )
+
+    val result = UnnamedWireExpressionEliminationPass.run(input, enabled)
+
+    result.status shouldBe PassExecutionStatus.Changed
+    outputDriver(result.output).value match {
+      case RtlExpr.Resize(
+            _: RtlExpr.Binary,
+            IntExpr.Literal(width),
+            Signedness.Signed
+          ) => width shouldBe BigInt(4)
+      case other =>
+        fail(s"expected a signed whole-object assignment fence, observed $other")
+    }
+  }
+'''
+          if not test.endswith("\n}"):
+              raise SystemExit("selection safety test file ending is unexpected")
+          test = test[:-2] + added + "\n}\n"
+          test_path.write_text(test, encoding="utf-8")
+
+          guard_path = root / "morphhdl-passes/scripts/check-wa07-expression-pass.py"
+          guard = guard_path.read_text(encoding="utf-8")
+          marker = '    "selection through a non-direct alias expression fails closed",\n'
+          extra = (
+              marker
+              + '    "signed alias full-width part-select keeps unsigned selection semantics",\n'
+              + '    "signed alias composed part-select keeps unsigned selection semantics",\n'
+              + '    "signed alias whole-object receiver retains signed assignment semantics",\n'
+          )
+          if guard.count(marker) != 1:
+              raise SystemExit("selection-test guard marker is missing")
+          guard_path.write_text(guard.replace(marker, extra, 1), encoding="utf-8")
+
+          readme_path = root / "morphhdl-passes/README.md"
+          readme = readme_path.read_text(encoding="utf-8")
+          readme_marker = (
+              "The composed result carries an explicit receiver-width and signedness fence.\n"
+          )
+          readme_replacement = (
+              "The composed result carries an explicit receiver-width fence and unsigned\n"
+              "selection semantics, including when the eliminated whole object is signed.\n"
+              "A whole-object receiver continues to use the eliminated assignment's original\n"
+              "signedness.\n"
+          )
+          if readme.count(readme_marker) != 1:
+              raise SystemExit("README signed-selection marker is missing")
+          readme_path.write_text(
+              readme.replace(readme_marker, readme_replacement, 1),
+              encoding="utf-8",
+          )
+
+          roadmap_path = root / "morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md"
+          roadmap = roadmap_path.read_text(encoding="utf-8")
+          roadmap_marker = (
+              "  `source[7:0][3:0]` in strict Verilog-2001.\n\n"
+          )
+          roadmap_replacement = (
+              "  `source[7:0][3:0]` in strict Verilog-2001. Every accepted bit or\n"
+              "  part-select replacement retains unsigned selection semantics; only a\n"
+              "  whole-object receiver inherits the removed assignment's signedness.\n\n"
+          )
+          if roadmap.count(roadmap_marker) != 1:
+              raise SystemExit("roadmap signed-selection marker is missing")
+          roadmap_path.write_text(
+              roadmap.replace(roadmap_marker, roadmap_replacement, 1),
+              encoding="utf-8",
+          )
+
+          helper = root / ".github/workflows/wa07-signed-selection-fence.yml"
+          helper.unlink()
+
+          registry_path = root / "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
+          registry = json.loads(registry_path.read_text(encoding="utf-8"))
+          files = registry["files"]
+          for relative in sorted(files):
+              path = root / relative
+              if not path.is_file():
+                  raise SystemExit(f"signature target is missing: {relative}")
+              files[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+          registry_path.write_text(
+              json.dumps(registry, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          git diff --check
+
+      - name: Static contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in \
+            check-wa02-adapter-boundary.py \
+            check-wa03-gates.py \
+            check-wa04-pass.py \
+            check-wa05-pass.py \
+            check-wa06-pipeline.py \
+            check-wa07-expression-pass.py; do
+            python3 "morphhdl-passes/scripts/${script}" --self-test
+            python3 "morphhdl-passes/scripts/${script}"
+          done
+          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+
+      - name: Scala 2.12
+        working-directory: morphhdl-passes
+        shell: bash
+        run: sbt -batch ++2.12.18 test
+
+      - name: Scala 2.13
+        working-directory: morphhdl-passes
+        shell: bash
+        run: sbt -batch ++2.13.12 test
+
+      - name: Commit tested tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m "WA-07: preserve unsigned selected-use semantics"
+          git push origin HEAD:agent/wa-07-unified-expression-inlining
