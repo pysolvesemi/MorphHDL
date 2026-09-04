@@ -41,25 +41,27 @@ jobs:
 
           bridge = Path("morphhdl-passes/examples/NamedWireAliasNativeBridge.scala")
           text = bridge.read_text(encoding="utf-8")
-          old_call = "    else if (!preservationMetadataAllows(alias, assignment))\n"
-          new_call = "    else if (!preservationMetadataAllows(alias))\n"
-          old_body = '''  private def preservationMetadataAllows(
-              alias: BaseType,
-              assignment: DataAssignmentStatement
-          ): Boolean =
-            !alias.isFrozen() &&
-              explicitSourceName(alias).nonEmpty &&
-              assignment.isEmptyOfTag &&
-              !readPrivateBoolean(alias, "dontSimplify").getOrElse(true)
-          '''
-          new_body = '''  private def preservationMetadataAllows(alias: BaseType): Boolean =
-            !alias.isFrozen() &&
-              explicitSourceName(alias).nonEmpty &&
-              !readPrivateBoolean(alias, "dontSimplify").getOrElse(true)
-          '''
-          if text.count(old_call) != 1 or text.count(old_body) != 1:
-              raise SystemExit("WA-05 native bridge correction markers are missing or ambiguous")
-          text = text.replace(old_call, new_call, 1).replace(old_body, new_body, 1)
+          replacements = (
+              (
+                  "preservationMetadataAllows(alias, assignment)",
+                  "preservationMetadataAllows(alias)",
+              ),
+              (
+                  "  private def preservationMetadataAllows(\n"
+                  "      alias: BaseType,\n"
+                  "      assignment: DataAssignmentStatement\n"
+                  "  ): Boolean =",
+                  "  private def preservationMetadataAllows(alias: BaseType): Boolean =",
+              ),
+              ("      assignment.isEmptyOfTag &&\n", ""),
+          )
+          for old, new in replacements:
+              observed = text.count(old)
+              if observed != 1:
+                  raise SystemExit(
+                      f"WA-05 native bridge correction expected one {old!r}, observed {observed}"
+                  )
+              text = text.replace(old, new, 1)
           bridge.write_text(text, encoding="utf-8")
 
           registry = Path("morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json")
@@ -101,6 +103,7 @@ jobs:
           python3 - "${report}" <<'PY'
           import json
           import sys
+
           with open(sys.argv[1], encoding="utf-8") as handle:
               report = json.load(handle)
           if report.get("pass_id") != "wire-alias-named":
