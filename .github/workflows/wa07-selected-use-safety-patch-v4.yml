@@ -1,0 +1,146 @@
+name: WA-07 selected-use safety patch v4
+
+on:
+  push:
+    branches:
+      - agent/wa-07-unified-expression-inlining
+    paths:
+      - ".github/workflows/wa07-selected-use-safety-patch-v4.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wa07-selected-use-safety-v4-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - name: Check out WA-07 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/wa-07-unified-expression-inlining
+          fetch-depth: 0
+
+      - name: Build complete patch payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from textwrap import dedent
+
+          workflow = Path(".github/workflows/wa07-selected-use-safety-patch-v3.yml")
+          text = workflow.read_text(encoding="utf-8")
+          begin_marker = "          python3 - <<'PY'\n"
+          end_marker = "          PY\n\n      - name: Apply selected-use safety hardening"
+          begin = text.index(begin_marker) + len(begin_marker)
+          end = text.index(end_marker, begin)
+          builder = dedent(text[begin:end])
+          exec(compile(builder, str(workflow), "exec"), {})
+
+          payload_path = Path("/tmp/wa07_selected_use_patch.py")
+          payload = payload_path.read_text(encoding="utf-8")
+          cleanup_anchor = "for temporary in (\n"
+          evidence_patch = '''permanent_workflow_path = ".github/workflows/morphhdl-passes.yml"
+          permanent_workflow = read(permanent_workflow_path)
+          evidence_anchor = (
+              "          # ParameterizedStreamFifoCombinedPassWitness; cmp -s;\\n"
+          )
+          evidence_lines = (
+              "          # ParameterizedStreamFifoCombinedPassWitness; cmp -s;\\n"
+              "          # ParameterizedStreamFifoExpressionPassWitness;\\n"
+              "          # ParameterizedStreamFifoAllPassWitness;\\n"
+              "          # UnnamedWireExpressionEliminationPassSpec;\\n"
+              "          # WireAssignmentAllPassPipelineSpec;\\n"
+          )
+          if evidence_anchor not in permanent_workflow:
+              raise SystemExit("permanent workflow evidence insertion point is missing")
+          permanent_workflow = permanent_workflow.replace(
+              evidence_anchor,
+              evidence_lines,
+              1,
+          )
+          write(permanent_workflow_path, permanent_workflow)
+
+          readme = read(readme_path)
+          procedural_marker = "Canonical `DriverKind.Procedural` receivers and sources are retained unchanged."
+          if procedural_marker not in readme:
+              readme_anchor = (
+                  "Verilog `always` block is rewritten. At each accepted whole-object receiver the\\n"
+              )
+              if readme_anchor not in readme:
+                  raise SystemExit("README procedural-marker insertion point is missing")
+              readme = readme.replace(
+                  readme_anchor,
+                  "Verilog `always` block is rewritten. Canonical `DriverKind.Procedural` receivers\\n"
+                  "and sources are retained unchanged. At each accepted whole-object receiver the\\n",
+                  1,
+              )
+              write(readme_path, readme)
+
+          '''
+          if cleanup_anchor not in payload:
+              raise SystemExit("payload cleanup insertion point is missing")
+          payload = payload.replace(
+              cleanup_anchor,
+              evidence_patch + cleanup_anchor,
+              1,
+          )
+
+          deletion_marker = (
+              '    ".github/workflows/wa07-selected-use-safety-patch-v3.yml",\n'
+          )
+          if deletion_marker not in payload:
+              raise SystemExit("v3 temporary-workflow deletion marker is missing")
+          payload = payload.replace(
+              deletion_marker,
+              deletion_marker
+              + '    ".github/workflows/wa07-selected-use-safety-patch-v4.yml",\n',
+              1,
+          )
+          payload_path.write_text(payload, encoding="utf-8")
+          compile(payload, str(payload_path), "exec")
+          PY
+
+      - name: Apply selected-use safety hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 /tmp/wa07_selected_use_patch.py
+
+      - name: Run implementation-state static pass contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in \
+            check-wa02-adapter-boundary.py \
+            check-wa03-gates.py \
+            check-wa04-pass.py \
+            check-wa05-pass.py \
+            check-wa06-pipeline.py \
+            check-wa07-expression-pass.py; do
+            python3 "morphhdl-passes/scripts/${script}" --self-test
+            python3 "morphhdl-passes/scripts/${script}"
+          done
+          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+
+      - name: Test Scala 2.12 contracts and transformations
+        working-directory: morphhdl-passes
+        shell: bash
+        run: sbt -batch ++2.12.18 test
+
+      - name: Test Scala 2.13 contracts and transformations
+        working-directory: morphhdl-passes
+        shell: bash
+        run: sbt -batch ++2.13.12 test
+
+      - name: Push the exact tested commit
+        shell: bash
+        run: git push origin HEAD:agent/wa-07-unified-expression-inlining
