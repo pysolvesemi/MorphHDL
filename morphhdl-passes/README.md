@@ -54,7 +54,7 @@ non-reference expressions, sibling scopes, dependency cycles, registered
 feedback, domain-expansion limits and deterministic repeated analysis.
 
 WA-03 also supplies strict Verilog-2001 compilation, lint and synthesis,
-representative simulation, complete-domain formal equivalence, a live mutation
+representative simulation, formal equivalence over the complete admitted parameter domain, a live mutation
 that must fail with a retained counterexample, and deterministic repeated proof
 evidence. Sequential miters force a reset-active clock transition before
 assertions become active.
