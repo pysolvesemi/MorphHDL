@@ -1,0 +1,50 @@
+name: Increment 60a SInt baseline capture
+
+on:
+  push:
+    branches:
+      - 'agent/increment-60a-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-60a-capture-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    name: Capture current fixed and parameterized SInt Verilog
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          submodules: recursive
+
+      - name: Compile and emit the current cast-heavy printer output
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-60a-capture"
+          mkdir -p "$output"
+          sbt -batch "++2.13.12" \
+            "morph/Test/runMain nativeapplication.SIntSignedVerilogBaselineArtifactWriter $output"
+          test -s "$output/sint_cast_heavy_fixed.v"
+          test -s "$output/sint_cast_heavy_parameterized.v"
+          grep -Fq '$signed(' "$output/sint_cast_heavy_fixed.v"
+          grep -Fq '$signed(' "$output/sint_cast_heavy_parameterized.v"
+          sha256sum "$output"/*.v | tee "$output/SHA256SUMS"
+
+      - name: Retain captured printer output
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-60a-cast-heavy-capture
+          path: target/increment-60a-capture
+          if-no-files-found: error
+          retention-days: 7
