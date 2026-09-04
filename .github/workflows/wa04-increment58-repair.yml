@@ -1,0 +1,118 @@
+name: WA-04 Increment 58 handoff repair
+
+on:
+  push:
+    branches:
+      - agent/wa-04-unnamed-simple-wire-elimination
+    paths:
+      - ".github/workflows/wa04-increment58-repair.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wa04-increment58-handoff-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out WA-04 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/wa-04-unnamed-simple-wire-elimination
+          fetch-depth: 0
+
+      - name: Consume the stable handoff and remove deprecated raw binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+
+          source_path = Path("morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPass.scala")
+          checker_path = Path("morphhdl-passes/scripts/check-wa04-pass.py")
+          signatures_path = Path("morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json")
+
+          source = source_path.read_text(encoding="utf-8")
+          import_marker = "import morphhdl.ir.v1.Design\n"
+          handoff_import = "import morphhdl.ir.v1.CanonicalIrHandoff\n"
+          if handoff_import not in source:
+              if import_marker not in source:
+                  raise SystemExit("WA-04 source import marker is missing")
+              source = source.replace(import_marker, handoff_import + import_marker, 1)
+
+          run_marker = "  def run(\n      design: Design,"
+          if run_marker not in source:
+              raise SystemExit("WA-04 Design run entrypoint marker is missing")
+          if "handoff: CanonicalIrHandoff" not in source:
+              overload = '''  /** Consume the validated production envelope without discarding its profile. */
+  def run(
+      handoff: CanonicalIrHandoff,
+      configuration: WireAliasPassConfiguration,
+      safetyConfiguration: AliasSafetyConfiguration
+  ): PassResult[Design] = {
+    require(handoff != null, "canonical IR handoff must not be null")
+    val initialView = CanonicalIrPassAdapter.bind(handoff)
+    run(initialView.design, configuration, safetyConfiguration)
+  }
+
+  def run(handoff: CanonicalIrHandoff): PassResult[Design] =
+    run(
+      handoff,
+      WireAliasPassConfiguration(),
+      AliasSafetyConfiguration()
+    )
+
+'''
+              source = source.replace(run_marker, overload + run_marker, 1)
+
+          replacements = {
+              "CanonicalIrPassAdapter.bind(design)": "CanonicalIrPassAdapter.bindFixture(design)",
+              "CanonicalIrPassAdapter.bind(transformation.output)": "CanonicalIrPassAdapter.bindFixture(transformation.output)",
+              "CanonicalIrPassAdapter.bind(current)": "CanonicalIrPassAdapter.bindFixture(current)",
+              "CanonicalIrPassAdapter.bind(rewritten)": "CanonicalIrPassAdapter.bindFixture(rewritten)",
+          }
+          for old, new in replacements.items():
+              if old not in source:
+                  raise SystemExit(f"WA-04 source marker is missing: {old}")
+              source = source.replace(old, new)
+          if "CanonicalIrPassAdapter.bind(design)" in source:
+              raise SystemExit("deprecated WA-04 raw binding remains")
+          source_path.write_text(source, encoding="utf-8")
+
+          checker = checker_path.read_text(encoding="utf-8")
+          old_checker = '"CanonicalIrPassAdapter.bind(rewritten)",'
+          new_checker = '"CanonicalIrPassAdapter.bindFixture(rewritten)",'
+          if old_checker not in checker:
+              raise SystemExit("WA-04 checker bind marker is missing")
+          checker = checker.replace(old_checker, new_checker, 1)
+          checker_path.write_text(checker, encoding="utf-8")
+
+          signatures = json.loads(signatures_path.read_text(encoding="utf-8"))
+          files = signatures["files"]
+          for path in (source_path, checker_path):
+              key = path.as_posix()
+              if key not in files:
+                  raise SystemExit(f"expected-signatures is missing {key}")
+              files[key] = hashlib.sha256(path.read_bytes()).hexdigest()
+          signatures_path.write_text(
+              json.dumps(signatures, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/wa04-increment58-repair.yml
+          git add \
+            morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPass.scala \
+            morphhdl-passes/scripts/check-wa04-pass.py \
+            morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json
+          git commit -m "WA-04: adopt Increment 58 canonical handoff"
+          git push origin HEAD:agent/wa-04-unnamed-simple-wire-elimination
