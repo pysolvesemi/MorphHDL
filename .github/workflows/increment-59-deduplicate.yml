@@ -1,0 +1,126 @@
+name: Increment 59 deterministic hierarchy deduplication
+
+on:
+  push:
+    branches:
+      - agent/increment-59-typed-blackbox-generics
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59-deterministic-hierarchy-deduplication
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact Increment 59 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-59-typed-blackbox-generics
+          fetch-depth: 0
+
+      - name: Remove only byte-identical duplicate hierarchy integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email 'actions@users.noreply.github.com'
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala')
+          text = path.read_text(encoding='utf-8')
+
+          class_marker = '\n  private final case class BooleanExpressionBinding('
+          class_positions = []
+          cursor = 0
+          while True:
+              cursor = text.find(class_marker, cursor)
+              if cursor < 0:
+                  break
+              class_positions.append(cursor)
+              cursor += len(class_marker)
+          if len(class_positions) == 2:
+              first, second = class_positions
+              end = text.index('\n  private final case class BindingSignature(', second)
+              first_block = text[first:second].rstrip()
+              second_block = text[second:end].rstrip()
+              if first_block != second_block:
+                  raise SystemExit('BooleanExpressionBinding duplicates are not byte-identical')
+              text = text[:second] + text[end:]
+          elif len(class_positions) != 1:
+              raise SystemExit(
+                  f'expected one or two BooleanExpressionBinding definitions, found {len(class_positions)}'
+              )
+
+          method_marker = '\n  private def analyzeBlackBoxInstance('
+          method_positions = []
+          cursor = 0
+          while True:
+              cursor = text.find(method_marker, cursor)
+              if cursor < 0:
+                  break
+              method_positions.append(cursor)
+              cursor += len(method_marker)
+          if len(method_positions) == 2:
+              first, second = method_positions
+              end = text.index('\n  private def analyzeInstance(', second)
+              first_block = text[first:second].rstrip()
+              second_block = text[second:end].rstrip()
+              if first_block != second_block:
+                  raise SystemExit('analyzeBlackBoxInstance duplicates are not byte-identical')
+              text = text[:second] + text[end:]
+          elif len(method_positions) != 1:
+              raise SystemExit(
+                  f'expected one or two analyzeBlackBoxInstance definitions, found {len(method_positions)}'
+              )
+
+          duplicated_inventory = (
+              '        ParameterizedBlackBoxGenericRegistry.parametersOf(component) ++\n'
+              '        ParameterizedBlackBoxGenericRegistry.parametersOf(component) ++\n'
+          )
+          inventory_count = text.count(duplicated_inventory)
+          if inventory_count == 1:
+              text = text.replace(
+                  duplicated_inventory,
+                  '        ParameterizedBlackBoxGenericRegistry.parametersOf(component) ++\n',
+                  1,
+              )
+          elif inventory_count != 0:
+              raise SystemExit(
+                  f'expected zero or one duplicated BlackBox parameter inventory, found {inventory_count}'
+              )
+
+          exact_counts = {
+              'private final case class BooleanExpressionBinding': 1,
+              'private def analyzeBlackBoxInstance': 1,
+              'ParameterizedBlackBoxGenericRegistry.parametersOf(component)': 1,
+          }
+          for token, expected in exact_counts.items():
+              actual = text.count(token)
+              if actual != expected:
+                  raise SystemExit(f'{token!r} count is {actual}, expected {expected}')
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          rm -- .github/workflows/increment-59-deduplicate.yml
+          python3 -m py_compile morphhdl/scripts/check-increment-59-blackbox-generics.py
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --self-test
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --repo-root .
+
+          git add -A
+          git diff --cached --check
+          changed="$(git diff --cached --name-only | LC_ALL=C sort)"
+          expected="$(printf '%s\n' \
+            '.github/workflows/increment-59-deduplicate.yml' \
+            'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala' \
+            | LC_ALL=C sort)"
+          test "$changed" = "$expected"
+          git commit -m 'Remove duplicate Increment 59 hierarchy integration'
+          git push origin HEAD:agent/increment-59-typed-blackbox-generics
