@@ -260,14 +260,17 @@ def roadmap_failures(path: Path, text: str) -> list[str]:
         failures.append(f"{path}: WA03-DEPENDENCY: WA-02 must remain complete")
     wa03_checked, wa03_body = entries["WA-03"]
     wa04_checked, wa04_body = entries["WA-04"]
-    if wa04_checked:
-        failures.append(f"{path}: WA03-SCOPE: WA-04 must not be completed by WA-03")
     if wa03_checked:
         if "**Status:** `COMPLETED`" not in wa03_body:
             failures.append(f"{path}: WA03-STATUS: checked WA-03 must be COMPLETED")
-        if "**Status:** `READY`" not in wa04_body:
-            failures.append(f"{path}: WA03-NEXT-STATUS: WA-04 must be READY after WA-03")
+        if wa04_checked:
+            if "**Status:** `COMPLETED`" not in wa04_body:
+                failures.append(f"{path}: WA03-NEXT-STATUS: checked WA-04 must be COMPLETED")
+        elif "**Status:** `READY`" not in wa04_body:
+            failures.append(f"{path}: WA03-NEXT-STATUS: open WA-04 must be READY after WA-03")
     else:
+        if wa04_checked:
+            failures.append(f"{path}: WA03-DEPENDENCY: WA-04 cannot complete while WA-03 is open")
         if "**Status:** `READY`" not in wa03_body:
             failures.append(f"{path}: WA03-STATUS: open WA-03 must be READY")
         if "**Status:** `BLOCKED`" not in wa04_body:
@@ -446,12 +449,26 @@ object Gate { def inspect(id: SymbolId) = id.value }
 
     with tempfile.TemporaryDirectory(prefix="wa03-roadmap-self-test-") as directory:
         path = Path(directory) / "roadmap.md"
-        path.write_text(
-            """- [x] **WA-02 — Dependency**\n\n  **Status:** `COMPLETED`\n\n- [ ] **WA-03 — Gate**\n\n  **Status:** `READY`\n  common pre-pass, complete admitted parameter domain, formal mutation, determinism, idempotence\n\n- [ ] **WA-04 — Transform**\n\n  **Status:** `BLOCKED`\n""",
-            encoding="utf-8",
-        )
-        if roadmap_failures(path, path.read_text(encoding="utf-8")):
-            raise AssertionError("valid open WA-03 roadmap state was rejected")
+        open_roadmap = """- [x] **WA-02 — Dependency**
+
+  **Status:** `COMPLETED`
+
+- [x] **WA-03 — Gate**
+
+  **Status:** `COMPLETED`
+  common pre-pass, complete admitted parameter domain, formal mutation, determinism, idempotence
+
+- [ ] **WA-04 — Transform**
+
+  **Status:** `READY`
+"""
+        completed_roadmap = open_roadmap.replace(
+            "- [ ] **WA-04", "- [x] **WA-04"
+        ).replace("**Status:** `READY`\n", "**Status:** `COMPLETED`\n")
+        for value in (open_roadmap, completed_roadmap):
+            path.write_text(value, encoding="utf-8")
+            if roadmap_failures(path, path.read_text(encoding="utf-8")):
+                raise AssertionError("valid post-WA-03 roadmap state was rejected")
 
     print("WA-03 static gate self-tests passed.")
 

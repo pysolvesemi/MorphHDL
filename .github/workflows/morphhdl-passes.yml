@@ -35,6 +35,7 @@ jobs:
       - name: Check out sources
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Resolve boundary source branch
@@ -115,8 +116,14 @@ jobs:
           python3 morphhdl-passes/scripts/check-wa03-gates.py --self-test
           python3 morphhdl-passes/scripts/check-wa03-gates.py
 
+      - name: Enforce WA-04 unnamed alias transformation contracts
+        shell: bash
+        run: |
+          python3 morphhdl-passes/scripts/check-wa04-pass.py --self-test
+          python3 morphhdl-passes/scripts/check-wa04-pass.py
+
   contracts:
-    name: Pass contracts, adapter and safety Scala ${{ matrix.scala_version }}
+    name: Pass contracts, adapter, safety and transform Scala ${{ matrix.scala_version }}
     needs: boundary
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
@@ -132,18 +139,20 @@ jobs:
     steps:
       - name: Check out sources
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Test standalone pass contracts, canonical adapter and safety gate
+      - name: Test standalone pass contracts, canonical adapter, safety gate and unnamed transform
         working-directory: morphhdl-passes
         shell: bash
         run: sbt -batch ++${{ matrix.scala_version }} test
 
   equivalence:
-    name: WA-03 equivalence, mutation and determinism proof
+    name: WA-04 legality, equivalence, mutation and determinism proof
     needs: contracts
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     env:
@@ -153,6 +162,7 @@ jobs:
       - name: Check out sources
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Verify pinned formal toolchain
@@ -185,17 +195,96 @@ jobs:
         shell: bash
         run: python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
 
-      - name: Generate the common pre-pass parameterized witness
+      # ParameterizedStreamFifoExample remains the shared source fixture; the
+      # WA-04 runner emits both legs from that same component.
+      - name: Generate common pre-pass and exercise the actual WA-04 witness bridge
         shell: bash
         run: |
           set -euo pipefail
-          output="${GITHUB_WORKSPACE}/morphhdl-passes/build/formal/wire_assignment_ir/generated"
-          mkdir -p "$output"
+          reference_directory="${GITHUB_WORKSPACE}/morphhdl-passes/build/formal/wire_assignment_ir/generated"
+          reference_report="${reference_directory}/common-pre-pass-report.json"
+          candidate_directory="${GITHUB_WORKSPACE}/morphhdl-passes/build/wa04-smoke"
+          activated=false
+          if grep -Eq '^- \[[xX]\] \*\*WA-04 —' \
+            morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md; then
+            candidate_directory="${GITHUB_WORKSPACE}/morphhdl-passes/build/pass-outputs"
+            activated=true
+          fi
+          candidate="${candidate_directory}/wire-alias-unnamed.v"
+          candidate_report="${candidate_directory}/wire-alias-unnamed-report.json"
+          rm -rf "${reference_directory}" "${candidate_directory}"
+          mkdir -p "${reference_directory}" "${candidate_directory}"
+
           sbt -batch \
             '++2.12.18' \
+            'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala")' \
+            'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala")' \
+            'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala")' \
+            'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPass.scala")' \
             'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/ParameterizedStreamFifo.scala")' \
-            "morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoExample ${output}"
-          test -s "${output}/parameterized_stream_fifo.v"
+            'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala")' \
+            "morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoUnnamedPassWitness reference ${reference_directory} parameterized_stream_fifo.v ${reference_report}" \
+            "morph / Test / runMain morphhdl.examples.ParameterizedStreamFifoUnnamedPassWitness candidate ${candidate_directory} wire-alias-unnamed.v ${candidate_report}"
+
+          reference="${reference_directory}/parameterized_stream_fifo.v"
+          test -s "${reference}"
+          test -s "${candidate}"
+          test -s "${reference_report}"
+          test -s "${candidate_report}"
+          if cmp -s "${reference}" "${candidate}"; then
+            echo 'WA-04 candidate is byte-identical to the common pre-pass reference; no emitted alias elimination was observed.' >&2
+            exit 1
+          fi
+
+          python3 - "${candidate_report}" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              report = json.load(handle)
+          if report.get("pass_id") != "wire-alias-unnamed":
+              raise SystemExit("WA-04 witness report has the wrong pass id")
+          if report.get("executed_before_name_allocation") is not True:
+              raise SystemExit("WA-04 witness did not execute before native name allocation")
+          if report.get("eliminated_count", 0) < 1:
+              raise SystemExit("WA-04 witness eliminated no unnamed alias")
+          if report.get("rewritten_reference_count", 0) < 1:
+              raise SystemExit("WA-04 witness rewrote no exact native reference")
+          PY
+
+          # UnnamedWireAliasEliminationPassSpec: retain the complete shared
+          # parameterized witness proof contract in both Scala lanes.
+          (
+            cd morphhdl-passes
+            sbt -batch ++2.12.18 \
+              'testOnly morphhdl.passes.transform.UnnamedWireAliasEliminationPassSpec -- -z "shared parameterized witness proof contract"'
+          )
+
+          iverilog -g2001 -s ParameterizedStreamFifo \
+            -o "${candidate_directory}/strict-candidate.vvp" "${candidate}"
+          verilator --lint-only --language 1364-2001 -Wno-fatal \
+            -Wno-DECLFILENAME --top-module ParameterizedStreamFifo "${candidate}"
+          yosys -Q -p "read_verilog -defer ${candidate}; hierarchy -check -top ParameterizedStreamFifo; proc; opt_clean; memory_dff; memory_collect; opt_clean; check -assert; synth -top ParameterizedStreamFifo; check -assert; stat"
+
+          for binding in WIDTH-1__DEPTH-1 WIDTH-8__DEPTH-3 WIDTH-64__DEPTH-8; do
+            width="${binding#WIDTH-}"
+            width="${width%%__*}"
+            depth="${binding##*DEPTH-}"
+            simulation_directory="${candidate_directory}/simulation/${binding}"
+            mkdir -p "${simulation_directory}"
+            iverilog -g2001 -s Wa03ParameterizedWitnessTb \
+              -PWa03ParameterizedWitnessTb.WIDTH="${width}" \
+              -PWa03ParameterizedWitnessTb.DEPTH="${depth}" \
+              -o "${simulation_directory}/simulation.vvp" \
+              "${candidate}" \
+              morphhdl-passes/tests/formal/wire_assignment_ir/parameterized_witness_tb.v
+            vvp "${simulation_directory}/simulation.vvp" | tee "${simulation_directory}/run.log"
+            grep -q 'WA03_SIM_PASS' "${simulation_directory}/run.log"
+          done
+
+          if [[ "${activated}" != true ]]; then
+            test ! -e "${GITHUB_WORKSPACE}/morphhdl-passes/build/pass-outputs/wire-alias-unnamed.v"
+          fi
 
       - name: Prove strict legality, equivalence, mutation sensitivity and determinism
         shell: bash
@@ -211,7 +300,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: morphhdl-wa03-equivalence-evidence
-          path: morphhdl-passes/build/formal/wire_assignment_ir
+          name: morphhdl-wa04-equivalence-evidence
+          path: morphhdl-passes/build
           if-no-files-found: error
           retention-days: 14

@@ -19,21 +19,36 @@ final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Compon
     val availability = out UInt (4 bits)
   }
 
+  private def directUnnamedAlias[T <: Data](source: T): T = {
+    val alias = ParameterizedWidth.cloneOf(source)
+    alias := source
+    alias
+  }
+
   val fifo = StreamFifo(HardType(Bits(width bits)), depth.asElabInt)
   fifo.io.push << io.push
-  io.pop << fifo.io.pop
+  io.pop.valid := fifo.io.pop.valid
+  fifo.io.pop.ready := io.pop.ready
+
+  // Keep the source on the parent side of the hierarchy boundary so the
+  // test-only WA-04 bridge can prove exact same-component identity.
+  val popPayloadSource = Bits(width bits)
+  popPayloadSource := fifo.io.pop.payload
+  io.pop.payload := directUnnamedAlias(popPayloadSource)
+
   fifo.io.flush := io.flush
   io.occupancy := fifo.io.occupancy.resized
   io.availability := fifo.io.availability.resized
 }
 
 object ParameterizedStreamFifoExample {
-  private val OutputFile = "parameterized_stream_fifo.v"
+  private val DefaultOutputFile = "parameterized_stream_fifo.v"
 
   def main(args: Array[String]): Unit = {
     val outputDirectory: Path = args.headOption
       .map(Paths.get(_))
       .getOrElse(Paths.get("generated", "parameterized-streamfifo-example"))
+    val outputFile = args.lift(1).getOrElse(DefaultOutputFile)
 
     val config = SpinalConfig(
       targetDirectory = outputDirectory.toString,
@@ -43,7 +58,7 @@ object ParameterizedStreamFifoExample {
         resetActiveLevel = HIGH
       )
     )
-    config.netlistFileName = OutputFile
+    config.netlistFileName = outputFile
 
     val width = HdlInt.param(
       "WIDTH",
