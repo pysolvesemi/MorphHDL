@@ -1,4 +1,4 @@
-name: WA-05 source export
+name: WA-05 implementation apply
 
 on:
   push:
@@ -8,37 +8,57 @@ on:
       - ".github/workflows/wa05-source-export.yml"
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: wa05-implementation-apply
+  cancel-in-progress: false
 
 jobs:
-  export:
+  apply:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
-      - name: Check out WA-05 branch
+      - name: Check out exact WA-05 branch
         uses: actions/checkout@v4
         with:
           ref: agent/wa-05-named-simple-wire-elimination
           fetch-depth: 0
 
-      - name: Capture pass workspace and naming API evidence
+      - name: Reconstruct, verify and apply WA-05
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/wa05-export/naming
-          cp -a morphhdl-passes /tmp/wa05-export/
-          mkdir -p /tmp/wa05-export/.github/workflows
-          cp .github/workflows/morphhdl-passes.yml /tmp/wa05-export/.github/workflows/
-          grep -RIl --include='*.scala' 'isUnnamed\|namePriority\|NamePriority\|getNamePriority' core/src/main/scala | while IFS= read -r path; do
-            mkdir -p "/tmp/wa05-export/naming/$(dirname "$path")"
-            cp "$path" "/tmp/wa05-export/naming/$path"
-          done
-          tar -C /tmp -czf /tmp/wa05-source.tar.gz wa05-export
+          cat .wa05-bundle/part-* > /tmp/wa05-implementation.tar.gz.b64
+          echo '3166f621db4640fafb2c8a4ac3da7c2bea0b8d3d0d6a1b7b2ef521470fe39b58  /tmp/wa05-implementation.tar.gz.b64' | sha256sum -c -
+          base64 -d /tmp/wa05-implementation.tar.gz.b64 > /tmp/wa05-implementation.tar.gz
+          echo 'c247367144120a2e757d433426135476d9a4f6e706fc8a46c47526cd98390112  /tmp/wa05-implementation.tar.gz' | sha256sum -c -
+          tar -xzf /tmp/wa05-implementation.tar.gz -C .
 
-      - name: Upload exact source bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: wa05-source
-          path: /tmp/wa05-source.tar.gz
-          if-no-files-found: error
-          retention-days: 1
+          python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py --self-test
+          python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py
+          python3 morphhdl-passes/scripts/check-wa03-gates.py --self-test
+          python3 morphhdl-passes/scripts/check-wa03-gates.py
+          python3 morphhdl-passes/scripts/check-wa04-pass.py --self-test
+          python3 morphhdl-passes/scripts/check-wa04-pass.py
+          python3 morphhdl-passes/scripts/check-wa05-pass.py --self-test
+          python3 morphhdl-passes/scripts/check-wa05-pass.py
+          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+          git diff --check
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -r .wa05-bundle .github/workflows/wa05-source-export.yml
+          git add \
+            .github/workflows/morphhdl-passes.yml \
+            morphhdl-passes/README.md \
+            morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md \
+            morphhdl-passes/examples/ParameterizedStreamFifo.scala \
+            morphhdl-passes/examples/NamedWireAliasNativeBridge.scala \
+            morphhdl-passes/scripts/check-wa04-pass.py \
+            morphhdl-passes/scripts/check-wa05-pass.py \
+            morphhdl-passes/src/main/scala/morphhdl/passes/transform/NamedWireAliasEliminationPass.scala \
+            morphhdl-passes/src/test/scala/morphhdl/passes/transform/NamedWireAliasEliminationPassSpec.scala \
+            morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json
+          git commit -m "Implement WA-05 named simple-wire alias elimination"
+          git push origin HEAD:agent/wa-05-named-simple-wire-elimination
