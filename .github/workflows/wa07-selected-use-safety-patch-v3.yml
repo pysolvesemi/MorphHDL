@@ -1,0 +1,110 @@
+name: WA-07 selected-use safety patch v3
+
+on:
+  push:
+    branches:
+      - agent/wa-07-unified-expression-inlining
+    paths:
+      - ".github/workflows/wa07-selected-use-safety-patch-v3.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wa07-selected-use-safety-v3-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - name: Check out WA-07 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/wa-07-unified-expression-inlining
+          fetch-depth: 0
+
+      - name: Build and correct patch payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from textwrap import dedent
+
+          workflow = Path(".github/workflows/wa07-selected-use-safety-patch-v2.yml")
+          text = workflow.read_text(encoding="utf-8")
+          begin_marker = "          python3 - <<'PY'\n"
+          end_marker = "          PY\n\n      - name: Apply selected-use safety hardening"
+          begin = text.index(begin_marker) + len(begin_marker)
+          end = text.index(end_marker, begin)
+          builder = dedent(text[begin:end])
+          exec(compile(builder, str(workflow), "exec"), {})
+
+          payload_path = Path("/tmp/wa07_selected_use_patch.py")
+          payload = payload_path.read_text(encoding="utf-8")
+          write_line = "write(wa06_path, wa06.replace(malformed, repaired, 1))\n"
+          replacement = '''repaired = "".join(
+              ("    " + line if line.strip() else line)
+              for line in repaired.splitlines(keepends=True)
+          )
+          write(wa06_path, wa06.replace(malformed, repaired, 1))
+          '''
+          if payload.count(write_line) != 1:
+              raise SystemExit("WA-06 repaired-block write point is missing or repeated")
+          payload = payload.replace(write_line, replacement, 1)
+
+          deletion_marker = (
+              '    ".github/workflows/wa07-selected-use-safety-patch-v2.yml",\n'
+          )
+          if deletion_marker not in payload:
+              raise SystemExit("v2 temporary-workflow deletion marker is missing")
+          payload = payload.replace(
+              deletion_marker,
+              deletion_marker
+              + '    ".github/workflows/wa07-selected-use-safety-patch-v3.yml",\n',
+              1,
+          )
+          payload_path.write_text(payload, encoding="utf-8")
+          compile(payload, str(payload_path), "exec")
+          PY
+
+      - name: Apply selected-use safety hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 /tmp/wa07_selected_use_patch.py
+
+      - name: Run implementation-state static pass contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in \
+            check-wa02-adapter-boundary.py \
+            check-wa03-gates.py \
+            check-wa04-pass.py \
+            check-wa05-pass.py \
+            check-wa06-pipeline.py \
+            check-wa07-expression-pass.py; do
+            python3 "morphhdl-passes/scripts/${script}" --self-test
+            python3 "morphhdl-passes/scripts/${script}"
+          done
+          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+
+      - name: Test Scala 2.12 contracts and transformations
+        working-directory: morphhdl-passes
+        shell: bash
+        run: sbt -batch ++2.12.18 test
+
+      - name: Test Scala 2.13 contracts and transformations
+        working-directory: morphhdl-passes
+        shell: bash
+        run: sbt -batch ++2.13.12 test
+
+      - name: Push the exact tested commit
+        shell: bash
+        run: git push origin HEAD:agent/wa-07-unified-expression-inlining
