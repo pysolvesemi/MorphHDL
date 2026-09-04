@@ -1,7 +1,7 @@
 {
   "algorithm": "SHA-256",
   "files": {
-    "morphhdl-passes/examples/NamedWireAliasNativeBridge.scala": "b1d736d229f157aafaa573c1effbe949c1e7ce084618c27a8ee105a90196cf53",
+    "morphhdl-passes/examples/NamedWireAliasNativeBridge.scala": "68fd7018c1e6c0f1312b92e41e8af16fcbdb34a9dd2a1ce0535ceddd5543a023",
     "morphhdl-passes/examples/ParameterizedStreamFifo.scala": "46af6a4117ffb9ec79d6a08f29d229cff66a20ee079edd90e11e3bc4e15370ad",
     "morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala": "8d5c4ae19bd27c1f349c7c5f16e0a225f87f80ae42941314f82750026ab1a93c",
     "morphhdl-passes/scripts/check-wa03-gates.py": "e14020747b779176b436a24cae20274c816cc025542fb170234057871dd4ebcf",

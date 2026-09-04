@@ -192,7 +192,7 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       Left("WA05-NATIVE-SOURCE-SCOPE")
     else if (source.isAnalog || source.isInOut)
       Left("WA05-NATIVE-SOURCE-KIND")
-    else if (!preservationMetadataAllows(alias, assignment))
+    else if (!preservationMetadataAllows(alias))
       Left("WA05-NATIVE-PRESERVATION")
     else if (!candidate.useStatements.forall(allowedUse(candidate.component, alias, _)))
       Left("WA05-NATIVE-USE-CONTEXT")
@@ -205,13 +205,9 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       }
   }
 
-  private def preservationMetadataAllows(
-      alias: BaseType,
-      assignment: DataAssignmentStatement
-  ): Boolean =
+  private def preservationMetadataAllows(alias: BaseType): Boolean =
     !alias.isFrozen() &&
       explicitSourceName(alias).nonEmpty &&
-      assignment.isEmptyOfTag &&
       !readPrivateBoolean(alias, "dontSimplify").getOrElse(true)
 
   private def allowedUse(
