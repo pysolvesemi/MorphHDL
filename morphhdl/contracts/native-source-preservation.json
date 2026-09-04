@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "decb27e71876ec5251a45e9fd65c47da95d514a2"
+      "approved_tree": "592da9f68e97fa25bf405ac64dd7452965cc91ad"
     },
     {
       "path": "idslpayload/src/main",
@@ -169,6 +169,62 @@
               "side": "approved",
               "text": "ParameterizedWidth.validatedResizeWitness",
               "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/BlackBox.scala",
+      "change": "modified",
+      "classification": "typed-overload",
+      "introduced_by": [
+        "Increment 59: typed BlackBox parameter and generic binding"
+      ],
+      "reason": "Accept neutral typed integer and Boolean generic actuals while preserving every inherited concrete BlackBox generic lane.",
+      "baseline": {
+        "path": "core/src/main/scala/spinal/core/BlackBox.scala",
+        "mode": "100644",
+        "blob": "b6f8f770286fb8ce931b1751b80ccece2665a0dd",
+        "sha256": "50bba67d86a8f37962dad96bca37164a9e2e995b27fb8a83e5a1de31728e8faf"
+      },
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/BlackBox.scala",
+        "mode": "100644",
+        "blob": "257641a5ee6a08c3df3d8501478a181cc4d319e0",
+        "sha256": "5aeed5a2ef9a257dc82d6cb10632007ce9eb6384a92e8cf4e9c32fcc9a3ee677"
+      },
+      "edits": [
+        {
+          "id": "blackbox-typed-generics-01",
+          "kind": "overload",
+          "owner": "spinal.core.BlackBox.addGeneric(ElabInt/ElabBool)",
+          "reason": "Validate and retain exact typed integer and Boolean expressions, then delegate only their concrete Int/Boolean witnesses to the inherited native emitters.",
+          "baseline_span": {
+            "start": 3951,
+            "end": 3951,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 3951,
+            "end": 4282,
+            "sha256": "7039b6d81187dc40aff385ab9ffff1e8e674f9d7d251acb0db8d632b68f7f796"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "case value: ElabInt =>",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "case value: ElabBool =>",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedBlackBoxGenericRegistry.retain(this, name, value)",
+              "count": 2
             }
           ]
         }
@@ -1913,6 +1969,23 @@
           ]
         }
       ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59: typed BlackBox parameter and generic binding"
+      ],
+      "reason": "Retain exact typed BlackBox generic and packed-port expressions by BlackBox object identity while native emitters consume concrete witnesses.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala",
+        "mode": "100644",
+        "blob": "3bfdb766b2b6264d2217f4452da507daece7ae65",
+        "sha256": "c82f9aa8e7f8ca90958940752301de6bd50676f139675e8b7bb638d5e94956e6"
+      },
+      "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/Phase.scala",

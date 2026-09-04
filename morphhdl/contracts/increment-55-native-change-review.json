@@ -82,10 +82,10 @@
       "reason": "Accept neutral typed integer and Boolean generic actuals while preserving every inherited concrete BlackBox generic lane.",
       "edits": [
         {
-          "id": "blackbox-typed-generic-01",
+          "id": "blackbox-typed-generics-01",
           "kind": "overload",
-          "owner": "spinal.core.BlackBox.addGeneric(ElabInt)",
-          "reason": "Validate and retain the exact typed integer expression, then delegate only its concrete Int witness to the inherited native emitter.",
+          "owner": "spinal.core.BlackBox.addGeneric(ElabInt/ElabBool)",
+          "reason": "Validate and retain exact typed integer and Boolean expressions, then delegate only their concrete Int/Boolean witnesses to the inherited native emitters.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -94,21 +94,13 @@
             },
             {
               "side": "approved",
-              "text": "ParameterizedBlackBoxGenericRegistry.retain(this, name, value)",
-              "count": 2
-            }
-          ]
-        },
-        {
-          "id": "blackbox-typed-generic-02",
-          "kind": "overload",
-          "owner": "spinal.core.BlackBox.addGeneric(ElabBool)",
-          "reason": "Validate and retain the exact typed Boolean expression, then delegate only its concrete Boolean witness to the inherited native emitter.",
-          "required_exact_text": [
-            {
-              "side": "approved",
               "text": "case value: ElabBool =>",
               "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedBlackBoxGenericRegistry.retain(this, name, value)",
+              "count": 2
             }
           ]
         }

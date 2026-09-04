@@ -96,14 +96,27 @@ def check_sources(root: Path) -> None:
         "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala",
     )
     for token in (
-        "BooleanExpressionBinding",
         "preserveExistingGenericAssociations",
-        "analyzeBlackBoxInstance",
         "ParameterizedBlackBoxGenericRegistry.recordsOf",
         "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-GENERIC-DUPLICATE",
         "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-GENERIC-ASSOCIATION-NOT-FOUND",
     ):
         require(token in hierarchy, f"hierarchy integration is missing {token!r}")
+    one(
+        hierarchy,
+        "private final case class BooleanExpressionBinding",
+        "hierarchy Boolean binding declaration",
+    )
+    one(
+        hierarchy,
+        "private def analyzeBlackBoxInstance",
+        "hierarchy BlackBox analyzer",
+    )
+    one(
+        hierarchy,
+        "ParameterizedBlackBoxGenericRegistry.parametersOf(component)",
+        "hierarchy BlackBox parameter inventory",
+    )
     require(
         "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BLACKBOX-UNSUPPORTED" not in hierarchy,
         "the retired blanket BlackBox rejection remains in production",
@@ -121,13 +134,23 @@ def check_sources(root: Path) -> None:
         "ParameterizedBlackBoxGenericRegistry.hasSymbolicBindings(component)" in fallback,
         "fallback support predicate does not recognize typed BlackBox bindings",
     )
-    for token in (
-        "ParameterizedBlackBoxGenericRegistry.integerExpressionsOf(component)",
-        "ParameterizedBlackBoxGenericRegistry.booleanExpressionsOf(component)",
-        "ParameterizedBlackBoxGenericRegistry.parametersOf(component)",
-        "ParameterizedBlackBoxGenericRegistry.hasSymbolicBindings(component)",
-    ):
-        require(token in main, f"main publication boundary is missing {token!r}")
+    main_calls = (
+        "integerExpressionsOf",
+        "booleanExpressionsOf",
+        "parametersOf",
+        "hasSymbolicBindings",
+    )
+    for method in main_calls:
+        pattern = (
+            r"ParameterizedBlackBoxGenericRegistry\s*\.\s*"
+            + re.escape(method)
+            + r"\s*\(\s*component\s*\)"
+        )
+        count = len(re.findall(pattern, main))
+        require(
+            count >= 1,
+            f"main publication boundary is missing typed BlackBox call {method!r}",
+        )
 
     production = "\n".join((blackbox, registry, hierarchy, fallback, main))
     for fixture_name in (
