@@ -33,22 +33,22 @@ import org.scalatest.matchers.should.Matchers
 final class UnnamedWireExpressionAlgebraSpec
     extends AnyFunSuite
     with Matchers {
-  private final case class ExpressionCase(
-      label: String,
-      aliasType: PackedType,
-      expression: Fixture => RtlExpr,
-      expectedRoot: String,
-      expectedSources: Set[SymbolId]
+  private final class ExpressionCase(
+      val label: String,
+      val aliasType: PackedType,
+      val expression: Fixture => RtlExpr,
+      val expectedRoot: String,
+      val expectedSources: Set[SymbolId]
   )
 
-  private final case class Fixture(
-      moduleId: ModuleId,
-      scopeId: ScopeId,
-      sourceA: SymbolId,
-      sourceB: SymbolId,
-      condition: SymbolId,
-      alias: SymbolId,
-      sink: SymbolId
+  private final class Fixture(
+      val moduleId: ModuleId,
+      val scopeId: ScopeId,
+      val sourceA: SymbolId,
+      val sourceB: SymbolId,
+      val condition: SymbolId,
+      val alias: SymbolId,
+      val sink: SymbolId
   ) {
     def reference(name: String, target: SymbolId): RtlExpr.Ref =
       RtlExpr.Ref(
@@ -79,14 +79,14 @@ final class UnnamedWireExpressionAlgebraSpec
   )
 
   private val cases = Vector(
-    ExpressionCase(
+    new ExpressionCase(
       "literal",
       bits8,
       _ => RtlExpr.Literal(BigInt(90), 8),
       "literal",
       Set.empty
     ),
-    ExpressionCase(
+    new ExpressionCase(
       "unary",
       bits8,
       fixture =>
@@ -97,7 +97,7 @@ final class UnnamedWireExpressionAlgebraSpec
       "unary:bitwise-not",
       Set.empty
     ),
-    ExpressionCase(
+    new ExpressionCase(
       "binary",
       bits8,
       fixture =>
@@ -109,7 +109,7 @@ final class UnnamedWireExpressionAlgebraSpec
       "binary:add",
       Set.empty
     ),
-    ExpressionCase(
+    new ExpressionCase(
       "mux",
       bits8,
       fixture =>
@@ -121,7 +121,7 @@ final class UnnamedWireExpressionAlgebraSpec
       "mux",
       Set.empty
     ),
-    ExpressionCase(
+    new ExpressionCase(
       "concat",
       bits8,
       fixture =>
@@ -142,7 +142,7 @@ final class UnnamedWireExpressionAlgebraSpec
       "concat",
       Set.empty
     ),
-    ExpressionCase(
+    new ExpressionCase(
       "bit-select",
       bits1,
       fixture =>
@@ -153,7 +153,7 @@ final class UnnamedWireExpressionAlgebraSpec
       "bit-select",
       Set.empty
     ),
-    ExpressionCase(
+    new ExpressionCase(
       "part-select",
       bits4,
       fixture =>
@@ -165,7 +165,7 @@ final class UnnamedWireExpressionAlgebraSpec
       "part-select",
       Set.empty
     ),
-    ExpressionCase(
+    new ExpressionCase(
       "resize",
       bits4,
       fixture =>
@@ -177,7 +177,7 @@ final class UnnamedWireExpressionAlgebraSpec
       "resize",
       Set.empty
     ),
-    ExpressionCase(
+    new ExpressionCase(
       "cast",
       sint8,
       fixture =>
@@ -188,7 +188,7 @@ final class UnnamedWireExpressionAlgebraSpec
       "cast",
       Set.empty
     ),
-    ExpressionCase(
+    new ExpressionCase(
       "nested",
       bits8,
       fixture =>
@@ -246,7 +246,7 @@ final class UnnamedWireExpressionAlgebraSpec
   private def designFor(value: ExpressionCase): (Fixture, Design) = {
     val moduleId = ModuleId.unsafe(s"module.expression-algebra-${value.label}")
     val scopeId = ScopeId.unsafe(s"scope.expression-algebra-${value.label}")
-    val fixture = Fixture(
+    val fixture = new Fixture(
       moduleId = moduleId,
       scopeId = scopeId,
       sourceA = SymbolId.unsafe(s"symbol.expression-algebra-${value.label}-a"),
