@@ -170,7 +170,8 @@ object SIntSignedVerilogBaselineArtifactWriter {
   private def generationConfig(output: Path): SpinalConfig = {
     val config = SpinalConfig(
       targetDirectory = output.getParent.toString,
-      headerWithRepoHash = false
+      headerWithRepoHash = false,
+      cutLongExpressions = false
     )
     config.netlistFileName = output.getFileName.toString
     config
