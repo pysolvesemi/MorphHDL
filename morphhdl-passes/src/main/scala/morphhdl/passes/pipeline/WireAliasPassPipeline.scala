@@ -90,7 +90,14 @@ final case class WireAliasPipelineResult(
   * generated HDL, emitted identifiers, source filenames, or logical module names.
   */
 object WireAliasPassPipeline {
-  val combinedPassId: String =
+  /** Historical WA-06 two-pass identifier retained for its proof artifacts. */
+  val combinedPassId: String = Vector(
+    PassId.UnnamedWireAliasElimination,
+    PassId.NamedWireAliasElimination
+  ).map(_.value).mkString("+")
+
+  /** Production identifier for the public all-pass configuration. */
+  val allPassId: String =
     PassId.allWireAssignmentPasses.map(_.value).mkString("+")
 
   private def stageConfiguration(passId: PassId): WireAliasPassConfiguration =

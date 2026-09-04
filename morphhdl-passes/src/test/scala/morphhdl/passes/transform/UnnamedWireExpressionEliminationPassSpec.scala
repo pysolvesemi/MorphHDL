@@ -266,8 +266,8 @@ final class UnnamedWireExpressionEliminationPassSpec
     ).flatMap(_.value.referenceOccurrences)
     references.map(_.target).toSet shouldBe Set(sourceId, otherSourceId)
     references.map(_.id).distinct.size shouldBe references.size
-    all(references.map(_.owner)) shouldBe rootScopeId
-    all(references.map(_.id.value)) should include("wa07-inline")
+    references.map(_.owner).distinct shouldBe Vector(rootScopeId)
+    references.foreach(_.id.value should include("wa07-inline"))
 
     driverOf(result.output, secondSinkDriverId).value match {
       case RtlExpr.Resize(value, width, signedness) =>
