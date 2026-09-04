@@ -1,0 +1,128 @@
+name: WA-07 selected-use safety patch v2
+
+on:
+  push:
+    branches:
+      - agent/wa-07-unified-expression-inlining
+    paths:
+      - ".github/workflows/wa07-selected-use-safety-patch-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wa07-selected-use-safety-v2-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - name: Check out WA-07 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/wa-07-unified-expression-inlining
+          fetch-depth: 0
+
+      - name: Build corrected patch payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from textwrap import dedent
+
+          workflow = Path(".github/workflows/wa07-selected-use-safety-patch.yml")
+          text = workflow.read_text(encoding="utf-8")
+          begin_marker = "          python3 - <<'PY'\n"
+          end_marker = "          PY\n\n          git diff --check"
+          begin = text.index(begin_marker) + len(begin_marker)
+          end = text.index(end_marker, begin)
+          script = dedent(text[begin:end])
+
+          old_start = script.index("existing_test_check = dedent(")
+          old_end_marker = (
+              "guard = guard.replace(existing_test_check, expanded_test_check, 1)\n"
+          )
+          old_end = script.index(old_end_marker, old_start) + len(old_end_marker)
+          replacement = '''selection_check = (
+              '    failures.extend(require_markers(\\n'
+              '        paths["selection_tests"].relative_to(root), texts["selection_tests"],\\n'
+              '        REQUIRED_SELECTION_TEST_MARKERS, "WA07-SELECTION-TEST-MISSING",\\n'
+              '    ))\\n'
+          )
+          pipeline_check_anchor = (
+              '    failures.extend(require_markers(\\n'
+              '        paths["pipeline_tests"].relative_to(root), texts["pipeline_tests"],\\n'
+              '        REQUIRED_PIPELINE_MARKERS, "WA07-PIPELINE-TEST-MISSING",\\n'
+              '    ))\\n'
+          )
+          if pipeline_check_anchor not in guard:
+              raise SystemExit("WA-07 pipeline-test guard anchor is missing")
+          guard = guard.replace(
+              pipeline_check_anchor,
+              selection_check + pipeline_check_anchor,
+              1,
+          )
+          '''
+          script = script[:old_start] + replacement + script[old_end:]
+
+          deletion_marker = (
+              '    ".github/workflows/wa07-selected-use-safety-patch.yml",\n'
+          )
+          if deletion_marker not in script:
+              raise SystemExit("temporary workflow deletion marker is missing")
+          script = script.replace(
+              deletion_marker,
+              deletion_marker
+              + '    ".github/workflows/wa07-selected-use-safety-patch-v2.yml",\n',
+              1,
+          )
+
+          Path("/tmp/wa07_selected_use_patch.py").write_text(
+              script,
+              encoding="utf-8",
+          )
+          compile(script, "/tmp/wa07_selected_use_patch.py", "exec")
+          PY
+
+      - name: Apply selected-use safety hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 /tmp/wa07_selected_use_patch.py
+
+      - name: Run every static pass contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl-passes/scripts/test-boundary-guard.sh
+          for script in \
+            check-wa02-adapter-boundary.py \
+            check-wa03-gates.py \
+            check-wa04-pass.py \
+            check-wa05-pass.py \
+            check-wa06-pipeline.py \
+            check-wa07-expression-pass.py; do
+            python3 "morphhdl-passes/scripts/${script}" --self-test
+            python3 "morphhdl-passes/scripts/${script}"
+          done
+          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+
+      - name: Test Scala 2.12 contracts and transformations
+        working-directory: morphhdl-passes
+        shell: bash
+        run: sbt -batch ++2.12.18 test
+
+      - name: Test Scala 2.13 contracts and transformations
+        working-directory: morphhdl-passes
+        shell: bash
+        run: sbt -batch ++2.13.12 test
+
+      - name: Push the exact tested commit
+        shell: bash
+        run: git push origin HEAD:agent/wa-07-unified-expression-inlining
