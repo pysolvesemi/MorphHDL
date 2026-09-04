@@ -32,7 +32,7 @@ object SIntSignedVerilogBaselineFixture {
     dout := (din + addend).resize(width)
   }
 
-  final class Top(width: HdlInt) extends Component {
+  final class Top(width: HdlInt, extendedWidth: HdlInt) extends Component {
     setDefinitionName("SIntCastHeavyBaseline")
 
     val clk = in(Bool()).setName("clk")
@@ -57,7 +57,7 @@ object SIntSignedVerilogBaselineFixture {
     val shiftedOut = out(SInt(width bits)).setName("shifted_out")
     val muxOut = out(SInt(width bits)).setName("mux_out")
     val combinationalOut = out(SInt(width bits)).setName("combinational_out")
-    val resizedOut = out(SInt((width + 3) bits)).setName("resized_out")
+    val resizedOut = out(SInt(extendedWidth bits)).setName("resized_out")
     val sliceOut = out(SInt(4 bits)).setName("slice_out")
     val concatOut = out(SInt(8 bits)).setName("concat_out")
     val lessOut = out(Bool()).setName("less_out")
@@ -99,7 +99,7 @@ object SIntSignedVerilogBaselineFixture {
     shiftedOut := shifted
     muxOut := selected
     combinationalOut := combinational
-    resizedOut := left.resize(width + 3)
+    resizedOut := left.resize(extendedWidth)
     sliceOut := left(3 downto 0)
     concatOut := left(3 downto 0) @@ right(3 downto 0)
     lessOut := left < right
@@ -143,11 +143,16 @@ object SIntSignedVerilogBaselineFixture {
 
   def fixed(width: Int = 8): Top = {
     require(width >= 8, "the baseline fixture requires at least eight bits")
-    new Top(HdlInt.literal(BigInt(width)))
+    new Top(
+      HdlInt.literal(BigInt(width)),
+      HdlInt.literal(BigInt(width + 3))
+    )
   }
 
-  def parameterized(): Top =
-    new Top(HdlInt.param("WIDTH", default = 8, min = 8, max = 32))
+  def parameterized(): Top = {
+    val width = HdlInt.param("WIDTH", default = 8, min = 8, max = 32)
+    new Top(width, width + 3)
+  }
 }
 
 object SIntSignedVerilogBaselineArtifactWriter {
