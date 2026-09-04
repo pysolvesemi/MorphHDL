@@ -50,7 +50,7 @@ object SIntSignedVerilogBaselineFixture {
 
     val sumOut = out(SInt(width bits)).setName("sum_out")
     val differenceOut = out(SInt(width bits)).setName("difference_out")
-    val productOut = out(SInt(width bits)).setName("product_out")
+    val productOut = out(SInt((width + width) bits)).setName("product_out")
     val quotientOut = out(SInt(width bits)).setName("quotient_out")
     val remainderOut = out(SInt(width bits)).setName("remainder_out")
     val nestedCastOut = out(SInt(width bits)).setName("nested_cast_out")
@@ -71,7 +71,7 @@ object SIntSignedVerilogBaselineFixture {
 
     val sum = (left + right).resize(width).setName("signed_sum")
     val difference = (left - right).resize(width).setName("signed_difference")
-    val product = (left * right).resize(width).setName("signed_product")
+    val product = (left * right).setName("signed_product")
     val quotient = (left / divisor).resize(width).setName("signed_quotient")
     val remainder = (left % divisor).resize(width).setName("signed_remainder")
 
