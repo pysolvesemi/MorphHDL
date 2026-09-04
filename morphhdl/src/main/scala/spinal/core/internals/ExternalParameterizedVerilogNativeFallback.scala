@@ -46,6 +46,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
           ParameterizedMemory.parametersOf(component).nonEmpty ||
           ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
+          ParameterizedBlackBoxGenericRegistry.hasSymbolicBindings(component) ||
           ParameterizedVerilogVecs.hasVectors(component) ||
           ParameterizedProcess.parametersOf(component).nonEmpty ||
           ParameterizedStructure.parametersOf(component).nonEmpty ||
@@ -54,6 +55,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             ExternalParameterizedAutoResize.parametersOf(child).nonEmpty ||
             ParameterizedMemory.parametersOf(child).nonEmpty ||
             ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty ||
+            ParameterizedBlackBoxGenericRegistry.hasSymbolicBindings(child) ||
             ParameterizedVerilogVecs.hasVectors(child) ||
             ParameterizedProcess.parametersOf(child).nonEmpty ||
             ParameterizedStructure.parametersOf(child).nonEmpty ||

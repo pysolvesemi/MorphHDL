@@ -1,0 +1,23 @@
+already applied: core/src/main/scala/spinal/core/BlackBox.scala
+applied: morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+already applied: morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+already applied: morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+already applied: morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+already applied: morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+already applied: morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+applied: morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+applied: morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+already applied: morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
+already applied: morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
+already applied: morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
+applied: morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
+applied: morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
+applied: morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
+applied: morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+applied: morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+applied: Increment 59 roadmap entry
+Traceback (most recent call last):
+  File "<stdin>", line 63, in <module>
+KeyError: 'reviewed_changes'
+
+exit_status=1

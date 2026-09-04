@@ -778,6 +778,7 @@ object MorphHdlExternalParameterizedVerilog {
       ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
       ParameterizedMemory.parametersOf(component).nonEmpty ||
       ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
+      ParameterizedBlackBoxGenericRegistry.hasSymbolicBindings(component) ||
       ParameterizedVerilogVecs.hasVectors(component) ||
       ParameterizedVerilogFiniteFolds.hasFolds(component) ||
       ParameterizedVerilogStructural.hasRegions(component) ||
@@ -804,6 +805,7 @@ object MorphHdlExternalParameterizedVerilog {
       ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
       ParameterizedMemory.parametersOf(component).nonEmpty ||
       ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
+      ParameterizedBlackBoxGenericRegistry.hasSymbolicBindings(component) ||
       ParameterizedVerilogVecs.hasVectors(component) ||
       ParameterizedVerilogFiniteFolds.hasFolds(component) ||
       ParameterizedProcess.parametersOf(component).nonEmpty ||
@@ -812,6 +814,7 @@ object MorphHdlExternalParameterizedVerilog {
         ExternalParameterizedAutoResize.parametersOf(child).nonEmpty ||
         ParameterizedMemory.parametersOf(child).nonEmpty ||
         ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty ||
+        ParameterizedBlackBoxGenericRegistry.hasSymbolicBindings(child) ||
         ParameterizedVerilogVecs.hasVectors(child) ||
         ParameterizedVerilogFiniteFolds.hasFolds(child) ||
         ParameterizedStructure.parametersOf(child).nonEmpty ||
