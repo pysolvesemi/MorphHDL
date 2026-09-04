@@ -1,0 +1,52 @@
+name: Increment 59a hook bootstrap
+
+on:
+  push:
+    branches:
+      - agent/increment-59a-recursive-verilog-module
+
+permissions:
+  contents: write
+
+jobs:
+  install-validation-hook:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-59a-recursive-verilog-module
+          fetch-depth: 0
+
+      - name: Install bounded recursion validation hook
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala')
+          text = path.read_text(encoding='utf-8')
+          old = '''    val components = componentGraph(top)
+    components.foreach(ParameterizedMemory.discover)
+'''
+          new = '''    val components = componentGraph(top)
+    components.foreach(ParameterizedMemory.discover)
+    BoundedRecursiveModuleValidation.validate(components)
+'''
+          if text.count(old) != 1:
+              raise SystemExit('publication hook anchor is not unique')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          rm .github/workflows/increment-59a-hook-bootstrap.yml
+          git diff --check
+
+      - name: Commit validation hook
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email 'actions@users.noreply.github.com'
+          git add morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala .github/workflows/increment-59a-hook-bootstrap.yml
+          git commit -m 'Invoke bounded recursive module validation'
+          git push origin HEAD:agent/increment-59a-recursive-verilog-module
