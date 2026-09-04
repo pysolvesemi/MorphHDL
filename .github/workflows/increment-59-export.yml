@@ -21,9 +21,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s\n' "$GITHUB_SHA" > INCREMENT59_EXPORT_COMMIT
-          tar --exclude=.git --exclude=increment59-workspace.tar.gz \
-            -czf increment59-workspace.tar.gz .
+          git archive --format=tar.gz \
+            --output=increment59-workspace.tar.gz \
+            HEAD
 
       - name: Upload source workspace
         uses: actions/upload-artifact@v4
