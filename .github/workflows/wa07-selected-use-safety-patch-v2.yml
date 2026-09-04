@@ -71,6 +71,102 @@ jobs:
           '''
           script = script[:old_start] + replacement + script[old_end:]
 
+          state_start = script.index("old_state = dedent(")
+          state_end_marker = "guard = guard.replace(old_state, new_state, 1)\n"
+          state_end = script.index(state_end_marker, state_start) + len(state_end_marker)
+          state_replacement = '''old_state = (
+              '    if not wa07_checked:\\n'
+              '        failures.append(f"{path}: WA07-INCOMPLETE: implemented WA-07 must be checked")\\n'
+              '    elif "**Status:** `COMPLETED`" not in wa07_body:\\n'
+              '        failures.append(f"{path}: WA07-STATUS: checked WA-07 must be COMPLETED")\\n'
+              '    if wa08_checked:\\n'
+              '        failures.append(f"{path}: WA07-SCOPE: WA-07 must not complete WA-08")\\n'
+              '    if "**Status:** `READY`" not in wa08_body:\\n'
+              '        failures.append(f"{path}: WA07-NEXT-STATUS: WA-08 must be READY")\\n'
+          )
+          new_state = (
+              '    if wa08_checked:\\n'
+              '        failures.append(f"{path}: WA07-SCOPE: WA-07 must not complete WA-08")\\n'
+              '    if wa07_checked:\\n'
+              '        if "**Status:** `COMPLETED`" not in wa07_body:\\n'
+              '            failures.append(\\n'
+              '                f"{path}: WA07-STATUS: checked WA-07 must be COMPLETED"\\n'
+              '            )\\n'
+              '        if "**Status:** `READY`" not in wa08_body:\\n'
+              '            failures.append(\\n'
+              '                f"{path}: WA07-NEXT-STATUS: completed WA-07 requires READY WA-08"\\n'
+              '            )\\n'
+              '    else:\\n'
+              '        if "**Status:** `IN PROGRESS`" not in wa07_body:\\n'
+              '            failures.append(\\n'
+              '                f"{path}: WA07-STATUS: open WA-07 must be IN PROGRESS"\\n'
+              '            )\\n'
+              '        if "**Status:** `BLOCKED`" not in wa08_body:\\n'
+              '            failures.append(\\n'
+              '                f"{path}: WA07-NEXT-STATUS: in-progress WA-07 requires BLOCKED WA-08"\\n'
+              '            )\\n'
+          )
+          if old_state not in guard:
+              raise SystemExit("WA-07 guard roadmap-state block is missing")
+          guard = guard.replace(old_state, new_state, 1)
+          '''
+          script = script[:state_start] + state_replacement + script[state_end:]
+
+          self_start = script.index("old_self_test = dedent(")
+          self_end_marker = (
+              "guard = guard.replace(old_self_test, new_self_test, 1)\n"
+          )
+          self_end = script.index(self_end_marker, self_start) + len(self_end_marker)
+          self_replacement = '''old_self_test = (
+              '    if roadmap_failures(Path("roadmap.md"), roadmap, pv):\\n'
+              '        raise AssertionError("valid WA-07 completion state was rejected")\\n'
+              '    if not roadmap_failures(\\n'
+              '        Path("roadmap.md"),\\n'
+              '        roadmap.replace("- [x] **WA-07", "- [ ] **WA-07"),\\n'
+              '        pv,\\n'
+              '    ):\\n'
+              '        raise AssertionError("unchecked implemented WA-07 was not rejected")\\n'
+              '    if not roadmap_failures(\\n'
+              '        Path("roadmap.md"),\\n'
+              '        roadmap.replace("**Status:** `READY`.", "**Status:** `BLOCKED` by WA-07."),\\n'
+              '        pv,\\n'
+              '    ):\\n'
+              '        raise AssertionError("blocked WA-08 after completed WA-07 was not rejected")\\n'
+          )
+          new_self_test = (
+              '    if roadmap_failures(Path("roadmap.md"), roadmap, pv):\\n'
+              '        raise AssertionError("valid WA-07 completion state was rejected")\\n'
+              '    implementation = roadmap.replace(\\n'
+              '        "- [x] **WA-07 — Expressions**\\\\n\\\\n  **Status:** `COMPLETED`.",\\n'
+              '        "- [ ] **WA-07 — Expressions**\\\\n\\\\n  **Status:** `IN PROGRESS`.",\\n'
+              '    ).replace(\\n'
+              '        "**Status:** `READY`.",\\n'
+              '        "**Status:** `BLOCKED` by WA-07.",\\n'
+              '    )\\n'
+              '    if roadmap_failures(Path("roadmap.md"), implementation, pv):\\n'
+              '        raise AssertionError("valid WA-07 implementation state was rejected")\\n'
+              '    if not roadmap_failures(\\n'
+              '        Path("roadmap.md"),\\n'
+              '        roadmap.replace("**Status:** `READY`.", "**Status:** `BLOCKED` by WA-07."),\\n'
+              '        pv,\\n'
+              '    ):\\n'
+              '        raise AssertionError("blocked WA-08 after completed WA-07 was not rejected")\\n'
+              '    if not roadmap_failures(\\n'
+              '        Path("roadmap.md"),\\n'
+              '        implementation.replace(\\n'
+              '            "**Status:** `IN PROGRESS`.",\\n'
+              '            "**Status:** `COMPLETED`.",\\n'
+              '        ),\\n'
+              '        pv,\\n'
+              '    ):\\n'
+              '        raise AssertionError("unchecked completed WA-07 state was not rejected")\\n'
+          )
+          if old_self_test not in guard:
+              raise SystemExit("WA-07 guard roadmap self-test block is missing")
+          guard = guard.replace(old_self_test, new_self_test, 1)
+          '''
+          script = script[:self_start] + self_replacement + script[self_end:]
+
           deletion_marker = (
               '    ".github/workflows/wa07-selected-use-safety-patch.yml",\n'
           )
