@@ -1,5 +1,6 @@
 package nativeapplication
 
+import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
 
 import morphhdl.MorphVerilog
@@ -158,6 +159,9 @@ object SIntSignedVerilogBaselineFixture {
 }
 
 object SIntSignedVerilogBaselineArtifactWriter {
+  private val volatileOrdinaryHeader =
+    """(?s)\A// Generator :[^\n]*\n// Component :[^\n]*\n// Git hash  :[^\n]*\n\n""".r
+
   def main(arguments: Array[String]): Unit = {
     require(arguments.length == 1, "expected one output directory")
     val directory = Paths.get(arguments(0)).toAbsolutePath.normalize()
@@ -168,11 +172,7 @@ object SIntSignedVerilogBaselineArtifactWriter {
   }
 
   private def generationConfig(output: Path): SpinalConfig = {
-    val config = SpinalConfig(
-      targetDirectory = output.getParent.toString,
-      headerWithRepoHash = false,
-      cutLongExpressions = false
-    )
+    val config = SpinalConfig(targetDirectory = output.getParent.toString)
     config.netlistFileName = output.getFileName.toString
     config
   }
@@ -180,6 +180,13 @@ object SIntSignedVerilogBaselineArtifactWriter {
   private def emitFixed(output: Path): Unit = {
     SpinalVerilog(generationConfig(output))(SIntSignedVerilogBaselineFixture.fixed())
     require(Files.isRegularFile(output), s"missing fixed baseline artifact $output")
+    val raw = new String(Files.readAllBytes(output), StandardCharsets.UTF_8)
+    val canonical = volatileOrdinaryHeader.replaceFirstIn(raw, "")
+    require(
+      canonical != raw,
+      s"ordinary baseline output did not contain the expected volatile repository header: $output"
+    )
+    Files.write(output, canonical.getBytes(StandardCharsets.UTF_8))
   }
 
   private def emitParameterized(output: Path): Unit = {
