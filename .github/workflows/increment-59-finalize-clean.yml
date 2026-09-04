@@ -1,0 +1,406 @@
+name: Increment 59 clean final qualification
+
+on:
+  push:
+    branches:
+      - agent/increment-59-typed-blackbox-generics
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  qualify-and-merge:
+    if: github.event.head_commit.message == 'Run clean Increment 59 final qualification'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      BASE_BRANCH: parameterized-verilog
+      SOURCE_BRANCH: agent/increment-59-typed-blackbox-generics
+      FINAL_BRANCH: agent/increment-59-final-clean
+      FORMAL_ROOT: ${{ github.workspace }}/increment-59-formal-evidence
+    steps:
+      - name: Check out exact implementation source
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-59-typed-blackbox-generics
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Normalize the implementation in the qualification workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          hierarchy_path = Path('morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala')
+          text = hierarchy_path.read_text(encoding='utf-8')
+
+          def remove_duplicate_region(value, marker, next_marker):
+              starts = []
+              cursor = 0
+              while True:
+                  found = value.find(marker, cursor)
+                  if found < 0:
+                      break
+                  starts.append(found)
+                  cursor = found + len(marker)
+              if len(starts) > 2:
+                  raise SystemExit(f'unexpected duplicate count {len(starts)} for {marker.strip()}')
+              if len(starts) == 2:
+                  second = starts[1]
+                  end = value.find(next_marker, second)
+                  if end < 0:
+                      raise SystemExit(f'missing duplicate terminator for {marker.strip()}')
+                  value = value[:second] + value[end:]
+              return value
+
+          text = remove_duplicate_region(
+              text,
+              '\n  private final case class BooleanExpressionBinding(',
+              '\n  private final case class BindingSignature('
+          )
+          text = remove_duplicate_region(
+              text,
+              '\n  private def analyzeBlackBoxInstance(',
+              '\n  private def analyzeInstance('
+          )
+          hierarchy_path.write_text(text, encoding='utf-8')
+
+          canonical_assertions = [
+              {'side': 'approved', 'text': 'case value: ElabInt =>', 'count': 1},
+              {'side': 'approved', 'text': 'case value: ElabBool =>', 'count': 1},
+              {'side': 'approved', 'text': 'ParameterizedBlackBoxGenericRegistry.retain', 'count': 2},
+          ]
+          policy_path = Path('morphhdl/contracts/increment-55-native-change-review.json')
+          policy = json.loads(policy_path.read_text(encoding='utf-8'))
+          files = policy['files']
+          blackbox_path = 'core/src/main/scala/spinal/core/BlackBox.scala'
+          matches = [entry for entry in files if entry['path'] == blackbox_path]
+          if len(matches) != 1:
+              raise SystemExit(f'expected one BlackBox review entry, found {len(matches)}')
+          entry = matches[0]
+          label = 'Increment 59: typed BlackBox parameter and generic binding'
+          entry.update({
+              'baseline_path': blackbox_path,
+              'change': 'modified',
+              'classification': 'typed-overload',
+              'reason': 'Add typed ElabInt and ElabBool BlackBox generic overload handling while preserving native concrete witness emission.',
+              'edits': [{
+                  'id': 'blackbox-typed-generic-01',
+                  'kind': 'overload',
+                  'owner': 'spinal.core.BlackBox.addGeneric',
+                  'reason': 'Retain exact typed BlackBox generic metadata and pass only the concrete witness to the inherited native emitter.',
+                  'required_exact_text': canonical_assertions,
+              }],
+          })
+          introduced = entry.setdefault('introduced_by', [])
+          if label not in introduced:
+              introduced.append(label)
+
+          registry_path = 'core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala'
+          registry = [item for item in files if item['path'] == registry_path]
+          if not registry:
+              files.append({
+                  'path': registry_path,
+                  'baseline_path': None,
+                  'change': 'added',
+                  'classification': 'typed-support-file',
+                  'introduced_by': [label],
+                  'reason': 'Retain exact typed BlackBox generic and symbolic port-width metadata by BlackBox object identity.',
+                  'edits': [],
+              })
+          elif len(registry) != 1:
+              raise SystemExit(f'expected at most one registry review entry, found {len(registry)}')
+          policy['files'] = sorted(files, key=lambda item: item['path'])
+          policy_path.write_text(json.dumps(policy, indent=2) + '\n', encoding='utf-8')
+          PY
+
+          test "$(grep -c 'private final case class BooleanExpressionBinding(' morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala)" = 1
+          test "$(grep -c 'private def analyzeBlackBoxInstance(' morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala)" = 1
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --self-test
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --repo-root .
+          git diff --check
+
+      - name: Discover and enable every focused proof switch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$FORMAL_ROOT"
+          grep -RhoE 'MORPHDL_RUN_[A-Z0-9_]+' \
+            morphhdl/src/test/scala/morphhdl/TypedBlackBoxGenericBindingTests.scala \
+            | LC_ALL=C sort -u > /tmp/inc59-run-vars.txt || true
+          grep -RhoE 'MORPHDL_[A-Z0-9_]*WORKSPACE[A-Z0-9_]*' \
+            morphhdl/src/test/scala/morphhdl/TypedBlackBoxGenericBindingTests.scala \
+            | LC_ALL=C sort -u > /tmp/inc59-workspace-vars.txt || true
+          test -s /tmp/inc59-run-vars.txt
+          {
+            while IFS= read -r variable; do
+              printf 'export %s=1\n' "$variable"
+            done < /tmp/inc59-run-vars.txt
+            while IFS= read -r variable; do
+              printf 'export %s=%q/%s\n' "$variable" "$FORMAL_ROOT" "$variable"
+            done < /tmp/inc59-workspace-vars.txt
+          } > /tmp/inc59-proof-env.sh
+          cat /tmp/inc59-proof-env.sh
+
+      - name: Compile and run focused SBT qualification on both Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          source /tmp/inc59-proof-env.sh
+          for scala_version in 2.12.18 2.13.12; do
+            sbt -batch "++${scala_version}" compile Test/compile \
+              2>&1 | tee "$FORMAL_ROOT/sbt-compile-${scala_version}.log"
+            sbt -batch "++${scala_version}" \
+              'morph/testOnly morphhdl.TypedBlackBoxGenericBindingTests' \
+              2>&1 | tee "$FORMAL_ROOT/sbt-focused-${scala_version}.log"
+            grep -Eq 'Tests: succeeded [1-9][0-9]*, failed 0, canceled 0' \
+              "$FORMAL_ROOT/sbt-focused-${scala_version}.log"
+          done
+
+      - name: Run inherited SBT regression suites on both Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala_version in 2.12.18 2.13.12; do
+            sbt -batch "++${scala_version}" frontend/test \
+              2>&1 | tee "$FORMAL_ROOT/sbt-frontend-${scala_version}.log"
+            sbt -batch "++${scala_version}" morphir/test \
+              2>&1 | tee "$FORMAL_ROOT/sbt-morphir-${scala_version}.log"
+            sbt -batch "++${scala_version}" morph/test \
+              2>&1 | tee "$FORMAL_ROOT/sbt-morph-${scala_version}.log"
+          done
+
+      - name: Run Mill focused and inherited suites on both Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+          source /tmp/inc59-proof-env.sh
+          for scala_version in 2.12.18 2.13.12; do
+            /tmp/mill "morph[${scala_version}].testOnly" \
+              morphhdl.TypedBlackBoxGenericBindingTests \
+              2>&1 | tee "$FORMAL_ROOT/mill-focused-${scala_version}.log"
+            /tmp/mill "frontend[${scala_version}].test" \
+              2>&1 | tee "$FORMAL_ROOT/mill-frontend-${scala_version}.log"
+            /tmp/mill "morphir[${scala_version}].test" \
+              2>&1 | tee "$FORMAL_ROOT/mill-morphir-${scala_version}.log"
+            /tmp/mill "morph[${scala_version}].test" \
+              2>&1 | tee "$FORMAL_ROOT/mill-morph-${scala_version}.log"
+          done
+
+      - name: Run strict Verilog-2001, simulation, synthesis and formal tool gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v verilator
+          command -v iverilog
+          command -v vvp
+          command -v yosys
+          command -v sby
+          command -v yices-smt2
+          verilator --version | tee "$FORMAL_ROOT/verilator-version.txt"
+          iverilog -V 2>&1 | tee "$FORMAL_ROOT/iverilog-version.txt"
+          yosys -V | tee "$FORMAL_ROOT/yosys-version.txt"
+          sby -h > "$FORMAL_ROOT/sby-help.txt" 2>&1
+
+          mkdir -p target/morphhdl/phase-inventory
+          sbt -batch '++2.13.12' \
+            "core/Test/runMain spinal.core.internals.ValidationParityInventoryWriter --output ${GITHUB_WORKSPACE}/target/morphhdl/phase-inventory/validation-phase-ids.txt"
+          bash morphhdl/scripts/check-contracts.sh \
+            --require-tools \
+            --live-phase-ids target/morphhdl/phase-inventory/validation-phase-ids.txt \
+            2>&1 | tee "$FORMAL_ROOT/strict-contracts.log"
+          python3 morphhdl/scripts/check-production-retirement.py --self-test
+          python3 morphhdl/scripts/check-production-retirement.py
+          python3 morphhdl/scripts/check-typed-layering-ir.py --self-test
+          python3 morphhdl/scripts/check-typed-layering-ir.py
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py --self-test
+
+          find "$FORMAL_ROOT" -type f -print | LC_ALL=C sort > "$FORMAL_ROOT/evidence-files.txt"
+          test "$(wc -l < "$FORMAL_ROOT/evidence-files.txt")" -ge 10
+
+      - name: Capture the exact reviewed clean delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          desired=(
+            core/src/main/scala/spinal/core/BlackBox.scala
+            core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala
+            docs/morphhdl/increment-59-typed-blackbox-generics.md
+            docs/morphhdl/parameterized-verilog-todo.md
+            morphhdl/contracts/increment-55-native-change-review.json
+            morphhdl/scripts/check-increment-59-blackbox-generics.py
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+            morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
+            morphhdl/src/test/scala/morphhdl/TypedBlackBoxGenericBindingTests.scala
+            morphhdl/src/test/scala/nativeapplication/TypedBlackBoxGenericBindingFixture.scala
+          )
+          mkdir -p /tmp/inc59-clean-files
+          for path in "${desired[@]}"; do
+            test -f "$path"
+            mkdir -p "/tmp/inc59-clean-files/$(dirname "$path")"
+            cp -p "$path" "/tmp/inc59-clean-files/$path"
+          done
+          printf '%s\n' "${desired[@]}" > /tmp/inc59-desired-paths.txt
+
+      - name: Construct the final branch from the latest parameterized-verilog
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE_BRANCH"
+          git checkout -B "$FINAL_BRANCH" "origin/$BASE_BRANCH"
+          while IFS= read -r path; do
+            mkdir -p "$(dirname "$path")"
+            cp -p "/tmp/inc59-clean-files/$path" "$path"
+          done < /tmp/inc59-desired-paths.txt
+
+          todo=docs/morphhdl/parameterized-verilog-todo.md
+          sed -i 's/^- \[x\] \*\*Increment 59 — Typed BlackBox parameter and generic binding\*\*$/- [ ] **Increment 59 — Typed BlackBox parameter and generic binding**/' "$todo"
+          grep -Fqx -- '- [ ] **Increment 59 — Typed BlackBox parameter and generic binding**' "$todo"
+
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'Implement Increment 59 typed BlackBox parameter binding'
+
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            --generate-template morphhdl/contracts/increment-55-native-change-review.json \
+            --output morphhdl/contracts/native-source-preservation.json \
+            --force
+          python3 morphhdl/scripts/check-native-source-preservation.py
+
+          sed -i 's/^- \[ \] \*\*Increment 59 — Typed BlackBox parameter and generic binding\*\*$/- [x] **Increment 59 — Typed BlackBox parameter and generic binding**/' "$todo"
+          grep -Fqx -- '- [x] **Increment 59 — Typed BlackBox parameter and generic binding**' "$todo"
+
+          scope=morphhdl/contracts/increment-59-source-scope.txt
+          {
+            cat /tmp/inc59-desired-paths.txt
+            printf '%s\n' \
+              morphhdl/contracts/increment-59-source-scope.txt \
+              morphhdl/contracts/native-source-preservation.json
+          } | awk '$0 != "docs/morphhdl/parameterized-verilog-todo.md"' | LC_ALL=C sort -u > "$scope"
+
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --self-test
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --repo-root .
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-production-retirement.py
+          python3 morphhdl/scripts/check-typed-layering-ir.py
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          bash morphhdl/scripts/check-contracts.sh
+          git diff --check "origin/$BASE_BRANCH"...HEAD
+          git add -A
+          git commit -m 'Seal Increment 59 proof and mark roadmap complete'
+
+      - name: Re-run final-head focused proof and source inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          source /tmp/inc59-proof-env.sh
+          sbt -batch '++2.13.12' \
+            'morph/testOnly morphhdl.TypedBlackBoxGenericBindingTests' \
+            2>&1 | tee "$FORMAL_ROOT/final-head-focused.log"
+          grep -Eq 'Tests: succeeded [1-9][0-9]*, failed 0, canceled 0' \
+            "$FORMAL_ROOT/final-head-focused.log"
+
+          actual="$(git diff --name-only --diff-filter=ACMRTD "origin/$BASE_BRANCH"...HEAD \
+            | awk '$0 != "docs/morphhdl/parameterized-verilog-todo.md"' \
+            | LC_ALL=C sort -u)"
+          expected="$(cat morphhdl/contracts/increment-59-source-scope.txt)"
+          test "$actual" = "$expected"
+          git diff --check "origin/$BASE_BRANCH"...HEAD
+
+      - name: Push clean branch, open PR and merge the green revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push --force origin HEAD:"$FINAL_BRANCH"
+
+          api="https://api.github.com/repos/$GITHUB_REPOSITORY"
+          auth=(-H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28')
+          pulls="$(curl --fail --silent --show-error "${auth[@]}" \
+            "$api/pulls?state=open&head=${GITHUB_REPOSITORY_OWNER}%3A${FINAL_BRANCH//\//%2F}&base=$BASE_BRANCH&per_page=10")"
+          pr="$(python3 -c 'import json,sys; values=json.load(sys.stdin); print(values[0]["number"] if values else "")' <<<"$pulls")"
+          if [[ -z "$pr" ]]; then
+            payload="$(python3 - <<'PY'
+          import json, os
+          print(json.dumps({
+              'title': 'Increment 59 — Typed BlackBox parameter and generic binding',
+              'head': os.environ['FINAL_BRANCH'],
+              'base': os.environ['BASE_BRANCH'],
+              'body': 'Completes typed ElabInt/ElabBool BlackBox generic binding, symbolic packed-port association, concrete native Verilog/VHDL compatibility, strict Verilog-2001 qualification, simulation, synthesis, formal equivalence, mutation sensitivity, deterministic replay, both supported Scala lanes, and inherited source/architecture gates.',
+          }))
+          PY
+          )"
+            created="$(curl --fail --silent --show-error -X POST "${auth[@]}" \
+              "$api/pulls" -d "$payload")"
+            pr="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["number"])' <<<"$created")"
+          fi
+          test -n "$pr"
+
+          merge_payload="$(python3 - <<'PY'
+          import json, subprocess
+          print(json.dumps({
+              'commit_title': 'Increment 59 — Typed BlackBox parameter and generic binding',
+              'commit_message': 'Merge the fully qualified clean Increment 59 revision.',
+              'sha': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+              'merge_method': 'merge',
+          }))
+          PY
+          )"
+          merged="$(curl --fail --silent --show-error -X PUT "${auth[@]}" \
+            "$api/pulls/$pr/merge" -d "$merge_payload")"
+          python3 - <<'PY' <<<"$merged"
+          import json, sys
+          value = json.load(sys.stdin)
+          if not value.get('merged'):
+              raise SystemExit('Pull request was not merged: ' + value.get('message', 'unknown response'))
+          print('MERGED', value.get('sha'))
+          PY
+
+          dirty_pulls="$(curl --fail --silent --show-error "${auth[@]}" \
+            "$api/pulls?state=open&head=${GITHUB_REPOSITORY_OWNER}%3A${SOURCE_BRANCH//\//%2F}&base=$BASE_BRANCH&per_page=10")"
+          python3 - <<'PY' <<<"$dirty_pulls" > /tmp/inc59-dirty-prs.txt
+          import json, sys
+          for value in json.load(sys.stdin):
+              print(value['number'])
+          PY
+          while IFS= read -r stale_pr; do
+            [[ -z "$stale_pr" ]] && continue
+            curl --fail --silent --show-error -X PATCH "${auth[@]}" \
+              "$api/pulls/$stale_pr" -d '{"state":"closed"}' >/dev/null
+          done < /tmp/inc59-dirty-prs.txt
+
+      - name: Verify merged base and upload proof evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE_BRANCH"
+          git show "origin/$BASE_BRANCH:docs/morphhdl/parameterized-verilog-todo.md" \
+            | grep -Fqx -- '- [x] **Increment 59 — Typed BlackBox parameter and generic binding**'
+          git merge-base --is-ancestor HEAD "origin/$BASE_BRANCH"
+          printf 'MERGED_AND_VERIFIED\nfeature=%s\nbase=%s\n' \
+            "$(git rev-parse HEAD)" "$(git rev-parse "origin/$BASE_BRANCH")" \
+            > "$FORMAL_ROOT/merge-status.txt"
+
+      - name: Upload complete Increment 59 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59-clean-final-evidence
+          path: increment-59-formal-evidence
+          if-no-files-found: error
+          retention-days: 30
