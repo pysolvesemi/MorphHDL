@@ -1,0 +1,229 @@
+name: Increment 59 deterministic repair
+
+on:
+  push:
+    branches:
+      - agent/increment-59-typed-blackbox-generics
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: increment-59-deterministic-repair
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPOSITORY: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Repair production source, policy and exact scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email 'actions@users.noreply.github.com'
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import re
+
+          hierarchy_path = Path('morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala')
+          hierarchy = hierarchy_path.read_text(encoding='utf-8')
+
+          class_marker = '\n  private final case class BooleanExpressionBinding('
+          positions = [match.start() for match in re.finditer(re.escape(class_marker), hierarchy)]
+          if len(positions) == 2:
+              start = positions[1]
+              end = hierarchy.index('\n  private final case class BindingSignature(', start)
+              hierarchy = hierarchy[:start] + hierarchy[end:]
+          elif len(positions) != 1:
+              raise SystemExit(f'BooleanExpressionBinding count is {len(positions)}, expected one or two')
+
+          method_marker = '\n  private def analyzeBlackBoxInstance('
+          positions = [match.start() for match in re.finditer(re.escape(method_marker), hierarchy)]
+          if len(positions) == 2:
+              start = positions[1]
+              end = hierarchy.index('\n  private def analyzeInstance(', start)
+              hierarchy = hierarchy[:start] + hierarchy[end:]
+          elif len(positions) != 1:
+              raise SystemExit(f'analyzeBlackBoxInstance count is {len(positions)}, expected one or two')
+
+          if hierarchy.count('private final case class BooleanExpressionBinding') != 1:
+              raise SystemExit('BooleanExpressionBinding duplicate repair failed')
+          if hierarchy.count('private def analyzeBlackBoxInstance') != 1:
+              raise SystemExit('analyzeBlackBoxInstance duplicate repair failed')
+          hierarchy_path.write_text(hierarchy, encoding='utf-8')
+
+          main_path = Path('morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala')
+          main = main_path.read_text(encoding='utf-8')
+          if 'val generatedComponents =' not in main:
+              pattern = re.compile(
+                  r'    val componentIdentities = new IdentityHashMap\[Component, java\.lang\.Boolean\]\(\)\n'
+                  r'    components\.foreach\(component => componentIdentities\.put\(component, java\.lang\.Boolean\.TRUE\)\)\n'
+                  r'    val canonicalByIdentity = new IdentityHashMap\[Component, Component\]\(\)\n'
+                  r'    val exactGroups = ArrayBuffer\.empty\[\(Component, ArrayBuffer\[Component\]\)\]\n'
+                  r'    components\.foreach \{ component =>'
+              )
+              replacement = (
+                  '    val generatedComponents = components.filterNot {\n'
+                  '      case blackBox: BlackBox => blackBox.isBlackBox\n'
+                  '      case _                  => false\n'
+                  '    }\n'
+                  '    val componentIdentities = new IdentityHashMap[Component, java.lang.Boolean]()\n'
+                  '    generatedComponents.foreach(component =>\n'
+                  '      componentIdentities.put(component, java.lang.Boolean.TRUE)\n'
+                  '    )\n'
+                  '    val canonicalByIdentity = new IdentityHashMap[Component, Component]()\n'
+                  '    val exactGroups = ArrayBuffer.empty[(Component, ArrayBuffer[Component])]\n'
+                  '    generatedComponents.foreach { component =>'
+              )
+              main, count = pattern.subn(replacement, main, count=1)
+              if count != 1:
+                  raise SystemExit(f'generated-component canonicalization replacement count is {count}')
+          if main.count('val generatedComponents =') != 1:
+              raise SystemExit('generated-component canonicalization was not installed exactly once')
+          main_path.write_text(main, encoding='utf-8')
+
+          policy_path = Path('morphhdl/contracts/increment-55-native-change-review.json')
+          policy = json.loads(policy_path.read_text(encoding='utf-8'))
+          blackbox_path = 'core/src/main/scala/spinal/core/BlackBox.scala'
+          matches = [entry for entry in policy['files'] if entry['path'] == blackbox_path]
+          if len(matches) != 1:
+              raise SystemExit(f'BlackBox review entry count is {len(matches)}')
+          matches[0]['edits'] = [{
+              'id': 'blackbox-typed-generics-01',
+              'kind': 'overload',
+              'owner': 'spinal.core.BlackBox.addGeneric',
+              'reason': 'Add exact typed ElabInt and ElabBool generic cases while preserving the inherited native witness carriers.',
+              'required_exact_text': [
+                  {'side': 'approved', 'text': 'case value: ElabInt =>', 'count': 1},
+                  {'side': 'approved', 'text': 'case value: ElabBool =>', 'count': 1},
+                  {'side': 'approved', 'text': 'ParameterizedBlackBoxGenericRegistry.retain', 'count': 2},
+              ],
+          }]
+          support_path = 'core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala'
+          support = [entry for entry in policy['files'] if entry['path'] == support_path]
+          if len(support) == 0:
+              policy['files'].append({
+                  'path': support_path,
+                  'baseline_path': None,
+                  'change': 'added',
+                  'classification': 'typed-support-file',
+                  'introduced_by': ['Increment 59: typed BlackBox parameter and generic binding'],
+                  'reason': 'Retain exact typed BlackBox generic and packed-port expressions by exact object identity.',
+                  'edits': [],
+              })
+          elif len(support) != 1:
+              raise SystemExit(f'typed BlackBox support review entry count is {len(support)}')
+          policy['files'] = sorted(policy['files'], key=lambda entry: entry['path'])
+          policy_path.write_text(json.dumps(policy, indent=2) + '\n', encoding='utf-8')
+
+          scope = sorted([
+              '.github/workflows/increment-59-typed-blackbox-generics.yml',
+              'core/src/main/scala/spinal/core/BlackBox.scala',
+              'core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala',
+              'docs/morphhdl/increment-59-typed-blackbox-generics.md',
+              'docs/morphhdl/parameterized-verilog-todo.md',
+              'morphhdl/contracts/increment-55-native-change-review.json',
+              'morphhdl/contracts/increment-59-source-scope.txt',
+              'morphhdl/contracts/native-source-preservation.json',
+              'morphhdl/scripts/check-increment-59-blackbox-generics.py',
+              'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala',
+              'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala',
+              'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala',
+              'morphhdl/src/test/scala/morphhdl/TypedBlackBoxGenericBindingTests.scala',
+              'morphhdl/src/test/scala/nativeapplication/TypedBlackBoxGenericBindingFixture.scala',
+          ])
+          Path('morphhdl/contracts/increment-59-source-scope.txt').write_text(
+              '\n'.join(scope) + '\n', encoding='utf-8'
+          )
+
+          for path in [
+              Path('.github/increment59-source-validation.txt'),
+              Path('.github/workflows/increment-59-export.yml'),
+              Path('.github/workflows/increment-59-repair-v2.yml'),
+          ]:
+              if path.exists():
+                  path.unlink()
+          PY
+
+          git add -A
+          git diff --cached --check
+          git commit -m 'Repair Increment 59 typed BlackBox production integration'
+          git push origin HEAD:agent/increment-59-typed-blackbox-generics
+
+      - name: Generate the exact native source manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            --generate-template morphhdl/contracts/increment-55-native-change-review.json \
+            --output morphhdl/contracts/native-source-preservation.json \
+            --force
+          git add morphhdl/contracts/native-source-preservation.json
+          git diff --cached --check
+          git commit -m 'Seal Increment 59 native source manifest'
+          git push origin HEAD:agent/increment-59-typed-blackbox-generics
+
+      - name: Validate source contracts and focused dual-Scala behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --self-test
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py --repo-root .
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          for scala in 2.12.18 2.13.12; do
+            sbt -batch "++$scala" \
+              "morph/testOnly morphhdl.TypedBlackBoxGenericBindingTests"
+          done
+
+      - name: Ensure an open pull request exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, urllib.parse, urllib.request
+          token = os.environ['GH_TOKEN']
+          repo = os.environ['REPOSITORY']
+          api = f'https://api.github.com/repos/{repo}'
+          headers = {
+              'Authorization': f'Bearer {token}',
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'Content-Type': 'application/json',
+          }
+          def call(path, method='GET', payload=None):
+              data = None if payload is None else json.dumps(payload).encode()
+              request = urllib.request.Request(api + path, method=method, data=data, headers=headers)
+              with urllib.request.urlopen(request) as response:
+                  return json.load(response)
+          query = urllib.parse.urlencode({
+              'state': 'open',
+              'head': 'pysolvesemi:agent/increment-59-typed-blackbox-generics',
+              'base': 'parameterized-verilog',
+          })
+          pulls = call('/pulls?' + query)
+          if pulls:
+              print(pulls[0]['html_url'])
+          else:
+              pr = call('/pulls', method='POST', payload={
+                  'title': 'Increment 59 — Typed BlackBox parameter and generic binding',
+                  'head': 'agent/increment-59-typed-blackbox-generics',
+                  'base': 'parameterized-verilog',
+                  'body': 'Implements typed ElabInt/ElabBool BlackBox generic retention, exact symbolic generic and packed-port publication, native VHDL witness compatibility, deterministic output, diagnostics, strict Verilog-2001 tooling, dual-Scala regression and formal-enabled tests. The roadmap remains unchecked until the exact final head passes all completion gates.',
+              })
+              print(pr['html_url'])
+          PY
