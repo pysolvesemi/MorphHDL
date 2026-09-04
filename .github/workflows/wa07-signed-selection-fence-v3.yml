@@ -1,0 +1,113 @@
+name: WA-07 signed selection fence v3
+
+on:
+  push:
+    branches:
+      - agent/wa-07-unified-expression-inlining
+    paths:
+      - ".github/workflows/wa07-signed-selection-fence-v3.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/wa-07-unified-expression-inlining
+          fetch-depth: 0
+
+      - name: Build YAML-safe signed-selection patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from textwrap import dedent
+
+          workflow = Path(".github/workflows/wa07-signed-selection-fence.yml")
+          text = workflow.read_text(encoding="utf-8")
+          begin_marker = "          python3 - <<'PY'\n"
+          end_marker = "          PY\n          git diff --check"
+          begin = text.index(begin_marker) + len(begin_marker)
+          end = text.index(end_marker, begin)
+          script = dedent(text[begin:end])
+
+          old = (
+              'if not test.endswith("\\n}"):\n'
+              '    raise SystemExit("selection test file ending is unexpected")\n'
+              'test = test[:-2] + added + "\\n}\\n"\n'
+          )
+          new = (
+              'stripped = test.rstrip()\n'
+              'if not stripped.endswith("}"):\n'
+              '    raise SystemExit("selection test file ending is unexpected")\n'
+              'test = stripped[:-1] + added + "\\n}\\n"\n'
+          )
+          if script.count(old) != 1:
+              raise SystemExit("newline-sensitive test insertion block is missing")
+          script = script.replace(old, new, 1)
+
+          deletion = '(root / ".github/workflows/wa07-signed-selection-fence.yml").unlink()\n'
+          replacement = (
+              deletion
+              + '(root / ".github/workflows/wa07-signed-selection-fence-v2.yml").unlink()\n'
+              + '(root / ".github/workflows/wa07-signed-selection-fence-v3.yml").unlink()\n'
+          )
+          if script.count(deletion) != 1:
+              raise SystemExit("signed-selection helper deletion point is missing")
+          script = script.replace(deletion, replacement, 1)
+
+          Path("/tmp/wa07_signed_selection.py").write_text(script, encoding="utf-8")
+          compile(script, "/tmp/wa07_signed_selection.py", "exec")
+          PY
+
+      - name: Apply signed selected-use semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 /tmp/wa07_signed_selection.py
+          git diff --check
+
+      - name: Static contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for script in \
+            check-wa02-adapter-boundary.py \
+            check-wa03-gates.py \
+            check-wa04-pass.py \
+            check-wa05-pass.py \
+            check-wa06-pipeline.py \
+            check-wa07-expression-pass.py; do
+            python3 "morphhdl-passes/scripts/${script}" --self-test
+            python3 "morphhdl-passes/scripts/${script}"
+          done
+          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+
+      - name: Scala 2.12
+        working-directory: morphhdl-passes
+        shell: bash
+        run: sbt -batch ++2.12.18 test
+
+      - name: Scala 2.13
+        working-directory: morphhdl-passes
+        shell: bash
+        run: sbt -batch ++2.13.12 test
+
+      - name: Commit tested tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m "WA-07: preserve unsigned selected-use semantics"
+          git push origin HEAD:agent/wa-07-unified-expression-inlining
