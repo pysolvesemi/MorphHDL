@@ -222,15 +222,20 @@ def roadmap_failures(path: Path, text: str) -> list[str]:
     wa06_checked, wa06_body = entries["WA-06"]
     if not wa04_checked or "**Status:** `COMPLETED`" not in wa04_body:
         failures.append(f"{path}: WA05-DEPENDENCY: WA-04 must remain completed")
-    if wa06_checked:
-        failures.append(f"{path}: WA05-SCOPE: WA-05 must not complete WA-06")
 
     if wa05_checked:
         if "**Status:** `COMPLETED`" not in wa05_body:
             failures.append(f"{path}: WA05-STATUS: checked WA-05 must be COMPLETED")
-        if "**Status:** `READY`" not in wa06_body:
+        if wa06_checked:
+            if "**Status:** `COMPLETED`" not in wa06_body:
+                failures.append(
+                    f"{path}: WA05-NEXT-STATUS: checked WA-06 must be COMPLETED"
+                )
+        elif "**Status:** `READY`" not in wa06_body:
             failures.append(f"{path}: WA05-NEXT-STATUS: WA-06 must be READY after WA-05")
     else:
+        if wa06_checked:
+            failures.append(f"{path}: WA05-DEPENDENCY: WA-06 cannot complete while WA-05 is open")
         if "**Status:** `READY`" not in wa05_body:
             failures.append(f"{path}: WA05-STATUS: open WA-05 must be READY")
         if "**Status:** `BLOCKED`" not in wa06_body or "WA-05" not in wa06_body:
@@ -413,13 +418,24 @@ object Pass { def eligible(origin: NameOrigin, left: SymbolId, right: SymbolId) 
 
   **Status:** `BLOCKED` by WA-05.
 """
-    completed = open_roadmap.replace("- [ ] **WA-05", "- [x] **WA-05").replace(
+    wa05_completed = open_roadmap.replace(
+        "- [ ] **WA-05", "- [x] **WA-05"
+    ).replace(
         "**Status:** `READY`\n  same safety contract",
         "**Status:** `COMPLETED`\n  same safety contract",
     ).replace("**Status:** `BLOCKED` by WA-05.", "**Status:** `READY`.")
-    for value in (open_roadmap, completed):
+    wa06_completed = wa05_completed.replace(
+        "- [ ] **WA-06", "- [x] **WA-06"
+    ).replace("**Status:** `READY`.", "**Status:** `COMPLETED`.")
+    for value in (open_roadmap, wa05_completed, wa06_completed):
         if roadmap_failures(Path("roadmap.md"), value):
             raise AssertionError("valid WA-05 roadmap transition state was rejected")
+
+    invalid_transition = open_roadmap.replace(
+        "- [ ] **WA-06", "- [x] **WA-06"
+    ).replace("**Status:** `BLOCKED` by WA-05.", "**Status:** `COMPLETED`.")
+    if not roadmap_failures(Path("roadmap.md"), invalid_transition):
+        raise AssertionError("WA-06 completion without WA-05 was not rejected")
 
     manifest = {
         "shared_witness": {

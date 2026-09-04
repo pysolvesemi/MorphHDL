@@ -326,25 +326,24 @@ WA-04 or WA-05 can remove an alias.
   cross-Scala transformation, rejection, fixed-point, idempotence, exact-name
   preservation, deterministic-report and mutation-sensitive proof gates.
 
-- [ ] **WA-06 — Ordered two-pass pipeline and regression closure**
+- [x] **WA-06 — Ordered two-pass pipeline and regression closure**
 
   **Dependencies:** WA-05 implemented and merged.
 
-  **Status:** `READY`.
+  **Status:** `COMPLETED`.
 
-  Provide one optional MorphHDL-IR pipeline entrypoint that can enable either
-  pass independently or run unnamed then named. Keep both disabled by default.
-  Validate alias chains and fanout without parsing emitted Verilog, including
+  Added one optional MorphHDL-IR pipeline entrypoint that can enable either pass independently or run unnamed then named. Both remain disabled by default.
+  Validated alias chains and fanout without parsing emitted Verilog, including
   deterministic reports, idempotent IR, byte-identical repeated emission,
   strict Verilog-2001 legality, synthesis and formal equivalence of each
-  individual pass and the ordered combination against the one common pre-pass
-  StreamFifo reference.
+  individual pass and the ordered combination against the one common pre-pass StreamFifo reference. The pipeline publishes the original input if any stage
+  fails, retains ordered per-stage evidence, and remains component-generic.
 
 - [ ] **WA-07 — Final MorphHDL IR-stage production handoff**
 
   **Dependencies:** WA-06 and PV-58 implemented and merged.
 
-  **Status:** `BLOCKED` by WA-06 and PV-58.
+  **Status:** `READY`.
 
   Consume PV-58's validated `SimpleWireAssignmentsV1` publication and connect
   the optional pipeline to the MorphHDL single-source production path after
