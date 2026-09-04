@@ -78,7 +78,7 @@ object UnnamedWireAliasEliminationPass {
     require(configuration != null, "wire-alias pass configuration must not be null")
     require(safetyConfiguration != null, "alias safety configuration must not be null")
 
-    if (!configuration.eliminateUnnamedAliases) {
+    if (!configuration.enabled) {
       PassResult.skipped(design, passId)
     } else {
       CanonicalIrPassAdapter.bindFixture(design) match {

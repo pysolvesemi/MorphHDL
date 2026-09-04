@@ -375,7 +375,7 @@ private[examples] final class UnnamedWireAliasNativePhase extends Phase {
 
     val result = UnnamedWireAliasEliminationPass.run(
       canonical,
-      WireAliasPassConfiguration(eliminateUnnamedAliases = true)
+      WireAliasPassConfiguration(enabled = true)
     )
     if (
       result.status == PassExecutionStatus.Changed &&

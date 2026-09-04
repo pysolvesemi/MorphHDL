@@ -79,7 +79,7 @@ BRIDGE_RULES: tuple[TextRule, ...] = (
 
 REQUIRED_SOURCE_MARKERS: tuple[str, ...] = (
     "PassId.NamedWireAliasElimination",
-    "configuration.eliminateNamedAliases",
+    "configuration.enabled",
     "PassResult.skipped",
     "WireAliasSafetyGate",
     "NameOrigin.Explicit",
@@ -109,7 +109,7 @@ REQUIRED_BRIDGE_MARKERS: tuple[str, ...] = (
     "ExplicitNamedWireAliasSourceTag",
     "explicitSourceName(alias)",
     "NamedWireAliasEliminationPass.run",
-    "WireAliasPassConfiguration(eliminateNamedAliases = true)",
+    "WireAliasPassConfiguration(enabled = true)",
     "statement.walkRemapDrivingExpressions",
     "reference eq alias",
     "aliasAssignment.removeStatement()",

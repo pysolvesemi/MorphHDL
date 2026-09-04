@@ -36,6 +36,12 @@ final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Compon
     alias
   }
 
+  private def continuousUnnamedExpression(source: Bits): Bits = {
+    val temporary = ParameterizedWidth.cloneOf(source)
+    temporary := source | source
+    temporary
+  }
+
   val fifo = StreamFifo(HardType(Bits(width bits)), depth.asElabInt)
   fifo.io.push << io.push
   io.pop.valid := fifo.io.pop.valid
@@ -45,7 +51,9 @@ final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Compon
   // test-only WA-04 and WA-05 bridges can prove exact same-component identity.
   val popPayloadSource = Bits(width bits)
   popPayloadSource := fifo.io.pop.payload
-  io.pop.payload := directNamedAlias(directUnnamedAlias(popPayloadSource))
+  io.pop.payload := directNamedAlias(
+    directUnnamedAlias(continuousUnnamedExpression(popPayloadSource))
+  )
 
   fifo.io.flush := io.flush
   io.occupancy := fifo.io.occupancy.resized

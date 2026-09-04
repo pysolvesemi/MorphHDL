@@ -1,13 +1,17 @@
 # MorphHDL IR simple-wire assignment passes roadmap
 
-This is the controlling checklist for exactly two optional,
+This is the controlling checklist for three ordered, optional,
 behavior-preserving passes over the canonical MorphHDL-owned IR after
 parameterization/capture and before Verilog-2001 emission:
 
 1. remove eligible simple wire aliases represented by unnamed internal
    signals; and
 2. remove eligible simple wire aliases represented by explicitly named
-   internal signals.
+   internal signals; and
+3. inline eligible unnamed internal wires driven by continuous expressions.
+
+One master flag enables all three passes in their fixed order or disables the
+entire pipeline. No public per-pass controls are provided.
 
 No signal-renaming, formatting, generated-Verilog parsing or broader
 optimization pass is authorized by this roadmap.
@@ -29,6 +33,8 @@ canonical MorphHDL-owned IR
         +--> unnamed simple-wire alias elimination
         |
         +--> named simple-wire alias elimination
+        |
+        +--> unnamed continuous-expression elimination
         |
         v
 structured Verilog-2001 lowering and emission
@@ -101,10 +107,12 @@ canonical IR proves all of the following:
 - deleting the declaration and sole assignment cannot discard a required
   comment, attribute or source contract.
 
-The first implementation boundary does not inline operators, literals, slices,
-indexes, concatenations, casts, resizes, muxes, function calls or arbitrary
-expressions. Expanding beyond direct wire-to-wire aliases requires a separate
-reviewed roadmap update.
+WA-04 and WA-05 remain limited to direct wire-to-wire aliases. WA-07 adds a
+separate, reviewed pass for canonical operators, literals, slices, indexes,
+concatenations, casts, resizes and muxes on a sole full-object continuous
+driver. It copies that exact expression to continuous receivers, preserves the
+removed assignment boundary with an explicit packed resize, and skips every
+procedural definition or receiver.
 
 Conceptually:
 
@@ -138,9 +146,9 @@ MorphHDL IR before backend Verilog identifiers are allocated.
 
 The named pass removes an eligible named alias and its assignment. It must not
 transfer the removed name to another signal or invent a replacement name.
-Because this removes an internal waveform/debug point, the named pass is
-separately selectable and reports every removed name and available source
-location deterministically.
+Because this removes an internal waveform/debug point, the named pass reports
+every removed name and available source location deterministically. Selection is
+still controlled only by the one pipeline master flag.
 
 ## Fixed non-goals
 
@@ -150,7 +158,6 @@ passes must not change:
 - module, instance, port, parameter, local-parameter or generate-label names;
 - any surviving internal signal name;
 - parameters, expressions, constraints, widths or signedness;
-- literals, operators, slices, indexes, concatenations, casts or resizes;
 - clock, reset, sensitivity, scheduling or procedural statement order;
 - generate structure, hierarchy, module boundaries or parameter bindings;
 - memory behavior, library algorithms, register state or latency;
@@ -166,7 +173,6 @@ The following remain outside this roadmap:
 - algebraic or logic simplification;
 - common-subexpression elimination;
 - process merging, retiming, register removal or hierarchy flattening; and
-- any third pass.
 
 A signal-renaming pass may be planned later only through a separate explicit
 roadmap update.
@@ -339,26 +345,40 @@ WA-04 or WA-05 can remove an alias.
   individual pass and the ordered combination against the one common pre-pass StreamFifo reference. The pipeline publishes the original input if any stage
   fails, retains ordered per-stage evidence, and remains component-generic.
 
-- [ ] **WA-07 — Final MorphHDL IR-stage production handoff**
+- [ ] **WA-07 — Unified pass control and unnamed continuous-expression elimination**
 
   **Dependencies:** WA-06 and PV-58 implemented and merged.
 
-  **Status:** `READY`.
+  **Status:** `IN REVIEW`.
+
+  Replace the two public per-pass flags with one disabled-by-default `enabled`
+  flag that runs every registered wire-assignment pass in fixed order. Add a
+  component-generic pass for an unnamed internal wire with one full-object
+  continuous non-reference RHS. Copy the exact canonical expression into every
+  continuous receiver, remove the exact declaration and assignment, preserve
+  packed coercion and deterministic reference identities, and run to a validated
+  fixed point. Direct references remain owned by WA-04. Procedural definitions
+  and procedural receivers, including assignments in `always` blocks, must be
+  retained. Apply the pass alone and in the all-pass pipeline to the common
+  parameterized StreamFifo reference, with strict Verilog-2001, synthesis,
+  simulation, mutation, determinism and all 512 WIDTH/DEPTH formal bindings.
+
+- [ ] **WA-08 — Final MorphHDL IR-stage production handoff**
+
+  **Dependencies:** WA-07 and PV-58 implemented and merged.
+
+  **Status:** `BLOCKED (WA-07)`.
 
   Consume PV-58's validated `SimpleWireAssignmentsV1` publication and connect
-  the optional pipeline to the MorphHDL single-source production path after
-  parameterization/capture and before Verilog lowering. PV-58 publishes a
-  read-only snapshot; it does not execute or write back either pass. Keep pass
-  implementation under `morphhdl-passes/` and add only minimum MorphHDL-owned
-  integration/configuration glue. Existing generation remains unchanged unless
-  one or both passes are explicitly enabled. Do not add a generated-Verilog
-  parser, file postprocessor, signal-renaming pass, formatting pass or broader
-  optimization pass.
+  the one-flag optional pipeline to the MorphHDL single-source production path
+  after parameterization/capture and before Verilog lowering. Keep pass logic in
+  `morphhdl-passes/` and add only minimum MorphHDL-owned integration glue. Do not
+  add a generated-Verilog parser, file postprocessor, signal-renaming pass,
+  formatting pass or broader optimization pass.
 
 ## Completion target
 
-This roadmap completes at WA-07 when MorphHDL can optionally remove eligible
-direct wire-to-wire aliases from its canonical post-parameterization IR, first
-for unnamed internal signals and then for explicitly named internal signals,
-while preserving parameterized RTL behavior and every surviving identifier.
-Signal renaming remains future work.
+This roadmap completes at WA-08 when MorphHDL can optionally run the complete
+wire-assignment pipeline through one master flag in production, preserving
+parameterized RTL behavior and every surviving identifier. Signal renaming
+remains future work.

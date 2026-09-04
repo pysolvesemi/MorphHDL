@@ -61,9 +61,7 @@ final class NamedWireAliasEliminationPassSpec
   private val aliasReferenceId = ReferenceId.unsafe("reference.sink.alias")
   private val secondAliasReferenceId = ReferenceId.unsafe("reference.sink.alias-second")
 
-  private val enabled = WireAliasPassConfiguration(
-    eliminateNamedAliases = true
-  )
+  private val enabled = WireAliasPassConfiguration(enabled = true)
 
   private val widthDomain = IntegerParameterDomain(
     minimum = BigInt(1),

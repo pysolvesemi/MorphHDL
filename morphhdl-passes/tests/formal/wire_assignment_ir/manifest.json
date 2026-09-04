@@ -133,6 +133,16 @@
         "activation_item": "WA-06",
         "candidate": "morphhdl-passes/build/pass-outputs/wire-alias-combined.v",
         "pass_id": "wire-alias-unnamed+wire-alias-named"
+      },
+      {
+        "activation_item": "WA-07",
+        "candidate": "morphhdl-passes/build/pass-outputs/wire-expression-unnamed.v",
+        "pass_id": "wire-expression-unnamed"
+      },
+      {
+        "activation_item": "WA-07",
+        "candidate": "morphhdl-passes/build/pass-outputs/wire-passes-all.v",
+        "pass_id": "wire-alias-unnamed+wire-alias-named+wire-expression-unnamed"
       }
     ],
     "generated_file_name": "parameterized_stream_fifo.v",

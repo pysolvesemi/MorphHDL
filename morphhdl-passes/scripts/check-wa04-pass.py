@@ -83,7 +83,7 @@ REQUIRED_BRIDGE_MARKERS: tuple[str, ...] = (
     "PhaseRemoveIntermediateUnnameds",
     "alias.isUnnamed",
     "UnnamedWireAliasEliminationPass.run",
-    "WireAliasPassConfiguration(eliminateUnnamedAliases = true)",
+    "WireAliasPassConfiguration(enabled = true)",
     "statement.walkRemapDrivingExpressions",
     "reference eq alias",
     "aliasAssignment.removeStatement()",
@@ -96,7 +96,7 @@ REQUIRED_BRIDGE_MARKERS: tuple[str, ...] = (
 
 REQUIRED_SOURCE_MARKERS: tuple[str, ...] = (
     "PassId.UnnamedWireAliasElimination",
-    "configuration.eliminateUnnamedAliases",
+    "configuration.enabled",
     "PassResult.skipped",
     "WireAliasSafetyGate",
     "NameOrigin.Unnamed",

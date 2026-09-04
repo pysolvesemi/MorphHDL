@@ -109,7 +109,7 @@ REQUIRED_SOURCE_MARKERS: tuple[str, ...] = (
 
 REQUIRED_TEST_MARKERS: tuple[str, ...] = (
     "ordered pipeline is disabled by default",
-    "either pass can run independently",
+    "one master flag runs every registered pass",
     "fixed unnamed-then-named order for alias chains and fanout",
     "deterministic and support byte-identical repeated emission",
     "idempotent IR at a fixed point",
@@ -117,18 +117,18 @@ REQUIRED_TEST_MARKERS: tuple[str, ...] = (
     "surviving names metadata and reference identities remain unchanged",
     "component names and source paths do not affect pipeline decisions",
     "shared parameterized witness proof contract covers the complete WIDTH and DEPTH domain",
-    "Vector(1, 1)",
+    "Vector(1, 1, 0)",
 )
 
 REQUIRED_BRIDGE_MARKERS: tuple[str, ...] = (
     "final class OrderedWireAliasNativePhase extends Phase",
     "WireAliasPassPipeline.run",
-    "eliminateUnnamedAliases = true",
-    "eliminateNamedAliases = true",
+    "enabled = true",
+    "enabled = true",
     "pipeline.executedPasses != expected",
     "unnamedPhase.impl(pc)",
     "namedPhase.impl(pc)",
-    "wire-alias-unnamed+wire-alias-named",
+    "wire-alias-unnamed+wire-alias-named+wire-expression-unnamed",
     "executed_before_name_allocation",
     "ParameterizedStreamFifoCombinedPassWitness",
     "OrderedWireAliasWitnessPhasePlan.install",
@@ -245,9 +245,9 @@ def roadmap_failures(path: Path, text: str, pv_text: str) -> list[str]:
         failures.append(f"{path}: WA06-STATUS: checked WA-06 must be COMPLETED")
     if wa07_checked:
         failures.append(f"{path}: WA06-SCOPE: WA-06 must not complete WA-07")
-    if "**Status:** `READY`" not in wa07_body:
+    if "**Status:** `IN REVIEW`" not in wa07_body and "**Status:** `COMPLETED`" not in wa07_body:
         failures.append(
-            f"{path}: WA06-NEXT-STATUS: WA-07 must be READY after WA-06 and Increment 58"
+            f"{path}: WA06-NEXT-STATUS: WA-07 must be IN REVIEW or COMPLETED"
         )
 
     required_scope = (
@@ -292,7 +292,7 @@ def manifest_failures(path: Path, value: object) -> list[str]:
     expected = {
         "activation_item": "WA-06",
         "candidate": "morphhdl-passes/build/pass-outputs/wire-alias-combined.v",
-        "pass_id": "wire-alias-unnamed+wire-alias-named",
+        "pass_id": "wire-alias-unnamed+wire-alias-named+wire-expression-unnamed",
     }
     if matching[0] != expected:
         return [
@@ -461,7 +461,7 @@ object Pipeline { def run(value: Design) = value.modules.map(_.id) }
                 {
                     "activation_item": "WA-06",
                     "candidate": "morphhdl-passes/build/pass-outputs/wire-alias-combined.v",
-                    "pass_id": "wire-alias-unnamed+wire-alias-named",
+                    "pass_id": "wire-alias-unnamed+wire-alias-named+wire-expression-unnamed",
                 }
             ]
         }

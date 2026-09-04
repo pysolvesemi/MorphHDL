@@ -59,25 +59,23 @@ private[examples] final class OrderedWireAliasNativePhase extends Phase {
 
     val pipeline = WireAliasPassPipeline.run(
       OrderedWireAliasCanonicalWitness.design,
-      WireAliasPassConfiguration(
-        eliminateUnnamedAliases = true,
-        eliminateNamedAliases = true
-      )
+      WireAliasPassConfiguration(enabled = true)
     )
     val expected = Vector(
       PassId.UnnamedWireAliasElimination,
-      PassId.NamedWireAliasElimination
+      PassId.NamedWireAliasElimination,
+      PassId.UnnamedWireExpressionElimination
     )
     if (
       pipeline.status != PassExecutionStatus.Changed ||
       pipeline.executedPasses != expected ||
-      pipeline.eliminationReports.map(_.eliminatedCount) != Vector(1, 1)
+      pipeline.eliminationReports.map(_.eliminatedCount) != Vector(1, 1, 0)
     )
       throw new IllegalStateException(
         "WA-06 canonical pipeline did not authorize one unnamed stage followed by one named stage"
       )
 
-    executedPasses = pipeline.executedPasses.map(_.value)
+    executedPasses = pipeline.executedPasses.take(2).map(_.value)
     unnamedPhase.impl(pc)
     val unnamed = unnamedPhase.report
     if (unnamed.eliminatedCount < 1 || unnamed.rewrittenReferences < 1)

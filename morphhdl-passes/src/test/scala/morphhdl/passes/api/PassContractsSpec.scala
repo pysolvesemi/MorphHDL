@@ -11,19 +11,18 @@ final class PassContractsSpec extends AnyFunSuite with Matchers {
     config.enabledPasses shouldBe Vector.empty
   }
 
-  test("combined configuration has a fixed unnamed-then-named order") {
-    val config = WireAliasPassConfiguration(
-      eliminateUnnamedAliases = true,
-      eliminateNamedAliases = true
-    )
+test("one master flag enables every pass in its fixed order") {
+  val config = WireAliasPassConfiguration(enabled = true)
 
-    config.enabledPasses shouldBe Vector(
-      PassId.UnnamedWireAliasElimination,
-      PassId.NamedWireAliasElimination
-    )
-  }
+  config.isDisabled shouldBe false
+  config.enabledPasses shouldBe Vector(
+    PassId.UnnamedWireAliasElimination,
+    PassId.NamedWireAliasElimination,
+    PassId.UnnamedWireExpressionElimination
+  )
+}
 
-  test("pass and symbol identifiers reject ambiguous whitespace") {
+test("pass and symbol identifiers reject ambiguous whitespace") {
     PassId.from("wire-alias-unnamed") shouldBe Right(
       PassId.UnnamedWireAliasElimination
     )

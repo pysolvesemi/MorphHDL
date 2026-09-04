@@ -50,22 +50,7 @@ final class WireAliasPassPipelineSpec extends AnyFunSuite with Matchers {
   private val directSinkDriverId = DriverId.unsafe("driver.pipeline-direct-sink")
   private val nestedSinkDriverId = DriverId.unsafe("driver.pipeline-nested-sink")
 
-  private val unnamedOnly = WireAliasPassConfiguration(
-    eliminateUnnamedAliases = true
-  )
-  private val namedOnly = WireAliasPassConfiguration(
-    eliminateNamedAliases = true
-  )
-  private val both = WireAliasPassConfiguration(
-    eliminateUnnamedAliases = true,
-    eliminateNamedAliases = true
-  )
-
-  private val widthDomain = IntegerParameterDomain(
-    minimum = BigInt(1),
-    maximum = BigInt(64),
-    admittedValues = (1 to 64).map(value => BigInt(value)).toVector
-  )
+  private val enabled = WireAliasPassConfiguration(enabled = true)
   private val depthDomain = IntegerParameterDomain(
     minimum = BigInt(1),
     maximum = BigInt(8),
@@ -343,35 +328,26 @@ final class WireAliasPassPipelineSpec extends AnyFunSuite with Matchers {
     result.eliminationReports shouldBe empty
   }
 
-  test("either pass can run independently") {
-    val design = baseDesign()
+test("one master flag runs every registered pass") {
+  val result = WireAliasPassPipeline.run(baseDesign(), enabled)
 
-    val unnamed = WireAliasPassPipeline.run(design, unnamedOnly)
-    unnamed.status shouldBe PassExecutionStatus.Changed
-    unnamed.executedPasses shouldBe Vector(PassId.UnnamedWireAliasElimination)
-    declarationIds(unnamed.output) should not contain unnamedAliasId
-    declarationIds(unnamed.output) should contain(namedAliasId)
-    targets(driverOf(unnamed.output, namedDriverId).value) shouldBe Vector(sourceId)
+  result.status shouldBe PassExecutionStatus.Changed
+  result.executedPasses shouldBe enabled.enabledPasses
+  declarationIds(result.output) should not contain unnamedAliasId
+  declarationIds(result.output) should not contain namedAliasId
+  targets(driverOf(result.output, directSinkDriverId).value) shouldBe Vector(sourceId)
+}
 
-    val named = WireAliasPassPipeline.run(design, namedOnly)
-    named.status shouldBe PassExecutionStatus.Changed
-    named.executedPasses shouldBe Vector(PassId.NamedWireAliasElimination)
-    declarationIds(named.output) should contain(unnamedAliasId)
-    declarationIds(named.output) should not contain namedAliasId
-    targets(driverOf(named.output, directSinkDriverId).value) shouldBe Vector(
-      unnamedAliasId
-    )
-  }
-
-  test("combined execution has fixed unnamed-then-named order for alias chains and fanout") {
-    val result = WireAliasPassPipeline.run(baseDesign(), both)
+test("combined execution has fixed unnamed-then-named order for alias chains and fanout") {
+    val result = WireAliasPassPipeline.run(baseDesign(), enabled)
 
     result.status shouldBe PassExecutionStatus.Changed
     result.executedPasses shouldBe Vector(
       PassId.UnnamedWireAliasElimination,
-      PassId.NamedWireAliasElimination
+      PassId.NamedWireAliasElimination,
+      PassId.UnnamedWireExpressionElimination
     )
-    result.eliminationReports.map(_.eliminatedCount) shouldBe Vector(1, 1)
+    result.eliminationReports.map(_.eliminatedCount) shouldBe Vector(1, 1, 0)
     result.eliminationReports.head.eliminated.head.aliasSymbol shouldBe
       IrSymbolId.unsafe(unnamedAliasId.value)
     result.eliminationReports(1).eliminated.head.aliasSymbol shouldBe
@@ -381,13 +357,13 @@ final class WireAliasPassPipelineSpec extends AnyFunSuite with Matchers {
     targets(driverOf(result.output, directSinkDriverId).value) shouldBe Vector(sourceId)
     targets(driverOf(result.output, nestedSinkDriverId).value) shouldBe Vector(sourceId)
     WireAliasPassPipeline.combinedPassId shouldBe
-      "wire-alias-unnamed+wire-alias-named"
+      "wire-alias-unnamed+wire-alias-named+wire-expression-unnamed"
   }
 
   test("pipeline reports are deterministic and support byte-identical repeated emission") {
     val design = baseDesign()
-    val first = WireAliasPassPipeline.run(design, both)
-    val second = WireAliasPassPipeline.run(design, both)
+    val first = WireAliasPassPipeline.run(design, enabled)
+    val second = WireAliasPassPipeline.run(design, enabled)
 
     first shouldBe second
     first.normalized shouldBe first
@@ -396,22 +372,23 @@ final class WireAliasPassPipelineSpec extends AnyFunSuite with Matchers {
   }
 
   test("combined pipeline reaches idempotent IR at a fixed point") {
-    val first = WireAliasPassPipeline.run(baseDesign(), both)
-    val second = WireAliasPassPipeline.run(first.output, both)
+    val first = WireAliasPassPipeline.run(baseDesign(), enabled)
+    val second = WireAliasPassPipeline.run(first.output, enabled)
 
     first.status shouldBe PassExecutionStatus.Changed
     second.status shouldBe PassExecutionStatus.Unchanged
     second.output shouldBe first.output
     second.executedPasses shouldBe Vector(
       PassId.UnnamedWireAliasElimination,
-      PassId.NamedWireAliasElimination
+      PassId.NamedWireAliasElimination,
+      PassId.UnnamedWireExpressionElimination
     )
     second.eliminated shouldBe empty
   }
 
   test("invalid canonical input fails closed with atomic rollback") {
     val invalid = baseDesign().copy(modules = Vector.empty)
-    val result = WireAliasPassPipeline.run(invalid, both)
+    val result = WireAliasPassPipeline.run(invalid, enabled)
 
     result.status shouldBe PassExecutionStatus.Failed
     result.output shouldBe invalid
@@ -425,7 +402,7 @@ final class WireAliasPassPipelineSpec extends AnyFunSuite with Matchers {
   test("surviving names metadata and reference identities remain unchanged") {
     val design = baseDesign()
     val before = moduleOf(design)
-    val result = WireAliasPassPipeline.run(design, both)
+    val result = WireAliasPassPipeline.run(design, enabled)
     val after = moduleOf(result.output)
     val surviving = Set(sourceId, directSinkId, nestedSinkId)
 
@@ -446,11 +423,11 @@ final class WireAliasPassPipelineSpec extends AnyFunSuite with Matchers {
   test("component names and source paths do not affect pipeline decisions") {
     val first = WireAliasPassPipeline.run(
       baseDesign("FirstGenericModule", "src/first/Combinational.scala"),
-      both
+      enabled
     )
     val second = WireAliasPassPipeline.run(
       baseDesign("UnrelatedModuleName", "elsewhere/OtherSource.scala"),
-      both
+      enabled
     )
 
     decisionSignature(first) shouldBe decisionSignature(second)
@@ -460,15 +437,15 @@ final class WireAliasPassPipelineSpec extends AnyFunSuite with Matchers {
 
   test("shared parameterized witness proof contract covers the complete WIDTH and DEPTH domain") {
     val design = baseDesign()
-    val result = WireAliasPassPipeline.run(design, both)
+    val result = WireAliasPassPipeline.run(design, enabled)
     val parameters = moduleOf(result.output).parameters.map(value => value.name -> value).toMap
 
     result.status shouldBe PassExecutionStatus.Changed
-    result.executedPasses shouldBe both.enabledPasses
+    result.executedPasses shouldBe enabled.enabledPasses
     parameters("WIDTH").asInstanceOf[IntegerParameter].domain.admittedValues shouldBe
       (1 to 64).map(value => BigInt(value)).toVector
     parameters("DEPTH").asInstanceOf[IntegerParameter].domain.admittedValues shouldBe
       (1 to 8).map(value => BigInt(value)).toVector
-    result.eliminationReports.map(_.eliminatedCount) shouldBe Vector(1, 1)
+    result.eliminationReports.map(_.eliminatedCount) shouldBe Vector(1, 1, 0)
   }
 }

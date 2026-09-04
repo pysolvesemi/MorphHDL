@@ -27,6 +27,7 @@ object PassId {
 
   val UnnamedWireAliasElimination: PassId = unsafe("wire-alias-unnamed")
   val NamedWireAliasElimination: PassId = unsafe("wire-alias-named")
+  val UnnamedWireExpressionElimination: PassId = unsafe("wire-expression-unnamed")
 }
 
 /** Opaque identity supplied by the canonical MorphHDL IR adapter in WA-02. */
@@ -80,22 +81,21 @@ final case class PassDiagnostic(
 }
 
 /**
-  * Plug-and-play selection for exactly the two passes authorized by this roadmap.
-  * Both passes are disabled by default. Combined execution order is fixed:
-  * unnamed aliases first, then named aliases.
+  * One public all-or-none control for the complete ordered wire-assignment
+  * pipeline. No individual pass is publicly selectable. The fixed order is:
+  * direct unnamed aliases, direct named aliases, then unnamed expressions.
   */
-final case class WireAliasPassConfiguration(
-    eliminateUnnamedAliases: Boolean = false,
-    eliminateNamedAliases: Boolean = false
-) {
-  def enabledPasses: Vector[PassId] = {
-    val builder = Vector.newBuilder[PassId]
-    if (eliminateUnnamedAliases) builder += PassId.UnnamedWireAliasElimination
-    if (eliminateNamedAliases) builder += PassId.NamedWireAliasElimination
-    builder.result()
-  }
+final case class WireAliasPassConfiguration(enabled: Boolean = false) {
+  def enabledPasses: Vector[PassId] =
+    if (!enabled) Vector.empty
+    else
+      Vector(
+        PassId.UnnamedWireAliasElimination,
+        PassId.NamedWireAliasElimination,
+        PassId.UnnamedWireExpressionElimination
+      )
 
-  def isDisabled: Boolean = enabledPasses.isEmpty
+  def isDisabled: Boolean = !enabled
 }
 
 sealed trait AliasNameOrigin extends Product with Serializable {
@@ -121,6 +121,16 @@ final case class EliminatedWireAlias(
     location: Option[SourceLocation] = None
 )
 
+/** One unnamed continuous expression wire removed by WA-07. */
+final case class InlinedWireExpression(
+    aliasSymbol: IrSymbolId,
+    replacementCount: Int,
+    nameOrigin: AliasNameOrigin,
+    location: Option[SourceLocation] = None
+) {
+  require(replacementCount >= 1, "an inlined expression requires at least one replacement")
+}
+
 /** Candidate retained because one or more safety conditions were not proven. */
 final case class RejectedWireAlias(
     aliasSymbol: IrSymbolId,
@@ -137,16 +147,21 @@ final case class RejectedWireAlias(
 final case class EliminationReport(
     passId: PassId,
     eliminated: Vector[EliminatedWireAlias] = Vector.empty,
-    rejected: Vector[RejectedWireAlias] = Vector.empty
+    rejected: Vector[RejectedWireAlias] = Vector.empty,
+    inlinedExpressions: Vector[InlinedWireExpression] = Vector.empty
 ) {
-  def eliminatedCount: Int = eliminated.size
+  def directAliasCount: Int = eliminated.size
+  def inlinedExpressionCount: Int = inlinedExpressions.size
+  def transformedCount: Int = directAliasCount + inlinedExpressionCount
+  def eliminatedCount: Int = transformedCount
   def rejectedCount: Int = rejected.size
-  def isEmpty: Boolean = eliminated.isEmpty && rejected.isEmpty
+  def isEmpty: Boolean = transformedCount == 0 && rejected.isEmpty
 
   def normalized: EliminationReport =
     copy(
       eliminated = eliminated.sortBy(EliminationReport.eliminatedKey),
-      rejected = rejected.sortBy(EliminationReport.rejectedKey)
+      rejected = rejected.sortBy(EliminationReport.rejectedKey),
+      inlinedExpressions = inlinedExpressions.sortBy(EliminationReport.inlinedKey)
     )
 }
 
@@ -171,6 +186,20 @@ object EliminationReport {
       nameKey(value.nameOrigin),
       value.aliasSymbol.value,
       value.sourceSymbol.value
+    )
+  }
+
+  private[api] def inlinedKey(
+      value: InlinedWireExpression
+  ): (String, Int, Int, String, String, Int) = {
+    val location = locationKey(value.location)
+    (
+      location._1,
+      location._2,
+      location._3,
+      nameKey(value.nameOrigin),
+      value.aliasSymbol.value,
+      value.replacementCount
     )
   }
 
@@ -228,12 +257,12 @@ final case class PassResult[A](
   )
 
   require(
-    status != PassExecutionStatus.Changed || eliminationReport.eliminated.nonEmpty,
-    "a changed wire-alias pass result must report at least one eliminated alias"
+    status != PassExecutionStatus.Changed || eliminationReport.transformedCount > 0,
+    "a changed wire-assignment pass result must report at least one transformation"
   )
   require(
-    status == PassExecutionStatus.Changed || eliminationReport.eliminated.isEmpty,
-    "a non-changing wire-alias pass result cannot report eliminated aliases"
+    status == PassExecutionStatus.Changed || eliminationReport.transformedCount == 0,
+    "a non-changing wire-assignment pass result cannot report transformations"
   )
   require(
     status.failed == hasErrorDiagnostic,

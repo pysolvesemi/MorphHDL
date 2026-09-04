@@ -134,6 +134,12 @@ jobs:
           python3 morphhdl-passes/scripts/check-wa06-pipeline.py --self-test
           python3 morphhdl-passes/scripts/check-wa06-pipeline.py
 
+      - name: Enforce WA-07 unified control and expression contracts
+        shell: bash
+        run: |
+          python3 morphhdl-passes/scripts/check-wa07-expression.py --self-test
+          python3 morphhdl-passes/scripts/check-wa07-expression.py
+
   contracts:
     name: Pass contracts, adapter, safety, transforms and pipeline Scala ${{ matrix.scala_version }}
     needs: boundary
@@ -160,7 +166,7 @@ jobs:
         run: sbt -batch ++${{ matrix.scala_version }} test
 
   equivalence:
-    name: WA-04, WA-05 and WA-06 legality, equivalence, mutation and determinism proof
+    name: WA-04 through WA-07 legality, equivalence, mutation and determinism proof
     needs: contracts
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
@@ -210,18 +216,13 @@ jobs:
       - name: Generate all pass candidates and close legality and repeated-emission gates
         shell: bash
         run: |
-          # run-wa06-regression.sh executes the actual shared ParameterizedStreamFifoExample
-          # proof path through ParameterizedStreamFifoUnnamedPassWitness,
-          # ParameterizedStreamFifoNamedPassWitness and
-          # ParameterizedStreamFifoCombinedPassWitness. It runs focused
-          # UnnamedWireAliasEliminationPassSpec, NamedWireAliasEliminationPassSpec
-          # and WireAliasPassPipelineSpec shared parameterized witness proof contract
-          # tests; publishes wire-alias-unnamed.v, wire-alias-named.v,
-          # wire-alias-named-report.json (including eliminated_names), and
-          # wire-alias-combined.v; requires executed_before_name_allocation;
-          # compares repeated output with cmp -s; and runs iverilog, verilator and
-          # yosys strict Verilog-2001 legality, synthesis and simulation checks.
-          bash morphhdl-passes/scripts/run-wa06-regression.sh
+          # run-wa07-regression.sh first retains every WA-06 regression, then
+          # generates the expression-only and all-pass candidates from the same
+          # ParameterizedStreamFifo source and common pre-pass reference. It
+          # requires continuous-only expression substitution, procedural skip,
+          # deterministic reports and byte-identical repeated emission before
+          # strict Verilog-2001 compile, lint, synthesis and simulation checks.
+          bash morphhdl-passes/scripts/run-wa07-regression.sh
 
       - name: Prove complete-domain equivalence, mutation sensitivity and determinism
         shell: bash
@@ -237,7 +238,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: morphhdl-wa06-equivalence-evidence
+          name: morphhdl-wa07-equivalence-evidence
           path: morphhdl-passes/build
           if-no-files-found: error
           retention-days: 14

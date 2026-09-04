@@ -1,6 +1,6 @@
 # MorphHDL IR passes
 
-This is the standalone MorphHDL-owned workspace for the two optional
+This is the standalone MorphHDL-owned workspace for the three ordered optional
 wire-assignment passes controlled by
 [`morphhdl-ir-wire-assignment-passes-todo.md`](morphhdl-ir-wire-assignment-passes-todo.md).
 The workspace is deliberately outside the repository root SBT/Mill aggregate and
@@ -18,7 +18,7 @@ name, a source filename, or an emitted identifier.
 WA-01 established the cross-Scala nested SBT workspace, immutable pass
 configuration/result/diagnostic/elimination-report contracts, the path boundary
 guard, mutation-tested boundary checks, and CI coverage for Scala 2.12.18 and
-2.13.12. Both pass selections are disabled by default.
+2.13.12. One master flag disables the whole pipeline by default.
 
 ## WA-02 — canonical IR adapter
 
@@ -65,7 +65,7 @@ for unnamed and explicitly named aliases.
 ## WA-04 — unnamed alias elimination
 
 `UnnamedWireAliasEliminationPass` is disabled by default and executes only when
-`eliminateUnnamedAliases = true`. It selects candidates solely from canonical
+`enabled = true`. It selects candidates solely from canonical
 `NameOrigin.Unnamed` provenance, never from emitted-name text.
 
 For each safe candidate it replaces every read by exact symbol identity,
@@ -89,7 +89,7 @@ WA-07 production handoff.
 ## WA-05 — named alias elimination
 
 `NamedWireAliasEliminationPass` is disabled by default and executes only when
-`eliminateNamedAliases = true`. It selects only canonical
+`enabled = true`. It selects only canonical
 `NameOrigin.Explicit` candidates carrying an explicit source name. Unnamed,
 reflected, generated and unknown origins remain untouched even when their
 emitted text appears user-friendly.
@@ -115,8 +115,8 @@ allocation. It does not create the WA-07 production handoff.
 ## WA-06 — ordered optional pipeline and closure
 
 `WireAliasPassPipeline` is the single optional canonical MorphHDL-IR entrypoint
-for these transforms. Both remain disabled by default. Configuration may enable either pass independently; when both are enabled, the
-fixed order is unnamed then named. The result retains one ordered report per executed stage, so named
+for these transforms. Both remain disabled by default. One `enabled` flag runs every registered pass; the fixed order is direct
+unnamed, direct named, then unnamed expression elimination. The result retains one ordered report per executed stage, so named
 and unnamed decisions cannot be conflated.
 
 A stage consumes the validated output of the preceding stage. Any failed stage
@@ -179,6 +179,8 @@ python3 morphhdl-passes/scripts/check-wa05-pass.py --self-test
 python3 morphhdl-passes/scripts/check-wa05-pass.py
 python3 morphhdl-passes/scripts/check-wa06-pipeline.py --self-test
 python3 morphhdl-passes/scripts/check-wa06-pipeline.py
+python3 morphhdl-passes/scripts/check-wa07-expression.py --self-test
+python3 morphhdl-passes/scripts/check-wa07-expression.py
 python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
 (
   cd morphhdl-passes
@@ -189,7 +191,7 @@ python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-t
 The pinned CI toolchain runs the native witness and strict legality gates with:
 
 ```bash
-bash morphhdl-passes/scripts/run-wa06-regression.sh
+bash morphhdl-passes/scripts/run-wa07-regression.sh
 
 python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py \
   --shared-witness morphhdl-passes/build/formal/wire_assignment_ir/generated/parameterized_stream_fifo.v \
@@ -206,3 +208,24 @@ The regression publishes:
 All three are compared to the same captured pre-pass design. WA-06 completes
 standalone pipeline orchestration and regression closure. WA-07 remains the
 separately reviewed production handoff into MorphHDL-owned generation flow.
+## WA-07 — unified control and unnamed expression elimination
+
+`WireAliasPassConfiguration(enabled = true)` is now the only public pass
+selection. It runs direct unnamed aliases, direct named aliases, and then
+`UnnamedWireExpressionEliminationPass`; the default disables all stages.
+
+The new component-generic pass accepts only an unnamed internal signal with one
+full-object continuous non-reference driver. It copies the canonical RHS into
+every continuous receiver with fresh deterministic reference identities and an
+explicit packed resize, removes the exact temporary declaration and assignment,
+and validates after every fixed-point step. It never matches emitted temporary
+names. Direct references remain WA-04 work. A procedural definition or receiver
+is retained, so assignments in `always` blocks are not changed.
+
+The common parameterized StreamFifo fixture includes a behavior-neutral
+continuous expression wire. WA-07 emits expression-only and all-pass candidates,
+checks byte-identical replay, strict Verilog-2001, lint, synthesis and simulation,
+and reserves both candidates for formal comparison against the same unchanged
+pre-pass reference over all 512 `WIDTH=1..64` by `DEPTH=1..8` bindings.
+
+WA-08 remains the final production handoff.
