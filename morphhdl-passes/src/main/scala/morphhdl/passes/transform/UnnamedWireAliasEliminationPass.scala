@@ -2,6 +2,7 @@ package morphhdl.passes.transform
 
 import scala.collection.mutable.ArrayBuffer
 
+import morphhdl.ir.v1.CanonicalIrHandoff
 import morphhdl.ir.v1.Design
 import morphhdl.ir.v1.DriverId
 import morphhdl.ir.v1.IrDiagnostic
@@ -51,6 +52,24 @@ object UnnamedWireAliasEliminationPass {
       eliminated: Vector[EliminatedWireAlias]
   )
 
+  /** Consume the validated production envelope without discarding its profile. */
+  def run(
+      handoff: CanonicalIrHandoff,
+      configuration: WireAliasPassConfiguration,
+      safetyConfiguration: AliasSafetyConfiguration
+  ): PassResult[Design] = {
+    require(handoff != null, "canonical IR handoff must not be null")
+    val initialView = CanonicalIrPassAdapter.bind(handoff)
+    run(initialView.design, configuration, safetyConfiguration)
+  }
+
+  def run(handoff: CanonicalIrHandoff): PassResult[Design] =
+    run(
+      handoff,
+      WireAliasPassConfiguration(),
+      AliasSafetyConfiguration()
+    )
+
   def run(
       design: Design,
       configuration: WireAliasPassConfiguration = WireAliasPassConfiguration(),
@@ -62,7 +81,7 @@ object UnnamedWireAliasEliminationPass {
     if (!configuration.eliminateUnnamedAliases) {
       PassResult.skipped(design, passId)
     } else {
-      CanonicalIrPassAdapter.bind(design) match {
+      CanonicalIrPassAdapter.bindFixture(design) match {
         case Left(failure) =>
           PassResult.failed(
             output = design,
@@ -82,7 +101,7 @@ object UnnamedWireAliasEliminationPass {
               ).normalized
             case Right(transformation) =>
               val finalView: CanonicalIrPassView =
-                CanonicalIrPassAdapter.bind(transformation.output) match {
+                CanonicalIrPassAdapter.bindFixture(transformation.output) match {
                   case Right(value) => value
                   case Left(failure) =>
                     return PassResult.failed(
@@ -139,7 +158,7 @@ object UnnamedWireAliasEliminationPass {
     var complete = false
 
     while (!complete) {
-      val view: CanonicalIrPassView = CanonicalIrPassAdapter.bind(current) match {
+      val view: CanonicalIrPassView = CanonicalIrPassAdapter.bindFixture(current) match {
         case Right(value) => value
         case Left(failure) =>
           return Left(
@@ -197,7 +216,7 @@ object UnnamedWireAliasEliminationPass {
             sourceSymbol,
             aliasDrivers.head.id
           )
-          CanonicalIrPassAdapter.bind(rewritten) match {
+          CanonicalIrPassAdapter.bindFixture(rewritten) match {
             case Left(failure) =>
               return Left(
                 canonicalDiagnostics(
