@@ -20,24 +20,11 @@ jobs:
 
       - name: Install bounded recursion validation hook
         shell: bash
+        env:
+          TARGET: morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala')
-          text = path.read_text(encoding='utf-8')
-          old = '''    val components = componentGraph(top)
-    components.foreach(ParameterizedMemory.discover)
-'''
-          new = '''    val components = componentGraph(top)
-    components.foreach(ParameterizedMemory.discover)
-    BoundedRecursiveModuleValidation.validate(components)
-'''
-          if text.count(old) != 1:
-              raise SystemExit('publication hook anchor is not unique')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
-          PY
+          python3 -c 'from pathlib import Path; import os; p=Path(os.environ["TARGET"]); t=p.read_text(encoding="utf-8"); old="    val components = componentGraph(top)\n    components.foreach(ParameterizedMemory.discover)\n"; new=old+"    BoundedRecursiveModuleValidation.validate(components)\n"; assert t.count(old)==1, "publication hook anchor is not unique"; p.write_text(t.replace(old,new,1),encoding="utf-8")'
           rm .github/workflows/increment-59a-hook-bootstrap.yml
           git diff --check
 
