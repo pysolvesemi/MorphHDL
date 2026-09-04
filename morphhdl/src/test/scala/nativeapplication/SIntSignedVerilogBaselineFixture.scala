@@ -76,9 +76,10 @@ object SIntSignedVerilogBaselineFixture {
     val quotient = (left / divisor).resize(width).setName("signed_quotient")
     val remainder = (left % divisor).resize(width).setName("signed_remainder")
 
-    // Keep this as one direct tree so the current unsigned-declaration printer
-    // exposes its redundant nested `$signed($signed(...))` behavior verbatim.
-    val nested = ((left + right) + (third - left))
+    // The SInt -> Bits -> SInt round trip is an explicit current-printer
+    // reproducer. The outer signed add wraps that already-cast operand again,
+    // yielding the reviewed `$signed($signed(...))` form with default settings.
+    val nested = (left.asBits.asSInt + (third - right))
       .resize(width)
       .setName("nested_signed")
 
