@@ -441,8 +441,7 @@ object Pipeline { def run(value: Design) = value.modules.map(_.id) }
 
   **Status:** `READY`.
 """
-    pv_roadmap = "- [x] **Increment 58 — Retirement**
-"
+    pv_roadmap = "- [x] **Increment 58 — Retirement**\n"
     if roadmap_failures(Path("roadmap.md"), roadmap, pv_roadmap):
         raise AssertionError("valid WA-06 completion state was rejected")
     if not roadmap_failures(
