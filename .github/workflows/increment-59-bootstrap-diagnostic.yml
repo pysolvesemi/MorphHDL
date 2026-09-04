@@ -1,0 +1,59 @@
+name: Increment 59 bootstrap diagnostic
+
+on:
+  push:
+    branches:
+      - agent/increment-59-typed-blackbox-generics
+    paths:
+      - .github/workflows/increment-59-bootstrap-diagnostic.yml
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-59-typed-blackbox-generics
+          fetch-depth: 0
+
+      - name: Decode and diagnose patch
+        shell: bash
+        run: |
+          set -uo pipefail
+          python3 - <<'PY'
+          import base64
+          import gzip
+          import re
+          from pathlib import Path
+
+          source = Path('.github/workflows/increment-59-bootstrap.yml').read_text(encoding='utf-8')
+          match = re.search(r'encoded = """([A-Za-z0-9+/=]+)"""', source)
+          if match is None:
+              raise SystemExit('encoded bootstrap payload was not found')
+          try:
+              decoded = gzip.decompress(base64.b64decode(match.group(1)))
+          except Exception as error:
+              Path('.github/increment59-bootstrap-diagnostic.txt').write_text(
+                  f'decode failure: {type(error).__name__}: {error}\n',
+                  encoding='utf-8',
+              )
+              raise
+          Path('/tmp/apply-increment59-existing-only.py').write_bytes(decoded)
+          PY
+          set +e
+          python3 /tmp/apply-increment59-existing-only.py \
+            >.github/increment59-bootstrap-diagnostic.txt 2>&1
+          status=$?
+          printf '\nexit_status=%s\n' "$status" \
+            >>.github/increment59-bootstrap-diagnostic.txt
+          set -e
+          rm -f .github/workflows/increment-59-bootstrap-diagnostic.yml
+          git config user.name "MorphHDL Increment Agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -m "Record Increment 59 bootstrap diagnostic"
+          git push origin HEAD:agent/increment-59-typed-blackbox-generics
