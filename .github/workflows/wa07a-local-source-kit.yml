@@ -1,64 +1,66 @@
-name: WA-07a exact root compiler kit
+name: WA-07a verified fixture repair staging
 on:
   push:
     branches: [agent/wa-07a-local-source-kit]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  export:
+  stage:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    container:
-      image: ghcr.io/spinalhdl/docker:v1.2.0
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           ref: d5e91a5e0bfe7fa856a3d3efee11b186963a49a4
-      - name: Compile the exact root and native witness sources
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p compiler-export
-          sbt -batch '++2.12.18' \
-            'set morph / Test / unmanagedSourceDirectories ++= Seq(file("morphhdl-passes/src/main/scala"), file("morphhdl-passes/examples"))' \
-            'morph / Test / compile' \
-            'show morph / Test / fullClasspath' \
-            'show idslplugin / Compile / packageBin' \
-            'show morphplugin / Compile / packageBin' 2>&1 | tee compiler-export/compile.log
-          git rev-parse HEAD > compiler-export/source-commit.txt
-      - name: Export immutable classpath entries with fingerprints
+          fetch-depth: 0
+      - name: Apply only the three reviewed fixture-repair paths
         shell: bash
         run: |
           python3 - <<'PY'
-          import hashlib,json,re,shutil,subprocess,tarfile
+          import hashlib,json
           from pathlib import Path
-          out=Path('compiler-export')
-          log=re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', (out/'compile.log').read_text())
-          paths=list(dict.fromkeys(re.findall(r'Attributed\((/[^\n)]+)\)',log)))
-          assert paths and any('/morphhdl/target/' in p for p in paths), paths
-          for p in paths: assert Path(p).exists(), p
-          extra=[]
-          for folder in ('idslplugin','morphplugin'):
-              candidates=list(Path(folder,'target','scala-2.12').glob('*.jar'))
-              assert candidates, folder
-              extra.extend(str(p.resolve()) for p in candidates)
-          manifest={}
-          with tarfile.open(out/'exact-root-classpath.tar.gz','w:gz') as archive:
-              for i,path in enumerate(paths+extra):
-                  path=Path(path)
-                  name=f'entry-{i:03d}' + ('.jar' if path.is_file() else '')
-                  archive.add(path,arcname=name)
-                  manifest[name]={'source':str(path),'classpath':i<len(paths),'files':{}}
-                  members=[path] if path.is_file() else sorted(p for p in path.rglob('*') if p.is_file())
-                  for p in members:
-                      key='.' if p==path else p.relative_to(path).as_posix()
-                      manifest[name]['files'][key]=hashlib.sha256(p.read_bytes()).hexdigest()
-          (out/'manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')
+          p=Path('morphhdl-passes/examples/ParameterizedStreamFifo.scala')
+          old='  io.pop.payload :=\n    directNamedAlias(directUnnamedAlias(expressionUnnamedAlias(popPayloadSource)))'
+          new='  // Keep the expression temporary nearest the public receiver. Earlier direct\n  // alias stages only rewrite its inputs; the expression stage must perform\n  // the final inlining itself instead of relying on a removable alias receiver.\n  io.pop.payload :=\n    expressionUnnamedAlias(directNamedAlias(directUnnamedAlias(popPayloadSource)))'
+          s=p.read_text(); assert s.count(old)==1; p.write_text(s.replace(old,new))
+          p=Path('morphhdl-passes/scripts/check-wa05-pass.py')
+          old='directNamedAlias(directUnnamedAlias(expressionUnnamedAlias(popPayloadSource)))'
+          new='expressionUnnamedAlias(directNamedAlias(directUnnamedAlias(popPayloadSource)))'
+          s=p.read_text(); assert s.count(old)==1; p.write_text(s.replace(old,new))
+          r=Path('morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json')
+          m=json.loads(r.read_text())
+          expected={
+            'morphhdl-passes/examples/ParameterizedStreamFifo.scala':'06a94248c1b6638d356e7cb151e318f1748ac32ec9560776f9b09049702612db',
+            'morphhdl-passes/scripts/check-wa05-pass.py':'493ae55d2e3e87405dbc65778ca12d77c3a6756d789661e7ff550b92fe4e5983'
+          }
+          for name,digest in expected.items():
+              assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==digest, name
+              m['files'][name]=digest
+          r.write_text(json.dumps(m,indent=2,sort_keys=True)+'\n')
+          assert hashlib.sha256(r.read_bytes()).hexdigest()=='eff4028eab76ae2c1e3893bdb5bcf83e7c2c36f7bfc2b3422e7af10fab7502c1'
           PY
+          for script in morphhdl-passes/scripts/check-wa*.py; do
+            python3 "$script" --self-test
+            python3 "$script"
+          done
+          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+          python3 morphhdl-passes/scripts/test_wire_assignment_equivalence.py -v
+          git diff --check
+          git add morphhdl-passes/examples/ParameterizedStreamFifo.scala morphhdl-passes/scripts/check-wa05-pass.py morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json
+          test "$(git diff --cached --name-only | wc -l)" -eq 3
+          git config user.name pysolvesemi
+          git config user.email pysolvesemi@gmail.com
+          git commit -m 'test(passes): isolate expression witness from removable alias receivers'
+          mkdir -p staging-result
+          git rev-parse HEAD > staging-result/commit.txt
+          git rev-parse HEAD^ > staging-result/parent.txt
+          git rev-parse HEAD^{tree} > staging-result/tree.txt
+          git show --stat --oneline HEAD > staging-result/change.txt
+          git push origin HEAD:refs/heads/agent/wa-07a-fixture-order-stage
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: wa07a-exact-root-d5e91a5e0
-          path: compiler-export
+          name: wa07a-fixture-order-stage
+          path: staging-result
           if-no-files-found: error
           retention-days: 3
