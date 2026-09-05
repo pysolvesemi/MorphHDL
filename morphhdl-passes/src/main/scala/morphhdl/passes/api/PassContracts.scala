@@ -27,6 +27,15 @@ object PassId {
 
   val UnnamedWireAliasElimination: PassId = unsafe("wire-alias-unnamed")
   val NamedWireAliasElimination: PassId = unsafe("wire-alias-named")
+  val UnnamedWireExpressionElimination: PassId =
+    unsafe("wire-expression-unnamed")
+
+  /** The only production order when the common pass flag is enabled. */
+  val allWireAssignmentPasses: Vector[PassId] = Vector(
+    UnnamedWireAliasElimination,
+    NamedWireAliasElimination,
+    UnnamedWireExpressionElimination
+  )
 }
 
 /** Opaque identity supplied by the canonical MorphHDL IR adapter in WA-02. */
@@ -80,22 +89,59 @@ final case class PassDiagnostic(
 }
 
 /**
-  * Plug-and-play selection for exactly the two passes authorized by this roadmap.
-  * Both passes are disabled by default. Combined execution order is fixed:
-  * unnamed aliases first, then named aliases.
+  * One public all-or-none switch for the complete wire-assignment pass pipeline.
+  *
+  * `enabled = false` executes no pass. `enabled = true` executes every pass in
+  * [[PassId.allWireAssignmentPasses]]. There is deliberately no public flag for
+  * selecting one production pass independently.
   */
-final case class WireAliasPassConfiguration(
-    eliminateUnnamedAliases: Boolean = false,
-    eliminateNamedAliases: Boolean = false
+
+final class WireAliasPassConfiguration private (
+    val enabled: Boolean,
+    private[morphhdl] val regressionSelection: Option[Vector[PassId]]
 ) {
-  def enabledPasses: Vector[PassId] = {
-    val builder = Vector.newBuilder[PassId]
-    if (eliminateUnnamedAliases) builder += PassId.UnnamedWireAliasElimination
-    if (eliminateNamedAliases) builder += PassId.NamedWireAliasElimination
-    builder.result()
+  val enabledPasses: Vector[PassId] = regressionSelection.getOrElse {
+    if (enabled) PassId.allWireAssignmentPasses else Vector.empty
   }
 
+  def isEnabled(passId: PassId): Boolean = enabledPasses.contains(passId)
   def isDisabled: Boolean = enabledPasses.isEmpty
+
+
+  override def equals(other: Any): Boolean = other match {
+    case value: WireAliasPassConfiguration =>
+      enabled == value.enabled && regressionSelection == value.regressionSelection
+    case _ => false
+  }
+
+  override def hashCode(): Int =
+    31 * java.lang.Boolean.hashCode(enabled) + regressionSelection.hashCode()
+
+  override def toString: String =
+    s"WireAliasPassConfiguration(enabled=$enabled)"
+}
+
+object WireAliasPassConfiguration {
+  def apply(enabled: Boolean = false): WireAliasPassConfiguration =
+    new WireAliasPassConfiguration(enabled, None)
+
+  /**
+    * Internal-only selection used to keep the historical WA-04, WA-05 and
+    * WA-06 individual proof legs executable. Product callers cannot access it.
+    */
+  private[morphhdl] def selectedForTesting(
+      passes: PassId*
+  ): WireAliasPassConfiguration = {
+    val requested = passes.toVector
+    require(requested.distinct.size == requested.size, "test pass selection repeats a pass")
+    require(
+      requested.forall(PassId.allWireAssignmentPasses.contains),
+      "test pass selection contains an unsupported pass"
+    )
+    val requestedSet = requested.toSet
+    val ordered = PassId.allWireAssignmentPasses.filter(requestedSet.contains)
+    new WireAliasPassConfiguration(ordered.nonEmpty, Some(ordered))
+  }
 }
 
 sealed trait AliasNameOrigin extends Product with Serializable {
@@ -113,13 +159,31 @@ object AliasNameOrigin {
   }
 }
 
-/** One exact alias declaration removed by a future WA-04 or WA-05 execution. */
+/** One exact direct alias declaration removed by WA-04 or WA-05. */
 final case class EliminatedWireAlias(
     aliasSymbol: IrSymbolId,
     sourceSymbol: IrSymbolId,
     nameOrigin: AliasNameOrigin,
     location: Option[SourceLocation] = None
 )
+
+/** One unnamed continuous expression temporary inlined and removed by WA-07. */
+final case class EliminatedWireExpression(
+    aliasSymbol: IrSymbolId,
+    nameOrigin: AliasNameOrigin,
+    rootOperator: String,
+    expressionNodeCount: Int,
+    receiverCount: Int,
+    referencedSymbols: Vector[IrSymbolId] = Vector.empty,
+    location: Option[SourceLocation] = None
+) {
+  require(Option(rootOperator).exists(_.trim.nonEmpty), "expression root operator must be non-empty")
+  require(expressionNodeCount >= 1, "expression node count must be positive")
+  require(receiverCount >= 1, "expression elimination requires at least one receiver")
+
+  def normalized: EliminatedWireExpression =
+    copy(referencedSymbols = referencedSymbols.distinct.sortBy(_.value))
+}
 
 /** Candidate retained because one or more safety conditions were not proven. */
 final case class RejectedWireAlias(
@@ -133,19 +197,24 @@ final case class RejectedWireAlias(
   require(Option(message).exists(_.trim.nonEmpty), "rejection message must be non-empty")
 }
 
-/** Stable, user-visible evidence produced by one wire-alias pass. */
+/** Stable, user-visible evidence produced by one wire-assignment pass. */
 final case class EliminationReport(
     passId: PassId,
     eliminated: Vector[EliminatedWireAlias] = Vector.empty,
+    eliminatedExpressions: Vector[EliminatedWireExpression] = Vector.empty,
     rejected: Vector[RejectedWireAlias] = Vector.empty
 ) {
-  def eliminatedCount: Int = eliminated.size
+  def eliminatedCount: Int = eliminated.size + eliminatedExpressions.size
   def rejectedCount: Int = rejected.size
-  def isEmpty: Boolean = eliminated.isEmpty && rejected.isEmpty
+  def isEmpty: Boolean =
+    eliminated.isEmpty && eliminatedExpressions.isEmpty && rejected.isEmpty
 
   def normalized: EliminationReport =
     copy(
       eliminated = eliminated.sortBy(EliminationReport.eliminatedKey),
+      eliminatedExpressions = eliminatedExpressions
+        .map(_.normalized)
+        .sortBy(EliminationReport.expressionKey),
       rejected = rejected.sortBy(EliminationReport.rejectedKey)
     )
 }
@@ -171,6 +240,23 @@ object EliminationReport {
       nameKey(value.nameOrigin),
       value.aliasSymbol.value,
       value.sourceSymbol.value
+    )
+  }
+
+  private[api] def expressionKey(
+      value: EliminatedWireExpression
+  ): (String, Int, Int, String, String, String, Int, Int, String) = {
+    val location = locationKey(value.location)
+    (
+      location._1,
+      location._2,
+      location._3,
+      nameKey(value.nameOrigin),
+      value.aliasSymbol.value,
+      value.rootOperator,
+      value.expressionNodeCount,
+      value.receiverCount,
+      value.referencedSymbols.map(_.value).mkString("\u0000")
     )
   }
 
@@ -216,7 +302,7 @@ object PassExecutionStatus {
   }
 }
 
-/** Generic immutable result for a pass over a future canonical MorphHDL IR value. */
+/** Generic immutable result for a pass over a canonical MorphHDL IR value. */
 final case class PassResult[A](
     output: A,
     status: PassExecutionStatus,
@@ -228,12 +314,12 @@ final case class PassResult[A](
   )
 
   require(
-    status != PassExecutionStatus.Changed || eliminationReport.eliminated.nonEmpty,
-    "a changed wire-alias pass result must report at least one eliminated alias"
+    status != PassExecutionStatus.Changed || eliminationReport.eliminatedCount > 0,
+    "a changed wire-assignment pass result must report eliminated evidence"
   )
   require(
-    status == PassExecutionStatus.Changed || eliminationReport.eliminated.isEmpty,
-    "a non-changing wire-alias pass result cannot report eliminated aliases"
+    status == PassExecutionStatus.Changed || eliminationReport.eliminatedCount == 0,
+    "a non-changing wire-assignment pass result cannot report eliminated evidence"
   )
   require(
     status.failed == hasErrorDiagnostic,
