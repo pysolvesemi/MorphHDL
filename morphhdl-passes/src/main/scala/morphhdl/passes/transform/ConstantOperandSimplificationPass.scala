@@ -33,7 +33,7 @@ final case class ConstantOperandSimplificationResult(
   * Production selection and writeback belong to the common pipeline handoff.
   */
 object ConstantOperandSimplificationPass {
-  val passId: PassId = PassId.unsafe("constant-operand-simplification")
+  val passId: PassId = PassId.ConstantOperandSimplification
   private val one = IntExpr.Literal(BigInt(1))
   private val maximumFoldWidth = 4096
   private final case class Shape(width: IntExpr, signed: Boolean)
@@ -167,6 +167,13 @@ object ConstantOperandSimplificationPass {
     case _ => false
   }
 
+  /** These producers are one bit regardless of a surrounding width context. */
+  private def isTruthProducer(value: RtlExpr): Boolean = value match {
+    case RtlExpr.Binary(op, _, _) => isPredicate(op)
+    case RtlExpr.Unary(RtlUnaryOperator.LogicalNot, _) => true
+    case _ => false
+  }
+
   private final class Rewriter(declarations: Map[SymbolId, Declaration]) {
     private def shape(expr: RtlExpr): Option[Shape] = expr match {
       case RtlExpr.Ref(_, target, _, _) => declarations.get(target).flatMap(_.packedType).map(t =>
@@ -182,7 +189,7 @@ object ConstantOperandSimplificationPass {
       case RtlExpr.Mux(_, yes, no) => joinedShape(yes, no)
       case RtlExpr.Concat(values) =>
         val shapes = values.map(shape)
-        if (shapes.forall(_.nonEmpty)) {
+        if (shapes.nonEmpty && shapes.forall(_.nonEmpty)) {
           val widths = shapes.flatten.map(_.width)
           Some(Shape(widths.reduceLeft { (a, b) => (a, b) match {
             case (IntExpr.Literal(x), IntExpr.Literal(y)) => IntExpr.Literal(x + y)
@@ -199,10 +206,14 @@ object ConstantOperandSimplificationPass {
       for (a <- shape(left); b <- shape(right))
         yield Shape(maximum(a.width, b.width), a.signed && b.signed)
 
-    private def booleanize(value: RtlExpr): RtlExpr =
-      if (shape(value).contains(booleanShape) && cannotProduceZ(value)) value
-      else RtlExpr.Unary(RtlUnaryOperator.LogicalNot,
+    private def booleanize(value: RtlExpr): RtlExpr = literalTruth(value) match {
+      case Some(truth) => RtlExpr.Literal(if (truth) BigInt(1) else BigInt(0), 1)
+      case None if isTruthProducer(value) => value
+      // Preserve both truth conversion and its self-determined width boundary.
+      // Even a non-Z one-bit bitwise expression may widen in the outer context.
+      case None => RtlExpr.Unary(RtlUnaryOperator.LogicalNot,
         RtlExpr.Unary(RtlUnaryOperator.LogicalNot, value))
+    }
 
     private def allOnesAt(value: RtlExpr, width: IntExpr): Boolean = value match {
       case literal: RtlExpr.Literal =>
@@ -242,16 +253,49 @@ object ConstantOperandSimplificationPass {
         // Never turn a legal selected source into an illegal expression selection.
         case RtlExpr.BitSelect(value, index) => RtlExpr.BitSelect(value, self(index, "index"))
         case value: RtlExpr.PartSelect => value
-        // A resize is an explicit assignment fence, not an algebraic identity.
-        // Its child is left untouched until the producer's resize semantics are published.
-        case value: RtlExpr.Resize => value
+        // Retain the assignment fence. Passing its width inward is conservative
+        // even for a backend that first evaluates the child at its natural width.
+        case RtlExpr.Resize(value, width, signedness) =>
+          RtlExpr.Resize(child(value, Some(width), "value"), width, signedness)
         case RtlExpr.Cast(value, signedness) => RtlExpr.Cast(self(value, "value"), signedness)
       }
-      val replacement = simplify(nested, effectiveWidth)
-      replacement match {
+      simplify(nested, effectiveWidth) match {
         case Some((value, rule)) if value != nested => record(path, rule); value
         case _ => nested
       }
+    }
+
+    /**
+      * Comparison and logical results stay self-determined one-bit values even
+      * beside a wider (including captured unsized) literal. Preserve the binary
+      * result's original packed type with a fence instead of dropping widening.
+      * A one-bit bitwise NOT is intentionally not a predicate: outer context
+      * can widen its computation before inversion.
+      */
+    private def widenedTruthMask(expr: RtlExpr): Option[(RtlExpr, String)] = expr match {
+      case RtlExpr.Binary(op, left, right) if op == RtlBinaryOperator.BitwiseAnd ||
+          op == RtlBinaryOperator.BitwiseOr || op == RtlBinaryOperator.BitwiseXor =>
+        Vector(left -> right, right -> left).iterator.flatMap { case (value, mask) =>
+          mask match {
+            case literal: RtlExpr.Literal if isTruthProducer(value) =>
+              for {
+                bits <- literalBits(literal) if bits == 0 || bits == 1
+                resultShape <- shape(expr) if !resultShape.signed
+              } yield {
+                val replacement: RtlExpr = op match {
+                  case RtlBinaryOperator.BitwiseAnd => if (bits == 0) RtlExpr.Literal(BigInt(0), 1) else value
+                  case RtlBinaryOperator.BitwiseOr => if (bits == 1) RtlExpr.Literal(BigInt(1), 1) else value
+                  case RtlBinaryOperator.BitwiseXor => if (bits == 0) value else RtlExpr.Unary(RtlUnaryOperator.LogicalNot, value)
+                  case _ => value
+                }
+                val fenced = if (resultShape == booleanShape) replacement
+                  else RtlExpr.Resize(replacement, resultShape.width, Signedness.Unsigned)
+                fenced -> "predicate-constant-mask"
+              }
+            case _ => None
+          }
+        }.take(1).toVector.headOption
+      case _ => None
     }
 
     private def simplify(expr: RtlExpr, effectiveWidth: Option[IntExpr]): Option[(RtlExpr, String)] = {
@@ -259,7 +303,7 @@ object ConstantOperandSimplificationPass {
       def sameShape(value: RtlExpr): Boolean = shape(value).nonEmpty && shape(value) == shape(expr)
       def neutral(value: RtlExpr, rule: String): Option[(RtlExpr, String)] =
         if (sameShape(value) && cannotProduceZ(value)) replace(value, rule) else None
-      expr match {
+      val ordinary: Option[(RtlExpr, String)] = expr match {
         case RtlExpr.Binary(RtlBinaryOperator.BitwiseAnd, left, right) if isZero(left) || isZero(right) =>
           shape(expr).map(s => zero(s) -> "bitwise-and-zero")
         case RtlExpr.Binary(RtlBinaryOperator.BitwiseOr, left, right) if isZero(left) => neutral(right, "bitwise-or-zero")
@@ -294,9 +338,12 @@ object ConstantOperandSimplificationPass {
           if (sameShape(left)) replace(left, "shift-by-zero") else None
         case RtlExpr.Unary(RtlUnaryOperator.LogicalNot, value) if literalTruth(value).nonEmpty =>
           replace(RtlExpr.Literal(if (literalTruth(value).get) BigInt(0) else BigInt(1), 1), "logical-not-constant")
-        case RtlExpr.Unary(op, RtlExpr.Unary(inner, value)) if op == inner &&
-            (op == RtlUnaryOperator.LogicalNot || op == RtlUnaryOperator.BitwiseNot) =>
-          neutral(value, "double-negation")
+        case RtlExpr.Unary(RtlUnaryOperator.LogicalNot,
+            RtlExpr.Unary(RtlUnaryOperator.LogicalNot, value)) if isTruthProducer(value) =>
+          replace(value, "double-logical-negation")
+        case RtlExpr.Unary(RtlUnaryOperator.BitwiseNot,
+            RtlExpr.Unary(RtlUnaryOperator.BitwiseNot, value)) =>
+          neutral(value, "double-bitwise-negation")
         case RtlExpr.Mux(condition, yes, no) =>
           literalTruth(condition).flatMap { truth =>
             val selected = if (truth) yes else no
@@ -304,6 +351,7 @@ object ConstantOperandSimplificationPass {
           }
         case _ => None
       }
+      ordinary.orElse(widenedTruthMask(expr))
     }
   }
 }
