@@ -28,8 +28,9 @@ jobs:
           git fetch origin "$branch"
           test "$(git rev-parse FETCH_HEAD)" = 75e581592334e2e596f6e1043beb9596cc20a99b
           git checkout -B "$branch" FETCH_HEAD
-          git apply --check "$RUNNER_TEMP/reviewed60d.patch"
-          git apply --index "$RUNNER_TEMP/reviewed60d.patch"
+          # The connector publishes the workflow separately with its workflow permission.
+          git apply --exclude='.github/workflows/*' --check "$RUNNER_TEMP/reviewed60d.patch"
+          git apply --exclude='.github/workflows/*' --index "$RUNNER_TEMP/reviewed60d.patch"
           git config user.name 'Kartik Parmar'
           git config user.email 'pysolvesemi@users.noreply.github.com'
           git commit -m 'Implement Increment 60d pure-SInt redundant cast elimination'
@@ -42,11 +43,11 @@ jobs:
           python3 morphhdl/scripts/check-increment-58-retirement.py
           python3 morphhdl/scripts/check-production-retirement.py
           git diff --check HEAD^ HEAD
-          git push origin "HEAD:refs/heads/$branch"
           mkdir -p target/60d-publication
           git archive HEAD | gzip > target/60d-publication/source.tar.gz
           git rev-parse HEAD > target/60d-publication/head.txt
           git bundle create target/60d-publication/source.bundle HEAD refs/remotes/origin/parameterized-verilog
+          git push origin "HEAD:refs/heads/$branch"
           cat target/60d-publication/head.txt >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
