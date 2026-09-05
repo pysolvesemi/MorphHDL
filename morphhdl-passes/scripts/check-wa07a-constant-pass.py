@@ -20,6 +20,9 @@ WORKFLOW = '.github/workflows/morphhdl-passes.yml'
 VALIDATOR = 'morphhdl-passes/scripts/validate_wire_assignment_equivalence.py'
 CLOCK_TEST = 'morphhdl-passes/scripts/test_wire_assignment_clock_model.py'
 SCHEDULER_TEST = 'morphhdl-passes/scripts/test_wire_assignment_equivalence.py'
+SHARD_TEST = 'morphhdl-passes/scripts/test_wire_assignment_shards.py'
+AGGREGATE = 'morphhdl-passes/scripts/aggregate_wire_assignment_equivalence.py'
+SHARD_TOOL = 'morphhdl-passes/scripts/test_wire_assignment_shard_tools.py'
 TESTS = 'morphhdl-passes/src/test/scala/morphhdl/passes/transform/'
 CONST = 'constant-operand-simplification'
 ALL = 'wire-alias-unnamed+wire-alias-named+wire-expression-unnamed+' + CONST
@@ -34,7 +37,24 @@ MARKERS = {
                 'comparison reachability passed without a retained cover trace',
                 'proof.get("comparison_reachable") is not True',
                 'mutation = run_mutation_control(mutation_case, pass_directory)',
-                'sequential_mutation = run_mutation_control'),
+                'sequential_mutation = run_mutation_control',
+                'def select_proof_bindings', 'formal_shard_index', 'SHARD_PASS',
+                'selected_bindings = select_proof_bindings', 'binding-evidence.json'),
+    SHARD_TOOL: ('gate.execute_suite', 'aggregate.aggregate', 'UNKNOWN 0 1',
+                 'expected PASS, observed UNKNOWN', 'NOT shared-FIFO qualification',
+                 'WA07A_SHARD_TOOL_CONTROL_PASS'),
+    AGGREGATE: ('def aggregate', 'gate.read_sby_status', 'check_tool_proof',
+                'check_binding_list', 'native_input_identity', 'gate.proof_source_identity',
+                'seen == set(range(shard_count))', 'full domain is not an exact disjoint union',
+                'gate.compare_deterministic_runs', 'all_mutations_detected',
+                'case["clock"], case["reset"], mutation', 'WA07A_FULL_DOMAIN_PASS'),
+    SHARD_TEST: ('test_every_binding_has_exactly_one_owner_without_domain_sampling',
+                 'test_duplicate_shard_index_is_rejected',
+                 'test_stale_commit_registry_manifest_or_reference_is_rejected',
+                 'test_solver_failure_cannot_be_hidden_by_pass_summary',
+                 'test_missing_cover_trace_is_rejected_despite_pass_status',
+                 'test_missing_functional_mutation_counterexample_is_rejected',
+                 'test_stale_pass_file_is_removed_before_a_failing_rerun'),
     CLOCK_TEST: ('correct-clock-model', 'functional_mutation', 'incorrect-clock-model',
                  'value.replace("multiclock on", "multiclock off")',
                  '"REJECTED_UNREACHABLE"', 'WA07A_CLOCK_MODEL_PASS'),
@@ -63,6 +83,7 @@ MARKERS = {
     RUN: ('root="${repo_root}/morphhdl-passes/build"',
           'test -s "${new_reference}/parameterized_stream_fifo.v"',
           'python3 morphhdl-passes/scripts/test_wire_assignment_clock_model.py',
+          'python3 morphhdl-passes/scripts/test_wire_assignment_shard_tools.py',
           'bash morphhdl-passes/scripts/run-wa07-regression.sh',
           'ParameterizedStreamFifoConstantPassWitness reference',
           'ParameterizedStreamFifoConstantPassWitness constant',
@@ -73,7 +94,11 @@ MARKERS = {
           '1:1', '64:8'),
     WORKFLOW: ('check-wa07a-constant-pass.py --self-test', 'check-wa07a-constant-pass.py',
                'run-wa07a-regression.sh', '--prove-pending WA-07a', '--check-determinism',
-               'needs: [boundary, contracts]', 'wa07a-rule-oracle', 'actions/upload-artifact@v4'),
+               'needs: [boundary, contracts]', 'wa07a-rule-oracle', 'actions/upload-artifact@v4',
+               '--formal-shard-count 16', 'max-parallel: 16', '--capture-native-inputs',
+               '--verify-native-inputs', 'needs: [native_generation, formal_shards]',
+               'test "$SHARD_RESULT" = success', '--shard-count 16', 'merge-multiple: false',
+               'test_wire_assignment_shards.py -v'),
     TESTS+'ConstantOperandSimplificationPassSpec.scala': (
         'comparison AND OR and XOR constant operands simplify in both orders',
         'Boolean metadata does not authorize Z-changing raw-reference identities',

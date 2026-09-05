@@ -351,3 +351,33 @@ The regression publishes:
 All seven are compared to the same captured pre-pass design. WA-07a extends the
 one-flag standalone pipeline with constant simplification. WA-08 remains the
 separately reviewed production handoff into MorphHDL-owned generation flow.
+
+
+### WA-07a complete-domain proof shards
+
+The native generation job emits one pre-pass reference and all seven candidates.
+It records their hashes together with the exact source commit, proof manifest and
+signature-registry hashes. Every proof job checks those identities before using
+the artifacts; a previous revision's results cannot qualify a newer checkout.
+
+The unchanged 512-binding WIDTH/DEPTH domain is divided into 16 disjoint,
+non-empty shards. Each shard runs every historical and new pass candidate against
+the same pre-pass reference, preserves the explicit-clock model, proves comparison
+reachability, exercises functional mutations, and independently repeats its proofs
+and deterministic artifacts. Each binding retains its own result ledger. No
+parameter bound, assertion, solver mode, timeout or clock assumption is reduced.
+
+A successful shard reports `SHARD_PASS`, **not** full qualification. The final
+aggregation job requires all 16 jobs to succeed and checks the exact disjoint
+union for both runs and every pass. It rereads the actual solver statuses, miters,
+clock configurations, cover traces, mutation counterexamples and artifact hashes.
+Missing, duplicate, stale, reordered or failed evidence is rejected. A failed
+rerun removes any stale aggregate PASS. Only this final job can report the full
+7 x 512 x 2 = 7,168 equivalence proofs, with 7,168 comparison-reachability proofs,
+as complete. Native legality and four-state evidence remains in the separate
+native-input artifact; actual solver records are retained in all shard artifacts.
+
+Run `python3 morphhdl-passes/scripts/test_wire_assignment_shards.py -v` to test
+partitioning and fail-closed aggregation. These synthetic metadata mutation tests
+are not substitutes for actual RTL proofs. The default command without shard
+options still proves the entire domain in one process.
