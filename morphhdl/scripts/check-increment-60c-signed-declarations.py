@@ -59,8 +59,8 @@ def source_scope(root: Path) -> None:
     require(old[old.index(marker):] == new[new.index(marker):], "native expression/cast printers changed")
     fallback = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
     old = git("show", BASE + ":" + fallback)
-    needle = r"\s*(\[[^\]]+\])?\s*([A-Za-z_][A-Za-z0-9_$]*)"
-    replacement = r"\s*((?:signed\s+)?\[[^\]]+\])?\s*([A-Za-z_][A-Za-z0-9_$]*)"
+    needle = r"\\s*(\\[[^\\]]+\\])?\\s*([A-Za-z_][A-Za-z0-9_$]*)"
+    replacement = r"\\s*((?:signed\\s+)?\\[[^\\]]+\\])?\\s*([A-Za-z_][A-Za-z0-9_$]*)"
     require(old.count(needle) == 2 and old.replace(needle, replacement) == (root / fallback).read_text(),
             "fallback change exceeds preserving the graph-owned declaration section")
     for name in ("MorphHdlSignedDeclarationPolicy.scala",):
