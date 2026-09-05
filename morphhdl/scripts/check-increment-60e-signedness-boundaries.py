@@ -19,6 +19,8 @@ import subprocess
 from pathlib import Path
 
 BASE = "6c2d0027c36076942c03bd2a4f6d4df1b7934962"
+QUALIFIED_59B = "b0a4388e3babbc01500a620eefe6c0965e9e6343"
+QUALIFIED_60E = "dc8cab41cf3fd41b026ba7359f30cb596b14d015"
 WIDTHS = (1, 5, 8, 32)
 DEPTHS = (1, 3, 5, 8)
 KINDS = {
@@ -69,15 +71,33 @@ def source_scope(root: Path) -> None:
     def git(*args: str) -> str:
         return subprocess.check_output(["git", *args], cwd=root, text=True)
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
+    has_59b = subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_59B, "HEAD"],
+                            cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
     contract = json.loads((root / "morphhdl/contracts/increment-60e-boundary-edits.json").read_text())
     for path in sorted({entry["path"] for entry in contract["edits"]}):
-        require(restore_60d_source(root, path, (root / path).read_text()) == git("show", BASE + ":" + path),
+        # The independently qualified reduction publisher changes this same
+        # file. Undo only exact 60e spans, then freeze the complete 59b source;
+        # all other 60e paths must still reproduce the original 60d baseline.
+        baseline = (QUALIFIED_59B if has_59b and path ==
+                    "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala" else BASE)
+        require(restore_60d_source(root, path, (root / path).read_text()) == git("show", baseline + ":" + path),
                 "unreviewed source change outside 60e spans: " + path)
     native = set(git("diff", "--name-only", BASE, "--", "core/src/main", "lib/src/main",
                      "idslplugin/src/main", "sim/src/main").splitlines())
-    require(native == {"core/src/main/scala/spinal/core/internals/VerilogBase.scala",
-                       "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"},
-            "60e native hooks exceed the two printers")
+    expected = {"core/src/main/scala/spinal/core/internals/VerilogBase.scala",
+                "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"}
+    if native != expected:
+        # Extra native entry points require both qualified histories and the
+        # canonical complete-path/blob/span audit. The exact restoration above
+        # continues to reject every unreviewed change to the two native hooks.
+        require(has_59b, "60e native hooks exceed the two printers")
+        subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60E, "HEAD"],
+                       cwd=root, check=True)
+        historical = set(git("diff", "--name-only", BASE, QUALIFIED_60E, "--", "core/src/main",
+                             "lib/src/main", "idslplugin/src/main", "sim/src/main").splitlines())
+        require(historical == expected, "qualified 60e native delta changed: " + str(historical))
+        subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"],
+                       cwd=root, check=True)
     for name in ("MorphHdlSignednessAnalysis.scala",):
         path = "morphhdl/src/main/scala/spinal/core/internals/" + name
         require(git("show", BASE + ":" + path) == (root / path).read_text(), "independent type authority changed")

@@ -11,6 +11,8 @@ import subprocess
 from pathlib import Path
 
 BASE = "75e581592334e2e596f6e1043beb9596cc20a99b"
+QUALIFIED_60D = "6c2d0027c36076942c03bd2a4f6d4df1b7934962"
+QUALIFIED_60E = "dc8cab41cf3fd41b026ba7359f30cb596b14d015"
 WIDTHS = (1, 5, 8, 32)
 TOP = "PureSIntCasts"
 
@@ -30,9 +32,11 @@ def load(path: Path, name: str):
 
 def restore_declaration_only_emitter(root: Path, source: str) -> str:
     """Undo only the four reviewed 60d helper edits, not arbitrary printer code."""
-    boundary = load(root / "morphhdl/scripts/check-increment-60e-signedness-boundaries.py", "boundary_scope")
-    source = boundary.restore_60d_source(root,
-        "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", source)
+    boundary_checker = root / "morphhdl/scripts/check-increment-60e-signedness-boundaries.py"
+    if boundary_checker.is_file():
+        boundary = load(boundary_checker, "boundary_scope")
+        source = boundary.restore_60d_source(root,
+            "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", source)
     contract = json.loads((root / "morphhdl/contracts/increment-60d-emitter-edits.json").read_text())
     require(contract["base"] == BASE and len(contract["edits"]) == 4, "unexpected emitter edit contract")
     for edit in reversed(contract["edits"]):
@@ -49,7 +53,22 @@ def source_scope(root: Path) -> None:
                 "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"}
     native = set(git("diff", "--name-only", BASE, "HEAD", "--", "core/src/main", "lib/src/main",
                      "idslplugin/src/main", "sim/src/main").splitlines())
-    require(native == expected, "60d native changes exceed the two emitter hooks: " + str(native))
+    if native != expected:
+        # Inherited gates admit later native work only through the canonical
+        # reviewed-span inventory. Both qualified emitter hooks remain frozen.
+        subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60D, "HEAD"],
+                       cwd=root, check=True)
+        historical = set(git("diff", "--name-only", BASE, QUALIFIED_60D, "--", "core/src/main",
+                             "lib/src/main", "idslplugin/src/main", "sim/src/main").splitlines())
+        require(historical == expected, "qualified 60d native delta changed: " + str(historical))
+        qualified = QUALIFIED_60D
+        if subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60E, "HEAD"],
+                          cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+            qualified = QUALIFIED_60E
+        require(not git("diff", "--name-only", qualified, "HEAD", "--", *sorted(expected)).strip(),
+                "native signed declaration/cast hooks changed after their frozen qualification")
+        subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"],
+                       cwd=root, check=True)
     emitter = "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"
     require(restore_declaration_only_emitter(root, (root / emitter).read_text()) == git("show", BASE + ":" + emitter),
             "wrapper planning, declaration emission or another native printer changed")

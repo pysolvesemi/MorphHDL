@@ -140,7 +140,8 @@ object ParameterizedStructure {
       val staticAccess: Option[ParameterizedVecStaticIndex],
       val index: ElaborationIntegerExpression,
       val finiteIndexToken: Option[ElabFiniteIndexToken],
-      val sourceLocation: Option[String]
+      val sourceLocation: Option[String],
+      val affineRead: Option[ElabFiniteAffineVecRead] = None
   )
 
   /** One exact native asynchronous read selected by a retained generate index.
@@ -1340,7 +1341,8 @@ object ParameterizedStructure {
       selected: T,
       index: ElaborationIntegerExpression,
       finiteIndexToken: Option[ElabFiniteIndexToken],
-      sourceLocation: Option[String]
+      sourceLocation: Option[String],
+      affineRead: Option[ElabFiniteAffineVecRead] = None
   ): T = {
     val state = requireCapture("Vec index", sourceLocation)
     if ((vector eq null) || (selected eq null)) {
@@ -1376,10 +1378,28 @@ object ParameterizedStructure {
       selected,
       index,
       finiteIndexToken,
-      sourceLocation
+      sourceLocation,
+      affineRead
     )
     state.vecIndices += retained
     retained.result.asInstanceOf[T]
+  }
+
+  private[core] def recordAffineVecRead[T <: Data](
+      vector: Vec[T],
+      selected: T,
+      index: ElaborationIntegerExpression,
+      token: ElabFiniteIndexToken,
+      evidence: ElabFiniteAffineVecRead,
+      sourceLocation: Option[String]
+  ): T = {
+    if (evidence == null || !evidence.matches(vector, index, token))
+      fail(
+        "SPINAL-ELAB-FINITE-AFFINE-EVIDENCE-MISMATCH",
+        "affine Vec read lost its exact vector, selector or finite-range evidence",
+        sourceLocation
+      )
+    recordVecIndexImpl(vector, selected, index, Some(token), sourceLocation, Some(evidence))
   }
 
   /** Create the distinct identity anchor shared by the typed runtime and the
@@ -1405,7 +1425,8 @@ object ParameterizedStructure {
       selected: T,
       index: ElaborationIntegerExpression,
       finiteIndexToken: Option[ElabFiniteIndexToken],
-      sourceLocation: Option[String]
+      sourceLocation: Option[String],
+      affineRead: Option[ElabFiniteAffineVecRead] = None
   ): StructuralVecIndex = {
     if (
       finiteIndexToken == null ||
@@ -1501,7 +1522,8 @@ object ParameterizedStructure {
       retainedStaticVecAccess(vector, selected, index, sourceLocation),
       index,
       finiteIndexToken,
-      sourceLocation
+      sourceLocation,
+      affineRead
     )
     retained
   }
@@ -3088,7 +3110,8 @@ object ParameterizedStructure {
                 selection.staticAccess,
                 selection.index,
                 Some(token),
-                selection.sourceLocation
+                selection.sourceLocation,
+                selection.affineRead
               )
           }
         }

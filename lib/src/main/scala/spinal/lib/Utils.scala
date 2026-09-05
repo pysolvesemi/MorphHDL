@@ -1080,8 +1080,12 @@ class TraversableOnceAddressTransformerPimped(pimped: Seq[AddressTransformer]) {
 }
 
 class TraversableOncePimped[T <: Data](pimped: Seq[T]) {
-  def reduceBalancedTree(op: (T, T) => T): T =  new TraversableOnceAnyPimped[T](pimped).reduceBalancedTree(op)
-  def reduceBalancedTree(op: (T, T) => T, levelBridge: (T, Int) => T): T =  new TraversableOnceAnyPimped[T](pimped).reduceBalancedTree(op, levelBridge)
+  def reduceBalancedTree(op: (T, T) => T): T = reduceBalancedTree(op, (value: T, _: Int) => value)
+  def reduceBalancedTree(op: (T, T) => T, levelBridge: (T, Int) => T): T =
+    ElabBalancedReduction.reduce[T](pimped, op, levelBridge) {
+      (elements: Seq[T], operation: (T, T) => T, bridge: (T, Int) => T) =>
+        new TraversableOnceAnyPimped[T](elements).reduceBalancedTree(operation, bridge)
+    }
   def asBits() : Bits = Cat(pimped)
 
 

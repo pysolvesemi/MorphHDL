@@ -10,6 +10,9 @@ import subprocess
 from pathlib import Path
 
 BASE = "d0c2d65ed301a7895218a2fe225b2faf4a4bbfe0"
+QUALIFIED_60C = "75e581592334e2e596f6e1043beb9596cc20a99b"
+QUALIFIED_60D = "6c2d0027c36076942c03bd2a4f6d4df1b7934962"
+QUALIFIED_60E = "dc8cab41cf3fd41b026ba7359f30cb596b14d015"
 TOP = "SignedDeclarations"
 WIDTHS = (1, 5, 8, 32)
 
@@ -31,29 +34,61 @@ def source_scope(root: Path) -> None:
     def git(*args: str) -> str:
         return subprocess.check_output(["git", *args], cwd=root, text=True)
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
-    native = set(git("diff", "--name-only", BASE, "HEAD", "--", "core/src/main", "lib/src/main",
-                     "idslplugin/src/main", "sim/src/main").splitlines())
+    roots = ("core/src/main", "lib/src/main", "idslplugin/src/main", "sim/src/main")
+    native = set(git("diff", "--name-only", BASE, "HEAD", "--", *roots).splitlines())
     expected = {"core/src/main/scala/spinal/core/internals/VerilogBase.scala",
                 "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"}
-    require(native == expected, "native declaration hook scope changed: " + str(native))
+    if native != expected:
+        # Later increments may add independently reviewed native entry points.
+        # Freeze the actual 60c hooks instead of treating every subsequent
+        # native edit as if it were part of the declaration-only increment.
+        subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60C, "HEAD"],
+                       cwd=root, check=True)
+        historical = set(git("diff", "--name-only", BASE, QUALIFIED_60C,
+                             "--", *roots).splitlines())
+        require(historical == expected, "qualified 60c native delta changed: " + str(historical))
+        # A later, separately qualified cast policy extends these same native
+        # hooks. Freeze their complete contents at its merge when present;
+        # the exact 60d spans are still undone below before checking the 60c
+        # printer contract. Additional edits to either hook remain rejected.
+        qualified = QUALIFIED_60C
+        if subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60D, "HEAD"],
+                          cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+            qualified = QUALIFIED_60D
+        if subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60E, "HEAD"],
+                          cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+            qualified = QUALIFIED_60E
+        require(not git("diff", "--name-only", qualified, "HEAD", "--", *sorted(expected)).strip(),
+                "native signed declaration/cast hooks changed after their frozen qualification")
+        # Never accept an arbitrary extra native path merely because the two
+        # frozen hooks are intact. The canonical guard checks every reviewed
+        # production root, byte span, blob, root tree and dirty native file.
+        subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"],
+                       cwd=root, check=True)
     emitter = "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"
     old = git("show", BASE + ":" + emitter)
     new = (root / emitter).read_text()
     marker = "  def emitReference("
     # 60d is a separately opt-in extension. Undo only its exact reviewed spans
     # before enforcing the original declaration-only printer contract.
-    spec = importlib.util.spec_from_file_location("pure_cast_scope", root / "morphhdl/scripts/check-increment-60d-pure-sint-casts.py")
-    pure = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(pure)
-    restored = pure.restore_declaration_only_emitter(root, new)
+    pure_checker = root / "morphhdl/scripts/check-increment-60d-pure-sint-casts.py"
+    restored = new
+    if pure_checker.is_file():
+        spec = importlib.util.spec_from_file_location("pure_cast_scope", pure_checker)
+        pure = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(pure)
+        restored = pure.restore_declaration_only_emitter(root, new)
     require(old[old.index(marker):] == restored[restored.index(marker):], "native expression/cast printers changed outside reviewed 60d hooks")
     fallback = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
     old = git("show", BASE + ":" + fallback)
     needle = r"\\s*(\\[[^\\]]+\\])?\\s*([A-Za-z_][A-Za-z0-9_$]*)"
     replacement = r"\\s*((?:signed\\s+)?\\[[^\\]]+\\])?\\s*([A-Za-z_][A-Za-z0-9_$]*)"
-    boundary = pure.load(root / "morphhdl/scripts/check-increment-60e-signedness-boundaries.py", "boundary_scope")
-    restored_fallback = boundary.restore_60d_source(root, fallback, (root / fallback).read_text())
+    restored_fallback = (root / fallback).read_text()
+    boundary_checker = root / "morphhdl/scripts/check-increment-60e-signedness-boundaries.py"
+    if boundary_checker.is_file():
+        boundary = pure.load(boundary_checker, "boundary_scope")
+        restored_fallback = boundary.restore_60d_source(root, fallback, restored_fallback)
     require(old.count(needle) == 2 and old.replace(needle, replacement) == restored_fallback,
             "fallback change exceeds preserving the graph-owned declaration section")
     for name in ("MorphHdlSignedDeclarationPolicy.scala",):

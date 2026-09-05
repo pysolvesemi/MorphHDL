@@ -689,7 +689,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   admit arbitrary runtime recursion, cyclic hardware, unbounded elaboration or
   tool-portable recursion beyond the explicitly qualified tool matrix.
 
-- [ ] **Increment 59b — Typed parameterized Vec reduceBalancedTree**
+- [x] **Increment 59b — Typed parameterized Vec reduceBalancedTree**
 
   **Dependencies:** Increment 59a implemented and merged.
 
@@ -707,6 +707,17 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   mutation, dual-Scala and inherited compatibility gates. Fail closed for an
   empty domain, non-associative/unsupported side effects, ambiguous shapes or a
   topology whose finite bound cannot be proven.
+
+  **Completion evidence:** implementation source `ebc33b9ef065b5591c419f15b1bc9b3085ee6aa7`,
+  tree `668b1446e0d58574baac1381072bf01cf297df1e`. The qualified safe-graph scope,
+  source-bound dual-Scala proofs and explicit rejected cases are recorded in
+  [the 59b completion record](increment-59b-parameterized-reduce-balanced-tree.md).
+  Completion head `b0a4388e3babbc01500a620eefe6c0965e9e6343` passed its CI.
+  The later integration of merged 60e base `dc8cab41cf3fd41b026ba7359f30cb596b14d015`
+  requires fresh combined-head CI on [PR #157](https://github.com/pysolvesemi/MorphHDL/pull/157)
+  before merge; the checkbox and qualified safe-graph scope remain unchanged.
+  Historical completion evidence does not claim the new combined head is qualified
+  or that PR #157 has merged.
 
 - [ ] **Increment 60 — Native signed `SInt` Verilog**
 
