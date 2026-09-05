@@ -13,7 +13,10 @@ import spinal.core._
   * MorphHDL publication pass validates symbolic widths. Capture therefore runs
   * after register nextification but before unnamed intermediates are removed.
   * It stores statement identity in the owning Component's user cache without
-  * retaining global state or mutating the native expression graph.
+  * retaining global state or mutating the native expression graph. With signed
+  * boundary publication enabled, exact typed SInt resize result carriers also
+  * retain their native dontSimplify tag so nested consumers cannot erase their
+  * explicit intermediate width.
   */
 object ExternalParameterizedAutoResize {
   private object StorageKey
@@ -701,9 +704,42 @@ object ExternalParameterizedAutoResize {
       }
     }
 
+    // Signed boundary publication must retain the *result* width before a
+    // nested consumer is normalized. This exact carrier is a real scalar
+    // declaration, not a recovered Int witness or a cast around an inline RHS.
+    def preserveSignedResizeCarrier(value: BitVector): Unit = {
+      if (!morphhdl.MorphSignedCasts.isEnabled(GlobalData.get.config) ||
+          (value.getTypeObject != TypeSInt) || !value.hasOnlyOneStatement) return
+      value.head match {
+        case driver: DataAssignmentStatement
+            if (driver.target eq value) && (driver.finalTarget eq value) =>
+          driver.source match {
+            case operation: ResizeSInt
+                if operation.getClass == classOf[ResizeSInt] &&
+                  operation.size == value.getBitsWidth &&
+                  operation.input != null && operation.input.getWidth > 0 =>
+              (ParameterizedWidth.expressionOf(value),
+                ParameterizedWidth.resizeExpressionOf(operation)) match {
+                case (Some(retained), Some(resized))
+                    if retained.minimum > 0 &&
+                      retained.default == BigInt(value.getBitsWidth) &&
+                      ExternalFormalParameterRegistry.equivalentExpression(retained, resized) =>
+                  ParameterizedStructure.validateProjectedAssignmentDominance(
+                    component, driver, retained, "signed resize result carrier width",
+                    retained.sourceLocation)
+                  value.dontSimplifyIt()
+                case _ =>
+              }
+            case _ =>
+          }
+        case _ =>
+      }
+    }
+
     val typedCarrierIterator = typedResizeCarriers.keySet().iterator()
     while (typedCarrierIterator.hasNext) {
       val value = typedCarrierIterator.next()
+      preserveSignedResizeCarrier(value)
       val useCount = liveDrivingUseCount.get(value)
       val reviewedNormalizedUIntBoundary = value match {
         case uint: UInt =>

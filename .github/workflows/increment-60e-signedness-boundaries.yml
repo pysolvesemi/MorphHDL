@@ -1,0 +1,107 @@
+name: Increment 60e signedness boundaries
+
+on:
+  push:
+    branches: ['agent/increment-60e-*', parameterized-verilog]
+    paths: ['core/**', 'morphhdl/**', 'docs/morphhdl/increment-60*', '.github/workflows/increment-60e-signedness-boundaries.yml']
+  pull_request:
+    branches: [parameterized-verilog]
+    paths: ['core/**', 'morphhdl/**', 'docs/morphhdl/increment-60*', '.github/workflows/increment-60e-signedness-boundaries.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: increment-60e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  qualify:
+    name: Signedness boundaries Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      MORPHDL_RUN_TYPED_VEC_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_TYPED_VEC_FORMAL_WORKSPACE: /tmp/increment-60e-native-vec-formal
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Exact source scope and inherited native audits
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-60e
+          git rev-parse HEAD > target/increment-60e/head.txt
+          git archive HEAD | gzip > target/increment-60e/source.tar.gz
+          python3 morphhdl/scripts/check-increment-60e-signedness-boundaries.py --source-only
+          python3 morphhdl/scripts/check-increment-60d-pure-sint-casts.py --source-only
+          python3 morphhdl/scripts/check-increment-60c-signed-declarations.py --source-only
+          python3 morphhdl/scripts/check-increment-58-retirement.py
+          python3 morphhdl/scripts/check-production-retirement.py
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test
+      - name: Exact graph, boundary, aggregate, hierarchy and compatibility regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-60e"
+          mkdir -p "$output/a" "$output/b" "$output/inherited-a/baseline" "$output/inherited-b/baseline"
+          sbt -batch "++${{ matrix.scala }}" \
+            "morph/Test/testOnly spinal.core.internals.SignednessBoundaryTests spinal.core.internals.PureSIntCastTests spinal.core.internals.SignedDeclarationPublicationTests spinal.core.internals.TypedSignednessAuthorityTests spinal.core.internals.TypedSignednessResumeTests morphhdl.MorphSingleSourceVerilogTests morphhdl.MorphCanonicalIrHandoffTests morphhdl.TypedBlackBoxGenericBindingTests morphhdl.TypedParameterizedVecTests morphhdl.TypedParameterizedVecFormalEquivalenceTests" \
+            "morph/Test/runMain spinal.core.SignednessBoundaryArtifactWriter $output/a" \
+            "morph/Test/runMain spinal.core.SignednessBoundaryArtifactWriter $output/b" \
+            "morph/Test/runMain nativeapplication.PureSIntCastArtifactWriter $output/inherited-a" \
+            "morph/Test/runMain nativeapplication.PureSIntCastArtifactWriter $output/inherited-b" \
+            > "$output/sbt.log" 2>&1 || { tail -n 250 "$output/sbt.log"; exit 1; }
+          python3 - "$output" <<'PY'
+          from pathlib import Path
+          import sys
+          import xml.etree.ElementTree as ET
+          root = Path(sys.argv[1])
+          for a, b, count in [('a', 'b', 70), ('inherited-a', 'inherited-b', 29)]:
+              left = {p.relative_to(root / a): p.read_bytes() for p in (root / a).rglob('*.v')}
+              right = {p.relative_to(root / b): p.read_bytes() for p in (root / b).rglob('*.v')}
+              assert len(left) == count and left == right, (a, len(left), 'fresh generation mismatch')
+              print(a, 'deterministic Verilog files:', len(left))
+          names = ['SignednessBoundaryTests', 'PureSIntCastTests', 'SignedDeclarationPublicationTests',
+                   'TypedSignednessAuthorityTests', 'TypedSignednessResumeTests', 'MorphSingleSourceVerilogTests',
+                   'MorphCanonicalIrHandoffTests', 'TypedBlackBoxGenericBindingTests',
+                   'TypedParameterizedVecTests', 'TypedParameterizedVecFormalEquivalenceTests']
+          total = 0
+          for name in names:
+              files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
+              assert len(files) == 1, (name, files)
+              result = ET.parse(files[0]).getroot()
+              assert int(result.get('tests', '0')) > 0, result.attrib
+              assert all(int(result.get(k, '0')) == 0 for k in ('failures', 'errors', 'skipped')), result.attrib
+              total += int(result.get('tests', '0'))
+              print(result.attrib)
+          assert total >= 139, total
+          print('Non-skipped tests:', total)
+          PY
+      - name: Strict V2001 tools, independent references and genuine boundary mutations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-60e-signedness-boundaries.py target/increment-60e/a
+          python3 morphhdl/scripts/check-increment-60d-pure-sint-casts.py target/increment-60e/inherited-a
+      - name: Retain exact-head source and independent qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-60e-${{ matrix.scala }}
+          path: |
+            target/increment-60e
+            morphhdl/target/test-reports
+            /tmp/increment-60e-native-vec-formal
+          if-no-files-found: error
+          retention-days: 30
