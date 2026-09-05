@@ -23,6 +23,12 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
     assert(error.getMessage.contains(code), error.getMessage)
   }
 
+  // Build the native mux node with an inferred result for graph-certificate
+  // tests. The ordinary BitVector Mux method currently freezes its Int witness;
+  // separate tests and independent concrete artifacts exercise that method.
+  private def inferredMux[T <: BaseType](condition: Bool, yes: T, no: T): T =
+    yes.wrapWithWeakClone(yes.newMultiplexer(condition, yes, no)).asInstanceOf[T]
+
   // Parameter tokens belong outside Component val naming callbacks: those
   // callbacks deliberately cannot hash a symbolic HdlInt as a Scala value.
   private def withUInt(body: (Vec[UInt], HdlInt) => Unit): Unit = {
@@ -128,6 +134,174 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
       val driver = result.dlcLast.asInstanceOf[DataAssignmentStatement].source.asInstanceOf[BinaryOperator]
       assert(driver.left eq words.vec(2))
       assert(driver.right eq words.vec(0))
+    }
+  }
+
+  test("inferred unsigned min/max graphs retain symbolic width and distinct semantic keys") {
+    withUInt { (words, _) =>
+      var calls = 0
+      val operations = Vector[(UInt, UInt) => UInt](
+        (a, b) => inferredMux(a < b, a, b), (a, b) => inferredMux(a < b, b, a))
+      val proofs = operations.map { operation =>
+        val captured = record(words, (a: UInt, b: UInt) => { calls += 1; operation(a, b) })
+        TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
+      }
+      assert(proofs.forall(_.operatorClass == classOf[BinaryMultiplexerUInt]))
+      assert(proofs.head.operationKey != proofs.last.operationKey)
+      val before = calls
+      proofs.foreach { proof =>
+        val output = proof.replay(words.vec(0), words.vec(2))
+        val next = proof.replay(output, words.vec(1))
+        assert(next.getTypeObject == TypeUInt)
+        assert(ElabInt.equivalentExactFunction(ParameterizedWidth.expressionOf(next).get,
+          ParameterizedWidth.expressionOf(words.vec.head).get))
+      }
+      assert(calls == before)
+    }
+  }
+
+  test("inferred signed min/max graphs replay their exact native signed comparators") {
+    val width = HdlInt.param("WIDTH", 5, 1, 32)
+    val count = HdlInt.param("COUNT", 3, 1, 3)
+    generate(new Component {
+      val words = Vec(SInt(width bits), count)
+      words.vec.foreach(_ := 0)
+      for (operation <- Vector[(SInt, SInt) => SInt](
+          (a, b) => inferredMux(a < b, a, b), (a, b) => inferredMux(a < b, b, a))) {
+        val captured = record(words, operation)
+        val proof = TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
+        val output = proof.replay(words.vec(0), words.vec(2))
+        val mux = output.dlcLast.asInstanceOf[DataAssignmentStatement].source.asInstanceOf[BinaryMultiplexer]
+        val compare = mux.cond.asInstanceOf[Bool].dlcLast.asInstanceOf[DataAssignmentStatement].source
+        assert(mux.getClass == classOf[BinaryMultiplexerSInt])
+        assert(compare.getClass == classOf[Operator.SInt.Smaller])
+        assert(output.getTypeObject == TypeSInt)
+        assert(ElabInt.equivalentExactFunction(ParameterizedWidth.expressionOf(output).get,
+          ParameterizedWidth.expressionOf(words.vec.head).get))
+      }
+    })
+  }
+
+  test("min/max certification preserves comparator and arm order through native aliases") {
+    withUInt { (words, _) =>
+      val operations = Vector[(UInt, UInt) => UInt](
+        (a, b) => inferredMux(a < b, a, b), (a, b) => inferredMux(b < a, b, a),
+        (a, b) => inferredMux(a < b, b, a), (a, b) => {
+          val alias = UInt(); alias := b
+          val condition = Bool(); condition := alias < a
+          val output = UInt(); output := inferredMux(condition, a, alias)
+          output
+        })
+      val proofs = operations.zipWithIndex.map { case (operation, index) =>
+        val captured = record(words, operation)
+        val proof = TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
+        val output = proof.replay(words.vec(0), words.vec(2))
+        val mux = output.dlcLast.asInstanceOf[DataAssignmentStatement].source.asInstanceOf[BinaryMultiplexer]
+        val compare = mux.cond.asInstanceOf[Bool].dlcLast.asInstanceOf[DataAssignmentStatement].source.asInstanceOf[BinaryOperator]
+        assert(compare.left eq words.vec(if (index % 2 == 1) 2 else 0))
+        assert(compare.right eq words.vec(if (index % 2 == 1) 0 else 2))
+        assert(mux.whenTrue eq words.vec(if (index == 1 || index == 2) 2 else 0))
+        assert(mux.whenFalse eq words.vec(if (index == 1 || index == 2) 0 else 2))
+        proof
+      }
+      assert(proofs(0).operationKey == proofs(1).operationKey)
+      assert(proofs(2).operationKey == proofs(3).operationKey)
+      assert(proofs(0).operationKey != proofs(2).operationKey)
+    }
+  }
+
+  test("min/max rejects wrong signedness comparisons and unproved selectors") {
+    val operations = Vector[(UInt, UInt) => UInt](
+      (a, b) => inferredMux(a.asSInt < b.asSInt, a, b),
+      (a, b) => inferredMux(a === b, a, b),
+      (a, b) => inferredMux(a <= b, a, b))
+    for (operation <- operations) {
+      withUInt { (words, _) =>
+        val captured = record(words, operation)
+        assertCode("REPLAY-MINMAX-COMPARISON") {
+          TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
+        }
+      }
+    }
+  }
+
+  test("min/max requires two exact original operands in both comparison and arms") {
+    for (operation <- Vector[(UInt, UInt) => UInt](
+        (a, b) => inferredMux(a < a, a, b), (a, b) => inferredMux(a < b, a, a))) {
+      withUInt { (words, _) =>
+        val captured = record(words, operation)
+        assertCode("REPLAY-BODY-OPERANDS") {
+          TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
+        }
+      }
+    }
+    withUInt { (words, width) =>
+      val foreign = UInt(width bits); foreign := 0
+      for (operation <- Vector[(UInt, UInt) => UInt](
+          (a, b) => inferredMux(a < foreign, a, b), (a, b) => inferredMux(a < b, a, foreign))) {
+        val captured = record(words, operation)
+        assertCode("REPLAY-EXTERNAL-READ") {
+          TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
+        }
+      }
+    }
+  }
+
+  test("live min/max selector comparator and arm edits invalidate certification") {
+    withUInt { (words, _) =>
+      val captured = record(words, (a: UInt, b: UInt) => inferredMux(a < b, a, b))
+      val body = captured.rows.head.operator.get
+      val proof = TypedBalancedReductionOperatorReplay.certify(body)
+      val mux = body.assignments.collectFirst {
+        case assignment if assignment.source.isInstanceOf[BinaryMultiplexerUInt] =>
+          assignment.source.asInstanceOf[BinaryMultiplexerUInt]
+      }.get
+      val compare = body.assignments.collectFirst {
+        case assignment if assignment.source.isInstanceOf[Operator.UInt.Smaller] =>
+          assignment.source.asInstanceOf[Operator.UInt.Smaller]
+      }.get
+      val condition = mux.cond
+      mux.cond = True
+      assertCode("REPLAY-STALE-GRAPH") { proof.validateFreshness() }
+      mux.cond = condition
+      val arm = mux.whenTrue
+      mux.whenTrue = words.vec(2)
+      assertCode("REPLAY-STALE-GRAPH") { proof.validateFreshness() }
+      mux.whenTrue = arm
+      val left = compare.left
+      compare.left = words.vec(2)
+      assertCode("REPLAY-STALE-GRAPH") { proof.validateFreshness() }
+      compare.left = left
+      proof.validateFreshness()
+    }
+  }
+
+  test("min/max replay rejects foreign symbolic roots with equal defaults") {
+    withUInt { (words, _) =>
+      val captured = record(words, (a: UInt, b: UInt) => inferredMux(a < b, a, b))
+      val proof = TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
+      val foreign = UInt(HdlInt.param("WIDTH", 5, 1, 32) bits)
+      foreign := 0
+      assertCode("REPLAY-OPERAND-SHAPE") { proof.replay(words.vec(0), foreign) }
+    }
+  }
+
+  test("native min/max methods admit concrete widths and reject frozen symbolic witnesses") {
+    val operations = Vector[(UInt, UInt) => UInt](_ min _, _ max _)
+    for (operation <- operations) {
+      generate(new Component {
+        val words = Vec(UInt(5 bits), HdlInt.param("COUNT", 3, 1, 3))
+        words.vec.foreach(_ := 0)
+        val captured = record(words, operation)
+        val proof = TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
+        assert(proof.replay(words.vec(0), words.vec(2)).getBitsWidth == 5)
+      })
+      withUInt { (words, _) =>
+        val captured = record(words, operation)
+        assertCode("REPLAY-FIXED-WIDTH") {
+          TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
+        }
+      }
     }
   }
 

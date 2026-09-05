@@ -15,6 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "morphhdl/scripts/check-increment-60c-signed-declarations.py"
 QUALIFIED = "75e581592334e2e596f6e1043beb9596cc20a99b"
+QUALIFIED_60D = "6c2d0027c36076942c03bd2a4f6d4df1b7934962"
 DRIVER = """import importlib.util, sys
 from pathlib import Path
 spec = importlib.util.spec_from_file_location('scope_checker', sys.argv[2])
@@ -34,16 +35,25 @@ def git(root: Path, *arguments: str) -> str:
 
 
 def checked(root: Path, label: str, expected: str | None = None) -> dict:
-    result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(CHECKER)],
-                            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=120, check=False)
-    if expected is None:
-        if result.returncode or "immutable oracle PASS" not in result.stdout:
-            raise RuntimeError(label + " did not pass:\n" + result.stdout)
-    elif not result.returncode or expected not in result.stdout:
-        raise RuntimeError(label + " did not fail for " + expected + ":\n" + result.stdout)
+    checkers = [(CHECKER, "immutable oracle PASS")]
+    pure_checker = CHECKER.with_name("check-increment-60d-pure-sint-casts.py")
+    if (root / "morphhdl/scripts" / pure_checker.name).is_file():
+        checkers.append((pure_checker, "independent oracle scope PASS"))
+    evidence = []
+    # Check each inherited gate independently. An early 60c rejection must not
+    # hide a weakened or broken 60d guard on the same negative fixture.
+    for checker, marker in checkers:
+        result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(checker)],
+                                text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                timeout=120, check=False)
+        if expected is None:
+            if result.returncode or marker not in result.stdout:
+                raise RuntimeError(label + " " + checker.name + " did not pass:\n" + result.stdout)
+        elif not result.returncode or expected not in result.stdout:
+            raise RuntimeError(label + " " + checker.name + " did not fail for " + expected + ":\n" + result.stdout)
+        evidence.append({"checker": checker.name, "exit_code": result.returncode})
     print("PASS:", label, "[" + (expected or "accepted") + "]")
-    return {"case": label, "expected_rejection": expected, "exit_code": result.returncode}
+    return {"case": label, "expected_rejection": expected, "checks": evidence}
 
 
 def commit_fixture(root: Path, path: str) -> None:
@@ -55,10 +65,12 @@ def commit_fixture(root: Path, path: str) -> None:
 
 def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
-    records = [checked(ROOT, "combined approved 59b and frozen 60c source")]
+    records = [checked(ROOT, "combined approved 59b and frozen 60c/60d source")]
     cases = (
         ("historical", QUALIFIED, None),
-        ("changed-hook", head, "native 60c declaration hooks changed after their frozen qualification"),
+        ("historical-60d", QUALIFIED_60D, None),
+        ("changed-hook", head, "native signed declaration/cast hooks changed after their frozen qualification"),
+        ("changed-printer", head, "native signed declaration/cast hooks changed after their frozen qualification"),
         ("unapproved-path", head, "MORPH-NATIVE-AUDIT-UNAPPROVED-PATH"),
         ("dirty-extension", head, "MORPH-NATIVE-AUDIT-DIRTY-WORKTREE"),
     )
@@ -71,6 +83,14 @@ def main() -> None:
                     path = "core/src/main/scala/spinal/core/internals/VerilogBase.scala"
                     with (fixture / path).open("a") as stream:
                         stream.write("\n// Deliberate frozen-hook change in an isolated negative fixture.\n")
+                    commit_fixture(fixture, path)
+                elif label == "changed-printer":
+                    path = "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"
+                    source = (fixture / path).read_text()
+                    before = "    val emitted = emitExpression(operand)"
+                    if source.count(before) != 1:
+                        raise RuntimeError("reviewed 60d printer span is missing")
+                    (fixture / path).write_text(source.replace(before, before + ' + "corrupt"'))
                     commit_fixture(fixture, path)
                 elif label == "unapproved-path":
                     path = "core/src/main/scala/spinal/core/Increment59bUnauditedProbe.scala"
@@ -90,7 +110,7 @@ def main() -> None:
     output = ROOT / "target/increment-59b-source-scope"
     output.mkdir(parents=True, exist_ok=True)
     (output / "evidence.json").write_text(json.dumps({"head": head, "cases": records}, indent=2) + "\n")
-    print("PASS: two positive and three exact negative inherited source-scope cases")
+    print("PASS: three positive and four exact negative inherited source-scope cases")
 
 
 if __name__ == "__main__":

@@ -166,7 +166,7 @@ private[spinal] object TypedBalancedReductionStageReplay {
     if (clocks.nonEmpty && clocks.exists(_ ne clocks.head))
       fail("CLOCK-NONUNIFORM", "fixed enabled-edge latency requires one exact clock domain across all stages and register chains")
     val allOperators = stages.flatMap(_.operators)
-    if (allOperators.nonEmpty && allOperators.exists(_.operatorClass != allOperators.head.operatorClass))
+    if (allOperators.nonEmpty && allOperators.exists(_.operationKey != allOperators.head.operationKey))
       fail("OPERATOR-NONUNIFORM", "the whole native tree must use one certified associative primitive")
     val terminal = evidenceOf(captured.result)
     if (!ElabInt.equivalentExactFunction(terminal.width, shape.elementLeaves.head.width))

@@ -79,7 +79,7 @@ jobs:
           assert hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest() == expected.lower()
           PY
           printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$dir/repositories"
-      - name: Compile and run all 73 focused tests on the actual committed source
+      - name: Compile and run all 81 focused tests on the actual committed source
         shell: bash
         run: |
           set -euo pipefail
@@ -95,7 +95,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          for name, count in [('TypedBalancedReductionClosedGraphTests',20), ('TypedBalancedReductionOperatorReplayTests',15), ('TypedBalancedReductionCaptureTests',10), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8), ('ReduceBalancedTreeNativeContractTests',8)]:
+          for name, count in [('TypedBalancedReductionClosedGraphTests',20), ('TypedBalancedReductionOperatorReplayTests',23), ('TypedBalancedReductionCaptureTests',10), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8), ('ReduceBalancedTreeNativeContractTests',8)]:
               files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
               assert len(files) == 1, (name, files)
               suite = ET.parse(files[0]).getroot()

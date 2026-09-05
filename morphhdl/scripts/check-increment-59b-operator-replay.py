@@ -15,7 +15,7 @@ from pathlib import Path
 
 WIDTHS = (1, 5, 8, 32)
 COUNTS = (1, 2, 3, 5, 8, 9, 16, 17)
-VECTOR_OUTPUTS = ('uAdd', 'uAnd', 'uOr', 'uXor', 'sAdd', 'sAnd', 'sOr', 'sXor', 'bAnd', 'bOr', 'bXor')
+VECTOR_OUTPUTS = ('uAdd', 'uAnd', 'uOr', 'uXor', 'sAdd', 'sAnd', 'sOr', 'sXor', 'bAnd', 'bOr', 'bXor', 'uMin', 'uMax', 'sMin', 'sMax')
 BOOL_OUTPUTS = ('qAnd', 'qOr', 'qXor')
 OUTPUTS = VECTOR_OUTPUTS + BOOL_OUTPUTS
 PASS = 'SAT proof finished - no model found: SUCCESS!'
@@ -85,6 +85,8 @@ def expected(words: tuple[int, ...], flags: int, width: int) -> dict[str, int]:
         VECTOR_OUTPUTS, (sum(words) & mask, conjunction, disjunction, parity,
                          sum(words) & mask, conjunction, disjunction, parity,
                          conjunction, disjunction, parity))}
+    signed = tuple(word if word < (1 << (width - 1)) else word - (1 << width) for word in words)
+    result.update(uMin=min(words), uMax=max(words), sMin=min(signed) & mask, sMax=max(signed) & mask)
     result.update(qAnd=int(flags == (1 << len(words)) - 1), qOr=int(flags != 0), qXor=bin(flags).count('1') % 2)
     return result
 
@@ -148,7 +150,7 @@ def qualify(root: Path, duplicate: Path) -> None:
     evidence = []
     for case in cases:
         width, count = case['width'], case['count']
-        if case['replay_calls'] != 14 * (count - 1):
+        if case['replay_calls'] != len(OUTPUTS) * (count - 1):
             raise RuntimeError('incorrect recorded replay coverage')
         work = root / 'checks' / f'w{width}_n{count}'
         work.mkdir(parents=True, exist_ok=True)
@@ -205,7 +207,7 @@ def qualify(root: Path, duplicate: Path) -> None:
     (root / 'evidence.json').write_text(json.dumps(dict(
         scope='concrete-native-operator-replay', parameterized_tree_formal='not-run',
         configurations=evidence, mutation='counterexample-with-bad=1'), indent=2) + '\n')
-    print('PASS: 32 concrete native-replay miters, 14 outputs each, independent simulation/lint/full synthesis, determinism and a real mutation counterexample')
+    print('PASS: 32 concrete native-replay miters, 18 outputs each, independent simulation/lint/full synthesis, determinism and a real mutation counterexample')
 
 
 def main() -> None:

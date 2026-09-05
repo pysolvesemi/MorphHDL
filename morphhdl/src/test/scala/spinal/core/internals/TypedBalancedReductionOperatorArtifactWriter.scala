@@ -28,6 +28,8 @@ final class BalancedOperatorReplayHardware(width: Int, count: Int, useReplay: Bo
     val bAnd = out Bits(width bits)
     val bOr = out Bits(width bits)
     val bXor = out Bits(width bits)
+    val uMin, uMax = out UInt(width bits)
+    val sMin, sMax = out SInt(width bits)
     val qAnd = out Bool()
     val qOr = out Bool()
     val qXor = out Bool()
@@ -74,12 +76,16 @@ final class BalancedOperatorReplayHardware(width: Int, count: Int, useReplay: Bo
   io.bAnd := reduce(packed, (a: Bits, b: Bits) => a & b)
   io.bOr := reduce(packed, (a: Bits, b: Bits) => a | b)
   io.bXor := reduce(packed, (a: Bits, b: Bits) => a ^ b)
+  io.uMin := reduce(unsigned, (a: UInt, b: UInt) => a min b)
+  io.uMax := reduce(unsigned, (a: UInt, b: UInt) => a max b)
+  io.sMin := reduce(signed, (a: SInt, b: SInt) => a min b)
+  io.sMax := reduce(signed, (a: SInt, b: SInt) => a max b)
   io.qAnd := reduce(booleans, (a: Bool, b: Bool) => a && b)
   io.qOr := reduce(booleans, (a: Bool, b: Bool) => a || b)
   io.qXor := reduce(booleans, (a: Bool, b: Bool) => a ^ b)
-  require(replayCalls == (if (useReplay) 14 * (count - 1) else 0),
+  require(replayCalls == (if (useReplay) 18 * (count - 1) else 0),
     "the candidate did not execute its expected native replay calls")
-  require(bodyOrdinal == (if (useReplay && count > 1) 14 else 0),
+  require(bodyOrdinal == (if (useReplay && count > 1) 18 else 0),
     "singleton bypass or operator-body coverage changed")
 }
 
@@ -104,7 +110,7 @@ object TypedBalancedReductionOperatorArtifactWriter {
         require(Files.isRegularFile(path), s"missing independently generated $role artifact")
         (module, root.relativize(path).toString.replace('\\', '/'))
       }
-      s"""    {"width":$width,"count":$count,"reference_module":"${paths(0)._1}","reference_rtl":"${paths(0)._2}","replay_module":"${paths(1)._1}","replay_rtl":"${paths(1)._2}","replay_calls":${14 * (count - 1)}}"""
+      s"""    {"width":$width,"count":$count,"reference_module":"${paths(0)._1}","reference_rtl":"${paths(0)._2}","replay_module":"${paths(1)._1}","replay_rtl":"${paths(1)._2}","replay_calls":${18 * (count - 1)}}"""
     }
     val manifest = "{\n  \"scope\":\"concrete-native-operator-replay\",\n" +
       "  \"parameterized_tree_formal\":\"not-run\",\n  \"configurations\":[\n" +

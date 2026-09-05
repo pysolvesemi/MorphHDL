@@ -120,6 +120,17 @@ def design_script(paths: list[Path]) -> str:
             '\nprep -top miter -flatten\ndffunmap\ncheck -assert\n')
 
 
+def initialized_proof_setup(setup: str) -> str:
+    # Materialize the existing zero-initial-state obligation before optimizing
+    # FFs, rather than letting optimization share unconstrained initial states.
+    # Preserve don't-care semantics; identical initialized next-state cones can
+    # then be shared under arbitrary later reset/enable changes. This lets SAT
+    # prove the complete output miter without rediscovering the same sequential
+    # invariant across many duplicate arithmetic pipelines.
+    # Re-unmap any synchronous FFs reintroduced by opt_dff for the SAT backend.
+    return setup + 'zinit -all\nopt -full -keepdc\ndffunmap\ncheck -assert\n'
+
+
 def qualify(root: Path, duplicate: Path) -> None:
     root, duplicate = root.resolve(), duplicate.resolve()
     for tool in ('iverilog', 'vvp', 'verilator', 'yosys'):
@@ -176,12 +187,13 @@ def qualify(root: Path, duplicate: Path) -> None:
         if H.PASS not in entry:
             raise RuntimeError('reset-entry proof missing definitive SUCCESS: ' + label)
         script = work / 'induction.ys'
-        script.write_text(setup + 'sat -seq 1 -tempinduct -set-init-zero -prove bad 0 -verify -maxsteps 24 -timeout 60\n')
+        script.write_text(initialized_proof_setup(setup) +
+                          'sat -seq 1 -tempinduct -set-init-zero -prove bad 0 -verify -maxsteps 24 -timeout 60\n')
         proof = H.command(['yosys', '-Q', '-T', '-s', str(script)], work / 'induction.log')
         if INDUCTIVE_PASS not in proof:
             raise RuntimeError('unbounded induction missing definitive SUCCESS: ' + label)
         results.append(dict(width=width, count=count, mode=mode, latency=case['latency'],
-                            outputs=14, cycles=160, sha256=digests, reset_entry='PASS', induction='PASS'))
+                            outputs=len(H.OUTPUTS), cycles=160, sha256=digests, reset_entry='PASS', induction='PASS'))
         print('PASS:', label, 'independent simulation, strict tools, reset entry and temporal induction', flush=True)
 
     case = next(case for case in cases if (case['width'], case['count'], case['mode']) == (5, 5, 1))
@@ -192,7 +204,7 @@ def qualify(root: Path, duplicate: Path) -> None:
     paths = [H.checked_rtl(root, case[role + '_rtl']) for role in ('reference', 'replay')]
     trace = work / 'counterexample.vcd'
     script = work / 'mutation.ys'
-    script.write_text(design_script(paths + [top]) +
+    script.write_text(initialized_proof_setup(design_script(paths + [top])) +
                       'sat -seq 8 -set-init-zero -prove bad 0 -show-inputs -show-outputs -timeout 60 -dump_vcd ' + H.quoted(trace) + '\n')
     proof = H.command(['yosys', '-Q', '-T', '-s', str(script)], work / 'mutation.log')
     if H.COUNTEREXAMPLE not in proof or H.PASS in proof:
@@ -200,8 +212,9 @@ def qualify(root: Path, duplicate: Path) -> None:
     H.require_counterexample_vcd(trace)
     (root / 'evidence.json').write_text(json.dumps(dict(scope='concrete-native-stage-replay',
         parameterized_tree_formal='not-run', reset_model='native CE gates synchronous active-high reset',
+        induction_model='explicit zero initialization, preserve-dont-care normalization, complete-output temporal induction',
         configurations=results, mutation='extra enabled cycle, counterexample bad=1'), indent=2) + '\n')
-    print('PASS: all 96 native stage shapes, 14 outputs, reset-entry proofs, unbounded induction and latency mutation', flush=True)
+    print('PASS: all 96 native stage shapes, 18 outputs, reset-entry proofs, unbounded induction and latency mutation', flush=True)
 
 
 def main() -> None:

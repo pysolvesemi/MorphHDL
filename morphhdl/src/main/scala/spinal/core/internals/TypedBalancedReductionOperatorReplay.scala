@@ -35,6 +35,11 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
     classOf[Operator.SInt.Xor] -> (() => new Operator.SInt.Xor)
   )
 
+  private val comparisonConstructors: Map[Class[_], () => BinaryOperator] = Map(
+    classOf[Operator.UInt.Smaller] -> (() => new Operator.UInt.Smaller),
+    classOf[Operator.SInt.Smaller] -> (() => new Operator.SInt.Smaller)
+  )
+
   private def widthOf(value: BaseType): ElaborationIntegerExpression =
     ParameterizedWidth.expressionOf(value)
       .getOrElse(ElabInt.literal(value.getBitsWidth).expression)
@@ -66,10 +71,15 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
       val resultWidth: ElaborationIntegerExpression,
       private val owner: Component,
       private val kind: AnyRef,
-      private val reverseOperands: Boolean,
-      private val constructor: () => BinaryOperator,
+      private val minimum: Option[Boolean],
+      private val replayBody: (BaseType, BaseType) => BaseType,
       private val guards: Vector[() => Unit]
   ) {
+    /** A mux class alone cannot distinguish minimum from maximum. Stage
+      * uniformity must compare this exact semantic key, not operatorClass.
+      */
+    val operationKey: (Class[_], Option[Boolean]) = (operatorClass, minimum)
+
     def validateFreshness(): Unit = guards.foreach(_.apply())
 
     /** Replay one native body without invoking its Scala callback. */
@@ -79,12 +89,7 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
         fail("REPLAY-OWNER", "native graph replay must remain in its exact owning component")
       checkOperand(left, owner, kind, resultWidth)
       checkOperand(right, owner, kind, resultWidth)
-      val a = if (reverseOperands) right else left
-      val b = if (reverseOperands) left else right
-      val expression = constructor()
-      if (expression.getClass != operatorClass)
-        fail("REPLAY-CONSTRUCTOR", "native expression constructor changed its exact class")
-      val result = a.wrapBinaryOperator(b, expression)
+      val result = replayBody(left, right)
       result match {
         case bits: BitVector if resultWidth.parameters.nonEmpty =>
           ParameterizedWidth.attach(bits, ElabInt.fromExpression(resultWidth).bits)
@@ -163,8 +168,11 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
     val guards = ArrayBuffer.empty[() => Unit]
     inputEvidence.foreach { evidence => guards += (() => evidence.requireFreshness()) }
 
-    def expand(value: Expression): Expression = value match {
-      case leaf: BaseType if operands.exists(_ eq leaf) => leaf
+    def expand(value: Expression, expectedKind: AnyRef = kind): Expression = value match {
+      case leaf: BaseType if operands.exists(_ eq leaf) =>
+        if (expectedKind ne kind)
+          fail("REPLAY-BODY-TYPE", "comparison condition must be a native Bool result")
+        leaf
       case leaf: BaseType =>
         if (!seen.containsKey(leaf))
           fail("REPLAY-EXTERNAL-READ", "operator body reads a signal outside its operands and local declarations")
@@ -172,13 +180,14 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
           fail("REPLAY-BODY-CYCLE", "operator aliases contain a cycle")
         if ((leaf.component ne owner) || leaf.isReg || !leaf.isDirectionLess ||
             (leaf.parentScope ne owner.dslBody) || leaf.hasTag(tagAutoResize) ||
-            (leaf.getTypeObject.asInstanceOf[AnyRef] ne kind))
-          fail("REPLAY-BODY-STATE", "operator locals must be same-type root-scope combinational declarations")
+            (leaf.getTypeObject.asInstanceOf[AnyRef] ne expectedKind))
+          fail("REPLAY-BODY-STATE", "operator locals must be exact-type root-scope combinational declarations")
+        val localWidth = if (expectedKind eq TypeBool) ElabInt.literal(1).expression else width
         val fixed = leaf match { case bits: BitVector => bits.fixedWidth; case _ => -1 }
         val retained = ParameterizedWidth.expressionOf(leaf)
-        if ((fixed >= 0 && BigInt(fixed) != width.default) ||
-            retained.exists(value => !ElabInt.equivalentExactFunction(value, width)) ||
-            (width.parameters.nonEmpty && fixed >= 0 && retained.isEmpty))
+        if ((fixed >= 0 && BigInt(fixed) != localWidth.default) ||
+            retained.exists(value => !ElabInt.equivalentExactFunction(value, localWidth)) ||
+            (localWidth.parameters.nonEmpty && fixed >= 0 && retained.isEmpty))
           fail("REPLAY-FIXED-WIDTH", "local width must preserve the complete operand width, not truncate or specialize its witness")
         val all = assignmentsOf(owner, leaf)
         if (all.size != 1 || !recordedAssignments.exists(_ eq all.head))
@@ -193,8 +202,8 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
           val nowFixed = leaf match { case bits: BitVector => bits.fixedWidth; case _ => -1 }
           if ((leaf.component ne owner) || leaf.isReg || !leaf.isDirectionLess ||
               (leaf.parentScope ne parent) || leaf.hasTag(tagAutoResize) ||
-              (leaf.getTypeObject.asInstanceOf[AnyRef] ne kind) ||
-              !TypedBalancedReductionValueEvidence.preservesFixedWidth(fixed, nowFixed, width) ||
+              (leaf.getTypeObject.asInstanceOf[AnyRef] ne expectedKind) ||
+              !TypedBalancedReductionValueEvidence.preservesFixedWidth(fixed, nowFixed, localWidth) ||
               !same(assignmentsOf(owner, leaf), all) ||
               (assignment.source ne source) || (assignment.target ne leaf) ||
               (assignment.parentScope ne owner.dslBody) ||
@@ -203,34 +212,87 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
         })
         consumedDeclarations.put(leaf, java.lang.Boolean.TRUE)
         consumedAssignments.put(assignment, java.lang.Boolean.TRUE)
-        val expanded = expand(source)
+        val expanded = expand(source, expectedKind)
         visiting.remove(leaf)
         expanded
       case other => other
     }
 
-    val native = expand(result) match {
-      case binary: BinaryOperator if constructors.contains(binary.getClass) => binary
-      case _ => fail("REPLAY-NONASSOCIATIVE-OR-UNSUPPORTED", "body is not one exactly admitted associative native primitive")
+    def pairOrder(left: Expression, right: Expression): Boolean = {
+      val a = expand(left)
+      val b = expand(right)
+      val forward = (a eq operands(0)) && (b eq operands(1))
+      val reverse = (a eq operands(1)) && (b eq operands(0))
+      if (!forward && !reverse)
+        fail("REPLAY-BODY-OPERANDS", "native graph must consume both exact operands through transparent aliases")
+      reverse
     }
-    val leftExpression: Expression = native.left
-    val rightExpression: Expression = native.right
-    val left = expand(leftExpression)
-    val right = expand(rightExpression)
-    val forward = (left eq operands(0)) && (right eq operands(1))
-    val reverse = (left eq operands(1)) && (right eq operands(0))
-    if (!forward && !reverse)
-      fail("REPLAY-BODY-OPERANDS", "primitive must consume each original operand exactly once through transparent aliases")
-    if (native.getTypeObject.asInstanceOf[AnyRef] ne kind)
-      fail("REPLAY-BODY-TYPE", "native primitive changed the result type")
+
+    def guardBinary(native: BinaryOperator, expectedKind: AnyRef): Unit = {
+      val left = native.left
+      val right = native.right
+      if (native.getTypeObject.asInstanceOf[AnyRef] ne expectedKind)
+        fail("REPLAY-BODY-TYPE", "native primitive changed the result type")
+      guards += (() => {
+        if ((native.left ne left) || (native.right ne right) ||
+            (native.getTypeObject.asInstanceOf[AnyRef] ne expectedKind))
+          fail("REPLAY-STALE-GRAPH", "native primitive operands changed after certification")
+      })
+    }
+
+    val native = expand(result)
+    val (minimum, replayBody): (Option[Boolean], (BaseType, BaseType) => BaseType) = native match {
+      case binary: BinaryOperator if constructors.contains(binary.getClass) =>
+        val reverse = pairOrder(binary.left, binary.right)
+        guardBinary(binary, kind)
+        val constructor = constructors(binary.getClass)
+        (None, (left: BaseType, right: BaseType) => {
+          val a = if (reverse) right else left
+          val b = if (reverse) left else right
+          val expression = constructor()
+          if (expression.getClass != binary.getClass)
+            fail("REPLAY-CONSTRUCTOR", "native expression constructor changed its exact class")
+          a.wrapBinaryOperator(b, expression)
+        })
+      case mux: BinaryMultiplexer if
+          ((kind eq TypeUInt) && mux.getClass == classOf[BinaryMultiplexerUInt]) ||
+          ((kind eq TypeSInt) && mux.getClass == classOf[BinaryMultiplexerSInt]) =>
+        val condition = mux.cond
+        val whenTrue = mux.whenTrue
+        val whenFalse = mux.whenFalse
+        val comparison = expand(condition, TypeBool) match {
+          case binary: BinaryOperator if
+              ((kind eq TypeUInt) && binary.getClass == classOf[Operator.UInt.Smaller]) ||
+              ((kind eq TypeSInt) && binary.getClass == classOf[Operator.SInt.Smaller]) => binary
+          case _ => fail("REPLAY-MINMAX-COMPARISON", "min/max requires the exact same-signedness native less-than comparator")
+        }
+        val comparisonReverse = pairOrder(comparison.left, comparison.right)
+        val armsReverse = pairOrder(whenTrue, whenFalse)
+        guardBinary(comparison, TypeBool)
+        guards += (() => {
+          if ((mux.cond ne condition) || (mux.whenTrue ne whenTrue) || (mux.whenFalse ne whenFalse) ||
+              (mux.getTypeObject.asInstanceOf[AnyRef] ne kind))
+            fail("REPLAY-STALE-GRAPH", "native min/max selector or arms changed after certification")
+        })
+        val constructor = comparisonConstructors(comparison.getClass)
+        (Some(comparisonReverse == armsReverse), (left: BaseType, right: BaseType) => {
+          val a = if (comparisonReverse) right else left
+          val b = if (comparisonReverse) left else right
+          val expression = constructor()
+          if (expression.getClass != comparison.getClass)
+            fail("REPLAY-CONSTRUCTOR", "native comparison constructor changed its exact class")
+          val selected = a.wrapLogicalOperator(b, expression)
+          val freshMux = left.newBinaryMultiplexerExpression()
+          if (freshMux.getClass != mux.getClass)
+            fail("REPLAY-CONSTRUCTOR", "native mux constructor changed its exact class")
+          val yes = if (armsReverse) right else left
+          val no = if (armsReverse) left else right
+          left.wrapWithWeakClone(left.newMultiplexer(selected, yes, no, freshMux))
+        })
+      case _ => fail("REPLAY-NONASSOCIATIVE-OR-UNSUPPORTED", "body is not one exactly admitted associative native graph")
+    }
     if (consumedDeclarations.size != declarations.size || consumedAssignments.size != recordedAssignments.size)
       fail("REPLAY-UNCONSUMED-EFFECT", "callback contains declarations or assignments outside its closed result graph")
-    guards += (() => {
-      if ((native.left ne leftExpression) || (native.right ne rightExpression) ||
-          (native.getTypeObject.asInstanceOf[AnyRef] ne kind))
-        fail("REPLAY-STALE-GRAPH", "native primitive operands changed after certification")
-    })
-    new Proof(native.getClass, result, width, owner, kind, reverse,
-      constructors(native.getClass), guards.toVector)
+    new Proof(native.getClass, result, width, owner, kind, minimum, replayBody, guards.toVector)
   }
 }

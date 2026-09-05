@@ -20,6 +20,8 @@ final class BalancedStageReplayHardware(width: Int, count: Int, mode: Int, repla
     val uAdd, uAnd, uOr, uXor = out UInt(width bits)
     val sAdd, sAnd, sOr, sXor = out SInt(width bits)
     val bAnd, bOr, bXor = out Bits(width bits)
+    val uMin, uMax = out UInt(width bits)
+    val sMin, sMax = out SInt(width bits)
     val qAnd, qOr, qXor = out Bool()
   }
   noIoPrefix()
@@ -76,10 +78,14 @@ final class BalancedStageReplayHardware(width: Int, count: Int, mode: Int, repla
     io.bAnd := reduce(packed, (a: Bits, b: Bits) => a & b)
     io.bOr := reduce(packed, (a: Bits, b: Bits) => a | b)
     io.bXor := reduce(packed, (a: Bits, b: Bits) => a ^ b)
+    io.uMin := reduce(unsigned, (a: UInt, b: UInt) => a min b)
+    io.uMax := reduce(unsigned, (a: UInt, b: UInt) => a max b)
+    io.sMin := reduce(signed, (a: SInt, b: SInt) => a min b)
+    io.sMax := reduce(signed, (a: SInt, b: SInt) => a max b)
     io.qAnd := reduce(booleans, (a: Bool, b: Bool) => a && b)
     io.qOr := reduce(booleans, (a: Bool, b: Bool) => a || b)
     io.qXor := reduce(booleans, (a: Bool, b: Bool) => a ^ b)
-    require(ordinal == (if (replay) 14 else 0), "all native stage certificates must execute")
+    require(ordinal == (if (replay) 18 else 0), "all native stage certificates must execute")
   }
 }
 

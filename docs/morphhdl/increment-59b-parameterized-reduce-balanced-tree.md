@@ -2,174 +2,226 @@
 
 ## Status and dependency
 
-**In progress. The controlling roadmap checkbox remains unchecked. Do not merge.**
+**Implemented publication path; final qualification is in progress. The controlling
+roadmap checkbox remains unchecked. PR #157 must remain unmerged until the final
+combined head passes every applicable gate.**
 
-Started from merged Increment 59a at
+Work began from merged Increment 59a at
 `2be259338b87ecc30b44e47498f7f09c368e50d0` on `parameterized-verilog`.
-Merged 60c integration `75e581592334e2e596f6e1043beb9596cc20a99b` is now
-included through `ebcc0f96ce359514e8580fed40e59058c378e86f`, preserving
-60b, 60c, WA-07 and the reviewed native-source changes on both sides.
+The branch includes the reconciled 60c changes and merged 60d through
+`c29b683aa`; inherited 60c/60d rejection controls were exercised separately in
+`6ae8b1f7a`. Later implementation needs its own final-head qualification.
 
-The implemented checkpoint includes typed topology planning, the native Vec
-receiver boundary, exact callback/bridge capture, closed native graph
-observation, conservative scalar operator-body replay, rejection tests and
-independent native RTL references. The authoritative generic native reduction
-algorithm is unchanged. **No production balanced-stage replay backend is
-installed: a symbolic-count reduction still fails closed instead of publishing
-a fixed carrier tree.** Passing a checkpoint does not complete Increment 59b.
+`MorphVerilog` now installs `TypedBalancedReductionBackend` around native
+elaboration. A supported symbolic-count `Vec` reduction creates one
+parameterized Verilog-2001 definition with independent WIDTH and COUNT.
+The backend captures the unchanged generic native reduction, validates its
+callbacks and every native row, builds distinct native scalar templates, and
+places their native RTL inside symbolic balanced stages. It does not substitute
+an operation-specific tree or emit its own arithmetic or register process.
 
-Detailed operator contracts and hardware qualification scope are in
-`increment-59b-operator-replay.md` and `increment-59b-operator-formal.md`.
+Frozen implementation source `13967f2c51c808bea29037b9562dd5506457cd24`
+passed the canonical SBT suite locally: 133 tests on each of Scala 2.12.18 and
+2.13.12. Both lanes also passed the stronger 32-specialization publication
+matrix with five outputs and independently unconstrained unsigned, signed,
+Bits and Bool inputs. Strict tools, full synthesis, simulation, reset-entry
+proofs, unbounded equivalence and two actual generated-RTL mutation controls
+passed. Final PR CI remains pending; these local results do not authorize merge.
+
+The publication architecture and supported scope are specified in
+[increment-59b-publication.md](increment-59b-publication.md). Separate native
+operator and stage contracts remain in
+[increment-59b-operator-replay.md](increment-59b-operator-replay.md) and
+[increment-59b-stage-replay.md](increment-59b-stage-replay.md).
 
 ## Authoritative native semantics
 
 The algorithm is `TraversableOnceAnyPimped.reduceBalancedTree` in
 `lib/src/main/scala/spinal/lib/Utils.scala`; the Data helper delegates to it.
-For each non-final level, pair adjacent elements in source order. Apply the
-operator to each complete pair, then apply `levelBridge(result, level)`. Pass
-an unpaired last element directly through the same level bridge, without an
-operator or invented neutral value. Levels start at zero. A one-element input
-returns the exact original element without either callback. Empty concrete
-collections retain their existing assertion.
+At each level it pairs adjacent inputs in source order, invokes the operator
+on each complete pair, and invokes `levelBridge(result, level)`. An odd last
+input passes through the same level bridge without an operator or an invented
+neutral value. Levels start at zero. A singleton returns its exact original
+input and calls neither callback. Empty concrete collections retain their
+existing native assertion.
 
-There are exactly `N - 1` operator invocations and `ceil(log2(N))` active
-levels. A one-register bridge delays every leaf by the same number of cycles,
-including odd tails. No clock/reset latency is added for `N = 1`.
-Concrete Seq/Vec calls retain their existing path, including generic non-Data
-callbacks and concrete non-associative operators. Symbolic replay restrictions
-must not become restrictions on those concrete calls.
+There are exactly `N - 1` operator invocations and `ceil(log2(N))` active levels.
+Every leaf traverses the same active bridge levels, including odd tails.
+One register per active level therefore gives `ceil(log2(N))` enabled-edge
+latency; N=1 introduces no clock/reset latency. Concrete Seq/Vec calls retain
+their native generic behavior, including callbacks outside the symbolic replay
+profile. The new callback-code policy applies only to symbolic-count dispatch;
+a singleton-only typed domain also bypasses both callbacks and that policy.
 
-## Typed publication geometry
+## Typed topology and width authority
 
-`TypedBalancedReductionPlan` consumes the original typed count or the exact
-identity-owned `ParameterizedVec` count before collection conversion. It
-validates untouched declaration authority, then the active projected domain.
-The entire admitted count domain must be finite, positive and Int-sized.
+`ElabBalancedReduction.sourceSeq` preserves the exact symbolic-count Vec before
+Scala collection conversion can erase its depth. The scoped backend is restored
+in a `finally` block, including rejected elaborations and native retries. Non-singleton publication
+currently requires the native component scope. A reduction inside an outer typed
+generate/capture owner fails closed with the nested-owner or ownership diagnostic;
+an ordinary child component can own a reduction in its own native component scope.
 
-The finite schedule has at most `ceil(log2(maximumCount))` metadata entries.
-Each retains symbolic input count, pair count, output count, active-stage and
-odd-tail predicates. A default count of one does not remove stages needed by
-larger legal overrides. Stage input count is `1 + (N - 1) / 2^level`; output
-count uses `1 + (input - 1) / 2` to avoid overflow and retain exact extrema.
-Summing separate pair/remainder maxima would overstate an even-bound domain.
-Each stage derives directly from the original count to avoid exponential text
-growth. Tests cover every count in domains with maxima 2 through 32, the
-largest positive concrete Int, and illegal non-default values.
+`TypedBalancedReductionPlan` checks untouched declaration authority and the
+active projected count domain. The complete admitted domain must be finite,
+positive and Int-sized. Its schedule has at most `ceil(log2(maximumCount))`
+entries. Each retains the symbolic input count, pair count, output count,
+active-stage condition and odd-tail condition. Default COUNT=1 retains all stages
+needed by larger legal overrides. Counts derive directly from the original COUNT
+to avoid exponential expression growth; output count uses
+`1 + (inputCount - 1) / 2` to avoid overflow.
 
-This is metadata, not a second reduction algorithm. WIDTH remains on the
-independent Vec leaf shape; independent WIDTH and COUNT roots must not be
-combined through a lossy single-root elaboration carrier.
+WIDTH remains the independent scalar leaf-width expression. The input Vec is a
+flattened packed structural collection with total width WIDTH * COUNT. Width and
+count do not become one lossy single-root elaboration carrier. The generated
+stage buses and indexed part selects combine their retained expressions only
+at structural emission. `TypedBalancedReductionValueEvidence` transfers a width
+through opaque proofs tied to exact native result identities; matching concrete
+defaults never supply missing symbolic provenance.
 
-## Native receiver boundary and capture
+## Callback, graph and stage certificates
 
-`spinal.core.ElabBalancedReduction` is a neutral scoped internal dispatcher.
-The library Data conversion preserves an exact symbolic-count Vec instead of
-erasing it through `toSeq`. Concrete inputs retain the historical conversion
-and native helper. The scoped backend is restored in a `finally` block.
+Before the first non-singleton symbolic callback runs,
+`TypedBalancedReductionCallbackPolicy` requires a capture-free compiler-generated
+static Scala Function2 lambda and audits its exact class bytecode. It checks the
+lambda call site and recursively checks admitted same-class static adapters.
+Host field access, captured state, arbitrary method calls, recursion, exception
+handlers, loops and unsupported allocation fail closed. Operator control flow is
+restricted to the admitted scalar construction profile; bridges may branch on
+level-derived integer values. This is an explicit supported language subset,
+not an inference of arbitrary Scala purity from a sampled graph.
 
-`TypedBalancedReductionCapture` invokes the supplied authoritative native
-reducer once on the audited finite carrier. It retains the Vec, typed shape,
-operator/bridge operands and results, declarations and assignments by identity.
-Ordered rows distinguish complete pairs and odd tails at zero-based levels.
-The terminal result must be the exact final row or singleton input. Carrier
-capacity is only a construction bound, never the emitted logical count.
+`TypedBalancedReductionCapture` runs the authoritative native reducer once on
+its finite construction carrier. It records exact Vec/shape, callback operands
+and results, declarations, assignments and initializers, in invocation order.
+The carrier is never the emitted logical count. Capture rejects external writes,
+changed pre-existing declarations or drivers, child hierarchy, invalid results,
+and inconsistent owner/shape evidence.
 
-Capture rejects writes to old signals, changed or removed old assignments or
-declarations, new initializers on old registers, child hierarchy, foreign/null
-results and invalid owners/shapes. Initializers remain `AssignmentStatement`
-evidence rather than disappearing through a data-assignment-only snapshot.
-The additive observer overload leaves the original four-argument descriptor
-available and observes each completed callback before later callbacks run.
+`TypedBalancedReductionClosedGraph` checks complete dependencies, drivers,
+cycles, foreign reads and unreachable effects. Each observation freezes native
+expression children, literals, initializers and owner/scope/type/clock/width
+identities before later callbacks run. Whole-statement inventory rejects effects
+such as assertions or memories outside the captured scalar graph.
 
-`TypedBalancedReductionClosedGraph` traverses every native data dependency,
-including right-hand and mux branches, checks local drivers, rejects foreign
-reads, unreachable state/effects and cycles, and freezes expression children,
-literals, initializers, owner/scope/type/clock and retained-width identities.
-Its observation is distinct from algebraic replay permission and expires at
-native normalization. Concrete binary mux classes are distinguished from
-multi-way multiplexer classes; unknown expression subclasses remain rejected.
+`TypedBalancedReductionStageReplay` certifies every pair and odd tail. All
+operators must share the exact semantic operation key; minimum and maximum
+cannot pass uniformity by sharing a mux class. Every row at a level must have
+identical bridge behavior, and all register chains use one exact native clock
+domain. The terminal width must preserve the input element-width function.
+Neither a capture descriptor nor a stage certificate alone authorizes publication.
+The production backend adds the callback-code contract and the distinct template
+handoff described in the publication document.
 
-`UnvalidatedBalancedReduction.requireReplayCertificate()` still rejects.
-Capturing or observing a graph does not prove arbitrary Scala purity, callback
-associativity, symbolic width transfer, bridge latency or post-phase safety.
-The production dispatcher is not enabled by these observations.
+## Supported result and bridge shapes
 
-## Closed scalar operator-body replay
+The scalar graph profile includes Bool/Bits/UInt/SInt AND, OR and XOR, equal-width
+modular UInt/SInt addition, and exact signed/unsigned less-than-plus-mux min/max
+graphs. Replay creates the same native expression classes without rerunning the
+Scala callback. All captured local declarations and assignments must belong to
+the consumed result graph. Partial drivers, foreign reads, unused effects,
+unsupported operations and fixed-width leakage reject.
 
-`TypedBalancedReductionOperatorReplay` certifies actual captured bodies for
-14 exact native primitives: Bool/Bits/UInt/SInt AND, OR and XOR, plus equal-width
-modular UInt/SInt addition. Both original operands must appear exactly once
-through transparent aliases. The result cone must consume every recorded
-local declaration and assignment. State, foreign reads, unused local effects,
-partial/conditional drivers, casts/resizes, widening arithmetic, unsupported
-operators and fixed-width witness leakage are rejected.
+Identity/transparent-alias bridges and unconditional register chains are
+supported with no initializer or a width-independent zero initializer. The native
+clock domain owns reset, enable and initialization semantics. Inferred native
+registers preserve independent symbolic WIDTH; an ordinary native RegNext or
+Mux allocation that freezes an untyped intermediate to WIDTH's default remains
+rejected. Ordinary native min/max therefore supports concrete element widths;
+inferred native min/max graph replay can retain symbolic WIDTH but does not by
+itself satisfy the public callback-code contract.
 
-A proof replays one body through a fresh instance of its exact native
-expression class and the inherited `wrapBinaryOperator` algorithm. It does
-not reexecute the Scala callback, construct a reduction tree or emit RTL.
-Every replay checks live source identities and exact owner/type/width authority.
-The certified symbolic width root is attached to the fresh result so chained
-replay retains its authority rather than falling back to a concrete witness.
-Mismatched fixed local widths are rejected even for concrete inputs, preventing
-silent truncation from being treated as a transparent alias.
+Widening addition remains outside the current equal-width profile. Native `+^`
+introduces resize nodes and larger results. Supporting it requires a separate
+input/output width-function proof at every level, reconciliation with narrower
+odd tails, and matching register-bridge/result-width proofs. The native baseline
+includes widening examples as an independent semantic reference; those examples
+are not claims of parameterized widening support. Aggregates with several leaves,
+ambiguous widths, unsupported state and non-associative symbolic operators also
+remain rejected. These restrictions do not alter ordinary concrete reductions.
 
-This is an operator-body subprofile, not a certificate of whole-stage
-uniformity, arbitrary Scala closure purity or complete parameterized publication.
+## Source and emission boundaries
 
-## Result widths and remaining callback scope
+The reviewed library entry changes preserve receiver identity and add neutral
+scoped dispatch; the generic native reduction algorithm remains unchanged.
+Native-source and retirement guards must pass, and canonical policy regeneration
+must reproduce the reviewed manifest byte-for-byte. Inherited 60c/60d source
+boundaries retain their own positive and rejection controls.
 
-The native operator and bridge remain authoritative for type and width. The
-concrete baseline includes modular UInt addition, OR/XOR, signed/unsigned
-minimum/maximum, widening UInt addition and registered bridges. For equally
-wide UInt inputs, the widening sum has width `WIDTH + ceil(log2(N))`.
-An odd tail must not silently acquire an operator or lose a bridge while
-carrying narrower intermediate values.
-
-Min/max closure is not yet min/max replay permission. Widening shapes,
-registered bridge replay, their clock/reset behavior, and stage-level validity
-must be certified before production publication. Unsupported side effects,
-external drivers, ambiguous widths and non-associative symbolic bodies must
-fail closed. Arbitrary Scala purity is not inferred from sample executions.
-A handwritten adder/OR tree is not an acceptable substitute.
-
-## Source-review reconciliation
-
-The native review adds only the core dispatcher and two mechanical library
-entry changes; the generic `TraversableOnceAnyPimped` algorithm is unchanged.
-Canonical `increment-55-native-change-review.json` now includes the already
-reviewed 59b delta. The 60c/59b policies were reconciled per exact native path
-against their common ancestor, rejecting overlapping conflicting changes.
-The combined manifest was regenerated, and normal CI requires byte-identical
-regeneration from the canonical policy. No guard was weakened.
-Consumed templates, materializers and the one-time integration workflow were
-removed. Regular qualification workflows are read-only.
+Publication templates are observed again at the scheduled handoff before
+`PhaseNameNodesByReflection`. Operand anchors must remain named, combinational,
+protected from simplification/merging, and driven by one exact full assignment.
+After handoff, the native naming, normalization, pruning and emission pipeline
+may transform the templates. The anchor policies are checked again at publication.
+The template extractor retains
+the native emitted declarations, scalar expression syntax and register processes;
+the balanced backend rewires certified scalar transfer anchors and adds only
+stage topology. Probe hardware is removed before publication. Generated stage
+names avoid collisions with existing module identifiers.
 
 ## Qualification scopes
 
-The native baseline matrix is WIDTH={1,5,8,32} crossed with
-COUNT={1,2,3,5,8,9,16,17}: 32 concrete shapes per Scala lane. Its Python oracle
-checks arithmetic, signed comparisons, widening sums and pipeline history;
-two independent generations must match exactly. Icarus Verilog-2001 simulation,
-strict Verilator lint and full Yosys synthesis are required. The native
-baseline's observed-sum mutation is a simulation mutation, not formal proof.
-Its evidence remains `native-oracle-only`, `typed_candidate_formal: not-run`.
+| Evidence scope | Matrix and required result |
+| --- | --- |
+| Native oracle | 32 concrete WIDTH/COUNT shapes; independent arithmetic/signed/widening/pipeline simulation, strict tools and deterministic generation. This is not candidate formal evidence. |
+| Concrete operator replay | 32 independently elaborated reference/replay pairs, 18 outputs each; simulation, strict tools, full synthesis, formal equality and a real mutation trace. |
+| Concrete whole-stage replay | 96 shapes across three bridge modes, 18 outputs each; independent pipeline simulation, reset-entry proof, unbounded induction and an extra-cycle mutation trace. |
+| Parameterized publication | One WIDTH=5/COUNT=1 candidate, specialized at all 32 WIDTH/COUNT combinations against separately native references; strict tools, simulation, reset-entry/unbounded equivalence, deterministic generation and mutations of actual generated pair and cross-Vec source connections. |
 
-The operator-replay hardware matrix separately elaborates ordinary native
-reference and replay RTL at the same 32 concrete shapes. Each shape compares
-all 14 admitted primitive outputs, including independent Bool inputs. The
-candidate must execute exactly `14 * (COUNT - 1)` replay calls, with none at
-COUNT=1. Both sides are independently checked against Python expectations,
-linted and fully synthesized, and their repeated generation must match.
-A Yosys miter proves equality for every input bit pattern. Its mutation must
-produce a definitive counterexample and a VCD showing `bad=1`.
+All matrices use WIDTH={1,5,8,32} and COUNT={1,2,3,5,8,9,16,17}.
+The publication matrix currently exposes uAdd, sAdd, bXor, qAnd and registered
+rAdd. The concrete operator/stage matrices expose the broader 18-output graph
+profile. Their evidence files deliberately retain different scopes.
+Missing tools, errors, timeouts, UNKNOWN, absent success markers and skipped or
+cancelled checks never count as proof or as a valid mutation counterexample.
 
-Operator hardware evidence explicitly records
-`scope: concrete-native-operator-replay`, `parameterized_tree_formal: not-run`.
-It is not formal evidence for a parameterized COUNT tree or registered replay.
-Missing tools, parse errors, timeouts, UNKNOWN and skipped/cancelled jobs are
-never passes or valid mutation outcomes.
+### Frozen-source local qualification; PR CI pending
 
-### Verified checkpoints
+The following local results qualify implementation commit
+`13967f2c51c808bea29037b9562dd5506457cd24`. They include the latest anchor-policy
+and nested-owner rejection tests. They are canonical SBT and tool-backed local
+results, not completed GitHub PR CI.
+
+| Qualification | Scala 2.12.18 | Scala 2.13.12 |
+| --- | --- | --- |
+| Canonical SBT tests | 133 passed | 133 passed |
+| Same-candidate WIDTH/COUNT specializations | 32 passed, five outputs each | 32 passed, five outputs each |
+| Independent simulation cycles across the matrix | 5,586 passed | 5,586 passed |
+| Strict Verilog-2001 compilation/lint and full synthesis | Passed for every candidate/reference specialization | Passed for every candidate/reference specialization |
+| Reset-entry formal proofs | 32 passed | 32 passed |
+| Unbounded temporal-induction proofs | 32 passed | 32 passed |
+| Generated pair-operand mutation | Counterexample with bad=1 | Counterexample with bad=1 |
+| Generated cross-Vec source-binding mutation | Counterexample with bad=1 | Counterexample with bad=1 |
+
+The unsigned, signed, Bits and Bool packed Vec inputs are independent in the
+formal miters and simulation stimulus. The signed and Bits reductions are not
+tied to the unsigned input; the registered UInt reduction intentionally uses
+the same unsigned Vec as its combinational counterpart. The cross-Vec mutation
+replaces the signed reduction's source with the unsigned Vec and must therefore
+be observable. The evidence scope is `parameterized-native-balanced-publication`,
+with candidate WIDTH=5/COUNT=1 defaults.
+
+Both repeated generations in both Scala lanes produced the same candidate bytes.
+All four candidate artifacts have SHA-256:
+
+`6a47e29b6bcbb7a109f36da64ba586d9e1c7d757340d150d7b53d7d5c9e5db64`
+
+The expanded local Scala 2.12 concrete whole-stage matrix also completed: all
+96 shapes with 18 outputs passed deterministic repeated generation, strict tools,
+full synthesis, reset-entry proof, unbounded induction and a real extra-enabled-
+cycle mutation with bad=1. This has scope `concrete-native-stage-replay` and is
+separate from parameterized-candidate evidence. The Scala 2.13 stage CI gate
+remains pending.
+
+The earlier local Scala 2.12 operator checkpoint passed all 23 operator tests
+and 32 concrete replay configurations with 18 outputs, including independent
+simulation, strict tools, synthesis, deterministic generation and a mutation
+counterexample. Its source hashes and evidence remain under
+`target/local-59b-operator-2.12/`. That historical concrete-operator result must
+not be substituted for the frozen-source publication proofs above.
+
+### Historical verified checkpoints
+
 
 - `5b8fd179e3c526bb0fbec6bf87572c10befff6fc`: run `33968641240`, job
   `101313111623`, passed the original 38 tests and 32 native RTL shapes on
@@ -193,17 +245,11 @@ must not be presented as completed qualification of a different head.
 
 ## Remaining completion work
 
-1. Complete stage-level replay certification: whole callback uniformity and
-   purity constraints, result/odd-tail width transfer, registered bridge state,
-   clock/reset, and freshness across the relevant native compiler phases.
-2. Install the production backend and connect generic staged replay to one
-   strict Verilog-2001 definition with independent WIDTH/COUNT, singleton bypass,
-   odd tails, exact result widths and native bridge semantics. Do not publish
-   the finite carrier or add operation/component-specific tree implementations.
-3. Prove parameterized candidate specializations against independently generated
-   concrete references, including sequential bridges and a real formal mutation.
-   The concrete operator-body matrix does not discharge this obligation.
-4. Incorporate any newer integration changes and pass every applicable final-head
-   dual-Scala, concrete compatibility, determinism, strict lint/full synthesis,
-   simulation, formal and inherited gate. Only then check the roadmap and merge
-   the qualified head into `parameterized-verilog`.
+1. Complete final PR CI for both supported Scala versions, retaining the
+   frozen-source local evidence and requalifying any implementation changes.
+2. Complete every remaining expanded native operator/stage and inherited
+   compatibility gate, including the pending Scala 2.13 stage qualification.
+3. Reconcile any newer integration changes and pass every applicable native
+   source, retirement, inherited signedness, determinism and strict tool gate.
+4. Record exact-head CI evidence. Only then mark the existing 59b roadmap item
+   complete and merge that qualified head into `parameterized-verilog`.

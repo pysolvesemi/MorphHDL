@@ -302,7 +302,10 @@ private[internals] object ParameterizedVerilogVecs {
       vector: Vec[_],
       selector: ElaborationIntegerExpression,
       leafIndex: Int,
-      sourceLocation: Option[String]
+      sourceLocation: Option[String],
+      affineRead: Option[ElabFiniteAffineVecRead] = None,
+      finiteIndexToken: Option[ElabFiniteIndexToken] = None,
+      readOnly: Boolean = false
   ): String = {
     if (vector == null || selector == null) {
       fail(
@@ -326,12 +329,14 @@ private[internals] object ParameterizedVerilogVecs {
         sourceLocation.orElse(selector.sourceLocation)
       )
     }
-    if (
-      selector.verilog != indexName || selector.parameters.nonEmpty ||
-      selector.default != 0 || selector.minimum != 0 ||
-      selector.maximum != shape.depth.maximum - 1 ||
-      shape.depth.maximum != BigInt(shape.carrierCapacity)
-    ) {
+    val exactSelector = affineRead match {
+      case Some(evidence) => readOnly && finiteIndexToken.exists(token => evidence.matches(vector, selector, token))
+      case None =>
+        selector.verilog == indexName && selector.parameters.isEmpty &&
+          selector.default == 0 && selector.minimum == 0 &&
+          selector.maximum == shape.depth.maximum - 1
+    }
+    if (!exactSelector || shape.depth.maximum != BigInt(shape.carrierCapacity)) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-VEC-STRUCTURAL-DOMAIN-MISMATCH",
         s"structural typed Vec selector '${selector.verilog}' in [${selector.minimum}, ${selector.maximum}] does not cover exactly the retained carrier domain 0 until ${shape.carrierCapacity}",
@@ -373,20 +378,15 @@ private[internals] object ParameterizedVerilogVecs {
       }
     }
     val name = requiredVecName(vector, sourceLocation.orElse(shape.sourceLocation))
-    if (isSignedLeaf(shape.elementLeaves(leafIndex))) {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-VEC-SIGNED-SLICE-UNSUPPORTED",
-        s"structural dynamic SInt leaf $leafIndex of Vec '$name' requires context-sensitive signed lowering",
-        sourceLocation.orElse(shape.sourceLocation)
-      )
-    }
     val elementWidth = renderSum(shape.elementLeaves.map(_.width))
     val offset = renderSum(shape.elementLeaves.take(leafIndex).map(_.width))
     val base = addTerms(
-      s"${parenthesize(indexName)} * ${factor(elementWidth)}",
+      s"${parenthesize(selector.verilog)} * ${factor(elementWidth)}",
       offset
     )
-    s"$name[${parenthesize(base)} +: ${render(shape.elementLeaves(leafIndex).width)}]"
+    val slice = s"$name[${parenthesize(base)} +: ${render(shape.elementLeaves(leafIndex).width)}]"
+    if (readOnly && isSignedLeaf(shape.elementLeaves(leafIndex))) s"$$signed($slice)"
+    else slice
   }
 
   /** Authorize native width validation only for the exact statements retained
@@ -846,6 +846,7 @@ private[internals] object ParameterizedVerilogVecs {
           val exactSelection = for {
             loop <- owner
             finiteIndexToken <- selection.finiteIndexToken
+            if selection.affineRead.isEmpty
             if loop.finiteIndexToken.exists(_ eq finiteIndexToken)
             access <- selection.staticAccess
             if witness.isValidInt

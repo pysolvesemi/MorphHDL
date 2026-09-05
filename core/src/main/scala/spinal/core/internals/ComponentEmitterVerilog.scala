@@ -1648,12 +1648,20 @@ end
     s"(${emitExpression(e.left)} $verilog ${emitExpression(e.right)})"
   }
 
+  private[spinal] def usesVerilogBase(base: VerilogBase): Boolean = verilogBase eq base
+
+  private def emitSignedOperand(parent: Expression, slot: Int, operand: Expression): String = {
+    val emitted = emitExpression(operand)
+    if (verilogBase.canElideSignedCast(this, parent, slot, operand)) emitted
+    else s"$$signed($emitted)"
+  }
+
   def operatorImplAsBinaryOperatorSigned(vhd: String)(op: BinaryOperator): String = {
-    s"($$signed(${emitExpression(op.left)}) $vhd $$signed(${emitExpression(op.right)}))"
+    s"(${emitSignedOperand(op, 0, op.left)} $vhd ${emitSignedOperand(op, 1, op.right)})"
   }
 
   def operatorImplAsBinaryOperatorLeftSigned(vhd: String)(op: BinaryOperator): String = {
-    s"($$signed(${emitExpression(op.left)}) $vhd ${emitExpression(op.right)})"
+    s"(${emitSignedOperand(op, 0, op.left)} $vhd ${emitExpression(op.right)})"
   }
 
   def boolLiteralImpl(e: BoolLiteral) : String = if(e.value) "1'b1" else "1'b0"
@@ -1667,7 +1675,7 @@ end
   }
 
   def shiftRightSignedByIntFixedWidthImpl(e: Operator.BitVector.ShiftRightByIntFixedWidth): String = {
-    s"($$signed(${emitExpression(e.source)}) >>> ${e.shift})"
+    s"(${emitSignedOperand(e, 0, e.source)} >>> ${e.shift})"
   }
 
   def operatorImplAsCat(e: Operator.Bits.Cat): String = {

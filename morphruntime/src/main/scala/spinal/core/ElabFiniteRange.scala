@@ -24,6 +24,61 @@ private[spinal] final case class ParameterizedFiniteCountOne(
   */
 private[core] final class ElabFiniteIndexToken private[core] ()
 
+/** Read-only affine access minted by one exact finite index. The retained
+  * selector, Vec and range identities authorize replay; emitted arithmetic is
+  * only checked against that already-established relation.
+  */
+private[core] final class ElabFiniteAffineVecRead private[core] (
+    val vector: Vec[_],
+    val selector: ElaborationIntegerExpression,
+    val baseIndex: ElaborationIntegerExpression,
+    val count: ElaborationIntegerExpression,
+    val originalDepth: ElaborationIntegerExpression,
+    val depth: ElaborationIntegerExpression,
+    val admitted: Set[BigInt],
+    val token: ElabFiniteIndexToken,
+    val coefficient: Int,
+    val offset: Int
+) {
+  private[core] def matches(
+      actualVector: Vec[_],
+      actualSelector: ElaborationIntegerExpression,
+      actualToken: ElabFiniteIndexToken,
+      ownerCount: Option[ElaborationIntegerExpression] = None
+  ): Boolean = {
+    val domainMatches = (count.exactDomain, depth.exactDomain) match {
+      case (Some(c), Some(d)) if c.root eq d.root =>
+        admitted.nonEmpty && admitted.subsetOf(c.evidenceValues) &&
+          admitted.subsetOf(d.evidenceValues) && admitted.forall { root =>
+            (c.evaluate(root), d.evaluate(root)) match {
+              case (Some(n), Some(length)) =>
+                n > 0 && BigInt(coefficient) * (n - 1) + offset < length
+              case _ => false
+            }
+          } && ownerCount.forall { owner =>
+            owner.parameters == count.parameters &&
+              owner.exactDomain.exists { o =>
+                (o.root eq c.root) &&
+                  o.evaluations.collect { case (root, n) if n > 0 => root }.toSet == admitted &&
+                  admitted.forall(root => o.evaluate(root) == c.evaluate(root))
+              }
+          }
+      case _ => false
+    }
+    (actualVector eq vector) && (actualSelector eq selector) &&
+      (actualToken eq token) && coefficient > 0 && offset >= 0 &&
+      ParameterizedVec.shapeOf(vector).exists(_.depth eq originalDepth) &&
+      selector.generateIndex == baseIndex.generateIndex &&
+      selector.parameters.isEmpty && selector.completedParameterRoots.isEmpty &&
+      selector.exactDomain.isEmpty && selector.projectionProvenance.isEmpty &&
+      selector.verilog == s"($coefficient * ${baseIndex.verilog} + $offset)" &&
+      selector.default == offset && selector.minimum == offset &&
+      selector.maximum == BigInt(coefficient) * (count.maximum - 1) + offset &&
+      baseIndex.default == 0 && baseIndex.minimum == 0 &&
+      baseIndex.generateIndex.contains(baseIndex.verilog) && domainMatches
+  }
+}
+
 /** Scoped generate-time index for one exact typed finite range.
   *
   * The representative value exists only to let the inherited native Vec/Mem
@@ -72,6 +127,84 @@ final class ElabFiniteIndex private[core] (
       )
     }
     selected
+  }
+
+  /** Read `coefficient * index + offset` from a typed Vec. Every admitted
+    * positive loop extent is checked against that same root's logical Vec
+    * depth. This deliberately does not grant write-coverage evidence.
+    */
+  def affine[T <: Data](vector: Vec[T], coefficient: Int, offset: Int): T = {
+    if (vector == null)
+      throw new IllegalArgumentException("finite-index affine Vec must not be null")
+    if (coefficient <= 0 || offset < 0)
+      ParameterizedVerilogException.fail(
+        "SPINAL-ELAB-FINITE-AFFINE-COEFFICIENT-INVALID",
+        "finite affine Vec reads require a positive coefficient and non-negative offset",
+        expression.sourceLocation
+      )
+    val selectedWitness = BigInt(coefficient) * witness + offset
+    if (!selectedWitness.isValidInt || selectedWitness < 0 || selectedWitness >= vector.carrierLength)
+      ParameterizedVerilogException.fail(
+        "SPINAL-ELAB-FINITE-AFFINE-WITNESS-OUT-OF-RANGE",
+        s"finite affine Vec witness $selectedWitness is outside its native carrier",
+        expression.sourceLocation
+      )
+    if (!ParameterizedStructure.captureEnabled || expression.generateIndex.isEmpty)
+      return vector(selectedWitness.toInt)
+
+    val shape = ParameterizedVec.shapeOf(vector).getOrElse {
+      ParameterizedVerilogException.fail(
+        "SPINAL-ELAB-FINITE-AFFINE-VEC-SHAPE-MISSING",
+        "finite affine Vec reads require identity-retained typed Vec geometry",
+        expression.sourceLocation
+      )
+    }
+    val projectedCount = ElabInt.projectExpression(count, "finite affine Vec loop count")
+    val projectedDepth = ElabInt.projectExpression(shape.depth, "finite affine Vec depth")
+    val countDomain = ElabFiniteRange.requireCompleteSymbolicDomain(
+      projectedCount, "finite affine Vec loop count", "SPINAL-ELAB-FINITE-AFFINE-EXACT-DOMAIN-REQUIRED"
+    )
+    val depthDomain = ElabFiniteRange.requireCompleteSymbolicDomain(
+      projectedDepth, "finite affine Vec depth", "SPINAL-ELAB-FINITE-AFFINE-EXACT-DOMAIN-REQUIRED"
+    )
+    val admitted = (countDomain, depthDomain) match {
+      case (Some((c, roots)), Some((d, depthRoots)))
+          if (c.root eq d.root) && roots == depthRoots && projectedCount.parameters == projectedDepth.parameters => roots
+      case _ =>
+        ParameterizedVerilogException.fail(
+          "SPINAL-ELAB-FINITE-AFFINE-ROOT-MISMATCH",
+          "finite affine Vec count and logical depth must retain the same complete exact root domain",
+          expression.sourceLocation
+        )
+    }
+    val maximum = BigInt(coefficient) * (projectedCount.maximum - 1) + offset
+    if (!maximum.isValidInt || maximum >= shape.carrierCapacity)
+      ParameterizedVerilogException.fail(
+        "SPINAL-ELAB-FINITE-AFFINE-DOMAIN-OUT-OF-RANGE",
+        "finite affine Vec index exceeds the retained native carrier domain",
+        expression.sourceLocation
+      )
+    val selector = ElaborationIntegerExpression(
+      verilog = s"($coefficient * ${expression.verilog} + $offset)",
+      default = selectedWitness,
+      minimum = BigInt(offset),
+      maximum = maximum,
+      parameters = Vector.empty,
+      generateIndex = expression.generateIndex,
+      sourceLocation = expression.sourceLocation
+    )
+    val evidence = new ElabFiniteAffineVecRead(
+      vector, selector, expression, projectedCount, shape.depth,
+      projectedDepth, admitted, token, coefficient, offset
+    )
+    if (!evidence.matches(vector, selector, token))
+      ParameterizedVerilogException.fail(
+        "SPINAL-ELAB-FINITE-AFFINE-DOMAIN-OUT-OF-RANGE",
+        "finite affine Vec index exceeds the logical depth at an admitted exact-domain point",
+        expression.sourceLocation
+      )
+    val selected = vector(selectedWitness.toInt)
+    ParameterizedStructure.recordAffineVecRead(vector, selected, selector, token, evidence, expression.sourceLocation)
   }
 
   /** Select one bit from an exact-width packed carrier through this generated

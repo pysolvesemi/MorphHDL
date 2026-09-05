@@ -134,6 +134,18 @@ class TypedBalancedReductionStageReplayTests extends AnyFunSuite {
     }
   }
 
+  test("minimum and maximum cannot share a stage certificate merely because both use a mux") {
+    withUInt(symbolic = false) { words =>
+      var index = 0
+      code("STAGE-OPERATOR-NONUNIFORM") {
+        capture(words, (a: UInt, b: UInt) => {
+          index += 1
+          if (index == 2) a.max(b) else a.min(b)
+        })
+      }
+    }
+  }
+
   test("an odd-tail bridge cannot silently differ from the paired rows") {
     withUInt() { words =>
       var index = 0
