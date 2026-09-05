@@ -1,0 +1,126 @@
+--- a/core/src/main/scala/spinal/core/internals/VerilogBase.scala
++++ b/core/src/main/scala/spinal/core/internals/VerilogBase.scala
+@@ -47,6 +47,7 @@
+ object VerilogBase {
+   sealed trait DeclarationRole
+   case object ScalarDeclaration extends DeclarationRole
++  case object FunctionResultDeclaration extends DeclarationRole
+   case object ExpressionWrapper extends DeclarationRole
+   case object MemoryElementDeclaration extends DeclarationRole
+ 
+@@ -203,6 +204,9 @@
+   def emitType(e: Expression): String =
+     declarationPrefix(e, ScalarDeclaration) + emitUnqualifiedType(e)
+ 
++  def emitFunctionType(e: BaseType): String =
++    declarationPrefix(e, FunctionResultDeclaration) + emitUnqualifiedType(e)
++
+   private def emitUnqualifiedType(e: Expression): String = e.getTypeObject match {
+     case `TypeBool` => ""
+     case `TypeBits` => emitRange(e.asInstanceOf[WidthProvider])
+--- a/core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala
++++ b/core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala
+@@ -731,7 +731,7 @@
+           for(node <- process.nameableTargets) node match {
+             case node: BaseType =>
+               val funcName = "zz_" + emitReference(node, false).replaceAllLiterally(".", "__")
+-              declarations ++= s"  function ${emitType(node)} $funcName(input dummy);\n"
++              declarations ++= s"  function ${emitFunctionType(node)} $funcName(input dummy);\n"
+ //              declarations ++= s"    reg ${emitType(node)} ${emitReference(node, false)};\n"
+               declarations ++= s"    begin\n"
+ 
+@@ -748,7 +748,7 @@
+               declarations ++= s"  endfunction\n"
+ 
+               val name = component.localNamingScope.allocateName(anonymSignalPrefix)
+-              declarations ++= s"  wire ${emitType(node)} $name;\n"
++              declarations ++= s"  wire ${emitFunctionType(node)} $name;\n"
+               logics ++= s"  assign $name = ${funcName}(1'b0);\n"
+ //              logics ++= s"  always @ ($name) ${emitReference(node, false)} = $name;\n"
+               logics ++= s"  always @(*) ${emitReference(node, false)} = $name;\n"
+--- a/morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala
+@@ -23,6 +23,17 @@
+     if (occurrence == null || (occurrence.emitter ne emitter))
+       reject("declaration occurrence belongs to another emitter")
+     val fact = (occurrence.role, occurrence.subject) match {
++      case (FunctionResultDeclaration, value: BaseType) =>
++        val result = snapshot.validate(value, snapshot.declaration(value), DeclarationUse)
++        // Native constant-process functions currently retain concrete literal
++        // sizing and result-wrapper widths. Signed declarations alone cannot
++        // repair parameter-dependent return sizing. Require exact fixed width
++        // until the typed literal/resize boundary is qualified; never freeze a
++        // default witness or change implicit extension at publication.
++        if (result.intent == SignedScalar && result.width != Fixed(result.nativeBits))
++          throw new MorphHdlSignednessException("MORPH-SIGNEDNESS-FUNCTION-WIDTH-UNSUPPORTED",
++            "native constant-process SInt functions require an exact fixed result width")
++        result
+       case (ScalarDeclaration, value: BaseType) =>
+         snapshot.validate(value, snapshot.declaration(value), DeclarationUse)
+       case (ExpressionWrapper, value: BaseType) =>
+--- a/morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala
++++ b/morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala
+@@ -86,6 +86,16 @@
+       memory.write(address, word, writeEnable)
+       dataOut := memory.readSync(address, readEnable, readFirst).asBits
+     }
++  }
++
++  final class ParameterizedFunctions(width: HdlInt) extends Component {
++    val transportIn = in(Bits(width bits))
++    val transportOut = out(Bits(width bits))
++    val result = out(SInt(width bits))
++    transportOut := transportIn
++    result.allowOverride
++    result := S(-1)
++    result := S(-2)
+   }
+ 
+   final class Functions(width: HdlInt) extends Component {
+--- a/morphhdl/src/test/scala/morphhdl/SignedDeclarationPublicationTests.scala
++++ b/morphhdl/src/test/scala/morphhdl/SignedDeclarationPublicationTests.scala
+@@ -166,6 +166,21 @@
+       assert(after.contains("wire signed [4:0]"))
+       assert(signedDeclaration(after, "constantOutput"))
+       assert(!signedDeclaration(after, "transportIn"))
++    }
++  }
++
++  test("parameter-dependent native function return widths fail closed before publication") {
++    directory { root =>
++      val before = root.resolve("ordinary-function.v")
++      MorphVerilog(Writer.config(before))(new Fixture.ParameterizedFunctions(width))
++      assert(text(before).contains("function [7:0]"))
++      val after = root.resolve("signed-function.v")
++      val error = intercept[morphhdl.MorphVerilogException] {
++        MorphVerilog(MorphSignedDeclarations.enable(Writer.config(after)))(
++          new Fixture.ParameterizedFunctions(width))
++      }
++      assert(error.getMessage.contains("MORPH-SIGNEDNESS-FUNCTION-WIDTH-UNSUPPORTED"))
++      assert(!Files.exists(after))
+     }
+   }
+ 
+--- a/docs/morphhdl/increment-60c-signed-declarations.md
++++ b/docs/morphhdl/increment-60c-signed-declarations.md
+@@ -128,7 +128,7 @@
+ state bit and output must still be proven, with zero unproven cells. The negative
+ result mutation must also produce a genuine SAT counterexample.
+ 
+-Local resume validation passed all 73 tests across six focused suites (12 new
++Local resume validation passed all 74 tests across six focused suites (13 new
+ declaration tests, 31 signedness tests and 30 inherited front-door/handoff/BlackBox
+ tests). Fresh-JVM repeated RTL was byte-identical. Strict tools and equivalence
+ passed for the independent native matrix and function fixture, and the complete
+@@ -136,3 +136,11 @@
+ results are an implementation checkpoint, not a substitute for both fresh CI
+ Scala lanes and the exact integrated final-head inherited gates. The completion
+ checkbox remains open pending those gates.
++
++The native no-sensitivity function fallback is qualified only for exact fixed
++SInt result widths. Parameter-dependent result and literal sizing is not proved
++by changing declarations. The opt-in mode rejects that case at a native-owned
++FunctionResultDeclaration occurrence before publishing any candidate. It must
++not retain a concrete-width function beneath a symbolic output or silently
++change its implicit extension. Mode-off emission is unchanged. A regression
++checks this diagnostic and verifies that no failed candidate file is published.

@@ -1,0 +1,85 @@
+name: 60c reviewed function declaration guard
+on:
+  push:
+    branches: [agent/60c-reviewed-function-guard]
+    paths: ['.github/60c-reviewed-guard/**', '.github/workflows/60c-reviewed-function-guard.yml']
+permissions:
+  contents: write
+jobs:
+  qualify-reviewed-delta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Reproduce only the reviewed native function occurrence delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -R .github/60c-reviewed-guard "$RUNNER_TEMP/60c-reviewed-guard"
+          git checkout --detach febf8bd3be0fc8109962e177e7c975cfa12935ea
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, hashlib, subprocess
+          patch=Path(os.environ['RUNNER_TEMP'])/'60c-reviewed-guard/source.patch'
+          assert hashlib.sha256(patch.read_bytes()).hexdigest() == 'b1a7f432d019d093dd52e342cb711bf0a9a9abb1fee1b8c04e9ee4e43065476a'
+          remote=subprocess.check_output(['git','ls-remote','origin','refs/heads/agent/increment-60c-signed-declarations'],text=True).split()
+          assert remote == ['febf8bd3be0fc8109962e177e7c975cfa12935ea','refs/heads/agent/increment-60c-signed-declarations'], remote
+          subprocess.run(['git','apply','--check',str(patch)],check=True)
+          subprocess.run(['git','apply','--index',str(patch)],check=True)
+          PY
+          python3 "$RUNNER_TEMP/60c-reviewed-guard/update-manifest.py"
+          python3 - <<'PY'
+          import subprocess
+          expected={
+            'core/src/main/scala/spinal/core/internals/VerilogBase.scala':'803ae7958c1494506d2099f481c5b5a062b54bcd',
+            'core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala':'e60cdc9afd86088c2c9c7d01504f589040cf4ee0',
+            'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala':'ff7b7364701472247dac7e753622fe0c2717163f',
+            'morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala':'a059e503897db51bc84dfba3ddb2d794330abd01',
+            'morphhdl/src/test/scala/morphhdl/SignedDeclarationPublicationTests.scala':'34ed7951b78deedf81d0216bc45dd27d082b025e',
+            'docs/morphhdl/increment-60c-signed-declarations.md':'b9be12431e24e8da993237226dfc6cd51c4b5009',
+            'morphhdl/contracts/native-source-preservation.json':'04258359467b54850a113f46bb962095e633ca8e',
+            'morphhdl/contracts/increment-55-native-change-review.json':'b55127906ffd2fb4a931c6328d9ae349006345cc'
+          }
+          assert set(subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()) == set(expected)
+          for path,sha in expected.items():
+              assert subprocess.check_output(['git','hash-object',path],text=True).strip()==sha,path
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Fail closed on unqualified parameter-dependent SInt function return widths'
+          mkdir -p target/60c-function-guard/a/baseline target/60c-function-guard/b
+          git rev-parse HEAD > target/60c-function-guard/commit.txt
+          git archive HEAD | gzip > target/60c-function-guard/source.tar.gz
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          python3 morphhdl/scripts/check-increment-60c-signed-declarations.py --source-only
+      - name: Compile and qualify the reviewed source before publishing the branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/60c-function-guard"
+          sbt -batch '++2.12.18' \
+            'morph/Test/testOnly spinal.core.internals.SignedDeclarationPublicationTests spinal.core.internals.TypedSignednessAuthorityTests spinal.core.internals.TypedSignednessResumeTests morphhdl.MorphSingleSourceVerilogTests morphhdl.MorphCanonicalIrHandoffTests morphhdl.TypedBlackBoxGenericBindingTests' \
+            "morph/Test/runMain nativeapplication.SIntSignedDeclarationsArtifactWriter $out/a" \
+            "morph/Test/runMain nativeapplication.SIntSignedDeclarationsArtifactWriter $out/b" \
+            "morph/Test/runMain nativeapplication.SIntSignedVerilogBaselineArtifactWriter $out/a/baseline" \
+            "morph/Test/runMain nativeapplication.SIntSignedVerilogNestedArtifactWriter $out/a/baseline" \
+            > "$out/sbt.log" 2>&1 || { tail -n 180 "$out/sbt.log"; exit 1; }
+          for file in "$out/a/"*.v; do cmp "$file" "$out/b/$(basename "$file")"; done
+          python3 morphhdl/scripts/check-increment-60c-signed-declarations.py "$out/a"
+          git push origin HEAD:refs/heads/agent/increment-60c-signed-declarations
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 60c-reviewed-function-guard
+          path: |
+            target/60c-function-guard
+            morphhdl/target/test-reports
+          retention-days: 14
+          if-no-files-found: error
