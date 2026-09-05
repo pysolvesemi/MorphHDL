@@ -1,63 +1,39 @@
-name: WA-07a checked clock-model repair
+name: WA-07a exact failed-run logs
 on:
   push:
     branches: [agent/wa-07a-exact-head-audit]
 permissions:
-  contents: write
+  contents: read
+  actions: read
 jobs:
-  stage:
+  export:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    container:
-      image: ghcr.io/spinalhdl/docker:v1.2.0
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - name: Decode exact reviewed repair
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import base64,hashlib,lzma,os
-          from pathlib import Path
-          data=lzma.decompress(base64.b64decode(Path('clock-model.patch.b64').read_text(),validate=True))
-          assert hashlib.sha256(data).hexdigest()=='ced103c95903f237069801e714cd8c837a522ca916a73a28b4d49ed8f1f063c8'
-          Path(os.environ['RUNNER_TEMP'],'clock-model.patch').write_bytes(data)
-          PY
-      - uses: actions/checkout@v4
-        with:
-          ref: e682b73f1f6764cd9c47fb9d7364b44c0ba12ba0
-          fetch-depth: 0
-      - name: Verify tree and exercise every contract plus actual clock controls
+      - name: Retain exact run metadata and original log bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          git apply --check "$RUNNER_TEMP/clock-model.patch"
-          git apply --index "$RUNNER_TEMP/clock-model.patch"
-          test "$(git write-tree)" = cc95fd9c360b48589e5f54426606738ed1547f55
-          test "$(git diff --cached --name-only | wc -l)" -eq 7
-          for script in morphhdl-passes/scripts/check-wa*.py; do
-            python3 "$script" --self-test
-            python3 "$script"
-          done
-          bash morphhdl-passes/scripts/test-boundary-guard.sh
-          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
-          python3 morphhdl-passes/scripts/test_wire_assignment_equivalence.py -v
-          python3 morphhdl-passes/scripts/test_wire_assignment_clock_model.py
-          git diff --cached --check
-          git config user.name pysolvesemi
-          git config user.email pysolvesemi@gmail.com
-          git commit -m 'fix(passes): require reachable clocked comparisons and sequential mutation controls'
-          mkdir -p clock-repair-result
-          git rev-parse HEAD > clock-repair-result/commit.txt
-          git rev-parse HEAD^ > clock-repair-result/parent.txt
-          git rev-parse HEAD^{tree} > clock-repair-result/tree.txt
-          git show --stat --oneline HEAD > clock-repair-result/changes.txt
-          git push origin HEAD:refs/heads/agent/wa-07a-clock-model-stage
+          mkdir -p diagnostics
+          curl --fail --silent --show-error -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' \
+            https://api.github.com/repos/pysolvesemi/MorphHDL/actions/runs/33974810909 > diagnostics/run.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          run=json.loads(Path('diagnostics/run.json').read_text())
+          assert run['head_sha']=='e682b73f1f6764cd9c47fb9d7364b44c0ba12ba0',run['head_sha']
+          assert run['status']=='completed',run['status']
+          PY
+          curl --fail --silent --show-error -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' \
+            https://api.github.com/repos/pysolvesemi/MorphHDL/actions/runs/33974810909/jobs > diagnostics/jobs.json
+          curl --fail --silent --show-error --location -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' \
+            https://api.github.com/repos/pysolvesemi/MorphHDL/actions/runs/33974810909/logs > diagnostics/run-logs.zip
+          sha256sum diagnostics/run-logs.zip > diagnostics/sha256.txt
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: wa07a-clock-model-repair
-          path: |
-            clock-repair-result
-            morphhdl-passes/build/wa07a-clock-model
+          name: wa07a-e682-original-logs
+          path: diagnostics
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 3
