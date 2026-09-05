@@ -389,7 +389,39 @@ preflight removes a stale gate status without deleting previous diagnostics.
 
 Each successful Yosys preparation records the input, preparation script and
 RTLIL hashes. Aggregation checks those records, the exact parameter bindings,
-and the configuration and input copies retained by SBY for equivalence,
-reachability and mutation runs. Repeated-run evidence cannot be a symlink to
+and the configuration and input copies retained by SBY for reachability and
+mutation runs. Positive equivalence uses the complete property proof described
+below. Repeated-run evidence cannot be a symlink to
 the first run. These checks detect stale or altered workflow artifacts; they
 do not replace solver execution or permit partial-domain qualification.
+
+### Complete output-property proofs
+
+The large shared witness made whole-output PDR expensive. The positive proof
+now expands every output equality into its complete set of bit equalities,
+retaining the same guards, explicit clock edges, reset sequence and independent
+uninitialized state. The original miter still supplies each binding's mandatory
+SBY comparison-reachability check; the existing functional SBY mutations remain.
+
+Yosys preserves every assertion and assumption and produces a complete AIG.
+ABC folds the temporal assumptions before extracting each property's sequential
+cone, then simplifies and proves that cone with PDR. The gate requires an exact
+mapping for every property, including constant and repeated properties. Within
+one binding only, byte-identical normalized formulas may share a proved
+representative. The representative is regenerated and its serialized formula
+must match exactly before its proof is accepted. Parameter bindings, pass
+candidates and repeated runs each execute independently; no width or bit is
+sampled and no prior binding's proof is reused.
+
+Each qualification retains the full input model, all property mappings,
+normalized formulas, canonical commands, actual solver records and invariants.
+The aggregator validates this evidence in addition to the original reachability
+and mutation records. A timeout, counterexample, omitted property, changed model
+or unverified result cannot qualify. The per-binding timeout remains unchanged.
+The 7,168 required equivalence results count complete binding qualifications,
+each of which may contain several distinct PDR property proofs.
+
+`test_wire_assignment_cone_tools.py` exercises the actual proof backend with
+positive cases and mutations of clock behavior, temporal assumptions, independent
+initial state, comparison reachability and later output properties. These small
+controls do not replace any shared-witness binding.

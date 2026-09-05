@@ -59,8 +59,11 @@ class ShardSchedulingTests(unittest.TestCase):
 
 
 class AggregationTests(unittest.TestCase):
-    """Construct deliberately synthetic solver records to test acceptance rules."""
+    """Synthetic aggregation records; cone validation is mocked, not a proof."""
     def setUp(self):
+        cone_patch = patch.object(aggregate.cones, 'validate_proof', return_value=None)
+        self.cone_validator = cone_patch.start()
+        self.addCleanup(cone_patch.stop)
         self.temp = tempfile.TemporaryDirectory(prefix='wa07a-shard-unit-')
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -119,13 +122,11 @@ class AggregationTests(unittest.TestCase):
         self.write(directory / 'miter.v', gate.generated_miter(case['inputs'], case['outputs'], binding,
             prefix + 'ReferencePrepared', prefix + 'CandidatePrepared', top,
             case['clock'], case['reset'], mutation))
-        self.write(directory / 'proof.sby', gate.sby_configuration(top,
-            'FAIL' if mutation else 'PASS', 'bmc' if mutation else 'prove',
-            'smtbmc yices' if mutation else case.get('engine', 'abc pdr'),
-            120 if mutation else case.get('timeout_seconds', 600), depth=3 if mutation else None))
-        self.write(directory / 'proof/status', ('FAIL' if mutation else 'PASS') + ' 0 1\n')
-        self.solver_inputs(directory, 'proof')
         if mutation:
+            self.write(directory / 'proof.sby', gate.sby_configuration(top,
+                'FAIL', 'bmc', 'smtbmc yices', 120, depth=3))
+            self.write(directory / 'proof/status', 'FAIL 0 1\n')
+            self.solver_inputs(directory, 'proof')
             self.write(directory / 'proof/engine_0/trace.vcd', '$comment synthetic unit record $end\n')
         else:
             self.write(directory / 'reachability.sby', gate.sby_configuration(top, 'PASS', 'cover',
@@ -221,6 +222,24 @@ class AggregationTests(unittest.TestCase):
         self.assertEqual(result['equivalence_proof_count'], 16)
         self.assertTrue(result['exact_disjoint_coverage'])
         self.assertTrue(result['determinism_checked'])
+        self.assertEqual(self.cone_validator.call_count, 24)
+        self.assertFalse((self.binding_path() / 'proof/status').exists())
+
+    def test_cone_validator_receives_every_output_bit_and_exact_guarded_miter(self):
+        directory = self.root / 'synthetic-multibit-binding'
+        case = dict(self.shared, outputs=[{'name': 'valid', 'width': 1},
+                    {'name': 'payload', 'width': {'parameter': 'WIDTH'}, 'compare_when': ('valid',)}],
+                    timeout_seconds=321)
+        binding = {'DEPTH': 1, 'WIDTH': 3}
+        self.tool_record(directory, case, binding, self.witness, self.slots[0]['candidate'])
+        aggregate.check_tool_proof(directory, case, binding, gate.sha256_file(self.witness),
+                                    gate.sha256_file(self.slots[0]['candidate']))
+        self.cone_validator.assert_called_once_with(directory=directory,
+            miter_top='Wa03EquivalenceMiter', scalar_miter_text=gate.generated_miter(
+                case['inputs'], case['outputs'], binding, 'Wa03ReferencePrepared',
+                'Wa03CandidatePrepared', 'Wa03EquivalenceMiter', 'clk', 'reset', False,
+                split_output_bits=True), expected_property_count=4, timeout_seconds=321,
+            expected_assumption_count=4)
 
     def test_missing_shard_cannot_publish_success(self):
         shutil.rmtree(self.shards / 'shard-1')
@@ -251,8 +270,14 @@ class AggregationTests(unittest.TestCase):
         with self.assertRaises(gate.ValidationError): self.run_gate()
 
     def test_solver_failure_cannot_be_hidden_by_pass_summary(self):
-        self.write(self.binding_path() / 'proof/status', 'FAIL 0 1\n')
-        with self.assertRaisesRegex(gate.ValidationError, 'expected PASS, observed FAIL'):
+        self.cone_validator.side_effect = aggregate.cones.ConeProofError('synthetic failed cone')
+        with self.assertRaisesRegex(gate.ValidationError, 'output-cone proof validation failed'):
+            self.run_gate()
+        self.assertFalse((self.output / 'gate-status.json').exists())
+
+    def test_mutation_solver_pass_cannot_be_hidden_by_expected_fail_summary(self):
+        self.write(self.binding_path().parent / 'mutation-control/proof/status', 'PASS 0 1\n')
+        with self.assertRaisesRegex(gate.ValidationError, 'expected FAIL, observed PASS'):
             self.run_gate()
 
     def test_missing_cover_trace_is_rejected_despite_pass_status(self):
@@ -261,9 +286,9 @@ class AggregationTests(unittest.TestCase):
             self.run_gate()
 
     def test_unsafe_clock_configuration_is_rejected(self):
-        path = self.binding_path() / 'proof.sby'
+        path = self.binding_path() / 'reachability.sby'
         path.write_text(path.read_text().replace('multiclock on', 'multiclock off'))
-        with self.assertRaisesRegex(gate.ValidationError, 'clock model changed'):
+        with self.assertRaisesRegex(gate.ValidationError, 'reachability configuration changed'):
             self.run_gate()
 
     def test_changed_miter_assumptions_or_candidate_are_rejected(self):
@@ -301,9 +326,10 @@ class AggregationTests(unittest.TestCase):
             self.run_gate()
 
     def test_stale_solver_inputs_are_rejected_for_proof_and_reachability(self):
-        for work in ('proof', 'reachability'):
+        for directory, work in ((self.binding_path().parent / 'mutation-control', 'proof'),
+                                (self.binding_path(), 'reachability')):
             for name in ('reference.il', 'candidate.il', 'miter.v'):
-                path = self.binding_path() / work / 'src' / name
+                path = directory / work / 'src' / name
                 original = path.read_bytes()
                 with self.subTest(work=work, name=name):
                     path.write_text('// a retained solver run for different inputs\n')
@@ -312,8 +338,9 @@ class AggregationTests(unittest.TestCase):
                 path.write_bytes(original)
 
     def test_stale_solver_configuration_is_rejected(self):
-        for work in ('proof', 'reachability'):
-            path = self.binding_path() / work / 'config.sby'
+        for directory, work in ((self.binding_path().parent / 'mutation-control', 'proof'),
+                                (self.binding_path(), 'reachability')):
+            path = directory / work / 'config.sby'
             original = path.read_bytes()
             with self.subTest(work=work):
                 path.write_text(path.read_text().replace('multiclock on', 'multiclock off'))

@@ -23,6 +23,8 @@ SCHEDULER_TEST = 'morphhdl-passes/scripts/test_wire_assignment_equivalence.py'
 SHARD_TEST = 'morphhdl-passes/scripts/test_wire_assignment_shards.py'
 AGGREGATE = 'morphhdl-passes/scripts/aggregate_wire_assignment_equivalence.py'
 SHARD_TOOL = 'morphhdl-passes/scripts/test_wire_assignment_shard_tools.py'
+CONES = 'morphhdl-passes/scripts/prove_wire_assignment_cones.py'
+CONE_TOOLS = 'morphhdl-passes/scripts/test_wire_assignment_cone_tools.py'
 TESTS = 'morphhdl-passes/src/test/scala/morphhdl/passes/transform/'
 CONST = 'constant-operand-simplification'
 ALL = 'wire-alias-unnamed+wire-alias-named+wire-expression-unnamed+' + CONST
@@ -31,6 +33,15 @@ SLOTS = [
     {'activation_item': 'WA-07a', 'candidate': 'morphhdl-passes/build/pass-outputs/wire-assignment-four-pass.v', 'pass_id': ALL},
 ]
 MARKERS = {
+    CONES: ('def run_proof', 'def validate_proof', 'def validate_pdr_log',
+            'setattr -set keep 1 t:$assert t:$assume', 'clk2fflogic',
+            'formalff -ff2anyinit', 'opt -full -keepdc',
+            'formalff -anyinit2ff -fine', 'fold; strash; cone -s -O',
+            'this_binding_this_invocation_only', 'proved snapshot differs',
+            'full AIG assertion/assumption counts'),
+    CONE_TOOLS: ('incorrect_clock_lowering', 'temporal_assumption',
+                 'independent_initial_state', 'REJECTED_UNREACHABLE',
+                 'later-property-mutation', 'WA07A_CONE_TOOLS_PASS'),
     VALIDATOR: ('multiclock on', 'def prove_comparison_reachable',
                 'prove_comparison_reachable(directory, miter_top)',
                 'cover(!{reset});', 'reachability-evidence.json',
@@ -39,7 +50,8 @@ MARKERS = {
                 'mutation = run_mutation_control(mutation_case, pass_directory)',
                 'sequential_mutation = run_mutation_control',
                 'def select_proof_bindings', 'formal_shard_index', 'SHARD_PASS',
-                'selected_bindings = select_proof_bindings', 'binding-evidence.json'),
+                'selected_bindings = select_proof_bindings', 'binding-evidence.json',
+                'cones.run_proof', 'split_output_bits=True', 'expected_assumption_count=4 if clock else 0'),
     SHARD_TOOL: ('gate.execute_suite', 'aggregate.aggregate', 'UNKNOWN 0 1',
                  'expected PASS, observed UNKNOWN', 'NOT shared-FIFO qualification',
                  'WA07A_SHARD_TOOL_CONTROL_PASS'),
@@ -47,7 +59,8 @@ MARKERS = {
                 'check_binding_list', 'native_input_identity', 'gate.proof_source_identity',
                 'seen == set(range(shard_count))', 'full domain is not an exact disjoint union',
                 'gate.compare_deterministic_runs', 'all_mutations_detected',
-                'case["clock"], case["reset"], mutation', 'WA07A_FULL_DOMAIN_PASS'),
+                'case["clock"], case["reset"], mutation', 'WA07A_FULL_DOMAIN_PASS',
+                'cones.validate_proof', 'split_output_bits=True', 'property_count = sum'),
     SHARD_TEST: ('test_every_binding_has_exactly_one_owner_without_domain_sampling',
                  'test_duplicate_shard_index_is_rejected',
                  'test_stale_commit_registry_manifest_or_reference_is_rejected',
@@ -83,6 +96,7 @@ MARKERS = {
     RUN: ('root="${repo_root}/morphhdl-passes/build"',
           'test -s "${new_reference}/parameterized_stream_fifo.v"',
           'python3 morphhdl-passes/scripts/test_wire_assignment_clock_model.py',
+          'python3 morphhdl-passes/scripts/test_wire_assignment_cone_tools.py',
           'python3 morphhdl-passes/scripts/test_wire_assignment_shard_tools.py',
           'bash morphhdl-passes/scripts/run-wa07-regression.sh',
           'ParameterizedStreamFifoConstantPassWitness reference',
@@ -97,6 +111,7 @@ MARKERS = {
                'needs: [boundary, contracts]', 'wa07a-rule-oracle', 'actions/upload-artifact@v4',
                '--formal-shard-count 16', 'max-parallel: 16', '--capture-native-inputs',
                '--verify-native-inputs', 'needs: [native_generation, formal_shards]',
+               'test_wire_assignment_cones.py -v',
                'test "$SHARD_RESULT" = success', '--shard-count 16', 'merge-multiple: false',
                'test_wire_assignment_shards.py -v'),
     TESTS+'ConstantOperandSimplificationPassSpec.scala': (
@@ -175,6 +190,7 @@ def check(root):
             errors.append('WA07A-SCOPE: this increment must not complete WA-08')
     registry = json.loads((root/'morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json').read_text())['files']
     for path in list(MARKERS) + ['morphhdl-passes/scripts/check-wa07a-constant-pass.py',
+                                 'morphhdl-passes/scripts/test_wire_assignment_cones.py',
                                  'morphhdl-passes/tests/formal/wire_assignment_ir/constant_native_tb.v']:
         if path not in registry:
             errors.append(f'WA07A-SIGNATURE: {path}')

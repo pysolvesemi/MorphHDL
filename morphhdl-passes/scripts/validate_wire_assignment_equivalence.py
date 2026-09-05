@@ -772,6 +772,8 @@ def generated_miter(
     clock: str | None,
     reset: str | None,
     mutate_first_output: bool,
+    *,
+    split_output_bits: bool = False,
 ) -> str:
     if (clock is None) != (reset is None):
         raise ValidationError("formal miter requires clock and reset together")
@@ -804,18 +806,23 @@ def generated_miter(
 
     assertions: list[str] = []
     for index, port in enumerate(outputs):
-        candidate_expression = f"candidate_{port['name']}"
-        if mutate_first_output and index == 0:
-            candidate_expression = f"({candidate_expression} ^ 1'b1)"
-        assertion = f"assert(reference_{port['name']} == {candidate_expression});"
+        width = resolve_width(port["width"], binding, f"output {port['name']}")
         conditions = tuple(port.get("compare_when", ()))
-        if conditions:
-            guard_terms = [
-                f"reference_{condition} && candidate_{condition}"
-                for condition in conditions
-            ]
-            assertion = f"if ({' && '.join(guard_terms)}) {assertion}"
-        assertions.append("      " + assertion)
+        guard_terms = [f"reference_{condition} && candidate_{condition}" for condition in conditions]
+        if split_output_bits:
+            guard = f"if ({' && '.join(guard_terms)}) " if guard_terms else ""
+            assertions.append("      " + guard + "begin")
+        for bit in range(width) if split_output_bits else (None,):
+            select = f"[{bit}]" if bit is not None and width > 1 else ""
+            candidate_expression = f"candidate_{port['name']}{select}"
+            if mutate_first_output and index == 0 and bit in (None, 0):
+                candidate_expression = f"({candidate_expression} ^ 1'b1)"
+            assertion = f"assert(reference_{port['name']}{select} == {candidate_expression});"
+            if guard_terms and not split_output_bits:
+                assertion = f"if ({' && '.join(guard_terms)}) {assertion}"
+            assertions.append(("        " if split_output_bits else "      ") + assertion)
+        if split_output_bits:
+            assertions.append("      end")
 
     body: list[str] = []
     if reset is None:
@@ -983,6 +990,22 @@ def run_formal_binding(
     )
     (directory / "miter.v").write_text(miter, encoding="utf-8")
     prove_comparison_reachable(directory, miter_top)
+    if engine == "abc pdr":
+        import prove_wire_assignment_cones as cones
+        scalar_miter = generated_miter(
+            inputs, outputs, binding, prepared_reference, prepared_candidate,
+            miter_top, clock, reset, mutate_first_output=False, split_output_bits=True,
+        )
+        try:
+            cones.run_proof(
+                directory, miter_top, scalar_miter,
+                sum(resolve_width(port["width"], binding, f"output {port['name']}") for port in outputs),
+                timeout_seconds=timeout_seconds, expected_assumption_count=4 if clock else 0,
+            )
+        except cones.ConeProofError as error:
+            raise ValidationError(f"output-property proof failed: {error}") from error
+        return {"binding": dict(sorted(binding.items())), "status": "PASS",
+                "comparison_reachable": True}
     (directory / "proof.sby").write_text(
         sby_configuration(
             miter_top,

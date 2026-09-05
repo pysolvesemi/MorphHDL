@@ -7,6 +7,7 @@ trap 'status=$?; printf "WA07A-REGRESSION-FAILED: %s:%s: %s (exit %s)\n" "${BASH
 repo_root="${GITHUB_WORKSPACE:-$(git rev-parse --show-toplevel)}"
 cd "${repo_root}"
 python3 morphhdl-passes/scripts/test_wire_assignment_clock_model.py
+python3 morphhdl-passes/scripts/test_wire_assignment_cone_tools.py
 python3 morphhdl-passes/scripts/test_wire_assignment_shard_tools.py
 # Retain every historical independent proof leg and its common reference.
 bash morphhdl-passes/scripts/run-wa07-regression.sh

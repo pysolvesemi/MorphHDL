@@ -157,6 +157,7 @@ jobs:
         run: |
           python3 morphhdl-passes/scripts/test_wire_assignment_equivalence.py -v
           python3 morphhdl-passes/scripts/test_wire_assignment_shards.py -v
+          python3 morphhdl-passes/scripts/test_wire_assignment_cones.py -v
 
   contracts:
     name: Pass contracts, direct aliases, expressions and pipeline Scala ${{ matrix.scala_version }}

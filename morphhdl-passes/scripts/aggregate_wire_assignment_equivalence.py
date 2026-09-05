@@ -3,7 +3,7 @@
 
 A SHARD_PASS is deliberately not qualification. Only this gate may combine
 shards into PASS, after checking both repeated runs, exact source/input hashes,
-all admitted bindings for every required pass, solver status files, reachable
+all admitted bindings for every required pass, retained solver records, reachable
 comparison traces, functional mutation traces, and deterministic artifacts.
 No proof property, assumption, clock model or parameter domain is weakened.
 """
@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import validate_wire_assignment_equivalence as gate
+import prove_wire_assignment_cones as cones
 
 
 def require(condition: bool, message: str) -> None:
@@ -132,16 +133,12 @@ def check_tool_proof(directory: Path, case: Mapping[str, Any], binding: Mapping[
         prefix + "CandidatePrepared", top, case["clock"], case["reset"], mutation)
     require(read_text(directory / "miter.v") == expected_miter,
             f"{directory}: proof miter or assumptions changed")
-    configuration = gate.sby_configuration(
-        top, "FAIL" if mutation else "PASS", "bmc" if mutation else "prove",
-        "smtbmc yices" if mutation else case.get("engine", "abc pdr"),
-        120 if mutation else case.get("timeout_seconds", 600),
-        depth=3 if mutation else None)
-    require(read_text(directory / "proof.sby") == configuration,
-            f"{directory}: solver configuration or clock model changed")
-    status = gate.read_sby_status(directory, "proof", "FAIL" if mutation else "PASS")
-    check_solver_inputs(directory, status.work_directory, configuration)
     if mutation:
+        configuration = gate.sby_configuration(top, "FAIL", "bmc", "smtbmc yices", 120, depth=3)
+        require(read_text(directory / "proof.sby") == configuration,
+                f"{directory}: solver configuration or clock model changed")
+        status = gate.read_sby_status(directory, "proof", "FAIL")
+        check_solver_inputs(directory, status.work_directory, configuration)
         require(nonempty_traces(status.work_directory) > 0,
                 f"{directory}: mutation has no retained counterexample")
         return
@@ -155,6 +152,28 @@ def check_tool_proof(directory: Path, case: Mapping[str, Any], binding: Mapping[
     evidence = gate.load_json(directory / "reachability-evidence.json")
     require(evidence.get("status") == "PASS" and evidence.get("comparison_region_reached") is True,
             f"{directory}: comparison region was not reached")
+    engine = case.get("engine", "abc pdr")
+    if engine != "abc pdr":
+        configuration = gate.sby_configuration(top, "PASS", "prove", engine,
+                                                case.get("timeout_seconds", 600))
+        require(read_text(directory / "proof.sby") == configuration,
+                f"{directory}: solver configuration or clock model changed")
+        status = gate.read_sby_status(directory, "proof", "PASS")
+        check_solver_inputs(directory, status.work_directory, configuration)
+        return
+    scalar_miter = gate.generated_miter(
+        case["inputs"], case["outputs"], binding, "Wa03ReferencePrepared",
+        "Wa03CandidatePrepared", top, case["clock"], case["reset"], False,
+        split_output_bits=True)
+    property_count = sum(gate.resolve_width(port["width"], binding, f"output {port['name']}")
+                         for port in case["outputs"])
+    try:
+        cones.validate_proof(directory=directory, miter_top=top, scalar_miter_text=scalar_miter,
+                             expected_property_count=property_count,
+                             timeout_seconds=case.get("timeout_seconds", 600),
+                             expected_assumption_count=4 if case["clock"] else 0)
+    except cones.ConeProofError as error:
+        raise gate.ValidationError(f"{directory}: output-cone proof validation failed: {error}") from error
 
 
 def check_mutation(directory: Path, evidence: Mapping[str, Any], case: Mapping[str, Any],

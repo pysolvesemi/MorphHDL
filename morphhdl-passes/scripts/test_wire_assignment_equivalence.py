@@ -6,6 +6,7 @@ from __future__ import annotations
 import contextlib
 import copy
 import io
+import re
 import shlex
 import subprocess
 import tempfile
@@ -16,6 +17,42 @@ from pathlib import Path
 from unittest.mock import patch
 
 import validate_wire_assignment_equivalence as gate
+
+
+class ScalarOutputPropertyTests(unittest.TestCase):
+    def test_every_bit_has_the_original_guard_clock_and_reset(self):
+        for width in (1, 3, 64):
+            outputs = ({"name": "valid", "width": 1},
+                       {"name": "payload", "width": {"parameter": "WIDTH"}, "compare_when": ("valid",)},
+                       {"name": "count", "width": 4})
+            args = (({"name": "clk", "width": 1}, {"name": "reset", "width": 1}),
+                    outputs, {"WIDTH": width}, "Ref", "Candidate", "Miter", "clk", "reset", False)
+            whole = gate.generated_miter(*args)
+            scalar = gate.generated_miter(*args, split_output_bits=True)
+            self.assertEqual(whole.count("assert("), 3)
+            self.assertEqual(scalar.count("assert("), width + 5)
+            # Clock/reset/assumption logic and the comparison region are exact;
+            # each output's complete bit group shares its original guard.
+            marker = "      cover(!reset);\n"
+            self.assertEqual(whole.split(marker)[0], scalar.split(marker)[0])
+            guard = "      if (reference_valid && candidate_valid) begin\n"
+            expected_group = guard
+            for bit in range(width):
+                selected = f"[{bit}]" if width > 1 else ""
+                expected = f"assert(reference_payload{selected} == candidate_payload{selected});"
+                self.assertEqual(scalar.count(expected), 1)
+                expected_group += "        " + expected + "\n"
+            self.assertEqual(scalar.count(expected_group + "      end"), 1)
+            observed = re.findall(r"assert\(reference_count\[([0-9]+)\] == candidate_count\[\1\]\);", scalar)
+            self.assertEqual(observed, ["0", "1", "2", "3"])
+
+    def test_mutation_of_vector_output_changes_only_its_low_bit(self):
+        scalar = gate.generated_miter((), ({"name": "value", "width": 3},), {},
+            "Ref", "Candidate", "Miter", None, None, True, split_output_bits=True)
+        self.assertEqual(scalar.count("^ 1'b1"), 1)
+        self.assertIn("assert(reference_value[0] == (candidate_value[0] ^ 1'b1));", scalar)
+        for bit in (1, 2):
+            self.assertIn(f"assert(reference_value[{bit}] == candidate_value[{bit}]);", scalar)
 
 
 class OrderedWorkerTests(unittest.TestCase):
