@@ -1,0 +1,100 @@
+name: Record qualified Increment 59a completion
+on:
+  push:
+    branches: [agent/inc59a-completion-record]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 71512c6e68f994cb4a918e67338c43f67ea9da91
+          fetch-depth: 0
+      - name: Require the exact green matrix and change only completion documentation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, subprocess, urllib.request
+          from pathlib import Path
+          SHA = '71512c6e68f994cb4a918e67338c43f67ea9da91'
+          RUN = 33949941835
+          PREFIX = 'https://api.github.com/repos/pysolvesemi/MorphHDL/'
+          def read(path):
+              request = urllib.request.Request(PREFIX + path, headers={
+                  'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                  'Accept': 'application/vnd.github+json',
+                  'X-GitHub-Api-Version': '2022-11-28',
+              })
+              with urllib.request.urlopen(request, timeout=45) as response:
+                  return json.load(response)
+          run = read(f'actions/runs/{RUN}')
+          assert run['head_sha'] == SHA
+          assert run['status'] == 'completed' and run['conclusion'] == 'success', 'canonical run is not green'
+          jobs = read(f'actions/runs/{RUN}/jobs?filter=latest&per_page=100')
+          assert jobs['total_count'] == 19 and len(jobs['jobs']) == 19
+          assert all(job['status'] == 'completed' and job['conclusion'] == 'success' for job in jobs['jobs'])
+          assert any(job['name'] == 'Increment 59a canonical closure' for job in jobs['jobs'])
+          ref = read('git/ref/heads/agent/increment-59a-recursive-verilog-module')
+          assert ref['object']['sha'] == SHA, 'feature branch advanced; refusing a stale completion record'
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip() == SHA
+          roadmap = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          assert subprocess.check_output(['git','hash-object',str(roadmap)],text=True).strip() == 'd89e2dc96316bad395e42768d34f02af6d4580ac'
+          text = roadmap.read_text()
+          old_title = '- [ ] **Increment 59a — Bounded recursive Verilog module generation and proof**'
+          assert text.count(old_title) == 1
+          assert '- [ ] **Increment 59b — Typed parameterized Vec reduceBalancedTree**' in text
+          roadmap.write_text(text.replace(old_title, old_title.replace('[ ]','[x]',1),1))
+          guide = Path('docs/morphhdl/increment-59a-bounded-recursive-verilog-module.md')
+          assert subprocess.check_output(['git','hash-object',str(guide)],text=True).strip() == 'a5c34cb429eae3c02bde1387fc8daabfdfd91220'
+          text = guide.read_text()
+          old = 'Implementation target for the `parameterized-verilog` branch. The roadmap\ncheckbox remains open until the exact final branch head passes every gate in the\nIncrement 59a workflow.'
+          new = (
+              'Implemented and qualified on September 5, 2026. Canonical workflow run\n'
+              '`33949941835` passed every job on implementation commit\n'
+              '`71512c6e68f994cb4a918e67338c43f67ea9da91`, including both Scala 2.12.18 and\n'
+              '2.13.12 full SBT/Mill suites, compatibility, deterministic publication, strict\n'
+              'Verilog-2001 tools, independent equivalence, mutation and inherited formal gates.\n'
+              'The completion record changes only this document and the 59a roadmap checkbox;\n'
+              'its exact final head is subject to the same pre-merge workflow. Increment 59b\n'
+              'remains unchecked and is not implemented here.\n\n'
+              'The two Scala lanes emit byte-identical `bounded_recursive_power.v` with SHA-256\n'
+              '`43c2848534227810471ef32425dddd3f363b539ae8337faa81058b64d559f152`.\n'
+              'Each lane checks all 256 inputs for every exponent 0 through 8, proves nine\n'
+              'specializations against separately elaborated SpinalVerilog oracles, and\n'
+              'requires a real counterexample for the synthesizable recursive-binding\n'
+              'mutation. Yosys 0.41 produces one flattened top containing 834 mapped primitive\n'
+              'cells, no recursive cells and no unresolved modules. Icarus 11.0 and Verilator\n'
+              '4.228 provide the qualified simulation/parser and lint checks respectively.\n'
+              'These results cover the declared finite modular-power matrix, not arbitrary\n'
+              'recursion or every synthesis tool.'
+          )
+          assert text.count(old) == 1
+          guide.write_text(text.replace(old,new,1))
+          subprocess.run(['git','diff','--check'],check=True)
+          changed = set(subprocess.check_output(['git','diff','--name-only'],text=True).splitlines())
+          assert changed == {str(roadmap),str(guide)}, changed
+          Path('completion-evidence').mkdir()
+          Path('completion-evidence/qualified-run.json').write_text(json.dumps(run,indent=2)+'\n')
+          Path('completion-evidence/qualified-jobs.json').write_text(json.dumps(jobs,indent=2)+'\n')
+          PY
+          python3 morphhdl/scripts/check-increment-59a-recursive-module.py --self-test --repo-root .
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email 'actions@users.noreply.github.com'
+          git add docs/morphhdl/parameterized-verilog-todo.md docs/morphhdl/increment-59a-bounded-recursive-verilog-module.md
+          git commit -m 'Complete Increment 59a roadmap after the fully green exact implementation matrix'
+          git diff HEAD^ HEAD > completion-evidence/completion.patch
+          git rev-parse HEAD > completion-evidence/commit.txt
+          git rev-parse 'HEAD^{tree}' > completion-evidence/tree.txt
+          git push origin HEAD:refs/heads/agent/inc59a-completion-result
+      - uses: actions/upload-artifact@v4
+        with:
+          name: increment-59a-completion-record
+          path: completion-evidence
+          if-no-files-found: error
