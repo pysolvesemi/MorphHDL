@@ -1,0 +1,176 @@
+name: Increment 59a constant process safety qualification
+on:
+  push:
+    branches: [agent/increment-59a-recursive-verilog-module]
+permissions:
+  contents: write
+jobs:
+  qualify:
+    if: github.event.head_commit.message == 'Qualify 59a rejection of inert constant-only procedural fragments'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Add the rejected-topology regression before the production guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p constant-guard-artifacts
+          cat > constant-guard-artifacts/fix.patch <<'PATCH'
+          --- a/morphhdl/src/test/scala/morphhdl/BoundedRecursiveSafetyTests.scala
+          +++ b/morphhdl/src/test/scala/morphhdl/BoundedRecursiveSafetyTests.scala
+          @@ -64,6 +64,39 @@
+               }
+             }
+           
+          +  final class ConditionalReference(next: ElabInt) extends BlackBox {
+          +    setBlackBoxName("RecursiveConditionalStep")
+          +    addGeneric("N", next)
+          +    val x = in UInt (8 bits)
+          +    val select = in Bool ()
+          +    val y = out UInt (8 bits)
+          +    x.setName("x")
+          +    select.setName("select")
+          +    y.setName("y")
+          +  }
+          +
+          +  final class ConditionalStep(exponent: HdlInt) extends Component {
+          +    setDefinitionName("RecursiveConditionalStep")
+          +    val x = in UInt (8 bits)
+          +    val select = in Bool ()
+          +    val y = out UInt (8 bits)
+          +    x.setName("x")
+          +    select.setName("select")
+          +    y.setName("y")
+          +    exponent.hdlEq(0).generateIf("base", "step") {
+          +      y := U(1, 8 bits)
+          +    }.otherwise {
+          +      val inner = new ConditionalReference(exponent - 1)
+          +      inner.x := x
+          +      inner.select := select
+          +      when(select) {
+          +        y := (x * inner.y).resize(8)
+          +      }.otherwise {
+          +        y := x
+          +      }
+          +    }
+          +  }
+          +
+             def apply(mode: String, default: Int = 3): Accumulator =
+               new Accumulator(HdlInt.param("STEPS", default = default, min = 0, max = 8), mode)
+           }
+          @@ -98,6 +131,23 @@
+                   assert(text.contains("g_step"))
+                   assert(text.contains(".N"))
+                 }
+          +    }
+          +  }
+          +
+          +  test("constant base with runtime-conditional step fails closed") {
+          +    withDirectory { directory =>
+          +      val config = SpinalConfig(targetDirectory = directory.toString)
+          +      config.netlistFileName = "conditional_step.v"
+          +      val error = intercept[MorphVerilogException] {
+          +        MorphVerilog(config)(new RecursiveSafetyFixture.ConditionalStep(
+          +          HdlInt.param("N", default = 5, min = 0, max = 8)
+          +        ))
+          +      }
+          +      val chain = Iterator.iterate[Throwable](error)(_.getCause).takeWhile(_ != null).toVector
+          +      val diagnostic = chain.collectFirst { case value: ParameterizedVerilogException => value }
+          +        .getOrElse(fail(chain.mkString(" -> ")))
+          +      assert(diagnostic.code ==
+          +        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONSTANT-PROCESS-UNSUPPORTED")
+               }
+             }
+           
+          --- a/morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+          +++ b/morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+          @@ -3484,11 +3484,14 @@
+                       blockingWhole.findFirstMatchIn(line).nonEmpty
+                     )
+                   }
+          -        val needsConstantDriver = flat && fragmentAssignments.exists { case (_, statements) =>
+          -          statements.forall(line =>
+          -            verilogLiteral(blockingWhole.findFirstMatchIn(line).get.group(2)).nonEmpty
+          -          )
+          -        }
+          +        val hasConstantFragment = fragmentAssignments.exists { case (_, statements) =>
+          +          statements.nonEmpty && statements.forall(line =>
+          +            blockingWhole.findFirstMatchIn(line).exists(statement =>
+          +              verilogLiteral(statement.group(2)).nonEmpty
+          +            )
+          +          )
+          +        }
+          +        val needsConstantDriver = flat && hasConstantFragment
+                   val continuousFamily = if (
+                     needsConstantDriver &&
+                     Set("always @(*) begin", "always @* begin")(normalized.head)
+          @@ -3547,6 +3550,13 @@
+                     }
+                     exactFamily
+                   } else false
+          +
+          +        if (hasConstantFragment && !continuousFamily &&
+          +            Set("always @(*) begin", "always @* begin")(normalized.head))
+          +          fail(
+          +            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONSTANT-PROCESS-UNSUPPORTED",
+          +            "a constant-only combinational fragment has no Verilog-2001 trigger; the complete process family must support proven continuous assignment serialization"
+          +          )
+           
+                   claimants.foreach { claimant =>
+                     val owned = ownedIndices(claimant.block)
+          PATCH
+          git apply --include=morphhdl/src/test/scala/morphhdl/BoundedRecursiveSafetyTests.scala constant-guard-artifacts/fix.patch
+          set +e
+          sbt -batch '++2.13.12' 'morph/testOnly morphhdl.BoundedRecursiveSafetyTests -- -z "constant base with runtime-conditional step"' > constant-guard-artifacts/before.log 2>&1
+          before_status=$?
+          set -e
+          test "$before_status" -ne 0
+          grep -Fq 'no exception was thrown' constant-guard-artifacts/before.log || { tail -n 100 constant-guard-artifacts/before.log; exit 1; }
+          printf '%s\n' 'Confirmed regression: unsupported constant procedural fragment was previously published'
+      - name: Apply the exact guard and prove focused and inherited regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --include=morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala constant-guard-artifacts/fix.patch
+          sbt -batch '++2.13.12' 'morph/testOnly morphhdl.BoundedRecursivePowerTests morphhdl.BoundedRecursiveSafetyTests morphhdl.TypedBlackBoxGenericBindingTests morphhdl.StructuralGenerateControlTests morphhdl.NaturalSymbolicConditionalTests morphhdl.ExternalHierarchyBoolLiteralBindingTests spinal.core.ScalarStructuralIdentityAdversarialTests' > constant-guard-artifacts/after.log 2>&1 || { tail -n 140 constant-guard-artifacts/after.log; exit 1; }
+          sbt -batch '++2.13.12' "morph/Test/runMain morphhdl.BoundedRecursivePowerArtifactWriter --output-dir ${GITHUB_WORKSPACE}/constant-guard-artifacts/rtl" > constant-guard-artifacts/generation.log 2>&1 || { tail -n 120 constant-guard-artifacts/generation.log; exit 1; }
+          bash morphhdl/scripts/prove-increment-59a-recursive-module.sh --artifact-dir "${GITHUB_WORKSPACE}/constant-guard-artifacts/rtl" > constant-guard-artifacts/proof.log 2>&1 || { tail -n 120 constant-guard-artifacts/proof.log; exit 1; }
+          tail -n 12 constant-guard-artifacts/after.log
+          cat constant-guard-artifacts/proof.log
+      - name: Commit only qualified source and accurate rejection documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('docs/morphhdl/increment-59a-bounded-recursive-verilog-module.md')
+          text=p.read_text()
+          needle='clocked processes, conditional runtime trees, partial assignments, repeated\nwriters or expressions that depend on another target in the same family.'
+          assert text.count(needle)==1
+          text=text.replace(needle, needle+'\n\nIf a captured fragment is constant-only but the complete process family cannot\nbe converted safely, publication rejects it with\n`SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONSTANT-PROCESS-UNSUPPORTED`. In\nparticular, a constant base case combined with a procedural runtime-conditional\nstep is outside this serialization profile. It must not publish an inactive\n`always @(*)` driver. A red-before/green-after regression qualifies this guard.')
+          text=text.replace('The focused tests require deterministic diagnostics for at least:', 'The production validation supplies deterministic diagnostics for:')
+          p.write_text(text)
+          Path('.github/workflows/increment-59a-constant-guard.yml').unlink()
+          PY
+          python3 morphhdl/scripts/check-increment-59a-recursive-module.py --self-test --repo-root .
+          git diff --check
+          git config user.name 'MorphHDL Increment Agent'
+          git config user.email 'actions@users.noreply.github.com'
+          git add morphhdl/src/test/scala/morphhdl/BoundedRecursiveSafetyTests.scala morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala docs/morphhdl/increment-59a-bounded-recursive-verilog-module.md .github/workflows/increment-59a-constant-guard.yml
+          git commit -m 'Reject unrepresentable constant combinational fragments before publication'
+          git rev-parse HEAD | tee constant-guard-artifacts/head-sha.txt
+          git rev-parse HEAD^{tree} > constant-guard-artifacts/tree-sha.txt
+          git archive --format=tar.gz --output=constant-guard-artifacts/source.tar.gz HEAD
+          git push origin HEAD:agent/increment-59a-recursive-verilog-module > constant-guard-artifacts/publication.log 2>&1 || cat constant-guard-artifacts/publication.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59a-constant-guard
+          path: constant-guard-artifacts
+          if-no-files-found: error
