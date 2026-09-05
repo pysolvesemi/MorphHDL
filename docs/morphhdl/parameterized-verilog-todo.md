@@ -668,6 +668,46 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   witnesses, recognize component/source/emitted signal names, or add a
   component-specific RTL implementation.
 
+- [x] **Increment 59a — Bounded recursive Verilog module generation and proof**
+
+  **Dependencies:** Increment 59 implemented and merged.
+
+  Validate and support one strict Verilog-2001 module whose parameter-controlled
+  recursive step instantiates the same emitted module with an exact decreasing
+  actual such as `.N(N - 1)`, and whose explicit base branch terminates the
+  elaborated hierarchy. Use an ordinary typed MorphHDL/SpinalHDL component and
+  exact object-owned metadata; a generated self-reference may use a same-name
+  BlackBox declaration only as the Verilog identity of that emitted component,
+  not as a separately authored implementation. Prove a representative unsigned
+  modular power function `x^N`, including `N = 0`, odd and even exponents, one
+  canonical module definition, deterministic named binding, legal generated
+  branch structure and rejection of non-decreasing, negative-domain or
+  otherwise unprovable recursion. Require strict Verilog-2001 parsing,
+  simulation and synthesis with the supported open-source tools, concrete-
+  specialization formal equivalence, a live mutation counterexample, dual-Scala
+  compilation and every inherited audit/compatibility gate. Do not claim or
+  admit arbitrary runtime recursion, cyclic hardware, unbounded elaboration or
+  tool-portable recursion beyond the explicitly qualified tool matrix.
+
+- [ ] **Increment 59b — Typed parameterized Vec reduceBalancedTree**
+
+  **Dependencies:** Increment 59a implemented and merged.
+
+  Migrate the authoritative SpinalHDL `reduceBalancedTree` helper so a native
+  `Vec[T]` with typed symbolic element width and typed symbolic element count can
+  retain a balanced reduction topology in one parameterized Verilog-2001
+  definition. Preserve the existing concrete `Seq`/`Vec` behavior and generic
+  associative/commutative operator callback; do not replace the helper with an
+  operation-specific adder, OR tree or component recognizer. Define exact
+  non-empty-domain, odd-tail, level-bridge and result-width semantics, and lower
+  only operator bodies whose typed graph can be replayed safely in generated
+  stages. Prove sizes including 1, odd, non-power-of-two and power-of-two cases,
+  parameterized element widths, deterministic topology, logarithmic depth,
+  strict lint/synthesis, simulation, formal specialization equivalence,
+  mutation, dual-Scala and inherited compatibility gates. Fail closed for an
+  empty domain, non-associative/unsupported side effects, ambiguous shapes or a
+  topology whose finite bound cannot be proven.
+
 - [ ] **Increment 60 — Native signed `SInt` Verilog**
 
   **Dependencies:** Increment 59 implemented and merged.

@@ -104,6 +104,7 @@ object MorphHdlExternalParameterizedVerilog {
 
     val components = componentGraph(top)
     components.foreach(ParameterizedMemory.discover)
+    val recursiveReferences = BoundedRecursiveModuleValidation.validate(components)
     components.foreach(component =>
       validateComponentParameterRootInventory(
         component,
@@ -115,6 +116,9 @@ object MorphHdlExternalParameterizedVerilog {
     val componentIdentities = new IdentityHashMap[Component, java.lang.Boolean]()
     components.foreach(component => componentIdentities.put(component, java.lang.Boolean.TRUE))
     val canonicalByIdentity = new IdentityHashMap[Component, Component]()
+    // Validated self-references participate in exact instance relocation, but
+    // never in the emitted module inventory or native definition deduplication.
+    recursiveReferences.foreach(reference => canonicalByIdentity.put(reference, reference))
     val exactGroups = ArrayBuffer.empty[(Component, ArrayBuffer[Component])]
     val emittedComponents = components.filterNot { component =>
       component.isInBlackBoxTree || component.isInstanceOf[BlackBox]
@@ -747,7 +751,7 @@ object MorphHdlExternalParameterizedVerilog {
     )
   }
 
-  private def componentParameters(
+  private[internals] def componentParameters(
       component: Component
   ): Vector[ElaborationIntegerParameter] = {
     val values =

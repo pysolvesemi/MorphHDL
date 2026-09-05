@@ -27,7 +27,8 @@ private[internals] object ParameterizedVerilogStructural {
   private final case class AssignmentEvidence(
       target: String,
       sourceNames: Set[String],
-      sourceBooleanLiteral: Option[BigInt]
+      sourceBooleanLiteral: Option[BigInt],
+      sourceBitVectorLiteral: Option[(Int, BigInt)] = None
   )
 
   private final case class ScalarOperatorReplay(
@@ -254,8 +255,9 @@ private[internals] object ParameterizedVerilogStructural {
       lines,
       moduleScopeAggregateDeclarations
     )
-    val (resolvedPlans, sharedProcessRanges) =
+    val (resolvedPlans, sharedProcessRanges, continuousOutputDeclarations) =
       resolveSharedProceduralProcesses(
+        component,
         declarationScopedRawPlans,
         lines,
         alternativePaths,
@@ -288,7 +290,8 @@ private[internals] object ParameterizedVerilogStructural {
 
     val removed = allRanges.flatMap(_.indices).toSet
     val withoutCaptured = lines.zipWithIndex.collect {
-      case (line, index) if !removed(index) => line
+      case (line, index) if !removed(index) =>
+        continuousOutputDeclarations.getOrElse(index, line)
     }
     val withHeader = ensureParameterHeader(
       component.definitionName,
@@ -1022,7 +1025,8 @@ private[internals] object ParameterizedVerilogStructural {
           name,
           expressionNames(assignment.source) ++
             emittedActualNames(assignment.source, emittedActualByExpression),
-          wholeTargetBooleanLiteral(assignment)
+          wholeTargetBooleanLiteral(assignment),
+          wholeTargetBitVectorLiteral(assignment)
         )
       }
     }
@@ -1282,6 +1286,31 @@ private[internals] object ParameterizedVerilogStructural {
       assignment.source match {
         case literal: BoolLiteral if !literal.hasPoison() =>
           Some(if (literal.value) BigInt(1) else BigInt(0))
+        case _ => None
+      }
+    case _ => None
+  }
+
+  /** Exact fixed-width, whole-target unsigned literal replay. Width is part
+    * of the evidence: selected targets, casts, resizing, poison, symbolic
+    * widths and negative/signed literals are deliberately not admitted.
+    */
+  private def wholeTargetBitVectorLiteral(
+      assignment: DataAssignmentStatement
+  ): Option[(Int, BigInt)] = assignment.target match {
+    case target: BaseType
+        if (target eq assignment.finalTarget) &&
+          (target.getTypeObject == TypeUInt || target.getTypeObject == TypeBits) &&
+          target.getBitsWidth > 0 &&
+          ParameterizedWidth.expressionOf(target).forall(_.parameters.isEmpty) =>
+      assignment.source match {
+        case literal: BitVectorLiteral
+            if !literal.hasPoison() && !literal.isSignedKind &&
+              literal.getTypeObject == target.getTypeObject &&
+              literal.getWidth == target.getBitsWidth &&
+              literal.getValue() >= 0 &&
+              literal.getValue().bitLength <= target.getBitsWidth =>
+          Some(target.getBitsWidth -> literal.getValue())
         case _ => None
       }
     case _ => None
@@ -2645,6 +2674,7 @@ private[internals] object ParameterizedVerilogStructural {
   }
 
   private def resolveSharedProceduralProcesses(
+      component: Component,
       plans: Vector[BlockPlan],
       lines: Vector[String],
       paths: Map[ParameterizedStructuralBlock, Vector[AlternativeStep]],
@@ -2653,7 +2683,7 @@ private[internals] object ParameterizedVerilogStructural {
         Vector[ParameterizedStructuralBlock]
       ],
       moduleScopeNames: Set[String]
-  ): (Vector[BlockPlan], Set[LineRange]) = {
+  ): (Vector[BlockPlan], Set[LineRange], Map[Int, String]) = {
     val claims = mutable.LinkedHashMap.empty[LineRange, ArrayBuffer[BlockPlan]]
     plans.foreach { plan =>
       plan.ranges.foreach { range =>
@@ -2667,6 +2697,7 @@ private[internals] object ParameterizedVerilogStructural {
     ]
     plans.foreach(plan => current(plan.block) = plan)
     val sharedProcessRanges = mutable.LinkedHashSet.empty[LineRange]
+    val continuousOutputDeclarations = mutable.LinkedHashMap.empty[Int, String]
     val factoredModuleRanges = mutable.LinkedHashSet.empty[LineRange]
     val proceduralRanges = proceduralBlocks(lines, None)
 
@@ -3027,6 +3058,39 @@ private[internals] object ParameterizedVerilogStructural {
             emitted.zip(owners).foreach { case (index, owner) =>
               literalOwnerByIndex(index) = owner
             }
+          }
+        }
+
+        // Wider constants cannot use the whole-Bool order pairing above.
+        // Admit only a single exact fixed-width literal assignment whose
+        // complete emitted occurrence is also unique, including all selected
+        // assignments. Coincident/folded/unsized literals never grant ownership.
+        val capturedSizedLiteralOwners = claimants.flatMap { plan =>
+          plan.assignmentEvidence.flatMap { evidence =>
+            evidence.sourceBitVectorLiteral.map { case (width, value) =>
+              (evidence.target, width, value) -> plan
+            }
+          }
+        }.groupBy(_._1)
+        val sizedLiteralPattern =
+          """(?i)^\s*([0-9]+)'([bodh])([0-9a-f_]+)\s*$""".r
+        capturedSizedLiteralOwners.foreach { case ((target, width, value), candidates) =>
+          val emitted = emittedWholeLiteralIndices
+            .getOrElse(target -> value, ArrayBuffer.empty)
+          if (candidates.size == 1 && emitted.size == 1 &&
+              emittedLiteralCounts(target -> value) == 1) {
+            val index = emitted.head
+            val exactWidth = DirectProceduralAssignment
+              .findFirstMatchIn(stripLineComment(lines(index)).trim)
+              .exists { statement =>
+                statement.group(3) match {
+                  case sizedLiteralPattern(bits, _, _)
+                      if BigInt(bits) == BigInt(width) => true
+                  case _ => false
+                }
+              }
+            if (exactWidth && !literalOwnerByIndex.contains(index))
+              literalOwnerByIndex(index) = candidates.head._2
           }
         }
 
@@ -3402,6 +3466,88 @@ private[internals] object ParameterizedVerilogStructural {
           }
         }
 
+        // A constant-only always @(*) fragment has an empty event set and
+        // never initializes in Verilog-2001 simulation. Convert the complete
+        // family only after proving one independent whole blocking assignment
+        // per output and branch, with every native driver owned by this family.
+        // This is exact native-process serialization, not an RTL algorithm.
+        val blockingWhole =
+          """^\s*([A-Za-z_][A-Za-z0-9_$]*)\s*=(?!=)\s*(.*?)\s*;\s*$""".r
+        val fragmentAssignments = claimants.map { plan =>
+          plan -> (commonIndices.toVector ++ ownedIndices(plan.block).toVector)
+            .distinct.sorted
+            .map(index => stripLineComment(lines(index)).trim)
+            .filter(_.nonEmpty)
+        }
+        val flat = fragmentAssignments.forall { case (_, statements) =>
+          statements.nonEmpty && statements.forall(line =>
+            blockingWhole.findFirstMatchIn(line).nonEmpty
+          )
+        }
+        val needsConstantDriver = flat && fragmentAssignments.exists { case (_, statements) =>
+          statements.forall(line =>
+            verilogLiteral(blockingWhole.findFirstMatchIn(line).get.group(2)).nonEmpty
+          )
+        }
+        val continuousFamily = if (
+          needsConstantDriver &&
+          Set("always @(*) begin", "always @* begin")(normalized.head)
+        ) {
+          val targets = fragmentAssignments.flatMap { case (_, statements) =>
+            statements.map(line => blockingWhole.findFirstMatchIn(line).get.group(1))
+          }.toSet
+          val captured = claimants.flatMap(_.block.assignments).filter(assignment =>
+            Option(assignment.finalTarget.getName()).exists(targets)
+          )
+          val nativeTargets = captured.map(_.finalTarget).foldLeft(Vector.empty[BaseType]) {
+            case (known, target) if known.exists(_ eq target) => known
+            case (known, target) => known :+ target
+          }
+          val liveDrivers = ArrayBuffer.empty[DataAssignmentStatement]
+          component.dslBody.walkStatements {
+            case assignment: DataAssignmentStatement
+                if nativeTargets.exists(_ eq assignment.finalTarget) =>
+              liveDrivers += assignment
+            case _ =>
+          }
+          val exactFamily = nativeTargets.size == targets.size &&
+            nativeTargets.forall(target =>
+              target.isOutput && target.isComb && (target.component eq component)
+            ) && captured.forall(assignment =>
+              (assignment.target eq assignment.finalTarget) &&
+                liveDrivers.exists(_ eq assignment)
+            ) && liveDrivers.size == captured.size &&
+            liveDrivers.forall(assignment => captured.exists(_ eq assignment)) &&
+            fragmentAssignments.forall { case (plan, statements) =>
+              val assigned = statements.map(line => blockingWhole.findFirstMatchIn(line).get.group(1))
+              assigned.distinct.size == assigned.size &&
+                assigned.forall(name => plan.block.assignments.count(assignment =>
+                  Option(assignment.finalTarget.getName()).contains(name)
+                ) == 1) &&
+                statements.forall(line =>
+                  !sanitizedIdentifierTokens(blockingWhole.findFirstMatchIn(line).get.group(2))
+                    .exists(targets)
+                )
+            }
+          if (exactFamily) {
+            nativeTargets.foreach { target =>
+              val declaration =
+                ("^\\s*output\\s+reg\\b.*?\\b" + Pattern.quote(target.getName()) + "\\s*[,;]?\\s*$").r
+              val matches = lines.zipWithIndex.filter { case (line, _) =>
+                declaration.findFirstIn(line).nonEmpty
+              }
+              if (matches.size != 1)
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONSTANT-OUTPUT-DECLARATION-AMBIGUOUS",
+                  "constant-branch output must retain one exact native output-reg declaration"
+                )
+              val (line, index) = matches.head
+              continuousOutputDeclarations(index) = line.replaceFirst("\\breg\\b", "wire")
+            }
+          }
+          exactFamily
+        } else false
+
         claimants.foreach { claimant =>
           val owned = ownedIndices(claimant.block)
           if (owned.isEmpty) {
@@ -3416,7 +3562,10 @@ private[internals] object ParameterizedVerilogStructural {
             (Vector(range.start) ++ commonIndices.toVector ++
               owned.toVector ++ Vector(range.end)).distinct.sorted
           val fragment =
-            stripCommonIndent(selected.map(lines).mkString("\n").trim)
+            if (continuousFamily)
+              fragmentAssignments.find { case (plan, _) => plan.block eq claimant.block }
+                .get._2.map(statement => "assign " + statement).mkString("\n")
+            else stripCommonIndent(selected.map(lines).mkString("\n").trim)
           val plan = current(claimant.block)
           current(claimant.block) = plan.copy(
             body = replaceUniqueProcess(
@@ -3433,7 +3582,8 @@ private[internals] object ParameterizedVerilogStructural {
 
     (
       plans.map(plan => current(plan.block)),
-      sharedProcessRanges.toSet
+      sharedProcessRanges.toSet,
+      continuousOutputDeclarations.toMap
     )
   }
 
