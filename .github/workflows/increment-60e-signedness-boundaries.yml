@@ -1,0 +1,67 @@
+name: Increment 60e signedness boundaries
+
+on:
+  push:
+    branches: ['agent/increment-60e-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: increment-60e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  qualify:
+    name: Signedness boundaries Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Compile exact source and retain compiler inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-60e
+          git rev-parse HEAD > target/increment-60e/head.txt
+          git archive HEAD | gzip > target/increment-60e/source.tar.gz
+          sbt -batch "++${{ matrix.scala }}" "morph/Test/compile" "show morph/Test/fullClasspath" > target/increment-60e/compile.log 2>&1 || { tail -n 220 target/increment-60e/compile.log; exit 1; }
+          python3 - <<'PY'
+          from pathlib import Path
+          import os, re, tarfile
+          root = Path('target/increment-60e')
+          paths = re.findall(r'Attributed\(([^\n]+)\)', (root / 'compile.log').read_text())
+          assert paths and all(Path(p).exists() for p in paths), paths
+          (root / 'classpath.txt').write_text('\n'.join(paths) + '\n')
+          with tarfile.open(root / 'compiler-inputs.tar.gz', 'w:gz') as archive:
+              seen = set()
+              for path in paths:
+                  p = Path(path)
+                  if str(p) not in seen:
+                      archive.add(p, arcname=str(p).lstrip('/'))
+                      seen.add(str(p))
+              # Only dependency JARs, never cache configuration or credentials.
+              for base in (Path.home() / '.cache/coursier', Path.home() / '.sbt', Path.home() / '.ivy2', Path('/tmp/morphhdl-cache')):
+                  if base.exists():
+                      for p in sorted(base.rglob('*.jar')):
+                          if str(p) not in seen:
+                              archive.add(p, arcname=str(p).lstrip('/'))
+                              seen.add(str(p))
+          PY
+      - name: Retain exact-head source and compilation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-60e-bootstrap-${{ matrix.scala }}
+          path: target/increment-60e
+          if-no-files-found: error
+          retention-days: 7
