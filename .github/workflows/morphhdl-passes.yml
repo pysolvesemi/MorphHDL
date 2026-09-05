@@ -150,7 +150,8 @@ jobs:
 
   contracts:
     name: Pass contracts, direct aliases, expressions and pipeline Scala ${{ matrix.scala_version }}
-    needs: boundary
+    # Independent compilation gives useful feedback while static contracts are
+    # being updated. Equivalence still requires BOTH jobs to pass.
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -168,6 +169,13 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - name: Record pass-source fingerprints
+        shell: bash
+        run: |
+          find morphhdl-passes/src morphhdl-passes/scripts -type f \
+            \( -name '*.scala' -o -name '*.py' -o -name '*.sh' \) -print0 \
+            | sort -z | xargs -0 sha256sum
+
       - name: Test standalone pass contracts and all-pass pipeline
         working-directory: morphhdl-passes
         shell: bash
@@ -175,7 +183,7 @@ jobs:
 
   equivalence:
     name: WA-04 through WA-07 legality, equivalence, mutation and determinism proof
-    needs: contracts
+    needs: [boundary, contracts]
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
