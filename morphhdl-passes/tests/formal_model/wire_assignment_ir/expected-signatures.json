@@ -18,7 +18,7 @@
     "morphhdl-passes/scripts/check-wa07a-constant-pass.py": "4cd6ea6e7571a08a786093445e1bb05ca4ebb8193b7dcc309afefc8ad4bf7020",
     "morphhdl-passes/scripts/run-wa06-regression.sh": "70d3733842df855e498c5a3ccf5514d900f41174f894a81ff15997d91abb60d3",
     "morphhdl-passes/scripts/run-wa07-regression.sh": "9b59309d6d953095ac8a0bec318617b7f0befc4ca25ada3903bb05d2854fab64",
-    "morphhdl-passes/scripts/run-wa07a-regression.sh": "d2fa9b1523401793f8e7429de0956abb471cd345d85893650d0822d12c16bf0f",
+    "morphhdl-passes/scripts/run-wa07a-regression.sh": "e1d3d6a787ffbf3061e68152dba30c6d3b0a086969339053ccdb3dda738a0a43",
     "morphhdl-passes/scripts/test-boundary-guard.sh": "9e82995e8d87de85b362dc16f2c3c2c035ce75b8f96dcc36b137f7f45e74ce96",
     "morphhdl-passes/scripts/validate_wire_assignment_equivalence.py": "3b461f745c34afcb2f8728d7a03c72cae74f1141f5a792f1777bcd7c2d3fe3a4",
     "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala": "1946882af38c058829564faa5d0f7967209e8efd1ab8cfe3d26060ec206a2cda",

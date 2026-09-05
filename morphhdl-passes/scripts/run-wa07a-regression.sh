@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eEuo pipefail
+# Preserve the failing command and status in CI instead of stopping silently at
+# the boundary between the historical and new native proof legs.
+trap 'status=$?; printf "WA07A-REGRESSION-FAILED: %s:%s: %s (exit %s)\n" "${BASH_SOURCE[0]:-bash}" "$LINENO" "$BASH_COMMAND" "$status" >&2; exit "$status"' ERR
 
 repo_root="${GITHUB_WORKSPACE:-$(git rev-parse --show-toplevel)}"
 cd "${repo_root}"
