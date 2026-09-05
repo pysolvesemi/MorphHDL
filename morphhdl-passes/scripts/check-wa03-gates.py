@@ -222,7 +222,7 @@ def manifest_failures(path: Path, manifest: dict) -> list[str]:
     if witness.get("common_reference_capture") != "common-pre-pass/reference.v":
         failures.append(f"{path}: WA03-COMMON-REFERENCE: capture path changed")
     slots = witness.get("future_pass_outputs")
-    expected_items = {"WA-04", "WA-05", "WA-06"}
+    expected_items = {"WA-04", "WA-05", "WA-06", "WA-07"}
     observed_items = {
         value.get("activation_item")
         for value in slots
@@ -437,6 +437,8 @@ object Gate { def inspect(id: SymbolId) = id.value }
                 {"activation_item": "WA-04"},
                 {"activation_item": "WA-05"},
                 {"activation_item": "WA-06"},
+                {"activation_item": "WA-07"},
+                {"activation_item": "WA-07"},
             ],
         },
     }
