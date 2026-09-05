@@ -112,7 +112,7 @@ or cast removal. An explicit, valid declaration-mode proof is still future work.
 The observer rechecks its final phase position when it runs, rejecting later
 phase-plan edits that move it away from the validated pre-emission boundary.
 
-The focused suite contains 26 tests, including real scalar declarations and
+The focused suites contain 29 tests, including real scalar declarations and
 feedback registers at widths 1, 5, 8 and 32; same-spelling independent symbolic
 roots; typed resize; nested Bundle/Vec geometry; memory templates; negative
 identity/role/slot/staleness cases; and unchanged native/MorphVerilog output.
@@ -120,3 +120,20 @@ identity/role/slot/staleness cases; and unchanged native/MorphVerilog output.
 Both fact reports and observer-enabled RTL are compared byte for byte, and the
 RTL is compared against the unchanged 60a artifacts. The workflow retains the
 reports, generated sources, ScalaTest XML and tool-backed baseline proof logs.
+
+## Final resume regression closure
+
+The final resume reconciles the saved local work with the newer remote branch,
+without replacing its transitive unknown-context and memory fixes. Three restored
+regressions close gaps in inferred width, replay domains and phase-plan validation.
+A symbolic multiplication temporary with no retained width metadata must not be
+reported as Fixed(16) merely because WIDTH defaults to eight; its scalar intent
+remains signed, but logical width is UnknownWidth with InferredWidthAuthority.
+Exact operator evidence remains available separately. No drivers are chased to
+manufacture declaration authority.
+
+Replay includes deterministic, name-independent width-domain and root-identity
+ordinals, so distinct parameter domains do not silently yield identical reports.
+Capture requires ordered normalization, cross-clock checking, allocation and
+emission, rejects a second observer, and rechecks the exact final boundary when
+executed. These checks affect only the opt-in analysis and leave RTL untouched.

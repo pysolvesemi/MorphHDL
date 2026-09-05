@@ -47,7 +47,21 @@ object MorphHdlSignednessAnalysis {
   ) {
     /** Immutable observations for inspection/replay; these are not use evidence. */
     val facts: Vector[Fact] = entries.map(_.fact)
-    def replay: String = facts.mkString("\n") + "\n"
+    def replay: String = {
+      val rootIds = new IdentityHashMap[ElaborationIntegerParameterRoot, java.lang.Integer]()
+      val domains = widths.zipWithIndex.map { case (width, index) =>
+        val roots = width.parameterRoots.map { root =>
+          var id = rootIds.get(root)
+          if (id == null) {
+            id = java.lang.Integer.valueOf(rootIds.size())
+            rootIds.put(root, id)
+          }
+          id.intValue
+        }
+        s"width.$index(default=${width.default},min=${width.minimum},max=${width.maximum},roots=$roots)"
+      }
+      (domains ++ facts.map(_.toString)).mkString("\n") + "\n"
+    }
 
     private def entry(subject: AnyRef): Entry = {
       if (subject == null) reject("NULL-SUBJECT", "a use needs an exact non-null graph object")
@@ -233,33 +247,45 @@ object MorphHdlSignednessAnalysis {
     build(roots.toVector)
   }
 
-  /** The observer runs immediately before the untouched Verilog emitter,
-    * after inherited validation, normalization and name allocation.
+  /** The final plan is rechecked at execution, not only at installation:
+    * another phase inserter must not move analysis before validation or away
+    * from the exact emission boundary after this inserter has returned.
     */
-  def install(observer: Snapshot => Unit)(phases: ArrayBuffer[Phase]): Unit = {
-    if (observer == null || phases == null || phases.exists(_ == null))
-      reject("PHASE-PLAN", "analysis requires a non-null observer and native phase plan")
-    def emissionIndex(): Int = {
-      if (phases.exists(_ == null)) reject("PHASE-PLAN", "native phase plan contains null")
-      val emissions = phases.zipWithIndex.collect { case (p, i) if p.getClass == classOf[PhaseVerilog] => i }
-      val checks = phases.zipWithIndex.collect { case (p, i) if p.getClass == classOf[PhaseCheckCrossClock] => i }
-      val names = phases.zipWithIndex.collect { case (p, i) if p.getClass == classOf[PhaseAllocateNames] => i }
-      if (emissions.size != 1 || checks.size != 1 || names.size != 1 ||
-          !(checks.head < names.head && names.head < emissions.head))
-        reject("PHASE-PLAN", "analysis requires validated, name-allocated, pre-Verilog publication order")
-      emissions.head
+  private final class ObservationPhase(observer: Snapshot => Unit, plan: () => ArrayBuffer[Phase])
+      extends PhaseMisc {
+    override def impl(pc: PhaseContext): Unit = {
+      val phases = plan()
+      val emission = validatedEmission(phases)
+      if (phases.count(_ eq this) != 1 || emission == 0 || (phases(emission - 1) ne this))
+        reject("PHASE-PLAN", "analysis must remain immediately before the validated Verilog emitter")
+      observer(capture(pc.topLevel))
     }
-    val boundary = emissionIndex()
-    phases.insert(boundary, new PhaseMisc {
-      override def impl(pc: PhaseContext): Unit = {
-        // Later user phase inserters must not move the observer before checking
-        // or put another transformation between it and the emitter.
-        val emission = emissionIndex()
-        if (emission <= 0 || (phases(emission - 1) ne this))
-          reject("PHASE-PLAN", "signedness observer no longer immediately precedes the emitter")
-        observer(capture(pc.topLevel))
-      }
-    })
+  }
+
+  private def validatedEmission(phases: ArrayBuffer[Phase]): Int = {
+    if (phases == null || phases.exists(_ == null))
+      reject("PHASE-PLAN", "analysis requires a non-null native phase plan")
+    def exactly(kind: Class[_]): Int = {
+      val found = phases.zipWithIndex.collect { case (phase, index) if phase.getClass == kind => index }
+      if (found.size != 1) reject("PHASE-PLAN", "analysis requires each reviewed native boundary exactly once")
+      found.head
+    }
+    val normalized = exactly(classOf[PhaseNormalizeNodeInputs])
+    val checked = exactly(classOf[PhaseCheckCrossClock])
+    val allocated = exactly(classOf[PhaseAllocateNames])
+    val emitted = exactly(classOf[PhaseVerilog])
+    if (!(normalized < checked && checked < allocated && allocated < emitted))
+      reject("PHASE-PLAN", "analysis requires ordered normalization, validation, allocation and emission")
+    emitted
+  }
+
+  /** Opt-in observer; ordinary SpinalVerilog/MorphVerilog remain untouched. */
+  def install(observer: Snapshot => Unit)(phases: ArrayBuffer[Phase]): Unit = {
+    if (observer == null) reject("PHASE-PLAN", "analysis requires a non-null observer")
+    val emission = validatedEmission(phases)
+    if (phases.exists(_.isInstanceOf[ObservationPhase]))
+      reject("PHASE-PLAN", "signedness analysis may only be installed once per phase plan")
+    phases.insert(emission, new ObservationPhase(observer, () => phases))
   }
 
   private def resolved(width: Width): Boolean = width match {
@@ -465,6 +491,7 @@ object MorphHdlSignednessAnalysis {
       Retained(id.intValue)
     }
     def visit(subject: AnyRef): Fact = {
+      if (subject == null) reject("NULL-SUBJECT", "a graph dependency must not be null")
       val existing = indices.get(subject)
       if (existing != null) {
         val entry = entries(existing.intValue)
@@ -492,6 +519,10 @@ object MorphHdlSignednessAnalysis {
         case _: MultiData => Sum(children.map(_.width))
         case _: Mem[_] =>
           if (shape.parameters.size == 2) retained(shape.parameters(1)) else Sum(children.map(_.width))
+        // Inferred widths may be generalized at parameterized publication.
+        // An unregistered carrier witness cannot establish a constant width.
+        // Keep references terminal; the exact operator has separate evidence.
+        case vector: BitVector if !vector.isFixedWidth && shape.parameters.isEmpty => UnknownWidth
         case _: BaseType => shape.parameters.headOption.map(retained).getOrElse(baseWidth)
         case resize: spinal.core.internals.Resize => shape.parameters.headOption.map(retained).getOrElse(Fixed(resize.size))
         case _: CastBitVectorToBitVector => leftWidth
@@ -530,6 +561,7 @@ object MorphHdlSignednessAnalysis {
       }
       val requirements = (SignednessFacts.requirements(shape.rule) ++
         (if (hierarchy) Vector(HierarchyBoundary) else Vector.empty) ++
+        (if (shape.rule == Reference && width == UnknownWidth) Vector(InferredWidthAuthority) else Vector.empty) ++
         (if (value == Unknown || !resolved(width) || children.exists(child => child.value == Unknown || child.requirements.contains(UnknownSemantics)))
           Vector(UnknownSemantics) else Vector.empty)).distinct
       val fact = Fact(id, shape.kind, value, shape.nativeBits, width, shape.rule, children.map(_.id), requirements)

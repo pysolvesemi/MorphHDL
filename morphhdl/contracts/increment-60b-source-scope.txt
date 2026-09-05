@@ -6,3 +6,4 @@ morphhdl/scripts/check-increment-60b-signedness-authority.py
 morphhdl/src/main/scala/morphhdl/analysis/SignednessFacts.scala
 morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala
 morphhdl/src/test/scala/morphhdl/TypedSignednessAuthorityTests.scala
+morphhdl/src/test/scala/morphhdl/TypedSignednessResumeTests.scala

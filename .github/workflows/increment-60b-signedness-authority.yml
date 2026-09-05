@@ -61,7 +61,7 @@ jobs:
           output="$GITHUB_WORKSPACE/target/increment-60b"
           mkdir -p "$output/a" "$output/b"
           sbt -batch "++${{ matrix.scala }}" \
-            "morph/Test/testOnly spinal.core.internals.TypedSignednessAuthorityTests morphhdl.MorphSingleSourceVerilogTests morphhdl.MorphCanonicalIrHandoffTests morphhdl.TypedBlackBoxGenericBindingTests" \
+            "morph/Test/testOnly spinal.core.internals.TypedSignednessAuthorityTests spinal.core.internals.TypedSignednessResumeTests morphhdl.MorphSingleSourceVerilogTests morphhdl.MorphCanonicalIrHandoffTests morphhdl.TypedBlackBoxGenericBindingTests" \
             "morph/Test/runMain nativeapplication.SIntSignedVerilogBaselineArtifactWriter $output/a" \
             "morph/Test/runMain nativeapplication.SIntSignedVerilogBaselineArtifactWriter $output/b" \
             "morph/Test/runMain nativeapplication.SIntSignedVerilogNestedArtifactWriter $output/a" \
@@ -72,12 +72,13 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          paths = list(Path('morphhdl/target').rglob('*TypedSignednessAuthorityTests.xml'))
-          assert len(paths) == 1, 'missing or ambiguous signedness suite execution report'
-          suite = ET.parse(paths[0]).getroot()
-          assert int(suite.get('tests', '0')) >= 26, 'signedness suite did not execute fully'
-          assert all(int(suite.get(k, '0')) == 0 for k in ('failures', 'errors', 'skipped')), suite.attrib
-          print('Signedness suite executed:', suite.attrib)
+          for name, count in (('TypedSignednessAuthorityTests', 26), ('TypedSignednessResumeTests', 3)):
+              paths = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
+              assert len(paths) == 1, 'missing or ambiguous signedness suite: ' + name
+              suite = ET.parse(paths[0]).getroot()
+              assert int(suite.get('tests', '0')) >= count, 'signedness suite did not execute fully: ' + name
+              assert all(int(suite.get(k, '0')) == 0 for k in ('failures', 'errors', 'skipped')), suite.attrib
+              print('Signedness suite executed:', suite.attrib)
           PY
           for file in sint_cast_heavy_fixed.v sint_cast_heavy_parameterized.v sint_cast_heavy_nested.v; do
             cmp "$output/a/$file" "$output/b/$file"

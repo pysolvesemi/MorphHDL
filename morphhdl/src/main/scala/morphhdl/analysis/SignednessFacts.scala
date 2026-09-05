@@ -54,6 +54,7 @@ object SignednessFacts {
   case object SelectedBits extends Requirement
   case object MemoryTransport extends Requirement
   case object HierarchyBoundary extends Requirement
+  case object InferredWidthAuthority extends Requirement
   case object UnknownSemantics extends Requirement
 
   final case class Fact(
