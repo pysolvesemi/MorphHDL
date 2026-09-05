@@ -1,0 +1,45 @@
+name: Increment 60c reviewed source checkpoint
+on:
+  push:
+    branches: [agent/increment-60c-signed-declarations]
+    paths: ['.github/increment-60c-bootstrap/**', '.github/workflows/increment-60c-bootstrap.yml']
+permissions:
+  contents: write
+jobs:
+  apply-reviewed-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Apply only the reviewed native source delta and audited manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/increment-60c-bootstrap/apply.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Implement Increment 60c native declaration occurrence hooks'
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          git push origin HEAD:refs/heads/agent/increment-60c-signed-declarations
+      - name: First compiler and declaration-test feedback
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-60c-bootstrap
+          git archive HEAD | gzip > target/increment-60c-bootstrap/source.tar.gz
+          sbt -batch '++2.12.18' 'morph/Test/testOnly spinal.core.internals.SignedDeclarationPublicationTests' > target/increment-60c-bootstrap/sbt.log 2>&1 || { tail -n 220 target/increment-60c-bootstrap/sbt.log; exit 1; }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-60c-bootstrap
+          path: |
+            target/increment-60c-bootstrap
+            morphhdl/target/test-reports
+          if-no-files-found: warn
