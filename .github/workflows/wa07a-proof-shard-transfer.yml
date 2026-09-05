@@ -1,0 +1,86 @@
+name: WA-07a reviewed proof-shard validation
+on:
+  push:
+    branches: [agent/wa-07a-proof-shard-transfer]
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode the exact reviewed patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, lzma, os
+          from pathlib import Path
+          text = ''.join(Path(f'shard-qualification-part{i}.b64').read_text().strip() for i in (1, 2))
+          data = lzma.decompress(base64.b64decode(text, validate=True))
+          assert hashlib.sha256(data).hexdigest() == '7b359d651dae38d907955ce4cc4cec6c8afd476d695415a01ff60193eb8a1254'
+          Path(os.environ['RUNNER_TEMP'], 'qualification.patch').write_bytes(data)
+          PY
+      - uses: actions/checkout@v4
+        with:
+          ref: d4fad2c28a002b8e1b24f0807c9f88d278f2b940
+          fetch-depth: 0
+      - name: Validate the complete reviewed tree and real solver controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p staging-result
+          git apply --check "$RUNNER_TEMP/qualification.patch"
+          git apply --index "$RUNNER_TEMP/qualification.patch"
+          test "$(git write-tree)" = 396ab15dfbd962a12db539c7b5e25e45cd25d41f
+          git diff --cached --name-only > staging-result/reviewed-paths.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          paths = Path('staging-result/reviewed-paths.txt').read_text().splitlines()
+          assert len(paths) == 9, paths
+          assert all(p.startswith('morphhdl-passes/') or p == '.github/workflows/morphhdl-passes.yml' for p in paths), paths
+          PY
+          {
+            bash morphhdl-passes/scripts/test-boundary-guard.sh
+            for script in morphhdl-passes/scripts/check-wa*.py; do
+              python3 "$script" --self-test
+              python3 "$script"
+            done
+            python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+            python3 morphhdl-passes/scripts/test_wire_assignment_equivalence.py -v
+            python3 morphhdl-passes/scripts/test_wire_assignment_shards.py -v
+            python3 morphhdl-passes/scripts/test_wire_assignment_clock_model.py
+            python3 morphhdl-passes/scripts/test_wire_assignment_shard_tools.py
+            bash -n morphhdl-passes/scripts/run-wa07a-regression.sh
+            git diff --cached --check
+          } 2>&1 | tee staging-result/validation.log
+          printf '%s\n' 396ab15dfbd962a12db539c7b5e25e45cd25d41f > staging-result/validated-full-tree.txt
+      - name: Publish source objects without changing any workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The complete tree was tested above. This auxiliary object commit is
+          # not standalone qualification: its registry names the new workflow.
+          # Only the authorized connector will create the final atomic PR tree.
+          git restore --source=HEAD --staged --worktree .github/workflows/morphhdl-passes.yml
+          test "$(git write-tree)" = 0166a0b408b70b346f6c4d239611b20d04cc388e
+          test "$(git diff --cached --name-only | wc -l)" -eq 8
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'stage reviewed WA-07a proof-shard source objects; not standalone qualification'
+          git rev-parse HEAD > staging-result/object-commit.txt
+          git rev-parse HEAD^ > staging-result/parent.txt
+          git rev-parse HEAD^{tree} > staging-result/object-tree.txt
+          git push origin HEAD:refs/heads/agent/wa-07a-proof-shard-objects
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wa07a-proof-shard-validation
+          path: |
+            staging-result
+            morphhdl-passes/build/clock-model-control
+            morphhdl-passes/build/shard-tool-control
+          if-no-files-found: error
+          retention-days: 14
