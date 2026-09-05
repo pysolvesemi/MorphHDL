@@ -1,0 +1,85 @@
+name: Increment 60b typed signedness authority
+
+on:
+  push:
+    branches: ['agent/increment-60b-*', parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-60b-signedness-authority.yml'
+      - 'morphhdl/**'
+      - 'docs/morphhdl/increment-60*'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-60b-signedness-authority.yml'
+      - 'morphhdl/**'
+      - 'docs/morphhdl/increment-60*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-60b-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: Signedness authority Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Check merged prerequisite and unchanged native/emitter scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-60b
+          git archive HEAD | gzip > target/increment-60b/source.tar.gz
+          python3 morphhdl/scripts/check-increment-60b-signedness-authority.py
+          python3 morphhdl/scripts/check-increment-58-retirement.py
+          python3 morphhdl/scripts/check-production-retirement.py
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+      - name: Signedness rules, identity rejection, replay and publication parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-60b"
+          mkdir -p "$output/a" "$output/b"
+          sbt -batch "++${{ matrix.scala }}" \
+            "morph/Test/testOnly spinal.core.internals.TypedSignednessAuthorityTests morphhdl.MorphSingleSourceVerilogTests morphhdl.MorphCanonicalIrHandoffTests morphhdl.TypedBlackBoxGenericBindingTests" \
+            "morph/Test/runMain nativeapplication.SIntSignedVerilogBaselineArtifactWriter $output/a" \
+            "morph/Test/runMain nativeapplication.SIntSignedVerilogBaselineArtifactWriter $output/b" \
+            "morph/Test/runMain nativeapplication.SIntSignedVerilogNestedArtifactWriter $output/a" \
+            "morph/Test/runMain nativeapplication.SIntSignedVerilogNestedArtifactWriter $output/b" \
+            > "$output/sbt.log" 2>&1 || { tail -n 200 "$output/sbt.log"; exit 1; }
+          for file in sint_cast_heavy_fixed.v sint_cast_heavy_parameterized.v sint_cast_heavy_nested.v; do
+            cmp "$output/a/$file" "$output/b/$file"
+            cmp "$output/a/$file" "morphhdl/examples/contracts/sint-baseline/$file"
+          done
+          tail -n 16 "$output/sbt.log"
+      - name: Requalify unchanged baseline and live negative-result mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-60a-sint-baseline.py target/increment-60b/a
+      - name: Retain exact-head diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-60b-${{ matrix.scala }}
+          path: |
+            target/increment-60b
+            morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 30
