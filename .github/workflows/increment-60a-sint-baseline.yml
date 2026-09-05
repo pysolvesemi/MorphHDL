@@ -1,0 +1,155 @@
+name: Increment 60a SInt baseline capture
+
+on:
+  push:
+    branches: ['agent/increment-60a-*', parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-60a-sint-baseline.yml'
+      - 'morphhdl/**'
+      - 'docs/morphhdl/increment-60*'
+      - 'docs/morphhdl/parameterized-verilog-todo.md'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-60a-sint-baseline.yml'
+      - 'morphhdl/**'
+      - 'docs/morphhdl/increment-60*'
+      - 'docs/morphhdl/parameterized-verilog-todo.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-60a-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: SInt baseline Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Preserve the independently captured source and native boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-60a
+          git archive HEAD | gzip > target/increment-60a/source.tar.gz
+          test "$(git hash-object morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala)" = 84ed2baf743d2c47f07b6e76ddc9843fbb5fe910
+          python3 morphhdl/scripts/check-increment-58-retirement.py
+          python3 morphhdl/scripts/check-production-retirement.py
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+      - name: Dual regeneration and inherited focused regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-60a"
+          mkdir -p "$output/a" "$output/b"
+          sbt -batch "++${{ matrix.scala }}" \
+            "morph/Test/runMain nativeapplication.SIntSignedVerilogBaselineArtifactWriter $output/a" \
+            "morph/Test/runMain nativeapplication.SIntSignedVerilogBaselineArtifactWriter $output/b" \
+            "morph/Test/runMain nativeapplication.SIntSignedVerilogNestedArtifactWriter $output/a" \
+            "morph/Test/runMain nativeapplication.SIntSignedVerilogNestedArtifactWriter $output/b" \
+            "morph/Test/testOnly morphhdl.MorphSingleSourceVerilogTests morphhdl.MorphCanonicalIrHandoffTests morphhdl.TypedBlackBoxGenericBindingTests" \
+            > "$output/sbt.log" 2>&1 || { tail -n 180 "$output/sbt.log"; exit 1; }
+          for file in sint_cast_heavy_fixed.v sint_cast_heavy_parameterized.v sint_cast_heavy_nested.v; do
+            cmp "$output/a/$file" "$output/b/$file"
+          done
+          python3 morphhdl/scripts/check-increment-60a-sint-baseline.py "$output/a"
+          tail -n 12 "$output/sbt.log"
+      - name: Retain exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-60a-${{ matrix.scala }}
+          path: target/increment-60a
+          if-no-files-found: error
+          retention-days: 30
+
+  seal:
+    name: Seal qualified baseline only on its implementation branch
+    needs: qualify
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/agent/increment-60a-')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: increment-60a-2.13.12
+          path: target/qualified-60a
+      - name: Verify and seal only the reviewed oracle and roadmap paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-60a-sint-baseline.py target/qualified-60a/a --hashes-only
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, shutil
+          oracle = Path('morphhdl/examples/contracts/sint-baseline')
+          oracle.mkdir(parents=True, exist_ok=True)
+          names = ('sint_cast_heavy_fixed.v', 'sint_cast_heavy_parameterized.v', 'sint_cast_heavy_nested.v')
+          for name in names:
+              source = Path('target/qualified-60a/a') / name
+              target = oracle / name
+              if target.exists():
+                  assert target.read_bytes() == source.read_bytes(), 'refusing to replace an existing oracle'
+              else:
+                  shutil.copyfile(source, target)
+          manifest_path = Path('morphhdl/contracts/increment-60a-sint-baseline.json')
+          manifest = json.loads(manifest_path.read_text())
+          nested = 'sint_cast_heavy_nested.v'
+          digest = hashlib.sha256((oracle / nested).read_bytes()).hexdigest()
+          if nested in manifest['sha256']:
+              assert manifest['sha256'][nested] == digest
+          else:
+              manifest['sha256'][nested] = digest
+              manifest['nested_capture_configuration'] = 'ordinary SpinalVerilog, cutLongExpressions=false, same fixed component source'
+              manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
+          todo = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          text = todo.read_text()
+          assert '- [x] **Increment 59 — Typed BlackBox parameter and generic binding**' in text
+          title = '**Increment 60 — Native signed `SInt` Verilog**'
+          if title not in text:
+              marker = '\n## Completion target\n'
+              assert text.count(marker) == 1
+              entry = '\n- [ ] ' + title + '\n\n  **Dependencies:** Increment 59 implemented and merged.\n\n  Follow [the Increment 60 child roadmap](increment-60-sint-signed-verilog-roadmap.md)\n  and [signedness semantic contract](increment-60-signedness-contract.md).\n  The serial chain is 60a through 60g; this parent remains open until every\n  child and its final-head gates are complete. Ordinary SpinalVerilog stays\n  unchanged by default.\n'
+              todo.write_text(text.replace(marker, entry + marker))
+          roadmap = Path('docs/morphhdl/increment-60-sint-signed-verilog-roadmap.md')
+          text = roadmap.read_text()
+          old = '- [ ] **Increment 60a — Baseline, semantic contract and independent oracle**'
+          new = old.replace('[ ]', '[x]', 1)
+          assert text.count(old) + text.count(new) == 1
+          text = text.replace(old, new)
+          text = text.replace('**Status:** planned; all implementation checkboxes are intentionally unchecked.', '**Status:** 60a baseline qualified; 60b through 60g remain unchecked.\n\nThe frozen rules and baseline limits are in [the signedness contract](increment-60-signedness-contract.md).')
+          roadmap.write_text(text)
+          PY
+          git fetch origin "$GITHUB_REF_NAME"
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add morphhdl/examples/contracts/sint-baseline \
+            morphhdl/contracts/increment-60a-sint-baseline.json \
+            docs/morphhdl/parameterized-verilog-todo.md \
+            docs/morphhdl/increment-60-sint-signed-verilog-roadmap.md
+          if ! git diff --cached --quiet; then
+            git commit -m 'Increment 60a: seal qualified baseline and completion checkbox'
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
+          echo "SEALED_COMMIT=$(git rev-parse HEAD)"

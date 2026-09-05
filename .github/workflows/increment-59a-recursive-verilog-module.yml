@@ -190,7 +190,10 @@ jobs:
           if len(starts) != 1 or after.count(anchor) != 1:
               raise SystemExit("roadmap successor section is ambiguous")
           start = starts[0]
-          end = after.index(anchor)
+          following = re.search(r"(?m)^- \[(?: |x)\] \*\*Increment |^## ", after[after.index(title_59b) + len(title_59b):])
+if following is None:
+    raise SystemExit("roadmap successor section has no closing boundary")
+end = after.index(title_59b) + len(title_59b) + following.start()
           if start >= end:
               raise SystemExit("roadmap successor section is misplaced")
           section = after[start:end]
