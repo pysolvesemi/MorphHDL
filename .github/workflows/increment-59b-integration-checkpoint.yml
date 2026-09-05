@@ -21,7 +21,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Merge only the pinned 60c integration and regenerate its exact native manifest
+      - name: Merge pinned 60c with a path-keyed three-way review-policy reconciliation
         shell: bash
         run: |
           set -euo pipefail
@@ -37,15 +37,52 @@ jobs:
             echo 'Pinned integration is already present; nothing to change.'
             exit 0
           fi
+          # Both reviewed policies add disjoint native paths. Compare each
+          # exact entry against the common ancestor; do not union or rewrite
+          # metadata inside a path changed independently on both sides.
+          python3 - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          base = '75e581592334e2e596f6e1043beb9596cc20a99b'
+          path = 'morphhdl/contracts/increment-55-native-change-review.json'
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+          ancestor = git('merge-base', 'HEAD', base)
+          def read(ref):
+              return json.loads(git('show', ref + ':' + path))
+          original, ours, theirs = read(ancestor), read('HEAD'), read(base)
+          keys = set(original) - {'files'}
+          assert keys == set(ours) - {'files'} == set(theirs) - {'files'}
+          assert all(original[k] == ours[k] == theirs[k] for k in keys)
+          def inventory(value):
+              result = {entry['path']: entry for entry in value['files']}
+              assert len(result) == len(value['files']), 'duplicate policy paths'
+              return result
+          old, left, right = map(inventory, (original, ours, theirs))
+          merged = []
+          for name in sorted(set(old) | set(left) | set(right)):
+              a, b, c = old.get(name), left.get(name), right.get(name)
+              if b == c: value = b
+              elif b == a: value = c
+              elif c == a: value = b
+              else: raise RuntimeError('both sides changed the same reviewed native path: ' + name)
+              if value is not None: merged.append(value)
+          result = {k: original[k] for k in original if k != 'files'}
+          result['files'] = merged
+          Path('/tmp/morphhdl-59b-merged-policy.json').write_text(json.dumps(result, indent=2) + '\n')
+          print('Reconciled exact native review entries:', len(merged))
+          PY
           if ! git merge --no-commit --no-ff "$base"; then
-            conflicts=$(git diff --name-only --diff-filter=U)
-            test "$conflicts" = "$manifest" || { echo 'Unexpected conflict; refusing automatic resolution'; printf '%s\n' "$conflicts"; exit 1; }
-            # This file is generated, never semantic authority. Its canonical
-            # review policy must have merged cleanly; rebuild after recording
-            # the exact combined production tree below.
+            python3 - <<'PY'
+          import subprocess
+          actual = set(subprocess.check_output(['git', 'diff', '--name-only', '--diff-filter=U'], text=True).splitlines())
+          expected = {'morphhdl/contracts/native-source-preservation.json', 'morphhdl/contracts/increment-55-native-change-review.json'}
+          assert actual and actual.issubset(expected), ('unexpected conflicts', actual)
+          PY
             git checkout --ours -- "$manifest"
-            git add "$manifest"
           fi
+          cp /tmp/morphhdl-59b-merged-policy.json "$policy"
+          git add "$policy" "$manifest"
           test -z "$(git diff --name-only --diff-filter=U)"
           git commit -m '59b: incorporate merged 60c and reconcile the combined native audit'
           python3 morphhdl/scripts/check-native-source-preservation.py \
