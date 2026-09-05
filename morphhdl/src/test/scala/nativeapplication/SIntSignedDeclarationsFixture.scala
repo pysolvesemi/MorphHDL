@@ -72,8 +72,8 @@ object SIntSignedDeclarationsFixture {
     bitsOut := bitsIn
   }
 
-  final class Surfaces(width: HdlInt) extends Component {
-    setDefinitionName("SignedSurfaces")
+  final class Surfaces(width: HdlInt, aggregateMemory: Boolean = false) extends Component {
+    setDefinitionName(if (aggregateMemory) "SignedBundleSurfaces" else "SignedSurfaces")
     val clk = in(Bool())
     val signedInput = in(SInt(width bits))
     val signedOutput = out(SInt(width bits))
@@ -88,15 +88,22 @@ object SIntSignedDeclarationsFixture {
     constantOutput := S(-1, 5 bits)
     when(True) { constantOutput := S(-2, 5 bits) }
     val area = new ClockingArea(ClockDomain(clock = clk)) {
-      val packedMemory = Mem(new Bundle { val value = SInt(width bits) }, wordCount = 2)
-        .setName("bundle_memory")
-      val word = cloneOf(packedMemory.wordType())
-      word.value := signedInput
-      packedMemory.write(address, word, enable)
-      packedMemoryOut := packedMemory.readSync(address, enable).asBits
-      val scalarMemory = Mem(SInt(width bits), wordCount = 2).setName("scalar_memory")
-      scalarMemory.write(address, signedInput, enable)
-      scalarMemoryOut := scalarMemory.readSync(address, enable)
+      // The existing native publisher admits one symbolic memory per module.
+      // Exercise both element kinds independently, not by bypassing that guard.
+      if (aggregateMemory) {
+        val packedMemory = Mem(new Bundle { val value = SInt(width bits) }, wordCount = 2)
+          .setName("bundle_memory")
+        val word = cloneOf(packedMemory.wordType())
+        word.value := signedInput
+        packedMemory.write(address, word, enable)
+        packedMemoryOut := packedMemory.readSync(address, enable).asBits
+        scalarMemoryOut := signedInput
+      } else {
+        val scalarMemory = Mem(SInt(width bits), wordCount = 2).setName("scalar_memory")
+        scalarMemory.write(address, signedInput, enable)
+        scalarMemoryOut := scalarMemory.readSync(address, enable)
+        packedMemoryOut := signedInput.asBits
+      }
     }
   }
 }
@@ -134,6 +141,8 @@ object SIntSignedDeclarationsArtifactWriter {
       new SIntSignedDeclarationsFixture.Direct(parameter))
     MorphVerilog(MorphSignedDeclarations.enable(config(root.resolve("surfaces.v"))))(
       new SIntSignedDeclarationsFixture.Surfaces(parameter))
+    MorphVerilog(MorphSignedDeclarations.enable(config(root.resolve("bundle-surfaces.v"))))(
+      new SIntSignedDeclarationsFixture.Surfaces(parameter, aggregateMemory = true))
     MorphVerilog(MorphSignedDeclarations.enable(config(root.resolve("baseline-signed.v"))))(
       SIntSignedVerilogBaselineFixture.parameterized())
   }

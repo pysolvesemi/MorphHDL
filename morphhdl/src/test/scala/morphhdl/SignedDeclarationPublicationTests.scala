@@ -52,6 +52,33 @@ final class SignedDeclarationPublicationTests extends AnyFunSuite {
     }
   }
 
+  test("VHDL remains byte-identical with the Morph-only declaration option") {
+    directory { root =>
+      val path = root.resolve("ordinary.vhd")
+      val config = Writer.config(path)
+      SpinalVhdl(config)(new Fixture.Direct(HdlInt.literal(5)))
+      val before = text(path)
+      SpinalVhdl(MorphSignedDeclarations.enable(config))(new Fixture.Direct(HdlInt.literal(5)))
+      assert(text(path) == before)
+    }
+  }
+
+  test("fixed scalar declarations at width one and odd widths stay parameter-free") {
+    directory { root =>
+      for (bits <- Vector(1, 5, 8, 32)) {
+        val path = root.resolve(s"fixed-$bits.v")
+        MorphVerilog(MorphSignedDeclarations.enable(Writer.config(path)))(
+          new Fixture.Top(HdlInt.literal(bits)))
+        val rtl = text(path)
+        assert(signedDeclaration(rtl, "a"))
+        assert(signedDeclaration(rtl, "selected"))
+        assert(signedDeclaration(rtl, "scalar_memory"))
+        assert(!rtl.contains("parameter integer"))
+        assert(("wire signed\\s+\\[" + (bits - 1) + ":0\\]\\s+a").r.findFirstIn(rtl).nonEmpty)
+      }
+    }
+  }
+
   test("disabled Morph publication and later generations do not inherit signed mode") {
     directory { root =>
       val path = root.resolve("candidate.v")
@@ -102,8 +129,13 @@ final class SignedDeclarationPublicationTests extends AnyFunSuite {
       val rtl = text(path)
       assert(signedDeclaration(rtl, "analogPort"))
       assert(signedDeclaration(rtl, "scalar_memory"))
-      assert(!signedDeclaration(rtl, "bundle_memory"))
       assert(signedDeclaration(rtl, "constantOutput"))
+      MorphVerilog(MorphSignedDeclarations.enable(Writer.config(path)))(
+        new Fixture.Surfaces(width, aggregateMemory = true))
+      val packedRtl = text(path)
+      assert(packedRtl.contains("bundle_memory"))
+      assert(!signedDeclaration(packedRtl, "bundle_memory"))
+      assert(signedDeclaration(packedRtl, "analogPort"))
     }
   }
 

@@ -163,7 +163,8 @@ def qualify(root: Path, out: Path) -> None:
              "--top-module", TOP, f"-GWIDTH={width}", "signed.v"], out, f"lint-{width}")
         run(["yosys", "-p", f"read_verilog signed.v; chparam -set WIDTH {width} {TOP}; hierarchy -check -top {TOP}; synth -top {TOP}; check -assert"], out, f"synth-{width}")
         equivalence(out, f"fixed-{width}.v", "signed.v", TOP, f"equivalence-{width}", width)
-    for file, top in (("direct.v", "SignedDirect"), ("surfaces.v", "SignedSurfaces")):
+    for file, top in (("direct.v", "SignedDirect"), ("surfaces.v", "SignedSurfaces"),
+                      ("bundle-surfaces.v", "SignedBundleSurfaces")):
         run(["iverilog", "-g2001", "-s", top, "-tnull", file], out, top + "-parse")
         run(["verilator", "--lint-only", "--language", "1364-2001", "-Wno-fatal", "--top-module", top, file], out, top + "-lint")
         run(["yosys", "-p", f"read_verilog {file}; hierarchy -check -top {top}; synth -top {top}; check -assert"], out, top + "-synth")
