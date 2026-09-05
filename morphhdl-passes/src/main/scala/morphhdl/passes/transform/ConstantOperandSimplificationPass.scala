@@ -48,9 +48,11 @@ object ConstantOperandSimplificationPass {
     require(design != null, "canonical IR design must not be null")
     CanonicalIrPassAdapter.bindFixture(design) match {
       case Left(_) => failure(design, "input canonical IR validation failed")
-      case Right(view) =>
+      case Right(_) =>
         val evidence = Vector.newBuilder[ConstantOperandRewrite]
-        val output = view.design.copy(modules = view.design.modules.map { module =>
+        // Validate first, but do not publish the validator's canonical sorting
+        // as a side effect of an RHS rewrite. Every input item retains its order.
+        val output = design.copy(modules = design.modules.map { module =>
           val declarations = module.declarations.map(d => d.id -> d).toMap
           val rewriter = new Rewriter(declarations)
           module.copy(drivers = module.drivers.map { driver =>
@@ -71,12 +73,12 @@ object ConstantOperandSimplificationPass {
         })
         CanonicalIrPassAdapter.bindFixture(output) match {
           case Left(_) => failure(design, "output canonical IR validation failed; input retained")
-          case Right(validated) =>
+          case Right(_) =>
             val rewrites = evidence.result().sortBy(r =>
               (r.module.value, r.driver.value, r.expressionPath, r.rule)
             )
             ConstantOperandSimplificationResult(
-              if (rewrites.isEmpty) design else validated.design,
+              if (rewrites.isEmpty) design else output,
               if (rewrites.isEmpty) PassExecutionStatus.Unchanged else PassExecutionStatus.Changed,
               rewrites,
               Vector.empty
@@ -260,7 +262,11 @@ object ConstantOperandSimplificationPass {
         case RtlExpr.Cast(value, signedness) => RtlExpr.Cast(self(value, "value"), signedness)
       }
       simplify(nested, effectiveWidth) match {
-        case Some((value, rule)) if value != nested => record(path, rule); value
+        case Some((value, rule)) if value != nested =>
+          record(path, rule)
+          // A replacement can expose another rule (for example XOR with ones
+          // can expose double inversion). Close it before publishing the RHS.
+          rewrite(value, contextWidth, path, record)
         case _ => nested
       }
     }
