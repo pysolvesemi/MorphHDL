@@ -20,7 +20,7 @@ from typing import Any, Callable, Iterable, Mapping, Sequence, TypeVar
 
 
 IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
-ROADMAP_ITEM = re.compile(r"^- \[(?P<checked>[ xX])\] \*\*(?P<id>WA-[0-9]+)\s+—", re.MULTILINE)
+ROADMAP_ITEM = re.compile(r"^- \[(?P<checked>[ xX])\] \*\*(?P<id>WA-[0-9]+[a-z]?)\s+—", re.MULTILINE)
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 DETERMINISTIC_SUFFIXES = {".json", ".sby", ".v", ".ys", ".args"}
 PASS_MARKER = "WA03_SIM_PASS"
@@ -103,6 +103,35 @@ def run_bounded_ordered(
         return [task(item) for item in items]
     with ThreadPoolExecutor(max_workers=jobs) as executor:
         return list(executor.map(task, items))
+
+
+def select_proof_bindings(
+    bindings: Sequence[dict[str, int]], shard_index: int = 0, shard_count: int = 1
+) -> tuple[dict[str, int], ...]:
+    """Partition the unchanged admitted domain; a partition is never a full proof.
+
+    Striding balances widths/depths without sampling, changing a parameter bound,
+    or making two workers own the same binding. The aggregation gate must check
+    the exact disjoint union before publishing complete-domain success.
+    """
+    require_positive_integer(shard_count, "formal shard count")
+    if (not isinstance(shard_index, int) or isinstance(shard_index, bool)
+            or not 0 <= shard_index < shard_count):
+        raise ValidationError("formal shard index must be in [0, shard count)")
+    if not bindings or shard_count > len(bindings):
+        raise ValidationError("formal shards must be non-empty")
+    return tuple(bindings[shard_index::shard_count])
+
+
+def proof_source_identity(repo_root: Path, manifest_path: Path, registry_path: Path) -> dict[str, str]:
+    """Bind retained proof artifacts to an exact checkout and reviewed inputs."""
+    completed = subprocess.run(("git", "rev-parse", "HEAD"), cwd=repo_root,
+                               check=True, capture_output=True, text=True)
+    commit = completed.stdout.strip()
+    if re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+        raise ValidationError("proof source has no exact Git commit identity")
+    return {"source_commit": commit, "manifest_sha256": sha256_file(manifest_path),
+            "signature_registry_sha256": sha256_file(registry_path)}
 
 
 def load_json(path: Path) -> Any:
@@ -363,7 +392,7 @@ def validate_shared_witness(
             raise ValidationError(f"{item_label}.pass_id must be unique and non-empty")
         pass_ids.add(pass_id)
         activation = value["activation_item"]
-        if not isinstance(activation, str) or re.fullmatch(r"WA-[0-9]+", activation) is None:
+        if not isinstance(activation, str) or re.fullmatch(r"WA-[0-9]+[a-z]?", activation) is None:
             raise ValidationError(f"{item_label}.activation_item must be a WA roadmap id")
         candidate = safe_relative_path(repo_root, value["candidate"], f"{item_label}.candidate")
         normalized_outputs.append(
@@ -750,6 +779,7 @@ def generated_miter(
     body: list[str] = []
     if reset is None:
         body.append("  always @* begin")
+        body.append("    cover(1'b1);")
         body.extend(line.replace("      ", "    ", 1) for line in assertions)
         body.append("  end")
     else:
@@ -773,6 +803,7 @@ def generated_miter(
                 f"      assume({reset});",
                 "    end",
                 "    if (wa03_reset_phase == 2'd2) begin",
+                f"      cover(!{reset});",
             )
         )
         body.extend(assertions)
@@ -803,11 +834,14 @@ def sby_configuration(
     timeout_seconds: int,
     depth: int | None = None,
 ) -> str:
+    # The reset sequencer uses $global_clock while the DUT observes explicit
+    # clock edges. Single-clock abstraction can make low/high reset assumptions
+    # contradictory. Preserve edges in prove, cover AND mutation configurations.
     depth_line = f"depth {depth}\n" if depth is not None else ""
     return f"""[options]
 mode {mode}
 {depth_line}expect {expected.lower()}
-multiclock off
+multiclock on
 timeout {timeout_seconds}
 
 [engines]
@@ -850,6 +884,31 @@ def read_sby_status(directory: Path, stem: str, expected: str) -> ProofStatus:
     return ProofStatus(observed, status_file, work)
 
 
+def prove_comparison_reachable(directory: Path, miter_top: str) -> None:
+    """Require a concrete trace reaching the enabled comparison region.
+
+    In clocked miters this also reaches deasserted reset after an actual reset
+    edge. This is mandatory for every binding, not just a representative case.
+    An unsatisfiable model or missing trace must never publish equivalence PASS.
+    """
+    (directory / "reachability.sby").write_text(
+        sby_configuration(miter_top, expected="PASS", mode="cover",
+                          engine="smtbmc yices", timeout_seconds=120, depth=4),
+        encoding="utf-8",
+    )
+    run_command(("sby", "-f", "-d", "reachability", "reachability.sby"), directory,
+                directory / "reachability-command.log", 240)
+    status = read_sby_status(directory, "reachability", "PASS")
+    traces = [path for path in status.work_directory.rglob("*.vcd")
+              if path.is_file() and path.stat().st_size > 0]
+    if not traces:
+        raise ValidationError("comparison reachability passed without a retained cover trace")
+    write_json(directory / "reachability-evidence.json", {
+        "status": "PASS", "comparison_region_reached": True,
+        "cover_trace_count": len(traces),
+    })
+
+
 def run_formal_binding(
     reference: Path,
     candidate: Path,
@@ -882,6 +941,7 @@ def run_formal_binding(
         mutate_first_output=False,
     )
     (directory / "miter.v").write_text(miter, encoding="utf-8")
+    prove_comparison_reachable(directory, miter_top)
     (directory / "proof.sby").write_text(
         sby_configuration(
             miter_top,
@@ -899,7 +959,8 @@ def run_formal_binding(
         timeout_seconds + 120,
     )
     read_sby_status(directory, "proof", "PASS")
-    return {"binding": dict(sorted(binding.items())), "status": "PASS"}
+    return {"binding": dict(sorted(binding.items())), "status": "PASS",
+            "comparison_reachable": True}
 
 def run_mutation_control(
     case: Mapping[str, Any], output_directory: Path
@@ -1120,7 +1181,14 @@ def run_shared_witness(
     output_root: Path,
     formal_jobs: int = 1,
     prove_pending: Sequence[str] = (),
+    shard_index: int = 0,
+    shard_count: int = 1,
 ) -> dict[str, Any]:
+    all_bindings = parameter_bindings(shared["domains"])
+    selected_bindings = select_proof_bindings(all_bindings, shard_index, shard_count)
+    shard = {"index": shard_index, "count": shard_count,
+             "domain_binding_count": len(all_bindings),
+             "domain_sha256": sha256_bytes(canonical_json(all_bindings).encode("utf-8"))}
     completion = roadmap_completion(
         repo_root / "morphhdl-passes" / "morphhdl-ir-wire-assignment-passes-todo.md"
     )
@@ -1149,6 +1217,7 @@ def run_shared_witness(
     write_json(witness_root / "proof-plan.json", {
         "requested_pending_items": sorted(prove_pending),
         "required_binding_count_per_slot": domain_audit["binding_count"],
+        "formal_shard": shard,
         "slots": [
             {key: slot[key] for key in ("pass_id", "activation_item", "required", "roadmap_completed")}
             for slot in planned_slots
@@ -1190,14 +1259,17 @@ def run_shared_witness(
         candidate = Path(slot["candidate"])
         candidate_sha = sha256_file(candidate)
         pass_directory = witness_root / "future-pass-formal" / slot["directory_name"]
-        all_bindings = parameter_bindings(shared["domains"])
+        mutation_case = dict(shared, reference=capture, candidate=candidate,
+                             candidate_top=shared["reference_top"])
+        mutation = run_mutation_control(mutation_case, pass_directory)
         print(
-            f"Proving {slot['pass_id']}: {len(all_bindings)} bindings, {formal_jobs} workers",
+            f"Proving {slot['pass_id']}: shard {shard_index + 1}/{shard_count}, "
+            f"{len(selected_bindings)}/{len(all_bindings)} bindings, {formal_jobs} workers",
             flush=True,
         )
 
         def prove(binding: Mapping[str, int]) -> dict[str, Any]:
-            return run_formal_binding(
+            proof = run_formal_binding(
                 capture,
                 candidate,
                 shared["reference_top"],
@@ -1212,10 +1284,14 @@ def run_shared_witness(
                 pass_directory / binding_key(binding),
             )
 
-        proofs = run_bounded_ordered(all_bindings, formal_jobs, prove)
-        if len(proofs) != domain_audit["binding_count"] or any(
+            write_json(pass_directory / binding_key(binding) / "binding-evidence.json", proof)
+            return proof
+
+        proofs = run_bounded_ordered(selected_bindings, formal_jobs, prove)
+        if len(proofs) != len(selected_bindings) or any(
             proof.get("status") != "PASS" or proof.get("binding") != binding
-            for proof, binding in zip(proofs, all_bindings)
+            or proof.get("comparison_reachable") is not True
+            for proof, binding in zip(proofs, selected_bindings)
         ):
             raise ValidationError(f"incomplete or misordered formal evidence for {slot['pass_id']}")
         if sha256_file(capture) != capture_sha or sha256_file(candidate) != candidate_sha:
@@ -1223,19 +1299,24 @@ def run_shared_witness(
         slot_evidence = {
             "pass_id": slot["pass_id"],
             "activation_item": activation,
-            "status": "PASS",
+            "status": "PASS" if shard_count == 1 else "SHARD_PASS",
+            "formal_shard": shard,
             "common_reference_sha256": capture_sha,
             "candidate_sha256": candidate_sha,
+            "mutation_control": mutation,
             "binding_count": len(proofs),
-            "complete_domain": True,
+            "required_binding_count": len(all_bindings),
+            "complete_domain": shard_count == 1,
             "proofs": proofs,
         }
         write_json(pass_directory / "pass-evidence.json", slot_evidence)
         future_evidence.append(slot_evidence)
-        print(f"Proved {slot['pass_id']}: {len(proofs)} / {len(all_bindings)} PASS", flush=True)
+        print(f"Proved {slot['pass_id']}: {len(proofs)} / {len(all_bindings)} PASS "
+              f"(shard {shard_index + 1}/{shard_count})", flush=True)
 
     evidence = {
         "capture_sha256": capture_sha,
+        "formal_shard": shard,
         "domain_audit": domain_audit,
         "strict": strict,
         "simulations": simulations,
@@ -1253,10 +1334,14 @@ def execute_suite(
     toolchain: Toolchain,
     formal_jobs: int = 1,
     prove_pending: Sequence[str] = (),
+    shard_index: int = 0,
+    shard_count: int = 1,
 ) -> dict[str, Any]:
     output_root.mkdir(parents=True, exist_ok=True)
     generic = [run_generic_case(case, output_root, formal_jobs) for case in manifest["cases"]]
     mutation = run_mutation_control(manifest["cases"][0], output_root)
+    sequential_case = next(case for case in manifest["cases"] if case["clock"] is not None)
+    sequential_mutation = run_mutation_control(sequential_case, output_root / "sequential-control")
     shared = run_shared_witness(
         repo_root,
         manifest["shared"],
@@ -1264,6 +1349,8 @@ def execute_suite(
         output_root,
         formal_jobs,
         prove_pending,
+        shard_index,
+        shard_count,
     )
     evidence = {
         "schema_version": 1,
@@ -1271,8 +1358,9 @@ def execute_suite(
         "tool_versions": dict(sorted(toolchain.versions.items())),
         "generic_cases": generic,
         "mutation_control": mutation,
+        "sequential_mutation_control": sequential_mutation,
         "shared_witness": shared,
-        "status": "PASS",
+        "status": "PASS" if shard_count == 1 else "SHARD_PASS",
     }
     write_json(output_root / "suite-evidence.json", evidence)
     return evidence
@@ -1282,7 +1370,7 @@ def deterministic_artifact_signatures(root: Path) -> dict[str, str]:
     result: dict[str, str] = {}
     for path in sorted(value for value in root.rglob("*") if value.is_file()):
         relative_path = path.relative_to(root)
-        if "proof" in relative_path.parts[:-1] or "obj_dir" in relative_path.parts[:-1]:
+        if any(part in relative_path.parts[:-1] for part in ("proof", "reachability", "obj_dir")):
             continue
         if path.suffix not in DETERMINISTIC_SUFFIXES:
             continue
@@ -1436,6 +1524,10 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--formal-jobs", type=int, default=1,
                         help="maximum independent binding proofs; default is serial")
+    parser.add_argument("--formal-shard-index", type=int, default=0,
+                        help="zero-based proof partition; requires aggregate coverage validation")
+    parser.add_argument("--formal-shard-count", type=int, default=1,
+                        help="number of non-empty partitions; default proves the complete domain")
     parser.add_argument("--prove-pending", action="append", default=[], metavar="WA-ID",
                         help="also require every formal slot for this unchecked increment; never edits the roadmap")
     return parser.parse_args(list(argv))
@@ -1487,6 +1579,9 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
         raw_manifest = load_json(manifest_path)
         manifest = validate_manifest(repo_root, manifest_path, raw_manifest)
         verify_signature_registry(repo_root, registry_path)
+        select_proof_bindings(parameter_bindings(manifest["shared"]["domains"]),
+                              args.formal_shard_index, args.formal_shard_count)
+        source_identity = proof_source_identity(repo_root, manifest_path, registry_path)
         completion = roadmap_completion(
             repo_root / "morphhdl-passes" / "morphhdl-ir-wire-assignment-passes-todo.md"
         )
@@ -1495,10 +1590,12 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
         clean_output_directory(output)
         toolchain = require_toolchain(output)
         execute_suite(repo_root, manifest, witness, output / "run-a", toolchain,
-                      args.formal_jobs, args.prove_pending)
+                      args.formal_jobs, args.prove_pending,
+                      args.formal_shard_index, args.formal_shard_count)
         if args.check_determinism:
             execute_suite(repo_root, manifest, witness, output / "run-b", toolchain,
-                          args.formal_jobs, args.prove_pending)
+                          args.formal_jobs, args.prove_pending,
+                          args.formal_shard_index, args.formal_shard_count)
             compare_deterministic_runs(
                 output / "run-a",
                 output / "run-b",
@@ -1512,7 +1609,9 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
         write_json(
             output / "gate-status.json",
             {
-                "status": "PASS",
+                "status": "PASS" if args.formal_shard_count == 1 else "SHARD_PASS",
+                **source_identity,
+                "formal_shard": {"index": args.formal_shard_index, "count": args.formal_shard_count},
                 "determinism_checked": bool(args.check_determinism),
                 "common_reference_sha256": sha256_file(
                     output
@@ -1522,7 +1621,8 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
                 ),
             },
         )
-        print(f"WA-03 equivalence, safety and determinism gate passed: {output}")
+        label = "gate" if args.formal_shard_count == 1 else "shard (NOT complete-domain qualification)"
+        print(f"WA-03 equivalence, safety and determinism {label} passed: {output}")
         return 0
     except ValidationError as error:
         print(f"WA-03 gate failed: {error}", file=sys.stderr)

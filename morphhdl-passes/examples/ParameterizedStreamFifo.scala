@@ -44,7 +44,11 @@ final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Compon
 
   val fifo = StreamFifo(HardType(Bits(width bits)), depth.asElabInt)
   fifo.io.push << io.push
-  io.pop.valid := fifo.io.pop.valid
+  // Ordinary source-level redundant operands exercise WA-07a in every mode,
+  // including the common snapshot taken before ANY pass. No RTL is injected.
+  val popValidSource = Bool()
+  popValidSource := fifo.io.pop.valid
+  io.pop.valid := ((popValidSource === True) & True) | False
   fifo.io.pop.ready := io.pop.ready
 
   // Keep the source on the parent side of the hierarchy boundary so the
