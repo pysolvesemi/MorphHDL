@@ -1,0 +1,87 @@
+name: Increment 59b native capture materialization
+
+on:
+  push:
+    branches: [agent/increment-59b-parameterized-reduce-balanced-tree]
+    paths:
+      - '.github/workflows/increment-59b-capture-materialize.yml'
+      - 'morphhdl/implementation/increment-59b/**'
+      - 'morphhdl/scripts/apply-increment-59b-capture.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59b-native-capture-materialize
+  cancel-in-progress: true
+
+jobs:
+  materialize-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Materialize only exact reviewed capture changes and native audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name 'MorphHDL 59b implementation'
+          git config user.email 'implementation@users.noreply.github.com'
+          mkdir -p target/increment-59b-capture
+          python3 morphhdl/scripts/apply-increment-59b-capture.py 2>&1 | tee target/increment-59b-capture/materialize.log
+          git diff --stat '${{ github.sha }}' HEAD
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-production-retirement.py
+      - name: Dual Scala native callback capture and inherited oracle contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala in 2.12.18 2.13.12; do
+            output="$GITHUB_WORKSPACE/target/increment-59b-capture/$scala"
+            mkdir -p "$output"
+            sbt -batch "++$scala" \
+              'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCaptureTests spinal.core.internals.TypedBalancedReductionPlanTests morphhdl.ReduceBalancedTreeNativeContractTests' \
+              "morph/Test/runMain nativeapplication.ReduceBalancedTreeNativeOracleArtifactWriter $output/a" \
+              "morph/Test/runMain nativeapplication.ReduceBalancedTreeNativeOracleArtifactWriter $output/b" \
+              > "$output/sbt.log" 2>&1 || { tail -n 200 "$output/sbt.log"; exit 1; }
+            python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for name, count in [('TypedBalancedReductionCaptureTests', 10), ('TypedBalancedReductionPlanTests', 8), ('ReduceBalancedTreeNativeContractTests', 8)]:
+              paths = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
+              assert len(paths) == 1, (name, paths)
+              suite = ET.parse(paths[0]).getroot()
+              assert int(suite.get('tests', '0')) == count, (name, suite.attrib)
+              assert all(int(suite.get(key, '0')) == 0 for key in ('failures', 'errors', 'skipped')), (name, suite.attrib)
+              print(name, suite.attrib)
+          PY
+            python3 morphhdl/scripts/check-increment-59b-native-oracle.py "$output/a" "$output/b"
+            tail -n 20 "$output/sbt.log"
+          done
+      - name: Publish tested capture checkpoint without merging or checking the roadmap
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch='agent/increment-59b-parameterized-reduce-balanced-tree'
+          actual=$(git ls-remote origin "refs/heads/$branch" | cut -f1)
+          test "$actual" = '${{ github.sha }}' || { echo 'Branch advanced; refusing to overwrite concurrent work'; exit 1; }
+          test -z "$(git status --porcelain --untracked-files=no)"
+          git push origin "HEAD:refs/heads/$branch"
+          echo "Published capture checkpoint $(git rev-parse HEAD). Replay and formal certification remain incomplete." >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain exact local implementation and test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59b-native-capture-materialization
+          path: |
+            target/increment-59b-capture
+            morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 30
