@@ -14,8 +14,8 @@ and before Verilog-2001 emission:
 
 WA-07a is the user-authorized addition to this roadmap. It is inserted before
 WA-08, whose production handoff must include the new pass and its proof gates.
-The historical three-pass pipeline remains the implemented baseline until
-WA-07a's common-pipeline integration is complete. No pass executes in production
+The four-stage standalone pipeline is implemented; WA-07a remains unchecked
+until its complete native witness and formal qualification gates pass. No pass executes in production
 until WA-08.
 
 Product code has one all-or-none `enabled` flag. `false` executes no pass;

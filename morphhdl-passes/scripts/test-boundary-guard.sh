@@ -90,14 +90,16 @@ wa08_manifest="${tmp_dir}/wa08.txt"
 printf '%s\n' 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala' >"${wa08_manifest}"
 if grep -Eq '^- \[[xX]\] \*\*WA-07[[:space:]]+—' \
     "${repo_root}/morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md" && \
+   grep -Eq '^- \[[xX]\] \*\*WA-07a[[:space:]]+—' \
+    "${repo_root}/morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md" && \
    grep -Eq '^- \[[xX]\] \*\*Increment 58[[:space:]]+—' \
     "${repo_root}/docs/morphhdl/parameterized-verilog-todo.md"; then
   expect_success \
-    'WA-08 handoff is accepted after WA-07 and PV-58 are checked' \
+    'WA-08 handoff is accepted after WA-07, WA-07a and PV-58 are checked' \
     run_checker agent/wa-08-final-handoff "${wa08_manifest}"
 else
   expect_failure \
-    'WA-08 handoff remains blocked until WA-07 and PV-58 are checked' \
+    'WA-08 handoff remains blocked until WA-07, WA-07a and PV-58 are checked' \
     run_checker agent/wa-08-final-handoff "${wa08_manifest}"
 fi
 
@@ -112,6 +114,7 @@ printf '%s\n' 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala' > "${tmp_rep
 
 cat > "${tmp_repo}/morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md" <<'ROADMAP_OPEN'
 - [ ] **WA-07 — Unnamed continuous wire-expression elimination and common pass flag**
+- [x] **WA-07a — Constants**
 ROADMAP_OPEN
 cat > "${tmp_repo}/docs/morphhdl/parameterized-verilog-todo.md" <<'PV58_ONLY'
 - [x] **Increment 58 — Legacy adapter and shadow-path retirement**
@@ -126,6 +129,7 @@ expect_failure \
 
 cat > "${tmp_repo}/morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md" <<'ROADMAP_COMPLETE'
 - [x] **WA-07 — Unnamed continuous wire-expression elimination and common pass flag**
+- [x] **WA-07a — Constants**
 ROADMAP_COMPLETE
 cat > "${tmp_repo}/docs/morphhdl/parameterized-verilog-todo.md" <<'PV57A'
 - [x] **Increment 57a — Typed native StreamFifoCC depth and CDC proof**
@@ -144,7 +148,17 @@ cat > "${tmp_repo}/docs/morphhdl/parameterized-verilog-todo.md" <<'PV58'
 - [x] **Increment 58 — Legacy adapter and shadow-path retirement**
 PV58
 expect_success \
-  'WA-08 handoff requires and accepts completed WA-07 and PV-58' \
+  'WA-08 handoff requires and accepts completed WA-07, WA-07a and PV-58' \
+  env \
+    MORPHDL_PASSES_REPO_ROOT="${tmp_repo}" \
+    MORPHDL_PASSES_HEAD_REF=agent/wa-08-final-handoff \
+    MORPHDL_PASSES_CHANGED_FILES_FILE="${tmp_repo}/changed.txt" \
+    "${tmp_repo}/morphhdl-passes/scripts/check-boundary.sh"
+
+# The newly inserted dependency is independent of both completed predecessors.
+sed -i 's/\[x\] \*\*WA-07a/[ ] **WA-07a/' "${tmp_repo}/morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md"
+expect_failure \
+  'WA-08 handoff rejects an unchecked WA-07a even with WA-07 and PV-58 complete' \
   env \
     MORPHDL_PASSES_REPO_ROOT="${tmp_repo}" \
     MORPHDL_PASSES_HEAD_REF=agent/wa-08-final-handoff \

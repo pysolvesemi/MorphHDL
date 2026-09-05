@@ -20,7 +20,7 @@ from typing import Any, Callable, Iterable, Mapping, Sequence, TypeVar
 
 
 IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
-ROADMAP_ITEM = re.compile(r"^- \[(?P<checked>[ xX])\] \*\*(?P<id>WA-[0-9]+)\s+—", re.MULTILINE)
+ROADMAP_ITEM = re.compile(r"^- \[(?P<checked>[ xX])\] \*\*(?P<id>WA-[0-9]+[a-z]?)\s+—", re.MULTILINE)
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 DETERMINISTIC_SUFFIXES = {".json", ".sby", ".v", ".ys", ".args"}
 PASS_MARKER = "WA03_SIM_PASS"
@@ -363,7 +363,7 @@ def validate_shared_witness(
             raise ValidationError(f"{item_label}.pass_id must be unique and non-empty")
         pass_ids.add(pass_id)
         activation = value["activation_item"]
-        if not isinstance(activation, str) or re.fullmatch(r"WA-[0-9]+", activation) is None:
+        if not isinstance(activation, str) or re.fullmatch(r"WA-[0-9]+[a-z]?", activation) is None:
             raise ValidationError(f"{item_label}.activation_item must be a WA roadmap id")
         candidate = safe_relative_path(repo_root, value["candidate"], f"{item_label}.candidate")
         normalized_outputs.append(

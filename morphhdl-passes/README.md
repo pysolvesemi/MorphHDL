@@ -1,6 +1,6 @@
 # MorphHDL IR passes
 
-This is the standalone MorphHDL-owned workspace for the three optional
+This is the standalone MorphHDL-owned workspace for the four optional
 wire-assignment passes controlled by
 [`morphhdl-ir-wire-assignment-passes-todo.md`](morphhdl-ir-wire-assignment-passes-todo.md).
 The workspace is deliberately outside the repository root SBT/Mill aggregate and
@@ -187,7 +187,7 @@ use only when the temporary is proven one bit wide. The complete selected-use
 contract is documented in
 [`WA07_SELECTED_USE_CONTRACT.md`](WA07_SELECTED_USE_CONTRACT.md).
 
-The public `WireAliasPassConfiguration(enabled = true)` executes all three
+The public `WireAliasPassConfiguration(enabled = true)` executes all four
 passes in the fixed order. `enabled = false` executes none. Tests cover literal,
 nested and fanout expressions, exact identity, type fences, cycles, scopes,
 metadata, procedural source and receiver exclusions, selection composition and
@@ -195,8 +195,10 @@ rejection, determinism, atomic failure, fixed points and idempotence on both
 supported Scala versions.
 
 `ParameterizedStreamFifoExpressionPassWitness` emits the expression-only
-candidate. `ParameterizedStreamFifoAllPassWitness` emits the common-flag
-candidate after all three native identity rewrites. Both are test-only bridges;
+candidate. `ParameterizedStreamFifoAllPassWitness` retains the historical
+three-stage candidate using package-private regression selection; its report
+explicitly does not claim execution of the current four-stage common flag.
+Both are test-only bridges;
 WA-08 owns production publication and writeback.
 
 `run-wa07-regression.sh` generates the unchanged common reference, every
@@ -206,6 +208,56 @@ byte-identical repeated Verilog and reports, strict Verilog-2001 compilation,
 lint, synthesis and representative simulations. The formal harness compares
 the expression-only and all-pass candidates directly against the same common
 pre-pass StreamFifo capture over all 512 admitted `WIDTH`/`DEPTH` bindings.
+
+## WA-07a — constant-operand simplification
+
+`ConstantOperandSimplificationPass` rewrites pure continuous canonical RHS
+expressions without removing declarations or assignments. The bounded rules
+cover bitwise AND/OR/XOR, logical AND/OR/NOT, safe double negation, zero-distance
+shifts and constant-condition muxes. For a one-bit comparison result `p`, examples
+include `p & 1 -> p`, `p & 0 -> 0`, `p | 0 -> p`, `p | 1 -> 1`,
+`p ^ 0 -> p` and `p ^ 1 -> ~p`; commutative operands may appear in either order.
+
+A numeric one is not a multi-bit all-ones mask. Rewrites preserve evaluation
+width and signedness, including wider context, captured unsized constants and
+explicit cast/resize fences. Symbolic widths are not replaced by defaults.
+Unknown-capable raw signals retain neutral bitwise operations that normalize Z
+to X; a Boolean type alone is not a non-Z proof. Logical identities Booleanize
+vectors and retain self-determined truth-conversion boundaries. Unproven cases,
+procedural statements and preservation contracts remain untouched. Arithmetic
+cancellation and inter-signal constant propagation are not part of this pass.
+
+The common pipeline runs unnamed aliases, named aliases, unnamed expressions,
+then constant operands, repeating in that order to a checked fixed point.
+Rewrites are recorded separately as `simplifiedExpressions`/`simplifiedCount`;
+`eliminatedCount` still counts only removed wires. A failed stage rolls back to
+the original pre-pipeline input. Standalone simplification retains input item
+order, surviving names, comments, declaration and driver identities.
+
+The test-only `ConstantOperandNativePhase` captures the **actual complete
+Boolean RHS tree**, runs the canonical pass, and decodes its actual output back
+to that assignment. Unrepresented native nodes fail closed. Wider and symbolic
+expression rules have an independent canonical before/after-tree simulator and
+Yosys oracle; that oracle does not replace the native full-design proof. No
+component name, emitted name, sampled width, fake surrogate expression or
+Verilog text drives native capture/writeback decisions. WA-08 remains the
+separate production publication and writeback increment.
+
+The shared FIFO source includes ordinary redundant Boolean expressions on its
+parent-side valid signal in **every** generation mode, including the unchanged
+common pre-pass reference. The generic native fixture adds eight independent
+outputs, checked over all sixteen combinations of two four-state inputs.
+The canonical rule oracle checks 1,024 input patterns and must detect both an
+unsafe Z identity mutation and a functional mutation in the formal miter.
+
+`run-wa07a-regression.sh` retains all five historical candidates and adds
+`constant-operand-simplification.v` plus `wire-assignment-four-pass.v`. Both new
+candidates must perform real rewrites, reach fixed points and reproduce
+byte-identical Verilog/reports. The new native reference must be byte-identical
+to the reference captured before **all** passes. Both new proof legs cover all
+512 legal WIDTH/DEPTH bindings, not just defaults or selected corners. Four-state
+simulation is an additional mandatory gate, not a claim made from two-state
+formal alone.
 
 ## Common witness and formal-equivalence baseline
 
@@ -243,6 +295,8 @@ python3 morphhdl-passes/scripts/check-wa06-pipeline.py --self-test
 python3 morphhdl-passes/scripts/check-wa06-pipeline.py
 python3 morphhdl-passes/scripts/check-wa07-expression-pass.py --self-test
 python3 morphhdl-passes/scripts/check-wa07-expression-pass.py
+python3 morphhdl-passes/scripts/check-wa07a-constant-pass.py --self-test
+python3 morphhdl-passes/scripts/check-wa07a-constant-pass.py
 python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
 (
   cd morphhdl-passes
@@ -253,11 +307,12 @@ python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-t
 The pinned CI toolchain runs the native witness and strict legality gates with:
 
 ```bash
-bash morphhdl-passes/scripts/run-wa07-regression.sh
+bash morphhdl-passes/scripts/run-wa07a-regression.sh
 
 python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py \
   --shared-witness morphhdl-passes/build/formal/wire_assignment_ir/generated/parameterized_stream_fifo.v \
   --output morphhdl-passes/build/formal/wire_assignment_ir/evidence \
+  --prove-pending WA-07a \
   --check-determinism
 ```
 
@@ -267,8 +322,10 @@ The regression publishes:
 - `morphhdl-passes/build/pass-outputs/wire-alias-named.v`;
 - `morphhdl-passes/build/pass-outputs/wire-alias-combined.v`;
 - `morphhdl-passes/build/pass-outputs/wire-expression-unnamed.v`; and
-- `morphhdl-passes/build/pass-outputs/wire-assignment-all.v`.
+- `morphhdl-passes/build/pass-outputs/wire-assignment-all.v` (historical three-stage);
+- `morphhdl-passes/build/pass-outputs/constant-operand-simplification.v`; and
+- `morphhdl-passes/build/pass-outputs/wire-assignment-four-pass.v`.
 
-All five are compared to the same captured pre-pass design. WA-07 completes the
-one-flag standalone pipeline and expression-inlining proof. WA-08 remains the
+All seven are compared to the same captured pre-pass design. WA-07a extends the
+one-flag standalone pipeline with constant simplification. WA-08 remains the
 separately reviewed production handoff into MorphHDL-owned generation flow.

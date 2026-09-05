@@ -127,6 +127,37 @@ class PendingProofTests(unittest.TestCase):
         self.assertEqual(self.roadmap.read_bytes(), before)
         self.assertFalse(self.completion["WA-07"])
 
+    def test_lettered_successor_keeps_all_historical_legs_and_requires_both_new_legs(self):
+        text = self.roadmap.read_text().replace("- [ ] **WA-07 —", "- [x] **WA-07 —")
+        text = text.replace("- [ ] **WA-08", "- [ ] **WA-07a — constants**\n- [ ] **WA-08")
+        self.roadmap.write_text(text)
+        completion = gate.roadmap_completion(self.roadmap)
+        self.assertTrue(completion["WA-07"])
+        self.assertFalse(completion["WA-07a"])
+        extra = []
+        for index, pass_id in enumerate(("constant-operand-simplification", "wire-alias-unnamed+wire-alias-named+wire-expression-unnamed+constant-operand-simplification")):
+            candidate = self.root / f"constant-{index}.v"
+            candidate.write_text("// synthetic scheduler input, NOT proof evidence\n")
+            extra.append({"activation_item": "WA-07a", "pass_id": pass_id, "candidate": str(candidate)})
+        shared = dict(self.shared, future_outputs=self.shared["future_outputs"] + tuple(extra))
+        plan = gate.plan_shared_slots(shared, completion, ["WA-07a"])
+        self.assertEqual(len(plan), 7)
+        self.assertTrue(all(slot["required"] for slot in plan))
+        self.assertEqual([slot["roadmap_completed"] for slot in plan], [True] * 5 + [False] * 2)
+        self.assertEqual(len(gate.parameter_bindings(shared["domains"])), 512)
+        self.assertEqual(self.roadmap.read_text(), text)
+        for slot in extra:
+            candidate = Path(slot["candidate"])
+            data = candidate.read_bytes()
+            candidate.unlink()
+            with self.assertRaisesRegex(gate.ValidationError, "published no candidate"):
+                gate.plan_shared_slots(shared, completion, ["WA-07a"])
+            candidate.write_bytes(data)
+        with self.assertRaises(gate.ValidationError):
+            gate.plan_shared_slots(shared, completion, ["WA-07a", "WA-07a"])
+        with self.assertRaisesRegex(gate.ValidationError, "inactive future pass slot"):
+            gate.plan_shared_slots(shared, completion)
+
     def test_default_does_not_silently_accept_an_unrequested_candidate(self):
         with self.assertRaisesRegex(gate.ValidationError, "inactive future pass slot"):
             gate.plan_shared_slots(self.shared, self.completion)

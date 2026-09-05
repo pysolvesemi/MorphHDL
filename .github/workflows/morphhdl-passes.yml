@@ -140,6 +140,12 @@ jobs:
           python3 morphhdl-passes/scripts/check-wa07-expression-pass.py --self-test
           python3 morphhdl-passes/scripts/check-wa07-expression-pass.py
 
+      - name: Enforce WA-07a constant-operand and actual native writeback contracts
+        shell: bash
+        run: |
+          python3 morphhdl-passes/scripts/check-wa07a-constant-pass.py --self-test
+          python3 morphhdl-passes/scripts/check-wa07a-constant-pass.py
+
       - name: Verify formal-model signatures before expensive jobs
         shell: bash
         run: python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
@@ -181,8 +187,19 @@ jobs:
         shell: bash
         run: sbt -batch ++${{ matrix.scala_version }} test
 
+      - name: Retain four-state rule oracle and cross-Scala test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-wa07a-rules-scala-${{ matrix.scala_version }}
+          path: |
+            morphhdl-passes/build/wa07a-rule-oracle
+            morphhdl-passes/target/test-reports
+          if-no-files-found: error
+          retention-days: 14
+
   equivalence:
-    name: WA-04 through WA-07 legality, equivalence, mutation and determinism proof
+    name: WA-04 through WA-07a legality, equivalence, mutation and determinism proof
     needs: [boundary, contracts]
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
@@ -255,7 +272,9 @@ jobs:
           # receiver rewrites, byte-identical repeated Verilog and reports,
           # strict Verilog-2001 compilation, Verilator lint, Yosys synthesis,
           # and representative parameterized simulations.
-          bash morphhdl-passes/scripts/run-wa07-regression.sh
+          # The WA-07a runner invokes run-wa07-regression.sh unchanged as its
+          # historical leg, then emits both new candidates against that reference.
+          bash morphhdl-passes/scripts/run-wa07a-regression.sh
 
       - name: Prove complete-domain equivalence, mutation sensitivity and determinism
         shell: bash
@@ -264,7 +283,7 @@ jobs:
           python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py \
             --shared-witness morphhdl-passes/build/formal/wire_assignment_ir/generated/parameterized_stream_fifo.v \
             --output morphhdl-passes/build/formal/wire_assignment_ir/evidence \
-            --prove-pending WA-07 \
+            --prove-pending WA-07a \
             --formal-jobs 4 \
             --check-determinism
           git diff --exit-code -- .
@@ -273,7 +292,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: morphhdl-wa07-equivalence-evidence
+          name: morphhdl-wa07a-equivalence-evidence
           path: morphhdl-passes/build
           if-no-files-found: error
           retention-days: 14
