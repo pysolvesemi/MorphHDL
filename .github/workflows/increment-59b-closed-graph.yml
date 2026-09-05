@@ -79,7 +79,7 @@ jobs:
           assert hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest() == expected.lower()
           PY
           printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$dir/repositories"
-      - name: Compile and run all 58 focused tests on the actual committed source
+      - name: Compile and run all 73 focused tests on the actual committed source
         shell: bash
         run: |
           set -euo pipefail
@@ -90,12 +90,12 @@ jobs:
             -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
             -Dsbt.repository.config="$bootstrap/repositories" -Dsbt.override.build.repos=true \
             -jar "$bootstrap/sbt-launch.jar" "++${{ matrix.scala }}" \
-            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionClosedGraphTests spinal.core.internals.TypedBalancedReductionCaptureTests spinal.core.internals.TypedBalancedReductionCaptureSafetyTests spinal.core.internals.TypedBalancedReductionPlanTests morphhdl.ReduceBalancedTreeNativeContractTests' \
-            > "$output/sbt.log" 2>&1 || { tail -n 220 "$output/sbt.log"; exit 1; }
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionClosedGraphTests spinal.core.internals.TypedBalancedReductionOperatorReplayTests spinal.core.internals.TypedBalancedReductionCaptureTests spinal.core.internals.TypedBalancedReductionCaptureSafetyTests spinal.core.internals.TypedBalancedReductionPlanTests morphhdl.ReduceBalancedTreeNativeContractTests' \
+            > "$output/sbt.log" 2>&1 || { tail -n 100 "$output/sbt.log"; exit 1; }
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          for name, count in [('TypedBalancedReductionClosedGraphTests',20), ('TypedBalancedReductionCaptureTests',10), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8), ('ReduceBalancedTreeNativeContractTests',8)]:
+          for name, count in [('TypedBalancedReductionClosedGraphTests',20), ('TypedBalancedReductionOperatorReplayTests',15), ('TypedBalancedReductionCaptureTests',10), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8), ('ReduceBalancedTreeNativeContractTests',8)]:
               files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
               assert len(files) == 1, (name, files)
               suite = ET.parse(files[0]).getroot()
@@ -104,6 +104,38 @@ jobs:
               print(name, suite.attrib)
           PY
           tail -n 20 "$output/sbt.log"
+      - name: Print exact failing tests without hiding earlier diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          reports = list(Path('morphhdl/target').rglob('*.xml'))
+          found = 0
+          for path in sorted(reports):
+              if 'Balanced' not in path.name:
+                  continue
+              try:
+                  suite = ET.parse(path).getroot()
+              except ET.ParseError:
+                  continue
+              for case in suite.iter('testcase'):
+                  for node in case:
+                      if node.tag in ('failure', 'error'):
+                          found += 1
+                          print('\nFAILED CASE:', case.get('classname'), case.get('name'))
+                          print('DIAGNOSTIC:', node.attrib)
+                          print((node.text or '')[:12000])
+          if not found:
+              print('No JUnit failure record; inspect the compiler/bootstrap log.')
+          log = Path('target/increment-59b-closure/sbt.log')
+          if log.is_file():
+              lines = log.read_text(errors='replace').splitlines()
+              for index, line in enumerate(lines):
+                  if '*** FAILED ***' in line or line.startswith('[error]'):
+                      print('\nLOG CONTEXT:\n' + '\n'.join(lines[max(0,index-1):index+12]))
+          PY
       - name: Retain exact-head evidence without copying compiler caches
         if: always()
         uses: actions/upload-artifact@v4
