@@ -5,10 +5,15 @@
   "capture_run": 33914495004,
   "fixture_blob": "84ed2baf743d2c47f07b6e76ddc9843fbb5fe910",
   "default_width": 8,
-  "parameter_domain": {"minimum": 8, "maximum": 32},
+  "parameter_domain": {
+    "minimum": 8,
+    "maximum": 32
+  },
   "normalization": "Remove only the ordinary generator/component/git-hash header; preserve all RTL bytes.",
   "sha256": {
     "sint_cast_heavy_fixed.v": "acc9025133c2b5cbacdf8d636c2c4d57d2b587aa2f624f53d87860123d207bf2",
-    "sint_cast_heavy_parameterized.v": "2c0c0e3b169e760b79a996c59391603a018fa18690a9c8605a83b6dc9d2d1611"
-  }
+    "sint_cast_heavy_parameterized.v": "2c0c0e3b169e760b79a996c59391603a018fa18690a9c8605a83b6dc9d2d1611",
+    "sint_cast_heavy_nested.v": "acc9025133c2b5cbacdf8d636c2c4d57d2b587aa2f624f53d87860123d207bf2"
+  },
+  "nested_capture_configuration": "ordinary SpinalVerilog, cutLongExpressions=false, same fixed component source"
 }

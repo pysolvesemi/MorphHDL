@@ -668,6 +668,16 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   witnesses, recognize component/source/emitted signal names, or add a
   component-specific RTL implementation.
 
+- [ ] **Increment 60 — Native signed `SInt` Verilog**
+
+  **Dependencies:** Increment 59 implemented and merged.
+
+  Follow [the Increment 60 child roadmap](increment-60-sint-signed-verilog-roadmap.md)
+  and [signedness semantic contract](increment-60-signedness-contract.md).
+  The serial chain is 60a through 60g; this parent remains open until every
+  child and its final-head gates are complete. Ordinary SpinalVerilog stays
+  unchanged by default.
+
 ## Completion target
 
 The roadmap is complete when parameter-sensitive SpinalHDL algorithms retain

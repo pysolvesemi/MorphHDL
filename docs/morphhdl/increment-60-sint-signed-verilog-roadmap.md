@@ -1,6 +1,8 @@
 # Increment 60 — Native signed `SInt` Verilog roadmap
 
-**Status:** planned; all implementation checkboxes are intentionally unchecked.
+**Status:** 60a baseline qualified; 60b through 60g remain unchecked.
+
+The frozen rules and baseline limits are in [the signedness contract](increment-60-signedness-contract.md).
 
 **Dependency:** Increment 59 must be implemented, reviewed and merged before
 Increment 60a starts. This file reserves Increment 60 while the independently
@@ -97,7 +99,7 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
 
 ## Increment plan
 
-- [ ] **Increment 60a — Baseline, semantic contract and independent oracle**
+- [x] **Increment 60a — Baseline, semantic contract and independent oracle**
 
   **Dependencies:** Increment 59 implemented and merged.
 
