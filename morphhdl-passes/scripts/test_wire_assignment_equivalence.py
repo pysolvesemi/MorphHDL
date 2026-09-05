@@ -6,6 +6,8 @@ from __future__ import annotations
 import contextlib
 import copy
 import io
+import shlex
+import subprocess
 import tempfile
 import threading
 import unittest
@@ -304,6 +306,54 @@ class ClockModelContracts(unittest.TestCase):
             with patch.object(gate, "run_command"), patch.object(gate, "read_sby_status", return_value=status):
                 with self.assertRaisesRegex(gate.ValidationError, "without a retained cover trace"):
                     gate.prove_comparison_reachable(directory, "Miter")
+
+
+
+class RunnerPathTests(unittest.TestCase):
+    """Exercise actual shell argument construction without pretending to run SBT."""
+    def capture_native_paths(self, text, root, cwd):
+        # Execute the runner's actual variable assignments and SBT launch block.
+        # The stub records arguments only; no mocked proof result is accepted.
+        start = text.index('\nroot=') + 1
+        stop = text.index('\ncmp -s ')
+        if '\ntest -s "${reference}"' in text:
+            stop = text.index('\ntest -s "${reference}"')
+        script = ('set -euo pipefail\nrepo_root="$1"\n'
+                  'sbt() { printf "%s\\0" "$@"; }\n' + text[start:stop])
+        result = subprocess.run(['bash', '-c', script, 'runner-path-test', str(root)],
+                                cwd=cwd, check=True, capture_output=True)
+        calls = [shlex.split(arg.split('runMain ', 1)[1])
+                 for arg in result.stdout.decode().split('\0') if 'runMain ' in arg]
+        self.assertEqual(len(calls), 7)
+        paths = []
+        for call in calls:
+            for value in (call[2], call[-1]):
+                path = Path(value)
+                self.assertTrue(path.is_absolute(), 'relative native artifact path: ' + value)
+                self.assertEqual((cwd/path).resolve(), path.resolve())
+                self.assertTrue(path.is_relative_to(root/'morphhdl-passes/build'))
+                paths.append(path)
+        return paths
+
+    def test_native_artifact_paths_ignore_forked_subproject_working_directory(self):
+        text = Path(__file__).with_name('run-wa07a-regression.sh').read_text()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)/'repository'
+            subproject = root/'morphhdl'
+            subproject.mkdir(parents=True)
+            self.assertEqual(self.capture_native_paths(text, root, root),
+                             self.capture_native_paths(text, root, subproject))
+
+    def test_relative_native_artifact_path_mutation_is_rejected(self):
+        text = Path(__file__).with_name('run-wa07a-regression.sh').read_text()
+        text = text.replace('root="${repo_root}/morphhdl-passes/build"',
+                            'root=morphhdl-passes/build')
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)/'repository'
+            subproject = root/'morphhdl'
+            subproject.mkdir(parents=True)
+            with self.assertRaisesRegex(AssertionError, 'relative native artifact path'):
+                self.capture_native_paths(text, root, subproject)
 
 
 if __name__ == "__main__":

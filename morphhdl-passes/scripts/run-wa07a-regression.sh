@@ -10,7 +10,9 @@ python3 morphhdl-passes/scripts/test_wire_assignment_clock_model.py
 # Retain every historical independent proof leg and its common reference.
 bash morphhdl-passes/scripts/run-wa07-regression.sh
 
-root=morphhdl-passes/build
+# SBT forks morph/Test runMain from its subproject working directory.
+# Pass absolute artifact paths so the producer and proof consumer agree.
+root="${repo_root}/morphhdl-passes/build"
 out="${root}/pass-outputs"
 repeat="${root}/repeated-pass-outputs"
 reference="${root}/formal/wire_assignment_ir/generated/parameterized_stream_fifo.v"
@@ -28,6 +30,8 @@ sbt -batch '++2.12.18' \
   "morph / Test / runMain morphhdl.examples.ConstantOperandGenericNativeWitness reference ${native} ${native}/reference-report.json" \
   "morph / Test / runMain morphhdl.examples.ConstantOperandGenericNativeWitness constant ${native} ${native}/candidate-report.json"
 
+test -s "${reference}"
+test -s "${new_reference}/parameterized_stream_fifo.v"
 cmp -s "${reference}" "${new_reference}/parameterized_stream_fifo.v" || {
   echo 'WA-07a reference is not the unchanged snapshot before ALL passes.' >&2
   exit 1
