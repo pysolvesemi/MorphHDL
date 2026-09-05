@@ -57,10 +57,33 @@ object VerilogBase {
       val role: DeclarationRole
   )
 
+  /** Native cast site and the exact object that emitExpression will print.
+    * The reference classification comes from the real native wrapper plan,
+    * never from the resulting Verilog text or a caller-provided signed flag.
+    */
+  final class SignedCastOccurrence private[VerilogBase] (
+      val emitter: VerilogBase,
+      val printer: ComponentEmitterVerilog,
+      val parent: Expression,
+      val slot: Int,
+      val operand: Expression
+  ) {
+    def component: Component = printer.component
+    def referenceRole: Option[DeclarationRole] = {
+      if (printer.wrappedExpressionToName.contains(operand)) Some(ExpressionWrapper)
+      else operand match {
+        case value: BaseType if (value.component eq component) && !value.isSuffix &&
+            !printer.referencesOverrides.contains(value) => Some(ScalarDeclaration)
+        case _ => None
+      }
+    }
+  }
+
   trait DeclarationPolicy {
     def signed(occurrence: DeclarationOccurrence): Boolean
     def wrapperRange(occurrence: DeclarationOccurrence): Option[String]
     def unsignedTransport(expression: Expression): Boolean
+    def elideSignedCast(occurrence: SignedCastOccurrence): Boolean = false
   }
 }
 
@@ -80,6 +103,14 @@ trait VerilogBase extends VhdlVerilogBase{
 
   private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =
     declarationPolicy != null && declarationPolicy.unsignedTransport(expression)
+
+  private[spinal] final def canElideSignedCast(printer: ComponentEmitterVerilog,
+      parent: Expression, slot: Int, operand: Expression): Boolean = {
+    require(printer != null && printer.usesVerilogBase(this),
+      "a signed cast occurrence must belong to this native emitter")
+    declarationPolicy != null && declarationPolicy.elideSignedCast(
+      new SignedCastOccurrence(this, printer, parent, slot, operand))
+  }
 
   private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =
     if (declarationPolicy != null && declarationPolicy.signed(

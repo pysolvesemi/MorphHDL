@@ -40,7 +40,14 @@ def source_scope(root: Path) -> None:
     old = git("show", BASE + ":" + emitter)
     new = (root / emitter).read_text()
     marker = "  def emitReference("
-    require(old[old.index(marker):] == new[new.index(marker):], "native expression/cast printers changed")
+    # 60d is a separately opt-in extension. Undo only its exact reviewed spans
+    # before enforcing the original declaration-only printer contract.
+    spec = importlib.util.spec_from_file_location("pure_cast_scope", root / "morphhdl/scripts/check-increment-60d-pure-sint-casts.py")
+    pure = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(pure)
+    restored = pure.restore_declaration_only_emitter(root, new)
+    require(old[old.index(marker):] == restored[restored.index(marker):], "native expression/cast printers changed outside reviewed 60d hooks")
     fallback = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
     old = git("show", BASE + ":" + fallback)
     needle = r"\\s*(\\[[^\\]]+\\])?\\s*([A-Za-z_][A-Za-z0-9_$]*)"
