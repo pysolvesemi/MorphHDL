@@ -203,6 +203,15 @@ class ComponentEmitterVerilog(
     //Wrap expression which need it
     if(spinalConfig.cutLongExpressions)
       cutLongExpressions()
+    // A declaration policy may require a real unsigned carrier at an exact
+    // typed conversion. Keep the inherited expression/cast printers unchanged.
+    if (verilogBase.hasDeclarationPolicy) {
+      component.dslBody.walkStatements { statement =>
+        statement.walkDrivingExpressions { expression =>
+          if (verilogBase.needsUnsignedTransport(expression)) expressionToWrap += expression
+        }
+      }
+    }
     expressionToWrap --= wrappedExpressionToName.keysIterator
 
     component.dslBody.walkStatements { s =>
@@ -722,7 +731,7 @@ class ComponentEmitterVerilog(
           for(node <- process.nameableTargets) node match {
             case node: BaseType =>
               val funcName = "zz_" + emitReference(node, false).replaceAllLiterally(".", "__")
-              declarations ++= s"  function ${emitType(node)} $funcName(input dummy);\n"
+              declarations ++= s"  function ${emitFunctionType(node)} $funcName(input dummy);\n"
 //              declarations ++= s"    reg ${emitType(node)} ${emitReference(node, false)};\n"
               declarations ++= s"    begin\n"
 
@@ -739,7 +748,7 @@ class ComponentEmitterVerilog(
               declarations ++= s"  endfunction\n"
 
               val name = component.localNamingScope.allocateName(anonymSignalPrefix)
-              declarations ++= s"  wire ${emitType(node)} $name;\n"
+              declarations ++= s"  wire ${emitFunctionType(node)} $name;\n"
               logics ++= s"  assign $name = ${funcName}(1'b0);\n"
 //              logics ++= s"  always @ ($name) ${emitReference(node, false)} = $name;\n"
               logics ++= s"  always @(*) ${emitReference(node, false)} = $name;\n"

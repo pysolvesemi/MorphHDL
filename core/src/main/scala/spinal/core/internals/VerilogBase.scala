@@ -41,7 +41,60 @@ class Tab4 extends VerilogTheme {
 }
 
 
+/** The native printer owns declaration occurrences. No occurrence contains an
+  * emitted identifier, source location or a guessed concrete-width type.
+  */
+object VerilogBase {
+  sealed trait DeclarationRole
+  case object ScalarDeclaration extends DeclarationRole
+  case object FunctionResultDeclaration extends DeclarationRole
+  case object ExpressionWrapper extends DeclarationRole
+  case object MemoryElementDeclaration extends DeclarationRole
+
+  final class DeclarationOccurrence private[VerilogBase] (
+      val emitter: VerilogBase,
+      val subject: AnyRef,
+      val role: DeclarationRole
+  )
+
+  trait DeclarationPolicy {
+    def signed(occurrence: DeclarationOccurrence): Boolean
+    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]
+    def unsignedTransport(expression: Expression): Boolean
+  }
+}
+
 trait VerilogBase extends VhdlVerilogBase{
+  import VerilogBase._
+
+  private var declarationPolicy: DeclarationPolicy = null
+
+  /** One generation-local opt-in; an ordinary native emitter has no policy. */
+  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {
+    require(policy != null && declarationPolicy == null,
+      "a Verilog declaration policy must be non-null and bound exactly once")
+    declarationPolicy = policy
+  }
+
+  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null
+
+  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =
+    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)
+
+  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =
+    if (declarationPolicy != null && declarationPolicy.signed(
+        new DeclarationOccurrence(this, subject, role))) "signed " else ""
+
+  private def emitWrapperType(e: Expression): String = {
+    if (declarationPolicy == null) return emitType(e)
+    val nativeType = emitUnqualifiedType(e)
+    val section = if (declarationPolicy == null) nativeType else {
+      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)
+      declarationPolicy.wrapperRange(occurrence).getOrElse(nativeType)
+    }
+    declarationPrefix(e, ExpressionWrapper) + section
+  }
+
   var globalPrefix = ""
 
   val theme = new Tab2 //TODO add into SpinalConfig
@@ -53,14 +106,14 @@ trait VerilogBase extends VhdlVerilogBase{
 //    s"  wire ${emitType(e)} ${name};\n"
     if (!e.isInstanceOf[SpinalStruct]) {
       val isReg = e.isInstanceOf[Multiplexer]
-      theme.maintab + expressionAlign(if(isReg) "reg" else "wire", emitType(e), name) + ";\n"
+      theme.maintab + expressionAlign(if(isReg) "reg" else "wire", emitWrapperType(e), name) + ";\n"
     } else
       theme.maintab + expressionAlign(e.asInstanceOf[SpinalStruct].getTypeString, "", name) + ";\n"
   }
 
   def emitExpressionWrap(e: Expression, name: String, nature: String): String = {
 //    s"  $nature ${emitType(e)} ${name};\n"
-    theme.maintab + expressionAlign(nature, emitType(e), name) + ";\n"
+    theme.maintab + expressionAlign(nature, emitWrapperType(e), name) + ";\n"
   }
 
   def emitClockEdge(clock: String, edgeKind: EdgeKind): String = {
@@ -148,7 +201,13 @@ trait VerilogBase extends VhdlVerilogBase{
     return struct.getTypeString
   }
 
-  def emitType(e: Expression): String = e.getTypeObject match {
+  def emitType(e: Expression): String =
+    declarationPrefix(e, ScalarDeclaration) + emitUnqualifiedType(e)
+
+  def emitFunctionType(e: BaseType): String =
+    declarationPrefix(e, FunctionResultDeclaration) + emitUnqualifiedType(e)
+
+  private def emitUnqualifiedType(e: Expression): String = e.getTypeObject match {
     case `TypeBool` => ""
     case `TypeBits` => emitRange(e.asInstanceOf[WidthProvider])
     case `TypeUInt` => emitRange(e.asInstanceOf[WidthProvider])
@@ -166,7 +225,13 @@ trait VerilogBase extends VhdlVerilogBase{
     case _       => throw new Exception("Unknown direction"); ""
   }
 
-  def emitRange(node: WidthProvider) = s"[${node.getWidth - 1}:0]"
+  def emitRange(node: WidthProvider) = {
+    val prefix = node match {
+      case memory: Mem[_] => declarationPrefix(memory, MemoryElementDeclaration)
+      case _ => ""
+    }
+    prefix + s"[${node.getWidth - 1}:0]"
+  }
 
   def signalNeedProcess(baseType: BaseType): Boolean = {
     if(baseType.isReg) return true
