@@ -97,3 +97,42 @@ exit, timeout, unknown result or missing proof markers fail the check. The seale
 60a oracle is regenerated unchanged and its full fixture is also compared against
 the signed candidate at WIDTH=8. This finite declaration-mode qualification does
 not close the broader 60e/60f operator, boundary and parameter-domain contracts.
+
+## Resume qualification and retained boundaries
+
+The scalar-memory and Bundle-memory declaration fixtures are separate modules.
+The inherited publisher permits one symbolic memory per module, and this
+increment does not bypass that restriction. The scalar SInt memory retains
+symbolic WIDTH over 1 through 32. The one-field Bundle memory is a fixed five-bit
+aggregate inside a parameterized module: it proves that an aggregate carrier
+stays unsigned, not that symbolic Bundle-memory read reconstruction is supported.
+A negative regression verifies that the existing unsupported symbolic Bundle
+reconstruction still fails closed with the mode both off and on. Broader aggregate
+closure remains 60e.
+
+Fixed SInt widths 1, 5, 8 and 32 are tested inside otherwise parameterized modules.
+The existing all-literal MorphVerilog rejection is not relaxed; ordinary
+parameter-free SpinalVerilog remains the concrete front door. Inout ports, scalar
+and aggregate memories, compound ranges and the native constant-process function
+are parsed, linted and synthesized at all four WIDTH overrides. The function
+fixture uses two explicit constant assignments with allowOverride, not a
+constant when-condition that merely emits another wire. Its signed return and
+result wrapper have an independent ordinary-SpinalVerilog equivalence reference.
+
+The equivalence harness matches only top-level ports and actual sequential Q
+nets after process and memory lowering. It hides every other internal wire from
+name-based matching on both sides. New unsigned transport wrappers can reuse
+names previously allocated to different combinational temporaries; such names
+are not semantic correspondence evidence. This is a generic selection based on
+sequential cell connections, not a blacklist of failed signals. Every matched
+state bit and output must still be proven, with zero unproven cells. The negative
+result mutation must also produce a genuine SAT counterexample.
+
+Local resume validation passed all 73 tests across six focused suites (12 new
+declaration tests, 31 signedness tests and 30 inherited front-door/handoff/BlackBox
+tests). Fresh-JVM repeated RTL was byte-identical. Strict tools and equivalence
+passed for the independent native matrix and function fixture, and the complete
+sealed 60a fixture passed against the signed candidate at WIDTH=8. These local
+results are an implementation checkpoint, not a substitute for both fresh CI
+Scala lanes and the exact integrated final-head inherited gates. The completion
+checkbox remains open pending those gates.

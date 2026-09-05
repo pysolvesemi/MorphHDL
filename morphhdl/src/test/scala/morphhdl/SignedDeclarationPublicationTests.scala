@@ -63,17 +63,17 @@ final class SignedDeclarationPublicationTests extends AnyFunSuite {
     }
   }
 
-  test("fixed scalar declarations at width one and odd widths stay parameter-free") {
+  test("fixed scalar declarations retain concrete widths inside parameterized publication") {
     directory { root =>
       for (bits <- Vector(1, 5, 8, 32)) {
         val path = root.resolve(s"fixed-$bits.v")
         MorphVerilog(MorphSignedDeclarations.enable(Writer.config(path)))(
-          new Fixture.Top(HdlInt.literal(bits)))
+          new Fixture.FixedScalars(bits, width))
         val rtl = text(path)
         assert(signedDeclaration(rtl, "a"))
-        assert(signedDeclaration(rtl, "selected"))
-        assert(signedDeclaration(rtl, "scalar_memory"))
-        assert(!rtl.contains("parameter integer"))
+        assert(signedDeclaration(rtl, "b"))
+        assert(!signedDeclaration(rtl, "transportIn"))
+        assert(rtl.contains("parameter integer WIDTH"))
         assert(("wire signed\\s+\\[" + (bits - 1) + ":0\\]\\s+a").r.findFirstIn(rtl).nonEmpty)
       }
     }
@@ -103,8 +103,9 @@ final class SignedDeclarationPublicationTests extends AnyFunSuite {
       for (name <- Vector("a", "b", "sum", "product", "negative", "shifted", "selected",
           "widened", "regOut", "memOut", "accumulator", "scalar_memory"))
         assert(signedDeclaration(rtl, name), "missing signed scalar: " + name + "\n" + rtl)
-      for (name <- Vector("raw", "rawOut", "packed", "logical", "unsignedProduct", "address", "amount"))
+      for (name <- Vector("raw", "rawOut", "packedBits", "logical", "unsignedProduct", "address", "amount"))
         assert(!signedDeclaration(rtl, name), "unsigned transport became signed: " + name)
+      assert(rtl.contains("packedBits"))
       assert(rtl.contains("$signed("))
       assert(rtl.contains("WIDTH"))
       assert("(?m)^.*signed.*\\[.*WIDTH.*WIDTH.*\\].*product.*$".r.findFirstIn(rtl).nonEmpty)
@@ -149,6 +150,36 @@ final class SignedDeclarationPublicationTests extends AnyFunSuite {
       assert("\\$signed\\(".r.findAllIn(after).size == "\\$signed\\(".r.findAllIn(before).size)
       assert(!after.contains("module SIntCastHeavyExternal"))
       assert(signedDeclaration(after, "left") && signedDeclaration(after, "signed_memory"))
+    }
+  }
+
+  test("native constant-process function results and wrappers are signed") {
+    directory { root =>
+      val path = root.resolve("functions.v")
+      MorphVerilog(Writer.config(path))(new Fixture.Functions(width))
+      val before = text(path)
+      MorphVerilog(MorphSignedDeclarations.enable(Writer.config(path)))(new Fixture.Functions(width))
+      val after = text(path)
+      assert(before.contains("function [4:0]"))
+      assert(after.contains("function signed [4:0]"))
+      assert(after.contains("(input dummy)"))
+      assert(after.contains("wire signed [4:0]"))
+      assert(signedDeclaration(after, "constantOutput"))
+      assert(!signedDeclaration(after, "transportIn"))
+    }
+  }
+
+  test("unsupported symbolic Bundle-memory reconstruction still fails closed in both modes") {
+    directory { root =>
+      for (enabled <- Vector(false, true)) {
+        val config = Writer.config(root.resolve("unsupported.v"))
+        val error = intercept[morphhdl.MorphVerilogException] {
+          MorphVerilog(if (enabled) MorphSignedDeclarations.enable(config) else config)(
+            new Fixture.SymbolicBundleMemory(width))
+        }
+        assert(error.getMessage.contains("DOMAIN") || error.getMessage.contains("INFERRED"),
+          error.getMessage)
+      }
     }
   }
 

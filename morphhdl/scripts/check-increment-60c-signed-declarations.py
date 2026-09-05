@@ -65,6 +65,10 @@ def equivalence(out: Path, gold: str, gate: str, top: str, label: str,
         if role == "gate" and width is not None:
             commands.append(f"chparam -set WIDTH {width} {top}")
         commands += [f"hierarchy -check -top {top}", "proc", "flatten", "memory_map", "opt",
+                     # Only ports and actual sequential Q nets are correspondence points.
+                     # Added wrappers can reuse a former temporary's generated name.
+                     # Hide ALL combinational internals, not just failed matches.
+                     "rename -hide w:* t:$*dff* %x:+[Q] %d",
                      f"rename {top} {role}", f"design -stash {role}"]
     commands += ["design -copy-from gold -as gold gold", "design -copy-from gate -as gate gate",
                  "equiv_make gold gate equiv", "hierarchy -check -top equiv", "equiv_simple",
@@ -164,10 +168,16 @@ def qualify(root: Path, out: Path) -> None:
         run(["yosys", "-p", f"read_verilog signed.v; chparam -set WIDTH {width} {TOP}; hierarchy -check -top {TOP}; synth -top {TOP}; check -assert"], out, f"synth-{width}")
         equivalence(out, f"fixed-{width}.v", "signed.v", TOP, f"equivalence-{width}", width)
     for file, top in (("direct.v", "SignedDirect"), ("surfaces.v", "SignedSurfaces"),
-                      ("bundle-surfaces.v", "SignedBundleSurfaces")):
-        run(["iverilog", "-g2001", "-s", top, "-tnull", file], out, top + "-parse")
-        run(["verilator", "--lint-only", "--language", "1364-2001", "-Wno-fatal", "--top-module", top, file], out, top + "-lint")
-        run(["yosys", "-p", f"read_verilog {file}; hierarchy -check -top {top}; synth -top {top}; check -assert"], out, top + "-synth")
+                      ("bundle-surfaces.v", "SignedBundleSurfaces"),
+                      ("functions.v", "SignedFunctions")):
+        for width in WIDTHS:
+            label = f"{top}-{width}"
+            run(["iverilog", "-g2001", "-s", top, f"-P{top}.WIDTH={width}", "-tnull", file], out, label + "-parse")
+            run(["verilator", "--lint-only", "--language", "1364-2001", "-Wno-fatal", "--top-module", top,
+                 f"-GWIDTH={width}", file], out, label + "-lint")
+            run(["yosys", "-p", f"read_verilog {file}; chparam -set WIDTH {width} {top}; hierarchy -check -top {top}; synth -top {top}; check -assert"], out, label + "-synth")
+    equivalence(out, "functions-fixed.v", "functions.v", "SignedFunctions",
+                "function-result-equivalence")
     mutation(out)
     # Reuse the sealed fixture and baseline checker without modifying either.
     spec = importlib.util.spec_from_file_location("baseline", root / "morphhdl/scripts/check-increment-60a-sint-baseline.py")

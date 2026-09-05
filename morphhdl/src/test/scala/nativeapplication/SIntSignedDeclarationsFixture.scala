@@ -28,7 +28,7 @@ object SIntSignedDeclarationsFixture {
     val widened = out(SInt((width + 1) bits))
     val regOut = out(SInt(width bits))
     val memOut = out(SInt(width bits))
-    val packed = out(Bits((width + width) bits))
+    val packedBits = out(Bits((width + width) bits))
     val logical = out(Bits(width bits))
     val unsignedProduct = out(UInt((width + width) bits))
     val unsignedLess = out(Bool())
@@ -43,7 +43,7 @@ object SIntSignedDeclarationsFixture {
     selected := b
     when(choose) { selected := a }
     widened := wideIn
-    packed := a ## b
+    packedBits := a ## b
     // These conversions need genuine unsigned carriers once a/b are signed.
     logical := a.asBits |>> amount
     unsignedProduct := a.asUInt * b.asUInt
@@ -72,6 +72,44 @@ object SIntSignedDeclarationsFixture {
     bitsOut := bitsIn
   }
 
+  final class SymbolicBundleMemory(width: HdlInt) extends Component {
+    val clk = in(Bool())
+    val address = in(UInt(1 bits))
+    val writeEnable = in(Bool())
+    val readEnable = in(Bool())
+    val dataIn = in(SInt(width bits))
+    val dataOut = out(Bits(width bits))
+    val area = new ClockingArea(ClockDomain(clock = clk)) {
+      val memory = Mem(new Bundle { val value = SInt(width bits) }, wordCount = 2)
+      val word = cloneOf(memory.wordType())
+      word.value := dataIn
+      memory.write(address, word, writeEnable)
+      dataOut := memory.readSync(address, readEnable, readFirst).asBits
+    }
+  }
+
+  final class Functions(width: HdlInt) extends Component {
+    setDefinitionName("SignedFunctions")
+    val transportIn = in(Bits(width bits))
+    val transportOut = out(Bits(width bits))
+    val constantOutput = out(SInt(5 bits))
+    transportOut := transportIn
+    // Two explicit constant statements take the native no-sensitivity fallback.
+    constantOutput.allowOverride
+    constantOutput := S(-1, 5 bits)
+    constantOutput := S(-2, 5 bits)
+  }
+
+  final class FixedScalars(fixedBits: Int, transportWidth: HdlInt) extends Component {
+    setDefinitionName("SignedFixedScalars")
+    val a = in(SInt(fixedBits bits))
+    val b = out(SInt(fixedBits bits))
+    val transportIn = in(Bits(transportWidth bits))
+    val transportOut = out(Bits(transportWidth bits))
+    b := a
+    transportOut := transportIn
+  }
+
   final class Surfaces(width: HdlInt, aggregateMemory: Boolean = false) extends Component {
     setDefinitionName(if (aggregateMemory) "SignedBundleSurfaces" else "SignedSurfaces")
     val clk = in(Bool())
@@ -79,30 +117,32 @@ object SIntSignedDeclarationsFixture {
     val signedOutput = out(SInt(width bits))
     val analogPort = inout(Analog(SInt(width bits)))
     val enable = in(Bool())
+    val writeEnable = in(Bool())
     val address = in(UInt(1 bits))
-    val packedMemoryOut = out(Bits(width bits))
+    val packedMemoryOut = out(Bits(5 bits))
     val scalarMemoryOut = out(SInt(width bits))
     val constantOutput = out(SInt(5 bits))
     signedOutput := signedInput
-    // A real constant-driven process exercises the native function fallback.
+    // Constant-valued procedural scalar output.
     constantOutput := S(-1, 5 bits)
     when(True) { constantOutput := S(-2, 5 bits) }
     val area = new ClockingArea(ClockDomain(clock = clk)) {
       // The existing native publisher admits one symbolic memory per module.
       // Exercise both element kinds independently, not by bypassing that guard.
       if (aggregateMemory) {
-        val packedMemory = Mem(new Bundle { val value = SInt(width bits) }, wordCount = 2)
+        val aggregateInput = in(SInt(5 bits)).setName("aggregateInput")
+        val packedMemory = Mem(new Bundle { val value = SInt(5 bits) }, wordCount = 2)
           .setName("bundle_memory")
         val word = cloneOf(packedMemory.wordType())
-        word.value := signedInput
-        packedMemory.write(address, word, enable)
-        packedMemoryOut := packedMemory.readSync(address, enable).asBits
+        word.value := aggregateInput
+        packedMemory.write(address, word, writeEnable)
+        packedMemoryOut := packedMemory.readSync(address, enable, readFirst).asBits
         scalarMemoryOut := signedInput
       } else {
         val scalarMemory = Mem(SInt(width bits), wordCount = 2).setName("scalar_memory")
-        scalarMemory.write(address, signedInput, enable)
-        scalarMemoryOut := scalarMemory.readSync(address, enable)
-        packedMemoryOut := signedInput.asBits
+        scalarMemory.write(address, signedInput, writeEnable)
+        scalarMemoryOut := scalarMemory.readSync(address, enable, readFirst)
+        packedMemoryOut := B(0, 5 bits)
       }
     }
   }
@@ -134,6 +174,12 @@ object SIntSignedDeclarationsArtifactWriter {
       canonicalNative(path)
     }
     def parameter = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
+    val functionReference = root.resolve("functions-fixed.v")
+    SpinalVerilog(config(functionReference))(
+      new SIntSignedDeclarationsFixture.Functions(HdlInt.literal(8)))
+    canonicalNative(functionReference)
+    MorphVerilog(MorphSignedDeclarations.enable(config(root.resolve("functions.v"))))(
+      new SIntSignedDeclarationsFixture.Functions(parameter))
     MorphVerilog(config(root.resolve("disabled.v")))(new SIntSignedDeclarationsFixture.Top(parameter))
     MorphVerilog(MorphSignedDeclarations.enable(config(root.resolve("signed.v"))))(
       new SIntSignedDeclarationsFixture.Top(parameter))
