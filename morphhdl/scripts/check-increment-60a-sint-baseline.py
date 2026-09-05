@@ -12,6 +12,7 @@ from pathlib import Path
 
 TOP = "SIntCastHeavyBaseline"
 FILES = ("sint_cast_heavy_fixed.v", "sint_cast_heavy_parameterized.v")
+NESTED = "sint_cast_heavy_nested.v"
 
 
 def require(condition: bool, detail: str) -> None:
@@ -25,9 +26,8 @@ def run(command: list[str], directory: Path, label: str,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             timeout=180)
     (directory / (label + ".log")).write_text(result.stdout, encoding="utf-8")
-    if expected_failure is None:
-        require(result.returncode == 0, label + " failed:\n" + result.stdout[-12000:])
-    else:
+    require(result.returncode == 0, label + " failed:\n" + result.stdout[-12000:])
+    if expected_failure is not None:
         require(expected_failure in result.stdout,
                 label + " did not produce the required functional failure:\n" + result.stdout[-12000:])
     return result.stdout
@@ -45,7 +45,16 @@ def verify_hashes(root: Path, output: Path) -> None:
         require("signed_memory" in text, f"missing native memory: {name}")
         require("SIntCastHeavyExternal" in text, f"missing external instance: {name}")
         require(not re.search(r"\bmodule\s+SIntCastHeavyExternal\b", text), "external module ownership changed")
-    require("$signed($signed(" in (output / FILES[0]).read_text(), "missing nested-cast reproducer")
+    nested = (output / NESTED).read_bytes()
+    require(re.search(r"\$signed\(\s*\(?[^;]*\$signed\(", nested.decode()) is not None,
+            "uncut-expression oracle must retain genuinely nested signed casts")
+    digest = hashlib.sha256(nested).hexdigest()
+    if NESTED in manifest["sha256"]:
+        require(digest == manifest["sha256"][NESTED], "immutable nested oracle changed")
+    else:
+        roadmap = (root / "docs/morphhdl/increment-60-sint-signed-verilog-roadmap.md").read_text()
+        require('- [x] **Increment 60a' not in roadmap, "completed baseline lacks nested oracle seal")
+        print("Initial uncut-expression capture SHA256: " + digest)
     require(re.search(r"parameter\s+integer\s+WIDTH\s*=\s*8", (output / FILES[1]).read_text()) is not None,
             "parameterized oracle lost WIDTH")
 
@@ -61,9 +70,6 @@ def simulation(output: Path, design: str, label: str, mutant: bool = False) -> N
 
 
 def equivalence(output: Path) -> None:
-    # Each module is elaborated, flattened and memory-mapped independently.
-    # All state is initially unconstrained; equiv_induct proves matching transition
-    # functions. Undefined divide-by-zero is not given a numerical interpretation.
     commands = []
     for name, role in zip(FILES, ("gold", "gate")):
         commands += [f"read_verilog {name} external.v", f"hierarchy -check -top {TOP}",
@@ -120,8 +126,7 @@ endmodule
   end
 endmodule
 ''')
-    for index, name in enumerate(FILES):
-        label = "fixed" if index == 0 else "parameterized"
+    for name, label in zip(FILES + (NESTED,), ("fixed", "parameterized", "nested")):
         simulation(output, name, label)
         run(["verilator", "--lint-only", "--language", "1364-2001", "-Wno-fatal",
              "--top-module", TOP, name, "external.v"], output, label + "-lint")
