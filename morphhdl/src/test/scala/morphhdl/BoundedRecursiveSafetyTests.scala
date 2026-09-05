@@ -64,6 +64,39 @@ private object RecursiveSafetyFixture {
     }
   }
 
+  final class ConditionalReference(next: ElabInt) extends BlackBox {
+    setBlackBoxName("RecursiveConditionalStep")
+    addGeneric("N", next)
+    val x = in UInt (8 bits)
+    val choose = in Bool ()
+    val y = out UInt (8 bits)
+    x.setName("x")
+    choose.setName("choose")
+    y.setName("y")
+  }
+
+  final class ConditionalStep(exponent: HdlInt) extends Component {
+    setDefinitionName("RecursiveConditionalStep")
+    val x = in UInt (8 bits)
+    val choose = in Bool ()
+    val y = out UInt (8 bits)
+    x.setName("x")
+    choose.setName("choose")
+    y.setName("y")
+    exponent.hdlEq(0).generateIf("base", "step") {
+      y := U(1, 8 bits)
+    }.otherwise {
+      val inner = new ConditionalReference(exponent - 1)
+      inner.x := x
+      inner.choose := choose
+      when(choose) {
+        y := (x * inner.y).resize(8)
+      }.otherwise {
+        y := x
+      }
+    }
+  }
+
   def apply(mode: String, default: Int = 3): Accumulator =
     new Accumulator(HdlInt.param("STEPS", default = default, min = 0, max = 8), mode)
 }
@@ -98,6 +131,23 @@ class BoundedRecursiveSafetyTests extends AnyFunSuite {
         assert(text.contains("g_step"))
         assert(text.contains(".N"))
       }
+    }
+  }
+
+  test("constant base with runtime-conditional step fails closed") {
+    withDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "conditional_step.v"
+      val error = intercept[MorphVerilogException] {
+        MorphVerilog(config)(new RecursiveSafetyFixture.ConditionalStep(
+          HdlInt.param("N", default = 5, min = 0, max = 8)
+        ))
+      }
+      val chain = Iterator.iterate[Throwable](error)(_.getCause).takeWhile(_ != null).toVector
+      val diagnostic = chain.collectFirst { case value: ParameterizedVerilogException => value }
+        .getOrElse(fail(chain.mkString(" -> ")))
+      assert(diagnostic.code ==
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-SHARED-PROCESS-CONDITIONAL-SHAPE-UNSUPPORTED")
     }
   }
 
