@@ -111,15 +111,16 @@ final class PureSIntCastTests extends AnyFunSuite {
     }
   }
 
-  test("boundary literals selections concat resize mux and equality keep casts") {
+  test("60e reconstructs boundary atoms before removing their redundant casts") {
     directory { root =>
       val path = root.resolve("boundaries.v")
       MorphVerilog(MorphSignedCasts.enable(Writer.config(path)))(new Fixture.Boundaries(width))
       val rtl = text(path)
       for (name <- Vector("literalSum", "mixedSum", "muxSum", "widenedSum", "concatenatedSum", "selectedSum", "equal")) {
         val line = rtl.linesIterator.find(_.contains("assign " + name + " =")).get
-        assert(line.contains("$signed("), name + " lost its retained 60e boundary")
+        assert(!line.contains("$signed("), name + " retains a redundant cast around a signed atom")
       }
+      assert(rtl.contains("5'sh1f"))
       assert("wire\\s+\\[WIDTH-1:0\\]\\s+_zz_unsignedShift;".r.findFirstIn(rtl).nonEmpty)
       assert(!rtl.contains("$signed($signed("))
     }
@@ -132,7 +133,7 @@ final class PureSIntCastTests extends AnyFunSuite {
       val before = text(path)
       MorphVerilog(MorphSignedCasts.enable(Writer.config(path)))(SIntSignedVerilogBaselineFixture.parameterized())
       val after = text(path)
-      assert(casts(after) > 0 && casts(after) < casts(before))
+      assert(casts(after) == 0 && casts(before) > 0)
       assert(!"\\$signed\\(\\s*\\$signed\\(".r.findFirstIn(after).nonEmpty)
       assert(!after.contains("module SIntCastHeavyExternal"))
     }
@@ -152,10 +153,10 @@ final class PureSIntCastTests extends AnyFunSuite {
     }
   }
 
-  test("unsupported symbolic signed widening still fails before publication") {
+  test("declaration-only symbolic signed widening remains explicitly unsupported") {
     directory { root =>
       val error = intercept[morphhdl.MorphVerilogException] {
-        MorphVerilog(MorphSignedCasts.enable(Writer.config(root.resolve("bad.v"))))(new Component {
+        MorphVerilog(MorphSignedDeclarations.enable(Writer.config(root.resolve("bad.v"))))(new Component {
           val a = in(SInt(width bits))
           val widened = out(SInt(64 bits))
           widened := a.resize(64)

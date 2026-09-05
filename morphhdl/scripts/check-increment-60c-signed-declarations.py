@@ -52,7 +52,9 @@ def source_scope(root: Path) -> None:
     old = git("show", BASE + ":" + fallback)
     needle = r"\\s*(\\[[^\\]]+\\])?\\s*([A-Za-z_][A-Za-z0-9_$]*)"
     replacement = r"\\s*((?:signed\\s+)?\\[[^\\]]+\\])?\\s*([A-Za-z_][A-Za-z0-9_$]*)"
-    require(old.count(needle) == 2 and old.replace(needle, replacement) == (root / fallback).read_text(),
+    boundary = pure.load(root / "morphhdl/scripts/check-increment-60e-signedness-boundaries.py", "boundary_scope")
+    restored_fallback = boundary.restore_60d_source(root, fallback, (root / fallback).read_text())
+    require(old.count(needle) == 2 and old.replace(needle, replacement) == restored_fallback,
             "fallback change exceeds preserving the graph-owned declaration section")
     for name in ("MorphHdlSignedDeclarationPolicy.scala",):
         source = (root / "morphhdl/src/main/scala/spinal/core/internals" / name).read_text()

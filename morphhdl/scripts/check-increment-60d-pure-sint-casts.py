@@ -30,6 +30,9 @@ def load(path: Path, name: str):
 
 def restore_declaration_only_emitter(root: Path, source: str) -> str:
     """Undo only the four reviewed 60d helper edits, not arbitrary printer code."""
+    boundary = load(root / "morphhdl/scripts/check-increment-60e-signedness-boundaries.py", "boundary_scope")
+    source = boundary.restore_60d_source(root,
+        "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", source)
     contract = json.loads((root / "morphhdl/contracts/increment-60d-emitter-edits.json").read_text())
     require(contract["base"] == BASE and len(contract["edits"]) == 4, "unexpected emitter edit contract")
     for edit in reversed(contract["edits"]):

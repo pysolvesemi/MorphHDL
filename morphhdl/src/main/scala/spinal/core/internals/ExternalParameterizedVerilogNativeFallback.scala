@@ -132,7 +132,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     )
     val rewrittenResizes = rewriteRetainedResizeAssignments(
       component,
-      rewrittenValues
+      rewrittenValues,
+      nativeSignedResize = morphhdl.MorphSignedCasts.isEnabled(pc.config)
     )
     val rewrittenNormalizedTypedResizes =
       rewriteNormalizedTypedUIntResizeAssignments(
@@ -1049,7 +1050,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     */
   private[internals] def rewriteRetainedResizeAssignments(
       component: Component,
-      verilog: String
+      verilog: String,
+      nativeSignedResize: Boolean = false
   ): String = {
     final case class RetainedResizeAssignment(
         assignment: DataAssignmentStatement,
@@ -1070,7 +1072,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         (assignment.target, assignment.source) match {
           case (target: BitVector, resize: Resize)
               if (target.component eq component) && target.isComb &&
-                target.getBitsWidth == resize.size =>
+                target.getBitsWidth == resize.size &&
+                !(nativeSignedResize && resize.getClass == classOf[ResizeSInt]) =>
             val capturedAutoResize = ExternalParameterizedAutoResize
               .materializedResizeBoundary(component, resize)
               .flatMap {
@@ -2925,6 +2928,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           )
         }
 
+        // 60e's exact native SInt occurrence sizes both the sign replication
+        // and the selected payload symbolically. No witness relation or LHS
+        // extension is needed, including domains that cross equality.
+        if (morphhdl.MorphSignedCasts.isEnabled(pc.config) &&
+            resize.getClass == classOf[ResizeSInt]) return
+
         val exactComparisons = (target, source) match {
           case (left: WidthRetained, right: WidthRetained) =>
             (left.exactDomain, right.exactDomain) match {
@@ -3036,6 +3045,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             val source = ofExpression(resize.input)
             val size = BigInt(resize.size)
             if (!source.isSymbolic) WidthLiteral(size)
+            else if (morphhdl.MorphSignedCasts.isEnabled(pc.config) &&
+                resize.getClass == classOf[ResizeSInt] && size > 0 && source.minimum > 0) WidthLiteral(size)
             else if (size <= source.minimum) WidthLiteral(size)
             else if (
               size >= source.maximum &&

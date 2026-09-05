@@ -218,6 +218,9 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   Reject unsupported or ambiguous boundaries explicitly instead of silently
   deleting a cast.
 
+  Implementation and exact boundary/proof contracts are recorded in
+  [the 60e closure record](increment-60e-signedness-boundaries.md).
+
 - [ ] **Increment 60f — Equivalence, compatibility and tool-matrix closure**
 
   **Dependencies:** Increment 60e implemented and merged.
