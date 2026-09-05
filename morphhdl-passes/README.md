@@ -259,6 +259,28 @@ to the reference captured before **all** passes. Both new proof legs cover all
 simulation is an additional mandatory gate, not a claim made from two-state
 formal alone.
 
+### Non-vacuous clocked proofs
+
+The formal miter uses both an explicit DUT clock and the formal global timestep.
+Its clock edges must be retained (`multiclock on`); abstracting them into a single
+implicit clock can contradict the two-step reset assumptions. A solver PASS
+under an unreachable comparison region is not accepted as equivalence evidence.
+
+Every admitted binding must first cover the comparison region after reset is
+released and retain an actual cover trace. Only then is its unbounded equivalence
+proof run. Every shared-witness candidate also has an intentional functional
+mutation that must fail with a counterexample; the generic sequential fixture
+has an independent mutation control in addition to the combinational one.
+
+`test_wire_assignment_clock_model.py` runs before native regression. It proves
+the correct clock model, detects a real functional mutation, and deliberately
+restores the unsafe single-clock abstraction to verify that the reachability
+gate rejects it before equivalence runs. Solver-private trace workspaces are
+excluded from byte-determinism comparison; generated cover configurations,
+reachability evidence and equivalence artifacts remain compared. This corrects
+the proof model without weakening the reference snapshot, parameter domains,
+output comparisons, or four-state simulation requirements.
+
 ## Common witness and formal-equivalence baseline
 
 Every transforming pass and supported combination runs on the shared

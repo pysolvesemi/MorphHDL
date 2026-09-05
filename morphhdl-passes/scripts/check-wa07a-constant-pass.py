@@ -17,6 +17,9 @@ API = 'morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala'
 NATIVE = 'morphhdl-passes/examples/ConstantOperandNativeBridge.scala'
 RUN = 'morphhdl-passes/scripts/run-wa07a-regression.sh'
 WORKFLOW = '.github/workflows/morphhdl-passes.yml'
+VALIDATOR = 'morphhdl-passes/scripts/validate_wire_assignment_equivalence.py'
+CLOCK_TEST = 'morphhdl-passes/scripts/test_wire_assignment_clock_model.py'
+SCHEDULER_TEST = 'morphhdl-passes/scripts/test_wire_assignment_equivalence.py'
 TESTS = 'morphhdl-passes/src/test/scala/morphhdl/passes/transform/'
 CONST = 'constant-operand-simplification'
 ALL = 'wire-alias-unnamed+wire-alias-named+wire-expression-unnamed+' + CONST
@@ -25,6 +28,19 @@ SLOTS = [
     {'activation_item': 'WA-07a', 'candidate': 'morphhdl-passes/build/pass-outputs/wire-assignment-four-pass.v', 'pass_id': ALL},
 ]
 MARKERS = {
+    VALIDATOR: ('multiclock on', 'def prove_comparison_reachable',
+                'prove_comparison_reachable(directory, miter_top)',
+                'cover(!{reset});', 'reachability-evidence.json',
+                'comparison reachability passed without a retained cover trace',
+                'proof.get("comparison_reachable") is not True',
+                'mutation = run_mutation_control(mutation_case, pass_directory)',
+                'sequential_mutation = run_mutation_control'),
+    CLOCK_TEST: ('correct-clock-model', 'functional_mutation', 'incorrect-clock-model',
+                 'value.replace("multiclock on", "multiclock off")',
+                 '"REJECTED_UNREACHABLE"', 'WA07A_CLOCK_MODEL_PASS'),
+    SCHEDULER_TEST: ('test_pass_status_without_reachability_cannot_publish_success',
+                     'test_unreachable_comparison_stops_before_equivalence_proof',
+                     'test_reachability_status_without_cover_trace_is_rejected'),
     PASS: ('ConstantOperandSimplificationPass', 'CanonicalIrPassAdapter.bindFixture(design)',
            'CanonicalIrPassAdapter.bindFixture(output)', 'cannotProduceZ', 'effectiveWidth',
            'allOnesAt', 'sameShape', 'isTruthProducer', 'DriverKind.Continuous',
@@ -42,7 +58,8 @@ MARKERS = {
              'assignment.parentScope eq target.rootScopeStatement',
              'actual_rhs_capture_writeback', 'executionRounds :+= executed',
              'WireAliasPassConfiguration(enabled = true)', 'progress = aliases.sum + constant.changedCount > 0'),
-    RUN: ('bash morphhdl-passes/scripts/run-wa07-regression.sh',
+    RUN: ('python3 morphhdl-passes/scripts/test_wire_assignment_clock_model.py',
+          'bash morphhdl-passes/scripts/run-wa07-regression.sh',
           'ParameterizedStreamFifoConstantPassWitness reference',
           'ParameterizedStreamFifoConstantPassWitness constant',
           'ParameterizedStreamFifoConstantPassWitness all',
@@ -90,6 +107,11 @@ def text_failures(path, text):
     errors = [f'WA07A-CONTRACT: {path}: missing {marker!r}' for marker in MARKERS[path] if marker not in text]
     if path in (PASS, PIPELINE) and FORBIDDEN.search(text):
         errors.append(f'WA07A-GENERICITY: {path}')
+    if path == RUN:
+        cover = text.find('python3 morphhdl-passes/scripts/test_wire_assignment_clock_model.py')
+        historical = text.find('bash morphhdl-passes/scripts/run-wa07-regression.sh')
+        if cover < 0 or historical <= cover:
+            errors.append('WA07A-CLOCK-GATE: clock mutation controls must precede native regression')
     if path == NATIVE:
         begin = text.find('final class ConstantOperandNativePhase')
         end = text.find('object ParameterizedStreamFifoConstantPassWitness')

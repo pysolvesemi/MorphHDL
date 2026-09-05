@@ -204,10 +204,11 @@ class PendingProofTests(unittest.TestCase):
             gate.write_json(directory / "binding.json", binding)
             with lock:
                 visited.append((args[0], args[1], gate.binding_key(binding), directory))
-            return {"binding": dict(sorted(binding.items())), "status": "PASS"}
+            return {"binding": dict(sorted(binding.items())), "status": "PASS", "comparison_reachable": True}
 
         before = self.roadmap.read_bytes()
         with patch.object(gate, "strict_design_checks", return_value={"mock": "PASS"}), \
+             patch.object(gate, "run_mutation_control", return_value={"status": "EXPECTED_FAIL", "mock": True}), \
              patch.object(gate, "run_formal_binding", side_effect=simulated_proof), \
              contextlib.redirect_stdout(io.StringIO()):
             serial = gate.run_shared_witness(self.root, self.shared, self.witness, self.root / "serial", 1, ["WA-07"])
@@ -235,16 +236,74 @@ class PendingProofTests(unittest.TestCase):
         def simulated_proof(*args):
             if args[1] == last_candidate and args[6]["WIDTH"] == 2:
                 raise gate.ValidationError("injected final-slot failure")
-            return {"binding": dict(args[6]), "status": "PASS"}
+            return {"binding": dict(args[6]), "status": "PASS", "comparison_reachable": True}
 
         output = self.root / "failure"
         with patch.object(gate, "strict_design_checks", return_value={"mock": "PASS"}), \
+             patch.object(gate, "run_mutation_control", return_value={"status": "EXPECTED_FAIL", "mock": True}), \
              patch.object(gate, "run_formal_binding", side_effect=simulated_proof), \
              contextlib.redirect_stdout(io.StringIO()), \
              self.assertRaisesRegex(gate.ValidationError, "final-slot failure"):
             gate.run_shared_witness(self.root, shared, self.witness, output, 4, ["WA-07"])
         self.assertFalse((output / "shared-witness" / "witness-evidence.json").exists())
         self.assertFalse((output / "gate-status.json").exists())
+
+    def test_pass_status_without_reachability_cannot_publish_success(self):
+        shared = copy.deepcopy(self.shared)
+        shared["domains"] = {"WIDTH": (1,), "DEPTH": (1,)}
+        for reachability in (None, False):
+            output = self.root / ("missing-cover" if reachability is None else "false-cover")
+            proof = {"binding": {"WIDTH": 1, "DEPTH": 1}, "status": "PASS"}
+            if reachability is not None:
+                proof["comparison_reachable"] = reachability
+            with self.subTest(reachability=reachability), \
+                 patch.object(gate, "strict_design_checks", return_value={"mock": "PASS"}), \
+                 patch.object(gate, "run_mutation_control", return_value={"status": "EXPECTED_FAIL", "mock": True}), \
+                 patch.object(gate, "run_formal_binding", return_value=proof), \
+                 contextlib.redirect_stdout(io.StringIO()), \
+                 self.assertRaisesRegex(gate.ValidationError, "incomplete or misordered"):
+                gate.run_shared_witness(self.root, shared, self.witness, output, 1, ["WA-07"])
+            self.assertFalse((output / "shared-witness/witness-evidence.json").exists())
+
+
+class ClockModelContracts(unittest.TestCase):
+    def test_every_solver_mode_preserves_explicit_clock_edges(self):
+        for mode in ("prove", "cover", "bmc"):
+            config = gate.sby_configuration("Miter", "PASS", mode, "smtbmc yices", 120)
+            self.assertIn("multiclock on", config)
+            self.assertNotIn("multiclock off", config)
+
+    def test_miter_cover_reaches_comparisons_after_reset_is_released(self):
+        text = gate.generated_miter(
+            ({"name": "clk", "width": 1}, {"name": "reset", "width": 1}),
+            ({"name": "q", "width": 1},), {}, "Ref", "Candidate", "Miter",
+            "clk", "reset", False)
+        self.assertIn("always @($global_clock)", text)
+        self.assertIn("assume(!clk)", text)
+        self.assertIn("assume(clk)", text)
+        enabled = text.split("if (wa03_reset_phase == 2'd2) begin", 1)[1]
+        self.assertIn("cover(!reset);", enabled)
+        self.assertIn("assert(reference_q == candidate_q);", enabled)
+
+    def test_unreachable_comparison_stops_before_equivalence_proof(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            with patch.object(gate, "prepare_leg"), \
+                 patch.object(gate, "prove_comparison_reachable", side_effect=gate.ValidationError("unreachable")), \
+                 patch.object(gate, "run_command") as run:
+                with self.assertRaisesRegex(gate.ValidationError, "unreachable"):
+                    gate.run_formal_binding(directory/"a.v", directory/"b.v", "Ref", "Candidate",
+                        ({"name": "a", "width": 1},), ({"name": "q", "width": 1},),
+                        {}, None, None, "abc pdr", 120, directory)
+                run.assert_not_called()
+
+    def test_reachability_status_without_cover_trace_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            status = gate.ProofStatus("PASS", directory/"status", directory/"reachability")
+            with patch.object(gate, "run_command"), patch.object(gate, "read_sby_status", return_value=status):
+                with self.assertRaisesRegex(gate.ValidationError, "without a retained cover trace"):
+                    gate.prove_comparison_reachable(directory, "Miter")
 
 
 if __name__ == "__main__":

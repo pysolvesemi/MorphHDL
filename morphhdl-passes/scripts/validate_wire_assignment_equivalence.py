@@ -750,6 +750,7 @@ def generated_miter(
     body: list[str] = []
     if reset is None:
         body.append("  always @* begin")
+        body.append("    cover(1'b1);")
         body.extend(line.replace("      ", "    ", 1) for line in assertions)
         body.append("  end")
     else:
@@ -773,6 +774,7 @@ def generated_miter(
                 f"      assume({reset});",
                 "    end",
                 "    if (wa03_reset_phase == 2'd2) begin",
+                f"      cover(!{reset});",
             )
         )
         body.extend(assertions)
@@ -803,11 +805,14 @@ def sby_configuration(
     timeout_seconds: int,
     depth: int | None = None,
 ) -> str:
+    # The reset sequencer uses $global_clock while the DUT observes explicit
+    # clock edges. Single-clock abstraction can make low/high reset assumptions
+    # contradictory. Preserve edges in prove, cover AND mutation configurations.
     depth_line = f"depth {depth}\n" if depth is not None else ""
     return f"""[options]
 mode {mode}
 {depth_line}expect {expected.lower()}
-multiclock off
+multiclock on
 timeout {timeout_seconds}
 
 [engines]
@@ -850,6 +855,31 @@ def read_sby_status(directory: Path, stem: str, expected: str) -> ProofStatus:
     return ProofStatus(observed, status_file, work)
 
 
+def prove_comparison_reachable(directory: Path, miter_top: str) -> None:
+    """Require a concrete trace reaching the enabled comparison region.
+
+    In clocked miters this also reaches deasserted reset after an actual reset
+    edge. This is mandatory for every binding, not just a representative case.
+    An unsatisfiable model or missing trace must never publish equivalence PASS.
+    """
+    (directory / "reachability.sby").write_text(
+        sby_configuration(miter_top, expected="PASS", mode="cover",
+                          engine="smtbmc yices", timeout_seconds=120, depth=4),
+        encoding="utf-8",
+    )
+    run_command(("sby", "-f", "-d", "reachability", "reachability.sby"), directory,
+                directory / "reachability-command.log", 240)
+    status = read_sby_status(directory, "reachability", "PASS")
+    traces = [path for path in status.work_directory.rglob("*.vcd")
+              if path.is_file() and path.stat().st_size > 0]
+    if not traces:
+        raise ValidationError("comparison reachability passed without a retained cover trace")
+    write_json(directory / "reachability-evidence.json", {
+        "status": "PASS", "comparison_region_reached": True,
+        "cover_trace_count": len(traces),
+    })
+
+
 def run_formal_binding(
     reference: Path,
     candidate: Path,
@@ -882,6 +912,7 @@ def run_formal_binding(
         mutate_first_output=False,
     )
     (directory / "miter.v").write_text(miter, encoding="utf-8")
+    prove_comparison_reachable(directory, miter_top)
     (directory / "proof.sby").write_text(
         sby_configuration(
             miter_top,
@@ -899,7 +930,8 @@ def run_formal_binding(
         timeout_seconds + 120,
     )
     read_sby_status(directory, "proof", "PASS")
-    return {"binding": dict(sorted(binding.items())), "status": "PASS"}
+    return {"binding": dict(sorted(binding.items())), "status": "PASS",
+            "comparison_reachable": True}
 
 def run_mutation_control(
     case: Mapping[str, Any], output_directory: Path
@@ -1190,6 +1222,9 @@ def run_shared_witness(
         candidate = Path(slot["candidate"])
         candidate_sha = sha256_file(candidate)
         pass_directory = witness_root / "future-pass-formal" / slot["directory_name"]
+        mutation_case = dict(shared, reference=capture, candidate=candidate,
+                             candidate_top=shared["reference_top"])
+        mutation = run_mutation_control(mutation_case, pass_directory)
         all_bindings = parameter_bindings(shared["domains"])
         print(
             f"Proving {slot['pass_id']}: {len(all_bindings)} bindings, {formal_jobs} workers",
@@ -1215,6 +1250,7 @@ def run_shared_witness(
         proofs = run_bounded_ordered(all_bindings, formal_jobs, prove)
         if len(proofs) != domain_audit["binding_count"] or any(
             proof.get("status") != "PASS" or proof.get("binding") != binding
+            or proof.get("comparison_reachable") is not True
             for proof, binding in zip(proofs, all_bindings)
         ):
             raise ValidationError(f"incomplete or misordered formal evidence for {slot['pass_id']}")
@@ -1226,6 +1262,7 @@ def run_shared_witness(
             "status": "PASS",
             "common_reference_sha256": capture_sha,
             "candidate_sha256": candidate_sha,
+            "mutation_control": mutation,
             "binding_count": len(proofs),
             "complete_domain": True,
             "proofs": proofs,
@@ -1257,6 +1294,8 @@ def execute_suite(
     output_root.mkdir(parents=True, exist_ok=True)
     generic = [run_generic_case(case, output_root, formal_jobs) for case in manifest["cases"]]
     mutation = run_mutation_control(manifest["cases"][0], output_root)
+    sequential_case = next(case for case in manifest["cases"] if case["clock"] is not None)
+    sequential_mutation = run_mutation_control(sequential_case, output_root / "sequential-control")
     shared = run_shared_witness(
         repo_root,
         manifest["shared"],
@@ -1271,6 +1310,7 @@ def execute_suite(
         "tool_versions": dict(sorted(toolchain.versions.items())),
         "generic_cases": generic,
         "mutation_control": mutation,
+        "sequential_mutation_control": sequential_mutation,
         "shared_witness": shared,
         "status": "PASS",
     }
@@ -1282,7 +1322,7 @@ def deterministic_artifact_signatures(root: Path) -> dict[str, str]:
     result: dict[str, str] = {}
     for path in sorted(value for value in root.rglob("*") if value.is_file()):
         relative_path = path.relative_to(root)
-        if "proof" in relative_path.parts[:-1] or "obj_dir" in relative_path.parts[:-1]:
+        if any(part in relative_path.parts[:-1] for part in ("proof", "reachability", "obj_dir")):
             continue
         if path.suffix not in DETERMINISTIC_SUFFIXES:
             continue
