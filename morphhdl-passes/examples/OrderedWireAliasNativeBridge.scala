@@ -59,9 +59,9 @@ private[examples] final class OrderedWireAliasNativePhase extends Phase {
 
     val pipeline = WireAliasPassPipeline.run(
       OrderedWireAliasCanonicalWitness.design,
-      WireAliasPassConfiguration(
-        eliminateUnnamedAliases = true,
-        eliminateNamedAliases = true
+      WireAliasPassConfiguration.selectedForTesting(
+        morphhdl.passes.api.PassId.UnnamedWireAliasElimination,
+        morphhdl.passes.api.PassId.NamedWireAliasElimination
       )
     )
     val expected = Vector(

@@ -24,9 +24,9 @@ if [[ -z "${head_ref}" ]]; then
   head_ref="$(git branch --show-current 2>/dev/null || true)"
 fi
 
-is_wa07=false
+is_wa08=false
 case "${head_ref}" in
-  agent/wa-07-*|wa-07-*) is_wa07=true ;;
+  agent/wa-08-*|wa-08-*) is_wa08=true ;;
 esac
 
 collect_changed_files() {
@@ -62,9 +62,9 @@ collect_changed_files() {
   fail "unable to determine the change set; provide MORPHDL_PASSES_BASE_SHA or MORPHDL_PASSES_CHANGED_FILES_FILE"
 }
 
-wa07_dependencies_satisfied() {
+wa08_dependencies_satisfied() {
   [[ -f "${pv_roadmap}" ]] || return 1
-  grep -Eq '^- \[x\] \*\*WA-06[[:space:]]+—' "${roadmap}" && \
+  grep -Eq '^- \[x\] \*\*WA-07[[:space:]]+—' "${roadmap}" && \
     grep -Eq '^- \[x\] \*\*Increment 58[[:space:]]+—' "${pv_roadmap}"
 }
 
@@ -75,7 +75,7 @@ allowed_path() {
       return 0
       ;;
     morphhdl/*)
-      if [[ "${is_wa07}" == true ]] && wa07_dependencies_satisfied; then
+      if [[ "${is_wa08}" == true ]] && wa08_dependencies_satisfied; then
         return 0
       fi
       return 1
@@ -103,10 +103,10 @@ done
 if [[ ${#violations[@]} -ne 0 ]]; then
   printf 'MorphHDL pass boundary rejected the following path(s):\n' >&2
   printf '  - %s\n' "${violations[@]}" >&2
-  if [[ "${is_wa07}" == true ]]; then
-    printf 'WA-07 MorphHDL-owned handoff paths are allowed only after WA-06 and PV-58 are checked on the target branch.\n' >&2
+  if [[ "${is_wa08}" == true ]]; then
+    printf 'WA-08 MorphHDL-owned handoff paths are allowed only after WA-07 and PV-58 are checked on the target branch.\n' >&2
   else
-    printf 'Allowed paths are morphhdl-passes/** and %s. MorphHDL-owned handoff paths are reserved for an eligible agent/wa-07-* branch.\n' "${workflow}" >&2
+    printf 'Allowed paths are morphhdl-passes/** and %s. MorphHDL-owned handoff paths are reserved for an eligible agent/wa-08-* branch.\n' "${workflow}" >&2
   fi
   exit 1
 fi

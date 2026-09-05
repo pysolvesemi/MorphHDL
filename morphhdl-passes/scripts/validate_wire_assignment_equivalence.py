@@ -13,9 +13,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence, TypeVar
 
 
 IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
@@ -24,6 +25,8 @@ SHA256 = re.compile(r"^[0-9a-f]{64}$")
 DETERMINISTIC_SUFFIXES = {".json", ".sby", ".v", ".ys", ".args"}
 PASS_MARKER = "WA03_SIM_PASS"
 FAIL_MARKER = "WA03_SIM_FAIL"
+ItemT = TypeVar("ItemT")
+ResultT = TypeVar("ResultT")
 
 
 class ValidationError(RuntimeError):
@@ -84,6 +87,22 @@ def require_positive_integer(value: Any, label: str) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < 1:
         raise ValidationError(f"{label} must be a positive integer, observed {value!r}")
     return value
+
+
+def run_bounded_ordered(
+    items: Sequence[ItemT], jobs: int, task: Callable[[ItemT], ResultT]
+) -> list[ResultT]:
+    """Run independent proofs with bounded workers, returning manifest order.
+
+    A task exception propagates; it is never converted to a successful result.
+    Each task owns its binding-specific directory and uses subprocess cwd,
+    never a process-wide chdir. One worker is the serial reference behavior.
+    """
+    require_positive_integer(jobs, "formal jobs")
+    if jobs == 1:
+        return [task(item) for item in items]
+    with ThreadPoolExecutor(max_workers=jobs) as executor:
+        return list(executor.map(task, items))
 
 
 def load_json(path: Path) -> Any:
@@ -954,7 +973,9 @@ def run_mutation_control(
         "counterexample_count": len(traces),
     }
 
-def run_generic_case(case: Mapping[str, Any], output_root: Path) -> dict[str, Any]:
+def run_generic_case(
+    case: Mapping[str, Any], output_root: Path, formal_jobs: int = 1
+) -> dict[str, Any]:
     case_root = output_root / "generic" / case["id"]
     case_root.mkdir(parents=True, exist_ok=True)
     domains = case["domains"]
@@ -986,8 +1007,9 @@ def run_generic_case(case: Mapping[str, Any], output_root: Path) -> dict[str, An
         )
         for binding in case["simulations"]
     ]
-    proofs = [
-        run_formal_binding(
+
+    def prove(binding: Mapping[str, int]) -> dict[str, Any]:
+        return run_formal_binding(
             case["reference"],
             case["candidate"],
             case["reference_top"],
@@ -1001,8 +1023,8 @@ def run_generic_case(case: Mapping[str, Any], output_root: Path) -> dict[str, An
             case["timeout_seconds"],
             case_root / "formal" / binding_key(binding),
         )
-        for binding in all_bindings
-    ]
+
+    proofs = run_bounded_ordered(all_bindings, formal_jobs, prove)
     evidence = {
         "id": case["id"],
         "strict": strict,
@@ -1032,6 +1054,53 @@ def roadmap_completion(roadmap: Path) -> dict[str, bool]:
     return values
 
 
+def plan_shared_slots(
+    shared: Mapping[str, Any],
+    completion: Mapping[str, bool],
+    prove_pending: Sequence[str] = (),
+) -> tuple[dict[str, Any], ...]:
+    """Add explicit pending proofs without changing completion or dropping gates."""
+    requested = set(prove_pending)
+    if len(requested) != len(prove_pending):
+        raise ValidationError("--prove-pending contains duplicate roadmap items")
+    slots = shared["future_outputs"]
+    activations = {slot["activation_item"] for slot in slots}
+    unknown = requested - set(completion)
+    if unknown:
+        raise ValidationError(f"unknown pending roadmap items: {sorted(unknown)}")
+    missing_slots = requested - activations
+    if missing_slots:
+        raise ValidationError(f"pending roadmap items have no formal slots: {sorted(missing_slots)}")
+    result: list[dict[str, Any]] = []
+    directory_names: set[str] = set()
+    for slot in slots:
+        activation = slot["activation_item"]
+        if activation not in completion:
+            raise ValidationError(f"future pass slot references unknown roadmap item {activation}")
+        directory_name = re.sub(r"[^A-Za-z0-9._-]", "_", slot["pass_id"])
+        if directory_name in {"", ".", ".."} or directory_name in directory_names:
+            raise ValidationError(f"formal pass directories are not unique: {slot['pass_id']}")
+        directory_names.add(directory_name)
+        required = bool(completion[activation] or activation in requested)
+        candidate = Path(slot["candidate"])
+        if required and not candidate.is_file():
+            raise ValidationError(
+                f"activated pass {slot['pass_id']} published no candidate output at {candidate}"
+            )
+        if not required and candidate.exists():
+            raise ValidationError(
+                f"inactive future pass slot unexpectedly published an output: {candidate}; "
+                f"use --prove-pending {activation} to require its complete proof before completion"
+            )
+        result.append({
+            **slot,
+            "required": required,
+            "roadmap_completed": bool(completion[activation]),
+            "directory_name": directory_name,
+        })
+    return tuple(result)
+
+
 def audit_shared_domain(shared: Mapping[str, Any]) -> dict[str, Any]:
     bindings = parameter_bindings(shared["domains"])
     return {
@@ -1049,7 +1118,13 @@ def run_shared_witness(
     shared: Mapping[str, Any],
     witness_path: Path,
     output_root: Path,
+    formal_jobs: int = 1,
+    prove_pending: Sequence[str] = (),
 ) -> dict[str, Any]:
+    completion = roadmap_completion(
+        repo_root / "morphhdl-passes" / "morphhdl-ir-wire-assignment-passes-todo.md"
+    )
+    planned_slots = plan_shared_slots(shared, completion, prove_pending)
     if not witness_path.is_file():
         raise ValidationError(f"common pre-pass witness was not generated: {witness_path}")
     if witness_path.name != shared["generated_file_name"]:
@@ -1071,6 +1146,14 @@ def run_shared_witness(
     )
     domain_audit = audit_shared_domain(shared)
     write_json(witness_root / "domain-audit.json", domain_audit)
+    write_json(witness_root / "proof-plan.json", {
+        "requested_pending_items": sorted(prove_pending),
+        "required_binding_count_per_slot": domain_audit["binding_count"],
+        "slots": [
+            {key: slot[key] for key in ("pass_id", "activation_item", "required", "roadmap_completed")}
+            for slot in planned_slots
+        ],
+    })
 
     strict = strict_design_checks(
         capture,
@@ -1089,20 +1172,10 @@ def run_shared_witness(
         for binding in shared["simulations"]
     ]
 
-    completion = roadmap_completion(
-        repo_root / "morphhdl-passes" / "morphhdl-ir-wire-assignment-passes-todo.md"
-    )
     future_evidence: list[dict[str, Any]] = []
-    for slot in shared["future_outputs"]:
+    for slot in planned_slots:
         activation = slot["activation_item"]
-        if activation not in completion:
-            raise ValidationError(f"future pass slot references unknown roadmap item {activation}")
-        candidate = Path(slot["candidate"])
-        if not completion[activation]:
-            if candidate.exists():
-                raise ValidationError(
-                    f"inactive future pass slot unexpectedly published an output: {candidate}"
-                )
+        if not slot["required"]:
             future_evidence.append(
                 {
                     "pass_id": slot["pass_id"],
@@ -1114,12 +1187,17 @@ def run_shared_witness(
             )
             continue
 
-        if not candidate.is_file():
-            raise ValidationError(
-                f"activated pass {slot['pass_id']} published no candidate output at {candidate}"
-            )
-        proofs = [
-            run_formal_binding(
+        candidate = Path(slot["candidate"])
+        candidate_sha = sha256_file(candidate)
+        pass_directory = witness_root / "future-pass-formal" / slot["directory_name"]
+        all_bindings = parameter_bindings(shared["domains"])
+        print(
+            f"Proving {slot['pass_id']}: {len(all_bindings)} bindings, {formal_jobs} workers",
+            flush=True,
+        )
+
+        def prove(binding: Mapping[str, int]) -> dict[str, Any]:
+            return run_formal_binding(
                 capture,
                 candidate,
                 shared["reference_top"],
@@ -1131,22 +1209,30 @@ def run_shared_witness(
                 shared["reset"],
                 "abc pdr",
                 600,
-                witness_root
-                / "future-pass-formal"
-                / re.sub(r"[^A-Za-z0-9._-]", "_", slot["pass_id"])
-                / binding_key(binding),
+                pass_directory / binding_key(binding),
             )
-            for binding in parameter_bindings(shared["domains"])
-        ]
-        future_evidence.append(
-            {
-                "pass_id": slot["pass_id"],
-                "activation_item": activation,
-                "status": "PASS",
-                "common_reference_sha256": capture_sha,
-                "binding_count": len(proofs),
-            }
-        )
+
+        proofs = run_bounded_ordered(all_bindings, formal_jobs, prove)
+        if len(proofs) != domain_audit["binding_count"] or any(
+            proof.get("status") != "PASS" or proof.get("binding") != binding
+            for proof, binding in zip(proofs, all_bindings)
+        ):
+            raise ValidationError(f"incomplete or misordered formal evidence for {slot['pass_id']}")
+        if sha256_file(capture) != capture_sha or sha256_file(candidate) != candidate_sha:
+            raise ValidationError(f"formal input changed during proof of {slot['pass_id']}")
+        slot_evidence = {
+            "pass_id": slot["pass_id"],
+            "activation_item": activation,
+            "status": "PASS",
+            "common_reference_sha256": capture_sha,
+            "candidate_sha256": candidate_sha,
+            "binding_count": len(proofs),
+            "complete_domain": True,
+            "proofs": proofs,
+        }
+        write_json(pass_directory / "pass-evidence.json", slot_evidence)
+        future_evidence.append(slot_evidence)
+        print(f"Proved {slot['pass_id']}: {len(proofs)} / {len(all_bindings)} PASS", flush=True)
 
     evidence = {
         "capture_sha256": capture_sha,
@@ -1165,15 +1251,19 @@ def execute_suite(
     witness_path: Path,
     output_root: Path,
     toolchain: Toolchain,
+    formal_jobs: int = 1,
+    prove_pending: Sequence[str] = (),
 ) -> dict[str, Any]:
     output_root.mkdir(parents=True, exist_ok=True)
-    generic = [run_generic_case(case, output_root) for case in manifest["cases"]]
+    generic = [run_generic_case(case, output_root, formal_jobs) for case in manifest["cases"]]
     mutation = run_mutation_control(manifest["cases"][0], output_root)
     shared = run_shared_witness(
         repo_root,
         manifest["shared"],
         witness_path,
         output_root,
+        formal_jobs,
+        prove_pending,
     )
     evidence = {
         "schema_version": 1,
@@ -1344,6 +1434,10 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--check-determinism", action="store_true")
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--formal-jobs", type=int, default=1,
+                        help="maximum independent binding proofs; default is serial")
+    parser.add_argument("--prove-pending", action="append", default=[], metavar="WA-ID",
+                        help="also require every formal slot for this unchecked increment; never edits the roadmap")
     return parser.parse_args(list(argv))
 
 
@@ -1371,6 +1465,7 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
     ).resolve()
 
     try:
+        require_positive_integer(args.formal_jobs, "--formal-jobs")
         if args.self_test:
             self_test(repo_root, manifest_path, registry_path)
             return 0
@@ -1392,11 +1487,18 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
         raw_manifest = load_json(manifest_path)
         manifest = validate_manifest(repo_root, manifest_path, raw_manifest)
         verify_signature_registry(repo_root, registry_path)
+        completion = roadmap_completion(
+            repo_root / "morphhdl-passes" / "morphhdl-ir-wire-assignment-passes-todo.md"
+        )
+        # Preflight every required candidate before spending time on earlier groups.
+        plan_shared_slots(manifest["shared"], completion, args.prove_pending)
         clean_output_directory(output)
         toolchain = require_toolchain(output)
-        execute_suite(repo_root, manifest, witness, output / "run-a", toolchain)
+        execute_suite(repo_root, manifest, witness, output / "run-a", toolchain,
+                      args.formal_jobs, args.prove_pending)
         if args.check_determinism:
-            execute_suite(repo_root, manifest, witness, output / "run-b", toolchain)
+            execute_suite(repo_root, manifest, witness, output / "run-b", toolchain,
+                          args.formal_jobs, args.prove_pending)
             compare_deterministic_runs(
                 output / "run-a",
                 output / "run-b",
