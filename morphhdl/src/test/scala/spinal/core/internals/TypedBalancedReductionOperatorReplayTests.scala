@@ -35,7 +35,7 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
     })
   }
 
-  test("captured UInt modular add bodies replay as fresh native operators") {
+  test("captured UInt modular add bodies replay with exact typed result widths") {
     withUInt { (words, _) =>
       val captured = record(words, (a: UInt, b: UInt) => a + b)
       val body = captured.rows.head.operator.get
@@ -45,6 +45,13 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
       assert(result ne body.result)
       assert(result.getTypeObject == TypeUInt)
       assert(result.getBitsWidth == 5)
+      val sourceWidth = ParameterizedWidth.expressionOf(words.vec.head).get
+      val resultWidth = ParameterizedWidth.expressionOf(result).get
+      assert(ElabInt.equivalentExactFunction(sourceWidth, resultWidth))
+      assert(resultWidth.parameters.head eq sourceWidth.parameters.head)
+      val next = proof.replay(result, words.vec(2))
+      assert(ElabInt.equivalentExactFunction(ParameterizedWidth.expressionOf(next).get, sourceWidth))
+      assert(next.getBitsWidth == 5)
     }
   }
 
@@ -127,7 +134,7 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
   test("subtraction and widening arithmetic are not silently certified") {
     val cases = Vector[((UInt, UInt) => UInt, String)](
       ((a, b) => a - b, "REPLAY-NONASSOCIATIVE-OR-UNSUPPORTED"),
-      ((a, b) => a +^ b, "REPLAY-FIXED-WIDTH"),
+      ((a, b) => a +^ b, "REPLAY-BODY-OPERANDS"),
       ((a, b) => a * b, "REPLAY-NONASSOCIATIVE-OR-UNSUPPORTED")
     )
     for ((operation, code) <- cases) {
@@ -150,7 +157,7 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
     }
   }
 
-  test("fixed result width matching the witness does not authorize symbolic replay") {
+  test("fixed local widths cannot specialize symbolic widths or truncate concrete widths") {
     withUInt { (words, _) =>
       val captured = record(words, (a: UInt, b: UInt) => {
         val fixed = UInt(5 bits); fixed := a + b; fixed
@@ -159,6 +166,16 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
         TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
       }
     }
+    generate(new Component {
+      val words = Vec(UInt(5 bits), HdlInt.param("COUNT", 3, 1, 3))
+      words.vec.foreach(_ := 0)
+      val captured = record(words, (a: UInt, b: UInt) => {
+        val narrow = UInt(3 bits); narrow := (a + b).resized; narrow
+      })
+      assertCode("REPLAY-FIXED-WIDTH") {
+        TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
+      }
+    })
   }
 
   test("unused callback-local effects cannot be discarded by body certification") {
