@@ -22,7 +22,9 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: morphhdl-ir-passes-${{ github.workflow }}-${{ github.ref }}
+  # Preserve already-running proof evidence when a repaired source revision
+  # starts its own qualification; only duplicate runs of the same head cancel.
+  group: morphhdl-ir-passes-${{ github.workflow }}-${{ github.ref }}-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 jobs:
@@ -152,7 +154,9 @@ jobs:
 
       - name: Test pending-proof activation and bounded deterministic scheduling
         shell: bash
-        run: python3 morphhdl-passes/scripts/test_wire_assignment_equivalence.py -v
+        run: |
+          python3 morphhdl-passes/scripts/test_wire_assignment_equivalence.py -v
+          python3 morphhdl-passes/scripts/test_wire_assignment_shards.py -v
 
   contracts:
     name: Pass contracts, direct aliases, expressions and pipeline Scala ${{ matrix.scala_version }}
@@ -198,8 +202,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  equivalence:
-    name: WA-04 through WA-07a legality, equivalence, mutation and determinism proof
+  native_generation:
+    name: WA-04 through WA-07a native generation, legality and four-state checks
     needs: [boundary, contracts]
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
@@ -276,7 +280,58 @@ jobs:
           # historical leg, then emits both new candidates against that reference.
           bash morphhdl-passes/scripts/run-wa07a-regression.sh
 
-      - name: Prove complete-domain equivalence, mutation sensitivity and determinism
+      - name: Bind native inputs to this exact source revision
+        shell: bash
+        run: |
+          python3 morphhdl-passes/scripts/aggregate_wire_assignment_equivalence.py \
+            --capture-native-inputs --prove-pending WA-07a
+          git diff --exit-code -- .
+
+      - name: Retain common reference, proof statuses and mutation counterexample
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-wa07a-native-evidence
+          overwrite: true
+          path: morphhdl-passes/build
+          if-no-files-found: error
+          retention-days: 14
+
+
+  formal_shards:
+    name: WA-07a full-domain proof shard ${{ matrix.shard }} / 16
+    needs: [native_generation]
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    steps:
+      - name: Check out exact proof revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Restore the one native pre-pass reference and every candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: morphhdl-wa07a-native-evidence
+          path: morphhdl-passes/build
+
+      - name: Verify exact-source input hashes and pinned formal tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          yosys -V | grep -Eq '^Yosys 0\.41([ +]|$)'
+          python3 morphhdl-passes/scripts/aggregate_wire_assignment_equivalence.py \
+            --verify-native-inputs --prove-pending WA-07a
+
+      - name: Prove every owned binding twice without reducing the admitted domain
         shell: bash
         run: |
           set -euo pipefail
@@ -285,14 +340,70 @@ jobs:
             --output morphhdl-passes/build/formal/wire_assignment_ir/evidence \
             --prove-pending WA-07a \
             --formal-jobs 4 \
+            --formal-shard-index ${{ matrix.shard }} --formal-shard-count 16 \
             --check-determinism
           git diff --exit-code -- .
 
-      - name: Retain common reference, proof statuses and mutation counterexample
+      - name: Retain actual statuses, cover traces, mutations and both repeated runs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-wa07a-formal-shard-${{ matrix.shard }}
+          overwrite: true
+          path: morphhdl-passes/build/formal/wire_assignment_ir/evidence
+          if-no-files-found: error
+          retention-days: 14
+
+  equivalence:
+    name: WA-04 through WA-07a legality, equivalence, mutation and determinism proof
+    needs: [native_generation, formal_shards]
+    if: ${{ always() && (github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Require every upstream proof job to have succeeded
+        shell: bash
+        env:
+          NATIVE_RESULT: ${{ needs.native_generation.result }}
+          SHARD_RESULT: ${{ needs.formal_shards.result }}
+        run: |
+          set -euo pipefail
+          test "$NATIVE_RESULT" = success
+          test "$SHARD_RESULT" = success
+
+      - name: Check out exact proof revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Restore exact native inputs
+        uses: actions/download-artifact@v4
+        with:
+          name: morphhdl-wa07a-native-evidence
+          path: morphhdl-passes/build
+
+      - name: Restore all disjoint proof shards from this workflow run
+        uses: actions/download-artifact@v4
+        with:
+          pattern: morphhdl-wa07a-formal-shard-*
+          path: morphhdl-passes/build/formal-shards
+          merge-multiple: false
+
+      - name: Verify exact full-domain union, real solver records and determinism
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl-passes/scripts/aggregate_wire_assignment_equivalence.py \
+            --shards morphhdl-passes/build/formal-shards --shard-count 16 \
+            --output morphhdl-passes/build/formal-aggregate --prove-pending WA-07a
+          git diff --exit-code -- .
+
+      - name: Retain full-domain qualification summary
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: morphhdl-wa07a-equivalence-evidence
-          path: morphhdl-passes/build
+          overwrite: true
+          path: morphhdl-passes/build/formal-aggregate
           if-no-files-found: error
           retention-days: 14
