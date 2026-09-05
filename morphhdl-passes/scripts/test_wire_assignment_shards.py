@@ -6,6 +6,7 @@ import contextlib
 import copy
 import io
 import shutil
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,6 +15,85 @@ from unittest.mock import patch
 import aggregate_wire_assignment_equivalence as aggregate
 import validate_wire_assignment_equivalence as gate
 import test_wire_assignment_equivalence as historical
+
+
+class ArchiveMaterializationTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix='wa07a-archive-unit-')
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.folder = self.root / 'artifact'
+        self.folder.mkdir()
+        self.expanded = self.root / 'temporary'
+        self.expanded.mkdir()
+        self.archive = self.folder / 'evidence.tar.gz'
+
+    def write_archive(self, members):
+        with tarfile.open(self.archive, 'w:gz') as archive:
+            for name, kind, data in members:
+                member = tarfile.TarInfo(name)
+                member.type = kind
+                member.size = len(data) if kind in (tarfile.REGTYPE, tarfile.AREGTYPE) else 0
+                if kind in (tarfile.SYMTYPE, tarfile.LNKTYPE):
+                    member.linkname = '../outside'
+                archive.addfile(member, io.BytesIO(data) if member.size else None)
+
+    def reject(self):
+        with self.assertRaises(gate.ValidationError):
+            with aggregate.materialized_shard(self.folder, self.expanded):
+                self.fail('malformed archive was accepted')
+        self.assertEqual(list(self.expanded.iterdir()), [])
+
+    def test_only_current_shard_is_expanded_and_cleaned_even_after_consumer_failure(self):
+        self.write_archive([('run-a', tarfile.DIRTYPE, b''),
+                            ('run-a/evidence.json', tarfile.REGTYPE, b'{}\n')])
+        with self.assertRaisesRegex(RuntimeError, 'consumer failure'):
+            with aggregate.materialized_shard(self.folder, self.expanded) as folder:
+                self.assertEqual((folder / 'run-a/evidence.json').read_bytes(), b'{}\n')
+                self.assertEqual(list(self.expanded.iterdir()), [folder])
+                raise RuntimeError('consumer failure')
+        self.assertEqual(list(self.expanded.iterdir()), [])
+        self.assertTrue(self.archive.is_file())
+
+    def test_absolute_traversing_and_noncanonical_paths_are_rejected(self):
+        for name in ('/outside', '../outside', 'nested/../../outside', './outside',
+                     'nested//outside', 'nested/./outside', 'nested\\outside', 'C:/outside', '.'):
+            with self.subTest(name=name):
+                self.write_archive([(name, tarfile.REGTYPE, b'bad')])
+                self.reject()
+                self.assertFalse((self.root / 'outside').exists())
+
+    def test_links_and_special_entries_are_rejected(self):
+        for kind in (tarfile.SYMTYPE, tarfile.LNKTYPE, tarfile.CHRTYPE,
+                     tarfile.BLKTYPE, tarfile.FIFOTYPE, tarfile.CONTTYPE):
+            with self.subTest(kind=kind):
+                self.write_archive([('entry', kind, b'')])
+                self.reject()
+
+    def test_duplicate_paths_and_file_directory_conflicts_are_rejected(self):
+        for members in ([('entry', tarfile.REGTYPE, b'a'), ('entry', tarfile.REGTYPE, b'b')],
+                        [('entry', tarfile.DIRTYPE, b''), ('entry', tarfile.DIRTYPE, b'')],
+                        [('entry', tarfile.REGTYPE, b'a'), ('entry/nested', tarfile.REGTYPE, b'b')]):
+            with self.subTest(members=members):
+                self.write_archive(members)
+                self.reject()
+
+    def test_malformed_or_empty_archive_is_rejected(self):
+        self.archive.write_bytes(b'not gzip or tar')
+        self.reject()
+        self.write_archive([])
+        self.reject()
+
+    def test_archive_artifact_rejects_extra_files_or_symlinked_archive(self):
+        self.write_archive([('entry', tarfile.REGTYPE, b'a')])
+        extra = self.folder / 'unreviewed.json'
+        extra.write_text('{}')
+        self.reject()
+        extra.unlink()
+        stored = self.root / 'stored.tar.gz'
+        self.archive.rename(stored)
+        self.archive.symlink_to(stored)
+        self.reject()
 
 
 class ShardSchedulingTests(unittest.TestCase):
@@ -209,6 +289,16 @@ class AggregationTests(unittest.TestCase):
             return aggregate.aggregate(self.root, self.shards, self.output, 2,
                 self.manifest, self.slots, self.identity, self.witness)
 
+    def archive_shards(self):
+        for folder in sorted(self.shards.iterdir()):
+            archive_path = self.root / (folder.name + '.tar.gz')
+            with tarfile.open(archive_path, 'w:gz') as archive:
+                for child in sorted(folder.iterdir()):
+                    archive.add(child, arcname=child.name)
+            shutil.rmtree(folder)
+            folder.mkdir()
+            archive_path.rename(folder / 'evidence.tar.gz')
+
     def summary_mutation(self, key, value):
         path = self.shards / 'shard-1/gate-status.json'
         data = gate.load_json(path); data[key] = value; gate.write_json(path, data)
@@ -224,6 +314,39 @@ class AggregationTests(unittest.TestCase):
         self.assertTrue(result['determinism_checked'])
         self.assertEqual(self.cone_validator.call_count, 24)
         self.assertFalse((self.binding_path() / 'proof/status').exists())
+
+    def test_archived_and_unpacked_shards_have_identical_results_and_determinism(self):
+        unpacked = self.run_gate()
+        original_outputs = {path.name: path.read_bytes() for path in self.output.iterdir()}
+        self.archive_shards()
+        archived = self.run_gate()
+        self.assertEqual(archived, unpacked)
+        self.assertEqual({path.name: path.read_bytes() for path in self.output.iterdir()}, original_outputs)
+        self.assertEqual(self.cone_validator.call_count, 48)
+
+    def test_archive_aggregation_never_keeps_two_expanded_shards(self):
+        self.archive_shards()
+        original = aggregate.materialized_shard
+        previous = []
+        @contextlib.contextmanager
+        def observed(folder, temporary_root):
+            self.assertTrue(all(not path.exists() for path in previous))
+            with original(folder, temporary_root) as expanded:
+                self.assertEqual(list(temporary_root.glob('expanded-shard-*')), [expanded])
+                previous.append(expanded)
+                yield expanded
+        with patch.object(aggregate, 'materialized_shard', side_effect=observed):
+            self.assertEqual(self.run_gate()['status'], 'PASS')
+        self.assertEqual(len(previous), 2)
+        self.assertTrue(all(not path.exists() for path in previous))
+
+    def test_archived_solver_mutation_is_rejected_and_expansion_is_cleaned(self):
+        self.write(self.binding_path() / 'reachability/status', 'UNKNOWN 0 1\n')
+        self.archive_shards()
+        with self.assertRaisesRegex(gate.ValidationError, 'expected PASS, observed UNKNOWN'):
+            self.run_gate()
+        self.assertFalse((self.output / 'gate-status.json').exists())
+        self.assertEqual(list(self.output.glob('expanded-shard-*')), [])
 
     def test_cone_validator_receives_every_output_bit_and_exact_guarded_miter(self):
         directory = self.root / 'synthetic-multibit-binding'

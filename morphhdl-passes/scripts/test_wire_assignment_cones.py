@@ -37,8 +37,8 @@ class ConeEvidenceTests(unittest.TestCase):
             stem = cone.property_stem(index)
             # Property zero normalizes to zero outputs; it MUST still be proved.
             # Properties one and two are byte-identical and share one proof.
-            original = b"aig 0 0 0 1 0\n0\n" + bytes([index])
-            normalized = b"aig 0 0 0 0 0\n" if index == 0 else b"aig 0 0 0 1 0\n0\nshared"
+            original = b"aig 1 0 0 1 1\n2\n" + bytes([index])
+            normalized = b"aig 0 0 0 0 0\n" if index == 0 else b"aig 1 0 0 1 1\n2\nshared"
             if name.endswith("-isolate"):
                 (root / (stem + "-raw.aig")).write_bytes(original)
             elif name.endswith("-extract"):
@@ -188,7 +188,7 @@ class ConeEvidenceTests(unittest.TestCase):
 class ConeParsingTests(unittest.TestCase):
     def test_strict_pdr_status(self):
         self.assertEqual(cone.validate_pdr_log(GOOD_LOG), "PASS")
-        for bad in ("PASS", GOOD_LOG + GOOD_LOG, GOOD_LOG + "UNKNOWN\n",
+        for bad in ("PASS", GOOD_LOG + GOOD_LOG, GOOD_LOG + "UNKNOWN\n", GOOD_LOG + "UNDECIDED\n",
                     GOOD_LOG + "Output 0 was asserted in frame 3.\n",
                     "The problem is trivially true for all states.\n",
                     GOOD_LOG.replace("successful", "unsuccessful")):
@@ -213,6 +213,98 @@ class ConeParsingTests(unittest.TestCase):
         self.assertLess(script.index("formalff -ff2anyinit"), script.index("opt -full -keepdc"))
         self.assertNotIn("formalff -clk2ff", script)
         self.assertNotIn("-setundef", script)
+        for commands in (cone.extraction_script(0), cone.proof_script(0, True, 10)):
+            self.assertIn("&get; &trim -o; &put", commands)
+            self.assertNotIn("; trim", commands)
+        self.assertIn("pdr -y -T 10 -v -d -I", cone.proof_script(0, True, 10))
+
+
+class ConstantFalseEvidenceTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.directory = Path(self.temp.name)
+        self.miter = "module Probe; always @* assert(1); endmodule\n"
+        self.calls = []
+        for name in ("reference.il", "candidate.il"):
+            (self.directory / name).write_text("# prepared fixture\n")
+        with patch.object(cone, "_command", side_effect=self.command):
+            self.evidence = cone.run_proof(self.directory, "Probe", self.miter, 1, 10)
+        self.root = self.directory / cone.DIRECTORY
+
+    def command(self, root, name, argv, deadline):
+        self.calls.append(name)
+        if name == "compile":
+            (root / "full.aig").write_bytes(b"aig 0 0 0 0 0 1\n0\nc")
+        elif name.endswith("-isolate"):
+            (root / "property-0000-raw.aig").write_bytes(b"aig 3 3 0 1 0\n0\nc")
+        elif name.endswith("-extract"):
+            for suffix in ("original", "normalized"):
+                (root / f"property-0000-{suffix}.aig").write_bytes(b"aig 3 3 0 1 0\n0\nc")
+        else:
+            raise AssertionError("constant-false certificate must not invoke a solver")
+        (root / (name + ".log")).write_text("synthetic extraction fixture\n")
+        cone._write(root / (name + ".execution"), {
+            "argv": argv, "returncode": 0, "timed_out": False,
+            "elapsed_seconds": 0.01, "log_sha256": cone.digest(root / (name + ".log")),
+        })
+
+    def validate(self):
+        return cone.validate_proof(self.directory, "Probe", self.miter, 1, 10)
+
+    def test_literal_zero_is_separate_structural_proof(self):
+        self.assertEqual(self.validate(), self.evidence)
+        proof = self.evidence["unique_proofs"][0]
+        self.assertEqual(self.evidence["schema_version"], 2)
+        self.assertEqual(proof["proof_method"], "constant-false")
+        self.assertFalse(proof["verified_invariant"])
+        self.assertNotIn("property-0000-prove", self.calls)
+
+    def test_missing_certificate_rejected(self):
+        (self.root / "property-0000-constant-false.json").unlink()
+        with self.assertRaises(cone.ConeProofError): self.validate()
+
+    def test_modified_certificate_rejected(self):
+        path = self.root / "property-0000-constant-false.json"
+        record = cone._load(path)
+        record["formula_sha256"] = "0" * 64
+        cone._write(path, record)
+        with self.assertRaises(cone.ConeProofError): self.validate()
+
+    def test_output_mutation_cannot_reuse_certificate(self):
+        path = self.root / "property-0000-original.aig"
+        path.write_bytes(path.read_bytes().replace(b"\n0\n", b"\n1\n"))
+        with self.assertRaises(cone.ConeProofError): self.validate()
+
+    def test_normalized_constant_cannot_replace_original_literal(self):
+        original = self.directory / "original.aig"
+        normalized = self.directory / "normalized.aig"
+        normalized.write_bytes(b"aig 1 1 0 1 0\n0\nc")
+        for literal in (0, 1, 2):
+            original.write_bytes(f"aig 3 3 0 1 0\n{literal}\nc".encode())
+            self.assertFalse(cone.use_normalized_formula(original, normalized))
+
+    def test_certificate_discriminant_cannot_claim_pdr(self):
+        path = self.root / "evidence.json"
+        record = cone._load(path)
+        record["unique_proofs"][0].update(proof_method="abc-pdr", verified_invariant=True)
+        cone._write(path, record)
+        with self.assertRaises(cone.ConeProofError): self.validate()
+
+    def test_structural_certificate_rejects_nonzero_outputs_and_state(self):
+        path = self.directory / "model.aig"
+        for value in (b"aig 0 0 0 1 0\n1\nc", b"aig 1 1 0 1 0\n2\nc",
+                      b"aig 1 0 1 1 0\n0\n0\nc", b"aig 1 0 0 1 1\n0\n\x00\x00c"):
+            path.write_bytes(value)
+            with self.subTest(value=value):
+                self.assertIsNone(cone.constant_false_certificate(path))
+
+    def test_malformed_or_trailing_certificate_data_rejected(self):
+        path = self.directory / "model.aig"
+        for body in (b"", b"0", b"00\nc", b"0\nextra", b"0\ncgarbage", b"0\n0\nc", b"2\nc"):
+            path.write_bytes(b"aig 0 0 0 1 0\n" + body)
+            with self.subTest(body=body):
+                with self.assertRaises(cone.ConeProofError): cone.constant_false_certificate(path)
 
 
 if __name__ == "__main__":

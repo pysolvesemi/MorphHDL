@@ -7,9 +7,20 @@ and that a solver-status mutation cannot be hidden by a passing summary.
 """
 from pathlib import Path
 import subprocess
+import tarfile
 
 import aggregate_wire_assignment_equivalence as aggregate
 import validate_wire_assignment_equivalence as gate
+
+
+def archive_shards(source: Path, destination: Path) -> None:
+    gate.clean_output_directory(destination)
+    for shard in sorted(source.iterdir()):
+        folder = destination / shard.name
+        folder.mkdir()
+        with tarfile.open(folder / "evidence.tar.gz", "w:gz", compresslevel=1) as archive:
+            for child in sorted(shard.iterdir()):
+                archive.add(child, arcname=child.name)
 
 
 def main() -> int:
@@ -51,11 +62,18 @@ def main() -> int:
     result = aggregate.aggregate(root, work / "shards", work / "positive", 2,
                                  manifest, slots, identity, witness)
     assert result["equivalence_proof_count"] == 4 and result["complete_domain"] is True
-    changed = work / "shards/shard-1/run-b/shared-witness/future-pass-formal/aggregation-control-only/WIDTH-3/proof/status"
+    archive_shards(work / "shards", work / "packed-shards")
+    packed_result = aggregate.aggregate(root, work / "packed-shards", work / "packed-positive", 2,
+                                       manifest, slots, identity, witness)
+    assert packed_result == result, "archived transport changed accepted proof evidence"
+    # Equivalence uses the cone backend; its required comparison-reachability
+    # leg still publishes an actual SBY status. Mutate that real solver record.
+    changed = work / "shards/shard-1/run-b/shared-witness/future-pass-formal/aggregation-control-only/WIDTH-3/reachability/status"
     before = changed.read_bytes()
     changed.write_text("UNKNOWN 0 1\n")
+    archive_shards(work / "shards", work / "mutated-packed-shards")
     try:
-        aggregate.aggregate(root, work / "shards", work / "negative", 2,
+        aggregate.aggregate(root, work / "mutated-packed-shards", work / "negative", 2,
                             manifest, slots, identity, witness)
     except gate.ValidationError as error:
         assert "expected PASS, observed UNKNOWN" in str(error), str(error)
@@ -67,6 +85,7 @@ def main() -> int:
     gate.write_json(work / "tool-control-evidence.json", {
         "status": "PASS", "scope": "isolated sequential aggregation control; NOT shared-FIFO qualification",
         "positive_equivalence_proofs": 4, "solver_status_mutation": "REJECTED",
+        "archived_and_expanded_evidence_identical": True,
         "both_repeated_runs_checked": True, "tool_versions": dict(toolchain.versions)})
     print("WA07A_SHARD_TOOL_CONTROL_PASS: real repeated proofs accepted, hidden solver failure rejected")
     return 0

@@ -345,13 +345,29 @@ jobs:
             --check-determinism
           git diff --exit-code -- .
 
+      - name: Package complete shard evidence for bounded-disk aggregation
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import tarfile
+          source = Path('morphhdl-passes/build/formal/wire_assignment_ir/evidence')
+          archive = source.parent / 'evidence.tar.gz'
+          with tarfile.open(archive, 'w:gz', compresslevel=1) as output:
+              for child in sorted(source.iterdir()):
+                  output.add(child, arcname=child.name)
+          print(f'Retained complete shard evidence: {archive.stat().st_size} compressed bytes')
+          PY
+
       - name: Retain actual statuses, cover traces, mutations and both repeated runs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: morphhdl-wa07a-formal-shard-${{ matrix.shard }}
           overwrite: true
-          path: morphhdl-passes/build/formal/wire_assignment_ir/evidence
+          path: morphhdl-passes/build/formal/wire_assignment_ir/evidence.tar.gz
+          compression-level: 0
           if-no-files-found: error
           retention-days: 14
 
@@ -383,14 +399,14 @@ jobs:
           name: morphhdl-wa07a-native-evidence
           path: morphhdl-passes/build
 
-      - name: Restore all disjoint proof shards from this workflow run
+      - name: Restore compressed disjoint proof shards from this workflow run
         uses: actions/download-artifact@v4
         with:
           pattern: morphhdl-wa07a-formal-shard-*
           path: morphhdl-passes/build/formal-shards
           merge-multiple: false
 
-      - name: Verify exact full-domain union, real solver records and determinism
+      - name: Validate one expanded shard at a time and require exact full-domain union
         shell: bash
         run: |
           set -euo pipefail

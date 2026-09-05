@@ -10,9 +10,13 @@ No proof property, assumption, clock model or parameter domain is weakened.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+import shutil
 import sys
-from pathlib import Path
-from typing import Any, Mapping, Sequence
+import tarfile
+import tempfile
+from pathlib import Path, PurePosixPath, PureWindowsPath
+from typing import Any, Iterator, Mapping, Sequence
 
 import validate_wire_assignment_equivalence as gate
 import prove_wire_assignment_cones as cones
@@ -21,6 +25,61 @@ import prove_wire_assignment_cones as cones
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise gate.ValidationError(message)
+
+
+def extract_shard_archive(archive: Path, destination: Path) -> None:
+    """Read regular files into a fresh directory without trusting tar paths."""
+    seen: set[str] = set()
+    try:
+        with tarfile.open(archive, mode="r|gz") as contents:
+            for member in contents:
+                name = member.name
+                path = PurePosixPath(name)
+                require(bool(name) and bool(path.parts) and not path.is_absolute()
+                        and not PureWindowsPath(name).drive and "\\" not in name
+                        and name == path.as_posix()
+                        and all(part not in ("", ".", "..") for part in path.parts),
+                        f"{archive}: noncanonical or unsafe archive path {name!r}")
+                require(name not in seen, f"{archive}: duplicate archive path {name!r}")
+                seen.add(name)
+                require(member.type in (tarfile.REGTYPE, tarfile.AREGTYPE, tarfile.DIRTYPE)
+                        and member.sparse is None,
+                        f"{archive}: links or special archive entries are not accepted: {name!r}")
+                target = destination.joinpath(*path.parts)
+                if member.isdir():
+                    require(member.size == 0, f"{archive}: directory has file data: {name!r}")
+                    target.mkdir(parents=True, exist_ok=True)
+                else:
+                    require(member.size >= 0, f"{archive}: negative file size: {name!r}")
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    source = contents.extractfile(member)
+                    require(source is not None, f"{archive}: missing file data: {name!r}")
+                    with source, target.open("xb") as output:
+                        shutil.copyfileobj(source, output)
+        require(bool(seen), f"{archive}: empty shard archive")
+    except (tarfile.TarError, OSError, EOFError) as error:
+        raise gate.ValidationError(f"{archive}: invalid shard archive: {error}") from error
+
+
+@contextmanager
+def materialized_shard(folder: Path, temporary_root: Path) -> Iterator[Path]:
+    """Expand only the current shard and clean it on success or any failure.
+
+    Historical unpacked inputs remain supported. Archived artifact directories
+    contain exactly evidence.tar.gz; none of its paths or file metadata can
+    create links, overwrite files, or escape the fresh extraction directory.
+    """
+    require(not folder.is_symlink(), f"{folder}: symlinked shard artifacts are not accepted")
+    archive = folder / "evidence.tar.gz"
+    if not archive.exists() and not archive.is_symlink():
+        yield folder
+        return
+    require(list(folder.iterdir()) == [archive] and archive.is_file() and not archive.is_symlink(),
+            f"{folder}: archived shard must contain only regular evidence.tar.gz")
+    with tempfile.TemporaryDirectory(prefix="expanded-shard-", dir=temporary_root) as temporary:
+        expanded = Path(temporary)
+        extract_shard_archive(archive, expanded)
+        yield expanded
 
 
 def read_text(path: Path) -> str:
@@ -221,98 +280,99 @@ def aggregate(root: Path, shard_root: Path, output: Path, shard_count: int,
     coverage = {(run, pass_id): [] for run in ("run-a", "run-b") for pass_id in expected_ids}
     tool_versions = None
     deterministic_sets = []
-    for folder in folders:
-        require(not folder.is_symlink(), f"{folder}: symlinked shard artifacts are not accepted")
-        require(not any(path.is_symlink() for path in folder.rglob("*")),
-                f"{folder}: symlinked evidence cannot establish independent repeated runs")
-        summary = gate.load_json(folder / "gate-status.json")
-        require(summary.get("status") == "SHARD_PASS" and summary.get("determinism_checked") is True,
-                f"{folder}: incomplete shard or repeated proof")
-        require(all(summary.get(key) == value for key, value in source.items()),
-                f"{folder}: stale source, manifest or signature registry")
-        require(summary.get("common_reference_sha256") == reference_sha,
-                f"{folder}: shard used a different pre-pass reference")
-        shard = summary.get("formal_shard", {})
-        index = shard.get("index")
-        require(shard.get("count") == shard_count, f"{folder}: inconsistent shard count")
-        selected = gate.select_proof_bindings(all_bindings, index, shard_count)
-        require(index not in seen, f"{folder}: duplicate shard index {index}")
-        seen.add(index)
-        formal_shard = {"index": index, "count": shard_count,
-                        "domain_binding_count": len(all_bindings),
-                        "domain_sha256": gate.sha256_bytes(gate.canonical_json(all_bindings).encode("utf-8"))}
-        for run_name in ("run-a", "run-b"):
-            run = folder / run_name
-            suite = gate.load_json(run / "suite-evidence.json")
-            require(suite.get("status") == "SHARD_PASS", f"{run}: incomplete suite")
-            if tool_versions is None:
-                tool_versions = suite.get("tool_versions")
-                require(isinstance(tool_versions, dict) and bool(tool_versions), f"{run}: missing tool versions")
-            require(suite.get("tool_versions") == tool_versions, f"{run}: tool versions differ across shards")
-            witness_root = run / "shared-witness"
-            captured = gate.safe_relative_path(witness_root, shared["common_capture"], "common capture")
-            require(gate.sha256_file(captured) == reference_sha, f"{run}: changed common reference")
-            evidence = gate.load_json(witness_root / "witness-evidence.json")
-            require(suite.get("shared_witness") == evidence, f"{run}: conflicting shared evidence")
-            check_legality(evidence, shared)
-            require(evidence.get("formal_shard") == formal_shard
-                    and evidence.get("domain_audit") == gate.audit_shared_domain(shared),
-                    f"{run}: admitted parameter domain or shard changed")
-            pass_evidence = evidence.get("future_pass_slots", [])
-            require([item.get("pass_id") for item in pass_evidence] == expected_ids,
-                    f"{run}: missing, extra or reordered pass slots")
-            for slot, item in zip(required_slots, pass_evidence):
-                pass_id = slot["pass_id"]
-                directory = witness_root / "future-pass-formal" / slot["directory_name"]
-                require(gate.load_json(directory / "pass-evidence.json") == item,
-                        f"{directory}: conflicting pass evidence")
-                require(item.get("status") == "SHARD_PASS" and item.get("complete_domain") is False
-                        and item.get("formal_shard") == formal_shard
-                        and item.get("activation_item") == slot["activation_item"]
-                        and item.get("binding_count") == len(selected)
-                        and item.get("required_binding_count") == len(all_bindings)
-                        and item.get("common_reference_sha256") == reference_sha
-                        and item.get("candidate_sha256") == candidates[pass_id],
-                        f"{directory}: incomplete or inconsistent proof metadata")
-                check_binding_list(item.get("proofs"), selected, str(directory))
-                for proof, binding in zip(item["proofs"], selected):
-                    binding_directory = directory / gate.binding_key(binding)
-                    require(gate.load_json(binding_directory / "binding-evidence.json") == proof,
-                            f"{binding_directory}: missing or inconsistent binding ledger")
-                    check_tool_proof(binding_directory, shared, binding, reference_sha, candidates[pass_id])
-                    coverage[run_name, pass_id].append(gate.binding_key(binding))
-                check_mutation(directory, item.get("mutation_control", {}), shared,
-                               reference_sha, candidates[pass_id])
-            generic = suite.get("generic_cases", [])
-            require([item.get("id") for item in generic] == [case["id"] for case in manifest["cases"]],
-                    f"{run}: missing generic proof cases")
-            for case, item in zip(manifest["cases"], generic):
-                require(gate.load_json(run / "generic" / case["id"] / "case-evidence.json") == item,
-                        f"{run}: conflicting generic case evidence")
-                check_legality(item, case, generic=True)
-                bindings = gate.parameter_bindings(case["domains"])
-                formal = item.get("formal", {})
-                require(formal.get("complete_domain") is True and formal.get("binding_count") == len(bindings),
-                        f"{run}: incomplete generic domain")
-                check_binding_list(formal.get("proofs"), bindings, case["id"])
-                for binding in bindings:
-                    check_tool_proof(run / "generic" / case["id"] / "formal" / gate.binding_key(binding),
-                                     case, binding, gate.sha256_file(case["reference"]),
-                                     gate.sha256_file(case["candidate"]))
-            for directory, key, case in (
-                (run, "mutation_control", manifest["cases"][0]),
-                (run / "sequential-control", "sequential_mutation_control",
-                 next(case for case in manifest["cases"] if case["clock"] is not None)),
-            ):
-                check_mutation(directory, suite.get(key, {}), case,
-                               gate.sha256_file(case["reference"]), gate.sha256_file(case["candidate"]))
-        stored = gate.load_json(folder / "determinism.json")
-        recomputed = gate.compare_deterministic_runs(folder / "run-a", folder / "run-b",
-                                                    output / f"shard-{index}-determinism.json")
-        require(stored == recomputed and stored.get("runs_identical") is True,
-                f"{folder}: repeated-proof artifact signatures changed")
-        deterministic_sets.append({"index": index, **stored})
-        print(f"Validated formal shard {index + 1}/{shard_count}", flush=True)
+    for artifact_folder in folders:
+        with materialized_shard(artifact_folder, output) as folder:
+            require(not folder.is_symlink(), f"{folder}: symlinked shard artifacts are not accepted")
+            require(not any(path.is_symlink() for path in folder.rglob("*")),
+                    f"{folder}: symlinked evidence cannot establish independent repeated runs")
+            summary = gate.load_json(folder / "gate-status.json")
+            require(summary.get("status") == "SHARD_PASS" and summary.get("determinism_checked") is True,
+                    f"{folder}: incomplete shard or repeated proof")
+            require(all(summary.get(key) == value for key, value in source.items()),
+                    f"{folder}: stale source, manifest or signature registry")
+            require(summary.get("common_reference_sha256") == reference_sha,
+                    f"{folder}: shard used a different pre-pass reference")
+            shard = summary.get("formal_shard", {})
+            index = shard.get("index")
+            require(shard.get("count") == shard_count, f"{folder}: inconsistent shard count")
+            selected = gate.select_proof_bindings(all_bindings, index, shard_count)
+            require(index not in seen, f"{folder}: duplicate shard index {index}")
+            seen.add(index)
+            formal_shard = {"index": index, "count": shard_count,
+                            "domain_binding_count": len(all_bindings),
+                            "domain_sha256": gate.sha256_bytes(gate.canonical_json(all_bindings).encode("utf-8"))}
+            for run_name in ("run-a", "run-b"):
+                run = folder / run_name
+                suite = gate.load_json(run / "suite-evidence.json")
+                require(suite.get("status") == "SHARD_PASS", f"{run}: incomplete suite")
+                if tool_versions is None:
+                    tool_versions = suite.get("tool_versions")
+                    require(isinstance(tool_versions, dict) and bool(tool_versions), f"{run}: missing tool versions")
+                require(suite.get("tool_versions") == tool_versions, f"{run}: tool versions differ across shards")
+                witness_root = run / "shared-witness"
+                captured = gate.safe_relative_path(witness_root, shared["common_capture"], "common capture")
+                require(gate.sha256_file(captured) == reference_sha, f"{run}: changed common reference")
+                evidence = gate.load_json(witness_root / "witness-evidence.json")
+                require(suite.get("shared_witness") == evidence, f"{run}: conflicting shared evidence")
+                check_legality(evidence, shared)
+                require(evidence.get("formal_shard") == formal_shard
+                        and evidence.get("domain_audit") == gate.audit_shared_domain(shared),
+                        f"{run}: admitted parameter domain or shard changed")
+                pass_evidence = evidence.get("future_pass_slots", [])
+                require([item.get("pass_id") for item in pass_evidence] == expected_ids,
+                        f"{run}: missing, extra or reordered pass slots")
+                for slot, item in zip(required_slots, pass_evidence):
+                    pass_id = slot["pass_id"]
+                    directory = witness_root / "future-pass-formal" / slot["directory_name"]
+                    require(gate.load_json(directory / "pass-evidence.json") == item,
+                            f"{directory}: conflicting pass evidence")
+                    require(item.get("status") == "SHARD_PASS" and item.get("complete_domain") is False
+                            and item.get("formal_shard") == formal_shard
+                            and item.get("activation_item") == slot["activation_item"]
+                            and item.get("binding_count") == len(selected)
+                            and item.get("required_binding_count") == len(all_bindings)
+                            and item.get("common_reference_sha256") == reference_sha
+                            and item.get("candidate_sha256") == candidates[pass_id],
+                            f"{directory}: incomplete or inconsistent proof metadata")
+                    check_binding_list(item.get("proofs"), selected, str(directory))
+                    for proof, binding in zip(item["proofs"], selected):
+                        binding_directory = directory / gate.binding_key(binding)
+                        require(gate.load_json(binding_directory / "binding-evidence.json") == proof,
+                                f"{binding_directory}: missing or inconsistent binding ledger")
+                        check_tool_proof(binding_directory, shared, binding, reference_sha, candidates[pass_id])
+                        coverage[run_name, pass_id].append(gate.binding_key(binding))
+                    check_mutation(directory, item.get("mutation_control", {}), shared,
+                                   reference_sha, candidates[pass_id])
+                generic = suite.get("generic_cases", [])
+                require([item.get("id") for item in generic] == [case["id"] for case in manifest["cases"]],
+                        f"{run}: missing generic proof cases")
+                for case, item in zip(manifest["cases"], generic):
+                    require(gate.load_json(run / "generic" / case["id"] / "case-evidence.json") == item,
+                            f"{run}: conflicting generic case evidence")
+                    check_legality(item, case, generic=True)
+                    bindings = gate.parameter_bindings(case["domains"])
+                    formal = item.get("formal", {})
+                    require(formal.get("complete_domain") is True and formal.get("binding_count") == len(bindings),
+                            f"{run}: incomplete generic domain")
+                    check_binding_list(formal.get("proofs"), bindings, case["id"])
+                    for binding in bindings:
+                        check_tool_proof(run / "generic" / case["id"] / "formal" / gate.binding_key(binding),
+                                         case, binding, gate.sha256_file(case["reference"]),
+                                         gate.sha256_file(case["candidate"]))
+                for directory, key, case in (
+                    (run, "mutation_control", manifest["cases"][0]),
+                    (run / "sequential-control", "sequential_mutation_control",
+                     next(case for case in manifest["cases"] if case["clock"] is not None)),
+                ):
+                    check_mutation(directory, suite.get(key, {}), case,
+                                   gate.sha256_file(case["reference"]), gate.sha256_file(case["candidate"]))
+            stored = gate.load_json(folder / "determinism.json")
+            recomputed = gate.compare_deterministic_runs(folder / "run-a", folder / "run-b",
+                                                        output / f"shard-{index}-determinism.json")
+            require(stored == recomputed and stored.get("runs_identical") is True,
+                    f"{folder}: repeated-proof artifact signatures changed")
+            deterministic_sets.append({"index": index, **stored})
+            print(f"Validated formal shard {index + 1}/{shard_count}", flush=True)
     require(seen == set(range(shard_count)), "missing shard indices")
     expected_keys = sorted(gate.binding_key(binding) for binding in all_bindings)
     for key, observed in coverage.items():

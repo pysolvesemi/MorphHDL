@@ -14,7 +14,10 @@ into the sequential graph. Byte-identical normalized AIGs may share one proof
 within this invocation only. The proof rebuilds that cone, writes a matching
 snapshot, and runs PDR in the SAME ABC process (rereading changes ABC ordering).
 If normalization drops a constant output, the original single-output cone is
-proved instead. Every subprocess shares one wall-clock budget for this binding.
+proved instead. An exact zero-state, zero-gate false output is certified directly
+from its retained AIG, because ABC PDR does not verify trivial invariants in all
+supported versions. This is a separate structural proof, never an interpretation
+of an unsuccessful solver result. Every subprocess shares one wall-clock budget.
 """
 from __future__ import annotations
 
@@ -136,6 +139,41 @@ def _single(path: Path, allow_zero: bool = False) -> dict[str, int]:
     return header
 
 
+def constant_false_certificate(path: Path) -> dict[str, Any] | None:
+    """Certify only an exact unconstrained, zero-state, zero-gate false AIG.
+
+    ABC's canonical ``write_aiger -u`` has no symbols or comment text, only an
+    optional final ``c`` marker. Reject any extra body data instead of guessing
+    where gates, symbols or comments end. Literal zero is false independently
+    of every input; no reachability or initial-state premise is needed.
+    """
+    header = _single(path)
+    if header["L"] or header["A"]:
+        return None
+    body = path.read_bytes().split(b"\n", 1)[1]
+    match = re.fullmatch(rb"(0|[1-9][0-9]*)\n(?:c)?", body)
+    if match is None or int(match[1]) > 2 * header["M"] + 1:
+        raise ConeProofError(f"malformed zero-state, zero-gate AIG body: {path}")
+    if int(match[1]) != 0:
+        return None
+    return {"schema_version": 1, "proof_method": "constant-false",
+            "formula_sha256": digest(path), "aiger_header": header,
+            "output_literal": 0, "independent_of_all_inputs": True}
+
+
+def use_normalized_formula(original: Path, normalized: Path) -> bool:
+    original_header = _single(original)
+    normalized_header = _single(normalized, allow_zero=True)
+    # Preserve literal-only cones exactly. ABC's plain `trim` can replace a
+    # removed constant-true output with a dummy constant-false output, so output
+    # count alone cannot establish preservation. The canonical script also
+    # explicitly disables trimming outputs for every nontrivial cone.
+    if not original_header["L"] and not original_header["A"]:
+        constant_false_certificate(original)  # strict body validation
+        return False
+    return normalized_header["O"] == 1
+
+
 def property_stem(index: int) -> str:
     return f"property-{index:04d}"
 
@@ -145,7 +183,7 @@ def cone_commands(index: int, normalize: bool, sequential: bool = True) -> str:
     if sequential:
         commands += "; scleanup"
     if normalize:
-        commands += "; trim" + ("; scorr" if sequential else "") + "; dc2"
+        commands += "; &get; &trim -o; &put" + ("; scorr" if sequential else "") + "; dc2"
     return commands
 
 
@@ -157,15 +195,18 @@ def isolation_script(index: int) -> str:
 def extraction_script(index: int, sequential: bool = True) -> str:
     stem = property_stem(index)
     return (cone_commands(index, False, sequential)
-            + f"; write_aiger -u {stem}-original.aig; trim"
+            + f"; write_aiger -u {stem}-original.aig; &get; &trim -o; &put"
             + ("; scorr" if sequential else "") + "; dc2"
             + f"; write_aiger -u {stem}-normalized.aig\n")
 
 
 def proof_script(index: int, normalize: bool, timeout: int, sequential: bool = True) -> str:
+    # Structural flop priorities change PDR's search order only. The retained
+    # formula, explicit clocks, initial state, assumptions and timeout remain
+    # unchanged; pinned ABC otherwise struggles with the largest ready cone.
     return (cone_commands(index, normalize, sequential)
             + f"; write_aiger -u {property_stem(index)}-proven.aig"
-            + f"; pdr -T {timeout} -v -d -I {property_stem(index)}-invariant.pla\n")
+            + f"; pdr -y -T {timeout} -v -d -I {property_stem(index)}-invariant.pla\n")
 
 
 def _command(root: Path, name: str, argv: list[str], deadline: float) -> None:
@@ -289,9 +330,8 @@ def _metadata(directory: Path, top: str, miter: str, count: int, timeout: int,
         sequential = raw_header["L"] > 0
         _text(root, stem + "-extract.abc", extraction_script(index, sequential))
         _validate_command(root, stem + "-extract", ["yosys-abc", "-f", stem + "-extract.abc"])
-        _single(root / (stem + "-original.aig"))
-        normalized = _single(root / (stem + "-normalized.aig"), allow_zero=True)
-        use_normalized = normalized["O"] == 1
+        use_normalized = use_normalized_formula(
+            root / (stem + "-original.aig"), root / (stem + "-normalized.aig"))
         selected = stem + ("-normalized.aig" if use_normalized else "-original.aig")
         formula = (root / selected).read_bytes()
         formula_sha = digest(root / selected)
@@ -305,27 +345,39 @@ def _metadata(directory: Path, top: str, miter: str, count: int, timeout: int,
         else:
             representative = index
             representatives[formula_sha] = (index, formula)
-            _text(root, stem + "-prove.abc", proof_script(index, use_normalized, timeout, sequential))
-            output = _validate_command(root, stem + "-prove", ["yosys-abc", "-f", stem + "-prove.abc"])
-            _single(root / (stem + "-proven.aig"))
-            if (root / (stem + "-proven.aig")).read_bytes() != formula:
-                raise ConeProofError("proved snapshot differs from the extracted formula")
-            validate_pdr_log(output)
-            artifacts[stem + "-invariant.txt"] = _validate_invariant(root, stem)
-            for suffix in ("-prove.abc", "-proven.aig"):
-                artifacts[stem + suffix] = digest(root / (stem + suffix))
-            proofs.append({"representative_index": index, "formula_sha256": formula_sha,
-                           "status": "PASS", "verified_invariant": True})
+            certificate = constant_false_certificate(root / selected)
+            if certificate is not None:
+                name = stem + "-constant-false.json"
+                if _load(root / name) != certificate:
+                    raise ConeProofError("missing or inconsistent constant-false certificate")
+                artifacts[name] = digest(root / name)
+                proofs.append({"representative_index": index, "formula_sha256": formula_sha,
+                               "status": "PASS", "proof_method": "constant-false",
+                               "verified_invariant": False, "certificate": name})
+            else:
+                _text(root, stem + "-prove.abc", proof_script(index, use_normalized, timeout, sequential))
+                output = _validate_command(root, stem + "-prove", ["yosys-abc", "-f", stem + "-prove.abc"])
+                _single(root / (stem + "-proven.aig"))
+                if (root / (stem + "-proven.aig")).read_bytes() != formula:
+                    raise ConeProofError("proved snapshot differs from the extracted formula")
+                validate_pdr_log(output)
+                artifacts[stem + "-invariant.txt"] = _validate_invariant(root, stem)
+                for suffix in ("-prove.abc", "-proven.aig"):
+                    artifacts[stem + suffix] = digest(root / (stem + suffix))
+                proofs.append({"representative_index": index, "formula_sha256": formula_sha,
+                               "status": "PASS", "proof_method": "abc-pdr",
+                               "verified_invariant": True})
         properties.append({"index": index, "formula_sha256": formula_sha,
                            "representative_index": representative,
                            "selected": selected, "normalization_kept_output": use_normalized})
     elapsed = sum(_load(root / (name + ".execution"))["elapsed_seconds"]
                   for name in ["compile"]
                   + [property_stem(i) + suffix for i in range(count) for suffix in ("-isolate", "-extract")]
-                  + [property_stem(row["representative_index"]) + "-prove" for row in proofs])
+                  + [property_stem(row["representative_index"]) + "-prove" for row in proofs
+                     if row["proof_method"] == "abc-pdr"])
     if elapsed > timeout:
         raise ConeProofError("retained commands exceed the shared binding timeout")
-    return {"schema_version": 1, "backend": BACKEND, "status": "PASS",
+    return {"schema_version": 2, "backend": BACKEND, "status": "PASS",
             "miter_top": top, "property_count": count, "assumption_count": assumptions,
             "timeout_seconds": timeout, "full_aiger_header": full_header,
             "sources": {name: digest(directory / name) for name in ("reference.il", "candidate.il")},
@@ -366,15 +418,19 @@ def run_proof(directory: Path, miter_top: str, scalar_miter_text: str,
             script = stem + "-extract.abc"
             (root / script).write_text(extraction_script(index, sequential), encoding="utf-8")
             _command(root, stem + "-extract", ["yosys-abc", "-f", script], deadline)
-            _single(root / (stem + "-original.aig"))
-            normalized = _single(root / (stem + "-normalized.aig"), allow_zero=True)
-            use_normalized = normalized["O"] == 1
+            use_normalized = use_normalized_formula(
+                root / (stem + "-original.aig"), root / (stem + "-normalized.aig"))
             formula_path = root / (stem + ("-normalized.aig" if use_normalized else "-original.aig"))
             formula = formula_path.read_bytes()
             sha = digest(formula_path)
             if sha in representatives:
                 if representatives[sha] != formula:
                     raise ConeProofError("different formulas have the same hash")
+                continue
+            certificate = constant_false_certificate(formula_path)
+            if certificate is not None:
+                _write(root / (stem + "-constant-false.json"), certificate)
+                representatives[sha] = formula
                 continue
             script = stem + "-prove.abc"
             (root / script).write_text(proof_script(index, use_normalized, timeout_seconds, sequential), encoding="utf-8")

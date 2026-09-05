@@ -101,6 +101,17 @@ def main() -> int:
 """, clocked=False)
     controls["duplicate_formal_properties"] = prove(
         output / "duplicate-formal-properties", duplicate_formal, 2, assumptions=2)
+    # Pinned ABC PDR reports UNDECIDED for an already constant-false output.
+    # Require the separate exact structural certificate, and ensure constant
+    # true still reaches the solver and produces a real counterexample.
+    controls["constant_false_output"] = prove(
+        output / "constant-false-output", miter("always @* assert(1);", clocked=False))
+    constant_proof = controls["constant_false_output"]["unique_proofs"]
+    assert len(constant_proof) == 1
+    assert constant_proof[0]["proof_method"] == "constant-false", constant_proof
+    assert constant_proof[0]["verified_invariant"] is False
+    controls["constant_true_output"] = require_counterexample(
+        output / "constant-true-output", miter("always @* assert(0);", clocked=False))
 
     def missing_formal_keep(top: str) -> str:
         script = original_compile(top)
