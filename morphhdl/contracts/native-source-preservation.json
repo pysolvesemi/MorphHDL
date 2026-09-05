@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "7d4be7634d6f491fcc44b78f0d8b656708a11557"
+      "approved_tree": "e742c353ee28b6812ba785df16ab8318f1306b7b"
     },
     {
       "path": "idslpayload/src/main",
@@ -1975,9 +1975,10 @@
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
-        "Increment 60c: native signed declarations with casts retained"
+        "Increment 60c: native signed declarations with casts retained",
+        "Increment 60d: pure-SInt redundant cast elimination"
       ],
-      "reason": "Generation-scoped declaration type policy and exact emitter-owned wrapper occurrences; no mode or behavior change for ordinary emitters.",
+      "reason": "Generation-scoped native signed declarations and exact printer-owned cast occurrences. The separate default-disabled cast policy preserves wrapper sizing and legacy expression printing when disabled.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
@@ -1987,15 +1988,15 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
-        "blob": "e60cdc9afd86088c2c9c7d01504f589040cf4ee0",
-        "sha256": "6ab65b85e09c4d1027e8a93f5d6ef3e69a4c1edcf5f82c1914764386dd1552f0"
+        "blob": "95ba56b4324fbb70d871ef4b42e69e01c10dbcb4",
+        "sha256": "2c94ae96e823c23086cbcc85f6b02ae3abe650795ec7a3689d920b5ec62b1a91"
       },
       "edits": [
         {
-          "id": "signed-declaration-componentemitterverilog-1",
+          "id": "signed-emission-60d-componentemitterverilog-1",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
+          "reason": "Exact default-disabled signed declaration/cast dispatch boundary; no expression rewrite or change to intermediate-width wrapper planning.",
           "baseline_span": {
             "start": 8969,
             "end": 8969,
@@ -2015,10 +2016,10 @@
           ]
         },
         {
-          "id": "signed-declaration-componentemitterverilog-2",
+          "id": "signed-emission-60d-componentemitterverilog-2",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
+          "reason": "Exact default-disabled signed declaration/cast dispatch boundary; no expression rewrite or change to intermediate-width wrapper planning.",
           "baseline_span": {
             "start": 29466,
             "end": 29466,
@@ -2038,10 +2039,10 @@
           ]
         },
         {
-          "id": "signed-declaration-componentemitterverilog-3",
+          "id": "signed-emission-60d-componentemitterverilog-3",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
+          "reason": "Exact default-disabled signed declaration/cast dispatch boundary; no expression rewrite or change to intermediate-width wrapper planning.",
           "baseline_span": {
             "start": 30427,
             "end": 30427,
@@ -2056,6 +2057,98 @@
             {
               "side": "approved",
               "text": "Function",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-emission-60d-componentemitterverilog-4",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Exact default-disabled signed declaration/cast dispatch boundary; no expression rewrite or change to intermediate-width wrapper planning.",
+          "baseline_span": {
+            "start": 73060,
+            "end": 73060,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 73504,
+            "end": 73844,
+            "sha256": "03cdcd84ab2b2dcf5638cbe56746a634cc3ae101f8825d7b0198a6a6efd079e8"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  private[spinal] def usesVerilogBase(base: VerilogBase): Boolean = verilogBase eq base\n\n  private def emitSignedOperand(parent: Expression, slot: Int, operand: Expression): String = {\n    val emitted = emitExpression(operand)\n    if (verilogBase.canElideSignedCast(this, parent, slot, operand)) emitted\n    else s\"$$signed($emitted)\"\n  }\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-emission-60d-componentemitterverilog-5",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Exact default-disabled signed declaration/cast dispatch boundary; no expression rewrite or change to intermediate-width wrapper planning.",
+          "baseline_span": {
+            "start": 73154,
+            "end": 73232,
+            "sha256": "ca47fea6d8fe4bc58f1df50ee7561d0d009b5392895796780e725c8fe9027e70"
+          },
+          "approved_span": {
+            "start": 73938,
+            "end": 74016,
+            "sha256": "2081c0d75cf652f45b4fe49b37a2b8d4063bafa35ee2fde26cbfb9129c5c19d5"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{emitSignedOperand(op, 0, op.left)} $vhd ${emitSignedOperand(op, 1, op.right)}",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-emission-60d-componentemitterverilog-6",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Exact default-disabled signed declaration/cast dispatch boundary; no expression rewrite or change to intermediate-width wrapper planning.",
+          "baseline_span": {
+            "start": 73338,
+            "end": 73373,
+            "sha256": "5ab9cf83395528e05ec149d6439e8d00a22eb4da89d5e53c19ba9269c966e10b"
+          },
+          "approved_span": {
+            "start": 74122,
+            "end": 74157,
+            "sha256": "326bf2045ad9d01e74b5f534adf9fd5b5029b0b8b8d14a0d4083c47e0229a7ad"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{emitSignedOperand(op, 0, op.left)}",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-emission-60d-componentemitterverilog-7",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Exact default-disabled signed declaration/cast dispatch boundary; no expression rewrite or change to intermediate-width wrapper planning.",
+          "baseline_span": {
+            "start": 73901,
+            "end": 73937,
+            "sha256": "89bc1fe93bb1cc8830095ff2a7a90cd0867955fef57f6b6d00f0afdc5de52bd1"
+          },
+          "approved_span": {
+            "start": 74685,
+            "end": 74720,
+            "sha256": "e9ebbfd545de2822adbac4c549192adaca12ddcf7fb2e402b382df26c3cf81ca"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{emitSignedOperand(e, 0, e.source)}",
               "count": 1
             }
           ]
@@ -2135,9 +2228,10 @@
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
-        "Increment 60c: native signed declarations with casts retained"
+        "Increment 60c: native signed declarations with casts retained",
+        "Increment 60d: pure-SInt redundant cast elimination"
       ],
-      "reason": "Generation-scoped declaration type policy and exact emitter-owned wrapper occurrences; no mode or behavior change for ordinary emitters.",
+      "reason": "Generation-scoped native signed declarations and exact printer-owned cast occurrences. The separate default-disabled cast policy preserves wrapper sizing and legacy expression printing when disabled.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
         "mode": "100644",
@@ -2147,15 +2241,15 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
         "mode": "100644",
-        "blob": "803ae7958c1494506d2099f481c5b5a062b54bcd",
-        "sha256": "87b750c45321fb79bc12f5553086dedb8f63a9ccbe3eb1ebb71f0aade3a2cce6"
+        "blob": "fb4ca3982c7a525923b4cc2cc0ff119d6fdf71ec",
+        "sha256": "b5a07ef223c0c1aa89676575075e1b024e5b604b62d5c4e24869827c2081b43e"
       },
       "edits": [
         {
-          "id": "signed-declaration-verilogbase-1",
+          "id": "signed-emission-60d-verilogbase-1",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
+          "reason": "Exact default-disabled signed declaration/cast dispatch boundary; no expression rewrite or change to intermediate-width wrapper planning.",
           "baseline_span": {
             "start": 1997,
             "end": 1997,
@@ -2163,53 +2257,53 @@
           },
           "approved_span": {
             "start": 1997,
-            "end": 2827,
-            "sha256": "45ede2d313418723351345ac4a45c599137762a525fdded278064d1a26eb9f86"
+            "end": 3783,
+            "sha256": "f614ce38246f050e6e60682b12cefcdc3cbe2f88ea3e76f5fec151cba8685105"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object FunctionResultDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole\n  )\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n  }\n}\n\n",
+              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object FunctionResultDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole\n  )\n\n  /** Native cast site and the exact object that emitExpression will print.\n    * The reference classification comes from the real native wrapper plan,\n    * never from the resulting Verilog text or a caller-provided signed flag.\n    */\n  final class SignedCastOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val parent: Expression,\n      val slot: Int,\n      val operand: Expression\n  ) {\n    def component: Component = printer.component\n    def referenceRole: Option[DeclarationRole] = {\n      if (printer.wrappedExpressionToName.contains(operand)) Some(ExpressionWrapper)\n      else operand match {\n        case value: BaseType if (value.component eq component) && !value.isSuffix &&\n            !printer.referencesOverrides.contains(value) => Some(ScalarDeclaration)\n        case _ => None\n      }\n    }\n  }\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n    def elideSignedCast(occurrence: SignedCastOccurrence): Boolean = false\n  }\n}\n\n",
               "count": 1
             }
           ]
         },
         {
-          "id": "signed-declaration-verilogbase-2",
+          "id": "signed-emission-60d-verilogbase-2",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
+          "reason": "Exact default-disabled signed declaration/cast dispatch boundary; no expression rewrite or change to intermediate-width wrapper planning.",
           "baseline_span": {
             "start": 2040,
             "end": 2040,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 2870,
-            "end": 4202,
-            "sha256": "971376d659a29e076596bb13a3d5a5802f109a49452ef20ed3ed1fda9e8aeb75"
+            "start": 3826,
+            "end": 5584,
+            "sha256": "7b9ab688793d47b8a28f836664ca1f44643e49c9c598bb352aea5ac3a7ee2952"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  import VerilogBase._\n\n  private var declarationPolicy: DeclarationPolicy = null\n\n  /** One generation-local opt-in; an ordinary native emitter has no policy. */\n  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {\n    require(policy != null && declarationPolicy == null,\n      \"a Verilog declaration policy must be non-null and bound exactly once\")\n    declarationPolicy = policy\n  }\n\n  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null\n\n  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =\n    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)\n\n  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =\n    if (declarationPolicy != null && declarationPolicy.signed(\n        new DeclarationOccurrence(this, subject, role))) \"signed \" else \"\"\n\n  private def emitWrapperType(e: Expression): String = {\n    if (declarationPolicy == null) return emitType(e)\n    val nativeType = emitUnqualifiedType(e)\n    val section = if (declarationPolicy == null) nativeType else {\n      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)\n      declarationPolicy.wrapperRange(occurrence).getOrElse(nativeType)\n    }\n    declarationPrefix(e, ExpressionWrapper) + section\n  }\n\n",
+              "text": "  import VerilogBase._\n\n  private var declarationPolicy: DeclarationPolicy = null\n\n  /** One generation-local opt-in; an ordinary native emitter has no policy. */\n  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {\n    require(policy != null && declarationPolicy == null,\n      \"a Verilog declaration policy must be non-null and bound exactly once\")\n    declarationPolicy = policy\n  }\n\n  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null\n\n  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =\n    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)\n\n  private[spinal] final def canElideSignedCast(printer: ComponentEmitterVerilog,\n      parent: Expression, slot: Int, operand: Expression): Boolean = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed cast occurrence must belong to this native emitter\")\n    declarationPolicy != null && declarationPolicy.elideSignedCast(\n      new SignedCastOccurrence(this, printer, parent, slot, operand))\n  }\n\n  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =\n    if (declarationPolicy != null && declarationPolicy.signed(\n        new DeclarationOccurrence(this, subject, role))) \"signed \" else \"\"\n\n  private def emitWrapperType(e: Expression): String = {\n    if (declarationPolicy == null) return emitType(e)\n    val nativeType = emitUnqualifiedType(e)\n    val section = if (declarationPolicy == null) nativeType else {\n      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)\n      declarationPolicy.wrapperRange(occurrence).getOrElse(nativeType)\n    }\n    declarationPrefix(e, ExpressionWrapper) + section\n  }\n\n",
               "count": 1
             }
           ]
         },
         {
-          "id": "signed-declaration-verilogbase-3",
+          "id": "signed-emission-60d-verilogbase-3",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
+          "reason": "Exact default-disabled signed declaration/cast dispatch boundary; no expression rewrite or change to intermediate-width wrapper planning.",
           "baseline_span": {
             "start": 2494,
             "end": 2494,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 4656,
-            "end": 4663,
+            "start": 6038,
+            "end": 6045,
             "sha256": "6245d2f0ea7a1d0460fbe86cbd208ad1d7d58d086f001ee42242e3e4499569c9"
           },
           "required_exact_text": [
@@ -2221,18 +2315,18 @@
           ]
         },
         {
-          "id": "signed-declaration-verilogbase-4",
+          "id": "signed-emission-60d-verilogbase-4",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
+          "reason": "Exact default-disabled signed declaration/cast dispatch boundary; no expression rewrite or change to intermediate-width wrapper planning.",
           "baseline_span": {
             "start": 2808,
             "end": 2808,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 4977,
-            "end": 4984,
+            "start": 6359,
+            "end": 6366,
             "sha256": "6245d2f0ea7a1d0460fbe86cbd208ad1d7d58d086f001ee42242e3e4499569c9"
           },
           "required_exact_text": [
@@ -2244,18 +2338,18 @@
           ]
         },
         {
-          "id": "signed-declaration-verilogbase-5",
+          "id": "signed-emission-60d-verilogbase-5",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
+          "reason": "Exact default-disabled signed declaration/cast dispatch boundary; no expression rewrite or change to intermediate-width wrapper planning.",
           "baseline_span": {
             "start": 6514,
             "end": 6514,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 8690,
-            "end": 8943,
+            "start": 10072,
+            "end": 10325,
             "sha256": "7e252a364f85cfc8576381a9cea2fb879f7763209ea0bc0481b457e5662a6e88"
           },
           "required_exact_text": [
@@ -2267,18 +2361,18 @@
           ]
         },
         {
-          "id": "signed-declaration-verilogbase-6",
+          "id": "signed-emission-60d-verilogbase-6",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
+          "reason": "Exact default-disabled signed declaration/cast dispatch boundary; no expression rewrite or change to intermediate-width wrapper planning.",
           "baseline_span": {
             "start": 7205,
             "end": 7232,
             "sha256": "fa2bfa4f5ea95c799ebe96586a5315bb97aa17fd79c39ce7d33a6422dca7bb9b"
           },
           "approved_span": {
-            "start": 9634,
-            "end": 9816,
+            "start": 11016,
+            "end": 11198,
             "sha256": "31edf5ff0fe4d85d963b486b8f0ca15d3788400ac28b11334541e3fb299dac49"
           },
           "required_exact_text": [

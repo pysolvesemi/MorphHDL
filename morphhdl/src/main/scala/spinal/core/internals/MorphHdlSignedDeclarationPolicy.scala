@@ -8,11 +8,12 @@ import VerilogBase._
 /** Declaration permission combines a native printer occurrence with a fresh
   * exact graph snapshot. ExpressionUse alone never authorizes a temporary.
   * Logical range publication remains with the existing typed width backend.
-  * This policy neither changes an expression printer nor removes a cast.
+  * Declaration-only mode retains every cast; 60d adds a separate explicit opt-in.
   */
-private[spinal] final class MorphHdlSignedDeclarationPolicy(
+final class MorphHdlSignedDeclarationPolicy private[spinal] (
     emitter: VerilogBase,
-    snapshot: Snapshot
+    snapshot: Snapshot,
+    eliminatePureCasts: Boolean = false
 ) extends DeclarationPolicy {
   require(emitter != null && snapshot != null, "signed declarations require an emitter and snapshot")
 
@@ -108,6 +109,12 @@ private[spinal] final class MorphHdlSignedDeclarationPolicy(
     }
   }
 
+  private val castPolicy = if (eliminatePureCasts)
+    Some(new MorphHdlPureSIntCastPolicy(emitter, snapshot)) else None
+
+  override def elideSignedCast(occurrence: SignedCastOccurrence): Boolean =
+    castPolicy.exists(_.elide(occurrence))
+
   override def unsignedTransport(expression: Expression): Boolean = expression match {
     case _: CastSIntToBits | _: CastSIntToUInt =>
       val fact = snapshot.validate(expression, snapshot.expression(expression), ExpressionUse)
@@ -120,6 +127,6 @@ private[spinal] final class MorphHdlSignedDeclarationPolicy(
 
 /** Narrow binding bridge; the native backend never depends on MorphHDL. */
 object MorphHdlSignedDeclarationPolicy {
-  def bind(emitter: PhaseVerilog, snapshot: Snapshot): Unit =
-    emitter.bindDeclarationPolicy(new MorphHdlSignedDeclarationPolicy(emitter, snapshot))
+  def bind(emitter: PhaseVerilog, snapshot: Snapshot, eliminatePureCasts: Boolean = false): Unit =
+    emitter.bindDeclarationPolicy(new MorphHdlSignedDeclarationPolicy(emitter, snapshot, eliminatePureCasts))
 }

@@ -24,7 +24,7 @@ object MorphSignedDeclarations {
       val current = GlobalData.get.config
       if (isEnabled(current) && ParameterizedVerilogMode.isEnabled(current)) {
         require(current.mode == Verilog, "signed declarations require strict Verilog publication")
-        MorphHdlSignedDeclarationPolicy.bind(emitter, snapshot)
+        MorphHdlSignedDeclarationPolicy.bind(emitter, snapshot, MorphSignedCasts.isEnabled(current))
       }
     }(phases)
   }
