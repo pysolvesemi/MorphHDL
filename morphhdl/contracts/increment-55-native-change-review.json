@@ -146,6 +146,17 @@
       ]
     },
     {
+      "path": "core/src/main/scala/spinal/core/ElabBalancedReduction.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59b: native balanced-reduction capture boundary"
+      ],
+      "reason": "Neutral scoped callback dispatch with exception-safe restoration and exact symbolic Vec receiver retention; no reduction algorithm or RTL implementation.",
+      "edits": []
+    },
+    {
       "path": "core/src/main/scala/spinal/core/ElabInt.scala",
       "baseline_path": null,
       "change": "added",
@@ -1144,6 +1155,31 @@
             {
               "side": "approved",
               "text": "throw e",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 59b: native balanced-reduction capture boundary"
+      ],
+      "reason": "Preserve the exact typed Vec receiver before collection conversion; retain historical conversion for every concrete input.",
+      "edits": [
+        {
+          "id": "reduce-balanced-receiver-59b",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.traversableOncePimped",
+          "reason": "Preserve the exact typed Vec receiver before collection conversion; retain historical conversion for every concrete input.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabBalancedReduction.sourceSeq(that)",
               "count": 1
             }
           ]
@@ -2756,9 +2792,10 @@
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
-        "Increment 57a: typed StreamFifoCC architecture"
+        "Increment 57a: typed StreamFifoCC architecture",
+        "Increment 59b: native balanced-reduction capture boundary"
       ],
-      "reason": "Mechanically retain exact symbolic width through native Gray-code helpers and provide owner-local uncached reset-domain construction for generated CDC bodies while preserving concrete implementations.",
+      "reason": "Mechanically retain exact symbolic width through native Gray-code helpers and provide owner-local uncached reset-domain construction for generated CDC bodies while preserving concrete implementations. Route typed Vec counts through the neutral callback boundary while retaining the unchanged generic helper and concrete descriptors.",
       "edits": [
         {
           "id": "gray-typed-width-01",
@@ -2800,6 +2837,19 @@
             {
               "side": "baseline",
               "text": "ret.last := gray.msb",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "reduce-balanced-dispatch-59b",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.TraversableOncePimped.reduceBalancedTree",
+          "reason": "Route typed Vec counts through the neutral callback boundary while retaining the unchanged generic helper and concrete descriptors.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabBalancedReduction.reduce[T]",
               "count": 1
             }
           ]

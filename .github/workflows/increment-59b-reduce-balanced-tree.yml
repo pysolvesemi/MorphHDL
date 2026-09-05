@@ -1,4 +1,4 @@
-name: Increment 59b native capture and oracle checkpoint
+name: Increment 59b native replay and oracle checkpoint
 
 on:
   push:
@@ -32,7 +32,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-') ||
       (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59b'))
-    name: Native capture and oracle Scala ${{ matrix.scala }}
+    name: Native replay and oracle Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
@@ -50,7 +50,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           submodules: recursive
-      - name: Verify merged prerequisite and exact native source review
+      - name: Verify prerequisite, native review and canonical policy regeneration
         shell: bash
         run: |
           set -euo pipefail
@@ -66,6 +66,10 @@ jobs:
           python3 morphhdl/scripts/check-production-retirement.py
           python3 morphhdl/scripts/check-native-source-preservation.py
           python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            --generate-template morphhdl/contracts/increment-55-native-change-review.json \
+            --output target/increment-59b/regenerated-native-review.json
+          cmp morphhdl/contracts/native-source-preservation.json target/increment-59b/regenerated-native-review.json
           python3 morphhdl/scripts/check-increment-59b-native-oracle.py --self-test
       - name: Bootstrap repository-pinned SBT with verified checksum
         shell: bash
@@ -87,7 +91,7 @@ jobs:
           assert hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest() == expected.lower()
           PY
           printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$dir/repositories"
-      - name: Native semantics, typed plan, callback capture and rejection tests
+      - name: Native semantics, typed plan, capture, closed operator replay and rejection
         shell: bash
         run: |
           set -euo pipefail
@@ -98,16 +102,17 @@ jobs:
             -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
             -Dsbt.repository.config="$bootstrap/repositories" -Dsbt.override.build.repos=true \
             -jar "$bootstrap/sbt-launch.jar" "++${{ matrix.scala }}" \
-            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCaptureTests spinal.core.internals.TypedBalancedReductionCaptureSafetyTests spinal.core.internals.TypedBalancedReductionPlanTests morphhdl.ReduceBalancedTreeNativeContractTests' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCaptureTests spinal.core.internals.TypedBalancedReductionCaptureSafetyTests spinal.core.internals.TypedBalancedReductionPlanTests spinal.core.internals.TypedBalancedReductionOperatorReplayTests morphhdl.ReduceBalancedTreeNativeContractTests' \
             "morph/Test/runMain nativeapplication.ReduceBalancedTreeNativeOracleArtifactWriter $output/a" \
             "morph/Test/runMain nativeapplication.ReduceBalancedTreeNativeOracleArtifactWriter $output/b" \
-            > "$output/sbt.log" 2>&1 || { tail -n 200 "$output/sbt.log"; exit 1; }
+            > "$output/sbt.log" 2>&1 || { tail -n 160 "$output/sbt.log"; exit 1; }
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
           suites = [('TypedBalancedReductionCaptureTests', 10),
                     ('TypedBalancedReductionCaptureSafetyTests', 12),
                     ('TypedBalancedReductionPlanTests', 8),
+                    ('TypedBalancedReductionOperatorReplayTests', 15),
                     ('ReduceBalancedTreeNativeContractTests', 8)]
           for name, count in suites:
               paths = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
@@ -118,14 +123,14 @@ jobs:
               print(name, suite.attrib)
           PY
           tail -n 20 "$output/sbt.log"
-      - name: Qualify independent concrete native oracles - not candidate formal proof
+      - name: Qualify independent concrete native oracles - not whole-tree candidate proof
         shell: bash
         run: |
           set -euo pipefail
           python3 morphhdl/scripts/check-increment-59b-native-oracle.py \
             "$GITHUB_WORKSPACE/target/increment-59b/a" \
             "$GITHUB_WORKSPACE/target/increment-59b/b"
-          printf '%s\n' 'Native capture/oracle checkpoint passed. Parameterized stage publication and candidate formal proof remain separate, incomplete obligations.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'Closed native operator replay and oracle checkpoint passed. Generated stages, bridge replay and whole-tree candidate formal remain incomplete.' >> "$GITHUB_STEP_SUMMARY"
       - name: Retain exact-head checkpoint evidence
         if: always()
         uses: actions/upload-artifact@v4
