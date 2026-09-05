@@ -203,6 +203,15 @@ class ComponentEmitterVerilog(
     //Wrap expression which need it
     if(spinalConfig.cutLongExpressions)
       cutLongExpressions()
+    // A declaration policy may require a real unsigned carrier at an exact
+    // typed conversion. Keep the inherited expression/cast printers unchanged.
+    if (verilogBase.hasDeclarationPolicy) {
+      component.dslBody.walkStatements { statement =>
+        statement.walkDrivingExpressions { expression =>
+          if (verilogBase.needsUnsignedTransport(expression)) expressionToWrap += expression
+        }
+      }
+    }
     expressionToWrap --= wrappedExpressionToName.keysIterator
 
     component.dslBody.walkStatements { s =>
