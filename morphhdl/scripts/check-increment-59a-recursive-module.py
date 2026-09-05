@@ -9,17 +9,19 @@ import sys
 
 
 REQUIRED_FILES = (
-    ".github/workflows/increment-59a-recursive-verilog-module.yml",
-    "docs/morphhdl/increment-59a-bounded-recursive-verilog-module.md",
-    "morphhdl/contracts/increment-59a-source-scope.txt",
-    "morphhdl/scripts/check-increment-59a-recursive-module.py",
-    "morphhdl/scripts/prove-increment-59a-recursive-module.sh",
-    "morphhdl/src/main/scala/spinal/core/internals/BoundedRecursiveModuleValidation.scala",
-    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala",
-    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala",
-    "morphhdl/src/test/scala/morphhdl/BoundedRecursivePowerTests.scala",
-    "morphhdl/src/test/scala/nativeapplication/BoundedRecursivePowerFixture.scala",
-    "morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala",
+    '.github/workflows/increment-59a-recursive-verilog-module.yml',
+    'docs/morphhdl/increment-59a-bounded-recursive-verilog-module.md',
+    'morphhdl/contracts/increment-59a-source-scope.txt',
+    'morphhdl/scripts/check-increment-59a-recursive-module.py',
+    'morphhdl/scripts/prove-increment-59a-recursive-module.sh',
+    'morphhdl/src/main/scala/spinal/core/internals/BoundedRecursiveModuleValidation.scala',
+    'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala',
+    'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala',
+    'morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala',
+    'morphhdl/src/test/scala/morphhdl/BoundedRecursivePowerTests.scala',
+    'morphhdl/src/test/scala/morphhdl/BoundedRecursiveSafetyTests.scala',
+    'morphhdl/src/test/scala/nativeapplication/BoundedRecursivePowerFixture.scala',
+    'morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala',
 )
 
 
@@ -144,7 +146,7 @@ def validate(root: pathlib.Path) -> None:
         "yosys",
         "sat -verify -prove mismatch 0",
         "mutation",
-        "0 1 2 3 5 8",
+        "0 1 2 3 4 5 6 7 8",
     ):
         require(proof, token, "tool proof")
 

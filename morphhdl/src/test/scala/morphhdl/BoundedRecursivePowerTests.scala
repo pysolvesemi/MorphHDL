@@ -24,6 +24,8 @@ class BoundedRecursivePowerTests extends AnyFunSuite {
         assert(first.contains("generate"))
         assert(first.contains("g_base"))
         assert(first.contains("g_step"))
+        assert(first.contains("output wire"))
+        assert(!first.contains("always @"), "a constant base branch must use continuous assignment")
 
         val recursive =
           instanceBlock(first, "BoundedRecursivePower", "recursive")

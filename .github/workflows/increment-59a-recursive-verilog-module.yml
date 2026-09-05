@@ -235,12 +235,25 @@ jobs:
       - name: Compile and test bounded recursive generation
         run: |
           sbt -batch "++${{ matrix.scala_version }}" \
-            "morph/testOnly morphhdl.BoundedRecursivePowerTests"
+            "morph/testOnly morphhdl.BoundedRecursivePowerTests morphhdl.BoundedRecursiveSafetyTests"
 
       - name: Retain inherited structural and typed BlackBox behavior
         run: |
           sbt -batch "++${{ matrix.scala_version }}" \
             "morph/testOnly morphhdl.TypedBlackBoxGenericBindingTests morphhdl.NaturalSymbolicConditionalTests morphhdl.ExternalHierarchyBoolLiteralBindingTests morphhdl.NativeTypedLibraryCallSurfaceTests"
+
+      - name: Test canonical handoff and inherited typed surfaces
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morphir/testOnly morphhdl.ir.v1.CanonicalIrHandoffSpec"
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.MorphCanonicalIrHandoffTests morphhdl.NativeTypedLibraryCallSurfaceTests morphhdl.ExternalHierarchyBoolLiteralBindingTests"
+
+      - name: Test the standalone read-only adapter and safety contracts
+        working-directory: morphhdl-passes
+        run: >-
+          sbt -batch "++${{ matrix.scala_version }}"
+          "testOnly morphhdl.passes.adapter.CanonicalIrPassAdapterSpec morphhdl.passes.api.PassContractsSpec morphhdl.passes.safety.WireAliasSafetyGateSpec"
 
   strict-tools:
     name: Recursive strict tools and formal Scala ${{ matrix.scala_version }}
@@ -297,13 +310,14 @@ jobs:
           if-no-files-found: error
 
   inherited-formal:
-    name: Inherited typed formal gates Scala ${{ matrix.scala_version }}
+    name: Strict V2001 and inherited formal gates Scala ${{ matrix.scala_version }}
     needs: source-contract
     runs-on: ubuntu-latest
     timeout-minutes: 360
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
       MORPHDL_RUN_STREAMFIFOCC_CDC_PROOF: '1'
       MORPHDL_RUN_TYPED_VEC_FORMAL_EQUIVALENCE: '1'
       MORPHDL_RUN_TYPED_PRIMITIVE_CLOSURE_FORMAL_EQUIVALENCE: '1'
@@ -328,29 +342,372 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: Verify inherited formal toolchain
+      - name: Verify strict and formal toolchains
         shell: bash
         run: |
           set -euo pipefail
+          command -v verilator
+          command -v iverilog
+          command -v vvp
+          command -v yosys
           command -v sby
           command -v yices-smt2
-          command -v yosys
-          command -v iverilog
+          command -v ghdl
+          verilator --version
+          iverilog -V
+          ghdl --version
+          yosys_version="$(yosys -V)"
+          grep -Eq '^Yosys 0\.41([ +]|$)' <<<"$yosys_version"
+          sby_help="$(sby -h 2>&1)"
+          grep -q 'usage: sby' <<<"$sby_help"
+          yosys -Q -p 'help abc' >/tmp/morphhdl-yosys-abc-help.txt 2>&1
+          grep -q ABC /tmp/morphhdl-yosys-abc-help.txt
+
+      - name: Run strict Verilog-2001 lint simulation synthesis and typed RTL contracts
+        run: |
+          mkdir -p target/morphhdl/phase-inventory
+          mkdir -p target/morphhdl/generated-contracts
           mkdir -p "${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}"
           mkdir -p "${MORPHDL_STREAMFIFOCC_CDC_WORKSPACE}"
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "core/Test/runMain spinal.core.internals.ValidationParityInventoryWriter --output ${GITHUB_WORKSPACE}/target/morphhdl/phase-inventory/validation-phase-ids.txt"
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/Test/runMain morphhdl.MorphContractFixtureGenerator --output-dir ${GITHUB_WORKSPACE}/target/morphhdl/generated-contracts"
+          bash morphhdl/scripts/check-contracts.sh \
+            --require-tools \
+            --generated-dir target/morphhdl/generated-contracts \
+            --live-phase-ids target/morphhdl/phase-inventory/validation-phase-ids.txt
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.MorphCanonicalIrHandoffTests morphhdl.NativeStreamFifoCCParameterizedTests morphhdl.NativeStreamFifoCCCdcProofTests morphhdl.NativeLibraryMigrationTests morphhdl.NativeAxi4SlaveFactoryParameterizedOffsetTests morphhdl.ExternalHierarchyBoolLiteralBindingTests morphhdl.NativeTypedLibraryCallSurfaceTests morphhdl.TypedBlackBoxGenericBindingTests spinal.core.TypedPrimitiveClosureTests morphhdl.TypedParameterizedVecTests morphhdl.NativeLibraryReuseTests"
 
-      - name: Run inherited typed equivalence and mutation controls
+      - name: Validate representative bus RTL with strict Verilog-2001 tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          parameterized="${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}/native_axi4_parameterized.v"
+          concrete64="${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}/native_axi4_concrete_top.v"
+          concrete36="${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}/native_axi4_concrete_block.v"
+          test -s "$parameterized"
+          test -s "$concrete64"
+          test -s "$concrete36"
+
+          iverilog -g2001 -Wall -Wimplicit \
+            -s NativeAxi4SlaveFactoryParameterizedTop \
+            -o /tmp/native_axi4_parameterized_default.vvp \
+            "$parameterized"
+          iverilog -g2001 -Wall -Wimplicit \
+            -P NativeAxi4SlaveFactoryParameterizedTop.OFFSET_WORD=20 \
+            -s NativeAxi4SlaveFactoryParameterizedTop \
+            -o /tmp/native_axi4_parameterized_offset_80.vvp \
+            "$parameterized"
+          iverilog -g2001 -Wall -Wimplicit \
+            -s NativeConcreteAxi4SlaveFactoryTopOffset64 \
+            -o /tmp/native_axi4_concrete_64.vvp \
+            "$concrete64"
+          iverilog -g2001 -Wall -Wimplicit \
+            -s NativeConcreteAxi4SlaveFactoryTopOffset36 \
+            -o /tmp/native_axi4_concrete_36.vvp \
+            "$concrete36"
+
+          verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
+            --top-module NativeAxi4SlaveFactoryParameterizedTop \
+            "$parameterized"
+          verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
+            -GOFFSET_WORD=20 \
+            --top-module NativeAxi4SlaveFactoryParameterizedTop \
+            "$parameterized"
+          verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
+            --top-module NativeConcreteAxi4SlaveFactoryTopOffset64 \
+            "$concrete64"
+          verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
+            --top-module NativeConcreteAxi4SlaveFactoryTopOffset36 \
+            "$concrete36"
+
+          yosys -q -p "read_verilog -noautowire $parameterized; hierarchy -check -top NativeAxi4SlaveFactoryParameterizedTop; proc; opt; check -assert; synth -top NativeAxi4SlaveFactoryParameterizedTop; check -assert"
+          yosys -q -p "read_verilog -noautowire $parameterized; chparam -set OFFSET_WORD 20 NativeAxi4SlaveFactoryParameterizedTop; hierarchy -check -top NativeAxi4SlaveFactoryParameterizedTop; proc; opt; check -assert; synth -top NativeAxi4SlaveFactoryParameterizedTop; check -assert"
+          yosys -q -p "read_verilog -noautowire $concrete64; hierarchy -check -top NativeConcreteAxi4SlaveFactoryTopOffset64; proc; opt; check -assert; synth -top NativeConcreteAxi4SlaveFactoryTopOffset64; check -assert"
+          yosys -q -p "read_verilog -noautowire $concrete36; hierarchy -check -top NativeConcreteAxi4SlaveFactoryTopOffset36; proc; opt; check -assert; synth -top NativeConcreteAxi4SlaveFactoryTopOffset36; check -assert"
+
+      - name: Prove typed BlackBox simulation strict tools formal equivalence and mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="${GITHUB_WORKSPACE}/formal-artifacts/scala-${{ matrix.scala_version }}/blackbox"
+          mkdir -p "$work"
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/Test/runMain morphhdl.TypedBlackBoxGenericBindingArtifactWriter $work"
+
+          candidate="$work/typed_blackbox.v"
+          witness="$work/typed_blackbox_witness.v"
+          test -s "$candidate"
+          test -s "$witness"
+          python3 morphhdl/scripts/check-increment-59-blackbox-generics.py \
+            --artifact "$candidate"
+
+          cat >"$work/external_stubs.v" <<'VERILOG'
+          module TypedExternalLeaf #(
+            parameter LABEL = "typed",
+            parameter integer WIDTH = 8,
+            parameter integer DEPTH = 4,
+            parameter integer DOUBLE_WIDTH = 16,
+            parameter integer CONCRETE_ENABLE = 1,
+            parameter integer ENABLED = 1
+          ) (
+            input  wire [WIDTH-1:0] din,
+            output wire [WIDTH-1:0] dout
+          );
+            wire [WIDTH-1:0] disabled_value;
+            assign disabled_value = ~din;
+            assign dout = ENABLED ? din : disabled_value;
+          endmodule
+
+          module TypedParameterOnlyExternal #(
+            parameter integer LATENCY = 2
+          ) (
+            input  wire [7:0] din,
+            output wire [7:0] dout
+          );
+            assign dout = din ^ {8{LATENCY[0]}};
+          endmodule
+          VERILOG
+
+          cat >"$work/tb.v" <<'VERILOG'
+          `timescale 1ns/1ps
+          module tb;
+            reg  [4:0] narrow_in;
+            wire [4:0] narrow_out;
+            reg  [5:0] wide_in;
+            wire [5:0] wide_out;
+            reg  [7:0] fixed_in;
+            wire [7:0] fixed_out;
+
+            TypedBlackBoxGenericTop #(
+              .ENABLE(0),
+              .LATENCY(3),
+              .WIDTH(5)
+            ) dut (
+              .narrow_in(narrow_in),
+              .narrow_out(narrow_out),
+              .wide_in(wide_in),
+              .wide_out(wide_out),
+              .fixed_in(fixed_in),
+              .fixed_out(fixed_out)
+            );
+
+            initial begin
+              narrow_in = 5'b10101;
+              wide_in = 6'b010110;
+              fixed_in = 8'h3c;
+              #1;
+              if (narrow_out !== 5'b01010) begin
+                $display("narrow generic mismatch");
+                $finish(1);
+              end
+              if (wide_out !== 6'b010110) begin
+                $display("wide generic mismatch");
+                $finish(1);
+              end
+              if (fixed_out !== 8'hc3) begin
+                $display("parameter-only generic mismatch");
+                $finish(1);
+              end
+              $display("Increment 59 simulation passed");
+              $finish;
+            end
+          endmodule
+          VERILOG
+
+          iverilog -g2001 -Wall -Wimplicit -s tb \
+            -o "$work/typed_blackbox.vvp" \
+            "$candidate" "$work/external_stubs.v" "$work/tb.v"
+          vvp "$work/typed_blackbox.vvp" | tee "$work/simulation.log"
+          grep -Fqx 'Increment 59 simulation passed' "$work/simulation.log"
+
+          verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
+            --top-module TypedBlackBoxGenericTop \
+            "$candidate" "$work/external_stubs.v"
+          verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
+            -GENABLE=0 -GLATENCY=3 -GWIDTH=5 \
+            --top-module TypedBlackBoxGenericTop \
+            "$candidate" "$work/external_stubs.v"
+          yosys -q -p "read_verilog -noautowire $candidate $work/external_stubs.v; hierarchy -check -top TypedBlackBoxGenericTop; proc; opt; check -assert; synth -top TypedBlackBoxGenericTop; check -assert"
+          yosys -q -p "read_verilog -noautowire $candidate $work/external_stubs.v; chparam -set ENABLE 0 -set LATENCY 3 -set WIDTH 5 TypedBlackBoxGenericTop; hierarchy -check -top TypedBlackBoxGenericTop; proc; opt; check -assert; synth -top TypedBlackBoxGenericTop; check -assert"
+          yosys -q -p "read_verilog -noautowire $witness $work/external_stubs.v; hierarchy -check -top TypedBlackBoxConcreteTop; proc; opt; check -assert; synth -top TypedBlackBoxConcreteTop; check -assert"
+
+          cat >"$work/equivalence.ys" <<YOSYS
+          read_verilog -noautowire $candidate $work/external_stubs.v
+          chparam -set ENABLE 0 -set LATENCY 3 -set WIDTH 5 TypedBlackBoxGenericTop
+          hierarchy -check -top TypedBlackBoxGenericTop
+          proc
+          flatten
+          opt
+          rename TypedBlackBoxGenericTop gold
+          design -stash gold
+          design -reset
+          read_verilog -noautowire $witness $work/external_stubs.v
+          hierarchy -check -top TypedBlackBoxConcreteTop
+          proc
+          flatten
+          opt
+          rename TypedBlackBoxConcreteTop gate
+          design -stash gate
+          design -reset
+          design -copy-from gold -as gold gold
+          design -copy-from gate -as gate gate
+          equiv_make gold gate equiv
+          prep -top equiv
+          equiv_simple
+          equiv_status -assert
+          YOSYS
+          yosys -s "$work/equivalence.ys" | tee "$work/equivalence.log"
+
+          python3 - "$candidate" "$work/typed_blackbox_mutated.v" <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          source = Path(sys.argv[1]).read_text(encoding="utf-8")
+          start = source.index("TypedExternalLeaf #(")
+          body = source.index(") external_a (", start)
+          prefix = source[:start]
+          block = source[start:body]
+          suffix = source[body:]
+          pattern = re.compile(r"(?m)^(\s*\.ENABLED\s*\(\s*)(.*?)(\s*\)\s*,?\s*)$")
+          matches = list(pattern.finditer(block))
+          if len(matches) != 1:
+              raise SystemExit(f"expected one external_a ENABLED association, found {len(matches)}")
+          mutated = pattern.sub(r"\g<1>1'b1\g<3>", block, count=1)
+          Path(sys.argv[2]).write_text(prefix + mutated + suffix, encoding="utf-8")
+          PY
+          mutated="$work/typed_blackbox_mutated.v"
+          iverilog -g2001 -Wall -Wimplicit \
+            -s TypedBlackBoxGenericTop \
+            -P TypedBlackBoxGenericTop.ENABLE=0 \
+            -P TypedBlackBoxGenericTop.LATENCY=3 \
+            -P TypedBlackBoxGenericTop.WIDTH=5 \
+            -o "$work/mutated.vvp" \
+            "$mutated" "$work/external_stubs.v"
+          yosys -q -p "read_verilog -noautowire $mutated $work/external_stubs.v; chparam -set ENABLE 0 -set LATENCY 3 -set WIDTH 5 TypedBlackBoxGenericTop; hierarchy -check -top TypedBlackBoxGenericTop; proc; opt; check -assert"
+
+          python3 - "$work/equivalence.ys" "$work/equivalence-mutated.ys" \
+            "$candidate" "$mutated" <<'PY'
+          from pathlib import Path
+          import sys
+
+          source = Path(sys.argv[1]).read_text(encoding="utf-8")
+          candidate = sys.argv[3]
+          if source.count(candidate) != 1:
+              raise SystemExit(
+                  f"expected one candidate path in equivalence script, found {source.count(candidate)}"
+              )
+          Path(sys.argv[2]).write_text(
+              source.replace(candidate, sys.argv[4], 1),
+              encoding="utf-8",
+          )
+          PY
+          set +e
+          yosys -s "$work/equivalence-mutated.ys" \
+            >"$work/equivalence-mutated.log" 2>&1
+          mutation_status=$?
+          set -e
+          test "$mutation_status" -ne 0
+          grep -Eq 'Found [1-9][0-9]* unproven \$equiv cells' \
+            "$work/equivalence-mutated.log"
+
+      - name: Prove all inherited typed equivalence and live mutation controls
         run: |
           sbt -batch "++${{ matrix.scala_version }}" \
-            "morph/testOnly morphhdl.NativeStreamFifoCCParameterizedTests morphhdl.NativeStreamFifoCCCdcProofTests morphhdl.NativeLibraryMigrationTests morphhdl.NativeAxi4SlaveFactoryParameterizedOffsetTests morphhdl.ExternalHierarchyBoolLiteralBindingTests morphhdl.NativeTypedLibraryCallSurfaceTests morphhdl.TypedBlackBoxGenericBindingTests spinal.core.TypedPrimitiveClosureTests morphhdl.TypedParameterizedVecTests morphhdl.NativeLibraryReuseTests"
+            "morph/testOnly morphhdl.NativeLibraryMigrationFormalEquivalenceTests morphhdl.NativeAxi4SlaveFactoryFormalEquivalenceTests morphhdl.TypedStreamWidthAdapterFormalEquivalenceTests morphhdl.TypedParameterizedVecFormalEquivalenceTests morphhdl.TypedPrimitiveClosureFormalEquivalenceTests morphhdl.NativeStreamFifoFormalEquivalenceTests"
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "tester/testOnly spinal.lib.CounterFormalTester spinal.tester.scalatest.FormalFifoCCTester"
 
-      - name: Retain inherited formal artifacts
+      - name: Retain proof statuses mutation counterexamples and strict RTL
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: increment-59a-inherited-formal-scala-${{ matrix.scala_version }}
+          name: increment-59a-formal-scala-${{ matrix.scala_version }}
           path: formal-artifacts/scala-${{ matrix.scala_version }}
-          if-no-files-found: warn
+          if-no-files-found: error
+          retention-days: 14
+
+  streamfifocc-width-formal:
+    name: Inherited Increment 57b StreamFifoCC proof rerun Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      MORPHDL_RUN_STREAMFIFOCC_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_STREAMFIFOCC_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/streamfifocc-depth-width
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: Verify StreamFifoCC proof toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v yosys
+          command -v sby
+          command -v yices-smt2
+          yosys_version="$(yosys -V)"
+          grep -Eq '^Yosys 0\.41([ +]|$)' <<<"$yosys_version"
+          sby_help="$(sby -h 2>&1)"
+          grep -q 'usage: sby' <<<"$sby_help"
+          yosys -Q -p 'help abc' >/tmp/morphhdl-yosys-abc-help.txt 2>&1
+          grep -q ABC /tmp/morphhdl-yosys-abc-help.txt
+
+      - name: Rerun the inherited 64-case width depth reset and clock-ratio matrix
+        run: |
+          mkdir -p "${MORPHDL_STREAMFIFOCC_FORMAL_WORKSPACE}"
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.NativeStreamFifoCCFormalEquivalenceTests"
+
+      - name: Retain inherited StreamFifoCC proof statuses and width-five counterexample
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59a-streamfifocc-depth-width-scala-${{ matrix.scala_version }}
+          path: formal-artifacts/scala-${{ matrix.scala_version }}/streamfifocc-depth-width
+          if-no-files-found: error
+          retention-days: 14
+
+  determinism:
+    name: Typed handoff and concrete determinism Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: Prove byte-identical handoff replay and concrete preservation
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            'morph/testOnly morphhdl.MorphCanonicalIrHandoffTests morphhdl.NativeStreamFifoCCParameterizedTests morphhdl.NativeLibraryMigrationTests morphhdl.NativeAxi4SlaveFactoryParameterizedOffsetTests morphhdl.ExternalHierarchyBoolLiteralBindingTests morphhdl.NativeTypedLibraryCallSurfaceTests morphhdl.TypedBlackBoxGenericBindingTests'
+          sbt -batch "++${{ matrix.scala_version }}" \
+            'morph/testOnly morphhdl.MorphVerilogTests -- -z "repeated successful runs are byte-identical"'
+          sbt -batch "++${{ matrix.scala_version }}" \
+            'morph/testOnly morphhdl.MorphSingleSourceVerilogTests morphhdl.StreamFifoCompatibilityTests'
+          git diff --exit-code -- .
 
   compatibility:
     name: Binary source and concrete parity Scala ${{ matrix.scala_version }}
@@ -377,6 +734,50 @@ jobs:
         run: >-
           bash morphhdl/scripts/check-binary-compatibility.sh
           --scala-version "${{ matrix.scala_version }}"
+
+      - name: Prove MorphHDL report ABI against the exact prior increment
+        shell: bash
+        env:
+          BASE_COMMIT: ${{ needs.route.outputs.base }}
+          SCALA_VERSION: ${{ matrix.scala_version }}
+        run: |
+          set -euo pipefail
+          test -n "$BASE_COMMIT"
+          test "$(git rev-parse --verify "$BASE_COMMIT^{commit}")" = "$BASE_COMMIT"
+          compatibility_root="$(mktemp -d /tmp/morphhdl-report-abi.XXXXXX)"
+          baseline_root="$compatibility_root/baseline"
+          cleanup() {
+            status=$?
+            git worktree remove --force "$baseline_root" >/dev/null 2>&1 || true
+            rm -rf -- "$compatibility_root"
+            return "$status"
+          }
+          trap cleanup EXIT
+          git worktree add --quiet --detach "$baseline_root" "$BASE_COMMIT"
+
+          (
+            cd "$baseline_root"
+            sbt -batch "++$SCALA_VERSION" "morph / Compile / packageBin"
+          )
+          sbt -batch "++$SCALA_VERSION" "morph / Compile / packageBin"
+
+          scala_binary="${SCALA_VERSION%.*}"
+          artifact() {
+            root=$1
+            mapfile -t candidates < <(find \
+              "$root/morphhdl/target/scala-$scala_binary" \
+              -maxdepth 1 -type f -name '*.jar' \
+              ! -name '*-tests.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' \
+              | LC_ALL=C sort)
+            test "${#candidates[@]}" = 1
+            printf '%s\n' "${candidates[0]}"
+          }
+          baseline_jar="$(artifact "$baseline_root")"
+          current_jar="$(artifact "$GITHUB_WORKSPACE")"
+          python3 morphhdl/scripts/check-jvm-binary-compatibility.py \
+            --label "morph-report-$SCALA_VERSION" \
+            --baseline "$baseline_jar" \
+            --current "$current_jar"
 
       - name: Prove source linkage and ordinary SpinalVerilog parity
         run: >-
@@ -480,6 +881,11 @@ jobs:
           /tmp/mill frontend[${{ matrix.scala_version }}].test
           /tmp/mill morphir[${{ matrix.scala_version }}].test
           /tmp/mill morph[${{ matrix.scala_version }}].test
+          /tmp/mill tester[${{ matrix.scala_version }}].testOnly \
+            spinal.lib.CounterTester \
+            spinal.lib.SpinalSimStreamFifoTester \
+            spinal.lib.SpinalSimStreamFifoCCTester \
+            spinal.lib.SpinalSimStreamWidthAdapterTester
 
   closure:
     name: Increment 59a canonical closure
@@ -489,10 +895,12 @@ jobs:
       - focused-recursion
       - strict-tools
       - inherited-formal
+      - streamfifocc-width-formal
+      - determinism
       - compatibility
       - sbt-full
       - mill-full
-    if: always() && needs.route.outputs.run == 'true'
+    if: always() && (needs.route.result != 'success' || needs.route.outputs.run == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Require every canonical gate
@@ -502,6 +910,8 @@ jobs:
           FOCUSED_RECURSION: ${{ needs.focused-recursion.result }}
           STRICT_TOOLS: ${{ needs.strict-tools.result }}
           INHERITED_FORMAL: ${{ needs.inherited-formal.result }}
+          WIDTH_FORMAL: ${{ needs.streamfifocc-width-formal.result }}
+          DETERMINISM: ${{ needs.determinism.result }}
           COMPATIBILITY: ${{ needs.compatibility.result }}
           SBT_FULL: ${{ needs.sbt-full.result }}
           MILL_FULL: ${{ needs.mill-full.result }}
@@ -512,6 +922,8 @@ jobs:
             "$FOCUSED_RECURSION" \
             "$STRICT_TOOLS" \
             "$INHERITED_FORMAL" \
+            "$WIDTH_FORMAL" \
+            "$DETERMINISM" \
             "$COMPATIBILITY" \
             "$SBT_FULL" \
             "$MILL_FULL"; do
