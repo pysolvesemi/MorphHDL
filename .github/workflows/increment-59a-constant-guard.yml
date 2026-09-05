@@ -21,110 +21,24 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p constant-guard-artifacts
-          cat > constant-guard-artifacts/fix.patch <<'PATCH'
-          --- a/morphhdl/src/test/scala/morphhdl/BoundedRecursiveSafetyTests.scala
-          +++ b/morphhdl/src/test/scala/morphhdl/BoundedRecursiveSafetyTests.scala
-          @@ -64,6 +64,39 @@
-               }
-             }
-           
-          +  final class ConditionalReference(next: ElabInt) extends BlackBox {
-          +    setBlackBoxName("RecursiveConditionalStep")
-          +    addGeneric("N", next)
-          +    val x = in UInt (8 bits)
-          +    val select = in Bool ()
-          +    val y = out UInt (8 bits)
-          +    x.setName("x")
-          +    select.setName("select")
-          +    y.setName("y")
-          +  }
-          +
-          +  final class ConditionalStep(exponent: HdlInt) extends Component {
-          +    setDefinitionName("RecursiveConditionalStep")
-          +    val x = in UInt (8 bits)
-          +    val select = in Bool ()
-          +    val y = out UInt (8 bits)
-          +    x.setName("x")
-          +    select.setName("select")
-          +    y.setName("y")
-          +    exponent.hdlEq(0).generateIf("base", "step") {
-          +      y := U(1, 8 bits)
-          +    }.otherwise {
-          +      val inner = new ConditionalReference(exponent - 1)
-          +      inner.x := x
-          +      inner.select := select
-          +      when(select) {
-          +        y := (x * inner.y).resize(8)
-          +      }.otherwise {
-          +        y := x
-          +      }
-          +    }
-          +  }
-          +
-             def apply(mode: String, default: Int = 3): Accumulator =
-               new Accumulator(HdlInt.param("STEPS", default = default, min = 0, max = 8), mode)
-           }
-          @@ -98,6 +131,23 @@
-                   assert(text.contains("g_step"))
-                   assert(text.contains(".N"))
-                 }
-          +    }
-          +  }
-          +
-          +  test("constant base with runtime-conditional step fails closed") {
-          +    withDirectory { directory =>
-          +      val config = SpinalConfig(targetDirectory = directory.toString)
-          +      config.netlistFileName = "conditional_step.v"
-          +      val error = intercept[MorphVerilogException] {
-          +        MorphVerilog(config)(new RecursiveSafetyFixture.ConditionalStep(
-          +          HdlInt.param("N", default = 5, min = 0, max = 8)
-          +        ))
-          +      }
-          +      val chain = Iterator.iterate[Throwable](error)(_.getCause).takeWhile(_ != null).toVector
-          +      val diagnostic = chain.collectFirst { case value: ParameterizedVerilogException => value }
-          +        .getOrElse(fail(chain.mkString(" -> ")))
-          +      assert(diagnostic.code ==
-          +        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONSTANT-PROCESS-UNSUPPORTED")
-               }
-             }
-           
-          --- a/morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
-          +++ b/morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
-          @@ -3484,11 +3484,14 @@
-                       blockingWhole.findFirstMatchIn(line).nonEmpty
-                     )
-                   }
-          -        val needsConstantDriver = flat && fragmentAssignments.exists { case (_, statements) =>
-          -          statements.forall(line =>
-          -            verilogLiteral(blockingWhole.findFirstMatchIn(line).get.group(2)).nonEmpty
-          -          )
-          -        }
-          +        val hasConstantFragment = fragmentAssignments.exists { case (_, statements) =>
-          +          statements.nonEmpty && statements.forall(line =>
-          +            blockingWhole.findFirstMatchIn(line).exists(statement =>
-          +              verilogLiteral(statement.group(2)).nonEmpty
-          +            )
-          +          )
-          +        }
-          +        val needsConstantDriver = flat && hasConstantFragment
-                   val continuousFamily = if (
-                     needsConstantDriver &&
-                     Set("always @(*) begin", "always @* begin")(normalized.head)
-          @@ -3547,6 +3550,13 @@
-                     }
-                     exactFamily
-                   } else false
-          +
-          +        if (hasConstantFragment && !continuousFamily &&
-          +            Set("always @(*) begin", "always @* begin")(normalized.head))
-          +          fail(
-          +            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CONSTANT-PROCESS-UNSUPPORTED",
-          +            "a constant-only combinational fragment has no Verilog-2001 trigger; the complete process family must support proven continuous assignment serialization"
-          +          )
-           
-                   claimants.foreach { claimant =>
-                     val owned = ownedIndices(claimant.block)
-          PATCH
+          previous=1e5200c085547e94830f3a35fd9c7073d733dfad
+          path=.github/workflows/increment-59a-constant-guard.yml
+          test "$(git rev-parse "$previous:$path")" = 6f5b50c33327cd85aced5d6ade5dc90b018a08b2
+          git show "$previous:$path" > constant-guard-artifacts/reviewed-probe.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          source=Path('constant-guard-artifacts/reviewed-probe.yml').read_text()
+          start=source.index('          --- a/morphhdl/src/test/scala/morphhdl/BoundedRecursiveSafetyTests.scala\n')
+          end=source.index('          PATCH\n', start)
+          lines=source[start:end].splitlines(keepends=True)
+          assert all(line.startswith('          ') for line in lines)
+          patch=''.join(line[10:] for line in lines)
+          # Keep the reviewed patch exact except for the fixture-only port name:
+          # select is reserved by Spinal's shared Verilog/VHDL naming boundary.
+          patch=re.sub(r'\bselect\b', 'choose', patch)
+          Path('constant-guard-artifacts/fix.patch').write_text(patch)
+          PY
           git apply --include=morphhdl/src/test/scala/morphhdl/BoundedRecursiveSafetyTests.scala constant-guard-artifacts/fix.patch
           set +e
           sbt -batch '++2.13.12' 'morph/testOnly morphhdl.BoundedRecursiveSafetyTests -- -z "constant base with runtime-conditional step"' > constant-guard-artifacts/before.log 2>&1
