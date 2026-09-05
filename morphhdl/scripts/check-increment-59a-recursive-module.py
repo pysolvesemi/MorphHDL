@@ -18,6 +18,7 @@ REQUIRED_FILES = (
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala",
     "morphhdl/src/test/scala/morphhdl/BoundedRecursivePowerTests.scala",
     "morphhdl/src/test/scala/nativeapplication/BoundedRecursivePowerFixture.scala",
+    "morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala",
 )
 
 

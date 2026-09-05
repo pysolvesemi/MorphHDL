@@ -519,12 +519,28 @@ object ParameterizedStructure {
           sourceLocation
         )
       }
-      children.collectFirst { case value: BlackBox => value }.foreach { value =>
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-BLACKBOX-UNSUPPORTED",
-          s"structural body instantiated BlackBox '${value.getName()}'; Increment 33 covers ordinary Component instances",
-          sourceLocation
-        )
+      children.collect { case value: BlackBox => value }.foreach { value =>
+        // A same-name reference is an explicit Verilog module identity,
+        // not a second implementation. Retain its exact child object for
+        // mandatory final-owner termination and interface validation.
+        val typedSelfReference =
+          ownerRoot.nonEmpty && !component.isInstanceOf[BlackBox] &&
+            (value.parent eq component) && value.isBlackBox &&
+            Option(component.definitionName).exists(_.nonEmpty) &&
+            value.definitionName == component.definitionName &&
+            value.impl == null && value.listRTLPath.isEmpty &&
+            value.children.isEmpty &&
+            ParameterizedBlackBoxGenericRegistry.recordsOf(value).exists {
+              case binding: ParameterizedBlackBoxIntegerGeneric =>
+                binding.parameters.nonEmpty
+              case _ => false
+            }
+        if (!typedSelfReference)
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-BLACKBOX-UNSUPPORTED",
+            s"structural body instantiated unsupported BlackBox '${value.getName()}'; only typed direct self-references without separate RTL may be captured",
+            sourceLocation
+          )
       }
       if (
         declarations.isEmpty && assignments.isEmpty && memories.isEmpty &&
