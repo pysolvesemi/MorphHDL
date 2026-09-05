@@ -333,7 +333,7 @@ WA-04 or WA-05 can remove an alias.
   Bound the standalone workspace to the stable canonical MorphHDL-owned IR
   after external parameterization/capture and before Verilog lowering. Added a
   read-only identity-indexed adapter exposing declarations, drivers, references,
-  packed types, parameter domains, naming provenance, source locations and
+  packed types, parameter domains, naming provenance, observability, source locations and
   observability metadata required by the bounded alias contract. Added
   fail-closed diagnostics, cross-Scala tests, and mutation-tested guards against
   generated-Verilog parsing, emitted-name matching, Spinal implementation
@@ -402,11 +402,11 @@ WA-04 or WA-05 can remove an alias.
   individual pass and the ordered combination against the one common pre-pass StreamFifo reference. The pipeline publishes the original input if any stage
   fails, retains ordered per-stage evidence, and remains component-generic.
 
-- [ ] **WA-07 — Unnamed continuous wire-expression elimination and common pass flag**
+- [x] **WA-07 — Unnamed continuous wire-expression elimination and common pass flag**
 
   **Dependencies:** WA-06 implemented and merged.
 
-  **Status:** `IN PROGRESS`.
+  **Status:** `COMPLETED`.
 
   Replace the product-facing per-pass Booleans with one `enabled` flag. When
   disabled, execute no wire-assignment pass. When enabled, execute unnamed
@@ -445,7 +445,7 @@ WA-04 or WA-05 can remove an alias.
 
   **Dependencies:** WA-07 and PV-58 implemented and merged.
 
-  **Status:** `BLOCKED` by WA-07.
+  **Status:** `READY`.
 
   Expand PV-58's validated publication profile to carry the approved pure
   expression algebra and connect the one-flag pipeline to the MorphHDL
