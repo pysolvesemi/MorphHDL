@@ -97,3 +97,26 @@ source parsing, emitted-name classification and fixture-specific production
 recognizers. All existing native-preservation and typed-retirement guards remain
 required. The child checkbox changes only after implementation and final-head
 qualification; the parent and 60c–60g remain open.
+
+## Resume hardening and reproducible evidence
+
+The recovered checkpoint's ownerless memory templates are handled without
+assuming a Component owner. Aggregate storage width is counted separately from
+logical width, and immediate aggregate children retain nested Vec depth factors
+inside Bundles. Neither operation reevaluates a HardType generator.
+
+`requireKnown` also rejects transitive unknown obligations and widths that are
+not provably positive across their retained domain. A positive native witness
+is not enough. Conservative interval bounds qualify sizing only, not signedness
+or cast removal. An explicit, valid declaration-mode proof is still future work.
+The observer rechecks its final phase position when it runs, rejecting later
+phase-plan edits that move it away from the validated pre-emission boundary.
+
+The focused suite contains 26 tests, including real scalar declarations and
+feedback registers at widths 1, 5, 8 and 32; same-spelling independent symbolic
+roots; typed resize; nested Bundle/Vec geometry; memory templates; negative
+identity/role/slot/staleness cases; and unchanged native/MorphVerilog output.
+`TypedSignednessReplayArtifactWriter` runs twice in separate JVMs per Scala lane.
+Both fact reports and observer-enabled RTL are compared byte for byte, and the
+RTL is compared against the unchanged 60a artifacts. The workflow retains the
+reports, generated sources, ScalaTest XML and tool-backed baseline proof logs.

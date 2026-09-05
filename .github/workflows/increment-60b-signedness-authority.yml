@@ -66,6 +66,8 @@ jobs:
             "morph/Test/runMain nativeapplication.SIntSignedVerilogBaselineArtifactWriter $output/b" \
             "morph/Test/runMain nativeapplication.SIntSignedVerilogNestedArtifactWriter $output/a" \
             "morph/Test/runMain nativeapplication.SIntSignedVerilogNestedArtifactWriter $output/b" \
+            "morph/Test/runMain spinal.core.internals.TypedSignednessReplayArtifactWriter $output/observed-a" \
+            "morph/Test/runMain spinal.core.internals.TypedSignednessReplayArtifactWriter $output/observed-b" \
             > "$output/sbt.log" 2>&1 || { tail -n 200 "$output/sbt.log"; exit 1; }
           python3 - <<'PY'
           from pathlib import Path
@@ -73,7 +75,7 @@ jobs:
           paths = list(Path('morphhdl/target').rglob('*TypedSignednessAuthorityTests.xml'))
           assert len(paths) == 1, 'missing or ambiguous signedness suite execution report'
           suite = ET.parse(paths[0]).getroot()
-          assert int(suite.get('tests', '0')) >= 19, 'signedness suite did not execute fully'
+          assert int(suite.get('tests', '0')) >= 26, 'signedness suite did not execute fully'
           assert all(int(suite.get(k, '0')) == 0 for k in ('failures', 'errors', 'skipped')), suite.attrib
           print('Signedness suite executed:', suite.attrib)
           PY
@@ -81,34 +83,18 @@ jobs:
             cmp "$output/a/$file" "$output/b/$file"
             cmp "$output/a/$file" "morphhdl/examples/contracts/sint-baseline/$file"
           done
+          for mode in fixed parameterized; do
+            cmp "$output/observed-a/$mode.signedness.txt" "$output/observed-b/$mode.signedness.txt"
+            cmp "$output/a/sint_cast_heavy_$mode.v" "$output/observed-a/sint_cast_heavy_$mode.v"
+            cmp "$output/a/sint_cast_heavy_$mode.v" "$output/observed-b/sint_cast_heavy_$mode.v"
+          done
+          sha256sum "$output/observed-a/"*.signedness.txt
           tail -n 16 "$output/sbt.log"
       - name: Requalify unchanged baseline and live negative-result mutation
         shell: bash
         run: |
           set -euo pipefail
           python3 morphhdl/scripts/check-increment-60a-sint-baseline.py target/increment-60b/a
-      - name: Retain Scala compiler inputs for reproducible offline diagnosis
-        if: always() && matrix.scala == '2.13.12'
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import tarfile
-          root = Path.cwd()
-          output = root / 'target/increment-60b/offline-scala.tar.gz'
-          output.parent.mkdir(parents=True, exist_ok=True)
-          with tarfile.open(output, 'w:gz') as tar:
-              for path in sorted(root.glob('**/target/scala-2.13/classes')):
-                  tar.add(path, arcname='repo/' + str(path.relative_to(root)))
-              for path in sorted(root.glob('**/target/scala-2.13/test-classes')):
-                  tar.add(path, arcname='repo/' + str(path.relative_to(root)))
-              paths = sorted(Path('/sbt/.cache/coursier').rglob('*.jar'))
-              paths = [p for p in paths if '_2.12' not in str(p) and '/2.12.' not in str(p)]
-              for number, path in enumerate(paths):
-                  tar.add(path, arcname='jars/%04d-%s' % (number, path.name))
-          print('Offline compiler inputs:', output.stat().st_size, 'bytes')
-          PY
       - name: Retain exact-head diagnostic evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -251,6 +251,19 @@ final class TypedSignednessAuthorityTests extends AnyFunSuite {
     }
   }
 
+  test("cast-operand evidence cannot hide unknown parent context") {
+    inNativeContext {
+      val a = sint()
+      val parent = binary(new Operator.SInt.Add {}, a, sint(2))
+      val snapshot = expressions(Vector(parent))
+      val proof = snapshot.castOperand(parent, 0)
+      val f = snapshot.validateCastOperand(parent, 0, proof)
+      assert(f.value == SignedScalar)
+      assert(f.requirements.contains(UnknownSemantics))
+      rejected("UNKNOWN-FACT")(snapshot.requireKnown(a, proof, CastOperandUse))
+    }
+  }
+
   test("deep operand and literal mutations invalidate an existing root fact") {
     inNativeContext {
       val literal = sint()
@@ -296,9 +309,9 @@ final class TypedSignednessAuthorityTests extends AnyFunSuite {
         rejected("STALE-EVIDENCE")(snapshot.validate(left, l, DeclarationUse))
         left.setWidth(saved)
       }
+      val firstWidth = HdlInt.param("WIDTH", 8, 1, 32)
+      val otherWidth = HdlInt.param("WIDTH", 8, 1, 32)
       SpinalVerilog(config)(new Component {
-        val firstWidth = HdlInt.param("WIDTH", 8, 1, 32)
-        val otherWidth = HdlInt.param("WIDTH", 8, 1, 32)
         val a = in(SInt(firstWidth bits)); val b = in(SInt(otherWidth bits))
         val x = out(SInt(firstWidth bits)); val y = out(SInt(otherWidth bits))
         x := a; y := b
@@ -383,9 +396,9 @@ final class TypedSignednessAuthorityTests extends AnyFunSuite {
         assert(p.width.isInstanceOf[Product])
         assert(snapshot.validate(vector(0), snapshot.declaration(vector(0)), DeclarationUse).value == SignedScalar)
       }
+      val width = HdlInt.param("WIDTH", 8, 1, 32)
+      val depth = HdlInt.param("DEPTH", 2, 2, 4)
       SpinalVerilog(config)(new Component {
-        val width = HdlInt.param("WIDTH", 8, 1, 32)
-        val depth = HdlInt.param("DEPTH", 2, 2, 4)
         val input = in(Vec(SInt(width bits), depth))
         val bits = input.asBits.setName("packed_value").dontSimplifyIt()
         val output = out(cloneOf(bits))
@@ -396,7 +409,7 @@ final class TypedSignednessAuthorityTests extends AnyFunSuite {
   }
 
   test("snapshot replay is deterministic and signal renaming does not provide authority") {
-    def generate(root: Path, name: String): String = {
+    def generate(root: Path, signalName: String): String = {
       var result = ""
       var input: SInt = null
       val config = SpinalConfig(targetDirectory = root.toString)
@@ -411,7 +424,7 @@ final class TypedSignednessAuthorityTests extends AnyFunSuite {
       }
       SpinalVerilog(config)(new Component {
         setDefinitionName("RenamedAuthority")
-        val a = in(SInt(8 bits)).setName(name)
+        val a = in(SInt(8 bits)).setName(signalName)
         val b = out(SInt(8 bits))
         b := a
         input = a
@@ -454,6 +467,185 @@ final class TypedSignednessAuthorityTests extends AnyFunSuite {
         }
         assert(count >= 1)
         assert(normalize(target.resolve(filename)) == normalize(baseline.resolve(filename)))
+      }
+    }
+  }
+
+  test("fixed scalar declarations and register feedback retain independent use authority") {
+    for (width <- Vector(1, 5, 8, 32)) directory { root =>
+      var input: SInt = null; var result: SInt = null; var state: SInt = null
+      val config = SpinalConfig(targetDirectory = root.toString)
+      var observed = false
+      config.phasesInserters += install { snapshot =>
+        observed = true
+        for (value <- Vector(input, result, state)) {
+          val f = snapshot.requireKnown(value, snapshot.declaration(value), DeclarationUse)
+          assert(f.value == SignedScalar)
+          assert(f.width == Fixed(width))
+          assert(f.operands.isEmpty, "declaration references must not chase feedback drivers")
+        }
+      }
+      SpinalVerilog(config)(new Component {
+        val clock = in(Bool())
+        val a = in(SInt(width bits))
+        val output = out(SInt(width bits))
+        val area = new ClockingArea(ClockDomain(clock)) {
+          val accumulator = Reg(SInt(width bits))
+          accumulator := accumulator + a
+        }
+        output := area.accumulator
+        input = a; result = output; state = area.accumulator
+      })
+      assert(observed)
+    }
+  }
+
+  test("nested Bundle geometry retains logical Vec depth instead of native capacity") {
+    directory { root =>
+      val width = HdlInt.param("WIDTH", 8, 1, 32)
+      val depth = HdlInt.param("DEPTH", 2, 2, 4)
+      var outerBundle: Bundle = null
+      var vector: Vec[SInt] = null
+      val config = SpinalConfig(targetDirectory = root.toString)
+      config.phasesInserters += install { snapshot =>
+        val p = snapshot.requireKnown(outerBundle, snapshot.aggregate(outerBundle), AggregateUse)
+        val v = snapshot.requireKnown(vector, snapshot.aggregate(vector), AggregateUse)
+        assert(p.value == UnsignedAggregate)
+        assert(v.width.isInstanceOf[Product])
+        assert(p.width == Sum(Vector(v.width, Fixed(1))))
+        val product = v.width.asInstanceOf[Product]
+        val depthKey = product.parts.head.asInstanceOf[Retained].key
+        val evidence = snapshot.aggregate(outerBundle)
+        assert(snapshot.widthSource(outerBundle, evidence, AggregateUse, depthKey) eq
+          ParameterizedVec.shapeOf(vector).get.depth)
+      }
+      SpinalVerilog(config)(new Component {
+        val input = in(new Bundle {
+          val lanes = Vec(SInt(width bits), depth)
+          val valid = Bool()
+        })
+        val dataOut = out(Bits(16 bits))
+        val validOut = out(Bool())
+        dataOut := input.lanes.asBits
+        validOut := input.valid
+        outerBundle = input; vector = input.lanes
+      })
+    }
+  }
+
+  test("unknown descendants cannot be hidden by Boolean, cast or temporary result intent") {
+    inNativeContext {
+      val unknown = new PretendSInt
+      val comparison = binary(new Operator.SInt.Smaller, unknown, sint(), 1)
+      val outer = binary(new Operator.Bool.And, comparison, new BoolLiteral(true), 1)
+      for (expression <- Vector(comparison, outer)) {
+        val snapshot = expressions(Vector(expression))
+        val f = snapshot.validate(expression, snapshot.expression(expression), ExpressionUse)
+        assert(f.value == BooleanValue)
+        assert(f.requirements.contains(UnknownSemantics))
+        rejected("UNKNOWN-FACT")(snapshot.requireKnown(expression, snapshot.expression(expression), ExpressionUse))
+        rejected("UNKNOWN-FACT")(snapshot.requireKnown(expression, snapshot.temporary(expression), TemporaryUse))
+      }
+    }
+  }
+
+  test("positive native witness does not prove a positive symbolic width domain") {
+    directory { root =>
+      val width = HdlInt.param("WIDTH", 8, 1, 32)
+      var input: SInt = null
+      val config = SpinalConfig(targetDirectory = root.toString)
+      config.phasesInserters += install { snapshot =>
+        val shrink = constant(new Operator.SInt.ShiftRightByInt(2), input, 6)
+        val analysis = expressions(Vector(shrink))
+        val proof = analysis.expression(shrink)
+        val f = analysis.validate(shrink, proof, ExpressionUse)
+        assert(f.nativeBits == 6 && f.value == SignedScalar)
+        assert(f.width.isInstanceOf[Maximum])
+        rejected("UNKNOWN-FACT")(analysis.requireKnown(shrink, proof, ExpressionUse))
+      }
+      SpinalVerilog(config)(new Component {
+        val a = in(SInt(width bits)); val b = out(SInt(width bits))
+        b := a; input = a
+      })
+    }
+  }
+
+  test("symbolic resize carries exact target authority without using destination signedness") {
+    directory { root =>
+      val width = HdlInt.param("WIDTH", 8, 1, 32)
+      var resizedValue: SInt = null; var output: SInt = null
+      val config = SpinalConfig(targetDirectory = root.toString)
+      config.phasesInserters += install { snapshot =>
+        val source = resizedValue.head.source
+        val f = snapshot.validate(source, snapshot.expression(source), ExpressionUse)
+        assert(f.rule == ResizeRule)
+        assert(f.width.isInstanceOf[Retained])
+        assert(f.nativeBits == 9)
+        assert(f.value == Unknown)
+        assert(f.requirements.contains(ResizeBoundary))
+        val target = snapshot.retainedWidths(source, snapshot.expression(source), ExpressionUse).head
+        assert(target eq ParameterizedWidth.resizeExpressionOf(source.asInstanceOf[Resize]).get)
+        assert(snapshot.validate(output, snapshot.declaration(output), DeclarationUse).value == SignedScalar)
+      }
+      SpinalVerilog(config)(new Component {
+        val a = in(SInt(width bits))
+        val b = out(SInt((width + 1) bits))
+        val widened = a.resize(width + 1).dontSimplifyIt()
+        b := widened
+        resizedValue = widened; output = b
+      })
+    }
+  }
+
+  test("late phase-plan edits cannot move signedness capture to an unvalidated boundary") {
+    directory { root =>
+      val config = SpinalConfig(targetDirectory = root.toString)
+      var observed = false
+      config.phasesInserters += install(_ => observed = true)
+      config.phasesInserters += { phases =>
+        val emission = phases.indexWhere(_.getClass == classOf[PhaseVerilog])
+        phases.insert(emission, new PhaseMisc { override def impl(pc: PhaseContext): Unit = () })
+      }
+      rejected("PHASE-PLAN") {
+        SpinalVerilog(config)(new Component {
+          val a = in(Bool()); val b = out(Bool()); b := a
+        })
+      }
+      assert(!observed)
+    }
+  }
+
+}
+
+/** Each invocation is a fresh JVM in CI. Reports are observations, never input
+  * to an emitter or a substitute for identity-bearing evidence.
+  */
+object TypedSignednessReplayArtifactWriter {
+  def main(arguments: Array[String]): Unit = {
+    require(arguments.length == 1, "expected one output directory")
+    val root = Paths.get(arguments(0)).toAbsolutePath.normalize()
+    Files.createDirectories(root)
+    for (parameterized <- Vector(false, true)) {
+      val mode = if (parameterized) "parameterized" else "fixed"
+      val file = "sint_cast_heavy_" + mode + ".v"
+      val config = SpinalConfig(targetDirectory = root.toString)
+      config.netlistFileName = file
+      var replay: String = null
+      config.phasesInserters += MorphHdlSignednessAnalysis.install { snapshot =>
+        require(snapshot.facts.nonEmpty, "analysis produced no facts")
+        replay = snapshot.replay
+      }
+      if (parameterized) MorphVerilog(config)(SIntSignedVerilogBaselineFixture.parameterized())
+      else SpinalVerilog(config)(SIntSignedVerilogBaselineFixture.fixed())
+      require(replay != null, "pre-emission signedness observer did not run")
+      Files.write(root.resolve(mode + ".signedness.txt"), replay.getBytes(StandardCharsets.UTF_8))
+      if (!parameterized) {
+        val path = root.resolve(file)
+        val text = new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
+        val normalized = text.replaceFirst(
+          "(?s)\\A// Generator :[^\\n]*\\n// Component :[^\\n]*\\n// Git hash  :[^\\n]*\\n\\n", "")
+        require(normalized != text, "missing ordinary volatile header")
+        Files.write(path, normalized.getBytes(StandardCharsets.UTF_8))
       }
     }
   }

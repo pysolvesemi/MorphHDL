@@ -122,7 +122,10 @@ object MorphHdlSignednessAnalysis {
       }
       val fact = check(subject).fact
       if (use == TemporaryUse) fact.copy(value = fact.intent,
-        requirements = (fact.requirements :+ TargetDeclarationMode).distinct) else fact
+        requirements = (fact.requirements :+ TargetDeclarationMode).distinct)
+      else if (use == CastOperandUse) fact.copy(
+        requirements = (fact.requirements ++ entry(evidence.parent).fact.requirements).distinct)
+      else fact
     }
 
     def validateCastOperand(parent: Expression, slot: Int, evidence: Evidence): Fact = {
@@ -134,10 +137,40 @@ object MorphHdlSignednessAnalysis {
       validate(operands(slot), evidence, CastOperandUse)
     }
 
+    // Positive sizing must hold throughout the retained parameter domain, not
+    // merely at the elaborated native witness. Interval bounds are deliberately
+    // conservative; an uncertain result never becomes an emission permission.
+    private def widthBounds(width: Width): Option[(BigInt, BigInt)] = {
+      def combine(parts: Vector[Width])(f: ((BigInt, BigInt), (BigInt, BigInt)) => (BigInt, BigInt))
+          : Option[(BigInt, BigInt)] = {
+        val bounds = parts.map(widthBounds)
+        if (bounds.isEmpty || bounds.exists(_.isEmpty)) None
+        else Some(bounds.map(_.get).reduce(f))
+      }
+      width match {
+        case Fixed(bits) => Some((bits, bits))
+        case Retained(key) if key >= 0 && key < widths.size =>
+          val value = widths(key)
+          Some((value.minimum, value.maximum))
+        case Sum(parts) => combine(parts) { case ((al, ah), (bl, bh)) => (al + bl, ah + bh) }
+        case Product(parts) => combine(parts) { case ((al, ah), (bl, bh)) =>
+          val products = Vector(al * bl, al * bh, ah * bl, ah * bh)
+          (products.min, products.max)
+        }
+        case Maximum(parts) => combine(parts) { case ((al, ah), (bl, bh)) => (al.max(bl), ah.max(bh)) }
+        case Minimum(parts) => combine(parts) { case ((al, ah), (bl, bh)) => (al.min(bl), ah.min(bh)) }
+        case Difference(left, right) => for (a <- widthBounds(left); b <- widthBounds(right))
+          yield (a._1 - b._2, a._2 - b._1)
+        case _ => None
+      }
+    }
+
     def requireKnown(subject: AnyRef, evidence: Evidence, use: Use): Fact = {
       val fact = validate(subject, evidence, use)
-      if (fact.value == Unknown || !resolved(fact.width) || fact.nativeBits <= 0)
-        reject("UNKNOWN-FACT", "unclassified signedness or width cannot authorize an emission decision")
+      if (fact.value == Unknown || fact.requirements.contains(UnknownSemantics) ||
+          !resolved(fact.width) || fact.nativeBits <= 0 ||
+          !widthBounds(fact.width).exists(_._1 > 0))
+        reject("UNKNOWN-FACT", "unknown semantics or non-positive/uncertain width domain cannot qualify a use")
       fact
     }
 
@@ -206,12 +239,26 @@ object MorphHdlSignednessAnalysis {
   def install(observer: Snapshot => Unit)(phases: ArrayBuffer[Phase]): Unit = {
     if (observer == null || phases == null || phases.exists(_ == null))
       reject("PHASE-PLAN", "analysis requires a non-null observer and native phase plan")
-    val emissions = phases.zipWithIndex.collect { case (_: PhaseVerilog, i) => i }
-    val checks = phases.zipWithIndex.collect { case (_: PhaseCheckCrossClock, i) => i }
-    if (emissions.size != 1 || checks.size != 1 || checks.head >= emissions.head)
-      reject("PHASE-PLAN", "analysis requires one validated pre-Verilog publication boundary")
-    phases.insert(emissions.head, new PhaseMisc {
-      override def impl(pc: PhaseContext): Unit = observer(capture(pc.topLevel))
+    def emissionIndex(): Int = {
+      if (phases.exists(_ == null)) reject("PHASE-PLAN", "native phase plan contains null")
+      val emissions = phases.zipWithIndex.collect { case (p, i) if p.getClass == classOf[PhaseVerilog] => i }
+      val checks = phases.zipWithIndex.collect { case (p, i) if p.getClass == classOf[PhaseCheckCrossClock] => i }
+      val names = phases.zipWithIndex.collect { case (p, i) if p.getClass == classOf[PhaseAllocateNames] => i }
+      if (emissions.size != 1 || checks.size != 1 || names.size != 1 ||
+          !(checks.head < names.head && names.head < emissions.head))
+        reject("PHASE-PLAN", "analysis requires validated, name-allocated, pre-Verilog publication order")
+      emissions.head
+    }
+    val boundary = emissionIndex()
+    phases.insert(boundary, new PhaseMisc {
+      override def impl(pc: PhaseContext): Unit = {
+        // Later user phase inserters must not move the observer before checking
+        // or put another transformation between it and the emitter.
+        val emission = emissionIndex()
+        if (emission <= 0 || (phases(emission - 1) ne this))
+          reject("PHASE-PLAN", "signedness observer no longer immediately precedes the emitter")
+        observer(capture(pc.topLevel))
+      }
     })
   }
 
@@ -336,8 +383,13 @@ object MorphHdlSignednessAnalysis {
         Vector(memory.wordCount), Vector(memory.parentScope))
     case aggregate: MultiData =>
       val shape = aggregate match { case vec: Vec[_] => ParameterizedVec.shapeOf(vec); case _ => None }
-      Shape(UnsignedAggregate, Aggregate, aggregate.getBitsWidth,
-        aggregate.flatten.toVector.map(_.asInstanceOf[AnyRef]),
+      // Native storage geometry is not the logical (possibly symbolic) Vec
+      // size. Keep immediate children so nested Vec/Bundle widths retain every
+      // factor instead of silently summing finite carrier capacity.
+      val nativeBits = aggregate.flatten.foldLeft(BigInt(0))((sum, leaf) => sum + leaf.getBitsWidth)
+      if (!nativeBits.isValidInt) reject("WIDTH-AUTHORITY", "aggregate native carrier width overflows Int")
+      Shape(UnsignedAggregate, Aggregate, nativeBits.toInt,
+        aggregate.elements.toVector.map(_._2.asInstanceOf[AnyRef]),
         shape.toVector.flatMap(s => Vector(s.depth) ++ s.elementLeaves.map(_.width)),
         Vector.empty, Vector(aggregate.parent))
     case expression: Expression =>
@@ -381,7 +433,8 @@ object MorphHdlSignednessAnalysis {
         case _ => Vector.empty
       }
       val owners = expression match {
-        case base: BaseType => Vector(base.component, base.parentScope, base.parent, base.component.parent)
+        case base: BaseType => Vector(base.component, base.parentScope, base.parent,
+          Option(base.component).map(_.parent).orNull)
         case port: MemPortStatement => Vector(port.mem, port.parentScope)
         case _ => Vector.empty
       }
@@ -400,7 +453,9 @@ object MorphHdlSignednessAnalysis {
     val widths = ArrayBuffer.empty[ElaborationIntegerExpression]
     def retained(value: ElaborationIntegerExpression): Width = {
       validateWidth(value)
-      if (value.parameters.isEmpty) return Fixed(value.default)
+      // Root-free generate-index expressions are not necessarily constants.
+      if (value.parameters.isEmpty && value.generateIndex.isEmpty && value.minimum == value.maximum)
+        return Fixed(value.default)
       var id = widthIndices.get(value)
       if (id == null) {
         id = java.lang.Integer.valueOf(widths.size)
@@ -469,12 +524,13 @@ object MorphHdlSignednessAnalysis {
         value = Unknown
       if (shape.rule == Reference || shape.rule == Aggregate) value = shape.kind
       val hierarchy = subject match {
-        case base: BaseType => base.isIo && (base.component.isInstanceOf[BlackBox] || base.component.parent != null)
+        case base: BaseType => base.isIo && base.component != null &&
+          (base.component.isInstanceOf[BlackBox] || base.component.parent != null)
         case _ => false
       }
       val requirements = (SignednessFacts.requirements(shape.rule) ++
         (if (hierarchy) Vector(HierarchyBoundary) else Vector.empty) ++
-        (if (value == Unknown || !resolved(width) || valueChildren.exists(_.value == Unknown))
+        (if (value == Unknown || !resolved(width) || children.exists(child => child.value == Unknown || child.requirements.contains(UnknownSemantics)))
           Vector(UnknownSemantics) else Vector.empty)).distinct
       val fact = Fact(id, shape.kind, value, shape.nativeBits, width, shape.rule, children.map(_.id), requirements)
       entries(id) = Entry(subject, shape, fact)
