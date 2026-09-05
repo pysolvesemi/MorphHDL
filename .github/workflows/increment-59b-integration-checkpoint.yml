@@ -1,0 +1,65 @@
+name: Increment 59b pinned integration checkpoint
+
+on:
+  push:
+    branches: [agent/increment-59b-parameterized-reduce-balanced-tree]
+    paths: ['.github/workflows/increment-59b-integration-checkpoint.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59b-pinned-integration
+  cancel-in-progress: false
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Merge only the pinned 60c integration and regenerate its exact native manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch='agent/increment-59b-parameterized-reduce-balanced-tree'
+          base='75e581592334e2e596f6e1043beb9596cc20a99b'
+          manifest='morphhdl/contracts/native-source-preservation.json'
+          policy='morphhdl/contracts/increment-55-native-change-review.json'
+          test "$(git ls-remote origin "refs/heads/$branch" | cut -f1)" = '${{ github.sha }}'
+          test "$(git ls-remote origin refs/heads/parameterized-verilog | cut -f1)" = "$base"
+          git config user.name 'MorphHDL 59b integration'
+          git config user.email 'integration@users.noreply.github.com'
+          if git merge-base --is-ancestor "$base" HEAD; then
+            echo 'Pinned integration is already present; nothing to change.'
+            exit 0
+          fi
+          if ! git merge --no-commit --no-ff "$base"; then
+            conflicts=$(git diff --name-only --diff-filter=U)
+            test "$conflicts" = "$manifest" || { echo 'Unexpected conflict; refusing automatic resolution'; printf '%s\n' "$conflicts"; exit 1; }
+            # This file is generated, never semantic authority. Its canonical
+            # review policy must have merged cleanly; rebuild after recording
+            # the exact combined production tree below.
+            git checkout --ours -- "$manifest"
+            git add "$manifest"
+          fi
+          test -z "$(git diff --name-only --diff-filter=U)"
+          git commit -m '59b: incorporate merged 60c and reconcile the combined native audit'
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            --generate-template "$policy" --output "$manifest" --force
+          git add "$manifest"
+          git commit --amend --no-edit
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-production-retirement.py
+          python3 morphhdl/scripts/check-increment-58-retirement.py
+          directory=$(mktemp -d)
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            --generate-template "$policy" --output "$directory/native.json"
+          cmp "$manifest" "$directory/native.json"
+          test -z "$(git status --porcelain --untracked-files=no)"
+          test "$(git ls-remote origin "refs/heads/$branch" | cut -f1)" = '${{ github.sha }}'
+          git push origin "HEAD:refs/heads/$branch"
+          printf 'Integrated source checkpoint: %s\nNo Scala or HDL qualification is claimed by this integration job. 59b remains incomplete and unmerged.\n' "$(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
