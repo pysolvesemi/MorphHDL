@@ -65,7 +65,7 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
               case _: SInt => SIntLiteral(BigInt(0), -1)
               case _ => fail("TYPE", "unsupported native bridge result type")
             }
-            next.assignFrom(literal, next, InitAssign)
+            next.initFrom(literal)
           }
           next
         } finally context.restore()
