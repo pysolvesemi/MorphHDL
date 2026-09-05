@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/increment-59b-stage-replay.yml'
       - 'morphhdl/src/**'
+      - 'morphhdl/scripts/check-increment-59b-stage-replay.py'
+      - 'morphhdl/scripts/check-increment-59b-operator-replay.py'
       - 'core/src/**'
       - 'lib/src/**'
       - 'morphruntime/src/**'
@@ -14,6 +16,8 @@ on:
     paths:
       - '.github/workflows/increment-59b-stage-replay.yml'
       - 'morphhdl/src/**'
+      - 'morphhdl/scripts/check-increment-59b-stage-replay.py'
+      - 'morphhdl/scripts/check-increment-59b-operator-replay.py'
       - 'core/src/**'
       - 'lib/src/**'
       - 'morphruntime/src/**'
@@ -82,7 +86,7 @@ jobs:
           assert hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest() == expected.lower()
           PY
           printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$dir/repositories"
-      - name: Execute all 95 required native replay and safety tests
+      - name: Execute all 95 required native replay tests and generate independent designs
         shell: bash
         run: |
           set -euo pipefail
@@ -94,6 +98,8 @@ jobs:
             -Dsbt.repository.config="$bootstrap/repositories" -Dsbt.override.build.repos=true \
             -jar "$bootstrap/sbt-launch.jar" "++${{ matrix.scala }}" \
             'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionStageReplayTests spinal.core.internals.TypedBalancedReductionClosedGraphTests spinal.core.internals.TypedBalancedReductionOperatorReplayTests spinal.core.internals.TypedBalancedReductionCaptureTests spinal.core.internals.TypedBalancedReductionCaptureSafetyTests spinal.core.internals.TypedBalancedReductionPlanTests morphhdl.ReduceBalancedTreeNativeContractTests' \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionStageArtifactWriter $output/a" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionStageArtifactWriter $output/b" \
             > "$output/sbt.log" 2>&1 || { tail -n 100 "$output/sbt.log"; exit 1; }
           python3 - <<'PY'
           from pathlib import Path
@@ -106,7 +112,14 @@ jobs:
               assert all(int(suite.get(key,'0')) == 0 for key in ('failures','errors','skipped')), (name,suite.attrib)
               print(name, suite.attrib)
           PY
-      - name: Print every actual failing test diagnostic
+      - name: Prove all 96 native stage shapes and detect an extra-cycle mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59b-stages"
+          python3 morphhdl/scripts/check-increment-59b-stage-replay.py "$output/a" "$output/b"
+          printf '%s\n' 'Concrete native stage replay: 96 shapes, 14 outputs each, reset-entry proofs, unbounded temporal induction and an extra-cycle counterexample. Parameterized COUNT publication is not claimed.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Print actual failing test and HDL diagnostics
         if: failure()
         shell: bash
         run: |
@@ -121,9 +134,15 @@ jobs:
               for case in suite.iter('testcase'):
                   for node in case:
                       if node.tag in ('failure','error'):
+                          message = node.get('message', '').replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+                          print('::error title=' + case.get('name','test') + '::' + message)
                           print('\nFAILED:', case.get('classname'), case.get('name'))
                           print(node.attrib)
                           print((node.text or '')[:6000])
+          logs = sorted(Path('target/increment-59b-stages/a/checks').rglob('*.log'), key=lambda p:p.stat().st_mtime)
+          for path in logs[-3:]:
+              print('\nHDL LOG:', path)
+              print('\n'.join(path.read_text(errors='replace').splitlines()[-100:]))
           PY
       - name: Retain exact-head evidence
         if: always()
