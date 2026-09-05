@@ -1,0 +1,52 @@
+name: Increment 59b retained closure diagnostics
+
+on:
+  push:
+    branches: [agent/increment-59b-closed-graph-validation]
+    paths: ['.github/workflows/increment-59b-closure-diagnostics.yml']
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: increment-59b-closure-2.12.18
+          run-id: 33971976517
+          github-token: ${{ github.token }}
+          repository: pysolvesemi/MorphHDL
+          path: evidence
+      - name: Show exact failing cases from the retained JUnit reports
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          root = Path('evidence')
+          head = root / 'target/increment-59b-closure/head.txt'
+          assert head.read_text().strip() == '8cb304e16fccfe5b2606c4762c95dace2989f410'
+          paths = list(root.rglob('*TypedBalancedReductionClosedGraphTests.xml'))
+          assert len(paths) == 1, paths
+          suite = ET.parse(paths[0]).getroot()
+          print('TESTED HEAD:', head.read_text().strip())
+          print('SUITE:', suite.attrib)
+          failures = 0
+          for case in suite.iter('testcase'):
+              for node in list(case):
+                  if node.tag in ('failure', 'error'):
+                      failures += 1
+                      print('\nFAILED CASE:', case.get('name'))
+                      print('DIAGNOSTIC:', node.attrib)
+                      print((node.text or '')[:16000])
+          assert failures == 2, failures
+          lines = (root / 'target/increment-59b-closure/sbt.log').read_text().splitlines()
+          for index, line in enumerate(lines):
+              if '*** FAILED ***' in line:
+                  print('\nFAILURE LOG CONTEXT:\n' + '\n'.join(lines[max(0,index-2):index+35]))
+          PY
