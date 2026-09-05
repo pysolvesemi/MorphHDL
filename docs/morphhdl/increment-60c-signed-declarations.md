@@ -128,7 +128,7 @@ sequential cell connections, not a blacklist of failed signals. Every matched
 state bit and output must still be proven, with zero unproven cells. The negative
 result mutation must also produce a genuine SAT counterexample.
 
-Local resume validation passed all 73 tests across six focused suites (12 new
+Local resume validation passed all 74 tests across six focused suites (13 new
 declaration tests, 31 signedness tests and 30 inherited front-door/handoff/BlackBox
 tests). Fresh-JVM repeated RTL was byte-identical. Strict tools and equivalence
 passed for the independent native matrix and function fixture, and the complete
@@ -136,3 +136,11 @@ sealed 60a fixture passed against the signed candidate at WIDTH=8. These local
 results are an implementation checkpoint, not a substitute for both fresh CI
 Scala lanes and the exact integrated final-head inherited gates. The completion
 checkbox remains open pending those gates.
+
+The native no-sensitivity function fallback is qualified only for exact fixed
+SInt result widths. Parameter-dependent result and literal sizing is not proved
+by changing declarations. The opt-in mode rejects that case at a native-owned
+FunctionResultDeclaration occurrence before publishing any candidate. It must
+not retain a concrete-width function beneath a symbolic output or silently
+change its implicit extension. Mode-off emission is unchanged. A regression
+checks this diagnostic and verifies that no failed candidate file is published.

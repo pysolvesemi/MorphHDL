@@ -47,6 +47,7 @@ class Tab4 extends VerilogTheme {
 object VerilogBase {
   sealed trait DeclarationRole
   case object ScalarDeclaration extends DeclarationRole
+  case object FunctionResultDeclaration extends DeclarationRole
   case object ExpressionWrapper extends DeclarationRole
   case object MemoryElementDeclaration extends DeclarationRole
 
@@ -202,6 +203,9 @@ trait VerilogBase extends VhdlVerilogBase{
 
   def emitType(e: Expression): String =
     declarationPrefix(e, ScalarDeclaration) + emitUnqualifiedType(e)
+
+  def emitFunctionType(e: BaseType): String =
+    declarationPrefix(e, FunctionResultDeclaration) + emitUnqualifiedType(e)
 
   private def emitUnqualifiedType(e: Expression): String = e.getTypeObject match {
     case `TypeBool` => ""

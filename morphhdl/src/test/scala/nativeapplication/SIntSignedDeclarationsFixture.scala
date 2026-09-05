@@ -88,6 +88,16 @@ object SIntSignedDeclarationsFixture {
     }
   }
 
+  final class ParameterizedFunctions(width: HdlInt) extends Component {
+    val transportIn = in(Bits(width bits))
+    val transportOut = out(Bits(width bits))
+    val result = out(SInt(width bits))
+    transportOut := transportIn
+    result.allowOverride
+    result := S(-1)
+    result := S(-2)
+  }
+
   final class Functions(width: HdlInt) extends Component {
     setDefinitionName("SignedFunctions")
     val transportIn = in(Bits(width bits))

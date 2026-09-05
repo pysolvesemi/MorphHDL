@@ -23,6 +23,17 @@ private[spinal] final class MorphHdlSignedDeclarationPolicy(
     if (occurrence == null || (occurrence.emitter ne emitter))
       reject("declaration occurrence belongs to another emitter")
     val fact = (occurrence.role, occurrence.subject) match {
+      case (FunctionResultDeclaration, value: BaseType) =>
+        val result = snapshot.validate(value, snapshot.declaration(value), DeclarationUse)
+        // Native constant-process functions currently retain concrete literal
+        // sizing and result-wrapper widths. Signed declarations alone cannot
+        // repair parameter-dependent return sizing. Require exact fixed width
+        // until the typed literal/resize boundary is qualified; never freeze a
+        // default witness or change implicit extension at publication.
+        if (result.intent == SignedScalar && result.width != Fixed(result.nativeBits))
+          throw new MorphHdlSignednessException("MORPH-SIGNEDNESS-FUNCTION-WIDTH-UNSUPPORTED",
+            "native constant-process SInt functions require an exact fixed result width")
+        result
       case (ScalarDeclaration, value: BaseType) =>
         snapshot.validate(value, snapshot.declaration(value), DeclarationUse)
       case (ExpressionWrapper, value: BaseType) =>

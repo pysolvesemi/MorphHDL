@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "5f3f6e64899c851a709c6f7fd2a5668e5da5123b"
+      "approved_tree": "7d4be7634d6f491fcc44b78f0d8b656708a11557"
     },
     {
       "path": "idslpayload/src/main",
@@ -1987,15 +1987,15 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
-        "blob": "aa5a4d89e70ffe190dd54b469238bdf21a351e34",
-        "sha256": "535a15a66092fe0727dd1b208b33813d99f7a59cae8488c4e0d6bd8426211b71"
+        "blob": "e60cdc9afd86088c2c9c7d01504f589040cf4ee0",
+        "sha256": "6ab65b85e09c4d1027e8a93f5d6ef3e69a4c1edcf5f82c1914764386dd1552f0"
       },
       "edits": [
         {
           "id": "signed-declaration-componentemitterverilog-1",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "Mode-gated exact declaration occurrence and unsigned transport hook; inherited expression/cast printer is unchanged.",
+          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
           "baseline_span": {
             "start": 8969,
             "end": 8969,
@@ -2010,6 +2010,52 @@
             {
               "side": "approved",
               "text": "    // A declaration policy may require a real unsigned carrier at an exact\n    // typed conversion. Keep the inherited expression/cast printers unchanged.\n    if (verilogBase.hasDeclarationPolicy) {\n      component.dslBody.walkStatements { statement =>\n        statement.walkDrivingExpressions { expression =>\n          if (verilogBase.needsUnsignedTransport(expression)) expressionToWrap += expression\n        }\n      }\n    }\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-declaration-componentemitterverilog-2",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
+          "baseline_span": {
+            "start": 29466,
+            "end": 29466,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 29894,
+            "end": 29902,
+            "sha256": "c803710302d5769d8fcd51958c516ff27f2a3c5ad9373c348d1d180c04a74624"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "Function",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-declaration-componentemitterverilog-3",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
+          "baseline_span": {
+            "start": 30427,
+            "end": 30427,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 30863,
+            "end": 30871,
+            "sha256": "c803710302d5769d8fcd51958c516ff27f2a3c5ad9373c348d1d180c04a74624"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "Function",
               "count": 1
             }
           ]
@@ -2101,15 +2147,15 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
         "mode": "100644",
-        "blob": "20d9542d203af5faf94e132d7514fc9865f799eb",
-        "sha256": "fad196fb3a8b2a3fac89ec1c914564859b821135a499411c06b85504439bdbde"
+        "blob": "803ae7958c1494506d2099f481c5b5a062b54bcd",
+        "sha256": "87b750c45321fb79bc12f5553086dedb8f63a9ccbe3eb1ebb71f0aade3a2cce6"
       },
       "edits": [
         {
           "id": "signed-declaration-verilogbase-1",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Mode-gated exact declaration occurrence and unsigned transport hook; inherited expression/cast printer is unchanged.",
+          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
           "baseline_span": {
             "start": 1997,
             "end": 1997,
@@ -2117,13 +2163,13 @@
           },
           "approved_span": {
             "start": 1997,
-            "end": 2763,
-            "sha256": "dee33f82cab37213cc6a4646ddf8586ef126dd63e68fdb37df5ceae527d43412"
+            "end": 2827,
+            "sha256": "45ede2d313418723351345ac4a45c599137762a525fdded278064d1a26eb9f86"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole\n  )\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n  }\n}\n\n",
+              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object FunctionResultDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole\n  )\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n  }\n}\n\n",
               "count": 1
             }
           ]
@@ -2132,15 +2178,15 @@
           "id": "signed-declaration-verilogbase-2",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Mode-gated exact declaration occurrence and unsigned transport hook; inherited expression/cast printer is unchanged.",
+          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
           "baseline_span": {
             "start": 2040,
             "end": 2040,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 2806,
-            "end": 4138,
+            "start": 2870,
+            "end": 4202,
             "sha256": "971376d659a29e076596bb13a3d5a5802f109a49452ef20ed3ed1fda9e8aeb75"
           },
           "required_exact_text": [
@@ -2155,15 +2201,15 @@
           "id": "signed-declaration-verilogbase-3",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Mode-gated exact declaration occurrence and unsigned transport hook; inherited expression/cast printer is unchanged.",
+          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
           "baseline_span": {
             "start": 2494,
             "end": 2494,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 4592,
-            "end": 4599,
+            "start": 4656,
+            "end": 4663,
             "sha256": "6245d2f0ea7a1d0460fbe86cbd208ad1d7d58d086f001ee42242e3e4499569c9"
           },
           "required_exact_text": [
@@ -2178,15 +2224,15 @@
           "id": "signed-declaration-verilogbase-4",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Mode-gated exact declaration occurrence and unsigned transport hook; inherited expression/cast printer is unchanged.",
+          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
           "baseline_span": {
             "start": 2808,
             "end": 2808,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 4913,
-            "end": 4920,
+            "start": 4977,
+            "end": 4984,
             "sha256": "6245d2f0ea7a1d0460fbe86cbd208ad1d7d58d086f001ee42242e3e4499569c9"
           },
           "required_exact_text": [
@@ -2201,21 +2247,21 @@
           "id": "signed-declaration-verilogbase-5",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Mode-gated exact declaration occurrence and unsigned transport hook; inherited expression/cast printer is unchanged.",
+          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
           "baseline_span": {
             "start": 6514,
             "end": 6514,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 8626,
-            "end": 8755,
-            "sha256": "5f01b1c61dc3adddc1cd45b5db64ff6f6bf1442eb487a7aaaa9b718edf3682c6"
+            "start": 8690,
+            "end": 8943,
+            "sha256": "7e252a364f85cfc8576381a9cea2fb879f7763209ea0bc0481b457e5662a6e88"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "\n    declarationPrefix(e, ScalarDeclaration) + emitUnqualifiedType(e)\n\n  private def emitUnqualifiedType(e: Expression): String =",
+              "text": "\n    declarationPrefix(e, ScalarDeclaration) + emitUnqualifiedType(e)\n\n  def emitFunctionType(e: BaseType): String =\n    declarationPrefix(e, FunctionResultDeclaration) + emitUnqualifiedType(e)\n\n  private def emitUnqualifiedType(e: Expression): String =",
               "count": 1
             }
           ]
@@ -2224,15 +2270,15 @@
           "id": "signed-declaration-verilogbase-6",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Mode-gated exact declaration occurrence and unsigned transport hook; inherited expression/cast printer is unchanged.",
+          "reason": "Mode-gated exact scalar, wrapper and function declaration occurrences; inherited expression/cast printer is unchanged.",
           "baseline_span": {
             "start": 7205,
             "end": 7232,
             "sha256": "fa2bfa4f5ea95c799ebe96586a5315bb97aa17fd79c39ce7d33a6422dca7bb9b"
           },
           "approved_span": {
-            "start": 9446,
-            "end": 9628,
+            "start": 9634,
+            "end": 9816,
             "sha256": "31edf5ff0fe4d85d963b486b8f0ca15d3788400ac28b11334541e3fb299dac49"
           },
           "required_exact_text": [

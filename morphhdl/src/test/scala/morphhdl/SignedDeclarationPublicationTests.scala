@@ -169,6 +169,21 @@ final class SignedDeclarationPublicationTests extends AnyFunSuite {
     }
   }
 
+  test("parameter-dependent native function return widths fail closed before publication") {
+    directory { root =>
+      val before = root.resolve("ordinary-function.v")
+      MorphVerilog(Writer.config(before))(new Fixture.ParameterizedFunctions(width))
+      assert(text(before).contains("function [7:0]"))
+      val after = root.resolve("signed-function.v")
+      val error = intercept[morphhdl.MorphVerilogException] {
+        MorphVerilog(MorphSignedDeclarations.enable(Writer.config(after)))(
+          new Fixture.ParameterizedFunctions(width))
+      }
+      assert(error.getMessage.contains("MORPH-SIGNEDNESS-FUNCTION-WIDTH-UNSUPPORTED"))
+      assert(!Files.exists(after))
+    }
+  }
+
   test("unsupported symbolic Bundle-memory reconstruction still fails closed in both modes") {
     directory { root =>
       for (enabled <- Vector(false, true)) {
