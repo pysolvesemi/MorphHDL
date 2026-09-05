@@ -1,0 +1,99 @@
+name: Increment 59b balanced reduction checkpoint
+
+on:
+  push:
+    branches: ['agent/increment-59b-*']
+    paths:
+      - '.github/workflows/increment-59b-reduce-balanced-tree.yml'
+      - 'morphhdl/**'
+      - 'docs/morphhdl/increment-59b*'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-59b-reduce-balanced-tree.yml'
+      - 'morphhdl/**'
+      - 'docs/morphhdl/increment-59b*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59b-checkpoint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-oracle-and-plan:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-')
+    name: Native oracle and typed plan Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Verify merged prerequisite and inherited production boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-59b
+          git archive HEAD | gzip > target/increment-59b/source.tar.gz
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('docs/morphhdl/parameterized-verilog-todo.md').read_text()
+          assert '- [x] **Increment 59a ' in text, '59a must be merged before 59b'
+          PY
+          python3 morphhdl/scripts/check-increment-58-retirement.py
+          python3 morphhdl/scripts/check-production-retirement.py
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          python3 morphhdl/scripts/check-increment-59b-native-oracle.py --self-test
+      - name: Execute native semantic contracts and typed geometry tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59b"
+          sbt -batch "++${{ matrix.scala }}" \
+            "morph/Test/testOnly morphhdl.ReduceBalancedTreeNativeContractTests spinal.core.internals.TypedBalancedReductionPlanTests" \
+            "morph/Test/runMain nativeapplication.ReduceBalancedTreeNativeOracleArtifactWriter $output/a" \
+            "morph/Test/runMain nativeapplication.ReduceBalancedTreeNativeOracleArtifactWriter $output/b" \
+            > "$output/sbt.log" 2>&1 || { tail -n 180 "$output/sbt.log"; exit 1; }
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for name in ('ReduceBalancedTreeNativeContractTests', 'TypedBalancedReductionPlanTests'):
+              paths = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
+              assert len(paths) == 1, 'missing or ambiguous suite: ' + name
+              suite = ET.parse(paths[0]).getroot()
+              assert int(suite.get('tests', '0')) == 8, 'incomplete suite: ' + name
+              assert all(int(suite.get(k, '0')) == 0 for k in ('failures', 'errors', 'skipped')), suite.attrib
+              print(name, suite.attrib)
+          PY
+          tail -n 20 "$output/sbt.log"
+      - name: Qualify concrete native oracles - not typed-candidate formal proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-59b-native-oracle.py \
+            "$GITHUB_WORKSPACE/target/increment-59b/a" \
+            "$GITHUB_WORKSPACE/target/increment-59b/b"
+      - name: Retain exact-head checkpoint evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59b-checkpoint-${{ matrix.scala }}
+          path: |
+            target/increment-59b
+            morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 30
