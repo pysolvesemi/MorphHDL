@@ -30,9 +30,7 @@ private[spinal] final case class UnvalidatedBalancedReduction[T <: Data](
     result: T,
     rows: Vector[UnvalidatedBalancedRow]
 ) {
-  /** Fail closed while this record still lacks a separately checked replay
-    * certificate. It cannot be promoted by setting a Boolean or naming a body.
-    */
+  /** A graph record alone cannot authorize parameterized publication. */
   def requireReplayCertificate(): Nothing =
     throw new IllegalArgumentException(
       "MORPH-REDUCE-BALANCED-REPLAY-UNVALIDATED: native callback capture is not a replay certificate"
@@ -61,18 +59,27 @@ private[spinal] object TypedBalancedReductionCapture {
     Snapshot(declarations.toVector, assignments.toVector, owner.children.toVector)
   }
 
-  /** Consume only identity-owned shape and the exact native reducer supplied
-    * by the helper. The full capacity is an audited construction carrier, never
-    * the emitted count or a reconstructed symbolic value.
+  /** Retain the original four-argument internal entry point. */
+  def apply[T <: Data](
+      vector: Vec[T], op: (T, T) => T, levelBridge: (T, Int) => T,
+      native: ElabBalancedReduction.Native[T]
+  ): UnvalidatedBalancedReduction[T] =
+    apply(vector, op, levelBridge, native, (_: UnvalidatedBalancedCallback) => ())
+
+  /** Observe a completed callback before the native helper invokes another.
+    * The observer must not construct RTL or replay the Scala callback. This
+    * seam lets the closed-graph validator freeze mutable expression children
+    * as well as the shallow assignment identities retained below.
     */
   def apply[T <: Data](
       vector: Vec[T],
       op: (T, T) => T,
       levelBridge: (T, Int) => T,
-      native: ElabBalancedReduction.Native[T]
+      native: ElabBalancedReduction.Native[T],
+      onCallback: UnvalidatedBalancedCallback => Unit
   ): UnvalidatedBalancedReduction[T] = {
-    if (vector == null || op == null || levelBridge == null || native == null)
-      fail("CAPTURE-NULL", "vector and native callbacks must be non-null")
+    if (vector == null || op == null || levelBridge == null || native == null || onCallback == null)
+      fail("CAPTURE-NULL", "vector, native callbacks and observer must be non-null")
     val shape = ParameterizedVec.shapeOf(vector).getOrElse {
       fail("CAPTURE-SHAPE-MISSING", "the exact Vec receiver has no retained typed shape")
     }
@@ -99,9 +106,7 @@ private[spinal] object TypedBalancedReductionCapture {
           fail("CAPTURE-SHAPE-CHANGED", "a carrier leaf lost its exact owner, type, path or width authority")
       }
     }
-
     validateInputShape()
-
     val rows = ArrayBuffer.empty[UnvalidatedBalancedRow]
     var ordinal = 0
     var pending: Option[UnvalidatedBalancedCallback] = None
@@ -131,6 +136,7 @@ private[spinal] object TypedBalancedReductionCapture {
         fail("CALLBACK-EXTERNAL-WRITE", "a callback assigned an input or another pre-existing signal")
       validateInputShape()
       val captured = UnvalidatedBalancedCallback(ordinal, operands, result, declarations, assignments)
+      onCallback(captured)
       ordinal += 1
       captured
     }
@@ -157,8 +163,7 @@ private[spinal] object TypedBalancedReductionCapture {
     if (pending.nonEmpty)
       fail("NATIVE-ORDER", "native reduction returned before bridging an operator result")
 
-    // Validate topology using exact original element and callback identities.
-    // This checks evidence; it neither evaluates nor reimplements the operator.
+    // Check evidence by identity; do not evaluate or reimplement the operator.
     var prior = vector.vec.map(_.asInstanceOf[Data])
     var consumed = 0
     plan.stages.foreach { stage =>
