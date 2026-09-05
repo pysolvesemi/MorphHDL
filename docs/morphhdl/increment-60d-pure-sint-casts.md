@@ -1,7 +1,7 @@
 # Increment 60d — Pure-`SInt` redundant cast elimination
 
-Status: implementation under qualification. 60d and parent Increment 60 remain
-unchecked until the exact-head review and required gates pass.
+Status: 60d qualified. Pure-`SInt` cast cleanup remains an explicit opt-in.
+Parent Increment 60 and children 60e through 60g remain unchecked.
 
 ## Explicit mode and unchanged defaults
 
@@ -71,7 +71,7 @@ Literals, Bits/UInt conversions, selection, concatenation, replication, muxes,
 resize and equality do not become pure just because their result is an SInt.
 Those parent expressions keep their existing operand casts. The 60c unsigned
 transport wrappers remain authoritative for SInt-to-Bits/UInt consumers.
-A independently declared scalar SInt still owns its signed interpretation; it
+An independently declared scalar SInt still owns its signed interpretation; it
 is not conflated with an inline conversion expression.
 
 Existing unsupported settings remain unsupported. In particular,
@@ -126,3 +126,70 @@ reverses only those edits before enforcing its original unchanged-printer rule.
 The inherited native-change review and schema-2 source manifest pin all native
 byte spans and unchanged intervals. No library algorithm, native configuration
 signature, VHDL path or compiler transform is changed.
+
+
+## Qualified implementation and retained evidence
+
+Implementation head: `c3681b248466ac984063b1e25a4ed37e5d7c0217`, based on merged
+60c at `75e581592334e2e596f6e1043beb9596cc20a99b`, in PR #159. The implementation
+tree is `3f37b275e99c89ed5f53cddff668bab18af20066`. This completion change is
+documentation-only; it does not change executable source, fixtures, the sealed
+oracle, proof settings, tool pins or the qualified native-change manifest.
+
+[Dedicated qualification run 33970434538](https://github.com/pysolvesemi/MorphHDL/actions/runs/33970434538)
+passed both Scala 2.12.18 and 2.13.12 lanes. Each lane passed all 87 tests across
+seven suites, with zero failures, errors or skipped tests:
+
+| Suite | Tests per Scala lane |
+| --- | ---: |
+| Pure SInt cast cleanup | 13 |
+| Signed declaration publication | 13 |
+| Typed signedness authority | 26 |
+| Signedness resume and stale-evidence checks | 5 |
+| Single-source Verilog | 14 |
+| Canonical IR handoff | 12 |
+| Typed BlackBox generic binding | 4 |
+
+All 29 generated Verilog files are byte-identical between fresh JVM runs and
+between the two Scala lanes. The pure fixture contains zero `$signed` calls,
+compared with 53 in its feature-disabled reference. Boundary and full-baseline
+fixtures retain necessary casts and contain no nested `$signed($signed(...))`
+pattern. This is checked alongside, not instead of, functional equivalence.
+
+Strict Icarus Verilog-2001 parsing and simulation, Verilator lint and Yosys
+synthesis pass. One parameterized candidate is specialized without regeneration
+and proved equivalent to independently elaborated native references at WIDTH
+1, 5, 8 and 32. The same external nonzero-divisor mapping is used on both sides.
+The retained boundary fixture and inherited declaration/memory fixture also
+pass independent-reference equivalence at all four widths. The full sealed
+60a fixture is regenerated unchanged and passes its original checks plus
+cleanup-enabled equivalence under the same memory and external-module contract.
+
+The negative-result, quotient and intermediate-width mutations each produce a
+genuine SAT counterexample. The width mutation specifically detects an illegal
+widening of a WIDTH-bit sum before multiplication; no parser failure, timeout
+or tool error is treated as successful mutation detection.
+
+Artifact ZIP SHA-256 digests were checked against GitHub metadata:
+
+| Scala lane | Artifact ID | SHA-256 |
+| --- | --- | --- |
+| 2.12.18 | 9970838991 | `42108e9b3b93cc530ed6dd1a0fc1db8d771cb2baddbcd381020f1a0f555e293f` |
+| 2.13.12 | 9970866471 | `1b1b08e94a1678ca0904d4dd445a85d9474b0e6054452aa1e1ee5edd85feebcb` |
+
+Both source archives identify the exact implementation head. Restoring the
+recorded CocotbLib submodule entry reproduces the implementation tree above
+exactly. Test XML, generated RTL, proof logs and all three counterexample logs
+were checked in both artifacts; no older compiler bundle is used as evidence
+of current-source compilation.
+
+All 31 executed pull-request workflows at the implementation head passed;
+seven other workflows were skipped by their existing scope conditions and are
+not counted as passing tests. Both push-triggered workflows also passed. These
+include the inherited baseline, Mill, native source audits, signed-declaration
+qualification and native StreamFifo formal gates. The documentation-only
+completion head must pass its own fresh applicable checks before merge.
+
+The next child is 60e, signedness boundaries, aggregates and hierarchy closure.
+No default rollout, unsupported-boundary relaxation or parent Increment 60
+completion is claimed here.

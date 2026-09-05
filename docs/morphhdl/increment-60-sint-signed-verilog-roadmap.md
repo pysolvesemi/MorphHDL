@@ -1,6 +1,6 @@
 # Increment 60 — Native signed `SInt` Verilog roadmap
 
-**Status:** 60a through 60c qualified; 60d through 60g remain unchecked.
+**Status:** 60a through 60d qualified; 60e through 60g remain unchecked.
 
 The frozen rules and baseline limits are in [the signedness contract](increment-60-signedness-contract.md).
 
@@ -35,8 +35,10 @@ At that baseline, parameterized `SInt` widths were retained, but native Verilog
 signedness was not. Increment 60c now provides explicit opt-in signed
 declarations through `MorphSignedDeclarations.enable(config)`, with the
 [qualified scope and retained boundaries](increment-60c-signed-declarations.md)
-documented separately. Existing expression casts remain unchanged; removing
-redundant or nested `$signed(...)` calls is still Increment 60d.
+documented separately. Declaration-only mode retains existing expression casts.
+Increment 60d adds separately enabled pure-`SInt` cast cleanup through
+`MorphSignedCasts.enable(config)`, with the [exact removal rule and qualification](increment-60d-pure-sint-casts.md).
+Neither mode is enabled by default.
 
 ## Goal
 
@@ -168,7 +170,7 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   fails closed until the later literal/resize boundary is qualified. This does
   not close 60d cast elimination or 60e aggregate/boundary work.
 
-- [ ] **Increment 60d — Pure-`SInt` redundant cast elimination**
+- [x] **Increment 60d — Pure-`SInt` redundant cast elimination**
 
   **Dependencies:** Increment 60c implemented and merged.
 
@@ -185,6 +187,17 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   `$signed($signed(...))` pattern. These checks must complement, not replace,
   semantic equivalence. Division/remainder proofs must constrain the divisor to
   non-zero where the language result is otherwise undefined.
+
+  Implemented and qualified by the [pure-`SInt` cast policy](increment-60d-pure-sint-casts.md).
+  Both Scala lanes pass all 87 tests across seven suites, with 29 byte-identical
+  generated files across fresh JVMs and compiler lanes. The pure fixture drops
+  from 53 casts to zero while preserving native intermediate-width wrappers.
+  Strict Verilog-2001 parsing, simulation, lint, synthesis and independent
+  WIDTH 1/5/8/32 equivalence pass, including nonzero-divisor proofs, retained
+  boundary and memory checks, the immutable 60a oracle and three genuine
+  mutation counterexamples. Cleanup remains opt-in; unsupported symbolic signed
+  widening and `cutLongExpressions=false` still fail closed. This does not close
+  60e boundary minimization or the 60f/60g rollout gates.
 
 - [ ] **Increment 60e — Signedness boundaries, aggregates and hierarchy closure**
 
