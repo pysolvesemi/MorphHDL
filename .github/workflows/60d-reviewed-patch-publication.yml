@@ -1,0 +1,57 @@
+name: Publish reviewed 60d patch
+on:
+  push:
+    branches: [agent/60d-reviewed-patch-publication]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact patch, regenerate native manifest, publish feature branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import lzma, hashlib, os
+          data = b''.join(Path('.github/60d-transport/part%d.xz' % n).read_bytes() for n in range(3))
+          patch = lzma.decompress(data)
+          assert hashlib.sha256(patch).hexdigest() == '82dd143ffa8960a7c9090d14dab5258ab5644272ffe648337a0be33f75ca8dba'
+          Path(os.environ['RUNNER_TEMP'], 'reviewed60d.patch').write_bytes(patch)
+          PY
+          branch=agent/increment-60d-pure-sint-casts
+          git fetch origin "$branch"
+          test "$(git rev-parse FETCH_HEAD)" = 75e581592334e2e596f6e1043beb9596cc20a99b
+          git checkout -B "$branch" FETCH_HEAD
+          git apply --check "$RUNNER_TEMP/reviewed60d.patch"
+          git apply --index "$RUNNER_TEMP/reviewed60d.patch"
+          git config user.name 'Kartik Parmar'
+          git config user.email 'pysolvesemi@users.noreply.github.com'
+          git commit -m 'Implement Increment 60d pure-SInt redundant cast elimination'
+          python3 morphhdl/scripts/check-native-source-preservation.py --generate-template morphhdl/contracts/increment-55-native-change-review.json --output morphhdl/contracts/native-source-preservation.json --force
+          git add -f morphhdl/contracts/native-source-preservation.json
+          git commit --amend --no-edit
+          python3 morphhdl/scripts/check-increment-60d-pure-sint-casts.py --source-only
+          python3 morphhdl/scripts/check-increment-60c-signed-declarations.py --source-only
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-increment-58-retirement.py
+          python3 morphhdl/scripts/check-production-retirement.py
+          git diff --check HEAD^ HEAD
+          git push origin "HEAD:refs/heads/$branch"
+          mkdir -p target/60d-publication
+          git archive HEAD | gzip > target/60d-publication/source.tar.gz
+          git rev-parse HEAD > target/60d-publication/head.txt
+          git bundle create target/60d-publication/source.bundle HEAD refs/remotes/origin/parameterized-verilog
+          cat target/60d-publication/head.txt >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 60d-exact-source-publication
+          path: target/60d-publication
+          retention-days: 7
+          if-no-files-found: ignore
