@@ -140,6 +140,10 @@ jobs:
           python3 morphhdl-passes/scripts/check-wa07-expression-pass.py --self-test
           python3 morphhdl-passes/scripts/check-wa07-expression-pass.py
 
+      - name: Verify formal-model signatures before expensive jobs
+        shell: bash
+        run: python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+
       - name: Test pending-proof activation and bounded deterministic scheduling
         shell: bash
         run: python3 morphhdl-passes/scripts/test_wire_assignment_equivalence.py -v
