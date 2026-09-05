@@ -1607,7 +1607,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       .getOrElse(return verilog)
 
     val portPattern =
-      "^(\\s*)(.*?)(input|output|inout)\\s+(wire|reg|logic)\\s*(\\[[^\\]]+\\])?\\s*([A-Za-z_][A-Za-z0-9_$]*)(.*?)(?:,)?\\s*$".r
+      "^(\\s*)(.*?)(input|output|inout)\\s+(wire|reg|logic)\\s*((?:signed\\s+)?\\[[^\\]]+\\])?\\s*([A-Za-z_][A-Za-z0-9_$]*)(.*?)(?:,)?\\s*$".r
     val parsedPorts = lines.slice(portStart, portEnd).filter(_.trim.nonEmpty).map {
       case portPattern(indent, syntax, direction, net, range, name, suffix) =>
         RenderedDeclaration(
@@ -1665,7 +1665,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       case _ =>
     }
     val signalPattern =
-      "^(\\s*)(.*?)(wire|reg|logic)\\s*(\\[[^\\]]+\\])?\\s*([A-Za-z_][A-Za-z0-9_$]*)(.*?)\\s*;\\s*$".r
+      "^(\\s*)(.*?)(wire|reg|logic)\\s*((?:signed\\s+)?\\[[^\\]]+\\])?\\s*([A-Za-z_][A-Za-z0-9_$]*)(.*?)\\s*;\\s*$".r
     val signalSlots = lines.zipWithIndex.collect {
       case (signalPattern(indent, syntax, net, range, name, suffix), index)
           if index > portEnd && declarationNames.contains(name) =>
