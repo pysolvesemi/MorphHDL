@@ -1,39 +1,56 @@
-name: WA-07a exact failed-run logs
+name: WA-07a checked native artifact paths
 on:
   push:
     branches: [agent/wa-07a-exact-head-audit]
 permissions:
-  contents: read
-  actions: read
+  contents: write
 jobs:
-  export:
+  stage:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Retain exact run metadata and original log bytes
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
+      - uses: actions/checkout@v4
+      - name: Decode exact reviewed runner-path repair
+        run: |
+          python3 - <<'PY'
+          import base64,hashlib,lzma,os
+          from pathlib import Path
+          data=lzma.decompress(base64.b64decode(Path('runner-paths.patch.b64').read_text(),validate=True))
+          assert hashlib.sha256(data).hexdigest()=='cbcd090206737badee4f4fc73f5a082a212cb06c86dcbc50d52f41d2ea148546'
+          Path(os.environ['RUNNER_TEMP'],'runner-paths.patch').write_bytes(data)
+          PY
+      - uses: actions/checkout@v4
+        with:
+          ref: 4a837130f817c61d7ee28d598212a62449285f22
+          fetch-depth: 0
+      - name: Apply isolated repair and test both working directories plus mutation
         run: |
           set -euo pipefail
-          mkdir -p diagnostics
-          curl --fail --silent --show-error -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' \
-            https://api.github.com/repos/pysolvesemi/MorphHDL/actions/runs/33974810909 > diagnostics/run.json
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          run=json.loads(Path('diagnostics/run.json').read_text())
-          assert run['head_sha']=='e682b73f1f6764cd9c47fb9d7364b44c0ba12ba0',run['head_sha']
-          assert run['status']=='completed',run['status']
-          PY
-          curl --fail --silent --show-error -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' \
-            https://api.github.com/repos/pysolvesemi/MorphHDL/actions/runs/33974810909/jobs > diagnostics/jobs.json
-          curl --fail --silent --show-error --location -H "Authorization: Bearer ${GH_TOKEN}" -H 'Accept: application/vnd.github+json' \
-            https://api.github.com/repos/pysolvesemi/MorphHDL/actions/runs/33974810909/logs > diagnostics/run-logs.zip
-          sha256sum diagnostics/run-logs.zip > diagnostics/sha256.txt
+          git apply --check "$RUNNER_TEMP/runner-paths.patch"
+          git apply --index "$RUNNER_TEMP/runner-paths.patch"
+          test "$(git write-tree)" = fa32756ae7eeaada65962a7ea5d93a100f2feac6
+          test "$(git diff --cached --name-only | wc -l)" -eq 4
+          for script in morphhdl-passes/scripts/check-wa*.py; do
+            python3 "$script" --self-test
+            python3 "$script"
+          done
+          python3 morphhdl-passes/scripts/test_wire_assignment_equivalence.py -v
+          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+          bash -n morphhdl-passes/scripts/run-wa07a-regression.sh
+          git diff --cached --check
+          git config user.name pysolvesemi
+          git config user.email pysolvesemi@gmail.com
+          git commit -m 'fix(passes): use absolute native proof paths across SBT fork working directories'
+          mkdir -p runner-path-result
+          git rev-parse HEAD > runner-path-result/commit.txt
+          git rev-parse HEAD^ > runner-path-result/parent.txt
+          git rev-parse HEAD^{tree} > runner-path-result/tree.txt
+          git show --stat --oneline HEAD > runner-path-result/changes.txt
+          git push origin HEAD:refs/heads/agent/wa-07a-runner-path-stage
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: wa07a-e682-original-logs
-          path: diagnostics
+          name: wa07a-runner-path-repair
+          path: runner-path-result
           if-no-files-found: error
-          retention-days: 3
+          retention-days: 7
