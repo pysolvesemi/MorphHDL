@@ -141,9 +141,9 @@ final class SignedDeclarationPublicationTests extends AnyFunSuite {
         finally input.setWidth(before)
       }
       SpinalVerilog(config)(new Component {
-        input = in(SInt(5 bits)).setName("input")
-        val output = out(SInt(5 bits))
-        output := input
+        input = in(SInt(5 bits)).setName("signed_input")
+        val copiedOut = out(SInt(5 bits))
+        copiedOut := input
       })
     }
   }

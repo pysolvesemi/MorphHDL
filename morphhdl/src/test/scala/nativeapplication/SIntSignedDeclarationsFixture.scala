@@ -75,15 +75,15 @@ object SIntSignedDeclarationsFixture {
   final class Surfaces(width: HdlInt) extends Component {
     setDefinitionName("SignedSurfaces")
     val clk = in(Bool())
-    val input = in(SInt(width bits))
-    val output = out(SInt(width bits))
+    val signedInput = in(SInt(width bits))
+    val signedOutput = out(SInt(width bits))
     val analogPort = inout(Analog(SInt(width bits)))
     val enable = in(Bool())
     val address = in(UInt(1 bits))
     val packedMemoryOut = out(Bits(width bits))
     val scalarMemoryOut = out(SInt(width bits))
     val constantOutput = out(SInt(5 bits))
-    output := input
+    signedOutput := signedInput
     // A real constant-driven process exercises the native function fallback.
     constantOutput := S(-1, 5 bits)
     when(True) { constantOutput := S(-2, 5 bits) }
@@ -91,11 +91,11 @@ object SIntSignedDeclarationsFixture {
       val packedMemory = Mem(new Bundle { val value = SInt(width bits) }, wordCount = 2)
         .setName("bundle_memory")
       val word = cloneOf(packedMemory.wordType())
-      word.value := input
+      word.value := signedInput
       packedMemory.write(address, word, enable)
       packedMemoryOut := packedMemory.readSync(address, enable).asBits
       val scalarMemory = Mem(SInt(width bits), wordCount = 2).setName("scalar_memory")
-      scalarMemory.write(address, input, enable)
+      scalarMemory.write(address, signedInput, enable)
       scalarMemoryOut := scalarMemory.readSync(address, enable)
     }
   }

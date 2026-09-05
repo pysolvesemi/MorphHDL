@@ -11,10 +11,8 @@ import scala.collection.mutable.ArrayBuffer
   * MorphVerilog(MorphSignedDeclarations.enable(config)) { new Design(...) }
   */
 object MorphSignedDeclarations {
-  private object Enabled
-
   def isEnabled(config: SpinalConfig): Boolean =
-    config != null && config.flags.contains(Enabled)
+    config != null && config.phasesInserters.contains(installer)
 
   private def install(phases: ArrayBuffer[Phase]): Unit = {
     val emitters = phases.collect { case phase: PhaseVerilog => phase }
@@ -36,15 +34,15 @@ object MorphSignedDeclarations {
     val flags = config.flags.clone()
     val inserters = config.phasesInserters.clone()
     if (!inserters.contains(installer)) inserters += installer
-    flags += Enabled
     config.copy(flags = flags, phasesInserters = inserters)
   }
 
   def disable(config: SpinalConfig): SpinalConfig = {
     require(config != null, "SpinalConfig must not be null")
     val flags = config.flags.clone()
-    flags -= Enabled
-    config.copy(flags = flags, phasesInserters = config.phasesInserters.clone())
+    val inserters = config.phasesInserters.clone()
+    inserters -= installer
+    config.copy(flags = flags, phasesInserters = inserters)
   }
 
   private val installer: ArrayBuffer[Phase] => Unit = install _
